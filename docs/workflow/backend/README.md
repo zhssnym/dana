@@ -69,8 +69,9 @@ says what a stranger gets**. The sweep cannot tell that you thought about either
 you did both. It is also **path-only** — an id you take from the query string or the body is
 invisible to it, and `GET /events?folder=` is the existing example — and one level deep, so a
 router mounted inside another router would leave it proving less than it says while staying
-green. One finding is open under it and is recorded in 12.23: `DELETE /api/v1/files/:id`
-answers 404 where 10.2 wants 403, to a member who can read the same file at 200.
+green. **It found one defect on its first run**, fixed the same day: `DELETE /api/v1/files/:id`
+answered 404 where 10.2 wants 403, to a member who reads the same file at 200 (AC-398, and
+7.15's dated amendment).
 
 **The structural guard covers authentication, on every method, and authorization on none.**
 `app/tests/ac-236-structural-guard-sweep.test.ts` walks the mounted router and fails any

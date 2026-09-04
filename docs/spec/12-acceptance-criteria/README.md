@@ -29,11 +29,15 @@ default, so read this list before spending one.
   it counted 229; the five ranges are twenty-nine numbers. Corrected on the branch for issues
   #20 and #100, which read this list to choose AC-368, rather than left for whoever spent 229
   a second time and found out from a duplicate test filename.
-- **AC-397 was taken from the tail on 2026-09-04** (issue #74), on the rule four bullets
-  below, and it is the authorization sweep: every route on the mounted router whose path
-  carries a parameter, driven as a person with no relationship to the row that id names. It
-  is 12.23's, beside AC-236, which made the *session* half of 10.2 structural and left this
-  half resting on people remembering. The number is well past AC-374 rather than next to it
+- **AC-397 and AC-398 were taken from the tail on 2026-09-04** (issue #74), on the rule four
+  bullets below. AC-397 is the authorization sweep: every route on the mounted router whose
+  path carries a parameter, driven as a person with no relationship to the row that id names.
+  It is 12.23's, beside AC-236, which made the *session* half of 10.2 structural and left this
+  half resting on people remembering. **AC-398 is the one defect that sweep found**, and it is
+  12.15's because it is about files: `DELETE /api/v1/files/:id` answered 404 to a member who
+  reads the same bytes at 200, where 10.2 asks for 403. The two are adjacent because the
+  second was written the night the first found the thing it asserts. The numbers are well
+  past AC-374 rather than next to them
   because several branches were open that night and each was assigned a block of the tail, so
   the run below 397 is a range allocated ahead of the work in the ordinary way and not a set
   of free numbers. **The count above and the per-file counts in the table below are

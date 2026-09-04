@@ -302,14 +302,50 @@ export async function serveFile(
   }
 }
 
-/** 7.15: uploader or folder owner deletes; everyone else meets not-found,
- * ownership being invisible to those without it (10.2). */
+export type DeleteFileResult = 'deleted' | 'forbidden' | 'not_found'
+
+/*
+7.15: uploader or folder owner deletes. **Everyone else meets one of two
+answers and not one, corrected 2026-09-04 under issue #74.**
+
+This function used to answer `not_found` for every caller the DELETE did not
+match, under a comment saying "ownership being invisible to those without it
+(10.2)". That reading was right about half its callers and wrong about the
+other half, and 10.2 draws the line the other way: *inaccessible* resources
+answer 404 to avoid an existence leak, and *permitted-visibility but
+forbidden-action* answers 403. A member of the folder who did not upload the
+file can read the same bytes at 200 through `serveFile` a few lines up, so
+there is nothing left to leak — they have already been told the file exists,
+by being handed it. AC-397's authorization sweep is what found this; it drove
+`GET /files/:id` at 200 and `DELETE /files/:id` at 404 for one caller on one
+file. `deleteComment` in `domain/comments.ts` is the same shape and has always
+answered 403.
+
+So the fault was never the rule, which is 7.15's and unchanged: the same
+people delete the same files as before, and no caller who was refused is now
+admitted. What moved is which refusal they hear, and it moved toward 10.2's
+own grammar rather than away from it, which is why the owner ruled it a
+correction rather than a change to frozen 7.15.
+
+**The readability check runs only when the delete removed nothing**, so the
+ordinary path costs exactly the one statement it always did. It is
+`readableFileScope`, the predicate `serveFile` uses, imported rather than
+restated for the reason `domain/covers.ts` records at length: a second copy of
+this scope diverged once already and admitted a file it should not have.
+Asking the same predicate is what makes "readable" here mean what it means
+there, and a 403 that disagreed with the GET beside it would be a worse defect
+than the 404 this replaces.
+
+Both reads sit inside the one transaction, so a file deleted by somebody else
+between the two statements answers `not_found` rather than a 403 about a row
+that no longer exists.
+*/
 export async function deleteFile(
   db: Db,
   store: ObjectStore,
   viewerId: string,
   fileId: string,
-): Promise<'deleted' | 'not_found'> {
+): Promise<DeleteFileResult> {
   const outcome = await inTransaction(db, async (tx) => {
     const removed = await rowsOf(
       tx,
@@ -323,7 +359,13 @@ export async function deleteFile(
             )
           RETURNING f.id`,
     )
-    return removed.length > 0 ? ('deleted' as const) : ('not_found' as const)
+    if (removed.length > 0) return 'deleted' as const
+    const readable = await rowsOf(
+      tx,
+      sql`SELECT f.id FROM files f
+          WHERE f.id = ${fileId} AND ${readableFileScope(viewerId)}`,
+    )
+    return readable.length > 0 ? ('forbidden' as const) : ('not_found' as const)
   })
   if (outcome === 'deleted') await store.remove(fileId)
   return outcome

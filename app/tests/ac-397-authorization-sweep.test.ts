@@ -838,9 +838,7 @@ const TABLE = new Map<string, Row>([
       stranger: { expected: 404, rule: '7.15, as the read above' },
       member: {
         expected: 403,
-        rule: '7.15 gives the delete to "uploader or folder owner", and this member is neither. 10.2 then fixes the status rather than 7.15: the member reads the same file at 200 through GET /files/:id, so visibility is permitted and the forbidden act is 403. DELETE /comments/:id one router over is this exact shape and answers 403',
-        known:
-          'answers 404 today. `deleteFile` in domain/files.ts asks one question — did the DELETE ... WHERE owner_id = viewer OR folder owner remove a row — and cannot tell "no such file you can see" from "a file you can see and may not delete", so the route has nothing to map to a 403. It is not a missing gate: the gate is right and 7.15\'s rule is enforced. It is 10.2\'s grammar, on a section 7 endpoint, and section 7 is frozen, so the status is the owner\'s to move and not this sweep\'s. Reported under issue #74',
+        rule: '7.15 gives the delete to "uploader or folder owner", and this member is neither. 10.2 fixes the status rather than 7.15: the member reads the same file at 200 through GET /files/:id, so visibility is permitted and the forbidden act is 403. DELETE /comments/:id one router over is this exact shape and answers 403. **This row is the one finding the sweep turned up**: it answered 404 when this file was written and was held here as a `known` variant, and the owner ruled the correction in on 2026-09-04 as a move toward 10.2 rather than a change to frozen 7.15. AC-398 is the direct case and 7.15 carries the annotation',
       },
     },
   ],
@@ -1246,19 +1244,26 @@ describe('AC-397 every id-bearing route refuses a stranger', () => {
   })
 
   /*
-  The findings this sweep turned up that are not its to fix, asserted at what
-  the spec requires rather than at what the code does.
+  The register of findings this sweep turned up that were not its to fix.
 
-  **`test.fails` and not a skip**, because a skip records a decision and stops
-  measuring, and the whole difficulty with authorization here is that nothing
-  measures. This block is green only while the defect stands; the day it is
-  closed the block goes red, naming the variant to promote back into the pass
-  above. **And nothing here is weakened to get there:** `expected` on a known
-  variant is the status the rule requires, not the one observed, so promoting
-  it is deleting one field.
+  **It is empty as of 2026-09-04 and the machinery stays.** The one entry it
+  ever held was `DELETE /api/v1/files/:id`, which answered 404 to a member who
+  reads the same bytes at 200; the owner ruled the correction in the same day
+  as a move toward 10.2's stated grammar rather than a change to frozen 7.15,
+  so the variant was promoted into the member pass above and AC-398 now asserts
+  the pair directly. What is left is the shape for the next one, because a
+  sweep that can only record findings it is allowed to fix is a sweep that will
+  one day be quietly narrowed to fit.
 
-  One entry as of 2026-09-04, on `DELETE /api/v1/files/:id`, and its `known`
-  string carries the whole of it.
+  **Written as a manual inversion rather than as `test.fails`, and the empty
+  register is exactly why.** `test.fails` passes when its body throws, so with
+  no entries the assertion inside would pass and the block would go red for
+  having nothing to do — a red that means nothing and that the next person
+  deletes. This asserts the finding is *still open*, which is vacuously true of
+  an empty register and false the moment one is closed. Either way the message
+  says what to do, and `expected` on a `known` variant stays the status the
+  rule requires rather than the one observed, so promoting one is deleting one
+  field.
   */
   const known = [...TABLE.entries()].flatMap(([key, row]) =>
     [row.stranger, row.member]
@@ -1266,32 +1271,26 @@ describe('AC-397 every id-bearing route refuses a stranger', () => {
       .map((variant) => ({ key, row, variant })),
   )
 
-  test.fails(
-    'the known findings still behave as their entries describe',
-    async () => {
-      const fx = await fixturesOf()
-      const failures: string[] = []
+  test('every known finding is still open, or says so', async () => {
+    if (known.length === 0) return
+    const fx = await fixturesOf()
+    const closed: string[] = []
 
-      for (const { key, row, variant } of known) {
-        const actor = variant === row.stranger ? fx.stranger : fx.member
-        const answer = await drive(
-          actor,
-          key,
-          (variant.attempt ?? row.attempt)(fx),
+    for (const { key, row, variant } of known) {
+      const actor = variant === row.stranger ? fx.stranger : fx.member
+      const answer = await drive(actor, key, (variant.attempt ?? row.attempt)(fx))
+      if (answer.status === variant.expected) {
+        closed.push(
+          `${key}: now answers ${String(variant.expected)}, which is what the rule requires — ${variant.known ?? ''}`,
         )
-        if (answer.status !== variant.expected) {
-          failures.push(
-            `${key}: ${String(answer.status)}, not ${String(variant.expected)} — ${variant.known ?? ''}`,
-          )
-        }
       }
+    }
 
-      expect(
-        failures,
-        'this assertion is inverted by test.fails and is expected to throw. If it passes, one of the findings above has been fixed: delete that variant\'s `known` and let the pass above assert it',
-      ).toEqual([])
-    },
-  )
+    expect(
+      closed,
+      'findings recorded as open that the code has since closed. Delete each one\'s `known` field so the pass above asserts it for real, rather than leaving a fixed route described as broken',
+    ).toEqual([])
+  })
 
   test('the viewer-scoped routes answer a stranger exactly as they answer anyone', async () => {
     const fx = await fixturesOf()
