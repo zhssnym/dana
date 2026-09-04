@@ -11,7 +11,7 @@ a criterion happens to read and omit it elsewhere, and every criterion still
 passes.
 
 So this file walks the application the way a person does, sidebar link by
-sidebar link, and asserts three properties over everything the client sent
+sidebar link, and asserts four properties over everything the client sent
 while it did:
 
 - **Every view request carried a tz.** 7.0 makes it required on every view
@@ -29,6 +29,17 @@ while it did:
   turning that into a blank page or a crash. The other seeded user's Desk
   is the resource, and it exists, which is what makes the case worth
   running.
+- **Nothing asks for frozen 7.2's `/me/settings`.** Added 2026-09-04 for
+  issue #150, and it belongs to this file for the reason the first property
+  does: a whole session is the only place an absence is observable. #113
+  retires that endpoint on the server, and retiring one is
+  expand-and-contract, the client having to stop calling it before the server
+  stops answering it, or every boot 404s for one deploy. Until #150 the boot
+  prefetch in `main.tsx` called it on every cold load and no component
+  consumed the answer; the settings surface this client reads and writes is
+  4.19's bundle at `/settings`, which the walk exercises anyway by writing
+  its pin list. Asserted over `wire.calls` rather than over the view calls,
+  because a plain read is not a view read and would not be counted there.
 
 The walk is deliberately not a re-assertion of server behavior through a
 browser, which the RFC row rules out as buying latency rather than truth.
@@ -220,6 +231,23 @@ test.describe('The signed-in path', () => {
         'section on 2026-08-07 because an absent value never reaches a validator that a wrong ' +
         'one does. AC-130 pins the refusal; this pins that the client sends it, on every view ' +
         'request rather than on the one a criterion happened to read',
+    ).toEqual([])
+
+    /* Issue #150: the fourth property. A cold load of the application, a walk
+       through nine surfaces, one folder and the search overlay, and one write
+       to 4.19's bundle, and frozen 7.2's endpoint is not reached once. The
+       walk begins at `page.goto(routesV2.desk)`, which is a full document
+       load, so `main.tsx` has run and its prefetches are in this log. */
+    const settingsReads = wire.calls.filter(
+      (call) => new URL(call.url).pathname === '/api/v1/me/settings',
+    )
+    expect(
+      settingsReads.map((call) => `${call.method} ${call.url}`),
+      'issue #150 and #113: the client stops calling /me/settings before the server stops ' +
+        'answering it, which is what expand-and-contract asks of a retirement. Nothing ' +
+        'consumed the answer: the sidebar reads the 4.19 bundle at /settings, which this walk ' +
+        'writes its pin list through, so a request here is a boot prefetch that has come ' +
+        'back rather than a feature',
     ).toEqual([])
   })
 

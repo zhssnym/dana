@@ -51,9 +51,26 @@ to exceed any cell a six-week grid can give a day at a normal window size,
 because how many rows fit is the implementer's and the criterion turns on
 there being more than fit.
 
-Spec: 9.5 (the month zoom's six weeks, Monday, the "+N more" control and why
-it exists), 9.1 (the roles table's grid cell, the routes table), 11.4 (the
-calendar is Dana's own), 6 Q3C, AC-082.
+**The reveal is asserted to write nothing, added 2026-09-04 with issue #140.**
+9.5's zoom became `user_settings.calendar_zoom` that day, and the obvious build
+of the reveal writes it: pressing "+N more" switches to the day zoom, and a
+zoom that persists would persist that. Imran ruled the other way on the review
+of #140 — a look is not a choice, and a control that rewrote a durable
+preference as a side effect of looking would carry that change to every device
+the person owns. So the last assertion here reads 4.10 back through 7.2 after
+the press. It belongs in this file rather than only in AC-405 because this is
+where the control lives: AC-405 asserts the consequence a person meets, a
+reload landing on the chosen zoom, and this asserts the rule at the thing that
+would break it. No restore is owed either, and the reason is worth stating
+exactly: the reveal writes nothing, and the only thing here that does write is
+`openMonth`, which chooses Month and so leaves the account on 9.5's default,
+which is where a fresh account already is. While the reveal wrote, this file
+left the account on `day` for every spec after it.
+
+Spec: 9.5 as amended (the month zoom's six weeks, Monday, the "+N more" control,
+why it exists and that it is a look rather than a choice), 9.1 (the roles
+table's grid cell, the routes table), 11.4 (the calendar is Dana's own), 4.10
+and 7.2 as annotated (`calendar_zoom`), 6 Q3C, AC-082, AC-405; issue #140.
 */
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
@@ -212,5 +229,19 @@ test.describe('AC-177: the calendar month zoom', () => {
       'spec 9.5: pressing it reveals the remainder, so every row the day holds is readable. A ' +
         'control that renders the count and does nothing satisfies every assertion above',
     ).toHaveCount(CROWD)
+
+    /* And it wrote nothing. The zoom is 4.10's column since issue #140, so the
+       reveal is the one place a look could turn into a preference; read back
+       through 7.2 rather than off the page, because what must not have moved
+       is the stored value and not the drawn one. */
+    const stored = await page.request.get('/api/v1/settings')
+    expect(
+      ((await stored.json()) as { calendar_zoom: string }).calendar_zoom,
+      'spec 9.5 as amended and Imran on the review of issue #140: pressing "+N more" is a ' +
+        'look, so it draws the day and leaves the account on the zoom this case chose. A ' +
+        'build that wrote it would pass every assertion above, would follow the person to ' +
+        'every device they own, and would leave this file changing the account for every ' +
+        'spec that runs after it',
+    ).toBe('month')
   })
 })

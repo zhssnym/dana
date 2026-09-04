@@ -71,7 +71,7 @@ write (11.6). `tests/e2e/session-path.spec.ts` measures both from outside the
 client, over a whole session rather than one endpoint.
 
 **Settled.** `getView` for the view endpoints of 7.10 and anything else that
-evaluates a date; `getPlain` for `/me`, `/me/settings`, `/folders`,
+evaluates a date; `getPlain` for `/me`, `/settings`, `/folders`,
 `/connections`, `/invites/pending`. 7.0 scopes its `tz` sentence to view
 endpoints, so a plain read carries none: sending one anyway puts a parameter on
 the wire the contract does not give that endpoint.

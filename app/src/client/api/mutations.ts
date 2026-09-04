@@ -65,8 +65,6 @@ import type {
   PostInvitesBody,
   PostInvitesResponse,
 } from '../../shared/invites.js'
-import { patchMeSettingsResponse } from '../../shared/me.js'
-import type { PatchMeSettingsBody, Settings } from '../../shared/me.js'
 import {
   patchStepResponse,
   patchTaskResponse,
@@ -494,21 +492,6 @@ export function useRemoveFromMyDay(): UseMutationResult<TaskDetail, Error, strin
   })
 }
 
-export function useUpdateSettings(): UseMutationResult<
-  Settings,
-  Error,
-  PatchMeSettingsBody
-> {
-  return useMutation({
-    mutationFn: (body: PatchMeSettingsBody) =>
-      mutateApi(patchMeSettingsResponse, {
-        method: 'PATCH',
-        path: '/me/settings',
-        body,
-      }),
-  })
-}
-
 export function useCreateInvite(): UseMutationResult<
   PostInvitesResponse,
   Error,
@@ -535,11 +518,14 @@ export function useCreateInvite(): UseMutationResult<
  * ------------------------------------------------------------------ */
 
 /**
- * The 4.19 bundle's write, at the v2 address.
+ * The 4.19 bundle's write, at the v2 address, and the client's only settings
+ * write.
  *
- * Beside frozen 7.2's `useUpdateSettings` and never instead of it: that one
- * still owns the three v1 page flags, and this owns the pin list, the theme,
- * the density, the clock, the task-open surface and the arrangements.
+ * It owns the pin list, the theme, the density, the clock, the task-open
+ * surface, the calendar's zoom and the arrangements. A `useUpdateSettings`
+ * over frozen 7.2's `/me/settings` stood beside it until issue #150, called
+ * by nothing: the three v1 page flags are still the server's and still derive
+ * into the pin list, and no surface in this client writes them directly.
  */
 export function usePatchBundle(): UseMutationResult<
   GetSettingsResponse,
