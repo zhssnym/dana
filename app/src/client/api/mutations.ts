@@ -110,24 +110,35 @@ import type {
   ImportWorkflowResponse,
 } from '../../shared/workflows.js'
 
-import { defaultFolderDescription } from '../lib/folder-description.js'
 import { mutateApi, requestTimezone } from './http.js'
 import { VALIDATION_ERROR_TOAST_META } from './queryClient.js'
 
+/*
+Making a folder is one request, and it has to stay one.
+
+A default description was written here for one revision with a second call,
+`PATCH /folders/:id` sent the moment the POST answered. It cost the criterion
+that watches this act: AC-279 reads every mutation the hold makes between the
+confirm and the API going quiet and expects one `POST /folders` plus one
+`PATCH /tasks/:id` per task moved and nothing else, RFC 0005 change control
+item 44's "the gesture is a composition of two existing endpoints and adds
+none". Every folder made anywhere in the client comes through here, the hold's
+panel included (`pages/task-rows.tsx`'s `onMerge`), so the extra call failed
+that criterion from every door.
+
+**The wording cannot ride the POST from this side.** Frozen 7.4's create body
+is `{ name }` alone: `shared/folders.ts`'s `postFoldersBody` carries one field,
+the route reads `parsed.data.name`, and `domain/folders.ts` inserts
+`(owner_id, name)`. Adding `description` there is a request-schema change to a
+frozen section, which is the owner's rather than this side's, and a field the
+server does not read is accepted, dropped and answered 200, which looks exactly
+like the feature working. `lib/folder-description.ts` keeps the sentence, and
+its test keeps it honest, for the day the endpoint can take it.
+*/
 export function useCreateFolder(): UseMutationResult<Folder, Error, PostFoldersBody> {
   return useMutation({
-    mutationFn: async (body: PostFoldersBody) => {
-      const made = await mutateApi(folder, {
-        method: 'POST',
-        path: '/folders',
-        body,
-      })
-      return mutateApi(patchFolderResponse, {
-        method: 'PATCH',
-        path: `/folders/${made.id}`,
-        body: { description: defaultFolderDescription(made.name) },
-      })
-    },
+    mutationFn: (body: PostFoldersBody) =>
+      mutateApi(folder, { method: 'POST', path: '/folders', body }),
   })
 }
 

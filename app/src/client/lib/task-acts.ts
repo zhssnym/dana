@@ -51,7 +51,6 @@ import { getPlain, mutateApi } from '../api/http.js'
 import { queryClient, writeFailureMessage } from '../api/queryClient.js'
 import { pushUndo, undoLabel } from '../shell/undo.js'
 import { showToast } from '../state/toasts.js'
-import { defaultFolderDescription } from './folder-description.js'
 import { folderLibrary } from './folder-library.js'
 import { taskLink } from './nav-links.js'
 import type { ConceptStep } from './task-model.js'
@@ -109,6 +108,12 @@ export function duplicateTask(taskId: string, title: string): void {
  * The task is read first, for the folder the undo returns it to: a row on a
  * folder page draws no folder chip (DES-183) and so holds no folder id, and
  * one read is cheaper than a prop threaded through every list.
+ *
+ * **The folder is made in one request**, for the reason `api/mutations.ts`
+ * gives at `useCreateFolder`: this act is the hold with one task in it, the
+ * same composition AC-279 counts on the wire, and a default description
+ * cannot be written without a second call while frozen 7.4's create body is
+ * `{ name }` alone.
  */
 export function makeFolderOfTask(taskId: string, title: string): void {
   const folderName = title.slice(0, 100)
@@ -119,27 +124,21 @@ export function makeFolderOfTask(taskId: string, title: string): void {
         path: '/folders',
         body: { name: folderName },
       }).then((made) =>
-        mutateApi(folderSchema, {
+        mutateApi(null, {
           method: 'PATCH',
-          path: `/folders/${made.id}`,
-          body: { description: defaultFolderDescription(made.name) },
-        }).then((described) =>
-          mutateApi(null, {
-            method: 'PATCH',
-            path: `/tasks/${taskId}`,
-            body: { folder_id: described.id },
-          }).then(() => {
-            settle()
-            showToast(`Moved "${title}" to "${described.name}"`)
-            pushUndo(undoLabel('Moved', title), () => {
-              void mutateApi(null, {
-                method: 'PATCH',
-                path: `/tasks/${taskId}`,
-                body: { folder_id: task.folder.id },
-              }).then(settle)
-            })
-          }),
-        ),
+          path: `/tasks/${taskId}`,
+          body: { folder_id: made.id },
+        }).then(() => {
+          settle()
+          showToast(`Moved "${title}" to "${made.name}"`)
+          pushUndo(undoLabel('Moved', title), () => {
+            void mutateApi(null, {
+              method: 'PATCH',
+              path: `/tasks/${taskId}`,
+              body: { folder_id: task.folder.id },
+            }).then(settle)
+          })
+        }),
       ),
     )
     .catch((error: unknown) => showToast(writeFailureMessage(error)))
