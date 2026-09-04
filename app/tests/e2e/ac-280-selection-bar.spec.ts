@@ -52,7 +52,7 @@ import {
   seedSubs,
   taskRow,
   TEST_TIMEOUT_MS,
-  waitForApiIdle,
+  watchCommit,
   watchWire,
 } from './harness.js'
 
@@ -134,11 +134,18 @@ test.describe('AC-280: selection and the bar act on every selected task over exi
     ).toBeVisible()
 
     const wire = watchWire(page)
+    /* Before the act (2026-09-04, issue #159). `waitForApiIdle` returns as
+       soon as nothing is in flight, and that is also true in the window
+       between the press and the request the press causes, so the wire read
+       below could find it empty and fail saying the client sent nothing --
+       which is the defect the assertion is for. `watchCommit` waits for the
+       page to have sent something before it waits for quiet. */
+    const completed = watchCommit(page)
     await clickControl(
       page.getByRole('button', { name: 'Mark complete', exact: true }),
       'the bar\'s first control completes everything selected',
     )
-    await waitForApiIdle(page, 'both completions have been written')
+    await completed.settled('both completions reach the server before the wire and the rows are read')
     await expect(selectionBar(page), 'the bar leaves once its act is done').toHaveCount(0)
 
     const completes = wire
@@ -173,11 +180,18 @@ test.describe('AC-280: selection and the bar act on every selected task over exi
       page.getByRole('button', { name: 'Move to a folder', exact: true }),
       'the bar\'s move control opens the folder library',
     )
+    /* Before the act (2026-09-04, issue #159). `waitForApiIdle` returns as
+       soon as nothing is in flight, and that is also true in the window
+       between the press and the request the press causes, so the wire read
+       below could find it empty and fail saying the client sent nothing --
+       which is the defect the assertion is for. `watchCommit` waits for the
+       page to have sent something before it waits for quiet. */
+    const moved = watchCommit(page)
     await clickControl(
       page.getByRole('menuitem', { name: destinationName }),
       'spec 9.3: the list is the real folder library, and the destination this case made is in it',
     )
-    await waitForApiIdle(page, 'both moves have been written')
+    await moved.settled('both moves reach the server before the wire and 7.6 are read')
 
     const moves = wire
       .mutations()
@@ -216,11 +230,18 @@ test.describe('AC-280: selection and the bar act on every selected task over exi
       'spec 9.3\'s delete confirmation, in the plural the bar needs, telling the truth 7.13 made ' +
         '(RFC 0005 change control item 54; reworded in the polish round of 2026-08-30, AC-351)',
     ).toBeVisible()
+    /* Before the act (2026-09-04, issue #159). `waitForApiIdle` returns as
+       soon as nothing is in flight, and that is also true in the window
+       between the press and the request the press causes, so the wire read
+       below could find it empty and fail saying the client sent nothing --
+       which is the defect the assertion is for. `watchCommit` waits for the
+       page to have sent something before it waits for quiet. */
+    const deleted = watchCommit(page)
     await clickControl(
       dialog.getByRole('button', { name: 'Delete', exact: true }),
       'spec 9.1: the task\'s delete confirm names what the press does',
     )
-    await waitForApiIdle(page, 'both deletions have been written')
+    await deleted.settled('both deletions reach the server before the wire and the rows are read')
 
     const deletes = wire
       .mutations()
@@ -248,11 +269,18 @@ test.describe('AC-280: selection and the bar act on every selected task over exi
 
     await selectTwo(page, first, second)
     const wire = watchWire(page)
+    /* Before the act (2026-09-04, issue #159). `waitForApiIdle` returns as
+       soon as nothing is in flight, and that is also true in the window
+       between the press and the request the press causes, so the wire read
+       below could find it empty and fail saying the client sent nothing --
+       which is the defect the assertion is for. `watchCommit` waits for the
+       page to have sent something before it waits for quiet. */
+    const copied = watchCommit(page)
     await clickControl(
       page.getByRole('button', { name: 'Duplicate', exact: true }),
       'the bar\'s Duplicate copies everything selected (item 58 A)',
     )
-    await waitForApiIdle(page, 'both copies have been written')
+    await copied.settled('both copies reach the server before the wire and the rows are read')
     await expect(selectionBar(page), 'the bar leaves once its act is done').toHaveCount(0)
     const copies = wire
       .mutations()

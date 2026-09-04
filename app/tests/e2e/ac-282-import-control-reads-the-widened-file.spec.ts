@@ -108,6 +108,9 @@ test.describe('AC-282: the Import control reads the widened file', () => {
       `spec 7.16: the import is accepted; the server answered ${response.status()}: ` +
         (await response.text()),
     ).toBe(201)
+    // Quiet and not `watchCommit` (issue #159): `await answered` above is a
+    // `waitForResponse` on the import itself, so the write is already ordered
+    // and what is left to wait for is the reading behind it.
     await waitForApiIdle(page, 'the import lands before the Library is read')
 
     const imports = wire.calls.filter((call) => call.url.includes('/api/v1/workflows/import'))

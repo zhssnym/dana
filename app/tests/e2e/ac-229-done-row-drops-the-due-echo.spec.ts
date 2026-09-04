@@ -104,6 +104,9 @@ test.describe('AC-229: a Done row drops the spent due-date echo', () => {
     await transition(page, task.id, 'complete')
 
     await page.goto(routesV2.done)
+    // Quiet and not `watchCommit` (issue #159): what precedes this is a
+    // navigation and not an act, the transition above having gone through
+    // section 7 rather than through the page, so there is no commit to count.
     await waitForApiIdle(page, 'the Done view is answered before its rows are read')
     const row = taskRow(page, title)
     await expect(
@@ -132,6 +135,9 @@ test.describe('AC-229: a Done row drops the spent due-date echo', () => {
     await transition(page, task.id, 'abandon')
 
     await page.goto(routesV2.abandoned)
+    // Quiet and not `watchCommit` (issue #159): what precedes this is a
+    // navigation and not an act, the transition above having gone through
+    // section 7 rather than through the page, so there is no commit to count.
     await waitForApiIdle(page, 'the Abandoned view is answered before its rows are read')
     const row = taskRow(page, title)
     await expect(

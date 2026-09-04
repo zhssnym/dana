@@ -23,7 +23,7 @@ import {
   signIn,
   TEST_TIMEOUT_MS,
   transition,
-  waitForApiIdle,
+  watchCommit,
 } from './harness.js'
 
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
@@ -39,15 +39,31 @@ test('AC-342: Remove sits beside Change on the cover, and the board draws Done o
   await page.goto(routesV2.folder(folder.id))
 
   await clickControl(page.getByRole('button', { name: 'Add cover', exact: true }), 'spec 9.6: a cover can be given')
+  /* Before the act (2026-09-04, issue #159). `waitForApiIdle` returns as
+     soon as nothing is in flight, and that is also true in the window
+     between the press and the request the press causes, so a read taken
+     there lands before the write and reports the state the page was in
+     before it -- which is the shape of the defect being asserted against
+     rather than of a barrier. `watchCommit` waits for the page to have
+     sent something before it waits for quiet. */
+  const given = watchCommit(page)
   await clickControl(page.getByRole('option', { name: 'Cobalt', exact: true }), 'one press on a swatch')
-  await waitForApiIdle(page, 'the cover is written')
+  await given.settled('the cover reaches the server before the band it draws is read')
   await page.keyboard.press('Escape')
   const change = page.getByRole('button', { name: 'Change', exact: true })
   await change.hover({ force: true })
   const remove = page.getByRole('button', { name: 'Remove', exact: true })
   await expect(remove, 'pagehead F7: Remove beside Change, on the band').toBeVisible()
+  /* Before the act (2026-09-04, issue #159). `waitForApiIdle` returns as
+     soon as nothing is in flight, and that is also true in the window
+     between the press and the request the press causes, so a read taken
+     there lands before the write and reports the state the page was in
+     before it -- which is the shape of the defect being asserted against
+     rather than of a barrier. `watchCommit` waits for the page to have
+     sent something before it waits for quiet. */
+  const cleared = watchCommit(page)
   await clickControl(remove, 'and one press takes the cover off')
-  await waitForApiIdle(page, 'the cover is cleared')
+  await cleared.settled('the removal reaches the server before the way back in is looked for')
   await expect(page.getByRole('button', { name: 'Add cover', exact: true }), 'the way back in is drawn again').toBeVisible()
 
   await expect(page.getByRole('button', { name: 'Done', exact: true }), 'spec 9.1: the list\'s Done section').toBeVisible()

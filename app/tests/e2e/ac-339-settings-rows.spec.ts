@@ -26,7 +26,7 @@ import {
   seedSubs,
   signIn,
   TEST_TIMEOUT_MS,
-  waitForApiIdle,
+  watchCommit,
 } from './harness.js'
 
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
@@ -52,12 +52,28 @@ test('AC-339: three homes for a task, a timezone choice over PATCH /me, one door
   await expect(timezone, 'settings F6: the timezone is a choice, 7.1 taking one').toBeVisible()
   const before = await timezone.inputValue()
   const next = before === 'Europe/Paris' ? 'Europe/Berlin' : 'Europe/Paris'
+  /* Before the act (2026-09-04, issue #159). `waitForApiIdle` returns as
+     soon as nothing is in flight, and that is also true in the window
+     between the press and the request the press causes, so a read taken
+     there lands before the write and reports the state the page was in
+     before it -- which is the shape of the defect being asserted against
+     rather than of a barrier. `watchCommit` waits for the page to have
+     sent something before it waits for quiet. */
+  const chosen = watchCommit(page)
   await timezone.selectOption(next)
-  await waitForApiIdle(page, 'PATCH /me has answered')
+  await chosen.settled('the choice reaches 7.1 before /me is asked what it holds')
   const me = await page.request.get('/api/v1/me')
   expect(((await me.json()) as { user: { timezone: string } }).user.timezone, '7.1: the account carries the choice').toBe(next)
+  /* Before the act (2026-09-04, issue #159). `waitForApiIdle` returns as
+     soon as nothing is in flight, and that is also true in the window
+     between the press and the request the press causes, so a read taken
+     there lands before the write and reports the state the page was in
+     before it -- which is the shape of the defect being asserted against
+     rather than of a barrier. `watchCommit` waits for the page to have
+     sent something before it waits for quiet. */
+  const restored = watchCommit(page)
   await timezone.selectOption(before)
-  await waitForApiIdle(page, 'restored')
+  await restored.settled('the account is put back before this case ends, the seeded zone being every other file')
 
   await expect(main.getByRole('button', { name: 'Open People', exact: true }), 'settings F5: People is the sidebar\'s').toHaveCount(0)
   await expect(main.getByRole('button', { name: 'Sign out', exact: true }), 'settings F5: Sign out is the account menu\'s').toHaveCount(0)

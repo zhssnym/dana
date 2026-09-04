@@ -26,6 +26,7 @@ import {
   signIn,
   TEST_TIMEOUT_MS,
   waitForApiIdle,
+  watchCommit,
 } from './harness.js'
 
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
@@ -44,10 +45,16 @@ test('AC-336: a shelf page opens without a conflict, a section lands where it wa
 
   await page.goto(routesV2.shelf(shelf.id))
   await expect(page.getByRole('link', { name: folderName, exact: true }).first(), 'spec 9.10: the folder row').toBeVisible()
+  // Quiet and not `watchCommit` (issue #159): what precedes this is a
+  // navigation and not an act, so there is no commit to count, and the
+  // assertion after it is an absence.
   await waitForApiIdle(page, 'the page has settled')
   await expect(page.getByText(CONFLICT), 'shelves F2: nobody else touched this page').toHaveCount(0)
   await page.reload()
   await expect(page.getByRole('link', { name: folderName, exact: true }).first()).toBeVisible()
+  // Quiet and not `watchCommit` (issue #159): what precedes this is a
+  // navigation and not an act, so there is no commit to count, and the
+  // assertion after it is an absence.
   await waitForApiIdle(page, 'the page has settled again')
   await expect(page.getByText(CONFLICT), 'shelves F2: nor after a reload').toHaveCount(0)
 
@@ -59,8 +66,16 @@ test('AC-336: a shelf page opens without a conflict, a section lands where it wa
   await expect(field).toHaveAttribute('placeholder', 'New section')
   const sectionName = caseTitle('Weekdays')
   await field.fill(sectionName)
+  /* Before the act (2026-09-04, issue #159). `waitForApiIdle` returns as
+     soon as nothing is in flight, and that is also true in the window
+     between the press and the request the press causes, so a read taken
+     there lands before the write and reports the state the page was in
+     before it -- which is the shape of the defect being asserted against
+     rather than of a barrier. `watchCommit` waits for the page to have
+     sent something before it waits for quiet. */
+  const arranged = watchCommit(page)
   await page.keyboard.press('Enter')
-  await waitForApiIdle(page, 'the arrangement is written')
+  await arranged.settled('the arrangement reaches the server before the two boxes are measured')
   const sectionBox = await page.getByLabel('Section name').filter({ has: page.locator(`[value="${sectionName}"]`) }).or(page.getByLabel('Section name')).first().boundingBox()
   const folderBox = await page.getByRole('main').getByRole('link', { name: folderName, exact: true }).first().boundingBox()
   expect(

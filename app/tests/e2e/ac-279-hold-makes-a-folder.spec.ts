@@ -46,7 +46,7 @@ import {
   seedSubs,
   taskRow,
   TEST_TIMEOUT_MS,
-  waitForApiIdle,
+  watchCommit,
   watchWire,
 } from './harness.js'
 
@@ -123,11 +123,18 @@ test.describe('AC-279: holding two tasks together makes a folder of them', () =>
 
     const wire = watchWire(page)
     await fillControl(field, name, 'the panel takes the folder\'s name')
+    /* Before the act (2026-09-04, issue #159). `waitForApiIdle` returns as
+       soon as nothing is in flight, and that is also true in the window
+       between the press and the request the press causes, so the wire read
+       below could find it empty and fail saying the client sent nothing --
+       which is the defect the assertion is for. `watchCommit` waits for the
+       page to have sent something before it waits for quiet. */
+    const made = watchCommit(page)
     await clickControl(
       page.getByRole('button', { name: 'Create folder', exact: true }),
       'the panel\'s primary action makes the folder and moves the tasks into it',
     )
-    await waitForApiIdle(page, 'the folder and both moves have been written')
+    await made.settled('the folder and both moves reach the server before the wire is read')
 
     const mutations = wire.mutations().map((call) => `${call.method} ${new URL(call.url).pathname}`)
     expect(

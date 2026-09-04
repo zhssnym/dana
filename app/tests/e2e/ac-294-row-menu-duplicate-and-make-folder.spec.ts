@@ -31,7 +31,7 @@ import {
   signIn,
   taskRow,
   TEST_TIMEOUT_MS,
-  waitForApiIdle,
+  watchCommit,
   watchWire,
 } from './harness.js'
 
@@ -64,11 +64,18 @@ test.describe('AC-294: a row\'s Duplicate and "Make this a folder…" act over 7
 
     await openRowMenu(page, taskRow(page, title))
     const wire = watchWire(page)
+    /* Before the act (2026-09-04, issue #159). `waitForApiIdle` returns as
+       soon as nothing is in flight, and that is also true in the window
+       between the press and the request the press causes, so the wire read
+       below could find it empty and fail saying the client sent nothing --
+       which is the defect the assertion is for. `watchCommit` waits for the
+       page to have sent something before it waits for quiet. */
+    const copied = watchCommit(page)
     await clickControl(
       page.getByRole('menuitem', { name: 'Duplicate', exact: true }),
       'spec 9.3: Duplicate is in the task\'s More actions',
     )
-    await waitForApiIdle(page, 'the copy has been written and read back')
+    await copied.settled('the copy reaches the server before the wire and the page are read')
 
     const copies = wire
       .mutations()
@@ -96,11 +103,18 @@ test.describe('AC-294: a row\'s Duplicate and "Make this a folder…" act over 7
 
     await openRowMenu(page, taskRow(page, title))
     const wire = watchWire(page)
+    /* Before the act (2026-09-04, issue #159). `waitForApiIdle` returns as
+       soon as nothing is in flight, and that is also true in the window
+       between the press and the request the press causes, so the wire read
+       below could find it empty and fail saying the client sent nothing --
+       which is the defect the assertion is for. `watchCommit` waits for the
+       page to have sent something before it waits for quiet. */
+    const converted = watchCommit(page)
     await clickControl(
       page.getByRole('menuitem', { name: 'Make this a folder…', exact: true }),
       'spec 9.3: "Make this a folder…" is in the task\'s More actions (ledger L-007)',
     )
-    await waitForApiIdle(page, 'the folder and the move have been written')
+    await converted.settled('the folder and the move reach the server before 7.6 is asked where the task is')
 
     const mutations = wire.mutations().map((call) => `${call.method} ${new URL(call.url).pathname}`)
     expect(
