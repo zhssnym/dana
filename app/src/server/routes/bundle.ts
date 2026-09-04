@@ -46,6 +46,7 @@ import {
   listPlaceDescriptions,
   putPlaceDescription,
 } from '../domain/place-descriptions.js'
+import type { ObjectStore } from '../files/store.js'
 import { sendError, sendValidationError } from '../http/errors.js'
 import { optionalLimit } from '../security/rate-limit.js'
 import type { RateLimits } from '../security/rate-limit.js'
@@ -54,11 +55,31 @@ import { routerWithPreamble } from './preamble.js'
 export interface BundleRouterOptions {
   dbClient?: DbClient
   rateLimits?: RateLimits
+  /** The S4 object store, needed since 2026-09-04 because a place cover may
+   * copy the picture it names (issue #116, spec 7.19). Optional beside the
+   * other two for `routes/files.ts`'s reason, and guarded the same way. */
+  fileStore?: ObjectStore
 }
 
 export function createBundleRouter(options: BundleRouterOptions = {}): Router {
   const { router, database, viewer, parsedId } = routerWithPreamble(options)
   const mutationLimit = optionalLimit(options.rateLimits?.generalMutations)
+
+  /** `routes/files.ts`'s guard, one router over: an application constructed
+   * without a store cannot copy a cover's bytes, and saying so is better
+   * than storing a row whose picture was never written. */
+  const storeOf = (res: Response): ObjectStore | null => {
+    if (options.fileStore === undefined) {
+      sendError(
+        res,
+        500,
+        'internal_error',
+        'The application was constructed without an object store.',
+      )
+      return null
+    }
+    return options.fileStore
+  }
 
   router.get(
     '/settings',
@@ -232,9 +253,29 @@ export function createBundleRouter(options: BundleRouterOptions = {}): Router {
         sendValidationError(res, parsed.error)
         return
       }
-      const outcome = await putPlaceCover(db, viewer(req), place, parsed.data)
+      const store = storeOf(res)
+      if (store === null) return
+      const outcome = await putPlaceCover(
+        db,
+        store,
+        viewer(req),
+        place,
+        parsed.data,
+      )
       if (outcome.kind === 'file_not_found') {
         sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      /* 10.3's one limit that is not a 422, with section 9's copy: the copy
+         this endpoint may make spends the caller's gigabyte exactly as an
+         upload does, so it is refused in exactly the same words (#116). */
+      if (outcome.kind === 'quota_exceeded') {
+        sendError(
+          res,
+          413,
+          'quota_exceeded',
+          "You've used your 1 GB of storage. Delete some files to add more.",
+        )
         return
       }
       res.status(200).json(outcome.cover)

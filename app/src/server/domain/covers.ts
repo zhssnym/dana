@@ -62,8 +62,9 @@ import { sql } from 'drizzle-orm'
 import type { Db } from '../../../db/client.js'
 import { DEFAULT_FOCAL_Y } from '../../shared/covers.js'
 import type { PlaceCover, PutPlaceCoverBody } from '../../shared/covers.js'
-import { rowsOf } from '../database.js'
-import { readableFileScope } from './files.js'
+import type { ObjectStore } from '../files/store.js'
+import { inTransaction, rowsOf } from '../database.js'
+import { coverFileFor, readableFileScope } from './files.js'
 
 function coverFromRow(row: Record<string, unknown>): PlaceCover {
   return {
@@ -90,42 +91,105 @@ export async function listPlaceCovers(
 
 export type PutPlaceCoverResult =
   | { kind: 'written'; cover: PlaceCover }
-  /** The named file does not exist, is not the caller's to read, or is not a
-   * picture; one answer for all three, so no refusal names which (10.2). */
+  /** The named file does not exist, is not the caller's to read, is not a
+   * picture, or has no bytes left in the store; one answer for all four, so
+   * no refusal names which (10.2). The fourth joined the list on 2026-09-04
+   * with the copy below: a picture whose bytes are gone cannot be copied and
+   * could not have been served either, so it is refused as the unreachable
+   * file it is rather than stored as a cover that will never draw. */
   | { kind: 'file_not_found' }
+  /** 10.3's 1 GB, spent by the copy. 413 with section 9's copy, which is
+   * the answer an upload over the quota has always given. */
+  | { kind: 'quota_exceeded' }
 
+/*
+The copy at set-time (issue #116, 2026-09-04; the primitive and the whole
+reasoning are in `domain/files.ts`).
+
+**A place cover used to store whatever readable file id it was handed, and
+one of the shapes it admits is a picture living in a folder** — 7.16's kind
+clause is `('cover','image')` precisely so a picture from a folder page can
+dress Today. That is a cover which stops drawing the day its wearer leaves
+the folder: `serveFile` refuses them, correctly, and 4.20's row sits there
+naming a file they can no longer read, with nothing said. It is #116's second
+half and it has been true since 7.19 was written.
+
+So the file the row stores is now always one this person holds outright: a
+folder-less `cover` of their own is stored as it is, and anything else — a
+folder's picture, a `cover` somebody else owns and shares through a folder —
+is copied first. Their quota pays for the copy, which is the honest price of
+a picture that is theirs.
+
+**What is deliberately not a copy: the same folder-less picture of their own
+worn on two of their pages.** AC-373 fixes that one upload dresses a shelf
+and a place page, and both read back the same id; the sweep in
+`domain/files.ts` counts references across every column, so removing it from
+one page leaves the other alone. Copying there would buy independence that
+reference counting already provides, at the cost of a contract the suite
+asserts.
+*/
 export async function putPlaceCover(
   db: Db,
+  store: ObjectStore,
   viewerId: string,
   place: string,
   body: PutPlaceCoverBody,
 ): Promise<PutPlaceCoverResult> {
-  if (body.file_id !== undefined) {
-    const readable = await rowsOf(
-      db,
-      sql`SELECT f.id FROM files f
-          WHERE f.id = ${body.file_id}
-            AND f.kind IN ('cover', 'image')
-            AND ${readableFileScope(viewerId)}`,
-    )
-    if (readable.length === 0) return { kind: 'file_not_found' } as const
+  /** Bytes written by a copy inside the transaction below. If it throws, the
+   * row went with it and these are orphans nothing indexes, so they are
+   * removed rather than left on the disk (11.7's own order, read backwards). */
+  const copied: string[] = []
+  try {
+    return await inTransaction(db, async (tx) => {
+      let fileId: string | null = body.file_id ?? null
+      if (body.file_id !== undefined) {
+        const readable = await rowsOf(
+          tx,
+          sql`SELECT f.id FROM files f
+              WHERE f.id = ${body.file_id}
+                AND f.kind IN ('cover', 'image')
+                AND ${readableFileScope(viewerId)}`,
+        )
+        if (readable.length === 0) return { kind: 'file_not_found' } as const
+
+        const held = await coverFileFor(tx, store, viewerId, body.file_id, null)
+        if (held.kind === 'bytes_missing') {
+          return { kind: 'file_not_found' } as const
+        }
+        if (held.kind === 'quota_exceeded') {
+          return { kind: 'quota_exceeded' } as const
+        }
+        if (held.kind === 'copied') copied.push(held.id)
+        fileId = held.id
+      }
+      const written = await rowsOf(
+        tx,
+        sql`INSERT INTO user_page_covers (user_id, place, file_id, preset, focal_y)
+            VALUES (${viewerId}::uuid, ${place}, ${fileId}::uuid,
+                    ${body.preset ?? null}, ${body.focal_y ?? DEFAULT_FOCAL_Y})
+            ON CONFLICT (user_id, place) DO UPDATE
+              SET file_id = EXCLUDED.file_id,
+                  preset = EXCLUDED.preset,
+                  focal_y = EXCLUDED.focal_y,
+                  updated_at = now()
+            RETURNING place, file_id, preset, focal_y`,
+      )
+      return {
+        kind: 'written',
+        cover: coverFromRow(written[0] as Record<string, unknown>),
+      } as const
+    })
+  } catch (error: unknown) {
+    for (const id of copied) {
+      try {
+        await store.remove(id)
+      } catch {
+        // The row is gone either way; unreachable bytes are not a failure
+        // anybody can act on, and must not replace the real error below.
+      }
+    }
+    throw error
   }
-  const written = await rowsOf(
-    db,
-    sql`INSERT INTO user_page_covers (user_id, place, file_id, preset, focal_y)
-        VALUES (${viewerId}::uuid, ${place}, ${body.file_id ?? null}::uuid,
-                ${body.preset ?? null}, ${body.focal_y ?? DEFAULT_FOCAL_Y})
-        ON CONFLICT (user_id, place) DO UPDATE
-          SET file_id = EXCLUDED.file_id,
-              preset = EXCLUDED.preset,
-              focal_y = EXCLUDED.focal_y,
-              updated_at = now()
-        RETURNING place, file_id, preset, focal_y`,
-  )
-  return {
-    kind: 'written',
-    cover: coverFromRow(written[0] as Record<string, unknown>),
-  } as const
 }
 
 /** 7.19's removal: idempotent, because a cover nobody chose and a cover

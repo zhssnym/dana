@@ -586,6 +586,15 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
     indexes: [
       { name: 'files_owner_id_idx', unique: false, columns: ['owner_id'], partial: false },
       { name: 'files_folder_id_idx', unique: false, columns: ['folder_id'], partial: true },
+      // Issue #116, migration 0014: when a cover stopped being worn. Partial
+      // on the mark, because the tick reads the marked rows and the unmarked
+      // ones and never the rest of the table.
+      {
+        name: 'files_unreferenced_since_idx',
+        unique: false,
+        columns: ['unreferenced_since'],
+        partial: true,
+      },
     ],
   },
   page_blocks: {

@@ -128,10 +128,15 @@ describe('the in-flight guard (spec 11.7)', () => {
 
     stub.release()
     await vi.advanceTimersByTimeAsync(0)
-    // Four statements follow the delivery transaction since S3: the session
-    // prune and the three purge DELETEs (Trash folders, Trash tasks,
-    // events), each a single statement needing no wrapper.
-    expect(stub.finished(), 'the held pass ran to completion').toBe(4)
+    // Five statements follow the delivery transaction: the session prune and
+    // the four purge DELETEs (Trash folders, Trash tasks, events, and the
+    // cover reclaim of issue #116), each a single statement needing no
+    // wrapper. It was four from S3 until 2026-09-04, and the number moves
+    // with the pass's duties in the same change — like AC-236's route count,
+    // this is a fixture over the implementation rather than a rule about it,
+    // and what it asserts is unchanged: the held pass ran all the way
+    // through rather than stopping where it was released.
+    expect(stub.finished(), 'the held pass ran to completion').toBe(5)
 
     await vi.advanceTimersByTimeAsync(1_000)
     expect(

@@ -96,6 +96,29 @@ nobody did, take the next free one and say in your pull request that you took it
 unassigned.** A collision is trivial to fix before a merge and is a production incident
 after one.
 
+**Two counts in the suite are fixtures over the implementation, and moving them is not
+breaking rule 2 (added 2026-09-04 from issues #116 and #128, which moved both).** Rule 2 says
+never edit a test to make your code pass, and it is the right rule; these two are the
+exception it needs stated, because otherwise the honest reading is to stop. Each is a number
+describing the shape of the server rather than a behaviour anybody asked for, each says so
+beside itself, and each is written to fail when that shape changes so that the change is
+noticed rather than assumed.
+
+- `app/tests/ac-236-structural-guard-sweep.test.ts` asserts the **count of mutating routes**
+  the walker found. Adding a route moves it by one. What must be true before you touch it is
+  that the sweep itself **passed on your new route** — 401 bare, 403 without CSRF — so that
+  only the count failed; if the sweep failed, the number is telling you something and moving
+  it is the thing rule 2 forbids.
+- `app/src/server/scheduler/interval.test.ts` asserts the **count of statements the 11.7 pass
+  runs after its delivery transaction**, as the way to see that a held pass ran to
+  completion. A new duty on the tick moves it by one, and the comment beside it enumerates
+  which statements they are: keep that enumeration in step or the next person cannot tell a
+  legitimate move from a lost duty.
+
+Move the number **and** its comment in the same change, say in the pull request that you did,
+and say which. A moved count with no note is indistinguishable from the thing rule 2 exists
+to stop.
+
 **A CHECK over a nullable column passes on NULL, and AC-001 cannot see the difference.**
 Added 2026-09-03 from issue #27, where it cost a red run and would otherwise have cost a
 fix-forward migration. A CHECK fails only on FALSE; UNKNOWN is as good as TRUE to it. So the

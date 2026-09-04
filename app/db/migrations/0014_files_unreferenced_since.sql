@@ -1,0 +1,52 @@
+-- 0014: record when a file stopped being worn (issue #116).
+--
+-- Forward-only, additive, the index named because AC-001 asserts the catalog
+-- by name. Journal `when` 1788900000000, strictly above 0013's 1788800000000;
+-- both were authored the same night on two branches, and CLAUDE.md records
+-- why that value is the apply gate rather than decoration.
+--
+-- ## What was wrong, and it was wrong in the direction that destroys data
+--
+-- 7.19's reclaim takes a folder-less `cover` row that nothing references and
+-- that is older than 30 days. The window exists because a caller may still be
+-- holding the id of a file the server has just stopped pointing at — AC-368
+-- sets a shelf's cover, replaces it with a gradient, and sets the same picture
+-- back — so reclamation is meant to be about a file nothing has referenced
+-- *for a while*.
+--
+-- `created_at` does not measure that. It measures when the bytes arrived. A
+-- cover uploaded in June and worn every day until this morning is, the instant
+-- it is replaced, both unreferenced and four months old, so the next tick
+-- deletes it — with no window at all, which is precisely the case the window
+-- was traded for. The sentence in 7.19 promising that "a cover changed this
+-- month is reclaimed next month" was false for every file older than a month,
+-- and AC-385 could not see it because it only ever aged a file that was
+-- already unworn.
+--
+-- ## What this column is
+--
+-- The moment the last reference went, written by the tick's own mark pass and
+-- cleared by it if the file is worn again. Null means "referenced, or not yet
+-- looked at", which is every existing row: **no backfill**, and none is
+-- possible, because nothing anywhere recorded when a reference was dropped.
+-- The consequence is deliberate and is the safe direction — a file that is
+-- already unworn today gets its mark on the next tick and its thirty days
+-- from then, so the first sweep after this migration deploys reclaims nothing
+-- and the oldest orphans wait one extra window.
+--
+-- It is not a counter and must not become one. "Referenced" stays one query
+-- over the five foreign keys that name `files(id)`, in `domain/files.ts`; this
+-- column records the *time* an answer of "no" first held, and the tick
+-- re-asks the question every minute.
+--
+-- ## The index
+--
+-- Partial on the mark, because the delete pass reads exactly the marked rows
+-- and the mark pass reads exactly the unmarked ones. The great majority of
+-- `files` rows are neither covers nor folder-less and will never carry it, so
+-- a full index would be mostly nulls; `WHERE unreferenced_since IS NOT NULL`
+-- keeps it to the working set.
+ALTER TABLE files
+  ADD COLUMN unreferenced_since timestamptz;
+--> statement-breakpoint
+CREATE INDEX files_unreferenced_since_idx ON files (unreferenced_since) WHERE unreferenced_since IS NOT NULL;

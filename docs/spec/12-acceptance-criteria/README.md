@@ -75,6 +75,14 @@ default, so read this list before spending one.
   refusal to, what a report from Dana's own origin writes and what it must never write,
   and what the endpoint drops before it writes anything. The criteria are 12.23's, and
   that file's count moves from 9 to 12 with them.
+- **AC-384 to AC-389 were taken from the tail on 2026-09-04** (issues #116, #117 and #128),
+  on the rule three bullets below, and deliberately above the numbers a sibling branch was
+  holding rather than at the first free one: they are the life of a cover file, which Dana had
+  no story for. AC-384 to AC-386 and AC-389 are 12.9's — the copy that makes a page's cover its
+  owner's, the 11.7 reclaim of a cover nothing wears, the reference count that spares one two
+  pages share, and the quota a copy spends — and AC-387 and AC-388 are 12.10's, the shelf
+  duplicate that carries an independent picture and the failure that leaves neither half of one
+  behind.
 - **AC-374 was taken from the tail on 2026-09-03**, on the same branch and after review of
   it: of the three gates that decide what a page may wear, the place-cover one was the only
   one with no `kind` clause, so another person's avatar could be worn on a person's own Today
@@ -111,8 +119,8 @@ ordering: a group that dies becomes a tombstone row in the table below, and a ne
 | 12.6 | [`12.6-tasks-steps-and-the-task-surface.md`](12.6-tasks-steps-and-the-task-surface.md) | 12.6 Tasks, steps and the task surface, 39 criteria |
 | 12.7 | [`12.7-today.md`](12.7-today.md) | 12.7 Today, 10 criteria |
 | 12.8 | [`12.8-views-filters-and-search.md`](12.8-views-filters-and-search.md) | 12.8 Views, filters and search, 32 criteria |
-| 12.9 | [`12.9-pages-blocks-and-covers.md`](12.9-pages-blocks-and-covers.md) | 12.9 Pages, blocks and covers, 17 criteria |
-| 12.10 | [`12.10-shelves-and-the-library.md`](12.10-shelves-and-the-library.md) | 12.10 Shelves and the Library, 10 criteria |
+| 12.9 | [`12.9-pages-blocks-and-covers.md`](12.9-pages-blocks-and-covers.md) | 12.9 Pages, blocks and covers, 21 criteria |
+| 12.10 | [`12.10-shelves-and-the-library.md`](12.10-shelves-and-the-library.md) | 12.10 Shelves and the Library, 12 criteria |
 | 12.11 | [`12.11-recurrence.md`](12.11-recurrence.md) | 12.11 Recurrence, 15 criteria |
 | 12.12 | [`12.12-reminders.md`](12.12-reminders.md) | 12.12 Reminders, 24 criteria |
 | 12.13 | [`12.13-events-history-and-notifications.md`](12.13-events-history-and-notifications.md) | 12.13 Events, history and notifications, 9 criteria |

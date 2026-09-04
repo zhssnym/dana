@@ -36,11 +36,13 @@ import { pageView, putPage } from '../domain/pages.js'
 import {
   createShelf,
   deleteShelf,
+  duplicateShelf,
   listShelves,
   patchShelf,
   shelfView,
 } from '../domain/shelves.js'
 import { accessibleTask, taskView } from '../domain/tasks.js'
+import type { ObjectStore } from '../files/store.js'
 import {
   sendError,
   sendFieldValidationError,
@@ -53,6 +55,11 @@ import { routerWithPreamble } from './preamble.js'
 export interface WorkshopRouterOptions {
   dbClient?: DbClient
   rateLimits?: RateLimits
+  /** The S4 object store, needed since 2026-09-04: a shelf cover and a
+   * duplicate both copy the picture they carry (issues #116 and #128, spec
+   * 7.16). Optional beside the other two for `routes/files.ts`'s reason, and
+   * guarded the same way. */
+  fileStore?: ObjectStore
 }
 
 /*
@@ -96,6 +103,33 @@ export function createWorkshopRouter(
 ): Router {
   const { router, database, viewer, parsedId } = routerWithPreamble(options)
   const mutationLimit = optionalLimit(options.rateLimits?.generalMutations)
+
+  /** `routes/files.ts`'s guard, one router over: an application constructed
+   * without a store cannot copy a cover's bytes, and saying so is better than
+   * storing a row whose picture was never written. */
+  const storeOf = (res: Response): ObjectStore | null => {
+    if (options.fileStore === undefined) {
+      sendError(
+        res,
+        500,
+        'internal_error',
+        'The application was constructed without an object store.',
+      )
+      return null
+    }
+    return options.fileStore
+  }
+
+  /** 10.3's one limit that is not a 422, with section 9's copy. Written once
+   * because three routes here can now spend the quota through a copy. */
+  const overQuota = (res: Response): void => {
+    sendError(
+      res,
+      413,
+      'quota_exceeded',
+      "You've used your 1 GB of storage. Delete some files to add more.",
+    )
+  }
 
   /* ---------------------------------------------------------------- *
    * The folder page (4.17): any member reads, any member edits (D1)
@@ -251,7 +285,19 @@ export function createWorkshopRouter(
         sendValidationError(res, parsed.error)
         return
       }
-      const outcome = await patchShelf(db, viewer(req), shelfId, parsed.data)
+      const store = storeOf(res)
+      if (store === null) return
+      const outcome = await patchShelf(
+        db,
+        store,
+        viewer(req),
+        shelfId,
+        parsed.data,
+      )
+      if (outcome.kind === 'quota_exceeded') {
+        overQuota(res)
+        return
+      }
       if (outcome.kind === 'not_found') {
         sendError(res, 404, 'not_found', 'Not found.')
         return
@@ -297,6 +343,57 @@ export function createWorkshopRouter(
         return
       }
       res.status(204).end()
+    },
+  )
+
+  /*
+  POST /shelves/:id/duplicate (7.16 as amended 2026-09-04; issues #117, #128).
+
+  **Mounted after `/shelves/:id` and before `/shelves/:id/page`, and the order
+  is not free.** Express matches in mount order and `/shelves/:id` is one
+  segment, so it can never swallow this two-segment path; what would swallow
+  it is a `/shelves/:id/:something` added above. The rule for this file is
+  `bundle.ts`'s `/views/:id` note: literal segments below parameterised ones
+  are safe, the reverse is not.
+
+  **The gate is the domain's and it is a scope, not a check.** `duplicateShelf`
+  selects `WHERE id = $1 AND user_id = $viewer`, so a shelf belonging to
+  somebody else is `not_found` rather than forbidden — a shelf is private by
+  construction (4.18) and 10.2 says ownership is invisible to those without
+  it. There is no `accessOf` here because a shelf has no membership to
+  resolve.
+  */
+  router.post(
+    '/shelves/:id/duplicate',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const shelfId = parsedId(res, req.params.id)
+      if (shelfId === null) return
+      const store = storeOf(res)
+      if (store === null) return
+      const outcome = await duplicateShelf(db, store, viewer(req), shelfId)
+      if (outcome.kind === 'not_found') {
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      if (outcome.kind === 'quota_exceeded') {
+        overQuota(res)
+        return
+      }
+      if (outcome.kind === 'name_taken') {
+        sendError(
+          res,
+          422,
+          'validation_failed',
+          'name: you already have a shelf with this name.',
+        )
+        return
+      }
+      res.status(201).json(outcome.shelf)
     },
   )
 
@@ -394,7 +491,19 @@ export function createWorkshopRouter(
       }
       const anchor = anchorOf(req, res)
       if (anchor === REFUSED) return
-      const outcome = await duplicateFolder(db, viewer(req), folderId, anchor)
+      const store = storeOf(res)
+      if (store === null) return
+      const outcome = await duplicateFolder(
+        db,
+        store,
+        viewer(req),
+        folderId,
+        anchor,
+      )
+      if (outcome.kind === 'quota_exceeded') {
+        overQuota(res)
+        return
+      }
       if (outcome.kind === 'folder_cap') {
         sendError(
           res,
