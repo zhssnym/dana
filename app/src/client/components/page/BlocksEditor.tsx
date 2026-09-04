@@ -31,20 +31,40 @@ rows (`folderRow`) and drops stored rows whose membership is gone. Neither
 concern is this file's: it renders what it is handed at the position the
 block holds.
 
-**No pointer drag yet, deliberately.** RFC 0004 assigns the drag engines to
-S11, and the sidebar drag moved there at the S9 close for exactly the
-one-engine reason; blocks arrange today by where they are inserted, and the
-grip arrives when the engine does.
+**Page blocks use Dana's one sortable-list engine.** The handle moves the
+stored page blocks and the next whole-page PUT persists their positions. Task
+rows remain the existing `TaskRows` composition and keep their own spacing,
+gestures, and section assignment.
 */
-import { useEffect, useState } from 'react'
-import type { ReactNode } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import type { KeyboardEvent, ReactNode } from 'react'
 
 import type { PageBlock, PageBlockWrite } from '../../../shared/pages.js'
-import { AlignLeft, ChevronDown, Heading1, ImagePlus, Trash2 } from '../../lib/icons.js'
+import {
+  ChevronDown,
+  GripVertical,
+  Heading1,
+  ImagePlus,
+  ListTodo,
+  MoreHorizontal,
+  Plus,
+  Trash2,
+} from '../../lib/icons.js'
 import { InlineInput, InlineTextarea } from '../ui/inline-field.js'
 import { reservedRatio } from '../../lib/page-images.js'
 import { PageImage } from '../page-image.js'
+import { Button } from '../ui/button.js'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from '../ui/dropdown-menu.js'
 import { cn } from '../ui/utils.js'
+import { linkedParts, linksIn, videoTarget } from '../../pages/composer-research-content.js'
+import { useSortableList } from '../../lib/use-sortable-list.js'
 
 /** A stored block, carried back with the evidence it was read with. */
 function carry(block: PageBlock): PageBlockWrite {
@@ -75,15 +95,22 @@ export function InsertLine({
   onSection,
   onParagraph,
   onImage,
+  onTask,
+  sectionName = 'No section',
+  autoFocus = false,
+  onAutoFocus,
   resting = false,
   dense = false,
 }: {
-  /* Optional, and the prototype's rule for why: the line under a heading
-     omits it, a section inside a section not being a thing Dana has, and a
-     tool that cannot mean anything is worse than a shorter row. */
-  readonly onSection?: (() => void) | undefined
-  readonly onParagraph: () => void
+  /* Optional because the same writing line is shared with page kinds that
+     cannot create a section or upload an image. */
+  readonly onSection?: ((title?: string) => void) | undefined
+  readonly onParagraph: (text: string) => void
   readonly onImage?: (() => void) | undefined
+  readonly onTask?: ((title: string) => Promise<boolean>) | undefined
+  readonly sectionName?: string
+  readonly autoFocus?: boolean
+  readonly onAutoFocus?: (() => void) | undefined
   /*
   polish: folderpage F2. The chips were opacity zero until hovered, which
   is a tool nobody finds and, on a touchscreen, a tool nobody can reach. The
@@ -101,55 +128,149 @@ export function InsertLine({
   */
   readonly dense?: boolean
 }): React.JSX.Element {
-  /* The strip is its own height and its controls are centred inside it
-     rather than laid out in flow: a 20px button row inside a 12px strip
-     overhung the prose above it, which put controls on top of a sentence.
-     So the dense strip shortens its chips too rather than keeping tall ones
-     inside a short strip. */
-  const chip = cn(
-    'flex items-center gap-1 rounded bg-card px-1.5 text-[11px] leading-4 text-muted-foreground ring-1 ring-border transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring',
-    dense ? 'h-4' : 'h-5',
-  )
+  const [draft, setDraft] = useState('')
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [working, setWorking] = useState(false)
+  const editor = useRef<HTMLTextAreaElement>(null)
+  const container = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!autoFocus) return
+    editor.current?.focus()
+    onAutoFocus?.()
+  }, [autoFocus, onAutoFocus])
+
+  function writeParagraph(): void {
+    const text = draft.trim()
+    if (text === '') return
+    onParagraph(text)
+    setDraft('')
+  }
+
+  async function writeTask(): Promise<void> {
+    if (onTask === undefined || working) return
+    setWorking(true)
+    try {
+      const made = await onTask(draft.trim())
+      if (made) setDraft('')
+    } finally {
+      setWorking(false)
+    }
+  }
+
+  function onEditorKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
+    if (event.nativeEvent.isComposing) return
+    if (event.key === '/' && draft === '') {
+      event.preventDefault()
+      setMenuOpen(true)
+      return
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      setDraft('')
+      event.currentTarget.blur()
+      return
+    }
+    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+      event.preventDefault()
+      void writeTask()
+      return
+    }
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault()
+      writeParagraph()
+    }
+  }
+
   return (
     <div
+      ref={container}
       className={cn(
-        'group/insert relative',
-        resting ? 'h-7' : dense ? '-mb-1 h-4' : 'h-6',
+        'group/insert relative -ml-8 flex items-start',
+        resting ? 'min-h-8' : dense ? '-mb-1 min-h-5' : 'min-h-6',
       )}
       role="presentation"
     >
-      {/* The line arrives in Dana's one interaction colour, which is what the
-          prototype draws: `bg-border` drew a divider, and a divider is
-          furniture that happens to be there rather than an answer to the
-          pointer. The prototype spells the ramp step (`--color-dana-accent-200`)
-          and 11.4 does not let this directory do that, so it is the role token
-          at the weight that lands on the same value: 30% of `primary` over the
-          page reads within a step of the prototype's own line in both modes,
-          and follows the role rather than a fixed colour. */}
-      <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-primary/30 opacity-0 transition-opacity group-hover/insert:opacity-100 group-focus-within/insert:opacity-100" />
-      <div
-        className={cn(
-          'absolute top-1/2 left-0 z-10 flex -translate-y-1/2 items-center gap-1 transition-opacity group-hover/insert:opacity-100 group-focus-within/insert:opacity-100 [@media(hover:none)]:opacity-100',
-          resting ? 'opacity-60' : 'opacity-0',
-        )}
-      >
-        {onSection === undefined ? null : (
-          <button type="button" onClick={onSection} className={chip}>
-            <Heading1 className="size-3" strokeWidth={1.75} aria-hidden="true" />
-            Section
-          </button>
-        )}
-        <button type="button" onClick={onParagraph} className={chip}>
-          <AlignLeft className="size-3" strokeWidth={1.75} aria-hidden="true" />
-          Paragraph
-        </button>
-        {onImage === undefined ? null : (
-          <button type="button" onClick={onImage} className={chip}>
-            <ImagePlus className="size-3" strokeWidth={1.75} aria-hidden="true" />
-            Image
-          </button>
-        )}
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center">
+        <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Insert into page"
+                className={cn(
+                  'rounded-full text-muted-foreground transition-opacity',
+                  resting || draft !== ''
+                    ? 'opacity-70 hover:opacity-100'
+                    : 'opacity-0 group-hover/insert:opacity-70 group-focus-within/insert:opacity-70 data-[popup-open]:opacity-100 [@media(hover:none)]:opacity-60',
+                )}
+              />
+            }
+          >
+            <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" sideOffset={2} className="w-64">
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>Add here</DropdownMenuLabel>
+              {onTask === undefined ? null : (
+                <DropdownMenuItem className="items-start py-2" onClick={() => void writeTask()}>
+                  <ListTodo className="mt-0.5 size-4" strokeWidth={1.75} aria-hidden="true" />
+                  <span>
+                    <span className="block font-medium">Task</span>
+                    <span className="block text-muted-foreground">Add to {sectionName}</span>
+                  </span>
+                </DropdownMenuItem>
+              )}
+              {onSection === undefined ? null : (
+                <DropdownMenuItem
+                  className="items-start py-2"
+                  onClick={() => {
+                    onSection(draft.trim() || undefined)
+                    setDraft('')
+                  }}
+                >
+                  <Heading1 className="mt-0.5 size-4" strokeWidth={1.75} aria-hidden="true" />
+                  <span>
+                    <span className="block font-medium">Section</span>
+                    <span className="block text-muted-foreground">Begin a new part of the page</span>
+                  </span>
+                </DropdownMenuItem>
+              )}
+              {onImage === undefined ? null : (
+                <DropdownMenuItem className="items-start py-2" onClick={onImage}>
+                  <ImagePlus className="mt-0.5 size-4" strokeWidth={1.75} aria-hidden="true" />
+                  <span>
+                    <span className="block font-medium">Image</span>
+                    <span className="block text-muted-foreground">Choose, paste, or drop</span>
+                  </span>
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
+      <InlineTextarea
+        ref={editor}
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        onKeyDown={onEditorKeyDown}
+        onBlur={(event) => {
+          if (container.current?.contains(event.relatedTarget as Node | null) === true) return
+          writeParagraph()
+        }}
+        rows={1}
+        aria-label="Write something"
+        aria-description="Enter adds a paragraph. Shift plus Enter adds a line break. Control or Command plus Enter creates a task."
+        placeholder={resting ? 'Write something…' : undefined}
+        disabled={working}
+        className={cn(
+          'min-h-8 flex-1 py-1 text-sm leading-6 text-foreground transition-opacity placeholder:text-muted-foreground',
+          resting || draft !== ''
+            ? 'opacity-100'
+            : 'opacity-0 group-hover/insert:opacity-100 group-focus-within/insert:opacity-100',
+        )}
+      />
     </div>
   )
 }
@@ -157,6 +278,7 @@ export function InsertLine({
 export function BlocksEditor({
   blocks,
   onPut,
+  onCreateTask,
   sectionExtras,
   folderRow,
   folderId,
@@ -166,6 +288,10 @@ export function BlocksEditor({
   /** The last read, whole; the evidence every write carries back. */
   readonly blocks: readonly PageBlock[]
   readonly onPut: (body: PageBlockWrite[]) => void
+  /** A task created from an uncommitted writing line. Because the line has
+      not entered the page contract yet, success cannot leave duplicated
+      prose behind if the page write loses a stale-write race. */
+  readonly onCreateTask?: ((title: string, sectionBlockId: string | null) => Promise<boolean>) | undefined
   /** A folder page's tasks-and-capture under each section, by block id. */
   readonly sectionExtras?: (sectionBlockId: string) => ReactNode
   /** A shelf page's folder row; null drops the block from the render (a
@@ -204,9 +330,31 @@ export function BlocksEditor({
      to. The stored text is still "New section" (4.17 wants a name), so this
      remembers which block is the fresh one until it is named or left. */
   const [freshId, setFreshId] = useState<string | null>(null)
+  const [focusLineAt, setFocusLineAt] = useState<number | null>(null)
+  const [pendingLine, setPendingLine] = useState<{ index: number; count: number } | null>(null)
+  const [pendingParagraph, setPendingParagraph] = useState<{ index: number; count: number } | null>(null)
 
   const all = (): PageBlockWrite[] =>
     blocks.map((block, index) => ({ ...(writeOf ?? carry)(block), position: index }))
+
+  const blockDrag = useSortableList({
+    count: blocks.length,
+    onReorder: (from, to) => {
+      const body = all()
+      const [moved] = body.splice(from, 1)
+      if (moved === undefined) return
+      body.splice(to, 0, moved)
+      onPut(body.map((entry, position) => ({ ...entry, position })))
+    },
+    describe: (index) => {
+      const block = blocks[index]
+      if (block === undefined) return 'Page item'
+      if (block.kind === 'section') return block.text ?? 'Section'
+      if (block.kind === 'paragraph') return block.text ?? 'Paragraph'
+      if (block.kind === 'image') return block.text ?? 'Image'
+      return 'Folder'
+    },
+  })
 
   function insertAt(index: number, block: PageBlockWrite): void {
     const body = all()
@@ -244,48 +392,62 @@ export function BlocksEditor({
      rather than as empty prose somebody has to find and click. The id is
      known only after the write lands, so the intent is recorded and the
      effect below claims it once the block appears. */
-  const [claimNewest, setClaimNewest] = useState<'section' | 'paragraph' | null>(
-    null,
-  )
+  const [claimNewest, setClaimNewest] = useState<'section' | null>(null)
   useEffect(() => {
     if (claimNewest === null) return
     const fresh = blocks.find(
       (block) =>
-        block.kind === claimNewest &&
-        (claimNewest === 'paragraph'
-          ? block.text === null || block.text === ''
-          : block.text === 'New section'),
+        block.kind === claimNewest && block.text === 'New section',
     )
     if (fresh !== undefined) {
       setEditing(fresh.id)
-      if (claimNewest === 'section') setFreshId(fresh.id)
+      setFreshId(fresh.id)
       setClaimNewest(null)
     }
   }, [blocks, claimNewest])
 
+  useEffect(() => {
+    if (pendingLine === null || blocks.length < pendingLine.count) return
+    setFocusLineAt(pendingLine.index)
+    setPendingLine(null)
+  }, [blocks, pendingLine])
+
+  useEffect(() => {
+    if (pendingParagraph === null || blocks.length < pendingParagraph.count) return
+    const block = blocks[pendingParagraph.index]
+    if (block?.kind !== 'paragraph') return
+    setEditing(block.id)
+    setPendingParagraph(null)
+  }, [blocks, pendingParagraph])
+
   const inserters = (
     index: number,
-    options: { readonly dense?: boolean; readonly proseOnly?: boolean } = {},
+    options: { readonly dense?: boolean } = {},
   ): React.JSX.Element => {
-    const paragraph = (): void => {
-      setClaimNewest('paragraph')
-      insertAt(index, { kind: 'paragraph', position: index, text: '' })
+    const paragraph = (text: string): void => {
+      setPendingLine({ index: index + 1, count: blocks.length + 1 })
+      insertAt(index, { kind: 'paragraph', position: index, text })
     }
-    /* The line under a heading is never the page's resting one even when it
-       stands at the end of the list: what rests is the row of tools at the
-       page's foot (folderpage F2), and there is exactly one of those. */
-    if (options.proseOnly === true) {
-      return <InsertLine dense={options.dense ?? false} onParagraph={paragraph} />
-    }
+    const owner = blocks
+      .slice(0, index)
+      .reverse()
+      .find((block) => block.kind === 'section')
+    const task = onCreateTask === undefined
+      ? undefined
+      : (title: string): Promise<boolean> => onCreateTask(title, owner?.id ?? null)
     return (
       <InsertLine
         resting={index === blocks.length}
         dense={options.dense ?? false}
-        onSection={() => {
-          setClaimNewest('section')
-          insertAt(index, { kind: 'section', position: index, text: 'New section' })
+        onSection={(title) => {
+          if (title === undefined) setClaimNewest('section')
+          insertAt(index, { kind: 'section', position: index, text: title ?? 'New section' })
         }}
         onParagraph={paragraph}
+        onTask={task}
+        sectionName={owner?.text ?? 'No section'}
+        autoFocus={focusLineAt === index}
+        onAutoFocus={() => setFocusLineAt(null)}
         onImage={
           folderId === undefined
             ? undefined
@@ -334,6 +496,29 @@ export function BlocksEditor({
         aria-label="Paragraph"
         rows={1}
         autoFocus
+        onKeyDown={(event) => {
+          if (event.nativeEvent.isComposing) return
+          if (event.key !== 'Enter' || event.shiftKey || event.ctrlKey || event.metaKey) return
+          event.preventDefault()
+          const value = event.currentTarget.value
+          const at = event.currentTarget.selectionStart
+          const before = value.slice(0, at).trim()
+          const after = value.slice(at).trim()
+          const body = all()
+          const index = blocks.findIndex((candidate) => candidate.id === block.id)
+          if (index < 0) return
+          const current = body[index]
+          if (current === undefined) return
+          body[index] = { ...current, text: before }
+          setEditing(null)
+          if (after === '') {
+            setFocusLineAt(index + 1)
+          } else {
+            body.splice(index + 1, 0, { kind: 'paragraph', position: index + 1, text: after })
+            setPendingParagraph({ index: index + 1, count: blocks.length + 1 })
+          }
+          onPut(body.map((entry, position) => ({ ...entry, position })))
+        }}
         onBlur={(event) => {
           const next = event.target.value.trim()
           setEditing(null)
@@ -347,18 +532,65 @@ export function BlocksEditor({
       /* Rendering every paragraph as a live textarea made a page of writing a
          page of form fields, which is what a reader and a role-addressed
          locator both meet first. */
-      <p
-        onClick={() => {
-          setEditing(block.id)
-        }}
-        className="cursor-text text-[13px] leading-5 whitespace-pre-wrap text-muted-foreground"
-      >
-        {block.text === null || block.text === '' ? (
-          <span className="opacity-60">Write something…</span>
-        ) : (
-          block.text
-        )}
-      </p>
+      <div className="group/paragraph flex items-start gap-1">
+        <p
+          onClick={(event) => {
+            if ((event.target as HTMLElement).closest('a') === null) setEditing(block.id)
+          }}
+          className="min-w-0 flex-1 cursor-text text-sm leading-6 whitespace-pre-wrap text-foreground"
+        >
+          {block.text === null || block.text === '' ? (
+            <span className="text-muted-foreground">Write something…</span>
+          ) : (
+            linkedParts(block.text).map((part, index) => part.kind === 'text'
+              ? part.value
+              : (
+                  <a
+                    key={`${String(index)}-${part.href}`}
+                    href={part.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-medium text-primary underline decoration-primary/30 underline-offset-2 hover:decoration-primary"
+                  >
+                    {part.value}
+                  </a>
+                ))
+          )}
+          {linksIn(block.text ?? '').map(videoTarget).some((target) => target !== null) ? (
+            <span className="mt-1 block text-xs text-muted-foreground">Video link opens in a new tab</span>
+          ) : null}
+        </p>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Paragraph actions"
+                className="opacity-0 text-muted-foreground group-hover/paragraph:opacity-70 focus-visible:opacity-100 data-[popup-open]:opacity-100 [@media(hover:none)]:opacity-60"
+              />
+            }
+          >
+            <MoreHorizontal className="size-4" strokeWidth={1.75} aria-hidden="true" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              onClick={() => {
+                const body = all()
+                const index = blocks.findIndex((candidate) => candidate.id === block.id)
+                if (index < 0) return
+                const current = body[index]
+                if (current === undefined) return
+                body[index] = { ...current, kind: 'section', text: block.text ?? '' }
+                onPut(body)
+              }}
+            >
+              <Heading1 className="size-4" strokeWidth={1.75} aria-hidden="true" />
+              Turn into section
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     )
 
   return (
@@ -384,11 +616,41 @@ export function BlocksEditor({
           return null
         }
 
+        const dragState = blockDrag.itemState(index)
+        const dragStyle = dragState.offset === 0 && !dragState.isActive
+          ? undefined
+          : {
+              transform: `translateY(${String(dragState.offset)}px)`,
+              transition:
+                dragState.isActive && !dragState.isSettling
+                  ? 'none'
+                  : 'transform var(--duration-base) var(--ease-enter)',
+              zIndex: dragState.isActive ? 30 : undefined,
+              position: dragState.isActive ? 'relative' as const : undefined,
+              pointerEvents: dragState.isActive ? 'none' as const : undefined,
+            }
+        const dragHandle = (
+          <button
+            type="button"
+            aria-label={`Reorder ${block.kind === 'section' ? (block.text ?? 'section') : block.kind}`}
+            {...blockDrag.handleProps(index)}
+            className="absolute top-1 -left-7 z-10 flex size-6 items-center justify-center rounded text-muted-foreground opacity-0 outline-none transition-opacity group-hover/item:opacity-60 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring [@media(hover:none)]:opacity-60"
+          >
+            <GripVertical className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
+          </button>
+        )
+
         if (block.kind === 'folder_ref') {
           const row = folderRow?.(block)
           if (row === undefined || row === null) return null
           return (
-            <div key={block.id} className="group/item relative">
+            <div
+              key={block.id}
+              ref={blockDrag.setItemRef(index)}
+              style={dragStyle}
+              className="group/item relative"
+            >
+              {dragHandle}
               {row}
               {inserters(index + 1)}
             </div>
@@ -403,7 +665,13 @@ export function BlocksEditor({
         const after = opening === undefined ? index + 1 : index + 2
 
         return (
-          <div key={block.id} className="group/item relative">
+          <div
+            key={block.id}
+            ref={blockDrag.setItemRef(index)}
+            style={dragStyle}
+            className="group/item relative"
+          >
+            {dragHandle}
             {block.kind === 'section' ? (
               <div className="flex items-center gap-1.5 pt-3">
                 <button
@@ -545,7 +813,7 @@ export function BlocksEditor({
                     (DES-148). Once written, the paragraph itself stands
                     there and is what a second thought clicks into. */}
                 {opening === undefined
-                  ? inserters(index + 1, { dense: true, proseOnly: true })
+                  ? inserters(index + 1, { dense: true })
                   : paragraphNode(opening)}
                 {sectionExtras?.(block.id)}
               </>
