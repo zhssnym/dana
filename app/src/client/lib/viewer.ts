@@ -81,6 +81,7 @@ export function useViewer(): Viewer {
 
 /** A data URL back into a file, which is what a multipart route takes. */
 async function fileOf(dataUrl: string): Promise<File> {
+  // eslint-disable-next-line no-restricted-syntax -- a data: URL round-trip to a Blob; reaches no network, so neither the CSRF header nor tz applies
   const blob = await (await fetch(dataUrl)).blob()
   return new File([blob], 'avatar.jpg', { type: blob.type || 'image/jpeg' })
 }
