@@ -10,6 +10,7 @@ import type {
 
 import { TaskList } from '../components/task-row.js'
 import type { TaskRowProps } from '../components/task-row.js'
+import { PageMark } from '../components/page-head.js'
 import { Button } from '../components/ui/button.js'
 import {
   DropdownMenu,
@@ -17,19 +18,16 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '../components/ui/dropdown-menu.js'
 import { Input } from '../components/ui/input.js'
 import {
-  CalendarDays,
   ChevronDown,
   Heading1,
   ImagePlus,
-  Layers3,
   ListTodo,
   Plus,
-  UserRound,
+  Rocket,
   X,
 } from '../lib/icons.js'
 import { showToast } from '../state/toasts.js'
@@ -41,6 +39,7 @@ import {
   videoTarget,
 } from './composer-research-content.js'
 import type { VideoTarget } from './composer-research-content.js'
+import folderCover from './composer-folder-cover.png'
 
 interface ParagraphNode {
   readonly id: string
@@ -62,25 +61,51 @@ interface ImageNode {
   readonly local: boolean
 }
 
-interface TaskAreaNode {
+interface CanvasTask extends TaskRowProps {
   readonly id: string
-  readonly kind: 'task-area'
-  readonly sectionId: string
 }
 
-type CanvasNode = ParagraphNode | SectionNode | ImageNode | TaskAreaNode
-type DraftKind = 'task' | 'section' | 'image'
+interface TaskNode {
+  readonly id: string
+  readonly kind: 'task'
+  readonly task: CanvasTask
+}
+
+type CanvasNode = ParagraphNode | SectionNode | ImageNode | TaskNode
+type DraftKind = 'section' | 'image'
 
 interface DraftMode {
   readonly nodeId: string
   readonly kind: DraftKind
 }
 
-interface CanvasTask extends TaskRowProps {
-  readonly id: string
+const OPENING_SECTION = 'next-actions'
+
+const NARRATIVE_TASK: CanvasTask = {
+  id: 'canvas-task-narrative',
+  title: 'Confirm the launch narrative',
+  folder: { name: 'Product launch', color: 'violet' },
+  given: { folder: true },
+  due: { label: 'Today' },
+  important: true,
+  assignee: { initials: 'IK', name: 'Imran' },
+  detail: {
+    notes: 'Keep the story concrete: what changes the first time somebody opens Dana?',
+    steps: [
+      { title: 'Review the opening sentence', done: true },
+      { title: 'Choose one supporting example', done: false },
+    ],
+  },
 }
 
-const OPENING_SECTION = 'next-actions'
+const ASSETS_TASK: CanvasTask = {
+  id: 'canvas-task-assets',
+  title: 'Collect the final launch assets',
+  folder: { name: 'Product launch', color: 'violet' },
+  given: { folder: true },
+  due: { label: 'Friday' },
+  assignee: { initials: 'MK', name: 'Maya' },
+}
 
 const INITIAL_NODES: readonly CanvasNode[] = [
   {
@@ -94,38 +119,10 @@ const INITIAL_NODES: readonly CanvasNode[] = [
     kind: 'paragraph',
     text: 'Keep these concrete enough that anybody joining the project knows what to do next.',
   },
-  { id: 'canvas-tasks', kind: 'task-area', sectionId: OPENING_SECTION },
+  { id: NARRATIVE_TASK.id, kind: 'task', task: NARRATIVE_TASK },
+  { id: ASSETS_TASK.id, kind: 'task', task: ASSETS_TASK },
   { id: 'canvas-empty', kind: 'paragraph', text: '' },
 ]
-
-const INITIAL_TASKS: Readonly<Record<string, readonly CanvasTask[]>> = {
-  [OPENING_SECTION]: [
-    {
-      id: 'canvas-task-narrative',
-      title: 'Confirm the launch narrative',
-      folder: { name: 'Product launch', color: 'violet' },
-      given: { folder: true },
-      due: { label: 'Today' },
-      important: true,
-      assignee: { initials: 'IK', name: 'Imran' },
-      detail: {
-        notes: 'Keep the story concrete: what changes the first time somebody opens Dana?',
-        steps: [
-          { title: 'Review the opening sentence', done: true },
-          { title: 'Choose one supporting example', done: false },
-        ],
-      },
-    },
-    {
-      id: 'canvas-task-assets',
-      title: 'Collect the final launch assets',
-      folder: { name: 'Product launch', color: 'violet' },
-      given: { folder: true },
-      due: { label: 'Friday' },
-      assignee: { initials: 'MK', name: 'Maya' },
-    },
-  ],
-}
 
 function makeId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
@@ -197,12 +194,14 @@ function InsertMenu({
   empty,
   section,
   onOpenChange,
+  onCreateTask,
   onChoose,
 }: {
   readonly open: boolean
   readonly empty: boolean
   readonly section: string
   readonly onOpenChange: (open: boolean) => void
+  readonly onCreateTask: () => void
   readonly onChoose: (kind: DraftKind) => void
 }): React.JSX.Element {
   return (
@@ -230,7 +229,7 @@ function InsertMenu({
           <DropdownMenuItem
             className="items-start py-2"
             onClick={() => {
-              onChoose('task')
+              onCreateTask()
             }}
           >
             <ListTodo className="mt-0.5 size-4" strokeWidth={1.75} aria-hidden="true" />
@@ -278,10 +277,13 @@ function ParagraphLine({
   onActivate,
   onDeactivate,
   onMenuChange,
+  onCreateTask,
   onChoose,
   onCommit,
   onSplit,
+  onPromoteToTask,
   onBackspaceEmpty,
+  onDeleteToEmpty,
   onImage,
 }: {
   readonly node: ParagraphNode
@@ -290,16 +292,20 @@ function ParagraphLine({
   readonly section: string
   readonly autoFocus: boolean
   readonly onActivate: () => void
-  readonly onDeactivate: () => void
+  readonly onDeactivate: (text: string) => void
   readonly onMenuChange: (open: boolean) => void
+  readonly onCreateTask: () => void
   readonly onChoose: (kind: DraftKind) => void
   readonly onCommit: (text: string) => void
   readonly onSplit: (before: string, after: string) => void
+  readonly onPromoteToTask: (text: string) => void
   readonly onBackspaceEmpty: () => void
+  readonly onDeleteToEmpty: () => void
   readonly onImage: (file: File) => void
 }): React.JSX.Element {
   const editor = useRef<HTMLDivElement | null>(null)
   const didAutoFocus = useRef(false)
+  const [empty, setEmpty] = useState(node.text === '')
   const video = linksIn(node.text).map(videoTarget).find((target) => target !== null) ?? null
 
   useEffect(() => {
@@ -346,6 +352,7 @@ function ParagraphLine({
           empty={node.text === ''}
           section={section}
           onOpenChange={onMenuChange}
+          onCreateTask={onCreateTask}
           onChoose={onChoose}
         />
       </div>
@@ -356,18 +363,32 @@ function ParagraphLine({
             role="textbox"
             aria-label="Page paragraph"
             aria-multiline="true"
+            aria-description="Control or Command plus Enter creates a task"
             contentEditable
             suppressContentEditableWarning
-            data-placeholder="Do something…"
+            data-placeholder="Do or write something…"
             onInput={(event) => {
-              if (textOf(event.currentTarget) !== '/') return
-              event.currentTarget.textContent = ''
-              onCommit('')
-              onMenuChange(true)
+              const text = textOf(event.currentTarget)
+              setEmpty(text === '')
+              if (text === '/') {
+                event.currentTarget.textContent = ''
+                setEmpty(true)
+                onCommit('')
+                onMenuChange(true)
+                return
+              }
+              const inputType = (event.nativeEvent as InputEvent).inputType
+              if (
+                text === '' &&
+                (inputType === 'deleteContentBackward' || inputType === 'deleteContentForward')
+              ) {
+                onDeleteToEmpty()
+              }
             }}
             onBlur={(event) => {
-              onCommit(textOf(event.currentTarget))
-              onDeactivate()
+              const text = textOf(event.currentTarget)
+              onCommit(text)
+              onDeactivate(text)
             }}
             onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
               if (event.nativeEvent.isComposing) return
@@ -380,6 +401,11 @@ function ParagraphLine({
               if (event.key === 'Backspace' && textOf(event.currentTarget) === '') {
                 event.preventDefault()
                 onBackspaceEmpty()
+                return
+              }
+              if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+                event.preventDefault()
+                onPromoteToTask(textOf(event.currentTarget))
                 return
               }
               if (event.key !== 'Enter' || event.shiftKey) return
@@ -399,7 +425,7 @@ function ParagraphLine({
             onDrop={(event) => {
               imageFromDrop(event)
             }}
-            className="min-h-6 max-w-2xl whitespace-pre-wrap text-sm leading-6 text-foreground outline-none empty:before:pointer-events-none empty:before:text-muted-foreground empty:before:content-[attr(data-placeholder)]"
+            className="min-h-6 min-w-0 max-w-2xl flex-1 whitespace-pre-wrap text-sm leading-6 text-foreground outline-none empty:before:pointer-events-none empty:before:text-muted-foreground empty:before:content-[attr(data-placeholder)]"
           >
             {node.text}
           </div>
@@ -410,9 +436,15 @@ function ParagraphLine({
               if ((event.target as HTMLElement).closest('a') === null) onActivate()
             }}
           >
-            {node.text === '' ? <span className="text-muted-foreground">Do something…</span> : richText(node.text)}
+            {node.text === '' ? <span className="text-muted-foreground">Do or write something…</span> : richText(node.text)}
           </p>
         )}
+        {node.text === '' && empty ? (
+          <span className="pointer-events-none absolute right-0 top-2 hidden items-center gap-1.5 text-[11px] leading-4 text-muted-foreground/70 sm:inline-flex">
+            <kbd className="font-inherit">Ctrl/⌘ Enter</kbd>
+            <span>creates a task</span>
+          </span>
+        ) : null}
         {!active && video !== null ? <Video target={video} /> : null}
       </div>
     </div>
@@ -453,110 +485,6 @@ function SectionDraft({
         }}
         className="h-auto border-0 bg-transparent px-0 py-1 text-base font-semibold leading-6 shadow-none placeholder:text-muted-foreground focus-visible:border-transparent focus-visible:ring-0 md:text-base"
       />
-    </div>
-  )
-}
-
-function TaskCapture({
-  section,
-  onCreate,
-  onCancel,
-}: {
-  readonly section: string
-  readonly onCreate: (task: { title: string; due: string | null; assignee: string | null }) => void
-  readonly onCancel: () => void
-}): React.JSX.Element {
-  const [title, setTitle] = useState('')
-  const [due, setDue] = useState<string | null>(null)
-  const [assignee, setAssignee] = useState<string | null>('Imran')
-  const input = useRef<HTMLInputElement | null>(null)
-
-  function submit(): void {
-    const next = title.trim()
-    if (next === '') return
-    onCreate({ title: next, due, assignee })
-    setTitle('')
-    requestAnimationFrame(() => {
-      input.current?.focus()
-    })
-  }
-
-  return (
-    <div className="flex min-h-10 items-start">
-      <div className="flex h-9 w-8 shrink-0 items-center justify-center">
-        <span className="size-4 rounded border border-input" aria-hidden="true" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex min-h-9 items-center gap-1">
-          <Input
-            ref={input}
-            autoFocus
-            value={title}
-            aria-label={`Add task to ${section}`}
-            placeholder="Task title…"
-            maxLength={300}
-            onChange={(event) => {
-              setTitle(event.target.value)
-            }}
-            onKeyDown={(event) => {
-              if (event.nativeEvent.isComposing) return
-              if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault()
-                submit()
-              } else if (event.key === 'Escape') {
-                event.preventDefault()
-                event.stopPropagation()
-                if (title.trim() === '') onCancel()
-                else event.currentTarget.blur()
-              }
-            }}
-            className="h-9 border-0 bg-transparent px-0 text-sm shadow-none placeholder:text-muted-foreground focus-visible:border-transparent focus-visible:ring-0 md:text-sm"
-          />
-          {title === '' ? (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label="Return to writing"
-              className="text-muted-foreground"
-              onClick={onCancel}
-            >
-              <X className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
-            </Button>
-          ) : null}
-        </div>
-        <div className="flex flex-wrap items-center gap-1 pb-1">
-          <DropdownMenu>
-            <DropdownMenuTrigger render={<Button variant="ghost" size="xs" className="text-muted-foreground" />}>
-              <CalendarDays className="size-3" strokeWidth={1.75} aria-hidden="true" />
-              {due ?? 'Due'}
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-40">
-              {['Today', 'Tomorrow', 'Friday'].map((value) => (
-                <DropdownMenuItem key={value} onClick={() => { setDue(value) }}>{value}</DropdownMenuItem>
-              ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => { setDue(null) }}>No date</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <DropdownMenu>
-            <DropdownMenuTrigger render={<Button variant="ghost" size="xs" className="text-muted-foreground" />}>
-              <UserRound className="size-3" strokeWidth={1.75} aria-hidden="true" />
-              {assignee ?? 'Unassigned'}
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-40">
-              {['Imran', 'Maya'].map((value) => (
-                <DropdownMenuItem key={value} onClick={() => { setAssignee(value) }}>{value}</DropdownMenuItem>
-              ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => { setAssignee(null) }}>Unassigned</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <span className="inline-flex h-5 items-center gap-1 px-2 text-xs text-muted-foreground">
-            <Layers3 className="size-3" strokeWidth={1.75} aria-hidden="true" />
-            {section}
-          </span>
-        </div>
-      </div>
     </div>
   )
 }
@@ -680,15 +608,92 @@ function Picture({ node }: { readonly node: ImageNode }): React.JSX.Element {
   )
 }
 
+function CanvasTaskRow({
+  node,
+  autoEdit,
+  onAutoEditDone,
+  onUpdate,
+  onDelete,
+  onDropAt,
+  onOver,
+  onDragStateChange,
+}: {
+  readonly node: TaskNode
+  readonly autoEdit: boolean
+  readonly onAutoEditDone: () => void
+  readonly onUpdate: (task: CanvasTask) => void
+  readonly onDelete: () => void
+  readonly onDropAt: (taskId: string, point: { x: number; y: number }) => boolean
+  readonly onOver: (taskId: string, point: { x: number; y: number }) => string | null
+  readonly onDragStateChange: (dragging: boolean) => void
+}): React.JSX.Element {
+  const surface = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!autoEdit) return
+    const frame = requestAnimationFrame(() => {
+      const title = surface.current?.querySelector<HTMLElement>('button[data-drag-through]')
+      title?.click()
+      onAutoEditDone()
+    })
+    return () => {
+      cancelAnimationFrame(frame)
+    }
+  }, [autoEdit, onAutoEditDone])
+
+  return (
+    <div ref={surface}>
+      <TaskList
+        tasks={[node.task]}
+        given={{ folder: true }}
+        reorderable={false}
+        className="my-0.5"
+        onDropAt={onDropAt}
+        onOver={onOver}
+        onDragStateChange={onDragStateChange}
+        onTaskOpen={() => {}}
+        onTaskToggleComplete={(_id, complete) => {
+          onUpdate({ ...node.task, status: complete ? 'completed' : 'pending' })
+        }}
+        onTaskToggleImportant={() => {
+          onUpdate({ ...node.task, important: !node.task.important })
+        }}
+        onTaskDelete={onDelete}
+      />
+    </div>
+  )
+}
+
+function WritingGap({ onWrite }: { readonly onWrite: () => void }): React.JSX.Element {
+  return (
+    <button
+      type="button"
+      aria-label="Write between tasks"
+      onClick={onWrite}
+      className="group/gap -ml-8 flex h-3 w-[calc(100%+2rem)] items-center rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <span className="flex w-8 justify-center text-muted-foreground opacity-0 transition-opacity group-hover/gap:opacity-60 group-focus-visible/gap:opacity-80">
+        <Plus className="size-3" strokeWidth={1.75} aria-hidden="true" />
+      </span>
+      <span className="h-px flex-1 bg-border opacity-0 transition-opacity group-hover/gap:opacity-50 group-focus-visible/gap:opacity-70" />
+    </button>
+  )
+}
+
 export function ComposerExplorationPage2(): React.JSX.Element {
   const [nodes, setNodes] = useState<readonly CanvasNode[]>(INITIAL_NODES)
-  const [tasks, setTasks] = useState<Readonly<Record<string, readonly CanvasTask[]>>>(INITIAL_TASKS)
   const [active, setActive] = useState<string | null>(null)
   const [menu, setMenu] = useState<string | null>(null)
   const [mode, setMode] = useState<DraftMode | null>(null)
+  const [autoEditTask, setAutoEditTask] = useState<string | null>(null)
+  const [dropBefore, setDropBefore] = useState<string | null>(null)
+  const [draggingTask, setDraggingTask] = useState(false)
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set())
+  const canvas = useRef<HTMLDivElement | null>(null)
   const localUrls = useRef<string[]>([])
   const finalParagraph = nodes.at(-1)
+  const taskNodes = nodes.filter((node): node is TaskNode => node.kind === 'task')
+  const completedTasks = taskNodes.filter((node) => node.task.status === 'completed').length
 
   useEffect(() => () => {
     for (const url of localUrls.current) URL.revokeObjectURL(url)
@@ -733,6 +738,60 @@ export function ComposerExplorationPage2(): React.JSX.Element {
     setActive(null)
   }
 
+  function taskFrom(title: string): CanvasTask {
+    return {
+      id: makeId('task'),
+      title,
+      folder: { name: 'Product launch', color: 'violet' },
+      given: { folder: true },
+      assignee: { initials: 'IK', name: 'Imran' },
+    }
+  }
+
+  function createTaskAt(node: ParagraphNode, title: string): void {
+    const task = taskFrom(title.trim() === '' ? 'New task' : title.trim())
+    const taskNode: TaskNode = { id: task.id, kind: 'task', task }
+    const next: ParagraphNode = { id: makeId('paragraph'), kind: 'paragraph', text: '' }
+    const currentIndex = nodes.findIndex((candidate) => candidate.id === node.id)
+    const currentNext = nodes[currentIndex + 1]
+    const focusId = currentNext?.kind === 'paragraph' && currentNext.text === ''
+      ? currentNext.id
+      : next.id
+    setNodes((current) => {
+      const index = current.findIndex((candidate) => candidate.id === node.id)
+      if (index < 0) return current
+      const existingNext = current[index + 1]
+      const hasEmptyNext = existingNext?.kind === 'paragraph' && existingNext.text === ''
+      const addition = hasEmptyNext ? [taskNode] : [taskNode, next]
+      if (node.text === '' || title.trim() !== '') {
+        return [...current.slice(0, index), ...addition, ...current.slice(index + 1)]
+      }
+      return [...current.slice(0, index + 1), ...addition, ...current.slice(index + 1)]
+    })
+    setActive(null)
+    setMenu(null)
+    setMode(null)
+    if (title.trim() === '') setAutoEditTask(task.id)
+    else focusSoon(focusId)
+  }
+
+  function removeParagraph(id: string): void {
+    const index = nodes.findIndex((node) => node.id === id)
+    if (index < 0) return
+    const nextParagraph = nodes.slice(index + 1).find((node) => node.kind === 'paragraph')
+    const previousParagraph = [...nodes.slice(0, index)].reverse().find((node) => node.kind === 'paragraph')
+    setNodes((current) => current.filter((node) => node.id !== id))
+    setActive(null)
+    const target = nextParagraph ?? previousParagraph
+    if (target !== undefined) focusSoon(target.id)
+  }
+
+  function insertWritingAfter(id: string): void {
+    const paragraph: ParagraphNode = { id: makeId('paragraph'), kind: 'paragraph', text: '' }
+    insertAfter(id, [paragraph])
+    focusSoon(paragraph.id)
+  }
+
   function addImage(nodeId: string, source: File | string): void {
     const local = source instanceof File
     const src = local ? URL.createObjectURL(source) : source
@@ -745,9 +804,32 @@ export function ComposerExplorationPage2(): React.JSX.Element {
     focusSoon(next.id)
   }
 
-  function ensureTaskArea(sectionId: string, afterId: string): void {
-    if (nodes.some((node) => node.kind === 'task-area' && node.sectionId === sectionId)) return
-    insertAfter(afterId, [{ id: makeId('tasks'), kind: 'task-area', sectionId }])
+  function placementAt(taskId: string, point: { x: number; y: number }): string | null {
+    const elements = [...(canvas.current?.querySelectorAll<HTMLElement>('[data-canvas-node-id]') ?? [])]
+      .filter((element) => element.dataset.canvasNodeId !== taskId)
+    const next = elements.find((element) => point.y < element.getBoundingClientRect().top + element.getBoundingClientRect().height / 2)
+    return next?.dataset.canvasNodeId ?? null
+  }
+
+  function moveTask(taskId: string, point: { x: number; y: number }): boolean {
+    const beforeId = placementAt(taskId, point)
+    setNodes((current) => {
+      const task = current.find((node) => node.id === taskId)
+      if (task?.kind !== 'task') return current
+      const without = current.filter((node) => node.id !== taskId)
+      if (beforeId === null) {
+        const last = without.at(-1)
+        if (last?.kind === 'paragraph' && last.text === '') {
+          return [...without.slice(0, -1), task, last]
+        }
+        return [...without, task]
+      }
+      const at = without.findIndex((node) => node.id === beforeId)
+      if (at < 0) return current
+      return [...without.slice(0, at), task, ...without.slice(at)]
+    })
+    setDropBefore(null)
+    return true
   }
 
   function hiddenByCollapsedSection(index: number): boolean {
@@ -760,176 +842,200 @@ export function ComposerExplorationPage2(): React.JSX.Element {
 
   return (
     <div className="mx-auto max-w-3xl pb-24">
-      <header className="pt-2">
-        <h1 className="text-2xl font-semibold leading-8 text-foreground">Product launch</h1>
+      <div
+        className="relative -mt-4 h-32 bg-cover bg-center md:-mt-6"
+        style={{
+          marginInline: 'calc(50% - 50cqw)',
+          backgroundImage: `url('${folderCover}')`,
+          backgroundPosition: 'center 58%',
+        }}
+        role="img"
+        aria-label="Calm launch workspace cover"
+      >
+        <span className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/15 to-transparent" aria-hidden="true" />
+      </div>
+      <header className="group/head">
+        <PageMark
+          icon={Rocket}
+          hasCover
+          color="var(--color-dana-accent-700)"
+          aria-label="Product launch folder icon"
+        />
+        <div className="mt-1.5 flex items-baseline gap-3">
+          <h1 className="min-w-0 truncate text-2xl font-semibold leading-8 text-foreground">Product launch</h1>
+          <span className="shrink-0 text-xs leading-4 tabular-nums text-muted-foreground">
+            {completedTasks} of {taskNodes.length} done
+          </span>
+        </div>
         <p className="mt-1 max-w-xl text-sm leading-5 text-muted-foreground">
-          A clear story, a coordinated release, and no loose ends.
+          A clear story, a coordinated release, and every decision in one place.
         </p>
       </header>
 
-      <div className="mt-7 pl-8">
+      <div ref={canvas} className="mt-7 pl-8">
         {nodes.map((node, index) => {
           if (node.kind !== 'section' && hiddenByCollapsedSection(index)) return null
+          const marker = dropBefore === node.id ? (
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-x-0 -top-px z-20 h-0.5 rounded-full bg-primary"
+            />
+          ) : null
           if (node.kind === 'section') {
             return (
-              <SectionHeading
-                key={node.id}
-                node={node}
-                collapsed={collapsed.has(node.id)}
-                onToggle={() => {
-                  setCollapsed((current) => {
-                    const next = new Set(current)
-                    if (next.has(node.id)) next.delete(node.id)
-                    else next.add(node.id)
-                    return next
-                  })
-                }}
-              />
+              <div key={node.id} data-canvas-node-id={node.id} className="relative">
+                {marker}
+                <SectionHeading
+                  node={node}
+                  collapsed={collapsed.has(node.id)}
+                  onToggle={() => {
+                    setCollapsed((current) => {
+                      const next = new Set(current)
+                      if (next.has(node.id)) next.delete(node.id)
+                      else next.add(node.id)
+                      return next
+                    })
+                  }}
+                />
+              </div>
             )
           }
-          if (node.kind === 'image') return <Picture key={node.id} node={node} />
-          if (node.kind === 'task-area') {
-            const rows = tasks[node.sectionId] ?? []
-            return rows.length === 0 ? null : (
-              <TaskList
-                key={node.id}
-                tasks={[...rows]}
-                given={{ folder: true }}
-                className="my-1"
-                onTaskOpen={() => {}}
-                onTaskToggleComplete={(id, complete) => {
-                  setTasks((current) => ({
-                    ...current,
-                    [node.sectionId]: rows.map((task) => task.id === id
-                      ? { ...task, status: complete ? 'completed' : 'pending' }
-                      : task),
-                  }))
-                }}
-                onTaskToggleImportant={(id) => {
-                  setTasks((current) => ({
-                    ...current,
-                    [node.sectionId]: rows.map((task) => task.id === id
-                      ? { ...task, important: !task.important }
-                      : task),
-                  }))
-                }}
-                onTaskDelete={(id) => {
-                  setTasks((current) => ({
-                    ...current,
-                    [node.sectionId]: rows.filter((task) => task.id !== id),
-                  }))
-                }}
-              />
+          if (node.kind === 'image') {
+            return (
+              <div key={node.id} data-canvas-node-id={node.id} className="relative">
+                {marker}
+                <Picture node={node} />
+              </div>
+            )
+          }
+          if (node.kind === 'task') {
+            const nextNode = nodes[index + 1]
+            return (
+              <div key={node.id} data-canvas-node-id={node.id} className="relative">
+                {marker}
+                <CanvasTaskRow
+                  node={node}
+                  autoEdit={autoEditTask === node.id}
+                  onAutoEditDone={() => {
+                    setAutoEditTask((current) => current === node.id ? null : current)
+                  }}
+                  onUpdate={(task) => {
+                    replaceNode(node.id, { ...node, task })
+                  }}
+                  onDelete={() => {
+                    setNodes((current) => current.filter((candidate) => candidate.id !== node.id))
+                  }}
+                  onDropAt={moveTask}
+                  onOver={(taskId, point) => {
+                    const before = placementAt(taskId, point)
+                    setDropBefore((current) => current === before ? current : before)
+                    return 'Place between page elements'
+                  }}
+                  onDragStateChange={(dragging) => {
+                    setDraggingTask(dragging)
+                    if (!dragging) setDropBefore(null)
+                  }}
+                />
+                {nextNode?.kind === 'task' ? (
+                  <WritingGap onWrite={() => { insertWritingAfter(node.id) }} />
+                ) : null}
+              </div>
             )
           }
 
           const context = sectionAt(index)
-          if (mode?.nodeId === node.id && mode.kind === 'task') {
-            return (
-              <TaskCapture
-                key={node.id}
-                section={context.label}
-                onCreate={(draft) => {
-                  const id = makeId('task')
-                  const assignee = draft.assignee === null
-                    ? undefined
-                    : { initials: draft.assignee === 'Maya' ? 'MK' : 'IK', name: draft.assignee }
-                  const task: CanvasTask = {
-                    id,
-                    title: draft.title,
-                    folder: { name: 'Product launch', color: 'violet' },
-                    given: { folder: true },
-                    ...(draft.due === null ? {} : { due: { label: draft.due } }),
-                    ...(assignee === undefined ? { unassigned: true } : { assignee }),
-                  }
-                  setTasks((current) => ({
-                    ...current,
-                    [context.id]: [...(current[context.id] ?? []), task],
-                  }))
-                  ensureTaskArea(context.id, node.id)
-                  showToast(`Task added to ${context.label}`)
-                }}
-                onCancel={() => {
-                  setMode(null)
-                  focusSoon(node.id)
-                }}
-              />
-            )
-          }
           if (mode?.nodeId === node.id && mode.kind === 'section') {
             return (
-              <SectionDraft
-                key={node.id}
-                initial={node.text}
-                onSave={(title) => {
-                  const paragraph = { id: makeId('paragraph'), kind: 'paragraph' as const, text: '' }
-                  replaceNode(node.id, { id: node.id, kind: 'section', title })
-                  insertAfter(node.id, [paragraph])
-                  setMode(null)
-                  focusSoon(paragraph.id)
-                }}
-                onCancel={() => {
-                  setMode(null)
-                  focusSoon(node.id)
-                }}
-              />
+              <div key={node.id} data-canvas-node-id={node.id} className="relative">
+                {marker}
+                <SectionDraft
+                  initial={node.text}
+                  onSave={(title) => {
+                    const paragraph = { id: makeId('paragraph'), kind: 'paragraph' as const, text: '' }
+                    replaceNode(node.id, { id: node.id, kind: 'section', title })
+                    insertAfter(node.id, [paragraph])
+                    setMode(null)
+                    focusSoon(paragraph.id)
+                  }}
+                  onCancel={() => {
+                    setMode(null)
+                    focusSoon(node.id)
+                  }}
+                />
+              </div>
             )
           }
           if (mode?.nodeId === node.id && mode.kind === 'image') {
             return (
-              <ImageDraft
-                key={node.id}
-                onImage={(source) => {
-                  addImage(node.id, source)
-                }}
-                onCancel={() => {
-                  setMode(null)
-                  focusSoon(node.id)
-                }}
-              />
+              <div key={node.id} data-canvas-node-id={node.id} className="relative">
+                {marker}
+                <ImageDraft
+                  onImage={(source) => {
+                    addImage(node.id, source)
+                  }}
+                  onCancel={() => {
+                    setMode(null)
+                    focusSoon(node.id)
+                  }}
+                />
+              </div>
             )
           }
           return (
-            <ParagraphLine
-              key={node.id}
-              node={node}
-              active={active === node.id}
-              menuOpen={menu === node.id}
-              section={context.label}
-              autoFocus={node.id === finalParagraph?.id && node.text === '' && active === null && mode === null}
-              onActivate={() => {
-                setActive(node.id)
-              }}
-              onDeactivate={() => {
-                setActive((current) => current === node.id ? null : current)
-              }}
-              onMenuChange={(open) => {
-                setMenu(open ? node.id : null)
-              }}
-              onChoose={(kind) => {
-                begin(node, kind)
-              }}
-              onCommit={(text) => {
-                replaceNode(node.id, { ...node, text })
-              }}
-              onSplit={(before, after) => {
-                const next = { id: makeId('paragraph'), kind: 'paragraph' as const, text: after }
-                replaceNode(node.id, { ...node, text: before })
-                insertAfter(node.id, [next])
-                focusSoon(next.id)
-              }}
-              onBackspaceEmpty={() => {
-                const previous = nodes[index - 1]
-                if (previous?.kind !== 'paragraph') return
-                setNodes((current) => current.filter((candidate) => candidate.id !== node.id))
-                focusSoon(previous.id)
-              }}
-              onImage={(file) => {
-                addImage(node.id, file)
-              }}
-            />
+            <div key={node.id} data-canvas-node-id={node.id} className="relative">
+              {marker}
+              <ParagraphLine
+                node={node}
+                active={active === node.id}
+                menuOpen={menu === node.id}
+                section={context.label}
+                autoFocus={node.id === finalParagraph?.id && node.text === '' && active === null && mode === null}
+                onActivate={() => {
+                  setActive(node.id)
+                }}
+                onDeactivate={(text) => {
+                  setActive((current) => current === node.id ? null : current)
+                  if (text === '' && node.id !== finalParagraph?.id) removeParagraph(node.id)
+                }}
+                onMenuChange={(open) => {
+                  setMenu(open ? node.id : null)
+                }}
+                onCreateTask={() => {
+                  createTaskAt(node, '')
+                }}
+                onChoose={(kind) => {
+                  begin(node, kind)
+                }}
+                onCommit={(text) => {
+                  replaceNode(node.id, { ...node, text })
+                }}
+                onSplit={(before, after) => {
+                  if (before === '' && after === '') return
+                  const next = { id: makeId('paragraph'), kind: 'paragraph' as const, text: after }
+                  replaceNode(node.id, { ...node, text: before })
+                  insertAfter(node.id, [next])
+                  focusSoon(next.id)
+                }}
+                onPromoteToTask={(text) => {
+                  createTaskAt(node, text)
+                  showToast(text.trim() === '' ? 'Task ready to name' : 'Paragraph became a task')
+                }}
+                onBackspaceEmpty={() => {
+                  if (node.id !== finalParagraph?.id) removeParagraph(node.id)
+                }}
+                onDeleteToEmpty={() => {
+                  if (node.id !== finalParagraph?.id) removeParagraph(node.id)
+                }}
+                onImage={(file) => {
+                  addImage(node.id, file)
+                }}
+              />
+            </div>
           )
         })}
+        {draggingTask && dropBefore === null ? (
+          <div aria-hidden="true" className="mt-1 h-0.5 rounded-full bg-primary" />
+        ) : null}
       </div>
     </div>
   )
