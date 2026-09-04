@@ -33,13 +33,33 @@ default, so read this list before spending one.
   by issues #107 and #76, which is what the sibling branches could not know while they were
   open. **397 is reserved rather than free**: the authorization sweep is holding it on a
   branch that had not merged when this was written. So the next number to take from the tail
-  is 398, and the twenty-nine gaps above are the only free numbers below it.
+  was 398, and the twenty-nine gaps above are the only free numbers below it.
+
+  **399 and 400 went to issue #104 on 2026-09-04, and 398 was left alone**, which is the
+  bullet below this one: 399 was handed to that branch, 400 taken beside it unassigned, and
+  398 not taken because that branch could not tell whether a sibling was holding it. **So
+  the next number to take from the tail is 401**, and 398 is free only if whoever was handed
+  it says so.
 
   **229 was in this list until 2026-09-03 and contradicted the bullet directly above it**,
   which says the number is spent and must not be taken again. The count said thirty because
   it counted 229; the five ranges are twenty-nine numbers. Corrected on the branch for issues
   #20 and #100, which read this list to choose AC-368, rather than left for whoever spent 229
   a second time and found out from a duplicate test filename.
+- **AC-399 was assigned and AC-400 taken from the tail beside it on 2026-09-04** (issue
+  #104), on the rule the AC-361 to AC-365 bullet below states. 399 was handed to this
+  branch by the session that opened several at once, which is the backend README's rule for
+  parallel branches; 400 was **taken unassigned**, that README's other half, because the
+  work turned out to need a behavioural criterion beside the structural one and nobody was
+  awake to hand out a second number. 398 is left alone rather than taken: this branch has
+  no way to know whether it belongs to a sibling, and the bullet above says 397 was already
+  reserved when it was written, so **the next number to take from the tail is 401** unless a
+  branch holding 398 says otherwise. Both criteria are 12.23's. They are issue #104's
+  `parseBody`: the structural sweep that no route parses a body without it, and the line it
+  writes when a body carries a key nobody declared — what is in that line, and its silence
+  for a body that carries none. **The count in the table below is not re-derived here**, on
+  the AC-394 bullet's precedent: several branches were open the same night and the
+  arithmetic belongs to the last merge rather than to any one of them.
 - **AC-394 to AC-396 were taken from the tail on 2026-09-04** (issue #99), on the rule the
   AC-361 to AC-365 bullet below states, and with the number assigned rather than chosen —
   several branches were open that night and the tail is only collision-proof when one party
