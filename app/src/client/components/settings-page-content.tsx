@@ -48,6 +48,10 @@ this production component differs from the prototype.
    prototype caps only the rows and leaves them flush left inside the page
    measure. Imran, 2026-08-30. The number and its reason are the prototype's,
    unchanged; what moves is which element carries the cap. 9.7 records it.
+10. **"Download my data" in the Account section**, issue #162 over 7.22, which
+   the prototype has no equivalent of: it is the export 10.9 records as the
+   one Google obligation Dana did not meet, and it is an anchor rather than a
+   call. The reasoning is beside the row.
 
 The cleanup changes no visible behavior.
 */
@@ -56,6 +60,7 @@ import {
   Sun,
   Moon,
   Monitor,
+  Download,
   ImagePlus,
   Globe,
   Mail,
@@ -663,6 +668,41 @@ export function SettingsPageContent({
                   </div>
                   <TimezoneSelect />
                 </div>
+                {/* Seam 10: 7.22's export, issue #162, and the one control
+                    on this page that is deliberately not a call through
+                    `api/http.ts`.
+
+                    It is an anchor with `download` rather than a button with
+                    a handler, and the reason is the session rather than
+                    taste. A navigation carries the session cookie on its own
+                    and hands the response to the browser's download manager,
+                    which is what makes `Content-Disposition:
+                    attachment; filename="dana-export-YYYY-MM-DD.json"` mean
+                    anything; the fetch layer would parse the whole document
+                    through a zod schema into memory and then need a second
+                    step to turn an object back into a file. `http.ts` owns
+                    every call that reads data into this client, and this one
+                    reads none of it here.
+
+                    The endpoint is five per hour per person and answers
+                    10.3's envelope past that. A refusal therefore arrives as
+                    the browser's own downloaded response rather than through
+                    9.1's toast, which is the honest cost of not routing it
+                    through the fetch layer and is written down rather than
+                    hidden: nothing in this client sees the status. */}
+                <SettingRow
+                  icon={Download}
+                  title="Download my data"
+                  description="Everything Dana holds about you, as one JSON file."
+                  control={
+                    <Button
+                      variant="outline"
+                      render={<a href="/api/v1/me/export" download />}
+                    >
+                      Download
+                    </Button>
+                  }
+                />
                 {/* polish: settings F5. "Open People" and a second "Sign out"
                     stood here beside the sidebar's People link and the
                     account menu's Sign out; each lives in one place now, and

@@ -54,6 +54,19 @@ default, so read this list before spending one.
   it counted 229; the five ranges are twenty-nine numbers. Corrected on the branch for issues
   #20 and #100, which read this list to choose AC-368, rather than left for whoever spent 229
   a second time and found out from a duplicate test filename.
+- **AC-404 was taken from the tail on 2026-09-04** (issue #162), on the rule the AC-361 to
+  AC-365 bullet below states, and **with the number assigned rather than chosen**: three
+  frontend branches were open on one worktree set that night and the tail is only
+  collision-proof when one party hands out the ranges, which is what the AC-394 bullet
+  records. So 401 to 403 are **not** added to the free list above and are not free here:
+  whether a sibling branch spent them is not known from this one, and listing a number free
+  that a sibling has just spent is the collision this rule exists to prevent, made by the fix
+  rather than by the mistake. It is 12.3's, and the reason it is not 12.22's is written beside
+  it: the Settings control that downloads 7.22's export and the Privacy sentence promising it
+  are one criterion, because 9.2 admits the sentence only while the control ships. **The count
+  in the table below is not re-derived here**, on the AC-394 bullet's precedent, several
+  branches being open on these files at once; whoever merges last re-derives it and says what
+  became of 401 to 403.
 - **AC-399 was assigned and AC-400 taken from the tail beside it on 2026-09-04** (issue
   #104), on the rule the AC-361 to AC-365 bullet below states. 399 was handed to this
   branch by the session that opened several at once, which is the backend README's rule for

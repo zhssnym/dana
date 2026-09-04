@@ -36,9 +36,26 @@ still to be routed in production", and this file's source carries Imran's
 approval of the copy with its date and his sentence. So what was open is the
 routing, and the routing is this package. Nothing here is invented.
 
-9.2's no-capability-claim rule applies to every public page and is met by
-construction: every sentence below states what Dana stores, uses, or does
-not do, and none of them claims a feature.
+**A fourth departure, and it is an addition rather than a move: the section
+"Taking your data with you" (issue #162, 2026-09-04).** The prototype has no
+such section, because when it was drawn Dana had no export. 7.22 gives it one
+and 9.7 now carries the control, so the page that tells a person what Dana
+holds about them can tell them how to take it. It sits immediately before
+"Deleting your data" because the two are one pair in the order a person does
+them, take it and then remove it, and because 10.9 records that the Google
+APIs Terms of Service clause this satisfies is about portability rather than
+about erasure. Its sentence names Settings, which is where the control is,
+rather than the endpoint, which is not a thing to hand a person.
+
+9.2's no-capability-claim rule applies to every public page and is met, but
+no longer by construction, and the difference is worth stating rather than
+leaving for a reader to notice. Every other sentence below states what Dana
+stores, uses, or does not do, and claims no feature. The export sentence
+claims one. It is admissible because that rule forbids copy that "promises,
+implies or previews a capability Dana does not ship", and this one ships:
+`GET /api/v1/me/export` is 7.22 and the Settings row reaching it lands in the
+same change as this sentence. **A page carrying that sentence with no control
+behind it would break the rule**, so the two are never separated.
 */
 import { Link } from 'react-router'
 
@@ -76,6 +93,12 @@ const PAGE_COPY = {
         body: [
           'Dana runs on rented infrastructure and uses a small set of service providers: hosting for the application and its database, an email service that delivers invitations and reminders, an error-reporting service that receives technical failure reports with your content removed, and a log service that keeps operational events for 30 days. Task content and invitation addresses are excluded from error reports and logs.',
           'Google handles sign-in. Dana never sees your password.',
+        ],
+      },
+      {
+        heading: 'Taking your data with you',
+        body: [
+          'You can download everything Dana holds about you at any time, as a single JSON file, from your Settings page.',
         ],
       },
       {
