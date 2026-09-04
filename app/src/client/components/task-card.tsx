@@ -17,7 +17,9 @@ several Lane 2 proposals so they can be judged rather than imagined:
 attachments have no storage (DES-055, DES-105), block order has nowhere to
 live (DES-102), and moving steps between levels needs endpoints nobody has
 written (DES-100, DES-112). Each is excluded from `app/` by its entry in
-`docs/design/v2-decisions.md`, not by being invisible here. See DES-119 for
+`docs/design/v2-decisions.md`, not by being invisible here. That register is
+deleted (`a7886df`, 2026-09-01) and is in git history before that commit, and
+11.13 records that the DES key space has no successor. See DES-119 there for
 the list the port must check itself against.
 */
 
@@ -633,8 +635,10 @@ function CardFooter({
         **Copy link went at the round of 2026-08-31, on the owner's call, and
         it is the one removal here that overrides the prototype rather than
         following it.** `docs/design/prototype-v2/src/components/task-card.tsx`
-        still draws the same `IconAction` in the same band, so this is not a
-        parity fix and must not be read back as drift; his words were that on
+        drew the same `IconAction` in the same band, that prototype being
+        deleted (`a7886df`, 2026-09-01) and in git history before that
+        commit, so this is not a parity fix and must not be read back as
+        drift; his words were that on
         the open task the share link "is so much big, it's like a whole block
         ... you can get to that share link either way by going to the three
         dots, so it's just useless space". In a surface the band's whole

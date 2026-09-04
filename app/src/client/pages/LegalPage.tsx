@@ -4,9 +4,10 @@ and production has never had (DES-032, AC-240).
 
 Ported from `docs/design/prototype-v2/src/screens/public-legal-screen.tsx`,
 which 11.13 makes the source this is built from rather than a reference it is
-compared against. The layout, the section order and the copy are that file's;
-three things are this client's and each is named here, because a port that
-changes something silently is the defect item 20 exists to stop.
+compared against; that prototype is deleted (`a7886df`, 2026-09-01) and is in
+git history before that commit. The layout, the section order and the copy are
+that file's; three things are this client's and each is named here, because a
+port that changes something silently is the defect item 20 exists to stop.
 
 **The addresses.** The prototype is one application addressed by `?view=`, so
 its brand link points at `?view=landing` and its footer at `?view=privacy`.
@@ -28,13 +29,16 @@ sanitized Sentry errors and 30-day Axiom logs (11.12, 10.5), and hard
 deletion behind a typed DELETE (8.10, 9.7).
 
 **Approval, because DES-032's row and the prototype disagree and a session
-may not pick.** The design contract's table still reads "DES-032 | Privacy
-and terms destinations | OPEN | Before Session 7", which is the v1 row.
-`docs/design/v2-decisions.md` records the answer in the same register's own
+may not pick.** The design contract's table read "DES-032 | Privacy and terms
+destinations | OPEN | Before Session 7", which is the v1 row.
+`docs/design/v2-decisions.md` recorded the answer in the same register's own
 words: DES-032 is "**closed in v2**: pages drafted and approved 2026-08-17,
 still to be routed in production", and this file's source carries Imran's
-approval of the copy with its date and his sentence. So what was open is the
-routing, and the routing is this package. Nothing here is invented.
+approval of the copy with its date and his sentence. Both documents are
+deleted (`a7886df`, 2026-09-01) and are in git history before that commit, and
+11.13 records that the DES key space has no successor, so the quotations above
+are the whole of the record. So what was open is the routing, and the routing
+is this package. Nothing here is invented.
 
 **A fourth departure, and it is an addition rather than a move: the section
 "Taking your data with you" (issue #162, 2026-09-04).** The prototype has no

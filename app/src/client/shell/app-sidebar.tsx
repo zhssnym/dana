@@ -223,9 +223,10 @@ import type { Shelf } from '../../shared/shelves.js'
 Where a folder arriving from another list would land, drawn as a line.
 
 Lifted from `docs/design/prototype-v2/src/components/folder-directory.tsx` at
-S24, with the designer's reasoning: absolutely positioned, so nothing moves
-while it is shown. An indicator that shifted the rows would be changing the
-answer it was describing.
+S24 (that prototype is deleted, `a7886df` on 2026-09-01, and is in git history
+before that commit), with the designer's reasoning: absolutely positioned, so
+nothing moves while it is shown. An indicator that shifted the rows would be
+changing the answer it was describing.
 */
 function InsertLine({ top }: { readonly top: number }): React.JSX.Element {
   return (

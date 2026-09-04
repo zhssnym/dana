@@ -45,8 +45,9 @@ tolerance for slop:
 
 - **A one-folder file with its page and its work at the top level**, which
   is `dana`, `version`, `name`, `items` and `tasks` and no `folders` key at
-  all. That is what DES-206's own serialiser writes
-  (`docs/design/prototype-v2/src/lib/workflow.ts`), so it is the shape of
+  all. That is what DES-206's own serialiser wrote
+  (`docs/design/prototype-v2/src/lib/workflow.ts`, deleted `a7886df` on
+  2026-09-01 and in git history before that commit), so it is the shape of
   every workflow file the product has ever handed a person, and until this
   change the schema answered it with "folders: expected array, received
   undefined" and the Import control answered it with "this is not a Dana

@@ -2,13 +2,14 @@
 The task, and everything true about one that is not a question of how it looks.
 
 `docs/design/prototype-v2/src/lib/task-model.ts`, read at `7d2064c`, reduced
-to its declarations. The file arrives here rather than at S23 because
-`lib/task-writer.tsx`, `lib/task-concept.ts` and every surface that follows
-them speak in this shape, and a shape declared twice is a shape that will one
-day disagree with itself. Its own header says why it exists at all: the row
-and its card disagreed twice while each wrote its own copy of one fact, "the
-row said Weekly about a task that repeated on weekdays", and both faults were
-one fact written down in two places.
+to its declarations. That prototype is deleted (`a7886df`, 2026-09-01); read
+it in git history before that commit. The file arrives here rather than at S23
+because `lib/task-writer.tsx`, `lib/task-concept.ts` and every surface that
+follows them speak in this shape, and a shape declared twice is a shape that
+will one day disagree with itself. Its own header says why it exists at all:
+the row and its card disagreed twice while each wrote its own copy of one
+fact, "the row said Weekly about a task that repeated on weekdays", and both
+faults were one fact written down in two places.
 
 **What crossed and what did not, named rather than discovered.** The four
 interfaces below and the two counts are the whole of the lift, verbatim. What

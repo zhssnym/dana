@@ -1,11 +1,13 @@
 /*
 The acts a task supports, performed.
 
-`docs/design/prototype-v2/src/lib/task-acts.ts`, read at `7d2064c`. Its own
-header gives the reason it exists and the reason survives the port whole: "an
-act belongs to the object, so the moment it lives inside one screen the next
-screen either goes without it or writes a second copy that drifts. A task's
-menu is drawn in a row, in a card, in a dialog, in a tab and on a board."
+`docs/design/prototype-v2/src/lib/task-acts.ts`, read at `7d2064c`. That
+prototype is deleted (`a7886df`, 2026-09-01); read it in git history before
+that commit. Its own header gives the reason it exists and the reason survives
+the port whole: "an act belongs to the object, so the moment it lives inside
+one screen the next screen either goes without it or writes a second copy that
+drifts. A task's menu is drawn in a row, in a card, in a dialog, in a tab and
+on a board."
 
 The sibling of `lib/object-acts.ts`, which declares *what* a task offers and
 in what order, and this, which performs the ones that are the same act

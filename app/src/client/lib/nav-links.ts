@@ -2,10 +2,11 @@
 Where a Dana object lives, and how a lifted component gets there.
 
 The navigation half of RFC 0004's S22 row, lifted against
-`docs/design/prototype-v2/` at `7d2064c`. Nothing here is a second route
-table: `routes.ts` is 9.1's and stays the only one. This module exists so
-that the components arriving at S23 and S24 can ask the question they
-already know how to ask.
+`docs/design/prototype-v2/` at `7d2064c`; that prototype is deleted
+(`a7886df`, 2026-09-01) and is in git history before that commit. Nothing
+here is a second route table: `routes.ts` is 9.1's and stays the only one.
+This module exists so that the components arriving at S23 and S24 can ask the
+question they already know how to ask.
 
 **The seam, and it is two seams wearing one coat.**
 

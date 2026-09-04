@@ -1,8 +1,9 @@
 /*
 Originally lifted from `docs/design/prototype-v2/src/screens/settings-screen.tsx`
-at RFC 0004's S27. Issue #129 moved the presentation into `components/` and
-made the route page own its settings read; the seams below remain the reasons
-this production component differs from the prototype.
+at RFC 0004's S27; that prototype is deleted (`a7886df`, 2026-09-01) and is in
+git history before that commit. Issue #129 moved the presentation into
+`components/` and made the route page own its settings read; the seams below
+remain the reasons this production component differs from the prototype.
 
 1. **The `@/` specifiers become this client's relative ESM paths** (11.4), the
    mechanical seam every lifted file takes, and the em dashes leave under

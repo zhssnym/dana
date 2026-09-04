@@ -2,9 +2,11 @@
 Help: the shortcuts that exist, and nothing else (AC-242).
 
 Ported from `docs/design/prototype-v2/src/components/help-sheet.tsx`, which
-11.13 makes the source. Its header states the design and it survives the port
-whole: Imran's brief of 2026-08-23 gave Help no content, only a place, and the
-place is 9.1's account menu, with the other things that are about the
+11.13 makes the source; that prototype is deleted (`a7886df`, 2026-09-01) and
+is in git history before that commit. Its header states the design and it
+survives the port whole: Imran's brief of 2026-08-23 gave Help no content,
+only a place, and the place is 9.1's account menu, with the other things that
+are about the
 application rather than about your work. What that leaves is the harder half,
 because Help is the easiest control in any product to fill with a plausible
 lie: a Getting started that starts nothing, a Contact support with no support
