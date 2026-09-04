@@ -24,7 +24,7 @@ import {
   signIn,
   taskRow,
   TEST_TIMEOUT_MS,
-  waitForApiIdle,
+  watchCommit,
 } from './harness.js'
 
 test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
@@ -84,11 +84,18 @@ test('AC-351: the confirm says Trash, its controls are Delete and Keep them, and
     dialog.getByRole('button', { name: 'Keep them', exact: true }),
     'declining is named by what it does',
   ).toBeVisible()
+  /* Before the act (2026-09-04, issue #159). `waitForApiIdle` returns as
+     soon as nothing is in flight, and that is also true in the window
+     between the press and the request the press causes, so the wire read
+     below could find it empty and fail saying the client sent nothing --
+     which is the defect the assertion is for. `watchCommit` waits for the
+     page to have sent something before it waits for quiet. */
+  const deleted = watchCommit(page)
   await clickControl(
     dialog.getByRole('button', { name: 'Delete', exact: true }),
     'confirming is named by what it does',
   )
-  await waitForApiIdle(page, 'both deletions have been written')
+  await deleted.settled('both deletions reach the server before the rows are counted')
   await expect(taskRow(page, first)).toHaveCount(0)
   await expect(taskRow(page, second)).toHaveCount(0)
 
@@ -96,8 +103,15 @@ test('AC-351: the confirm says Trash, its controls are Delete and Keep them, and
     page.getByText('Deleted 2 tasks', { exact: true }),
     'spec 9.1: one undo entry for the batch, naming its size',
   ).toBeVisible()
+  /* Before the act (2026-09-04, issue #159). `waitForApiIdle` returns as
+     soon as nothing is in flight, and that is also true in the window
+     between the press and the request the press causes, so the wire read
+     below could find it empty and fail saying the client sent nothing --
+     which is the defect the assertion is for. `watchCommit` waits for the
+     page to have sent something before it waits for quiet. */
+  const restored = watchCommit(page)
   await clickControl(page.getByRole('button', { name: 'Undo', exact: true }), 'one press puts all of it back')
-  await waitForApiIdle(page, 'both restores have been written')
+  await restored.settled('both restores reach the server before 7.6 is asked for the two statuses')
   expect(await statusOf(page, a.id), 'the first is back').toBe('pending')
   expect(await statusOf(page, b.id), 'and so is the second, which one Undo used to leave in Trash').toBe(
     'pending',

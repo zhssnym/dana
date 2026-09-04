@@ -37,7 +37,7 @@ import {
   seedSubs,
   signIn,
   TEST_TIMEOUT_MS,
-  waitForApiIdle,
+  watchCommit,
 } from './harness.js'
 
 test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
@@ -87,8 +87,13 @@ test.describe('AC-221: board capture on Today', () => {
         'named "Add a task" collapsed and expanded alike',
     )
     await column.getByRole('textbox', { name: 'Add a task', exact: true }).fill(title)
+    /* Taken before the press, not after it (2026-09-04, issue #159): quiet is
+       also what a page looks like in the window between Enter and the POST it
+       causes, and a board read there draws no card — which is exactly what a
+       column that captured into local state and sent nothing would draw. */
+    const captured = watchCommit(page)
     await page.keyboard.press('Enter')
-    await waitForApiIdle(page, 'the capture lands before the board is read back')
+    await captured.settled('the capture reaches the server before the board is read back')
 
     await expect(
       column.getByText(title).first(),

@@ -469,6 +469,38 @@ export function trackApi(page: Page): void {
  * fix which requests a save makes, so waiting for a named endpoint would
  * encode the transport the criteria decline to name; what is waited on is
  * that the page has stopped talking, whatever it said.
+ *
+ * **The rule for choosing between this and `watchCommit`, written down after
+ * issue #159 swept the whole browser suite for it (2026-09-04).** A click,
+ * then this, then a read is the same hazard as #141's drag without the
+ * gesture: the gesture was never what was dangerous, the barrier was.
+ *
+ * - **Where the act is expected to write and the read that follows depends on
+ *   the write** — server state through `page.request`, or DOM the client
+ *   redraws from the response — the barrier is `watchCommit`, taken *before*
+ *   the act. Quiet is also what an interface that has not yet sent the
+ *   request looks like, so this returns inside the window between the press
+ *   and the request the press causes, and the read then lands before the
+ *   write. What it reports is the state the page was in beforehand, which is
+ *   the shape of the very defect such a case is written to catch: a client
+ *   that took the edit into local state and sent nothing.
+ * - **Where the case asserts a refusal** — that the act wrote nothing, that a
+ *   declined confirm ran no transition, that a drag in a filtered folder sent
+ *   no order call — the barrier is this one, and it has to be. `watchCommit`
+ *   asserts that a request went out, which is the opposite of the claim being
+ *   made, so it cannot order a read whose own point is that none did.
+ * - **Where nothing was acted on**, a `page.goto` or a reload being what
+ *   precedes the read, there is no commit to count and this is the whole of
+ *   what can be waited for.
+ * - **Where the write is already ordered by something stronger** — an awaited
+ *   `page.waitForResponse` on the call itself, or a toast the client only
+ *   draws on the response — this covers the reading behind it and nothing is
+ *   gained by counting requests as well.
+ *
+ * Sixty-five call sites were read against those four rules on 2026-09-04;
+ * forty-one moved and twenty-four stayed, each of the twenty-four now saying
+ * beside itself which rule keeps it there. A barrier with no reason next to it
+ * is the thing that cost #138 and #141 a day between them.
  */
 export async function waitForApiIdle(page: Page, why: string): Promise<void> {
   trackApi(page)
@@ -536,6 +568,19 @@ export interface CommitBarrier {
  * than a timeout.** On this surface an edit *is* a write, so a client that
  * took the edit into local state and issued nothing has broken 9.3's commit
  * rule; the wait for the count to move is what says so, in those words.
+ *
+ * **Two things it does not do, both of which have been read into it.** It does
+ * not prove *which* write went out, counting every request to `/api/v1/`, GETs
+ * included: what it establishes is that the page said something after the act
+ * and then went quiet, and the oracle for what was written is the value the
+ * case reads afterwards. And where an act causes several writes, the count has
+ * to be taken against the *last* of them, because quiet alone cannot tell a
+ * second request that has not been issued yet from a pair that is finished;
+ * `ac-350` is the worked example and says so beside itself.
+ *
+ * The rule for when to reach for this rather than `waitForApiIdle` is written
+ * out in full at that function, four cases, from issue #159's sweep of the
+ * whole browser suite.
  */
 export function watchCommit(page: Page): CommitBarrier {
   trackApi(page)

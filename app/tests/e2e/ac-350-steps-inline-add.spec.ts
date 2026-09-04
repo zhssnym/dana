@@ -26,6 +26,7 @@ import {
   taskSurface,
   TEST_TIMEOUT_MS,
   waitForApiIdle,
+  watchCommit,
   watchWire,
  openTaskRow } from './harness.js'
 
@@ -61,6 +62,9 @@ test('AC-350: the press opens an empty field, Enter writes and chains, a rename 
   await expect(field, 'the press opens a field rather than writing a step').toBeVisible()
   await expect(field).toBeFocused()
   await expect(field).toHaveValue('')
+  // Quiet and not `watchCommit` (issue #159): this asserts that the press
+  // wrote nothing, and the barrier that waits for a request to go out cannot
+  // order a read whose own claim is that none did.
   await waitForApiIdle(page, 'nothing is written by the press alone')
   expect(
     wire.mutations().filter((call) => call.url.endsWith('/steps')),
@@ -72,10 +76,20 @@ test('AC-350: the press opens an empty field, Enter writes and chains, a rename 
   await expect(field, 'Enter on a filled field opens the next').toBeVisible()
   await expect(field).toHaveValue('')
   await field.fill('Tape')
+  /* Before the second press and not before the first (2026-09-04, issue
+     #159). `watchCommit` is two signals: the count moving says this act's
+     own write went out, and quiet says it and everything behind it has been
+     answered. The count has to be taken against the *last* write of a group,
+     because quiet alone cannot tell a second POST that has not been issued
+     yet from a pair that is finished -- and a wire read landing there counts
+     one step where the assertion wants two, which is exactly what a client
+     that dropped the second would show. The first POST is covered by the
+     quiet half, which cannot return while it is in flight. */
+  const bothSteps = watchCommit(page)
   await field.press('Enter')
   await field.press('Escape')
   await expect(field).toHaveCount(0)
-  await waitForApiIdle(page, 'both steps have been written')
+  await bothSteps.settled('both steps reach the server before the wire and 7.7 are read')
 
   const posts = wire.mutations().filter((call) => call.method === 'POST' && call.url.endsWith('/steps'))
   expect(posts, 'spec 7.7: one POST per typed step').toHaveLength(2)
@@ -89,9 +103,11 @@ test('AC-350: the press opens an empty field, Enter writes and chains, a rename 
     'the step title is the rename control (DES-095)',
   )
   const name = surface.getByRole('textbox', { name: 'Step name', exact: true })
+  /* Before the act, for the reason above. */
+  const renameCommit = watchCommit(page)
   await name.fill('Buy big boxes')
   await name.press('Enter')
-  await waitForApiIdle(page, 'the rename has been written')
+  await renameCommit.settled('the rename reaches the server before the wire and 7.7 are read')
   const after = wire
     .mutations()
     .filter((call) => call.url.includes('/api/v1/steps/'))

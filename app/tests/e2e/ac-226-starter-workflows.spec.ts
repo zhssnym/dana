@@ -41,6 +41,19 @@ so that a later reader does not mistake the third for the load-bearing one.
 
 Spec: 9.13 (the offer, freshness, the deletion paragraph), 7.16 (the import
 the offer posts), 9.1's route table (/app renders Desk).
+
+**The `waitForApiIdle` calls that are left in this file follow a navigation
+and not an act (2026-09-04, issue #159).** Where an act is what precedes the
+read — pressing a starter, pressing the dismissal — the barrier is
+`watchCommit`, taken before the press, because quiet is also what a page looks
+like in the window between a press and the request it causes and the reads
+here are all of an absence. Where a `page.goto` is what precedes it, there is
+no commit to count and quiet is the whole of what can be waited for. The
+dismissal case is neither: it looked like a write with no barrier at all, the
+sweep gave it one, and `watchCommit` then said in terms that the page had sent
+nothing -- which is right, the dismissal living in `localStorage` on purpose.
+The barrier came back out and the reason is written where it was.
+
 */
 import { expect, test } from '@playwright/test'
 
@@ -51,6 +64,7 @@ import {
   signIn,
   TEST_TIMEOUT_MS,
   waitForApiIdle,
+  watchCommit,
 } from './harness.js'
 
 test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
@@ -98,6 +112,12 @@ test.describe('AC-226: the starter workflows of 9.13', () => {
       starter,
       'spec 9.13: the offer presents starters to choose from, each a worked example',
     ).toBeVisible()
+    /* Before the press (2026-09-04, issue #159). What follows is a read of
+       7.4 and 7.16 on Playwright's own HTTP client, so quiet returning in the
+       window before the import request leaves the browser would find no folder
+       named 'Plan a trip' — which is what a starter that drew a heading and
+       imported nothing would leave, and is the defect this asserts against. */
+    const imported = watchCommit(page)
     await starter.click()
 
     // 9.13: the starter is an ordinary 7.16 import, so what arrives is a
@@ -106,7 +126,7 @@ test.describe('AC-226: the starter workflows of 9.13', () => {
       page.getByRole('heading', { name: 'Plan a trip' }).first(),
       'spec 9.13: choosing a starter creates its folder, and the person is taken into it',
     ).toBeVisible()
-    await waitForApiIdle(page, 'the imported folder finishes reading before its tasks are counted')
+    await imported.settled('the import reaches the server before 7.4 is asked what it made')
 
     const folders = await page.request.get('/api/v1/folders')
     expect(folders.status()).toBe(200)
@@ -136,8 +156,13 @@ test.describe('AC-226: the starter workflows of 9.13', () => {
 
     const offer = page.getByRole('region', { name: OFFER.heading })
     await expect(offer).toBeVisible()
+    /* Before the press (2026-09-04, issue #159): Desk is asked again below and
+       the answer turns on the import having landed, so a barrier that can
+       return before the request went out would reload an account that is still
+       fresh and see the offer it expects to be gone. */
+    const landed = watchCommit(page)
     await offer.getByRole('button', { name: 'Learn something new' }).click()
-    await waitForApiIdle(page, 'the import lands before Desk is asked again')
+    await landed.settled('the import reaches the server before Desk is asked again')
 
     await page.goto(routes.myDay)
     await waitForApiIdle(page, 'Desk settles, so an absent offer is absence and not latency')
@@ -174,6 +199,14 @@ test.describe('AC-226: the starter workflows of 9.13', () => {
 
     const offer = page.getByRole('region', { name: OFFER.heading })
     await expect(offer).toBeVisible()
+    /* No commit barrier on the dismissal, and it is worth saying why because
+       the #159 sweep tried to add one and was wrong (2026-09-04). The
+       dismissal is a client-only value: `onboarding/StarterOffer.tsx` keeps
+       it in `localStorage` under `dana.starters.dismissed`, deliberately and
+       with its reason beside it, because a dismissal is not something the
+       account owes anybody. `watchCommit` failed here saying the page had
+       sent nothing at all, which was true and correct. Rule three of that
+       sweep: a read of a client-only value has no commit to wait for. */
     await offer.getByRole('button', { name: OFFER.dismiss }).click()
 
     await expect(

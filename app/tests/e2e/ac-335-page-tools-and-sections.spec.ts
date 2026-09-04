@@ -22,7 +22,7 @@ import {
   seedSubs,
   signIn,
   TEST_TIMEOUT_MS,
-  waitForApiIdle,
+  watchCommit,
 } from './harness.js'
 
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
@@ -49,8 +49,16 @@ test('AC-335: page tools rest visible, a new section opens empty, deleting one a
   await expect(field).toHaveAttribute('placeholder', 'New section')
   const name = caseTitle('Before launch')
   await field.fill(name)
+  /* Before the act (2026-09-04, issue #159). `waitForApiIdle` returns as
+     soon as nothing is in flight, and that is also true in the window
+     between the press and the request the press causes, so a read taken
+     there lands before the write and reports the state the page was in
+     before it -- which is the shape of the defect being asserted against
+     rather than of a barrier. `watchCommit` waits for the page to have
+     sent something before it waits for quiet. */
+  const inserted = watchCommit(page)
   await page.keyboard.press('Enter')
-  await waitForApiIdle(page, 'the page is written')
+  await inserted.settled('the section reaches the server before the heading it draws is read')
   await expect(
     page.getByRole('heading', { name, exact: true }),
     'folderpage F4: what was typed is the name, not appended to "New section"',
@@ -67,7 +75,15 @@ test('AC-335: page tools rest visible, a new section opens empty, deleting one a
   await expect(page.getByRole('heading', { name, exact: true }), 'kept').toBeVisible()
 
   await clickControl(page.getByRole('button', { name: `Delete section ${name}`, exact: true }), 'again')
+  /* Before the act (2026-09-04, issue #159). `waitForApiIdle` returns as
+     soon as nothing is in flight, and that is also true in the window
+     between the press and the request the press causes, so a read taken
+     there lands before the write and reports the state the page was in
+     before it -- which is the shape of the defect being asserted against
+     rather than of a barrier. `watchCommit` waits for the page to have
+     sent something before it waits for quiet. */
+  const deleted = watchCommit(page)
   await clickControl(page.getByRole('dialog').getByRole('button', { name: 'Delete section', exact: true }), 'and this time delete')
-  await waitForApiIdle(page, 'the page is written')
+  await deleted.settled('the deletion reaches the server before the heading is counted')
   await expect(page.getByRole('heading', { name, exact: true })).toHaveCount(0)
 })

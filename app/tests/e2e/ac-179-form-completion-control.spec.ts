@@ -65,6 +65,8 @@ checkbox it is the same transition as), 9.5 ("Mark as not done" and the G-SERIES
 import { expect, test } from '@playwright/test'
 import type { Locator, Page } from '@playwright/test'
 
+import type { CommitBarrier } from './harness.js'
+
 import {
   ACTION_TIMEOUT_MS,
   clickControl,
@@ -80,6 +82,7 @@ import {
   taskSurface,
   TEST_TIMEOUT_MS,
   waitForApiIdle,
+  watchCommit,
 } from './harness.js'
 
 test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
@@ -94,12 +97,38 @@ interface Stored {
   completed_by: string | null
 }
 
-async function storedState(page: Page, id: string): Promise<Stored> {
-  await waitForApiIdle(
-    page,
-    'the transition has to have been sent and answered before the row is read, the two being ' +
-      'different HTTP clients',
-  )
+/**
+ * The stored row, read on the far side of whatever the page did.
+ *
+ * **The barrier is the caller's to choose and there is no default, which is
+ * the point of the parameter** (2026-09-04, issue #159). A transition made
+ * through the interface is a write, and `waitForApiIdle` returns as soon as
+ * nothing is in flight — which is also true in the window between the press
+ * and the request the press causes, React having to render before the
+ * mutation is issued. A read taken there asks the server about a write that
+ * has not been made, and answers `pending` or a null `completed_at`, which is
+ * the exact shape of the defect AC-179 exists to catch. So a case that
+ * expects a write hands in a `watchCommit` taken *before* the press, and a
+ * case that expects none hands in `null` and gets quiet, which is the only
+ * barrier available when the thing being asserted is that nothing was sent.
+ */
+async function storedState(
+  page: Page,
+  id: string,
+  commit: CommitBarrier | null,
+): Promise<Stored> {
+  if (commit === null) {
+    await waitForApiIdle(
+      page,
+      'this read asserts an absence, so everything the page might have sent has to have been ' +
+        'sent and answered before the row is asked for',
+    )
+  } else {
+    await commit.settled(
+      'the transition has to have reached the server before the row is read, the two being ' +
+        'different HTTP clients',
+    )
+  }
   const response = await page.request.get(`/api/v1/tasks/${id}`)
   expect(
     response.status(),
@@ -190,19 +219,21 @@ test.describe('AC-179: the task surface completes and un-completes', () => {
 
     await page.goto(routesV2.anytime)
     await openTheCard(page, 'ac-179 completed through the card')
+    const cardCommit = watchCommit(page)
     await clickControl(
       completionControl(page),
       'spec 9.3: the completion control completes the open task, and 9.1 names it "Complete task" while it is open',
     )
-    const cardState = await storedState(page, viaForm.id)
+    const cardState = await storedState(page, viaForm.id, cardCommit)
 
     await page.goto(routesV2.anytime)
+    const rowCommit = watchCommit(page)
     await clickControl(
       taskRow(page, 'ac-179 completed through the row').getByRole('checkbox'),
       'spec 9.4: a row carries a complete checkbox, which is the transition 9.3 says the ' +
         "card's control is the same as",
     )
-    const rowState = await storedState(page, viaRow.id)
+    const rowState = await storedState(page, viaRow.id, rowCommit)
 
     expect(
       cardState,
@@ -229,22 +260,26 @@ test.describe('AC-179: the task surface completes and un-completes', () => {
       assignee_id: seedIds.hassan,
     })
     await page.goto(routesV2.anytime)
+    const completion = watchCommit(page)
     await clickControl(
       taskRow(page, 'ac-179 un-completed through the card').getByRole('checkbox'),
       'spec 9.4: the row control completes it, which is the state the card control is asserted ' +
         'against',
     )
-    await waitForApiIdle(page, 'the completion settles before the card is opened on it')
+    await completion.settled(
+      'the completion reaches the server before Done is asked to draw the row it puts there',
+    )
 
     await page.goto(routesV2.done)
     await openTheCard(page, 'ac-179 un-completed through the card')
+    const uncompletion = watchCommit(page)
     await clickControl(
       completionControl(page),
       'spec 9.3: the same control un-completes a completed task, the surface being one artifact ' +
         'over both states rather than two, and 9.1 names it "Mark as not done" in this one',
     )
 
-    const after = await storedState(page, task.id)
+    const after = await storedState(page, task.id, uncompletion)
     expect(
       after.status,
       'spec 5.1: un-completing returns the task to pending',
@@ -271,12 +306,16 @@ test.describe('AC-179: the task surface completes and un-completes', () => {
     // Today rather than Anytime: this row is dated, and 6 Q2 admits undated
     // rows only, so Anytime is the one page it is deliberately not on.
     await page.goto(routesV2.today)
+    const completion = watchCommit(page)
     await clickControl(
       taskRow(page, title).getByRole('checkbox'),
       'spec 5.1: completing a rule-carrying row generates the successor in the same ' +
         'transaction, which is the occurrence the confirm is about',
     )
-    await waitForApiIdle(page, 'the completion and its successor settle before the card opens')
+    await completion.settled(
+      'the completion and the successor it generates reach the server before Done is opened on ' +
+        'the row they make',
+    )
 
     await page.goto(routesV2.done)
     await openTheCard(page, title)
@@ -298,7 +337,10 @@ test.describe('AC-179: the task surface completes and un-completes', () => {
       'spec 9.1: every confirmation offers Continue and Cancel',
     )
     expect(
-      (await storedState(page, task.id)).status,
+      // `null`, and it is the one call in this file that takes it: the claim
+      // here is that nothing was sent, and the barrier that asserts a request
+      // went out cannot order a read whose own claim is that none did.
+      (await storedState(page, task.id, null)).status,
       'spec 5.1: a declined confirm runs no transition, so the completed row is still ' +
         'completed and the successor it would have deleted is still pending. A dialog that ' +
         'acts anyway shows the right words and takes the occurrence, which is invisible to a ' +

@@ -69,6 +69,7 @@ import {
   signIn,
   TEST_TIMEOUT_MS,
   waitForApiIdle,
+  watchCommit,
 } from './harness.js'
 
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
@@ -115,8 +116,16 @@ test('AC-332: a saved view stays in the filter panel and leaves the address on C
   await clickControl(page.getByRole('button', { name: 'Filter', exact: true }), 'reopen the panel')
   await clickControl(page.getByRole('button', { name: 'Save as view', exact: true }), 'spec 9.1: the save-view control')
   await fillControl(page.getByLabel('Name this view'), viewName, 'spec 9.1: a view is a name over a filter')
+  /* Before the act (2026-09-04, issue #159). `waitForApiIdle` returns as
+     soon as nothing is in flight, and that is also true in the window
+     between the press and the request the press causes, so a read taken
+     there lands before the write and reports the state the page was in
+     before it -- which is the shape of the defect being asserted against
+     rather than of a barrier. `watchCommit` waits for the page to have
+     sent something before it waits for quiet. */
+  const saved = watchCommit(page)
   await page.keyboard.press('Enter')
-  await waitForApiIdle(page, 'the view is written')
+  await saved.settled('the view reaches the server before the panel is asked to list it')
 
   await expect(
     sidebar(page).getByRole('link', { name: viewName, exact: true }),
@@ -155,6 +164,11 @@ test('AC-332: a saved view stays in the filter panel and leaves the address on C
     importantChip(page),
     'spec 9.1: "Clear all" clears every axis, so the important chip leaves the window bar with it',
   ).toHaveCount(0)
+  /* Quiet and not `watchCommit` (issue #159): what is read below is the
+     window bar, a client-side value, and the claim is that nothing puts the
+     filter back. This is a lower bound on the settle rather than the barrier
+     itself -- the re-seed issues no request of its own, so the grace after it
+     is what actually covers the lag. */
   await waitForApiIdle(page, 'the cleared filter has finished refetching this page')
 
   /* The assertion. Sampled across the window the late re-seed would land in

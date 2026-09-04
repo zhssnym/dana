@@ -25,7 +25,7 @@ import {
   signIn,
   taskSurface,
   TEST_TIMEOUT_MS,
-  waitForApiIdle,
+  watchCommit,
   watchWire,
 } from './harness.js'
 
@@ -54,6 +54,14 @@ test('AC-353: Open full form carries the typed title, and Escape keeps a filled 
   const again = await openQuickAdd(page, 'and it opens again')
   await again.fill(title)
   const wire = watchWire(page)
+  /* Before the act (2026-09-04, issue #159). `waitForApiIdle` returns as
+     soon as nothing is in flight, and that is also true in the window
+     between the press and the request the press causes, so a read taken
+     there lands before the write and reports the state the page was in
+     before it -- which is the shape of the defect being asserted against
+     rather than of a barrier. `watchCommit` waits for the page to have
+     sent something before it waits for quiet. */
+  const made = watchCommit(page)
   await clickControl(
     page.getByRole('button', { name: 'Open full form', exact: true }),
     "spec 9.1: the quick-add's escalation control",
@@ -64,7 +72,7 @@ test('AC-353: Open full form carries the typed title, and Escape keeps a filled 
     surface.getByLabel(/^\s*title\s*$/i),
     'the full form opens on the words typed rather than on a blank title',
   ).toHaveValue(title)
-  await waitForApiIdle(page, 'the task has been made from the carried title')
+  await made.settled('the task reaches the server before the wire is counted')
   expect(
     wire.mutations().filter((call) => call.method === 'POST' && call.url.endsWith('/api/v1/tasks')),
     'spec 7.6: the title is enough to make the task, so it is made',
