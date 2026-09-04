@@ -1,8 +1,12 @@
 /*
 The person's bundle on the wire (RFC 0005): GET and PATCH /settings, the
 v2 surface that answers 4.19's whole expansion, and the /views family for
-saved views. Frozen 7.2's /me/settings is untouched next door; a v1 client
-never meets these paths and a v2 client never needs that one.
+saved views, written up as 7.23 on 2026-09-04 (issue #152).
+
+Frozen 7.2's /me/settings stood next door until issue #113 retired it the
+same day, so this is the settings surface rather than one of two. The three
+v1 columns it wrote are still stored and are still derived into the pin list
+by domain/bundle.ts; what went is every way of writing them.
 
 7.19's place covers joined this router at S22a rather than taking one of
 their own, and the reason is what they are: a cover on Today is one person's

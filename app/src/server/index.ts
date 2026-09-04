@@ -633,8 +633,9 @@ export function createApp(options: AppOptions = {}): express.Express {
     }),
   )
 
-  // The S7 bundle (4.19): the v2 /settings surface beside frozen 7.2's
-  // /me/settings, and the saved views.
+  // The S7 bundle (4.19): the /settings surface and the saved views. It sat
+  // beside frozen 7.2's /me/settings until issue #113 retired that pair on
+  // 2026-09-04, and it is the settings surface now (7.23).
   //
   // Load-bearing position: behind the views router. Its `GET /views/:id`
   // matches one segment after `/views` and would shadow that router's six

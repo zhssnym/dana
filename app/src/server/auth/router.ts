@@ -12,7 +12,6 @@ The handshake, in the order 11.6 fixes it:
                               issue a fresh session
   POST /auth/logout           destroy this session, not the person's others
   GET/PATCH/DELETE /me        the account endpoints, behind session then CSRF
-  GET/PATCH /me/settings      the 7.2 toggles, the same two middlewares
 
 Three rules run through every handler here.
 
@@ -84,7 +83,6 @@ import {
   provisionUser,
   syncTimezone,
 } from './provisioning.js'
-import { handleGetSettings, handlePatchSettings } from './settings.js'
 import type { GoogleIdentity } from './provisioning.js'
 import { createSession, destroySession } from './sessions.js'
 import { csrfTokenFor, newSessionToken } from './tokens.js'
@@ -466,28 +464,25 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
   )
 
   /* ---------------------------------------------------------------- *
-   * The settings endpoints (7.2)
+   * The settings endpoints (7.2) were here, and were retired on
+   * 2026-09-04 by issue #113 on the owner's ruling.
+   *
+   * `GET` and `PATCH /me/settings` answered the three v1 page flags and
+   * nothing else. 7.23's `/settings` bundle is the settings surface now,
+   * and it was already the only one the client used for everything but
+   * those three; keeping a second endpoint alive for them meant two
+   * contracts over one row of `user_settings`, which is the thing 4.19
+   * asked not to have. The retirement annotation and what it does not do
+   * are 7.2's.
+   *
+   * **The three columns are not dropped and this is not a data change.**
+   * They stay stored and `domain/bundle.ts` still derives them into
+   * `pinned_views` while that column is null, which is what keeps a v1
+   * account's sidebar the sidebar it had. The `settings` key of `GET /me`
+   * still carries them too: 7.1 is frozen, untouched by this, and AC-116
+   * pins its shape. What went is the pair of endpoints that *wrote* them,
+   * so nothing in this application writes those columns any more.
    * ---------------------------------------------------------------- */
-
-  // A read carries no CSRF requirement: 7.0 puts the header on mutations
-  // only, and requiring it here would break every page load.
-  router.get('/me/settings', requireSession, async (req: Request, res: Response) => {
-    const db = database(res)
-    if (db === null) return
-    await handleGetSettings(db, sessionOf(req)?.userId ?? '', res)
-  })
-
-  router.patch(
-    '/me/settings',
-    requireSession,
-    requireCsrf,
-    mutationLimit,
-    async (req: Request, res: Response) => {
-      const db = database(res)
-      if (db === null) return
-      await handlePatchSettings(db, sessionOf(req)?.userId ?? '', req, res, securityLog)
-    },
-  )
 
   /* ---------------------------------------------------------------- *
    * The development login (11.6)

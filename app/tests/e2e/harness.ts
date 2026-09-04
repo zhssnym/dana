@@ -363,31 +363,6 @@ export async function transition(
   ).toBe(200)
 }
 
-/**
- * PATCH /me/settings with the CSRF header of 11.6.
- *
- * 9.1 puts six pages in the sidebar "each present only if permanent or
- * toggled visible", and 9.7 owns the three toggles that decide the other
- * half. A criterion asserting all six entries therefore has to put the
- * account into the state where all six are visible rather than assume it,
- * which is what this is for; the defaults are 9.7's and not this suite's to
- * depend on.
- */
-export async function patchSettings(
-  page: Page,
-  body: Record<string, boolean>,
-): Promise<void> {
-  const token = await csrfToken(page.context())
-  const response = await page.request.patch('/api/v1/me/settings', {
-    data: body,
-    headers: { 'X-CSRF-Token': token },
-  })
-  expect(
-    response.status(),
-    `PATCH /me/settings answered ${response.status()}: ${await response.text()}`,
-  ).toBe(200)
-}
-
 /* ------------------------------------------------------------------ *
  * Sequencing a server read after an interaction
  * ------------------------------------------------------------------ */
@@ -1950,7 +1925,8 @@ export const V2_PAGE_NAMES = [
 ] as const
 
 /**
- * PATCH /settings, the v2 bundle of 4.19 beside frozen 7.2's /me/settings.
+ * PATCH /settings, the v2 bundle of 4.19 and the settings surface since
+ * issue #113 retired frozen 7.2's /me/settings on 2026-09-04.
  * AC-214's "Done is absent until pinned" is this surface: the pin list is
  * `pinned_views`, and a criterion about pinning has to write the pin the way
  * the Settings page of 9.7 does rather than assume the default.

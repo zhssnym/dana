@@ -6,9 +6,17 @@ The pin fold (BUG-8), as S7's change control rules it: pinned_views null
 means never chosen, and the pins derive from the three v1 flags, so a v1
 account's show_done arrives as Done pinned with no data migration at all;
 once written, the column is the record and the flags stop mattering to this
-surface. Frozen 7.2's /me/settings keeps reading and writing the flags
-untouched either way, which is what keeps AC-119 to AC-123 exactly as
-written. At no moment are two records authoritative for one reader.
+surface.
+
+**The derivation is the whole of what those three columns now do (issue
+#113, 2026-09-04).** Frozen 7.2's /me/settings used to read and write them
+beside this, which is what kept AC-119 to AC-123 as they were then written;
+that endpoint is retired, so nothing writes them any more and this read is
+their only consumer besides the `settings` key of frozen 7.1's GET /me. They
+are not dropped: a v1 account that never chose pins still gets the sidebar
+its flags describe, which is exactly what this function is for, and dropping
+the columns is a later contract migration. At no moment are two records
+authoritative for one reader.
 
 Desk is locked pinned (9.7): whatever a write carries, the stored list
 keeps 'desk', because the place a task goes when you have not said where

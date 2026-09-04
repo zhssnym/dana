@@ -1,36 +1,38 @@
 /*
-The 7.2 contract as code, checked against the surface that answers: the third
+The 7.23 contract as code, checked against the surface that answers: the
 sibling of contract.test.ts and folders-contract.test.ts, same skeleton,
-scoped to the settings pair. The real createApp boots against the stub issuer
-with the auth router mounted, and the answers parse with the shared schemas
-themselves, so the promise in src/shared/me.ts and the answer on the wire
-cannot drift silently.
+scoped to the v2 settings bundle at `GET` and `PATCH /api/v1/settings`. The
+real createApp boots against the stub issuer with the auth router mounted,
+and the answers parse with the shared schemas themselves, so the promise in
+src/shared/bundle.ts and the answer on the wire cannot drift silently.
 
-Scope, and what is deliberately not here. AC-119 to AC-123 own the behavior
-of these endpoints and pass; nothing below repeats a criterion. What only a
-contract test can say is said here:
+**This file was `settings-contract.test.ts` and was frozen 7.2's, and it is
+renamed rather than rewritten (issue #113, 2026-09-04).** It held the
+`/me/settings` pair from the P2S opening until that endpoint was retired,
+and everything below that could only ever have been about the three v1
+booleans went with it: the exact-three-keys shape check, the ruled PATCH
+body read key for key, and AC-119 to AC-123's neighbours. What survived is
+what was never really about those three columns — the 7.0 taxonomy on a
+settings surface — retargeted at the one that is left, and AC-409, which was
+written for 7.23 in the first place (issue #152). The name now says what the
+file is; a `settings-contract` that tested a different endpoint from the one
+its name implies is the kind of drift this whole file exists to catch.
+
+Scope, and what is deliberately not here. AC-378, AC-379, AC-380 and the
+rewritten AC-119 to AC-121 own the behaviour of this endpoint; nothing below
+repeats a criterion except AC-409, which lives here for the reason 12.3
+records. What only a contract test can say is said here:
 
   - the shared schemas parse the real bodies, which is the drift check the
     acceptance suite cannot make, because it deliberately never imports them;
-  - the ruled PATCH body read raw and key-exact, since a parse strips exactly
-    the extra field exactness exists to notice (the P2 review's lesson);
   - the 7.0 taxonomy on this surface. AC-118 pins the 400 edges on the /me
-    routes only, by its own comment, so the boot-level rules reaching the 7.2
-    routes is an unasserted assumption everywhere else. Here it is asserted.
+    routes only, by its own comment, so the boot-level rules reaching the
+    7.23 route is an unasserted assumption everywhere else. Here it is
+    asserted.
 
-The two-method probe is this role's mandate rather than a criterion: section 7
-and the implemented routes are meant to correspond exactly, so a method 7.2
-never wrote must not answer.
-
-**Scope widened on 2026-09-04 by issue #152, and to a second subsection rather
-than to more of this one.** Everything above is `/me/settings`, frozen 7.2's
-three booleans. The last describe block below is AC-409 and it is 7.23's, the
-v2 settings bundle at `/settings` — a different endpoint sharing one row of
-`user_settings` and not one column of it. It is here because this is the file
-that already boots the real application and holds the shared schemas against
-what the wire answers, which is the whole of that criterion, and because the
-two subsections are read together: 7.2's annotation now points at 7.23 and
-issue #113 retires 7.2 into it.
+The two-method probe is this role's mandate rather than a criterion: section
+7 and the implemented routes are meant to correspond exactly, so a method
+7.23 never wrote must not answer.
 */
 import { createServer } from 'node:http'
 import type { Server } from 'node:http'
@@ -54,11 +56,6 @@ import {
   settingsBundle,
 } from '../../shared/bundle.js'
 import { errorEnvelope } from '../../shared/error-envelope.js'
-import {
-  getMeSettingsResponse,
-  meResponse,
-  patchMeSettingsResponse,
-} from '../../shared/me.js'
 import { createApp } from '../index.js'
 
 let dbClient: DbClient
@@ -66,7 +63,7 @@ let stub: OidcStub
 let server: Server
 let origin: string
 const created: string[] = []
-const domain = `settings-contract-${randomUUID()}.test`
+const domain = `bundle-contract-${randomUUID()}.test`
 
 interface Person {
   jar: TestBrowser
@@ -108,7 +105,7 @@ afterAll(async () => {
 })
 
 async function signIn(name: string): Promise<Person> {
-  const sub = `settings-contract-${randomUUID()}`
+  const sub = `bundle-contract-${randomUUID()}`
   stub.nextIdentity({ sub, email: `${sub}@${domain}`, email_verified: true, name })
   const jar = new TestBrowser(origin)
   const begun = await jar.request(`${origin}/api/v1/auth/google`)
@@ -143,27 +140,7 @@ function jsonInit(method: string, body: string): RawRequestOptions {
 }
 
 function patch(person: Person, body: unknown): Promise<RawResponse> {
-  return api(person, '/me/settings', jsonInit('PATCH', JSON.stringify(body)))
-}
-
-/** The three 7.2 keys, sorted, and nothing else. */
-const SETTINGS_KEYS = ['show_all', 'show_done', 'show_important']
-
-/**
- * Read raw, on purpose. A schema parse strips an extra key, so parsing first
- * would hide the drift this exists to catch: user_id and updated_at are in
- * the same row and neither is in the frozen sentence.
- */
-function expectSettingsExact(body: unknown, where: string): Record<string, unknown> {
-  const record = body as Record<string, unknown>
-  expect(
-    Object.keys(record).sort(),
-    `${where} must carry exactly the three 7.2 booleans`,
-  ).toEqual(SETTINGS_KEYS)
-  for (const key of SETTINGS_KEYS) {
-    expect(typeof record[key], `${where} ${key} must be a boolean`).toBe('boolean')
-  }
-  return record
+  return api(person, '/settings', jsonInit('PATCH', JSON.stringify(body)))
 }
 
 function issuesOf(result: { success: boolean; error?: { issues: { path: PropertyKey[]; message: string }[] } }): string[] {
@@ -177,138 +154,48 @@ function issuesOf(result: { success: boolean; error?: { issues: { path: Property
 let person: Person | undefined
 
 async function actor(): Promise<Person> {
-  person ??= await signIn('Settings Contract')
+  person ??= await signIn('Bundle Contract')
   return person
 }
 
-describe('the 7.2 shapes against the mounted application', () => {
-  test('GET /me/settings answers what the shared schema promises', async () => {
+describe('the 7.0 taxonomy on the 7.23 surface', () => {
+  test('a value outside an enumeration answers 422 in the envelope, naming the field', async () => {
+    // 7.23's rule, which is 7.10's for an enumerated parameter applied to a
+    // body: absent and wrong are different states, and a wrong value is never
+    // quietly narrowed to the default.
     const who = await actor()
-    const response = await api(who, '/me/settings')
-    expect(response.status).toBe(200)
-    expect(
-      issuesOf(getMeSettingsResponse.safeParse(response.json())),
-      'the 200 body does not match the shared settings schema',
-    ).toEqual([])
-    expectSettingsExact(response.json(), 'the GET /me/settings body')
-  })
-
-  test('the ruled PATCH body is the GET object, raw and key for key', async () => {
-    // 7.2's appended sentence, on the wire: the schema binds both responses
-    // to one named object, and this is the half of that binding the mounted
-    // surface has to keep.
-    const who = await actor()
-    const patched = await patch(who, { show_done: true, show_all: false })
-    expect(patched.status).toBe(200)
-    expect(
-      issuesOf(patchMeSettingsResponse.safeParse(patched.json())),
-      'the PATCH body does not match the shared settings schema',
-    ).toEqual([])
-    const patchedBody = expectSettingsExact(patched.json(), 'the PATCH body')
-
-    const fresh = await api(who, '/me/settings')
-    expect(fresh.status).toBe(200)
-    const freshBody = expectSettingsExact(fresh.json(), 'the fresh GET body')
-    expect(
-      patchedBody,
-      'PATCH /me/settings answers the GET /me/settings object (spec 7.2, owner ruling)',
-    ).toEqual(freshBody)
-    expect(
-      Object.keys(patchedBody).sort(),
-      'one object means one key set, whichever endpoint answered',
-    ).toEqual(Object.keys(freshBody).sort())
-  })
-
-  test('the empty subset answers the same object, not a thinner one', async () => {
-    // A body carrying nothing still answers the whole object: the ruled
-    // sentence names the GET object, with no subset-shaped variant of it.
-    const who = await actor()
-    const response = await patch(who, {})
-    expect(response.status).toBe(200)
-    const body = expectSettingsExact(response.json(), 'the empty-subset PATCH body')
-    expect(body).toEqual((await api(who, '/me/settings')).json())
-  })
-
-  test('the settings key of GET /me is the same object, by the same schema', async () => {
-    // 7.1 and 7.2 read one row, and src/shared/me.ts now declares the object
-    // once for both. This is that single declaration observed from outside.
-    const who = await actor()
-    const me = await api(who, '/me')
-    expect(me.status).toBe(200)
-    expect(issuesOf(meResponse.safeParse(me.json())), 'the /me body drifted').toEqual([])
-    const settings = (me.json() as { settings: unknown }).settings
-    expectSettingsExact(settings, 'the settings key of GET /me')
-    expect(settings).toEqual((await api(who, '/me/settings')).json())
-  })
-
-  test('unknown fields are tolerated and the object still answers (7.0)', async () => {
-    const who = await actor()
-    const response = await patch(who, {
-      show_important: true,
-      updated_at: 'yesterday',
-      user_id: 'someone else',
-    })
-    expect(response.status).toBe(200)
-    const body = expectSettingsExact(response.json(), 'the tolerating PATCH body')
-    expect(
-      body.show_important,
-      'the valid field lands and the unknown ones are simply absent from the answer',
-    ).toBe(true)
-  })
-
-  test('a GET is safe: it writes nothing, updated_at included (7.0)', async () => {
-    const who = await actor()
-    const before = await rows(
-      dbClient.db,
-      sql`SELECT * FROM user_settings WHERE user_id = ${who.id}`,
-    )
-    await api(who, '/me/settings')
-    await api(who, '/me/settings')
-    expect(
-      await rows(
-        dbClient.db,
-        sql`SELECT * FROM user_settings WHERE user_id = ${who.id}`,
-      ),
-      'GETs are safe (spec 7.0): a read must not move the row it read',
-    ).toEqual(before)
-  })
-})
-
-describe('the 7.0 taxonomy on the 7.2 surface', () => {
-  test('a wrong-typed field answers 422 in the envelope, naming the field', async () => {
-    const who = await actor()
-    const response = await patch(who, { show_done: 'yes' })
+    const response = await patch(who, { theme: 'midnight' })
     expect(response.status).toBe(422)
     const parsed = errorEnvelope.safeParse(response.json())
     expect(issuesOf(parsed), 'the 422 must carry the 7.0 envelope').toEqual([])
     if (parsed.success) {
       expect(parsed.data.error.code).toBe('validation_failed')
       expect(
-        parsed.data.error.message.includes('show_done'),
-        'a 422 names the failing field (spec 10.3)',
+        parsed.data.error.message.includes('theme'),
+        'a 422 names the failing field (spec 10.3, 7.23)',
       ).toBe(true)
     }
   })
 
   test('the 400 edges reach this surface too, in the envelope', async () => {
     // AC-118 pins these on the /me routes, by its own comment. The rules are
-    // boot-level, so reaching the 7.2 routes is an assumption until asserted,
+    // boot-level, so reaching this surface is an assumption until asserted,
     // and an assumption about a status is exactly what drifts.
     const who = await actor()
     const bodies: readonly [string, string][] = [
-      ['{"show_done": true', 'a body that does not parse as JSON'],
+      ['{"theme": "dark"', 'a body that does not parse as JSON'],
       ['[]', 'an array, which parses but is not an object'],
-      ['"show_done"', 'a string'],
+      ['"theme"', 'a string'],
       ['42', 'a number'],
       ['true', 'a boolean'],
       ['null', 'null'],
       // Over 10.3's 3 MB JSON body row (RFC 0005 change control item 18),
       // which replaced the parser's undocumented 100 kB default so the
       // largest legal workflow file could reach its own caps.
-      [`{"show_done": true, "pad": "${'x'.repeat(3 * 1024 * 1024 + 1024)}"}`, 'a body over the parse limit'],
+      [`{"theme": "dark", "pad": "${'x'.repeat(3 * 1024 * 1024 + 1024)}"}`, 'a body over the parse limit'],
     ]
     for (const [body, what] of bodies) {
-      const response = await api(who, '/me/settings', jsonInit('PATCH', body))
+      const response = await api(who, '/settings', jsonInit('PATCH', body))
       expect(response.status, `${what} must answer 400 (spec 7.0)`).toBe(400)
       expect(
         errorEnvelope.safeParse(response.json()).success,
@@ -319,44 +206,40 @@ describe('the 7.0 taxonomy on the 7.2 surface', () => {
 
   test('a mutation carrying no body at all answers what the 7.1 routes answer', async () => {
     // Nothing parsed a body, so the schema sees undefined and the issue has
-    // no field path. The value matters less than the uniformity: two routes
-    // of one surface must not disagree about the same malformed request, and
-    // this asserts them against each other before asserting the number.
-    //
-    // Only the no-body case is pinned here. A request that sends bytes under
-    // a non-JSON content type answers this same 422 rather than the 400 the
-    // identical bytes get under application/json, which this review found and
-    // routed rather than blessed: pinning it would fight whoever rules on it.
-    // With no body at all there is nothing that failed to parse, so 422 is
-    // the answer on every reading, and that is the one worth a test.
+    // no field path. The value matters less than the uniformity: two
+    // surfaces of one contract must not disagree about the same malformed
+    // request, and this asserts them against each other before asserting the
+    // number. The comparison used to be against `PATCH /me/settings` one
+    // router over and is against `PATCH /me` since issue #113 retired that
+    // one; 7.1 is frozen, so it is the more durable partner anyway.
     const who = await actor()
-    const settings = await api(who, '/me/settings', { method: 'PATCH' })
+    const bundle = await api(who, '/settings', { method: 'PATCH' })
     const me = await api(who, '/me', { method: 'PATCH' })
     expect(
-      settings.status,
-      'the 7.2 mutation must answer a bodyless request exactly as the 7.1 one does',
+      bundle.status,
+      'the 7.23 mutation must answer a bodyless request exactly as the 7.1 one does',
     ).toBe(me.status)
-    expect(settings.status, 'which is the 422 errors.ts already spells').toBe(422)
-    expect(errorEnvelope.safeParse(settings.json()).success).toBe(true)
+    expect(bundle.status, 'which is the 422 errors.ts already spells').toBe(422)
+    expect(errorEnvelope.safeParse(bundle.json()).success).toBe(true)
   })
 
   test('the session and CSRF refusals answer 401 and 403 in the envelope', async () => {
     const who = await actor()
     const stranger = new TestBrowser(origin)
     const refusals: readonly [number, RawResponse, string][] = [
-      [401, await stranger.request(`${origin}/api/v1/me/settings`), 'a GET with no session'],
+      [401, await stranger.request(`${origin}/api/v1/settings`), 'a GET with no session'],
       [
         401,
-        await stranger.request(`${origin}/api/v1/me/settings`, {
-          ...jsonInit('PATCH', '{"show_done":true}'),
+        await stranger.request(`${origin}/api/v1/settings`, {
+          ...jsonInit('PATCH', '{"theme":"dark"}'),
           csrf: 'omit',
         }),
         'a PATCH with no session, which must not answer 403 first',
       ],
       [
         403,
-        await api(who, '/me/settings', {
-          ...jsonInit('PATCH', '{"show_done":true}'),
+        await api(who, '/settings', {
+          ...jsonInit('PATCH', '{"theme":"dark"}'),
           csrf: 'omit',
         }),
         'a PATCH with a session but no CSRF token',
@@ -371,23 +254,40 @@ describe('the 7.0 taxonomy on the 7.2 surface', () => {
     }
   })
 
-  test('7.2 names two methods, and the surface answers no others', async () => {
+  test('7.23 names two methods, and the surface answers no others', async () => {
     const who = await actor()
     for (const method of ['POST', 'PUT', 'DELETE']) {
       const response = await api(
         who,
-        '/me/settings',
-        jsonInit(method, '{"show_done":true}'),
+        '/settings',
+        jsonInit(method, '{"theme":"dark"}'),
       )
       expect(
         response.status,
-        `${method} /me/settings is not in 7.2 and must not answer`,
+        `${method} /settings is not in 7.23 and must not answer`,
       ).toBe(404)
       expect(
         errorEnvelope.safeParse(response.json()).success,
-        `${method} /me/settings must refuse in the 7.0 envelope`,
+        `${method} /settings must refuse in the 7.0 envelope`,
       ).toBe(true)
     }
+  })
+
+  test('a GET is safe: it writes nothing, updated_at included (7.0)', async () => {
+    const who = await actor()
+    const before = await rows(
+      dbClient.db,
+      sql`SELECT * FROM user_settings WHERE user_id = ${who.id}`,
+    )
+    await api(who, '/settings')
+    await api(who, '/settings')
+    expect(
+      await rows(
+        dbClient.db,
+        sql`SELECT * FROM user_settings WHERE user_id = ${who.id}`,
+      ),
+      'GETs are safe (spec 7.0): a read must not move the row it read',
+    ).toEqual(before)
   })
 })
 

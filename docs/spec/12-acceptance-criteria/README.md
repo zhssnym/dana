@@ -54,6 +54,19 @@ default, so read this list before spending one.
   it counted 229; the five ranges are twenty-nine numbers. Corrected on the branch for issues
   #20 and #100, which read this list to choose AC-368, rather than left for whoever spent 229
   a second time and found out from a duplicate test filename.
+- **Five criteria changed state on 2026-09-04 and none of them is a new number** (issue
+  #113): frozen 7.2's `GET` and `PATCH /me/settings` were retired on the owner's ruling, and
+  AC-119 to AC-123 went with the endpoint. **AC-119, AC-120 and AC-121 are rewritten**
+  against 7.23's `/settings` bundle, because the rules they pinned are that subsection's word
+  for word — the column defaults, any subset including the empty one with absent fields
+  unchanged, and a wrong value answering 422 naming the field and writing nothing.
+  **AC-122 and AC-123 are retired and marked in 12.3 rather than removed**, per this
+  section's own rule, and **their numbers are spent and are never reused**: AC-122's
+  behaviour is already asserted by AC-379's third clause, which cites it by name, and
+  AC-123's is unreachable now that no route writes the three v1 columns. **No total moves
+  with this**: the run is unchanged, nothing was added or deleted from the numbering, and a
+  retired criterion still carries its text. The count of *live* criteria is two lower than
+  the top bullet's 370, and re-deriving that is the last merge's as ever.
 - **AC-410 was assigned from the tail on 2026-09-04** (issue #153), on the same rule and by
   the same hand as AC-409 below, and it is 12.23's: `trust proxy` was set nowhere in
   `app/src`, so behind the edge of 11.11 every rate limit keyed on an address was one bucket

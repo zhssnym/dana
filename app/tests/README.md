@@ -64,9 +64,13 @@ status taxonomy. AC-118's probes stay on the /me surface deliberately: body
 parsing is one boot-level middleware, so pinning the mapping on any real
 endpoint pins it for the application.
 
-P2S's range, AC-119 to AC-123, covers frozen 7.2's own endpoints, GET and
-PATCH /me/settings; the GET /me object's settings key was already pinned by
-AC-116. The criteria landed verbatim by section 12 amendment, carrying the
+P2S's range, AC-119 to AC-123, covered frozen 7.2's own endpoints, GET and
+PATCH /me/settings, until issue #113 retired that pair on 2026-09-04. AC-119
+to AC-121 are rewritten against 7.23's `/settings` bundle and AC-122 and
+AC-123 are retired and marked in 12.3; the GET /me object's settings key was
+already pinned by AC-116 and is untouched by any of it. What follows is the
+reasoning as it stood, which the rewrites carried across rather than
+replaced. The criteria landed verbatim by section 12 amendment, carrying the
 two readings of frozen 7.2 they rest on: the empty subset is a subset, and
 null is a wrong-typed value rather than a clear, because 4.10's columns are
 NOT NULL booleans with defaults. They failed on the missing routes until the
@@ -292,9 +296,12 @@ the case is a false red and should be disputed rather than worked around.
 The one silence these files were written around is closed. Frozen 7.2 named
 no response body for PATCH /me/settings, only 200, so the opening session
 judged none and held a place for the assertion; the owner ruled at the same
-amendment, and 7.2 now carries the fresh-GET sentence it shares with PATCH
-/me and the 7.4 mutations. The body is judged in that one place,
-`patchSettingsOk` in settings-harness.ts: exactly the three booleans, equal
+amendment, and 7.2 carried the fresh-GET sentence it shared with PATCH /me
+and the 7.4 mutations. That subsection is retired (issue #113) and 7.23
+carries the same convention for the bundle, where `patchBundleOk` in
+`bundle-harness.ts` is the one place a success body is judged;
+`settings-harness.ts` and the paragraph's original subject are gone. As it
+read: the body is judged in that one place, exactly the three booleans, equal
 to what a fresh GET then answers. Two callers stay on the unjudged
 transport. A refusal answers the envelope rather than the settings object,
 and AC-120's raced pair cannot assert the fresh-GET half at all, since each

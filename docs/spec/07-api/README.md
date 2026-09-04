@@ -69,11 +69,23 @@ frozen section without changing a single status, body or field, and why no
 criterion moves with it. AC-409 holds the new file to the schemas so that it
 cannot quietly go stale the way the endpoint itself did.
 
+**Sixth, and this one takes something away: 7.2 is retired (issue #113, 2026-09-04, on the
+owner's ruling).** It is the first breaking change this frozen section has taken rather than
+an addition, and the freeze's rule holds through it in the same way it held through 7.22 and
+7.23 — a human decided. `GET` and `PATCH /me/settings` are deleted and answer 404; 7.23's
+`/settings` bundle is the settings surface. The ground is the one 7.23 made unavoidable to
+state: two endpoints over one row of `user_settings` is two contracts over one fact, which
+4.19 asked not to have. **No data moves with it** — the three v1 columns stay stored and are
+still derived into pins, and frozen 7.1's `GET /me` still answers them under its `settings`
+key, so AC-116 is untouched. Five criteria moved: AC-119 to AC-121 rewritten against the
+bundle, AC-122 and AC-123 retired, each with its reason in 12.3. The retirement ships in the
+same deploy as its client half (#150) and after it, which is what makes it safe.
+
 | | File | Covers |
 | - | - | - |
 | 7.0 | [`07.0-conventions.md`](07.0-conventions.md) | 7.0 Conventions |
 | 7.1 | [`07.1-auth-and-account.md`](07.1-auth-and-account.md) | 7.1 Auth and account |
-| 7.2 | [`07.2-settings.md`](07.2-settings.md) | 7.2 Settings |
+| 7.2 | [`07.2-settings.md`](07.2-settings.md) | 7.2 Settings — **retired 2026-09-04** (issue #113); see 7.23 |
 | 7.3 | [`07.3-connections.md`](07.3-connections.md) | 7.3 Connections (roster) |
 | 7.4 | [`07.4-folders-and-membership.md`](07.4-folders-and-membership.md) | 7.4 Folders and membership |
 | 7.5 | [`07.5-invites.md`](07.5-invites.md) | 7.5 Invites |
