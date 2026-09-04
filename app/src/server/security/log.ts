@@ -138,6 +138,7 @@ export type OperationLogEvent =
    * `migrations_applied`, which reads as neutral information and is how this
    * went unnoticed. */
   | 'database_fallback_pglite'
+  | 'database_connection_lost'
   | 'server_listening'
   | 'boot_failed'
 

@@ -457,8 +457,13 @@ protocol points here rather than repeating them.
   exception, and vitest attributes an uncaught exception to whichever file was running.
   That is exactly why the lost file differed every time and passed alone. Both windows
   were measured with a TCP proxy resetting a real pooled socket on demand, both now
-  carry a listener that logs one line and lets the pool discard the connection, and
-  `tests/postgres-leg-connection-loss.test.ts` goes red if either is removed. The same
+  carry a listener that reports the loss once and lets the pool discard the connection,
+  and `tests/postgres-leg-connection-loss.test.ts` goes red if either is removed. **What
+  a route sees is not this error**, which is worth knowing before you go looking for it:
+  a socket that dies inside a transaction rejects the statement and drizzle then runs its
+  ROLLBACK on the same dead connection, so the request error line and Sentry carry
+  `Connection terminated unexpectedly` while the `ECONNRESET` underneath it lives only in
+  the seam's own `database_connection_lost` line. The same
   listener is why the single production instance no longer dies when an idle connection
   is reset, which it would have. **What resets the socket in the wild is still not known
   and is deliberately not guessed at**, on the rule the `.data` bullet keeps: TIME_WAIT

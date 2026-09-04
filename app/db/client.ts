@@ -26,6 +26,36 @@ export interface DbClientOptions {
   // PGlite storage directory; omitted means in-memory, which is what tests
   // want: every createDbClient() call is then a fresh, isolated database.
   dataDir?: string
+  /**
+   * Called once for each pooled connection this seam loses, on the Postgres
+   * backend only. The boot wires it to a structured warn-level line and the
+   * error tracker (`observability/connection-lost.ts`); absent, the seam
+   * writes one plain line to stderr, which is what the suite and the database
+   * scripts want and all they would read.
+   *
+   * It exists because the first fix for issue #174 traded a loud crash for a
+   * silent one: a process that no longer dies of a reset connection also says
+   * nothing about it, and a pool losing one a minute would reach no alert at
+   * all. Reporting is the caller's because this module has no logger and must
+   * not grow one — `db/client.ts` is imported by the migration scripts and by
+   * every test.
+   */
+  onConnectionLost?: (event: ConnectionLostEvent) => void
+}
+
+/** One pooled connection dying, in the only two fields it can safely carry. */
+export interface ConnectionLostEvent {
+  /** The driver's errno or SQLSTATE code, where the failure has one. */
+  code: string | undefined
+  /**
+   * The driver's own message, which for a connection-level failure is its own
+   * text (`read ECONNRESET`, `Connection terminated unexpectedly`) rather than
+   * anything a caller sent: this event is emitted by the connection, not by a
+   * statement, so no SQL and no bound value reaches it. The 10.5 logger
+   * whitelists it again on the way out regardless, and turns anything that is
+   * not plain words into `other`.
+   */
+  message: string
 }
 
 // The .sql files are not compiled into dist/, so the folder is resolved from
@@ -33,10 +63,17 @@ export interface DbClientOptions {
 // command set to app/. Same contract as the version read in routes/health.ts.
 const migrationsFolder = path.resolve(process.cwd(), 'db', 'migrations')
 
-/** An error's message with its errno code, which is the part worth grepping. */
-function describe(error: Error): string {
+function lost(error: Error): ConnectionLostEvent {
   const code = (error as { code?: unknown }).code
-  return `${error.message}${typeof code === 'string' ? ` (${code})` : ''}`
+  return { code: typeof code === 'string' ? code : undefined, message: error.message }
+}
+
+/** What a process with no logger to wire says: the suite, and the db scripts. */
+function writeToStderr(event: ConnectionLostEvent): void {
+  process.stderr.write(
+    `[db] connection lost: ${event.message}` +
+      `${event.code === undefined ? '' : ` (${event.code})`}\n`,
+  )
 }
 
 // PGlite runs single-connection (spec 11.15): callers must never open a
@@ -84,16 +121,25 @@ export async function createDbClient(
     flight still rejects with the same error; these stop the second copy of it,
     the one the emitter throws, from ending the process. Production runs one
     instance through this same seam, where a reset idle connection is the
-    ordinary fate of a long-lived pool, so this is not a test concession.
+    ordinary fate of a long-lived pool, so this is not a test concession — and
+    a crash traded for silence is not a fix either, which is why every loss is
+    reported to `onConnectionLost` and the boot wires that to a structured line
+    and to the error tracker.
     */
+    const report = options.onConnectionLost ?? writeToStderr
     pool.on('connect', (client) => {
       client.on('error', (error: Error) => {
-        process.stderr.write(`[db] connection lost: ${describe(error)}\n`)
+        report(lost(error))
       })
     })
-    pool.on('error', (error: Error) => {
-      process.stderr.write(`[db] idle pooled connection discarded: ${describe(error)}\n`)
-    })
+    /*
+    Required, and deliberately silent. pg-pool re-emits on the pool what the
+    client above has already reported (`pool.emit('error', err, client)` is
+    reached from the very listener it adds to that client), so a second report
+    here would be a second line for one dead connection. What this cannot be is
+    absent: with no listener at all the re-emit is what throws.
+    */
+    pool.on('error', () => undefined)
     const db = drizzleNodePg(pool)
     return {
       kind: 'postgres',
