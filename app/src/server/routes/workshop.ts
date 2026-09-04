@@ -41,7 +41,11 @@ import {
   shelfView,
 } from '../domain/shelves.js'
 import { accessibleTask, taskView } from '../domain/tasks.js'
-import { sendError, sendValidationError } from '../http/errors.js'
+import {
+  sendError,
+  sendFieldValidationError,
+  sendValidationError,
+} from '../http/errors.js'
 import { optionalLimit } from '../security/rate-limit.js'
 import type { RateLimits } from '../security/rate-limit.js'
 import { routerWithPreamble } from './preamble.js'
@@ -109,6 +113,23 @@ export function createWorkshopRouter(
         // refuses a home the viewer cannot see rather than trusting its
         // caller (issue #35).
         sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      if (outcome.kind === 'file_not_here') {
+        /* Issue #107: the block named a file the page cannot reach. The
+           field is addressed the way a schema failure on the same block
+           would address it, so a client reads one shape of 422 whichever
+           validator refused it, and every offending block is named in one
+           answer (10.3). A file that does not exist and one the caller
+           cannot reach get this same sentence, as 7.16's cover does, because
+           telling them apart is the disclosure (10.2). */
+        sendFieldValidationError(
+          res,
+          outcome.blockIndexes.map((index) => ({
+            field: `blocks.${String(index)}.file_id`,
+            message: 'must name a file you can reach',
+          })),
+        )
         return
       }
       if (outcome.kind === 'stale') {
@@ -289,6 +310,19 @@ export function createWorkshopRouter(
       if (outcome.kind === 'not_found') {
         // Unreachable behind the shelfView above, for the same reason.
         sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      if (outcome.kind === 'file_not_here') {
+        // The shelf half of issue #107, and the clause behind it is the
+        // other one: a shelf page has no folder to scope to, so the file is
+        // gated by 7.15's own serving predicate. The answer is identical.
+        sendFieldValidationError(
+          res,
+          outcome.blockIndexes.map((index) => ({
+            field: `blocks.${String(index)}.file_id`,
+            message: 'must name a file you can reach',
+          })),
+        )
         return
       }
       if (outcome.kind === 'stale') {

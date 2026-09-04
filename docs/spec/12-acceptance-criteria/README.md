@@ -29,6 +29,10 @@ default, so read this list before spending one.
   it counted 229; the five ranges are twenty-nine numbers. Corrected on the branch for issues
   #20 and #100, which read this list to choose AC-368, rather than left for whoever spent 229
   a second time and found out from a duplicate test filename.
+- **AC-375 was taken from the tail on 2026-09-04** (issue #107), on the tail rule stated four
+  bullets below: `putPage` stored whatever `file_id` it was handed, so a member of one folder could
+  plant another folder's id and everyone learned that a file with it exists. The gate is two
+  clauses because the block has two homes, and the criterion asserts both. It is 12.9's.
 - **AC-374 was taken from the tail on 2026-09-03**, on the same branch and after review of
   it: of the three gates that decide what a page may wear, the place-cover one was the only
   one with no `kind` clause, so another person's avatar could be worn on a person's own Today
