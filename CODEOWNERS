@@ -24,7 +24,7 @@
 # ---------------------------------------------------------------------------
 # Default. A change anywhere not named below asks Hassan to read it.
 # ---------------------------------------------------------------------------
-*                          @zhssnym
+*                          @mranwafa @zhssnym
 
 # ---------------------------------------------------------------------------
 # What the user sees.
@@ -44,14 +44,14 @@
 # anyone adds a broader rule above them, which is the whole reason to write
 # them down. Naming Hassan here asks him to read a change; it does not reserve
 # the files, and Imran's work reaches every one of them.
-/app/src/server/           @zhssnym
-/app/db/                   @zhssnym
-/app/tests/                @zhssnym
-/.github/                  @zhssnym
-/docs/spec/                @zhssnym
-/docs/rfcs/                @zhssnym
-/docs/workflow/            @zhssnym
-/CODEOWNERS                @zhssnym
+/app/src/server/           @mranwafa @zhssnym
+/app/db/                   @mranwafa @zhssnym
+/app/tests/                @mranwafa @zhssnym
+/.github/                  @mranwafa @zhssnym
+/docs/spec/                @mranwafa @zhssnym
+/docs/rfcs/                @mranwafa @zhssnym
+/docs/workflow/            @mranwafa @zhssnym
+/CODEOWNERS                @mranwafa @zhssnym
 
 # ---------------------------------------------------------------------------
 # The seam.
@@ -64,9 +64,9 @@
 # A REQUEST field is a hard stop and never moves alone, because one the server
 # does not read is accepted and silently dropped with a 200.
 # docs/workflow/hard-stops.md carries the rule.
-/app/src/shared/           @zhssnym
+/app/src/shared/           @mranwafa @zhssnym
 
 # Dependencies. Adding a library is a bundle size, licence and supply chain
 # decision, which is a technical ruling and so is read here every time.
-/app/package.json          @zhssnym
-/app/package-lock.json     @zhssnym
+/app/package.json          @mranwafa @zhssnym
+/app/package-lock.json     @mranwafa @zhssnym
