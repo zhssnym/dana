@@ -27,6 +27,8 @@ import { getThreadResponse } from '../../shared/comments.js'
 import type { GetThreadResponse } from '../../shared/comments.js'
 import { getPlaceCoversResponse } from '../../shared/covers.js'
 import type { GetPlaceCoversResponse } from '../../shared/covers.js'
+import { getPlaceDescriptionsResponse } from '../../shared/place-descriptions.js'
+import type { GetPlaceDescriptionsResponse } from '../../shared/place-descriptions.js'
 import { getPageResponse } from '../../shared/pages.js'
 import type { GetPageResponse } from '../../shared/pages.js'
 import type { GetConnectionsResponse } from '../../shared/connections.js'
@@ -34,8 +36,8 @@ import { getFolderResponse, getFoldersResponse } from '../../shared/folders.js'
 import type { GetFolderResponse, GetFoldersResponse } from '../../shared/folders.js'
 import { getInvitesPendingResponse, getInvitesSentResponse } from '../../shared/invites.js'
 import type { GetInvitesPendingResponse, GetInvitesSentResponse } from '../../shared/invites.js'
-import { getMeSettingsResponse, meResponse } from '../../shared/me.js'
-import type { MeResponse, Settings } from '../../shared/me.js'
+import { meResponse } from '../../shared/me.js'
+import type { MeResponse } from '../../shared/me.js'
 import { getShelvesResponse, shelf } from '../../shared/shelves.js'
 import type { GetShelvesResponse, Shelf } from '../../shared/shelves.js'
 import { getTaskResponse } from '../../shared/tasks.js'
@@ -73,13 +75,6 @@ export function useMe(): UseQueryResult<MeResponse> {
   return useQuery({
     queryKey: queryKeys.me(),
     queryFn: () => getPlain(meResponse, '/me'),
-  })
-}
-
-export function useSettings(): UseQueryResult<Settings> {
-  return useQuery({
-    queryKey: queryKeys.settings(),
-    queryFn: () => getPlain(getMeSettingsResponse, '/me/settings'),
   })
 }
 
@@ -374,13 +369,15 @@ export function useSearch(q: string, enabled: boolean): UseQueryResult<GetSearch
  * ------------------------------------------------------------------ */
 
 /**
- * The person's bundle of 4.19, at the v2 address.
+ * The person's bundle of 4.19, at the v2 address, and the client's only
+ * settings read.
  *
- * Beside frozen 7.2's `useSettings` and never instead of it: 7.2 still owns
- * the three v1 page flags, and this owns the pin list those flags derive into
- * when nobody has written pins yet (RFC 0005's change control item 6). The
- * sidebar reads this one, because the pin list is what decides which entries
- * exist.
+ * It owns the pin list that frozen 7.2's three v1 page flags derive into when
+ * nobody has written pins yet (RFC 0005's change control item 6), so the
+ * sidebar reads this one: the pin list is what decides which entries exist.
+ * There was a `useSettings` beside it over `/me/settings` until issue #150,
+ * consumed by nothing; the flags still exist on the server and still derive,
+ * and this client never asks for them on their own.
  */
 export function useBundle(): UseQueryResult<GetSettingsResponse> {
   return useQuery({
@@ -550,5 +547,19 @@ export function usePlaceCovers(): UseQueryResult<GetPlaceCoversResponse> {
   return useQuery({
     queryKey: queryKeys.placeCovers(),
     queryFn: () => getPlain(getPlaceCoversResponse, '/place-covers'),
+  })
+}
+
+/**
+ * A person's wording for Dana's native pages. The response is dense, so a
+ * missing sentence is always `null` and means "show Dana's friendly default".
+ */
+export function usePlaceDescriptions(
+  enabled = true,
+): UseQueryResult<GetPlaceDescriptionsResponse> {
+  return useQuery({
+    queryKey: queryKeys.placeDescriptions(),
+    queryFn: () => getPlain(getPlaceDescriptionsResponse, '/place-descriptions'),
+    enabled,
   })
 }

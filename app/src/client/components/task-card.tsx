@@ -17,7 +17,9 @@ several Lane 2 proposals so they can be judged rather than imagined:
 attachments have no storage (DES-055, DES-105), block order has nowhere to
 live (DES-102), and moving steps between levels needs endpoints nobody has
 written (DES-100, DES-112). Each is excluded from `app/` by its entry in
-`docs/design/v2-decisions.md`, not by being invisible here. See DES-119 for
+`docs/design/v2-decisions.md`, not by being invisible here. That register is
+deleted (`a7886df`, 2026-09-01) and is in git history before that commit, and
+11.13 records that the DES key space has no successor. See DES-119 there for
 the list the port must check itself against.
 */
 
@@ -88,7 +90,6 @@ import {
   CHIP_REPEAT,
   UNASSIGNED,
 } from "./task-card-copy.js"
-import { DATE_DEPENDENT_HELPER } from "./task-copy.js"
 import { TaskMoveGuard, type PendingMove } from "./task-move-guard.js"
 import { TaskAssigneeInvite } from "./task-assignee-invite.js"
 import { TaskHistoryBlock } from "./task-history-block.js"
@@ -634,8 +635,10 @@ function CardFooter({
         **Copy link went at the round of 2026-08-31, on the owner's call, and
         it is the one removal here that overrides the prototype rather than
         following it.** `docs/design/prototype-v2/src/components/task-card.tsx`
-        still draws the same `IconAction` in the same band, so this is not a
-        parity fix and must not be read back as drift; his words were that on
+        drew the same `IconAction` in the same band, that prototype being
+        deleted (`a7886df`, 2026-09-01) and in git history before that
+        commit, so this is not a parity fix and must not be read back as
+        drift; his words were that on
         the open task the share link "is so much big, it's like a whole block
         ... you can get to that share link either way by going to the three
         dots, so it's just useless space". In a surface the band's whole
@@ -1793,6 +1796,19 @@ function AttachmentList({ files }: { files: NonNullable<ConceptTask["attachments
                   <img
                     src={file.preview}
                     alt={file.name}
+                    /* The other variable-height picture a conversation draws,
+                       reserved from 4.16's shape like the one in the thread
+                       (issue #108). It matters more here, because this opens
+                       inside a `Reveal` that animates to the height of its
+                       contents: an unreserved image gives that animation a
+                       height of zero to travel to and then jumps past it when
+                       the bytes land.
+
+                       No style where the file was never measured, rather than
+                       a default shape: nothing is backfilled and every
+                       attachment from before migration 0009 reports null, so
+                       those must go on drawing at their own proportion. */
+                    style={file.ratio === undefined ? undefined : { aspectRatio: file.ratio }}
                     className="w-full max-w-[320px] rounded-md border border-[var(--color-graphite-200)]"
                   />
                 </div>
@@ -2151,8 +2167,12 @@ export function TaskCard({
               },
               {
                 key: "__unassigned",
+                /* `null` and not `undefined`, issue #169: undefined is "this
+                   field was not touched", so the press cleared the chip here
+                   and sent nothing, and the assignment came back on the next
+                   read. `lib/task-model.ts` carries the three values. */
                 label: <span>{UNASSIGNED}</span>,
-                onSelect: () => patch(task.id, { assignee: undefined }),
+                onSelect: () => patch(task.id, { assignee: null }),
               },
             ],
           )}
@@ -2197,29 +2217,6 @@ export function TaskCard({
         </PickerChip>
       </div>
 
-      {/*
-      **Seam, S23: 9.3's helper for the two date-dependent rows.**
-
-      The section's field table gives reminder and repeat the same "requires a
-      due date" and the same "On disable, helper" text, and AC-092 reads it as
-      a property of the surface rather than of either chip: visible while the
-      two are disabled, gone the moment they are not. Drawn once, beside them,
-      because two disabled chips each carrying their own would put two of one
-      sentence on one strip.
-
-      **Enablement is on the value and never on the write.** `undated` is read
-      off the task the surface is holding, which is the draft on a capture and
-      the answered row afterwards, so a date answered on the due chip enables
-      these two in the same render. The criterion is explicit that the other
-      reading fails: "a strip that enables on the response renders a chip a
-      person cannot press while the answer sits beside it."
-      */}
-      {undated ? (
-        <p className="px-1.5 text-[12px] leading-4 text-[var(--color-graphite-500)]">
-          {DATE_DEPENDENT_HELPER}
-        </p>
-      ) : null}
-
       {inviting && task.folder?.id !== undefined ? (
         <TaskAssigneeInvite
           folderId={task.folder.id}
@@ -2230,14 +2227,28 @@ export function TaskCard({
 
       <TaskMoveGuard
         pending={pendingMove}
-        assignee={task.assignee}
+        /* The guard asks who would be stranded, and both of #169's empties
+           are "nobody", which is the same question a `Face` asks. */
+        assignee={task.assignee ?? undefined}
         onProceed={(folder, stranded) => {
           setPendingMove(null)
           patch(task.id, {
             folder,
-            /* 7.6 unassigns on a move that strands the assignee (4.4, INV-5),
-               so the card says so rather than letting the row learn it from
-               the next read. */
+            /*
+            7.6 unassigns on a move that strands the assignee (4.4, INV-5), so
+            the card says so rather than letting the row learn it from the next
+            read.
+
+            **`undefined` here and not #169's `null`, which is the one place in
+            this file the two must stay apart.** The move is the server's own
+            unassign: `domain/tasks.ts` drops an assignee the target does not
+            hold and *forces* the single member where the target has one. An
+            explicit null is a different request, and INV-5's unassign guard
+            answers it 409 in exactly that single-member folder, which is the
+            commonest destination a move strands somebody into. So this says
+            "move it" and lets 7.6 do what 7.6 does; the local copy reads the
+            absent assignee as nobody either way.
+            */
             ...(stranded ? { assignee: undefined } : {}),
           })
         }}

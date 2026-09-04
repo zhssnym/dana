@@ -4,9 +4,10 @@ and production has never had (DES-032, AC-240).
 
 Ported from `docs/design/prototype-v2/src/screens/public-legal-screen.tsx`,
 which 11.13 makes the source this is built from rather than a reference it is
-compared against. The layout, the section order and the copy are that file's;
-three things are this client's and each is named here, because a port that
-changes something silently is the defect item 20 exists to stop.
+compared against; that prototype is deleted (`a7886df`, 2026-09-01) and is in
+git history before that commit. The layout, the section order and the copy are
+that file's; three things are this client's and each is named here, because a
+port that changes something silently is the defect item 20 exists to stop.
 
 **The addresses.** The prototype is one application addressed by `?view=`, so
 its brand link points at `?view=landing` and its footer at `?view=privacy`.
@@ -28,17 +29,37 @@ sanitized Sentry errors and 30-day Axiom logs (11.12, 10.5), and hard
 deletion behind a typed DELETE (8.10, 9.7).
 
 **Approval, because DES-032's row and the prototype disagree and a session
-may not pick.** The design contract's table still reads "DES-032 | Privacy
-and terms destinations | OPEN | Before Session 7", which is the v1 row.
-`docs/design/v2-decisions.md` records the answer in the same register's own
+may not pick.** The design contract's table read "DES-032 | Privacy and terms
+destinations | OPEN | Before Session 7", which is the v1 row.
+`docs/design/v2-decisions.md` recorded the answer in the same register's own
 words: DES-032 is "**closed in v2**: pages drafted and approved 2026-08-17,
 still to be routed in production", and this file's source carries Imran's
-approval of the copy with its date and his sentence. So what was open is the
-routing, and the routing is this package. Nothing here is invented.
+approval of the copy with its date and his sentence. Both documents are
+deleted (`a7886df`, 2026-09-01) and are in git history before that commit, and
+11.13 records that the DES key space has no successor, so the quotations above
+are the whole of the record. So what was open is the routing, and the routing
+is this package. Nothing here is invented.
 
-9.2's no-capability-claim rule applies to every public page and is met by
-construction: every sentence below states what Dana stores, uses, or does
-not do, and none of them claims a feature.
+**A fourth departure, and it is an addition rather than a move: the section
+"Taking your data with you" (issue #162, 2026-09-04).** The prototype has no
+such section, because when it was drawn Dana had no export. 7.22 gives it one
+and 9.7 now carries the control, so the page that tells a person what Dana
+holds about them can tell them how to take it. It sits immediately before
+"Deleting your data" because the two are one pair in the order a person does
+them, take it and then remove it, and because 10.9 records that the Google
+APIs Terms of Service clause this satisfies is about portability rather than
+about erasure. Its sentence names Settings, which is where the control is,
+rather than the endpoint, which is not a thing to hand a person.
+
+9.2's no-capability-claim rule applies to every public page and is met, but
+no longer by construction, and the difference is worth stating rather than
+leaving for a reader to notice. Every other sentence below states what Dana
+stores, uses, or does not do, and claims no feature. The export sentence
+claims one. It is admissible because that rule forbids copy that "promises,
+implies or previews a capability Dana does not ship", and this one ships:
+`GET /api/v1/me/export` is 7.22 and the Settings row reaching it lands in the
+same change as this sentence. **A page carrying that sentence with no control
+behind it would break the rule**, so the two are never separated.
 */
 import { Link } from 'react-router'
 
@@ -76,6 +97,12 @@ const PAGE_COPY = {
         body: [
           'Dana runs on rented infrastructure and uses a small set of service providers: hosting for the application and its database, an email service that delivers invitations and reminders, an error-reporting service that receives technical failure reports with your content removed, and a log service that keeps operational events for 30 days. Task content and invitation addresses are excluded from error reports and logs.',
           'Google handles sign-in. Dana never sees your password.',
+        ],
+      },
+      {
+        heading: 'Taking your data with you',
+        body: [
+          'You can download everything Dana holds about you at any time, as a single JSON file, from your Settings page.',
         ],
       },
       {

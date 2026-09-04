@@ -28,13 +28,21 @@ rather than the source, because Tailwind's source detection scans prose too
 and a document that spelled the utility would emit it; so this comment
 describes it and does not write it.
 
-**The three chrome reads are made here rather than in the pages.** `/me`,
-`/me/settings` and `/folders` back the sidebar and the account menu on every
-page, so a page that fetched them would fetch them again on the next page for
-the same answer. `main.tsx` starts all three before this component mounts.
+**The chrome reads are made here rather than in the pages.** `/me`,
+`/folders` and 4.19's bundle at `/settings` back the sidebar and the account
+menu on every page, so a page that fetched them would fetch them again on the
+next page for the same answer. `main.tsx` starts `/me` and `/folders` before
+this component mounts; the bundle is read at the `useBundle` call below, whose
+own comment says why it is the bundle rather than frozen 7.2's settings.
 The shell renders before any of them answers, and it has to: 10.6's
 navigation fallback opens every /app path from the cached shell with no
 network at all, and AC-091 and AC-160 read the sidebar's page links there.
+
+**This sentence named `/me/settings` as the third read until issue #150, and
+it was stale rather than merely untidy.** The fold at S9 moved the sidebar
+onto the bundle and left the sentence describing the read it had replaced, so
+a boot prefetch nothing consumed had a comment vouching for it. It is gone
+with the prefetch; the account menu reads `/me`.
 
 **Document order carries two contracts.** The search overlay is first, ahead
 of the sidebar, because the suite addresses its field as the document's first
@@ -622,10 +630,36 @@ export function AppShell(): React.JSX.Element {
   application has to know that tabs exist. `retarget` is a no-op when the
   path already matches, which is what stops it looping with the navigations
   the strip itself asks for.
+
+  **The dependency is the location and not its pathname, and that is a fix
+  rather than a tidy.** React Router runs a navigation inside a transition,
+  so React is free to leave one uncommitted and to coalesce it with the next.
+  Ask for a folder and then for Desk before the first has committed and React
+  renders once, at Desk, which is the pathname it last committed: with
+  `[location.pathname]` the dependency has not changed, the effect never runs,
+  and the strip is left pointing at a tab for a page the router never went to
+  while the sidebar and the page itself are already on Desk. Nothing about it
+  reads as a race, because the two things a person would check, the address
+  bar and the highlighted sidebar row, are both correct; only the active tab
+  is wrong, and it stays wrong until the next navigation.
+
+  This is what CI run 33820001308 caught in AC-312, and the criterion was
+  right. The trace proves the mechanism rather than suggesting it: the
+  Groceries folder was never fetched at all, so its route never rendered,
+  while the sidebar's Desk row was highlighted, which only a committed render
+  at Desk can do. A probe that throttles the CPU twenty-fold and asks for the
+  two pages back to back reproduces it on demand, red before this line and
+  green after.
+
+  The location object is a fresh one per navigation, so the effect still runs
+  once per move and not once per render, which is the property that matters:
+  running it on every render would let an unrelated re-render land between a
+  tab click's `selectTab` and the navigation it returns, and retarget the tab
+  that was just chosen back onto the page being left.
   */
   useEffect(() => {
     retarget(location.pathname)
-  }, [location.pathname])
+  }, [location])
 
   /*
   9.1's Ctrl+Z used to be listened for here and is the lifted bar's own since

@@ -63,6 +63,32 @@ export function writeFailureMessage(error: unknown): string {
      item 53(b)); the generic sentence would say nothing was saved about an
      act the server declined by rule. S28b. */
   if (error instanceof ApiError && error.status === 403) return error.message
+  /*
+  A 413 `quota_exceeded` is 10.3's storage ceiling, and it is the third
+  refusal whose sentence is already written for a person: "You've used your
+  1 GB of storage. Delete some files to add more." Section 9 fixes those words
+  and every route that can answer 413 sends exactly them — `routes/files.ts`,
+  `routes/bundle.ts`, `routes/cover-photos.ts` and `workshop.ts`'s `overQuota`,
+  which is every 413 this API produces. Added 2026-09-04 for issue #117: a
+  shelf duplicate that will not fit is refused this way, and the generic
+  sentence would tell somebody at their gigabyte to try again, which is the one
+  thing that cannot work.
+
+  **Unconditional rather than opt-in, unlike the 422 below, and the difference
+  is the shape of the message rather than a preference.** A 422 carries a field
+  name and a rule — "name: must be 1 to 40 characters" — which is prose for
+  whoever is looking at that field and noise beside any other control, so a
+  mutation asks for it by name. A 413 has one producer, one cause and one
+  sentence, and there is no surface on which it reads as anything but what it
+  is.
+  */
+  if (
+    error instanceof ApiError &&
+    error.status === 413 &&
+    error.code === 'quota_exceeded'
+  ) {
+    return error.message
+  }
   return ERROR_TOAST
 }
 

@@ -103,6 +103,28 @@ export interface FolderRowProps {
       what an unset identity means, so a row given none renders as it always
       did. */
   icon?: LucideIcon
+  /**
+   * A word the row appends to its accessible name and never draws, for a row
+   * whose name a page entry of 9.1's page block already answers to.
+   *
+   * Issue #158: the sidebar carries two links called Desk, the page at `/app`
+   * and the default folder's row, and expanded they are told apart only by
+   * the pending badge inside the folder row's anchor ("Desk 7"). The badge is
+   * `group-data-[collapsible=icon]:hidden`, so in the rail it leaves the
+   * accessibility tree with everything else the rail drops and both links
+   * read exactly "Desk". A person in the rail with a screen reader then hears
+   * one name twice with nothing between them.
+   *
+   * It is a suffix inside the anchor rather than an `aria-label` on it,
+   * because a label would replace the whole computed name and take the
+   * pending count out of it with the rest; AC-155 asserts that count is
+   * inside the link, and 9.1 puts it there so a row announces as one thing.
+   * So this is the badge's own treatment: real content in the anchor, unseen,
+   * concatenated into the name. The leading space is deliberate and P8 already
+   * measured why on the badge, adjacent inline elements concatenating without
+   * one into "Desk7".
+   */
+  qualifier?: string
   pending: number
   /** 9.1's routes table: `/app/folders/:id`. Asserted by AC-175. */
   href: string
@@ -159,6 +181,7 @@ export function FolderRow({
   name,
   color,
   icon: Mark = Folder,
+  qualifier,
   pending,
   href,
   render,
@@ -335,7 +358,19 @@ export function FolderRow({
           strokeWidth={1.75}
           aria-hidden="true"
         />
-        <span className="min-w-0 flex-1 truncate group-data-[collapsible=icon]:grow-0">{name}</span>
+        {/* The qualifier rides inside the label rather than beside it, so that
+            the button's own `[&>*]:relative` cannot reach it: that variant
+            lands on every direct child of the anchor and beats `sr-only`'s
+            `absolute` on source order, which is the collision `FolderRowLink`
+            records and answers with `!absolute`. Nested, there is nothing to
+            collide with, and the label is already in the accessibility tree in
+            the rail (see the note above), so the suffix is there too. */}
+        <span className="min-w-0 flex-1 truncate group-data-[collapsible=icon]:grow-0">
+          {name}
+          {qualifier === undefined ? null : (
+            <span className="sr-only">{` ${qualifier}`}</span>
+          )}
+        </span>
       </SidebarMenuButton>
 
       {pending > 0 ? (
@@ -506,8 +541,10 @@ export function FolderRow({
 What a release would do, in words, riding the row being carried.
 
 Lifted from `docs/design/prototype-v2/src/components/folder-row.tsx` at S24,
-read on `v2-build` at `102e855`. Ledger entry L-128 asked this row to be
-verified rather than assumed, and the verdict is that the client drew its own
+read on `v2-build` at `102e855`. That prototype is deleted (`a7886df`,
+2026-09-01); read it in git history before that commit. Ledger entry L-128
+asked this row to be verified rather than assumed, and the verdict is that the
+client drew its own
 affordance: a graphite pill with the words in it, and `ring-2 ring-ring/40` on
 the row while a hold was filling. The words were right and the countdown was
 missing, so a person holding a folder over another had nothing telling them how

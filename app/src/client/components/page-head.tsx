@@ -39,6 +39,7 @@ storage question is DES-105's.
 
 import { useState, type ComponentPropsWithoutRef, type ReactNode } from "react"
 
+import { PLACE_DESCRIPTION_MAX } from "../../shared/place-descriptions.js"
 import { AlignLeft, type LucideIcon } from "../lib/icons.js"
 import { resolveCover } from "./folder-cover.js"
 import { AddCoverAction, PageCover } from "./page-cover.js"
@@ -183,20 +184,9 @@ export function PageHead({
      wording overrides it and clearing that brings it back. */
   description?: string
   /*
-  The second S25 seam, and the only one in this file's body.
-
-  RFC 0005 change control item 9 recorded the gap and it is still open: 9.4
-  writes the head as carrying an "editable description", 4.20 stores a cover
-  and its crop and nothing else, and no column anywhere holds a person's own
-  wording for a place page. Adding one is a frozen section 4 change and
-  therefore the owner's, so this row escalates it rather than improvising.
-
-  What that leaves is a choice between drawing the affordance over nothing
-  and not drawing it, and the second is the only honest one: a rewrite that
-  is accepted, blurs, and comes back unchanged is worse than a sentence,
-  because it tells a person their wording was saved. So a place page passes
-  false and gets Dana's own sentence as prose; a folder page has somewhere
-  to put one and passes nothing.
+  The second S25 seam. Native pages use 7.21, while folders and shelves keep
+  using their own records. `false` remains available for a genuinely fixed
+  page such as People, but native task pages use the editable default.
   */
   descriptionEditable?: boolean
   children?: ReactNode
@@ -296,9 +286,9 @@ and is why there is no separate reset. A folder has no shipped sentence, so
 clearing one there leaves it empty and the ghost comes back, the same rule,
 reading differently because the two have different defaults.
 
-Lane 2 travels with the cover: no page has a description column either, so a
-person's wording sits in the prototype's identity store beside the covers,
-keyed by the same name.
+The storage seam keeps the UI simple: folders and shelves save through their
+own records, and native pages save through 7.21. The control does not need to
+know which kind of page it is editing.
 */
 export function PageDescription({
   storageName,
@@ -359,6 +349,7 @@ export function PageDescription({
       placeholder="Add a description"
       aria-label={label}
       rows={1}
+      maxLength={PLACE_DESCRIPTION_MAX}
       autoFocus={editing}
       onBlur={(event) => commit(event.target.value)}
       className={cn(

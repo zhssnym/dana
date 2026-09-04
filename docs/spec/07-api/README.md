@@ -42,11 +42,50 @@ them is not a second decision but the same one. **The owner's confirmation of th
 half is nonetheless owed**, the ruling having named section 4 explicitly and this section
 only by implication.
 
+**Fourth, a whole subsection was added on 2026-09-04, and it is the first one
+since the S29a fold rather than an annotation of an existing one.** 7.22 is the
+data export, `GET /me/export`, and it moves this frozen section on two human
+decisions in the way the freeze asks: Imran ruled the product on issue #77,
+that Dana offers a real export of a person's own data on the wide reading
+rather than the narrowest compliance one, and Hassan ruled the shape. It is
+**purely additive** — no existing endpoint, response or status changed, and
+nothing that parsed before stops parsing. It is written as its own file rather
+than as a paragraph inside 7.1 because it is a surface with a format, a cap, a
+limiter and an authorization argument of its own, and because 10.9 named
+inventing one inside a compliance note as the wrong way to acquire it. 10.9
+stops recording the gap in the same change and points here.
+
+**Fifth, and on the same day, 7.23 is a second new subsection and it is the
+opposite kind of move: it records an endpoint that has shipped since RFC 0005
+rather than adding one (issue #152).** `GET` and `PATCH /api/v1/settings`, the
+4.19 bundle, were described nowhere in this section — not in 7.2, which is the
+frozen v1 `/me/settings` and its three page flags, not in 7.17, not in RFC
+0005's folded units — so the only account of them anywhere was 4.19's column
+list and the zod schemas both sides import. That was found while adding
+`calendar_zoom` for #142, which had to annotate 7.2 to name the endpoint at all
+and said in terms that writing it up was separate work. The owner ruled it a
+hole in the contract rather than a new surface, which is why this one moves the
+frozen section without changing a single status, body or field, and why no
+criterion moves with it. AC-409 holds the new file to the schemas so that it
+cannot quietly go stale the way the endpoint itself did.
+
+**Sixth, and this one takes something away: 7.2 is retired (issue #113, 2026-09-04, on the
+owner's ruling).** It is the first breaking change this frozen section has taken rather than
+an addition, and the freeze's rule holds through it in the same way it held through 7.22 and
+7.23 — a human decided. `GET` and `PATCH /me/settings` are deleted and answer 404; 7.23's
+`/settings` bundle is the settings surface. The ground is the one 7.23 made unavoidable to
+state: two endpoints over one row of `user_settings` is two contracts over one fact, which
+4.19 asked not to have. **No data moves with it** — the three v1 columns stay stored and are
+still derived into pins, and frozen 7.1's `GET /me` still answers them under its `settings`
+key, so AC-116 is untouched. Five criteria moved: AC-119 to AC-121 rewritten against the
+bundle, AC-122 and AC-123 retired, each with its reason in 12.3. The retirement ships in the
+same deploy as its client half (#150) and after it, which is what makes it safe.
+
 | | File | Covers |
 | - | - | - |
 | 7.0 | [`07.0-conventions.md`](07.0-conventions.md) | 7.0 Conventions |
 | 7.1 | [`07.1-auth-and-account.md`](07.1-auth-and-account.md) | 7.1 Auth and account |
-| 7.2 | [`07.2-settings.md`](07.2-settings.md) | 7.2 Settings |
+| 7.2 | [`07.2-settings.md`](07.2-settings.md) | 7.2 Settings — **retired 2026-09-04** (issue #113); see 7.23 |
 | 7.3 | [`07.3-connections.md`](07.3-connections.md) | 7.3 Connections (roster) |
 | 7.4 | [`07.4-folders-and-membership.md`](07.4-folders-and-membership.md) | 7.4 Folders and membership |
 | 7.5 | [`07.5-invites.md`](07.5-invites.md) | 7.5 Invites |
@@ -66,3 +105,5 @@ only by implication.
 | 7.19 | [`07.19-place-covers.md`](07.19-place-covers.md) | 7.19 Place covers |
 | 7.20 | [`07.20-sample-workspace.md`](07.20-sample-workspace.md) | 7.20 Sample workspace |
 | 7.21 | [`07.21-place-descriptions.md`](07.21-place-descriptions.md) | 7.21 Place descriptions |
+| 7.22 | [`07.22-data-export.md`](07.22-data-export.md) | 7.22 Data export |
+| 7.23 | [`07.23-settings-bundle.md`](07.23-settings-bundle.md) | 7.23 The settings bundle |

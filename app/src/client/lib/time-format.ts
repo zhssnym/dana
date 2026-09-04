@@ -91,7 +91,7 @@ export function adoptClock(clock: "12h" | "24h"): void {
 /**
  * The control's write, at S27: 4.19's column first, and the store adopts the
  * answer, which is the same path an arriving bundle takes. Added when
- * `screens/settings-screen.tsx` crossed and 9.7's two extra rows were drawn
+ * `components/settings-page-content.tsx` crossed and 9.7's two extra rows were drawn
  * in its idiom; the settings page's own mutation used to be the writer.
  */
 export function setClock(clock: "12h" | "24h"): void {

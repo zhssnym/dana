@@ -31,11 +31,27 @@ of quietly outliving the debt it records. That is the whole mechanism. A file
 appears on a list because it is v1 markup a later package replaces, never
 because a rule was inconvenient.
 
-**Scope is `components/` and `lib/`**, which is what S8 owns plus what it
-adds. `pages/`, `shell/`, `parts/` and `states/` are outside it today and
-break both rules freely; they come into scope as S9 to S13 replace them, and
-widening this file's scope is part of the package that empties its own share
-of the lists. Every list is empty when S13 closes.
+**Scope, and it is no longer one scope. Widened 2026-09-04 by #148.** The
+glob reads the whole client, `/src/client/**`, and the ramp rule below runs
+over all of it outside `components/ui/`. It used to read `components/` and
+`lib/` only, "what S8 owns plus what it adds", which left `pages/`, `shell/`,
+`parts/`, `screens/`, `state/` and `views/` unread: 22 files and 263 ramp
+spellings that the rule had never once looked at. A guard over three quarters
+of a client is a lottery about which folder a file sits in rather than a rule,
+and #135 is what that costs. #129 moved the prototype's
+`screens/settings-screen.tsx` into `components/`; the file gained no ramp step
+in the move and is byte-identical either side of it, but `screens/` was
+outside the glob and `components/` inside it, so the rule met its thirty
+spellings for the first time and read as a fresh violation by somebody who had
+not written one.
+
+**The other two rules in this file still read `components/` and `lib/`**,
+through `S8_SCOPE` below. That is a decision rather than an oversight and each
+carries its own note giving the count it would meet and why #148 did not take
+it. The older plan recorded here, that scope widens package by package as S9
+to S13 replace the v1 markup and every list is empty when S13 closes, is what
+did not happen: the packages landed and the scope did not move with them,
+which is the whole of #148.
 */
 import { describe, expect, test } from 'vitest'
 
@@ -44,10 +60,11 @@ const { readFileSync } = (await import(/* @vite-ignore */ fsSpecifier)) as {
   readFileSync: (path: string, encoding: 'utf8') => string
 }
 
-const modules = import.meta.glob(
-  ['/src/client/components/**/*.{ts,tsx}', '/src/client/lib/**/*.{ts,tsx}'],
-  { query: '?raw', import: 'default', eager: true },
-) as Record<string, string>
+const modules = import.meta.glob('/src/client/**/*.{ts,tsx}', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+}) as Record<string, string>
 
 /* '/src/client/components/ui/button.tsx' becomes 'components/ui/button.tsx',
    and test files are out: they are about the rules, not under them. */
@@ -57,6 +74,14 @@ const sources = Object.fromEntries(
     .filter(([path]) => !/\.test\.tsx?$/.test(path)),
 )
 const files = Object.keys(sources).sort()
+
+/* What the glob read until 2026-09-04, and what the two rules that did not
+   widen with #148 still read. Named rather than inlined so that a rule living
+   inside the old boundary has to say so at its call site, and so that retiring
+   it is one edit rather than a search. */
+const S8_SCOPE = files.filter(
+  (path) => path.startsWith('components/') || path.startsWith('lib/'),
+)
 
 describe('the icon family is one decision in one file (DES-125)', () => {
   /*
@@ -73,8 +98,22 @@ describe('the icon family is one decision in one file (DES-125)', () => {
     'components/quick-add.tsx',
   ]
 
+  /*
+  **This rule did not widen with #148 and still reads `S8_SCOPE`.** The count
+  it would meet, measured over the whole client on 2026-09-04: eight more
+  files import lucide per icon, `pages/DonePage.tsx`, `pages/FolderPage.tsx`,
+  `pages/FolderSharingPanel.tsx`, `pages/InviteGate.tsx`,
+  `pages/NotFoundPage.tsx`, `pages/PeoplePage.tsx`,
+  `shell/FloatingAddButton.tsx` and `state/ToastRegion.tsx`. #148 is about the
+  ramp rule, asks for the ramp rule, and its reviewers will be reading a diff
+  about the ramp rule; widening this one in the same change would be a second
+  decision taken quietly under cover of the first. The number is written down
+  so that whoever takes it starts from a count rather than from a grep.
+  */
   test('only the icon module imports lucide-react, beside a named v1 list', () => {
-    const importers = files.filter((path) => /from ['"]lucide-react['"]/.test(sources[path] ?? ''))
+    const importers = S8_SCOPE.filter((path) =>
+      /from ['"]lucide-react['"]/.test(sources[path] ?? ''),
+    )
     expect(importers.filter((path) => path !== 'lib/icons.tsx')).toEqual(V1_LUCIDE)
     expect(importers).toContain('lib/icons.tsx')
   })
@@ -87,8 +126,8 @@ describe('the ramp is spelled where the ramp lives (11.4)', () => {
   defined, and `tokens.css` is where both are written. Everything else asks
   for the role.
 
-  **The list below is two kinds of file now, and its name no longer says so.**
-  It began as v1 markup awaiting the package that replaces it. Since S23 it
+  **The list below is three kinds of file now, and its name says none of
+  them.** It began as v1 markup awaiting the package that replaces it. Since S23 it
   also holds files lifted verbatim from `prototype-v2`, which spell the ramp
   because the original does and because RFC 0004's lift discipline is that a
   lifted file diffs empty against its original: rewriting its class strings to
@@ -101,6 +140,11 @@ describe('the ramp is spelled where the ramp lives (11.4)', () => {
   class strings and it moved into this directory at S26, where the rule reaches
   it for the first time. Whether the prototype should be
   asking for roles is a question for the design record.
+
+  **The third kind arrived on 2026-09-04 with #148**, and it is neither of the
+  other two: files that never moved and were never lifted, on the list only
+  because the glob was widened to the folder they have always sat in. The block
+  that names them says so at the point they begin.
   */
   const RAMP = /var\(--color-(graphite|dana-accent|folder|success|warning|danger|info)-/
 
@@ -120,6 +164,19 @@ describe('the ramp is spelled where the ramp lives (11.4)', () => {
     'components/page-image.tsx',
     'components/quick-add.tsx',
     'components/search-overlay.tsx',
+    /* Moved into scope rather than newly offending, 2026-09-03 (#135). This is
+       the prototype's `screens/settings-screen.tsx`, and `screens/` is outside
+       this test's glob, as the Scope note above says. #129 moved it to
+       `components/`, where the rule reached its thirty-odd v1 spellings for the
+       first time. So it belongs on this list for the reason the list exists —
+       v1 code the rule was introduced around — and not as an exemption anybody
+       chose. The alternative tried first was substituting roles, and it is the
+       wrong trade: six steps map exactly, five have no role and would render a
+       step off, and nobody can see that from a terminal. #148 is the real gap,
+       which is that `screens/`, `pages/` and `shell/` are unguarded. Closed
+       2026-09-04: the glob reads the whole client now, and this entry stays
+       for the reason it was written rather than for the folder it sits in. */
+    'components/settings-page-content.tsx',
     'components/state-patterns.tsx',
     'components/task-assignee-invite.tsx',
     'components/task-board.tsx',
@@ -132,6 +189,50 @@ describe('the ramp is spelled where the ramp lives (11.4)', () => {
     'components/undo-bar.tsx',
     'components/view-strip.tsx',
     'components/window-bar.tsx',
+    /* Everything below this line arrived on 2026-09-04 with #148, which widened
+       the glob from `components/` and `lib/` to the whole client. It is 22
+       files carrying 263 ramp spellings, in six folders the rule had never
+       read: `pages/` 9 files and 89 spellings, `shell/` 5 and 77, `screens/` 3
+       and 41, `parts/` 3 and 3, `state/` 1 and 3, `views/` 1 and 50. Counted
+       first, as #148 asks, because the number decides the shape of the change:
+       50 files and 860 spellings over the whole client is a project rather than
+       an afternoon, so the offenders are named here in the same commit that
+       widens the glob. Not one line of client code changed, and none of these
+       files is new — the rule simply looked at them for the first time.
+
+       Substituting roles was not attempted here, on the #135 entry's finding
+       twenty lines above: where a step has no role the substitution renders a
+       step off, and nobody can see that from a terminal.
+
+       **This list only ever shrinks.** `toEqual` fails in both directions, so a
+       file that stops spelling the ramp must leave the list in the same change
+       that fixes it, and a file may join only by being markup that already
+       shipped — never because the rule was inconvenient. Cheapest first for
+       whoever takes a bite: `pages/NotFoundPage.tsx`, `pages/page-heading.tsx`,
+       `screens/important-screen.tsx` and all three `parts/` files carry exactly
+       one spelling each. */
+    'pages/AllPage.tsx',
+    'pages/FolderPage.tsx',
+    'pages/FolderSharingPanel.tsx',
+    'pages/InviteGate.tsx',
+    'pages/LandingPage.tsx',
+    'pages/LegalPage.tsx',
+    'pages/NotFoundPage.tsx',
+    'pages/PeoplePage.tsx',
+    'pages/page-heading.tsx',
+    'parts/identity-colors.ts',
+    'parts/person-tint.ts',
+    'parts/presenters.ts',
+    'screens/important-screen.tsx',
+    'screens/shelf-page.tsx',
+    'screens/trash-screen.tsx',
+    'shell/FloatingAddButton.tsx',
+    'shell/SidebarResizeHandle.tsx',
+    'shell/TabStrip.tsx',
+    'shell/app-shell.tsx',
+    'shell/app-sidebar.tsx',
+    'state/ToastRegion.tsx',
+    'views/FilterControl.tsx',
   ]
 
   test('no ramp step outside components/ui, beside a named v1 list', () => {
@@ -169,8 +270,22 @@ describe('the ramp is spelled where the ramp lives (11.4)', () => {
   */
   const LITERAL_HEX = ['components/folder-cover.tsx']
 
+  /*
+  **This rule did not widen with #148 either, and the reason is specific
+  rather than the one above.** Over the whole client on 2026-09-04 exactly one
+  further file writes a six-digit hex: `parts/identity-colors.ts`, eleven of
+  them. #41 records that the two palettes in `parts/` are there *because* this
+  rule does not reach that folder, and the owner's comment on that issue
+  reserves the choice to himself: either the palettes belong in `tokens.css`
+  and he takes them, or they genuinely need to be TypeScript and he widens
+  this test to allow a named location. Listing the file below would settle
+  that by default, in the direction of the second answer, inside a change
+  about a different rule. The note above already says a second entry here "is
+  a question rather than a precedent", which is this file instructing its
+  reader to ask, so it is left as the question it is.
+  */
   test('no literal colour anywhere but the token file, beside one named lift', () => {
-    const literal = files.filter((path) => /#[0-9a-fA-F]{6}\b/.test(sources[path] ?? ''))
+    const literal = S8_SCOPE.filter((path) => /#[0-9a-fA-F]{6}\b/.test(sources[path] ?? ''))
     expect(literal).toEqual(LITERAL_HEX)
   })
 })

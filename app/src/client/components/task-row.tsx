@@ -2540,9 +2540,12 @@ export function TaskRow(props: TaskRowProps) {
   The detail strip, as a list rather than as eight branches, W2.
 
   The review's second standing constraint asks for the row's **state-chip and
-  assignee slots cut as open sets**, and `docs/design/vision.md` says what
+  assignee slots cut as open sets**, and `docs/design/vision.md` said what
   they are open *for*: work assigned to "a person, an AI agent, or both", and
-  states like "waiting, working, blocked, ready for review".
+  states like "waiting, working, blocked, ready for review". That document is
+  deleted (`a7886df`, 2026-09-01) and is in git history before that commit;
+  no numbered spec section carries the intent, so the quoted words are the
+  record.
 
   What stood here was eight hardcoded conditionals in one JSX block. Nothing
   declared what the family was, the order lived in the source sequence where
@@ -2706,7 +2709,11 @@ export function TaskRow(props: TaskRowProps) {
                     Unassigned
                   </span>
                 ),
-                onSelect: () => patch(task.id, { assignee: undefined }),
+                /* `null` and not `undefined`, issue #169: the card's copy of
+                   this menu sent nothing at all for years because undefined
+                   is "this field was not touched". Both menus say clear the
+                   same way. `lib/task-model.ts` carries the three values. */
+                onSelect: () => patch(task.id, { assignee: null }),
               },
             ])}
         >

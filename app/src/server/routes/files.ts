@@ -33,6 +33,9 @@ import type {
 } from '../../shared/files.js'
 import type { ObjectStore } from '../files/store.js'
 import { sendError } from '../http/errors.js'
+import { parseBody } from '../http/parse-body.js'
+import { createSecurityLogger } from '../security/log.js'
+import type { SecurityLogger } from '../security/log.js'
 import { optionalLimit } from '../security/rate-limit.js'
 import type { RateLimits } from '../security/rate-limit.js'
 import { routerWithPreamble } from './preamble.js'
@@ -41,6 +44,7 @@ export interface FilesRouterOptions {
   dbClient?: DbClient
   fileStore?: ObjectStore
   rateLimits?: RateLimits
+  securityLog?: SecurityLogger
 }
 
 /*
@@ -79,6 +83,7 @@ const uploadFields = z
 export function createFilesRouter(options: FilesRouterOptions = {}): Router {
   const { router, database, viewer, parsedId } = routerWithPreamble(options)
   const mutationLimit = optionalLimit(options.rateLimits?.generalMutations)
+  const securityLog = options.securityLog ?? createSecurityLogger()
   const parseUpload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: MAX_FILE_BYTES, files: 1 },
@@ -177,32 +182,33 @@ export function createFilesRouter(options: FilesRouterOptions = {}): Router {
       if (db === null) return
       const store = storeOf(res)
       if (store === null) return
-      const fields = uploadFields.safeParse(req.body)
-      if (!fields.success) {
+      const fields = parseBody(uploadFields, req, res, securityLog, {
         /* One sentence for the whole shape, as before, rather than the
            per-field formatter: the parts of a multipart body are not the
            JSON fields `sendFieldValidationError` builds its paths from.
            The wording moved with the rule above — `folder_id` is a uuid
            where it is sent, and required for every kind but cover. */
-        sendError(
-          res,
-          422,
-          'validation_failed',
-          'kind: must be image, file, voice or cover; folder_id must be a uuid, and is required for every kind but cover.',
-        )
-        return
-      }
+        onInvalid: () => {
+          sendError(
+            res,
+            422,
+            'validation_failed',
+            'kind: must be image, file, voice or cover; folder_id must be a uuid, and is required for every kind but cover.',
+          )
+        },
+      })
+      if (fields === null) return
       if (req.file === undefined) {
         sendError(res, 422, 'validation_failed', 'file: must be supplied.')
         return
       }
       const outcome = await createFile(db, store, viewer(req), {
-        kind: fields.data.kind as FileKind,
-        folderId: fields.data.folder_id ?? null,
+        kind: fields.kind as FileKind,
+        folderId: fields.folder_id ?? null,
         name: req.file.originalname || 'file',
         mime: req.file.mimetype,
         bytes: req.file.buffer,
-        durationMs: fields.data.duration_ms,
+        durationMs: fields.duration_ms,
       })
       if (outcome.kind !== 'created') {
         refusal(res, outcome)
@@ -281,6 +287,21 @@ export function createFilesRouter(options: FilesRouterOptions = {}): Router {
       const outcome = await deleteFile(db, store, viewer(req), fileId)
       if (outcome === 'not_found') {
         sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      if (outcome === 'forbidden') {
+        /* 10.2's second half, added 2026-09-04 under issue #74: this caller
+           reads the same bytes at 200 through the GET above, so the file's
+           existence is not a thing a 404 could still be protecting, and a
+           refusal that says why is what the grammar asks for. The sentence is
+           `deleteComment`'s in shape and in the actors it names, that being
+           the same rule on the same surface (7.14, 7.15). */
+        sendError(
+          res,
+          403,
+          'forbidden',
+          'Only the person who uploaded this file or the folder owner can delete it.',
+        )
         return
       }
       res.status(204).end()

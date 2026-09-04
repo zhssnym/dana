@@ -73,7 +73,26 @@ string and was one of the three reds that day on `main`'s browser leg, the
 other two being AC-099's, which asserted the same rename's tooltip. The
 criterion's text already said "Scheduled" and did not move.
 
-Spec: 9.5 (the calendar), 7.6 (PATCH due_date).
+**The zoom is put back in `afterEach`, added 2026-09-04 with issue #140, and
+nothing about the case itself moved.** 9.5's zoom stopped being component state
+that day and became `user_settings.calendar_zoom`, so the Week press below is
+now a write to the account rather than to this page. This leg shares one seeded
+database in one worker, which makes anything written to that account a change
+every later file inherits: measured with a throwaway probe on the day, a spec
+sorting after this one opened the Scheduled calendar on a 7-cell week grid
+instead of the 42-cell month. `ac-093` needs the month zoom and sorts before
+this file, so the leg was green on ordering alone. The restore is the same
+discipline AC-261 already keeps for the four Appearance fields, and it is the
+harness rule about never leaving a shared row changed, applied to a column the
+harness could not previously reach. No assertion here changed.
+
+The mirror `lib/calendar-zoom.ts` keeps in `localStorage` is deliberately not
+cleared here: Playwright gives each test its own context and therefore its own
+storage, so there is nothing of this case's to leak, and the account is the
+only thing two files share.
+
+Spec: 9.5 as amended (the calendar and its persisted zoom), 7.6 (PATCH
+due_date), 4.10 and 7.2 as annotated (`calendar_zoom`); issues #140 and #142.
 */
 import { expect, test } from '@playwright/test'
 
@@ -83,6 +102,7 @@ import {
   clickControl,
   createFolder,
   createTask,
+  patchBundle,
   routesV2,
   seedDate,
   seedSubs,
@@ -93,6 +113,23 @@ import {
 
 test.use({ timezoneId: 'UTC' })
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
+
+/* The week zoom this case chooses is the account's since issue #140, so it is
+   handed back at 9.5's default rather than left for the next file. Through the
+   API rather than by pressing Month again: a restore that depends on the
+   control under test is a restore that stops running the day that control
+   breaks, and this one runs even when the case has already failed.
+
+   Guarded on the session, because that is the failure it would otherwise make
+   worse: a case that dies before `signIn` has no cookie, `patchBundle` then
+   reads no CSRF token and fails its own assertion, and the report names the
+   cleanup instead of the thing that broke. There is nothing to restore in that
+   state anyway, the zoom never having been touched. */
+test.afterEach(async ({ page }) => {
+  const signedIn = (await page.context().cookies()).length > 0
+  if (!signedIn) return
+  await patchBundle(page, { calendar_zoom: 'month' })
+})
 
 /**
  * The seven days 9.5's week zoom lays out around today, Monday first,

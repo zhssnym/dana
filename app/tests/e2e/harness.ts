@@ -363,31 +363,6 @@ export async function transition(
   ).toBe(200)
 }
 
-/**
- * PATCH /me/settings with the CSRF header of 11.6.
- *
- * 9.1 puts six pages in the sidebar "each present only if permanent or
- * toggled visible", and 9.7 owns the three toggles that decide the other
- * half. A criterion asserting all six entries therefore has to put the
- * account into the state where all six are visible rather than assume it,
- * which is what this is for; the defaults are 9.7's and not this suite's to
- * depend on.
- */
-export async function patchSettings(
-  page: Page,
-  body: Record<string, boolean>,
-): Promise<void> {
-  const token = await csrfToken(page.context())
-  const response = await page.request.patch('/api/v1/me/settings', {
-    data: body,
-    headers: { 'X-CSRF-Token': token },
-  })
-  expect(
-    response.status(),
-    `PATCH /me/settings answered ${response.status()}: ${await response.text()}`,
-  ).toBe(200)
-}
-
 /* ------------------------------------------------------------------ *
  * Sequencing a server read after an interaction
  * ------------------------------------------------------------------ */
@@ -404,7 +379,13 @@ export async function patchSettings(
  * this is generous by two orders of magnitude and costs a quarter second per
  * barrier.
  */
-const API_SETTLE_MS = 250
+/**
+ * How long the page has to have been quiet before `waitForApiIdle` believes
+ * it. Exported since 2026-09-04 so that a case needing a settle wide enough
+ * for a request to have appeared can express it in this number rather than in
+ * a literal that would drift away from it; `ac-220` is the one that does.
+ */
+export const API_SETTLE_MS = 250
 
 interface ApiTraffic {
   inFlight: number
@@ -469,6 +450,48 @@ export function trackApi(page: Page): void {
  * fix which requests a save makes, so waiting for a named endpoint would
  * encode the transport the criteria decline to name; what is waited on is
  * that the page has stopped talking, whatever it said.
+ *
+ * **The rule for choosing between this and `watchCommit`, written down after
+ * issue #159 swept the whole browser suite for it (2026-09-04).** A click,
+ * then this, then a read is the same hazard as #141's drag without the
+ * gesture: the gesture was never what was dangerous, the barrier was.
+ *
+ * - **Where the act is expected to write and the read that follows depends on
+ *   the write** — server state through `page.request`, or DOM the client
+ *   redraws from the response — the barrier is `watchCommit`, taken *before*
+ *   the act. Quiet is also what an interface that has not yet sent the
+ *   request looks like, so this returns inside the window between the press
+ *   and the request the press causes, and the read then lands before the
+ *   write. What it reports is the state the page was in beforehand, which is
+ *   the shape of the very defect such a case is written to catch: a client
+ *   that took the edit into local state and sent nothing.
+ * - **Where the case asserts a refusal** — that the act wrote nothing, that a
+ *   declined confirm ran no transition, that a drag in a filtered folder sent
+ *   no order call — the barrier is this one, and it has to be. `watchCommit`
+ *   asserts that a request went out, which is the opposite of the claim being
+ *   made, so it cannot order a read whose own point is that none did.
+ * - **Where nothing was acted on**, a `page.goto` or a reload being what
+ *   precedes the read, there is no commit to count and this is the whole of
+ *   what can be waited for.
+ * - **Where the write is already ordered by something stronger** — an awaited
+ *   `page.waitForResponse` on the call itself, or a toast the client only
+ *   draws on the response — this covers the reading behind it and nothing is
+ *   gained by counting requests as well.
+ * - **Where the value read is the client's own** and no endpoint is meant to
+ *   hear about it, the barrier is this one, and often nothing at all is
+ *   needed. `ac-226`'s starter dismissal lives in `localStorage` on purpose
+ *   and `ac-332`'s cleared filter is a re-render; `watchCommit` on either
+ *   fails saying the page sent nothing, which is correct and is not a defect.
+ *   **This case was missing from the list when the sweep ran**, which is how
+ *   the sweep put a barrier on the dismissal and had to take it out again; it
+ *   is written down now so the next reader does not repeat the same afternoon.
+ *
+ * Sixty-five call sites were read against those rules on 2026-09-04;
+ * **thirty-nine moved and twenty-six stayed** — measured from the files rather
+ * than added up, an earlier draft of this paragraph having said forty-one and
+ * twenty-four — and each of the twenty-six says beside itself which rule keeps
+ * it there. A barrier with no reason next to it is the thing that cost #138
+ * and #141 a day between them.
  */
 export async function waitForApiIdle(page: Page, why: string): Promise<void> {
   trackApi(page)
@@ -536,6 +559,19 @@ export interface CommitBarrier {
  * than a timeout.** On this surface an edit *is* a write, so a client that
  * took the edit into local state and issued nothing has broken 9.3's commit
  * rule; the wait for the count to move is what says so, in those words.
+ *
+ * **Two things it does not do, both of which have been read into it.** It does
+ * not prove *which* write went out, counting every request to `/api/v1/`, GETs
+ * included: what it establishes is that the page said something after the act
+ * and then went quiet, and the oracle for what was written is the value the
+ * case reads afterwards. And where an act causes several writes, the count has
+ * to be taken against the *last* of them, because quiet alone cannot tell a
+ * second request that has not been issued yet from a pair that is finished;
+ * `ac-350` is the worked example and says so beside itself.
+ *
+ * The rule for when to reach for this rather than `waitForApiIdle` is written
+ * out in full at that function, four cases, from issue #159's sweep of the
+ * whole browser suite.
  */
 export function watchCommit(page: Page): CommitBarrier {
   trackApi(page)
@@ -766,8 +802,6 @@ export const copy = {
   // AC-225 reads the undo bar that replaced it.
   /** 9.3, the 8.4 warning shown before a date is cleared. */
   clearDateWarning: 'Clearing the date also ends the repeat and removes the reminder.',
-  /** 9.3, the helper text on each of the three date-dependent fields. */
-  dateDependentHelper: 'Set a due date first',
   /** 9.3, empty title. */
   titleRequired: 'Give it a title',
   /** 9.3, the steps editor's cap notice, spelled at the P8 change control. */
@@ -852,7 +886,27 @@ export const conflictCopy = {
  * half meaningful.
  */
 export function sidebarLink(page: Page, name: string): Locator {
-  return page.getByRole('link', { name, exact: true })
+  const named = page.getByRole('link', { name, exact: true })
+  /*
+  Desk named two of them, and only Desk did (issue #98). 9.1's page block opens
+  with a page called Desk at `/app`, and 4.3 names the viewer's default folder
+  Desk too, so its row was a second link of that name pointing at
+  `/app/folders/:id`. The row usually carried its pending badge and so read
+  "Desk 7" rather than "Desk", which is why it was not ambiguous most of the
+  time; an account whose default folder had nothing pending in it had no badge,
+  and then it was.
+
+  **Issue #158 settled it and the names no longer collide**: the default
+  folder's row appends an unseen "folder" to its own name, so it reads "Desk
+  folder" and, with a badge, "Desk folder 7". `linkTo` below carries the
+  ruling. This pin therefore no longer hides anything, and it is kept rather
+  than deleted for the reason it was worth having before the ambiguity existed:
+  both halves are asserted, so a page entry that acquires the wrong `href`
+  fails here instead of passing on its name.
+  */
+  return name === 'Desk'
+    ? named.and(page.locator(`[href="${routesV2.desk}"]`))
+    : named
 }
 
 /**
@@ -975,6 +1029,55 @@ export async function openQuickAdd(page: Page, why: string): Promise<Locator> {
  */
 export function regionOf(page: Page, name: string): Locator {
   return page.getByRole('region', { name, exact: true })
+}
+
+/**
+ * A link addressed by its accessible name and by the destination 9.1's routes
+ * table gives it, for the places where a name alone names two of them.
+ *
+ * **The sidebar held two links called Desk, and issue #158 has separated
+ * them.** One is the page entry of 9.1's page block, whose name is a fixed
+ * string and whose destination is `/app`. The other is the row of the viewer's
+ * default folder, which 4.3 names Desk on every account provisioned since RFC
+ * 0005 and which points at `/app/folders/:id`. Nothing was wrong with the four
+ * cases that broke on that (issue #98, 2026-09-04): the seed called that folder
+ * Inbox until #98, so the collision was invisible to a leg that runs entirely
+ * on the seed, and every provisioned account had it all along.
+ *
+ * **The ambiguity is resolved in the client and not here.** #158 ruled that
+ * the folder row carries the distinguishing name, on the ground that the page
+ * entry's name is 9.1's own fixed string while a folder's is the person's:
+ * `shell/app-sidebar.tsx` gives the default folder's row an unseen "folder"
+ * inside its anchor, so it reads "Desk folder", or "Desk folder 7" while it
+ * carries a badge, expanded and in the rail alike. Only that row takes the
+ * word; the reasoning against every folder row taking it is in that file. So a
+ * name alone now does separate the two, and AC-155 asserts that it does.
+ *
+ * **This helper is kept anyway, and the reason has changed.** It no longer
+ * hides a collision, because there is none; what it still does is what it was
+ * always also doing, which is to hold a link to the routes table as well as to
+ * its name. That is worth having on its own: the two Desk links differ by one
+ * appended word, and a client that put the word on the wrong one of them, or
+ * dropped it again, would go on satisfying a name-only locator that happened to
+ * be looking at the other link. Reading the `href` is reading 9.1 rather than
+ * reaching around it, which is the distinction this file's addressing rule
+ * draws when it refuses class, DOM shape and test identifier: it refuses those
+ * because none of them is in the section, and this is.
+ *
+ * Both halves are kept rather than the destination alone, so that a link with
+ * the right URL and the wrong name still fails.
+ */
+export function linkTo(
+  within: Locator,
+  name: string | RegExp,
+  href: string,
+  options: { exact?: boolean } = {},
+): Locator {
+  const named =
+    options.exact === undefined
+      ? within.getByRole('link', { name })
+      : within.getByRole('link', { name, exact: options.exact })
+  return named.and(within.locator(`[href="${href}"]`))
 }
 
 /**
@@ -1882,7 +1985,8 @@ export const V2_PAGE_NAMES = [
 ] as const
 
 /**
- * PATCH /settings, the v2 bundle of 4.19 beside frozen 7.2's /me/settings.
+ * PATCH /settings, the v2 bundle of 4.19 and the settings surface since
+ * issue #113 retired frozen 7.2's /me/settings on 2026-09-04.
  * AC-214's "Done is absent until pinned" is this surface: the pin list is
  * `pinned_views`, and a criterion about pinning has to write the pin the way
  * the Settings page of 9.7 does rather than assume the default.

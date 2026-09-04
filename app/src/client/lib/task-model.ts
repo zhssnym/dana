@@ -2,13 +2,14 @@
 The task, and everything true about one that is not a question of how it looks.
 
 `docs/design/prototype-v2/src/lib/task-model.ts`, read at `7d2064c`, reduced
-to its declarations. The file arrives here rather than at S23 because
-`lib/task-writer.tsx`, `lib/task-concept.ts` and every surface that follows
-them speak in this shape, and a shape declared twice is a shape that will one
-day disagree with itself. Its own header says why it exists at all: the row
-and its card disagreed twice while each wrote its own copy of one fact, "the
-row said Weekly about a task that repeated on weekdays", and both faults were
-one fact written down in two places.
+to its declarations. That prototype is deleted (`a7886df`, 2026-09-01); read
+it in git history before that commit. The file arrives here rather than at S23
+because `lib/task-writer.tsx`, `lib/task-concept.ts` and every surface that
+follows them speak in this shape, and a shape declared twice is a shape that
+will one day disagree with itself. Its own header says why it exists at all:
+the row and its card disagreed twice while each wrote its own copy of one
+fact, "the row said Weekly about a task that repeated on weekdays", and both
+faults were one fact written down in two places.
 
 **What crossed and what did not, named rather than discovered.** The four
 interfaces below and the two counts are the whole of the lift, verbatim. What
@@ -188,6 +189,19 @@ export interface Attachment {
   kind: 'image' | 'video' | 'document' | 'file' | 'link'
   /* A thumbnail, where there is something to see. */
   preview?: string
+  /*
+  Width over height for the picture `preview` points at, so a surface that
+  draws it at its own size can hold the space before the bytes land (issue
+  #108).
+
+  Absent means the file was never measured, which is every attachment stored
+  before migration 0009 and every kind that is not a picture; a surface reads
+  it through `lib/page-images.ts`'s `reservedRatio`, which turns absent into
+  the same 16 by 9 those surfaces already drew. It is a number rather than the
+  pair 4.16 carries because that is what CSS takes and because a ratio is the
+  only thing any of these surfaces wants from the pair.
+  */
+  ratio?: number
   /* Where the link goes. Set only on `kind: "link"`; a file has no address
      that outlives the session. */
   url?: string
@@ -276,7 +290,25 @@ export interface ConceptTask {
   repeatEvery?: string
   repeatDays?: string[]
   repeatEnds?: string
-  assignee?: { initials: string; name: string; image?: string; id?: string }
+  /*
+  Three values, and the third is the one issue #169 was about.
+
+  A person is a person. **An absent one means nobody is assigned** where this
+  is a whole task, and means "this field was not touched" where it is the
+  `Partial<ConceptTask>` an edit reports. One `undefined` cannot serve both
+  readings, which is why **`null` is added: it is the patch that says "clear
+  the assignee"**, the one thing this type could not say before.
+  `conceptPatchToBody` turns it into 7.6's `assignee_id: null`, and ledger
+  L-094's "unassigned is a member of the set, not the absence of one" is the
+  same rule read from the card's side.
+
+  So a reader of a whole task treats the two empties alike, nobody is
+  assigned either way, and every reader here already does: each asks
+  `task.assignee?.name`, `Boolean(task.assignee)` or `!task.assignee`. A
+  writer of a patch has to choose between them, and that choice is the whole
+  point of the widening.
+  */
+  assignee?: { initials: string; name: string; image?: string; id?: string } | null
   /* Steps are the items themselves rather than a count, so the count is
      derived and ticking one in an expanded card moves the number in the row
      behind it. A count that cannot be wrong is better than a count. */

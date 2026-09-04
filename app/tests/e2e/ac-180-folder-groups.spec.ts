@@ -118,6 +118,8 @@ preamble), frozen 7.4 (my-membership, which a group is the label of), 4.4,
 import { expect, test } from '@playwright/test'
 import type { Locator, Page } from '@playwright/test'
 
+import type { CommitBarrier } from './harness.js'
+
 import {
   ACTION_TIMEOUT_MS,
   clickControl,
@@ -130,7 +132,7 @@ import {
   sidebar,
   signIn,
   TEST_TIMEOUT_MS,
-  waitForApiIdle,
+  watchCommit,
 } from './harness.js'
 
 test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
@@ -161,10 +163,28 @@ async function memberships(page: Page): Promise<Membership[]> {
   return (await response.json()) as Membership[]
 }
 
-async function labelOf(page: Page, name: string): Promise<string | null> {
-  await waitForApiIdle(
-    page,
-    'the label write has to have been sent and answered before 7.4 is asked what it holds',
+/**
+ * The label 7.4 holds for a folder, read on the far side of the edit that
+ * wrote it.
+ *
+ * **The barrier is `watchCommit` and not API quiet, and the caller takes it
+ * before the press** (2026-09-04, issue #159). Every call in this file follows
+ * an act that is a write, and `waitForApiIdle` returns as soon as nothing is
+ * in flight — which is also true in the window between the press and the
+ * request the press causes, React having to render before the mutation is
+ * issued. A read landing there sees the label the folder had *before* the act,
+ * which for the create case is null and for the move case is the old group:
+ * both are exactly what a sidebar that regrouped its own rendering and wrote
+ * nothing would show, so the flake would have read as the very defect these
+ * assertions exist to catch.
+ */
+async function labelOf(
+  page: Page,
+  name: string,
+  commit: CommitBarrier,
+): Promise<string | null> {
+  await commit.settled(
+    'the label write has to have reached the server before 7.4 is asked what it holds',
   )
   const folder = (await memberships(page)).find((entry) => entry.name === name)
   expect(folder, `the folder ${JSON.stringify(name)} is one the viewer is a member of`).toBeDefined()
@@ -268,15 +288,17 @@ test.describe('AC-180: folder groups are the personal label and nothing else', (
         'round said shelf everywhere. The dialog names its field and not itself, a dialog ' +
         'being announced by its own title',
     )
+    const created = watchCommit(page)
     await clickControl(
       page.getByRole('dialog').getByRole('button', { name: /save|create|continue/i }).first(),
+
       'spec 9.1: the name is committed. A description rather than a name, this being one of ' +
         "the two controls this file still matches loosely: section 9 names a dialog's commit " +
         'control nowhere outside 9.3\'s "Save" and a confirmation\'s "Continue"',
     )
 
     expect(
-      await labelOf(page, FOLDER_A),
+      await labelOf(page, FOLDER_A, created),
       'spec 9.1 and frozen 7.4: a group is the label of my-membership, so creating one writes ' +
         'that label. A sidebar that regrouped its own rendering without writing anything looks ' +
         'correct until the next reload, and AC-155 reads only the order',
@@ -317,13 +339,15 @@ test.describe('AC-180: folder groups are the personal label and nothing else', (
       RENAMED,
       'spec 9.1: renaming a shelf is naming it again, through the same "Shelf name" field',
     )
+    const renamed = watchCommit(page)
     await clickControl(
       page.getByRole('dialog').getByRole('button', { name: /save|rename|continue/i }).first(),
+
       'spec 9.1: the new name is committed. A description for the reason given at the case above',
     )
 
     expect(
-      await labelOf(page, FOLDER_A),
+      await labelOf(page, FOLDER_A, renamed),
       'spec 9.1 and frozen 7.4: renaming a group rewrites the label on every membership ' +
         'carrying it, there being nothing else a group is',
     ).toBe(RENAMED)
@@ -354,6 +378,7 @@ test.describe('AC-180: folder groups are the personal label and nothing else', (
       'spec 9.1: the folder\'s own menu carries the move, named "Move to shelf" by that ' +
         "section's names table",
     )
+    const moved = watchCommit(page)
     await clickControl(
       moveDestination(page, OTHER_GROUP),
       `spec 9.1: the move offers the other groups, and ${OTHER_GROUP} is one this account ` +
@@ -362,7 +387,7 @@ test.describe('AC-180: folder groups are the personal label and nothing else', (
         'in the ordinary sense, which menuitemradio, menuitem and option are each true of',
     )
     expect(
-      await labelOf(page, FOLDER_B),
+      await labelOf(page, FOLDER_B, moved),
       'spec 9.1: moving a folder between groups is rewriting its own label and nothing else',
     ).toBe(OTHER_GROUP)
 
@@ -374,6 +399,7 @@ test.describe('AC-180: folder groups are the personal label and nothing else', (
       page.getByRole('menuitem', { name: 'Move to shelf', exact: true }),
       'spec 9.1: the folder\'s own menu carries the move',
     )
+    const movedOut = watchCommit(page)
     await clickControl(
       moveDestination(page, /^Not on a shelf$/),
       'spec 9.1: a folder can move out of every group, the unlabeled folders being a place in ' +
@@ -383,7 +409,7 @@ test.describe('AC-180: folder groups are the personal label and nothing else', (
         'now read the same words',
     )
     expect(
-      await labelOf(page, FOLDER_B),
+      await labelOf(page, FOLDER_B, movedOut),
       'spec 9.1 and 4.4: moving out of every group clears the label to null. An empty string ' +
         'would put this folder in a group named "" and 4.4 has no opinion about it, which is a ' +
         'row that renders as a nameless group nobody can leave',
@@ -422,13 +448,14 @@ test.describe('AC-180: folder groups are the personal label and nothing else', (
         'them otherwise. Both fixers wrote it; the ending that names the shelf rather than ' +
         'saying "it" is the one that stands',
     ).toBeVisible()
+    const deleted = watchCommit(page)
     await clickControl(
       page.getByRole('button', { name: 'Continue', exact: true }),
       'spec 9.1: every confirmation offers Continue and Cancel',
     )
 
     expect(
-      await labelOf(page, FOLDER_A),
+      await labelOf(page, FOLDER_A, deleted),
       'spec 9.1: "deleting one clears that label from every folder carrying it", so the folder ' +
         'is ungrouped and still the viewer\'s',
     ).toBeNull()

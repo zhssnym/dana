@@ -7,9 +7,11 @@ asserted against the canonical `folders: [...]` arrangement, and none of them
 is repeated here. What is asserted here is the thing no criterion covers and
 the thing the reported defect actually was: the arrangement of the file. The
 schema read one arrangement, and the serialiser at
-`docs/design/prototype-v2/src/lib/workflow.ts` writes another, one folder with
-its page and its work at the top level; so a file the product handed a person
-was refused with "folders: expected array, received undefined" and the Import
+`docs/design/prototype-v2/src/lib/workflow.ts` wrote another (that prototype
+is deleted, `a7886df` on 2026-09-01, and is in git history before that
+commit), one folder with its page and its work at the top level; so a file the
+product handed a person was refused with "folders: expected array, received
+undefined" and the Import
 control answered "this is not a Dana workflow file". The route is unchanged
 and `shared/workflows.ts` folds the arrangements into one before validation,
 so what has to be proven on the wire is that the fold reaches the endpoint

@@ -223,9 +223,10 @@ import type { Shelf } from '../../shared/shelves.js'
 Where a folder arriving from another list would land, drawn as a line.
 
 Lifted from `docs/design/prototype-v2/src/components/folder-directory.tsx` at
-S24, with the designer's reasoning: absolutely positioned, so nothing moves
-while it is shown. An indicator that shifted the rows would be changing the
-answer it was describing.
+S24 (that prototype is deleted, `a7886df` on 2026-09-01, and is in git history
+before that commit), with the designer's reasoning: absolutely positioned, so
+nothing moves while it is shown. An indicator that shifted the rows would be
+changing the answer it was describing.
 */
 function InsertLine({ top }: { readonly top: number }): React.JSX.Element {
   return (
@@ -672,6 +673,35 @@ function SidebarFolderRow({
       name={display.name}
       color={display.color}
       icon={display.icon}
+      /*
+      Issue #158: the default folder's row says "<name> folder" to anything
+      reading names, and nothing else about it changes.
+
+      **The collision this answers is structural and belongs to this row.**
+      9.1's page block opens with a page called Desk at `/app` and 4.3 names
+      the default folder Desk, so every account provisioned since RFC 0005 has
+      two sidebar links of one name. Expanded they differ by the pending badge
+      and in the rail they do not differ at all. Which of the two should move
+      is the product question issue #158 asks, and the answer taken here is
+      the folder row, because the page entry's name is 9.1's own fixed string
+      while a folder's is the person's: theirs is the one that may carry a
+      word about what kind of thing it is without the section having to say so.
+
+      **Only this row, and that is a decision rather than an oversight.**
+      Every other folder row could say "folder" too, and the argument for it
+      is consistency; the arguments against it are that no other row collides
+      with anything, that a screen reader would then hear the word once per
+      folder in a list that is nothing but folders, and that the browser leg
+      addresses folder rows by exact name and by text content in five of
+      Hassan's specs, which a blanket suffix would make false for no
+      accessibility gain. The rule written here is the narrow one: the row of
+      the folder 9.1 also gives a page.
+
+      It stays correct if the folder is renamed. `is_default` is what makes
+      the collision certain rather than the word Desk, and "Home folder" reads
+      as well as "Desk folder" for an account that renamed it.
+      */
+      qualifier={folder.is_default ? 'folder' : undefined}
       href={display.href}
       // Zero here and the real number inside the link; see `FolderRowLink`.
       pending={0}

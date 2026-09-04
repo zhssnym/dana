@@ -1,8 +1,12 @@
 /*
 The person's bundle on the wire (RFC 0005): GET and PATCH /settings, the
 v2 surface that answers 4.19's whole expansion, and the /views family for
-saved views. Frozen 7.2's /me/settings is untouched next door; a v1 client
-never meets these paths and a v2 client never needs that one.
+saved views, written up as 7.23 on 2026-09-04 (issue #152).
+
+Frozen 7.2's /me/settings stood next door until issue #113 retired it the
+same day, so this is the settings surface rather than one of two. The three
+v1 columns it wrote are still stored and are still derived into the pin list
+by domain/bundle.ts; what went is every way of writing them.
 
 7.19's place covers joined this router at S22a rather than taking one of
 their own, and the reason is what they are: a cover on Today is one person's
@@ -46,7 +50,11 @@ import {
   listPlaceDescriptions,
   putPlaceDescription,
 } from '../domain/place-descriptions.js'
-import { sendError, sendValidationError } from '../http/errors.js'
+import type { ObjectStore } from '../files/store.js'
+import { sendError } from '../http/errors.js'
+import { parseBody } from '../http/parse-body.js'
+import { createSecurityLogger } from '../security/log.js'
+import type { SecurityLogger } from '../security/log.js'
 import { optionalLimit } from '../security/rate-limit.js'
 import type { RateLimits } from '../security/rate-limit.js'
 import { routerWithPreamble } from './preamble.js'
@@ -54,11 +62,33 @@ import { routerWithPreamble } from './preamble.js'
 export interface BundleRouterOptions {
   dbClient?: DbClient
   rateLimits?: RateLimits
+  /** The S4 object store, needed since 2026-09-04 because a place cover may
+   * copy the picture it names (issue #116, spec 7.19). Optional beside the
+   * other two for `routes/files.ts`'s reason, and guarded the same way. */
+  fileStore?: ObjectStore
+  securityLog?: SecurityLogger
 }
 
 export function createBundleRouter(options: BundleRouterOptions = {}): Router {
   const { router, database, viewer, parsedId } = routerWithPreamble(options)
   const mutationLimit = optionalLimit(options.rateLimits?.generalMutations)
+  const securityLog = options.securityLog ?? createSecurityLogger()
+
+  /** `routes/files.ts`'s guard, one router over: an application constructed
+   * without a store cannot copy a cover's bytes, and saying so is better
+   * than storing a row whose picture was never written. */
+  const storeOf = (res: Response): ObjectStore | null => {
+    if (options.fileStore === undefined) {
+      sendError(
+        res,
+        500,
+        'internal_error',
+        'The application was constructed without an object store.',
+      )
+      return null
+    }
+    return options.fileStore
+  }
 
   router.get(
     '/settings',
@@ -78,12 +108,9 @@ export function createBundleRouter(options: BundleRouterOptions = {}): Router {
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
-      const parsed = patchSettingsBody.safeParse(req.body)
-      if (!parsed.success) {
-        sendValidationError(res, parsed.error)
-        return
-      }
-      res.status(200).json(await writeBundle(db, viewer(req), parsed.data))
+      const parsed = parseBody(patchSettingsBody, req, res, securityLog)
+      if (parsed === null) return
+      res.status(200).json(await writeBundle(db, viewer(req), parsed))
     },
   )
 
@@ -101,12 +128,9 @@ export function createBundleRouter(options: BundleRouterOptions = {}): Router {
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
-      const parsed = postViewBody.safeParse(req.body)
-      if (!parsed.success) {
-        sendValidationError(res, parsed.error)
-        return
-      }
-      const outcome = await createView(db, viewer(req), parsed.data)
+      const parsed = parseBody(postViewBody, req, res, securityLog)
+      if (parsed === null) return
+      const outcome = await createView(db, viewer(req), parsed)
       if (outcome.kind === 'view_cap') {
         sendError(
           res,
@@ -156,12 +180,9 @@ export function createBundleRouter(options: BundleRouterOptions = {}): Router {
       if (db === null) return
       const viewId = parsedId(res, req.params.id)
       if (viewId === null) return
-      const parsed = patchViewBody.safeParse(req.body)
-      if (!parsed.success) {
-        sendValidationError(res, parsed.error)
-        return
-      }
-      const view = await patchView(db, viewer(req), viewId, parsed.data)
+      const parsed = parseBody(patchViewBody, req, res, securityLog)
+      if (parsed === null) return
+      const view = await patchView(db, viewer(req), viewId, parsed)
       if (view === null) {
         sendError(res, 404, 'not_found', 'Not found.')
         return
@@ -227,14 +248,31 @@ export function createBundleRouter(options: BundleRouterOptions = {}): Router {
       if (db === null) return
       const place = parsedPlace(res, req.params.place)
       if (place === null) return
-      const parsed = putPlaceCoverBody.safeParse(req.body)
-      if (!parsed.success) {
-        sendValidationError(res, parsed.error)
-        return
-      }
-      const outcome = await putPlaceCover(db, viewer(req), place, parsed.data)
+      const parsed = parseBody(putPlaceCoverBody, req, res, securityLog)
+      if (parsed === null) return
+      const store = storeOf(res)
+      if (store === null) return
+      const outcome = await putPlaceCover(
+        db,
+        store,
+        viewer(req),
+        place,
+        parsed,
+      )
       if (outcome.kind === 'file_not_found') {
         sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      /* 10.3's one limit that is not a 422, with section 9's copy: the copy
+         this endpoint may make spends the caller's gigabyte exactly as an
+         upload does, so it is refused in exactly the same words (#116). */
+      if (outcome.kind === 'quota_exceeded') {
+        sendError(
+          res,
+          413,
+          'quota_exceeded',
+          "You've used your 1 GB of storage. Delete some files to add more.",
+        )
         return
       }
       res.status(200).json(outcome.cover)
@@ -293,14 +331,11 @@ export function createBundleRouter(options: BundleRouterOptions = {}): Router {
       if (db === null) return
       const place = parsedPlace(res, req.params.place)
       if (place === null) return
-      const parsed = putPlaceDescriptionBody.safeParse(req.body)
-      if (!parsed.success) {
-        sendValidationError(res, parsed.error)
-        return
-      }
+      const parsed = parseBody(putPlaceDescriptionBody, req, res, securityLog)
+      if (parsed === null) return
       res
         .status(200)
-        .json(await putPlaceDescription(db, viewer(req), place, parsed.data))
+        .json(await putPlaceDescription(db, viewer(req), place, parsed))
     },
   )
 

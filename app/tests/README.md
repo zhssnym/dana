@@ -1,8 +1,15 @@
 # The acceptance suite
 
-The numbered behaviors of spec section 12, written by the Adversarial Test
-role and by nobody else (protocol section 8). Implementers do not edit these
-files; an acceptance test that seems wrong is an escalation, not a patch.
+The numbered behaviors of spec section 12. These files are Hassan's by
+`CODEOWNERS`, and nobody edits one to make their code pass: an acceptance test
+that seems wrong is a finding you report and leave failing, which is
+`docs/workflow/README.md`'s rule 7. `docs/workflow/backend/README.md` records
+the two counts in this suite that are fixtures over the shape of the server
+rather than behaviours, and the conditions for moving one.
+
+*(The "Adversarial Test role" and the "protocol section 8" this paragraph used
+to name were deleted at the workflow restructure, `a7886df` on 2026-09-01, and
+are in git history before that commit. The rule they carried is unchanged.)*
 
 Run one criterion by its number, which matches on the test name rather than the
 file name:
@@ -22,6 +29,12 @@ npx playwright test -g "AC-095"
 ```
 
 ## Coverage
+
+**The State column is the build-era record and is not re-measured (noted
+2026-09-04).** Each row says what that package's criteria did at the merge
+that wrote it, including several written red by design against routes that had
+not been mounted yet, all of which have long since landed. Read it as history;
+read a current verdict off a run or off CI.
 
 | Package | Criteria | State |
 | - | - | - |
@@ -64,9 +77,13 @@ status taxonomy. AC-118's probes stay on the /me surface deliberately: body
 parsing is one boot-level middleware, so pinning the mapping on any real
 endpoint pins it for the application.
 
-P2S's range, AC-119 to AC-123, covers frozen 7.2's own endpoints, GET and
-PATCH /me/settings; the GET /me object's settings key was already pinned by
-AC-116. The criteria landed verbatim by section 12 amendment, carrying the
+P2S's range, AC-119 to AC-123, covered frozen 7.2's own endpoints, GET and
+PATCH /me/settings, until issue #113 retired that pair on 2026-09-04. AC-119
+to AC-121 are rewritten against 7.23's `/settings` bundle and AC-122 and
+AC-123 are retired and marked in 12.3; the GET /me object's settings key was
+already pinned by AC-116 and is untouched by any of it. What follows is the
+reasoning as it stood, which the rewrites carried across rather than
+replaced. The criteria landed verbatim by section 12 amendment, carrying the
 two readings of frozen 7.2 they rest on: the empty subset is a subset, and
 null is a wrong-typed value rather than a clear, because 4.10's columns are
 NOT NULL booleans with defaults. They failed on the missing routes until the
@@ -292,9 +309,12 @@ the case is a false red and should be disputed rather than worked around.
 The one silence these files were written around is closed. Frozen 7.2 named
 no response body for PATCH /me/settings, only 200, so the opening session
 judged none and held a place for the assertion; the owner ruled at the same
-amendment, and 7.2 now carries the fresh-GET sentence it shares with PATCH
-/me and the 7.4 mutations. The body is judged in that one place,
-`patchSettingsOk` in settings-harness.ts: exactly the three booleans, equal
+amendment, and 7.2 carried the fresh-GET sentence it shared with PATCH /me
+and the 7.4 mutations. That subsection is retired (issue #113) and 7.23
+carries the same convention for the bundle, where `patchBundleOk` in
+`bundle-harness.ts` is the one place a success body is judged;
+`settings-harness.ts` and the paragraph's original subject are gone. As it
+read: the body is judged in that one place, exactly the three booleans, equal
 to what a fresh GET then answers. Two callers stay on the unjudged
 transport. A refusal answers the envelope rather than the settings object,
 and AC-120's raced pair cannot assert the fresh-GET half at all, since each
@@ -869,9 +889,11 @@ need, `http-client.ts` carries the transport, `oidc-stub.ts` is the stub
 identity provider, and `folders-harness.ts` adds the P2 layer: lazily
 signed-in casts, setup through the package's own endpoints, direct seeding
 only for surfaces later packages own, and an invariant sweep scoped to named
-rows. `settings-harness.ts` is the thin P2S layer over both: the exact 7.2
-shape stated once, wire-beside-row state assertions, and the one place the
-ruled PATCH response body is judged. `tasks-harness.ts` is the P3 layer over
+rows. `bundle-harness.ts` is the thin layer over both for 7.23's settings bundle:
+the exact eight-field shape stated once, wire-beside-row state assertions, and
+the one place the ruled PATCH response body is judged. It was
+`settings-harness.ts` and frozen 7.2's three booleans until issue #113 retired
+that endpoint on 2026-09-04. `tasks-harness.ts` is the P3 layer over
 the P2 one: the 7.0 TaskCard and TaskDetail shapes restated once and
 asserted key-exact, the 7.6, 7.7, and 7.8 transports, seeding for P6's rules
 and P7's reminders, and the task half of the invariant sweep, which

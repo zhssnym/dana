@@ -300,6 +300,26 @@ function CommentFiles({ files }: { files: NonNullable<ConceptComment["files"]> }
               key={file.preview}
               src={file.preview}
               alt="Attached image"
+              /*
+              The space this picture will take, reserved before it lands
+              (issue #108). It is the one attachment here drawn at a height the
+              picture decides — the tile in the row below is a fixed 32px
+              square and has nothing to reserve — so it is the one that made
+              the thread jump under itself when the bytes arrived.
+
+              `max-h-64` still caps it and always did: the reservation is the
+              height the picture will actually occupy rather than its whole
+              shape, and a very tall one is clamped before and after the load
+              alike.
+
+              **No style at all where the file was never measured, rather than
+              a 16 by 9 fallback.** This element has never reserved anything,
+              so a picture takes its own proportion once the bytes arrive;
+              imposing a default shape on it would crop every attachment
+              posted before migration 0009, and nothing is backfilled.
+              `lib/page-images.ts` splits the two readings for this reason.
+              */
+              style={file.ratio === undefined ? undefined : { aspectRatio: file.ratio }}
               className="mt-1 max-h-64 w-full rounded-lg border border-[var(--color-graphite-200)] object-cover"
             />
           )

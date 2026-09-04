@@ -31,6 +31,8 @@ import { sql } from 'drizzle-orm'
 import { expect } from 'vitest'
 
 import { createApp } from '../src/server/index.js'
+import type { SecurityLogger } from '../src/server/security/log.js'
+import type { RateLimits } from '../src/server/security/rate-limit.js'
 import type { Db, DbClient } from '../db/client.js'
 import { cleanupUsers, createTestDb, rows } from './helpers.js'
 import { TestBrowser, parseSetCookie, rawRequest } from './http-client.js'
@@ -94,6 +96,30 @@ export interface AppOptions {
   /** RFC 0005 change control item 60: the sample workspace at first
    * sign-in, off under this suite by its setup file. */
   sampleWorkspace?: boolean
+  /**
+   * The 10.5 logger, so a criterion can read the lines the application wrote
+   * rather than the ones a route module would write in isolation (issue #104,
+   * AC-400).
+   *
+   * Typed from the module rather than restated structurally, which is the
+   * exception the comment below explains and not a lapse from it: that rule
+   * is about the 11.10 seam this suite measures, and a logging policy of a
+   * dozen methods is neither a seam nor something any criterion here asserts
+   * the shape of. Restating it would be twelve more signatures to keep in
+   * step for no assertion's benefit.
+   */
+  securityLog?: SecurityLogger
+  /**
+   * The 10.4 limiter set, so a criterion can measure a limit rather than work
+   * around it (issue #168, AC-412).
+   *
+   * Typed from the module on `securityLog`'s precedent above rather than
+   * restated structurally: six request handlers is not a seam this suite
+   * asserts the shape of, and restating them would be six more signatures to
+   * keep in step for no assertion's benefit. What a criterion here asserts is
+   * what the limiter *does*, which is a status on the wire.
+   */
+  rateLimits?: RateLimits
 }
 
 type AppFactory = (
@@ -224,7 +250,19 @@ opposite of this suite's job.
 const AUTH_BASE = '/api/v1'
 
 export async function startAuthTestApp(
-  options: { fileStore?: AppOptions['fileStore']; sampleWorkspace?: boolean } = {},
+  options: {
+    fileStore?: AppOptions['fileStore']
+    sampleWorkspace?: boolean
+    securityLog?: SecurityLogger
+    /**
+     * A real limiter set, for a criterion that is measuring 10.4 rather than
+     * working around it (issue #168). Absent, `createApp` builds its own,
+     * which under Vitest raises every limit far out of the way so that a file
+     * signing in thirty times is not measuring the sign-in row. AC-412 is the
+     * only caller, exactly as AC-396 is `startCspReportApp`'s.
+     */
+    rateLimits?: RateLimits
+  } = {},
 ): Promise<AuthTestApp> {
   const dbClient = await createTestDb()
   const stub = await startOidcStub()
@@ -262,6 +300,8 @@ export async function startAuthTestApp(
     dbClient,
     auth,
     notifications: emails.sink,
+    ...(options.securityLog === undefined ? {} : { securityLog: options.securityLog }),
+    ...(options.rateLimits === undefined ? {} : { rateLimits: options.rateLimits }),
     ...(options.fileStore === undefined ? {} : { fileStore: options.fileStore }),
     // Item 60: off for every file but the one that measures the sample.
     ...(options.sampleWorkspace === undefined ? {} : { sampleWorkspace: options.sampleWorkspace }),
@@ -660,66 +700,22 @@ export function visibleText(html: string): string {
     .trim()
 }
 
-interface ReferencingColumn {
-  table_schema: string
-  table_name: string
-  column_name: string
-}
-
 /**
- * Every column anywhere in the database with a foreign key onto users(id).
- * The sessions table belongs to the Security engineer and lives outside the
- * section 4 model (10.1), so its shape is unknown here; discovering references
- * rather than listing them keeps cleanup correct on the shared-Postgres CI leg
- * once that table exists.
- */
-async function columnsReferencingUsers(db: Db): Promise<ReferencingColumn[]> {
-  return (await rows(
-    db,
-    sql`
-      SELECT tc.table_schema, tc.table_name, kcu.column_name
-      FROM information_schema.table_constraints tc
-      JOIN information_schema.key_column_usage kcu
-        ON kcu.constraint_name = tc.constraint_name
-       AND kcu.constraint_schema = tc.constraint_schema
-      JOIN information_schema.constraint_column_usage ccu
-        ON ccu.constraint_name = tc.constraint_name
-       AND ccu.constraint_schema = tc.constraint_schema
-      WHERE tc.constraint_type = 'FOREIGN KEY'
-        AND ccu.table_name = 'users'
-        AND ccu.column_name = 'id'
-    `,
-  )) as unknown as ReferencingColumn[]
-}
-
-/**
- * Removes every trace of the named users. Test files must leave the database
- * as they found it: Vitest runs files in parallel workers, and on the
- * TEST_DATABASE_URL leg they all share one database (see helpers.ts).
+ * Removes every trace of the named users.
+ *
+ * **This is `cleanupUsers` under another name, since issue #112 on
+ * 2026-09-04**, and the name is kept rather than the code: the catalog sweep
+ * that used to live here is now the whole of `cleanupUsers`, so the two
+ * harnesses cannot drift apart again. They had drifted, and the direction is
+ * worth recording — the auth harness swept every column referencing `users`
+ * while the acceptance harness named two of them, so a user the auth files
+ * could delete was one the criterion files could not. Four files import this
+ * name and it stays exported for them.
  */
 export async function cleanupAuthUsers(
   db: Db,
   userIds: readonly string[],
 ): Promise<void> {
-  if (userIds.length === 0) return
-  const references = await columnsReferencingUsers(db)
-  // tasks and folders first, in that order: both hold RESTRICT keys onto
-  // users, and deleting a folder cascades its tasks away.
-  const rank = (table: string): number =>
-    table === 'tasks' ? 0 : table === 'folders' ? 1 : 2
-  const ordered = [...references].sort(
-    (a, b) => rank(a.table_name) - rank(b.table_name),
-  )
-
-  for (const id of userIds) {
-    for (const reference of ordered) {
-      const target = sql.raw(
-        `"${reference.table_schema}"."${reference.table_name}"`,
-      )
-      const column = sql.raw(`"${reference.column_name}"`)
-      await db.execute(sql`DELETE FROM ${target} WHERE ${column} = ${id}`)
-    }
-  }
   await cleanupUsers(db, userIds)
 }
 

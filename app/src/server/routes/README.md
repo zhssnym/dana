@@ -1,16 +1,18 @@
 # Wiring requests for the routers in this directory
 
-The boot file (`src/server/index.ts`) belongs to the Platform engineer;
-routers here are mounted by request, never by their authors (shared
-protocol, section 3). This file is where those requests live, the same
-convention as `src/server/auth/README.md` at P1. `health.ts` is Platform's
-own and already mounted; entries below concern the rest.
+**This file is a record, and the process it describes no longer exists (noted
+2026-09-04).** It was the wiring ledger of the thirteen-persona build: routers
+were mounted by request rather than by their authors, each role appended the
+section for its own router, and a Platform engineer executed and annotated the
+requests. Those personas and the shared protocol behind them were deleted at
+the workflow restructure (`a7886df`, 2026-09-01) and are in git history before
+that commit. Every request below was fulfilled; the entries are kept because
+each records why a mount is where it is, and `bundle.ts`'s mount order is
+load-bearing. **Who owns what today is `CODEOWNERS`, and how work flows is
+`docs/workflow/backend/README.md`: a router you add, you mount.** Read every
+role name below as the name of a session that has ended.
 
-Ownership, ruled at the P2 merge: this directory is shared by file, each
-route file belonging to its route's owner, and this README is the shared
-wiring ledger. Each role appends the section for its own router; the
-Platform engineer, who executes the requests, may annotate or prune an
-entry once it is fulfilled.
+The boot file is `src/server/index.ts`, and `health.ts` was mounted first.
 
 ## folders router (P2, Collaboration and Permissions)
 
@@ -223,7 +225,8 @@ a request that was made and fulfilled.)*
 `src/server/domain/accountDeletion.ts` now carries steps 1 to 6 of the account
 deletion transaction as `deleteAccountData(tx, userId)`. It opens no
 transaction and touches neither the sessions table nor the user row, because
-the seam `docs/team/README.md` fixes puts the DELETE /me route and steps 7 and
+the seam the build-era plan fixed (`docs/team/README.md`, deleted with the
+personas at `a7886df` on 2026-09-01) puts the DELETE /me route and steps 7 and
 8 in the auth module. The swap is one line inside the transaction
 `handleDeleteMe` already opens, ahead of the scrub:
 
@@ -496,3 +499,48 @@ entry requires is expressible and not a cast. The build emits `sw.js`,
 `workbox-*.js`, `manifest.webmanifest` and both icons into `dist/client`,
 precaching 9 entries, and `createApp` serves all of them with no server change,
 as the entry said it would.
+
+## export router (7.22, data export, issue #77)
+
+`GET /me/export`, one route, one file. Requested wiring, one line in
+`createApp`, beside the bundle router's mount and ahead of the `/api`
+catch-all:
+
+```ts
+import { createExportRouter } from './routes/export.js'
+
+app.use(
+  '/api/v1',
+  createExportRouter({ dbClient: options.dbClient, rateLimits, securityLog }),
+)
+```
+
+Facts the wiring can rely on, each read off the file rather than assumed:
+
+- The factory is synchronous, performs no I/O, and opens no database, the
+  same 11.10 discipline every router here keeps. With no `dbClient` the route
+  answers the constructed-without-a-database 500, so a route-presence probe
+  still builds the application.
+- It goes through `routes/preamble.ts` like the rest of this directory, so it
+  attaches its own session middleware and steps aside when another router's
+  has already run: order-tolerant, and after the auth router is still the
+  order to prefer.
+- `/me/export` is a whole path no earlier router claims. The `/me` family is
+  already split three ways — 7.1's account endpoints and 7.2's settings in
+  `auth/router.ts`, 7.15's `/me/avatar` in `routes/files.ts` — and Express
+  matches whole paths, so this mount is order-independent among all of them.
+  It carries no `:param` segment, so it can shadow nothing.
+- It is a GET, so 7.0 gives it no CSRF link. It carries `requireSession`,
+  which AC-236's reading half asserts along with every other GET.
+- **Two options rather than one, and both are new to this ledger.** It takes
+  `securityLog` because 10.5 records one line per export, and `rateLimits`
+  because 10.4 gives the route a limit of its own, five per hour per person —
+  the first limit in this API on a read. Both are already constructed in
+  `createApp` and handed to other routers; nothing new is built for this one.
+- It reaches no module the boot file does not already construct. No notify
+  call site exists on a read surface.
+- Mounting it is what turns AC-390 to AC-393 green, and it moves AC-236's
+  reading count by one, from 37 to 38, in the same change.
+
+Fulfilled at the same commit that wrote this entry, the line verbatim, beside
+the bundle mount.

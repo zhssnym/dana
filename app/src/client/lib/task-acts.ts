@@ -1,11 +1,13 @@
 /*
 The acts a task supports, performed.
 
-`docs/design/prototype-v2/src/lib/task-acts.ts`, read at `7d2064c`. Its own
-header gives the reason it exists and the reason survives the port whole: "an
-act belongs to the object, so the moment it lives inside one screen the next
-screen either goes without it or writes a second copy that drifts. A task's
-menu is drawn in a row, in a card, in a dialog, in a tab and on a board."
+`docs/design/prototype-v2/src/lib/task-acts.ts`, read at `7d2064c`. That
+prototype is deleted (`a7886df`, 2026-09-01); read it in git history before
+that commit. Its own header gives the reason it exists and the reason survives
+the port whole: "an act belongs to the object, so the moment it lives inside
+one screen the next screen either goes without it or writes a second copy that
+drifts. A task's menu is drawn in a row, in a card, in a dialog, in a tab and
+on a board."
 
 The sibling of `lib/object-acts.ts`, which declares *what* a task offers and
 in what order, and this, which performs the ones that are the same act
@@ -47,10 +49,11 @@ of its task is item 58's endpoint, B9's one-way promotion given an address
 
 import { folder as folderSchema } from '../../shared/folders.js'
 import { taskDetail } from '../../shared/tasks.js'
-import { getPlain, mutateApi } from '../api/http.js'
+import { getPlain, mutateApi, requestTimezone } from '../api/http.js'
 import { queryClient, writeFailureMessage } from '../api/queryClient.js'
 import { pushUndo, undoLabel } from '../shell/undo.js'
 import { showToast } from '../state/toasts.js'
+import { defaultFolderDescription } from './folder-description.js'
 import { folderLibrary } from './folder-library.js'
 import { taskLink } from './nav-links.js'
 import type { ConceptStep } from './task-model.js'
@@ -88,7 +91,14 @@ function settle(): void {
  * entry undoes.
  */
 export function duplicateTask(taskId: string, title: string): void {
-  void mutateApi(taskDetail, { method: 'POST', path: `/tasks/${taskId}/duplicate` })
+  /* tz because the copy re-anchors a spent due date on today, and today is
+     the viewer's day rather than the database's (8.1, issue #76): without it
+     the endpoint refuses a copy that would move a date. */
+  void mutateApi(taskDetail, {
+    method: 'POST',
+    path: `/tasks/${taskId}/duplicate`,
+    params: { tz: requestTimezone() },
+  })
     .then((copy) => {
       settle()
       pushUndo(undoLabel('Duplicated', title), () => {
@@ -108,14 +118,21 @@ export function duplicateTask(taskId: string, title: string): void {
  * The task is read first, for the folder the undo returns it to: a row on a
  * folder page draws no folder chip (DES-183) and so holds no folder id, and
  * one read is cheaper than a prop threaded through every list.
+ *
+ * **The folder is made in one request**, for the reason `api/mutations.ts`
+ * gives at `useCreateFolder`: this act is the hold with one task in it, and
+ * the same composition AC-279 counts on the wire. The default description
+ * rides that one POST, 7.4's create body having taken `description` on
+ * 2026-09-04 (issues #21 and #70, AC-377).
  */
 export function makeFolderOfTask(taskId: string, title: string): void {
+  const folderName = title.slice(0, 100)
   void getPlain(taskDetail, `/tasks/${taskId}`)
     .then((task) =>
       mutateApi(folderSchema, {
         method: 'POST',
         path: '/folders',
-        body: { name: title.slice(0, 100) },
+        body: { name: folderName, description: defaultFolderDescription(folderName) },
       }).then((made) =>
         mutateApi(null, {
           method: 'PATCH',

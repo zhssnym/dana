@@ -1,0 +1,57 @@
+-- 0013: the calendar's zoom becomes a durable account preference (issues
+-- #140 and #142). Forward-only, additive, one column and one named CHECK
+-- because AC-001 asserts the catalog by name.
+--
+-- Imran ruled it on #140: "If a person changes the calendar from Month to
+-- Week (or another supported zoom), Dana should remember that choice instead
+-- of resetting it on the next visit. Ideally it should follow the account
+-- across devices, consistent with other durable preferences such as density,
+-- clock format, and task-open surface." He also ruled out the browser-only
+-- answer by name — "Do not solve this as browser-only state if that would
+-- create another split record" — which is the same split 4.19's task_open
+-- amendment is still working out of the build.
+--
+-- ## Why a column here rather than an endpoint of its own
+--
+-- 4.19 already lists what user_settings gains for v2: row density, clock,
+-- theme, task-open surface, pinned native views, sidebar order, arrangement
+-- keys. A zoom is exactly that kind of thing — one person's choice about how
+-- one of Dana's own surfaces draws — and it rides the same bundle those seven
+-- ride. A calendar-specific endpoint would have been a second address for one
+-- kind of fact, which is the thing 4.19's own "two records of one fact are not
+-- kept" refuses.
+--
+-- ## The three values, and where they come from
+--
+-- 9.5 fixes them: "day, week, month zooms". They are also the client's own
+-- keys, `Zoom` in app/src/client/components/calendar/grid.ts, so the CHECK
+-- names the strings the calendar already switches on rather than a mapping
+-- somebody has to keep in their head. Year zoom was cut for v1 by Q3C and is
+-- deliberately not admitted here: a value the product cannot draw is a value
+-- a person can be left stuck on.
+--
+-- ## The default is what a fresh account sees today
+--
+-- `PlannedCalendar.tsx` opens at `useState<Zoom>('month')`, so 'month' is what
+-- the calendar has always drawn first and the column has to agree with it or
+-- the record changes behaviour on the day it starts being read. That is 0010's
+-- lesson one column over, where a DEFAULT chosen while nothing consumed the
+-- column disagreed with every surface that drew it and cost 42 browser cases
+-- when the column was finally read.
+--
+-- ## The CHECK, and what it is and is not worth
+--
+-- `calendar_zoom` is NOT NULL, so `calendar_zoom IN (...)` is never UNKNOWN
+-- and the two-valued honesty the fifth bullet of
+-- docs/workflow/backend/README.md asks for is free here: the nullable-column
+-- trap it describes needs a possibly-null value inside the expression and
+-- there is none. AC-001 still cannot see what this expression does — it
+-- asserts a constraint's name and the columns it mentions and nothing more —
+-- so AC-380 tries a fourth value against the database rather than trusting
+-- this paragraph.
+--
+-- Every existing row passes: the column does not exist until this statement
+-- runs, so every row is created by the DEFAULT.
+ALTER TABLE user_settings
+  ADD COLUMN calendar_zoom text NOT NULL DEFAULT 'month',
+  ADD CONSTRAINT user_settings_calendar_zoom_check CHECK (calendar_zoom IN ('day', 'week', 'month'));

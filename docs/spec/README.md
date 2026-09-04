@@ -48,7 +48,7 @@ and a retired criterion is marked rather than removed.
 | 9 | [`09-ui/`](09-ui/) | Page structure, states, and normative copy |
 | 10 | [`10-non-functional/`](10-non-functional/) | Auth, authorization, limits, rate limits, logging, PWA, email, response headers |
 | 11 | [`11-architecture/`](11-architecture/) | The stack, its constraints, rejected alternatives, and hazards |
-| 12 | [`12-acceptance-criteria/`](12-acceptance-criteria/) | The 344 numbered criteria, the definition of done |
+| 12 | [`12-acceptance-criteria/`](12-acceptance-criteria/) | The 381 numbered criteria, 379 of them live, the definition of done |
 | 13 | [`13-open-questions/`](13-open-questions/) | **Retired 2026-09-01.** A forwarding address only: open questions are GitHub issues now, its recorded assumptions moved into the sections they constrain, and its table maps all 57 old item numbers to where each went. The number is not reused. |
 
 Sections 4 and 7 are frozen: changing either invalidates acceptance criteria by number and
@@ -67,7 +67,30 @@ annotation of one's own to be true is the freeze working rather than an exceptio
 what the freeze protects is criteria asserted by number, and a sentence that describes the
 server wrongly protects nothing.
 
-The count in row 12 above was 335 while the criteria files held 337, and it is 344 now
+The count in row 12 above was 335 while the criteria files held 337, and it is 381 now
 because that is what counting the bullets answers. It is arithmetic over the files rather
 than a number to be carried forward, and whoever merges last re-derives it, which is the
-rule 12's own README states for the same reason.
+rule 12's own README states for the same reason. It read 344 until 2026-09-04, when it
+went to 366: eighteen criteria from the six branches of the wave-1 integration, and the
+four of 7.22's export, which merged before them and left this number for the last merge
+exactly as this paragraph asks. It was derived once at the end rather than seven times
+on the way.
+
+**Then twice more the same night, and the second time is the useful one to read.** The
+authorization-sweep branch (#74) was open across that integration, merged after it, and so
+became the last merge in its turn: 368, for AC-397 and AC-398. Then #104's `parseBody` work
+merged with AC-399 and AC-400, that branch left the arithmetic alone exactly as this
+paragraph asks, and #74 merged a second time and derived **370**. So the same branch wrote
+this number twice and was superseded in between, which is not a fault in the rule but the
+rule working: **a count that is derived is right or wrong at a moment, and a count that is
+carried forward is wrong for as long as nobody checks.** That derivation counted 370
+`- AC-` bullets across the twenty-three files with no number appearing twice, and found
+twenty-two of the twenty-three per-file rows already correct.
+
+**And once more on the night after, which is where the number in row 12 comes from.** The
+wave-3 integration merged five branches and derived **381** the same way, six per-file rows
+having moved with them. Two of those 381 are AC-122 and AC-123, retired by issue #113 and
+marked rather than removed as section 12 requires, so they carry their text and the bullet
+count counts them: **379 criteria are live**, and row 12 gives both numbers because they
+answer different questions. It also found AC-403 free — five branches spending from one tail
+in one night each stepped over it — which is recorded in 12's own README rather than here.

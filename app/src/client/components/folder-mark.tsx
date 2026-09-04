@@ -2,8 +2,10 @@
 A folder's mark, wherever a folder is named.
 
 `docs/design/prototype-v2/src/components/folder-mark.tsx`, read at `b316785`,
-over this client's folder table. Its own header states the fault it exists to
-fix and the fault survives the port whole, Imran on 2026-08-22: the sidebar
+over this client's folder table. That prototype is deleted (`a7886df`,
+2026-09-01); read it in git history before that commit. Its own header states
+the fault it exists to fix and the fault survives the port whole, Imran on
+2026-08-22: the sidebar
 shows the glyph a person picked for a folder, a house for Home, a car for
 Travel, "and everywhere else the same folder was still drawing the generic
 one. This thing needs consistency not only in Assignments page, in all task

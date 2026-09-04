@@ -1,6 +1,6 @@
 /*
 AC-155: given folders with and without personal labels, then the
-sidebar pins Inbox first with its pending count, groups the labeled folders
+sidebar pins Desk first with its pending count, groups the labeled folders
 by label ascending, and lists the unlabeled folders after them by name
 ascending.
 
@@ -29,6 +29,12 @@ actually matters: a badge showing the completed count, or the total, or the
 number of members would each be a fixed integer this file could have been
 written to expect.
 
+**A fourth case was added for issue #158 and is about the pinned row's name
+rather than its place.** It belongs here because the collision it asserts away
+is a property of the pinned Desk this file's first sentence is about: 9.1 pins
+the default folder above the label groups and also gives that folder a page,
+so the sidebar names one thing twice. Its own header carries the reasoning.
+
 The fixture folders are created here through 7.4 and outlive this spec, the
 seeded database being shared. They are named for this file.
 
@@ -42,7 +48,9 @@ import {
   ACTION_TIMEOUT_MS,
   clickControl,
   csrfToken,
+  linkTo,
   routes,
+  routesV2,
   seedSubs,
   signIn,
   TEST_TIMEOUT_MS,
@@ -114,7 +122,7 @@ test.beforeEach(async ({ page }) => {
 })
 
 test.describe('AC-155: the sidebar folder list', () => {
-  test('AC-155: Inbox is pinned first, labels ascending, then unlabeled by name', async ({
+  test('AC-155: Desk is pinned first, labels ascending, then unlabeled by name', async ({
     page,
   }) => {
     const labeled = await createFolder(page, LABELED)
@@ -142,7 +150,7 @@ test.describe('AC-155: the sidebar folder list', () => {
     (`folders ?? []` in `shell/app-sidebar.tsx`), so a read taken straight after
     a navigation can hold the pages and none of the folders. Measured
     2026-08-25 against a `GET /folders` delayed by 1500 ms: the read returned
-    the ten page and footer links, with Inbox at index -1, and every ordering
+    the ten page and footer links, with Desk at index -1, and every ordering
     assertion below then failed for a reason that has nothing to do with order.
     Green on a quiet machine and red on a loaded one, which is what made it a
     race rather than a defect.
@@ -162,22 +170,22 @@ test.describe('AC-155: the sidebar folder list', () => {
       })
       .toEqual(
         expect.arrayContaining(
-          [LABELED, 'Groceries', UNLABELED_EARLY, UNLABELED_LATE, 'Inbox'].map((name) =>
+          [LABELED, 'Groceries', UNLABELED_EARLY, UNLABELED_LATE, 'Desk'].map((name) =>
             expect.stringContaining(name),
           ),
         ),
       )
     const names = await sidebarNames(page)
 
-    const inbox = positionOf(names, 'Inbox')
+    const desk = positionOf(names, 'Desk')
     const aardvark = positionOf(names, LABELED)
     const home = positionOf(names, 'Groceries')
     const alpha = positionOf(names, UNLABELED_EARLY)
     const zulu = positionOf(names, UNLABELED_LATE)
 
     expect(
-      inbox,
-      `spec 9.1: Inbox is pinned first in the folder list. The sidebar read ${JSON.stringify(names)}`,
+      desk,
+      `spec 9.1: Desk is pinned first in the folder list. The sidebar read ${JSON.stringify(names)}`,
     ).toBeLessThan(aardvark)
     expect(
       aardvark,
@@ -196,33 +204,135 @@ test.describe('AC-155: the sidebar folder list', () => {
     ).toBeLessThan(zulu)
   })
 
-  test('AC-155: the Inbox badge is the pending count and nothing else', async ({ page }) => {
-    const inbox = (await folders(page)).find((folder) => folder.is_default)
-    expect(inbox, 'spec 4.3 and INV-2: the viewer has exactly one default folder').toBeDefined()
-    if (inbox === undefined) throw new Error('unreachable: asserted above')
+  test('AC-155: the Desk badge is the pending count and nothing else', async ({ page }) => {
+    const desk = (await folders(page)).find((folder) => folder.is_default)
+    expect(desk, 'spec 4.3 and INV-2: the viewer has exactly one default folder').toBeDefined()
+    if (desk === undefined) throw new Error('unreachable: asserted above')
 
     await page.goto(routes.myDay)
     const nav = page.getByRole('navigation').first()
-    const entry = nav.getByRole('link', { name: /Inbox/ })
+    // The folder row and not the page entry of the same name: see `linkTo`.
+    const entry = linkTo(nav, /Desk/, routes.folder(desk.id))
 
     await expect(
       entry,
-      'spec 9.1: Inbox is pinned first with a pending-count badge',
-    ).toContainText(String(inbox.counts.pending))
+      'spec 9.1: Desk is pinned first with a pending-count badge',
+    ).toContainText(String(desk.counts.pending))
 
     // Compared to the contract rather than to a constant, so the assertion
     // survives whatever the specs before this one created, and so that a
     // badge showing completed, or the total, or the member count cannot pass
     // by being a plausible integer.
     expect(
-      inbox.counts.pending === inbox.counts.completed,
+      desk.counts.pending === desk.counts.completed,
       'spec 8.11: the sidebar badge is the pending number alone, and this case can only tell ' +
-        'it from the completed number while the two differ. The seeded Inbox has pending rows ' +
+        'it from the completed number while the two differ. The seeded Desk has pending rows ' +
         'and no completed ones, so if this ever fails the fixture has drifted, not the client',
     ).toBe(false)
   })
 
+  /*
+  Issue #158, and the assertion the `linkTo` pin could not make.
+
+  9.1's page block opens with a page called Desk at `/app` and 4.3 names the
+  viewer's default folder Desk, so the sidebar draws two links of that name.
+  Open, they were told apart by the pending badge inside the folder row's
+  anchor; collapsed to the rail the badge goes with everything else the rail
+  drops, and both read exactly "Desk". A screen reader in the rail then names
+  one thing twice.
+
+  This asserts the separation where it was absent, which is the rail, and it
+  asserts it on the accessible name rather than on the destination: the whole
+  of what #158 is about is that a person who cannot see the two links can tell
+  them apart, and what such a person is given is the name. The harness's
+  `linkTo` reads the routes table as well, which is right for a case whose
+  subject is something else and is exactly wrong here, since a client that had
+  never made the names differ would go on satisfying it.
+
+  **The discriminating assertion is the count of links answering to exactly
+  "Desk", and it is one because it was two.** Naming each link is the readable
+  half; that count is the half that fails on the defect. Both states are read,
+  the rail because it is where the defect was and the open sidebar because a
+  separation that holds only while a badge is drawn is the arrangement #158
+  found rather than a fix for it.
+
+  The count is asserted as a count and not as this moment's integer. The seed
+  is shared and other specs put rows in this folder, so a number read a second
+  ago is a number that may already have moved; what this case owes is that the
+  count is still inside the row's name after a word was appended to it, which
+  is 9.1's own arrangement and the reason the word is content in the anchor
+  rather than a label over it.
+  */
+  test('AC-155: the Desk page and the Desk folder do not answer to one name', async ({
+    page,
+  }) => {
+    const desk = (await folders(page)).find((folder) => folder.is_default)
+    expect(desk, 'spec 4.3 and INV-2: the viewer has exactly one default folder').toBeDefined()
+    if (desk === undefined) throw new Error('unreachable: asserted above')
+    expect(
+      desk.counts.pending,
+      'spec 8.11: this case can only show the pending count survived the separating word ' +
+        'while there is one to survive it. The seeded Desk has pending rows, so if this ever ' +
+        'fails the fixture has drifted, not the client',
+    ).toBeGreaterThan(0)
+
+    await page.goto(routes.myDay)
+    const nav = page.getByRole('navigation').first()
+
+    /* Waited for by destination, the folder list being the `GET /folders` read
+       of 7.4 and absent from the first paint; see the poll in the first case. */
+    const row = linkTo(nav, /Desk/, routes.folder(desk.id))
+    await expect(
+      row,
+      'spec 9.1: the sidebar pins the default folder, so its row is there to be named',
+    ).toHaveCount(1)
+    const entry = linkTo(nav, /Desk/, routesV2.desk)
+
+    await expect(
+      entry,
+      "spec 9.1: the page entry's name is the section's own fixed string, which is why #158 " +
+        'moved the other one',
+    ).toHaveAccessibleName('Desk')
+    await expect(
+      row,
+      'issue #158: the folder row says what kind of thing it is, and says it after the ' +
+        "folder's own name rather than instead of it. The pending count is still in there " +
+        'too: 9.1 puts it inside the link so the row announces as one thing, and a label over ' +
+        'the anchor would have replaced the computed name and taken the count out with it',
+    ).toHaveAccessibleName(/^Desk folder \d+$/)
+    await expect(
+      nav.getByRole('link', { name: 'Desk', exact: true }),
+      'issue #158: exactly one link in the navigation landmark answers to "Desk". Open, the ' +
+        'badge already made this true and the case is here for the rail below',
+    ).toHaveCount(1)
+
+    await clickControl(
+      nav.getByRole('button', { name: 'Collapse sidebar', exact: true }),
+      '9.1 names the rail control for the state it leaves the sidebar in',
+    )
+
+    await expect(
+      entry,
+      'spec 9.1: the rail keeps the page set and its names',
+    ).toHaveAccessibleName('Desk')
+    await expect(
+      row,
+      'issue #158, and this is the assertion the issue is about. The rail hides the pending ' +
+        'badge with everything else it drops, so before #158 this row read exactly "Desk" and ' +
+        'so did the page entry above it',
+    ).toHaveAccessibleName('Desk folder')
+    await expect(
+      nav.getByRole('link', { name: 'Desk', exact: true }),
+      'issue #158: two links of one name in one navigation landmark is a name a screen reader ' +
+        'cannot act on. This read 2 in the rail and reads 1, which is the whole of the defect ' +
+        'and the whole of the fix',
+    ).toHaveCount(1)
+  })
+
   test('AC-155: a label group collapses', async ({ page }) => {
+    const desk = (await folders(page)).find((folder) => folder.is_default)
+    expect(desk, 'spec 4.3 and INV-2: the viewer has exactly one default folder').toBeDefined()
+    if (desk === undefined) throw new Error('unreachable: asserted above')
     await page.goto(routes.myDay)
 
     /*
@@ -257,8 +367,9 @@ test.describe('AC-155: the sidebar folder list', () => {
         'what collapsible means for a list whose other entries are unaffected',
     ).toHaveCount(0)
     await expect(
-      page.getByRole('link', { name: /Inbox/ }),
-      'the pinned Inbox is in no label group, so collapsing one leaves it alone',
+      linkTo(page.getByRole('navigation').first(), /Desk/, routes.folder(desk.id)),
+      'the pinned Desk is in no label group, so collapsing one leaves it alone. The row and ' +
+        'not the page entry that shares its name, which is what `linkTo` separates',
     ).toBeVisible()
   })
 

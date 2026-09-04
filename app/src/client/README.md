@@ -21,13 +21,13 @@ provisional.
 | `components/page/` | Shared page UI: identity controls, blocks, loading, empty and error states, and named regions | Frontend Architect |
 | `shell/` | The global chrome of 9.1 and the overlay seam | Frontend Architect |
 | `pages/` | One file per surface of 9.2 and 9.4 to 9.8, and since S25 the wiring rather than the markup wherever a screen has been lifted | Frontend Architect |
-| `screens/` | **Lifted `prototype-v2` screens**, added at S25 with `important-screen.tsx`, which is RFC 0005 change control item 45's proof. A screen here is presentational and takes rows and callbacks, which is the architecture item 45 measured in the prototype and this client already had; its page beside it is the wiring. Each carries the named seams it crosses at the head of its own file | Frontend Architect |
+| `screens/` | **Legacy lifted screens being retired.** Existing files stay presentational while they move into `components/`; do not add new files here. Their page beside them owns data reads and wiring | Frontend Architect |
 | `views/` | **What every place-page shares** (S10): the filter model and its store, the view strip and its preference, grouping, the Scheduled ladder, and the spine table 9.3's entry defaults are read from. `TaskBoard.tsx` is the board's *meaning* since S25, the geometry having moved to the lifted `components/task-board.tsx` | Frontend Architect |
 | `views/group-mark.tsx` | The mark a group heading draws, since S17a: `grouping.ts` says which kind the axis produced and this draws it, through the same two resolvers every other surface uses | Frontend Architect |
 | `pwa/` | Registration and the 10.6 update affordance | Frontend Architect |
 | `public/` | The manifest icons, copied to the build root | Frontend Architect, art is design's |
 | `parts/` | **The page layer.** The row callbacks, and since P8R session R4 the presenters that map our API shapes onto the designer's display props | Frontend Architect |
-| `parts/person-tint.ts`, `parts/identity-colors.ts` | The two palettes that must name swatches, kept out of `components/` for the reason the second records: the S8 foundation test forbids a ramp step or a literal colour there. The first is S17a's, a person's colour as a function of their name | Frontend Architect |
+| `parts/person-tint.ts`, `parts/identity-colors.ts` | The two palettes that must name swatches, kept out of `components/` for the reason the second records: the S8 foundation test forbids a ramp step or a literal colour there. **Half of that stopped being true on 2026-09-04 (#148):** the ramp rule now reads the whole client, so it reaches `parts/` and both files are named on its list in `components/ui/foundation.test.ts`; only the literal-colour rule still stops at `components/` and `lib/`, and whether the hexes in `identity-colors.ts` move to `tokens.css` or get a named home is the question #41 leaves with the owner. The first is S17a's, a person's colour as a function of their name | Frontend Architect |
 | `components/ui/` | The component library of 11.4 | Component and Design System |
 | `styles/tokens.css` | The single token file of 11.4 | Component and Design System |
 | the calendar, task form and search overlay directories | 9.3, 9.5's calendar, 9.9 | Complex Interaction |
@@ -35,9 +35,12 @@ provisional.
 `parts/` is not a component library and must not become one. It was the shell
 session's holding pen for the least that let a page render, and it did shrink
 to nothing once the component library landed. What it holds now is the page
-layer: the code every page calls and no component does. Two files, the row
-callbacks of `useRowActions.ts` and the presenters of `presenters.ts`, and
-the section at the end of this file is what the second one is for.
+layer: the code every page calls and no component does. Five files as of
+2026-09-04, `find app/src/client/parts -type f | wc -l` reading 7 with the two
+tests: the row callbacks of `useRowActions.ts`, the presenters of
+`presenters.ts` and its `format-dates.ts`, and the two palettes
+`person-tint.ts` and `identity-colors.ts` that the row above explains. The
+section at the end of this file is what `presenters.ts` is for.
 
 ## How a page declares its data
 
@@ -71,7 +74,7 @@ write (11.6). `tests/e2e/session-path.spec.ts` measures both from outside the
 client, over a whole session rather than one endpoint.
 
 **Settled.** `getView` for the view endpoints of 7.10 and anything else that
-evaluates a date; `getPlain` for `/me`, `/me/settings`, `/folders`,
+evaluates a date; `getPlain` for `/me`, `/settings`, `/folders`,
 `/connections`, `/invites/pending`. 7.0 scopes its `tz` sentence to view
 endpoints, so a plain read carries none: sending one anyway puts a parameter on
 the wire the contract does not give that endpoint.
@@ -279,6 +282,19 @@ region's name is announced and addressed, not rendered.
 **Settled**, from 9.1's control table, and exact. Three of the eight names in
 that table begin with "add" and two of them are "More actions", so a loose
 match puts back precisely the collision the naming removed.
+
+**Eight of the ten "Where" cells below name a file that no longer exists**,
+five distinct files, checked 2026-09-04. The roles are the settled part; the
+locations are superseded by "Accessible names, corrected here" further down
+this file, which is the table to read, and one of the names moved with them:
+the un-pull control is `Remove from Today`, which is 9.1's own word and what
+`components/task-row.tsx` renders as `REMOVE_FROM_TODAY`. Of the rest,
+`parts/TaskRow.tsx` is `components/task-row.tsx` and
+`components/task-board.tsx`; `parts/QuickAddRow.tsx` is
+`components/quick-add.tsx`, its string in `components/ui/copy.ts`; and
+`pwa/UpdatePrompt.tsx` is `shell/app-shell.tsx`. **This is how the whole file
+works: an early section is superseded by a later one rather than edited, so
+check a path with `ls` before following it.**
 
 | Control | Name | Role | Where |
 | - | - | - | - |
@@ -888,7 +904,7 @@ because two of the strings changed with them.
 | Floating add button | `Add task` | button | `shell/FloatingAddButton.tsx` |
 | The sidebar's rail control | `Collapse sidebar`, `Expand sidebar` | button | `components/ui/sidebar.tsx` |
 | The sidebar's resize handle | `Resize sidebar` | separator | `shell/SidebarResizeHandle.tsx` |
-| Update affordance | `Update available, reload` | button | `shell/WindowBar.tsx` |
+| Update affordance | `Update available, reload` | button | `shell/app-shell.tsx` |
 | A sidebar page | its 9.1 name | link | `shell/app-sidebar.tsx` |
 | A label group | the label alone | button, `aria-expanded` | `shell/app-sidebar.tsx` |
 

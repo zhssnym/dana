@@ -132,6 +132,10 @@ test.describe('AC-278: a hand order persists in a folder and springs back elsewh
       'spec 7.6: the body names the two rows the task was dropped between, by id',
     ).toEqual({ after_id: b.id, before_id: c.id })
 
+    // Quiet and not `watchCommit` (issue #159): the write is already ordered,
+    // `await written` above being a `waitForResponse` on the order call itself,
+    // which is a stronger barrier than counting requests. This covers the
+    // refetch behind it.
     await waitForApiIdle(page, 'the placement has been read back before the list is believed')
     expect(
       await listedTitles(page, [first, second, third]),
@@ -167,6 +171,9 @@ test.describe('AC-278: a hand order persists in a folder and springs back elsewh
     await expect(taskRow(page, second)).toBeVisible()
     expect(await listedTitles(page, [first, second])).toEqual([first, second])
     await carryBelow(page, taskRow(page, first), taskRow(page, second))
+    // Quiet and not `watchCommit` (issue #159): this case asserts a refusal --
+    // `orderCalls` is expected empty -- and the barrier that waits for a request
+    // to go out cannot order a read whose own claim is that none did.
     await waitForApiIdle(page, 'the gesture has settled and the page has said all it will')
     expect(
       await listedTitles(page, [first, second]),
@@ -190,6 +197,9 @@ test.describe('AC-278: a hand order persists in a folder and springs back elsewh
     await expect(taskRow(page, second)).toBeVisible()
     await expect(taskRow(page, first)).toBeVisible()
     await carryBelow(page, taskRow(page, first), taskRow(page, second))
+    // Quiet and not `watchCommit` (issue #159): this case asserts a refusal --
+    // `orderCalls` is expected empty -- and the barrier that waits for a request
+    // to go out cannot order a read whose own claim is that none did.
     await waitForApiIdle(page, 'the gesture has settled')
     expect(
       await listedTitles(page, [first, second]),

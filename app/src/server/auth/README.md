@@ -1,14 +1,21 @@
 # The authentication module (spec 11.6)
 
-Owned by the Security and Privacy engineer (`docs/team/06-security-and-privacy.md`).
+Owned by Hassan, with everything else outside `app/src/client/`; `CODEOWNERS`
+at the repository root is the map of who owns what, and
+`docs/workflow/backend/README.md` is how work on it flows. The thirteen
+persona files this line used to name were deleted at the workflow restructure
+(`a7886df`, 2026-09-01) and are in git history before that commit.
+
 Implements sections 7.1, 7.2, 10.1, and 11.6 against the acceptance criteria
 AC-005 to AC-010, AC-105 to AC-115, and AC-119 to AC-123.
 
 P7 added one obligation from outside that list. 8.6's fifth recompute trigger is
 the assignee's `users.timezone`, and both doors that move that column are here:
 the callback's login sync and PATCH /me. AC-086 and AC-154 therefore read this
-module as well as the reminders engine, which is why the P7 kickoff put the
-trigger in the reminders seam of `docs/team/README.md`; no persona had named it.
+module as well as the reminders engine, which is why the P7 kickoff wrote the
+trigger into the reminders seam of the build-era plan; nothing had named it
+before that. That plan went with the personas, and the seam it fixed is this
+module's, stated here.
 
 ## How this module is wired
 
@@ -20,10 +27,10 @@ and `auth` straight through:
 app.use('/api/v1', createAuthRouter({ dbClient: options.dbClient, auth: options.auth }))
 ```
 
-That file is the Platform engineer's (persona 10, Owns), so changes to the
-mount are a request to that role rather than an edit from here. The wiring
-request this section used to carry was fulfilled in that commit; what follows
-is what a later reader needs to know about the arrangement.
+That file is Hassan's, as is this module, so a change to the mount is an
+ordinary edit rather than a request to another role. The wiring request this
+section used to carry was fulfilled in that commit; what follows is what a
+later reader needs to know about the arrangement.
 
 `createAuthRouter` is synchronous, performs no I/O, and opens no database, so
 it satisfies 11.10's construction seam. It reads `DANA_DEV_LOGIN` at call time,
@@ -35,8 +42,8 @@ probe still works.
 
 The module also exports the 11.3 middleware (`attachSession`, `requireSession`,
 `requireCsrf`, `sessionOf`) from `./auth/index.js`. P2 onward mount their own
-routers behind those three, in that order; persona 06's Handoff calls the order
-a stable interface.
+routers behind those three, in that order, and that order is a stable
+interface: changing it changes every router mounted behind it.
 
 **Still outstanding: the pruning call.** When the P7 scheduler lands, its pass
 should call the pruning function, which is the second of 11.7's two duties:
@@ -65,20 +72,24 @@ rows themselves. Nothing breaks while this is unwired; rows merely accumulate.
 | `provisioning.ts` | The 7.1 provisioning transaction, idempotent under `google_sub` |
 | `timezone-sync.ts` | 8.1's zone sync: the alias predicate the shared validator lacks, and `writeTimezone`, which writes the column and then fires 8.6's fifth trigger. Both doors call it, so the order cannot be got right in one and wrong in the other |
 | `account.ts` | `/me`, and the 8.10 deletion stub the P1 row places here |
-| `settings.ts` | `/me/settings`, the 7.2 pair; P2S added it inside this router, so it needed no new wiring |
 | `pages.ts` | The 9.2 unverified-email page, the only page this module renders |
 | `dev-login.ts` | Excluded from production builds; see 11.6 and 11.15 |
 
-One file outside this directory belongs to the same role:
+One file outside this directory belongs with this module:
 `app/src/server/security/log.ts`, the beginning of 10.5's logging policy,
-which P9 extends rather than replaces.
+which P9 extended rather than replaced.
 
-## Open items for the Steward
+## Open items
+
+**The Steward this heading used to name went with the personas** (`a7886df`,
+2026-09-01). What is open below is Hassan's, and the channel for one is a
+GitHub issue; `docs/workflow/backend/README.md` is the process.
 
 - **AC-086's third case cannot pass beside AC-154's third case, and the fixture
-  is why.** Raised at the P7 phase 3 session, routed to the Adversarial Test
-  engineer and then the Steward under protocol section 6 ("an acceptance
-  criterion appears wrong"). `AC-086: one login recomputes two due dates either
+  is why.** Raised at the P7 phase 3 session and escalated rather than fixed,
+  under the build-era rule for "an acceptance criterion appears wrong"; the
+  standing rule now is `docs/workflow/README.md`'s rule 7, which says the same
+  thing. `AC-086: one login recomputes two due dates either
   side of a transition` builds its two reminders on due dates in 2010, so
   `planReminder` computes an instant sixteen years past and frozen 7.9's own
   qualifier writes them `skipped`, which the probe confirms. 8.6's ruling of
@@ -101,9 +112,9 @@ which P9 extends rather than replaces.
 - **openid-client does not verify the ID token signature in the code flow by
   default**, as OIDC Core 3.1.3.7 item 6 permits, which AC-106 forbids.
   `oidc.ts` switches on `enableNonRepudiationChecks`; verified against the
-  installed version, a rogue-key token signed in without it. Protocol section 6
-  routes a library-versus-specification difference to the Steward and asks for
-  it in spec section 13, which is not this role's path to write.
+  installed version, a rogue-key token signed in without it. A
+  library-versus-specification difference belongs in spec section 13, and
+  `docs/spec/` is changed through an RFC rather than from a module README.
 - **An email collision with a different `google_sub` was unruled and is ruled.**
   7.1 makes provisioning idempotent under `google_sub` only; a new subject
   claiming an email that already belongs to an active account hits
@@ -126,8 +137,8 @@ which P9 extends rather than replaces.
   single-instance checklist**, which today names three (rate limiting, the
   reminder tick, the boot migration run).
 - **`sessions` has no index on `user_id`**, which the deletion path and the
-  10.1 cascade both scan. `app/db` is the Data engineer's path; worth an 0003
-  if P9's sweep agrees it matters.
+  10.1 cascade both scan. One forward-only migration in `app/db` would add it,
+  and it is worth one if a measurement agrees it matters.
 - **Disclosed for ratification at the P2S merge, in the token_hash-CHECK
   pattern rather than as an escalation: `user_settings.updated_at` moves on a
   writing PATCH and not on the empty subset.** 4.10 gives the column a
@@ -142,9 +153,8 @@ which P9 extends rather than replaces.
 session. It is `HMAC-SHA256(key = the session's own token, "dana.csrf.v1")`, so
 the binding needs no column that the 10.1 sessions table does not have, and the
 readable cookie cannot be turned back into the httpOnly one. Storing it instead
-would need a migration in `app/db`, which is the Data engineer's path; the
-Steward's ruling in `5e01e49` left that request open and this makes it
-unnecessary.
+would need a migration in `app/db`; the ruling in `5e01e49` left that request
+open and this makes it unnecessary.
 
 **Pending authorizations live in process memory.** 11.6 fixes what the record
 holds and never where it lives. They are keyed by an opaque identifier in an

@@ -2,8 +2,10 @@
 Everyone a task can be given to, in one list.
 
 `docs/design/prototype-v2/src/lib/people-library.ts`, read at `7d2064c`, over
-this client's query layer. Its own header records the fault: the assignee menu
-mapped `PEOPLE` from `task-model.ts`, three names written for the row lab, so
+this client's query layer. That prototype is deleted (`a7886df`, 2026-09-01);
+read it in git history before that commit. Its own header records the fault:
+the assignee menu mapped `PEOPLE` from `task-model.ts`, three names written
+for the row lab, so
 "the lab said Sara and Hassan with initials SK and HN; the People screen, two
 clicks away, said Sara Khan and Hassan Ali with initials SK and HA. So the
 list you gave work to disagreed with the list of people you were actually
@@ -11,10 +13,13 @@ connected to."
 
 **Why this is an open set and not a longer closed one**, kept because it is a
 design decision rather than a fixture note. Nothing here says *human*. An
-assignee is a name and a face, which is what `docs/design/vision.md` will need
+assignee is a name and a face, which is what `docs/design/vision.md` asked for
 when work can be given to "a person, an AI agent, or both": an agent arrives
-as another entry, in the same slot, with the same treatment. The fact that
-this list has no notion of kind is the point rather than an omission.
+as another entry, in the same slot, with the same treatment. That document is
+deleted (`a7886df`, 2026-09-01) and is in git history before that commit, and
+**no numbered spec section carries the open-set intent today**, so the quoted
+words are the record. The fact that this list has no notion of kind is the
+point rather than an omission.
 
 **And unassigned is a member of the set, not the absence of one** (ledger
 L-094, closed). It is not in the array, because the array is people; it is the

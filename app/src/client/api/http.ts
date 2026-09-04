@@ -1,9 +1,13 @@
 /*
 The single door between this client and the section 7 API.
 
-Nothing in `src/client` calls `fetch` except this file, and the reason is that
-two of section 7's obligations are properties of every request rather than of
-any one call site:
+Nothing in `src/client` calls `fetch` except this file, and since issue #72 a
+lint rule says so rather than this comment: `no-restricted-syntax` in
+`app/eslint.config.ts` fails a `fetch` call anywhere in `src/client` but here.
+One file is exempt by a disable comment, `lib/viewer.ts`, which round-trips a
+`data:` URL into a Blob and reaches no network. The reason for the rule is
+that two of section 7's obligations are properties of every request rather
+than of any one call site:
 
 - **Every view request carries tz** (7.0, and its absent half ruled on
   2026-08-07). `getView` appends it; there is no way to read a view without
@@ -28,10 +32,11 @@ the server's own message (5.1's conflict copy, which 9.1 requires verbatim),
 and everything else (the 9.1 error toast). Which toast a failure earns is
 decided once, in `queryClient.ts`, off these three types.
 */
+import type { z } from 'zod'
+
 import { errorEnvelope } from '../../shared/error-envelope.js'
-// A value import since S12: `uploadFile` parses its answer with an inline
-// schema, the one response shape 7.15 owns and no shared module carries.
-import { z } from 'zod'
+import { postAvatarResponse, postFilesResponse } from '../../shared/files.js'
+import type { PostAvatarResponse, PostFilesResponse } from '../../shared/files.js'
 
 import { isOnline, reportReachable, reportUnreachable } from '../state/connectivity.js'
 
@@ -279,17 +284,32 @@ async function postMultipart(path: string, form: FormData): Promise<unknown> {
   return payload
 }
 
+/**
+ * 7.15's upload.
+ *
+ * **`folderId` takes null, and null means the part is not sent at all**
+ * (issues #20, #100, #118). 7.15 made `folder_id` optional for `kind: cover`
+ * alone on 2026-09-03, so a shelf and a built-in place page — neither of which
+ * is a folder — can hold a picture of their own; every other kind still
+ * requires it and is refused 422 naming the field.
+ *
+ * The distinction belongs at this line rather than at the call site, because
+ * the wrong way to say it is available and looks right: `form.set('folder_id',
+ * '')` sends a part carrying the empty string, which is not a uuid, so the
+ * upload is refused 422 rather than stored folder-less. Omitting the part is
+ * the only spelling 7.15 reads as "no folder".
+ */
 export async function uploadFile(
   kind: 'image' | 'file' | 'voice' | 'cover',
-  folderId: string,
+  folderId: string | null,
   file: File,
-): Promise<{ id: string; bytes: number }> {
+): Promise<PostFilesResponse> {
   const form = new FormData()
   form.set('kind', kind)
-  form.set('folder_id', folderId)
+  if (folderId !== null) form.set('folder_id', folderId)
   form.set('file', file)
   return parsed(
-    z.object({ id: z.uuid(), bytes: z.number().int() }),
+    postFilesResponse,
     '/files',
     await postMultipart('/files', form),
   )
@@ -306,11 +326,11 @@ export async function uploadFile(
  * did not carry 9.1's "Couldn't save. You're offline." One multipart path,
  * one contract, and 10.6's offline rule reaches the avatar with it.
  */
-export async function uploadAvatar(file: File): Promise<{ avatar_url: string }> {
+export async function uploadAvatar(file: File): Promise<PostAvatarResponse> {
   const form = new FormData()
   form.set('file', file)
   return parsed(
-    z.object({ avatar_url: z.string() }),
+    postAvatarResponse,
     '/me/avatar',
     await postMultipart('/me/avatar', form),
   )

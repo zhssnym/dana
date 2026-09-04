@@ -1,9 +1,10 @@
 /*
 The one way an edit gets out of a card, wherever that card is.
 
-`docs/design/prototype-v2/src/lib/task-writer.tsx`, read at `7d2064c`. The
-context and the hook cross verbatim; what is added below them is this client's
-implementation of the one function they carry.
+`docs/design/prototype-v2/src/lib/task-writer.tsx`, read at `7d2064c`; that
+prototype is deleted (`a7886df`, 2026-09-01) and is in git history before that
+commit. The context and the hook cross verbatim; what is added below them is
+this client's implementation of the one function they carry.
 
 Imran, 2026-08-22: "A sidebar view of a task row does not carry the edits (in
 steps, notes, links, and attachments) which are added in inline view of it...

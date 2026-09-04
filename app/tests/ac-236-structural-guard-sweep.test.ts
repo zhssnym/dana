@@ -14,9 +14,24 @@ PATCH, PUT and DELETE, and drives each one twice: bare, expecting 401
 told a token was all they lacked), and signed in without the header,
 expecting 403 with no side effects.
 
-The one exemption on that half is the development login, which precedes any
-session by design and is absent from production builds (11.6, AC-114); it is
-filtered by name, and in this harness it is not mounted at all.
+Two exemptions on that half, each filtered by name and each carrying its
+reason in the map below, the same shape the public reads use. The
+development login precedes any session by design and is absent from
+production builds (11.6, AC-114); in this harness it is not mounted at all.
+`POST /api/csp-report` is the browser's own report of a policy refusal
+(issue #99), and the browser posts it from its own networking stack with no
+cookie and no header this application could ask it to add.
+
+**The mutating exemptions are asserted in one of the two directions
+PUBLIC_READS is asserted in, and the missing one is named rather than
+forgotten.** An exemption whose route this application actually mounts must
+answer something other than 401 bare, so an entry written for a route that
+turns out to be gated fails here instead of quietly excusing nothing. The
+converse — that an exemption must name a mounted route — cannot be asserted
+on this half, because the development login is deliberately absent from this
+harness and has been since this file was written. What covers that gap is
+the count below, which moves in the same change as any route, and the reason
+string, which a reviewer reads.
 
 **GET is swept too, added for issue #33.** It was left out when this file was
 written, and 10.2 said so plainly: a GET route added with no requireSession
@@ -50,14 +65,21 @@ It reads layer.route at the top of the application's stack and nested.route
 one stack down, so a router mounted inside another router contributes nothing
 and says nothing about it: its routes are absent from the enumeration and
 every assertion here then passes over a smaller surface than it claims.
-Verified 2026-09-03: all 15 Router() instances in src/server are mounted
-directly on the application in index.ts, and every router.use() call inside
-one attaches middleware rather than a router, so the walk does see the whole
-surface today. **Grepping `Router()` no longer finds fifteen and that is not
-a change to this fact**: since issue #36 the thirteen routers under
-src/server/routes are constructed by routes/preamble.ts, which also registers
-their session middleware, so the literal call sites are three — that one,
-auth/router.ts and routes/health.ts — for the same fifteen instances. The counts are the only thing that would notice the day that
+Verified 2026-09-03 at 15, at 16 on 2026-09-04 with 7.22's export router, and
+at 17 the same day when the wave-1 merges brought issue #99's alongside it:
+every Router() instance in src/server is mounted directly on the application
+in index.ts, and every router.use() call inside one attaches middleware rather
+than a router, so the walk does see the whole surface today. The sixteenth is
+the export router (issue #77), one GET at a literal path; the seventeenth is
+the CSP report router, which builds its own rather than taking the preamble's
+because it takes no session and so wants none of it.
+**Grepping `Router()` does not find seventeen and that is not
+a change to this fact**: since issue #36 the fourteen routers under
+src/server/routes that take a session are constructed by routes/preamble.ts,
+which also registers that session middleware, so the literal call sites are
+four — that one, auth/router.ts, routes/health.ts and routes/csp-report.ts —
+for all seventeen instances. It was fifteen and three before those two issues.
+The counts are the only thing that would notice the day that
 stops being true, which is why they are exact numbers carrying a date rather
 than floors.
 
@@ -100,8 +122,21 @@ interface LayerShape {
 const MUTATING = ['post', 'patch', 'put', 'delete'] as const
 const READING = ['get'] as const
 
-/** By design: precedes any session, absent from production builds (11.6). */
-const EXEMPT = new Set(['POST /api/v1/auth/dev-login'])
+/**
+ * The mutating routes that answer without a session, and why each one does.
+ * A Map rather than a Set since issue #99 gave it a second entry: one
+ * exemption needs no explanation and two need one each.
+ */
+const EXEMPT = new Map<string, string>([
+  [
+    'POST /api/v1/auth/dev-login',
+    'by design: it precedes any session, and it is absent from production builds (11.6, AC-114)',
+  ],
+  [
+    'POST /api/csp-report/',
+    "the browser's own report of a Content-Security-Policy refusal (issue #99). The browser posts it from its own networking stack, with no session cookie and no X-CSRF-Token, and nothing this application can do would put either there: requiring one would mean receiving no reports at all, which is the silence the endpoint exists to end. It is safe to leave open because it reads nothing and writes nothing — no dbClient reaches it — and the whole of its effect is one whitelisted log line and one Sentry message, bounded by a 16 KB body cap and by 10.4's own limiter row. It answers 204 for a report it keeps and 204 for one it drops, so it is not an oracle either",
+  ],
+])
 
 /**
  * The reads that answer without a session, and why each one does. Nothing is
@@ -126,8 +161,12 @@ const PUBLIC_READS = new Map<string, string>([
 
 /** Mount points this application uses; a router layer is attributed to the
  * first one its own regexp accepts, which is exact for non-overlapping
- * prefixes like these. */
-const MOUNTS = ['/api/v1', '/api/health', '/api']
+ * prefixes like these. A mount missing from this list is not skipped, which
+ * would at least be visible: its routes are attributed to no mount and are
+ * enumerated under a bare path, so they miss their own exemption and fail
+ * for a reason that names the wrong thing. `/api/csp-report` joined the list
+ * with the route (issue #99). */
+const MOUNTS = ['/api/v1', '/api/health', '/api/csp-report', '/api']
 
 function routesWith(
   application: unknown,
@@ -207,10 +246,31 @@ describe('AC-236 every mutating route is behind the whole chain', () => {
     // 2026-09-03, dev-login excluded by EXEMPT. 66 to 67 the same day, for
     // POST /covers/photo (issues #20 and #100), which is this sentence's own
     // instruction followed rather than an exception to it: the sweep already
-    // passed on the new route, and only the count moved.
+    // passed on the new route, and only the count moved. 67 to 68 on
+    // 2026-09-04 for POST /shelves/:id/duplicate (issues #117 and #128),
+    // the same way round: the sweep passed on it — 401 bare, 403 without
+    // CSRF — before this number was touched.
+    //
+    // **It counts the routes this sweep drives, not the routes mounted**, so
+    // POST /api/csp-report (issue #99) moved it not at all on the same day:
+    // the walker finds it and EXEMPT removes it. A route that arrives with an
+    // exemption therefore moves the map above rather than this number, and
+    // the two together are still one line per mutating route.
+    //
+    // **68 to 67 on 2026-09-04, and it is the first time this number has gone
+    // down.** Issue #113 retired `PATCH /api/v1/me/settings`, frozen 7.2's
+    // write, into 7.23's `/settings` bundle on the owner's ruling. The
+    // instruction above is the same in this direction and is worth saying
+    // once, because the guard reads differently going down: a fall is what
+    // this count exists to be suspicious of, since a nested router hiding
+    // routes looks exactly like a route deleted on purpose. What separates
+    // them is that the deletion is in the same diff, and the route it names
+    // answers 404 on the mounted application rather than being merely absent
+    // from the walk — `bundle-contract.test.ts` asserts that for the surface
+    // that replaced it.
     expect(
       routes.length,
-      `the walker found ${String(routes.length)} mutating routes and there were 67 on 2026-09-03. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means a route was added, and this number moves with it in the same change`,
+      `the walker found ${String(routes.length)} mutating routes and there were 67 on 2026-09-04. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means a route was added, and this number moves with it in the same change`,
     ).toBe(67)
 
     const failures: string[] = []
@@ -232,6 +292,33 @@ describe('AC-236 every mutating route is behind the whole chain', () => {
         )
       }
     }
+
+    /* And every exemption that names a route this application actually
+       mounts must be a live one. An entry whose route answers 401 after all
+       is excusing nothing and hiding whatever comes to sit behind it, which
+       is the direction PUBLIC_READS is asserted in below. It is scoped to
+       the mounted ones because the development login is deliberately absent
+       from this harness, so the other direction — an exemption must name a
+       mounted route — is the one assertion this half cannot make. */
+    const mounted = new Set(
+      routesWith(app.application, MUTATING).map(
+        ({ method, path }) => `${method} ${path}`,
+      ),
+    )
+    for (const [key, reason] of EXEMPT) {
+      if (!mounted.has(key)) continue
+      const [method = 'POST', path = '/'] = key.split(' ')
+      const bare = await app.browser().request(addressable(path), {
+        method,
+        ...jsonBody,
+      })
+      if (bare.status === 401) {
+        failures.push(
+          `${key}: exempted from the chain (${reason}) and it answers 401 bare, so the exemption is dead. Delete the entry rather than leaving a gated route looking ungated`,
+        )
+      }
+    }
+
     expect(
       failures,
       'routes outside the 10.1/11.6 chain; each line is one hole in the chokepoint',
@@ -244,10 +331,17 @@ describe('AC-236 every mutating route is behind the whole chain', () => {
     // Equality for the same reason as the mutating count: 36 when this half
     // was written on 2026-09-02 and 36 again on 2026-09-03 when the floor
     // became a number. A nested router hiding five GETs would have taken
-    // this to 31 and passed `> 25` in silence.
+    // this to 31 and passed `> 25` in silence. 37 to 38 on 2026-09-04, for
+    // GET /me/export (7.22, issue #77), which is this sentence's own
+    // instruction followed rather than an exception to it: the sweep already
+    // passed on the new route, answering 401 bare, and only the count moved.
+    // 38 to 37 the same day, the other way: issue #113 retired
+    // `GET /api/v1/me/settings` with its sibling write, on the owner's
+    // ruling. See the mutating count above for why a fall is read more
+    // carefully than a rise.
     expect(
       routes.length,
-      `the walker found ${String(routes.length)} reading routes and there were 37 on 2026-09-03. Fewer means the enumeration lost sight of routes that still exist; more means a GET was added, and it must either answer 401 bare or earn a PUBLIC_READS entry, and this number moves with it in the same change`,
+      `the walker found ${String(routes.length)} reading routes and there were 37 on 2026-09-04. Fewer means the enumeration lost sight of routes that still exist; more means a GET was added, and it must either answer 401 bare or earn a PUBLIC_READS entry, and this number moves with it in the same change`,
     ).toBe(37)
 
     const failures: string[] = []

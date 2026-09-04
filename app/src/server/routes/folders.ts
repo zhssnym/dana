@@ -30,7 +30,8 @@ import {
   postFoldersBody,
 } from '../../shared/folders.js'
 import { requireCsrf, requireSession } from '../auth/index.js'
-import { sendError, sendValidationError } from '../http/errors.js'
+import { sendError } from '../http/errors.js'
+import { parseBody } from '../http/parse-body.js'
 import { notifierOf } from '../notify/index.js'
 import { optionalLimit } from '../security/rate-limit.js'
 import type { RateLimits } from '../security/rate-limit.js'
@@ -88,12 +89,17 @@ export function createFoldersRouter(
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
-      const parsed = postFoldersBody.safeParse(req.body)
-      if (!parsed.success) {
-        sendValidationError(res, parsed.error)
-        return
-      }
-      const result = await createFolder(db, viewer(req), parsed.data.name)
+      const parsed = parseBody(postFoldersBody, req, res, securityLog)
+      if (parsed === null) return
+      /* The description rides the create rather than a PATCH behind it
+         (7.4, 2026-09-04). Absent is undefined here and NULL in the row,
+         which is every folder made before this. */
+      const result = await createFolder(
+        db,
+        viewer(req),
+        parsed.name,
+        parsed.description ?? null,
+      )
       if (result.kind === 'folder_cap') {
         sendError(
           res,
@@ -142,11 +148,8 @@ export function createFoldersRouter(
       if (db === null) return
       const folderId = parsedId(res, req.params.id)
       if (folderId === null) return
-      const parsed = patchFolderBody.safeParse(req.body)
-      if (!parsed.success) {
-        sendValidationError(res, parsed.error)
-        return
-      }
+      const parsed = parseBody(patchFolderBody, req, res, securityLog)
+      if (parsed === null) return
       const access = await accessOf(db, viewer(req), folderId)
       if (access === null) {
         sendError(res, 404, 'not_found', 'Not found.')
@@ -155,18 +158,18 @@ export function createFoldersRouter(
       // The DES-225 split (RFC 0005): the name stays the owner's, works
       // for the default folder too and carries no guard beyond ownership
       // (7.4); the 4.3 identity is the folder's and any member writes it.
-      if (parsed.data.name !== undefined && !access.isOwner) {
+      if (parsed.name !== undefined && !access.isOwner) {
         sendError(res, 403, 'forbidden', 'Only the folder owner can rename it.')
         return
       }
       const outcome = await patchFolderProfile(db, viewer(req), folderId, {
-        name: parsed.data.name,
-        icon: parsed.data.icon,
-        color: parsed.data.color,
-        coverFileId: parsed.data.cover_file_id,
-        coverPreset: parsed.data.cover_preset,
-        coverFocalY: parsed.data.cover_focal_y,
-        description: parsed.data.description,
+        name: parsed.name,
+        icon: parsed.icon,
+        color: parsed.color,
+        coverFileId: parsed.cover_file_id,
+        coverPreset: parsed.cover_preset,
+        coverFocalY: parsed.cover_focal_y,
+        description: parsed.description,
       })
       if (outcome === 'cover_not_here') {
         sendError(
@@ -236,11 +239,8 @@ export function createFoldersRouter(
       if (db === null) return
       const folderId = parsedId(res, req.params.id)
       if (folderId === null) return
-      const parsed = patchFolderMyMembershipBody.safeParse(req.body)
-      if (!parsed.success) {
-        sendValidationError(res, parsed.error)
-        return
-      }
+      const parsed = parseBody(patchFolderMyMembershipBody, req, res, securityLog)
+      if (parsed === null) return
       const access = await accessOf(db, viewer(req), folderId)
       if (access === null) {
         sendError(res, 404, 'not_found', 'Not found.')
@@ -248,7 +248,7 @@ export function createFoldersRouter(
       }
       // Any member, own row only (5.4): the viewer id scopes the UPDATE,
       // so another member's row is unreachable by construction.
-      await setMyMembership(db, viewer(req), folderId, parsed.data)
+      await setMyMembership(db, viewer(req), folderId, parsed)
       const folder = await folderView(db, viewer(req), folderId)
       res.status(200).json(folder)
     },
@@ -268,11 +268,8 @@ export function createFoldersRouter(
       if (db === null) return
       const folderId = parsedId(res, req.params.id)
       if (folderId === null) return
-      const parsed = postFolderMembersBody.safeParse(req.body)
-      if (!parsed.success) {
-        sendValidationError(res, parsed.error)
-        return
-      }
+      const parsed = parseBody(postFolderMembersBody, req, res, securityLog)
+      if (parsed === null) return
       const actorId = viewer(req)
       const access = await accessOf(db, actorId, folderId)
       if (access === null) {
@@ -283,7 +280,7 @@ export function createFoldersRouter(
         db,
         actorId,
         folderId,
-        parsed.data.user_id,
+        parsed.user_id,
         access,
       )
       switch (result.kind) {
@@ -343,7 +340,7 @@ export function createFoldersRouter(
             })
           }
           const added = members.find(
-            (member) => member.user.id === parsed.data.user_id,
+            (member) => member.user.id === parsed.user_id,
           )
           // The row was inserted in this request; not finding it is a state
           // the contract has no shape for, and the shape review ruled that
@@ -351,7 +348,7 @@ export function createFoldersRouter(
           // boot error handler envelopes this as the 500 it is).
           if (added === undefined) {
             throw new Error(
-              `membership ${parsed.data.user_id} vanished between insert and read`,
+              `membership ${parsed.user_id} vanished between insert and read`,
             )
           }
           res.status(201).json(added)

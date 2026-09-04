@@ -34,7 +34,7 @@ import {
   sidebar,
   signIn,
   TEST_TIMEOUT_MS,
-  waitForApiIdle,
+  watchCommit,
 } from './harness.js'
 
 test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
@@ -66,6 +66,12 @@ test.describe('AC-224: Trash restores a folder', () => {
         'folder was deleted seconds ago by the viewer',
     ).toBeVisible()
 
+    /* Before the press (2026-09-04, issue #159). The count below is the
+       assertion, and API quiet is also what a page looks like in the window
+       between the press and the request it causes: a sidebar read there holds
+       zero rows, which reads as a restore that put nothing back rather than as
+       a barrier that returned early. */
+    const restored = watchCommit(page)
     await clickControl(
       page
         .getByRole('listitem')
@@ -81,7 +87,7 @@ test.describe('AC-224: Trash restores a folder', () => {
       'spec 9.11: Restore puts the thing back where it was; the control keeps 9.5\'s ' +
         'name, "Restore"',
     )
-    await waitForApiIdle(page, 'the restore write lands before the sidebar is read')
+    await restored.settled('the restore reaches the server before the sidebar is counted')
 
     await expect(
       sidebar(page).getByRole('link', { name: new RegExp(folderName) }),

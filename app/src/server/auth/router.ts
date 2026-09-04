@@ -12,7 +12,6 @@ The handshake, in the order 11.6 fixes it:
                               issue a fresh session
   POST /auth/logout           destroy this session, not the person's others
   GET/PATCH/DELETE /me        the account endpoints, behind session then CSRF
-  GET/PATCH /me/settings      the 7.2 toggles, the same two middlewares
 
 Three rules run through every handler here.
 
@@ -49,7 +48,8 @@ import type { Db, DbClient } from '../../../db/client.js'
 import { deleteMeBody } from '../../shared/me.js'
 import { isIanaTimezone } from '../../shared/timezone.js'
 import type { ObjectStore } from '../files/store.js'
-import { sendError, sendValidationError } from '../http/errors.js'
+import { sendError } from '../http/errors.js'
+import { parseBody } from '../http/parse-body.js'
 import { optionalLimit } from '../security/rate-limit.js'
 import type { RateLimits } from '../security/rate-limit.js'
 import { createSecurityLogger } from '../security/log.js'
@@ -83,7 +83,6 @@ import {
   provisionUser,
   syncTimezone,
 } from './provisioning.js'
-import { handleGetSettings, handlePatchSettings } from './settings.js'
 import type { GoogleIdentity } from './provisioning.js'
 import { createSession, destroySession } from './sessions.js'
 import { csrfTokenFor, newSessionToken } from './tokens.js'
@@ -175,6 +174,13 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
   const router = Router()
   const pending = new PendingAuthorizations()
   const mutationLimit = optionalLimit(options.rateLimits?.generalMutations)
+  /* The two sign-in doors carried no limiter at all until issue #168, which
+     is older than every other limit: the general quota keys on the session
+     and both of these precede one, so there was nothing to key on and they
+     were left out. They are keyed on the caller's address instead, which
+     only became per-client with issue #153's one trusted proxy hop. */
+  const signInBeginLimit = optionalLimit(options.rateLimits?.signInBegins)
+  const signInCallbackLimit = optionalLimit(options.rateLimits?.signInCallbacks)
   const securityLog = options.securityLog ?? createSecurityLogger()
 
   // Configuration is resolved once per application, and lazily: an
@@ -213,7 +219,7 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
    * The handshake
    * ---------------------------------------------------------------- */
 
-  router.get('/auth/google', async (req: Request, res: Response) => {
+  router.get('/auth/google', signInBeginLimit, async (req: Request, res: Response) => {
     const config = oidc()
     const configuration = await config.configure()
 
@@ -245,7 +251,7 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
     res.redirect(302, authorizationUrl.toString())
   })
 
-  router.get('/auth/google/callback', async (req: Request, res: Response) => {
+  router.get('/auth/google/callback', signInCallbackLimit, async (req: Request, res: Response) => {
     const db = database(res)
     if (db === null) return
 
@@ -434,7 +440,7 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
-      await handlePatchMe(db, sessionOf(req)?.userId ?? '', req, res)
+      await handlePatchMe(db, sessionOf(req)?.userId ?? '', req, res, securityLog)
     },
   )
 
@@ -447,11 +453,8 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
       const db = database(res)
       if (db === null) return
       // 7.1: the literal confirm string, else 422 naming the field.
-      const parsed = deleteMeBody.safeParse(req.body)
-      if (!parsed.success) {
-        sendValidationError(res, parsed.error)
-        return
-      }
+      const parsed = parseBody(deleteMeBody, req, res, securityLog)
+      if (parsed === null) return
       const userId = sessionOf(req)?.userId ?? ''
       const deleted = await handleDeleteMe(db, userId, res, options.fileStore)
       securityLog.deletionEvent('account_deleted', {
@@ -468,28 +471,25 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
   )
 
   /* ---------------------------------------------------------------- *
-   * The settings endpoints (7.2)
+   * The settings endpoints (7.2) were here, and were retired on
+   * 2026-09-04 by issue #113 on the owner's ruling.
+   *
+   * `GET` and `PATCH /me/settings` answered the three v1 page flags and
+   * nothing else. 7.23's `/settings` bundle is the settings surface now,
+   * and it was already the only one the client used for everything but
+   * those three; keeping a second endpoint alive for them meant two
+   * contracts over one row of `user_settings`, which is the thing 4.19
+   * asked not to have. The retirement annotation and what it does not do
+   * are 7.2's.
+   *
+   * **The three columns are not dropped and this is not a data change.**
+   * They stay stored and `domain/bundle.ts` still derives them into
+   * `pinned_views` while that column is null, which is what keeps a v1
+   * account's sidebar the sidebar it had. The `settings` key of `GET /me`
+   * still carries them too: 7.1 is frozen, untouched by this, and AC-116
+   * pins its shape. What went is the pair of endpoints that *wrote* them,
+   * so nothing in this application writes those columns any more.
    * ---------------------------------------------------------------- */
-
-  // A read carries no CSRF requirement: 7.0 puts the header on mutations
-  // only, and requiring it here would break every page load.
-  router.get('/me/settings', requireSession, async (req: Request, res: Response) => {
-    const db = database(res)
-    if (db === null) return
-    await handleGetSettings(db, sessionOf(req)?.userId ?? '', res)
-  })
-
-  router.patch(
-    '/me/settings',
-    requireSession,
-    requireCsrf,
-    mutationLimit,
-    async (req: Request, res: Response) => {
-      const db = database(res)
-      if (db === null) return
-      await handlePatchSettings(db, sessionOf(req)?.userId ?? '', req, res)
-    },
-  )
 
   /* ---------------------------------------------------------------- *
    * The development login (11.6)

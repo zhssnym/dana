@@ -53,6 +53,9 @@ test('AC-341: an import says what it made, opens it, and never doubles a name', 
   await input.setInputFiles({ name: 'first.dana-workflow.json', mimeType: 'application/json', buffer: file(name) })
   await expect(page.getByText(`Imported "${name}" with 2 tasks`), 'settings F3: the import says what it made').toBeVisible()
   await expect(page, 'settings F3: and opens it').toHaveURL(/\/app\/folders\//)
+  // Quiet and not `watchCommit` (issue #159): the import is already ordered
+  // by the toast asserted above, which the client only draws on the
+  // response, so what is left to wait for is the Library reading behind it.
   await waitForApiIdle(page, 'the folder has loaded')
   await expect(libraryLink(page, name), 'the folder is in the Library once').toHaveCount(1)
 
@@ -61,6 +64,9 @@ test('AC-341: an import says what it made, opens it, and never doubles a name', 
     page.getByText(`Imported "${name} (imported)" with 2 tasks`),
     'settings F3: a name the Library already has is suffixed rather than doubled',
   ).toBeVisible()
+  // Quiet and not `watchCommit` (issue #159): the import is already ordered
+  // by the toast asserted above, which the client only draws on the
+  // response, so what is left to wait for is the Library reading behind it.
   await waitForApiIdle(page, 'the second folder has loaded')
   await expect(libraryLink(page, name), 'the original is still the only one by that name').toHaveCount(1)
   await expect(libraryLink(page, `${name} (imported)`)).toHaveCount(1)

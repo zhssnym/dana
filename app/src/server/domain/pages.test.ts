@@ -24,11 +24,13 @@ proves the module shares it: `accessOf` requires `deleted_at IS NULL`, so a
 member of a trashed folder reads its page as empty rather than as theirs.
 
 Spec: 4.17, 4.18, 7.16, 10.2. Related: #74 (nothing structurally checks
-authorization), #107 (putPage accepts a file_id from another folder), both open
-and neither addressed here. #107's one-line description is a folder page's half
-of it: a shelf-homed page has no folder id at all, so "from another folder" does
-not name the case and a folder-scoped gate cannot answer it. The note beside
-`patchShelf`'s cover gate in `domain/shelves.ts` says which gate does.
+authorization), still open, and #107 (putPage accepted a file_id from another
+folder), **closed 2026-09-04 and asserted by AC-375 rather than here**, because
+that one is reachable through the API and this file exists for the property
+that is not. #107's one-line description was a folder page's half of it: a
+shelf-homed page has no folder id at all, so "from another folder" does not
+name the case and a folder-scoped gate cannot answer it. `putPage` now carries
+both clauses and `fileScopeCondition` beside it says which is which.
 */
 import { randomUUID } from 'node:crypto'
 

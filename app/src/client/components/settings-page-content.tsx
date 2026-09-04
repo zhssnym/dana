@@ -1,7 +1,9 @@
 /*
-`docs/design/prototype-v2/src/screens/settings-screen.tsx`, lifted whole at
-RFC 0004's S27 and bound through the adapter seam. It diffs empty against its
-original except at the seams named here, each marked `Seam` in the body.
+Originally lifted from `docs/design/prototype-v2/src/screens/settings-screen.tsx`
+at RFC 0004's S27; that prototype is deleted (`a7886df`, 2026-09-01) and is in
+git history before that commit. Issue #129 moved the presentation into
+`components/` and made the route page own its settings read; the seams below
+remain the reasons this production component differs from the prototype.
 
 1. **The `@/` specifiers become this client's relative ESM paths** (11.4), the
    mechanical seam every lifted file takes, and the em dashes leave under
@@ -47,14 +49,19 @@ original except at the seams named here, each marked `Seam` in the body.
    prototype caps only the rows and leaves them flush left inside the page
    measure. Imran, 2026-08-30. The number and its reason are the prototype's,
    unchanged; what moves is which element carries the cap. 9.7 records it.
+10. **"Download my data" in the Account section**, issue #162 over 7.22, which
+   the prototype has no equivalent of: it is the export 10.9 records as the
+   one Google obligation Dana did not meet, and it is an anchor rather than a
+   call. The reasoning is beside the row.
 
-Nothing else moves.
+The cleanup changes no visible behavior.
 */
 import { useRef, useState, type ReactNode } from "react"
 import {
   Sun,
   Moon,
   Monitor,
+  Download,
   ImagePlus,
   Globe,
   Mail,
@@ -66,7 +73,7 @@ import {
 /* Seam 3 and seam 4: the marks the two additions wear. */
 import { Bookmark, Clock3, PanelRight } from "../lib/icons.js"
 
-import { InlineError } from "../components/state-patterns.js"
+import { InlineError } from "./state-patterns.js"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -76,12 +83,12 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "../components/ui/alert-dialog.js"
-import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar.js"
-import { Button } from "../components/ui/button.js"
-import { Input } from "../components/ui/input.js"
-import { Skeleton } from "../components/ui/skeleton.js"
-import { Switch } from "../components/ui/switch.js"
+} from "./ui/alert-dialog.js"
+import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar.js"
+import { Button } from "./ui/button.js"
+import { Input } from "./ui/input.js"
+import { Skeleton } from "./ui/skeleton.js"
+import { Switch } from "./ui/switch.js"
 import { NAV_PAGES, pageQuestion } from "../lib/nav-model.js"
 import { isPagePinned, setPagePinned, usePagePins } from "../lib/page-pins.js"
 import { setRowDensity, useRowDensity } from "../lib/row-density.js"
@@ -93,12 +100,11 @@ import {
   squareImageFile,
   useViewer,
 } from "../lib/viewer.js"
-import { cn } from "../components/ui/utils.js"
+import { cn } from "./ui/utils.js"
 /* Seam 4: the two writers 9.7's other two rows need. */
 import { setClock, useTimeFormat } from "../lib/time-format.js"
 import { setTaskOpen } from "../lib/task-surface-preference.js"
-import { useBundle } from "../api/queries.js"
-import type { SavedView } from "../../shared/bundle.js"
+import type { SavedView, SettingsBundle } from "../../shared/bundle.js"
 
 export type PageVisibility = {
   Important: boolean
@@ -310,9 +316,10 @@ function Segmented<T extends string>({
   )
 }
 
-export function SettingsScreen({
+export function SettingsPageContent({
   onOpenPeople: _onOpenPeople,
   previewState,
+  taskOpen,
   savedViews = [],
   onPinSavedView,
   onSignOut: _onSignOut,
@@ -323,6 +330,7 @@ export function SettingsScreen({
 }: {
   onOpenPeople: () => void
   previewState?: string | null
+  taskOpen: SettingsBundle['task_open']
   /* Seam 3. */
   savedViews?: readonly SavedView[]
   onPinSavedView?: (id: string, pinned: boolean) => void
@@ -340,7 +348,6 @@ export function SettingsScreen({
   const theme = useTheme()
   /* Seam 4: 9.7's other two values, from the same bundle. */
   const clock = useTimeFormat()
-  const taskOpen = useBundle().data?.task_open ?? "dialog"
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleteConfirmation, setDeleteConfirmation] = useState("")
 
@@ -662,6 +669,41 @@ export function SettingsScreen({
                   </div>
                   <TimezoneSelect />
                 </div>
+                {/* Seam 10: 7.22's export, issue #162, and the one control
+                    on this page that is deliberately not a call through
+                    `api/http.ts`.
+
+                    It is an anchor with `download` rather than a button with
+                    a handler, and the reason is the session rather than
+                    taste. A navigation carries the session cookie on its own
+                    and hands the response to the browser's download manager,
+                    which is what makes `Content-Disposition:
+                    attachment; filename="dana-export-YYYY-MM-DD.json"` mean
+                    anything; the fetch layer would parse the whole document
+                    through a zod schema into memory and then need a second
+                    step to turn an object back into a file. `http.ts` owns
+                    every call that reads data into this client, and this one
+                    reads none of it here.
+
+                    The endpoint is five per hour per person and answers
+                    10.3's envelope past that. A refusal therefore arrives as
+                    the browser's own downloaded response rather than through
+                    9.1's toast, which is the honest cost of not routing it
+                    through the fetch layer and is written down rather than
+                    hidden: nothing in this client sees the status. */}
+                <SettingRow
+                  icon={Download}
+                  title="Download my data"
+                  description="Everything Dana holds about you, as one JSON file."
+                  control={
+                    <Button
+                      variant="outline"
+                      render={<a href="/api/v1/me/export" download />}
+                    >
+                      Download
+                    </Button>
+                  }
+                />
                 {/* polish: settings F5. "Open People" and a second "Sign out"
                     stood here beside the sidebar's People link and the
                     account menu's Sign out; each lives in one place now, and

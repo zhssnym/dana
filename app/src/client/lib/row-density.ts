@@ -2,8 +2,10 @@
 Whether a task row is one line or two. DES-113, and ledger entry L-076.
 
 Lifted from `docs/design/prototype-v2/src/lib/row-density.ts` at S21, read on
-`v2-build` at `db6f837`. **This is the half L-076 gives S21: "S21 writes it,
-S23 gives the row its two shapes."** Nothing in this client asks the question
+`v2-build` at `db6f837`. That prototype is deleted (`a7886df`, 2026-09-01);
+read it in git history before that commit. **This is the half L-076 gives S21:
+"S21 writes it, S23 gives the row its two shapes."** Nothing in this client
+asks the question
 yet, because the row that answers it differently is `task-row.tsx` and that
 file arrives at S23. This module exists now so that when it does, it crosses
 verbatim: `components/task-row.tsx:103` imports `useRowDensity` and switches
@@ -31,7 +33,7 @@ column of 4.19, 9.7 names the control, AC-261 asserts that the choice survives
 a reload because it was written through the API rather than held in the page,
 and `shell/appearance.ts` puts the answer on the document as `data-density`.
 So this module reads the document rather than storage. **The setter is the
-one write path**, added at S27 when `screens/settings-screen.tsx` crossed and
+one write path**, added at S27 when `components/settings-page-content.tsx` crossed and
 called `setRowDensity` as the prototype does: it writes the column through
 `PATCH /settings` and the attribute follows from the bundle, so the two
 cannot drift because only one of them is ever written by hand.

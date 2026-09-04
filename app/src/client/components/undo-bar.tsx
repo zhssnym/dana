@@ -2,10 +2,12 @@
 The undo bar: what happened, and one press to take it back.
 
 Lifted from `docs/design/prototype-v2/src/components/undo-bar.tsx` at S24,
-read on `v2-build` at `102e855`. The lift discipline of RFC 0004's
-prototype-lift section applies: this file diffs empty against that original
-except at the seams named at the foot of this header. The designer's own
-reasoning below is kept intact, being the design record for what this does.
+read on `v2-build` at `102e855`. That prototype is deleted (`a7886df`,
+2026-09-01); read it in git history before that commit. The lift discipline
+of RFC 0004's prototype-lift section applies: this file diffs empty against
+that original except at the seams named at the foot of this header. The
+designer's own reasoning below is kept intact, being the design record for
+what this does.
 
 Rendered once by the shell, never by a screen, see `shell/undo.ts` for why the
 entries come from the mutators rather than from the surfaces.

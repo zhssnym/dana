@@ -99,10 +99,11 @@ export type NativeViewKey = NativeView
  * DES-152's page block: one page per question, in 9.1's fixed order.
  *
  * Ruled by Imran on 2026-08-21 after the research in
- * `docs/design/six-pages-review.md`. The six v1 pages mixed four
- * classification schemes and presented them as peers; the replacement locks
- * one axis per page and frees every other, so no page can be turned into
- * another by adjusting controls.
+ * `docs/design/six-pages-review.md`, a document deleted (`a7886df`,
+ * 2026-09-01) and in git history before that commit. The six v1 pages mixed
+ * four classification schemes and presented them as peers; the replacement
+ * locks one axis per page and frees every other, so no page can be turned
+ * into another by adjusting controls.
  *
  * **`pinnable: false` is Desk alone**, and it is structural rather than a
  * preference (Imran, 2026-08-22). Desk is the default folder, the destination
@@ -143,7 +144,7 @@ export const navPages = [
     key: 'desk',
     name: 'Desk',
     path: paths.desk,
-    question: 'Nothing decided about it yet',
+    question: 'A home for things you have not sorted yet.',
     /* Desk wears a desk lamp (DES-181). */
     icon: LampDesk,
     pinnable: false,
@@ -152,7 +153,7 @@ export const navPages = [
     key: 'today',
     name: 'Today',
     path: paths.today,
-    question: 'What I am doing today',
+    question: 'Keep today clear and focus on what matters now.',
     icon: SunMedium,
     pinnable: true,
   },
@@ -160,7 +161,7 @@ export const navPages = [
     key: 'scheduled',
     name: 'Scheduled',
     path: paths.scheduled,
-    question: 'Everything with a date',
+    question: 'See what is coming and when it needs your attention.',
     icon: CalendarDays,
     pinnable: true,
   },
@@ -168,7 +169,7 @@ export const navPages = [
     key: 'assignments',
     name: 'Assignments',
     path: paths.assignments,
-    question: "Who's carrying what",
+    question: 'See who is carrying each task.',
     icon: UserRoundCheck,
     pinnable: true,
   },
@@ -176,7 +177,7 @@ export const navPages = [
     key: 'important',
     name: 'Important',
     path: paths.important,
-    question: 'Starred tasks',
+    question: 'Keep the tasks that matter most close at hand.',
     icon: Star,
     pinnable: true,
   },
@@ -184,7 +185,7 @@ export const navPages = [
     key: 'all',
     name: 'All',
     path: paths.all,
-    question: 'Every task, finished ones included',
+    question: 'See every task together, including finished work.',
     icon: Layers3,
     pinnable: true,
   },
@@ -192,7 +193,7 @@ export const navPages = [
     key: 'done',
     name: 'Done',
     path: paths.done,
-    question: 'Everything you have finished',
+    question: 'Look back on everything you have completed.',
     icon: CheckCircle2,
     pinnable: true,
   },
@@ -200,7 +201,7 @@ export const navPages = [
     key: 'abandoned',
     name: 'Abandoned',
     path: paths.abandoned,
-    question: 'Things you decided not to do',
+    question: 'Keep track of what you chose not to continue.',
     icon: Ban,
     pinnable: true,
   },
@@ -208,7 +209,7 @@ export const navPages = [
     key: 'anytime',
     name: 'Anytime',
     path: paths.anytime,
-    question: 'No date on it, whenever you get to it',
+    question: 'Keep undated tasks ready for whenever the time is right.',
     /* A calendar with an X: the filter's own "No due date", and the other
        value of the axis Scheduled's calendar carries. It wore All's glyph for
        one revision and read as a repeated row (DES-152's own note). */

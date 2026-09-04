@@ -28,7 +28,7 @@ paint one frame.
   the same way `resolvedTheme` does, by asking the media query.
 
 **The exported names are the prototype's**, `useTheme`, `setTheme` and
-`resolvedTheme`, so `settings-screen.tsx` imports what it imported. What the
+`resolvedTheme`, so `settings-page-content.tsx` imports what it imported. What the
 prototype called `applyStoredTheme` is the inline script now, because a
 module that runs after the bundle has been parsed is already too late for the
 frame the flash is on; `shell/appearance.ts` keeps following the device while

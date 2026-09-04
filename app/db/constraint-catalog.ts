@@ -379,6 +379,10 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
     uniques: [],
     checks: [
       { name: 'user_settings_arrangements_object_check', columns: ['arrangements'] },
+      /* Migration 0013, issues #140 and #142: the calendar's zoom is a durable
+         account preference, and its three values are 9.5's. AC-001 sees this
+         line as a name over a column; AC-380 is what sees the expression. */
+      { name: 'user_settings_calendar_zoom_check', columns: ['calendar_zoom'] },
       { name: 'user_settings_clock_check', columns: ['clock'] },
       { name: 'user_settings_pinned_views_array_check', columns: ['pinned_views'] },
       { name: 'user_settings_row_density_check', columns: ['row_density'] },
@@ -582,6 +586,15 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
     indexes: [
       { name: 'files_owner_id_idx', unique: false, columns: ['owner_id'], partial: false },
       { name: 'files_folder_id_idx', unique: false, columns: ['folder_id'], partial: true },
+      // Issue #116, migration 0014: when a cover stopped being worn. Partial
+      // on the mark, because the tick reads the marked rows and the unmarked
+      // ones and never the rest of the table.
+      {
+        name: 'files_unreferenced_since_idx',
+        unique: false,
+        columns: ['unreferenced_since'],
+        partial: true,
+      },
     ],
   },
   page_blocks: {

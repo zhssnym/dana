@@ -137,14 +137,14 @@ async function seed(db: Db): Promise<{ viewer: string; folder: string }> {
     return id
   }
 
-  folders.push(await own(viewer, 'Inbox', true, [viewer]))
+  folders.push(await own(viewer, 'Desk', true, [viewer]))
   for (let i = 0; i < VISIBLE_FOLDERS; i += 1) {
     folders.push(
       await own(viewer, `visible ${String(i)}`, false, [viewer, colleague]),
     )
   }
   const hidden: string[] = []
-  hidden.push(await own(stranger, 'Inbox', true, [stranger]))
+  hidden.push(await own(stranger, 'Desk', true, [stranger]))
   for (let i = 0; i < HIDDEN_FOLDERS; i += 1) {
     hidden.push(await own(stranger, `hidden ${String(i)}`, false, [stranger]))
   }

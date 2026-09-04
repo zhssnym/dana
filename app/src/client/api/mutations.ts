@@ -24,9 +24,6 @@ ones section 7 names.
 */
 import { useMutation } from '@tanstack/react-query'
 import type { UseMutationResult } from '@tanstack/react-query'
-// A value import since S13: two one-key response shapes (the import's and
-// the transfer's) are their endpoints' own and no shared module carries them.
-import { z } from 'zod'
 
 import {
   deleteFolderResponse,
@@ -34,6 +31,7 @@ import {
   patchFolderMyMembershipResponse,
   patchFolderResponse,
   postFolderMembersResponse,
+  transferOwnershipResponse,
 } from '../../shared/folders.js'
 import type {
   DeleteFolderResponse,
@@ -42,6 +40,7 @@ import type {
   PatchFolderBody,
   PatchFolderMyMembershipBody,
   PostFoldersBody,
+  TransferOwnershipResponse,
 } from '../../shared/folders.js'
 import { getSettingsResponse, savedView } from '../../shared/bundle.js'
 import { SAMPLE_KEPT_HEADER, sampleStatus } from '../../shared/sample.js'
@@ -66,8 +65,6 @@ import type {
   PostInvitesBody,
   PostInvitesResponse,
 } from '../../shared/invites.js'
-import { patchMeSettingsResponse } from '../../shared/me.js'
-import type { PatchMeSettingsBody, Settings } from '../../shared/me.js'
 import {
   patchStepResponse,
   patchTaskResponse,
@@ -102,16 +99,47 @@ import type { GetPageResponse, PutPageBody } from '../../shared/pages.js'
 import { shelf } from '../../shared/shelves.js'
 import type { PatchShelfBody, PostShelvesBody, Shelf } from '../../shared/shelves.js'
 
-import { needsImportAnchor } from '../../shared/workflows.js'
-import type { ImportWorkflowBody } from '../../shared/workflows.js'
+import {
+  importWorkflowResponse,
+  needsImportAnchor,
+} from '../../shared/workflows.js'
+import type {
+  ImportWorkflowBody,
+  ImportWorkflowResponse,
+} from '../../shared/workflows.js'
 
+import { defaultFolderDescription } from '../lib/folder-description.js'
 import { mutateApi, requestTimezone } from './http.js'
 import { VALIDATION_ERROR_TOAST_META } from './queryClient.js'
 
+/*
+Making a folder is one request, and it has to stay one.
+
+A default description was written here for one revision with a second call,
+`PATCH /folders/:id` sent the moment the POST answered. It cost the criterion
+that watches this act: AC-279 reads every mutation the hold makes between the
+confirm and the API going quiet and expects one `POST /folders` plus one
+`PATCH /tasks/:id` per task moved and nothing else, RFC 0005 change control
+item 44's "the gesture is a composition of two existing endpoints and adds
+none". Every folder made anywhere in the client comes through here, the hold's
+panel included (`pages/task-rows.tsx`'s `onMerge`), so the extra call failed
+that criterion from every door.
+
+**The wording rides the POST now** (7.4's dated paragraph of 2026-09-04,
+issues #21 and #70, and AC-377): `postFoldersBody` takes `description`, the
+route reads it and `domain/folders.ts` inserts it, so the sentence a new
+folder opens with costs no second call. The default is written here rather
+than at each door, because here is the one door: a caller that has its own
+wording still wins, the spread reading its key when it carries one.
+*/
 export function useCreateFolder(): UseMutationResult<Folder, Error, PostFoldersBody> {
   return useMutation({
     mutationFn: (body: PostFoldersBody) =>
-      mutateApi(folder, { method: 'POST', path: '/folders', body }),
+      mutateApi(folder, {
+        method: 'POST',
+        path: '/folders',
+        body: { description: defaultFolderDescription(body.name), ...body },
+      }),
   })
 }
 
@@ -464,21 +492,6 @@ export function useRemoveFromMyDay(): UseMutationResult<TaskDetail, Error, strin
   })
 }
 
-export function useUpdateSettings(): UseMutationResult<
-  Settings,
-  Error,
-  PatchMeSettingsBody
-> {
-  return useMutation({
-    mutationFn: (body: PatchMeSettingsBody) =>
-      mutateApi(patchMeSettingsResponse, {
-        method: 'PATCH',
-        path: '/me/settings',
-        body,
-      }),
-  })
-}
-
 export function useCreateInvite(): UseMutationResult<
   PostInvitesResponse,
   Error,
@@ -505,11 +518,14 @@ export function useCreateInvite(): UseMutationResult<
  * ------------------------------------------------------------------ */
 
 /**
- * The 4.19 bundle's write, at the v2 address.
+ * The 4.19 bundle's write, at the v2 address, and the client's only settings
+ * write.
  *
- * Beside frozen 7.2's `useUpdateSettings` and never instead of it: that one
- * still owns the three v1 page flags, and this owns the pin list, the theme,
- * the density, the clock, the task-open surface and the arrangements.
+ * It owns the pin list, the theme, the density, the clock, the task-open
+ * surface, the calendar's zoom and the arrangements. A `useUpdateSettings`
+ * over frozen 7.2's `/me/settings` stood beside it until issue #150, called
+ * by nothing: the three v1 page flags are still the server's and still derive
+ * into the pin list, and no surface in this client writes them directly.
  */
 export function usePatchBundle(): UseMutationResult<
   GetSettingsResponse,
@@ -607,8 +623,50 @@ export function useDeleteShelf(): UseMutationResult<void, Error, string> {
   })
 }
 
+/**
+ * POST /shelves/:id/duplicate (7.16 as amended 2026-09-04; issues #117, #128).
+ * 201 with the whole new Shelf, which the caller navigates to.
+ *
+ * **It replaces two calls, and the second one is what #117 was about.** The
+ * page duplicated a shelf as `POST /shelves` carrying the icon, colour and
+ * description read from the original, and there was no third field it could
+ * have carried for the cover: `POST /shelves` refuses all three cover fields
+ * out loud rather than dropping them (#40's ruling), so the copy came out
+ * bare. Two calls also have a gap between them, and a failure in it is the
+ * half-duplicated shelf #128 asks not to exist, so the copy is one act on the
+ * server. It carries the icon, colour, description, `cover_preset` and
+ * `cover_focal_y` verbatim and **a cover file of its own** — the picture is
+ * copied rather than shared, because one `cover_file_id` on two shelves is not
+ * independence: the foreign key's ON DELETE SET NULL blanks both the moment
+ * that file goes. That is Imran's ruling on #117, "changing or removing the
+ * cover on either shelf must not change the other".
+ *
+ * It does not carry the shelf's page (4.17), which is 7.16's own distinction
+ * and not this client's to make.
+ *
+ * **It asks for its 422's own sentence, which is the second thing this act can
+ * be refused for.** 7.16 answers `name: you already have a shelf with this
+ * name.` where "(copy)" and its numbered successors will not fit inside 10.3's
+ * forty characters — a real outcome for a shelf named at the cap, and one the
+ * person can act on by shortening the name. Without the meta the mutation
+ * cache says "Something went wrong. Nothing was saved. Try again.", which is
+ * true and useless, and trying again produces the same refusal for ever. The
+ * 413 the copy's quota can earn needs no meta: `writeFailureMessage` passes
+ * every `quota_exceeded` sentence through, that status having one producer.
+ */
+export function useDuplicateShelf(): UseMutationResult<Shelf, Error, string> {
+  return useMutation({
+    meta: { [VALIDATION_ERROR_TOAST_META]: true },
+    mutationFn: (id: string) =>
+      mutateApi(shelf, { method: 'POST', path: `/shelves/${id}/duplicate` }),
+  })
+}
+
 /** POST /folders/:id/duplicate (7.16): DES-198's copy rules server-side;
- * the answer is the copy's identity, which the caller navigates to. */
+ * the answer is the copy's identity, which the caller navigates to. The tz is
+ * the day a spent plan re-anchors on, the viewer's rather than the database's
+ * (8.1, issue #76); without it the endpoint refuses a copy that would move a
+ * date. */
 export function useDuplicateFolder(): UseMutationResult<
   DuplicateFolderResponse,
   Error,
@@ -619,6 +677,7 @@ export function useDuplicateFolder(): UseMutationResult<
       mutateApi(duplicateFolderResponse, {
         method: 'POST',
         path: `/folders/${id}/duplicate`,
+        params: { tz: requestTimezone() },
       }),
   })
 }
@@ -762,37 +821,19 @@ export function useDestroyTrashedFolder(): UseMutationResult<void, Error, string
 /** POST /folders/:id/transfer-ownership (7.16): owner-only, member target,
  * the DES-225/8.9 flow behind 9.6's "an owner leaves by transferring first". */
 export function useTransferOwnership(): UseMutationResult<
-  { owner_id: string },
+  TransferOwnershipResponse,
   Error,
   { readonly id: string; readonly to: string }
 > {
   return useMutation({
     mutationFn: ({ id, to }) =>
-      mutateApi(z.object({ owner_id: z.uuid() }), {
+      mutateApi(transferOwnershipResponse, {
         method: 'POST',
         path: `/folders/${id}/transfer-ownership`,
         body: { to },
       }),
   })
 }
-
-/*
-7.16's workflow import, which 9.13's starter offer is the only caller of so
-far and a person's own exported file will be the second.
-
-**The response schema is declared here rather than in `src/shared/`**, and
-that is a boundary rather than a preference. The v2 packages published write
-bodies and no readable response shapes, which S9 recorded when it added four
-read schemas outside its own paths and flagged them; `src/shared/workflows.ts`
-belongs to the API role, so this session declares what it needs to parse and
-leaves the move to the Steward. It is not a duplicate of anything: no shared
-schema for this body exists to duplicate.
-*/
-const importWorkflowResponse = z.object({
-  folders: z.array(z.object({ id: z.uuid(), name: z.string() })),
-})
-
-export type ImportWorkflowResponse = z.infer<typeof importWorkflowResponse>
 
 export function useImportWorkflow(): UseMutationResult<
   ImportWorkflowResponse,

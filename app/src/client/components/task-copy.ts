@@ -17,9 +17,6 @@ the table's own paragraph warns that three of its eight names begin with
 export const CLEAR_DATE_WARNING =
   'Clearing the date also ends the repeat and removes the reminder.'
 
-/** 9.3's "On disable, helper" column, which all three dependents share. */
-export const DATE_DEPENDENT_HELPER = 'Set a due date first'
-
 /** 9.3 validation copy: empty title. */
 export const TITLE_REQUIRED = 'Give it a title'
 

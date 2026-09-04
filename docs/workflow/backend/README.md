@@ -35,16 +35,26 @@ commands and this machine's failure modes.
 
 ## The server, folder by folder
 
+**Every count below is `find app/src/server/<folder> -type f | wc -l`, measured 2026-09-04,
+and it counts the tests that live beside the code.** Re-measure rather than trusting the
+number; the previous table was measured without them and read about half of this.
+
 | Folder | Files | What it is |
 | - | - | - |
-| `domain/` | 17 | The rules. Business logic and the database work behind it. |
-| `routes/` | 14 | HTTP handlers. **They make no decisions**; they parse, call domain, map the result to a status. |
-| `auth/` | 14 | Sign-in, sessions, provisioning. `auth/router.ts` attaches the session for every `/api/v1` request. |
-| `time/` | 11 | Timezones, recurrence, DST. Luxon lives here. |
-| `views/` | 9 | The read path for saved and native views. |
-| `scheduler/` | 3 | The in-process 60 second reminder tick. |
-| `notify/`, `observability/` | 6 | Email, logging, error tracking. |
-| `security/`, `http/`, `files/`, `sample/` | 6 | Headers, helpers, uploads, sample data. |
+| `domain/` | 23 | The rules. Business logic and the database work behind it. |
+| `routes/` | 23 | HTTP handlers. **They make no decisions**; they parse, call domain, map the result to a status. |
+| `time/` | 20 | Timezones, recurrence, DST. Luxon lives here. |
+| `auth/` | 19 | Sign-in, sessions, provisioning. `auth/router.ts` attaches the session for every `/api/v1` request. |
+| `http/` | 12 | The request and response plumbing: `parse-body.ts`, the error envelope, and ten contract tests over the wire shapes. |
+| `views/` | 11 | The read path for saved and native views. |
+| `observability/` | 7 | Logging, error tracking, and the database fallback. |
+| `security/` | 6 | Rate limiting, the security log, the CSP report endpoint. |
+| `notify/` | 5 | Email: the four 11.8 templates and the Resend transport. |
+| `scheduler/` | 5 | The in-process 60 second reminder tick. |
+| `sample/` | 2 | The sample workspace a new account is offered. |
+| `files/` | 1 | `store.ts`, the upload store. |
+
+`index.ts` and `database.ts` sit at the root of `app/src/server/` and are in none of those.
 
 `app/db/` holds `client.ts` (the one seam that chooses PGlite or Postgres), `migrate.ts`,
 `seed.ts`, `verify.ts` and `constraint-catalog.ts`.
@@ -58,14 +68,38 @@ that forgets it returns nothing rather than someone else's rows; and there are a
 hand-written `accessOf(...)` gates across 9 files. **When you add a route, the gate is your
 job.** Nothing adds it for you.
 
-**The structural guard covers authentication, on every method, and authorization on none.**
+**What is structurally checked, since 2026-09-04 and issue #74**, is that no id-bearing route
+is left ungated *silently*. `app/tests/ac-397-authorization-sweep.test.ts` walks the mounted
+router, takes every route whose path carries a parameter, and drives each as a signed-in
+person with no relationship to the row that id names. It pins the count, and it asserts its
+hand-written expected-status table against the enumeration in both directions — so **a route
+you add with no row in that table fails the sweep**, and a row naming a route you deleted
+fails it too. What is still entirely yours: **writing the gate**, and **writing the row that
+says what a stranger gets**. The sweep cannot tell that you thought about either, only that
+you did both. It is also **path-only** — an id you take from the query string or the body is
+invisible to it, and `GET /events?folder=` is the existing example — and one level deep, so a
+router mounted inside another router would leave it proving less than it says while staying
+green. **It found one defect on its first run**, fixed the same day: `DELETE /api/v1/files/:id`
+answered 404 where 10.2 wants 403, to a member who reads the same file at 200 (AC-398, and
+7.15's dated amendment).
+
+**The structural guard covers authentication, on every method. Authorization is a second
+guard's, and it landed the same day — the paragraph above.**
 `app/tests/ac-236-structural-guard-sweep.test.ts` walks the mounted router and fails any
 mutating route missing a session or CSRF check, and since issue #33 any GET that answers
 something other than 401 without a session. Three reads are exempt by name — the health
-probe and the two OAuth legs — each with its reason written beside it, and an exemption
-that stops being true fails too. **Nothing structural checks authorization at all**: a GET
-that takes a session and then reads whatever id it is handed passes the entire suite, so
-the `accessOf(...)` gate above is still yours to write and nothing will miss it.
+probe and the two OAuth legs — and since issue #99 two mutations are: the development
+login, and `POST /api/csp-report`, which a browser sends of its own accord with no cookie
+and no CSRF header for this application to require. Each of the five carries its reason
+in the test beside it. A read exemption is asserted in both directions, so one that stops
+being true fails; the mutating half cannot be, the development login being absent from
+that harness entirely, and what holds it honest instead is the route count and the reason
+a reviewer reads. **It checks authentication and not authorization**, which until
+2026-09-04 nothing checked: a GET that took a session and then read whatever id it was
+handed passed the entire suite. `ac-397` is now the other half, and it is the same shape —
+one walk, one pinned count, one allowlist asserted both ways. The `accessOf(...)` gate is
+still yours to write; what has changed is that forgetting it on an id-bearing route now
+fails something.
 
 **Route mount order is load-bearing and undocumented.** In `app/src/server/routes/bundle.ts`,
 `/views/:id` would shadow six page endpoints if anyone reordered it. Do not reorder mounts
@@ -91,6 +125,29 @@ nobody did, take the next free one and say in your pull request that you took it
 unassigned.** A collision is trivial to fix before a merge and is a production incident
 after one.
 
+**Two counts in the suite are fixtures over the implementation, and moving them is not
+breaking rule 2 (added 2026-09-04 from issues #116 and #128, which moved both).** Rule 2 says
+never edit a test to make your code pass, and it is the right rule; these two are the
+exception it needs stated, because otherwise the honest reading is to stop. Each is a number
+describing the shape of the server rather than a behaviour anybody asked for, each says so
+beside itself, and each is written to fail when that shape changes so that the change is
+noticed rather than assumed.
+
+- `app/tests/ac-236-structural-guard-sweep.test.ts` asserts the **count of mutating routes**
+  the walker found. Adding a route moves it by one. What must be true before you touch it is
+  that the sweep itself **passed on your new route** — 401 bare, 403 without CSRF — so that
+  only the count failed; if the sweep failed, the number is telling you something and moving
+  it is the thing rule 2 forbids.
+- `app/src/server/scheduler/interval.test.ts` asserts the **count of statements the 11.7 pass
+  runs after its delivery transaction**, as the way to see that a held pass ran to
+  completion. A new duty on the tick moves it by one, and the comment beside it enumerates
+  which statements they are: keep that enumeration in step or the next person cannot tell a
+  legitimate move from a lost duty.
+
+Move the number **and** its comment in the same change, say in the pull request that you did,
+and say which. A moved count with no note is indistinguishable from the thing rule 2 exists
+to stop.
+
 **A CHECK over a nullable column passes on NULL, and AC-001 cannot see the difference.**
 Added 2026-09-03 from issue #27, where it cost a red run and would otherwise have cost a
 fix-forward migration. A CHECK fails only on FALSE; UNKNOWN is as good as TRUE to it. So the
@@ -107,7 +164,9 @@ if your migration adds a CHECK, writing that case is your job.
 
 ## `app/src/shared/` is the contract
 
-19 files of zod schemas that both the browser and the server import (measured 2026-09-03; it was 18 before `files.ts` landed at #39). The client validates
+22 modules of zod schemas that both the browser and the server import, with 10 test files
+beside them, 32 files in all (`find app/src/shared -type f | wc -l`, measured 2026-09-04; the
+sentence this replaces read 19 on 2026-09-03 and counted only the schema modules). The client validates
 every response against them before rendering, so a mismatch surfaces as a visible error
 rather than a blank field.
 
@@ -167,11 +226,17 @@ not know them, and **only two of them are answered by re-running**:
   is the clock. Note `TZ=UTC` settles only the PGlite leg; on Postgres the cluster's own
   zone governs and the process variable changes nothing.
 
-  **The criterion is fixed as of 2026-09-03 (issue #46)** — its oracle is now the database's
-  own clock, bracketed across the operation. What is *not* fixed is the product defect
-  underneath: the endpoint anchors on the database's day rather than the viewer's, which
-  spec 8.1 forbids by name. That is **issue #76**, and when it lands the criterion's oracle
-  has to move in the same commit or this class comes straight back.
+  **Closed 2026-09-04 by issue #76, and left here because the way it presented is what to
+  recognise.** The interim fix of #46 made the criterion's oracle the database's own clock,
+  bracketed across the operation, and said in terms that it described the behaviour without
+  blessing it. #76 is the product defect underneath — the endpoint anchored on the database's
+  day rather than the viewer's, which 8.1 forbids by name — and it has landed: both
+  duplicates take `tz`, they do not read `current_date` at all, and AC-277 and AC-200 pin a
+  zone and assert an exact date in the same commit. **So a duplicate criterion that fails on
+  a date is now a defect rather than this class.** What remains true in general is the shape:
+  where an assertion compares a date the server computed against a date the test computed,
+  check which clock each one read before believing the red, and force the zone to tell them
+  apart.
 
 **The Postgres leg used to be a third one, and is not any more (issue #32, 2026-09-03).**
 It pointed all 282 files at one `dana_test`, they saw each other's rows, and the fingerprint
