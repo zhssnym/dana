@@ -54,6 +54,15 @@ default, so read this list before spending one.
   it counted 229; the five ranges are twenty-nine numbers. Corrected on the branch for issues
   #20 and #100, which read this list to choose AC-368, rather than left for whoever spent 229
   a second time and found out from a duplicate test filename.
+- **AC-410 was assigned from the tail on 2026-09-04** (issue #153), on the same rule and by
+  the same hand as AC-409 below, and it is 12.23's: `trust proxy` was set nowhere in
+  `app/src`, so behind the edge of 11.11 every rate limit keyed on an address was one bucket
+  for the whole deployment rather than one per visitor. The criterion is the three readings
+  of `X-Forwarded-For` — one address, two, none — against the mounted application, plus two
+  clients not sharing a bucket. **It is the shape of criterion that has to be written by
+  hand**, because under test the socket peer is the real client and so every existing case
+  measured the fixed behaviour on the broken code. **No total moves with it**, for the reason
+  the bullet below gives.
 - **AC-409 was assigned from the tail on 2026-09-04** (issue #152), on the backend README's
   rule for parallel branches rather than out of the gaps above: several branches were open
   that night and the number was handed out by the session that opened them, deliberately

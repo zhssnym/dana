@@ -178,16 +178,29 @@ export function createRateLimits(
     thirty reports a minute anywhere would exhaust it.
 
     `ipKeyGenerator` is express-rate-limit's own and collapses an IPv6
-    address to its /64, so one client cannot walk a subnet to reset the
-    count. **And the honest limit on it: this application does not set
-    `trust proxy`, so `req.ip` behind Render's edge is the edge's address
-    and not the visitor's, which makes the bucket per-deployment in
-    production and per-client only in development and under test.** That is
-    the conservative direction — it bounds noise harder rather than less —
-    and thirty a minute is still far above what a real breakage produces;
-    but nothing here should be read as identifying a visitor, and setting
-    `trust proxy` would change this limiter and every other one at once,
-    which is not a change to make inside this one.
+    address to its default /56 prefix, so one client cannot walk a subnet to
+    reset the count. It keys on whatever it is handed, which here is `req.ip`.
+
+    **The paragraph that stood here said this bucket was per deployment
+    rather than per visitor, and it was right until issue #153 (2026-09-04).**
+    `createApp` now sets `trust proxy` to 1, so `req.ip` is the address
+    Render's edge appended to `X-Forwarded-For` and this limiter buckets per
+    client in production as it always did under test. What the old paragraph
+    ruled out is what happened: it said changing `trust proxy` would move
+    every limiter at once and was therefore not a change to make inside this
+    one, and #153 is that change made from outside it, with 10.4 re-read and
+    AC-410 proving the addresses.
+
+    **Two things about the library that the fix does not buy, said here
+    because they read as safety nets and are not.** Its `trustProxy` and
+    `xForwardedForHeader` validations — the ones that refuse a `trust proxy`
+    of `true` and warn when the header arrives without the setting — run
+    inside its *own* default key generator, and every limiter in this file
+    supplies its own. Verified in the installed 8.6.2 on 2026-09-04 rather
+    than recalled. So neither ever fired on the defect #153 fixes, and neither
+    would fire if somebody wrote `true` tomorrow; `index.ts` carries the
+    reason that must not happen, and this is the note that nothing enforces
+    it. Nothing here should be read as identifying a visitor either way.
     */
     cspReports: limiter({
       windowMs: MINUTE_MS,
