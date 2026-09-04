@@ -99,6 +99,25 @@ export function PageCover({ storageName }: { storageName: string }) {
       onPointerDown={
         repositioning
           ? (event) => {
+              /*
+              **A press that lands on a control is not a drag, and until
+              2026-09-04 this line did not know that, which made "Save
+              position" and "Cancel" unreachable.** The band captures the
+              pointer so a drag that wanders outside it keeps tracking, and
+              capture retargets the whole gesture — the mouse events and the
+              `click` they compose into — to the capturing element. Both
+              controls are children of the band, so pressing either one
+              bubbled here first, the band took the pointer, and the click
+              was delivered to the band instead of the button: no save, no
+              cancel, no error, and the only way out of repositioning was to
+              leave the page. Measured in Chromium on 2026-09-04 while
+              writing AC-406, on a place page and on a folder page alike.
+              **It is not a regression of issue #118**, which is only what
+              made the state reachable on a place page for the first time: a
+              gradient has no crop to move, so before a place page could
+              wear a picture the Reposition control was never drawn there.
+              */
+              if ((event.target as HTMLElement).closest('button') !== null) return
               dragStart.current = { y: event.clientY, pos: draftPos }
               event.currentTarget.setPointerCapture(event.pointerId)
             }
