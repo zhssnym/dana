@@ -64,6 +64,26 @@ export interface CspViolationLogFields {
   documentPath: string
 }
 
+/**
+ * A request body that carried a key its schema does not declare (issue #104,
+ * 10.5 amended 2026-09-04). Two fields and deliberately no third: which route
+ * received it, and the names of the keys that were dropped.
+ *
+ * **No value ever reaches this line, and there is no parameter through which
+ * one could.** A key *name* is still a caller-supplied string, so it is
+ * whitelisted here rather than at the call site, on the same reasoning
+ * `safeCspViolation` is written here: 10.5's promise is that the logger has no
+ * parameter user content can reach, not that every caller is careful.
+ */
+export interface UnknownRequestFieldsLogFields {
+  /** Method and mounted path template, `PATCH /api/v1/folders/:id`. Never the
+   * concrete URL: the template is what an operator greps for and the concrete
+   * one carries row ids. */
+  route: string
+  /** The key names the schema did not declare. Order is not the caller's. */
+  fields: readonly string[]
+}
+
 export interface RequestErrorLogFields {
   method: string
   path: string
@@ -136,6 +156,7 @@ export interface SecurityLogger {
   ): void
   exportEvent(fields: ExportLogFields): void
   cspViolation(fields: CspViolationLogFields): void
+  unknownRequestFields(fields: UnknownRequestFieldsLogFields): void
   requestError(fields: RequestErrorLogFields): void
   operation(
     level: 'info' | 'warn' | 'error',
@@ -222,6 +243,67 @@ export function safeCspViolation(
     documentPath: safeDocumentPath(fields.documentPath),
   }
 }
+
+/* The two shapes issue #104's line admits, each narrow enough that neither a
+   value nor a row id fits through it. `parseBody` in src/server/http has
+   already reduced a request to these; these run anyway, for the reason
+   `safeCspViolation` gives above.
+
+   A route label is one method and one path template. Every segment is a
+   literal word or a `:param`, which is what Express registered, and a segment
+   shaped like a uuid is refused outright rather than passed: the label is
+   built from `req.baseUrl` as well as `req.route.path`, and a router mounted
+   under a parameterised path — which this application has none of today —
+   would put a concrete row id in the first half. `other` for the whole label
+   rather than a repaired one, because a route this cannot spell is a route
+   nobody should be reading a name off. */
+const UUID_SEGMENT =
+  /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/
+
+function safeRoute(value: string): string {
+  if (value.length > 160) return 'other'
+  const space = value.indexOf(' ')
+  if (space === -1) return 'other'
+  const method = value.slice(0, space)
+  const path = value.slice(space + 1)
+  if (!/^[A-Z]{3,7}$/.test(method)) return 'other'
+  if (!path.startsWith('/')) return 'other'
+  const segments = path.split('/').slice(1)
+  const ok = segments.every(
+    (segment, index) =>
+      (segment === '' && index === segments.length - 1) ||
+      (/^:?[A-Za-z][A-Za-z0-9_-]{0,39}$/.test(segment) &&
+        !UUID_SEGMENT.test(segment)),
+  )
+  return ok ? value : 'other'
+}
+
+/** One JSON key name, in exactly the shape `app/src/shared/` writes them:
+ * snake_case, at most 64 characters, no dot and **no dash**.
+ *
+ * The dash was in this class when it was written and AC-103 refused it, which
+ * is the criterion doing its job. A key name is the one field on this line
+ * the caller chooses outright, and `oauth-token-value` and
+ * `session-cookie-value` — two of the six strings 10.5 names as never
+ * loggable — are valid JSON keys. Nothing stops a client sending a token *as*
+ * a key. Narrowing to the class Dana's own keys occupy is what makes that a
+ * mangled `other` instead of a leak, and it costs nothing: no request schema
+ * in the contract declares a field with a dash or a dot in it, so no key this
+ * line exists to report can be spelled with one either.
+ *
+ * It is a whitelist and not a proof. A short token of bare word characters
+ * would pass, and the honest statement of what this buys is that the shapes a
+ * secret actually takes — long, and punctuated — do not. */
+function safeFieldName(value: string): string {
+  return /^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(value) ? value : 'other'
+}
+
+/** At most this many names on one line. A caller can send an object of a
+ * thousand keys within 10.3's body cap, and every one of them would otherwise
+ * be a line as long as the body. `count` is how many the line would have
+ * carried uncapped — distinct names after whitelisting, which is the number
+ * the list is a prefix of — so a clipped line still says how much it clipped. */
+const UNKNOWN_FIELD_LIMIT = 20
 
 function safeMissing(value: string): string {
   const names = value.split(',').map((name) => name.trim())
@@ -336,6 +418,18 @@ export function createSecurityLogger(sink: LogSink = pino()): SecurityLogger {
           document_path: safe.documentPath,
         },
         'csp violation',
+      )
+    },
+    unknownRequestFields(fields) {
+      const names = [...new Set(fields.fields.map(safeFieldName))].sort()
+      sink.warn(
+        {
+          event: 'unknown_request_fields',
+          route: safeRoute(fields.route),
+          fields: names.slice(0, UNKNOWN_FIELD_LIMIT),
+          count: names.length,
+        },
+        'unknown request fields',
       )
     },
     requestError(fields) {
