@@ -1,11 +1,14 @@
 # The acceptance suite
 
-The numbered behaviors of spec section 12. These files are Hassan's by
-`CODEOWNERS`, and nobody edits one to make their code pass: an acceptance test
-that seems wrong is a finding you report and leave failing, which is
-`docs/workflow/README.md`'s rule 7. `docs/workflow/backend/README.md` records
-the two counts in this suite that are fixtures over the shape of the server
-rather than behaviours, and the conditions for moving one.
+The numbered behaviors of spec section 12. `CODEOWNERS` asks Hassan to read a
+change here, and since 2026-09-04 that is all it does: anyone may edit these
+files, and what governs the edit is `docs/workflow/hard-stops.md`. **A criterion
+changes only when the decision it pins changes, and the pull request names it.**
+Nobody edits one to make their code pass: an acceptance test that seems wrong is
+a finding you report and leave failing, which is `docs/workflow/README.md`'s
+rule 6. `docs/workflow/backend/README.md` records the two counts in this suite
+that are fixtures over the shape of the server rather than behaviours, and the
+conditions for moving one.
 
 *(The "Adversarial Test role" and the "protocol section 8" this paragraph used
 to name were deleted at the workflow restructure, `a7886df` on 2026-09-01, and

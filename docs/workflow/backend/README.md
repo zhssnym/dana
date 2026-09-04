@@ -76,9 +76,11 @@ number; the previous table was measured without them and read about half of this
 **There is no authorization chokepoint, despite what spec 10.2 says.** There cannot be one,
 because what counts as authorized depends on what is being asked for. What exists instead is
 two good things: the membership check is written **inside the `FROM` clause**, so a query
-that forgets it returns nothing rather than someone else's rows; and there are about 20
-hand-written `accessOf(...)` gates across 9 files. **When you add a route, the gate is your
-job.** Nothing adds it for you.
+that forgets it returns nothing rather than someone else's rows; and there are hand-written
+`accessOf(...)` gates — 22 call sites across 12 files outside the tests, measured 2026-09-04
+with `grep -rn "accessOf(" app/src/server --include="*.ts"`; the sentence this replaces read
+"about 20 across 9 files". **When you add a route, the gate is your job.** Nothing adds it
+for you.
 
 **What is structurally checked, since 2026-09-04 and issue #74**, is that no id-bearing route
 is left ungated *silently*. `app/tests/ac-397-authorization-sweep.test.ts` walks the mounted
@@ -138,7 +140,7 @@ unassigned.** A collision is trivial to fix before a merge and is a production i
 after one.
 
 **Two counts in the suite are fixtures over the implementation, and moving them is not
-breaking rule 2 (added 2026-09-04 from issues #116 and #128, which moved both).** Rule 2 says
+breaking rule 3 (added 2026-09-04 from issues #116 and #128, which moved both).** Rule 3 says
 never edit a test to make your code pass, and it is the right rule; these two are the
 exception it needs stated, because otherwise the honest reading is to stop. Each is a number
 describing the shape of the server rather than a behaviour anybody asked for, each says so
@@ -149,7 +151,7 @@ noticed rather than assumed.
   the walker found. Adding a route moves it by one. What must be true before you touch it is
   that the sweep itself **passed on your new route** — 401 bare, 403 without CSRF — so that
   only the count failed; if the sweep failed, the number is telling you something and moving
-  it is the thing rule 2 forbids.
+  it is the thing rule 3 forbids.
 - `app/src/server/scheduler/interval.test.ts` asserts the **count of statements the 11.7 pass
   runs after its delivery transaction**, as the way to see that a held pass ran to
   completion. A new duty on the tick moves it by one, and the comment beside it enumerates
@@ -157,7 +159,7 @@ noticed rather than assumed.
   legitimate move from a lost duty.
 
 Move the number **and** its comment in the same change, say in the pull request that you did,
-and say which. A moved count with no note is indistinguishable from the thing rule 2 exists
+and say which. A moved count with no note is indistinguishable from the thing rule 3 exists
 to stop.
 
 **A CHECK over a nullable column passes on NULL, and AC-001 cannot see the difference.**

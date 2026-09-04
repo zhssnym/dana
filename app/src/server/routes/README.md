@@ -8,7 +8,8 @@ requests. Those personas and the shared protocol behind them were deleted at
 the workflow restructure (`a7886df`, 2026-09-01) and are in git history before
 that commit. Every request below was fulfilled; the entries are kept because
 each records why a mount is where it is, and `bundle.ts`'s mount order is
-load-bearing. **Who owns what today is `CODEOWNERS`, and how work flows is
+load-bearing. **Who is asked to review is `CODEOWNERS`, what stops a change is
+`docs/workflow/hard-stops.md`, and how work flows is
 `docs/workflow/backend/README.md`: a router you add, you mount.** Read every
 role name below as the name of a session that has ended.
 
