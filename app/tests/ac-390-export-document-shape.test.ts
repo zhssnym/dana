@@ -130,11 +130,23 @@ describe('AC-390 the export is the whole 7.22 document', () => {
       'the account carries the day it was made (4.1)',
     ).toBe(false)
 
-    // 4.10's v2 bundle and its three v1 booleans, plus the two per-person
-    // page tables 7.19 and 7.21 own.
+    /* 4.10's v2 bundle and its three v1 booleans, plus the two per-person
+       page tables 7.19 and 7.21 own.
+
+       **This list is 4.10's set and moves whenever 4.10 does**, which is what
+       7.22's own row says the `settings` key is: "everything 4.10 holds for
+       them". `calendar_zoom` joined it on 2026-09-04 (issue #142), and it
+       arrives here for free because the document spreads `readBundle`'s
+       answer rather than naming keys — so the endpoint needed no change and
+       only this enumeration did. It was found at the wave-1 integration
+       merge, the two branches having been open at once, and it is the reason
+       to expect this line to move again: a criterion that enumerates a
+       spec-derived set is red the day somebody extends the set, which is the
+       criterion working. */
     expect(Object.keys(exportDocument.settings).sort()).toEqual(
       [
         'arrangements',
+        'calendar_zoom',
         'clock',
         'pinned_views',
         'place_covers',
