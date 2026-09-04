@@ -138,7 +138,14 @@ export type OperationLogEvent =
    * `migrations_applied`, which reads as neutral information and is how this
    * went unnoticed. */
   | 'database_fallback_pglite'
+  | 'database_connection_lost'
   | 'server_listening'
+  /** This process answers on one host and redirects every other one to it
+   * (issue #6). Logged once at boot, naming the host in `note`, because 10.5
+   * forbids a line per request and the fact worth having is that the rule is
+   * on at all rather than that it fired. Its absence means APP_ORIGIN was
+   * unset, which in production is a boot that has already been refused. */
+  | 'canonical_host_enforced'
   | 'boot_failed'
 
 export interface SecurityLogger {

@@ -668,7 +668,9 @@ export function ShelfPage({
                 ) : item.kind === "image" ? (
                   /* Seam 8. */
                   <PageImage
-                    folderId=""
+                    /* A shelf is not a folder, so its page's picture belongs
+                       to the person: no folder_id part at all (7.15, #167). */
+                    folderId={null}
                     image={item.image}
                     onChange={(next) =>
                       setItems((current) =>

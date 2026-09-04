@@ -44,6 +44,15 @@ export function reportedDatabaseKind(): 'postgres' | 'pglite' | null {
   return databaseKind
 }
 
+/**
+ * Where `index.ts` mounts this router, named rather than spelled twice because
+ * a second file now needs the same literal. The canonical-host redirect of
+ * issue #6 exempts exactly this path: Render's own health check reaches the
+ * service by its Render hostname, which is by definition not the canonical
+ * one, so a 301 here would fail the check and with it every deploy.
+ */
+export const HEALTH_PATH = '/api/health'
+
 export const healthRouter: Router = Router()
 
 healthRouter.get('/', (_req, res) => {
