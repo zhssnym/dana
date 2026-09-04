@@ -41,6 +41,7 @@ import type { TaskCard, TaskDetail } from '../../shared/tasks.js'
 import { viewTz } from '../../shared/views.js'
 import { requireCsrf, requireSession } from '../auth/index.js'
 import { sendError, sendValidationError } from '../http/errors.js'
+import { parseBody } from '../http/parse-body.js'
 import { optionalLimit } from '../security/rate-limit.js'
 import type { RateLimits } from '../security/rate-limit.js'
 import { createSecurityLogger } from '../security/log.js'
@@ -130,12 +131,9 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
-      const parsed = postTasksBody.safeParse(req.body)
-      if (!parsed.success) {
-        sendValidationError(res, parsed.error)
-        return
-      }
-      const result = await createTask(db, viewer(req), parsed.data)
+      const parsed = parseBody(postTasksBody, req, res, securityLog)
+      if (parsed === null) return
+      const result = await createTask(db, viewer(req), parsed)
       switch (result.kind) {
         case 'folder_not_found':
           // 7.6 guards the create on membership of the named folder, and an
@@ -202,12 +200,9 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
         )
         return
       }
-      const parsed = patchTaskBody.safeParse(req.body)
-      if (!parsed.success) {
-        sendValidationError(res, parsed.error)
-        return
-      }
-      const result = await patchTask(db, viewer(req), taskId, parsed.data)
+      const parsed = parseBody(patchTaskBody, req, res, securityLog)
+      if (parsed === null) return
+      const result = await patchTask(db, viewer(req), taskId, parsed)
       switch (result.kind) {
         case 'not_found':
         case 'target_not_found':
@@ -420,14 +415,11 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
       if (db === null) return
       const taskId = parsedId(res, req.params.id)
       if (taskId === null) return
-      const parsed = postTaskOrderBody.safeParse(req.body)
-      if (!parsed.success) {
-        sendValidationError(res, parsed.error)
-        return
-      }
+      const parsed = parseBody(postTaskOrderBody, req, res, securityLog)
+      if (parsed === null) return
       const outcome = await placeTaskInOrder(db, viewer(req), taskId, {
-        afterId: parsed.data.after_id,
-        beforeId: parsed.data.before_id,
+        afterId: parsed.after_id,
+        beforeId: parsed.before_id,
       })
       switch (outcome.kind) {
         case 'not_found':
@@ -472,12 +464,9 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
       if (db === null) return
       const taskId = parsedId(res, req.params.id)
       if (taskId === null) return
-      const parsed = postTaskStepsBody.safeParse(req.body)
-      if (!parsed.success) {
-        sendValidationError(res, parsed.error)
-        return
-      }
-      const result = await addStep(db, viewer(req), taskId, parsed.data)
+      const parsed = parseBody(postTaskStepsBody, req, res, securityLog)
+      if (parsed === null) return
+      const result = await addStep(db, viewer(req), taskId, parsed)
       switch (result.kind) {
         case 'not_found':
           notFound(res)
@@ -506,12 +495,9 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
       if (db === null) return
       const stepId = parsedId(res, req.params.id)
       if (stepId === null) return
-      const parsed = patchStepBody.safeParse(req.body)
-      if (!parsed.success) {
-        sendValidationError(res, parsed.error)
-        return
-      }
-      const result = await patchStep(db, viewer(req), stepId, parsed.data)
+      const parsed = parseBody(patchStepBody, req, res, securityLog)
+      if (parsed === null) return
+      const result = await patchStep(db, viewer(req), stepId, parsed)
       if (result.kind === 'not_found') {
         notFound(res)
         return
@@ -648,12 +634,9 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
       if (db === null) return
       const taskId = parsedId(res, req.params.id)
       if (taskId === null) return
-      const parsed = putTaskReminderBody.safeParse(req.body)
-      if (!parsed.success) {
-        sendValidationError(res, parsed.error)
-        return
-      }
-      const result = await putTaskReminder(db, viewer(req), taskId, parsed.data)
+      const parsed = parseBody(putTaskReminderBody, req, res, securityLog)
+      if (parsed === null) return
+      const result = await putTaskReminder(db, viewer(req), taskId, parsed)
       switch (result.kind) {
         case 'not_found':
           notFound(res)

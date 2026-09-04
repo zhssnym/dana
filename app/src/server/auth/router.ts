@@ -49,7 +49,8 @@ import type { Db, DbClient } from '../../../db/client.js'
 import { deleteMeBody } from '../../shared/me.js'
 import { isIanaTimezone } from '../../shared/timezone.js'
 import type { ObjectStore } from '../files/store.js'
-import { sendError, sendValidationError } from '../http/errors.js'
+import { sendError } from '../http/errors.js'
+import { parseBody } from '../http/parse-body.js'
 import { optionalLimit } from '../security/rate-limit.js'
 import type { RateLimits } from '../security/rate-limit.js'
 import { createSecurityLogger } from '../security/log.js'
@@ -434,7 +435,7 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
-      await handlePatchMe(db, sessionOf(req)?.userId ?? '', req, res)
+      await handlePatchMe(db, sessionOf(req)?.userId ?? '', req, res, securityLog)
     },
   )
 
@@ -447,11 +448,8 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
       const db = database(res)
       if (db === null) return
       // 7.1: the literal confirm string, else 422 naming the field.
-      const parsed = deleteMeBody.safeParse(req.body)
-      if (!parsed.success) {
-        sendValidationError(res, parsed.error)
-        return
-      }
+      const parsed = parseBody(deleteMeBody, req, res, securityLog)
+      if (parsed === null) return
       const userId = sessionOf(req)?.userId ?? ''
       const deleted = await handleDeleteMe(db, userId, res, options.fileStore)
       securityLog.deletionEvent('account_deleted', {
@@ -487,7 +485,7 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
-      await handlePatchSettings(db, sessionOf(req)?.userId ?? '', req, res)
+      await handlePatchSettings(db, sessionOf(req)?.userId ?? '', req, res, securityLog)
     },
   )
 

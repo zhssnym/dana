@@ -35,6 +35,9 @@ import {
 } from '../domain/comments.js'
 import { accessOf } from '../domain/folders.js'
 import { sendError, sendValidationError } from '../http/errors.js'
+import { parseBody } from '../http/parse-body.js'
+import { createSecurityLogger } from '../security/log.js'
+import type { SecurityLogger } from '../security/log.js'
 import { optionalLimit } from '../security/rate-limit.js'
 import type { RateLimits } from '../security/rate-limit.js'
 import { routerWithPreamble } from './preamble.js'
@@ -42,6 +45,7 @@ import { routerWithPreamble } from './preamble.js'
 export interface ConversationRouterOptions {
   dbClient?: DbClient
   rateLimits?: RateLimits
+  securityLog?: SecurityLogger
 }
 
 const threadQuery = z.object({ task: z.uuid().optional() })
@@ -51,6 +55,7 @@ export function createConversationRouter(
 ): Router {
   const { router, database, viewer, parsedId } = routerWithPreamble(options)
   const mutationLimit = optionalLimit(options.rateLimits?.generalMutations)
+  const securityLog = options.securityLog ?? createSecurityLogger()
 
   router.get(
     '/folders/:id/comments',
@@ -92,11 +97,8 @@ export function createConversationRouter(
         sendValidationError(res, query.error)
         return
       }
-      const parsed = postCommentBody.safeParse(req.body)
-      if (!parsed.success) {
-        sendValidationError(res, parsed.error)
-        return
-      }
+      const parsed = parseBody(postCommentBody, req, res, securityLog)
+      if (parsed === null) return
       if ((await accessOf(db, viewer(req), folderId)) === null) {
         sendError(res, 404, 'not_found', 'Not found.')
         return
@@ -106,7 +108,7 @@ export function createConversationRouter(
         viewer(req),
         folderId,
         query.data.task ?? null,
-        parsed.data,
+        parsed,
       )
       switch (outcome.kind) {
         case 'task_not_here':
@@ -141,7 +143,7 @@ export function createConversationRouter(
             res,
             422,
             'validation_failed',
-            parsed.data.file_ids === undefined
+            parsed.file_ids === undefined
               ? 'file_id: must name a file stored in this folder.'
               : 'file_ids: every id must name a file stored in this folder.',
           )
@@ -163,11 +165,8 @@ export function createConversationRouter(
       if (db === null) return
       const commentId = parsedId(res, req.params.id)
       if (commentId === null) return
-      const parsed = patchCommentBody.safeParse(req.body)
-      if (!parsed.success) {
-        sendValidationError(res, parsed.error)
-        return
-      }
+      const parsed = parseBody(patchCommentBody, req, res, securityLog)
+      if (parsed === null) return
       const access = await accessibleComment(db, viewer(req), commentId)
       if (access === null) {
         sendError(res, 404, 'not_found', 'Not found.')
@@ -185,7 +184,7 @@ export function createConversationRouter(
       /* Issue #94: one gate covers the words and the attachments. A person
          who may edit their own comment may change what it carries, and
          nobody else gains anything here. */
-      const outcome = await editComment(db, viewer(req), access, parsed.data)
+      const outcome = await editComment(db, viewer(req), access, parsed)
       switch (outcome.kind) {
         case 'file_not_here':
           // Names the field and nothing about the other side of the
