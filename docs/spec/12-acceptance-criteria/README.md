@@ -42,6 +42,20 @@ default, so read this list before spending one.
   per-file counts in the table below are the last merge's to re-derive, as the AC-361
   bullet already says of the total; this branch deliberately moved none of them, several
   branches being open on the same files at once.
+- **AC-381 to AC-383 were taken from the tail on 2026-09-04** (issue #94), on the same branch
+  and the same rule as the bullet below: attachment editing on an existing comment, which
+  Imran ruled into existence and which until that day was a `file_ids` accepted, dropped and
+  answered 200. The three are 12.14's — the set replaced, the set emptied, and what the edit
+  refuses, the gate included, because a `file_ids` branch placed ahead of the authorship check
+  would have passed AC-205 unchanged.
+- **AC-378 to AC-380 were taken from the tail on 2026-09-04** (issues #140 and #142), on the
+  rule four bullets below rather than out of the gaps above, several branches being open that
+  night: the calendar's zoom becoming a durable account preference. AC-378 and AC-379 are
+  12.3's, the default a fresh account reads and the preference following the person between
+  sessions rather than the browser; AC-380 is 12.1's, migration 0013's CHECK tried against the
+  database beside the 422 the endpoint answers, because AC-001 sees a constraint's name and
+  never what its expression does. AC-375 to AC-377 were not spent by this branch and are not
+  claimed here.
 - **AC-374 was taken from the tail on 2026-09-03**, on the same branch and after review of
   it: of the three gates that decide what a page may wear, the place-cover one was the only
   one with no `kind` clause, so another person's avatar could be worn on a person's own Today

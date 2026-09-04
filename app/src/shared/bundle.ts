@@ -43,11 +43,47 @@ export const DEFAULT_PINNED: readonly NativeView[] = [
   'all',
 ]
 
+/**
+ * 9.5's three calendar zooms, in the order the strip above the grid draws
+ * them, and the values migration 0013's CHECK admits (issues #140, #142).
+ *
+ * **There is a second list of these keys, and it is not here**, exactly as
+ * `NATIVE_VIEWS` above records for its own: `Zoom` in
+ * `src/client/components/calendar/grid.ts` is the union the calendar
+ * switches on, and nothing links the two. They are the same three strings on
+ * purpose, so the stored value needs no mapping on either side; whoever adds
+ * a fourth zoom owes `grid.ts`, this array and a migration one edit each, and
+ * 9.5 is what says which zooms exist. Year zoom was cut for v1 by Q3C and is
+ * deliberately absent: a value the product cannot draw is a value a person
+ * can be left stuck on.
+ */
+export const CALENDAR_ZOOMS = ['day', 'week', 'month'] as const
+export type CalendarZoom = (typeof CALENDAR_ZOOMS)[number]
+
+/**
+ * What a fresh account sees, which is what `PlannedCalendar.tsx` has always
+ * opened at (`useState<Zoom>('month')`) and what migration 0013 gives the
+ * column. It is also what a stored value outside `CALENDAR_ZOOMS` reads back
+ * as, so a zoom retired by some later release cannot strand anybody on a grid
+ * this build cannot draw.
+ */
+export const DEFAULT_CALENDAR_ZOOM: CalendarZoom = 'month'
+
 export const patchSettingsBody = z.object({
   theme: z.enum(['system', 'light', 'dark']).optional(),
   row_density: z.enum(['comfortable', 'compact']).optional(),
   clock: z.enum(['12h', '24h']).optional(),
   task_open: z.enum(['dialog', 'panel', 'tab']).optional(),
+  /* Imran's ruling on #140: the calendar's zoom follows the account rather
+     than the browser, "consistent with other durable preferences such as
+     density, clock format, and task-open surface". It rides beside those
+     three because it is the same kind of fact, and `domain/bundle.ts` gained
+     its reader and its writer in this same change, which is what this folder's
+     own rule asks of a new request field. A value outside the three is 422
+     naming `calendar_zoom` rather than a quiet narrowing to the default,
+     which is 7.10's enumerated-value rule and the answer 4.10's CHECK gives
+     underneath it. */
+  calendar_zoom: z.enum(CALENDAR_ZOOMS).optional(),
   /* The cap is "every native view, and no more", so it is the array's own
      length rather than the 9 that was written here: a tenth view added above
      used to make a full pin list a 422, which is the second way that array
@@ -63,6 +99,10 @@ export interface SettingsBundle {
   row_density: 'comfortable' | 'compact'
   clock: '12h' | '24h'
   task_open: 'dialog' | 'panel' | 'tab'
+  /** 4.10's `calendar_zoom` as migration 0013 added it (issues #140, #142).
+   * Always one of `CALENDAR_ZOOMS`: the column's CHECK admits nothing else
+   * and the read maps anything else to `DEFAULT_CALENDAR_ZOOM`. */
+  calendar_zoom: CalendarZoom
   pinned_views: string[]
   sidebar_order: string[]
   arrangements: Record<string, string>
@@ -105,6 +145,7 @@ export const settingsBundle = z.object({
   row_density: z.enum(['comfortable', 'compact']),
   clock: z.enum(['12h', '24h']),
   task_open: z.enum(['dialog', 'panel', 'tab']),
+  calendar_zoom: z.enum(CALENDAR_ZOOMS),
   pinned_views: z.array(z.string()),
   sidebar_order: z.array(z.string()),
   arrangements: z.record(z.string(), z.string()),

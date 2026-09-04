@@ -379,6 +379,10 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
     uniques: [],
     checks: [
       { name: 'user_settings_arrangements_object_check', columns: ['arrangements'] },
+      /* Migration 0013, issues #140 and #142: the calendar's zoom is a durable
+         account preference, and its three values are 9.5's. AC-001 sees this
+         line as a name over a column; AC-380 is what sees the expression. */
+      { name: 'user_settings_calendar_zoom_check', columns: ['calendar_zoom'] },
       { name: 'user_settings_clock_check', columns: ['clock'] },
       { name: 'user_settings_pinned_views_array_check', columns: ['pinned_views'] },
       { name: 'user_settings_row_density_check', columns: ['row_density'] },
