@@ -39,6 +39,79 @@ so an unfiltered endpoint collects noise in proportion to how many people
 run an ad blocker. Two filters, and the reasons are with the lists below.
 */
 
+/**
+ * How long one fingerprint stays quiet in Sentry after it has been sent.
+ *
+ * **Sentry's fingerprint groups issues; it does not reduce the event count,
+ * and the event count is what a free-tier quota is denominated in.** So the
+ * fingerprint alone bought a tidy issue list and no protection: at 10.4's
+ * 30 requests a minute and this file's ten violations a body, one stranger
+ * who knows APP_ORIGIN could send 300 Sentry events a minute against a plan
+ * that allows about 5,000 a month (11.12), and the real errors after that
+ * are the ones dropped.
+ *
+ * Ten minutes is chosen against what the destination is for. Sentry is the
+ * alert and the log is the record: an alert that fires once per defect per
+ * ten minutes is an alert, and one that fires three hundred times a minute
+ * is a denial of service against the person reading it. Nothing is lost by
+ * waiting, because the log line is written every time and is not throttled.
+ */
+export const SENTRY_WINDOW_MS = 10 * 60 * 1_000
+
+/**
+ * The most fingerprints held at once.
+ *
+ * The blocked URI is a stranger's string, so the set of fingerprints is not
+ * bounded by anything Dana controls and an unbounded map here would be the
+ * memory-shaped version of the quota problem this throttle exists to solve.
+ * Evicting the oldest is right for the same reason the window is: a
+ * fingerprint nobody has sent for a while is one whose next event is worth
+ * having.
+ */
+export const SENTRY_FINGERPRINT_CAPACITY = 500
+
+export interface SendThrottle {
+  /** True at most once per key per window, and it records the send. */
+  allow(key: string): boolean
+}
+
+/**
+ * One throttle per application, held in process.
+ *
+ * In process and not in a store, because 11.1 fixes production at exactly
+ * one instance and the rate limiters beside this one already rest on that.
+ * A scale-out replaces both together.
+ */
+export function createSendThrottle(options: {
+  windowMs?: number
+  capacity?: number
+  now?: () => number
+} = {}): SendThrottle {
+  const windowMs = options.windowMs ?? SENTRY_WINDOW_MS
+  const capacity = options.capacity ?? SENTRY_FINGERPRINT_CAPACITY
+  const now = options.now ?? (() => Date.now())
+  // Insertion-ordered, which is what makes "evict the oldest" one line.
+  const sentAt = new Map<string, number>()
+
+  return {
+    allow(key) {
+      const at = now()
+      const last = sentAt.get(key)
+      // Deliberately does not refresh the entry on a refusal: a flood of one
+      // fingerprint must not be able to hold its own slot open forever.
+      if (last !== undefined && at - last < windowMs) return false
+      sentAt.delete(key)
+      sentAt.set(key, at)
+      while (sentAt.size > capacity) {
+        const oldest = sentAt.keys().next()
+        if (oldest.done === true) break
+        sentAt.delete(oldest.value)
+      }
+      return true
+    },
+  }
+}
+
 /** What survives the parse, and the whole of what may be logged. */
 export interface CspViolation {
   /** The effective directive, `script-src-elem` and the like. */

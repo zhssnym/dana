@@ -16,6 +16,7 @@ give this project two places to change when one of them moves.
 import { describe, expect, test } from 'vitest'
 
 import {
+  createSendThrottle,
   MAX_VIOLATIONS_PER_BODY,
   normalizeBlockedUri,
   normalizeDirective,
@@ -121,5 +122,62 @@ describe('the CSP report reader survives anything posted to it', () => {
     expect(originOf(undefined)).toBeUndefined()
     expect(originOf('  ')).toBeUndefined()
     expect(originOf('dana.example')).toBeUndefined()
+  })
+})
+
+/*
+The Sentry throttle. AC-395 asserts the behaviour a reader cares about — one
+event per fingerprint, every report logged — through the endpoint. What it
+cannot reach without waiting ten minutes is the far side of the window and
+the eviction, and both are the difference between a throttle and a mute.
+*/
+describe('the Sentry send throttle', () => {
+  test('one key is allowed once per window and again after it', () => {
+    let now = 1_000_000
+    const throttle = createSendThrottle({ windowMs: 1_000, now: () => now })
+
+    expect(throttle.allow('a')).toBe(true)
+    expect(throttle.allow('a')).toBe(false)
+    now += 999
+    expect(throttle.allow('a'), 'still inside the window').toBe(false)
+    now += 1
+    expect(
+      throttle.allow('a'),
+      'a throttle that never reopens is a mute, and the second occurrence of a defect a month later would never be seen',
+    ).toBe(true)
+    expect(throttle.allow('a')).toBe(false)
+  })
+
+  test('a refused key does not hold its own slot open', () => {
+    /* The window is measured from the last *send*, not from the last
+       attempt. Refreshing on a refusal would let a flood of one fingerprint
+       keep itself permanently silent, which is the one input this throttle
+       is guaranteed to receive. */
+    let now = 0
+    const throttle = createSendThrottle({ windowMs: 100, now: () => now })
+    expect(throttle.allow('a')).toBe(true)
+    // Nine refusals inside the window. If any of them reset the clock, the
+    // window would now end at 190 rather than at 100.
+    for (let index = 0; index < 9; index += 1) {
+      now += 10
+      expect(throttle.allow('a'), `at ${String(now)}, inside the window`).toBe(false)
+    }
+    now = 100
+    expect(
+      throttle.allow('a'),
+      'the window is measured from the last send and not from the last attempt',
+    ).toBe(true)
+  })
+
+  test('distinct keys are independent and the map is bounded', () => {
+    const throttle = createSendThrottle({ windowMs: 60_000, capacity: 3, now: () => 0 })
+    for (const key of ['a', 'b', 'c']) expect(throttle.allow(key)).toBe(true)
+    expect(throttle.allow('a'), 'held, not evicted by its own siblings').toBe(false)
+
+    // The blocked URI is a stranger's string, so the key space is not
+    // bounded by anything Dana controls. A fourth key evicts the oldest.
+    expect(throttle.allow('d')).toBe(true)
+    expect(throttle.allow('a'), 'evicted as the oldest, so it may send again').toBe(true)
+    expect(throttle.allow('c'), 'still held').toBe(false)
   })
 })

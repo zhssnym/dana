@@ -27,11 +27,21 @@ assertion is that neither appears anywhere in what was logged or in what
 reached Sentry. A criterion that only checked the three wanted fields were
 present would pass just as happily on a line carrying all five.
 
-**The fingerprint is asserted because volume is what makes an alert
-worthless.** A policy that refuses the theme script refuses it on every cold
-load for everybody. Without a fingerprint that is a hundred Sentry issues a
-day, and the hundred-and-first is the one nobody reads; with one on the
-directive and the blocked URI it is one issue with a count on it.
+**The fingerprint and the throttle are asserted together, because one
+without the other is not the protection it looks like.** A policy that
+refuses the theme script refuses it on every cold load for everybody. The
+fingerprint makes that one issue in Sentry rather than a hundred — but
+Sentry's quota is denominated in *events* and not in issues, so a hundred
+grouped events still spend a hundred, and this endpoint is open to the
+world: 10.4's thirty requests a minute times ten violations a body was 300
+events a minute from one stranger against a plan that allows about 5,000 a
+month (11.12). So a fingerprint is sent at most once per ten-minute window.
+
+**The log line is not throttled, and the asymmetry is the design.** The log
+is the complete record of how often a refusal happens; Sentry is how anyone
+finds out that it does at all. A case below posts the same report twice and
+asserts two lines against one message, which is the only shape that would
+catch either half being wired to the other.
 
 Spec: 10.5, 10.8, 11.12.
 */
@@ -145,7 +155,7 @@ describe('AC-395 a report from this origin is one line and one Sentry message', 
     }
   })
 
-  test('Sentry gets one message per report, fingerprinted on the pair', async () => {
+  test('Sentry gets one message per fingerprint per window, and the log gets all of them', async () => {
     app = await startCspReportApp()
     const body = reportUriBody({
       documentUri: `${app.origin}/app`,
@@ -159,14 +169,14 @@ describe('AC-395 a report from this origin is one line and one Sentry message', 
       expect((await app.report(REPORT_URI_TYPE, body)).status).toBe(204)
     }
 
-    expect(app.messages).toHaveLength(3)
-    const fingerprints = app.messages.map((message) =>
-      JSON.stringify(message.context?.fingerprint),
-    )
     expect(
-      new Set(fingerprints).size,
-      'three identical refusals must fingerprint identically, or a broken policy fills Sentry with one issue per page load and the alert is worth nothing (11.12)',
-    ).toBe(1)
+      app.violationLines(),
+      'every kept report is logged. The log is the record of how often a refusal happens and is throttled by nothing but the route limiter',
+    ).toHaveLength(3)
+    expect(
+      app.messages,
+      'and Sentry hears about it once. Grouping a hundred events into one issue still spends a hundred events of a quota 11.12 sizes for ordinary error volume, and this endpoint takes no session',
+    ).toHaveLength(1)
     expect(app.messages[0]?.context?.fingerprint).toEqual([
       'csp-violation',
       'script-src-elem',
@@ -177,9 +187,9 @@ describe('AC-395 a report from this origin is one line and one Sentry message', 
       'a refusal is a warning in Sentry as it is in the log',
     ).toBe('warning')
 
-    /* And a different refusal is a different issue: a fingerprint that
-       collapsed everything to one would hide the second defect behind the
-       first, which is the failure that looks like success. */
+    /* And a different refusal is a different fingerprint, so the throttle
+       does not hide the second defect behind the first — which is the way
+       a throttle fails that looks exactly like a throttle working. */
     await app.report(
       REPORT_URI_TYPE,
       reportUriBody({
@@ -188,10 +198,13 @@ describe('AC-395 a report from this origin is one line and one Sentry message', 
         blockedUri: 'blob:',
       }),
     )
-    expect(app.messages).toHaveLength(4)
-    expect(
-      JSON.stringify(app.messages[3]?.context?.fingerprint),
-    ).not.toEqual(fingerprints[0])
+    expect(app.violationLines()).toHaveLength(4)
+    expect(app.messages).toHaveLength(2)
+    expect(app.messages[1]?.context?.fingerprint).toEqual([
+      'csp-violation',
+      'img-src',
+      'blob:',
+    ])
   })
 
   test('one posted body of several reports is several lines', async () => {
@@ -216,5 +229,8 @@ describe('AC-395 a report from this origin is one line and one Sentry message', 
       'img-src',
       'media-src',
     ])
+    // Three distinct fingerprints, so the throttle holds none of them back:
+    // it bounds repetition, never the first sight of a defect.
+    expect(app.messages).toHaveLength(3)
   })
 })
