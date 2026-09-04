@@ -23,6 +23,10 @@ export interface TaskFormDefaults {
   readonly due_date?: string | null
   readonly important?: boolean
   readonly folder_id?: string
+  /** The page section whose writing line opened the form. It is already a
+      field on the existing task-create contract; carrying it here keeps the
+      task in the place where the person invoked the composer. */
+  readonly section_block_id?: string | null
   /* polish: taskrow F3. What the quick-add held when "Open full form" was
      pressed, so the surface opens on that title rather than a blank one. */
   readonly title?: string

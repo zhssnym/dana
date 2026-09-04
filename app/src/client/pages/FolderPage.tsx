@@ -1325,6 +1325,29 @@ export function FolderPage({
               <BlocksEditor
                 blocks={page.data?.blocks ?? []}
                 onPut={putBlocks}
+                onCreateTask={async (title, sectionBlockId) => {
+                  if (title === '') {
+                    openTaskForm({
+                      folder_id: id,
+                      ...(sectionBlockId === null ? {} : { section_block_id: sectionBlockId }),
+                    })
+                    return true
+                  }
+                  try {
+                    const made = await create.mutateAsync({
+                      title,
+                      folder_id: id,
+                      section_block_id: sectionBlockId,
+                    })
+                    placeLast(
+                      made.id,
+                      sectionBlockId === null ? loose : (bySection.get(sectionBlockId) ?? []),
+                    )
+                    return true
+                  } catch {
+                    return false
+                  }
+                }}
                 sectionExtras={sectionExtras}
                 onDeleteSection={(block, remove) => {
                   setSectionAsk({ block, remove })
