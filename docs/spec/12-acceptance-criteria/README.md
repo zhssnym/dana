@@ -58,6 +58,13 @@ default, so read this list before spending one.
   it counted 229; the five ranges are twenty-nine numbers. Corrected on the branch for issues
   #20 and #100, which read this list to choose AC-368, rather than left for whoever spent 229
   a second time and found out from a duplicate test filename.
+- **AC-412 was assigned from the tail on 2026-09-04** (issue #168), on the same rule as
+  AC-409 and AC-410 below, and it is 12.23's: the Google sign-in begin and its callback
+  carried no rate limiter at all, which is older than every limit in 10.4 and could only be
+  fixed once #153 made an address-keyed limit mean one client. **AC-411 is not spent by this
+  branch** and is not added to the free list above, on the AC-377 bullet's rule: a sibling
+  branch may hold it and listing a number free that another branch has just spent is the
+  collision this rule exists to prevent.
 - **AC-411 was taken from the tail on 2026-09-04** (issue #108), on the rule the AC-361 to
   AC-365 bullet below states. It is 12.9's, beside AC-363, which is the server half of the
   same sentence: that criterion pins that a member who did not upload a picture reads its
@@ -76,6 +83,38 @@ default, so read this list before spending one.
   re-derived here**, on the AC-394 bullet's precedent: the arithmetic belongs to the last
   merge rather than to any one of several branches open at once, so 370 stands as the last
   derivation rather than as a number this branch moved by one.
+- **AC-410 was assigned from the tail on 2026-09-04** (issue #153), on the same rule and by
+  the same hand as AC-409 below, and it is 12.23's: `trust proxy` was set nowhere in
+  `app/src`, so behind the edge of 11.11 every rate limit keyed on an address was one bucket
+  for the whole deployment rather than one per visitor. The criterion is the three readings
+  of `X-Forwarded-For` — one address, two, none — against the mounted application, plus two
+  clients not sharing a bucket. **It is the shape of criterion that has to be written by
+  hand**, because under test the socket peer is the real client and so every existing case
+  measured the fixed behaviour on the broken code. **No total moves with it**, for the reason
+  the bullet below gives.
+- **AC-409 was assigned from the tail on 2026-09-04** (issue #152), on the backend README's
+  rule for parallel branches rather than out of the gaps above: several branches were open
+  that night and the number was handed out by the session that opened them, deliberately
+  above 401 to 408, which belong to siblings and are **not** free here. It is 12.3's, and it
+  is the guard on the subsection written the same night: `GET` and `PATCH /api/v1/settings`,
+  the 4.19 bundle, were described nowhere in section 7 for the whole of RFC 0005 while four
+  fields were added to them, so 7.23 records the endpoint and AC-409 holds that record equal
+  to the two schemas and to the wire. **No total moves with it**, this branch being one of
+  several on these files; the count, the range sentence above and the per-file rows below
+  are the last merge's to re-derive, as the AC-361 bullet already says.
+- **Five criteria changed state on 2026-09-04 and none of them is a new number** (issue
+  #113): frozen 7.2's `GET` and `PATCH /me/settings` were retired on the owner's ruling, and
+  AC-119 to AC-123 went with the endpoint. **AC-119, AC-120 and AC-121 are rewritten**
+  against 7.23's `/settings` bundle, because the rules they pinned are that subsection's word
+  for word — the column defaults, any subset including the empty one with absent fields
+  unchanged, and a wrong value answering 422 naming the field and writing nothing.
+  **AC-122 and AC-123 are retired and marked in 12.3 rather than removed**, per this
+  section's own rule, and **their numbers are spent and are never reused**: AC-122's
+  behaviour is already asserted by AC-379's third clause, which cites it by name, and
+  AC-123's is unreachable now that no route writes the three v1 columns. **No total moves
+  with this**: the run is unchanged, nothing was added or deleted from the numbering, and a
+  retired criterion still carries its text. The count of *live* criteria is two lower than
+  the top bullet's 370, and re-deriving that is the last merge's as ever.
 - **AC-406 to AC-408 were taken from the tail on 2026-09-04** (issues #118, #117 and #79),
   on the rule the AC-361 to AC-365 bullet below states, and with the numbers **assigned
   rather than chosen**: several branches were open that night and 401 to 405 belong to

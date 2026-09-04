@@ -65,7 +65,6 @@ rows themselves. Nothing breaks while this is unwired; rows merely accumulate.
 | `provisioning.ts` | The 7.1 provisioning transaction, idempotent under `google_sub` |
 | `timezone-sync.ts` | 8.1's zone sync: the alias predicate the shared validator lacks, and `writeTimezone`, which writes the column and then fires 8.6's fifth trigger. Both doors call it, so the order cannot be got right in one and wrong in the other |
 | `account.ts` | `/me`, and the 8.10 deletion stub the P1 row places here |
-| `settings.ts` | `/me/settings`, the 7.2 pair; P2S added it inside this router, so it needed no new wiring |
 | `pages.ts` | The 9.2 unverified-email page, the only page this module renders |
 | `dev-login.ts` | Excluded from production builds; see 11.6 and 11.15 |
 

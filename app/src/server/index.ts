@@ -164,6 +164,51 @@ export function createApp(options: AppOptions = {}): express.Express {
   app.disable('x-powered-by')
 
   /*
+  **Exactly one proxy hop, and never `true` (issue #153).**
+
+  11.11 puts production behind Render's edge, which terminates TLS and opens
+  its own socket to this process. So without this line `req.ip` is the edge's
+  address for every visitor on earth, and every limiter 10.4 keys on an
+  address is one bucket for the whole deployment rather than one per client:
+  a limit meant to slow one abusive caller slows everybody, and a stranger
+  holds the endpoint at 429 for all of them with a few requests a minute. It
+  has been true since the first per-address limiter shipped, and nothing local
+  could ever show it, because under test and in development the socket peer
+  *is* the real client.
+
+  `1` means: trust the one hop nearest this process, so `req.ip` is the last
+  address in `X-Forwarded-For` — the one Render appended, naming whoever
+  opened the connection to it. **`true` would trust the whole header**, which
+  a client writes itself, so any caller could pick a fresh address per request
+  and never meet a limit at all; express-rate-limit refuses that outright with
+  `ERR_ERL_PERMISSIVE_TRUST_PROXY`. The number is a claim about the
+  deployment, so it moves when the deployment gains a hop and not otherwise:
+  a CDN in front of Render would make it 2, and a second one still not `true`.
+
+  Locally and under test there is no proxy, no `X-Forwarded-For`, and this
+  setting changes nothing — `req.ip` stays the socket peer. AC-410 drives all
+  three cases against this application rather than trusting the paragraph.
+
+  **This setting moves four request properties and not one, so here is what
+  the other three reach, checked rather than assumed.** `req.hostname` would
+  read `X-Forwarded-Host` and `req.secure` follows `req.protocol`: nothing in
+  `src/server` reads `hostname`, `secure` or `subdomains` at all, and the
+  session cookies are `secure: true` as literals rather than as a question
+  about the request. `req.protocol` has exactly one reader,
+  `routes/csp-report.ts`, and only as the fallback for an unset `APP_ORIGIN` —
+  which `assertSignInIsPossible` refuses to boot without, so it is a
+  development affordance and never the production path. A crafted
+  `X-Forwarded-Proto` can now flip that fallback's scheme on a process
+  configured without an origin; the comment there already records that the
+  fallback trusts the caller's `Host` for the same decision and that a caller
+  who forges it can log a line they could log anyway. And **no redirect
+  moves**: `auth/router.ts` builds the authorization URL, the `redirect_uri`
+  and the callback URL from configuration, which is the rule written at the
+  head of that file, so a forged `X-Forwarded-Host` reaches nothing.
+  */
+  app.set('trust proxy', 1)
+
+  /*
   10.8's response headers (RFC 0005 unit 13a, change control item 18), first
   in the chain so every response carries them, refusals and errors included.
   The policy is sized to what the client actually loads and no wider, and
@@ -314,6 +359,13 @@ export function createApp(options: AppOptions = {}): express.Express {
               searchPerMinute: Number.MAX_SAFE_INTEGER,
               mutationsPerMinute: Number.MAX_SAFE_INTEGER,
               cspReportsPerMinute: Number.MAX_SAFE_INTEGER,
+              // Issue #168. Every auth criterion signs in repeatedly from
+              // one address, and the whole suite shares this machine, so
+              // twenty a minute would be measuring 10.4 rather than the
+              // criterion. AC-412 constructs a real limiter of its own, the
+              // way AC-396 does for the CSP row.
+              signInBeginsPerMinute: Number.MAX_SAFE_INTEGER,
+              signInCallbacksPerMinute: Number.MAX_SAFE_INTEGER,
             },
           }
         : {},
@@ -588,8 +640,9 @@ export function createApp(options: AppOptions = {}): express.Express {
     }),
   )
 
-  // The S7 bundle (4.19): the v2 /settings surface beside frozen 7.2's
-  // /me/settings, and the saved views.
+  // The S7 bundle (4.19): the /settings surface and the saved views. It sat
+  // beside frozen 7.2's /me/settings until issue #113 retired that pair on
+  // 2026-09-04, and it is the settings surface now (7.23).
   //
   // Load-bearing position: behind the views router. Its `GET /views/:id`
   // matches one segment after `/views` and would shadow that router's six

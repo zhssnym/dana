@@ -55,9 +55,27 @@ export interface CspReportTestApp {
   /** Only the `csp_violation` ones, which is what the criteria count. */
   violationLines(): LoggedLine[]
   messages: TrackedMessage[]
-  /** POST a body to the endpoint under a content type of your choosing. */
-  report(contentType: string, body: string): Promise<RawResponse>
-  get(path: string): Promise<RawResponse>
+  /**
+   * POST a body to the endpoint under a content type of your choosing, and
+   * since issue #153 under any extra request headers you name. AC-410 sends
+   * `X-Forwarded-For`; nothing else uses the third argument, and a caller
+   * that omits it sends exactly what it sent before.
+   */
+  report(
+    contentType: string,
+    body: string,
+    headers?: Record<string, string>,
+  ): Promise<RawResponse>
+  get(path: string, headers?: Record<string, string>): Promise<RawResponse>
+  /**
+   * What `createApp` set `trust proxy` to, read back off the application
+   * rather than off `index.ts` as text (issue #153). It is exposed because
+   * the number is the whole of that fix and because the two values that are
+   * wrong fail in opposite directions: `false` leaves every per-address limit
+   * one bucket for the deployment, and `true` lets a caller spoof
+   * `X-Forwarded-For` and never meet one at all.
+   */
+  trustProxy: unknown
   close(): Promise<void>
 }
 
@@ -70,6 +88,25 @@ export interface CspReportAppOptions {
   cspReportsPerMinute?: number
   /** A built client directory, for the criterion that needs an HTML response. */
   clientDist?: string
+  /**
+   * Mounts `GET /__ip-probe`, which answers `{ ip, ips }` as express saw
+   * them, on this application only (issue #153).
+   *
+   * **It is added after `createApp` returns and so it is not part of the
+   * application under any other test**, which matters: `ac-236` and `ac-397`
+   * walk the mounted router and pin its route count, and a route added inside
+   * `createApp` for a criterion's convenience would move both. The path is
+   * outside `/api`, so it is reached rather than swallowed by the 404 mounted
+   * there, and this harness passes no `clientDist`, so no SPA fallback stands
+   * in front of it either.
+   *
+   * There is no other way to read `req.ip` from outside. Nothing this
+   * application logs or answers carries the caller's address — deliberately,
+   * per 10.5 — so the alternative was to assert the setting and reason about
+   * what express does with it, which is the shape of belief this criterion
+   * exists to replace with a measurement.
+   */
+  withIpProbe?: boolean
 }
 
 export async function startCspReportApp(
@@ -116,6 +153,11 @@ export async function startCspReportApp(
         }),
   })
   process.env.APP_ORIGIN = previousAppOrigin
+  if (options.withIpProbe === true) {
+    app.get('/__ip-probe', (request, response) => {
+      response.status(200).json({ ip: request.ip, ips: request.ips })
+    })
+  }
   server.on('request', app)
 
   return {
@@ -123,15 +165,16 @@ export async function startCspReportApp(
     lines,
     violationLines: () => lines.filter((line) => line.fields.event === 'csp_violation'),
     messages,
-    async report(contentType, body) {
+    trustProxy: app.get('trust proxy'),
+    async report(contentType, body, headers = {}) {
       return rawRequest(`${origin}/api/csp-report`, {
         method: 'POST',
-        headers: { 'content-type': contentType },
+        headers: { 'content-type': contentType, ...headers },
         body,
       })
     },
-    async get(path) {
-      return rawRequest(`${origin}${path}`)
+    async get(path, headers = {}) {
+      return rawRequest(`${origin}${path}`, { headers })
     },
     async close() {
       await new Promise<void>((resolve, reject) => {

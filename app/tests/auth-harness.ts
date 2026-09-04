@@ -32,6 +32,7 @@ import { expect } from 'vitest'
 
 import { createApp } from '../src/server/index.js'
 import type { SecurityLogger } from '../src/server/security/log.js'
+import type { RateLimits } from '../src/server/security/rate-limit.js'
 import type { Db, DbClient } from '../db/client.js'
 import { cleanupUsers, createTestDb, rows } from './helpers.js'
 import { TestBrowser, parseSetCookie, rawRequest } from './http-client.js'
@@ -108,6 +109,17 @@ export interface AppOptions {
    * step for no assertion's benefit.
    */
   securityLog?: SecurityLogger
+  /**
+   * The 10.4 limiter set, so a criterion can measure a limit rather than work
+   * around it (issue #168, AC-412).
+   *
+   * Typed from the module on `securityLog`'s precedent above rather than
+   * restated structurally: six request handlers is not a seam this suite
+   * asserts the shape of, and restating them would be six more signatures to
+   * keep in step for no assertion's benefit. What a criterion here asserts is
+   * what the limiter *does*, which is a status on the wire.
+   */
+  rateLimits?: RateLimits
 }
 
 type AppFactory = (
@@ -242,6 +254,14 @@ export async function startAuthTestApp(
     fileStore?: AppOptions['fileStore']
     sampleWorkspace?: boolean
     securityLog?: SecurityLogger
+    /**
+     * A real limiter set, for a criterion that is measuring 10.4 rather than
+     * working around it (issue #168). Absent, `createApp` builds its own,
+     * which under Vitest raises every limit far out of the way so that a file
+     * signing in thirty times is not measuring the sign-in row. AC-412 is the
+     * only caller, exactly as AC-396 is `startCspReportApp`'s.
+     */
+    rateLimits?: RateLimits
   } = {},
 ): Promise<AuthTestApp> {
   const dbClient = await createTestDb()
@@ -281,6 +301,7 @@ export async function startAuthTestApp(
     auth,
     notifications: emails.sink,
     ...(options.securityLog === undefined ? {} : { securityLog: options.securityLog }),
+    ...(options.rateLimits === undefined ? {} : { rateLimits: options.rateLimits }),
     ...(options.fileStore === undefined ? {} : { fileStore: options.fileStore }),
     // Item 60: off for every file but the one that measures the sample.
     ...(options.sampleWorkspace === undefined ? {} : { sampleWorkspace: options.sampleWorkspace }),
