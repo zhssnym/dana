@@ -15,6 +15,7 @@
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.server.json && tsc -p tsconfig.client.json && tsc -p tsconfig.node.json",
     "test": "node scripts/run-suite.mjs",
+    "gate": "node scripts/gate.mjs",
     "e2e": "playwright test",
     "e2e:app": "vite build && tsx db/seed.ts && tsx src/server/index.ts",
     "e2e:install": "playwright install chromium",
