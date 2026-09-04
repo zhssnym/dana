@@ -5,11 +5,12 @@ client where a raw colour, type size, spacing step or radius may be written.
 **What this file is, after RFC 0004.** It is
 `docs/design/prototype-v2/src/styles/tokens.css`, the approved v2 foundation,
 carried in whole at package S8, beside the four imports this client needs and
-the base rules his `app.css` carries. Under 11.13 as RFC 0002 amends it his
-prototype is the source the client is built from rather than a reference it is
-compared against, so a difference between his values and these is a defect in
-the port unless a numbered section says otherwise, and S8's acceptance is that
-the v2 section of this file matches his character for character.
+the base rules his `app.css` carries. S8's acceptance was that the v2 section
+of this file matched his character for character. **That prototype is now
+deleted** (`a7886df`, 2026-09-01, and in git history before that commit), and
+11.13 as amended on 2026-08-31 makes this file the only one in the repository
+carrying token values: nothing adjudicates a value above it any more, so
+editing one is a change to the design rather than a drift from it.
 
 **What changed from the v1 file this replaces**, so that nobody reads a moved
 value as a mistake: cobalt is raised from 52% to 85% saturation (DES-214), the

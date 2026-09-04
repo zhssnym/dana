@@ -52,25 +52,35 @@ Start a **new session** for each issue. Then:
 
 ## The client, folder by folder
 
-Roughly 190 files. Some of the names overlap, and the honest reason is that this code was
+230 files. Some of the names overlap, and the honest reason is that this code was
 ported from a prototype and never fully tidied. Where a distinction is real, it is noted.
 Where it is a leftover, that is noted too, so you do not waste time inventing a rule that
 was never there.
 
+**Every count below is `find app/src/client/<folder> -type f | wc -l`, measured 2026-09-04,
+and it counts the component tests that live beside their components.** Re-measure with that
+command rather than trusting the number: the table read 190 files on 2026-09-01 and the tree
+read 230 three days later.
+
 | Folder | Files | What it is |
 | - | - | - |
-| `components/` | 93 | The reusable pieces. `components/ui/` is the base layer. `components/page/` holds the loading, empty and error screens, which moved there from `states/` in #82. |
-| `lib/` | 29 | Named "helpers", but 18 of its files now read or write the server. Treat it as application logic, not utilities. |
+| `components/` | 94 | The reusable pieces. `components/ui/` is the base layer. `components/page/` holds the loading, empty and error screens, which moved there from `states/` in #82. |
+| `lib/` | 36 | Named "helpers", but 18 of its files now read or write the server. Treat it as application logic, not utilities. |
 | `pages/` | 24 | A route's wiring: fetching, state, deciding what to render. |
-| `shell/` | 16 | The frame around every page: sidebar, layout, navigation. |
-| `views/` | 14 | The saved and native views (My Day, Planned, and so on). |
-| `parts/` | 7 | **A leftover.** Its own file says it is the last one in the directory and there are now several. Do not add to it. |
-| `api/` | 7 | Every call to the server. See below. |
+| `shell/` | 18 | The frame around every page: sidebar, layout, navigation. |
+| `views/` | 16 | The saved and native views (My Day, Planned, and so on). |
+| `api/` | 9 | Every call to the server. See below. |
+| `parts/` | 7 | **A leftover.** The shell session's holding pen, which `app/src/client/README.md` now calls the page layer: the row callbacks, the presenters and two colour palettes. Do not add to it. |
+| `public/` | 6 | Manifest icons and the static art, copied to the build root. |
 | `onboarding/` | 5 | First-run flow. |
 | `state/` | 4 | Global client state: toasts, connectivity. |
-| `screens/` | 4 | The markup half of a page, split out. Only 4 of 24 pages do this. |
+| `screens/` | 3 | The markup half of a page, split out. Only 3 of 24 pages do this, and the directory is retiring into `components/`. |
 | `pwa/` | 2 | Install prompt and service worker glue. |
-| `styles/` | - | `tokens.css`. See below. |
+| `observability/` | 1 | The browser's half of 11.12's error reporting. |
+| `styles/` | 1 | `tokens.css`. See below. |
+
+Four files sit at the root of `app/src/client/` and are in none of those folders: `main.tsx`,
+`Router.tsx`, `routes.ts` and `README.md`.
 
 **The table tells you where things live, not where a given feature lives.** One screen often
 straddles two folders: the sidebar's navigation rows are in `shell/app-sidebar.tsx` while its
@@ -86,9 +96,16 @@ the design changeable in one place.
 
 **Every server call goes through `app/src/client/api/http.ts`.** The CSRF header and the
 timezone parameter are added there, once, for everything. Do not call `fetch` directly: you
-will get a 403 or a 422 that looks like a backend bug. The comment at `http.ts:4` claims
-nothing else calls `fetch`, and that is **already false** at
-`components/folder-cover.tsx:192`. Nothing enforces it, so it is on you.
+will get a 403 or a 422 that looks like a backend bug. **A lint rule enforces this since
+issue #72** — `no-restricted-syntax` in `app/eslint.config.ts`, which fails `fetch(...)`,
+`window.fetch(...)`, `globalThis.fetch(...)` and `self.fetch(...)` anywhere in `src/client/`
+but that file. What it does not catch, and says so in its own comment, is an alias:
+`const g = fetch` and then `g(url)` passes. One file is exempt by a disable comment,
+`lib/viewer.ts`, which round-trips a `data:` URL into a Blob and reaches no network.
+
+*(Corrected 2026-09-04. This paragraph said nothing enforced the rule and named
+`components/folder-cover.tsx:192` as a live violation of it. #42 removed that call and #72
+added the rule.)*
 
 **The Content Security Policy refuses external images and scripts silently.** If you add an
 image from a new domain, it will not load, nothing will appear in the console, and it will
@@ -118,11 +135,19 @@ npm run e2e             about 11 minutes
 Hassan's machine has. If `npm test` behaves strangely, check `CLAUDE.md`: `TEST_DATABASE_URL`
 is ambient on that machine and picks the leg for you.
 
-**Know what `npm test` actually proves about your work: that the client compiles.**
-`app/vitest.config.ts:5` sets `environment: 'node'` for the whole suite. `jsdom` and four
-`@testing-library` packages are installed and **nothing imports them**, so there is no
-component test leg to render anything in. What your screen *does* is covered by the 109
-Playwright specs, and nothing else.
+**Know what `npm test` mostly proves about your work: that the client compiles.**
+`app/vitest.config.ts:5` sets `environment: 'node'` for the whole suite, and 338 of the 343
+files it collects run under it. **Five opt into `jsdom` and Testing Library per file** and
+are the only cases in the suite that render anything —
+`components/person-face.test.tsx`, `components/folder-cover.test.tsx`,
+`lib/calendar-zoom.test.tsx`, `lib/page-identity.test.tsx` and `views/usePlace.test.tsx`.
+Writing more of them is the "Component tests exist now" section below. Everything else your
+screen *does* is covered by the 117 Playwright specs, and nothing else.
+
+*(Corrected 2026-09-04. This said `jsdom` and the `@testing-library` packages were installed
+and **nothing imported them**, which the section further down this same file already
+contradicted. Counts measured with `npx vitest list --filesOnly` and
+`find app/tests/e2e -name '*.spec.ts'`.)*
 
 So for a visual or behavioural change, say honestly how you checked it:
 
@@ -166,8 +191,8 @@ Three things they need, and `components/person-face.test.tsx` is the worked exam
 three. Read it before writing your first one; it is commented for exactly that.
 
 - **`// @vitest-environment jsdom` on line 1.** The suite runs under `node`, so without this
-  there is no document and nothing renders. Per file, because the other 277 files want
-  `node`.
+  there is no document and nothing renders. Per file, because the other 338 files want
+  `node` (2026-09-04).
 - **`afterEach(cleanup)`.** Testing Library only unmounts automatically when vitest runs with
   `globals: true`, which this config does not set. Without it, one test's markup is still in
   the document during the next one, and a query that should find one element finds two. The

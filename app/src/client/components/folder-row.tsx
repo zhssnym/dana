@@ -541,8 +541,10 @@ export function FolderRow({
 What a release would do, in words, riding the row being carried.
 
 Lifted from `docs/design/prototype-v2/src/components/folder-row.tsx` at S24,
-read on `v2-build` at `102e855`. Ledger entry L-128 asked this row to be
-verified rather than assumed, and the verdict is that the client drew its own
+read on `v2-build` at `102e855`. That prototype is deleted (`a7886df`,
+2026-09-01); read it in git history before that commit. Ledger entry L-128
+asked this row to be verified rather than assumed, and the verdict is that the
+client drew its own
 affordance: a graphite pill with the words in it, and `ring-2 ring-ring/40` on
 the row while a hold was filling. The words were right and the countdown was
 missing, so a person holding a folder over another had nothing telling them how

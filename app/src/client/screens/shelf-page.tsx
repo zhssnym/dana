@@ -1,7 +1,9 @@
 /*
 `docs/design/prototype-v2/src/screens/shelf-page.tsx`, lifted whole at RFC
-0004's S27 and bound through the adapter seam. It diffs empty against its
-original except at the seams named here, each marked `Seam` in the body.
+0004's S27 and bound through the adapter seam. That prototype is deleted
+(`a7886df`, 2026-09-01); read it in git history before that commit. It diffs
+empty against its original except at the seams named here, each marked `Seam`
+in the body.
 
 1. **The `@/` specifiers become this client's relative ESM paths** (11.4),
    and the em dashes leave under protocol section 7.

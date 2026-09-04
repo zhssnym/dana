@@ -99,10 +99,11 @@ export type NativeViewKey = NativeView
  * DES-152's page block: one page per question, in 9.1's fixed order.
  *
  * Ruled by Imran on 2026-08-21 after the research in
- * `docs/design/six-pages-review.md`. The six v1 pages mixed four
- * classification schemes and presented them as peers; the replacement locks
- * one axis per page and frees every other, so no page can be turned into
- * another by adjusting controls.
+ * `docs/design/six-pages-review.md`, a document deleted (`a7886df`,
+ * 2026-09-01) and in git history before that commit. The six v1 pages mixed
+ * four classification schemes and presented them as peers; the replacement
+ * locks one axis per page and frees every other, so no page can be turned
+ * into another by adjusting controls.
  *
  * **`pinnable: false` is Desk alone**, and it is structural rather than a
  * preference (Imran, 2026-08-22). Desk is the default folder, the destination

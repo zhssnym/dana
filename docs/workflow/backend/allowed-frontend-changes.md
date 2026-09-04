@@ -40,10 +40,17 @@ exists at the bottom about what counts as having tested a client change.
 | Renaming a `localStorage` or `sessionStorage` key | 16 key constants | **The only genuinely irreversible thing in the client.** A renamed key silently resets that preference for every existing user, and no later deploy can reach the orphaned value. |
 
 **And one habit, not a file: do not add a `fetch` outside `api/http.ts`.** That file is where
-the CSRF header and the timezone parameter are added, once, for everything. Its own comment
-at line 4 claims nothing else calls `fetch` directly, and that claim is **already false** at
-`components/folder-cover.tsx:192`. Nothing enforces it: the eslint boundary rules restrict
-imports of `server/` and `db/`, not this.
+the CSRF header and the timezone parameter are added, once, for everything. **A lint rule
+enforces it since issue #72**: `no-restricted-syntax` in `app/eslint.config.ts` fails
+`fetch(...)`, `window.fetch(...)`, `globalThis.fetch(...)` and `self.fetch(...)` anywhere in
+`src/client/` but that file. What it does not catch, and says so in its own comment, is an
+alias — `const g = fetch` and then `g(url)` passes, a syntax selector reading the shape of
+the call rather than what the identifier resolves to. One file is exempt by a disable
+comment, `lib/viewer.ts`, which round-trips a `data:` URL into a Blob and reaches no network.
+
+*(Corrected 2026-09-04. This said "nothing enforces it: the eslint boundary rules restrict
+imports of `server/` and `db/`, not this", and named `components/folder-cover.tsx:192` as a
+live violation. #42 removed that call and #72 added the rule.)*
 
 ---
 

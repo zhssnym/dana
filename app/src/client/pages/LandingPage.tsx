@@ -2,8 +2,9 @@
 9.2's public page, at `/`.
 
 The Codex lane's landing, adopted by the owner on 2026-08-24 and ported here
-from `docs/design/prototype-v2/src/screens/landing-screen.tsx`. It replaces the
-two-column composition this file carried since P8R.
+from `docs/design/prototype-v2/src/screens/landing-screen.tsx`, a prototype
+deleted (`a7886df`, 2026-09-01) and in git history before that commit. It
+replaces the two-column composition this file carried since P8R.
 
 **The copy is no longer this file's transcription of a table**, because 9.2
 stopped carrying one on the same ruling. That section now fixes the rules copy

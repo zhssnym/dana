@@ -2,11 +2,12 @@
 Dana's mark, drawn rather than fetched, and animated like the icon family.
 
 Lifted from `docs/design/prototype-v2/src/components/dana-mark.tsx` at S21,
-read on `v2-build` at `db6f837`. The lift discipline of RFC 0004's
-prototype-lift section applies: this file diffs empty against that original
-except at the seams named at the foot of this header, and the header below is
-the designer's own reasoning kept intact, because it is the design record for
-every decision the drawing makes.
+read on `v2-build` at `db6f837`. That prototype is deleted (`a7886df`,
+2026-09-01); read it in git history before that commit. The lift discipline
+of RFC 0004's prototype-lift section applies: this file diffs empty against
+that original except at the seams named at the foot of this header, and the
+header below is the designer's own reasoning kept intact, because it is the
+design record for every decision the drawing makes.
 
 **Why this is a component and not an `<img>`.** Every brand lockup in the
 prototype used `<img src="/dana-mark.svg">`, which is a file the page has to

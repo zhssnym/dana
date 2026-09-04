@@ -41,13 +41,16 @@ persistent, global statement of that condition, and 10.6's contract is that
 reads need network. Adding a second offline message per page would be two
 answers to one question.
 
-**The icon is a prop rather than a constant** because `docs/design/notes.md`
-calls it contextual: the designer draws a different one per surface, a
-calendar check on My Day, a list on Tasks, a star on Important. It is
-optional, so a caller with no icon for its surface renders the copy alone
-rather than borrowing somebody else's, and the empty calendar of 9.5 is the
-note's own exception and stays a bare grid, which is role 09's business and
-not this file's.
+**The icon is a prop rather than a constant** because the design record called
+it contextual: the designer draws a different one per surface, a calendar
+check on My Day, a list on Tasks, a star on Important. That record was
+`docs/design/notes.md`, deleted (`a7886df`, 2026-09-01) and in git history
+before that commit, and **no numbered spec section carries this rule today**,
+so this comment and the callers below are the whole of it. It is optional, so
+a caller with no icon for its surface renders the copy alone rather than
+borrowing somebody else's, and the empty calendar of 9.5 is the note's own
+exception and stays a bare grid, which belongs to the calendar rather than to
+this file.
 */
 import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'

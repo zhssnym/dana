@@ -1,10 +1,14 @@
 /*
-The row props every page hands to `TaskList`, in one place, and the only file
-left in this directory.
+The row props every page hands to `TaskList`, in one place.
+
+**This file said it was "the only file left in this directory" and that
+stopped being true; corrected 2026-09-04.** `parts/` holds five source files:
+this one, `presenters.ts`, `format-dates.ts`, `person-tint.ts` and
+`identity-colors.ts`, with a test beside two of them.
 
 `parts/` was the shell session's holding pen for the least that let a page
 render, and its header said it should shrink to nothing when the component
-library landed. It has: the row and the quick-add row are `components/ui/`,
+library landed. It did: the row and the quick-add row are `components/ui/`,
 the two re-export files that stood in for them are deleted, and the five
 pages that imported through them now import from there directly, which is the
 request `components/README.md` filed against this role.

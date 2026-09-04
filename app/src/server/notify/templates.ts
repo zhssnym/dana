@@ -7,8 +7,10 @@ email, so this file wrote its own and wrote it spare. Imran closed DES-034 on
 2026-08-25 and every subject, heading, body, context line, action label and
 destination below is his, recorded at RFC 0005 change control **item 32**,
 which is the one place that copy lives. `docs/design/prototype-v2/`'s
-`transactional-email-screen.tsx` is the treatment and its strings are fixtures
-written before the ruling; where the two differ, item 32 wins.
+`transactional-email-screen.tsx` was the treatment and its strings are
+fixtures written before the ruling; where the two differ, item 32 wins. That
+prototype is deleted (`a7886df`, 2026-09-01) and is in git history before that
+commit, so item 32 is now the only live authority for these words.
 
 **Two parts, because 10.7 now says two.** Amended 2026-08-25 (item 26) from
 "plain, short templates" to HTML with a **required** text/plain alternative:

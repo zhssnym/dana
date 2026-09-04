@@ -5,9 +5,10 @@ it until S23 draws a surface over it.
 **Why they are here and not in the browser leg.** S22's row asks for one
 prototype screen running end to end on real data as its proof, and that proof
 could not be produced at this position in the dependency order: every screen
-in `docs/design/prototype-v2/src/screens/` is either fed by `task-row.tsx`,
-`task-card.tsx` or `shell-page.tsx`, which are S23's and S24's files, or is
-wired to its own `useState` and writes that reach nothing. The finding and its
+in `docs/design/prototype-v2/src/screens/` was either fed by `task-row.tsx`,
+`task-card.tsx` or `shell-page.tsx`, which are S23's and S24's files, or was
+wired to its own `useState` and writes that reach nothing. That prototype is
+deleted (`a7886df`, 2026-09-01) and is in git history before that commit. The finding and its
 recommendation are in the session report and in RFC 0005's change control.
 Until the proof screen lands, these cases are what stands behind the seam, and
 they are deliberately about the *seams* rather than about the mappings being

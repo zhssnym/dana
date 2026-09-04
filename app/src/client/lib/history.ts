@@ -2,11 +2,12 @@
 A thing's own past, as the lifted surfaces read one.
 
 `docs/design/prototype-v2/src/lib/history.ts`, read at `b316785`, over this
-client's query layer. Its own header states what a history is for and the
-statement survives the port whole: the verbs are "a distinct thing that
-happened to the object, in a person's words rather than the mutation's", and
-"Edited" covers every change to a thing's contents deliberately, because "a
-history that logged every keystroke as its own line would be a diff, and
+client's query layer. That prototype is deleted (`a7886df`, 2026-09-01); read
+it in git history before that commit. Its own header states what a history is
+for and the statement survives the port whole: the verbs are "a distinct thing
+that happened to the object, in a person's words rather than the mutation's",
+and "Edited" covers every change to a thing's contents deliberately, because
+"a history that logged every keystroke as its own line would be a diff, and
 nobody reads a diff to find out what happened."
 
 **The seam, and it is the whole of the difference.** The prototype writes its
