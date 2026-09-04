@@ -54,6 +54,18 @@ default, so read this list before spending one.
   it counted 229; the five ranges are twenty-nine numbers. Corrected on the branch for issues
   #20 and #100, which read this list to choose AC-368, rather than left for whoever spent 229
   a second time and found out from a duplicate test filename.
+- **AC-401 was taken from the tail on 2026-09-04** (issue #57), on the rule the AC-361 to
+  AC-365 bullet below states and at the tail the bullet above leaves: it is the icon rail's
+  alignment, which nothing guarded while the glyphs sat at three different x positions for
+  months. It is 12.18's, beside AC-182, which collapses the same rail and asserts what it
+  still reaches where this asserts how it is drawn. **The numbers above 401 are not claimed
+  or freed here.** Sibling branches were open the same night and one of them holds AC-402;
+  whether anything past that is spent is not known from here, and listing a number free that
+  a sibling has just spent is the collision this rule exists to prevent, made by the fix
+  rather than by the mistake. The count in the table below and the total at the top are the
+  last merge's to re-derive from the files, as the AC-394 bullet says, and this branch moved
+  neither.
+
 - **AC-399 was assigned and AC-400 taken from the tail beside it on 2026-09-04** (issue
   #104), on the rule the AC-361 to AC-365 bullet below states. 399 was handed to this
   branch by the session that opened several at once, which is the backend README's rule for
