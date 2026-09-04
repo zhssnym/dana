@@ -31,6 +31,7 @@ import { attachedFileIds } from '../../shared/comments.js'
 import type {
   CommentFile,
   CommentLine,
+  PatchCommentBody,
   PostCommentBody,
   ThreadView,
 } from '../../shared/comments.js'
@@ -242,15 +243,12 @@ export async function createComment(
  * GET /folders/:id/comments (access resolved by the route)
  * ------------------------------------------------------------------ */
 
-export async function threadView(
-  db: Db,
-  viewerId: string,
-  folderId: string,
-  taskId: string | null,
-): Promise<ThreadView> {
-  const rows = await rowsOf(
-    db,
-    sql`SELECT c.id, c.folder_id, c.task_id, c.parent_id, c.author_id,
+/* The thread's read shape, in one place because two readers want it: the
+   thread itself, and the single line `editComment` answers with (issue #94).
+   A second copy of this projection is how the two would one day disagree
+   about what a comment is. */
+function commentSelect(viewerId: string): ReturnType<typeof sql> {
+  return sql`SELECT c.id, c.folder_id, c.task_id, c.parent_id, c.author_id,
                c.body, c.created_at, c.edited_at,
                (SELECT count(*)::int FROM comment_likes l
                  WHERE l.comment_id = c.id) AS likes,
@@ -264,26 +262,56 @@ export async function threadView(
                         ORDER BY cf.created_at, cf.file_id), '[]'::json)
                   FROM comment_files cf JOIN files f ON f.id = cf.file_id
                   WHERE cf.comment_id = c.id) AS files
-        FROM comments c
+        FROM comments c`
+}
+
+function lineFrom(row: Record<string, unknown>): CommentLine {
+  return {
+    id: String(row.id),
+    folder_id: String(row.folder_id),
+    task_id: nullableString(row.task_id),
+    parent_id: nullableString(row.parent_id),
+    author_id: String(row.author_id),
+    body: nullableString(row.body),
+    likes: Number(row.likes),
+    liked: row.liked === true,
+    files: filesFrom(row.files),
+    created_at: toIso(row.created_at),
+    edited_at: row.edited_at === null ? null : toIso(row.edited_at),
+  }
+}
+
+export async function threadView(
+  db: Db,
+  viewerId: string,
+  folderId: string,
+  taskId: string | null,
+): Promise<ThreadView> {
+  const rows = await rowsOf(
+    db,
+    sql`${commentSelect(viewerId)}
         WHERE c.folder_id = ${folderId}
           AND c.task_id IS NOT DISTINCT FROM ${taskId}
         ORDER BY c.created_at ASC, c.id ASC`,
   )
-  return {
-    comments: rows.map((row) => ({
-      id: String(row.id),
-      folder_id: String(row.folder_id),
-      task_id: nullableString(row.task_id),
-      parent_id: nullableString(row.parent_id),
-      author_id: String(row.author_id),
-      body: nullableString(row.body),
-      likes: Number(row.likes),
-      liked: row.liked === true,
-      files: filesFrom(row.files),
-      created_at: toIso(row.created_at),
-      edited_at: row.edited_at === null ? null : toIso(row.edited_at),
-    })),
-  }
+  return { comments: rows.map(lineFrom) }
+}
+
+/* One comment as the thread would read it. The caller has already resolved
+   the viewer's access to it, so there is no membership clause here and this
+   function must never be reached with an id `accessibleComment` did not
+   return. */
+async function commentLineById(
+  executor: Executor,
+  viewerId: string,
+  commentId: string,
+): Promise<CommentLine | null> {
+  const found = await rowsOf(
+    executor,
+    sql`${commentSelect(viewerId)} WHERE c.id = ${commentId}`,
+  )
+  const row = found[0]
+  return row === undefined ? null : lineFrom(row)
 }
 
 /* 7.14's read shape (item 57 B5): the aggregate is 4.16's columns as JSON,
@@ -353,27 +381,111 @@ export async function accessibleComment(
   }
 }
 
-/** The author's own edit (4.15); the caller has resolved authorship. */
+export type EditCommentResult =
+  | { kind: 'edited'; comment: CommentLine }
+  | { kind: 'file_not_here' }
+  | { kind: 'nothing_left' }
+  | { kind: 'gone' }
+
+/*
+The author's own edit (4.15); the caller has resolved authorship.
+
+**The attachments moved here on 2026-09-04 (issue #94), on Imran's ruling that
+a person may add or remove them without deleting the comment and posting it
+again.** Three rules, and each is the create half's own rule read backwards.
+
+`patch.file_ids` is the whole new set. Omitted, nothing about the attachments
+is touched; `[]` removes them all; anything else makes the set exactly those
+ids, in that order, which is the order 7.14's "ordered as attached" names and
+which the microsecond stamping below is what preserves — inside one
+transaction `now()` is the transaction's instant and ten identical stamps are
+not an order at all.
+
+Every id is scoped to *this comment's* folder, exactly as `createComment`
+scopes the create half's, and one id outside it refuses the whole edit rather
+than applying the good half. The comment's folder comes from `access`, which
+the route resolved through the viewer's membership, so a file this viewer
+cannot reach is indistinguishable here from one that does not exist: the
+refusal says which field is wrong and nothing about what is on the other side
+of it (10.2, DES-225).
+
+And the comment must still be a comment afterwards. 4.15 admits a wordless one
+carrying files and the create half refuses one carrying neither, so an edit
+that would leave neither words nor attachments is refused here rather than
+being allowed to produce a row the create path could never have written.
+
+**Only whoever could already edit the words may do this**, which is the route's
+`access.isAuthor` gate unchanged: attachment editing is a second thing the same
+person may do to their own comment, not a reason to widen who may touch it.
+*/
 export async function editComment(
   db: Db,
   viewerId: string,
   access: CommentAccess,
-  body: string,
-): Promise<void> {
-  await inTransaction(db, async (tx) => {
-    await tx.execute(
-      sql`UPDATE comments SET body = ${body}, edited_at = now()
-          WHERE id = ${access.id}::uuid`,
+  patch: PatchCommentBody,
+): Promise<EditCommentResult> {
+  return inTransaction(db, async (tx) => {
+    const nextBody = patch.body ?? access.body
+    let firstFileName: string | null = null
+
+    if (patch.file_ids !== undefined) {
+      if (patch.file_ids.length > 0) {
+        const found = await rowsOf(
+          tx,
+          sql`SELECT id, name FROM files
+              WHERE folder_id = ${access.folderId}
+                AND id IN (${sql.join(
+                  patch.file_ids.map((id) => sql`${id}::uuid`),
+                  sql`, `,
+                )})`,
+        )
+        const byId = new Map(found.map((row) => [String(row.id), row]))
+        if (byId.size !== patch.file_ids.length) {
+          return { kind: 'file_not_here' } as const
+        }
+        firstFileName = String(byId.get(patch.file_ids[0] ?? '')?.name ?? '')
+      } else if (nextBody === null || nextBody.length === 0) {
+        // Removing the last attachment from a wordless comment would leave a
+        // row carrying nothing, which the create half refuses outright.
+        return { kind: 'nothing_left' } as const
+      }
+
+      await tx.execute(
+        sql`DELETE FROM comment_files WHERE comment_id = ${access.id}::uuid`,
+      )
+      for (const [index, fileId] of patch.file_ids.entries()) {
+        await tx.execute(
+          sql`INSERT INTO comment_files (comment_id, file_id, created_at)
+              VALUES (${access.id}::uuid, ${fileId}::uuid,
+                      now() + (${index}::int * interval '1 microsecond'))`,
+        )
+      }
+    }
+
+    const updated = await rowsOf(
+      tx,
+      sql`UPDATE comments SET body = ${nextBody}, edited_at = now()
+          WHERE id = ${access.id}::uuid
+          RETURNING id`,
     )
+    // The route resolved access before this transaction opened, so the row can
+    // have been deleted in between. Saying so beats answering "edited".
+    if (updated[0] === undefined) return { kind: 'gone' } as const
+
     await recordEvent(tx, {
       actorId: viewerId,
       verb: 'edited',
       subjectKind: 'comment',
       subjectId: access.id,
-      subjectName: snippetOf(body, null),
+      subjectName: snippetOf(nextBody, firstFileName),
       folderId: access.folderId,
       detail: 'edited a comment',
     })
+
+    const comment = await commentLineById(tx, viewerId, access.id)
+    return comment === null
+      ? ({ kind: 'gone' } as const)
+      : ({ kind: 'edited', comment } as const)
   })
 }
 

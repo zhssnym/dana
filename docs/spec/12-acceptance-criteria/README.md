@@ -29,6 +29,12 @@ default, so read this list before spending one.
   it counted 229; the five ranges are twenty-nine numbers. Corrected on the branch for issues
   #20 and #100, which read this list to choose AC-368, rather than left for whoever spent 229
   a second time and found out from a duplicate test filename.
+- **AC-381 to AC-383 were taken from the tail on 2026-09-04** (issue #94), on the same branch
+  and the same rule as the bullet below: attachment editing on an existing comment, which
+  Imran ruled into existence and which until that day was a `file_ids` accepted, dropped and
+  answered 200. The three are 12.14's — the set replaced, the set emptied, and what the edit
+  refuses, the gate included, because a `file_ids` branch placed ahead of the authorship check
+  would have passed AC-205 unchanged.
 - **AC-378 to AC-380 were taken from the tail on 2026-09-04** (issues #140 and #142), on the
   rule four bullets below rather than out of the gaps above, several branches being open that
   night: the calendar's zoom becoming a durable account preference. AC-378 and AC-379 are
