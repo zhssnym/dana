@@ -7,6 +7,10 @@ derived from.
   fix: task list 500s on an empty folder
   refactor: one router preamble, not thirteen
   feat!: folders are now shelves          <- the ! means breaking
+
+This pull request should not exist yet unless `npm run gate` is green on the
+head commit and the reviewer agent has run. Never a draft: docs/workflow/
+how-we-work.md section 8 says why.
 -->
 
 ## What and why
@@ -15,35 +19,55 @@ derived from.
 
 Closes #
 
-## Files touched outside my own area
+## Hard stops touched
 
 <!--
-The most important box, because nothing else in this workflow catches it. If
-this pull request changes anything outside the folder you own, name each file
-and say why in one line. The reviewer should never have to discover a backend
-change by reading the whole diff.
+docs/workflow/hard-stops.md lists eight. If this change touched one, name it and
+say which rule you met: the migration number and its journal `when`, the ruling
+comment on the issue, the server code and the criterion that came with the
+request field, the CSP source and where you saw it work, the accessOf gate and
+its AC-397 row, the criterion and the decision that moved, the tokens.css or
+presenters.ts line before and after.
 
-"None" is a perfectly good answer, and the usual one.
+Nothing else in this project catches an undeclared one. "None" is the usual
+answer, and the best one.
 -->
 
 None.
 
-## Tests
+## Criteria changed, and why
 
 <!--
-Name the commands. "Tested" is a word an agent writes after watching the code
-compile; a named command is a claim that can be checked. Say what you could not
-run and why, because an unstated gap is worse than a known one.
+A criterion changes only when the decision it pins changes. Name each one, say
+which decision moved, and link where it was decided. If a criterion looked wrong
+and you left it failing, say that here instead.
+-->
+
+None.
+
+## Gate record
+
+<!--
+Required. Paste the block `npm run gate` printed, unedited. The sha in it must
+be the head commit of this branch, and it must not say the tree was dirty.
+
+If a step went red for a reason that is not this change, say which of CLAUDE.md's
+four flake classes it was and what you did about it.
 -->
 
 ```
-Ran:
-Did not run:
 ```
+
+## Reviewer verdict
+
+<!--
+One paragraph from the reviewer agent, run by you before this pull request
+existed. "It found nothing" is a verdict and a good one.
+-->
 
 ## Screenshots
 
-<!-- Frontend changes only. Before and after. Delete this section otherwise. -->
+<!-- Changes to what a person sees. Before and after. Delete this section otherwise. -->
 
 ## Left out
 

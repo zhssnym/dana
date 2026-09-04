@@ -1,11 +1,41 @@
 name: CI
 
+# TWO JOBS SINCE 2026-09-04, AND ONLY ONE OF THEM IS THE GATE. Issue #180, and
+# 11.11 carries the amendment.
+#
 # The seven steps and their order are normative: spec 11.11 fixes them as npm ci,
 # lint, typecheck, test on PGlite, test on a real Postgres 18, build, Playwright.
-# Changing the set or the order is an Integration Steward escalation, not an edit.
-# Where the job runs, where the postgres leg's database comes from, and which
+# Changing the set or the order is an amendment there, not an edit here. Where
+# the job runs, where the postgres leg's database comes from, and which
 # interpreter a step's script is handed to are job configuration: they move
 # without amending 11.11, exactly as the service block they replaced always was.
+#
+# `ci` below still runs all seven, on pushes to main, unchanged. **That is the
+# run that matters**, because it measures what was actually merged, and it is
+# the one 11.11's order is normative for.
+#
+# `check` is what a pull request gets: the branch name, npm ci, lint, typecheck,
+# build. Minutes rather than half an hour. **It is not the gate and is not meant
+# to be.** The gate now runs where the code was written - `npm run gate` in
+# app/, printing a record a pull request carries - and three measured things put
+# it there.
+#
+#   A CI job holds about 7.7 GB of this machine's 15.8, so it cannot share the
+#   machine with the agents doing the work: killing a runner mid-job took free
+#   memory from 2.0 to 9.7 GB in one step, and the jobs that lost that fight
+#   went red with hook timeouts and zero assertion failures. A job this light
+#   can run beside them; the seven-step one cannot.
+#
+#   One runner serves both people. Twenty-five backend issues queued behind it
+#   on 2026-09-03 (#73), which is the whole reason branch grouping had to be
+#   invented. A gate on the author's machine has no queue.
+#
+#   And a verdict that arrives after the pull request is open arrives too late
+#   to change what the pull request is. The author's own run is the one that can.
+#
+# So this file is the safety net: it catches a pull request opened without a
+# gate run, and it measures the merge on main afterwards. What it does not do is
+# tell anyone whether the work was finished. The gate record does that.
 #
 # A pull request is checked, not a branch. `pull_request` builds the merge
 # result, which is the thing that will actually land on main, and a branch that
@@ -84,7 +114,67 @@ defaults:
     shell: cmd
 
 jobs:
+  # The pull request job. Light on purpose, and each of its four steps is here
+  # because it can fail for a reason the author's gate record cannot show:
+  # a branch name nothing else enforces, and a merge result the author never
+  # built. It is deliberately NOT the seven steps.
+  check:
+    if: github.event_name == 'pull_request'
+    runs-on: [self-hosted, windows, x64]
+    # A hang killer, not a budget, on a job measured in minutes.
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      # The branch name, which nothing else in this project checks. The shape is
+      # <area>/<issue-number>-<short-description>, and the number is the thread
+      # tying the branch to its issue, its pull request and the changelog: a
+      # branch named after a tool or a mood breaks that thread six weeks later
+      # when someone is trying to find out why a line exists. Two overnight runs
+      # produced one of each (#180).
+      #
+      # powershell rather than the file's cmd default, because cmd has no
+      # regular expressions. -cnotmatch rather than -notmatch: PowerShell's
+      # match operators are case-insensitive by default, so [a-z0-9-] would
+      # happily accept Frontend/42-Fix-The-Thing.
+      #
+      # github.head_ref is the source branch of a pull request and is empty on
+      # any other event, which is why this step lives in the pull-request job
+      # alone.
+      - name: Branch name
+        shell: powershell
+        env:
+          BRANCH: ${{ github.head_ref }}
+        run: |
+          if ($env:BRANCH -cnotmatch '^(frontend|backend|chore)/[0-9]+-[a-z0-9-]+$') {
+            Write-Host "Branch name '$env:BRANCH' does not match the shape this workflow requires:"
+            Write-Host ""
+            Write-Host "    <area>/<issue-number>-<short-description>"
+            Write-Host "    ^(frontend|backend|chore)/[0-9]+-[a-z0-9-]+$"
+            Write-Host ""
+            Write-Host "Area is frontend, backend or chore, and says where the work started rather"
+            Write-Host "than what it may touch. The number is the issue. The description is lower"
+            Write-Host "case with hyphens. Rename the branch, push it, and reopen the pull request."
+            exit 1
+          }
+          Write-Host "Branch name ok: $env:BRANCH"
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build
+        run: npm run build
+
+  # The seven steps of 11.11, on the merge itself. Unchanged by #180 except for
+  # the `if` that keeps it off pull requests.
   ci:
+    if: github.event_name != 'pull_request'
     runs-on: [self-hosted, windows, x64]
     # A hang killer, not a budget. 20 was P0's number for a hosted job whose
     # fifth leg had never run, and two independent measurements now say it is
