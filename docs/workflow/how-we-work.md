@@ -12,8 +12,11 @@ stop a change are in [`hard-stops.md`](hard-stops.md), and they stop everyone.
  discuss → issue → label → branch → work → gate → review → pull request → merge → live
 ```
 
-**The gate comes before the pull request, not after it.** That is the one place this diagram
-differs from the shape most projects have, and section 7 is why.
+**The gate and the review both come before the pull request, not after it.** That is the one
+place this diagram differs from the shape most projects have, and sections 7 and 8 are why.
+The sections are numbered in that order too, except for section 9: it is called Review, it
+sits after Open a pull request, and it describes two moments — the reviewer agent the author
+runs **before** section 8, and the reading whoever merges does after.
 
 ## 1. Discuss, in GitHub Discussions
 
@@ -260,9 +263,10 @@ npm run gate
 
 It runs spec 11.11's seven steps in order on this machine — install, lint, typecheck, the
 PGlite leg, the Postgres 18 leg, build, Playwright — stops at the first failure, and prints a
-**gate record**: the head sha, whether the tree was dirty, the machine, the clock, and the
-tally each step reported. `npm run gate -- --quick` runs lint, typecheck and build only, and
-says so in the record; it is for the middle of the work and never for a pull request.
+**gate record**: the head sha, whether the tree was dirty at either end of the run, the
+machine, the clock, and the tally each step reported. `npm run gate -- --quick` runs lint,
+typecheck and build only, and says so in the record; it is for the middle of the work and
+never for a pull request.
 
 **The record is the claim, and it is a claim somebody can check.** "Tested" is a word that
 gets written after watching code compile. A record naming 295 files and 1961 tests against a

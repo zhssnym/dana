@@ -13,9 +13,9 @@ the gate record a pull request carries.
 **What it does not do.** It decides nothing. It runs the same commands a person
 would type, in 11.11's order, stops at the first failure, and writes down what
 happened with enough detail that a second person can tell which commit was
-measured: the head sha, whether the tree was dirty, the machine, the clock, and
-the tally each leg reported. A record with no tallies is a claim; a record with
-them is a measurement.
+measured: the head sha, whether the tree was dirty at either end of the run, the
+machine, the clock, and the tally each leg reported. A record with no tallies is
+a claim; a record with them is a measurement.
 
 **The one number that matters most is the file count.** The vitest legs run
 through `scripts/run-suite.mjs`, which fails a run that exited 0 without
@@ -149,7 +149,6 @@ async function main() {
   const shortSha = await read('git', ['rev-parse', '--short', 'HEAD'])
   const fullSha = await read('git', ['rev-parse', 'HEAD'])
   const porcelain = await read('git', ['status', '--porcelain'])
-  const dirty = porcelain !== ''
 
   // The parent environment decides whether the Postgres leg is available at
   // all. CLAUDE.md is emphatic that this variable is ambient and has changed
@@ -240,13 +239,31 @@ async function main() {
     }
   }
 
+  // Asked twice, at both ends, and the second one is the load-bearing half.
+  // A run measures a tree over half an hour, and a tree that was clean when it
+  // started can be edited while it runs; the author of this file did exactly
+  // that, on this branch, the day it was written. One reading at the start
+  // would have called that record clean. So the record says dirty if the tree
+  // was dirty at either end, and names which.
+  const porcelainAfter = await read('git', ['status', '--porcelain'])
+  const shaAfter = await read('git', ['rev-parse', '--short', 'HEAD'])
+  const dirtyBefore = porcelain !== ''
+  const dirtyAfter = porcelainAfter !== ''
+  const moved = shaAfter !== shortSha
+
+  let treeLine = 'clean'
+  if (dirtyBefore && dirtyAfter) treeLine = `tree dirty at ${shortSha}`
+  else if (dirtyBefore) treeLine = `tree dirty at ${shortSha} when the run started`
+  else if (dirtyAfter) treeLine = `tree dirty at ${shortSha} — edited while the run was going`
+  if (moved) treeLine += `; HEAD moved to ${shaAfter} during the run`
+
   const ended = new Date()
   const width = Math.max(...rows.map((row) => row.name.length))
   const lines = [
     '```',
     `Dana gate${quick ? ' --quick' : ''}`,
     `commit    ${shortSha} (${fullSha})`,
-    `tree      ${dirty ? `tree dirty at ${shortSha}` : 'clean'}`,
+    `tree      ${treeLine}`,
     `machine   ${os.hostname()}`,
     `start     ${started.toISOString()}`,
     `end       ${ended.toISOString()}`,
