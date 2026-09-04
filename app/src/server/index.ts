@@ -11,6 +11,7 @@ import { createDbClient } from '../../db/client.js'
 import type { DbClient } from '../../db/client.js'
 import { createAuthRouter } from './auth/index.js'
 import type { AuthConfig } from './auth/index.js'
+import { canonicalHostRedirect, canonicalOriginOf } from './http/canonical-host.js'
 import { errorBody } from './http/errors.js'
 import { attachNotifier, createNotifier, notifierOf } from './notify/index.js'
 import type { NotificationSink } from './notify/index.js'
@@ -35,7 +36,7 @@ import { createEventsRouter } from './routes/events.js'
 import { createExportRouter } from './routes/export.js'
 import { createFilesRouter } from './routes/files.js'
 import { createFoldersRouter } from './routes/folders.js'
-import { healthRouter, recordDatabaseKind } from './routes/health.js'
+import { HEALTH_PATH, healthRouter, recordDatabaseKind } from './routes/health.js'
 import { createInvitesRouter } from './routes/invites.js'
 import { createSampleRouter } from './routes/sample.js'
 import { createTasksRouter } from './routes/tasks.js'
@@ -108,6 +109,22 @@ export interface AppOptions {
    * createApp itself performs no I/O (11.10).
    */
   clientDist?: string
+  /**
+   * This deployment's own origin, APP_ORIGIN. Present, it is the canonical
+   * host: every request arriving on any other one is redirected to it
+   * (http/canonical-host.ts, issue #6). Absent, nothing redirects, which is
+   * development and every criterion but AC-414.
+   *
+   * The boot fills it from the environment and hands it here, rather than
+   * this file reading `process.env.APP_ORIGIN` as it does two lines further
+   * down for the reporting endpoint. The reason is AC-109 and it is written
+   * out in that module: its harness sets APP_ORIGIN to its own ephemeral
+   * origin and then drives the auth endpoints with crafted Host headers, so a
+   * redirect that read the environment would answer those requests before an
+   * auth endpoint saw one, and that criterion would go on passing while
+   * measuring this middleware instead of the discipline it was written for.
+   */
+  appOrigin?: string
   /**
    * Whether a brand-new account is written the sample workspace at its
    * first sign-in (RFC 0005 change control item 60). Defaults to true unless
@@ -191,27 +208,60 @@ export function createApp(options: AppOptions = {}): express.Express {
   three cases against this application rather than trusting the paragraph.
 
   **This setting moves four request properties and not one, so here is what
-  the other three reach, checked rather than assumed.** `req.hostname` would
-  read `X-Forwarded-Host` and `req.secure` follows `req.protocol`: nothing in
-  `src/server` reads `hostname`, `secure` or `subdomains` at all, and the
-  session cookies are `secure: true` as literals rather than as a question
-  about the request. `req.protocol` has exactly one reader,
+  the other three reach, checked rather than assumed.** `req.hostname` reads
+  `X-Forwarded-Host` and `req.secure` follows `req.protocol`. **`hostname` has
+  had exactly one reader since issue #6 and it is the middleware mounted
+  immediately below**, which wants precisely this: behind Render's edge the
+  visitor's own address is in that header and the socket's `Host` is the
+  platform's. Nothing reads `secure` or `subdomains` at all, and the session
+  cookies are `secure: true` as literals rather than as a question about the
+  request. `req.protocol` has exactly one reader,
   `routes/csp-report.ts`, and only as the fallback for an unset `APP_ORIGIN` —
   which `assertSignInIsPossible` refuses to boot without, so it is a
   development affordance and never the production path. A crafted
   `X-Forwarded-Proto` can now flip that fallback's scheme on a process
   configured without an origin; the comment there already records that the
   fallback trusts the caller's `Host` for the same decision and that a caller
-  who forges it can log a line they could log anyway. And **no redirect
+  who forges it can log a line they could log anyway. And **no redirect target
   moves**: `auth/router.ts` builds the authorization URL, the `redirect_uri`
   and the callback URL from configuration, which is the rule written at the
-  head of that file, so a forged `X-Forwarded-Host` reaches nothing.
+  head of that file, and the canonical-host redirect below sends everyone to
+  the configured origin whatever host they claimed. What a forged
+  `X-Forwarded-Host` can do, since issue #6, is decide **whether** that
+  redirect fires: claim the canonical host and it does not. That is a caller
+  choosing to be served on the address they already reached, which is exactly
+  what everyone got before this middleware existed, so the failure direction
+  is back to the old behaviour for one caller and never past it.
   */
   app.set('trust proxy', 1)
 
   /*
-  10.8's response headers (RFC 0005 unit 13a, change control item 18), first
-  in the chain so every response carries them, refusals and errors included.
+  One host, one cookie jar (issue #6), and it is mounted first for a reason
+  that is not ceremony: a request for a host this deployment does not answer
+  on is answered here and goes no further, so the 301 carries no policy
+  header, spends no limiter, parses no body and touches no session. The
+  reasoning, the 404-for-mutations rule and why the origin arrives as an
+  option rather than out of the environment are all in the module.
+
+  `/api/health` is the one path exempted, and the literal comes from the
+  router it exempts so the two cannot drift: Render's own probe reaches this
+  service by its Render hostname, which is the non-canonical one by
+  definition, and a 301 there fails the health check and with it the deploy.
+  */
+  const canonicalHost = canonicalHostRedirect({
+    appOrigin: options.appOrigin,
+    exempt: [HEALTH_PATH],
+  })
+  if (canonicalHost !== null) app.use(canonicalHost)
+
+  /*
+  10.8's response headers (RFC 0005 unit 13a, change control item 18), ahead
+  of everything that answers a request so every response carries them,
+  refusals and errors included. The one response in front of them is the
+  canonical-host redirect above, which is deliberate: a 301 off this
+  deployment's address carries no document, so there is no policy to enforce
+  on it and no report it could send back here.
+
   The policy is sized to what the client actually loads and no wider, and
   each widening past 'self' carries its reason:
 
@@ -461,7 +511,7 @@ export function createApp(options: AppOptions = {}): express.Express {
     next()
   })
 
-  app.use('/api/health', healthRouter)
+  app.use(HEALTH_PATH, healthRouter)
 
   /*
   The mount order below is load-bearing in exactly one place, and issue #37
@@ -827,9 +877,31 @@ async function main(): Promise<void> {
           securityLog: runtimeSecurityLog,
           fileStore,
           errorTracker,
+          appOrigin: process.env.APP_ORIGIN,
         }
-      : { dbClient, securityLog: runtimeSecurityLog, fileStore, errorTracker },
+      : {
+          dbClient,
+          securityLog: runtimeSecurityLog,
+          fileStore,
+          errorTracker,
+          appOrigin: process.env.APP_ORIGIN,
+        },
   )
+
+  /* Issue #6, and the only thing this middleware ever writes to the log. 10.5
+     forbids a line per request and a redirect would not deserve one anyway;
+     what a reader of Render's logs needs is whether the process is enforcing a
+     canonical host and which one, which changes only at boot. Silence means
+     APP_ORIGIN was unset, which in production `assertSignInIsPossible` has
+     already refused to start on. The parse is the middleware's own, so this
+     line cannot name a host the application is not in fact enforcing. */
+  const canonical = canonicalOriginOf(process.env.APP_ORIGIN)
+  if (canonical !== null) {
+    runtimeBootLog.operation('info', 'canonical_host_enforced', {
+      note: canonical.host,
+    })
+  }
+
   const server = app.listen(port, () => {
     runtimeBootLog.operation('info', 'server_listening', { port })
   })

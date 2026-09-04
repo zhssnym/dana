@@ -77,6 +77,19 @@ default, so read this list before spending one.
   it counted 229; the five ranges are twenty-nine numbers. Corrected on the branch for issues
   #20 and #100, which read this list to choose AC-368, rather than left for whoever spent 229
   a second time and found out from a duplicate test filename.
+- **AC-414 was taken from the tail on 2026-09-04** (issue #6), on the rule the AC-361 to
+  AC-365 bullet below states, and it is 12.23's: production answered on `https://dana.so` and
+  on the Render address of the same service, session cookies are host-only, and two addresses
+  are therefore two cookie jars — which is how "every visit needs a fresh sign-in" happened
+  and why it was investigated twice as a cookie defect.
+
+  **413 is not free and is deliberately not added to the list above**: it is spent by the
+  sibling branch `backend/167-shelf-page-images`, which was open while this one was, so this
+  branch stepped over it rather than take the number the list names as next. That is the same
+  move the AC-411 bullet below records for its own night, and the reason is the same, a gap
+  being ordinary where a collision is a duplicate test filename. **No total moves with it**,
+  on the AC-410 and AC-411 precedent: the count at the top and 12.23's row in the table below
+  belong to whichever merge comes last rather than to one of two branches open at once.
 - **AC-413 was taken from the tail on 2026-09-04** (issue #167), on the rule the AC-361 to
   AC-365 bullet below states, and it is 12.9's, beside AC-375 whose gate it leans on: a
   picture on a shelf page had no folder to be uploaded into, so `POST /files { kind: image }`
