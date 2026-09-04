@@ -15,8 +15,11 @@ read off the folder list already in every page's cache, Desk never shelving
 (9.10). **The arrangement**: 4.17's rows through `lib/shelf-layout.ts`, one
 PUT of the whole list per change with the evidence it was read with, the
 response handed back so the screen adopts the server's ids. **The acts**:
-Copy link through `lib/nav-links.ts`, Duplicate as the page and no folders
-(9.10: a folder is on one shelf), Save as workflow as 7.16's file, Delete
+Copy link through `lib/nav-links.ts`, Duplicate as one call to
+`POST /shelves/:id/duplicate` and no folders (9.10: a folder is on one shelf),
+which carries the mark, the colour, the description and a cover picture of the
+copy's own and does not carry the blocks — see the act's own note — Save as
+workflow as 7.16's file, Delete
 unlabelling its folders and keeping them, and Rename as 7.16's PATCH, whose
 transaction rewrites the member labels (4.18's lockstep). **A folder row
 opens as its own tab beside the shelf's** (9.1, the 2026-08-24 ruling), the
@@ -31,8 +34,8 @@ import { useMemo, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
 import {
-  useCreateShelf,
   useDeleteShelf,
+  useDuplicateShelf,
   usePatchShelf,
   usePutShelfPage,
   useUpdateMyMembership,
@@ -75,8 +78,7 @@ export function ShelfPage(): React.JSX.Element {
   const patch = usePatchShelf()
   const putPage = usePutShelfPage()
   const remove = useDeleteShelf()
-  const createShelf = useCreateShelf()
-  const putNewPage = usePutShelfPage()
+  const duplicate = useDuplicateShelf()
   const move = useUpdateMyMembership()
 
   const detail = shelf.data
@@ -186,32 +188,42 @@ export function ShelfPage(): React.JSX.Element {
               copyShelfLink(id, name)
             }}
             onDuplicate={() => {
-              /* The page, no folders (9.10): a folder is on one shelf. */
-              createShelf.mutate(
-                {
-                  name: `${name} copy`.slice(0, 40),
-                  icon: detail?.icon ?? null,
-                  color: detail?.color ?? null,
-                  description: detail?.description ?? null,
+              /*
+              One act on the server (7.16 as amended 2026-09-04; issues #117
+              and #128), and no folders, 9.10's rule that a folder is on one
+              shelf. What stood here was `POST /shelves` carrying the icon,
+              the colour and the description read out of this page, then a
+              second write of the copied blocks — and it could not carry the
+              cover at all, `POST /shelves` refusing all three cover fields
+              out loud rather than dropping them silently (#40's ruling). So
+              a duplicated shelf lost one of the four things that made it
+              look like itself the day #20 gave a shelf a cover to lose.
+
+              Two calls also have a gap in them, and a failure landing in it
+              is the half-duplicated shelf #128 asks not to exist; and a copy
+              that pointed at the same `cover_file_id` would not be
+              independent, the foreign key's ON DELETE SET NULL blanking both
+              shelves the moment that file went. Both are why this is the
+              server's one transaction rather than the client's two writes.
+
+              **The copy no longer carries this shelf's blocks**, and that is
+              a real change rather than an oversight here: 7.16's amendment
+              says the duplicate does not carry the page (4.17), on the
+              reading that 9.10's "the page, no folders" distinguishes the
+              shelf from its membership rather than promising its prose. The
+              blocks are named in the annotation on 9.10 so the next reader
+              meets the decision rather than the difference.
+              */
+              duplicate.mutate(id, {
+                onSuccess: (made) => {
+                  /* The shelves list refetches through the mutation cache's
+                     own onSuccess (8.3), which invalidates everything after
+                     every successful write, so the sidebar and the Library
+                     hold the copy without this page naming the key a second
+                     time. */
+                  void navigate(paths.shelf(made.id))
                 },
-                {
-                  onSuccess: (made) => {
-                    const copied = (page.data?.blocks ?? [])
-                      .filter((block) => block.kind !== 'folder_ref')
-                      .map((block, position) => ({
-                        kind: block.kind,
-                        position,
-                        text: block.text,
-                        file_id: block.file_id,
-                        width_pct: block.width_pct,
-                      }))
-                    if (copied.length > 0) {
-                      putNewPage.mutate({ id: made.id, body: { blocks: copied } })
-                    }
-                    void navigate(paths.shelf(made.id))
-                  },
-                },
-              )
+              })
             }}
             onSaveWorkflow={() => {
               const blob = new Blob([shelfWorkflowFile(name, onShelf)], {

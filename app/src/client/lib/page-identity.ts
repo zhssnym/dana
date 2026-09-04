@@ -241,14 +241,16 @@ const storedCoverSchema = z.object({ id: z.uuid() })
  * 10.3's gigabyte and a folder over it are the same event to a person, so they
  * say the same thing. `writeFailureMessage` is this client's one rule for what
  * a failed write says — 9.1's offline sentence where the request never left,
- * the server's own words for a 409 and a 403, and section 9's generic sentence
- * for everything else, which is where a 413 `quota_exceeded` and a 422 both
- * land. That is the folder page's existing behaviour reused rather than a
- * second treatment invented for the two new pages. **The server writes a
- * better sentence for the quota than this shows** — 7.15 answers 413 with
- * section 9's "You've used your 1 GB of storage." — and surfacing it is a
- * change to `writeFailureMessage`, which is every write in the client rather
- * than covers, so it is not made here.
+ * the server's own words for a 409, a 403 and 10.3's 413 `quota_exceeded`, and
+ * section 9's generic sentence for everything else, which is where a 422 from
+ * one of these endpoints lands. That is the folder page's behaviour reused
+ * rather than a second treatment invented for the two new pages.
+ *
+ * **The 413 clause arrived one commit after this one**, with issue #117, whose
+ * shelf duplicate can be refused the same way; before it, a person at their
+ * gigabyte was told to try again. It is in `writeFailureMessage` rather than
+ * here because it is true of every write in the client and not of covers, and
+ * this comment is corrected rather than left saying the old thing.
  */
 function reportCoverFailure(error: unknown): void {
   showToast(writeFailureMessage(error))

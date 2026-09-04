@@ -637,6 +637,36 @@ export function useDeleteShelf(): UseMutationResult<void, Error, string> {
   })
 }
 
+/**
+ * POST /shelves/:id/duplicate (7.16 as amended 2026-09-04; issues #117, #128).
+ * 201 with the whole new Shelf, which the caller navigates to.
+ *
+ * **It replaces two calls, and the second one is what #117 was about.** The
+ * page duplicated a shelf as `POST /shelves` carrying the icon, colour and
+ * description read from the original, and there was no third field it could
+ * have carried for the cover: `POST /shelves` refuses all three cover fields
+ * out loud rather than dropping them (#40's ruling), so the copy came out
+ * bare. Two calls also have a gap between them, and a failure in it is the
+ * half-duplicated shelf #128 asks not to exist, so the copy is one act on the
+ * server. It carries the icon, colour, description, `cover_preset` and
+ * `cover_focal_y` verbatim and **a cover file of its own** — the picture is
+ * copied rather than shared, because one `cover_file_id` on two shelves is not
+ * independence: the foreign key's ON DELETE SET NULL blanks both the moment
+ * that file goes. That is Imran's ruling on #117, "changing or removing the
+ * cover on either shelf must not change the other".
+ *
+ * It does not carry the shelf's page (4.17), which is 7.16's own distinction
+ * and not this client's to make; the two refusals it can answer, 413 for the
+ * quota the copy spends and 422 for a name it cannot fit, are the mutation
+ * cache's to toast like any other.
+ */
+export function useDuplicateShelf(): UseMutationResult<Shelf, Error, string> {
+  return useMutation({
+    mutationFn: (id: string) =>
+      mutateApi(shelf, { method: 'POST', path: `/shelves/${id}/duplicate` }),
+  })
+}
+
 /** POST /folders/:id/duplicate (7.16): DES-198's copy rules server-side;
  * the answer is the copy's identity, which the caller navigates to. The tz is
  * the day a spent plan re-anchors on, the viewer's rather than the database's
