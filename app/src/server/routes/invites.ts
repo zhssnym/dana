@@ -35,8 +35,8 @@ import { requireCsrf, requireSession } from '../auth/index.js'
 import {
   sendError,
   sendFieldValidationError,
-  sendValidationError,
 } from '../http/errors.js'
+import { parseBody } from '../http/parse-body.js'
 import { notifierOf } from '../notify/index.js'
 import type { OutboundMessage } from '../notify/index.js'
 import { optionalLimit } from '../security/rate-limit.js'
@@ -131,12 +131,9 @@ export function createInvitesRouter(
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
-      const parsed = postInvitesBody.safeParse(req.body)
-      if (!parsed.success) {
-        sendValidationError(res, parsed.error)
-        return
-      }
-      const result = await createInvite(db, viewer(req), parsed.data)
+      const parsed = parseBody(postInvitesBody, req, res, securityLog)
+      if (parsed === null) return
+      const result = await createInvite(db, viewer(req), parsed)
       switch (result.kind) {
         case 'own_email':
           // 8.7's second validation. It is a 422 naming the field rather

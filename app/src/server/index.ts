@@ -543,7 +543,12 @@ export function createApp(options: AppOptions = {}): express.Express {
   // earlier routers claim.
   app.use(
     '/api/v1',
-    createFilesRouter({ dbClient: options.dbClient, fileStore, rateLimits }),
+    createFilesRouter({
+      dbClient: options.dbClient,
+      fileStore,
+      rateLimits,
+      securityLog,
+    }),
   )
 
   // The photo tier's three routes (7.15, polish round of 2026-08-30): the
@@ -552,7 +557,12 @@ export function createApp(options: AppOptions = {}): express.Express {
   // same createFile as an upload. Reasoning in routes/cover-photos.ts.
   app.use(
     '/api/v1',
-    createCoverPhotosRouter({ dbClient: options.dbClient, fileStore, rateLimits }),
+    createCoverPhotosRouter({
+      dbClient: options.dbClient,
+      fileStore,
+      rateLimits,
+      securityLog,
+    }),
   )
 
   // The S5 workshop (7.16): pages, shelves, and the object acts. Its
@@ -560,13 +570,22 @@ export function createApp(options: AppOptions = {}): express.Express {
   // earlier routers claim, Express matching whole paths.
   app.use(
     '/api/v1',
-    createWorkshopRouter({ dbClient: options.dbClient, rateLimits, fileStore }),
+    createWorkshopRouter({
+      dbClient: options.dbClient,
+      rateLimits,
+      fileStore,
+      securityLog,
+    }),
   )
 
   // The S6 conversation (7.14): threads, replies, likes.
   app.use(
     '/api/v1',
-    createConversationRouter({ dbClient: options.dbClient, rateLimits }),
+    createConversationRouter({
+      dbClient: options.dbClient,
+      rateLimits,
+      securityLog,
+    }),
   )
 
   // The S7 bundle (4.19): the v2 /settings surface beside frozen 7.2's
@@ -577,7 +596,12 @@ export function createApp(options: AppOptions = {}): express.Express {
   // literal pages if it moved ahead. See the block above `/api/v1`.
   app.use(
     '/api/v1',
-    createBundleRouter({ dbClient: options.dbClient, rateLimits, fileStore }),
+    createBundleRouter({
+      dbClient: options.dbClient,
+      rateLimits,
+      fileStore,
+      securityLog,
+    }),
   )
 
   // 7.22's data export (issue #77): one GET at the literal path `/me/export`,

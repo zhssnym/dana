@@ -41,6 +41,10 @@ describe('AC-103 logging privacy', () => {
       database: forbidden.join(' '),
       missing: forbidden.join(' '),
     })
+    logger.unknownRequestFields({
+      route: forbidden.join(' '),
+      fields: forbidden,
+    })
 
     const emitted = JSON.stringify(lines)
     for (const secret of forbidden) expect(emitted).not.toContain(secret)
@@ -65,5 +69,62 @@ describe('AC-103 logging privacy', () => {
         message: 'reminder',
       },
     ])
+  })
+})
+
+/*
+Issue #104's line, whose two fields are both caller-influenced: a route label
+this application builds out of `req.baseUrl`, which is concrete rather than a
+template, and key names the caller chose outright. 10.5's promise is that the
+logger has no parameter user content can reach, so the whitelists are asserted
+here rather than trusted to `parseBody`'s care.
+*/
+describe('unknown request fields (10.5, issue #104)', () => {
+  test('warn level, with the route and the key names and nothing else', () => {
+    const lines: unknown[] = []
+    createSecurityLogger(recordingSink(lines)).unknownRequestFields({
+      route: 'PATCH /api/v1/folders/:id',
+      fields: ['colour', 'colour', 'cover_file_id'],
+    })
+    expect(lines).toEqual([
+      {
+        level: 'warn',
+        fields: {
+          event: 'unknown_request_fields',
+          route: 'PATCH /api/v1/folders/:id',
+          fields: ['colour', 'cover_file_id'],
+          count: 2,
+        },
+        message: 'unknown request fields',
+      },
+    ])
+  })
+
+  test('count is what the caller sent, not what survived the whitelist', () => {
+    /* Mangling before counting would collapse every ill-formed key into one
+       `other` and report `count: 1` for forty of them, erasing the magnitude
+       signal for exactly the caller this line exists to notice. */
+    const lines: { fields: Record<string, unknown> }[] = []
+    createSecurityLogger(recordingSink(lines as unknown[])).unknownRequestFields({
+      route: 'PATCH /api/v1/folders/:id',
+      fields: ['x-one', 'x-two', 'x-three', 'x-four', 'colour'],
+    })
+    const [line] = lines as [{ fields: Record<string, unknown> }]
+    expect(line.fields['count']).toBe(5)
+    expect(line.fields['fields']).toEqual(['colour', 'other'])
+  })
+
+  test('a route label carrying a row id is refused rather than repaired', () => {
+    /* Every router in this application is mounted at a literal path today, so
+       this cannot fire; it is the guard for the day one is mounted under a
+       parameterised one, when `req.baseUrl` would carry a concrete uuid. */
+    const lines: { fields: Record<string, unknown> }[] = []
+    const logger = createSecurityLogger(recordingSink(lines as unknown[]))
+    logger.unknownRequestFields({
+      route: 'GET /api/v1/tasks/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee/steps',
+      fields: ['x'],
+    })
+    logger.unknownRequestFields({ route: 'NOT A ROUTE AT ALL', fields: ['x'] })
+    expect(lines.map((line) => line.fields['route'])).toEqual(['other', 'other'])
   })
 })
