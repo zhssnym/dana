@@ -3,7 +3,18 @@ AC-372: given migration 0012's shelf cover columns, when a row is written
 carrying a picture and a preset at once, or a preset that is not a key, or a
 crop outside 0 to 100, then the database refuses it by name; and a row wearing
 one source, or none at all, is admitted. And given a file with no folder whose
-kind is neither avatar nor cover, the database refuses that too.
+kind is none of avatar, cover and image, the database refuses that too.
+
+**That last clause read "neither avatar nor cover" until 2026-09-04, when
+issue #167 added `image` to it (migration 0015).** A shelf page's picture has
+no folder to take its visibility from, so it belongs to the person exactly as
+that page's cover does, and the schema's sentence about which kinds may stand
+outside a folder moved with the server's. The arm below therefore *stores* a
+folder-less image where it used to be refused one, and keeps `voice` as the
+kind that proves the constraint still has teeth. Nothing about why this case
+exists changes: AC-001 asserts the constraint by name and by columns, both of
+which 0015 leaves alone, so only a row tried against the database can tell a
+widened CHECK from a dropped one.
 
 **This case exists because AC-001 cannot see what a CHECK does.** The catalog
 test asserts every constraint by name and by which columns it mentions, and a
@@ -135,17 +146,11 @@ describe('AC-372 the database itself refuses a shelf wearing two covers', () => 
         ),
       'files_folderless_kind_check',
     )
-    await expectRejectedBy(
-      () =>
-        app.db.execute(
-          sql`INSERT INTO files (id, owner_id, folder_id, kind, name, mime, bytes)
-              VALUES (${randomUUID()}::uuid, ${owner.id}::uuid, NULL, 'image',
-                      'ac372-loose.png', 'image/png', 64)`,
-        ),
-      'files_folderless_kind_check',
-    )
-    // The two kinds it admits, which are the two 4.16 says belong to a person.
-    for (const kind of ['cover', 'avatar'] as const) {
+    // The three kinds it admits, which are the three 4.16 says may belong to a
+    // person rather than to a folder: an avatar, a cover, and — since issue
+    // #167 and migration 0015 — a page image, which is a shelf page's picture
+    // and has no folder to be scoped by.
+    for (const kind of ['cover', 'avatar', 'image'] as const) {
       await app.db.execute(
         sql`INSERT INTO files (id, owner_id, folder_id, kind, name, mime, bytes)
             VALUES (${randomUUID()}::uuid, ${owner.id}::uuid, NULL, ${kind},

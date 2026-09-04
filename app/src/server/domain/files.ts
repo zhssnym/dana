@@ -50,6 +50,24 @@ const MAX_IMAGE_EDGE = 2048
 
 const IMAGE_KINDS: ReadonlySet<FileKind> = new Set(['image', 'cover', 'avatar'])
 
+/*
+The kinds a caller may store with no `folder_id` at all, which is migration
+0015's `files_folderless_kind_check` less the avatar — an avatar *refuses* a
+folder rather than merely allowing none, and `setAvatar` is its only door.
+
+**`image` joined `cover` on 2026-09-04 for issue #167.** A picture on a shelf
+page is in the position a cover was before issues #20 and #100: a shelf is
+private (4.18) and is not a folder, so an image block there has no folder to
+take its visibility from, and `POST /files { kind: image }` answered 422 for
+the one page kind that most needed it. The picture belongs to the uploader
+instead, readable under `readableFileScope`'s folder-less owner arm below and
+nameable by a block only where `putPage`'s shelf-homed clause admits it
+(issue #107). `file` and `voice` keep requiring a folder: a comment's
+attachment and a voice note hang on a thread that lives in one, and there is
+no page kind for which that is not so.
+*/
+const FOLDERLESS_KINDS: ReadonlySet<FileKind> = new Set(['image', 'cover'])
+
 /** Raster formats only for the image kinds (the S4 security review's first
  * condition): SVG decodes like an image and serves like a document, and a
  * document with scripts on the application's own origin is a session
@@ -136,23 +154,24 @@ export async function createFile(
   input: UploadInput,
 ): Promise<CreateFileResult> {
   /* Scope before shape (10.2), and which kinds may stand outside a folder is
-     migration 0012's files_folderless_kind_check, restated here so the
+     migration 0015's files_folderless_kind_check, restated here so the
      refusal is a sentence rather than a constraint violation.
 
-     **A cover may have a folder or no folder, and that is the whole of
-     issue #20's backend.** Every other kind hangs on something that lives in
-     a folder — a page image, a comment's attachment, a voice note — and takes
-     that folder's visibility. A cover decorates a page, and the three kinds
-     of page are not all folders: a folder's cover is shared with its members
-     and must be folder-scoped so they can read it (4.3, "one look for every
-     member"), while a shelf is private (4.18) and a place cover is per viewer
-     (4.20), so theirs belong to the person. The rule is therefore *the cover
-     file's scope matches its page's scope*, and the caller chooses it by
-     sending a folder_id or not. An avatar continues to refuse one. */
+     **A cover or a page image may have a folder or no folder, and that is
+     the whole of issue #20's backend and of issue #167's.** A `file` and a
+     `voice` note hang on a comment thread that lives in a folder and take
+     that folder's visibility. A picture decorates a page, and the kinds of
+     page are not all folders: a folder's cover and a folder page's image are
+     shared with its members and must be folder-scoped so they can read them
+     (4.3, "one look for every member"), while a shelf is private (4.18) and a
+     place cover is per viewer (4.20), so theirs belong to the person. The
+     rule is therefore *a picture's scope matches its page's scope*, and the
+     caller chooses it by sending a folder_id or not. An avatar continues to
+     refuse one. */
   if (input.kind === 'avatar') {
     if (input.folderId !== null) return { kind: 'kind_mime_mismatch' }
   } else if (input.folderId === null) {
-    if (input.kind !== 'cover') return { kind: 'folder_not_found' }
+    if (!FOLDERLESS_KINDS.has(input.kind)) return { kind: 'folder_not_found' }
   } else if ((await accessOf(db, viewerId, input.folderId)) === null) {
     return { kind: 'folder_not_found' }
   }
@@ -249,6 +268,16 @@ So: a folder-scoped file is its members', unchanged; an **avatar** with no
 folder stays readable by any signed-in account, because a member list renders
 other people's pictures and that behaviour is 7.15's; every other folder-less
 file is its owner's alone. AC-371 asserts all three arms.
+
+**Issue #167 widened which kinds may be folder-less and this predicate needed
+no widening at all**, which is worth saying because the obvious reading of the
+arm above is that it names kinds. It does not: it names `avatar` and then
+falls through to ownership for everything else, so a folder-less `image`
+became its uploader's alone the moment `createFile` began storing one, on the
+same clause that already held a folder-less `cover`. A predicate written as
+`kind = 'cover' OR ...` would have had to be found and changed here, and a
+change missed there would have been a disclosure rather than a refusal.
+AC-413 asserts the image arm directly for that reason.
 
 The predicate is deliberately self-contained — a correlated EXISTS rather than
 a join — so a caller needs nothing in its FROM clause but `files f`.
@@ -682,7 +711,21 @@ function fileIsUnreferenced(): SQL {
 }
 
 /**
- * The 11.7 tick's fifth duty: reclaim the cover files nothing wears.
+ * The 11.7 tick's fifth duty: reclaim the folder-less pictures nothing uses.
+ *
+ * **It took `cover` rows alone until 2026-09-04 and takes folder-less `image`
+ * rows on the same rule since issue #167**, which widened `createFile` to
+ * store one. The reason is the reason the clause below gives for excluding a
+ * page image in the first place, read against the row that now exists: a page
+ * image *in a folder* is listed by that folder's surfaces and its members can
+ * delete it, so it is somebody's to manage; a folder-less one is a shelf
+ * page's picture, listed by nothing and reachable by no route once the block
+ * that named it is gone, which is exactly the state this duty exists for. So
+ * the same reference query, the same mark and the same window: an image
+ * dropped from a shelf page is reclaimed thirty days after it came off, and
+ * one put back inside the window loses its mark and starts over. `file` and
+ * `voice` cannot reach this sweep at all, `folder_id IS NULL` being
+ * impossible for them (migration 0015).
  *
  * **Three acts, and one statement rather than three.** Clear: a marked row
  * that something references again loses its mark, which is what makes a
@@ -708,10 +751,12 @@ function fileIsUnreferenced(): SQL {
  * unreferenced clause excludes on its own. The delete therefore never depends
  * on the other two having run first.
  *
- * Narrow on purpose, and every clause earns its place. **`kind = 'cover'`**,
- * because a page image or a comment's attachment is a thing somebody put
- * somewhere and is reachable through surfaces this query knows nothing
- * about, while a cover is only ever pointed at. **`folder_id IS NULL`**,
+ * Narrow on purpose, and every clause earns its place.
+ * **`kind IN ('cover', 'image')`**, because a comment's attachment or a voice
+ * note is a thing somebody put somewhere and is reachable through surfaces
+ * this query knows nothing about, while a cover and a page image are only
+ * ever pointed at — and a page image that is *not* pointed at, having no
+ * folder either, is reachable by nothing whatever. **`folder_id IS NULL`**,
  * because a folder-scoped file is listed in its folder and its members can
  * delete it themselves, and because a folder's own deletion already cascades
  * it away (8.8) with the purge removing its object. **And unreferenced**, by
@@ -736,7 +781,7 @@ function fileIsUnreferenced(): SQL {
  * orphans and reclaims nothing; they wait one window from the mark rather
  * than being taken on the strength of a date that never meant this.
  */
-export async function reclaimUnwornCovers(
+export async function reclaimUnwornPictures(
   db: Db,
   store: ObjectStore | undefined,
 ): Promise<string[]> {
@@ -749,14 +794,14 @@ export async function reclaimUnwornCovers(
           RETURNING f.id),
         marked AS (
           UPDATE files f SET unreferenced_since = now()
-           WHERE f.kind = 'cover'
+           WHERE f.kind IN ('cover', 'image')
              AND f.folder_id IS NULL
              AND f.unreferenced_since IS NULL
              AND ${fileIsUnreferenced()}
           RETURNING f.id)
         DELETE FROM files WHERE id IN (
           SELECT f.id FROM files f
-           WHERE f.kind = 'cover'
+           WHERE f.kind IN ('cover', 'image')
              AND f.folder_id IS NULL
              AND f.unreferenced_since
                    < now() - ${COVER_RECLAIM_DAYS}::int * interval '1 day'

@@ -156,8 +156,9 @@ export async function describeFolder(
 A `files` row without an upload. 7.15's own path runs bytes through sharp and
 belongs to the uploads harness; what these criteria need is a row with an
 owner, a name and a size, so that the export can be asked whether it reports
-one. `kind` is 'file' and the row is folder-scoped, which migration 0012's
-files_folderless_kind_check requires of everything but an avatar and a cover.
+one. `kind` is 'file' and the row is folder-scoped, which
+files_folderless_kind_check requires of everything but an avatar, a cover and
+a page image (migration 0012, widened by 0015 for issue #167).
 */
 export async function seedFile(
   db: Db,
