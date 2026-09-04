@@ -56,15 +56,41 @@ says nothing about it, and the counts are what would notice.
   the answer 10.2 requires, because a 403 tells a prober that the row exists.
 - **`member`**, on the eleven routes where 5.4, 7.15 or the code's own DES-225
   split grants a member visibility and withholds the act: 403, and the refusal
-  may say why, precisely because the person can already see the thing. Ten are
-  asserted; the eleventh, `DELETE /api/v1/files/:id`, is the one finding this
-  sweep turned up and is carried as a `known` variant, described there.
+  may say why, precisely because the person can already see the thing. One of
+  the eleven, `DELETE /api/v1/files/:id`, is the defect this sweep found; it is
+  fixed, and its row carries the story.
 - **`viewerScoped`**, on four routes, which are this file's `PUBLIC_READS`:
   the id in the path names no row of ours that could belong to somebody else,
   so every signed-in caller gets the same answer and the row records why. An
   entry here is a claim that needs reading, not a hole being papered over.
 
-Spec: 5.4, 7.0, 7.13, 10.2. Issue #74.
+## What the two controls prove, and what they do not
+
+Every row here expects a refusal, and `index.ts` mounts a catch-all at `/api`
+answering the same `404 not_found` a gated route does, so a row that reaches
+nothing looks exactly like a row that reached a working gate. Two tests stand
+between this file and that, and **neither is the other, which is why they are
+two**:
+
+- **The template match** takes every row's concrete path and checks it against
+  the route pattern its key names, segment by segment. Combined with the
+  enumeration, that proves **the request reached that route's handler**. It
+  proves nothing about the id: a `:param` slot accepts any non-empty segment,
+  so a row handing a route a uuid belonging to nobody passes it.
+- **The visibility control** drives the fixtures' own maker at each of them and
+  requires 200. That proves **the rows exist and are the kind of thing the
+  route is about**. It is a `Record` over `ResourceId`, so an id cannot join
+  the fixtures without a probe. It says nothing about which row the table
+  hands to which route.
+
+Between them: the request reached the route, and the id names a real row of
+the right kind. **What is still uncovered** is a row handing route A the id of
+a real fixture meant for route B — both controls pass, and the answer would be
+an honest 404 about the wrong thing. Nothing structural catches that; it is
+read in review, off the `rule` string, which is one more reason every row owes
+one.
+
+Spec: 5.4, 7.0, 7.13, 7.15, 10.2. Issue #74.
 */
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
@@ -76,6 +102,7 @@ import {
   makeFile,
   makeInvite,
   makeNotification,
+  makePlaceCover,
   makeSavedView,
   makeSharedFolder,
   makeShelf,
@@ -131,10 +158,34 @@ interface LayerShape {
 
 const METHODS = ['get', 'post', 'patch', 'put', 'delete'] as const
 
-/** Mount points this application uses; a router layer is attributed to the
- * first one its own regexp accepts, which is exact for non-overlapping
- * prefixes like these. */
-const MOUNTS = ['/api/v1', '/api/health', '/api']
+/**
+ * Mount points this application uses. A router layer is attributed to the
+ * first one its own regexp accepts.
+ *
+ * **`/api` was here and had to come out (review of 2026-09-04).** A layer's
+ * `match` is a prefix test, so a router mounted at bare `/api` accepts
+ * `/api/v1` too and would have been attributed to the first candidate in the
+ * list. Its routes would then have been keyed `/api/v1/whatever`, tabulated
+ * under that name, and driven at a path no route matches — straight into the
+ * `/api` catch-all, which answers the same 404 the table expects. The bad
+ * outcome is not a red run, it is a green one over routes nobody swept. So
+ * this list holds only mounts that are unambiguous, `ROUTE_BASE` below fixes
+ * the one prefix rows are written against, and a router matching neither is
+ * reported by name rather than silently keyed at the root.
+ */
+const MOUNTS = ['/api/v1', '/api/health']
+
+/** The prefix `drive` sends every row through, via `TestBrowser.api`. Rows
+ * are written relative to it and the enumeration test asserts every table key
+ * carries it, so `matchesTemplate` naming it below is a checked assumption
+ * rather than a buried one. */
+const ROUTE_BASE = '/api/v1'
+
+/** The one of 4.20's eight pages the viewer-scoped rows write on. Named once
+ * because three things have to agree about it: the cover the owner sets in the
+ * fixtures, the rows the stranger drives, and the assertion at the end that
+ * the owner's row survived them. */
+const PLACE = 'today'
 
 /** A path segment that is a parameter. Every one of them on this surface
  * names a row or a place; `addressable` in `ac-236` uses the same shape. */
@@ -159,6 +210,7 @@ function mountedRoutes(application: unknown): string[] {
     }
   }
 
+  const unattributed: string[] = []
   for (const layer of stack as LayerShape[]) {
     if (layer.route !== undefined) {
       collect(layer.route, '')
@@ -166,11 +218,25 @@ function mountedRoutes(application: unknown): string[] {
     }
     const sub = layer.handle?.stack
     if (!Array.isArray(sub)) continue
-    const mount = MOUNTS.find((candidate) => layer.match?.(candidate) === true) ?? ''
+    const mount = MOUNTS.find((candidate) => layer.match?.(candidate) === true)
+    if (mount === undefined) {
+      // A router carrying routes and mounted somewhere this file does not
+      // know about. Keying it at the root would put its routes in the
+      // enumeration under names no row can match and no request can reach,
+      // which is the failure MOUNTS' comment above describes.
+      for (const nested of sub) {
+        if (nested.route !== undefined) unattributed.push(String(nested.route.path))
+      }
+      continue
+    }
     for (const nested of sub) {
       if (nested.route !== undefined) collect(nested.route, mount)
     }
   }
+  expect(
+    unattributed,
+    `routes on a router mounted outside ${MOUNTS.join(' and ')}. The walk cannot name them, so it cannot sweep them: add the mount to MOUNTS, and check that no mount in that list is a prefix of another`,
+  ).toEqual([])
   return [...new Set(found)]
 }
 
@@ -182,21 +248,34 @@ function idBearingRoutes(application: unknown): string[] {
  * The fixtures every row addresses
  * ------------------------------------------------------------------ */
 
-interface Fixtures {
+/**
+ * Every id the table addresses, as a union rather than as loose fields.
+ *
+ * **The union is what makes the visibility control complete instead of
+ * diligent** (review of 2026-09-04). That control was a hand-written list of
+ * probes, and a hand-written list is exactly the thing this file exists to
+ * refuse: an id added here and forgotten there would be swept while nothing
+ * proved it was a real row, and every 404 about it would be honest about the
+ * wrong thing. The probes below are a `Record` over this union, so the
+ * compiler refuses a new id that nobody proves visible.
+ */
+type ResourceId =
+  | 'folderId'
+  | 'trashedFolderId'
+  | 'taskId'
+  | 'trashedTaskId'
+  | 'stepId'
+  | 'shelfId'
+  | 'viewId'
+  | 'commentId'
+  | 'fileId'
+  | 'inviteId'
+  | 'notificationId'
+
+interface Fixtures extends Record<ResourceId, string> {
   owner: Actor
   member: Actor
   stranger: Actor
-  folderId: string
-  trashedFolderId: string
-  taskId: string
-  trashedTaskId: string
-  stepId: string
-  shelfId: string
-  viewId: string
-  commentId: string
-  fileId: string
-  inviteId: string
-  notificationId: string
 }
 
 let fixtures: Fixtures | undefined
@@ -233,6 +312,13 @@ async function fixturesOf(): Promise<Fixtures> {
   )
   await writePage(owner, 'folders', folderId, 'ac397 folder page')
   await writePage(owner, 'shelves', shelfId, 'ac397 shelf page')
+
+  /* The owner's cover on the same place the viewer-scoped rows write, so
+     those rows assert something. Without it the stranger's PUT and DELETE on
+     `today` touch a place nobody had claimed, and "the statement carries
+     user_id = viewer" would be a sentence in a comment rather than a thing
+     the run demonstrates. See PLACE, and the last test in this file. */
+  await makePlaceCover(owner, PLACE, fileId)
 
   const trashedTaskId = await makeTask(owner, folderId, 'ac397 the doomed task')
   await trashTask(owner, trashedTaskId)
@@ -955,20 +1041,20 @@ const TABLE = new Map<string, Row>([
     'PUT /api/v1/place-covers/:place',
     {
       attempt: () => ({
-        path: '/place-covers/today',
+        path: `/place-covers/${PLACE}`,
         body: { preset: 'linen' },
       }),
     },
   ],
   [
     'DELETE /api/v1/place-covers/:place',
-    { attempt: () => ({ path: '/place-covers/today' }) },
+    { attempt: () => ({ path: `/place-covers/${PLACE}` }) },
   ],
   [
     'PUT /api/v1/place-descriptions/:place',
     {
       attempt: () => ({
-        path: '/place-descriptions/today',
+        path: `/place-descriptions/${PLACE}`,
         body: { description: 'ac397, the stranger\'s own sentence' },
       }),
     },
@@ -1045,10 +1131,19 @@ function templateOf(key: string): string {
  * the row is about: the enumeration above has already proved the route is
  * mounted, so a path that matches its pattern cannot fall through to the
  * catch-all.
+ *
+ * **What it does not prove, stated because the reviewer had to ask.** A `:param`
+ * slot accepts any non-empty segment, so this says the request reached that
+ * route and nothing about the id being the right row, the right kind of row, or
+ * a row at all. That second question is the visibility control's, below, and
+ * the two are separate on purpose: this one is exact and total over the table,
+ * that one is exact and total over the fixtures, and neither pretends to be
+ * the other. `ROUTE_BASE` is named here rather than assumed, and the
+ * enumeration test asserts every key carries it.
  */
 function matchesTemplate(template: string, concrete: string): boolean {
   const wanted = template.split('/')
-  const got = `/api/v1${(concrete.split('?')[0] ?? '')}`.split('/')
+  const got = `${ROUTE_BASE}${concrete.split('?')[0] ?? ''}`.split('/')
   if (wanted.length !== got.length) return false
   return wanted.every((segment, index) =>
     segment.startsWith(':') ? (got[index] ?? '') !== '' : segment === got[index],
@@ -1097,6 +1192,17 @@ describe('AC-397 every id-bearing route refuses a stranger', () => {
       'id-bearing routes with no row in the table. Add one: what does a signed-in person with no relationship to this id get, and which rule says so',
     ).toEqual([])
 
+    // `drive` sends every row through TestBrowser.api, which prepends
+    // ROUTE_BASE, and `matchesTemplate` names it too. A key on any other base
+    // would be driven at a path that is not the route's.
+    const offBase = [...TABLE.keys()].filter(
+      (key) => !templateOf(key).startsWith(`${ROUTE_BASE}/`),
+    )
+    expect(
+      offBase,
+      `table keys outside ${ROUTE_BASE}. Rows are written relative to it and driven through it, so a route mounted elsewhere needs its own way of being driven rather than a row here`,
+    ).toEqual([])
+
     const stale = [...TABLE.keys()].filter((key) => !routes.includes(key))
     expect(
       stale,
@@ -1140,6 +1246,61 @@ describe('AC-397 every id-bearing route refuses a stranger', () => {
     ).toEqual([])
   })
 
+  /*
+  The other half of the worry the template match above serves, and the half a
+  template match cannot answer: a row can name the right route and hand it a
+  uuid that is nobody's, and then the stranger's 404 is the truth about a row
+  that does not exist rather than about a row they may not have. Every factory
+  asserts its own 201, so this holds by construction; it is asserted anyway,
+  because "by construction" is what the folder-row comment CLAUDE.md warns
+  about also said.
+
+  **A `Record` over `ResourceId` rather than a list of calls** (review of
+  2026-09-04), so the compiler refuses an id that joins `Fixtures` and no
+  probe. The two pages are named beside it and not in it, because a page is
+  addressed by its home's id and has none of its own.
+  */
+  const VISIBLE_TO_ITS_OWNER: Record<
+    ResourceId,
+    (fx: Fixtures) => { what: string; path: string; holds?: string }
+  > = {
+    folderId: (fx) => ({ what: 'the folder', path: `/folders/${fx.folderId}` }),
+    taskId: (fx) => ({ what: 'the task', path: `/tasks/${fx.taskId}` }),
+    stepId: (fx) => ({
+      what: 'the step, on its task',
+      path: `/tasks/${fx.taskId}`,
+      holds: fx.stepId,
+    }),
+    shelfId: (fx) => ({ what: 'the shelf', path: `/shelves/${fx.shelfId}` }),
+    viewId: (fx) => ({ what: 'the saved view', path: `/views/${fx.viewId}` }),
+    fileId: (fx) => ({ what: 'the file', path: `/files/${fx.fileId}` }),
+    commentId: (fx) => ({
+      what: 'the comment, on its thread',
+      path: `/folders/${fx.folderId}/comments`,
+      holds: fx.commentId,
+    }),
+    notificationId: (fx) => ({
+      what: 'the notification',
+      path: '/notifications',
+      holds: fx.notificationId,
+    }),
+    inviteId: (fx) => ({
+      what: 'the invite',
+      path: '/invites/sent',
+      holds: fx.inviteId,
+    }),
+    trashedTaskId: (fx) => ({
+      what: 'the trashed task',
+      path: '/trash',
+      holds: fx.trashedTaskId,
+    }),
+    trashedFolderId: (fx) => ({
+      what: 'the trashed folder',
+      path: '/trash',
+      holds: fx.trashedFolderId,
+    }),
+  }
+
   test('every fixture exists and its owner can see it', async () => {
     const fx = await fixturesOf()
     const invisible: string[] = []
@@ -1147,7 +1308,7 @@ describe('AC-397 every id-bearing route refuses a stranger', () => {
     const seen = async (
       what: string,
       path: string,
-      contains?: (body: unknown) => boolean,
+      holds?: string,
     ): Promise<void> => {
       const answer = await fx.owner.browser.api(path)
       if (answer.status !== 200) {
@@ -1156,41 +1317,23 @@ describe('AC-397 every id-bearing route refuses a stranger', () => {
         )
         return
       }
-      if (contains !== undefined && !contains(answer.json())) {
+      if (holds !== undefined && !JSON.stringify(answer.json()).includes(holds)) {
         invisible.push(`${what}: GET ${path} answered 200 without it`)
       }
     }
 
-    const holds = (id: string) => (body: unknown): boolean =>
-      JSON.stringify(body).includes(id)
-
-    await seen('the folder', `/folders/${fx.folderId}`)
-    await seen('the task and its step', `/tasks/${fx.taskId}`, holds(fx.stepId))
-    await seen('the shelf', `/shelves/${fx.shelfId}`)
-    await seen('the saved view', `/views/${fx.viewId}`)
-    await seen('the file', `/files/${fx.fileId}`)
-    await seen(
-      'the comment',
-      `/folders/${fx.folderId}/comments`,
-      holds(fx.commentId),
-    )
-    await seen('the notification', '/notifications', holds(fx.notificationId))
-    await seen('the invite', '/invites/sent', holds(fx.inviteId))
-    await seen('the roster connection', '/connections', holds(fx.member.id))
-    await seen('the trashed task', '/trash', holds(fx.trashedTaskId))
-    await seen('the trashed folder', '/trash', holds(fx.trashedFolderId))
+    for (const probe of Object.values(VISIBLE_TO_ITS_OWNER)) {
+      const { what, path, holds } = probe(fx)
+      await seen(what, path, holds)
+    }
     await seen('the folder page', `/folders/${fx.folderId}/page`)
     await seen('the shelf page', `/shelves/${fx.shelfId}/page`)
+    await seen(
+      'the roster connection',
+      '/connections',
+      fx.member.id,
+    )
 
-    /*
-    The other half of the same worry as the test above, and the half a
-    template match cannot answer: a row can name the right route and hand it
-    a uuid that is nobody's, and then the stranger's 404 is the truth about a
-    row that does not exist rather than about a row they may not have. Every
-    factory asserts its own 201, so this holds by construction; it is
-    asserted anyway, because "by construction" is what the folder-row comment
-    in CLAUDE.md's warning also said.
-    */
     expect(
       invisible,
       'fixtures the sweep addresses that their own maker cannot see. Every 404 in this file would then be honest about the wrong thing',
@@ -1311,5 +1454,26 @@ describe('AC-397 every id-bearing route refuses a stranger', () => {
       failures,
       'viewer-scoped routes that no longer behave as the entry claims. An exemption that stops being true fails here rather than widening quietly',
     ).toEqual([])
+
+    /*
+    The status is the weaker half of what those four entries claim. Each one
+    says the row it reaches is the caller's own, and a route that ignored
+    `user_id` would answer the stranger the same 200 and 204 while writing over
+    somebody else's — the entry's reason would be false and every assertion
+    above would still be green. The owner set a cover on this same place in the
+    fixtures; the stranger has just written and deleted `place-covers/PLACE`
+    twice over. So the owner's must still be there.
+    */
+    const owners = await fx.owner.browser.api('/place-covers')
+    expect(
+      owners.status,
+      'the owner reads their own place covers (spec 7.19)',
+    ).toBe(200)
+    const covers = (owners.json() as { covers?: Array<{ place?: unknown }> })
+      .covers
+    expect(
+      (covers ?? []).map((cover) => cover.place),
+      `the stranger's writes and deletes on ${PLACE} must not have touched the owner's cover on it. If this is empty, the four viewer-scoped entries are describing a surface that is not viewer-scoped and every status above was measuring the wrong thing`,
+    ).toContain(PLACE)
   })
 })

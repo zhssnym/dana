@@ -31,6 +31,10 @@ The non-member's 404 is deliberately asserted here too, beside the member's
 and a file that asserted only one of them would not show it. AC-195 already
 covers the non-member on the *read*; this is the delete.
 
+The avatar arm is a third case rather than a variation on the first: an avatar
+is folder-less and readable by every signed-in account (7.15, AC-371), so the
+same rule makes a *stranger's* delete of one 403 too. See the comment above it.
+
 Spec: 4.16, 7.15, 10.2. Issue #74.
 */
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
@@ -45,7 +49,7 @@ import {
   expectStatus,
 } from './folders-harness.js'
 import type { Actor } from './folders-harness.js'
-import { uploadImageOk } from './uploads-harness.js'
+import { ONE_PIXEL_PNG, upload, uploadImageOk } from './uploads-harness.js'
 
 let app: AuthTestApp
 const cast = new Cast(['owner', 'member', 'outsider'], 'ac398')
@@ -91,6 +95,52 @@ describe('AC-398 the file delete refuses a member who can read it, visibly', () 
       survived,
       200,
       'the refused delete removed nothing (spec 7.15): a 403 that deleted the row anyway would pass every status assertion above',
+    )
+  })
+
+  /*
+  The arm the first version of this file missed and the reviewer did not
+  (2026-09-04). `readableFileScope` admits **every avatar to every signed-in
+  account** on purpose — 7.15, because a member list renders other people's
+  pictures — so the correction reaches further than "a member of the folder":
+  a complete stranger's DELETE of anybody's avatar now answers 403 where it
+  answered 404. That is the same rule applied honestly rather than a second
+  change, and nothing new leaks, AC-371 having already settled that any account
+  reads any avatar at 200; the alternative is a 404 about a file the caller can
+  fetch. It is asserted here because a reader of 7.15's amendment would
+  otherwise expect a folder to be involved in every 403.
+  */
+  test('403, not 404, for a stranger deleting somebody else\'s avatar', async () => {
+    const [owner, , outsider] = (await cast.of(app)) as [Actor, Actor, Actor]
+
+    const stored = await upload(
+      owner,
+      '/me/avatar',
+      {},
+      { name: 'ac398-avatar.png', type: 'image/png', bytes: ONE_PIXEL_PNG },
+    )
+    expectStatus(stored, 200, 'the avatar uploads (spec 7.15)')
+    const avatarUrl = (stored.json() as { avatar_url?: unknown }).avatar_url
+    expect(
+      typeof avatarUrl,
+      'the 200 answers the serving path the avatar was published at (spec 7.15)',
+    ).toBe('string')
+    const avatarId = String(avatarUrl).split('/').pop() ?? ''
+
+    expectStatus(
+      await outsider.browser.api(`/files/${avatarId}`),
+      200,
+      'any signed-in account reads any avatar, 7.15\'s deliberate exception and AC-371\'s',
+    )
+    expectStatus(
+      await outsider.browser.json(`/files/${avatarId}`, 'DELETE'),
+      403,
+      'so this delete is 403 and not 404: the caller has just been served these bytes, and a 404 would be denying a file they can fetch',
+    )
+    expectStatus(
+      await outsider.browser.api(`/files/${avatarId}`),
+      200,
+      'and the refusal removed nothing',
     )
   })
 
