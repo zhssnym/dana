@@ -26,7 +26,7 @@ while it did:
   that on whichever mutation nobody exercised.
 - **An inaccessible folder is a 404 the client renders as one.** 10.2 puts
   every existence answer at 404 rather than 403; the client's half is not
-  turning that into a blank page or a crash. The other seeded user's Inbox
+  turning that into a blank page or a crash. The other seeded user's Desk
   is the resource, and it exists, which is what makes the case worth
   running.
 
@@ -119,7 +119,7 @@ const WALK = [
   {
     link: 'Desk',
     row: 'Sort inbox',
-    viewPath: `/api/v1/folders/${seedIds.hassanInbox}/tasks`,
+    viewPath: `/api/v1/folders/${seedIds.hassanDesk}/tasks`,
   },
   { link: 'Today', row: 'Buy milk', viewPath: '/api/v1/views/my-day' },
   { link: 'Scheduled', row: 'Call plumber', viewPath: '/api/v1/views/planned' },
@@ -300,10 +300,10 @@ test.describe('The signed-in path', () => {
   test("an inaccessible folder reads as nonexistent, not as a crash", async ({ page }) => {
     await signIn(page, seedSubs.hassan)
 
-    // Imran's Inbox exists and Hassan is not a member of it. 10.2 answers
+    // Imran's Desk exists and Hassan is not a member of it. 10.2 answers
     // 404 rather than 403 so that existence does not leak, and the client's
     // half is showing the person that rather than a blank page.
-    await page.goto(routesV2.folder(seedIds.imranInbox))
+    await page.goto(routesV2.folder(seedIds.imranDesk))
 
     await expect(
       sidebarLink(page, 'Desk'),

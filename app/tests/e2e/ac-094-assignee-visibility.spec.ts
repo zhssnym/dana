@@ -148,14 +148,14 @@ test.describe('AC-094: the assignee chip follows the folder', () => {
     // The task captured on Today lands in the account's default folder
     // (9.3's entry table), which is 4.3's Desk and has one member by
     // construction: defaults are never shared, which is the INV-5 case the
-    // hidden control exists for. The seeded row is still named Inbox, the
-    // Desk rename reaching only defaults that carried that name at the
-    // migration.
+    // hidden control exists for. The seeded row reads Desk since issue #98;
+    // it read Inbox until then, the seed being the one place the RFC 0005
+    // rename never reached.
     expect(
       await chipValue(taskChip(page, 'folder'), 'folder'),
       "spec 9.3 entry-point defaults: a task captured on Today lands in the viewer's default " +
         'folder, and the strip reads it back',
-    ).toContain('Inbox')
+    ).toContain('Desk')
 
     await expect(
       taskChip(page, 'assignee'),
@@ -229,7 +229,7 @@ test.describe('AC-094: the assignee chip follows the folder', () => {
         'strip already open, rather than at the next open',
     ).toBeVisible()
 
-    await chooseFolder(page, 'Inbox')
+    await chooseFolder(page, 'Desk')
     await expect(
       taskChip(page, 'assignee'),
       'spec 9.3: choosing back to a single-member folder hides it again. A client deciding ' +

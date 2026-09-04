@@ -1,6 +1,6 @@
 /*
 AC-155: given folders with and without personal labels, then the
-sidebar pins Inbox first with its pending count, groups the labeled folders
+sidebar pins Desk first with its pending count, groups the labeled folders
 by label ascending, and lists the unlabeled folders after them by name
 ascending.
 
@@ -42,6 +42,7 @@ import {
   ACTION_TIMEOUT_MS,
   clickControl,
   csrfToken,
+  linkTo,
   routes,
   seedSubs,
   signIn,
@@ -114,7 +115,7 @@ test.beforeEach(async ({ page }) => {
 })
 
 test.describe('AC-155: the sidebar folder list', () => {
-  test('AC-155: Inbox is pinned first, labels ascending, then unlabeled by name', async ({
+  test('AC-155: Desk is pinned first, labels ascending, then unlabeled by name', async ({
     page,
   }) => {
     const labeled = await createFolder(page, LABELED)
@@ -142,7 +143,7 @@ test.describe('AC-155: the sidebar folder list', () => {
     (`folders ?? []` in `shell/app-sidebar.tsx`), so a read taken straight after
     a navigation can hold the pages and none of the folders. Measured
     2026-08-25 against a `GET /folders` delayed by 1500 ms: the read returned
-    the ten page and footer links, with Inbox at index -1, and every ordering
+    the ten page and footer links, with Desk at index -1, and every ordering
     assertion below then failed for a reason that has nothing to do with order.
     Green on a quiet machine and red on a loaded one, which is what made it a
     race rather than a defect.
@@ -162,22 +163,22 @@ test.describe('AC-155: the sidebar folder list', () => {
       })
       .toEqual(
         expect.arrayContaining(
-          [LABELED, 'Groceries', UNLABELED_EARLY, UNLABELED_LATE, 'Inbox'].map((name) =>
+          [LABELED, 'Groceries', UNLABELED_EARLY, UNLABELED_LATE, 'Desk'].map((name) =>
             expect.stringContaining(name),
           ),
         ),
       )
     const names = await sidebarNames(page)
 
-    const inbox = positionOf(names, 'Inbox')
+    const desk = positionOf(names, 'Desk')
     const aardvark = positionOf(names, LABELED)
     const home = positionOf(names, 'Groceries')
     const alpha = positionOf(names, UNLABELED_EARLY)
     const zulu = positionOf(names, UNLABELED_LATE)
 
     expect(
-      inbox,
-      `spec 9.1: Inbox is pinned first in the folder list. The sidebar read ${JSON.stringify(names)}`,
+      desk,
+      `spec 9.1: Desk is pinned first in the folder list. The sidebar read ${JSON.stringify(names)}`,
     ).toBeLessThan(aardvark)
     expect(
       aardvark,
@@ -196,33 +197,37 @@ test.describe('AC-155: the sidebar folder list', () => {
     ).toBeLessThan(zulu)
   })
 
-  test('AC-155: the Inbox badge is the pending count and nothing else', async ({ page }) => {
-    const inbox = (await folders(page)).find((folder) => folder.is_default)
-    expect(inbox, 'spec 4.3 and INV-2: the viewer has exactly one default folder').toBeDefined()
-    if (inbox === undefined) throw new Error('unreachable: asserted above')
+  test('AC-155: the Desk badge is the pending count and nothing else', async ({ page }) => {
+    const desk = (await folders(page)).find((folder) => folder.is_default)
+    expect(desk, 'spec 4.3 and INV-2: the viewer has exactly one default folder').toBeDefined()
+    if (desk === undefined) throw new Error('unreachable: asserted above')
 
     await page.goto(routes.myDay)
     const nav = page.getByRole('navigation').first()
-    const entry = nav.getByRole('link', { name: /Inbox/ })
+    // The folder row and not the page entry of the same name: see `linkTo`.
+    const entry = linkTo(nav, /Desk/, routes.folder(desk.id))
 
     await expect(
       entry,
-      'spec 9.1: Inbox is pinned first with a pending-count badge',
-    ).toContainText(String(inbox.counts.pending))
+      'spec 9.1: Desk is pinned first with a pending-count badge',
+    ).toContainText(String(desk.counts.pending))
 
     // Compared to the contract rather than to a constant, so the assertion
     // survives whatever the specs before this one created, and so that a
     // badge showing completed, or the total, or the member count cannot pass
     // by being a plausible integer.
     expect(
-      inbox.counts.pending === inbox.counts.completed,
+      desk.counts.pending === desk.counts.completed,
       'spec 8.11: the sidebar badge is the pending number alone, and this case can only tell ' +
-        'it from the completed number while the two differ. The seeded Inbox has pending rows ' +
+        'it from the completed number while the two differ. The seeded Desk has pending rows ' +
         'and no completed ones, so if this ever fails the fixture has drifted, not the client',
     ).toBe(false)
   })
 
   test('AC-155: a label group collapses', async ({ page }) => {
+    const desk = (await folders(page)).find((folder) => folder.is_default)
+    expect(desk, 'spec 4.3 and INV-2: the viewer has exactly one default folder').toBeDefined()
+    if (desk === undefined) throw new Error('unreachable: asserted above')
     await page.goto(routes.myDay)
 
     /*
@@ -257,8 +262,9 @@ test.describe('AC-155: the sidebar folder list', () => {
         'what collapsible means for a list whose other entries are unaffected',
     ).toHaveCount(0)
     await expect(
-      page.getByRole('link', { name: /Inbox/ }),
-      'the pinned Inbox is in no label group, so collapsing one leaves it alone',
+      linkTo(page.getByRole('navigation').first(), /Desk/, routes.folder(desk.id)),
+      'the pinned Desk is in no label group, so collapsing one leaves it alone. The row and ' +
+        'not the page entry that shares its name, which is what `linkTo` separates',
     ).toBeVisible()
   })
 
