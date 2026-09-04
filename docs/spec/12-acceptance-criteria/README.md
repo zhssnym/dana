@@ -29,6 +29,17 @@ default, so read this list before spending one.
   it counted 229; the five ranges are twenty-nine numbers. Corrected on the branch for issues
   #20 and #100, which read this list to choose AC-368, rather than left for whoever spent 229
   a second time and found out from a duplicate test filename.
+- **AC-397 was taken from the tail on 2026-09-04** (issue #74), on the rule four bullets
+  below, and it is the authorization sweep: every route on the mounted router whose path
+  carries a parameter, driven as a person with no relationship to the row that id names. It
+  is 12.23's, beside AC-236, which made the *session* half of 10.2 structural and left this
+  half resting on people remembering. The number is well past AC-374 rather than next to it
+  because several branches were open that night and each was assigned a block of the tail, so
+  the run below 397 is a range allocated ahead of the work in the ordinary way and not a set
+  of free numbers. **The count above and the per-file counts in the table below are
+  deliberately not touched here**, on the rule the AC-361 bullet ends with: whoever merges
+  last re-derives them, it being arithmetic over the files rather than a preference between
+  two diffs.
 - **AC-374 was taken from the tail on 2026-09-03**, on the same branch and after review of
   it: of the three gates that decide what a page may wear, the place-cover one was the only
   one with no `kind` clause, so another person's avatar could be worn on a person's own Today

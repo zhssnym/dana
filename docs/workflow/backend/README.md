@@ -58,14 +58,31 @@ that forgets it returns nothing rather than someone else's rows; and there are a
 hand-written `accessOf(...)` gates across 9 files. **When you add a route, the gate is your
 job.** Nothing adds it for you.
 
+**What is structurally checked, since 2026-09-04 and issue #74**, is that no id-bearing route
+is left ungated *silently*. `app/tests/ac-397-authorization-sweep.test.ts` walks the mounted
+router, takes every route whose path carries a parameter, and drives each as a signed-in
+person with no relationship to the row that id names. It pins the count, and it asserts its
+hand-written expected-status table against the enumeration in both directions — so **a route
+you add with no row in that table fails the sweep**, and a row naming a route you deleted
+fails it too. What is still entirely yours: **writing the gate**, and **writing the row that
+says what a stranger gets**. The sweep cannot tell that you thought about either, only that
+you did both. It is also **path-only** — an id you take from the query string or the body is
+invisible to it, and `GET /events?folder=` is the existing example — and one level deep, so a
+router mounted inside another router would leave it proving less than it says while staying
+green. One finding is open under it and is recorded in 12.23: `DELETE /api/v1/files/:id`
+answers 404 where 10.2 wants 403, to a member who can read the same file at 200.
+
 **The structural guard covers authentication, on every method, and authorization on none.**
 `app/tests/ac-236-structural-guard-sweep.test.ts` walks the mounted router and fails any
 mutating route missing a session or CSRF check, and since issue #33 any GET that answers
 something other than 401 without a session. Three reads are exempt by name — the health
 probe and the two OAuth legs — each with its reason written beside it, and an exemption
-that stops being true fails too. **Nothing structural checks authorization at all**: a GET
-that takes a session and then reads whatever id it is handed passes the entire suite, so
-the `accessOf(...)` gate above is still yours to write and nothing will miss it.
+that stops being true fails too. **It checks authentication and not authorization**, which
+until 2026-09-04 nothing checked: a GET that took a session and then read whatever id it was
+handed passed the entire suite. `ac-397` is now the other half, in the paragraph above, and it
+is the same shape — one walk, one pinned count, one allowlist asserted both ways. The
+`accessOf(...)` gate is still yours to write; what has changed is that forgetting it on an
+id-bearing route now fails something.
 
 **Route mount order is load-bearing and undocumented.** In `app/src/server/routes/bundle.ts`,
 `/views/:id` would shadow six page endpoints if anyone reordered it. Do not reorder mounts

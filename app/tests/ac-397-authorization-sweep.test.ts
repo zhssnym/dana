@@ -1,0 +1,1316 @@
+/*
+AC-397: structural: every route on the mounted application whose path carries
+a resource id is driven as a signed-in person with no relationship to the
+thing that id names, and answers 404 — or 403 where 5.4 grants visibility and
+withholds the act — enumerated over the router rather than sampled, with the
+membership variants the 5.4 matrix distinguishes asserted beside the
+stranger's.
+
+## Why this file exists
+
+`ac-236` made **authentication** structural, on every method since issue #33.
+Authorization was left resting entirely on people remembering: spec 10.2 was
+corrected on 2026-08-31 to say so plainly, and issue #74 counted what it rests
+on — **twenty hand-written `accessOf(...)` calls across nine files, and
+forgetting one fails nothing**. A GET that takes a session and then reads
+whatever id it is handed passed the entire suite before this file.
+
+The mitigation that does exist is genuinely good and is why this was a gap
+rather than a live vulnerability: the membership check is written inside the
+`FROM` clause, so a query that forgets it returns nothing rather than someone
+else's rows. That stops being enough the moment a query does the check in its
+caller, which is issue #35.
+
+## What makes the table worth having
+
+**Nothing about the table below is clever, and that is not the point.** It is
+hand-written, it will always be hand-written, and a row can be wrong. The one
+property that makes it a guard rather than a list is that it is **enumerated
+over the mounted router in both directions**: a route the walker finds and the
+table does not name fails here, and a table entry naming a route that is not
+mounted fails here too. So a new id-bearing route cannot join this
+application without someone deciding, in the same change, what a stranger
+gets when they ask for somebody else's row. That is the same bargain
+`PUBLIC_READS` strikes in `ac-236` after issue #33, and it is the whole
+reason either allowlist is worth the words.
+
+What neither guard can do is stop someone adding a route and its row in one
+change without thinking. That is a reviewer's job, and the `rule` string on
+every row is what the reviewer reads.
+
+## The walker is this file's own, deliberately
+
+`ac-236` walks the router the same way and the two are not shared. If one
+walker served both, a fault in it would shrink both enumerations at once and
+both pinned counts would be corrected to match, in one commit, with nothing
+left to disagree. Two walkers, two counts, and a discrepancy between them is
+a thing a person can see. Both are one level deep for the same reason and
+with the same consequence, which `ac-236`'s header sets out at length: a
+router mounted inside a router contributes nothing to either enumeration and
+says nothing about it, and the counts are what would notice.
+
+## The three kinds of row
+
+- **`stranger`**, on all but four routes: user B, signed in, with no
+  membership, no authorship and no connection to anything user A made. 404 is
+  the answer 10.2 requires, because a 403 tells a prober that the row exists.
+- **`member`**, on the eleven routes where 5.4, 7.15 or the code's own DES-225
+  split grants a member visibility and withholds the act: 403, and the refusal
+  may say why, precisely because the person can already see the thing. Ten are
+  asserted; the eleventh, `DELETE /api/v1/files/:id`, is the one finding this
+  sweep turned up and is carried as a `known` variant, described there.
+- **`viewerScoped`**, on four routes, which are this file's `PUBLIC_READS`:
+  the id in the path names no row of ours that could belong to somebody else,
+  so every signed-in caller gets the same answer and the row records why. An
+  entry here is a claim that needs reading, not a hole being papered over.
+
+Spec: 5.4, 7.0, 7.13, 10.2. Issue #74.
+*/
+import { afterAll, beforeAll, describe, expect, test } from 'vitest'
+
+import { startAuthTestApp } from './auth-harness.js'
+import type { AuthTestApp } from './auth-harness.js'
+import {
+  STUB_PHOTO_ID,
+  makeComment,
+  makeFile,
+  makeInvite,
+  makeNotification,
+  makeSavedView,
+  makeSharedFolder,
+  makeShelf,
+  makeStep,
+  makeTask,
+  memoryFileStore,
+  startUpstreamStub,
+  trashFolder,
+  trashTask,
+  writePage,
+} from './authorization-harness.js'
+import type { UpstreamStub } from './authorization-harness.js'
+import { Cast } from './folders-harness.js'
+import type { Actor } from './folders-harness.js'
+import type { RawResponse } from './http-client.js'
+
+let app: AuthTestApp
+let upstream: UpstreamStub
+const cast = new Cast(['owner', 'member', 'stranger'], 'ac397')
+
+beforeAll(async () => {
+  upstream = await startUpstreamStub()
+  process.env.OPENVERSE_BASE = upstream.base
+  app = await startAuthTestApp({ fileStore: memoryFileStore() })
+}, 120_000)
+
+afterAll(async () => {
+  delete process.env.OPENVERSE_BASE
+  if ((upstream as UpstreamStub | undefined) !== undefined) {
+    await upstream.close()
+  }
+  if ((app as AuthTestApp | undefined) === undefined) return
+  await cast.cleanup(app.db)
+  await app.close()
+})
+
+/* ------------------------------------------------------------------ *
+ * Walking the mounted router
+ * ------------------------------------------------------------------ */
+
+/* The shapes below restate what the walk reads from Express rather than
+ * importing Express's own types: this suite measures the mounted artifact
+ * and cannot borrow its definition of correct (the auth-harness rule). */
+interface RouteShape {
+  path: string | readonly string[]
+  methods: Record<string, boolean>
+}
+interface LayerShape {
+  match?: (path: string) => boolean
+  route?: RouteShape
+  handle?: { stack?: LayerShape[] }
+}
+
+const METHODS = ['get', 'post', 'patch', 'put', 'delete'] as const
+
+/** Mount points this application uses; a router layer is attributed to the
+ * first one its own regexp accepts, which is exact for non-overlapping
+ * prefixes like these. */
+const MOUNTS = ['/api/v1', '/api/health', '/api']
+
+/** A path segment that is a parameter. Every one of them on this surface
+ * names a row or a place; `addressable` in `ac-236` uses the same shape. */
+const PARAMETER = /:[A-Za-z_]+/
+
+function mountedRoutes(application: unknown): string[] {
+  const stack = (application as { router?: { stack?: LayerShape[] } }).router
+    ?.stack
+  expect(
+    Array.isArray(stack),
+    'the mounted application no longer exposes router.stack: the sweep must be rewritten against the new shape, never skipped',
+  ).toBe(true)
+
+  const found: string[] = []
+  const collect = (route: RouteShape, mount: string): void => {
+    const paths = typeof route.path === 'string' ? [route.path] : route.path
+    for (const method of METHODS) {
+      if (route.methods[method] !== true) continue
+      for (const path of paths) {
+        found.push(`${method.toUpperCase()} ${mount}${path}`)
+      }
+    }
+  }
+
+  for (const layer of stack as LayerShape[]) {
+    if (layer.route !== undefined) {
+      collect(layer.route, '')
+      continue
+    }
+    const sub = layer.handle?.stack
+    if (!Array.isArray(sub)) continue
+    const mount = MOUNTS.find((candidate) => layer.match?.(candidate) === true) ?? ''
+    for (const nested of sub) {
+      if (nested.route !== undefined) collect(nested.route, mount)
+    }
+  }
+  return [...new Set(found)]
+}
+
+function idBearingRoutes(application: unknown): string[] {
+  return mountedRoutes(application).filter((route) => PARAMETER.test(route))
+}
+
+/* ------------------------------------------------------------------ *
+ * The fixtures every row addresses
+ * ------------------------------------------------------------------ */
+
+interface Fixtures {
+  owner: Actor
+  member: Actor
+  stranger: Actor
+  folderId: string
+  trashedFolderId: string
+  taskId: string
+  trashedTaskId: string
+  stepId: string
+  shelfId: string
+  viewId: string
+  commentId: string
+  fileId: string
+  inviteId: string
+  notificationId: string
+}
+
+let fixtures: Fixtures | undefined
+
+/** Built once and shared by the three tests below, because building them is
+ * about thirty requests and none of the tests mutates anything: every row
+ * that is not `viewerScoped` expects a refusal, and a refusal changes no row.
+ * The `viewerScoped` four write only the caller's own. */
+async function fixturesOf(): Promise<Fixtures> {
+  if (fixtures !== undefined) return fixtures
+  const [owner, member, stranger] = (await cast.of(app)) as [
+    Actor,
+    Actor,
+    Actor,
+  ]
+
+  const folderId = await makeSharedFolder(app, owner, member, 'ac397 shared')
+  const taskId = await makeTask(owner, folderId, 'ac397 the task')
+  const stepId = await makeStep(owner, taskId, 'ac397 the step')
+  const fileId = await makeFile(owner, folderId, 'ac397.png')
+  const commentId = await makeComment(owner, folderId, 'ac397 the comment')
+  const shelfId = await makeShelf(owner, 'ac397 the shelf')
+  const viewId = await makeSavedView(owner, 'ac397 the view')
+  const inviteId = await makeInvite(
+    owner,
+    folderId,
+    `ac397-invitee-${String(Date.now())}@ac397.test`,
+  )
+  const notificationId = await makeNotification(
+    owner,
+    member,
+    folderId,
+    'ac397 the assignment',
+  )
+  await writePage(owner, 'folders', folderId, 'ac397 folder page')
+  await writePage(owner, 'shelves', shelfId, 'ac397 shelf page')
+
+  const trashedTaskId = await makeTask(owner, folderId, 'ac397 the doomed task')
+  await trashTask(owner, trashedTaskId)
+  const trashedFolderId = await makeSharedFolder(
+    app,
+    owner,
+    member,
+    'ac397 doomed',
+  )
+  await trashFolder(owner, trashedFolderId)
+
+  fixtures = {
+    owner,
+    member,
+    stranger,
+    folderId,
+    trashedFolderId,
+    taskId,
+    trashedTaskId,
+    stepId,
+    shelfId,
+    viewId,
+    commentId,
+    fileId,
+    inviteId,
+    notificationId,
+  }
+  return fixtures
+}
+
+/* ------------------------------------------------------------------ *
+ * The table
+ * ------------------------------------------------------------------ */
+
+interface Attempt {
+  /** The path under /api/v1, with the fixture's real ids substituted. */
+  path: string
+  body?: unknown
+}
+
+interface Variant {
+  /** The status the spec requires of this caller on this route. */
+  expected: number
+  /** The rule that says so. Every row owes one; this is what a reviewer
+   * reads when a route and its row arrive in the same change. */
+  rule: string
+  attempt?: (fx: Fixtures) => Attempt
+  /**
+   * A finding this sweep turned up that is not a missing `accessOf` and is
+   * not this file's to decide. The variant is not weakened: `expected` stays
+   * what the spec requires, and the variant moves out of the pass that would
+   * fail and into the `test.fails` block at the end, which asserts the same
+   * thing and is green only while the defect stands. The day it is fixed,
+   * that block goes red and says to promote the variant back.
+   */
+  known?: string
+}
+
+interface Row {
+  attempt: (fx: Fixtures) => Attempt
+  /** Absent on the four viewer-scoped routes, which no stranger can miss. */
+  stranger?: Variant
+  /** Present on the routes where 5.4 or 7.15 grants a member visibility and
+   * withholds the act. */
+  member?: Variant
+}
+
+/*
+Adding a route is adding one line here. Three id-bearing routes were being
+written on other branches the night this landed and are deliberately absent:
+`POST /api/v1/shelves/:id/duplicate` is one of them and takes one row, owner
+only and 404 for anyone else, at which point the count below moves to 60.
+(`GET /api/v1/me/export` and `POST /api/csp-report` carry no id and are
+outside this enumeration entirely.)
+*/
+const TABLE = new Map<string, Row>([
+  /* -------------------------------------------------------------- *
+   * Folders (5.4's own table)
+   * -------------------------------------------------------------- */
+  [
+    'GET /api/v1/folders/:id',
+    {
+      attempt: (fx) => ({ path: `/folders/${fx.folderId}` }),
+      stranger: {
+        expected: 404,
+        rule: '5.4 "See folder and every task in it: no (404)" for a non-member, and 10.2 forbids 403 here because it would confirm the folder exists',
+      },
+    },
+  ],
+  [
+    'PATCH /api/v1/folders/:id',
+    {
+      attempt: (fx) => ({
+        path: `/folders/${fx.folderId}`,
+        body: { icon: 'star' },
+      }),
+      stranger: {
+        expected: 404,
+        rule: '5.4: a non-member sees nothing, so every act on the folder is 404',
+      },
+      member: {
+        expected: 403,
+        rule: '5.4 "Rename folder: no (403)" for a member, the DES-225 split: the folder-owned identity is any member\'s, the name is the owner\'s',
+        attempt: (fx) => ({
+          path: `/folders/${fx.folderId}`,
+          body: { name: 'ac397 renamed by a member' },
+        }),
+      },
+    },
+  ],
+  [
+    'DELETE /api/v1/folders/:id',
+    {
+      attempt: (fx) => ({ path: `/folders/${fx.folderId}` }),
+      stranger: { expected: 404, rule: '5.4: a non-member sees nothing' },
+      member: {
+        expected: 403,
+        rule: '5.4 "Delete folder: no (403)" for a member',
+      },
+    },
+  ],
+  [
+    'PATCH /api/v1/folders/:id/my-membership',
+    {
+      attempt: (fx) => ({
+        path: `/folders/${fx.folderId}/my-membership`,
+        body: { label: 'ac397' },
+      }),
+      stranger: {
+        expected: 404,
+        rule: '5.4 "Set or clear own label and color: no" for a non-member; the UPDATE is viewer-scoped besides',
+      },
+    },
+  ],
+  [
+    'POST /api/v1/folders/:id/members',
+    {
+      attempt: (fx) => ({
+        path: `/folders/${fx.folderId}/members`,
+        body: { user_id: fx.stranger.id },
+      }),
+      stranger: {
+        expected: 404,
+        rule: '5.4 "Add members: no" for a non-member, and 10.2 makes it 404',
+      },
+    },
+  ],
+  [
+    'DELETE /api/v1/folders/:id/members/:userId',
+    {
+      attempt: (fx) => ({
+        path: `/folders/${fx.folderId}/members/${fx.member.id}`,
+      }),
+      stranger: { expected: 404, rule: '5.4: a non-member sees nothing' },
+      member: {
+        expected: 403,
+        rule: '5.4 "Remove another member: no (403)" for a member',
+        attempt: (fx) => ({
+          path: `/folders/${fx.folderId}/members/${fx.owner.id}`,
+        }),
+      },
+    },
+  ],
+  [
+    'DELETE /api/v1/folders/:id/my-membership',
+    {
+      attempt: (fx) => ({ path: `/folders/${fx.folderId}/my-membership` }),
+      stranger: {
+        expected: 404,
+        rule: '5.3\'s leave addressed as one\'s own membership: a non-member has none, and 10.2 answers 404 rather than naming the folder',
+      },
+    },
+  ],
+  [
+    'POST /api/v1/folders/:id/transfer-ownership',
+    {
+      attempt: (fx) => ({
+        path: `/folders/${fx.folderId}/transfer-ownership`,
+        body: { to: fx.stranger.id },
+      }),
+      stranger: { expected: 404, rule: '5.4: a non-member sees nothing' },
+      member: {
+        expected: 403,
+        rule: 'DES-225 and 8.9: ownership is the owner\'s to give, and the member demonstrably sees the folder, so the refusal may say why',
+        attempt: (fx) => ({
+          path: `/folders/${fx.folderId}/transfer-ownership`,
+          body: { to: fx.member.id },
+        }),
+      },
+    },
+  ],
+  [
+    'POST /api/v1/folders/:id/restore',
+    {
+      attempt: (fx) => ({ path: `/folders/${fx.trashedFolderId}/restore` }),
+      stranger: {
+        expected: 404,
+        rule: '7.13: access to a trashed row is by folder membership, never by who deleted it',
+      },
+    },
+  ],
+  [
+    'POST /api/v1/folders/:id/duplicate',
+    {
+      attempt: (fx) => ({ path: `/folders/${fx.folderId}/duplicate` }),
+      stranger: {
+        expected: 404,
+        rule: '7.16: the act reads the whole folder, so it is gated exactly as reading it is',
+      },
+    },
+  ],
+  [
+    'POST /api/v1/folders/:id/cover/photo',
+    {
+      attempt: (fx) => ({
+        path: `/folders/${fx.folderId}/cover/photo`,
+        body: { photo_id: STUB_PHOTO_ID },
+      }),
+      stranger: {
+        expected: 404,
+        rule: '7.15 and 7.19: the photograph lands as a file in the named folder, so it takes the folder\'s own membership gate',
+      },
+    },
+  ],
+  [
+    'GET /api/v1/folders/:id/tasks',
+    {
+      attempt: (fx) => ({ path: `/folders/${fx.folderId}/tasks?tz=UTC` }),
+      stranger: {
+        expected: 404,
+        rule: 'Q7 is "member only, else 404", and 7.0 makes inaccessible read as 404 rather than 403',
+      },
+    },
+  ],
+  [
+    'GET /api/v1/folders/:id/page',
+    {
+      attempt: (fx) => ({ path: `/folders/${fx.folderId}/page` }),
+      stranger: {
+        expected: 404,
+        rule: '4.17: the folder page is the folder\'s, so it is read by exactly the people who read the folder',
+      },
+    },
+  ],
+  [
+    'PUT /api/v1/folders/:id/page',
+    {
+      attempt: (fx) => ({
+        path: `/folders/${fx.folderId}/page`,
+        body: { blocks: [] },
+      }),
+      stranger: {
+        expected: 404,
+        rule: '4.17 and D1: any member edits, and a non-member is not one',
+      },
+    },
+  ],
+  [
+    'GET /api/v1/folders/:id/comments',
+    {
+      attempt: (fx) => ({ path: `/folders/${fx.folderId}/comments` }),
+      stranger: {
+        expected: 404,
+        rule: '7.14: the thread is member-only throughout, and a folder outside the viewer\'s membership is 404 and never 403',
+      },
+    },
+  ],
+  [
+    'POST /api/v1/folders/:id/comments',
+    {
+      attempt: (fx) => ({
+        path: `/folders/${fx.folderId}/comments`,
+        body: { body: 'ac397 from a stranger' },
+      }),
+      stranger: {
+        expected: 404,
+        rule: '7.14: writing to a thread needs membership of its folder',
+      },
+    },
+  ],
+
+  /* -------------------------------------------------------------- *
+   * Tasks and steps (5.4 row 2: every member acts, no non-member does)
+   * -------------------------------------------------------------- */
+  [
+    'GET /api/v1/tasks/:id',
+    {
+      attempt: (fx) => ({ path: `/tasks/${fx.taskId}` }),
+      stranger: {
+        expected: 404,
+        rule: 'AC-102 by name: a fetch of an existing task in an inaccessible folder is indistinguishable from a nonexistent id',
+      },
+    },
+  ],
+  [
+    'PATCH /api/v1/tasks/:id',
+    {
+      attempt: (fx) => ({
+        path: `/tasks/${fx.taskId}`,
+        body: { title: 'ac397 edited by a stranger' },
+      }),
+      stranger: {
+        expected: 404,
+        rule: '5.4 "Create, edit, complete, abandon, restore, delete any task: no" for a non-member',
+      },
+    },
+  ],
+  [
+    'DELETE /api/v1/tasks/:id',
+    {
+      attempt: (fx) => ({ path: `/tasks/${fx.taskId}` }),
+      stranger: { expected: 404, rule: '5.4 row 2, for a non-member' },
+    },
+  ],
+  [
+    'POST /api/v1/tasks/:id/complete',
+    {
+      attempt: (fx) => ({ path: `/tasks/${fx.taskId}/complete`, body: {} }),
+      stranger: {
+        expected: 404,
+        rule: '5.4 row 2: 5.1\'s transitions are a member act',
+      },
+    },
+  ],
+  [
+    'POST /api/v1/tasks/:id/uncomplete',
+    {
+      attempt: (fx) => ({ path: `/tasks/${fx.taskId}/uncomplete`, body: {} }),
+      stranger: { expected: 404, rule: '5.4 row 2' },
+    },
+  ],
+  [
+    'POST /api/v1/tasks/:id/abandon',
+    {
+      attempt: (fx) => ({ path: `/tasks/${fx.taskId}/abandon`, body: {} }),
+      stranger: { expected: 404, rule: '5.4 row 2' },
+    },
+  ],
+  [
+    'POST /api/v1/tasks/:id/restore',
+    {
+      attempt: (fx) => ({ path: `/tasks/${fx.trashedTaskId}/restore`, body: {} }),
+      stranger: {
+        expected: 404,
+        rule: '5.4 row 2 and 7.13: one path, two graves, and neither is reachable by a non-member',
+      },
+    },
+  ],
+  [
+    'POST /api/v1/tasks/:id/duplicate',
+    {
+      attempt: (fx) => ({ path: `/tasks/${fx.taskId}/duplicate`, body: {} }),
+      stranger: {
+        expected: 404,
+        rule: '7.16: the copy is made from a task the caller must be able to read',
+      },
+    },
+  ],
+  [
+    'POST /api/v1/tasks/:id/order',
+    {
+      attempt: (fx) => ({
+        path: `/tasks/${fx.taskId}/order`,
+        body: { after_id: null, before_id: null },
+      }),
+      stranger: { expected: 404, rule: '5.4 row 2: a hand order is an edit' },
+    },
+  ],
+  [
+    'POST /api/v1/tasks/:id/steps',
+    {
+      attempt: (fx) => ({
+        path: `/tasks/${fx.taskId}/steps`,
+        body: { title: 'ac397 from a stranger' },
+      }),
+      stranger: {
+        expected: 404,
+        rule: '7.7: a step belongs to its task, and the task\'s folder decides who may touch it',
+      },
+    },
+  ],
+  [
+    'POST /api/v1/tasks/:id/steps/:stepId/promote',
+    {
+      attempt: (fx) => ({
+        path: `/tasks/${fx.taskId}/steps/${fx.stepId}/promote`,
+        body: {},
+      }),
+      stranger: {
+        expected: 404,
+        rule: '7.7 and B9: the promotion creates a task in the same folder, so it needs that folder\'s membership',
+      },
+    },
+  ],
+  [
+    'PATCH /api/v1/steps/:id',
+    {
+      attempt: (fx) => ({
+        path: `/steps/${fx.stepId}`,
+        body: { title: 'ac397 edited by a stranger' },
+      }),
+      stranger: {
+        expected: 404,
+        rule: '7.7: a step is addressed by its own id and reached through its task\'s folder',
+      },
+    },
+  ],
+  [
+    'DELETE /api/v1/steps/:id',
+    {
+      attempt: (fx) => ({ path: `/steps/${fx.stepId}` }),
+      stranger: { expected: 404, rule: '7.7, as the PATCH above' },
+    },
+  ],
+  [
+    'POST /api/v1/tasks/:id/my-day',
+    {
+      attempt: (fx) => ({ path: `/tasks/${fx.taskId}/my-day?tz=UTC`, body: {} }),
+      stranger: {
+        expected: 404,
+        rule: '5.4 "Pull any visible task into own Today: no" for a non-member; 7.8 makes visibility the whole of the guard',
+      },
+    },
+  ],
+  [
+    'DELETE /api/v1/tasks/:id/my-day',
+    {
+      attempt: (fx) => ({ path: `/tasks/${fx.taskId}/my-day` }),
+      stranger: {
+        expected: 404,
+        rule: '7.8: the drop is the pull\'s inverse and takes the same guard',
+      },
+    },
+  ],
+  [
+    'PUT /api/v1/tasks/:id/reminder',
+    {
+      attempt: (fx) => ({
+        path: `/tasks/${fx.taskId}/reminder`,
+        body: { time_of_day: '09:00' },
+      }),
+      stranger: {
+        expected: 404,
+        rule: '7.9: 4.8\'s row is keyed by the task in the path, so every guard on it is a fact about that task',
+      },
+    },
+  ],
+  [
+    'DELETE /api/v1/tasks/:id/reminder',
+    {
+      attempt: (fx) => ({ path: `/tasks/${fx.taskId}/reminder` }),
+      stranger: {
+        expected: 404,
+        rule: '7.9: the 404 is the task\'s, never the reminder\'s',
+      },
+    },
+  ],
+
+  /* -------------------------------------------------------------- *
+   * Shelves and saved views: one person's own by construction
+   * -------------------------------------------------------------- */
+  [
+    'GET /api/v1/shelves/:id',
+    {
+      attempt: (fx) => ({ path: `/shelves/${fx.shelfId}` }),
+      stranger: {
+        expected: 404,
+        rule: '4.18: a shelf is its owner\'s alone, so everybody else is a stranger to it and 10.2 answers 404',
+      },
+    },
+  ],
+  [
+    'PATCH /api/v1/shelves/:id',
+    {
+      attempt: (fx) => ({
+        path: `/shelves/${fx.shelfId}`,
+        body: { name: 'ac397 renamed by a stranger' },
+      }),
+      stranger: { expected: 404, rule: '4.18, as the read above' },
+    },
+  ],
+  [
+    'DELETE /api/v1/shelves/:id',
+    {
+      attempt: (fx) => ({ path: `/shelves/${fx.shelfId}` }),
+      stranger: { expected: 404, rule: '4.18, as the read above' },
+    },
+  ],
+  [
+    'GET /api/v1/shelves/:id/page',
+    {
+      attempt: (fx) => ({ path: `/shelves/${fx.shelfId}/page` }),
+      stranger: {
+        expected: 404,
+        rule: '4.17 and 4.18: a page is scoped by its home, and this home is private',
+      },
+    },
+  ],
+  [
+    'PUT /api/v1/shelves/:id/page',
+    {
+      attempt: (fx) => ({
+        path: `/shelves/${fx.shelfId}/page`,
+        body: { blocks: [] },
+      }),
+      stranger: { expected: 404, rule: '4.17 and 4.18, as the read above' },
+    },
+  ],
+  [
+    'GET /api/v1/views/:id',
+    {
+      attempt: (fx) => ({ path: `/views/${fx.viewId}` }),
+      stranger: {
+        expected: 404,
+        rule: 'RFC 0005: a saved view is one account\'s, and every statement behind this route is viewer-scoped',
+      },
+    },
+  ],
+  [
+    'PATCH /api/v1/views/:id',
+    {
+      attempt: (fx) => ({
+        path: `/views/${fx.viewId}`,
+        body: { name: 'ac397 renamed by a stranger' },
+      }),
+      stranger: { expected: 404, rule: 'RFC 0005, as the read above' },
+    },
+  ],
+  [
+    'DELETE /api/v1/views/:id',
+    {
+      attempt: (fx) => ({ path: `/views/${fx.viewId}` }),
+      stranger: { expected: 404, rule: 'RFC 0005, as the read above' },
+    },
+  ],
+
+  /* -------------------------------------------------------------- *
+   * Comments: member-only to see, author-only to change
+   * -------------------------------------------------------------- */
+  [
+    'PATCH /api/v1/comments/:id',
+    {
+      attempt: (fx) => ({
+        path: `/comments/${fx.commentId}`,
+        body: { body: 'ac397 edited by a stranger' },
+      }),
+      stranger: {
+        expected: 404,
+        rule: '7.14: a comment outside the viewer\'s membership is 404, never 403',
+      },
+      member: {
+        expected: 403,
+        rule: '7.14 and DES-225: a member sees the thread, so touching another author\'s words is a forbidden act rather than a missing row',
+      },
+    },
+  ],
+  [
+    'DELETE /api/v1/comments/:id',
+    {
+      attempt: (fx) => ({ path: `/comments/${fx.commentId}` }),
+      stranger: { expected: 404, rule: '7.14, as the edit above' },
+      member: {
+        expected: 403,
+        rule: '7.14: the author or the folder owner removes a comment, and this member is neither',
+      },
+    },
+  ],
+  [
+    'PUT /api/v1/comments/:id/like',
+    {
+      attempt: (fx) => ({ path: `/comments/${fx.commentId}/like`, body: {} }),
+      stranger: {
+        expected: 404,
+        rule: '7.14: a like needs the thread, so it needs the folder',
+      },
+    },
+  ],
+  [
+    'DELETE /api/v1/comments/:id/like',
+    {
+      attempt: (fx) => ({ path: `/comments/${fx.commentId}/like` }),
+      stranger: { expected: 404, rule: '7.14, as the like above' },
+    },
+  ],
+
+  /* -------------------------------------------------------------- *
+   * Files
+   * -------------------------------------------------------------- */
+  [
+    'GET /api/v1/files/:id',
+    {
+      attempt: (fx) => ({ path: `/files/${fx.fileId}` }),
+      stranger: {
+        expected: 404,
+        rule: '7.15: bytes stored in a folder are served to that folder\'s members, and an avatar is the one deliberate exception (this fixture is an image in a folder)',
+      },
+    },
+  ],
+  [
+    'DELETE /api/v1/files/:id',
+    {
+      attempt: (fx) => ({ path: `/files/${fx.fileId}` }),
+      stranger: { expected: 404, rule: '7.15, as the read above' },
+      member: {
+        expected: 403,
+        rule: '7.15 gives the delete to "uploader or folder owner", and this member is neither. 10.2 then fixes the status rather than 7.15: the member reads the same file at 200 through GET /files/:id, so visibility is permitted and the forbidden act is 403. DELETE /comments/:id one router over is this exact shape and answers 403',
+        known:
+          'answers 404 today. `deleteFile` in domain/files.ts asks one question — did the DELETE ... WHERE owner_id = viewer OR folder owner remove a row — and cannot tell "no such file you can see" from "a file you can see and may not delete", so the route has nothing to map to a 403. It is not a missing gate: the gate is right and 7.15\'s rule is enforced. It is 10.2\'s grammar, on a section 7 endpoint, and section 7 is frozen, so the status is the owner\'s to move and not this sweep\'s. Reported under issue #74',
+      },
+    },
+  ],
+
+  /* -------------------------------------------------------------- *
+   * Invites (5.2's actors)
+   * -------------------------------------------------------------- */
+  [
+    'POST /api/v1/invites/:id/accept',
+    {
+      attempt: (fx) => ({ path: `/invites/${fx.inviteId}/accept`, body: {} }),
+      stranger: {
+        expected: 404,
+        rule: '7.5 says outright that an actor who is not the addressee is 404 and not 403: they learn nothing about the invite\'s existence or its state',
+      },
+    },
+  ],
+  [
+    'POST /api/v1/invites/:id/decline',
+    {
+      attempt: (fx) => ({ path: `/invites/${fx.inviteId}/decline`, body: {} }),
+      stranger: { expected: 404, rule: '7.5, as the accept above' },
+    },
+  ],
+  [
+    'POST /api/v1/invites/:id/cancel',
+    {
+      attempt: (fx) => ({ path: `/invites/${fx.inviteId}/cancel`, body: {} }),
+      stranger: {
+        expected: 404,
+        rule: '5.2: cancel belongs to the inviter or the folder owner, and anybody who cannot see the invite at all gets 404',
+      },
+      member: {
+        expected: 403,
+        rule: '5.4 "Cancel any invite for the folder: no (only own)" for a member, who sees it on 7.4\'s pending_invites and so is refused visibly',
+      },
+    },
+  ],
+  [
+    'POST /api/v1/invites/:id/resend',
+    {
+      attempt: (fx) => ({ path: `/invites/${fx.inviteId}/resend`, body: {} }),
+      stranger: { expected: 404, rule: '5.2: resend has one actor, the inviter' },
+      member: {
+        expected: 403,
+        rule: '5.2 and the same visibility rule cancel uses: a member of the folder sees the invite, so their refusal says why',
+      },
+    },
+  ],
+
+  /* -------------------------------------------------------------- *
+   * Notifications, the roster, and the Trash
+   * -------------------------------------------------------------- */
+  [
+    'POST /api/v1/notifications/:id/read',
+    {
+      attempt: (fx) => ({
+        path: `/notifications/${fx.notificationId}/read`,
+        body: {},
+      }),
+      stranger: {
+        expected: 404,
+        rule: '7.12: a notification is one account\'s row, and the UPDATE carries user_id, so another account\'s is 404',
+      },
+    },
+  ],
+  [
+    'DELETE /api/v1/connections/:userId',
+    {
+      attempt: (fx) => ({ path: `/connections/${fx.owner.id}` }),
+      stranger: {
+        expected: 404,
+        rule: '7.3: either side of a pair may remove it and nobody else can name it, so a caller outside the pair is 404',
+      },
+    },
+  ],
+  [
+    'DELETE /api/v1/trash/tasks/:id',
+    {
+      attempt: (fx) => ({ path: `/trash/tasks/${fx.trashedTaskId}` }),
+      stranger: {
+        expected: 404,
+        rule: '7.13: access to the Trash is by folder membership, never by who deleted',
+      },
+      member: {
+        expected: 403,
+        rule: 'RFC 0005 change control item 38: the permanent delete is the folder owner\'s alone, and a member can see the row, so 10.2\'s grammar admits a forbidden here',
+      },
+    },
+  ],
+  [
+    'DELETE /api/v1/trash/folders/:id',
+    {
+      attempt: (fx) => ({ path: `/trash/folders/${fx.trashedFolderId}` }),
+      stranger: { expected: 404, rule: '7.13, as the task above' },
+      member: {
+        expected: 403,
+        rule: 'RFC 0005 change control item 38, as the task above',
+      },
+    },
+  ],
+
+  /* -------------------------------------------------------------- *
+   * The viewer-scoped four: this file's PUBLIC_READS
+   *
+   * Each of these carries a path parameter and none of them names a row
+   * that could belong to somebody else, so a stranger gets exactly what
+   * anybody else gets and the reason is the row. An entry here widens
+   * nothing by itself: what it says is that there is no cross-account
+   * question on this route, and if that ever stops being true the entry is
+   * where a reader will look first.
+   * -------------------------------------------------------------- */
+  [
+    'PUT /api/v1/place-covers/:place',
+    {
+      attempt: () => ({
+        path: '/place-covers/today',
+        body: { preset: 'linen' },
+      }),
+    },
+  ],
+  [
+    'DELETE /api/v1/place-covers/:place',
+    { attempt: () => ({ path: '/place-covers/today' }) },
+  ],
+  [
+    'PUT /api/v1/place-descriptions/:place',
+    {
+      attempt: () => ({
+        path: '/place-descriptions/today',
+        body: { description: 'ac397, the stranger\'s own sentence' },
+      }),
+    },
+  ],
+  [
+    'GET /api/v1/covers/photos/:id/thumb',
+    { attempt: () => ({ path: `/covers/photos/${STUB_PHOTO_ID}/thumb` }) },
+  ],
+])
+
+/**
+ * The four routes with no `stranger` row, and what each one is instead. Held
+ * separately from TABLE so that the two are asserted against each other: a
+ * route named here and carrying a `stranger` variant is a contradiction, and
+ * a route with neither is a row somebody forgot to finish.
+ */
+const VIEWER_SCOPED = new Map<string, { expected: number; reason: string }>([
+  [
+    'PUT /api/v1/place-covers/:place',
+    {
+      expected: 200,
+      reason:
+        '4.20: `:place` names one of Dana\'s own eight pages, not a row. The statement behind it carries user_id = viewer, so a second account writing "today" writes its own cover and could not reach anybody else\'s if it tried. The one cross-account question this route does have is the file it may name, which is a body field rather than a path id, and AC-368 and AC-374 are that gate',
+    },
+  ],
+  [
+    'DELETE /api/v1/place-covers/:place',
+    {
+      expected: 204,
+      reason:
+        '4.20, as the PUT: the delete is scoped to the caller and is idempotent, so a stranger removing "today" removes their own row whether or not they had one',
+    },
+  ],
+  [
+    'PUT /api/v1/place-descriptions/:place',
+    {
+      expected: 200,
+      reason:
+        '4.22 and 7.21: a person\'s own sentence under one of Dana\'s pages, keyed by the viewer exactly as the cover above is',
+    },
+  ],
+  [
+    'GET /api/v1/covers/photos/:id/thumb',
+    {
+      expected: 200,
+      reason:
+        '7.19: the id is Openverse\'s, not ours. The route exists so that img-src can admit no third-party host, and it proxies a public thumbnail; there is no row here for one account to hold against another. requireSession is still what keeps it off the open internet, which AC-236 asserts',
+    },
+  ],
+])
+
+/* ------------------------------------------------------------------ *
+ * Driving one row
+ * ------------------------------------------------------------------ */
+
+function methodOf(key: string): string {
+  return key.slice(0, key.indexOf(' '))
+}
+
+function templateOf(key: string): string {
+  return key.slice(key.indexOf(' ') + 1)
+}
+
+/**
+ * Whether a row's concrete path would be matched by the route its key names.
+ *
+ * **This is the control that keeps the whole file from passing vacuously, and
+ * it is not optional.** `src/server/index.ts` mounts a catch-all at `/api`
+ * answering `404 not_found` with the same body every gated route answers, so
+ * a row whose path has a typo in it reaches no route at all and is refused by
+ * the catch-all with exactly the status the row expects. Fifty-odd rows could
+ * be green while testing nothing. Matching the concrete path against the
+ * template, segment by segment, is what says the request reached the handler
+ * the row is about: the enumeration above has already proved the route is
+ * mounted, so a path that matches its pattern cannot fall through to the
+ * catch-all.
+ */
+function matchesTemplate(template: string, concrete: string): boolean {
+  const wanted = template.split('/')
+  const got = `/api/v1${(concrete.split('?')[0] ?? '')}`.split('/')
+  if (wanted.length !== got.length) return false
+  return wanted.every((segment, index) =>
+    segment.startsWith(':') ? (got[index] ?? '') !== '' : segment === got[index],
+  )
+}
+
+function drive(
+  actor: Actor,
+  key: string,
+  attempt: Attempt,
+): Promise<RawResponse> {
+  return actor.browser.json(attempt.path, methodOf(key), attempt.body)
+}
+
+function snippet(response: RawResponse): string {
+  const text = response.body.replace(/\s+/g, ' ').trim()
+  return text.length > 120 ? `${text.slice(0, 120)}...` : text
+}
+
+/* ------------------------------------------------------------------ *
+ * The criterion
+ * ------------------------------------------------------------------ */
+
+describe('AC-397 every id-bearing route refuses a stranger', () => {
+  test('the enumeration and the table describe the same surface', async () => {
+    const routes = idBearingRoutes(app.application)
+
+    /*
+    Equality, and the reason is the whole value of this file. A hand-written
+    table is worth having for exactly one property: that a route which joins
+    the application without an entry fails here rather than passing in
+    silence. A floor would give that up — a walker that lost sight of half
+    the surface, a router mounted inside another router, would satisfy
+    `> 40` while proving nothing about the routes it no longer saw. Measured
+    2026-09-04 at 59, and it moves in the same change as the route that
+    moves it.
+    */
+    expect(
+      routes.length,
+      `the walker found ${String(routes.length)} routes carrying a path parameter and there were 59 on 2026-09-04. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means an id-bearing route was added, and it owes this table a row saying what a stranger gets when they ask for somebody else's`,
+    ).toBe(59)
+
+    const missing = routes.filter((route) => !TABLE.has(route))
+    expect(
+      missing,
+      'id-bearing routes with no row in the table. Add one: what does a signed-in person with no relationship to this id get, and which rule says so',
+    ).toEqual([])
+
+    const stale = [...TABLE.keys()].filter((key) => !routes.includes(key))
+    expect(
+      stale,
+      'table rows naming a route that is not mounted. Delete them rather than leaving an expectation that guards nothing and hides whatever replaces that path',
+    ).toEqual([])
+
+    // The two halves of a row, asserted against each other so neither can
+    // drift: a viewer-scoped route must not also claim a stranger status,
+    // and every other route must claim one.
+    const contradictory = [...TABLE.entries()]
+      .filter(([key, row]) => VIEWER_SCOPED.has(key) === (row.stranger !== undefined))
+      .map(([key]) => key)
+    expect(
+      contradictory,
+      'rows that are both viewer-scoped and stranger-refusing, or neither. Every id-bearing route is one or the other',
+    ).toEqual([])
+  })
+
+  test('every row reaches the route it names, rather than the /api catch-all', async () => {
+    const fx = await fixturesOf()
+    const wrong: string[] = []
+
+    for (const [key, row] of TABLE) {
+      const attempt = row.attempt(fx)
+      if (!matchesTemplate(templateOf(key), attempt.path)) {
+        wrong.push(`${key}: the row drives ${attempt.path}, which that route does not match`)
+      }
+      const variant = row.member
+      if (variant?.attempt === undefined) continue
+      const memberAttempt = variant.attempt(fx)
+      if (!matchesTemplate(templateOf(key), memberAttempt.path)) {
+        wrong.push(
+          `${key}: the member variant drives ${memberAttempt.path}, which that route does not match`,
+        )
+      }
+    }
+
+    expect(
+      wrong,
+      'rows whose path does not match the route they claim to be about. index.ts mounts a catch-all at /api answering the same 404 not_found, so such a row would be green and would be measuring nothing',
+    ).toEqual([])
+  })
+
+  test('every fixture exists and its owner can see it', async () => {
+    const fx = await fixturesOf()
+    const invisible: string[] = []
+
+    const seen = async (
+      what: string,
+      path: string,
+      contains?: (body: unknown) => boolean,
+    ): Promise<void> => {
+      const answer = await fx.owner.browser.api(path)
+      if (answer.status !== 200) {
+        invisible.push(
+          `${what}: GET ${path} answered ${String(answer.status)} to the person who made it`,
+        )
+        return
+      }
+      if (contains !== undefined && !contains(answer.json())) {
+        invisible.push(`${what}: GET ${path} answered 200 without it`)
+      }
+    }
+
+    const holds = (id: string) => (body: unknown): boolean =>
+      JSON.stringify(body).includes(id)
+
+    await seen('the folder', `/folders/${fx.folderId}`)
+    await seen('the task and its step', `/tasks/${fx.taskId}`, holds(fx.stepId))
+    await seen('the shelf', `/shelves/${fx.shelfId}`)
+    await seen('the saved view', `/views/${fx.viewId}`)
+    await seen('the file', `/files/${fx.fileId}`)
+    await seen(
+      'the comment',
+      `/folders/${fx.folderId}/comments`,
+      holds(fx.commentId),
+    )
+    await seen('the notification', '/notifications', holds(fx.notificationId))
+    await seen('the invite', '/invites/sent', holds(fx.inviteId))
+    await seen('the roster connection', '/connections', holds(fx.member.id))
+    await seen('the trashed task', '/trash', holds(fx.trashedTaskId))
+    await seen('the trashed folder', '/trash', holds(fx.trashedFolderId))
+    await seen('the folder page', `/folders/${fx.folderId}/page`)
+    await seen('the shelf page', `/shelves/${fx.shelfId}/page`)
+
+    /*
+    The other half of the same worry as the test above, and the half a
+    template match cannot answer: a row can name the right route and hand it
+    a uuid that is nobody's, and then the stranger's 404 is the truth about a
+    row that does not exist rather than about a row they may not have. Every
+    factory asserts its own 201, so this holds by construction; it is
+    asserted anyway, because "by construction" is what the folder-row comment
+    in CLAUDE.md's warning also said.
+    */
+    expect(
+      invisible,
+      'fixtures the sweep addresses that their own maker cannot see. Every 404 in this file would then be honest about the wrong thing',
+    ).toEqual([])
+  })
+
+  test('a signed-in stranger is refused by every route that names a row', async () => {
+    const fx = await fixturesOf()
+    const failures: string[] = []
+
+    for (const [key, row] of TABLE) {
+      const variant = row.stranger
+      if (variant === undefined || variant.known !== undefined) continue
+      const answer = await drive(fx.stranger, key, row.attempt(fx))
+      if (answer.status !== variant.expected) {
+        failures.push(
+          `${key}: a stranger got ${String(answer.status)}, not ${String(variant.expected)} (${variant.rule}); body ${snippet(answer)}`,
+        )
+      }
+    }
+
+    expect(
+      failures,
+      'routes that answered a person with no relationship to the row something other than what 10.2 and the 5.4 matrix require. Each line is one missing or wrong accessOf gate',
+    ).toEqual([])
+  })
+
+  test('a member is refused the acts 5.4 keeps for the owner', async () => {
+    const fx = await fixturesOf()
+    const failures: string[] = []
+
+    for (const [key, row] of TABLE) {
+      const variant = row.member
+      if (variant === undefined || variant.known !== undefined) continue
+      const answer = await drive(
+        fx.member,
+        key,
+        (variant.attempt ?? row.attempt)(fx),
+      )
+      if (answer.status !== variant.expected) {
+        failures.push(
+          `${key}: a member got ${String(answer.status)}, not ${String(variant.expected)} (${variant.rule}); body ${snippet(answer)}`,
+        )
+      }
+    }
+
+    expect(
+      failures,
+      'routes where 5.4 grants a member visibility and withholds the act, and the code did something else. A 404 here is as wrong as a 200: the person can see the thing, so the refusal owes them a reason',
+    ).toEqual([])
+  })
+
+  /*
+  The findings this sweep turned up that are not its to fix, asserted at what
+  the spec requires rather than at what the code does.
+
+  **`test.fails` and not a skip**, because a skip records a decision and stops
+  measuring, and the whole difficulty with authorization here is that nothing
+  measures. This block is green only while the defect stands; the day it is
+  closed the block goes red, naming the variant to promote back into the pass
+  above. **And nothing here is weakened to get there:** `expected` on a known
+  variant is the status the rule requires, not the one observed, so promoting
+  it is deleting one field.
+
+  One entry as of 2026-09-04, on `DELETE /api/v1/files/:id`, and its `known`
+  string carries the whole of it.
+  */
+  const known = [...TABLE.entries()].flatMap(([key, row]) =>
+    [row.stranger, row.member]
+      .filter((variant): variant is Variant => variant?.known !== undefined)
+      .map((variant) => ({ key, row, variant })),
+  )
+
+  test.fails(
+    'the known findings still behave as their entries describe',
+    async () => {
+      const fx = await fixturesOf()
+      const failures: string[] = []
+
+      for (const { key, row, variant } of known) {
+        const actor = variant === row.stranger ? fx.stranger : fx.member
+        const answer = await drive(
+          actor,
+          key,
+          (variant.attempt ?? row.attempt)(fx),
+        )
+        if (answer.status !== variant.expected) {
+          failures.push(
+            `${key}: ${String(answer.status)}, not ${String(variant.expected)} — ${variant.known ?? ''}`,
+          )
+        }
+      }
+
+      expect(
+        failures,
+        'this assertion is inverted by test.fails and is expected to throw. If it passes, one of the findings above has been fixed: delete that variant\'s `known` and let the pass above assert it',
+      ).toEqual([])
+    },
+  )
+
+  test('the viewer-scoped routes answer a stranger exactly as they answer anyone', async () => {
+    const fx = await fixturesOf()
+    const failures: string[] = []
+
+    for (const [key, expectation] of VIEWER_SCOPED) {
+      const row = TABLE.get(key)
+      if (row === undefined) continue
+      const answer = await drive(fx.stranger, key, row.attempt(fx))
+      if (answer.status !== expectation.expected) {
+        failures.push(
+          `${key}: answered ${String(answer.status)}, not ${String(expectation.expected)}. It is listed as viewer-scoped because ${expectation.reason}; if that has stopped being true, the entry is what has to change`,
+        )
+      }
+    }
+
+    expect(
+      failures,
+      'viewer-scoped routes that no longer behave as the entry claims. An exemption that stops being true fails here rather than widening quietly',
+    ).toEqual([])
+  })
+})
