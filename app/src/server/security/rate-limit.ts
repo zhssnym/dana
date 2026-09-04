@@ -185,7 +185,10 @@ export function createRateLimits(
     rather than per visitor, and it was right until issue #153 (2026-09-04).**
     `createApp` now sets `trust proxy` to 1, so `req.ip` is the address
     Render's edge appended to `X-Forwarded-For` and this limiter buckets per
-    client in production as it always did under test. What the old paragraph
+    client in production as it always did under test — **on the reading that
+    the edge appends that header, which 11.11 records as near-certain,
+    undocumented, and failing permissively rather than neutrally if it is
+    wrong.** Read that before relying on this bucket. What the old paragraph
     ruled out is what happened: it said changing `trust proxy` would move
     every limiter at once and was therefore not a change to make inside this
     one, and #153 is that change made from outside it, with 10.4 re-read and

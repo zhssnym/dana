@@ -48,7 +48,11 @@ import { TestBrowser } from '../../../tests/http-client.js'
 import type { RawRequestOptions, RawResponse } from '../../../tests/http-client.js'
 import { startOidcStub } from '../../../tests/oidc-stub.js'
 import type { OidcStub } from '../../../tests/oidc-stub.js'
-import { patchSettingsBody, settingsBundle } from '../../shared/bundle.js'
+import {
+  DEFAULT_CALENDAR_ZOOM,
+  patchSettingsBody,
+  settingsBundle,
+} from '../../shared/bundle.js'
 import { errorEnvelope } from '../../shared/error-envelope.js'
 import {
   getMeSettingsResponse,
@@ -391,21 +395,29 @@ describe('the 7.0 taxonomy on the 7.2 surface', () => {
  * AC-409, the 7.23 settings bundle
  * ------------------------------------------------------------------ */
 
+/** One row of 7.23's fields table, cell for cell. */
+interface DocumentedField {
+  field: string
+  type: string
+  values: string
+  fresh: string
+}
+
 /**
- * The fields 7.23's table names, read out of the markdown as text.
+ * 7.23's fields table, read out of the markdown as text.
  *
  * Read rather than imported, the way `tests/ac-315-...` reads `routes.ts`,
  * and for a stronger reason than that one had: the document is the artifact
- * under test here. A criterion that imported a list from the same module the
- * document is supposed to describe would assert the schema against itself and
- * pass on a 7.23 that had gone stale, which is precisely the state issue #152
- * found section 7 in and precisely what this exists to stop happening again.
+ * under test here. A criterion that imported its list from the same module
+ * 7.23 is supposed to describe would assert the schema against itself and
+ * pass on a document that had gone stale, which is precisely the state issue
+ * #152 found section 7 in and precisely what this exists to stop recurring.
  *
- * The section is anchored by its heading and the rows by the backticked name
- * in the first cell, so a rename of either fails loudly — an empty list is
- * asserted against below rather than compared to an empty schema and passed.
+ * The section is anchored by its heading and each row by the backticked name
+ * in its first cell, so a rename of either yields no rows — which fails
+ * loudly below rather than comparing two empty sets and agreeing.
  */
-function fieldsNamedBy723(): string[] {
+function fieldsDocumentedBy723(): DocumentedField[] {
   const document = readFileSync(
     fileURLToPath(
       new URL(
@@ -417,21 +429,88 @@ function fieldsNamedBy723(): string[] {
   )
   const section = /\n## The fields\n([\s\S]*?)(?=\n## |$)/.exec(document)?.[1]
   if (section === undefined) return []
-  return [...section.matchAll(/^\|\s*`([a-z_]+)`\s*\|/gm)].map(
-    (row) => row[1] as string,
-  )
+  return [
+    ...section.matchAll(
+      /^\|\s*`([a-z_]+)`\s*\|([^|]*)\|([^|]*)\|([^|]*)\|\s*$/gm,
+    ),
+  ].map((row) => ({
+    field: row[1] as string,
+    type: (row[2] as string).trim(),
+    values: (row[3] as string).trim(),
+    fresh: (row[4] as string).trim(),
+  }))
+}
+
+/** Every backticked token in a table cell, in the order the cell lists them. */
+function backticked(cell: string): string[] {
+  return [...cell.matchAll(/`([^`]+)`/g)].map((hit) => hit[1] as string)
+}
+
+/**
+ * The cell's content when it is exactly one backticked token and nothing
+ * else, or `null` when it is prose. That distinction is what lets a default
+ * be compared against the wire where it is machine-readable and merely
+ * required to be *said* where it is not; the set of prose cells is itself
+ * asserted below, so prose is not a way to opt a field out of the check.
+ */
+function soleLiteral(cell: string): string | null {
+  return /^`([^`]+)`$/.exec(cell)?.[1] ?? null
+}
+
+/**
+ * The values a field may take, from the schemas rather than from the
+ * document, or `null` where neither schema fixes a list.
+ *
+ * Both are consulted because the two hold the enumeration in different
+ * places: the response shape carries it directly for the five enumerated
+ * fields, while `pinned_views` is a plain array of string there and it is the
+ * *request* shape that constrains its elements to the nine native views.
+ * `sidebar_order` and `arrangements` fix no list in either, and the `null`
+ * they answer with is asserted against an absence of backticks in the
+ * document, so a cell cannot start naming values no schema fixes.
+ *
+ * `.options`, `.unwrap()` and `.element` are zod 4's public surface rather
+ * than the `_zod.def` walk `http/parse-body.ts` has to do; measured against
+ * the installed zod on 2026-09-04.
+ */
+function valuesDeclaredFor(field: string): readonly string[] | null {
+  const response = (settingsBundle.shape as Record<string, unknown>)[field] as
+    | { options?: readonly string[] }
+    | undefined
+  if (Array.isArray(response?.options)) return response.options
+
+  const request = (patchSettingsBody.shape as Record<string, unknown>)[
+    field
+  ] as { unwrap?: () => unknown } | undefined
+  const inner = (
+    typeof request?.unwrap === 'function' ? request.unwrap() : request
+  ) as { element?: { options?: readonly string[] } } | undefined
+  return Array.isArray(inner?.element?.options) ? inner.element.options : null
 }
 
 describe('AC-409: 7.23 names every field of the settings bundle', () => {
-  const documented = fieldsNamedBy723().sort()
+  const documented = fieldsDocumentedBy723()
+  const byField = new Map(documented.map((row) => [row.field, row]))
+  const schemaFields = Object.keys(settingsBundle.shape)
+
+  /** The row 7.23 must carry for a field, or a failure naming the field. */
+  function rowFor(field: string): DocumentedField {
+    const row = byField.get(field)
+    expect(
+      row,
+      `spec 7.23's "## The fields" table has no row for ${field}`,
+    ).toBeDefined()
+    return row as DocumentedField
+  }
 
   test('the document names a field list at all, in the shape read above', () => {
-    // Asserted first and separately. Every comparison below is against this
-    // list, so a heading or a table this regex stops matching would otherwise
-    // turn the whole criterion into two empty sets agreeing with each other.
+    // Asserted first and separately. Everything below is measured against
+    // this table, so a heading or a row shape the regexes stop matching would
+    // otherwise turn the whole criterion into empty sets agreeing.
     expect(
       documented.length,
-      'spec 7.23 must carry a "## The fields" table whose rows open with a backticked field name',
+      'spec 7.23 must carry a "## The fields" table whose rows are ' +
+        'field, type, values, fresh, the first cell backticked',
     ).toBeGreaterThan(0)
   })
 
@@ -441,7 +520,7 @@ describe('AC-409: 7.23 names every field of the settings bundle', () => {
       'issue #152: a field PATCH /settings accepts with no row in 7.23 is a contract ' +
         'that has gone stale, and a row in 7.23 for a field the schema does not accept ' +
         'is a contract describing an endpoint nobody built',
-    ).toEqual(documented)
+    ).toEqual([...schemaFields].sort())
   })
 
   test('the response schema declares exactly the documented fields', () => {
@@ -450,22 +529,100 @@ describe('AC-409: 7.23 names every field of the settings bundle', () => {
     // and 7.23 states one field list for both because the endpoint answers
     // the whole object on either method.
     expect(
-      Object.keys(settingsBundle.shape).sort(),
+      [...schemaFields].sort(),
       'the GET shape and 7.23 must name one list, PATCH answering the GET object',
-    ).toEqual(documented)
+    ).toEqual(documented.map((row) => row.field).sort())
+  })
+
+  test('each Values cell names the schema enumeration, in order', () => {
+    // Iterated over the schema rather than over the table, so a field whose
+    // row 7.23 never grew fails here by name instead of going unmeasured.
+    // Both directions are asserted: a cell must name what a schema fixes, and
+    // a cell whose schemas fix nothing must name nothing, so `theme` quietly
+    // becoming a free string fails on the values it still advertises.
+    for (const field of schemaFields) {
+      const row = rowFor(field)
+      const declared = valuesDeclaredFor(field)
+      if (declared === null) {
+        expect(
+          backticked(row.values),
+          `${field} fixes no value list in either schema, so 7.23 must not name one`,
+        ).toEqual([])
+        continue
+      }
+      expect(
+        backticked(row.values),
+        `spec 7.23 must name ${field}'s values exactly as the schema admits them, in ` +
+          'order: a value added, removed or reordered in shared/bundle.ts and not here ' +
+          'leaves the contract describing an endpoint that answers something else',
+      ).toEqual([...declared])
+    }
+  })
+
+  test('each documented default is what a fresh account actually reads', async () => {
+    // The arm no static comparison can make, and the reason it signs a new
+    // person in rather than reusing this file's: the column says "a fresh
+    // account", and the shared actor has had its 7.2 flags written by the
+    // cases above, which is exactly what the pin derivation reads.
+    const newcomer = await signIn('AC-409 Fresh Account')
+    const response = await api(newcomer, '/settings')
+    expect(response.status).toBe(200)
+    const served = response.json() as Record<string, unknown>
+
+    const prose: string[] = []
+    for (const field of schemaFields) {
+      const row = rowFor(field)
+      const literal = soleLiteral(row.fresh)
+      if (literal === null) {
+        expect(
+          row.fresh.length,
+          `${field}'s default is prose in 7.23, which is allowed only if it says something`,
+        ).toBeGreaterThan(0)
+        prose.push(field)
+        continue
+      }
+      expect(
+        served[field],
+        `spec 7.23 says a fresh account reads ${literal} for ${field}. The defaults are ` +
+          '4.10 columns, so this fails when a migration moves one and the document does ' +
+          'not move with it',
+      ).toEqual(
+        literal === '[]' || literal === '{}'
+          ? (JSON.parse(literal) as unknown)
+          : literal,
+      )
+    }
+
+    expect(
+      prose,
+      'exactly one default is not machine-readable, pinned_views, which is derived from ' +
+        'the v1 flags until somebody first writes a pin list and has its own section in ' +
+        '7.23. Prose is not a way to opt a field out of the comparison above',
+    ).toEqual(['pinned_views'])
+  })
+
+  test('the calendar zoom default is the exported constant, not a copy', () => {
+    // The one default the shared module does export. 7.23's cell, the value
+    // the server reads a retired zoom back as, and the column's own DEFAULT
+    // are meant to be one string; AC-378 pins the last two to each other and
+    // this pins the document to them.
+    expect(
+      soleLiteral(rowFor('calendar_zoom').fresh),
+      'spec 7.23 must name DEFAULT_CALENDAR_ZOOM as the zoom a fresh account reads',
+    ).toBe(DEFAULT_CALENDAR_ZOOM)
   })
 
   test('and the body GET /api/v1/settings actually answers carries them', async () => {
-    // The arm neither of the two above can make. A schema is a promise; this
-    // is the wire. 11.15's first loss class is a field declared on both sides
-    // and served by neither, which every static comparison here passes.
+    // A schema is a promise; this is the wire. 11.15's first loss class is a
+    // field declared on both sides and served by neither, which every static
+    // comparison above passes.
     const who = await actor()
     const response = await api(who, '/settings')
     expect(response.status).toBe(200)
     expect(
       Object.keys(response.json() as Record<string, unknown>).sort(),
       'the bundle on the wire must be exactly the fields 7.23 names: nothing extra, nothing missing',
-    ).toEqual(documented)
+    ).toEqual(documented.map((row) => row.field).sort())
     expect(
       issuesOf(settingsBundle.safeParse(response.json())),
       'and it must parse with the shared schema the client validates it against',
