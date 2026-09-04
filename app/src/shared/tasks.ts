@@ -1107,8 +1107,10 @@ ruling stands in 7.9's own text with the two alternatives it declined, a bare
 reminder object that would echo the request and a silence the route would have
 to fill twice. Binding the name to taskDetail is what keeps that from being a
 sentence two shapes could each claim to satisfy, the same reason
-patchMeSettingsResponse exists in me.ts. The DELETE gains no name: it answers
-204 and carries nothing.
+`getMeSettingsResponse` and `patchMeSettingsResponse` existed in me.ts until
+issue #113 retired the endpoints they named and the merge of #150's client
+half deleted them. The DELETE gains no name: it answers 204 and carries
+nothing.
 */
 export const postTasksResponse = taskDetail
 export const getTaskResponse = taskDetail
