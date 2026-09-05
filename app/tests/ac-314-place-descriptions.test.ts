@@ -3,11 +3,14 @@ AC-314: a person's own description under one of Dana's place pages is stored,
 read back, private to them, cleared by emptying it, refused past 500
 characters, and refused to a caller with no session.
 
-Issue #68, from #21, and the gap `pages/page-heading.tsx` has carried in its
-own header since S8: 9.4 names an "editable description" in terms, and until
-4.22 there was no column anywhere to put one, so the page drew Dana's fixed
-sentence instead. The client keeps that sentence; what this criterion asserts
-is that the server can hold the person's replacement for it and give it back.
+Issue #68, from #21, closed the gap the old People-only
+`pages/page-heading.tsx` made visible beside the storage-owning
+`components/page-head.tsx`: 9.4 names an "editable description" in terms, and
+until 4.22 there was no column anywhere to put one, so place pages drew Dana's
+fixed sentence instead. The client keeps that sentence; what this criterion
+asserts is that the server can hold the person's replacement for it and give
+it back. Issue #84 later removed that duplicate heading and left editable
+wording with `PageHead`, while People uses its fixed `PageHeading` variation.
 
 **The read is dense, and that is the load-bearing half of the shape.** Every
 one of 4.22's eight places answers, carrying null where nothing was written,
