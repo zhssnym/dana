@@ -7,10 +7,19 @@ component that defines it: fixed prose and caller actions are present, while
 the cover and editable-description controls are not exposed.
 */
 import { cleanup, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, test } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
+
+vi.mock('../lib/page-identity.js', () => ({
+  coverPhotoPicker: () => undefined,
+  coverStoresPosition: () => true,
+  coverTiersFor: () => [],
+  coverUploader: () => undefined,
+  savePageIdentity: vi.fn(),
+  usePageIdentity: () => ({}),
+}))
 
 import { UsersRound } from '../lib/icons.js'
-import { PageHeading } from './page-head.js'
+import { PageHead, PageHeading } from './page-head.js'
 
 afterEach(cleanup)
 
@@ -43,5 +52,20 @@ describe('PageHeading: the fixed People-compatible heading', () => {
     expect(screen.queryByRole('button', { name: 'Change' })).toBeNull()
     expect(screen.queryByRole('textbox', { name: 'People description' })).toBeNull()
     expect(container.querySelector('h1')?.closest('header')?.querySelector('svg')?.closest('button')).toBeNull()
+  })
+})
+
+describe('PageHead: stored place identity', () => {
+  test('retains the editable description control', () => {
+    render(
+      <PageHead
+        storageName="today"
+        icon={UsersRound}
+        title="Today"
+        description="A clear view of today"
+      />,
+    )
+
+    expect(screen.getByRole('textbox', { name: 'Today description' })).toBeDefined()
   })
 })

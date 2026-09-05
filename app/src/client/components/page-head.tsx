@@ -276,8 +276,10 @@ export function PageHead({
   description?: string
   /*
   The second S25 seam. Native pages use 7.21, while folders and shelves keep
-  using their own records. `false` remains available for a genuinely fixed
-  page such as People, but native task pages use the editable default.
+  using their own records. `false` remains available if a stored place
+  genuinely needs fixed wording, while native task pages use the editable
+  default. People does not cross this storage-owning wrapper at all; it uses
+  `PageHeading` above.
   */
   descriptionEditable?: boolean
   children?: ReactNode
