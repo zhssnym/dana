@@ -43,7 +43,7 @@ two colleagues who share one first name into one person.
 
 **No faces table.** The prototype matches portraits by first name because "a
 connection record has no column for" one; 7.0's person carries `avatar_url`
-and `lib/task-concept.ts` reads it, so the reconciliation the original needed
+and `tasks/task-concept.ts` reads it, so the reconciliation the original needed
 has nothing left to reconcile.
 */
 
@@ -52,8 +52,8 @@ import { useMemo } from 'react'
 import type { GetFolderResponse } from '../../shared/folders.js'
 import type { MeResponse } from '../../shared/me.js'
 import { useFolder, useMe } from '../api/queries.js'
-import { toConceptPerson } from './task-concept.js'
-import type { ConceptTask } from './task-model.js'
+import { toConceptPerson } from '../tasks/task-concept.js'
+import type { ConceptTask } from '../tasks/task-model.js'
 
 /** A roster entry, as a lifted picker and a lifted chip take one. */
 export type Person = NonNullable<ConceptTask['assignee']>

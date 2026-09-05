@@ -44,7 +44,7 @@ import { ViewStrip } from "./view-strip.js"
 import { HoldsTheDocument, ReservesRightEdge } from "./right-edge.js"
 import { WindowBarActions, WindowBarLead } from "./window-bar.js"
 import { setTaskOpen } from "../lib/task-surface-preference.js"
-import { copyTaskLink, duplicateTask, makeFolderOfTask } from "../lib/task-acts.js"
+import { copyTaskLink, duplicateTask, makeFolderOfTask } from "../tasks/task-acts.js"
 import { cn } from "./ui/utils.js"
 import { useIsMobile } from "./ui/use-mobile.js"
 

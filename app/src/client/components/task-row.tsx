@@ -89,8 +89,8 @@ import {
 } from "./ui/dropdown-menu.js"
 import { ObjectMenu } from "./object-menu.js"
 import { HistorySheet } from "./history-sheet.js"
-import { copyTaskLink, duplicateTask, makeFolderOfTask, moveStepsOut } from "../lib/task-acts.js"
-import type { StepDestination } from "../lib/task-acts.js"
+import { copyTaskLink, duplicateTask, makeFolderOfTask, moveStepsOut } from "../tasks/task-acts.js"
+import type { StepDestination } from "../tasks/task-acts.js"
 import {
   COMPLETE_TASK,
   MARK_AS_NOT_DONE,
@@ -102,8 +102,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip.js"
 import { ActionStrip, type ViewStripOption } from "./view-strip.js"
 import { useRowDensity, type RowDensity } from "../lib/row-density.js"
 import { usePeopleLibrary } from "../lib/people-library.js"
-import { useTaskWriter } from "../lib/task-writer.js"
-import { useExpandedDetail } from "../lib/row-detail.js"
+import { useTaskWriter } from "../tasks/task-writer.js"
+import { useExpandedDetail } from "../tasks/row-detail.js"
 import { setTaskOpen } from "../lib/task-surface-preference.js"
 import {
   repeatShort,
@@ -111,7 +111,7 @@ import {
   type ConceptComment,
   type ConceptStep,
   type ConceptTask,
-} from "../lib/task-model.js"
+} from "../tasks/task-model.js"
 import { useSortableList } from "../lib/use-sortable-list.js"
 import type { SortableItemState } from "../lib/use-sortable-list.js"
 import { cn } from "./ui/utils.js"
@@ -668,7 +668,7 @@ export function useRowSelection({
   /* Optional, and the bar draws no Duplicate when it is absent: a control
      with no act behind it is the one thing the bar must not offer,
      `object-acts.ts`'s own rule for a menu. Every list in the app supplies it
-     since RFC 0005 change control item 58 (A), through `lib/task-acts.ts`. */
+     since RFC 0005 change control item 58 (A), through `tasks/task-acts.ts`. */
   onDuplicate?: (ids: string[]) => void
   onDelete: (ids: string[]) => void
 }) {
@@ -2049,7 +2049,7 @@ export interface TaskRowProps {
   id?: string
   title: string
   /*
-  **Seam, S23, and it is `lib/task-model.ts`'s own widening one type over.**
+  **Seam, S23, and it is `tasks/task-model.ts`'s own widening one type over.**
 
   The prototype's folder is `{name, color}`, because its store is name-keyed
   and a name is the only handle it has. Dana addresses a folder by id (7.4),
@@ -2281,7 +2281,7 @@ export function useCardWiring(props: TaskRowProps) {
     setEdits(({ steps: _dropped, ...rest }) => rest)
   }, [serverSteps])
   /* The shell's write path, reaching a row that nobody handed one to, see
-     `lib/task-writer`. A row given `onPatch` still wins. */
+     `tasks/task-writer`. A row given `onPatch` still wins. */
   const writer = useTaskWriter()
 
   /* Props first, local edits over the top. A completion made from the screen
@@ -2328,7 +2328,7 @@ export function useCardWiring(props: TaskRowProps) {
     The prototype reports every field and then tells the screen about the
     completion separately, which costs nothing where both ends are local
     state. Over this seam both ends are the API: `report` reaches
-    `lib/task-writer.tsx`, which turns `done` into 7.6's transition, and
+    `tasks/task-writer.tsx`, which turns `done` into 7.6's transition, and
     `onToggleComplete` reaches the page's own action, which does the same.
     So one press sent two transitions, and the second answered 409.
 
@@ -2380,7 +2380,7 @@ export function useCardWiring(props: TaskRowProps) {
       patchSteps(next)
     },
     /* Supplied since RFC 0005 change control item 58 (C), over the endpoint
-       B9 was waiting for: `lib/task-acts.ts`'s `moveStepsOut`. Absent
+       B9 was waiting for: `tasks/task-acts.ts`'s `moveStepsOut`. Absent
        without an id or a folder, the lab and the capture, where the control
        is then not drawn (DES-144). */
     ...(props.id && task.folder?.id
@@ -2712,7 +2712,7 @@ export function TaskRow(props: TaskRowProps) {
                 /* `null` and not `undefined`, issue #169: the card's copy of
                    this menu sent nothing at all for years because undefined
                    is "this field was not touched". Both menus say clear the
-                   same way. `lib/task-model.ts` carries the three values. */
+                   same way. `tasks/task-model.ts` carries the three values. */
                 onSelect: () => patch(task.id, { assignee: null }),
               },
             ])}
@@ -2973,7 +2973,7 @@ export function TaskRow(props: TaskRowProps) {
       **Duplicate and "Make this a folder…" are supplied since the loose-ends
       row (RFC 0005 change control item 58, A and B).** The seam that stood
       here recorded that frozen section 7 had no task duplicate; S28a gave it
-      `POST /tasks/:id/duplicate` (item 53(e)), and `lib/task-acts.ts` performs
+      `POST /tasks/:id/duplicate` (item 53(e)), and `tasks/task-acts.ts` performs
       both acts the way it performs Copy link, from the row's own id, so no
       screen threads a prop. Both are absent without an id, which is the row
       lab and the concept screens: no id, no handler, no menu item.

@@ -5,11 +5,11 @@ task reports the step done; and when a step is removed, then `DELETE
 /steps/:id` is written and the read no longer carries it.
 
 Authored at the loose-ends row under `11-adversarial-test.md`, beside RFC
-0005 change control item 58 (I). `lib/task-writer.tsx` had said since S22
+0005 change control item 58 (I). `tasks/task-writer.tsx` had said since S22
 that steps "need a diff against the task's current list rather than a field
 copy, which is the card's own act and lands with the card"; the card landed
 at S23 and nothing wrote them, so a step ticked in an open card held until
-the next refetch and never after. `lib/task-acts.ts`'s `writeSteps` is that
+the next refetch and never after. `tasks/task-acts.ts`'s `writeSteps` is that
 diff, and this case reads the wire for it, the way AC-179 reads the card's
 completion control.
 

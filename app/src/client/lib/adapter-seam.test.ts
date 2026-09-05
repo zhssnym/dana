@@ -26,9 +26,9 @@ import type { TaskCard, TaskDetail } from '../../shared/tasks.js'
 import { folderLibrary } from './folder-library.js'
 import { folderLink, parameterTarget, shelfLink, taskLink } from './nav-links.js'
 import { isSamePerson, peopleLibrary } from './people-library.js'
-import { conceptPatchToBody, toConceptTask } from './task-concept.js'
-import type { ConceptContext } from './task-concept.js'
-import { unwritten } from './task-writer.js'
+import { conceptPatchToBody, toConceptTask } from '../tasks/task-concept.js'
+import type { ConceptContext } from '../tasks/task-concept.js'
+import { unwritten } from '../tasks/task-writer.js'
 
 const VIEWER = '00000000-0000-4000-8000-000000000001'
 const OTHER = '00000000-0000-4000-8000-000000000002'
@@ -184,7 +184,7 @@ describe('task-concept: 7.0s task as a lifted card reads it', () => {
       }),
       context(),
     )
-    /* The id rides since item 58 (C): `lib/task-acts.ts` promotes by it. */
+    /* The id rides since item 58 (C): `tasks/task-acts.ts` promotes by it. */
     expect(mapped.steps).toEqual([
       { id: '00000000-0000-4000-8000-0000000000f1', title: 'Call the venue', done: true },
       { id: '00000000-0000-4000-8000-000000000002', title: 'Send the transfer', done: false },

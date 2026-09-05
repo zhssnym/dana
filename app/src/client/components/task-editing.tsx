@@ -4,7 +4,7 @@ Editing an existing task, as one hook, wherever the card is drawn.
 polish: taskcard F3 (2026-08-30). `task-surface-host.tsx` held the whole of
 what it takes to edit a task, the detail read, the thread beside it, the
 comment writes, 9.5's un-complete confirmation, and the write path through
-`lib/task-writer.tsx`, and it held them for the dialog and the panel alone.
+`tasks/task-writer.tsx`, and it held them for the dialog and the panel alone.
 `/app/tasks/:id`, the task's own address and the "Tab" of 9.3's three homes,
 drew a read-only sheet with an "Open editor" button that popped the dialog
 over it, so choosing Tab in Settings gave a third, weaker card rather than
@@ -34,9 +34,9 @@ import { uploadFile } from '../api/http.js'
 import { applyThreadChange, commentFileKind, threadAttachments, toConceptComments } from '../lib/thread.js'
 import { useTimeFormat } from '../lib/time-format.js'
 import { presenterToday } from '../parts/presenters.js'
-import { toConceptTask } from '../lib/task-concept.js'
-import type { ConceptTask } from '../lib/task-model.js'
-import { useApiTaskPatch } from '../lib/task-writer.js'
+import { toConceptTask } from '../tasks/task-concept.js'
+import type { ConceptTask } from '../tasks/task-model.js'
+import { useApiTaskPatch } from '../tasks/task-writer.js'
 import { UNCOMPLETE_SERIES_CONFIRM } from './task-copy.js'
 import { ConfirmDialog } from './ui/ConfirmDialog.js'
 import type { TaskRowProps } from './task-row.js'

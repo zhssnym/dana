@@ -51,7 +51,7 @@ import type { RecurrenceFrequency } from '../../shared/recurrence.js'
 import type { PatchTaskBody, TaskCard, TaskDetail } from '../../shared/tasks.js'
 import { dueDisplay, folderDisplay, personDisplay } from '../parts/presenters.js'
 import type { ConceptTask } from './task-model.js'
-import type { TimeFormat } from './time-format.js'
+import type { TimeFormat } from '../lib/time-format.js'
 
 /**
  * The page-level facts no `TaskCard` carries, which is `RowContext` minus the
@@ -203,7 +203,7 @@ export function toConceptPerson(person: {
  * The fields of a card's report that 7.6's PATCH can carry, and only those.
  *
  * **This function's refusals are the point of it.** A card reports every edit
- * through one path (`lib/task-writer.tsx`), and the fields it reports do not
+ * through one path (`tasks/task-writer.tsx`), and the fields it reports do not
  * all belong to one endpoint: completion is 7.6's transition, My Day is 7.8's
  * pull, a reminder is 7.9's PUT, and the steps are 7.7's own routes.
  * Mapping those into a PATCH body would send a body the server refuses, or
@@ -234,7 +234,7 @@ export function conceptPatchToBody(fields: Partial<ConceptTask>): PatchTaskBody 
   was read here as "this field was not touched": the body came out empty, the
   writer sent nothing at all, and the chip cleared in the browser over a task
   the server still had assigned. The type now carries the third value
-  (`lib/task-model.ts` says what each of the three means) and both spellings
+  (`tasks/task-model.ts` says what each of the three means) and both spellings
   of an empty assignee land on the same null: an explicit clear, and a person
   named without an id, who is not an address this client can send (see the
   paragraph above about `folder`).
