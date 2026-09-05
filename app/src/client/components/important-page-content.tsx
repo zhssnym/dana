@@ -1,7 +1,9 @@
 /*
-`docs/design/prototype-v2/src/screens/important-screen.tsx`, lifted whole.
-That prototype is deleted (`a7886df`, 2026-09-01); read it in git history
-before that commit.
+Originally lifted whole from
+`docs/design/prototype-v2/src/screens/important-screen.tsx`. That prototype is
+deleted (`a7886df`, 2026-09-01); read it in git history before that commit.
+Issue #85 moved the presentation into `components/` while leaving its route,
+query, application state and task mutations in `pages/ImportantPage.tsx`.
 
 **This is the proof RFC 0005 change control item 45 asked for and item 47(l)
 could not produce.** Item 45 measured that no prototype screen could run end
@@ -10,28 +12,28 @@ draws tasks"; item 47(l) declined it at S23 for one reason, that it imports
 `@/components/page-head`, which is the first line of this row. Every other
 dependency it has, `task-row`, `task-section`, `state-patterns` and the
 page's own question, was already in the tree. The head landed above, so the
-screen lands here, and the acceptance it answers is item 45's own sentence: it
+content lives here, and the acceptance it answers is item 45's own sentence: it
 diffs empty against its original except at the seams named below.
 
-**Why it is a screen and not a page.** Item 45's deeper finding is the
+**Why it is content and not a page.** Item 45's deeper finding is the
 architecture one: "the prototype's screens are presentational and its wiring
 is in its shell", which is the same architecture this client has. So this file
 takes rows and callbacks and touches nothing else, exactly as the original
-does, and `pages/ImportantPage.tsx` is the wiring beside it. That split is why
-this crosses as nearly as it does, and it is the measurement item 48(i) asks
-each of S25 to S27 to make before reading its row as owing a verbatim
-anything: none of the eight screens this row names imports `@/fixtures` at
-all, where `app-shell.tsx` and its two neighbours did, so the answer here
-points the other way from S24's.
+does, and `pages/ImportantPage.tsx` supplies the page identity, rows, state and
+callbacks. That split is why this crosses as nearly as it does, and it is the
+measurement item 48(i) asks each of S25 to S27 to make before reading its row
+as owing a verbatim anything: none of the eight prototype screens this row
+names imports `@/fixtures` at all, where `app-shell.tsx` and its two neighbours
+did, so the answer here points the other way from S24's.
 
 **The seams, and there are seven.**
 
 1. **The `@/` specifiers become this client's relative ESM paths** (11.4), the
    mechanical seam every lifted file takes.
-2. **`pageQuestion("Important")` becomes `PLACES.important`**, which is this
-   client's `lib/nav-model.ts`: one table carrying each place's key, name and
-   DES-152 question, so the three strings the head draws come from the same
-   row rather than from three literals.
+2. **`pageQuestion("Important")` becomes the page identity prop**, supplied
+   from `PLACES.important` by `ImportantPage`: one table still carries the
+   place key, name and DES-152 question, while this component stays unable to
+   read application configuration for itself.
 3. **`storageName` is 4.20's place key rather than the page's display name.**
    The prototype keys its browser store by the words on the screen; this
    client keys `user_page_covers` by `place`, and the two must be one string
@@ -56,31 +58,36 @@ points the other way from S24's.
    control and the prototype's lab has nothing to retry, so it renders one
    with no handler, which is DES-144's dead control. The page supplies the
    query's own refetch. The page also keeps section 6's cap notice above this
-   screen, the prototype having no idea a list can be truncated.
+   content, the prototype having no idea a list can be truncated.
 
-Nothing else moves. The empty copy is byte-identical to Q4's, which
+Nothing visible moves. The empty copy is byte-identical to Q4's, which
 `pages/empty-states.ts` also carries as `IMPORTANT_EMPTY`.
 */
 
-import { Star } from "../lib/icons.js"
-import { PageHead } from "../components/page-head.js"
-import { CompletedSection } from "../components/task-section.js"
-import { PLACES } from "../views/place-pages.js"
-import { InlineError, SkeletonList } from "../components/state-patterns.js"
-import { TaskList, TaskRow, type TaskOpenMode, type TaskRowProps } from "../components/task-row.js"
+import type { LucideIcon } from "../lib/icons.js"
+import { PageHead } from "./page-head.js"
+import { CompletedSection } from "./task-section.js"
+import { InlineError, SkeletonList } from "./state-patterns.js"
+import { TaskList, TaskRow, type TaskOpenMode, type TaskRowProps } from "./task-row.js"
 import {
   Empty,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
-} from "../components/ui/empty.js"
+} from "./ui/empty.js"
 
 export type ImportantTask = TaskRowProps & {
   id: string
   importantTooltip: string
 }
 
-interface ImportantScreenProps {
+interface ImportantPageContentProps {
+  page: {
+    storageName: string
+    icon: LucideIcon
+    title: string
+    description: string
+  }
   tasks: ImportantTask[]
   /* Finished work, closing the page collapsed, Imran, 2026-08-22: every
      page that lists tasks ends in one, so the grammar is the same wherever
@@ -97,7 +104,8 @@ interface ImportantScreenProps {
   onDelete: (taskId: string) => void
 }
 
-export function ImportantScreen({
+export function ImportantPageContent({
+  page,
   tasks,
   completed = [],
   previewState,
@@ -108,16 +116,17 @@ export function ImportantScreen({
   onRestore,
   onAbandon,
   onDelete,
-}: ImportantScreenProps) {
+}: ImportantPageContentProps) {
   const isEmpty = previewState === "empty" || tasks.length === 0
+  const PageIcon = page.icon
 
   return (
     <div>
       <PageHead
-        storageName={PLACES.important.key}
-        icon={Star}
-        title={PLACES.important.name}
-        description={PLACES.important.question}
+        storageName={page.storageName}
+        icon={PageIcon}
+        title={page.title}
+        description={page.description}
       />
 
       <div className="mt-3">
@@ -131,7 +140,7 @@ export function ImportantScreen({
         ) : isEmpty ? (
           <Empty className="min-h-72">
             <EmptyMedia className="text-[var(--color-graphite-400)]">
-              <Star className="size-9" strokeWidth={1.6} aria-hidden="true" />
+              <PageIcon className="size-9" strokeWidth={1.6} aria-hidden="true" />
             </EmptyMedia>
             <EmptyHeader>
               <EmptyDescription className="max-w-[52ch] text-sm leading-5 text-muted-foreground">

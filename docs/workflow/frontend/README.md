@@ -62,21 +62,21 @@ A **fresh chat** for each issue. Then:
 
 ## The client, folder by folder
 
-230 files. Some of the names overlap, and the honest reason is that this code was
+236 files. Some of the names overlap, and the honest reason is that this code was
 ported from a prototype and never fully tidied. Where a distinction is real, it is noted.
 Where it is a leftover, that is noted too, so you do not waste time inventing a rule that
 was never there.
 
-**Every count below is `find app/src/client/<folder> -type f | wc -l`, measured 2026-09-04,
+**Every count below is `find app/src/client/<folder> -type f | wc -l`, measured 2026-09-05,
 and it counts the component tests that live beside their components.** Re-measure with that
 command rather than trusting the number: the table read 190 files on 2026-09-01 and the tree
 read 230 three days later.
 
 | Folder | Files | What it is |
 | - | - | - |
-| `components/` | 94 | The reusable pieces. `components/ui/` is the base layer. `components/page/` holds the loading, empty and error screens, which moved there from `states/` in #82. |
+| `components/` | 97 | The reusable pieces. `components/ui/` is the base layer. `components/page/` holds the loading, empty and error screens, which moved there from `states/` in #82. |
 | `lib/` | 36 | Named "helpers", but 18 of its files now read or write the server. Treat it as application logic, not utilities. |
-| `pages/` | 24 | A route's wiring: fetching, state, deciding what to render. |
+| `pages/` | 28 | A route's wiring: fetching, state, deciding what to render. |
 | `shell/` | 18 | The frame around every page: sidebar, layout, navigation. |
 | `views/` | 16 | The saved and native views (My Day, Planned, and so on). |
 | `api/` | 9 | Every call to the server. See below. |
@@ -84,7 +84,7 @@ read 230 three days later.
 | `public/` | 6 | Manifest icons and the static art, copied to the build root. |
 | `onboarding/` | 5 | First-run flow. |
 | `state/` | 4 | Global client state: toasts, connectivity. |
-| `screens/` | 3 | The markup half of a page, split out. Only 3 of 24 pages do this, and the directory is retiring into `components/`. |
+| `screens/` | 2 | The markup half of a page, split out. Only Shelf and Trash still do this, and the directory is retiring into `components/`. |
 | `pwa/` | 2 | Install prompt and service worker glue. |
 | `observability/` | 1 | The browser's half of 11.12's error reporting. |
 | `styles/` | 1 | `tokens.css`. See below. |

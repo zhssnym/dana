@@ -157,6 +157,9 @@ describe('the ramp is spelled where the ramp lives (11.4)', () => {
     'components/folder-row.tsx',
     'components/history-sheet.tsx',
     'components/icon-action.tsx',
+    /* Issue #85 moved this already-listed v1 markup from `screens/`; the one
+       ramp spelling and its exemption status are unchanged. */
+    'components/important-page-content.tsx',
     'components/new-folder-dialog.tsx',
     'components/notifications-bell.tsx',
     'components/page-cover.tsx',
@@ -209,8 +212,8 @@ describe('the ramp is spelled where the ramp lives (11.4)', () => {
        that fixes it, and a file may join only by being markup that already
        shipped — never because the rule was inconvenient. Cheapest first for
        whoever takes a bite: `pages/NotFoundPage.tsx`, `pages/page-heading.tsx`,
-       `screens/important-screen.tsx` and all three `parts/` files carry exactly
-       one spelling each. */
+       `components/important-page-content.tsx` and all three `parts/` files
+       carry exactly one spelling each. */
     'pages/AllPage.tsx',
     'pages/FolderPage.tsx',
     'pages/FolderSharingPanel.tsx',
@@ -223,7 +226,6 @@ describe('the ramp is spelled where the ramp lives (11.4)', () => {
     'parts/identity-colors.ts',
     'parts/person-tint.ts',
     'parts/presenters.ts',
-    'screens/important-screen.tsx',
     'screens/shelf-page.tsx',
     'screens/trash-screen.tsx',
     'shell/FloatingAddButton.tsx',

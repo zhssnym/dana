@@ -3,7 +3,7 @@ The collapsed section of finished work that closes a page listing tasks.
 
 **The owner ruled it on 2026-08-22 and `prototype-v2` carries the ruling in its
 own comments**, which is where a session should read it rather than from a
-brief: `screens/important-screen.tsx` says "every page that lists tasks ends
+brief: `prototype-v2/src/screens/important-screen.tsx` says "every page that lists tasks ends
 the same way (Imran, 2026-08-22): finished work, collapsed, in the grammar a
 folder's Completed section and My Day's recap already use", and
 `screens/planned-screen.tsx` says the same and then answers the objection a

@@ -21,7 +21,7 @@ provisional.
 | `components/page/` | Shared page UI: identity controls, blocks, loading, empty and error states, and named regions | Frontend Architect |
 | `shell/` | The global chrome of 9.1 and the overlay seam | Frontend Architect |
 | `pages/` | One file per surface of 9.2 and 9.4 to 9.8, and since S25 the wiring rather than the markup wherever a screen has been lifted | Frontend Architect |
-| `screens/` | **Legacy lifted screens being retired.** Existing files stay presentational while they move into `components/`; do not add new files here. Their page beside them owns data reads and wiring | Frontend Architect |
+| `screens/` | **Legacy lifted screens being retired.** Shelf and Trash remain; existing files stay presentational while they move into `components/`, and no new file belongs here. Their page beside them owns data reads and wiring | Frontend Architect |
 | `views/` | **What every place-page shares** (S10): the filter model and its store, the view strip and its preference, grouping, the Scheduled ladder, and the spine table 9.3's entry defaults are read from. `TaskBoard.tsx` is the board's *meaning* since S25, the geometry having moved to the lifted `components/task-board.tsx` | Frontend Architect |
 | `views/group-mark.tsx` | The mark a group heading draws, since S17a: `grouping.ts` says which kind the axis produced and this draws it, through the same two resolvers every other surface uses | Frontend Architect |
 | `pwa/` | Registration and the 10.6 update affordance | Frontend Architect |
