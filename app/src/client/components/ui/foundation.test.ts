@@ -208,7 +208,7 @@ describe('the ramp is spelled where the ramp lives (11.4)', () => {
        file that stops spelling the ramp must leave the list in the same change
        that fixes it, and a file may join only by being markup that already
        shipped — never because the rule was inconvenient. Cheapest first for
-       whoever takes a bite: `pages/NotFoundPage.tsx`, `pages/page-heading.tsx`,
+       whoever takes a bite: `pages/NotFoundPage.tsx`,
        `screens/important-screen.tsx` and all three `parts/` files carry exactly
        one spelling each. */
     'pages/AllPage.tsx',
@@ -219,7 +219,6 @@ describe('the ramp is spelled where the ramp lives (11.4)', () => {
     'pages/LegalPage.tsx',
     'pages/NotFoundPage.tsx',
     'pages/PeoplePage.tsx',
-    'pages/page-heading.tsx',
     'parts/identity-colors.ts',
     'parts/person-tint.ts',
     'parts/presenters.ts',

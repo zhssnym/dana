@@ -958,8 +958,11 @@ Three files are new or changed beyond the six pages.
   six already disagree about the abandon confirm's wording, which is one of the
   ten copy faults RFC 0002 measured; here the sentence is written once, as one
   text run in the dialog's title, with 9.1's "Continue" and "Cancel" beneath it.
-- `pages/page-heading.tsx` is the glyph, name and subtitle every one of his six
-  screens opens with. The subtitles are his own words and section 9 writes none.
+- `pages/page-heading.tsx` was the glyph, name and subtitle every one of his six
+  screens opened with. Issue #84 retired that last duplicate into
+  `components/page-head.tsx`; People uses its fixed, no-cover variation while
+  stored places keep the full identity head. The subtitles remain his own words
+  and section 9 writes none.
 - `components/page/PageStates.tsx` and `components/page/PageSection.tsx` are restyled onto his
   `SkeletonList`, `InlineError` and `Empty`, and onto his group heading. The
   rule they existed for did not move: a page renders rows and declares its
