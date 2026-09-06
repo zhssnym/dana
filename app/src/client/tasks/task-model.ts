@@ -4,7 +4,7 @@ The task, and everything true about one that is not a question of how it looks.
 `docs/design/prototype-v2/src/lib/task-model.ts`, read at `7d2064c`, reduced
 to its declarations. That prototype is deleted (`a7886df`, 2026-09-01); read
 it in git history before that commit. The file arrives here rather than at S23
-because `lib/task-writer.tsx`, `lib/task-concept.ts` and every surface that
+because `tasks/task-writer.tsx`, `tasks/task-concept.ts` and every surface that
 follows them speak in this shape, and a shape declared twice is a shape that
 will one day disagree with itself. Its own header says why it exists at all:
 the row and its card disagreed twice while each wrote its own copy of one
@@ -25,12 +25,12 @@ importing a second set now would be the two-copies fault this file's own
 header is about, one release early.
 
 **The seam these types cross.** A `ConceptTask` is what a card holds; a
-`TaskCard` and a `TaskDetail` are what 7.0 answers. `lib/task-concept.ts` is
+`TaskCard` and a `TaskDetail` are what 7.0 answers. `tasks/task-concept.ts` is
 the join and is the only place the two vocabularies meet.
 */
 import { todayInBrowserZone } from '../api/tz.js'
 
-import type { TimeFormat } from './time-format.js'
+import type { TimeFormat } from '../lib/time-format.js'
 
 export { personTint } from '../parts/person-tint.js'
 
@@ -154,7 +154,7 @@ export interface ConceptStep {
   title: string
   done: boolean
   /* 7.7's id, present on a step the server has answered and absent on one
-     typed into the card and not yet written; `lib/task-acts.ts` moves only
+     typed into the card and not yet written; `tasks/task-acts.ts` moves only
      the former (RFC 0005 change control item 58, C). */
   id?: string
 }
@@ -178,7 +178,7 @@ DES-055 gives: a server has to decide this by sniffing the bytes anyway,
 because a browser will happily run a script a client labelled image/png, so
 the client never sees a type it might be tempted to trust.
 
-**Nothing fills this today and `lib/task-concept.ts` says so where it maps.**
+**Nothing fills this today and `tasks/task-concept.ts` says so where it maps.**
 Attachments need storage, permissions and the virus story DES-055 has owed
 since v1; the type is here so the card can be built with a third block in it
 rather than two, which is the prototype's own reason for drawing it.
@@ -227,7 +227,7 @@ and unbounded nesting is how a card grows a scrollbar inside a scrollbar.
 **The conversation is 9.6's and this client already serves one**, at
 `GET /folders/:id/thread` with `queryKeys.thread()`. Mapping a thread into
 this shape is S26's row, where the thread mounts on a task, so
-`lib/task-concept.ts` leaves `comments` undefined and names the row that
+`tasks/task-concept.ts` leaves `comments` undefined and names the row that
 fills it. The type is here because `ConceptTask` refers to it.
 */
 export interface ConceptComment {
@@ -273,7 +273,7 @@ export interface ConceptTask {
   and RFC 0004's close forbids the name-keyed store crossing in any form. So
   `id` is added and left optional: a lifted card that sets a name and a colour
   still typechecks and still behaves, and a picker written against this client
-  sets the id, which `lib/task-writer.tsx` prefers over the name. Optional
+  sets the id, which `tasks/task-writer.tsx` prefers over the name. Optional
   rather than required so `components/task-card.tsx` and
   `components/task-row.tsx` cross verbatim at S23, which is the whole point of
   the exercise.
@@ -379,7 +379,7 @@ that answer a question this client answers elsewhere:
 **And the due label is the one place two answers already existed**, so the
 seam is worth stating. `parts/presenters.ts` owns `dueDisplay`, which builds a
 label from 4.11's today and 9.7's clock against 8.10's three cases, and
-`lib/task-concept.ts` puts that label on `ConceptTask.due`. `dueLabelFor`
+`tasks/task-concept.ts` puts that label on `ConceptTask.due`. `dueLabelFor`
 below is the *inverse direction*, a date the person just picked turned back
 into the same words, and `parseDueLabel` reads those words back out for a
 calendar to highlight. They are the picker's half of one round trip and are

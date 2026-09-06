@@ -109,7 +109,7 @@ import { TaskSurfaceHost } from '../components/task-surface-host.js'
    order. `lib/folder-library.ts` carries the reasoning. */
 import { FolderLibraryMemory } from '../lib/folder-library.js'
 import { useHistory } from '../lib/history.js'
-import { TaskWriter, useApiTaskPatch } from '../lib/task-writer.js'
+import { TaskWriter, useApiTaskPatch } from '../tasks/task-writer.js'
 import { Button } from '../components/ui/button.js'
 import { SidebarInset, SidebarProvider, useSidebar } from '../components/ui/sidebar.js'
 import { DanaMark } from '../components/dana-mark.js'
@@ -751,7 +751,7 @@ export function AppShell(): React.JSX.Element {
     /*
     **Seam, S23: the one write path out of a card, provided once.**
 
-    `lib/task-writer.tsx` is that path and its header carries Imran's reason
+    `tasks/task-writer.tsx` is that path and its header carries Imran's reason
     for it: "dialog, sidebar, inline, and maybe more are just views of the same
     task row, so the data inside them should be the same and updated
     simultaneously." Every lifted card reaches for it through `useTaskWriter`,

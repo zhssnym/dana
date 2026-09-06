@@ -266,7 +266,7 @@ polish round of 2026-08-30.** This function answered a name and initials and
 dropped `avatar_url` on the floor, which made the tinted disc the *only* thing
 a list row could ever draw: every card on the wire has carried the column
 since 4.1, `components/person-face.tsx` has taken an `image` since S17a, and
-`lib/task-concept.ts` was passing one — so a person's own photograph appeared
+`tasks/task-concept.ts` was passing one — so a person's own photograph appeared
 on a card and on a board and vanished the moment the same person was drawn on
 a row. One seam, one omission, every list view in the product.
 

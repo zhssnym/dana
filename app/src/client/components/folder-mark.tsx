@@ -33,7 +33,7 @@ because `ConceptTask['folder']` is a name and a colour, and rewriting those
 call sites is what the lift discipline forbids. So this looks the name up in
 the table rather than the id, and two folders that share a name resolve to the
 first. That is narrower than it sounds and is not a defect this file can fix:
-`lib/task-concept.ts` already carries the id on the concept folder for exactly
+`tasks/task-concept.ts` already carries the id on the concept folder for exactly
 the calls that need one, and 7.4's list is per person rather than global. The
 honest alternative, threading an id through six lifted files, is the rewrite
 the strategy exists to avoid.

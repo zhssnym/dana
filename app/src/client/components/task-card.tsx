@@ -107,7 +107,7 @@ import {
   stepCount,
   type ConceptStep,
   type ConceptTask,
-} from "../lib/task-model.js"
+} from "../tasks/task-model.js"
 import { useTimeFormat } from "../lib/time-format.js"
 import { useSortableList } from "../lib/use-sortable-list.js"
 import { cn } from "./ui/utils.js"
@@ -659,7 +659,7 @@ function CardFooter({
         `${origin}/?task=<id>`, the prototype's address scheme, while
         `lib/nav-links.ts` is the one place that decides where an object lives
         and answers 9.1's `/app/tasks/:id`; the menu's act goes through
-        `lib/task-acts.ts` and therefore through that module. Two doors, two
+        `tasks/task-acts.ts` and therefore through that module. Two doors, two
         answers, and the one being removed gave the wrong one.
         */}
         {chrome === "inline" ? (
@@ -1865,7 +1865,7 @@ export function TaskCard({
   A step into a folder is item 58's `POST /tasks/:id/steps/:stepId/promote`,
   one transaction per step; steps into a new task are 7.6's create with the
   titles and 7.7's delete of the originals. `useCardWiring` hands this to
-  `lib/task-acts.ts`'s `moveStepsOut` where the row has an id and a folder,
+  `tasks/task-acts.ts`'s `moveStepsOut` where the row has an id and a folder,
   and leaves it undefined in the lab, where the control is then not drawn:
   `lib/object-acts.ts`'s "an act with no handler does not appear", and
   `TaskRowProps.onNewFolder`'s "the chip then simply does not offer it, a dead
@@ -2170,7 +2170,7 @@ export function TaskCard({
                 /* `null` and not `undefined`, issue #169: undefined is "this
                    field was not touched", so the press cleared the chip here
                    and sent nothing, and the assignment came back on the next
-                   read. `lib/task-model.ts` carries the three values. */
+                   read. `tasks/task-model.ts` carries the three values. */
                 label: <span>{UNASSIGNED}</span>,
                 onSelect: () => patch(task.id, { assignee: null }),
               },

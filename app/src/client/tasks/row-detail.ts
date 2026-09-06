@@ -18,7 +18,7 @@ import { useFolders, useTask } from '../api/queries.js'
 import { presenterToday } from '../parts/presenters.js'
 import { toConceptTask } from './task-concept.js'
 import type { ConceptTask } from './task-model.js'
-import { useTimeFormat } from './time-format.js'
+import { useTimeFormat } from '../lib/time-format.js'
 
 export function useExpandedDetail(
   id: string | undefined,

@@ -31,7 +31,7 @@ opened, because a hold that selected and opened at once would be two answers
 to one gesture.
 
 **Duplicate is asserted present since the loose-ends row.** This case used
-to assert it absent, `lib/task-acts.ts` recording that frozen section 7 had
+to assert it absent, `tasks/task-acts.ts` recording that frozen section 7 had
 no task duplicate (section 13 item 46); S28a gave it `POST /tasks/:id/duplicate`
 and RFC 0005 change control item 58 (A) wired the bar, which the prototype's
 bar has always offered.
