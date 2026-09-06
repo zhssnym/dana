@@ -14,7 +14,7 @@ import type { Request, Response, Router } from 'express'
 import { z } from 'zod'
 
 import type { DbClient } from '../../../db/client.js'
-import { putPageBody } from '../../shared/pages.js'
+import { pageActionBody, putPageBody } from '../../shared/pages.js'
 import type { TransferOwnershipResponse } from '../../shared/folders.js'
 import { patchShelfBody, postShelvesBody } from '../../shared/shelves.js'
 import type { ImportWorkflowResponse } from '../../shared/workflows.js'
@@ -32,7 +32,7 @@ import {
 } from '../domain/acts.js'
 import { accessOf } from '../domain/folders.js'
 import { today } from '../time/today.js'
-import { pageView, putPage } from '../domain/pages.js'
+import { actOnFolderPage, pageView, putPage } from '../domain/pages.js'
 import {
   createShelf,
   deleteShelf,
@@ -211,6 +211,67 @@ export function createWorkshopRouter(
           'conflict',
           'Someone else changed this block. Reload the page to see it.',
         )
+        return
+      }
+      res.status(200).json(outcome.page)
+    },
+  )
+
+  router.post(
+    '/folders/:id/page/actions',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const folderId = parsedId(res, req.params.id)
+      if (folderId === null) return
+      /* AC-397's explicit route gate. The domain repeats it so a future
+         non-HTTP caller cannot turn an id into authority. */
+      if ((await accessOf(db, viewer(req), folderId)) === null) {
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      const parsed = parseBody(pageActionBody, req, res, securityLog)
+      if (parsed === null) return
+      const outcome = await actOnFolderPage(db, viewer(req), folderId, parsed)
+      if (outcome.kind === 'not_found') {
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      if (outcome.kind === 'stale') {
+        sendError(
+          res,
+          409,
+          'conflict',
+          'Someone else changed this block. Reload the page to see it.',
+        )
+        return
+      }
+      if (outcome.kind === 'bad_anchor') {
+        sendFieldValidationError(res, [{
+          field: outcome.field,
+          message: 'must name an item at this place on the folder page',
+        }])
+        return
+      }
+      if (outcome.kind === 'section_not_here') {
+        sendFieldValidationError(res, [{
+          field: 'section_block_id',
+          message: 'must name a Section on this folder page',
+        }])
+        return
+      }
+      if (outcome.kind === 'file_not_here') {
+        sendFieldValidationError(res, [{
+          field: 'file_id',
+          message: 'must name a file you can reach',
+        }])
+        return
+      }
+      if (outcome.kind === 'not_convertible') {
+        sendError(res, 422, 'validation_failed', 'This page block cannot be changed that way.')
         return
       }
       res.status(200).json(outcome.page)

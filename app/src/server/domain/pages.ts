@@ -34,6 +34,8 @@ import { sql } from 'drizzle-orm'
 import type { Db } from '../../../db/client.js'
 import type {
   PageBlock,
+  PageActionBody,
+  PageItemRef,
   PageBlockWrite,
   PageView,
 } from '../../shared/pages.js'
@@ -43,6 +45,8 @@ import { recordEvent } from './events.js'
 import { readableFileScope } from './files.js'
 import { accessOf } from './folders.js'
 import { shelfView } from './shelves.js'
+import { initialKeys, keyBetween } from './fractional-index.js'
+import { createTaskIn } from './tasks.js'
 
 function toIso(value: unknown): string {
   return value instanceof Date
@@ -66,6 +70,8 @@ function blockFromRow(row: Record<string, unknown>): PageBlock {
     id: String(row.id),
     kind: String(row.kind) as PageBlock['kind'],
     position: Number(row.position),
+    page_position: nullableString(row.page_position),
+    section_block_id: nullableString(row.section_block_id),
     text: nullableString(row.text),
     file_id: nullableString(row.file_id),
     file_width: nullableInt(row.file_width),
@@ -132,6 +138,61 @@ async function homeIsVisible(
         (await shelfView(tx, viewerId, home.shelfId)) !== null
 }
 
+/** The composed page read. The item list carries identity and order only;
+ * block payloads remain in `blocks`, while task payloads remain the frozen
+ * TaskCards returned by Q7. That keeps one task shape across every view. */
+async function pageItemsIn(
+  executor: Executor,
+  viewerId: string,
+  home: PageHome,
+): Promise<PageItemRef[]> {
+  const rows =
+    home.folderId === null
+      ? await rowsOf(
+          executor,
+          sql`SELECT 'block'::text AS kind, b.id, b.page_position,
+                     b.position::bigint AS fallback_position, b.updated_at AS fallback_time
+                FROM page_blocks b
+               WHERE ${homeCondition(home, viewerId)}
+               ORDER BY b.page_position ASC NULLS LAST, b.position, b.updated_at, b.id`,
+        )
+      : await rowsOf(
+          executor,
+          sql`SELECT item.kind, item.id
+                FROM (
+                  SELECT 'block'::text AS kind, b.id, b.page_position,
+                         1 AS fallback_kind, b.position::bigint AS fallback_position,
+                         b.updated_at AS fallback_time
+                    FROM page_blocks b
+                   WHERE ${homeCondition(home, viewerId)}
+                  UNION ALL
+                  SELECT 'task'::text AS kind, t.id, t.page_position,
+                         0 AS fallback_kind, 0::bigint AS fallback_position,
+                         t.created_at AS fallback_time
+                    FROM tasks t
+                   WHERE t.folder_id = ${home.folderId}::uuid
+                     AND t.deleted_at IS NULL
+                     AND t.status IN ('pending', 'abandoned')
+                     AND EXISTS (
+                       SELECT 1 FROM folders vf
+                       JOIN folder_members vm ON vm.folder_id = vf.id
+                      WHERE vf.id = t.folder_id
+                        AND vm.user_id = ${viewerId}
+                        AND vf.deleted_at IS NULL
+                     )
+                ) item
+               ORDER BY item.page_position ASC NULLS LAST,
+                        CASE WHEN item.page_position IS NULL THEN item.fallback_kind END,
+                        CASE WHEN item.page_position IS NULL THEN item.fallback_position END,
+                        CASE WHEN item.page_position IS NULL THEN item.fallback_time END,
+                        item.kind, item.id`,
+        )
+  return rows.map((row) => ({
+    kind: String(row.kind) as PageItemRef['kind'],
+    id: String(row.id),
+  }))
+}
+
 export async function pageView(
   db: Db,
   viewerId: string,
@@ -139,15 +200,19 @@ export async function pageView(
 ): Promise<PageView> {
   const rows = await rowsOf(
     db,
-    sql`SELECT b.id, b.kind, b.position, b.text, b.file_id, b.ref_folder_id,
+    sql`SELECT b.id, b.kind, b.position, b.page_position,
+               b.section_block_id, b.text, b.file_id, b.ref_folder_id,
                b.width_pct, b.updated_at,
                f.width AS file_width, f.height AS file_height
         FROM page_blocks b
         LEFT JOIN files f ON f.id = b.file_id
         WHERE ${homeCondition(home, viewerId)}
-        ORDER BY b.position ASC, b.id ASC`,
+        ORDER BY b.page_position ASC NULLS LAST, b.position ASC, b.id ASC`,
   )
-  return { blocks: rows.map(blockFromRow) }
+  return {
+    blocks: rows.map(blockFromRow),
+    items: await pageItemsIn(db, viewerId, home),
+  }
 }
 
 export type PutPageResult =
@@ -257,6 +322,17 @@ export async function putPage(
       }
     }
 
+    /* The legacy whole-page writer and #184's page actions share the same
+       folder ordering domain during rolling deployment, so they share its
+       lock too. Without this, a PUT could reseed the list while a drag was
+       computing a key from the old sequence. Shelf pages have no tasks and
+       keep their existing block-row lock. */
+    if (home.folderId !== null) {
+      await tx.execute(
+        sql`SELECT 1 FROM folders WHERE id = ${home.folderId}::uuid FOR UPDATE`,
+      )
+    }
+
     const current = await rowsOf(
       tx,
       sql`SELECT b.id, b.updated_at FROM page_blocks b
@@ -311,6 +387,11 @@ export async function putPage(
       }
     }
 
+    /* Re-express the result after every insert, edit, delete and reorder has
+       landed. Running this before the writes leaves newly inserted legacy
+       blocks with a null key and preserves stale Section membership. */
+    await reseedLegacyPage(tx, home)
+
     // The name at act time (4.13), read from whichever table is the page's
     // home.
     const named = await rowsOf(
@@ -336,6 +417,410 @@ export async function putPage(
   })
 }
 
+interface PositionedItem extends PageItemRef {
+  pagePosition: string | null
+}
+
+async function positionedItems(
+  tx: Executor,
+  folderId: string,
+): Promise<PositionedItem[]> {
+  const rows = await rowsOf(
+    tx,
+    sql`SELECT item.kind, item.id, item.page_position
+          FROM (
+            SELECT 'block'::text AS kind, b.id, b.page_position,
+                   1 AS fallback_kind, b.position::bigint AS fallback_position,
+                   b.updated_at AS fallback_time
+              FROM page_blocks b
+             WHERE b.folder_id = ${folderId}::uuid
+            UNION ALL
+            SELECT 'task'::text AS kind, t.id, t.page_position,
+                   0 AS fallback_kind, 0::bigint AS fallback_position,
+                   t.created_at AS fallback_time
+              FROM tasks t
+             WHERE t.folder_id = ${folderId}::uuid
+               AND t.deleted_at IS NULL
+               AND t.status IN ('pending', 'abandoned')
+          ) item
+         ORDER BY item.page_position ASC NULLS LAST,
+                  CASE WHEN item.page_position IS NULL THEN item.fallback_kind END,
+                  CASE WHEN item.page_position IS NULL THEN item.fallback_position END,
+                  CASE WHEN item.page_position IS NULL THEN item.fallback_time END,
+                  item.kind, item.id`,
+  )
+  return rows.map((row) => ({
+    kind: String(row.kind) as PageItemRef['kind'],
+    id: String(row.id),
+    pagePosition: nullableString(row.page_position),
+  }))
+}
+
+async function writeItemPosition(
+  tx: Executor,
+  item: PageItemRef,
+  pagePosition: string,
+): Promise<void> {
+  await tx.execute(
+    item.kind === 'block'
+      ? sql`UPDATE page_blocks SET page_position = ${pagePosition}
+            WHERE id = ${item.id}::uuid`
+      : sql`UPDATE tasks SET page_position = ${pagePosition}
+            WHERE id = ${item.id}::uuid`,
+  )
+}
+
+/** Old PUT clients still arrange page blocks. Re-express that legacy result
+ * in the composed keyspace so shelf reorder and the pre-#184 folder API keep
+ * their behavior during a rolling deployment. */
+async function reseedLegacyPage(tx: Executor, home: PageHome): Promise<void> {
+  if (home.folderId === null) {
+    const rows = await rowsOf(
+      tx,
+      sql`SELECT id FROM page_blocks
+           WHERE shelf_id = ${home.shelfId}::uuid
+           ORDER BY position, id`,
+    )
+    const keys = initialKeys(rows.length)
+    for (const [index, row] of rows.entries()) {
+      await writeItemPosition(tx, { kind: 'block', id: String(row.id) }, keys[index] as string)
+    }
+    return
+  }
+
+  const blocks = await rowsOf(
+    tx,
+    sql`SELECT id, kind, position FROM page_blocks
+         WHERE folder_id = ${home.folderId}::uuid
+         ORDER BY position, id`,
+  )
+  const tasks = await rowsOf(
+    tx,
+    sql`SELECT t.id, t.section_block_id
+          FROM tasks t
+         WHERE t.folder_id = ${home.folderId}::uuid
+           AND t.deleted_at IS NULL
+           AND t.status IN ('pending', 'abandoned')
+         ORDER BY t.page_position ASC NULLS LAST, t.created_at, t.id`,
+  )
+  const sectionIds = new Set(
+    blocks.flatMap((block) => String(block.kind) === 'section' ? [String(block.id)] : []),
+  )
+  let sectionId: string | null = null
+  for (const block of blocks) {
+    const blockId = String(block.id)
+    if (String(block.kind) === 'section') {
+      sectionId = blockId
+      await tx.execute(
+        sql`UPDATE page_blocks SET section_block_id = NULL
+              WHERE id = ${blockId}::uuid`,
+      )
+    } else {
+      await tx.execute(
+        sql`UPDATE page_blocks SET section_block_id = ${sectionId}
+              WHERE id = ${blockId}::uuid`,
+      )
+    }
+  }
+  const loose = tasks.filter(
+    (task) => task.section_block_id == null || !sectionIds.has(String(task.section_block_id)),
+  )
+  const ordered: PageItemRef[] = loose.map((task) => ({ kind: 'task', id: String(task.id) }))
+  for (const [index, block] of blocks.entries()) {
+    const blockId = String(block.id)
+    ordered.push({ kind: 'block', id: blockId })
+    if (String(block.kind) !== 'section') continue
+    const opening = blocks[index + 1]
+    if (opening !== undefined && String(opening.kind) === 'paragraph') {
+      ordered.push({ kind: 'block', id: String(opening.id) })
+    }
+    ordered.push(
+      ...tasks
+        .filter((task) => String(task.section_block_id) === blockId)
+        .map((task) => ({ kind: 'task' as const, id: String(task.id) })),
+    )
+  }
+  const unique = [...new Map(ordered.map((item) => [`${item.kind}:${item.id}`, item])).values()]
+  const keys = initialKeys(unique.length)
+  for (const [index, item] of unique.entries()) {
+    await writeItemPosition(tx, item, keys[index] as string)
+  }
+}
+
+async function seededItems(tx: Executor, folderId: string): Promise<PositionedItem[]> {
+  const items = await positionedItems(tx, folderId)
+  if (items.every((item) => item.pagePosition !== null)) return items
+  const keys = initialKeys(items.length)
+  for (const [index, item] of items.entries()) {
+    const key = keys[index] as string
+    await writeItemPosition(tx, item, key)
+    item.pagePosition = key
+  }
+  return items
+}
+
+function sameItem(left: PageItemRef, right: PageItemRef): boolean {
+  return left.kind === right.kind && left.id === right.id
+}
+
+function placementKey(
+  items: readonly PositionedItem[],
+  moving: PageItemRef | null,
+  after: PageItemRef | null,
+  before: PageItemRef | null,
+): { kind: 'key'; value: string; settled: boolean } | { kind: 'bad_anchor'; field: 'after' | 'before' } {
+  if (moving !== null && after !== null && sameItem(moving, after)) {
+    return { kind: 'bad_anchor', field: 'after' }
+  }
+  if (moving !== null && before !== null && sameItem(moving, before)) {
+    return { kind: 'bad_anchor', field: 'before' }
+  }
+  const without = moving === null ? [...items] : items.filter((item) => !sameItem(item, moving))
+  const at = (wanted: PageItemRef | null): number | null => {
+    if (wanted === null) return null
+    const index = without.findIndex((item) => sameItem(item, wanted))
+    return index < 0 ? -1 : index
+  }
+  const afterIndex = at(after)
+  const beforeIndex = at(before)
+  if (afterIndex === -1) return { kind: 'bad_anchor', field: 'after' }
+  if (beforeIndex === -1) return { kind: 'bad_anchor', field: 'before' }
+  if (without.length > 0 && after === null && before === null) {
+    return { kind: 'bad_anchor', field: 'after' }
+  }
+  if (afterIndex !== null && beforeIndex !== null && afterIndex >= beforeIndex) {
+    return { kind: 'bad_anchor', field: 'after' }
+  }
+  const lower = afterIndex === null ? null : without[afterIndex]?.pagePosition ?? null
+  const upper = beforeIndex === null ? null : without[beforeIndex]?.pagePosition ?? null
+  const current = moving === null
+    ? null
+    : items.find((item) => sameItem(item, moving))?.pagePosition ?? null
+  return {
+    kind: 'key',
+    value: keyBetween(lower, upper),
+    settled:
+      current !== null &&
+      (lower === null || lower < current) &&
+      (upper === null || current < upper),
+  }
+}
+
+async function sectionBelongsToFolder(
+  tx: Executor,
+  folderId: string,
+  sectionId: string | null,
+): Promise<boolean> {
+  if (sectionId === null) return true
+  const rows = await rowsOf(
+    tx,
+    sql`SELECT 1 AS present FROM page_blocks
+         WHERE id = ${sectionId}::uuid
+           AND folder_id = ${folderId}::uuid
+           AND kind = 'section'`,
+  )
+  return rows.length > 0
+}
+
+export type PageActionResult =
+  | { kind: 'written'; page: PageView }
+  | { kind: 'not_found' }
+  | { kind: 'stale'; blockId: string }
+  | { kind: 'bad_anchor'; field: 'after' | 'before' }
+  | { kind: 'section_not_here' }
+  | { kind: 'file_not_here' }
+  | { kind: 'not_convertible' }
+
+/** #184's narrow transactional boundary: one user gesture, one folder lock,
+ * one durable mixed placement. */
+export async function actOnFolderPage(
+  db: Db,
+  viewerId: string,
+  folderId: string,
+  body: PageActionBody,
+): Promise<PageActionResult> {
+  return inTransaction(db, async (tx) => {
+    if ((await accessOf(tx, viewerId, folderId)) === null) return { kind: 'not_found' }
+    await tx.execute(sql`SELECT 1 FROM folders WHERE id = ${folderId}::uuid FOR UPDATE`)
+    const items = await seededItems(tx, folderId)
+
+    const anchors = 'after' in body
+      ? placementKey(
+          items,
+          body.action === 'move_item' ? body.item : null,
+          body.after,
+          body.before,
+        )
+      : null
+    if (anchors?.kind === 'bad_anchor') return anchors
+
+    if (body.action === 'insert_block') {
+      if (!(await sectionBelongsToFolder(tx, folderId, body.section_block_id))) {
+        return { kind: 'section_not_here' }
+      }
+      if (body.block_kind === 'section' && body.section_block_id !== null) {
+        return { kind: 'section_not_here' }
+      }
+      if (body.file_id != null) {
+        const file = await rowsOf(
+          tx,
+          sql`SELECT f.id FROM files f
+               WHERE f.id = ${body.file_id}::uuid
+                 AND f.folder_id = ${folderId}::uuid`,
+        )
+        if (file.length === 0) return { kind: 'file_not_here' }
+      }
+      const last = await rowsOf(
+        tx,
+        sql`SELECT COALESCE(max(position), -1) + 1 AS position
+              FROM page_blocks WHERE folder_id = ${folderId}::uuid`,
+      )
+      await tx.execute(
+        sql`INSERT INTO page_blocks
+              (folder_id, kind, position, page_position, section_block_id,
+               text, file_id, width_pct)
+            VALUES (${folderId}::uuid, ${body.block_kind},
+                    ${Number(last[0]?.position ?? 0)},
+                    ${(anchors as { kind: 'key'; value: string }).value},
+                    ${body.section_block_id}, ${body.text ?? null},
+                    ${body.file_id ?? null}, ${body.width_pct ?? null})`,
+      )
+    } else if (body.action === 'insert_task') {
+      if (!(await sectionBelongsToFolder(tx, folderId, body.section_block_id))) {
+        return { kind: 'section_not_here' }
+      }
+      const made = await createTaskIn(
+        tx,
+        viewerId,
+        { title: body.title, folder_id: folderId, section_block_id: body.section_block_id },
+        { pagePosition: (anchors as { kind: 'key'; value: string }).value },
+      )
+      if (made.kind !== 'created') {
+        return made.kind === 'section_not_here'
+          ? { kind: 'section_not_here' }
+          : { kind: 'not_found' }
+      }
+    } else if (body.action === 'move_item') {
+      const current = items.find((item) => sameItem(item, body.item))
+      if (current === undefined) return { kind: 'not_found' }
+      if (!(await sectionBelongsToFolder(tx, folderId, body.section_block_id))) {
+        return { kind: 'section_not_here' }
+      }
+      if (body.item.kind === 'block') {
+        const blocks = await rowsOf(
+          tx,
+          sql`SELECT kind FROM page_blocks
+               WHERE id = ${body.item.id}::uuid AND folder_id = ${folderId}::uuid`,
+        )
+        if (blocks.length === 0) return { kind: 'not_found' }
+        /* A Section is a semantic span, not one draggable row. #184's
+           production canvas does not offer heading drag; accepting it here
+           would move only the heading while leaving every member behind and
+           make the persisted order contradict collapse. */
+        if (String(blocks[0]?.kind) === 'section') {
+          return { kind: 'not_convertible' }
+        }
+        await tx.execute(
+          sql`UPDATE page_blocks
+                SET page_position = ${(anchors as { kind: 'key'; value: string }).value},
+                    section_block_id = ${body.section_block_id}
+              WHERE id = ${body.item.id}::uuid`,
+        )
+      } else {
+        await tx.execute(
+          sql`UPDATE tasks
+                SET page_position = ${(anchors as { kind: 'key'; value: string }).value},
+                    section_block_id = ${body.section_block_id}
+              WHERE id = ${body.item.id}::uuid AND folder_id = ${folderId}::uuid
+                AND deleted_at IS NULL AND status IN ('pending', 'abandoned')`,
+        )
+      }
+    } else {
+      const rows = await rowsOf(
+        tx,
+        sql`SELECT id, kind, text, file_id, width_pct, page_position,
+                   section_block_id, updated_at
+              FROM page_blocks
+             WHERE id = ${body.block_id}::uuid AND folder_id = ${folderId}::uuid
+             FOR UPDATE`,
+      )
+      const block = rows[0]
+      if (block === undefined) return { kind: 'not_found' }
+      if (toIso(block.updated_at) !== body.updated_at) {
+        return { kind: 'stale', blockId: body.block_id }
+      }
+
+      if (body.action === 'delete_block') {
+        await tx.execute(sql`DELETE FROM page_blocks WHERE id = ${body.block_id}::uuid`)
+      } else if (body.action === 'convert_paragraph_to_task') {
+        const title = nullableString(block.text)?.trim() ?? ''
+        if (String(block.kind) !== 'paragraph' || title.length < 1 || title.length > 300) {
+          return { kind: 'not_convertible' }
+        }
+        const made = await createTaskIn(
+          tx,
+          viewerId,
+          {
+            title,
+            folder_id: folderId,
+            section_block_id: nullableString(block.section_block_id),
+          },
+          { pagePosition: String(block.page_position) },
+        )
+        if (made.kind !== 'created') {
+          return made.kind === 'section_not_here'
+            ? { kind: 'section_not_here' }
+            : { kind: 'not_found' }
+        }
+        await tx.execute(sql`DELETE FROM page_blocks WHERE id = ${body.block_id}::uuid`)
+      } else {
+        if (body.file_id != null) {
+          const file = await rowsOf(
+            tx,
+            sql`SELECT f.id FROM files f
+                 WHERE f.id = ${body.file_id}::uuid
+                   AND f.folder_id = ${folderId}::uuid`,
+          )
+          if (file.length === 0) return { kind: 'file_not_here' }
+        }
+        if (body.width_pct != null && String(block.kind) !== 'image') {
+          return { kind: 'not_convertible' }
+        }
+        if (String(block.kind) === 'section' && body.text !== undefined) {
+          const length = body.text?.length ?? 0
+          if (length < 1 || length > 120) return { kind: 'not_convertible' }
+        }
+        const sets: ReturnType<typeof sql>[] = []
+        if (body.text !== undefined) sets.push(sql`text = ${body.text}`)
+        if (body.file_id !== undefined) sets.push(sql`file_id = ${body.file_id}`)
+        if (body.width_pct !== undefined) sets.push(sql`width_pct = ${body.width_pct}`)
+        sets.push(sql`updated_at = now()`)
+        await tx.execute(
+          sql`UPDATE page_blocks SET ${sql.join(sets, sql`, `)}
+               WHERE id = ${body.block_id}::uuid`,
+        )
+      }
+    }
+
+    if (body.action !== 'insert_task' && body.action !== 'convert_paragraph_to_task') {
+      const named = await rowsOf(tx, sql`SELECT name FROM folders WHERE id = ${folderId}::uuid`)
+      await recordEvent(tx, {
+        actorId: viewerId,
+        verb: 'edited',
+        subjectKind: 'folder',
+        subjectId: folderId,
+        subjectName: String(named[0]?.name ?? ''),
+        folderId,
+        detail: body.action === 'move_item' ? 'rearranged the page' : 'edited the page',
+      })
+    }
+    return {
+      kind: 'written',
+      page: await pageViewIn(tx, viewerId, { folderId, shelfId: null }),
+    }
+  })
+}
+
 /** The read again, on the transaction's own snapshot, so the response can
  * never describe blocks the write did not leave. */
 async function pageViewIn(
@@ -345,13 +830,17 @@ async function pageViewIn(
 ): Promise<PageView> {
   const rows = await rowsOf(
     tx,
-    sql`SELECT b.id, b.kind, b.position, b.text, b.file_id, b.ref_folder_id,
+    sql`SELECT b.id, b.kind, b.position, b.page_position,
+               b.section_block_id, b.text, b.file_id, b.ref_folder_id,
                b.width_pct, b.updated_at,
                f.width AS file_width, f.height AS file_height
         FROM page_blocks b
         LEFT JOIN files f ON f.id = b.file_id
         WHERE ${homeCondition(home, viewerId)}
-        ORDER BY b.position ASC, b.id ASC`,
+        ORDER BY b.page_position ASC NULLS LAST, b.position ASC, b.id ASC`,
   )
-  return { blocks: rows.map(blockFromRow) }
+  return {
+    blocks: rows.map(blockFromRow),
+    items: await pageItemsIn(tx, viewerId, home),
+  }
 }

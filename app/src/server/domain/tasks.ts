@@ -62,6 +62,7 @@ import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
 import { accessOf } from './folders.js'
+import { keyBetween } from './fractional-index.js'
 
 /* ------------------------------------------------------------------ *
  * Serialization
@@ -614,15 +615,24 @@ lets the column defaults mint every other id here. The rule's dependency on a
 due_date is answered by the body alone (4.5 backs it with a CHECK) and the
 schema refuses it before this function is reached.
 */
-export async function createTask(
-  db: Db,
+export async function createTaskIn(
+  tx: Executor,
   viewerId: string,
   body: PostTasksBody,
+  options: { readonly pagePosition?: string } = {},
 ): Promise<CreateTaskResult> {
-  return inTransaction(db, async (tx) => {
     const folderId = body.folder_id ?? (await inboxOf(tx, viewerId))
     const access = await accessOf(tx, viewerId, folderId)
     if (access === null) return { kind: 'folder_not_found' }
+
+    /* #184 gives every folder one mixed ordering domain. Lock it before
+       validating a Section or choosing an append position, so a concurrent
+       page action cannot delete/move that boundary between the read and the
+       task insert. Re-taking this lock from an enclosing page action is safe
+       inside the same transaction. */
+    await tx.execute(
+      sql`SELECT 1 FROM folders WHERE id = ${folderId}::uuid FOR UPDATE`,
+    )
 
     const members = await folderMemberIds(tx, folderId)
     const onlyMember = members.length === 1 ? members[0] : undefined
@@ -645,17 +655,81 @@ export async function createTask(
       return { kind: 'section_not_here' }
     }
 
+    /* #184: every newly created task joins the folder's composed page. A
+       page action supplies the exact key it computed between its validated
+       neighbours. Existing create surfaces append at the foot, which leaves
+       all non-document task-list orders unchanged because they do not read
+       this column. The folder lock serializes two concurrent appends. */
+    let pagePosition = options.pagePosition
+    if (pagePosition === undefined) {
+      const bounds = sectionId === null
+        ? await rowsOf(
+            tx,
+            sql`WITH first_section AS (
+                  SELECT min(page_position) AS upper_key
+                    FROM page_blocks
+                   WHERE folder_id = ${folderId}::uuid
+                     AND kind = 'section' AND page_position IS NOT NULL
+                ), all_items AS (
+                  SELECT page_position FROM page_blocks
+                   WHERE folder_id = ${folderId}::uuid AND page_position IS NOT NULL
+                  UNION ALL
+                  SELECT page_position FROM tasks
+                   WHERE folder_id = ${folderId}::uuid AND page_position IS NOT NULL
+                )
+                SELECT max(i.page_position) FILTER (
+                         WHERE f.upper_key IS NULL OR i.page_position < f.upper_key
+                       ) AS lower_key,
+                       f.upper_key
+                  FROM all_items i CROSS JOIN first_section f
+                 GROUP BY f.upper_key`,
+          )
+        : await rowsOf(
+            tx,
+            sql`WITH section_items AS (
+                  SELECT page_position FROM page_blocks
+                   WHERE folder_id = ${folderId}::uuid
+                     AND page_position IS NOT NULL
+                     AND (id = ${sectionId}::uuid OR section_block_id = ${sectionId}::uuid)
+                  UNION ALL
+                  SELECT page_position FROM tasks
+                   WHERE folder_id = ${folderId}::uuid
+                     AND page_position IS NOT NULL
+                     AND section_block_id = ${sectionId}::uuid
+                ), all_items AS (
+                  SELECT page_position FROM page_blocks
+                   WHERE folder_id = ${folderId}::uuid AND page_position IS NOT NULL
+                  UNION ALL
+                  SELECT page_position FROM tasks
+                   WHERE folder_id = ${folderId}::uuid AND page_position IS NOT NULL
+                ), lower_bound AS (
+                  SELECT max(page_position) AS lower_key FROM section_items
+                )
+                SELECT l.lower_key,
+                       min(i.page_position) FILTER (WHERE i.page_position > l.lower_key) AS upper_key
+                  FROM lower_bound l CROSS JOIN all_items i
+                 GROUP BY l.lower_key`,
+          )
+      const bound = bounds[0]
+      pagePosition = keyBetween(
+        bound?.lower_key == null ? null : String(bound.lower_key),
+        bound?.upper_key == null ? null : String(bound.upper_key),
+      )
+    }
+
     const rule = body.recurrence_rule ?? null
     const seriesId = rule === null ? sql`NULL` : sql`gen_random_uuid()`
     const inserted = await rowsOf(
       tx,
       sql`INSERT INTO tasks (folder_id, title, notes, important, due_date,
                              due_time, recurrence_rule, series_id,
-                             assignee_id, created_by, section_block_id)
+                             assignee_id, created_by, section_block_id,
+                             page_position)
           VALUES (${folderId}::uuid, ${body.title}, ${body.notes ?? null},
                   ${body.important ?? false}, ${body.due_date ?? null}::date,
                   ${body.due_time ?? null}::time, ${rule}, ${seriesId},
-                  ${assigneeId}::uuid, ${viewerId}::uuid, ${sectionId})
+                  ${assigneeId}::uuid, ${viewerId}::uuid, ${sectionId},
+                  ${pagePosition})
           RETURNING id`,
     )
     const taskId = String(inserted[0]?.id)
@@ -708,7 +782,14 @@ export async function createTask(
     })
 
     return { kind: 'created', task: await viewOrFail(tx, viewerId, taskId) }
-  })
+}
+
+export async function createTask(
+  db: Db,
+  viewerId: string,
+  body: PostTasksBody,
+): Promise<CreateTaskResult> {
+  return inTransaction(db, (tx) => createTaskIn(tx, viewerId, body))
 }
 
 /* ------------------------------------------------------------------ *

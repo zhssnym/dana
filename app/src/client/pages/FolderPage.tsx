@@ -89,7 +89,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router'
 
 import {
   useCreateTask,
-  useOrderTask,
+  useFolderPageAction,
   useDeleteFolder,
   useLeaveFolder,
   useDeleteComment,
@@ -97,7 +97,6 @@ import {
   useUpdateMyMembership,
   usePatchComment,
   usePostComment,
-  usePutFolderPage,
   useRenameFolder,
   useRestoreFolder,
   useSetCommentLike,
@@ -117,7 +116,7 @@ import {
 import { getPlain, uploadFile } from '../api/http.js'
 import { queryKeys } from '../api/keys.js'
 import { showToast } from '../state/toasts.js'
-import { BlocksEditor } from '../components/page/BlocksEditor.js'
+import { ComposeCanvas } from '../components/page/ComposeCanvas.js'
 /* S26: the head is the prototype's own composition rather than this page's
    second one. `components/page/IdentityHead.tsx` stays in the tree for the
    shelf page, which is S27's; nothing here reads it any more. */
@@ -136,7 +135,6 @@ import { CommentsThread } from '../components/comments.js'
 import { HistorySheet } from '../components/history-sheet.js'
 import { ObjectMenu } from '../components/object-menu.js'
 import { PersonFace } from '../components/person-face.js'
-import { QuickAdd } from '../components/quick-add.js'
 
 import { AvatarGroup } from '../components/ui/avatar.js'
 import { Button } from '../components/ui/button.js'
@@ -186,18 +184,17 @@ import { useReserveRightEdge } from '../components/right-edge.js'
 import { pushUndo, undoLabel } from '../shell/undo.js'
 import { WindowBarActions } from '../components/window-bar.js'
 import { CollapsibleSection, PageSection } from '../components/page/PageSection.js'
-import { isNarrowed } from '../views/filter.js'
 import { groupRows, LOOSE } from '../views/grouping.js'
 import { PLACES } from '../views/place-pages.js'
 import { TaskBoard } from '../views/TaskBoard.js'
 import { PlaceChrome, usePlace } from '../views/usePlace.js'
+import { isNarrowed } from '../views/filter.js'
 import { MorePages, PageBody } from '../components/page/PageStates.js'
 import { FOLDER_EMPTY } from './empty-states.js'
 import { FolderSharingPanel } from './FolderSharingPanel.js'
 import { ConfirmDialog, TaskRows, useConfirm, useRowBasis } from './task-rows.js'
-import type { PageBlock, PageBlockWrite } from '../../shared/pages.js'
 import { getTaskResponse } from '../../shared/tasks.js'
-import type { TaskCard, TaskDetail } from '../../shared/tasks.js'
+import type { TaskDetail } from '../../shared/tasks.js'
 import { folderToWorkflowFile } from '../../shared/workflows.js'
 
 /**
@@ -321,7 +318,7 @@ export function FolderPage({
      already draws from, so both surfaces answer from one list rather than
      from two hand-written ones. */
   const groupLabels = folderGroupLabels(library.data ?? [], shelves.data ?? [])
-  const putPage = usePutFolderPage()
+  const pageAction = useFolderPageAction()
   const postComment = usePostComment()
   const patchComment = usePatchComment()
   const deleteComment = useDeleteComment()
@@ -333,9 +330,6 @@ export function FolderPage({
   /* RFC 0005 change control item 38: an owner deleting a shared folder is
      asked one question first. S28b. */
   const [deleteAsk, setDeleteAsk] = useState(false)
-  /* polish: folderpage F5. A section's delete was a bare "x" with no question
-     and no way back; it asks now, and says where the tasks go. */
-  const [sectionAsk, setSectionAsk] = useState<{ block: PageBlock; remove: () => void } | null>(null)
   // 9.6's inline rename: the title is a heading until this is true.
   const [renaming, setRenaming] = useState(false)
   /* Controlled, and the prototype's own reason: "Label and colour" in the
@@ -413,41 +407,10 @@ export function FolderPage({
       })
     },
   })
-  /*
-  polish: taskrow F4. A task made from a quick-add lands at the foot of the
-  list it was typed into, in typing order. Q7 puts an unplaced task first,
-  which reads as the newest on top and five typed in a row coming out
-  backwards; placing it after the list's last undated open row, through
-  7.6's order endpoint, is the same act a drag to the bottom performs. Only
-  where the list is arrangeable: a filtered or grouped list carries no hand
-  order to join (item 44's B4), and a dated task never does.
-  */
-  const order = useOrderTask()
-  function placeLast(madeId: string, peers: readonly TaskCard[]): void {
-    if (!arrangement.arrangeable) return
-    const last = [...peers]
-      .reverse()
-      .find((peer) => peer.due_date === null && peer.status === 'pending' && peer.id !== madeId)
-    if (last === undefined) return
-    order.mutate({ id: madeId, body: { after_id: last.id, before_id: null } })
-  }
   /* Read while the foot is open, and while the board is up, whose Done
      column is drawn from the same pages (item 58, G). */
   const completed = useFolderCompletedTasks(id, completedOpen || place.mode === 'board')
   const visible = place.narrow(openRows)
-  /*
-  Item 44's B4, at S23a: "in a folder, native or user's, with no filter or
-  sort applied, a task may be arranged by hand", and with either applied the
-  drag springs back. Grouping is read with them: a grouped list is drawn as
-  the groups the filter chose, and a hand order under a heading the filter
-  put there would be an order over a list the person did not arrange. The
-  completed lists below pass nothing, a finished task carrying no hand order
-  (7.6's own 409).
-  */
-  const arrangement = {
-    arrangeable:
-      !isNarrowed(place.filter) && place.filter.sort === 'manual' && place.groupBy === 'none',
-  }
   /*
   **The board's columns are the page's sections** (item 44's B2, ledger
   L-044), seeded from the blocks rather than discovered from the rows, and in
@@ -519,84 +482,6 @@ export function FolderPage({
         ]
       : boardColumns
 
-  /*
-  9.6's "tasks assigned to sections", buildable since S18 and drawn here.
-
-  **The paragraph this replaces argued for the shape the code no longer has.**
-  It said tasks render loose because Q7's rows are frozen 7.0 TaskCards
-  carrying no `section_block_id`, and that rendering placement would need a
-  widening that had been escalated. That widening is RFC 0005 unit 12a, it
-  landed at S18, and `server/views/cards.ts` selects and projects the column on
-  the folder read. A header that argues for a shape the code has moved past is
-  worse than no header, so the argument is gone and this is what stands in its
-  place.
-
-  **Placement is a partition and never a copy.** A task appears exactly once:
-  under the section it names, or in the loose list, and never in both. The
-  loose list keeps 9.6's own name for it, so a task with no section is where it
-  always was, and a section block nobody has assigned anything to draws its
-  capture and no rows.
-
-  **The narrowing runs before the partition**, which is 9.6's "the filter of
-  9.1 narrows the page without touching its arrangement" read literally: the
-  filter decides which tasks are on the page and the sections decide where each
-  of them sits, so a narrowed-away task leaves its section rather than moving
-  to the loose list.
-  */
-  const bySection = useMemo(() => {
-    const map = new Map<string, TaskCard[]>()
-    for (const task of visible) {
-      const at = task.section_block_id
-      if (at === null) continue
-      const bucket = map.get(at)
-      if (bucket === undefined) map.set(at, [task])
-      else bucket.push(task)
-    }
-    return map
-  }, [visible])
-  const sectionIds = useMemo(
-    () =>
-      new Set(
-        (page.data?.blocks ?? [])
-          .filter((block) => block.kind === 'section')
-          .map((block) => block.id),
-      ),
-    [page.data?.blocks],
-  )
-  /* A task naming a section this page no longer has falls back to the loose
-     list rather than disappearing. 4.17 deletes a block without touching the
-     tasks that named it, so this is an ordinary state and not a repair. */
-  const loose = visible.filter(
-    (task) => task.section_block_id === null || !sectionIds.has(task.section_block_id),
-  )
-
-  /** A section's own rows and its own capture, by block id (9.6). */
-  const sectionExtras = (blockId: string): React.JSX.Element => (
-    <>
-      <TaskRows
-        tasks={bySection.get(blockId) ?? []}
-        context={context}
-        actions={actions}
-        onAsk={confirm.ask}
-        arrangement={arrangement}
-      />
-      {/* 9.6: "a capture per section". 9.3's entry table gives it this
-          folder and this section, the section being what the surface it
-          stands in adds to the page's own defaults. */}
-      <QuickAdd
-        folderName={detail?.name ?? 'this folder'}
-        onAdd={(title) => {
-          create.mutate(
-            { title, folder_id: id, section_block_id: blockId },
-            { onSuccess: (made) => placeLast(made.id, bySection.get(blockId) ?? []) },
-          )
-        }}
-        onOpenFullForm={(title) => {
-          openTaskForm({ folder_id: id, title })
-        }}
-      />
-    </>
-  )
   const context: RowContext = {
     ...basis,
     showFolder: false,
@@ -651,15 +536,6 @@ export function FolderPage({
     }
     return people
   }, [members, connections.data])
-
-  function putBlocks(body: PageBlockWrite[]): void {
-    putPage.mutate(
-      { id, body: { blocks: body } },
-      /* The 409 is already 5.1's toast; the refetch replaces the loser on
-         screen, which is the other half of "handled visibly". */
-      { onError: () => void page.refetch() },
-    )
-  }
 
   function doDelete(): void {
     /* 9.6: to Trash for every member at once, the undo bar, no
@@ -1266,7 +1142,7 @@ export function FolderPage({
                 /* A board whose Done column holds finished work is not an
                    empty page (item 58 G): the last open task completed by a
                    drop must not take the board with it. */
-                isEmpty={bothEmpty && !(place.mode === 'board' && completedDays.length > 0)}
+                isEmpty={place.mode === 'board' && bothEmpty && completedDays.length === 0}
                 emptyCopy={FOLDER_EMPTY}
                 emptyIcon={FolderIcon}
                 truncated={open.data?.truncated ?? false}
@@ -1282,83 +1158,33 @@ export function FolderPage({
                     context={context}
                     actions={actions}
                   />
-                ) : loose.length === 0 && visible.length === 0 ? (
+                ) : visible.length === 0 && openRows.length > 0 ? (
                   <p className="h-[var(--control-height)] px-2 text-sm leading-[var(--control-height)] text-[var(--color-graphite-500)]">
                     {FILTER_NARROWED_EMPTY}
                   </p>
                 ) : (
-                  /* 9.6: "the loose open tasks", which since S18 means the ones
-                     under no section. The rest are drawn under the section
-                     block they name, below. */
-                  <TaskRows
-                    tasks={loose}
+                  <ComposeCanvas
+                    blocks={page.data?.blocks ?? []}
+                    items={page.data?.items ?? []}
+                    tasks={visible}
+                    folderId={id}
                     context={context}
                     actions={actions}
                     onAsk={confirm.ask}
-                    arrangement={arrangement}
+                    arrangeable={!isNarrowed(place.filter)}
+                    onAction={async (body) => {
+                      try {
+                        return await pageAction.mutateAsync({ id, body })
+                      } catch (error) {
+                        await page.refetch()
+                        throw error
+                      }
+                    }}
                   />
                 )}
               </PageBody>
-              {/* 9.6: the quick-add at the loose list's foot; 9.3's sixth
-                  entry-point row states its value: this folder, no due date.
-                  Absent in board view, where every column captures with its own
-                  value and a row above them would capture with none (9.1). */}
-              {place.mode === 'board' ? null : (
-                <QuickAdd
-                  folderName={detail?.name ?? 'this folder'}
-                  onAdd={(title) => {
-                    create.mutate(
-                      { title, folder_id: id },
-                      { onSuccess: (made) => placeLast(made.id, loose) },
-                    )
-                  }}
-                  onOpenFullForm={(title) => {
-                    openTaskForm({ folder_id: id, title })
-                  }}
-                />
-              )}
             </PageSection>
 
-            {/* The page's blocks (4.17): sections, paragraphs, images, with
-                the insert affordance between them. */}
-            <PageBody query={page} isEmpty={false} emptyCopy="">
-              <BlocksEditor
-                blocks={page.data?.blocks ?? []}
-                onPut={putBlocks}
-                onCreateTask={async (title, sectionBlockId) => {
-                  if (title === '') {
-                    openTaskForm({
-                      folder_id: id,
-                      ...(sectionBlockId === null ? {} : { section_block_id: sectionBlockId }),
-                    })
-                    return true
-                  }
-                  try {
-                    const made = await create.mutateAsync({
-                      title,
-                      folder_id: id,
-                      section_block_id: sectionBlockId,
-                    })
-                    placeLast(
-                      made.id,
-                      sectionBlockId === null ? loose : (bySection.get(sectionBlockId) ?? []),
-                    )
-                    return true
-                  } catch {
-                    return false
-                  }
-                }}
-                sectionExtras={sectionExtras}
-                onDeleteSection={(block, remove) => {
-                  setSectionAsk({ block, remove })
-                }}
-                /* S26: an image block is inserted empty and fills itself, three
-                   ways (L-197). The hidden input this replaces uploaded before
-                   the block existed, so choosing was the only gesture that
-                   could land anywhere. */
-                folderId={id}
-              />
-            </PageBody>
           </div>
 
           {/* Q7 hides the third section while it is empty; the control is
@@ -1474,35 +1300,6 @@ export function FolderPage({
         onOpenChange={setHistoryOpen}
         scope="folder"
       />
-
-      {/* polish: folderpage F5: the section's question, with its consequence. */}
-      <Dialog open={sectionAsk !== null} onOpenChange={(next) => { if (!next) setSectionAsk(null) }}>
-        <DialogContent className="max-w-[420px]">
-          <DialogHeader>
-            <DialogTitle>Delete section “{sectionAsk?.block.text ?? ''}”?</DialogTitle>
-            <DialogDescription>
-              {(() => {
-                const count = sectionAsk === null ? 0 : (bySection.get(sectionAsk.block.id) ?? []).length
-                return count === 0
-                  ? 'The heading goes; nothing else changes.'
-                  : `The heading goes. ${count === 1 ? 'Its task stays' : `Its ${count} tasks stay`} in the folder and ${count === 1 ? 'moves' : 'move'} to the loose list above the sections.`
-              })()}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <DialogClose render={<Button variant="ghost">Keep it</Button>} />
-            <Button
-              variant="destructive"
-              onClick={() => {
-                sectionAsk?.remove()
-                setSectionAsk(null)
-              }}
-            >
-              Delete section
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* 9.6: an owner with other members leaves only by transferring
           first; the default successor is the longest-standing member. */}

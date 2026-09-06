@@ -172,13 +172,9 @@ function richText(text: string): ReactNode {
       ))
 }
 
-function Video({ target }: { readonly target: VideoTarget }): React.JSX.Element {
+function Video({ target }: { readonly target: VideoTarget }): React.JSX.Element | null {
   if (target.kind === 'direct') {
-    return (
-      <video controls preload="metadata" className="mt-3 aspect-video w-full rounded-lg bg-muted">
-        <source src={target.src} />
-      </video>
-    )
+    return null
   }
   return (
     <iframe

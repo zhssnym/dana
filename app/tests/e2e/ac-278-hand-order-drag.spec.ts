@@ -98,7 +98,7 @@ test.beforeEach(async ({ page }) => {
 })
 
 test.describe('AC-278: a hand order persists in a folder and springs back elsewhere', () => {
-  test('AC-278: dragging a row in an unfiltered folder writes the order endpoint and reads back', async ({
+  test('AC-278: dragging a row in an unfiltered folder writes its composed placement and reads back', async ({
     page,
   }) => {
     const folder = await createFolder(page, caseTitle('AC-278 arranged'))
@@ -119,18 +119,24 @@ test.describe('AC-278: a hand order persists in a folder and springs back elsewh
     const written = page.waitForResponse(
       (response) =>
         response.request().method() === 'POST' &&
-        response.url().includes(`/api/v1/tasks/${a.id}/order`),
+        response.url().includes(`/api/v1/folders/${folder.id}/page/actions`),
     )
     await carryBelow(page, taskRow(page, first), taskRow(page, second))
     const response = await written
     expect(
       response.status(),
-      'spec 7.6: the order endpoint answers 200 with the placed task',
+      'spec 7.16: the composed page action answers 200 with the placed task',
     ).toBe(200)
     expect(
       response.request().postDataJSON(),
-      'spec 7.6: the body names the two rows the task was dropped between, by id',
-    ).toEqual({ after_id: b.id, before_id: c.id })
+      'spec 7.16: the body names the moved real task and its two durable neighbours',
+    ).toEqual({
+      action: 'move_item',
+      item: { kind: 'task', id: a.id },
+      section_block_id: null,
+      after: { kind: 'task', id: b.id },
+      before: { kind: 'task', id: c.id },
+    })
 
     // Quiet and not `watchCommit` (issue #159): the write is already ordered,
     // `await written` above being a `waitForResponse` on the order call itself,
