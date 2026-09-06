@@ -2,6 +2,7 @@
 /* AC-420: the approved compose-first interaction is the production folder
  * canvas, including the collapsed-Section seam and #177 video treatment. */
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 
 import { ComposeCanvas } from '../src/client/components/page/ComposeCanvas.js'
@@ -14,6 +15,12 @@ afterEach(cleanup)
 const FIRST = '00000000-0000-4000-8000-000000000001'
 const CHILD = '00000000-0000-4000-8000-000000000002'
 const SECOND = '00000000-0000-4000-8000-000000000003'
+
+function renderCanvas(canvas: React.ReactNode): ReturnType<typeof render> {
+  return render(
+    <QueryClientProvider client={new QueryClient()}>{canvas}</QueryClientProvider>,
+  )
+}
 
 function block(
   id: string,
@@ -40,7 +47,7 @@ function block(
 describe('AC-420 production compose-first canvas', () => {
   test('the collapsed Section plus inserts after its complete hidden span into No section', async () => {
     const onAction = vi.fn(async () => ({ blocks: [], items: [] }))
-    render(
+    renderCanvas(
       <ComposeCanvas
         blocks={[
           block(FIRST, 'section', 'First', null),
@@ -81,7 +88,7 @@ describe('AC-420 production compose-first canvas', () => {
   test('only YouTube/Vimeo embed; direct media stays the ordinary external link', () => {
     const direct = block(FIRST, 'paragraph', 'Watch https://example.test/movie.mp4', null)
     const youtube = block(CHILD, 'paragraph', 'Watch https://www.youtube.com/watch?v=dQw4w9WgXcQ', null)
-    render(
+    renderCanvas(
       <ComposeCanvas
         blocks={[direct, youtube]}
         items={[{ kind: 'block', id: FIRST }, { kind: 'block', id: CHILD }]}
