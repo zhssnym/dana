@@ -118,7 +118,7 @@ import {
   MessageContent,
   MessageHeader,
 } from "./ui/message.js"
-import { type ConceptComment } from "../lib/task-model.js"
+import { type ConceptComment } from "../tasks/task-model.js"
 /* Seam two: the session, never `PEOPLE`. See the header. */
 import { useViewerPerson } from "../lib/thread.js"
 import { cn } from "./ui/utils.js"

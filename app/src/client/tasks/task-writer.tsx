@@ -33,7 +33,7 @@ S23 for the surfaces. Two consequences follow and neither is optional.
 The first is that **a `Partial<ConceptTask>` is not one endpoint**. The card
 reports a title and a completion and a step through one call; section 7 puts
 those on `PATCH /tasks/:id`, `POST /tasks/:id/complete` and the step routes.
-So this function fans out, and `writtenElsewhere` in `lib/task-concept.ts` is
+So this function fans out, and `writtenElsewhere` in `tasks/task-concept.ts` is
 the single list of which field takes which verb, so the mapper and this cannot
 disagree about it.
 
@@ -49,7 +49,7 @@ rather than as values, because that is what `ConceptTask` holds; their pickers
 carry the values and their own endpoints (7.6's PATCH, 7.9's PUT), and those
 pickers are `components/task-pickers.tsx`, which lands at S23. The steps are
 7.7's routes and need a diff against the task's current list rather than a
-field copy; that diff is `lib/task-acts.ts`'s `writeSteps` since the
+field copy; that diff is `tasks/task-acts.ts`'s `writeSteps` since the
 loose-ends row (RFC 0005 change control item 58), the card having landed at
 S23 without it. Comments are 9.6's and mount at S26. Each of the rest is
 dropped here rather than half-sent, and `unwritten()` below names what was
@@ -94,7 +94,7 @@ export function useTaskWriter(): TaskPatch | null {
  * Pure and exported so the seam is assertable rather than believed. A field is
  * unwritten when it has a verb of its own that this writer does not perform,
  * and a folder or an assignee named without an id is unwritten too: a name is
- * not an address here, per `lib/task-concept.ts`.
+ * not an address here, per `tasks/task-concept.ts`.
  */
 export function unwritten(fields: Partial<ConceptTask>): (keyof ConceptTask)[] {
   const dropped = writtenElsewhere.filter(
@@ -152,7 +152,7 @@ export function useApiTaskPatch(): TaskPatch {
       if (fields.pulled === true) pull.mutate(taskId)
       if (fields.pulled === false) unpull.mutate(taskId)
       /* 7.7's routes, as the diff this file always said they needed
-         (`lib/task-acts.ts`'s `writeSteps`, item 58). */
+         (`tasks/task-acts.ts`'s `writeSteps`, item 58). */
       if (fields.steps !== undefined) writeSteps(taskId, fields.steps)
 
       const body = conceptPatchToBody(

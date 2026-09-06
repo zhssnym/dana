@@ -33,7 +33,7 @@ import {
   type TaskOpenMode,
   type TaskRowProps,
 } from "./task-row.js"
-import { commentCount } from "../lib/task-model.js"
+import { commentCount } from "../tasks/task-model.js"
 import { cn } from "./ui/utils.js"
 
 export type BoardTask = TaskRowProps & { id: string }

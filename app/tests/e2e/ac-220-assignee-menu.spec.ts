@@ -30,7 +30,7 @@ press, none after the menu closed, and `GET /tasks/:id` still naming the member
 four seconds later. A reload brought the assignment back.
 
 Where it was. `components/task-card.tsx` offered the option as
-`patch(task.id, { assignee: undefined })`, and `lib/task-concept.ts`'s
+`patch(task.id, { assignee: undefined })`, and `tasks/task-concept.ts`'s
 `conceptPatchToBody` wrote `assignee_id` only when `fields.assignee` was not
 `undefined` -- so the clear was indistinguishable from "this field was not
 touched", the body came out empty and no request was made. The comment beside
