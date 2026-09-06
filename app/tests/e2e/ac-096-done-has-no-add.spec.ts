@@ -55,6 +55,7 @@ import { expect, test } from '@playwright/test'
 import {
   ACTION_TIMEOUT_MS,
   floatingAddButton,
+  insertTrigger,
   quickAddControl,
   quickAddInput,
   routesV2,
@@ -92,16 +93,12 @@ test.describe('AC-096: Done carries no add affordance', () => {
     ).toHaveCount(0)
   })
 
-  test('AC-096: the quick-add is on Desk and not on Done', async ({ page }) => {
+  test('AC-096: the compose capture is on Desk and no capture is on Done', async ({ page }) => {
     await page.goto(routesV2.desk)
     await expect(
-      quickAddControl(page).first(),
-      'spec 9.1: a quick-add row sits where a page has a natural landing place, and Desk is a ' +
-        'folder page, whose loose open tasks have the list foot 9.6 gives them. Collapsed by ' +
-        'default to a single control carrying the name that section gives both its states, ' +
-        '"Add a task". This half is the positive control that makes the absence below ' +
-        'discriminate, so it reads the state the page is actually in rather than the text box ' +
-        'no page renders until the control is activated',
+      insertTrigger(page),
+      'spec 9.6: Desk is a folder page, so its always-visible capture point is the composed ' +
+        'page seam whose menu offers Task, Section, and Image',
     ).toBeVisible()
 
     await page.goto(routesV2.done)

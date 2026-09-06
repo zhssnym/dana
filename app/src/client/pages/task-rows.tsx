@@ -182,6 +182,8 @@ export function TaskRows({
   selection,
   selectionChrome,
   onDropAt,
+  onOver,
+  onDragStateChange,
 }: {
   readonly tasks: readonly TaskCard[]
   readonly context: RowContext
@@ -192,6 +194,8 @@ export function TaskRows({
   readonly selection?: ReturnType<typeof useRowSelection>
   readonly selectionChrome?: boolean
   readonly onDropAt?: (taskId: string, point: { x: number; y: number }) => boolean
+  readonly onOver?: (taskId: string, point: { x: number; y: number }) => string | null
+  readonly onDragStateChange?: (dragging: boolean) => void
 }): React.JSX.Element {
   const acts = useListActs(tasks, actions, onAsk, arrangement?.arrangeable ?? false)
   /*
@@ -243,6 +247,8 @@ export function TaskRows({
       selection={selection}
       selectionChrome={selectionChrome}
       onDropAt={onDropAt}
+      onOver={onOver}
+      onDragStateChange={onDragStateChange}
       onMerge={acts.onMerge}
       onBulk={acts.onBulk}
       onMove={acts.onMove}
@@ -475,9 +481,10 @@ export function useTaskRowsSelection(
 ): {
   readonly selection: ReturnType<typeof useRowSelection>
   readonly chrome: React.JSX.Element
+  readonly proposeMerge: (ids: readonly [string, string], titles: readonly [string, string]) => void
 } {
   const acts = useListActs(tasks, actions, onAsk, false)
-  const [pending, setPending] = useState<Extract<PendingAction, { kind: 'folder-for' }> | null>(null)
+  const [pending, setPending] = useState<Extract<PendingAction, { kind: 'folder-for' | 'merge' }> | null>(null)
   const selection = useRowSelection({
     onMove: acts.onMove,
     onNewFolder: (ids) => setPending({ kind: 'folder-for', ids }),
@@ -487,6 +494,9 @@ export function useTaskRowsSelection(
   })
   return {
     selection,
+    proposeMerge: (ids, titles) => {
+      setPending({ kind: 'merge', ids: [...ids], titles: [...titles] })
+    },
     chrome: (
       <>
         {selection.bar}

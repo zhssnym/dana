@@ -43,6 +43,15 @@ interface Draft {
   before: PageItemRef | null
 }
 
+interface TaskDwell {
+  sourceId: string
+  targetId: string
+  since: number
+  armed: boolean
+}
+
+const TASK_FOLDER_DWELL_MS = 1_500
+
 function richText(text: string): ReactNode {
   return linkedParts(text).map((part, index) => part.kind === 'text'
     ? part.value
@@ -106,6 +115,7 @@ export function ComposeCanvas({
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set())
   const [dragging, setDragging] = useState<PageItemRef | null>(null)
   const [dropBefore, setDropBefore] = useState<string | null>(null)
+  const taskDwell = useRef<TaskDwell | null>(null)
   const taskSelection = useTaskRowsSelection(tasks, actions, onAsk)
   const blockById = useMemo(() => new Map(blocks.map((block) => [block.id, block])), [blocks])
   const taskById = useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks])
@@ -349,7 +359,53 @@ export function ComposeCanvas({
     if (dragging !== null) dropItemAt(dragging, index)
   }
 
+  function taskUnderPoint(taskId: string, point: { x: number; y: number }): TaskCard | null {
+    for (const candidate of ordered) {
+      if (candidate.kind !== 'task' || candidate.id === taskId || hidden(candidate)) continue
+      const node = document.querySelector<HTMLElement>(
+        `[data-canvas-node-id="${CSS.escape(candidate.id)}"]`,
+      )
+      if (node === null) continue
+      const rect = node.getBoundingClientRect()
+      if (point.x >= rect.left && point.x <= rect.right && point.y >= rect.top && point.y <= rect.bottom) {
+        return candidate.task
+      }
+    }
+    return null
+  }
+
+  function overTask(taskId: string, point: { x: number; y: number }): string | null {
+    const target = taskUnderPoint(taskId, point)
+    if (target === null) {
+      taskDwell.current = null
+      return null
+    }
+    const current = taskDwell.current
+    if (current === null || current.sourceId !== taskId || current.targetId !== target.id) {
+      taskDwell.current = { sourceId: taskId, targetId: target.id, since: performance.now(), armed: false }
+      return null
+    }
+    if (!current.armed && performance.now() - current.since >= TASK_FOLDER_DWELL_MS) {
+      current.armed = true
+    }
+    return current.armed ? 'Release to make a folder' : null
+  }
+
   function dropTaskAt(taskId: string, point: { x: number; y: number }): boolean {
+    const proposed = taskDwell.current
+    const target = taskUnderPoint(taskId, point)
+    taskDwell.current = null
+    if (
+      proposed?.armed === true &&
+      proposed.sourceId === taskId &&
+      target?.id === proposed.targetId
+    ) {
+      const source = taskById.get(taskId)
+      if (source !== undefined) {
+        taskSelection.proposeMerge([source.id, target.id], [source.title, target.title])
+        return true
+      }
+    }
     if (!arrangeable) return false
     let index = ordered.length
     for (const [candidateIndex, candidate] of ordered.entries()) {
@@ -388,7 +444,11 @@ export function ComposeCanvas({
                 onAsk={onAsk}
                 selection={taskSelection.selection}
                 selectionChrome={false}
-                onDropAt={arrangeable ? dropTaskAt : undefined}
+                onDropAt={dropTaskAt}
+                onOver={overTask}
+                onDragStateChange={(isDragging) => {
+                  if (!isDragging) taskDwell.current = null
+                }}
               />
               {seam(index + 1)}
             </div>
