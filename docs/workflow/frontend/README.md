@@ -62,21 +62,21 @@ A **fresh chat** for each issue. Then:
 
 ## The client, folder by folder
 
-230 files. Some of the names overlap, and the honest reason is that this code was
+236 files. Some of the names overlap, and the honest reason is that this code was
 ported from a prototype and never fully tidied. Where a distinction is real, it is noted.
 Where it is a leftover, that is noted too, so you do not waste time inventing a rule that
 was never there.
 
-**Every count below is `find app/src/client/<folder> -type f | wc -l`, measured 2026-09-04,
+**Every count below is `find app/src/client/<folder> -type f | wc -l`, measured 2026-09-05,
 and it counts the component tests that live beside their components.** Re-measure with that
 command rather than trusting the number: the table read 190 files on 2026-09-01 and the tree
 read 230 three days later.
 
 | Folder | Files | What it is |
 | - | - | - |
-| `components/` | 94 | The reusable pieces. `components/ui/` is the base layer. `components/page/` holds the loading, empty and error screens, which moved there from `states/` in #82. |
-| `lib/` | 36 | Named "helpers", but 18 of its files now read or write the server. Treat it as application logic, not utilities. |
-| `pages/` | 24 | A route's wiring: fetching, state, deciding what to render. |
+| `components/` | 96 | The reusable pieces. `components/ui/` is the base layer. `components/page/` holds the loading, empty and error screens, which moved there from `states/` in #82. |
+| `lib/` | 31 | The shrinking catch-all. Task-owned logic moved to `tasks/` in #86; unrelated settings, folders, shelves, identity, people, history, conversations, icons, drag helpers and Trash remain for later bounded slices. |
+| `pages/` | 27 | A route's wiring: fetching, state, deciding what to render. |
 | `shell/` | 18 | The frame around every page: sidebar, layout, navigation. |
 | `views/` | 16 | The saved and native views (My Day, Planned, and so on). |
 | `api/` | 9 | Every call to the server. See below. |
@@ -88,6 +88,7 @@ read 230 three days later.
 | `pwa/` | 2 | Install prompt and service worker glue. |
 | `observability/` | 1 | The browser's half of 11.12's error reporting. |
 | `styles/` | 1 | `tokens.css`. See below. |
+| `tasks/` | 6 | Task-owned model, wire mapping, actions, writer and expanded-detail read, plus the structural ownership test. These follow the task across every surface rather than belonging to one page or component. |
 
 Four files sit at the root of `app/src/client/` and are in none of those folders: `main.tsx`,
 `Router.tsx`, `routes.ts` and `README.md`.
@@ -162,10 +163,11 @@ pull request until it has one. That variable is ambient here and has changed mor
 so read what the gate record printed rather than what you expected.
 
 **Know what `npm test` mostly proves about your work: that the client compiles.**
-`app/vitest.config.ts:5` sets `environment: 'node'` for the whole suite, and 343 of the 349
-files it collects run under it. **Six opt into `jsdom` and Testing Library per file** and
+`app/vitest.config.ts:5` sets `environment: 'node'` for the whole suite, and 344 of the 351
+files it collects run under it. **Seven opt into `jsdom` and Testing Library per file** and
 are the only cases in the suite that render anything —
 `components/person-face.test.tsx`, `components/folder-cover.test.tsx`,
+`components/page-head.test.tsx`,
 `components/page/BlocksEditor.test.tsx`, `lib/calendar-zoom.test.tsx`,
 `lib/page-identity.test.tsx` and `views/usePlace.test.tsx`.
 Writing more of them is the "Component tests exist now" section below. Everything else your
@@ -173,7 +175,7 @@ screen *does* is covered by the 117 Playwright specs, and nothing else.
 
 *(Corrected 2026-09-04. This said `jsdom` and the `@testing-library` packages were installed
 and **nothing imported them**, which the section further down this same file already
-contradicted. Counts re-measured the same day at 343 of 349 and six, having been written
+contradicted. Counts re-measured the same day at 343 of 350 and seven, having been written
 that morning as 338 of 343 and five: `npx vitest list --filesOnly`,
 `grep -rl "@vitest-environment jsdom" app/src/client`, and
 `find app/tests/e2e -name '*.spec.ts'`. **Re-measure rather than trusting the numbers** —

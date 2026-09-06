@@ -9,7 +9,7 @@ says so with an undo, and the row leaves the page it was on.
 Authored at the loose-ends row under `11-adversarial-test.md`, beside RFC
 0005 change control item 58 (A and B). Ledger L-007 recorded the make-folder
 act as "declared and undrawn"; item 53(e) left the Duplicate handler to the
-close. Both are `lib/task-acts.ts`'s now, performed from the row's own id the
+close. Both are `tasks/task-acts.ts`'s now, performed from the row's own id the
 way Copy link is, so this case reaches them through the menu 9.1 names and
 reads the wire for the endpoints 9.3's sentence promises.
 

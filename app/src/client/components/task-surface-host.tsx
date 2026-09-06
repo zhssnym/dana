@@ -29,7 +29,7 @@ requires a title of 1 to 300 to make one. So a capture opens over a local
 `ConceptTask` seeded from the entry defaults, every chip answered before the
 title rides the create body, and the first non-empty title commit is the
 `POST`. From that moment the surface is on the created id and every further
-edit goes through `lib/task-writer.tsx` like any other. This is the
+edit goes through `tasks/task-writer.tsx` like any other. This is the
 arrangement the retired chip strip already used and stated: "on a creation
 there is no row to write to, so the value goes into the form's own state and
 rides the create body. Both paths set the same form state, so the strip and
@@ -56,9 +56,9 @@ import { useNavigate } from 'react-router'
 
 import { useCreateTask } from '../api/mutations.js'
 import { useFolders, useMe } from '../api/queries.js'
-import { conceptPatchToBody } from '../lib/task-concept.js'
-import type { ConceptTask } from '../lib/task-model.js'
-import { TaskWriter } from '../lib/task-writer.js'
+import { conceptPatchToBody } from '../tasks/task-concept.js'
+import type { ConceptTask } from '../tasks/task-model.js'
+import { TaskWriter } from '../tasks/task-writer.js'
 import {
   surfacePreferenceFor,
   useTaskOpenPreference,
@@ -273,7 +273,7 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
   /*
   The write path, forked once and only once.
 
-  An existing task reports through `lib/task-writer.tsx`, which is the one way
+  An existing task reports through `tasks/task-writer.tsx`, which is the one way
   an edit leaves a card and which fans a `Partial<ConceptTask>` out to the
   endpoints 7.6, 7.7, 7.8 and 7.9 put each field on. A capture reports into
   the draft, and the title is the field that ends the fork: the moment it

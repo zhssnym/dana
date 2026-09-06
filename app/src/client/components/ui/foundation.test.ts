@@ -45,13 +45,12 @@ outside the glob and `components/` inside it, so the rule met its thirty
 spellings for the first time and read as a fresh violation by somebody who had
 not written one.
 
-**The other two rules in this file still read `components/` and `lib/`**,
-through `S8_SCOPE` below. That is a decision rather than an oversight and each
-carries its own note giving the count it would meet and why #148 did not take
-it. The older plan recorded here, that scope widens package by package as S9
-to S13 replace the v1 markup and every list is empty when S13 closes, is what
-did not happen: the packages landed and the scope did not move with them,
-which is the whole of #148.
+**The other two rules in this file read `components/`, `lib/`, and the
+task-owned `tasks/` directory added by #86**, through `S8_SCOPE` below. #86
+extends the existing boundary with the modules it moved out of `lib/`; a path
+move must not make those modules invisible to a rule that covered them before.
+The remaining folders stay outside for the measured reasons each rule carries
+below.
 */
 import { describe, expect, test } from 'vitest'
 
@@ -75,12 +74,13 @@ const sources = Object.fromEntries(
 )
 const files = Object.keys(sources).sort()
 
-/* What the glob read until 2026-09-04, and what the two rules that did not
-   widen with #148 still read. Named rather than inlined so that a rule living
-   inside the old boundary has to say so at its call site, and so that retiring
-   it is one edit rather than a search. */
+/* What the glob read until 2026-09-04, plus #86's task-owned successor to five
+   modules formerly under `lib/`. Named rather than inlined so that a rule
+   living inside this boundary has to say so at its call site, and so that
+   retiring it is one edit rather than a search. */
 const S8_SCOPE = files.filter(
-  (path) => path.startsWith('components/') || path.startsWith('lib/'),
+  (path) =>
+    path.startsWith('components/') || path.startsWith('lib/') || path.startsWith('tasks/'),
 )
 
 describe('the icon family is one decision in one file (DES-125)', () => {
@@ -99,7 +99,8 @@ describe('the icon family is one decision in one file (DES-125)', () => {
   ]
 
   /*
-  **This rule did not widen with #148 and still reads `S8_SCOPE`.** The count
+  **This rule did not widen with #148 and still reads `S8_SCOPE`.** #86 only
+  keeps the task modules it moved from `lib/` inside that same scope. The count
   it would meet, measured over the whole client on 2026-09-04: eight more
   files import lucide per icon, `pages/DonePage.tsx`, `pages/FolderPage.tsx`,
   `pages/FolderSharingPanel.tsx`, `pages/InviteGate.tsx`,
@@ -208,7 +209,7 @@ describe('the ramp is spelled where the ramp lives (11.4)', () => {
        file that stops spelling the ramp must leave the list in the same change
        that fixes it, and a file may join only by being markup that already
        shipped — never because the rule was inconvenient. Cheapest first for
-       whoever takes a bite: `pages/NotFoundPage.tsx`, `pages/page-heading.tsx`,
+       whoever takes a bite: `pages/NotFoundPage.tsx`,
        `screens/important-screen.tsx` and all three `parts/` files carry exactly
        one spelling each. */
     'pages/AllPage.tsx',
@@ -219,7 +220,6 @@ describe('the ramp is spelled where the ramp lives (11.4)', () => {
     'pages/LegalPage.tsx',
     'pages/NotFoundPage.tsx',
     'pages/PeoplePage.tsx',
-    'pages/page-heading.tsx',
     'parts/identity-colors.ts',
     'parts/person-tint.ts',
     'parts/presenters.ts',
@@ -272,7 +272,8 @@ describe('the ramp is spelled where the ramp lives (11.4)', () => {
 
   /*
   **This rule did not widen with #148 either, and the reason is specific
-  rather than the one above.** Over the whole client on 2026-09-04 exactly one
+  rather than the one above.** #86 only keeps the task modules it moved from
+  `lib/` inside the existing scope. Over the whole client on 2026-09-04 exactly one
   further file writes a six-digit hex: `parts/identity-colors.ts`, eleven of
   them. #41 records that the two palettes in `parts/` are there *because* this
   rule does not reach that folder, and the owner's comment on that issue

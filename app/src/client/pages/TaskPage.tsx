@@ -31,7 +31,7 @@ import {
   DELETE_TASK_CONFIRM,
   keepLabel,
 } from '../components/ui/copy.js'
-import { TaskWriter } from '../lib/task-writer.js'
+import { TaskWriter } from '../tasks/task-writer.js'
 import { useRowActions } from '../parts/useRowActions.js'
 import { paths } from '../routes.js'
 import { PageBody } from '../components/page/PageStates.js'

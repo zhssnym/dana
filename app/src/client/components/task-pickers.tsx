@@ -29,7 +29,7 @@ import { Check as CheckIcon } from "../lib/icons.js"
    next. */
 import { Calendar, sameDay } from "./ui/calendar.js"
 /*
-**Seam, S23: a picker writes its own field, and `lib/task-writer.tsx` said
+**Seam, S23: a picker writes its own field, and `tasks/task-writer.tsx` said
 so before this file arrived.**
 
 That module's header names exactly what it does not send and why: "a due
@@ -66,13 +66,13 @@ shipping a half-built rule is worse than shipping none, so the repeat stays
 a value the card holds and section 13 carries what is owed.
 */
 import { useDeleteReminder, usePutReminder, useUpdateTask } from "../api/mutations.js"
-import { isoDay } from "../lib/task-model.js"
+import { isoDay } from "../tasks/task-model.js"
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover.js"
 import { formatTime, useTimeFormat } from "../lib/time-format.js"
 /*
 **Seam, S23: `LAB_TODAY` becomes `today()`.** The prototype froze a Monday in
 August 2026 so its screens and its calendar would agree with each other, and
-RFC 0004's close forbids a fixture crossing in any form. `lib/task-model.ts`
+RFC 0004's close forbids a fixture crossing in any form. `tasks/task-model.ts`
 carries the replacement and the reason it is a function rather than a
 constant: a constant is evaluated at module load, so a browser left open
 across midnight goes on offering yesterday as "Today" in every picker on the
@@ -94,7 +94,7 @@ import {
   shortDate,
   today,
   type ConceptTask,
-} from "../lib/task-model.js"
+} from "../tasks/task-model.js"
 import { cn } from "./ui/utils.js"
 
 /*
@@ -690,7 +690,7 @@ export function ReminderPanel({ task, patch }: PanelProps) {
   const due = task.due ? parseDueLabel(task.due.label) : null
   const at = task.reminder?.match(/(\d{1,2}:\d{2})/)?.[1] ?? null
 
-  /* The words a reminder is stored as, which `lib/task-model.ts`'s
+  /* The words a reminder is stored as, which `tasks/task-model.ts`'s
      `reminderChipValue` reads back and re-clocks for the viewer. The day is
      the task's own, 4.8's time_of_day mode being a time on the due date. */
   const wordsFor = (time: string) =>

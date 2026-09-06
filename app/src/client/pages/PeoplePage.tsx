@@ -27,6 +27,7 @@ import { Mail, UserPlus, UsersRound } from 'lucide-react'
 
 import { useCancelInvite, useCreateInvite, useRemoveConnection, useResendInvite } from '../api/mutations.js'
 import { useConnections, useSentInvites } from '../api/queries.js'
+import { PageHeading } from '../components/page-head.js'
 import { Avatar, AvatarFallback } from '../components/ui/avatar.js'
 import { Button } from '../components/ui/button.js'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog.js'
@@ -34,7 +35,6 @@ import { Input } from '../components/ui/input.js'
 import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip.js'
 import { formatCompactDate, formatRelativeDay } from '../parts/format-dates.js'
 import { presenterToday, initialsOf } from '../parts/presenters.js'
-import { PageHeading } from './page-heading.js'
 import { PageBody } from '../components/page/PageStates.js'
 import { PersonFace } from '../components/person-face.js'
 
@@ -77,7 +77,7 @@ export function PeoplePage(): React.JSX.Element {
       <PageHeading
         icon={UsersRound}
         title="People"
-        subtitle="Connections for quick folder sharing"
+        description="Connections for quick folder sharing"
       />
 
       <div className="max-w-[820px] space-y-8">

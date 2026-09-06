@@ -49,7 +49,7 @@ import { measuredRatio } from './page-images.js'
 import { formatAgo } from '../parts/format-dates.js'
 import { initialsOf } from '../parts/presenters.js'
 
-import type { Attachment, ConceptComment } from './task-model.js'
+import type { Attachment, ConceptComment } from '../tasks/task-model.js'
 
 /** The prototype's `Person`, which is what a `Face` takes. */
 export interface ThreadPerson {

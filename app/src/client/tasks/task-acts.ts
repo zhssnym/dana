@@ -53,9 +53,9 @@ import { getPlain, mutateApi, requestTimezone } from '../api/http.js'
 import { queryClient, writeFailureMessage } from '../api/queryClient.js'
 import { pushUndo, undoLabel } from '../shell/undo.js'
 import { showToast } from '../state/toasts.js'
-import { defaultFolderDescription } from './folder-description.js'
-import { folderLibrary } from './folder-library.js'
-import { taskLink } from './nav-links.js'
+import { defaultFolderDescription } from '../lib/folder-description.js'
+import { folderLibrary } from '../lib/folder-library.js'
+import { taskLink } from '../lib/nav-links.js'
 import type { ConceptStep } from './task-model.js'
 
 /**
@@ -240,7 +240,7 @@ function plural(count: number, noun: string): string {
 /**
  * The card's step list, written as the 7.7 calls that would produce it.
  *
- * `lib/task-writer.tsx` has said since S22 that steps "need a diff against
+ * `tasks/task-writer.tsx` has said since S22 that steps "need a diff against
  * the task's current list rather than a field copy, which is the card's own
  * act and lands with the card"; the card landed at S23 and nothing wrote
  * them, so a step ticked in an open card was ticked until the next refetch

@@ -64,7 +64,7 @@ resting open.**
 import { useState } from 'react'
 import { useSearchParams } from 'react-router'
 
-import { isoDay, parseIsoDate } from '../lib/task-model.js'
+import { isoDay, parseIsoDate } from '../tasks/task-model.js'
 
 import { Calendar } from '../components/ui/calendar.js'
 import { Input } from '../components/ui/input.js'

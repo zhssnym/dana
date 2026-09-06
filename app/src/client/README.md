@@ -17,6 +17,7 @@ provisional.
 | Path | What it is | Whose |
 | - | - | - |
 | `api/` | The API client, the query layer, the query keys, the 8.3 policy | Frontend Architect |
+| `tasks/` | Task-owned application logic shared by every task surface: the concept model, wire mapping, actions, writer and expanded-detail read | Frontend Architect |
 | `state/` | Connectivity, the toast bus, the toast region | Frontend Architect |
 | `components/page/` | Shared page UI: identity controls, blocks, loading, empty and error states, and named regions | Frontend Architect |
 | `shell/` | The global chrome of 9.1 and the overlay seam | Frontend Architect |
@@ -31,6 +32,14 @@ provisional.
 | `components/ui/` | The component library of 11.4 | Component and Design System |
 | `styles/tokens.css` | The single token file of 11.4 | Component and Design System |
 | the calendar, task form and search overlay directories | 9.3, 9.5's calendar, 9.9 | Complex Interaction |
+
+`tasks/` was added by issue #86 because these modules follow a task across a
+row, card, dialog, panel, tab and task page; putting them beside any one surface
+would give that surface ownership it does not have, while leaving them in
+`lib/` called feature behaviour a generic helper. `row-detail.ts` belongs in
+the same directory because its only caller is the task row and its only answer
+is the `ConceptTask` for an opened task. Folder lookup, navigation, time-format
+preference, people and conversation modules remain outside this boundary.
 
 `parts/` is not a component library and must not become one. It was the shell
 session's holding pen for the least that let a page render, and it did shrink
@@ -958,8 +967,11 @@ Three files are new or changed beyond the six pages.
   six already disagree about the abandon confirm's wording, which is one of the
   ten copy faults RFC 0002 measured; here the sentence is written once, as one
   text run in the dialog's title, with 9.1's "Continue" and "Cancel" beneath it.
-- `pages/page-heading.tsx` is the glyph, name and subtitle every one of his six
-  screens opens with. The subtitles are his own words and section 9 writes none.
+- `pages/page-heading.tsx` was the glyph, name and subtitle every one of his six
+  screens opened with. Issue #84 retired that last duplicate into
+  `components/page-head.tsx`; People uses its fixed, no-cover variation while
+  stored places keep the full identity head. The subtitles remain his own words
+  and section 9 writes none.
 - `components/page/PageStates.tsx` and `components/page/PageSection.tsx` are restyled onto his
   `SkeletonList`, `InlineError` and `Empty`, and onto his group heading. The
   rule they existed for did not move: a page renders rows and declares its
