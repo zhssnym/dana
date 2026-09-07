@@ -1,9 +1,9 @@
 /*
 AC-176: given a folder page, then its open tasks render in one region named
 "All open tasks" holding the folder's dated and undated open tasks together
-in Q7's order, a filter offers all open tasks, only those with a due date and
-only those without, and the Completed region stays collapsed with its control
-reporting that state.
+in the folder's durable composed order, a filter offers all open tasks, only
+those with a due date and only those without while preserving that order, and
+the Completed region stays collapsed with its control reporting that state.
 
 Appended to section 12 by RFC 0002, Accepted 2026-08-13. The sentence above
 is that RFC's Append unit transcribed unchanged, and it becomes section 12's
@@ -17,13 +17,12 @@ lists asks a person to know which half a task is in before they can find it.
 The filter is what the two sections were doing that the single list would
 otherwise lose.
 
-**The order is asserted because merging two arrays is where a merge goes
-wrong.** Q7 numbers its sections, Scheduled first with Q3's order and
-Unscheduled second with Q2's, and a client concatenating them the other way,
-or interleaving them by updated_at, renders every row this criterion names
-and none of them where Q7 puts it. AC-058 asserts the two arrays on the wire
-and is untouched by this change, so nothing but this reads what the page did
-with them.
+**The order changed with #184's owner-approved compose-first page.** Q7 still
+orders its two response arrays and AC-058 still pins that wire contract, but
+the folder page now projects those task payloads through `GET /page.items`,
+the canonical mixed order shared with prose, images, and Sections. The rows
+below are deliberately created out of Q7 order so a client that falls back to
+the response arrays instead of the composed item references fails here.
 
 **The filter is asserted by what it removes, not by what it shows.** A
 control that renders three options and filters nothing satisfies any
@@ -48,10 +47,10 @@ not named: match the description, and escalate the gap rather than invent a
 string. Routed to the Integration Steward with the rest of this package's
 naming gaps.
 
-Spec: 9.6 (the single open list, the filter, the collapsed Completed
+Spec: 9.6 (the composed open list, the filter, the collapsed Completed
 section), 9.1 (the sections table, which now reads "Folder header", "All open
 tasks", "Completed" and "Sharing panel" for this page; the collapsible rule),
-6 Q7 (the order the merged list keeps), 8.11.
+4.17 (the durable mixed order), 8.11.
 */
 import { expect, test } from '@playwright/test'
 import type { Locator, Page } from '@playwright/test'
@@ -76,7 +75,7 @@ test.use({ timezoneId: 'UTC', actionTimeout: ACTION_TIMEOUT_MS })
 test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 
 const FOLDER = 'ac-176 one open list'
-/** Two dated rows and two undated ones, so both halves of the merge have order. */
+/** Two dated rows and two undated ones, interleaved in composed order. */
 const SOON = 'ac-176 dated soon'
 const LATER = 'ac-176 dated later'
 const UNDATED_A = 'ac-176 undated alpha'
@@ -179,8 +178,8 @@ test.beforeEach(async ({ page }) => {
   ).toBe(201)
   folderId = ((await created.json()) as { id: string }).id
 
-  // Created out of Q7's order so that a page rendering them in creation
-  // order, or in the order 7.4 happens to answer with, fails the order case.
+  // Created out of Q7's date grouping so that a page rendering the Q7 arrays
+  // instead of the persisted composed sequence fails the order case.
   await createTask(page, { title: UNDATED_B, folder_id: folderId })
   await createTask(page, { title: LATER, folder_id: folderId, due_date: seedDate(9) })
   await createTask(page, { title: UNDATED_A, folder_id: folderId })
@@ -190,19 +189,16 @@ test.beforeEach(async ({ page }) => {
 })
 
 test.describe('AC-176: the folder page carries one open list', () => {
-  test('AC-176: dated and undated open tasks render together in Q7\'s order', async ({
+  test('AC-176: dated and undated open tasks render together in composed order', async ({
     page,
   }) => {
     await page.goto(routes.folder(folderId))
 
     expect(
       mine(await openTitles(page)),
-      'spec 9.6: one open list holding every open task in the folder, dated and undated ' +
-        "together, ordered per Q7. Q7 numbers its sections, Scheduled first with Q3's order " +
-        "and Unscheduled second with Q2's, so the two dated rows come first by due date and " +
-        'the undated ones follow. A client that concatenates the two arrays the other way, or ' +
-        'interleaves them, renders every row here and none of them where Q7 puts it',
-    ).toEqual([SOON, LATER, UNDATED_B, UNDATED_A])  /* Q2 ascending since the polish round of 2026-08-30 */
+      'spec 9.6 and 4.17: one open list holds every open task in the persisted composed ' +
+        'sequence, so due dates do not pull rows away from the prose and Sections around them',
+    ).toEqual([UNDATED_B, LATER, UNDATED_A, SOON])
 
     await expect(
       regionOf(page, 'Scheduled'),
@@ -231,7 +227,7 @@ test.describe('AC-176: the folder page carries one open list', () => {
         'undated ones. Asserted as what it removes as well as what it keeps, because a control ' +
         'that renders three options and filters nothing passes any assertion that only reads ' +
         'the rows it left behind',
-    ).toEqual([SOON, LATER])
+    ).toEqual([LATER, SOON])
 
     await chooseFilter(
       page,
@@ -251,9 +247,9 @@ test.describe('AC-176: the folder page carries one open list', () => {
     )
     expect(
       mine(await openTitles(page)),
-      'spec 9.6: choosing all open tasks restores the whole list in Q7\'s order, the filter ' +
+      'spec 9.6: choosing all open tasks restores the whole durable page order, the filter ' +
         'being a question the person asks rather than a shape the page imposes',
-    ).toEqual([SOON, LATER, UNDATED_B, UNDATED_A])  /* Q2 ascending since the polish round of 2026-08-30 */
+    ).toEqual([UNDATED_B, LATER, UNDATED_A, SOON])
   })
 
   test('AC-176: the Done region stays collapsed and says so', async ({ page }) => {

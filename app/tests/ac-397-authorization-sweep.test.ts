@@ -590,6 +590,25 @@ const TABLE = new Map<string, Row>([
     },
   ],
   [
+    'POST /api/v1/folders/:id/page/actions',
+    {
+      attempt: (fx) => ({
+        path: `/folders/${fx.folderId}/page/actions`,
+        body: {
+          action: 'insert_task',
+          title: 'cannot place this',
+          section_block_id: null,
+          after: null,
+          before: null,
+        },
+      }),
+      stranger: {
+        expected: 404,
+        rule: '4.17 and 7.16: a composed-page action is a folder-page edit, so a non-member cannot name the folder or anything on its page',
+      },
+    },
+  ],
+  [
     'GET /api/v1/folders/:id/comments',
     {
       attempt: (fx) => ({ path: `/folders/${fx.folderId}/comments` }),
@@ -1207,8 +1226,8 @@ describe('AC-397 every id-bearing route refuses a stranger', () => {
     */
     expect(
       routes.length,
-      `the walker found ${String(routes.length)} routes carrying a path parameter and there were 60 on 2026-09-04. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means an id-bearing route was added, and it owes this table a row saying what a stranger gets when they ask for somebody else's`,
-    ).toBe(60)
+      `the walker found ${String(routes.length)} routes carrying a path parameter and there were 61 after issue #184 added the composed-page action route. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means an id-bearing route was added, and it owes this table a row saying what a stranger gets when they ask for somebody else's`,
+    ).toBe(61)
 
     const missing = routes.filter((route) => !TABLE.has(route))
     expect(

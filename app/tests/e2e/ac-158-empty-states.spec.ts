@@ -56,6 +56,7 @@ import {
   ACTION_TIMEOUT_MS,
   chooseView,
   emptyState,
+  insertTrigger,
   routesV2,
   signIn,
   TEST_TIMEOUT_MS,
@@ -107,10 +108,9 @@ test.describe('AC-158: the empty state of every page', () => {
 
     await page.goto(routesV2.folder(inbox.id))
     await expect(
-      page.getByText(emptyState.folder),
-      'spec 6 Q7: sections 1 and 2 are absent when empty, with this single line when both ' +
-        'are. It is the only empty state of the eight that replaces two sections rather than ' +
-        'filling one',
+      insertTrigger(page),
+      'spec 9.6: an empty folder is still a writable page, so its composed insertion seam is ' +
+        'the empty affordance instead of legacy task-only empty copy',
     ).toBeVisible()
 
     await page.keyboard.press('Control+k')

@@ -62,6 +62,8 @@ import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
 import { accessOf } from './folders.js'
+import { keyBetween } from './fractional-index.js'
+import { positionAtSectionEnd, seededItems } from './page-order.js'
 
 /* ------------------------------------------------------------------ *
  * Serialization
@@ -110,11 +112,12 @@ export interface TaskAccess {
    * frozen 7.6 makes the condition of its tz rule. The series_id itself is
    * not here: the guard that needs it reads it under its own lock. */
   recurrenceRule: string | null
+  sectionBlockId: string | null
 }
 
 const TASK_ACCESS_COLUMNS = sql`t.id, t.folder_id, t.title, t.status,
        t.assignee_id, ${DUE_DATE} AS due_date, ${DUE_TIME} AS due_time,
-       t.recurrence_rule`
+       t.recurrence_rule, t.section_block_id`
 
 function taskAccessFromRow(row: Record<string, unknown>): TaskAccess {
   return {
@@ -126,6 +129,7 @@ function taskAccessFromRow(row: Record<string, unknown>): TaskAccess {
     dueDate: nullableString(row.due_date),
     dueTime: nullableString(row.due_time),
     recurrenceRule: nullableString(row.recurrence_rule),
+    sectionBlockId: nullableString(row.section_block_id),
   }
 }
 
@@ -162,9 +166,10 @@ callers need it, for reasons of one shape:
   the cap is advice rather than a limit.
 
 Decide from a row, then write: the lock is what keeps the decision true at the
-write. Only the task row is locked, never the membership row it joins, and
-both callers take it as their first statement, so two of them queue rather
-than deadlock.
+write. The ordinary PATCH and step callers take the task as their first lock.
+A PATCH that changes folder/Section placement first joins #184's shared folder
+lock, as its own implementation records, then takes this task lock; page
+actions use that same folder-before-task order.
 */
 async function lockedTask(
   tx: Executor,
@@ -614,15 +619,24 @@ lets the column defaults mint every other id here. The rule's dependency on a
 due_date is answered by the body alone (4.5 backs it with a CHECK) and the
 schema refuses it before this function is reached.
 */
-export async function createTask(
-  db: Db,
+export async function createTaskIn(
+  tx: Executor,
   viewerId: string,
   body: PostTasksBody,
+  options: { readonly pagePosition?: string } = {},
 ): Promise<CreateTaskResult> {
-  return inTransaction(db, async (tx) => {
     const folderId = body.folder_id ?? (await inboxOf(tx, viewerId))
     const access = await accessOf(tx, viewerId, folderId)
     if (access === null) return { kind: 'folder_not_found' }
+
+    /* #184 gives every folder one mixed ordering domain. Lock it before
+       validating a Section or choosing an append position, so a concurrent
+       page action cannot delete/move that boundary between the read and the
+       task insert. Re-taking this lock from an enclosing page action is safe
+       inside the same transaction. */
+    await tx.execute(
+      sql`SELECT 1 FROM folders WHERE id = ${folderId}::uuid FOR UPDATE`,
+    )
 
     const members = await folderMemberIds(tx, folderId)
     const onlyMember = members.length === 1 ? members[0] : undefined
@@ -645,17 +659,81 @@ export async function createTask(
       return { kind: 'section_not_here' }
     }
 
+    /* #184: every newly created task joins the folder's composed page. A
+       page action supplies the exact key it computed between its validated
+       neighbours. Existing create surfaces append at the foot, which leaves
+       all non-document task-list orders unchanged because they do not read
+       this column. The folder lock serializes two concurrent appends. */
+    let pagePosition = options.pagePosition
+    if (pagePosition === undefined) {
+      const bounds = sectionId === null
+        ? await rowsOf(
+            tx,
+            sql`WITH first_section AS (
+                  SELECT min(page_position) AS upper_key
+                    FROM page_blocks
+                   WHERE folder_id = ${folderId}::uuid
+                     AND kind = 'section' AND page_position IS NOT NULL
+                ), all_items AS (
+                  SELECT page_position FROM page_blocks
+                   WHERE folder_id = ${folderId}::uuid AND page_position IS NOT NULL
+                  UNION ALL
+                  SELECT page_position FROM tasks
+                   WHERE folder_id = ${folderId}::uuid AND page_position IS NOT NULL
+                )
+                SELECT max(i.page_position) FILTER (
+                         WHERE f.upper_key IS NULL OR i.page_position < f.upper_key
+                       ) AS lower_key,
+                       f.upper_key
+                  FROM all_items i CROSS JOIN first_section f
+                 GROUP BY f.upper_key`,
+          )
+        : await rowsOf(
+            tx,
+            sql`WITH section_items AS (
+                  SELECT page_position FROM page_blocks
+                   WHERE folder_id = ${folderId}::uuid
+                     AND page_position IS NOT NULL
+                     AND (id = ${sectionId}::uuid OR section_block_id = ${sectionId}::uuid)
+                  UNION ALL
+                  SELECT page_position FROM tasks
+                   WHERE folder_id = ${folderId}::uuid
+                     AND page_position IS NOT NULL
+                     AND section_block_id = ${sectionId}::uuid
+                ), all_items AS (
+                  SELECT page_position FROM page_blocks
+                   WHERE folder_id = ${folderId}::uuid AND page_position IS NOT NULL
+                  UNION ALL
+                  SELECT page_position FROM tasks
+                   WHERE folder_id = ${folderId}::uuid AND page_position IS NOT NULL
+                ), lower_bound AS (
+                  SELECT max(page_position) AS lower_key FROM section_items
+                )
+                SELECT l.lower_key,
+                       min(i.page_position) FILTER (WHERE i.page_position > l.lower_key) AS upper_key
+                  FROM lower_bound l CROSS JOIN all_items i
+                 GROUP BY l.lower_key`,
+          )
+      const bound = bounds[0]
+      pagePosition = keyBetween(
+        bound?.lower_key == null ? null : String(bound.lower_key),
+        bound?.upper_key == null ? null : String(bound.upper_key),
+      )
+    }
+
     const rule = body.recurrence_rule ?? null
     const seriesId = rule === null ? sql`NULL` : sql`gen_random_uuid()`
     const inserted = await rowsOf(
       tx,
       sql`INSERT INTO tasks (folder_id, title, notes, important, due_date,
                              due_time, recurrence_rule, series_id,
-                             assignee_id, created_by, section_block_id)
+                             assignee_id, created_by, section_block_id,
+                             page_position)
           VALUES (${folderId}::uuid, ${body.title}, ${body.notes ?? null},
                   ${body.important ?? false}, ${body.due_date ?? null}::date,
                   ${body.due_time ?? null}::time, ${rule}, ${seriesId},
-                  ${assigneeId}::uuid, ${viewerId}::uuid, ${sectionId})
+                  ${assigneeId}::uuid, ${viewerId}::uuid, ${sectionId},
+                  ${pagePosition})
           RETURNING id`,
     )
     const taskId = String(inserted[0]?.id)
@@ -708,7 +786,14 @@ export async function createTask(
     })
 
     return { kind: 'created', task: await viewOrFail(tx, viewerId, taskId) }
-  })
+}
+
+export async function createTask(
+  db: Db,
+  viewerId: string,
+  body: PostTasksBody,
+): Promise<CreateTaskResult> {
+  return inTransaction(db, (tx) => createTaskIn(tx, viewerId, body))
 }
 
 /* ------------------------------------------------------------------ *
@@ -801,8 +886,31 @@ export async function patchTask(
   patch: PatchTaskBody,
 ): Promise<PatchTaskResult> {
   return inTransaction(db, async (tx) => {
+    /* A folder/Section PATCH participates in #184's folder ordering domain.
+       Resolve only enough to acquire every affected folder row first, in a
+       stable order, then lock and re-read the task. Page actions use the same
+       folder-before-task order, so a board drop and a canvas drag queue rather
+       than deadlock while deciding one mixed position. */
+    const structural = patch.folder_id !== undefined || patch.section_block_id !== undefined
+    const preview = structural ? await accessibleTask(tx, viewerId, taskId) : null
+    if (structural && preview === null) return { kind: 'not_found' }
+    if (preview !== null) {
+      const folderIds = [
+        ...new Set([
+          preview.folderId,
+          ...(patch.folder_id === undefined ? [] : [patch.folder_id]),
+        ]),
+      ].sort()
+      for (const lockedFolderId of folderIds) {
+        await tx.execute(sql`SELECT 1 FROM folders
+                              WHERE id = ${lockedFolderId}::uuid FOR UPDATE`)
+      }
+    }
     const current = await lockedTask(tx, viewerId, taskId)
     if (current === null) return { kind: 'not_found' }
+    if (preview !== null && current.folderId !== preview.folderId) {
+      return { kind: 'not_found' }
+    }
 
     const target =
       patch.folder_id !== undefined && patch.folder_id !== current.folderId
@@ -851,6 +959,20 @@ export async function patchTask(
       sectionId = patch.section_block_id
     } else if (moving) {
       sectionId = null
+    }
+
+    const effectiveSectionId = sectionId === undefined ? current.sectionBlockId : sectionId
+    const repositioning = moving || effectiveSectionId !== current.sectionBlockId
+    let pagePosition: string | undefined
+    if (repositioning) {
+      const pageItems = await seededItems(tx, folderId)
+      const placed = positionAtSectionEnd(
+        pageItems,
+        moving ? null : { kind: 'task', id: taskId },
+        effectiveSectionId,
+      )
+      if (placed === null) return { kind: 'section_not_here' }
+      pagePosition = placed
     }
 
     const clearing = patch.due_date === null
@@ -910,6 +1032,9 @@ export async function patchTask(
     }
     if (sectionId !== undefined) {
       sets.push(sql`section_block_id = ${sectionId}`)
+    }
+    if (pagePosition !== undefined) {
+      sets.push(sql`page_position = ${pagePosition}`)
     }
     if (clearing) {
       sets.push(sql`due_date = NULL`)

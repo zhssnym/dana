@@ -30,7 +30,6 @@ import {
   Rocket,
   X,
 } from '../lib/icons.js'
-import { showToast } from '../state/toasts.js'
 import { cn } from '../components/ui/utils.js'
 import {
   linkedParts,
@@ -45,6 +44,7 @@ interface ParagraphNode {
   readonly id: string
   readonly kind: 'paragraph'
   readonly text: string
+  readonly sectionId: string | null
 }
 
 interface SectionNode {
@@ -59,6 +59,7 @@ interface ImageNode {
   readonly src: string
   readonly caption: string
   readonly local: boolean
+  readonly sectionId: string | null
 }
 
 interface CanvasTask extends TaskRowProps {
@@ -69,6 +70,7 @@ interface TaskNode {
   readonly id: string
   readonly kind: 'task'
   readonly task: CanvasTask
+  readonly sectionId: string | null
 }
 
 type CanvasNode = ParagraphNode | SectionNode | ImageNode | TaskNode
@@ -112,16 +114,17 @@ const INITIAL_NODES: readonly CanvasNode[] = [
     id: 'canvas-opening',
     kind: 'paragraph',
     text: 'Bring the launch story, the work, and the references together on one calm page.',
+    sectionId: null,
   },
   { id: OPENING_SECTION, kind: 'section', title: 'Next actions' },
   {
     id: 'canvas-section-opening',
     kind: 'paragraph',
     text: 'Keep these concrete enough that anybody joining the project knows what to do next.',
+    sectionId: OPENING_SECTION,
   },
-  { id: NARRATIVE_TASK.id, kind: 'task', task: NARRATIVE_TASK },
-  { id: ASSETS_TASK.id, kind: 'task', task: ASSETS_TASK },
-  { id: 'canvas-empty', kind: 'paragraph', text: '' },
+  { id: NARRATIVE_TASK.id, kind: 'task', task: NARRATIVE_TASK, sectionId: OPENING_SECTION },
+  { id: ASSETS_TASK.id, kind: 'task', task: ASSETS_TASK, sectionId: OPENING_SECTION },
 ]
 
 function makeId(prefix: string): string {
@@ -169,13 +172,9 @@ function richText(text: string): ReactNode {
       ))
 }
 
-function Video({ target }: { readonly target: VideoTarget }): React.JSX.Element {
+function Video({ target }: { readonly target: VideoTarget }): React.JSX.Element | null {
   if (target.kind === 'direct') {
-    return (
-      <video controls preload="metadata" className="mt-3 aspect-video w-full rounded-lg bg-muted">
-        <source src={target.src} />
-      </video>
-    )
+    return null
   }
   return (
     <iframe
@@ -191,14 +190,12 @@ function Video({ target }: { readonly target: VideoTarget }): React.JSX.Element 
 
 function InsertMenu({
   open,
-  empty,
   section,
   onOpenChange,
   onCreateTask,
   onChoose,
 }: {
   readonly open: boolean
-  readonly empty: boolean
   readonly section: string
   readonly onOpenChange: (open: boolean) => void
   readonly onCreateTask: () => void
@@ -212,12 +209,7 @@ function InsertMenu({
             variant="ghost"
             size="icon-sm"
             aria-label="Insert into page"
-            className={cn(
-              'rounded-full text-muted-foreground transition-opacity',
-              empty
-                ? 'opacity-70 hover:opacity-100'
-                : 'opacity-0 group-hover/line:opacity-70 group-focus-within/line:opacity-70 data-[popup-open]:opacity-100 [@media(hover:none)]:opacity-60',
-            )}
+            className="rounded-full text-muted-foreground opacity-70 transition-opacity hover:opacity-100 data-[popup-open]:opacity-100"
           />
         }
       >
@@ -273,7 +265,6 @@ function ParagraphLine({
   active,
   menuOpen,
   section,
-  autoFocus,
   onActivate,
   onDeactivate,
   onMenuChange,
@@ -282,15 +273,12 @@ function ParagraphLine({
   onCommit,
   onSplit,
   onPromoteToTask,
-  onBackspaceEmpty,
-  onDeleteToEmpty,
   onImage,
 }: {
   readonly node: ParagraphNode
   readonly active: boolean
   readonly menuOpen: boolean
   readonly section: string
-  readonly autoFocus: boolean
   readonly onActivate: () => void
   readonly onDeactivate: (text: string) => void
   readonly onMenuChange: (open: boolean) => void
@@ -299,12 +287,10 @@ function ParagraphLine({
   readonly onCommit: (text: string) => void
   readonly onSplit: (before: string, after: string) => void
   readonly onPromoteToTask: (text: string) => void
-  readonly onBackspaceEmpty: () => void
-  readonly onDeleteToEmpty: () => void
   readonly onImage: (file: File) => void
 }): React.JSX.Element {
+  const line = useRef<HTMLDivElement | null>(null)
   const editor = useRef<HTMLDivElement | null>(null)
-  const didAutoFocus = useRef(false)
   const [empty, setEmpty] = useState(node.text === '')
   const video = linksIn(node.text).map(videoTarget).find((target) => target !== null) ?? null
 
@@ -314,16 +300,6 @@ function ParagraphLine({
     target.focus()
     placeCaretAtEnd(target)
   }, [active])
-
-  useEffect(() => {
-    if (
-      !autoFocus ||
-      didAutoFocus.current ||
-      !window.matchMedia('(pointer: fine)').matches
-    ) return
-    didAutoFocus.current = true
-    onActivate()
-  }, [autoFocus, onActivate])
 
   function imageFromClipboard(event: ClipboardEvent<HTMLDivElement>): boolean {
     const plain = event.clipboardData.getData('text/plain').trim()
@@ -345,18 +321,19 @@ function ParagraphLine({
   }
 
   return (
-    <div className="group/line relative -ml-8 flex min-h-8 items-start pl-0">
+    <div ref={line} className="group/line relative -ml-8 flex items-start pl-0">
       <div className="flex h-8 w-8 shrink-0 items-center justify-center">
-        <InsertMenu
-          open={menuOpen}
-          empty={node.text === ''}
-          section={section}
-          onOpenChange={onMenuChange}
-          onCreateTask={onCreateTask}
-          onChoose={onChoose}
-        />
+        {active ? (
+          <InsertMenu
+            open={menuOpen}
+            section={section}
+            onOpenChange={onMenuChange}
+            onCreateTask={onCreateTask}
+            onChoose={onChoose}
+          />
+        ) : null}
       </div>
-      <div className="min-w-0 flex-1 py-1">
+      <div className="min-w-0 flex-1 py-1 transition-[padding] duration-150">
         {active ? (
           <div
             ref={editor}
@@ -377,15 +354,10 @@ function ParagraphLine({
                 onMenuChange(true)
                 return
               }
-              const inputType = (event.nativeEvent as InputEvent).inputType
-              if (
-                text === '' &&
-                (inputType === 'deleteContentBackward' || inputType === 'deleteContentForward')
-              ) {
-                onDeleteToEmpty()
-              }
             }}
             onBlur={(event) => {
+              if (menuOpen) return
+              if (line.current?.contains(event.relatedTarget as Node | null) === true) return
               const text = textOf(event.currentTarget)
               onCommit(text)
               onDeactivate(text)
@@ -396,11 +368,6 @@ function ParagraphLine({
                 event.preventDefault()
                 onCommit(textOf(event.currentTarget))
                 event.currentTarget.blur()
-                return
-              }
-              if (event.key === 'Backspace' && textOf(event.currentTarget) === '') {
-                event.preventDefault()
-                onBackspaceEmpty()
                 return
               }
               if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
@@ -431,18 +398,24 @@ function ParagraphLine({
           </div>
         ) : (
           <p
-            className="min-h-6 max-w-2xl cursor-text whitespace-pre-wrap text-sm leading-6 text-foreground"
+            className="max-w-2xl cursor-text whitespace-pre-wrap text-sm leading-6 text-foreground"
             onClick={(event: MouseEvent<HTMLParagraphElement>) => {
               if ((event.target as HTMLElement).closest('a') === null) onActivate()
             }}
           >
-            {node.text === '' ? <span className="text-muted-foreground">Do or write something…</span> : richText(node.text)}
+            {richText(node.text)}
           </p>
         )}
-        {node.text === '' && empty ? (
-          <span className="pointer-events-none absolute right-0 top-2 hidden items-center gap-1.5 text-[11px] leading-4 text-muted-foreground/70 sm:inline-flex">
-            <kbd className="font-inherit">Ctrl/⌘ Enter</kbd>
-            <span>creates a task</span>
+        {active ? (
+          <span
+            aria-hidden={!empty}
+            className={cn(
+              'pointer-events-none block overflow-hidden text-[11px] leading-4 text-muted-foreground/70 transition-[max-height,opacity,transform] duration-150',
+              empty ? 'max-h-4 opacity-100' : 'max-h-0 -translate-y-1 opacity-0',
+            )}
+          >
+            <kbd className="font-inherit">Ctrl/⌘ ↵</kbd>
+            <span className="ml-2">Make this a task</span>
           </span>
         ) : null}
         {!active && video !== null ? <Video target={video} /> : null}
@@ -664,22 +637,33 @@ function CanvasTaskRow({
   )
 }
 
-function WritingGap({ onWrite }: { readonly onWrite: () => void }): React.JSX.Element {
+function InsertionSeam({
+  onWrite,
+  onStructure,
+}: {
+  readonly onWrite: () => void
+  readonly onStructure: () => void
+}): React.JSX.Element {
   return (
-    /* The twelve-pixel hit target overlaps the ordinary row gap. Its wrapper
-       has no height, so discoverability never changes the list's rhythm. */
-    <div className="relative h-0">
+    /* The hit target overlaps the ordinary content gap. Its wrapper has no
+       height, so a writable position never changes the page's rhythm until
+       somebody activates it. The plus is a sibling of the writing target:
+       choosing structure must not also start prose. */
+    <div className="group/seam relative h-0">
       <button
         type="button"
-        aria-label="Write between tasks"
-        onClick={onWrite}
-        className="group/gap absolute -top-1.5 z-20 -ml-8 flex h-3 w-[calc(100%+2rem)] items-center rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        aria-label="Insert into page"
+        onClick={onStructure}
+        className="absolute -top-3 left-[-2rem] z-30 flex size-6 items-center justify-center rounded-full text-muted-foreground opacity-0 outline-none transition-[opacity,background-color] group-hover/seam:opacity-50 hover:bg-muted hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <span className="flex w-8 justify-center text-muted-foreground opacity-0 transition-opacity group-hover/gap:opacity-60 group-focus-visible/gap:opacity-80">
-          <Plus className="size-3" strokeWidth={1.75} aria-hidden="true" />
-        </span>
-        <span className="h-px flex-1 bg-border opacity-0 transition-opacity group-hover/gap:opacity-50 group-focus-visible/gap:opacity-70" />
+        <Plus className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
       </button>
+      <button
+        type="button"
+        aria-label="Write here"
+        onClick={onWrite}
+        className="absolute -top-3 z-20 h-6 w-full cursor-text rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      />
     </div>
   )
 }
@@ -695,7 +679,6 @@ export function ComposerExplorationPage(): React.JSX.Element {
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set())
   const canvas = useRef<HTMLDivElement | null>(null)
   const localUrls = useRef<string[]>([])
-  const finalParagraph = nodes.at(-1)
   const taskNodes = nodes.filter((node): node is TaskNode => node.kind === 'task')
   const completedTasks = taskNodes.filter((node) => node.task.status === 'completed').length
 
@@ -703,11 +686,9 @@ export function ComposerExplorationPage(): React.JSX.Element {
     for (const url of localUrls.current) URL.revokeObjectURL(url)
   }, [])
 
-  function sectionAt(index: number): { id: string; label: string } {
-    for (let cursor = index; cursor >= 0; cursor -= 1) {
-      const candidate = nodes[cursor]
-      if (candidate?.kind === 'section') return { id: candidate.id, label: candidate.title }
-    }
+  function sectionOf(node: ParagraphNode): { id: string; label: string } {
+    const section = nodes.find((candidate) => candidate.kind === 'section' && candidate.id === node.sectionId)
+    if (section?.kind === 'section') return { id: section.id, label: section.title }
     return { id: 'loose', label: 'No section' }
   }
 
@@ -736,7 +717,12 @@ export function ComposerExplorationPage(): React.JSX.Element {
       setActive(null)
       return
     }
-    const draft = { id: makeId('draft'), kind: 'paragraph' as const, text: '' }
+    const draft = {
+      id: makeId('draft'),
+      kind: 'paragraph' as const,
+      text: '',
+      sectionId: node.sectionId,
+    }
     insertAfter(node.id, [draft])
     setMode({ nodeId: draft.id, kind })
     setActive(null)
@@ -754,46 +740,35 @@ export function ComposerExplorationPage(): React.JSX.Element {
 
   function createTaskAt(node: ParagraphNode, title: string): void {
     const task = taskFrom(title.trim() === '' ? 'New task' : title.trim())
-    const taskNode: TaskNode = { id: task.id, kind: 'task', task }
-    const next: ParagraphNode = { id: makeId('paragraph'), kind: 'paragraph', text: '' }
-    const currentIndex = nodes.findIndex((candidate) => candidate.id === node.id)
-    const currentNext = nodes[currentIndex + 1]
-    const focusId = currentNext?.kind === 'paragraph' && currentNext.text === ''
-      ? currentNext.id
-      : next.id
-    setNodes((current) => {
-      const index = current.findIndex((candidate) => candidate.id === node.id)
-      if (index < 0) return current
-      const existingNext = current[index + 1]
-      const hasEmptyNext = existingNext?.kind === 'paragraph' && existingNext.text === ''
-      const addition = hasEmptyNext ? [taskNode] : [taskNode, next]
-      if (node.text === '' || title.trim() !== '') {
-        return [...current.slice(0, index), ...addition, ...current.slice(index + 1)]
-      }
-      return [...current.slice(0, index + 1), ...addition, ...current.slice(index + 1)]
-    })
+    const taskNode: TaskNode = { id: task.id, kind: 'task', task, sectionId: node.sectionId }
+    setNodes((current) => current.map((candidate) => candidate.id === node.id ? taskNode : candidate))
     setActive(null)
     setMenu(null)
     setMode(null)
     if (title.trim() === '') setAutoEditTask(task.id)
-    else focusSoon(focusId)
   }
 
   function removeParagraph(id: string): void {
-    const index = nodes.findIndex((node) => node.id === id)
-    if (index < 0) return
-    const nextParagraph = nodes.slice(index + 1).find((node) => node.kind === 'paragraph')
-    const previousParagraph = [...nodes.slice(0, index)].reverse().find((node) => node.kind === 'paragraph')
     setNodes((current) => current.filter((node) => node.id !== id))
     setActive(null)
-    const target = nextParagraph ?? previousParagraph
-    if (target !== undefined) focusSoon(target.id)
+    setMenu(null)
   }
 
-  function insertWritingAfter(id: string): void {
-    const paragraph: ParagraphNode = { id: makeId('paragraph'), kind: 'paragraph', text: '' }
-    insertAfter(id, [paragraph])
-    focusSoon(paragraph.id)
+  function insertWritingAt(index: number, openMenu = false, sectionId = sectionIdAtSeam(index)): void {
+    const paragraph: ParagraphNode = {
+      id: makeId('paragraph'),
+      kind: 'paragraph',
+      text: '',
+      sectionId,
+    }
+    setNodes((current) => [
+      ...current.slice(0, index),
+      paragraph,
+      ...current.slice(index),
+    ])
+    setMode(null)
+    setActive(paragraph.id)
+    setMenu(openMenu ? paragraph.id : null)
   }
 
   function addImage(nodeId: string, source: File | string): void {
@@ -801,8 +776,15 @@ export function ComposerExplorationPage(): React.JSX.Element {
     const src = local ? URL.createObjectURL(source) : source
     if (local) localUrls.current.push(src)
     const caption = local ? source.name.replace(/\.[^.]+$/u, '') : ''
-    const next = { id: makeId('paragraph'), kind: 'paragraph' as const, text: '' }
-    replaceNode(nodeId, { id: nodeId, kind: 'image', src, caption, local })
+    const sourceNode = nodes.find((node) => node.id === nodeId)
+    const sectionId = sourceNode?.kind === 'paragraph' ? sourceNode.sectionId : null
+    const next = {
+      id: makeId('paragraph'),
+      kind: 'paragraph' as const,
+      text: '',
+      sectionId,
+    }
+    replaceNode(nodeId, { id: nodeId, kind: 'image', src, caption, local, sectionId })
     insertAfter(nodeId, [next])
     setMode(null)
     focusSoon(next.id)
@@ -836,12 +818,37 @@ export function ComposerExplorationPage(): React.JSX.Element {
     return true
   }
 
-  function hiddenByCollapsedSection(index: number): boolean {
-    for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
-      const candidate = nodes[cursor]
-      if (candidate?.kind === 'section') return collapsed.has(candidate.id)
-    }
-    return false
+  function hiddenByCollapsedSection(node: Exclude<CanvasNode, SectionNode>): boolean {
+    return node.sectionId !== null && collapsed.has(node.sectionId)
+  }
+
+  function sectionIdAtSeam(index: number): string | null {
+    const before = nodes[index - 1]
+    if (before?.kind === 'section') return before.id
+    return before?.sectionId ?? null
+  }
+
+  function afterSection(index: number): number {
+    let cursor = index + 1
+    while (cursor < nodes.length && nodes[cursor]?.kind !== 'section') cursor += 1
+    return cursor
+  }
+
+  function seamAt(index: number, sectionId = sectionIdAtSeam(index)): React.JSX.Element {
+    const before = nodes[index - 1]
+    const after = nodes[index]
+    const occupied = active ?? mode?.nodeId ?? null
+    if (before?.id === occupied || after?.id === occupied) return <></>
+    return (
+      <InsertionSeam
+        onWrite={() => {
+          insertWritingAt(index, false, sectionId)
+        }}
+        onStructure={() => {
+          insertWritingAt(index, true, sectionId)
+        }}
+      />
+    )
   }
 
   return (
@@ -877,8 +884,9 @@ export function ComposerExplorationPage(): React.JSX.Element {
       </header>
 
       <div ref={canvas} className="mt-7 pl-8">
+        {seamAt(0)}
         {nodes.map((node, index) => {
-          if (node.kind !== 'section' && hiddenByCollapsedSection(index)) return null
+          if (node.kind !== 'section' && hiddenByCollapsedSection(node)) return null
           const marker = dropBefore === node.id ? (
             <span
               aria-hidden="true"
@@ -901,6 +909,9 @@ export function ComposerExplorationPage(): React.JSX.Element {
                     })
                   }}
                 />
+                {collapsed.has(node.id)
+                  ? seamAt(afterSection(index), null)
+                  : seamAt(index + 1, node.id)}
               </div>
             )
           }
@@ -909,11 +920,11 @@ export function ComposerExplorationPage(): React.JSX.Element {
               <div key={node.id} data-canvas-node-id={node.id} className="relative">
                 {marker}
                 <Picture node={node} />
+                {seamAt(index + 1)}
               </div>
             )
           }
           if (node.kind === 'task') {
-            const nextNode = nodes[index + 1]
             return (
               <div key={node.id} data-canvas-node-id={node.id} className="relative">
                 {marker}
@@ -940,14 +951,12 @@ export function ComposerExplorationPage(): React.JSX.Element {
                     if (!dragging) setDropBefore(null)
                   }}
                 />
-                {nextNode?.kind === 'task' ? (
-                  <WritingGap onWrite={() => { insertWritingAfter(node.id) }} />
-                ) : null}
+                {seamAt(index + 1)}
               </div>
             )
           }
 
-          const context = sectionAt(index)
+          const context = sectionOf(node)
           if (mode?.nodeId === node.id && mode.kind === 'section') {
             return (
               <div key={node.id} data-canvas-node-id={node.id} className="relative">
@@ -955,7 +964,12 @@ export function ComposerExplorationPage(): React.JSX.Element {
                 <SectionDraft
                   initial={node.text}
                   onSave={(title) => {
-                    const paragraph = { id: makeId('paragraph'), kind: 'paragraph' as const, text: '' }
+                    const paragraph = {
+                      id: makeId('paragraph'),
+                      kind: 'paragraph' as const,
+                      text: '',
+                      sectionId: node.id,
+                    }
                     replaceNode(node.id, { id: node.id, kind: 'section', title })
                     insertAfter(node.id, [paragraph])
                     setMode(null)
@@ -966,6 +980,7 @@ export function ComposerExplorationPage(): React.JSX.Element {
                     focusSoon(node.id)
                   }}
                 />
+                {seamAt(index + 1)}
               </div>
             )
           }
@@ -982,6 +997,7 @@ export function ComposerExplorationPage(): React.JSX.Element {
                     focusSoon(node.id)
                   }}
                 />
+                {seamAt(index + 1)}
               </div>
             )
           }
@@ -993,13 +1009,12 @@ export function ComposerExplorationPage(): React.JSX.Element {
                 active={active === node.id}
                 menuOpen={menu === node.id}
                 section={context.label}
-                autoFocus={node.id === finalParagraph?.id && node.text === '' && active === null && mode === null}
                 onActivate={() => {
                   setActive(node.id)
                 }}
                 onDeactivate={(text) => {
                   setActive((current) => current === node.id ? null : current)
-                  if (text === '' && node.id !== finalParagraph?.id) removeParagraph(node.id)
+                  if (text === '') removeParagraph(node.id)
                 }}
                 onMenuChange={(open) => {
                   setMenu(open ? node.id : null)
@@ -1015,25 +1030,24 @@ export function ComposerExplorationPage(): React.JSX.Element {
                 }}
                 onSplit={(before, after) => {
                   if (before === '' && after === '') return
-                  const next = { id: makeId('paragraph'), kind: 'paragraph' as const, text: after }
+                  const next = {
+                    id: makeId('paragraph'),
+                    kind: 'paragraph' as const,
+                    text: after,
+                    sectionId: node.sectionId,
+                  }
                   replaceNode(node.id, { ...node, text: before })
                   insertAfter(node.id, [next])
                   focusSoon(next.id)
                 }}
                 onPromoteToTask={(text) => {
                   createTaskAt(node, text)
-                  showToast(text.trim() === '' ? 'Task ready to name' : 'Paragraph became a task')
-                }}
-                onBackspaceEmpty={() => {
-                  if (node.id !== finalParagraph?.id) removeParagraph(node.id)
-                }}
-                onDeleteToEmpty={() => {
-                  if (node.id !== finalParagraph?.id) removeParagraph(node.id)
                 }}
                 onImage={(file) => {
                   addImage(node.id, file)
                 }}
               />
+              {seamAt(index + 1)}
             </div>
           )
         })}

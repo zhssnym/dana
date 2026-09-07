@@ -95,7 +95,7 @@ import {
 import { duplicateFolderResponse } from '../../shared/folders.js'
 import type { DuplicateFolderResponse } from '../../shared/folders.js'
 import { getPageResponse } from '../../shared/pages.js'
-import type { GetPageResponse, PutPageBody } from '../../shared/pages.js'
+import type { GetPageResponse, PageActionBody, PutPageBody } from '../../shared/pages.js'
 import { shelf } from '../../shared/shelves.js'
 import type { PatchShelfBody, PostShelvesBody, Shelf } from '../../shared/shelves.js'
 
@@ -580,6 +580,21 @@ export function usePutFolderPage(): UseMutationResult<
   return useMutation({
     mutationFn: ({ id, body }: PutPageVariables) =>
       mutateApi(getPageResponse, { method: 'PUT', path: `/folders/${id}/page`, body }),
+  })
+}
+
+export function useFolderPageAction(): UseMutationResult<
+  GetPageResponse,
+  Error,
+  { readonly id: string; readonly body: PageActionBody }
+> {
+  return useMutation({
+    mutationFn: ({ id, body }) =>
+      mutateApi(getPageResponse, {
+        method: 'POST',
+        path: `/folders/${id}/page/actions`,
+        body,
+      }),
   })
 }
 
