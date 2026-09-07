@@ -36,7 +36,13 @@ import { useQueryClient } from '@tanstack/react-query'
 
 import { useCreateFolder, useOrderTask, usePullIntoMyDay, useUpdateTask } from '../api/mutations.js'
 import { useFolders, useMe } from '../api/queries.js'
-import { TaskList, TaskRow } from '../components/task-row.js'
+import {
+  PendingPanel,
+  TaskList,
+  TaskRow,
+  useRowSelection,
+} from '../components/task-row.js'
+import type { PendingAction } from '../components/task-row.js'
 import { ConfirmDialog as UiConfirmDialog } from '../components/ui/ConfirmDialog.js'
 import {
   ABANDON_CONFIRM,
@@ -173,6 +179,11 @@ export function TaskRows({
   actions,
   onAsk,
   arrangement,
+  selection,
+  selectionChrome,
+  onDropAt,
+  onOver,
+  onDragStateChange,
 }: {
   readonly tasks: readonly TaskCard[]
   readonly context: RowContext
@@ -180,6 +191,11 @@ export function TaskRows({
   /** Raised for the two overflow entries section 9 puts a confirmation on. */
   readonly onAsk: (message: string, run: () => void, labels?: ConfirmLabels) => void
   readonly arrangement?: ListArrangement
+  readonly selection?: ReturnType<typeof useRowSelection>
+  readonly selectionChrome?: boolean
+  readonly onDropAt?: (taskId: string, point: { x: number; y: number }) => boolean
+  readonly onOver?: (taskId: string, point: { x: number; y: number }) => string | null
+  readonly onDragStateChange?: (dragging: boolean) => void
 }): React.JSX.Element {
   const acts = useListActs(tasks, actions, onAsk, arrangement?.arrangeable ?? false)
   /*
@@ -228,6 +244,11 @@ export function TaskRows({
          a slot for one: the drag lifts and the hold still makes a folder, and
          the rows it passes stay where they are. */
       reorderable={arrangement?.arrangeable ?? false}
+      selection={selection}
+      selectionChrome={selectionChrome}
+      onDropAt={onDropAt}
+      onOver={onOver}
+      onDragStateChange={onDragStateChange}
       onMerge={acts.onMerge}
       onBulk={acts.onBulk}
       onMove={acts.onMove}
@@ -447,6 +468,50 @@ function useListActs(
         { confirmLabel: DELETE_CONFIRM_LABEL, cancelLabel: keepLabel(going.length) },
       )
     },
+  }
+}
+
+/** One selection controller for the task rows separated by prose, pictures,
+ * and Section headings on a composed page. The existing bulk acts still run
+ * over real task rows and their existing endpoints. */
+export function useTaskRowsSelection(
+  tasks: readonly TaskCard[],
+  actions: RowActions,
+  onAsk: (message: string, run: () => void, labels?: ConfirmLabels) => void,
+): {
+  readonly selection: ReturnType<typeof useRowSelection>
+  readonly chrome: React.JSX.Element
+  readonly proposeMerge: (ids: readonly [string, string], titles: readonly [string, string]) => void
+} {
+  const acts = useListActs(tasks, actions, onAsk, false)
+  const [pending, setPending] = useState<Extract<PendingAction, { kind: 'folder-for' | 'merge' }> | null>(null)
+  const selection = useRowSelection({
+    onMove: acts.onMove,
+    onNewFolder: (ids) => setPending({ kind: 'folder-for', ids }),
+    onBulk: acts.onBulk,
+    onDuplicate: acts.onDuplicate,
+    onDelete: acts.onDelete,
+  })
+  return {
+    selection,
+    proposeMerge: (ids, titles) => {
+      setPending({ kind: 'merge', ids: [...ids], titles: [...titles] })
+    },
+    chrome: (
+      <>
+        {selection.bar}
+        {pending ? (
+          <PendingPanel
+            pending={pending}
+            onConfirm={(name) => {
+              acts.onMerge(pending.ids, name)
+              setPending(null)
+            }}
+            onCancel={() => setPending(null)}
+          />
+        ) : null}
+      </>
+    ),
   }
 }
 

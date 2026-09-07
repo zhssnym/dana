@@ -13,6 +13,8 @@ function paragraph(id: string, position: number, text: string): PageBlock {
     id,
     kind: 'paragraph',
     position,
+    page_position: null,
+    section_block_id: null,
     text,
     file_id: null,
     file_width: null,

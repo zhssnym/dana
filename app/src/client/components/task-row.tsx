@@ -3194,9 +3194,16 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
   onTaskDelete,
   renderRow,
   className,
+  selection: sharedSelection,
+  selectionChrome = true,
   ...perRow
 }: {
   tasks: T[]
+  /** A composed page renders task rows between other block kinds. Sharing
+   * this controller keeps one selection across those separate list islands. */
+  selection?: ReturnType<typeof useRowSelection>
+  /** The composed page draws the shared bar once above all of its islands. */
+  selectionChrome?: boolean
   /*
   **Seam, S23a: the list's arrangement is provisional until the screen says
   otherwise.** The prototype's `onReorder` is a notification and the list
@@ -3373,7 +3380,7 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
      on a tap. See the comment where `listProps` is built. */
   const openers = useRef(new Map<string, () => void>())
 
-  const selection = useRowSelection({
+  const localSelection = useRowSelection({
     onMove: (ids, folder) => onMove?.(ids, folder),
     onNewFolder: (ids) => setPending({ kind: "folder-for", ids }),
     onBulk: (ids, fields) => onBulk?.(ids, fields),
@@ -3382,6 +3389,7 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
     onDuplicate,
     onDelete: (ids) => onDelete?.(ids),
   })
+  const selection = sharedSelection ?? localSelection
   cancelPress.current = selection.clearPress
   /*
   Seam, S23a: a press that became a selection is not a tap.
@@ -3434,7 +3442,7 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
        `listitem` needs a `list` to be an item of, and 9.1's roles table
        fixes both ends of that. See the seam over `ExpandShell` above. */
     <div role="list" className={cn("flex flex-col gap-0.5", className)}>
-      {selection.bar}
+      {selectionChrome ? selection.bar : null}
       {pending ? (
         <PendingPanel
           pending={pending}

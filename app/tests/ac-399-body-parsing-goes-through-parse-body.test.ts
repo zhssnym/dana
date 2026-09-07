@@ -318,8 +318,8 @@ describe('AC-399 no route parses a request body except through parseBody', () =>
        shrinking inside it. */
     expect(
       sites.length,
-      `parseBody is called from ${String(sites.length)} places and there were 28 on 2026-09-04. Fewer means a route stopped using it, and the sweep above is what says whether it went back to req.body; more means a body-taking route was added, and this number moves with it in the same change`,
-    ).toBe(28)
+      `parseBody is called from ${String(sites.length)} places and there were 29 after issue #184 added the composed-page action route. Fewer means a route stopped using it, and the sweep above is what says whether it went back to req.body; more means a body-taking route was added, and this number moves with it in the same change`,
+    ).toBe(29)
     expect(
       [...modules].sort().length,
       `${String(modules.size)} modules read a request body and there were 10 on 2026-09-04: ${[...modules].sort().join(', ')}`,

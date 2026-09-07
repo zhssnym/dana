@@ -15,15 +15,15 @@ groups next to it.
 marked rather than removed. A gap in the run is ordinary, and it is not a free number by
 default, so read this list before spending one.
 
-- **383 criteria carry their text in the files below, and 381 of them are live.** Every
-  number from AC-001 to AC-414 not named below is one of them. Re-derived on 2026-09-04 by
+- **390 criteria carry their text in the files below, and 388 of them are live.** Every
+  number from AC-001 to AC-421 not named below is one of them. Re-derived on 2026-09-06 by
   the **wave-4** integration merge, which was the last of that night, by **counting the
   `- AC-` bullets across the files** rather than by adding up what three branches each
   believed: 383, with no number appearing twice. Two independent checks agree, which is why
   the number is stated rather than hedged: the per-file rows in the table below **sum to
-  exactly 383**, which they cannot do if one number is written twice, and the arithmetic
-  gives the same — 414 numbers in the run, less AC-229 and the thirty free ones named below,
-  is 383. The wave-3 sentence this replaces read 381 for its own night and was then moved to
+  exactly 390**, which they cannot do if one number is written twice, and the arithmetic
+  gives the same — 421 numbers in the run, less AC-229 and the thirty free ones named below,
+  is 390. The wave-3 sentence this replaces read 381 for its own night and was then moved to
   382 by issue #167; both were right when written, and neither was re-derived, which is what
   this bullet exists to do.
 
@@ -31,7 +31,7 @@ default, so read this list before spending one.
   oversight.** AC-122 and AC-123 were retired by issue #113 and are *marked* rather than
   removed, as the sentence above this list requires, so each still carries its text as a
   `- AC-` bullet and the count that counts bullets counts them. The number of criteria a
-  build must satisfy is therefore 381, and the two numbers are given separately because they
+  build must satisfy is therefore 388, and the two numbers are given separately because they
   answer different questions: 383 is what is written down, 381 is what is asserted.
 
   **Six per-file rows moved with it and that is the point of counting rather than adding.**
@@ -69,11 +69,12 @@ default, so read this list before spending one.
   authorization sweep and 398 taken beside it (issue #74); 399 was handed to issue #104 and
   400 taken unassigned beside it. Neither branch could see the other's, which is why each
   wrote a different "next number" and why this list, rather than either bullet, is where the
-  answer is. **401 to 414 are spent but for 403, and the next number to take from the tail is
-  415.** That sentence is the wave-3 integration's, written as the last merge of the night of
+  answer is. **401 to 421 are spent but for 403, and the next number to take from the tail is
+  422.** Through 414 that sentence is the wave-3 integration's, written as the last merge of the night of
   2026-09-04 and derived from the files: 401 and 402 went to the browser-suite branch, 404
   and 405 to the settings-and-zoom one, 406 to 408 to the covers one, 411 to the images one,
-  and 409, 410 and 412 to the settings-bundle one. **Each branch's own bullet below names a
+  and 409, 410 and 412 to the settings-bundle one. Issue #184 then took AC-415 through
+  AC-421 as one contained production boundary; the next tail number is AC-422. **Each branch's own bullet below names a
   different tail — 401, then 403 — and none of them is wrong**, each being true of the list
   its author could read; this sentence is what the five reconcile to, and it is the reason
   the rule sends you here rather than to a bullet. The reservation language is left standing
@@ -354,7 +355,7 @@ ordering: a group that dies becomes a tombstone row in the table below, and a ne
 
 | | File | Covers |
 | - | - | - |
-| 12.1 | [`12.1-schema-and-migrations.md`](12.1-schema-and-migrations.md) | 12.1 Schema and migrations, 7 criteria |
+| 12.1 | [`12.1-schema-and-migrations.md`](12.1-schema-and-migrations.md) | 12.1 Schema and migrations, 8 criteria |
 | 12.2 | [`12.2-sign-in-and-sessions.md`](12.2-sign-in-and-sessions.md) | 12.2 Sign-in and sessions, 18 criteria |
 | 12.3 | [`12.3-the-account.md`](12.3-the-account.md) | 12.3 The account: profile, settings, deletion, 27 criteria |
 | 12.4 | [`12.4-folders-and-membership.md`](12.4-folders-and-membership.md) | 12.4 Folders and membership, 20 criteria |
@@ -362,7 +363,7 @@ ordering: a group that dies becomes a tombstone row in the table below, and a ne
 | 12.6 | [`12.6-tasks-steps-and-the-task-surface.md`](12.6-tasks-steps-and-the-task-surface.md) | 12.6 Tasks, steps and the task surface, 39 criteria |
 | 12.7 | [`12.7-today.md`](12.7-today.md) | 12.7 Today, 10 criteria |
 | 12.8 | [`12.8-views-filters-and-search.md`](12.8-views-filters-and-search.md) | 12.8 Views, filters and search, 33 criteria |
-| 12.9 | [`12.9-pages-blocks-and-covers.md`](12.9-pages-blocks-and-covers.md) | 12.9 Pages, blocks and covers, 26 criteria |
+| 12.9 | [`12.9-pages-blocks-and-covers.md`](12.9-pages-blocks-and-covers.md) | 12.9 Pages, blocks and covers, 30 criteria |
 | 12.10 | [`12.10-shelves-and-the-library.md`](12.10-shelves-and-the-library.md) | 12.10 Shelves and the Library, 13 criteria |
 | 12.11 | [`12.11-recurrence.md`](12.11-recurrence.md) | 12.11 Recurrence, 15 criteria |
 | 12.12 | [`12.12-reminders.md`](12.12-reminders.md) | 12.12 Reminders, 24 criteria |
@@ -372,8 +373,8 @@ ordering: a group that dies becomes a tombstone row in the table below, and a ne
 | 12.16 | [`12.16-duplicating-and-importing.md`](12.16-duplicating-and-importing.md) | 12.16 Duplicating, importing and workflow files, 11 criteria |
 | 12.17 | [`12.17-first-run-and-the-sample-workspace.md`](12.17-first-run-and-the-sample-workspace.md) | 12.17 First run and the sample workspace, 9 criteria |
 | 12.18 | [`12.18-the-application-shell.md`](12.18-the-application-shell.md) | 12.18 The application shell, 16 criteria |
-| 12.19 | [`12.19-drag-drop-selection-and-undo.md`](12.19-drag-drop-selection-and-undo.md) | 12.19 Drag, drop, selection and undo, 12 criteria |
+| 12.19 | [`12.19-drag-drop-selection-and-undo.md`](12.19-drag-drop-selection-and-undo.md) | 12.19 Drag, drop, selection and undo, 13 criteria |
 | 12.20 | [`12.20-deletion-trash-and-restore.md`](12.20-deletion-trash-and-restore.md) | 12.20 Deletion, Trash and restore, 17 criteria |
 | 12.21 | [`12.21-transactional-email.md`](12.21-transactional-email.md) | 12.21 Transactional email, 6 criteria |
 | 12.22 | [`12.22-the-public-surface.md`](12.22-the-public-surface.md) | 12.22 The public surface: landing, legal, install, offline, 7 criteria |
-| 12.23 | [`12.23-security-limits-and-rate-limits.md`](12.23-security-limits-and-rate-limits.md) | 12.23 Security, limits and rate limits, 20 criteria |
+| 12.23 | [`12.23-security-limits-and-rate-limits.md`](12.23-security-limits-and-rate-limits.md) | 12.23 Security, limits and rate limits, 21 criteria |

@@ -16,7 +16,6 @@ import {
   ACTION_TIMEOUT_MS,
   caseTitle,
   clickControl,
-  createFolder,
   openQuickAdd,
   quickAddControl,
   quickAddInput,
@@ -36,10 +35,13 @@ test('AC-353: Open full form carries the typed title, and Escape keeps a filled 
   page,
 }) => {
   await signIn(page, seedSubs.hassan)
-  const folder = await createFolder(page, caseTitle('AC-353 quick-add'))
-  await page.goto(routesV2.folder(folder.id))
+  /* #184 makes a folder's list (including Desk) the compose-first canvas;
+     the generic inline quick-add contract remains on the task places.
+     Exercise it there so this criterion keeps testing its own behavior
+     without requiring the retired second editor on a folder page. */
+  await page.goto(routesV2.anytime)
 
-  const input = await openQuickAdd(page, 'the folder page carries the inline quick-add')
+  const input = await openQuickAdd(page, 'Anytime carries the inline quick-add')
   await input.fill('half typed')
   await input.press('Escape')
   await expect(input, 'Escape on a filled box leaves the words where they are').toHaveValue(

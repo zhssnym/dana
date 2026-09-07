@@ -1663,6 +1663,36 @@ export async function insertBlock(
   )
 }
 
+/** Creates a real task at a composed folder page seam, then gives it the
+ * requested title through the existing row rename control. The insert menu
+ * intentionally creates first: unlike legacy Quick Add, Task is a structural
+ * canvas item and therefore has a durable position before it is named. */
+export async function captureTaskFromCanvas(
+  page: Page,
+  title: string,
+  at: 'first' | 'last' = 'last',
+): Promise<void> {
+  const inserted = watchCommit(page)
+  await insertBlock(page, 'Task', { at })
+  await inserted.settled('the canvas Task item is stored before its row is renamed')
+
+  const row = taskRow(page, 'New task').last()
+  await expect(row, 'the Task insert creates one real task row in the chosen seam').toBeVisible()
+  await clickControl(
+    row.getByRole('button', { name: 'New task', exact: true }),
+    'the existing task title control renames the inserted real task',
+  )
+  /* `row` is located by rendered text. Once rename starts that text becomes
+     an input value, not a text descendant, so the filtered locator would
+     make the row disappear from its own next assertion. */
+  const input = page.getByRole('textbox', { name: 'Task title', exact: true }).last()
+  await fillControl(input, title, 'the title editor holds the requested task name')
+  const renamed = watchCommit(page)
+  await input.blur()
+  await renamed.settled('the task rename reaches the server before its defaults are read')
+  await expect(taskRow(page, title), 'the renamed task remains at its composed position').toBeVisible()
+}
+
 /* ------------------------------------------------------------------ *
  * Reading what the browser computed
  * ------------------------------------------------------------------ */

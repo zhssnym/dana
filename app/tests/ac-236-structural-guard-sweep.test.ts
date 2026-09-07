@@ -270,8 +270,8 @@ describe('AC-236 every mutating route is behind the whole chain', () => {
     // that replaced it.
     expect(
       routes.length,
-      `the walker found ${String(routes.length)} mutating routes and there were 67 on 2026-09-04. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means a route was added, and this number moves with it in the same change`,
-    ).toBe(67)
+      `the walker found ${String(routes.length)} mutating routes and there were 68 after issue #184 added the composed-page action route. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means a route was added, and this number moves with it in the same change`,
+    ).toBe(68)
 
     const failures: string[] = []
     const jsonBody = {

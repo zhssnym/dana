@@ -187,6 +187,7 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
       { name: 'tasks_completed_by_check', columns: ['completed_by', 'status'] },
       { name: 'tasks_due_time_requires_date_check', columns: ['due_date', 'due_time'] },
       { name: 'tasks_notes_length_check', columns: ['notes'] },
+      { name: 'tasks_page_position_format_check', columns: ['page_position'] },
       { name: 'tasks_position_format_check', columns: ['position'] },
       { name: 'tasks_recurrence_requires_date_check', columns: ['due_date', 'recurrence_rule'] },
       { name: 'tasks_recurrence_requires_series_check', columns: ['recurrence_rule', 'series_id'] },
@@ -260,6 +261,12 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
         unique: false,
         columns: ['section_block_id'],
         partial: true,
+      },
+      {
+        name: 'tasks_folder_page_position_idx',
+        unique: false,
+        columns: ['folder_id', 'page_position', 'id'],
+        partial: false,
       },
       { name: 'tasks_deleted_at_idx', unique: false, columns: ['deleted_at'], partial: true },
     ],
@@ -603,6 +610,11 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
     checks: [
       { name: 'page_blocks_kind_check', columns: ['kind'] },
       { name: 'page_blocks_one_home_check', columns: ['folder_id', 'shelf_id'] },
+      { name: 'page_blocks_page_position_format_check', columns: ['page_position'] },
+      {
+        name: 'page_blocks_section_membership_check',
+        columns: ['folder_id', 'kind', 'section_block_id'],
+      },
       { name: 'page_blocks_text_length_check', columns: ['kind', 'text'] },
       { name: 'page_blocks_width_pct_kind_check', columns: ['kind', 'width_pct'] },
       { name: 'page_blocks_width_pct_range_check', columns: ['width_pct'] },
@@ -632,6 +644,12 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
         references: { table: 'shelves', columns: ['id'] },
         onDelete: 'cascade',
       },
+      {
+        name: 'page_blocks_section_block_id_fkey',
+        columns: ['section_block_id'],
+        references: { table: 'page_blocks', columns: ['id'] },
+        onDelete: 'set null',
+      },
     ],
     indexes: [
       {
@@ -644,6 +662,24 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
         name: 'page_blocks_shelf_position_idx',
         unique: false,
         columns: ['shelf_id', 'position'],
+        partial: true,
+      },
+      {
+        name: 'page_blocks_folder_page_position_idx',
+        unique: false,
+        columns: ['folder_id', 'page_position', 'id'],
+        partial: true,
+      },
+      {
+        name: 'page_blocks_shelf_page_position_idx',
+        unique: false,
+        columns: ['shelf_id', 'page_position', 'id'],
+        partial: true,
+      },
+      {
+        name: 'page_blocks_section_block_id_idx',
+        unique: false,
+        columns: ['section_block_id'],
         partial: true,
       },
       {

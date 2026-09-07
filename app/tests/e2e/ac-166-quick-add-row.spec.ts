@@ -50,11 +50,12 @@ import type { Page } from '@playwright/test'
 
 import {
   ACTION_TIMEOUT_MS,
+  captureTaskFromCanvas,
   clickControl,
   fillControl,
   quickAddControl,
   quickAddInput,
-  routes,
+  routesV2,
   seedDate,
   seedIds,
   seedSubs,
@@ -130,7 +131,7 @@ test.describe('AC-166: the inline quick-add', () => {
     page,
   }) => {
     const title = 'ac-166 tasks quick add'
-    await page.goto(routes.tasks)
+    await page.goto(routesV2.anytime)
 
     const quickAdd = await expandQuickAdd(page, 'Tasks')
     await fillControl(quickAdd, title, 'spec 9.1: the expanded quick-add is a title input')
@@ -166,7 +167,7 @@ test.describe('AC-166: the inline quick-add', () => {
 
   test('AC-166: enter on the Planned list saves the task dated today', async ({ page }) => {
     const title = 'ac-166 planned quick add'
-    await page.goto(routes.planned)
+    await page.goto(routesV2.scheduled)
 
     const quickAdd = await expandQuickAdd(page, 'the Planned list')
     await fillControl(quickAdd, title, 'spec 9.1: the expanded quick-add is a title input')
@@ -194,7 +195,7 @@ test.describe('AC-166: the inline quick-add', () => {
     page,
   }) => {
     const title = 'ac-166 escaped and never created'
-    await page.goto(routes.tasks)
+    await page.goto(routesV2.anytime)
 
     const quickAdd = await expandQuickAdd(page, 'Tasks')
     await fillControl(quickAdd, title, 'spec 9.1: the expanded quick-add is a title input')
@@ -239,17 +240,10 @@ test.describe('AC-166: the inline quick-add', () => {
     ).toEqual([])
   })
 
-  test('AC-166: a folder page adds into that folder', async ({ page }) => {
-    const title = 'ac-166 folder quick add'
-    await page.goto(routes.folder(seedIds.groceries))
-
-    // One quick-add on this page and not two, per 9.6 as RFC 0002 amends it:
-    // the folder page carries a single open list, so the ambiguity that made
-    // the replaced text take whichever row came first is gone, and the folder
-    // and the empty due date of 9.3's sixth row both hold for it.
-    const quickAdd = await expandQuickAdd(page, 'a folder page')
-    await fillControl(quickAdd, title, 'spec 9.1: the expanded quick-add is a title input')
-    await quickAdd.press('Enter')
+  test('AC-166: a folder page compose seam adds into that folder', async ({ page }) => {
+    const title = 'ac-166 folder compose capture'
+    await page.goto(routesV2.folder(seedIds.groceries))
+    await captureTaskFromCanvas(page, title)
 
     const rows = await stored(page, title)
     const card = rows[0]

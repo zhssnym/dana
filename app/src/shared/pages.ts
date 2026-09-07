@@ -7,6 +7,8 @@ back for the blocks it claims to be editing.
 */
 import { z } from 'zod'
 
+import { taskTitle } from './tasks.js'
+
 export const PAGE_BLOCK_KINDS = [
   'section',
   'paragraph',
@@ -78,6 +80,8 @@ export interface PageBlock {
   id: string
   kind: PageBlockKind
   position: number
+  page_position: string | null
+  section_block_id: string | null
   text: string | null
   file_id: string | null
   /*
@@ -108,7 +112,92 @@ export interface PageBlock {
 
 export interface PageView {
   blocks: PageBlock[]
+  /** One persisted folder-page sequence. Shelf pages contain block refs only. */
+  items: PageItemRef[]
 }
+
+export const pageItemRef = z.object({
+  kind: z.enum(['block', 'task']),
+  id: z.uuid(),
+})
+export type PageItemRef = z.infer<typeof pageItemRef>
+
+const placement = {
+  after: pageItemRef.nullable(),
+  before: pageItemRef.nullable(),
+}
+
+const insertBlockAction = z
+  .object({
+    action: z.literal('insert_block'),
+    block_kind: z.enum(['section', 'paragraph', 'image']),
+    text: z.string().max(4000).nullable().optional(),
+    file_id: z.uuid().nullable().optional(),
+    width_pct: z.number().int().min(25).max(100).nullable().optional(),
+    section_block_id: z.uuid().nullable(),
+    ...placement,
+  })
+  .superRefine((body, ctx) => {
+    if (body.block_kind === 'section') {
+      const length = body.text?.length ?? 0
+      if (length < 1 || length > 120) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['text'],
+          message: 'a section name is 1 to 120 characters',
+        })
+      }
+    }
+    if (body.width_pct != null && body.block_kind !== 'image') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['width_pct'],
+        message: 'a width belongs to an image block (4.17)',
+      })
+    }
+  })
+
+const updateBlockAction = z
+  .object({
+    action: z.literal('update_block'),
+    block_id: z.uuid(),
+    updated_at: z.iso.datetime(),
+    text: z.string().max(4000).nullable().optional(),
+    file_id: z.uuid().nullable().optional(),
+    width_pct: z.number().int().min(25).max(100).nullable().optional(),
+  })
+  .refine(
+    (body) => body.text !== undefined || body.file_id !== undefined || body.width_pct !== undefined,
+    { message: 'an update must name at least one field' },
+  )
+
+export const pageActionBody = z.discriminatedUnion('action', [
+  insertBlockAction,
+  updateBlockAction,
+  z.object({
+    action: z.literal('delete_block'),
+    block_id: z.uuid(),
+    updated_at: z.iso.datetime(),
+  }),
+  z.object({
+    action: z.literal('insert_task'),
+    title: taskTitle,
+    section_block_id: z.uuid().nullable(),
+    ...placement,
+  }),
+  z.object({
+    action: z.literal('move_item'),
+    item: pageItemRef,
+    section_block_id: z.uuid().nullable(),
+    ...placement,
+  }),
+  z.object({
+    action: z.literal('convert_paragraph_to_task'),
+    block_id: z.uuid(),
+    updated_at: z.iso.datetime(),
+  }),
+])
+export type PageActionBody = z.infer<typeof pageActionBody>
 
 /*
 The read half, added by the S12 client arm on 2026-08-25, the same gap and
@@ -122,6 +211,8 @@ export const pageBlock = z.object({
   id: z.uuid(),
   kind: z.enum(PAGE_BLOCK_KINDS),
   position: z.number().int(),
+  page_position: z.string().nullable(),
+  section_block_id: z.uuid().nullable(),
   text: z.string().nullable(),
   file_id: z.uuid().nullable(),
   file_width: z.number().int().nullable(),
@@ -133,5 +224,6 @@ export const pageBlock = z.object({
 
 export const getPageResponse = z.object({
   blocks: z.array(pageBlock),
+  items: z.array(pageItemRef),
 })
 export type GetPageResponse = z.infer<typeof getPageResponse>

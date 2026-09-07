@@ -29,10 +29,11 @@ import {
   ACTION_TIMEOUT_MS,
   clickControl,
   createTask,
+  patchBundle,
   routesV2,
   seedSubs,
   signIn,
-  openTaskRow,
+  taskRow,
   TEST_TIMEOUT_MS,
 } from './harness.js'
 
@@ -45,6 +46,7 @@ test.describe.configure({ timeout: TEST_TIMEOUT_MS })
 
 test.beforeEach(async ({ page }) => {
   await signIn(page, seedSubs.hassan)
+  await patchBundle(page, { task_open: 'dialog' })
   await page.goto(routesV2.desk)
 })
 
@@ -117,7 +119,19 @@ test.describe('AC-310: the shell is navigable on a phone', () => {
     const title = 'ac-310 a task on a phone'
     await createTask(page, { title })
     await page.goto(routesV2.desk)
-    await openTaskRow(page, title, 'the row opens the task in the preferred surface, the dialog')
+    const row = taskRow(page, title)
+    await clickControl(
+      row.getByRole('button', { name: 'Expand this task', exact: true }),
+      'the task row expands to expose its explicit surface chooser',
+    )
+    await clickControl(
+      row.getByRole('button', { name: 'Open in…', exact: true }),
+      'the task card offers the same dialog surface measured below',
+    )
+    await clickControl(
+      page.getByRole('button', { name: 'Dialog', exact: true }),
+      'the task is opened in a dialog so that surface can be measured on the phone',
+    )
     const close = page.getByRole('button', { name: 'Close task', exact: true }).first()
     await expect(
       close,

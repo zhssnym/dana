@@ -115,6 +115,7 @@ import type { Locator, Page } from '@playwright/test'
 
 import {
   ACTION_TIMEOUT_MS,
+  captureTaskFromCanvas,
   caseTitle,
   chooseView,
   clickControl,
@@ -261,7 +262,7 @@ test.describe('AC-093: the entry table of 9.3', () => {
     // honestly offer: its own folder, and no date.
     const title = caseTitle('ac-093 from Desk')
     await page.goto(routesV2.desk)
-    await captureFromQuickAdd(page, title)
+    await captureTaskFromCanvas(page, title)
     await expectDefaults(page, 'Desk', title, {
       dueDate: null,
       important: false,
@@ -380,7 +381,7 @@ test.describe('AC-093: the entry table of 9.3', () => {
   }) => {
     const title = caseTitle('ac-093 from a folder page')
     await page.goto(routesV2.folder(seedIds.groceries))
-    await captureFromQuickAdd(page, title)
+    await captureTaskFromCanvas(page, title)
 
     // All three columns, the same as every other row above. The due date is
     // empty because a folder holds dated and undated tasks at once, and
