@@ -7,6 +7,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest'
 
 import { ComposeCanvas } from '../src/client/components/page/ComposeCanvas.js'
 import type { PageBlock } from '../src/shared/pages.js'
+import type { TaskCard } from '../src/shared/tasks.js'
 import type { RowContext } from '../src/client/parts/presenters.js'
 import type { RowActions } from '../src/client/parts/useRowActions.js'
 
@@ -40,6 +41,28 @@ function block(
     file_height: null,
     ref_folder_id: null,
     width_pct: null,
+    updated_at: '2026-09-06T00:00:00.000Z',
+  }
+}
+
+function task(id: string, title: string, sectionId: string | null): TaskCard {
+  return {
+    id,
+    title,
+    status: 'pending',
+    important: false,
+    due_date: null,
+    due_time: null,
+    folder: { id: '00000000-0000-4000-8000-000000000004', name: 'Folder', is_default: false },
+    assignee: null,
+    is_recurring: false,
+    steps_done: 0,
+    steps_total: 0,
+    pulled: false,
+    pending_invite_email: null,
+    section_block_id: sectionId,
+    created_by: null,
+    created_at: '2026-09-06T00:00:00.000Z',
     updated_at: '2026-09-06T00:00:00.000Z',
   }
 }
@@ -103,5 +126,38 @@ describe('AC-420 production compose-first canvas', () => {
     expect(document.querySelector('video')).toBeNull()
     expect(screen.getByRole('link', { name: 'https://example.test/movie.mp4' })).toBeDefined()
     expect(screen.getByTitle('YouTube video').getAttribute('src')).toContain('youtube-nocookie.com')
+  })
+
+  test('a selected sort replaces task slots inside each Section without moving page blocks', () => {
+    const zulu = task('00000000-0000-4000-8000-000000000005', 'Zulu task', FIRST)
+    const alpha = task('00000000-0000-4000-8000-000000000006', 'Alpha task', FIRST)
+    renderCanvas(
+      <ComposeCanvas
+        blocks={[
+          block(FIRST, 'section', 'First', null),
+          block(CHILD, 'paragraph', 'A fixed note', FIRST),
+        ]}
+        items={[
+          { kind: 'block', id: FIRST },
+          { kind: 'task', id: zulu.id },
+          { kind: 'block', id: CHILD },
+          { kind: 'task', id: alpha.id },
+        ]}
+        sourceTasks={[zulu, alpha]}
+        tasks={[alpha, zulu]}
+        sortActive
+        arrangeable={false}
+        folderId="00000000-0000-4000-8000-000000000004"
+        context={{ today: '2026-09-06', viewerId: null, folders: [] } as RowContext}
+        actions={{} as RowActions}
+        onAsk={() => {}}
+        onAction={async () => ({ blocks: [], items: [] })}
+      />,
+    )
+    expect(
+      [...document.querySelectorAll<HTMLElement>('[data-canvas-node-id]')]
+        .map((node) => node.dataset['canvasNodeId']),
+    ).toEqual([FIRST, alpha.id, CHILD, zulu.id])
+    expect(screen.getByText('A fixed note').closest('[draggable]')?.getAttribute('draggable')).toBe('false')
   })
 })

@@ -45,7 +45,14 @@ import { recordEvent } from './events.js'
 import { readableFileScope } from './files.js'
 import { accessOf } from './folders.js'
 import { shelfView } from './shelves.js'
-import { initialKeys, keyBetween } from './fractional-index.js'
+import { initialKeys } from './fractional-index.js'
+import {
+  placementKey,
+  placementMatchesSection,
+  sameItem,
+  seededItems,
+  writeItemPosition,
+} from './page-order.js'
 import { createTaskIn } from './tasks.js'
 
 function toIso(value: unknown): string {
@@ -417,59 +424,6 @@ export async function putPage(
   })
 }
 
-interface PositionedItem extends PageItemRef {
-  pagePosition: string | null
-}
-
-async function positionedItems(
-  tx: Executor,
-  folderId: string,
-): Promise<PositionedItem[]> {
-  const rows = await rowsOf(
-    tx,
-    sql`SELECT item.kind, item.id, item.page_position
-          FROM (
-            SELECT 'block'::text AS kind, b.id, b.page_position,
-                   1 AS fallback_kind, b.position::bigint AS fallback_position,
-                   b.updated_at AS fallback_time
-              FROM page_blocks b
-             WHERE b.folder_id = ${folderId}::uuid
-            UNION ALL
-            SELECT 'task'::text AS kind, t.id, t.page_position,
-                   0 AS fallback_kind, 0::bigint AS fallback_position,
-                   t.created_at AS fallback_time
-              FROM tasks t
-             WHERE t.folder_id = ${folderId}::uuid
-               AND t.deleted_at IS NULL
-               AND t.status IN ('pending', 'abandoned')
-          ) item
-         ORDER BY item.page_position ASC NULLS LAST,
-                  CASE WHEN item.page_position IS NULL THEN item.fallback_kind END,
-                  CASE WHEN item.page_position IS NULL THEN item.fallback_position END,
-                  CASE WHEN item.page_position IS NULL THEN item.fallback_time END,
-                  item.kind, item.id`,
-  )
-  return rows.map((row) => ({
-    kind: String(row.kind) as PageItemRef['kind'],
-    id: String(row.id),
-    pagePosition: nullableString(row.page_position),
-  }))
-}
-
-async function writeItemPosition(
-  tx: Executor,
-  item: PageItemRef,
-  pagePosition: string,
-): Promise<void> {
-  await tx.execute(
-    item.kind === 'block'
-      ? sql`UPDATE page_blocks SET page_position = ${pagePosition}
-            WHERE id = ${item.id}::uuid`
-      : sql`UPDATE tasks SET page_position = ${pagePosition}
-            WHERE id = ${item.id}::uuid`,
-  )
-}
-
 /** Old PUT clients still arrange page blocks. Re-express that legacy result
  * in the composed keyspace so shelf reorder and the pre-#184 folder API keep
  * their behavior during a rolling deployment. */
@@ -547,65 +501,6 @@ async function reseedLegacyPage(tx: Executor, home: PageHome): Promise<void> {
   }
 }
 
-async function seededItems(tx: Executor, folderId: string): Promise<PositionedItem[]> {
-  const items = await positionedItems(tx, folderId)
-  if (items.every((item) => item.pagePosition !== null)) return items
-  const keys = initialKeys(items.length)
-  for (const [index, item] of items.entries()) {
-    const key = keys[index] as string
-    await writeItemPosition(tx, item, key)
-    item.pagePosition = key
-  }
-  return items
-}
-
-function sameItem(left: PageItemRef, right: PageItemRef): boolean {
-  return left.kind === right.kind && left.id === right.id
-}
-
-function placementKey(
-  items: readonly PositionedItem[],
-  moving: PageItemRef | null,
-  after: PageItemRef | null,
-  before: PageItemRef | null,
-): { kind: 'key'; value: string; settled: boolean } | { kind: 'bad_anchor'; field: 'after' | 'before' } {
-  if (moving !== null && after !== null && sameItem(moving, after)) {
-    return { kind: 'bad_anchor', field: 'after' }
-  }
-  if (moving !== null && before !== null && sameItem(moving, before)) {
-    return { kind: 'bad_anchor', field: 'before' }
-  }
-  const without = moving === null ? [...items] : items.filter((item) => !sameItem(item, moving))
-  const at = (wanted: PageItemRef | null): number | null => {
-    if (wanted === null) return null
-    const index = without.findIndex((item) => sameItem(item, wanted))
-    return index < 0 ? -1 : index
-  }
-  const afterIndex = at(after)
-  const beforeIndex = at(before)
-  if (afterIndex === -1) return { kind: 'bad_anchor', field: 'after' }
-  if (beforeIndex === -1) return { kind: 'bad_anchor', field: 'before' }
-  if (without.length > 0 && after === null && before === null) {
-    return { kind: 'bad_anchor', field: 'after' }
-  }
-  if (afterIndex !== null && beforeIndex !== null && afterIndex >= beforeIndex) {
-    return { kind: 'bad_anchor', field: 'after' }
-  }
-  const lower = afterIndex === null ? null : without[afterIndex]?.pagePosition ?? null
-  const upper = beforeIndex === null ? null : without[beforeIndex]?.pagePosition ?? null
-  const current = moving === null
-    ? null
-    : items.find((item) => sameItem(item, moving))?.pagePosition ?? null
-  return {
-    kind: 'key',
-    value: keyBetween(lower, upper),
-    settled:
-      current !== null &&
-      (lower === null || lower < current) &&
-      (upper === null || current < upper),
-  }
-}
-
 async function sectionBelongsToFolder(
   tx: Executor,
   folderId: string,
@@ -661,6 +556,16 @@ export async function actOnFolderPage(
       if (body.block_kind === 'section' && body.section_block_id !== null) {
         return { kind: 'section_not_here' }
       }
+      if (!placementMatchesSection(
+        items,
+        null,
+        body.after,
+        body.before,
+        (anchors as { kind: 'key'; value: string }).value,
+        body.section_block_id,
+      )) {
+        return { kind: 'bad_anchor', field: 'after' }
+      }
       if (body.file_id != null) {
         const file = await rowsOf(
           tx,
@@ -688,6 +593,16 @@ export async function actOnFolderPage(
     } else if (body.action === 'insert_task') {
       if (!(await sectionBelongsToFolder(tx, folderId, body.section_block_id))) {
         return { kind: 'section_not_here' }
+      }
+      if (!placementMatchesSection(
+        items,
+        null,
+        body.after,
+        body.before,
+        (anchors as { kind: 'key'; value: string }).value,
+        body.section_block_id,
+      )) {
+        return { kind: 'bad_anchor', field: 'after' }
       }
       const made = await createTaskIn(
         tx,
@@ -720,20 +635,48 @@ export async function actOnFolderPage(
         if (String(blocks[0]?.kind) === 'section') {
           return { kind: 'not_convertible' }
         }
-        await tx.execute(
+        if (!placementMatchesSection(
+          items,
+          body.item,
+          body.after,
+          body.before,
+          (anchors as { kind: 'key'; value: string }).value,
+          body.section_block_id,
+        )) {
+          return { kind: 'bad_anchor', field: 'after' }
+        }
+        const moved = await rowsOf(
+          tx,
           sql`UPDATE page_blocks
                 SET page_position = ${(anchors as { kind: 'key'; value: string }).value},
-                    section_block_id = ${body.section_block_id}
-              WHERE id = ${body.item.id}::uuid`,
+                    section_block_id = ${body.section_block_id},
+                    updated_at = now()
+              WHERE id = ${body.item.id}::uuid
+              RETURNING id`,
         )
+        if (moved.length === 0) return { kind: 'not_found' }
       } else {
-        await tx.execute(
+        if (!placementMatchesSection(
+          items,
+          body.item,
+          body.after,
+          body.before,
+          (anchors as { kind: 'key'; value: string }).value,
+          body.section_block_id,
+        )) {
+          return { kind: 'bad_anchor', field: 'after' }
+        }
+        const moved = await rowsOf(
+          tx,
           sql`UPDATE tasks
                 SET page_position = ${(anchors as { kind: 'key'; value: string }).value},
-                    section_block_id = ${body.section_block_id}
+                    section_block_id = ${body.section_block_id},
+                    updated_at = now()
               WHERE id = ${body.item.id}::uuid AND folder_id = ${folderId}::uuid
-                AND deleted_at IS NULL AND status IN ('pending', 'abandoned')`,
+                AND deleted_at IS NULL AND status IN ('pending', 'abandoned')
+              RETURNING id`,
         )
+        if (moved.length === 0) return { kind: 'not_found' }
       }
     } else {
       const rows = await rowsOf(

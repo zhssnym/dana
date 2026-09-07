@@ -91,22 +91,26 @@ export function ComposeCanvas({
   blocks,
   items,
   tasks,
+  sourceTasks = tasks,
   folderId,
   context,
   actions,
   onAsk,
   onAction: sendAction,
   arrangeable = true,
+  sortActive = false,
 }: {
   readonly blocks: readonly PageBlock[]
   readonly items: readonly PageItemRef[]
   readonly tasks: readonly TaskCard[]
+  readonly sourceTasks?: readonly TaskCard[]
   readonly folderId: string
   readonly context: RowContext
   readonly actions: RowActions
   readonly onAsk: Parameters<typeof TaskRows>[0]['onAsk']
   readonly onAction: (body: PageActionBody) => Promise<PageView>
   readonly arrangeable?: boolean
+  readonly sortActive?: boolean
 }): React.JSX.Element {
   const [draft, setDraft] = useState<Draft | null>(null)
   const [menu, setMenu] = useState(false)
@@ -119,6 +123,10 @@ export function ComposeCanvas({
   const taskSelection = useTaskRowsSelection(tasks, actions, onAsk)
   const blockById = useMemo(() => new Map(blocks.map((block) => [block.id, block])), [blocks])
   const taskById = useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks])
+  const sourceTaskById = useMemo(
+    () => new Map(sourceTasks.map((task) => [task.id, task])),
+    [sourceTasks],
+  )
   function fireAction(body: PageActionBody): void {
     /* The shared mutation cache already tells the person and the parent
        refetches the winning state. Fire-and-forget handlers consume the
@@ -126,17 +134,42 @@ export function ComposeCanvas({
        keep using sendAction so a failed first write stops the second. */
     void sendAction(body).catch(() => undefined)
   }
-  const ordered = useMemo(
-    () => items.flatMap((item): CanvasItem[] => {
+  const ordered = useMemo(() => {
+    if (!sortActive) {
+      return items.flatMap((item): CanvasItem[] => {
+        if (item.kind === 'block') {
+          const block = blockById.get(item.id)
+          return block === undefined ? [] : [{ kind: 'block', id: item.id, block }]
+        }
+        const task = taskById.get(item.id)
+        return task === undefined ? [] : [{ kind: 'task', id: item.id, task }]
+      })
+    }
+    /* A selected sort rearranges task rows, not the prose/Section/image
+       skeleton. Replace each persisted task slot with the next visible task
+       in that semantic Section, preserving the sorted order `usePlace`
+       supplied. Filtering without a sort uses the branch above and merely
+       removes rows from their stored positions. */
+    const bySection = new Map<string | null, TaskCard[]>()
+    for (const task of tasks) {
+      const bucket = bySection.get(task.section_block_id)
+      if (bucket === undefined) bySection.set(task.section_block_id, [task])
+      else bucket.push(task)
+    }
+    const used = new Map<string | null, number>()
+    return items.flatMap((item): CanvasItem[] => {
       if (item.kind === 'block') {
         const block = blockById.get(item.id)
         return block === undefined ? [] : [{ kind: 'block', id: item.id, block }]
       }
-      const task = taskById.get(item.id)
-      return task === undefined ? [] : [{ kind: 'task', id: item.id, task }]
-    }),
-    [items, blockById, taskById],
-  )
+      const source = sourceTaskById.get(item.id)
+      if (source === undefined) return []
+      const index = used.get(source.section_block_id) ?? 0
+      used.set(source.section_block_id, index + 1)
+      const task = bySection.get(source.section_block_id)?.[index]
+      return task === undefined ? [] : [{ kind: 'task', id: task.id, task }]
+    })
+  }, [items, blockById, taskById, sourceTaskById, sortActive, tasks])
 
   function sectionLabel(sectionId: string | null): string {
     if (sectionId === null) return 'No section'

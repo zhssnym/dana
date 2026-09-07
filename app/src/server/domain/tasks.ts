@@ -63,6 +63,7 @@ import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
 import { accessOf } from './folders.js'
 import { keyBetween } from './fractional-index.js'
+import { positionAtSectionEnd, seededItems } from './page-order.js'
 
 /* ------------------------------------------------------------------ *
  * Serialization
@@ -111,11 +112,12 @@ export interface TaskAccess {
    * frozen 7.6 makes the condition of its tz rule. The series_id itself is
    * not here: the guard that needs it reads it under its own lock. */
   recurrenceRule: string | null
+  sectionBlockId: string | null
 }
 
 const TASK_ACCESS_COLUMNS = sql`t.id, t.folder_id, t.title, t.status,
        t.assignee_id, ${DUE_DATE} AS due_date, ${DUE_TIME} AS due_time,
-       t.recurrence_rule`
+       t.recurrence_rule, t.section_block_id`
 
 function taskAccessFromRow(row: Record<string, unknown>): TaskAccess {
   return {
@@ -127,6 +129,7 @@ function taskAccessFromRow(row: Record<string, unknown>): TaskAccess {
     dueDate: nullableString(row.due_date),
     dueTime: nullableString(row.due_time),
     recurrenceRule: nullableString(row.recurrence_rule),
+    sectionBlockId: nullableString(row.section_block_id),
   }
 }
 
@@ -163,9 +166,10 @@ callers need it, for reasons of one shape:
   the cap is advice rather than a limit.
 
 Decide from a row, then write: the lock is what keeps the decision true at the
-write. Only the task row is locked, never the membership row it joins, and
-both callers take it as their first statement, so two of them queue rather
-than deadlock.
+write. The ordinary PATCH and step callers take the task as their first lock.
+A PATCH that changes folder/Section placement first joins #184's shared folder
+lock, as its own implementation records, then takes this task lock; page
+actions use that same folder-before-task order.
 */
 async function lockedTask(
   tx: Executor,
@@ -882,8 +886,31 @@ export async function patchTask(
   patch: PatchTaskBody,
 ): Promise<PatchTaskResult> {
   return inTransaction(db, async (tx) => {
+    /* A folder/Section PATCH participates in #184's folder ordering domain.
+       Resolve only enough to acquire every affected folder row first, in a
+       stable order, then lock and re-read the task. Page actions use the same
+       folder-before-task order, so a board drop and a canvas drag queue rather
+       than deadlock while deciding one mixed position. */
+    const structural = patch.folder_id !== undefined || patch.section_block_id !== undefined
+    const preview = structural ? await accessibleTask(tx, viewerId, taskId) : null
+    if (structural && preview === null) return { kind: 'not_found' }
+    if (preview !== null) {
+      const folderIds = [
+        ...new Set([
+          preview.folderId,
+          ...(patch.folder_id === undefined ? [] : [patch.folder_id]),
+        ]),
+      ].sort()
+      for (const lockedFolderId of folderIds) {
+        await tx.execute(sql`SELECT 1 FROM folders
+                              WHERE id = ${lockedFolderId}::uuid FOR UPDATE`)
+      }
+    }
     const current = await lockedTask(tx, viewerId, taskId)
     if (current === null) return { kind: 'not_found' }
+    if (preview !== null && current.folderId !== preview.folderId) {
+      return { kind: 'not_found' }
+    }
 
     const target =
       patch.folder_id !== undefined && patch.folder_id !== current.folderId
@@ -932,6 +959,20 @@ export async function patchTask(
       sectionId = patch.section_block_id
     } else if (moving) {
       sectionId = null
+    }
+
+    const effectiveSectionId = sectionId === undefined ? current.sectionBlockId : sectionId
+    const repositioning = moving || effectiveSectionId !== current.sectionBlockId
+    let pagePosition: string | undefined
+    if (repositioning) {
+      const pageItems = await seededItems(tx, folderId)
+      const placed = positionAtSectionEnd(
+        pageItems,
+        moving ? null : { kind: 'task', id: taskId },
+        effectiveSectionId,
+      )
+      if (placed === null) return { kind: 'section_not_here' }
+      pagePosition = placed
     }
 
     const clearing = patch.due_date === null
@@ -991,6 +1032,9 @@ export async function patchTask(
     }
     if (sectionId !== undefined) {
       sets.push(sql`section_block_id = ${sectionId}`)
+    }
+    if (pagePosition !== undefined) {
+      sets.push(sql`page_position = ${pagePosition}`)
     }
     if (clearing) {
       sets.push(sql`due_date = NULL`)

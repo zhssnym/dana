@@ -236,4 +236,91 @@ describe('AC-415 to AC-419: the compose-first page is one transactionally ordere
     })
     expectStatus(headingMove, 422, 'a Section heading cannot be detached from its semantic span')
   })
+
+  test('AC-417/419: legacy Section/folder PATCHes relocate tasks and contradictory gaps refuse', async () => {
+    const [owner] = await cast.of(app) as [Actor, Actor]
+    const sourceId = await createFolder(owner, 'ac417 patch source')
+    const targetId = await createFolder(owner, 'ac417 patch target')
+
+    let source = await action(owner, sourceId, {
+      action: 'insert_block', block_kind: 'section', text: 'Source Section',
+      section_block_id: null, after: null, before: null,
+    })
+    const sourceSection = blockNamed(source, 'Source Section')
+    source = await action(owner, sourceId, {
+      action: 'insert_block', block_kind: 'paragraph', text: 'Source member',
+      section_block_id: sourceSection.id,
+      after: { kind: 'block', id: sourceSection.id }, before: null,
+    })
+    const sourceMember = blockNamed(source, 'Source member')
+    source = await action(owner, sourceId, {
+      action: 'insert_task', title: 'Legacy board move', section_block_id: null,
+      after: { kind: 'block', id: sourceMember.id }, before: null,
+    })
+    const moving = source.items.find((item) => item.kind === 'task') as Item
+    source = await action(owner, sourceId, {
+      action: 'insert_block', block_kind: 'paragraph', text: 'Loose boundary',
+      section_block_id: null,
+      after: { kind: 'block', id: sourceMember.id }, before: moving,
+    })
+    const loose = blockNamed(source, 'Loose boundary')
+    const before = await owner.browser.json(`/tasks/${moving.id}`, 'GET')
+    expectStatus(before, 200, 'the task timestamp before the legacy move is readable')
+
+    const sectionMove = await owner.browser.json(`/tasks/${moving.id}`, 'PATCH', {
+      section_block_id: sourceSection.id,
+    })
+    expectStatus(sectionMove, 200, 'the board-style Section PATCH succeeds')
+    const movedInSource = pageOf(await owner.browser.json(`/folders/${sourceId}/page`, 'GET'))
+    expect(movedInSource.items).toEqual([
+      { kind: 'block', id: sourceSection.id },
+      { kind: 'block', id: sourceMember.id },
+      moving,
+      { kind: 'block', id: loose.id },
+    ])
+    expect((sectionMove.json() as { section_block_id: string | null }).section_block_id)
+      .toBe(sourceSection.id)
+    expect((sectionMove.json() as { updated_at: string }).updated_at)
+      .not.toBe((before.json() as { updated_at: string }).updated_at)
+
+    let target = await action(owner, targetId, {
+      action: 'insert_block', block_kind: 'section', text: 'Target Section',
+      section_block_id: null, after: null, before: null,
+    })
+    const targetSection = blockNamed(target, 'Target Section')
+    target = await action(owner, targetId, {
+      action: 'insert_block', block_kind: 'paragraph', text: 'Target member',
+      section_block_id: targetSection.id,
+      after: { kind: 'block', id: targetSection.id }, before: null,
+    })
+    const targetMember = blockNamed(target, 'Target member')
+    target = await action(owner, targetId, {
+      action: 'insert_block', block_kind: 'paragraph', text: 'Target loose',
+      section_block_id: null,
+      after: { kind: 'block', id: targetMember.id }, before: null,
+    })
+    const targetLoose = blockNamed(target, 'Target loose')
+
+    const folderMove = await owner.browser.json(`/tasks/${moving.id}`, 'PATCH', {
+      folder_id: targetId,
+      section_block_id: targetSection.id,
+    })
+    expectStatus(folderMove, 200, 'a cross-folder PATCH joins the target Section span')
+    const movedInTarget = pageOf(await owner.browser.json(`/folders/${targetId}/page`, 'GET'))
+    expect(movedInTarget.items).toEqual([
+      { kind: 'block', id: targetSection.id },
+      { kind: 'block', id: targetMember.id },
+      moving,
+      { kind: 'block', id: targetLoose.id },
+    ])
+
+    const contradiction = await owner.browser.json(`/folders/${targetId}/page/actions`, 'POST', {
+      action: 'insert_task', title: 'Wrong semantic gap',
+      section_block_id: targetSection.id,
+      after: { kind: 'block', id: targetLoose.id }, before: null,
+    })
+    expectStatus(contradiction, 422, 'a valid Section id cannot be paired with a loose anchor gap')
+    expect(pageOf(await owner.browser.json(`/folders/${targetId}/page`, 'GET')).items)
+      .toEqual(movedInTarget.items)
+  })
 })

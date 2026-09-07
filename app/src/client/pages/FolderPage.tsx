@@ -1167,11 +1167,17 @@ export function FolderPage({
                     blocks={page.data?.blocks ?? []}
                     items={page.data?.items ?? []}
                     tasks={visible}
+                    sourceTasks={openRows}
                     folderId={id}
                     context={context}
                     actions={actions}
                     onAsk={confirm.ask}
-                    arrangeable={!isNarrowed(place.filter)}
+                    arrangeable={
+                      !isNarrowed(place.filter) &&
+                      place.filter.sort === 'manual' &&
+                      place.groupBy === 'none'
+                    }
+                    sortActive={place.filter.sort !== 'manual'}
                     onAction={async (body) => {
                       try {
                         return await pageAction.mutateAsync({ id, body })
