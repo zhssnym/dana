@@ -175,32 +175,14 @@ test.describe("P8's half of the criteria earlier packages split", () => {
     // AC-058's own file: '"Collapsed" is section 9's rendering and arrives
     // with P8'; what P4 owes is that the completed section is a separate,
     // paginated request, which is what makes collapsing possible.
-    // Make the two open-section controls here rather than borrowing the seed's
-    // rows. This file runs near the end of one deliberately shared Playwright
-    // database, and earlier criteria are allowed to move or complete those
-    // seed rows. The rows made here prove the same Scheduled/Unscheduled
-    // rendering without making AC-058 depend on another criterion's leftovers.
-    const scheduledTitle = 'ac-058 scheduled remains open'
-    const unscheduledTitle = 'ac-058 unscheduled remains open'
-    await createTask(page, {
-      title: scheduledTitle,
-      folder_id: seedIds.groceries,
-      due_date: seedDate(2),
-      assignee_id: seedIds.hassan,
-    })
-    await createTask(page, {
-      title: unscheduledTitle,
-      folder_id: seedIds.groceries,
-      assignee_id: seedIds.hassan,
-    })
     await page.goto(routesV2.folder(seedIds.groceries))
 
     await expect(
-      page.getByText(scheduledTitle),
+      page.getByText('Buy milk'),
       'spec 6 Q7: the Scheduled section is open, so its rows are on the page',
     ).toBeVisible()
     await expect(
-      page.getByText(unscheduledTitle),
+      page.getByText('Old idea'),
       'spec 6 Q7: the Unscheduled section is open too',
     ).toBeVisible()
 
