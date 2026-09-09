@@ -67,7 +67,220 @@ function task(id: string, title: string, sectionId: string | null): TaskCard {
   }
 }
 
+function writeEditor(editor: HTMLElement, text: string): void {
+  editor.textContent = text
+  fireEvent.input(editor)
+  const range = document.createRange()
+  range.selectNodeContents(editor)
+  range.collapse(false)
+  const selection = window.getSelection()
+  selection?.removeAllRanges()
+  selection?.addRange(range)
+}
+
 describe('AC-420 production compose-first canvas', () => {
+  test('prose-to-prose stays chrome-free while a boundary between native tasks owns a plus', () => {
+    const paragraphA = block(FIRST, 'paragraph', 'First paragraph', null)
+    const paragraphB = block(CHILD, 'paragraph', 'Second paragraph', null)
+    const taskA = task('00000000-0000-4000-8000-000000000005', 'First task', null)
+    const taskB = task('00000000-0000-4000-8000-000000000006', 'Second task', null)
+    const view = renderCanvas(
+      <ComposeCanvas
+        blocks={[paragraphA, paragraphB]}
+        items={[{ kind: 'block', id: paragraphA.id }, { kind: 'block', id: paragraphB.id }]}
+        tasks={[]}
+        folderId="00000000-0000-4000-8000-000000000004"
+        context={{} as RowContext}
+        actions={{} as RowActions}
+        onAsk={() => {}}
+        onAction={async () => ({ blocks: [], items: [] })}
+      />,
+    )
+
+    const firstParagraph = document.querySelector<HTMLElement>(`[data-canvas-node-id="${paragraphA.id}"]`)
+    expect(firstParagraph).not.toBeNull()
+    expect(
+      within(firstParagraph as HTMLElement).queryByRole('button', { name: 'Add between items' }),
+      'two paragraphs already express a continuous writing boundary, so a plus there is repeated chrome',
+    ).toBeNull()
+
+    view.rerender(
+      <QueryClientProvider client={new QueryClient()}>
+        <ComposeCanvas
+          blocks={[]}
+          items={[{ kind: 'task', id: taskA.id }, { kind: 'task', id: taskB.id }]}
+          tasks={[taskA, taskB]}
+          folderId="00000000-0000-4000-8000-000000000004"
+          context={{ today: '2026-09-06', viewerId: null, folders: [] } as RowContext}
+          actions={{} as RowActions}
+          onAsk={() => {}}
+          onAction={async () => ({ blocks: [], items: [] })}
+        />
+      </QueryClientProvider>,
+    )
+
+    const firstTask = document.querySelector<HTMLElement>(`[data-canvas-node-id="${taskA.id}"]`)
+    expect(firstTask).not.toBeNull()
+    expect(
+      within(firstTask as HTMLElement).getByRole('button', { name: 'Add between items' }),
+      'adjacent native rows need a structural insertion boundary for Section, Image, or Task',
+    ).toBeDefined()
+  })
+
+  test('an empty page offers one explicit writing action and prose carries no plus', () => {
+    renderCanvas(
+      <ComposeCanvas
+        blocks={[]}
+        items={[]}
+        tasks={[]}
+        folderId="00000000-0000-4000-8000-000000000004"
+        context={{} as RowContext}
+        actions={{} as RowActions}
+        onAsk={() => {}}
+        onAction={async () => ({ blocks: [], items: [] })}
+      />,
+    )
+
+    const starter = screen.getByRole('button', { name: 'Do or write something…' })
+    fireEvent.click(starter)
+
+    expect(screen.getByRole('textbox', { name: 'Page paragraph' })).toBeDefined()
+    expect(
+      screen.queryByRole('button', { name: /^(?:Add to page|Add between items)$/ }),
+      'once prose is active, slash is its structural path; a persistent plus would put the repeated chrome back',
+    ).toBeNull()
+  })
+
+  test('prose can be composed into the exact gap between two native task rows', async () => {
+    const taskA = task('00000000-0000-4000-8000-000000000005', 'First task', null)
+    const taskB = task('00000000-0000-4000-8000-000000000006', 'Second task', null)
+    const onAction = vi.fn(async () => ({ blocks: [], items: [] }))
+    renderCanvas(
+      <ComposeCanvas
+        blocks={[]}
+        items={[{ kind: 'task', id: taskA.id }, { kind: 'task', id: taskB.id }]}
+        tasks={[taskA, taskB]}
+        folderId="00000000-0000-4000-8000-000000000004"
+        context={{ today: '2026-09-06', viewerId: null, folders: [] } as RowContext}
+        actions={{} as RowActions}
+        onAsk={() => {}}
+        onAction={onAction}
+      />,
+    )
+
+    const firstTask = document.querySelector<HTMLElement>(`[data-canvas-node-id="${taskA.id}"]`)
+    expect(firstTask).not.toBeNull()
+    fireEvent.click(within(firstTask as HTMLElement).getByRole('button', { name: 'Write here' }))
+    const editor = screen.getByRole('textbox', { name: 'Page paragraph' })
+    writeEditor(editor, 'A note between tasks')
+    fireEvent.keyDown(editor, { key: 'Enter' })
+
+    await waitFor(() => expect(onAction).toHaveBeenCalledWith({
+      action: 'insert_block',
+      block_kind: 'paragraph',
+      text: 'A note between tasks',
+      section_block_id: null,
+      after: { kind: 'task', id: taskA.id },
+      before: { kind: 'task', id: taskB.id },
+    }))
+  })
+
+  test('slash on active prose opens the three native structural choices', async () => {
+    renderCanvas(
+      <ComposeCanvas
+        blocks={[]}
+        items={[]}
+        tasks={[]}
+        folderId="00000000-0000-4000-8000-000000000004"
+        context={{} as RowContext}
+        actions={{} as RowActions}
+        onAsk={() => {}}
+        onAction={async () => ({ blocks: [], items: [] })}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Do or write something…' }))
+    const editor = screen.getByRole('textbox', { name: 'Page paragraph' })
+    writeEditor(editor, '/')
+
+    await waitFor(() => expect(screen.getByText('Add here')).toBeDefined())
+    expect(screen.getByRole('menuitem', { name: /^Task/ })).toBeDefined()
+    expect(screen.getByRole('menuitem', { name: /^Section/ })).toBeDefined()
+    expect(screen.getByRole('menuitem', { name: /^Image/ })).toBeDefined()
+  })
+
+  test.each([
+    ['Control', { ctrlKey: true }],
+    ['Command', { metaKey: true }],
+  ] as const)('%s plus Enter turns the active line into a real task at that gap', async (_name, modifier) => {
+    const onAction = vi.fn(async () => ({ blocks: [], items: [] }))
+    renderCanvas(
+      <ComposeCanvas
+        blocks={[]}
+        items={[]}
+        tasks={[]}
+        folderId="00000000-0000-4000-8000-000000000004"
+        context={{} as RowContext}
+        actions={{} as RowActions}
+        onAsk={() => {}}
+        onAction={onAction}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Do or write something…' }))
+    const editor = screen.getByRole('textbox', { name: 'Page paragraph' })
+    writeEditor(editor, 'Ship the calm composer')
+    fireEvent.keyDown(editor, { key: 'Enter', ...modifier })
+
+    await waitFor(() => expect(onAction).toHaveBeenCalledWith({
+      action: 'insert_task',
+      title: 'Ship the calm composer',
+      section_block_id: null,
+      after: null,
+      before: null,
+    }))
+  })
+
+  test('Enter commits a paragraph while Shift+Enter remains a soft break in the same editor', async () => {
+    const onAction = vi.fn(async () => ({ blocks: [], items: [] }))
+    renderCanvas(
+      <ComposeCanvas
+        blocks={[]}
+        items={[]}
+        tasks={[]}
+        folderId="00000000-0000-4000-8000-000000000004"
+        context={{} as RowContext}
+        actions={{} as RowActions}
+        onAsk={() => {}}
+        onAction={onAction}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Do or write something…' }))
+    const editor = screen.getByRole('textbox', { name: 'Page paragraph' })
+    writeEditor(editor, 'One composed thought')
+
+    expect(
+      fireEvent.keyDown(editor, { key: 'Enter', shiftKey: true }),
+      'Shift+Enter is left to the contenteditable as a soft break',
+    ).toBe(true)
+    expect(onAction).not.toHaveBeenCalled()
+    expect(screen.getByRole('textbox', { name: 'Page paragraph' })).toBe(editor)
+
+    expect(
+      fireEvent.keyDown(editor, { key: 'Enter' }),
+      'plain Enter is consumed by the canvas and becomes a durable paragraph boundary',
+    ).toBe(false)
+    await waitFor(() => expect(onAction).toHaveBeenCalledWith({
+      action: 'insert_block',
+      block_kind: 'paragraph',
+      text: 'One composed thought',
+      section_block_id: null,
+      after: null,
+      before: null,
+    }))
+  })
+
   test('the collapsed Section plus inserts after its complete hidden span into No section', async () => {
     const onAction = vi.fn(async () => ({ blocks: [], items: [] }))
     renderCanvas(
@@ -95,7 +308,7 @@ describe('AC-420 production compose-first canvas', () => {
     expect(screen.queryByText('Hidden child')).toBeNull()
     const first = screen.getByRole('heading', { name: 'First' }).closest('[data-canvas-node-id]')
     expect(first).not.toBeNull()
-    fireEvent.click(within(first as HTMLElement).getByRole('button', { name: 'Insert into page' }))
+    fireEvent.click(within(first as HTMLElement).getByRole('button', { name: 'Add between items' }))
     await waitFor(() => expect(screen.getByText('Add to No section')).toBeDefined())
     fireEvent.click(screen.getByText('Task'))
 
@@ -108,13 +321,14 @@ describe('AC-420 production compose-first canvas', () => {
     }))
   })
 
-  test('only YouTube/Vimeo embed; direct media stays the ordinary external link', () => {
+  test('links stay semantic while YouTube and Vimeo receive safe video previews', () => {
     const direct = block(FIRST, 'paragraph', 'Watch https://example.test/movie.mp4', null)
     const youtube = block(CHILD, 'paragraph', 'Watch https://www.youtube.com/watch?v=dQw4w9WgXcQ', null)
+    const vimeo = block(SECOND, 'paragraph', 'Review [the cut](https://vimeo.com/76979871)', null)
     renderCanvas(
       <ComposeCanvas
-        blocks={[direct, youtube]}
-        items={[{ kind: 'block', id: FIRST }, { kind: 'block', id: CHILD }]}
+        blocks={[direct, youtube, vimeo]}
+        items={[{ kind: 'block', id: FIRST }, { kind: 'block', id: CHILD }, { kind: 'block', id: SECOND }]}
         tasks={[]}
         folderId="00000000-0000-4000-8000-000000000004"
         context={{} as RowContext}
@@ -123,9 +337,22 @@ describe('AC-420 production compose-first canvas', () => {
         onAction={async () => ({ blocks: [], items: [] })}
       />,
     )
-    expect(document.querySelector('video')).toBeNull()
-    expect(screen.getByRole('link', { name: 'https://example.test/movie.mp4' })).toBeDefined()
+    const directLink = screen.getByRole('link', { name: 'https://example.test/movie.mp4' })
+    expect(directLink.getAttribute('href')).toBe('https://example.test/movie.mp4')
+    expect(directLink.getAttribute('target')).toBe('_blank')
+    expect(directLink.getAttribute('rel')).toBe('noreferrer')
+    const labelledLink = screen.getByRole('link', { name: 'the cut' })
+    expect(labelledLink.getAttribute('href')).toBe('https://vimeo.com/76979871')
     expect(screen.getByTitle('YouTube video').getAttribute('src')).toContain('youtube-nocookie.com')
+    expect(screen.getByTitle('Vimeo video').getAttribute('src')).toBe('https://player.vimeo.com/video/76979871')
+    expect(document.querySelector('video')).toBeNull()
+
+    labelledLink.addEventListener('click', (event) => { event.preventDefault() })
+    fireEvent.click(labelledLink)
+    expect(
+      screen.queryByRole('textbox', { name: 'Page paragraph' }),
+      'following a semantic link must not also turn its containing prose into an editor',
+    ).toBeNull()
   })
 
   test('a selected sort replaces task slots inside each Section without moving page blocks', () => {

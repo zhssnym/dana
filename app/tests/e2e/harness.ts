@@ -1613,7 +1613,7 @@ export async function expectServiceWorkerControl(page: Page): Promise<void> {
 export type InsertKind = 'Task' | 'Section' | 'Image'
 
 /**
- * The `Insert into page` trigger on one of the page's insert lines.
+ * A structural insert trigger on one of the page's insertion surfaces.
  *
  * There is one per gap between blocks, so which one is asked for matters:
  * `'last'` is the resting line at the foot of the page, which is the one
@@ -1624,7 +1624,7 @@ export type InsertKind = 'Task' | 'Section' | 'Image'
 export function insertTrigger(page: Page, at: 'first' | 'last' = 'last'): Locator {
   const triggers = page
     .getByRole('main')
-    .getByRole('button', { name: 'Insert into page', exact: true })
+    .getByRole('button', { name: /^(?:Insert into page|Add to page|Add between items)$/ })
   return at === 'first' ? triggers.first() : triggers.last()
 }
 
@@ -1640,7 +1640,10 @@ export function insertTrigger(page: Page, at: 'first' | 'last' = 'last'): Locato
  * it, so what changed in each of them is the way the insert is reached and
  * nothing that is asserted afterwards.
  *
- * The shipped control is one `Insert into page` button per insert line whose
+ * The shipped control is a structural button whose accessible name reflects
+ * its context: `Add to page` at the terminal continuation, `Add between
+ * items` at a native structural boundary, and the legacy `Insert into page`
+ * on surfaces that have not adopted the unified document canvas. Its
  * menu items are named for the kind and then for what it does -- `Task Add to
  * No section`, `Section Begin a new part of the page`, `Image Choose, paste,
  * or drop` -- so the kind is matched as a prefix. An exact match on `Section`
