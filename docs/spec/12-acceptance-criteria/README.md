@@ -15,24 +15,24 @@ groups next to it.
 marked rather than removed. A gap in the run is ordinary, and it is not a free number by
 default, so read this list before spending one.
 
-- **390 criteria carry their text in the files below, and 388 of them are live.** Every
-  number from AC-001 to AC-421 not named below is one of them. Re-derived on 2026-09-06 by
-  the **wave-4** integration merge, which was the last of that night, by **counting the
+- **391 criteria carry their text in the files below, and 389 of them are live.** Every
+  number from AC-001 to AC-422 not named below is one of them. Re-derived on 2026-09-09 by
+  issue #192, after #184's compose-first merge, by **counting the
   `- AC-` bullets across the files** rather than by adding up what three branches each
-  believed: 383, with no number appearing twice. Two independent checks agree, which is why
+  believed: 391, with no number appearing twice. Two independent checks agree, which is why
   the number is stated rather than hedged: the per-file rows in the table below **sum to
-  exactly 390**, which they cannot do if one number is written twice, and the arithmetic
-  gives the same — 421 numbers in the run, less AC-229 and the thirty free ones named below,
-  is 390. The wave-3 sentence this replaces read 381 for its own night and was then moved to
+  exactly 391**, which they cannot do if one number is written twice, and the arithmetic
+  gives the same — 422 numbers in the run, less AC-229 and the thirty free ones named below,
+  is 391. The wave-3 sentence this replaces read 381 for its own night and was then moved to
   382 by issue #167; both were right when written, and neither was re-derived, which is what
   this bullet exists to do.
 
-  **The two retired ones are inside that 383 and that is this section's own rule, not an
+  **The two retired ones are inside that 391 and that is this section's own rule, not an
   oversight.** AC-122 and AC-123 were retired by issue #113 and are *marked* rather than
   removed, as the sentence above this list requires, so each still carries its text as a
   `- AC-` bullet and the count that counts bullets counts them. The number of criteria a
-  build must satisfy is therefore 388, and the two numbers are given separately because they
-  answer different questions: 383 is what is written down, 381 is what is asserted.
+  build must satisfy is therefore 389, and the two numbers are given separately because they
+  answer different questions: 391 is what is written down, 389 is what is asserted.
 
   **Six per-file rows moved with it and that is the point of counting rather than adding.**
   12.3 gained AC-404 and AC-409, 12.8 gained AC-405, 12.9 gained AC-406, AC-408 and AC-411,
@@ -69,12 +69,12 @@ default, so read this list before spending one.
   authorization sweep and 398 taken beside it (issue #74); 399 was handed to issue #104 and
   400 taken unassigned beside it. Neither branch could see the other's, which is why each
   wrote a different "next number" and why this list, rather than either bullet, is where the
-  answer is. **401 to 421 are spent but for 403, and the next number to take from the tail is
-  422.** Through 414 that sentence is the wave-3 integration's, written as the last merge of the night of
+  answer is. **401 to 422 are spent but for 403, and the next number to take from the tail is
+  423.** Through 414 that sentence is the wave-3 integration's, written as the last merge of the night of
   2026-09-04 and derived from the files: 401 and 402 went to the browser-suite branch, 404
   and 405 to the settings-and-zoom one, 406 to 408 to the covers one, 411 to the images one,
   and 409, 410 and 412 to the settings-bundle one. Issue #184 then took AC-415 through
-  AC-421 as one contained production boundary; the next tail number is AC-422. **Each branch's own bullet below names a
+  AC-421 as one contained production boundary, and issue #192 took AC-422. **Each branch's own bullet below names a
   different tail — 401, then 403 — and none of them is wrong**, each being true of the list
   its author could read; this sentence is what the five reconcile to, and it is the reason
   the rule sends you here rather than to a bullet. The reservation language is left standing
@@ -363,7 +363,7 @@ ordering: a group that dies becomes a tombstone row in the table below, and a ne
 | 12.6 | [`12.6-tasks-steps-and-the-task-surface.md`](12.6-tasks-steps-and-the-task-surface.md) | 12.6 Tasks, steps and the task surface, 39 criteria |
 | 12.7 | [`12.7-today.md`](12.7-today.md) | 12.7 Today, 10 criteria |
 | 12.8 | [`12.8-views-filters-and-search.md`](12.8-views-filters-and-search.md) | 12.8 Views, filters and search, 33 criteria |
-| 12.9 | [`12.9-pages-blocks-and-covers.md`](12.9-pages-blocks-and-covers.md) | 12.9 Pages, blocks and covers, 30 criteria |
+| 12.9 | [`12.9-pages-blocks-and-covers.md`](12.9-pages-blocks-and-covers.md) | 12.9 Pages, blocks and covers, 31 criteria |
 | 12.10 | [`12.10-shelves-and-the-library.md`](12.10-shelves-and-the-library.md) | 12.10 Shelves and the Library, 13 criteria |
 | 12.11 | [`12.11-recurrence.md`](12.11-recurrence.md) | 12.11 Recurrence, 15 criteria |
 | 12.12 | [`12.12-reminders.md`](12.12-reminders.md) | 12.12 Reminders, 24 criteria |

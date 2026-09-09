@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent, ReactNode } from 'react'
 
 import type { PageActionBody, PageBlock, PageItemRef, PageView } from '../../../shared/pages.js'
@@ -253,7 +253,7 @@ export function ComposeCanvas({
   function insertionMenu(): React.JSX.Element | null {
     if (draft === null || !menu) return null
     return (
-      <DropdownMenu open onOpenChange={(open) => { setMenu(open) }}>
+      <DropdownMenu modal={false} open onOpenChange={(open) => { setMenu(open) }}>
         <DropdownMenuTrigger render={<span />} />
         <DropdownMenuContent align="start" sideOffset={2} className="w-64">
           <DropdownMenuGroup>
@@ -324,7 +324,7 @@ export function ComposeCanvas({
     return (
       <ParagraphEditor
         initial=""
-        autoFocus
+        autoFocus={!menu}
         menu={insertionMenu()}
         onMenu={() => { setMenu(true) }}
         onCommit={(text) => { void insertParagraph(text).catch(() => undefined) }}
@@ -350,18 +350,51 @@ export function ComposeCanvas({
     )
   }
 
-  function seam(index: number, forcedSection?: string | null): React.JSX.Element {
+  function seam(
+    index: number,
+    forcedSection?: string | null,
+    forceStructural = false,
+  ): React.JSX.Element {
     const before = ordered[index - 1]
     const after = ordered[index]
     if (draft !== null && sameRef(draft.after, refOf(before)) && sameRef(draft.before, refOf(after))) {
       return draftNode() ?? <></>
     }
+    const terminal = index === ordered.length
+    if (terminal) {
+      return (
+        <div className="relative mt-2 flex min-h-10 items-center">
+          <button
+            type="button"
+            aria-label="Add to page"
+            onClick={() => { openDraft(index, true, forcedSection) }}
+            className="relative z-30 flex size-7 shrink-0 items-center justify-center rounded-full border border-border bg-background text-muted-foreground outline-none transition-colors hover:border-foreground/20 hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Plus className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            aria-label="Do or write something…"
+            onClick={() => { openDraft(index, false, forcedSection) }}
+            className="ml-2 h-10 flex-1 rounded-md text-left text-sm text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30"
+          >
+            Do or write something…
+          </button>
+        </div>
+      )
+    }
+    const betweenTasks = before?.kind === 'task' && after?.kind === 'task'
+    const afterStructure = forceStructural || betweenTasks
     return (
-      <div className="group/seam relative h-0">
-        <button type="button" aria-label="Insert into page" onClick={() => { openDraft(index, true, forcedSection) }} className={cn('absolute -top-3 left-[-2rem] z-30 flex size-6 items-center justify-center rounded-full text-muted-foreground outline-none transition-opacity hover:bg-muted hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring', index === ordered.length ? 'opacity-70' : 'opacity-0 group-hover/seam:opacity-50 [@media(hover:none)]:opacity-60')}>
-          <Plus className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
-        </button>
-        <button type="button" aria-label="Write here" onClick={() => { openDraft(index, false, forcedSection) }} className="absolute -top-3 z-20 h-6 w-full cursor-text rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+      <div className="group/seam relative z-20 h-0">
+        <div className="absolute -top-3 left-[-2rem] h-6 w-[calc(100%+2rem)]">
+          <button type="button" aria-label="Write here" onClick={() => { openDraft(index, false, forcedSection) }} className="absolute inset-0 z-20 cursor-text rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/30" />
+          {afterStructure ? (
+            <button type="button" aria-label="Add between items" onClick={() => { openDraft(index, true, forcedSection) }} className="absolute left-0 top-0 z-30 flex size-6 items-center justify-center rounded-full border border-transparent bg-background text-muted-foreground opacity-0 shadow-sm outline-none transition-all group-hover/seam:border-border group-hover/seam:opacity-100 hover:!border-foreground/20 hover:!bg-muted hover:!text-foreground focus-visible:border-border focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring [@media(hover:none)]:pointer-events-none">
+              <Plus className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
+            </button>
+          ) : null}
+        </div>
       </div>
     )
   }
@@ -525,7 +558,7 @@ export function ComposeCanvas({
                   <Trash2 className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
                 </button>
               </div>
-              {isCollapsed ? seam(end, null) : seam(index + 1, block.id)}
+              {isCollapsed ? seam(end, null, true) : seam(index + 1, block.id)}
             </div>
           )
         }
@@ -600,8 +633,12 @@ export function ComposeCanvas({
                 }}
               />
             ) : (
-              <div className="py-1">
-                <p className="max-w-2xl cursor-text whitespace-pre-wrap text-sm leading-6 text-foreground" onClick={(event) => { if ((event.target as HTMLElement).closest('a') === null) setEditing(block.id) }}>{richText(block.text ?? '')}</p>
+              <div className="py-1.5">
+                <p className="max-w-2xl cursor-text whitespace-pre-wrap text-sm leading-6 text-foreground" onClick={(event) => {
+                  const selection = window.getSelection()
+                  if (selection !== null && !selection.isCollapsed) return
+                  if ((event.target as HTMLElement).closest('a') === null) setEditing(block.id)
+                }}>{richText(block.text ?? '')}</p>
                 <EmbeddedVideo text={block.text ?? ''} />
               </div>
             )}
@@ -653,6 +690,16 @@ function sameRef(left: PageItemRef | null, right: PageItemRef | null): boolean {
   return left.kind === right.kind && left.id === right.id
 }
 
+function editableText(node: HTMLDivElement | null, fallback = ''): string {
+  if (node === null) return fallback
+  const inner = node.innerText
+  const content = node.textContent ?? ''
+  // jsdom does not derive innerText from textContent; browsers do. Keeping
+  // this fallback here makes the input contract testable without treating a
+  // deliberately cleared browser editor as its previous value.
+  return (inner === '' && content !== '' ? content : inner ?? content).replace(/\n$/u, '')
+}
+
 function ParagraphEditor({
   initial,
   autoFocus,
@@ -672,15 +719,18 @@ function ParagraphEditor({
 }): React.JSX.Element {
   const editor = useRef<HTMLDivElement | null>(null)
   const keepForMenu = useRef(false)
+  const value = useRef(initial)
   const [empty, setEmpty] = useState(initial === '')
-  function text(): string { return editor.current?.innerText.replace(/\n$/u, '') ?? '' }
+  useEffect(() => {
+    if (autoFocus) editor.current?.focus()
+  }, [autoFocus])
+  function text(): string {
+    return editableText(editor.current, value.current)
+  }
   return (
-    <div className="group/line relative -ml-8 flex items-start">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center">
-        <Button variant="ghost" size="icon-sm" aria-label="Insert into page" onMouseDown={() => { keepForMenu.current = true }} onClick={onMenu} className="rounded-full text-muted-foreground opacity-70"><Plus className="size-4" aria-hidden="true" /></Button>
-        {menu}
-      </div>
-      <div className="min-w-0 flex-1 py-1">
+    <div className="group/line relative">
+      {menu}
+      <div className="min-w-0 py-1.5">
         <div
           ref={editor}
           role="textbox"
@@ -692,10 +742,12 @@ function ParagraphEditor({
           data-placeholder="Do or write something…"
           autoFocus={autoFocus}
           onInput={(event) => {
-            const value = event.currentTarget.innerText.replace(/\n$/u, '')
-            setEmpty(value === '')
-            if (value === '/') {
+            const nextValue = editableText(event.currentTarget)
+            value.current = nextValue
+            setEmpty(nextValue === '')
+            if (nextValue === '/') {
               event.currentTarget.textContent = ''
+              value.current = ''
               setEmpty(true)
               keepForMenu.current = true
               onMenu()
