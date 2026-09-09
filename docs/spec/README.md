@@ -48,7 +48,7 @@ and a retired criterion is marked rather than removed.
 | 9 | [`09-ui/`](09-ui/) | Page structure, states, and normative copy |
 | 10 | [`10-non-functional/`](10-non-functional/) | Auth, authorization, limits, rate limits, logging, PWA, email, response headers |
 | 11 | [`11-architecture/`](11-architecture/) | The stack, its constraints, rejected alternatives, and hazards |
-| 12 | [`12-acceptance-criteria/`](12-acceptance-criteria/) | The 383 numbered criteria, 381 of them live, the definition of done |
+| 12 | [`12-acceptance-criteria/`](12-acceptance-criteria/) | The 391 numbered criteria, 389 of them live, the definition of done |
 | 13 | [`13-open-questions/`](13-open-questions/) | **Retired 2026-09-01.** A forwarding address only: open questions are GitHub issues now, its recorded assumptions moved into the sections they constrain, and its table maps all 57 old item numbers to where each went. The number is not reused. |
 
 Sections 4 and 7 are frozen: changing either invalidates acceptance criteria by number and
@@ -100,3 +100,6 @@ had just fixed at 413 and re-derived the two numbers here rather than leaving th
 only branch open with a criterion in it: one criterion added, none retired, so **380 are
 live**. The derivation is still the files' — a bullet added to 12.9, whose per-file row moved
 from 25 to 26 with it — and the next branch to spend a number re-derives it again.
+
+**391 as of issue #192.** Issue #184 added AC-415 through AC-421, and the calm insertion
+treatment added AC-422; two criteria remain retired, so 389 are live.
