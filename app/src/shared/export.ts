@@ -31,6 +31,7 @@ leaves Dana, and an address is the one field that lets whoever receives it
 contact a person who never agreed to be in it.
 */
 import { z } from 'zod'
+import { richContent } from './page-document.js'
 
 import { CALENDAR_ZOOMS } from './bundle.js'
 
@@ -43,7 +44,7 @@ export const EXPORT_FORMAT = 'dana-export'
  * bytes. A later version that embeds or archives them changes this number;
  * a reader must refuse a version it does not know rather than guess.
  */
-export const EXPORT_VERSION = 1
+export const EXPORT_VERSION = 2
 
 /**
  * 10.3's "List responses capped at 1000 rows with truncated flag", applied
@@ -127,6 +128,8 @@ export type ExportReminder = z.infer<typeof exportReminder>
  * the day they restore one.
  */
 export const exportTask = z.object({
+  section_block_id:z.uuid().nullable(),
+  page_position:z.string().nullable(),
   id: z.uuid(),
   title: z.string(),
   notes: z.string().nullable(),
@@ -150,6 +153,9 @@ export type ExportTask = z.infer<typeof exportTask>
 /** 4.17, without the file dimensions `GET /pages` joins in: the shape of a
  * picture is a fact about the file, and `files` below carries it once. */
 export const exportBlock = z.object({
+  rich_content:richContent.nullable(),
+  section_block_id:z.uuid().nullable(),
+  page_position:z.string().nullable(),
   id: z.uuid(),
   kind: z.string(),
   position: z.number().int(),

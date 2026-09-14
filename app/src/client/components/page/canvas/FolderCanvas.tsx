@@ -1,0 +1,202 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCreateBlockNote } from '@blocknote/react'
+import { BlockNoteEditor } from '@blocknote/core'
+import { useQueryClient } from '@tanstack/react-query'
+import '@blocknote/shadcn/style.css'
+import type { PageView } from '../../../../shared/pages.js'
+import { getPageResponse } from '../../../../shared/pages.js'
+import { documentTransaction } from '../../../../shared/page-document.js'
+import { getPlain, mutateApi, uploadFile } from '../../../api/http.js'
+import { queryKeys } from '../../../api/keys.js'
+import { Button } from '../../ui/button.js'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog.js'
+import { Input } from '../../ui/input.js'
+import { CanvasTaskProvider } from './CanvasTask.js'
+import { CanvasSurface } from './CanvasSurface.js'
+import { canvasSchema } from './schema.js'
+import type { CanvasBlock, CanvasEditor } from './schema.js'
+import { dehydrateCanvas, hydrateCanvas, richRuns } from './adapters.js'
+import type { CanvasInput } from './adapters.js'
+import { CanvasWriter } from './saving.js'
+import { pasteIntoCanvas } from './paste.js'
+import type { TaskRows } from '../../../pages/task-rows.js'
+
+type Rows = Parameters<typeof TaskRows>[0]
+interface Props extends Pick<Rows, 'tasks' | 'context' | 'actions' | 'onAsk'> {
+  readonly page: PageView
+  readonly folderId: string
+  readonly arrangeable: boolean
+}
+
+/** Reset history only at identity-changing checkpoints or explicit server reconciliation. */
+export default function FolderCanvas(props: Props): React.JSX.Element {
+  const [checkpoint, setCheckpoint] = useState<{ page: PageView; epoch: number }>({ page: props.page, epoch: 0 })
+  return <PersistedCanvas key={`${props.folderId}:${checkpoint.epoch}`} {...props} initialPage={checkpoint.page} onCheckpoint={(page) => setCheckpoint((old) => ({ page, epoch: old.epoch + 1 }))} />
+}
+
+function PersistedCanvas({ page, initialPage, folderId, tasks, context, actions, onAsk, arrangeable, onCheckpoint }: Props & {
+  readonly initialPage: PageView
+  readonly onCheckpoint: (page: PageView) => void
+}): React.JSX.Element {
+  const queryClient = useQueryClient()
+  const host = useRef<HTMLDivElement>(null)
+  const [width, setWidth] = useState<number | null>(null)
+  useEffect(() => { setWidth(host.current?.clientWidth || 600) }, [])
+  return <div ref={host} className="min-w-0">{width === null ? <p role="status">Loading writing…</p> : <CanvasSession page={page} initialPage={initialPage} folderId={folderId} tasks={tasks} context={context} actions={actions} onAsk={onAsk} arrangeable={arrangeable} onCheckpoint={onCheckpoint} width={width} onSaved={(next) => {
+    queryClient.setQueryData(queryKeys.folderPage(folderId), next)
+  }} />}</div>
+}
+
+function CanvasSession({ page, initialPage, folderId, tasks, context, actions, onAsk, arrangeable, onCheckpoint, width, onSaved }: Props & {
+  readonly initialPage: PageView
+  readonly onCheckpoint: (page: PageView) => void
+  readonly width: number
+  readonly onSaved: (page: PageView) => void
+}): React.JSX.Element {
+  const [, render] = useState(0)
+  const [error, setError] = useState('')
+  const [taskAt, setTaskAt] = useState<string | null>(null)
+  const [title, setTitle] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [recovery, setRecovery] = useState(false)
+  const [previousDraft, setPreviousDraft] = useState<string | null>(null)
+  const initial = useMemo(() => hydrateCanvas(initialPage, width), [initialPage, width])
+  const editor = useCreateBlockNote({
+    schema: canvasSchema,
+    initialContent: initial.length ? initial : [{ id: crypto.randomUUID(), type: 'paragraph', content: '' }],
+    pasteHandler: ({ editor: current, event, defaultPasteHandler }) => pasteIntoCanvas(current, event, setError) ?? defaultPasteHandler({ plainTextAsMarkdown: false }),
+    uploadFile: async (file) => {
+      try {
+        const uploaded = await uploadFile('image', folderId, file)
+        return { url: `/api/v1/files/${uploaded.id}`, name: file.name }
+      } catch (failure) {
+        setError(failure instanceof Error ? failure.message : 'The image could not be uploaded. Try again.')
+        throw failure
+      }
+    },
+  })
+  const [writer] = useState(() => new CanvasWriter(initial.length ? dehydrateCanvas(editor.document, width) : { blocks: [], items: [] }, initialPage.revision!,
+    (body) => mutateApi(getPageResponse, { method: 'POST', path: `/folders/${folderId}/page/actions`, body }),
+    () => {
+      render((value) => value + 1)
+      try {
+        if (writer.state === 'saved') sessionStorage.removeItem(`dana-canvas-draft:${folderId}`)
+        else sessionStorage.setItem(`dana-canvas-draft:${folderId}`, JSON.stringify({ folderId, revision: writer.revision, blocks: editor.document, pending: writer.pending?.request }))
+      } catch { /* recoverable in memory; storage is optional */ }
+    },
+    (next, checkpoint) => { onSaved(next); if (checkpoint) onCheckpoint(next) },
+  ))
+  // This is a recoverable draft, never a cached page or an automatic offline queue.
+  const draftKey = `dana-canvas-draft:${folderId}`
+  useEffect(() => {
+    try { const draft = sessionStorage.getItem(draftKey); setPreviousDraft(draft); setRecovery(draft !== null) } catch { /* storage is optional */ }
+  }, [draftKey])
+  useEffect(() => {
+    if (writer.state === 'saved') return
+    const warn = (event: BeforeUnloadEvent): void => { event.preventDefault(); event.returnValue = '' }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [writer, writer.state])
+  useEffect(() => {
+    if (writer.state !== 'changed') return
+    const timer = window.setTimeout(() => { void writer.flush() }, 450)
+    return () => window.clearTimeout(timer)
+  }, [writer, writer.state, writer.latest])
+  useEffect(() => {
+    if (!page.revision || page.revision === writer.revision || writer.state === 'saving') return
+    if (writer.state === 'saved') onCheckpoint(page)
+    else setError('This page changed elsewhere. Your writing is retained. Save a copy and load the latest page before continuing.')
+  }, [page, writer, onCheckpoint])
+
+  function changed(current: CanvasEditor): void {
+    try {
+      writer.change(dehydrateCanvas(current.document, width))
+      setError('')
+    } catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not prepare this edit for saving.') }
+  }
+  function copyDraft(): void {
+    const content = JSON.stringify({ folderId, revision: writer.revision, blocks: editor.document }, null, 2)
+    const url = URL.createObjectURL(new Blob([content], { type: 'application/json' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `dana-writing-${folderId}.json`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+  async function loadLatest(): Promise<void> {
+    copyDraft()
+    try {
+      const latest = await getPlain(getPageResponse, `/folders/${folderId}/page`)
+      onSaved(latest)
+      onCheckpoint(latest)
+    } catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not reload the page.') }
+  }
+  async function createTask(): Promise<void> {
+    if (!taskAt || !title.trim() || writer.state === 'failed') return
+    setCreating(true)
+    await writer.flush()
+    if (writer.state !== 'saved') { setCreating(false); return }
+    const id = crypto.randomUUID()
+    const replace = (blocks: readonly CanvasInput[]): CanvasInput[] => blocks.flatMap((block) => {
+      if (block.id === taskAt) {
+        const task: CanvasInput = { id, type: 'danaTask', props: { taskId: id } }
+        return block.type === 'paragraph' ? [task] : [block, task]
+      }
+      return [{ ...block, children: block.children ? replace(block.children) : [] }]
+    })
+    const proposal = replace(editor.document)
+    // Serialize with the schema's complete block shape; no temporary Task row or
+    // simulated mutable Task record is put into the live editor before commit.
+    const temporary = BlockNoteEditor.create({ schema: canvasSchema, initialContent: proposal })
+    try {
+      writer.change(dehydrateCanvas(temporary.document, width))
+      await writer.flush({ id, title: title.trim() })
+    } finally { temporary.unmount(); setCreating(false); setTaskAt(null) }
+  }
+  function askTask(target?: CanvasBlock): void {
+    const block = target ?? editor.getTextCursorPosition().block
+    setTaskAt(block.id)
+    setTitle(block.type === 'paragraph' ? richRuns(block).map((run) => run.text).join('') : '')
+  }
+  const feedback = error || (writer.state === 'failed' ? writer.error instanceof Error ? writer.error.message : 'Could not save. Your writing is retained.' : '')
+  const pendingTask = writer.pending?.request.operations.some((operation) => operation.op === 'create_task') === true
+  return <>
+    {!arrangeable ? <p className="mb-3 text-sm text-muted-foreground">Writing and movement are paused while this view is sorted, filtered or grouped. Return to manual order to edit the outline.</p> : null}
+    {recovery ? <div role="status" className="mb-3 text-sm text-muted-foreground">A writing draft from this tab is available. <Button variant="ghost" onClick={() => {
+      const saved = previousDraft
+      if (saved) {
+        const url = URL.createObjectURL(new Blob([saved], { type: 'application/json' }))
+        const link = document.createElement('a'); link.href = url; link.download = `dana-recovered-${folderId}.json`; link.click(); URL.revokeObjectURL(url)
+      }
+    }}>Download previous draft</Button><Button variant="outline" onClick={() => {
+      void (async () => {
+        try {
+          const data: unknown = JSON.parse(previousDraft ?? '{}')
+          const pending = typeof data === 'object' && data !== null && 'pending' in data ? documentTransaction.safeParse(data.pending) : null
+          if (!pending?.success) { setError('This draft has no interrupted request. Download it to keep the writing.'); return }
+          const next = await mutateApi(getPageResponse, { method: 'POST', path: `/folders/${folderId}/page/actions`, body: pending.data })
+          // Keep a copy of any writing made after that original request.
+          if (previousDraft) {
+            const url = URL.createObjectURL(new Blob([previousDraft], { type: 'application/json' }))
+            const link = document.createElement('a'); link.href = url; link.download = `dana-recovered-${folderId}.json`; link.click(); URL.revokeObjectURL(url)
+          }
+          sessionStorage.removeItem(draftKey)
+          onSaved(next); onCheckpoint(next)
+        } catch (failure) { setError(failure instanceof Error ? failure.message : 'The interrupted save could not be recovered.') }
+      })()
+    }}>Retry interrupted save</Button><Button variant="ghost" onClick={() => { sessionStorage.removeItem(draftKey); setRecovery(false) }}>Dismiss</Button></div> : null}
+    <CanvasTaskProvider tasks={tasks} context={context} actions={actions} onAsk={onAsk}>
+      <CanvasSurface editor={editor} onChange={changed} onCreateTask={askTask} editable={arrangeable && !creating && !pendingTask} />
+    </CanvasTaskProvider>
+    <div role="status" aria-live="polite" className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+      {feedback || (writer.state === 'saving' ? 'Saving…' : writer.state === 'changed' ? 'Unsaved writing' : 'Saved')}
+      {feedback ? <><Button variant="outline" onClick={() => { void writer.retry() }} disabled={!writer.pending}>Retry save</Button><Button variant="ghost" onClick={copyDraft}>Download writing</Button><Button variant="ghost" onClick={() => { void loadLatest() }}>Download writing and load latest</Button></> : null}
+    </div>
+    <Dialog open={taskAt !== null} onOpenChange={(open) => { if (!open && !creating) setTaskAt(null) }}>
+      <DialogContent><DialogHeader><DialogTitle>Create Task</DialogTitle><DialogDescription>The Task keeps this position. Document undo starts a new history after creation; Task actions remain in its own menu.</DialogDescription></DialogHeader>
+        <Input aria-label="Task title" value={title} maxLength={500} onChange={(event) => setTitle(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void createTask() }} />
+        <DialogFooter><Button variant="ghost" onClick={() => setTaskAt(null)} disabled={creating}>Cancel</Button><Button variant="commit" onClick={() => { void createTask() }} disabled={creating || !title.trim()}>Create Task</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
+  </>
+}

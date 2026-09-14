@@ -32,6 +32,7 @@ import {
 } from '../domain/acts.js'
 import { accessOf } from '../domain/folders.js'
 import { today } from '../time/today.js'
+import { DocumentRefusal } from '../domain/page-document.js'
 import { actOnFolderPage, pageView, putPage } from '../domain/pages.js'
 import {
   createShelf,
@@ -642,7 +643,14 @@ export function createWorkshopRouter(
         )
         return
       }
-      const outcome = await importWorkflow(db, viewer(req), parsed, anchor)
+      const store = storeOf(res)
+      if(store===null)return
+      let outcome
+      try { outcome = await importWorkflow(db, viewer(req), parsed, anchor, store) }
+      catch(error:unknown){
+        if(error instanceof DocumentRefusal){sendError(res,422,'validation_failed',error.message);return}
+        throw error
+      }
       if (outcome.kind === 'folder_cap') {
         sendError(
           res,

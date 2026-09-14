@@ -608,12 +608,13 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
     primaryKey: { name: 'page_blocks_pkey', columns: ['id'] },
     uniques: [],
     checks: [
+      { name: 'page_blocks_rich_content_check', columns: ['kind', 'rich_content'] },
       { name: 'page_blocks_kind_check', columns: ['kind'] },
       { name: 'page_blocks_one_home_check', columns: ['folder_id', 'shelf_id'] },
       { name: 'page_blocks_page_position_format_check', columns: ['page_position'] },
       {
         name: 'page_blocks_section_membership_check',
-        columns: ['folder_id', 'kind', 'section_block_id'],
+        columns: ['folder_id', 'section_block_id'],
       },
       { name: 'page_blocks_text_length_check', columns: ['kind', 'text'] },
       { name: 'page_blocks_width_pct_kind_check', columns: ['kind', 'width_pct'] },
@@ -799,4 +800,11 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
     ],
     indexes: [],
   },
-}
+  page_document_receipts: {
+    primaryKey:{name:'page_document_receipts_pkey',columns:['actor_id','folder_id','mutation_id']},
+    uniques:[],checks:[],indexes:[],
+    foreignKeys:[
+      {name:'page_document_receipts_actor_id_fkey',columns:['actor_id'],references:{table:'users',columns:['id']},onDelete:'cascade'},
+      {name:'page_document_receipts_folder_id_fkey',columns:['folder_id'],references:{table:'folders',columns:['id']},onDelete:'cascade'},
+    ],
+  },}

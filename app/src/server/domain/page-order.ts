@@ -42,7 +42,7 @@ export async function positionedItems(
               FROM tasks t
              WHERE t.folder_id = ${folderId}::uuid
                AND t.deleted_at IS NULL
-               AND t.status IN ('pending', 'abandoned')
+
           ) item
          ORDER BY item.page_position ASC NULLS LAST,
                   CASE WHEN item.page_position IS NULL THEN item.fallback_kind END,
@@ -207,7 +207,13 @@ export function positionAtSectionEnd(
   )
   if (sectionIndex < 0) return null
   let beforeIndex = sectionIndex + 1
-  while (without[beforeIndex]?.sectionBlockId === sectionBlockId) beforeIndex += 1
+  const descendants = new Set([sectionBlockId])
+  while (beforeIndex < without.length) {
+    const item = without[beforeIndex]
+    if(item === undefined || item.sectionBlockId === null || !descendants.has(item.sectionBlockId)) break
+    if(item.blockKind === 'section') descendants.add(item.id)
+    beforeIndex += 1
+  }
   return keyBetween(
     without[beforeIndex - 1]?.pagePosition ?? null,
     without[beforeIndex]?.pagePosition ?? null,
