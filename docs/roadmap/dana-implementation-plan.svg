@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="980" viewBox="0 0 1600 980">
+  <rect width="1600" height="980" fill="#fbfaf6"/>
+  <style>
+    text { font-family: "Comic Sans MS", "Bradley Hand", cursive; fill: #15202b; }
+    .title { font-size: 58px; font-weight: 700; }
+    .sub { font-size: 27px; }
+    .phase { font-size: 30px; font-weight: 700; }
+    .small { font-size: 22px; }
+    .tiny { font-size: 19px; }
+    .box { fill: #ffffff; stroke: #243746; stroke-width: 3; rx: 18; }
+    .focus { fill: #eaf5ff; stroke: #2a6ea6; stroke-width: 4; rx: 24; }
+    .milestone { fill: #f7fbff; stroke: #4b6f8f; stroke-width: 2.5; rx: 14; }
+    .future { fill: #f5f6f7; stroke: #58636e; stroke-width: 2.5; rx: 18; }
+    .arrow { stroke: #23313d; stroke-width: 4; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+    .dash { stroke: #73808a; stroke-width: 2.5; stroke-dasharray: 9 9; }
+  </style>
+
+  <text x="70" y="82" class="title">Dana Implementation Plan</text>
+  <text x="74" y="125" class="sub">Approved roadmap · Phase 1 is the current focus</text>
+  <path d="M72 140 C340 132 525 149 760 141" stroke="#78bff0" stroke-width="8" fill="none" stroke-linecap="round"/>
+
+  <rect x="930" y="35" width="590" height="125" rx="45" fill="#eef8ff" stroke="#243746" stroke-width="2.5"/>
+  <text x="1225" y="75" text-anchor="middle" class="small">Product ambition</text>
+  <text x="1225" y="108" text-anchor="middle" class="small">Useful work can become reusable workflows.</text>
+  <text x="1225" y="138" text-anchor="middle" class="small">Reusable workflows can unlock many use cases and applications.</text>
+
+  <!-- Phase 1 -->
+  <rect x="55" y="195" width="1490" height="250" class="focus"/>
+  <text x="85" y="240" class="phase">Phase 1 · Build and prove Dana internally</text>
+  <text x="85" y="273" class="small">Finish with a real founder-usable, AI-enabled Dana and evidence from real work.</text>
+
+  <rect x="85" y="305" width="430" height="108" class="milestone"/>
+  <text x="105" y="340" class="small" font-weight="700">M1 · Core foundation</text>
+  <text x="105" y="370" class="tiny">First trustworthy semantic loop.</text>
+  <text x="105" y="398" class="tiny">VS1: consequential standing on an existing Task.</text>
+
+  <path d="M525 359 L565 359" class="arrow"/><path d="M552 347 L565 359 L552 371" class="arrow"/>
+
+  <rect x="575" y="305" width="430" height="108" class="milestone"/>
+  <text x="595" y="340" class="small" font-weight="700">M2 · AI interface + integration</text>
+  <text x="595" y="370" class="tiny">AI understands authorized context and helps with work.</text>
+  <text x="595" y="398" class="tiny">Controlled tools use the same Dana rules as humans.</text>
+
+  <path d="M1015 359 L1055 359" class="arrow"/><path d="M1042 347 L1055 359 L1042 371" class="arrow"/>
+
+  <rect x="1065" y="305" width="440" height="108" class="milestone"/>
+  <text x="1085" y="340" class="small" font-weight="700">M3 · Founder use + reusable workflows</text>
+  <text x="1085" y="370" class="tiny">Use Dana daily and turn proven repeated work into workflows.</text>
+  <text x="1085" y="398" class="tiny">Include one real external-system action proof.</text>
+
+  <!-- Progression arrow -->
+  <path d="M150 482 C410 470 690 485 950 476 C1180 468 1340 477 1485 474" class="arrow"/>
+  <path d="M1468 459 L1488 474 L1468 489" class="arrow"/>
+  <text x="800" y="512" text-anchor="middle" class="tiny">Foundation → AI → real founder use → reusable workflows</text>
+
+  <!-- Phase 2 -->
+  <rect x="85" y="550" width="1430" height="88" class="future"/>
+  <text x="110" y="585" class="phase">Phase 2 · Prepare the company + product</text>
+  <text x="110" y="617" class="small">Incorporation, IP ownership/brand protection, legal basics, mobile prototypes, outside-user readiness.</text>
+
+  <path d="M800 640 L800 665" class="arrow"/><path d="M788 653 L800 666 L812 653" class="arrow"/>
+
+  <!-- Phase 3 -->
+  <rect x="145" y="680" width="1310" height="82" class="future"/>
+  <text x="170" y="714" class="phase">Phase 3 · Controlled private alpha</text>
+  <text x="170" y="745" class="small">Small invited group. Test usability, security, sharing, recovery, AI behavior, and workflow transfer.</text>
+
+  <path d="M800 764 L800 785" class="arrow"/><path d="M788 774 L800 787 L812 774" class="arrow"/>
+
+  <!-- Phase 4 -->
+  <rect x="205" y="800" width="1190" height="76" class="future"/>
+  <text x="230" y="833" class="phase">Phase 4 · Private beta</text>
+  <text x="230" y="862" class="small">More invited users. Improve workflows, integrations, automation, collaboration, reliability, and operations from evidence.</text>
+
+  <path d="M800 878 L800 899" class="arrow"/><path d="M788 888 L800 901 L812 888" class="arrow"/>
+
+  <!-- Phase 5 -->
+  <rect x="265" y="912" width="1070" height="58" rx="18" fill="#dceeff" stroke="#2a6ea6" stroke-width="3"/>
+  <text x="290" y="949" class="phase">Phase 5 · Public product → broader growth and platform expansion based on real demand</text>
+
+  <line x1="55" y1="530" x2="1545" y2="530" class="dash"/>
+</svg>
