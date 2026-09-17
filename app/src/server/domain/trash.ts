@@ -121,6 +121,9 @@ export async function restoreTask(
   taskId: string,
 ): Promise<'restored' | 'not_found'> {
   return inTransaction(db, async (tx) => {
+    const homes = await rowsOf(tx,sql`SELECT folder_id FROM tasks WHERE id=${taskId}::uuid`)
+    if(homes[0]===undefined)return 'not_found'
+    await tx.execute(sql`SELECT 1 FROM folders WHERE id=${homes[0].folder_id}::uuid FOR UPDATE`)
     const found = await rowsOf(
       tx,
       sql`SELECT t.id, t.title, t.folder_id

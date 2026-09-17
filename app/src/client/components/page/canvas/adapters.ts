@@ -1,0 +1,114 @@
+import type { PartialBlock } from '@blocknote/core'
+import type { PageView } from '../../../../shared/pages.js'
+import type { CanvasBlock, canvasSchema } from './schema.js'
+
+export type CanvasInput = PartialBlock<typeof canvasSchema.blockSchema, typeof canvasSchema.inlineContentSchema, typeof canvasSchema.styleSchema>
+export interface RichRun { text: string; bold?: boolean; italic?: boolean; href?: string }
+export interface CanvasRecord {
+  id: string
+  block_kind: 'section' | 'paragraph' | 'image' | 'folder_ref'
+  text: string | null
+  rich_content: { version: 1; runs: RichRun[] } | null
+  file_id: string | null
+  ref_folder_id: string | null
+  width_pct: number | null
+}
+export interface CanvasPlacement { kind: 'block' | 'task'; id: string; section_block_id: string | null }
+export interface CanvasDocument { blocks: CanvasRecord[]; items: CanvasPlacement[] }
+
+function contentOf(text: string | null, rich?: { version: 1; runs: RichRun[] } | null): CanvasInput['content'] {
+  if (!rich) return text ?? ''
+  return rich.runs.map((run) => {
+    const node = { type: 'text' as const, text: run.text, styles: { ...(run.bold ? { bold: true } : {}), ...(run.italic ? { italic: true } : {}) } }
+    return run.href ? { type: 'link' as const, href: run.href, content: [node] } : node
+  })
+}
+
+/** Explicit parent IDs alone establish groups; root prose never follows proximity. */
+export function hydrateCanvas(page: PageView, columnWidth: number): CanvasInput[] {
+  const records = new Map(page.blocks.map((block) => [block.id, block]))
+  const parents = new Map(page.task_placements?.map((task) => [task.id, task.section_block_id]) ?? [])
+  const nodes = new Map<string, CanvasInput>()
+  for (const item of page.items) {
+    if (item.kind === 'task') {
+      nodes.set(item.id, { id: item.id, type: 'danaTask', props: { taskId: item.id }, children: [] })
+      continue
+    }
+    const block = records.get(item.id)
+    if (!block) throw new Error('The page contains an unavailable block. Reload before editing.')
+    parents.set(block.id, block.section_block_id)
+    if (block.kind === 'section') nodes.set(block.id, { id: block.id, type: 'heading', props: { level: block.section_block_id === null ? 1 : 2, isToggleable: true }, content: contentOf(block.text, block.rich_content), children: [] })
+    else if (block.kind === 'image') nodes.set(block.id, { id: block.id, type: 'image', props: { url: block.file_id ? `/api/v1/files/${block.file_id}` : '', caption: block.text ?? '', previewWidth: columnWidth * (block.width_pct ?? 100) / 100 }, children: [] })
+    else if (block.kind === 'folder_ref') nodes.set(block.id, { id: block.id, type: 'paragraph', content: [{ type: 'link', href: `/app/folders/${block.ref_folder_id}`, content: block.text ?? 'Open folder' }], children: [] })
+    else nodes.set(block.id, { id: block.id, type: 'paragraph', content: contentOf(block.text, block.rich_content), children: [] })
+  }
+  const root: CanvasInput[] = []
+  for (const item of page.items) {
+    const node = nodes.get(item.id)!
+    const parentId = parents.get(item.id) ?? null
+    if (parentId === null) root.push(node)
+    else {
+      const parent = nodes.get(parentId)
+      if (parent?.type !== 'heading') throw new Error('The page has an invalid group. Its content has been preserved; reload before editing.')
+      parent.children!.push(node)
+    }
+  }
+  return root
+}
+
+export function richRuns(block: CanvasBlock): RichRun[] {
+  if (!Array.isArray(block.content)) return []
+  const runs: RichRun[] = []
+  for (const inline of block.content) {
+    const append = (text: string, styles: { bold?: boolean; italic?: boolean }, href?: string): void => {
+      if (!text) return
+      const run: RichRun = { text, ...(styles.bold ? { bold: true } : {}), ...(styles.italic ? { italic: true } : {}), ...(href ? { href } : {}) }
+      const last = runs.at(-1)
+      if (last && last.bold === run.bold && last.italic === run.italic && last.href === run.href) last.text += text
+      else runs.push(run)
+    }
+    if (inline.type === 'text') append(inline.text, inline.styles)
+    else if (inline.type === 'link') for (const text of inline.content) append(text.text, text.styles, inline.href)
+  }
+  return runs
+}
+
+/** Per-record projection, independent of the editor's JSON serialization. */
+export function dehydrateCanvas(blocks: readonly CanvasBlock[], columnWidth: number): CanvasDocument {
+  const result: CanvasDocument = { blocks: [], items: [] }
+  function visit(children: readonly CanvasBlock[], parent: string | null): void {
+    for (const block of children) {
+      const task = block.type === 'danaTask'
+      result.items.push({ kind: task ? 'task' : 'block', id: task ? block.props.taskId : block.id, section_block_id: parent })
+      if (!task) {
+        const runs = richRuns(block)
+        const image = block.type === 'image'
+        const fileId = image ? /(?:^|\/)api\/v1\/files\/([0-9a-f-]{36})$/i.exec(block.props.url)?.[1] ?? null : null
+        if (image && block.props.url && !fileId) throw new Error('Upload this image to Dana before saving. External image URLs are not supported.')
+        result.blocks.push({ id: block.id, block_kind: block.type === 'heading' ? 'section' : image ? 'image' : 'paragraph', text: image ? block.props.caption : runs.map((run) => run.text).join(''), rich_content: image ? null : { version: 1, runs }, file_id: fileId, ref_folder_id: null, width_pct: image ? Math.max(25, Math.min(100, Math.round((block.props.previewWidth || columnWidth) / columnWidth * 100))) : null })
+      }
+      visit(block.children, block.type === 'heading' ? block.id : parent)
+    }
+  }
+  visit(blocks, null)
+  return result
+}
+
+export function documentOf(page: PageView): CanvasDocument {
+  const parents = new Map(page.task_placements?.map((task) => [task.id, task.section_block_id]) ?? [])
+  const blocks = page.blocks.map((block): CanvasRecord => {
+    parents.set(block.id, block.section_block_id)
+    return { id: block.id, block_kind: block.kind, text: block.text, rich_content: block.rich_content ?? null, file_id: block.file_id, ref_folder_id: block.ref_folder_id, width_pct: block.width_pct }
+  })
+  return { blocks, items: page.items.map((item) => ({ ...item, section_block_id: parents.get(item.id) ?? null })) }
+}
+
+export function canvasOperations(before: CanvasDocument, after: CanvasDocument) {
+  const old = new Map(before.blocks.map((block) => [block.id, block]))
+  const ids = new Set(after.blocks.map((block) => block.id))
+  return [
+    ...before.blocks.filter((block) => !ids.has(block.id)).map((block) => ({ op: 'delete_block' as const, id: block.id })),
+    ...after.blocks.filter((block) => JSON.stringify(old.get(block.id)) !== JSON.stringify(block)).map((block) => ({ op: 'put_block' as const, ...block })),
+    { op: 'set_outline' as const, items: after.items },
+  ]
+}

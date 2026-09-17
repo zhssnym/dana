@@ -79,6 +79,8 @@ escalated rather than decided here. So an image item is dropped, and the
 sections and paragraphs around it keep their order.
 */
 import { z } from 'zod'
+import { documentOperation, documentOutlineItem } from './page-document.js'
+import type { PageView } from './pages.js'
 
 import { recurrenceRule } from './tasks.js'
 import type { TaskDetail } from './tasks.js'
@@ -110,6 +112,7 @@ const importBlock = z.object({
 })
 
 const importFolder = z.object({
+  document: z.object({blocks:z.array(documentOperation).max(500),outline:z.array(documentOutlineItem).max(1500),task_ids:z.array(z.uuid()).max(1000)}).optional(),
   name: z.string().min(1).max(100),
   tasks: z.array(importTask).optional(),
   blocks: z.array(importBlock).optional(),
@@ -118,7 +121,7 @@ const importFolder = z.object({
 const canonicalWorkflowBody = z
   .object({
     dana: z.literal('workflow'),
-    version: z.literal(1),
+    version: z.union([z.literal(1),z.literal(2)]),
     name: z.string().max(100).optional(),
     folders: z
       .array(importFolder)
@@ -127,7 +130,7 @@ const canonicalWorkflowBody = z
   })
   .superRefine((file, ctx) => {
     const blocks = file.folders.reduce(
-      (sum, folder) => sum + (folder.blocks?.length ?? 0),
+      (sum, folder) => sum + (folder.document?.blocks.length ?? folder.blocks?.length ?? 0),
       0,
     )
     if (blocks > 500) {
@@ -345,6 +348,7 @@ export function folderToWorkflowFile(
   name: string,
   tasks: readonly TaskDetail[],
   blocks: readonly ExportableBlock[] = [],
+  pageView?: PageView,
 ): ImportWorkflowBody {
   /* 10.3 caps a folder name at 100 and admits no empty one, and this is the
      one place the name is not already a row that satisfied both. */
@@ -371,11 +375,16 @@ export function folderToWorkflowFile(
   }))
   return {
     dana: 'workflow',
-    version: 1,
+    version: pageView === undefined ? 1 : 2,
     name: folderName,
     folders: [
       {
         name: folderName,
+        ...(pageView===undefined?{}:{document:{
+          blocks:pageView.blocks.map(b=>({op:'put_block' as const,id:b.id,block_kind:b.kind,text:b.text,rich_content:b.rich_content??null,file_id:b.file_id,ref_folder_id:b.ref_folder_id,width_pct:b.width_pct})),
+          task_ids:tasks.map(t=>t.id),
+          outline:pageView.items.map(item=>({...item,section_block_id:item.kind==='block'?(pageView.blocks.find(b=>b.id===item.id)?.section_block_id??null):(pageView.task_placements?.find(t=>t.id===item.id)?.section_block_id??null)})),
+        }}),
         ...(work.length > 0 ? { tasks: work } : {}),
         ...(page.length > 0 ? { blocks: page } : {}),
       },

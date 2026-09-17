@@ -41,13 +41,16 @@ import { randomUUID } from 'node:crypto'
 import { sql } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
+import type { DocumentOperation } from '../../shared/pages.js'
 import type { ImportWorkflowBody } from '../../shared/workflows.js'
 import type { ObjectStore } from '../files/store.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
-import { copyCoverFile } from './files.js'
+import { copyCoverFile, readableFileScope } from './files.js'
+import { applyDocument, documentMetadata, DocumentRefusal } from './page-document.js'
 import { upsertReminder } from './tasks.js'
+import { positionAtSectionEnd, seededItems } from './page-order.js'
 
 /**
  * Whether the copy can be made without knowing the caller's zone.
@@ -215,30 +218,27 @@ export async function duplicateFolder(
         )
       }
 
-      // The page next, so the section map exists when the tasks arrive.
-      const blocks = await rowsOf(
-        tx,
-        sql`SELECT id, kind, position, text, ref_folder_id FROM page_blocks
-            WHERE folder_id = ${sourceFolderId}
-            ORDER BY position ASC, id ASC`,
-      )
-      const sectionMap = new Map<string, string>()
-      for (const block of blocks) {
-        const inserted = await rowsOf(
-          tx,
-          sql`INSERT INTO page_blocks
-                (folder_id, kind, position, text, ref_folder_id)
-              VALUES (${copyId}::uuid, ${String(block.kind)},
-                      ${Number(block.position)},
-                      ${block.text === null ? null : String(block.text)},
-                      ${block.ref_folder_id === null ? null : String(block.ref_folder_id)})
-              RETURNING id`,
-        )
-        if (String(block.kind) === 'section') {
-          sectionMap.set(String(block.id), String(inserted[0]?.id))
+      // Copy explicit membership and mixed placement; never infer parents from proximity.
+      const blocks = await rowsOf(tx,sql`SELECT * FROM page_blocks WHERE folder_id=${sourceFolderId}::uuid ORDER BY position,id`)
+      const sectionMap = new Map(blocks.map(block=>[String(block.id),randomUUID()]))
+      const copiedFiles = new Map<string,string>()
+      for(const block of blocks){
+        let fileId:string|null=null
+        if(block.file_id != null){
+          const originalFile=String(block.file_id)
+          fileId=copiedFiles.get(originalFile)??null
+          if(fileId===null){
+            const held=await copyCoverFile(tx,store,viewerId,originalFile,copyId)
+            if(held.kind==='quota_exceeded')return {kind:'quota_exceeded'} as const
+            if(held.kind==='copied'){
+              fileId=held.id;copiedObjects.push(fileId);copiedFiles.set(originalFile,fileId)
+              await tx.execute(sql`UPDATE files SET kind='image' WHERE id=${fileId}::uuid`)
+            }
+          }
         }
+        await tx.execute(sql`INSERT INTO page_blocks (id,folder_id,kind,position,text,rich_content,ref_folder_id,file_id,width_pct,page_position) VALUES (${sectionMap.get(String(block.id))}::uuid,${copyId}::uuid,${String(block.kind)},${Number(block.position)},${block.text??null},${block.rich_content==null?null:JSON.stringify(block.rich_content)}::jsonb,${block.ref_folder_id??null}::uuid,${fileId}::uuid,${block.width_pct??null},${block.page_position??null})`)
       }
-
+      for(const block of blocks)if(block.section_block_id!=null)await tx.execute(sql`UPDATE page_blocks SET section_block_id=${sectionMap.get(String(block.section_block_id))??null}::uuid WHERE id=${sectionMap.get(String(block.id))}::uuid`)
       // Structure, never the life (DES-198): every status arrives pending,
       // steps arrive undone, the work is the maker's, a repeat is a new
       // series, and my_day, reminders, comments and events stay home.
@@ -246,7 +246,7 @@ export async function duplicateFolder(
         tx,
         sql`SELECT id, title, notes, important,
                    to_char(due_date, 'YYYY-MM-DD') AS due_date,
-                   recurrence_rule, section_block_id, position
+                   recurrence_rule, section_block_id, position, page_position
             FROM tasks
             WHERE folder_id = ${sourceFolderId} AND deleted_at IS NULL
             ORDER BY created_at ASC, id ASC`,
@@ -266,7 +266,7 @@ export async function duplicateFolder(
              person had arranged. */
           sql`INSERT INTO tasks
                 (folder_id, title, notes, important, due_date, recurrence_rule,
-                 series_id, assignee_id, created_by, section_block_id, position)
+                 series_id, assignee_id, created_by, section_block_id, position, page_position)
               VALUES (${copyId}::uuid, ${String(task.title)},
                       ${task.notes === null ? null : String(task.notes)},
                       ${task.important === true},
@@ -274,7 +274,7 @@ export async function duplicateFolder(
                       ${rule},
                       ${rule === null ? sql`NULL` : sql`gen_random_uuid()`},
                       ${viewerId}::uuid, ${viewerId}::uuid, ${section},
-                      ${task.position === null || task.position === undefined ? null : String(task.position)})
+                      ${task.position === null || task.position === undefined ? null : String(task.position)}, ${task.page_position??null})
               RETURNING id`,
         )
         const newTaskId = String(inserted[0]?.id)
@@ -387,6 +387,7 @@ export async function duplicateTask(
   anchor: string | null = null,
 ): Promise<DuplicateTaskResult> {
   return inTransaction(db, async (tx) => {
+    await tx.execute(sql`SELECT 1 FROM folders WHERE id=${source.folderId}::uuid FOR UPDATE`)
     const stored = (
       await rowsOf(
         tx,
@@ -418,11 +419,12 @@ export async function duplicateTask(
         ? null
         : String(row.recurrence_rule)
     const title = `${String(row?.title ?? source.title)} (copy)`.slice(0, 300)
+    const pagePosition=positionAtSectionEnd(await seededItems(tx,source.folderId),null,row?.section_block_id==null?null:String(row.section_block_id))
     const inserted = await rowsOf(
       tx,
       sql`INSERT INTO tasks
             (folder_id, title, notes, important, due_date, recurrence_rule,
-             series_id, assignee_id, created_by, section_block_id)
+             series_id, assignee_id, created_by, section_block_id,page_position)
           VALUES (${source.folderId}::uuid, ${title},
                   ${row?.notes === null ? null : String(row?.notes ?? '')},
                   ${row?.important === true},
@@ -430,7 +432,7 @@ export async function duplicateTask(
                   ${rule},
                   ${rule === null ? sql`NULL` : sql`gen_random_uuid()`},
                   ${viewerId}::uuid, ${viewerId}::uuid,
-                  ${row?.section_block_id === null ? null : String(row?.section_block_id)})
+                  ${row?.section_block_id === null ? null : String(row?.section_block_id)},${pagePosition})
           RETURNING id`,
     )
     const newId = String(inserted[0]?.id)
@@ -476,7 +478,9 @@ export async function importWorkflow(
    * date to be evaluated. The caller resolves it, because 8.1 makes the zone
    * an input of the request rather than a fact the server holds. */
   anchor: string | null = null,
+  store?: ObjectStore,
 ): Promise<ImportResult> {
+  const copiedObjects:string[]=[]
   return inTransaction(db, async (tx) => {
     await tx.execute(sql`SELECT 1 FROM users WHERE id = ${viewerId} FOR UPDATE`)
     const owned = await rowsOf(
@@ -502,7 +506,8 @@ export async function importWorkflow(
         sql`INSERT INTO folder_members (folder_id, user_id)
             VALUES (${folderId}::uuid, ${viewerId}::uuid)`,
       )
-      for (const [index, block] of (folder.blocks ?? []).entries()) {
+      const taskMap = new Map<string,string>()
+      for (const [index, block] of (folder.document === undefined ? folder.blocks ?? [] : []).entries()) {
         await tx.execute(
           sql`INSERT INTO page_blocks (folder_id, kind, position, text)
               VALUES (${folderId}::uuid, ${block.kind}, ${index},
@@ -513,7 +518,7 @@ export async function importWorkflow(
       // importer's (the DES-198 contradiction's one rule). What travels is
       // item 44's B3 list and no more, which is the widening; what does not
       // is still ids, people, due dates and states.
-      for (const task of folder.tasks ?? []) {
+      for (const [taskIndex,task] of (folder.tasks ?? []).entries()) {
         // A repeat needs 4.5's anchor and a reminder needs 8.6's, and the
         // file carries no date, so the day the run began is the date they
         // get. A task carrying neither stays undated, which is what the
@@ -534,6 +539,8 @@ export async function importWorkflow(
               RETURNING id`,
         )
         const taskId = String(madeTask[0]?.id)
+        const sourceTaskId=folder.document?.task_ids[taskIndex]
+        if(sourceTaskId!==undefined)taskMap.set(sourceTaskId,taskId)
         for (const [index, step] of (task.steps ?? []).entries()) {
           await tx.execute(
             sql`INSERT INTO steps (task_id, title, position)
@@ -549,7 +556,42 @@ export async function importWorkflow(
           )
         }
       }
-      await recordEvent(tx, {
+      if(folder.document!==undefined){
+        const document=folder.document
+        if(document.task_ids.length!==(folder.tasks??[]).length || new Set(document.task_ids).size!==document.task_ids.length)throw new DocumentRefusal('not_convertible','Workflow Task identities do not match its work.')
+        const blockMap=new Map(document.blocks.map(op=>{
+          if(op.op!=='put_block')throw new DocumentRefusal('not_convertible','Workflow blocks must be typed content.')
+          return [op.id,randomUUID()]
+        }))
+        const imageMap=new Map<string,string>()
+        const operations:DocumentOperation[]=[]
+        for(const op of document.blocks){
+          if(op.op!=='put_block')throw new DocumentRefusal('not_convertible','Workflow blocks must be typed content.')
+          let fileId=op.file_id
+          if(fileId!==null){
+            const permitted=await rowsOf(tx,sql`SELECT f.id FROM files f WHERE f.id=${fileId}::uuid AND ${readableFileScope(viewerId)}`)
+            if(permitted.length===0||store===undefined)throw new DocumentRefusal('file_not_here','The workflow image is not accessible.')
+            const existing=imageMap.get(fileId)
+            if(existing!==undefined)fileId=existing
+            else {
+              const held=await copyCoverFile(tx,store,viewerId,fileId,folderId)
+              if(held.kind!=='copied')throw new DocumentRefusal('file_not_here','The workflow image could not be copied.')
+              copiedObjects.push(held.id);imageMap.set(fileId,held.id);fileId=held.id
+              await tx.execute(sql`UPDATE files SET kind='image' WHERE id=${fileId}::uuid`)
+            }
+          }
+          operations.push({...op,id:blockMap.get(op.id)!,file_id:fileId})
+        }
+        const outline=document.outline.map(item=>{
+          const id=(item.kind==='block'?blockMap:taskMap).get(item.id)
+          const parent=item.section_block_id===null?null:blockMap.get(item.section_block_id)
+          if(id===undefined||parent===undefined)throw new DocumentRefusal('not_convertible','Workflow outline references missing content.')
+          return {...item,id,section_block_id:parent}
+        })
+        operations.push({op:'set_outline' as const,items:outline})
+        const base=await documentMetadata(tx,folderId)
+        await applyDocument(tx,viewerId,folderId,{action:'document_transaction',mutation_id:randomUUID(),base_revision:base.revision,operations})
+      }      await recordEvent(tx, {
         actorId: viewerId,
         verb: 'created',
         subjectKind: 'folder',
@@ -561,6 +603,9 @@ export async function importWorkflow(
       created.push({ id: folderId, name: folder.name })
     }
     return { kind: 'imported', folders: created } as const
+  }).catch(async(error:unknown)=>{
+    if(store!==undefined)for(const id of copiedObjects){try{await store.remove(id)}catch{/* Preserve the original refusal. */}}
+    throw error
   })
 }
 

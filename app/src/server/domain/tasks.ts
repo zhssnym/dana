@@ -62,7 +62,6 @@ import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
 import { accessOf } from './folders.js'
-import { keyBetween } from './fractional-index.js'
 import { positionAtSectionEnd, seededItems } from './page-order.js'
 
 /* ------------------------------------------------------------------ *
@@ -623,7 +622,7 @@ export async function createTaskIn(
   tx: Executor,
   viewerId: string,
   body: PostTasksBody,
-  options: { readonly pagePosition?: string } = {},
+  options: { readonly pagePosition?: string; readonly id?: string } = {},
 ): Promise<CreateTaskResult> {
     const folderId = body.folder_id ?? (await inboxOf(tx, viewerId))
     const access = await accessOf(tx, viewerId, folderId)
@@ -666,70 +665,20 @@ export async function createTaskIn(
        this column. The folder lock serializes two concurrent appends. */
     let pagePosition = options.pagePosition
     if (pagePosition === undefined) {
-      const bounds = sectionId === null
-        ? await rowsOf(
-            tx,
-            sql`WITH first_section AS (
-                  SELECT min(page_position) AS upper_key
-                    FROM page_blocks
-                   WHERE folder_id = ${folderId}::uuid
-                     AND kind = 'section' AND page_position IS NOT NULL
-                ), all_items AS (
-                  SELECT page_position FROM page_blocks
-                   WHERE folder_id = ${folderId}::uuid AND page_position IS NOT NULL
-                  UNION ALL
-                  SELECT page_position FROM tasks
-                   WHERE folder_id = ${folderId}::uuid AND page_position IS NOT NULL
-                )
-                SELECT max(i.page_position) FILTER (
-                         WHERE f.upper_key IS NULL OR i.page_position < f.upper_key
-                       ) AS lower_key,
-                       f.upper_key
-                  FROM all_items i CROSS JOIN first_section f
-                 GROUP BY f.upper_key`,
-          )
-        : await rowsOf(
-            tx,
-            sql`WITH section_items AS (
-                  SELECT page_position FROM page_blocks
-                   WHERE folder_id = ${folderId}::uuid
-                     AND page_position IS NOT NULL
-                     AND (id = ${sectionId}::uuid OR section_block_id = ${sectionId}::uuid)
-                  UNION ALL
-                  SELECT page_position FROM tasks
-                   WHERE folder_id = ${folderId}::uuid
-                     AND page_position IS NOT NULL
-                     AND section_block_id = ${sectionId}::uuid
-                ), all_items AS (
-                  SELECT page_position FROM page_blocks
-                   WHERE folder_id = ${folderId}::uuid AND page_position IS NOT NULL
-                  UNION ALL
-                  SELECT page_position FROM tasks
-                   WHERE folder_id = ${folderId}::uuid AND page_position IS NOT NULL
-                ), lower_bound AS (
-                  SELECT max(page_position) AS lower_key FROM section_items
-                )
-                SELECT l.lower_key,
-                       min(i.page_position) FILTER (WHERE i.page_position > l.lower_key) AS upper_key
-                  FROM lower_bound l CROSS JOIN all_items i
-                 GROUP BY l.lower_key`,
-          )
-      const bound = bounds[0]
-      pagePosition = keyBetween(
-        bound?.lower_key == null ? null : String(bound.lower_key),
-        bound?.upper_key == null ? null : String(bound.upper_key),
-      )
+      const items = await seededItems(tx, folderId)
+      pagePosition = positionAtSectionEnd(items, null, sectionId) ?? undefined
+      if (pagePosition === undefined) return {kind:'section_not_here'}
     }
 
     const rule = body.recurrence_rule ?? null
     const seriesId = rule === null ? sql`NULL` : sql`gen_random_uuid()`
     const inserted = await rowsOf(
       tx,
-      sql`INSERT INTO tasks (folder_id, title, notes, important, due_date,
+      sql`INSERT INTO tasks (id, folder_id, title, notes, important, due_date,
                              due_time, recurrence_rule, series_id,
                              assignee_id, created_by, section_block_id,
                              page_position)
-          VALUES (${folderId}::uuid, ${body.title}, ${body.notes ?? null},
+          VALUES (${options.id === undefined ? sql`gen_random_uuid()` : sql`${options.id}::uuid`}, ${folderId}::uuid, ${body.title}, ${body.notes ?? null},
                   ${body.important ?? false}, ${body.due_date ?? null}::date,
                   ${body.due_time ?? null}::time, ${rule}, ${seriesId},
                   ${assigneeId}::uuid, ${viewerId}::uuid, ${sectionId},
@@ -1221,6 +1170,9 @@ export async function deleteTask(
   taskId: string,
 ): Promise<'deleted' | 'not_found'> {
   return inTransaction(db, async (tx) => {
+    const preview = await accessibleTask(tx,viewerId,taskId)
+    if(preview===null)return 'not_found'
+    await tx.execute(sql`SELECT 1 FROM folders WHERE id=${preview.folderId}::uuid FOR UPDATE`)
     const current = await accessibleTask(tx, viewerId, taskId)
     if (current === null) {
       return 'not_found'
@@ -1394,6 +1346,9 @@ export async function transitionTask(
 ): Promise<TransitionResult> {
   const rule = TRANSITIONS[event]
   return inTransaction(db, async (tx) => {
+    const preview = await accessibleTask(tx,viewerId,taskId)
+    if(preview===null)return {kind:'not_found'}
+    await tx.execute(sql`SELECT 1 FROM folders WHERE id=${preview.folderId}::uuid FOR UPDATE`)
     const current = await lockedTask(tx, viewerId, taskId)
     if (current === null) return { kind: 'not_found' }
 
@@ -1430,6 +1385,8 @@ export async function transitionTask(
       if (generating && tz !== undefined) {
         const outcome = await generateSuccessor(tx, { taskId, tz })
         if (outcome.kind === 'generated') {
+          const position=positionAtSectionEnd(await seededItems(tx,current.folderId),{kind:'task',id:outcome.successorId},current.sectionBlockId)
+          await tx.execute(sql`UPDATE tasks SET page_position=${position},section_block_id=${current.sectionBlockId}::uuid WHERE id=${outcome.successorId}::uuid`)
           generatedTask = cardOf(
             await viewOrFail(tx, viewerId, outcome.successorId),
           )
@@ -1667,6 +1624,7 @@ export async function promoteStep(
   return inTransaction(db, async (tx) => {
     const step = await accessibleStep(tx, viewerId, stepId)
     if (step === null || step.taskId !== taskId) return { kind: 'not_found' }
+    await tx.execute(sql`SELECT 1 FROM folders WHERE id=${step.folderId}::uuid FOR UPDATE`)
     const parent = (
       await rowsOf(
         tx,
@@ -1681,11 +1639,12 @@ export async function promoteStep(
       parent.section_block_id === null || parent.section_block_id === undefined
         ? null
         : String(parent.section_block_id)
+    const pagePosition=positionAtSectionEnd(await seededItems(tx,step.folderId),null,sectionId)
     const inserted = await rowsOf(
       tx,
-      sql`INSERT INTO tasks (folder_id, title, created_by, section_block_id)
+      sql`INSERT INTO tasks (folder_id, title, created_by, section_block_id,page_position)
           VALUES (${step.folderId}::uuid, ${String(parent.step_title)},
-                  ${viewerId}::uuid, ${sectionId})
+                  ${viewerId}::uuid, ${sectionId},${pagePosition})
           RETURNING id`,
     )
     const newId = String(inserted[0]?.id)
