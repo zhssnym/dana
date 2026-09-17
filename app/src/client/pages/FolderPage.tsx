@@ -83,13 +83,12 @@ a closed section at the page's foot, or the side panel, the choice a
 client-side preference. The thread fetches only while its surface is open
 and polls politely while it stays open, which is the whole of D3.
 */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
 
 import {
   useCreateTask,
-  useFolderPageAction,
   useDeleteFolder,
   useLeaveFolder,
   useDeleteComment,
@@ -116,7 +115,7 @@ import {
 import { getPlain, uploadFile } from '../api/http.js'
 import { queryKeys } from '../api/keys.js'
 import { showToast } from '../state/toasts.js'
-import { ComposeCanvas } from '../components/page/ComposeCanvas.js'
+const FolderCanvas = lazy(() => import('../components/page/canvas/FolderCanvas.js'))
 /* S26: the head is the prototype's own composition rather than this page's
    second one. `components/page/IdentityHead.tsx` stays in the tree for the
    shelf page, which is S27's; nothing here reads it any more. */
@@ -318,7 +317,6 @@ export function FolderPage({
      already draws from, so both surfaces answer from one list rather than
      from two hand-written ones. */
   const groupLabels = folderGroupLabels(library.data ?? [], shelves.data ?? [])
-  const pageAction = useFolderPageAction()
   const postComment = usePostComment()
   const patchComment = usePatchComment()
   const deleteComment = useDeleteComment()
@@ -612,7 +610,7 @@ export function FolderPage({
       return
     }
     const file = JSON.stringify(
-      folderToWorkflowFile(folderName, tasks, page.data?.blocks ?? []),
+      folderToWorkflowFile(folderName, tasks, page.data?.blocks ?? [], page.data),
       null,
       2,
     )
@@ -1162,12 +1160,20 @@ export function FolderPage({
                   <p className="h-[var(--control-height)] px-2 text-sm leading-[var(--control-height)] text-[var(--color-graphite-500)]">
                     {FILTER_NARROWED_EMPTY}
                   </p>
+                ) : isNarrowed(place.filter) || place.filter.sort !== 'manual' || place.groupBy !== 'none' ? (
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">This is a Task view. Return to the unfiltered manual list to edit writing and group placement.</p>
+                    {boardColumns.map((group) => <div key={group.key}>
+                      {place.groupBy !== 'none' ? <h2 className="mb-2 text-sm font-semibold">{group.name}</h2> : null}
+                      <TaskRows tasks={group.rows} context={context} actions={actions} onAsk={confirm.ask} arrangement={{ arrangeable: false }} />
+                    </div>)}
+                  </div>
                 ) : (
-                  <ComposeCanvas
-                    blocks={page.data?.blocks ?? []}
-                    items={page.data?.items ?? []}
-                    tasks={visible}
-                    sourceTasks={openRows}
+                  <Suspense fallback={<p role="status">Loading writing…</p>}>
+                  {page.data ? <FolderCanvas
+                    key={id}
+                    page={page.data}
+                    tasks={openRows}
                     folderId={id}
                     context={context}
                     actions={actions}
@@ -1177,16 +1183,8 @@ export function FolderPage({
                       place.filter.sort === 'manual' &&
                       place.groupBy === 'none'
                     }
-                    sortActive={place.filter.sort !== 'manual'}
-                    onAction={async (body) => {
-                      try {
-                        return await pageAction.mutateAsync({ id, body })
-                      } catch (error) {
-                        await page.refetch()
-                        throw error
-                      }
-                    }}
-                  />
+                  /> : <p role={page.isError ? 'alert' : 'status'}>{page.isError ? 'Could not load writing. Reload to try again.' : 'Loading writing…'}</p>}
+                  </Suspense>
                 )}
               </PageBody>
             </PageSection>

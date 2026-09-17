@@ -63,6 +63,7 @@ const SECTION_4_TABLES = [
   'my_day_entries',
   'notifications',
   'page_blocks',
+  'page_document_receipts',
   'reminders',
   'sample_objects',
   'shelves',

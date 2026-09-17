@@ -7,6 +7,9 @@ back for the blocks it claims to be editing.
 */
 import { z } from 'zod'
 
+import { documentTransaction, richContent } from './page-document.js'
+import type { RichContent } from './page-document.js'
+export type { RichContent, DocumentTransaction, DocumentOperation, DocumentOutlineItem } from './page-document.js'
 import { taskTitle } from './tasks.js'
 
 export const PAGE_BLOCK_KINDS = [
@@ -82,6 +85,7 @@ export interface PageBlock {
   position: number
   page_position: string | null
   section_block_id: string | null
+  rich_content?: RichContent | null
   text: string | null
   file_id: string | null
   /*
@@ -111,6 +115,9 @@ export interface PageBlock {
 }
 
 export interface PageView {
+  revision?: string
+  task_placements?: {id:string;section_block_id:string|null}[]
+  mutation?: {mutation_id:string;committed_revision:string;replayed:boolean;created_task_ids:string[]}
   blocks: PageBlock[]
   /** One persisted folder-page sequence. Shelf pages contain block refs only. */
   items: PageItemRef[]
@@ -172,6 +179,7 @@ const updateBlockAction = z
   )
 
 export const pageActionBody = z.discriminatedUnion('action', [
+  documentTransaction,
   insertBlockAction,
   updateBlockAction,
   z.object({
@@ -208,6 +216,7 @@ record: S5 published `PageBlock` and `PageView` as interfaces only, and
 control item.
 */
 export const pageBlock = z.object({
+  rich_content: richContent.nullable().optional(),
   id: z.uuid(),
   kind: z.enum(PAGE_BLOCK_KINDS),
   position: z.number().int(),
@@ -223,6 +232,9 @@ export const pageBlock = z.object({
 })
 
 export const getPageResponse = z.object({
+  revision: z.string().optional(),
+  task_placements: z.array(z.object({id:z.uuid(),section_block_id:z.uuid().nullable()})).optional(),
+  mutation: z.object({mutation_id:z.uuid(),committed_revision:z.string(),replayed:z.boolean(),created_task_ids:z.array(z.uuid())}).optional(),
   blocks: z.array(pageBlock),
   items: z.array(pageItemRef),
 })

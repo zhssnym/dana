@@ -254,6 +254,9 @@ function reminderFrom(row: Record<string, unknown>): ExportReminder {
 
 function blockFrom(row: Record<string, unknown>): ExportBlock {
   return {
+    rich_content:(row.rich_content??null) as ExportBlock['rich_content'],
+    section_block_id:nullableString(row.section_block_id),
+    page_position:nullableString(row.page_position),
     id: String(row.id),
     kind: String(row.kind),
     position: Number(row.position),
@@ -270,6 +273,8 @@ function taskFrom(
   steps: ExportStep[],
 ): ExportTask {
   return {
+    section_block_id:nullableString(row.section_block_id),
+    page_position:nullableString(row.page_position),
     id: String(row.id),
     title: String(row.title),
     notes: nullableString(row.notes),
@@ -300,7 +305,7 @@ columns with exactly one non-null (7.0's TaskDetail rule); `state` and
 `time_of_day` are aliased because a reader of `taskFrom` should not have to
 work out which table a bare name came from.
 */
-const TASK_COLUMNS = sql`t.id, t.title, t.notes, t.status, t.important,
+const TASK_COLUMNS = sql`t.id, t.section_block_id, t.page_position, t.title, t.notes, t.status, t.important,
   ${DUE_DATE} AS due_date, ${DUE_TIME} AS due_time,
   t.recurrence_rule, t.series_id, t.completed_at, t.created_at, t.updated_at,
   t.deleted_at, t.folder_id,
@@ -420,7 +425,7 @@ export async function exportForViewer(
     db,
     cappedPerParent(
       sql`b.id, b.folder_id, b.kind, b.position, b.text, b.file_id,
-          b.ref_folder_id, b.width_pct, b.updated_at`,
+          b.ref_folder_id, b.width_pct, b.updated_at, b.rich_content, b.section_block_id, b.page_position`,
       sql`FROM page_blocks b
           JOIN folders f ON f.id = b.folder_id AND f.owner_id = ${viewerId}
           WHERE b.folder_id IN ${idSet(folderIds)}`,
@@ -563,7 +568,7 @@ export async function exportForViewer(
     db,
     cappedPerParent(
       sql`b.id, b.shelf_id, b.kind, b.position, b.text, b.file_id,
-          b.ref_folder_id, b.width_pct, b.updated_at`,
+          b.ref_folder_id, b.width_pct, b.updated_at, b.rich_content, b.section_block_id, b.page_position`,
       sql`FROM page_blocks b
           JOIN shelves s ON s.id = b.shelf_id AND s.user_id = ${viewerId}
           WHERE b.shelf_id IN ${idSet(

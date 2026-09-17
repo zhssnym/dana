@@ -29,6 +29,7 @@ multiply no rows. Nothing about the write path knows these columns exist: the
 shape belongs to the file and a PUT that carried it would be a second record
 of one fact.
 */
+import { applyDocument, documentMetadata, DocumentRefusal } from './page-document.js'
 import { sql } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
@@ -79,6 +80,7 @@ function blockFromRow(row: Record<string, unknown>): PageBlock {
     position: Number(row.position),
     page_position: nullableString(row.page_position),
     section_block_id: nullableString(row.section_block_id),
+    rich_content: (row.rich_content ?? null) as PageBlock["rich_content"],
     text: nullableString(row.text),
     file_id: nullableString(row.file_id),
     file_width: nullableInt(row.file_width),
@@ -179,7 +181,7 @@ async function pageItemsIn(
                     FROM tasks t
                    WHERE t.folder_id = ${home.folderId}::uuid
                      AND t.deleted_at IS NULL
-                     AND t.status IN ('pending', 'abandoned')
+
                      AND EXISTS (
                        SELECT 1 FROM folders vf
                        JOIN folder_members vm ON vm.folder_id = vf.id
@@ -205,23 +207,12 @@ export async function pageView(
   viewerId: string,
   home: PageHome,
 ): Promise<PageView> {
-  const rows = await rowsOf(
-    db,
-    sql`SELECT b.id, b.kind, b.position, b.page_position,
-               b.section_block_id, b.text, b.file_id, b.ref_folder_id,
-               b.width_pct, b.updated_at,
-               f.width AS file_width, f.height AS file_height
-        FROM page_blocks b
-        LEFT JOIN files f ON f.id = b.file_id
-        WHERE ${homeCondition(home, viewerId)}
-        ORDER BY b.page_position ASC NULLS LAST, b.position ASC, b.id ASC`,
-  )
-  return {
-    blocks: rows.map(blockFromRow),
-    items: await pageItemsIn(db, viewerId, home),
-  }
+  return inTransaction(db, async tx => {
+    if (!(await homeIsVisible(tx,home,viewerId))) return {blocks:[],items:[]}
+    if(home.folderId !== null) await tx.execute(sql`SELECT 1 FROM folders WHERE id=${home.folderId}::uuid FOR SHARE`)
+    return pageViewIn(tx,viewerId,home)
+  })
 }
-
 export type PutPageResult =
   | { kind: 'written'; page: PageView }
   | { kind: 'stale'; blockId: string }
@@ -340,6 +331,10 @@ export async function putPage(
       )
     }
 
+    if (home.folderId !== null) {
+      const modern = await rowsOf(tx,sql`SELECT id FROM page_blocks WHERE folder_id=${home.folderId}::uuid AND (rich_content IS NOT NULL OR (kind='section' AND section_block_id IS NOT NULL) OR EXISTS (SELECT 1 FROM page_document_receipts r WHERE r.folder_id=page_blocks.folder_id)) LIMIT 1`)
+      if(modern.length) return {kind:'stale',blockId:String(modern[0]?.id)} as const
+    }
     const current = await rowsOf(
       tx,
       sql`SELECT b.id, b.updated_at FROM page_blocks b
@@ -534,9 +529,15 @@ export async function actOnFolderPage(
   folderId: string,
   body: PageActionBody,
 ): Promise<PageActionResult> {
-  return inTransaction(db, async (tx) => {
+  return inTransaction<PageActionResult>(db, async (tx) => {
     if ((await accessOf(tx, viewerId, folderId)) === null) return { kind: 'not_found' }
     await tx.execute(sql`SELECT 1 FROM folders WHERE id = ${folderId}::uuid FOR UPDATE`)
+    if (body.action === 'document_transaction') {
+      const mutation = await applyDocument(tx, viewerId, folderId, body)
+      return {kind:'written',page:{...await pageViewIn(tx,viewerId,{folderId,shelfId:null}),mutation}} as const
+    }
+    const modern = await rowsOf(tx, sql`SELECT id FROM page_blocks WHERE folder_id=${folderId}::uuid AND (rich_content IS NOT NULL OR (kind='section' AND section_block_id IS NOT NULL) OR EXISTS (SELECT 1 FROM page_document_receipts r WHERE r.folder_id=page_blocks.folder_id)) LIMIT 1`)
+    if (modern.length && body.action !== 'update_block') return {kind:'stale',blockId:folderId} as const
     const items = await seededItems(tx, folderId)
 
     const anchors = 'after' in body
@@ -681,7 +682,7 @@ export async function actOnFolderPage(
     } else {
       const rows = await rowsOf(
         tx,
-        sql`SELECT id, kind, text, file_id, width_pct, page_position,
+        sql`SELECT id, kind, text, rich_content, file_id, width_pct, page_position,
                    section_block_id, updated_at
               FROM page_blocks
              WHERE id = ${body.block_id}::uuid AND folder_id = ${folderId}::uuid
@@ -733,6 +734,7 @@ export async function actOnFolderPage(
           const length = body.text?.length ?? 0
           if (length < 1 || length > 120) return { kind: 'not_convertible' }
         }
+        if (block.rich_content != null && body.text !== undefined && body.text !== block.text) return {kind:'stale',blockId:body.block_id}
         const sets: ReturnType<typeof sql>[] = []
         if (body.text !== undefined) sets.push(sql`text = ${body.text}`)
         if (body.file_id !== undefined) sets.push(sql`file_id = ${body.file_id}`)
@@ -761,9 +763,11 @@ export async function actOnFolderPage(
       kind: 'written',
       page: await pageViewIn(tx, viewerId, { folderId, shelfId: null }),
     }
+  }).catch((error: unknown) => {
+    if (error instanceof DocumentRefusal) return error.kind === 'stale' ? {kind:'stale' as const,blockId:folderId} : {kind:error.kind} as const
+    throw error
   })
 }
-
 /** The read again, on the transaction's own snapshot, so the response can
  * never describe blocks the write did not leave. */
 async function pageViewIn(
@@ -774,7 +778,7 @@ async function pageViewIn(
   const rows = await rowsOf(
     tx,
     sql`SELECT b.id, b.kind, b.position, b.page_position,
-               b.section_block_id, b.text, b.file_id, b.ref_folder_id,
+               b.section_block_id, b.text, b.rich_content, b.file_id, b.ref_folder_id,
                b.width_pct, b.updated_at,
                f.width AS file_width, f.height AS file_height
         FROM page_blocks b
@@ -783,6 +787,7 @@ async function pageViewIn(
         ORDER BY b.page_position ASC NULLS LAST, b.position ASC, b.id ASC`,
   )
   return {
+    ...await documentMetadata(tx, home.folderId),
     blocks: rows.map(blockFromRow),
     items: await pageItemsIn(tx, viewerId, home),
   }
