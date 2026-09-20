@@ -14,7 +14,7 @@ groups next to it.
 
 ## The next number
 
-**The next number to take from the tail is 705.**
+**The next number to take from the tail is 706.**
 
 **This section is the allocator and `## Numbers` below it is not.** That one is a
 chronological record of what each branch spent and why, written newest-first in places and
@@ -54,7 +54,7 @@ cannot be read from any tree.
 | 620 upward | `backend/253-account-deletion-sweep` | no — branch not pushed |
 | 640 upward | `frontend/260-workflow-import-version` | no — branch not pushed |
 | 660 upward | `backend/255` | no — branch not pushed |
-| 700–704 | `backend/263-reclaim-sweep-coverage` | yes — five bullets in 12.9 and five files |
+| 700–705 | `backend/263-reclaim-sweep-coverage` | yes — six bullets in 12.9 and six files |
 
 **The gaps between those blocks are not free by default**, on the rule the AC-377 and
 AC-440 bullets below state: whichever merge lands last is the only one that can see what its
@@ -64,10 +64,24 @@ stay empty so that the gap reads as a renumber rather than as an ordinary alloca
 **508 to 509**, **524 to 539** and **555 to 559**.
 
 **680 to 699 is a fourth gap and is not a renumber**, written 2026-09-20 by issue #263,
-which took 700 to 704 rather than 680 because four of the branches in the table above had
+which took 700 to 705 rather than 680 because four of the branches in the table above had
 not pushed and their extent still could not be read from any tree. It is left open for
 whichever of them needs it, on the same rule as every other gap here: read this section,
 take what the line above offers, and move that line in the commit that spends it.
+
+**`backend/247-contract-label-spellings` moves this same line to 760, and the resolution
+when the two meet is the max and both rows** (written on `backend/263` on 2026-09-20).
+There is **no number collision**: 700 to 705 are unique across every open branch, and #247's
+own table pre-assigns "700 upward | `backend/263`", so this block was coordinated rather
+than taken from a gap. What the two branches share is one line. #263 branched before #247
+existed, so its diff moves the line to 706 and its table has no row for #247's block; if
+#247 merges first, taking #263's side would set the line **backwards** from 760 and drop the
+record that AC-750 is spent. Git conflicts on that line and forces the question, and
+`guard-criterion-registry`'s third test would catch a line left below something spent — but
+the answer should not have to be rediscovered at a merge conflict at speed. It is:
+**keep 760**, keep #247's `| 750 |` row, and keep this branch's `| 700–705 |` row in place
+of the `| 700 upward |` row #247 carries for it, that row being the same block read from a
+tree rather than assigned. Nothing else in either diff touches the other.
 
 *(494 to 509 was carried as one such gap in the brief this was written from, and that half
 of it is wrong: `backend/220` holds bullets for AC-490 through AC-507, so only 508 and 509

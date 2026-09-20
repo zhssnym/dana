@@ -80,6 +80,11 @@ export async function startReclaimApp(): Promise<ReclaimApp> {
   return { app, store }
 }
 
+/** `setAvatar` writes this prefix and the new row's id into
+ * `users.avatar_url` as one string (`domain/files.ts`), and taking the id back
+ * off it is the only way any caller learns which `files` row its avatar is. */
+export const AVATAR_PATH = '/api/v1/files/'
+
 /**
  * A picture with no folder, owned by this person: the only shape the sweep
  * considers at all (`kind IN ('cover','image') AND folder_id IS NULL`).
@@ -111,6 +116,46 @@ export async function folderlessPicture(
 }
 
 /**
+ * One stored avatar, through `POST /me/avatar`, answering its `files` row id.
+ *
+ * **This is the shape the sweep's `kind` clause is the only defence against,
+ * which is why it lives here and not in `uploads-harness.ts` beside the other
+ * three.** An avatar is folder-less by force — `createFile` refuses one that
+ * names a folder — and `users.avatar_url` holds it as the **text** of a
+ * serving path rather than as a foreign key, so `fileIsUnreferenced()` is true
+ * of every avatar row that has ever existed. `POST /files` cannot make one
+ * either: its `kind` enum is `image | file | voice | cover`, so this endpoint
+ * is the only way in, which is why this is a helper of its own rather than a
+ * `folderlessPicture(actor, 'avatar', …)` call.
+ *
+ * The id is taken from the answer's own `avatar_url` rather than from the
+ * database, so a case that then reads `users.avatar_url` is comparing the
+ * column against what the caller was told rather than against itself.
+ */
+export async function avatarPicture(
+  actor: Actor,
+  name: string,
+): Promise<string> {
+  const stored = await upload(
+    actor,
+    '/me/avatar',
+    {},
+    { name, type: 'image/png', bytes: ONE_PIXEL_PNG },
+  )
+  expectStatus(
+    stored,
+    200,
+    'the avatar must be stored before the 11.7 sweep can be measured over it (spec 7.15)',
+  )
+  const url = (stored.json() as { avatar_url?: unknown }).avatar_url
+  expect(
+    typeof url === 'string' && url.startsWith(AVATAR_PATH),
+    `POST /me/avatar answers the serving path of the stored row (spec 7.15); read ${String(url)}`,
+  ).toBe(true)
+  return String(url).slice(AVATAR_PATH.length)
+}
+
+/**
  * Push `files.unreferenced_since` back by whole days, so a case can stand one
  * day either side of the 30-day line without waiting a month.
  *
@@ -118,6 +163,13 @@ export async function folderlessPicture(
  * delete arm reads. Asserting that exactly one row moved is not ceremony: a
  * uuid that names nothing would otherwise leave the case measuring a picture
  * that was never aged, which reads as the sweep sparing it.
+ *
+ * **On a row carrying no mark this writes one**, which is not a side effect
+ * but the second thing it is for. The sweep tests its scope clauses twice —
+ * once in the mark arm and once in the delete arm — so a case that only ever
+ * watched a picture go unmarked would leave the delete arm's copy of those
+ * clauses unmeasured. AC-705 hands the delete arm a mark the mark arm would
+ * never have written, which is the only way to stand in front of it.
  */
 export async function ageTheMark(
   db: Db,

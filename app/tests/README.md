@@ -131,21 +131,26 @@ the wire; it is its own file because it pins a different decision from AC-479
 beside it — that decision being whether the rename can be deployed without
 losing somebody's edit, rather than whether it changed Shelf semantics.
 
-**And five more for issue #263, the reclaim sweep** (AC-700 to AC-704, spec 12.9),
+**And six more for issue #263, the reclaim sweep** (AC-700 to AC-705, spec 12.9),
 on the same reading of that ruling. **Read the sentence above as the dated
 record it is rather than as a running total**: the tree already held 69
-criterion files when these five were written, six branches having merged since
+criterion files when these were written, six branches having merged since
 the cut, and a number in this file that every branch tries to keep current is a
-number every branch collides on. Count the directory. What these five are worth
+number every branch collides on. Count the directory. What these six are worth
 saying here is *why* they were written after a cut whose whole point was fewer
 files: `reclaimUnwornPictures` permanently deletes a person's uploaded picture
 and its bytes on a thirty-day timer, it is the only path in Dana that destroys
 anything on a clock rather than on a request, and no test anywhere reached it —
 not one of the five reference arms, not the window, not the object store.
+AC-700 to AC-704 are the five arms; **AC-705 is the sweep's two scope clauses**,
+added after an adversarial review found that widening either of them to eat
+every avatar in the product was green across the whole suite.
 `tests/support/reclaim-harness.ts` is their shared setup and
 `tests/guards/guard-reclaim-reference-arms.test.ts` is the structural half, the
 one that fails when a later migration adds a sixth column that can hold a file
-id and nobody adds the arm to match.
+id and nobody adds the arm to match — a new table or a second column on a table
+it already lists, the second of those having been a hole in it until that same
+review.
 
 **Section 12 was not cut with them.** Every criterion it states is still the
 specification of Dana's behaviour; most of them simply have no executable form

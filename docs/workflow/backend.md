@@ -169,26 +169,45 @@ Seven lines across five files meet all three today:
 | `app/src/server/scheduler/interval.test.ts` | statements the 11.7 pass runs **after its delivery transaction** |
 | `app/tests/guards/guard-reclaim-reference-arms.test.ts` | **foreign keys into `files(id)`**, each an arm of the reclaim sweep (issue #263) |
 
-Three of them carry a further condition that is theirs alone. `ac-236`'s mutating count moves
-only once the sweep passed on your new route — 401 bare, 403 without CSRF. And
-`interval.test.ts`'s comment **enumerates which statements they are**: keep that enumeration
-in step or the next person cannot tell a legitimate move from a lost duty.
+Three of them carry a further condition that is theirs alone, and the third is the reclaim
+list in the paragraph below. `ac-236`'s mutating count moves only once the sweep passed on
+your new route — 401 bare, 403 without CSRF. And `interval.test.ts`'s comment **enumerates
+which statements they are**: keep that enumeration in step or the next person cannot tell a
+legitimate move from a lost duty.
 
 **The seventh is the strictest, and it is the one a migration will hit.** A new foreign key
-into `files(id)` fails `guard-reclaim-reference-arms` by design, and the list moves only
-after `fileIsUnreferenced()` in `app/src/server/domain/files.ts` has grown the matching
-`NOT EXISTS` **and** a criterion on the AC-700 to AC-704 pattern proves that a picture held
-through the new column survives the 11.7 pass past thirty days. Moving the list first makes
-the guard green and leaves the sweep deleting a picture somebody is looking at, thirty days
-later, with no request to point at and — for the two keys that cascade — no row left saying
-the reference existed. That is a data-loss fix-forward, not a red to clear.
+into `files(id)` fails `guard-reclaim-reference-arms` by design. Add the matching
+`NOT EXISTS` to `fileIsUnreferenced()` in `app/src/server/domain/files.ts`, write the
+criterion on the AC-700 to AC-705 pattern that proves a picture held through the new column
+survives the 11.7 pass past thirty days, and then move the list.
+
+**Moving the list first does not make that guard green, and the sentence here that said it
+did was half wrong** (corrected 2026-09-20 by the adversarial review of #263). It read
+"doing step 4 on its own makes this file green and leaves the 11.7 tick deleting a picture
+somebody is looking at". For a new **table** that was never true — the guard's second test
+went red naming the relation. For a second key on a table it already lists, such as a
+`banner_file_id` beside `shelves.cover_file_id`, it was true, because that test matched on
+the relation name alone; it now ties each relation to the alias the predicate gives it and
+looks for that alias's own column, so both cases are red. The old list's step 3, "watch the
+second test pass on the new arm", is gone for the same review's other reason: that test
+iterates the list, which does not hold the new arm until the step after it, so it passed
+vacuously.
+
+**What no guard sees, and what does.** Writing the criterion is on you; nothing structural
+can tell that you did. And a reference that is **not a foreign key** is invisible to that
+guard entirely, because it reads `pg_constraint` — `users.avatar_url` is a `text` URL, so
+every avatar in the product is unreferenced as far as the sweep's own query is concerned,
+and what spares it is the sweep's `kind IN ('cover', 'image')` clause. **AC-705 is what
+holds that line**, and it is the criterion to read before editing the sweep's scope rather
+than its arms.
 
 **When two branches both move one of these, the resolution is the sum and it is neither
 side.** This is not arithmetic you do on two diffs — run the sweep on the merged tree and
 read the number it reports. Two sides agreeing on a number is not the same as the number
 being right, because each counted its own routes against a base that did not hold the
 other's: on 2026-09-20 issues #223, #224 and #226 all independently read 40 reading routes,
-and 41 was correct. Every one of the six carries a worked example of this in its own comment.
+and 41 was correct. Every one of the seven carries a worked example of this in its own
+comment.
 
 Move the number **and** its comment in the same change, say in the pull request that you did,
 and say which. A moved count with no note is indistinguishable from the thing rule 3 exists
