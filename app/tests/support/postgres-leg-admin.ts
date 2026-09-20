@@ -14,10 +14,12 @@ import { randomInt } from 'node:crypto'
 
 import pg from 'pg'
 
+import type { LocaleProvider } from './postgres-leg.js'
 import {
   BASE_URL_ENV,
   RUN_LOCK_CLASS,
   createDatabaseSql,
+  localeProviderFor,
   quoteIdent,
   withDatabase,
   workerDatabasePattern,
@@ -26,6 +28,42 @@ import {
 function errorCode(error: unknown): string | undefined {
   const code = (error as { code?: unknown }).code
   return typeof code === 'string' ? code : undefined
+}
+
+/*
+Which CREATE DATABASE locale clause this server can parse, asked once.
+
+Cached per process rather than per call. In practice that is one call: the only
+caller is ensureDatabase, which prepareLegDatabaseOnce guards, so the cache
+never sees a second hit and is here so that it would stay correct if it did.
+One server per run, and the answer is a property of the server rather than of
+the connection, so a differently-targeted admin client would give the same one.
+*/
+let localeProvider: LocaleProvider | undefined
+
+async function providerFor(admin: pg.Client): Promise<LocaleProvider> {
+  if (localeProvider !== undefined) return localeProvider
+  const answer = await admin.query<{ server_version_num: string }>(
+    'SHOW server_version_num',
+  )
+  const raw = answer.rows[0]?.server_version_num
+  /*
+  Tested for digits rather than handed to Number, which answers 0 for an empty
+  string and for whitespace. A 0 is finite, so the lenient test would take a
+  server that answered nothing as one below 17 and create its databases with
+  the fallback clause, which on a 17+ server is the weaker of the two and would
+  never be noticed. Refusing is the honest answer: the leg cannot run against a
+  server it cannot identify.
+  */
+  if (typeof raw !== 'string' || !/^[0-9]+$/.test(raw)) {
+    throw new Error(
+      `the server answered SHOW server_version_num with ${JSON.stringify(raw)}, which is not ` +
+        'a version number, so the Postgres leg cannot tell which CREATE DATABASE locale ' +
+        'clause it understands.',
+    )
+  }
+  localeProvider = localeProviderFor(Number(raw))
+  return localeProvider
 }
 
 /** Opens a client against one database. The caller always ends it. */
@@ -66,7 +104,7 @@ export async function ensureDatabase(
   name: string,
 ): Promise<boolean> {
   try {
-    await admin.query(createDatabaseSql(name))
+    await admin.query(createDatabaseSql(name, await providerFor(admin)))
   } catch (error) {
     // 42P04 is duplicate_database, which is the answer this wanted. Nothing
     // migrates on this path and nothing needs to: the caller is createTestDb(),

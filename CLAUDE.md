@@ -102,6 +102,30 @@ protocol points here rather than repeating them.
   that this one fell back, so **print the variable before you trust a green**. And the
   cross-engine class recorded further down — the `current_date` zone defect — is now caught
   by whichever leg ran rather than by two legs disagreeing.
+- **The whole gate runs on a Linux container as well as on this machine, since 2026-09-20
+  and issue #235, and that is new.** The Postgres leg used to refuse any server below 18:
+  11.10's `CREATE DATABASE` carries `LOCALE_PROVIDER builtin`, which arrived in Postgres 17,
+  and a 16 server answers `option "builtin_locale" not recognized` in global setup before
+  one file runs. The leg now picks the clause from `server_version_num`, so 17 and above
+  get 11.10's statement unchanged and anything older gets libc `LC_COLLATE 'C'`, the same
+  code-point ordering from a weaker source, **and ctype `C.UTF-8` rather than `C`**: those
+  two order identically and fold differently, `C` folding ASCII only, so the first draft of
+  the fallback passed every test in the suite while answering `ORDER BY lower(name)` in a
+  different sequence from the gate machine. 11.10's amendment carries the measurement.
+  **Read the consequence rather than the fix:
+  until this landed, exactly one machine could produce a green gate record**, the gate
+  having been one leg since #229, and #231 merged unverified on Postgres while #232 sat red
+  for three days because a pull request's `check` job runs lint, typecheck and build and
+  nothing else. **Measured 2026-09-20 on a 2026-09 container, on the #235 branch rather
+  than on `main`** — `main` at 4783810 cannot run this leg on a 16 server at all, which is
+  the point — **the whole six steps in 2 minutes 10 seconds**: lint 6s, typecheck 16s,
+  Postgres leg 55s for 141 files, build 7s, browser leg 46s for 20 cases, 4 of them the
+  pre-existing failures of #234. Two setup notes, both outside the repository. The cluster's own locale must be C.UTF-8, which `initdb
+  --locale=C.UTF-8` gives, and `initdb` refuses to run as root, so it runs as `postgres`.
+  And the container's Playwright browsers are a different build from the one
+  `@playwright/test` pins, which fails as `Executable doesn't exist at
+  …/chromium_headless_shell-<pinned>/…` and is answered by symlinking the installed build
+  into the pinned name rather than by `playwright install`.
 - Scope the suite while you iterate and run it whole before you report. **Measured
   2026-09-03 on this machine, both legs green: 295 files and 1961 tests.** It was 279 and
   1899 on 2026-09-01, so read every count in this file as a dated measurement rather than
