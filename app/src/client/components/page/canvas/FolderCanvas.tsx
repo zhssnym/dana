@@ -15,7 +15,7 @@ import { CanvasTaskProvider } from './CanvasTask.js'
 import { CanvasSurface } from './CanvasSurface.js'
 import { canvasSchema } from './schema.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
-import { baselineOf, dehydrateCanvas, hydrateCanvas, richRuns } from './adapters.js'
+import { baselineOf, dehydrateCanvas, folderRefsOf, hydrateCanvas, richRuns } from './adapters.js'
 import type { CanvasInput } from './adapters.js'
 import { CanvasWriter } from './saving.js'
 import { pasteIntoCanvas } from './paste.js'
@@ -61,6 +61,49 @@ function CanvasSession({ page, initialPage, folderId, tasks, context, actions, o
   const [recovery, setRecovery] = useState(false)
   const [previousDraft, setPreviousDraft] = useState<string | null>(null)
   const initial = useMemo(() => hydrateCanvas(initialPage, width), [initialPage, width])
+  /* Which of these block ids the server *currently* stores as a reference, so
+     it is read from `page` — the query row `onSaved` writes back after every
+     save — and never from `initialPage`, which the editor's content comes from.
+     The two differ on purpose and reading both from `initialPage` is wrong in
+     one direction.
+
+     This session does not remount after an ordinary save. `onCheckpoint` fires
+     only for a transaction carrying `create_task`, and the reconciliation
+     effect below returns early while `page.revision === writer.revision`, so a
+     map taken at mount keeps an entry for a block long after a save wrote
+     `ref_folder_id: null` for it. BlockNote keeps a block's id across a type
+     conversion and `dehydrateCanvas` re-applies the entry to whatever is a
+     paragraph under that id, so reference → heading → paragraph inside one
+     mounted session put the relation back and dropped the rich content the
+     block gathered while it was a heading — a deliberate conversion silently
+     reverted, and `page_blocks_ref_folder_id_fkey` being ON DELETE CASCADE,
+     the folder then took the paragraph with it. Measured through this
+     component against a real database in issue #255's review; AC-663 is it.
+
+     `page` follows the server, so the entry goes as soon as the conversion
+     lands. **What that does not close is the flight itself**: a conversion and
+     its undo inside one save's flight read a map nothing has updated yet, and
+     the relation is restored.
+
+     **That window is one request long only while saves succeed, and it is
+     unbounded when one fails.** Measured on this commit in #255's second
+     review, which drove it end to end. `CanvasWriter.change` sets `latest`
+     unconditionally and latches only the state transition, so every keystroke
+     during a failure is still projected against this map; `committed` never
+     runs, so `onSaved` never runs, so `page` — and this map with it — is
+     frozen at the pre-failure row for the whole failure; and the editor stays
+     editable throughout. `retry()` then re-sends the original request,
+     `committed` runs, `settled(latest)` is computed from a projection built
+     against the stale map and answers `'changed'`, and the autosave ships it
+     **with no gesture after the retry**. Convert a reference to a heading, see
+     the save fail, press undo, click Retry save: the row comes back a
+     `folder_ref` under ON DELETE CASCADE on a block deliberately converted
+     away. Narrower than the hole above — it needs a failure straddling a
+     conversion — and far narrower than `main`, where the relation died on
+     every keystroke. Closing it means reading `writer.pending?.document`
+     rather than `page`, and it wants a criterion: nothing in the suite makes
+     `route.send` throw, so this whole path is unmeasured. */
+  const folderRefs = useMemo(() => folderRefsOf(page), [page])
   const editor = useCreateBlockNote({
     schema: canvasSchema,
     initialContent: initial.length ? initial : [{ id: crypto.randomUUID(), type: 'paragraph', content: '' }],
@@ -80,7 +123,7 @@ function CanvasSession({ page, initialPage, folderId, tasks, context, actions, o
   // kinds and no nesting, so a writer based on it has nothing to restore from
   // and every save flattens the page. An empty page still starts from an empty
   // baseline, so the placeholder paragraph is written rather than assumed.
-  const [writer] = useState(() => new CanvasWriter(baselineOf(initialPage, initial.length ? dehydrateCanvas(editor.document, width) : { blocks: [], items: [] }), initialPage.revision!,
+  const [writer] = useState(() => new CanvasWriter(baselineOf(initialPage, initial.length ? dehydrateCanvas(editor.document, width, folderRefs) : { blocks: [], items: [] }), initialPage.revision!,
     (body) => mutateApi(getPageResponse, { method: 'POST', path: `/folders/${folderId}/page/actions`, body }),
     () => {
       render((value) => value + 1)
@@ -115,7 +158,7 @@ function CanvasSession({ page, initialPage, folderId, tasks, context, actions, o
 
   function changed(current: CanvasEditor): void {
     try {
-      writer.change(dehydrateCanvas(current.document, width))
+      writer.change(dehydrateCanvas(current.document, width, folderRefs))
       setError('')
     } catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not prepare this edit for saving.') }
   }
@@ -154,7 +197,7 @@ function CanvasSession({ page, initialPage, folderId, tasks, context, actions, o
     // simulated mutable Task record is put into the live editor before commit.
     const temporary = BlockNoteEditor.create({ schema: canvasSchema, initialContent: proposal })
     try {
-      writer.change(dehydrateCanvas(temporary.document, width))
+      writer.change(dehydrateCanvas(temporary.document, width, folderRefs))
       await writer.flush({ id, title: title.trim() })
     } finally { temporary.unmount(); setCreating(false); setTaskAt(null) }
   }

@@ -87,8 +87,59 @@ export function richRuns(block: CanvasBlock): RichRun[] {
   return runs
 }
 
-/** Per-record projection, independent of the editor's JSON serialization. */
-export function dehydrateCanvas(blocks: readonly CanvasBlock[], columnWidth: number): CanvasDocument {
+/**
+ * Which blocks of a stored page are folder references, as block id to the
+ * folder each one names.
+ *
+ * A `folder_ref` is a typed relation and `canvasSchema` has no block type for
+ * it, so `hydrateCanvas` draws it as a paragraph carrying a link and the
+ * projection below would otherwise write it back as a paragraph with
+ * `ref_folder_id` null — the link surviving as a rich-content run, so the
+ * person sees a working link and the relation is gone (issue #255). This map
+ * is the page's own answer to "which of these paragraphs is really a
+ * reference", and it is the only source: an href in the content is the
+ * person's text, and a paragraph that merely contains a folder link must not
+ * become a relation, because `page_blocks_ref_folder_id_fkey` is ON DELETE
+ * CASCADE and would take that paragraph with the folder.
+ *
+ * **Which page to read it from is the caller's decision and it is not free.**
+ * The page the editor was *hydrated* from is the wrong one: the session
+ * outlives many saves, so a map taken there keeps an entry for a block a save
+ * has already converted, and the projection below puts the relation back on
+ * the person's next keystroke. `FolderCanvas` reads it from the query row the
+ * writer writes back after every save, and carries the measurement; AC-663
+ * pins it.
+ *
+ * A reference with no folder is left out. `shelfItemsOf` drops one on read for
+ * the same reason, and carrying a null relation would write a `folder_ref`
+ * that names nothing.
+ *
+ * **Why this is its own carry and not a seventh member of
+ * `STRUCTURED_BLOCK_KINDS`.** That constant means structured *text*, and every
+ * reader of it was read before this was chosen: `DOCUMENT_BLOCK_KINDS` is
+ * spread from it, `put_block`'s superRefine is the list it refuses a file and
+ * a folder reference on, `pages.ts` re-exports it and nothing imports that
+ * re-export, and the `UNEXPRESSED` set below is the fourth. So putting
+ * `folder_ref` in it would make the contract refuse the very column this
+ * exists to keep, and would say of it the one thing that is not true: that it
+ * is text. And the carry below could not reach a `folder_ref` anyway: it reads
+ * the kind off `before`, which the writer builds from this projection, so a
+ * kind this projection has already dropped is not there to restore. That is
+ * issue #250's finding about its own half, and it is why this one is fixed one
+ * layer earlier, in the projection rather than in the diff.
+ */
+export function folderRefsOf(page: PageView): ReadonlyMap<string, string> {
+  return new Map(page.blocks.flatMap((block) => block.kind === 'folder_ref' && block.ref_folder_id !== null ? [[block.id, block.ref_folder_id] as const] : []))
+}
+
+/**
+ * Per-record projection, independent of the editor's JSON serialization.
+ *
+ * `folderRefs` is required rather than optional on purpose: the defect it
+ * exists to stop is a relation dropped in silence, and an optional argument is
+ * a call site that drops it in silence again with nothing to read.
+ */
+export function dehydrateCanvas(blocks: readonly CanvasBlock[], columnWidth: number, folderRefs: ReadonlyMap<string, string>): CanvasDocument {
   const result: CanvasDocument = { blocks: [], items: [] }
   function visit(children: readonly CanvasBlock[], parent: string | null): void {
     for (const block of children) {
@@ -99,7 +150,32 @@ export function dehydrateCanvas(blocks: readonly CanvasBlock[], columnWidth: num
         const image = block.type === 'image'
         const fileId = image ? /(?:^|\/)api\/v1\/files\/([0-9a-f-]{36})$/i.exec(block.props.url)?.[1] ?? null : null
         if (image && block.props.url && !fileId) throw new Error('Upload this image to Dana before saving. External image URLs are not supported.')
-        result.blocks.push({ id: block.id, block_kind: block.type === 'heading' ? 'section' : image ? 'image' : 'paragraph', text: image ? block.props.caption : runs.map((run) => run.text).join(''), rich_content: image ? null : { version: 1, runs }, file_id: fileId, ref_folder_id: null, width_pct: image ? Math.max(25, Math.min(100, Math.round((block.props.previewWidth || columnWidth) / columnWidth * 100))) : null, checked: null })
+        /* Only over the paragraph this editor drew the reference as, which is
+           the same test the structured carry below makes: a block the person
+           has deliberately retyped as a heading or an image is a conversion
+           they asked for, and restoring the relation onto it would undo a
+           gesture rather than preserve one. The map answering that question
+           has to follow the server rather than the page the editor was
+           hydrated from, or the conversion is reverted one save later;
+           `FolderCanvas` carries why, and AC-663 pins it.
+
+           **`rich_content` goes with the kind, and on this kind it costs
+           something.** `page_blocks_rich_content_check` and `put_block` both
+           refuse rich content on a `folder_ref`, so a reference keeps its
+           words and loses its runs: bold and italic are dropped, and a second
+           link typed inside it is dropped with them. `hydrateCanvas` then
+           draws the whole remaining string as one link to the folder, so a
+           reference typed as "Design notes **urgent**[elsewhere](…)" comes
+           back as "Design notes urgentelsewhere" under a single folder link.
+           That is a real loss and it is still the ruling, because the
+           alternative is not a better projection but a 422: the database
+           refuses the column on this kind, and a save that will not save is
+           worse than a style that will not survive — the same direction the
+           structured carry below argues at length. On `main` those runs
+           survived and the relation did not, which is this loss pointed the
+           other way. AC-665 pins it, with two runs and a style. */
+        const reference = block.type === 'paragraph' ? folderRefs.get(block.id) ?? null : null
+        result.blocks.push({ id: block.id, block_kind: block.type === 'heading' ? 'section' : image ? 'image' : reference !== null ? 'folder_ref' : 'paragraph', text: image ? block.props.caption : runs.map((run) => run.text).join(''), rich_content: image || reference !== null ? null : { version: 1, runs }, file_id: fileId, ref_folder_id: reference, width_pct: image ? Math.max(25, Math.min(100, Math.round((block.props.previewWidth || columnWidth) / columnWidth * 100))) : null, checked: null })
       }
       visit(block.children, block.type === 'heading' ? block.id : parent)
     }

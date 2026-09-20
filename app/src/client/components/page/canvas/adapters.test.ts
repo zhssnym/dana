@@ -3,7 +3,7 @@ import { BlockNoteEditor } from '@blocknote/core'
 import { describe, expect, test } from 'vitest'
 import type { PageBlock, PageView } from '../../../../shared/pages.js'
 import { canvasSchema } from './schema.js'
-import { canvasOperations, dehydrateCanvas, hydrateCanvas } from './adapters.js'
+import { canvasOperations, dehydrateCanvas, folderRefsOf, hydrateCanvas } from './adapters.js'
 
 function block(id: string, kind: PageBlock['kind'], parent: string | null = null): PageBlock {
   return { id, kind, section_block_id: parent, list_parent_block_id: null, checked: null, position: 0, page_position: null, text: id, file_id: null, file_width: null, file_height: null, width_pct: null, ref_folder_id: null, updated_at: '2026-09-13T00:00:00Z' }
@@ -14,7 +14,7 @@ describe('page and editor adapters', () => {
     const input = hydrateCanvas(page, 600)
     expect(input.map((item) => item.id)).toEqual(['h1', 'root'])
     const editor = BlockNoteEditor.create({ schema: canvasSchema, initialContent: input })
-    const document = dehydrateCanvas(editor.document, 600)
+    const document = dehydrateCanvas(editor.document, 600, folderRefsOf(page))
     expect(document.items.find((item) => item.id === 'task')?.section_block_id).toBe('h2')
     expect(document.items.find((item) => item.id === 'root')?.section_block_id).toBeNull()
     expect(document.blocks.find((item) => item.id === 'prose')?.rich_content).toEqual(page.blocks[2]?.rich_content)
@@ -36,7 +36,7 @@ describe('page and editor adapters', () => {
     // The Task and its prose hang off the H3 itself, not off either ancestor.
     expect(three.children!.map((child) => child.id)).toEqual(['prose', 'task'])
     const editor = BlockNoteEditor.create({ schema: canvasSchema, initialContent: input })
-    expect(dehydrateCanvas(editor.document, 600).items).toEqual([
+    expect(dehydrateCanvas(editor.document, 600, folderRefsOf(deep)).items).toEqual([
       // #219 gave every placement a second, independent parent. This editor
       // expresses no list nesting yet, so every one of them is null here; what
       // the field must never do is stand in for the Section beside it.
@@ -101,7 +101,7 @@ describe('page and editor adapters', () => {
   test('one multi-block edit emits only changed records and one complete outline', () => {
     const before = { blocks: [], items: [] }
     const editor = BlockNoteEditor.create({ schema: canvasSchema, initialContent: [{ id: 'p1', type: 'paragraph', content: 'One' }, { id: 'p2', type: 'paragraph', content: 'Two' }] })
-    const after = dehydrateCanvas(editor.document, 600)
+    const after = dehydrateCanvas(editor.document, 600, new Map())
     expect(canvasOperations(before, after).map((op) => op.op)).toEqual(['put_block', 'put_block', 'set_outline'])
     expect(canvasOperations(after, after).map((op) => op.op)).toEqual(['set_outline'])
     editor.unmount()
