@@ -153,9 +153,11 @@ function read(command, args) {
  * **What it cannot see, which is why it is no longer the whole check**
  * (issue #273). It asks loopback, so a listener bound to another address is
  * invisible to it while still making the leg's own `listen` fail with
- * EADDRINUSE; and a connection that times out means "I could not tell",
- * which this reports as free. `listeningSockets` below is the second reading,
- * and `browserLegRefusal` needs both to say free.
+ * EADDRINUSE — the leg binds the wildcard, and a wildcard bind collides with a
+ * specific-address listener, measured. `listeningSockets` below is the second
+ * reading, and it is the one that decides the free case: `browserLegRefusal`
+ * refuses when **either** reading says the port is taken, or when the socket
+ * table could not be read at all.
  *
  * @param {number} port
  * @returns {Promise<boolean>}
@@ -170,8 +172,21 @@ export function occupied(port) {
  *
  * A free port on loopback answers ECONNREFUSED at once, so a timeout there is
  * not a quiet way of saying nothing is home — it is the probe failing to
- * answer, and collapsing it into `free` is the fail-open this pair exists to
- * remove.
+ * answer, and a probe that cannot answer must not be recorded as one that said
+ * "free".
+ *
+ * **What the third state does and does not do, said plainly because an earlier
+ * version of this comment claimed more than the code does.** It is kept
+ * distinct so that nothing downstream can read a timeout as an all-clear, and
+ * it is what `occupied()` is narrowed from. It does **not** refuse the leg on
+ * its own: if the host's socket table has been read and holds no listener for
+ * this port, that is the better of the two readings and the leg starts.
+ * Refusing there would mean refusing a demonstrably free port because one
+ * loopback connect was slow, which is a check firing with no cause — and the
+ * case where nothing could read the table is already a refusal in its own
+ * right. So `unknown` and `free` reach the same outcome today, and the
+ * distinction earns its place by being impossible to launder rather than by
+ * changing a verdict.
  *
  * @param {number} port
  * @returns {Promise<'occupied' | 'free' | 'unknown'>}
@@ -214,18 +229,32 @@ export function probeConnect(port) {
  * the number has already been through `gatePort`, which refuses anything that
  * is not a whole number in range.
  *
- * @type {{name: string, args: (port: number) => string[], match: (line: string, port: number) => boolean}[]}
+ * **`accepts` is why a tool that runs is not automatically a tool that
+ * answered**, added by the adversarial review of this branch. Being missing is
+ * not the only way a command fails to read the socket table: a BusyBox
+ * `netstat` has no `-o`, so it writes a usage message to stderr and exits
+ * non-zero, and the first draft of this ladder read that empty stdout as an
+ * empty socket table — the fail-open it was written to remove, arriving
+ * through a command that was present. So each entry says which exits are an
+ * answer. `lsof` is the only one with two, because it exits 1 to mean "nothing
+ * matched", which is a real reading of an empty table; it must have said
+ * nothing on stderr for that reading to be taken, which is what separates a
+ * clean no-match from a refusal to run.
+ *
+ * @type {{name: string, args: (port: number) => string[], accepts: (code: number | null, stderr: string) => boolean, match: (line: string, port: number) => boolean}[]}
  */
 export const PORT_INSPECTORS = [
   {
     name: 'lsof',
     args: (port) => ['-nP', `-iTCP:${port}`, '-sTCP:LISTEN'],
+    accepts: (code, stderr) => code === 0 || (code === 1 && stderr.trim() === ''),
     // lsof has already filtered; every line but its header is a listener.
     match: (line) => !line.startsWith('COMMAND'),
   },
   {
     name: 'ss',
     args: () => ['-lnt'],
+    accepts: (code, stderr) => code === 0 && stderr.trim() === '',
     match: (line, port) => hasLocalPort(line, port) && !line.startsWith('State'),
   },
   {
@@ -234,6 +263,7 @@ export const PORT_INSPECTORS = [
     // The same flags on a Linux netstat print the same three columns this
     // reads, so nothing here is spelled twice for the two platforms.
     args: () => ['-ano'],
+    accepts: (code, stderr) => code === 0 && stderr.trim() === '',
     match: (line, port) => /\bLISTEN(ING)?\b/.test(line) && hasLocalPort(line, port),
   },
 ]
@@ -280,9 +310,11 @@ function hasLocalPort(line, port) {
 export async function listeningSockets(port, inspectors = PORT_INSPECTORS) {
   for (const inspector of inspectors) {
     const answer = await inspect(inspector.name, inspector.args(port))
-    // Not here: this host does not have this command. The next one, and if
-    // there is no next one the caller is told so rather than told "clear".
-    if (!answer.ran) continue
+    // Two ways not to be an answer, and they used to be one. The command is
+    // not on this host; or it ran and would not do what it was asked, which
+    // reads as an empty socket table and is not one. Either way the next tool,
+    // and if there is no next tool the caller is told that rather than "clear".
+    if (!answer.ran || !inspector.accepts(answer.code, answer.stderr)) continue
     const lines = answer.stdout
       .split(/\r?\n/)
       .map((line) => line.trimEnd())
@@ -297,32 +329,37 @@ export async function listeningSockets(port, inspectors = PORT_INSPECTORS) {
  * an ENOENT on the error event rather than as a shell's exit 127 with a
  * message in whatever language the host speaks.
  *
- * `ran` is whether the command executed at all. A non-zero exit still counts:
- * `lsof` answers 1 when nothing matches, which is the reading "no listener"
- * and not the reading "no lsof".
+ * `ran` is whether the command executed at all; the exit code and stderr go
+ * back with it because whether a run that exited non-zero is an answer is the
+ * caller's question and differs by tool. Nothing is interpreted here.
  *
  * @param {string} command
  * @param {string[]} args
- * @returns {Promise<{ran: boolean, stdout: string}>}
+ * @returns {Promise<{ran: boolean, code: number | null, stdout: string, stderr: string}>}
  */
 function inspect(command, args) {
   return new Promise((resolve) => {
     let child
     try {
-      child = spawn(command, args, { stdio: ['ignore', 'pipe', 'ignore'] })
+      child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'] })
     } catch {
-      resolve({ ran: false, stdout: '' })
+      resolve({ ran: false, code: null, stdout: '', stderr: '' })
       return
     }
-    let captured = ''
+    let out = ''
+    let err = ''
     child.stdout?.setEncoding('utf8')
     child.stdout?.on('data', (chunk) => {
-      captured += chunk
+      out += chunk
+    })
+    child.stderr?.setEncoding('utf8')
+    child.stderr?.on('data', (chunk) => {
+      err += chunk
     })
     // The error event arrives before the close event when the binary is not
     // there, and a promise settles once, so the missing-tool answer wins.
-    child.on('error', () => resolve({ ran: false, stdout: '' }))
-    child.on('close', () => resolve({ ran: true, stdout: captured }))
+    child.on('error', () => resolve({ ran: false, code: null, stdout: '', stderr: '' }))
+    child.on('close', (code) => resolve({ ran: true, code, stdout: out, stderr: err }))
   })
 }
 
@@ -423,6 +460,10 @@ export async function browserLegRefusal(port, inspectors = PORT_INSPECTORS) {
  * capable host — a trap walked into rather than a footnote. The two agents who
  * met it avoided it only by building in a dot-free scratchpad deliberately.
  *
+ * **Asked at the top of `main()`, before lint**, and `--quick` is exempt. The
+ * reasoning is beside the call rather than here, because it is about the order
+ * of the run rather than about this refusal.
+ *
  * @param {string} appPath
  * @returns {{note: string, advice: string} | null}
  */
@@ -439,7 +480,9 @@ export function browserLegPathRefusal(appPath) {
       'answers 404 while GET / still succeeds through express.static. Every spec\n' +
       'then fails on a missing sidebar, which reads as a broken application and is\n' +
       'not one. Copy or clone the tree to a path with no dot directory and run the\n' +
-      'leg there; the default agent worktree under .claude/worktrees is not one.\n',
+      'leg there; the default agent worktree under .claude/worktrees is not one.\n' +
+      'Nothing else about this checkout is wrong: npm run gate -- --quick runs lint,\n' +
+      'typecheck and build here and never starts a browser leg.\n',
   }
 }
 
@@ -473,13 +516,31 @@ export function dotSegmentIn(absolutePath) {
  * with no `node_modules` still reaches the install step instead of dying on a
  * module it was about to install.
  *
+ * **It is bounded, and the first draft was not** (adversarial review of this
+ * branch, 2026-09-20). A `TEST_DATABASE_URL` pointing at an unroutable address,
+ * or at a socket that accepts and then never speaks the protocol, left this
+ * waiting on the operating system's own connect timeout — measured at over 25
+ * seconds, and the caller could not print its record in the meantime. Five
+ * seconds is far longer than a real answer takes and far shorter than any of
+ * those. `query_timeout` is set beside it because the two hangs are different:
+ * a server that completes the handshake and then never answers `SHOW` is past
+ * the connection timeout and would otherwise wait forever.
+ *
+ * Neither timeout is a verdict about the database. It is about to be met
+ * properly by the leg itself, which will fail with a message about the real
+ * problem; all this owes the record is a version or an honest absence.
+ *
  * @param {string} url
  * @returns {Promise<string | null>}
  */
 export async function postgresVersion(url) {
   try {
     const { default: pg } = await import('pg')
-    const client = new pg.Client({ connectionString: url })
+    const client = new pg.Client({
+      connectionString: url,
+      connectionTimeoutMillis: 5000,
+      query_timeout: 5000,
+    })
     // The same hazard issue #174 measured on the pool in db/client.ts: a
     // connected client emits 'error' on itself when its socket dies, and an
     // EventEmitter 'error' with no listener throws. This one lives for two
@@ -659,6 +720,30 @@ async function main() {
 
   const record = (name, state, note, took) => rows.push({ name, state, note, took })
 
+  /*
+  The path precondition, asked before anything runs.
+
+  **First, not last, corrected by the adversarial review of this branch.** It
+  was asked where the browser leg starts, which meant a checkout under a dot
+  directory paid for lint, typecheck, a whole test leg and a build — minutes —
+  before being told it was never going to get a verdict. CLAUDE.md's own bullet
+  says this refusal exists so that the trap "costs one line rather than twenty
+  reds"; asked last it cost the whole gate first. It is free to ask and cannot
+  change while the run goes, so there is no reason for it to be anywhere else.
+
+  **`--quick` is exempt on purpose.** Lint, typecheck and build are unaffected
+  by the path and start no server, so they remain available from a worktree
+  that cannot run a browser leg — which is the worktree most agents are in.
+  Refusing those too would turn a precondition on one step into a blockade on
+  the only three a dot-path checkout can legitimately run.
+  */
+  const pathRefusal = quick ? null : browserLegPathRefusal(APP)
+  if (pathRefusal !== null) {
+    failedAt = 'playwright'
+    record('playwright', 'REFUSED', pathRefusal.note, '-')
+    process.stdout.write(`\n${pathRefusal.advice}`)
+  }
+
   const step = async (name, command, args, env, tally) => {
     if (failedAt !== null) return
     process.stdout.write(`\n=== gate: ${name} ===\n`)
@@ -740,13 +825,26 @@ async function main() {
     missing-Postgres row used: the gate's job is to answer for the engine that
     serves users, and a leg that did not touch it has not answered.
     */
+    /*
+    The engine is asked before the leg runs rather than written down here.
+    #235 made a sub-18 server a supported host and the literal that used to sit
+    in this line went on saying 18 over a leg running on 16.13 (issue #273).
+
+    **Asked only while the run is still alive**, which the first draft got
+    wrong and an adversarial review caught. `step()` returns immediately once
+    something has failed — but a step's *name* is an argument, and arguments
+    are evaluated before the call. So a run already red at lint still opened a
+    connection to whatever `TEST_DATABASE_URL` named, and against an unroutable
+    address it sat there while the record it had already earned went unprinted.
+    A gate that cannot print its own verdict because it was busy reading a
+    version it no longer needs is the tail wagging the dog.
+    */
+    const version =
+      failedAt !== null ? null : havePostgres ? await postgresVersion(postgres) : await pgliteVersion()
+
     if (havePostgres) {
-      // The engine is asked before the leg runs rather than written down here.
-      // #235 made a sub-18 server a supported host and the literal that used
-      // to sit in this line went on saying 18 over a leg running on 16.13
-      // (issue #273).
       await step(
-        testStepName('postgres', await postgresVersion(postgres)),
+        testStepName('postgres', version),
         'npm',
         ['test'],
         { TEST_DATABASE_URL: postgres },
@@ -756,7 +854,7 @@ async function main() {
       // Empty rather than absent, which is the condition app/db/client.ts tests
       // and the same spelling ci.yml uses on this step.
       await step(
-        testStepName('pglite', await pgliteVersion()),
+        testStepName('pglite', version),
         'npm',
         ['test'],
         { TEST_DATABASE_URL: '' },
@@ -772,12 +870,21 @@ async function main() {
   await step('build', 'npm', ['run', 'build'])
 
   if (!quick && failedAt === null) {
-    // The path first: it is free to ask, it cannot change while the run is
-    // going, and it is the one of the two that waiting will not fix.
-    const refusal = browserLegPathRefusal(APP) ?? (await browserLegRefusal(PLAYWRIGHT_PORT))
+    // The path was asked at the top of this function and a dot segment has
+    // already stopped the run, so what is left to ask is the port — which,
+    // unlike the path, can only be asked now, a leg that finished a minute ago
+    // still holding it.
+    //
+    // REFUSED rather than RED, and the distinction is worth the word: nothing
+    // failed. The gate declined to measure, because the measurement would have
+    // been worthless and would have read like a broken application. The
+    // verdict line above stays inside the three this repository documents, so
+    // this is still `red at playwright` there, and only `green` has ever
+    // opened a pull request.
+    const refusal = await browserLegRefusal(PLAYWRIGHT_PORT)
     if (refusal !== null) {
       failedAt = 'playwright'
-      record('playwright', 'RED', refusal.note, '-')
+      record('playwright', 'REFUSED', refusal.note, '-')
       process.stdout.write(`\n${refusal.advice}`)
     } else {
       // Deleted rather than merged into: artifacts from a run that is already

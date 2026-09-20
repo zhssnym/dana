@@ -352,19 +352,23 @@ protocol points here rather than repeating them.
   counts for about an hour before finding two `playwright test` processes
   alive at once. **Kill by command line rather than by port**, every `node.exe`
   whose command line matches `playwright` or `e2e:app`, then poll until
-  no listener is left on the port,
-  `until ! lsof -nP -iTCP:<port> -sTCP:LISTEN >/dev/null; do sleep 1; done`, having
-  first checked with `command -v lsof` that there is an lsof to run.
-  **`lsof` rather than `netstat`, corrected 2026-09-20 (issue #273), and the
-  correction is the point rather than the spelling.** This line had been copied
-  into agent briefs, and the Linux container the gate now runs on has neither
-  `netstat` nor `ss`: a missing command writes nothing, nothing greps to nothing,
-  and the loop reported **every port on the machine clear**. That is not a weak
-  check, it is an unconditional all-clear in the one check whose whole job is to
-  refuse — which is why the `command -v` line is not decoration either, a missing
-  `lsof` exiting non-zero being read by `until !` as "the port is quiet". `npm run
-  gate` no longer depends on any of this: it reads the socket table itself and
-  **refuses the browser leg outright on a host where no tool can read one**.
+  no listener is left on the port. **Two forms, because there are two hosts, and
+  running the wrong one is the whole hazard (corrected 2026-09-20, issue #273).**
+  On this machine, which has `netstat` and no `lsof`:
+  `until ! netstat -ano | findstr LISTENING | findstr ":<port>"` — or with `grep`
+  in place of `findstr` under Git Bash, which is where that line was born. On a
+  Linux container, which has `lsof` and often neither `netstat` nor `ss`:
+  `until ! lsof -nP -iTCP:<port> -sTCP:LISTEN >/dev/null; do sleep 1; done`.
+  **Check the command exists before trusting its silence**, `command -v lsof` or
+  `where netstat`: a missing command writes nothing, nothing greps to nothing,
+  and the loop then reports **every port on the machine clear**. That is not a
+  weak check, it is an unconditional all-clear from the one check whose whole job
+  is to refuse, and it is what a container found when this bullet carried only
+  the `netstat` form. `until !` cannot save you either — a missing command exits
+  non-zero, which it reads as "the port is quiet". `npm run gate` no longer
+  depends on any of this: it reads the socket table itself with whichever of
+  `lsof`, `ss` and `netstat` the host has, and **refuses the browser leg outright
+  on a host where none of them can read one**.
   Poll for LISTENING only, corrected 2026-09-04 (issue #141): a finished leg
   leaves dozens of client sockets in TIME_WAIT for minutes (85 measured on one
   port with no listener), so a bare grep on the port never clears, and it is the
@@ -541,7 +545,10 @@ protocol points here rather than repeating them.
   refused rather than reported clear.** And the leg is refused outright from a checkout
   whose path carries a dot segment, which `.claude/worktrees/` is — the reason is the
   `res.sendFile()` bullet below, and the refusal exists so that it costs one line rather
-  than twenty reds. **The engine line in the record is a reading now** rather than the
+  than twenty reds. **That one is asked before lint**, so a worktree that can never get a
+  verdict is told in a second rather than after the whole gate, and **`npm run gate --
+  --quick` is exempt and still runs there**: lint, typecheck and build do not care about
+  the path and start no browser. **The engine line in the record is a reading now** rather than the
   literal `Postgres 18` it was: the gate asks the server its version before the leg, and
   names the installed PGlite on the fallback path.
   **That port is `DANA_GATE_PORT` since 2026-09-20 and issue #254, and unset it is 3100**,

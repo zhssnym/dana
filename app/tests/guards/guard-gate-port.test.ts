@@ -63,6 +63,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { DEFAULT_GATE_PORT, gatePort } from '../../scripts/gate-port.mjs'
 import {
+  PORT_INSPECTORS,
   browserLegRefusal,
   listeningSockets,
   occupied,
@@ -345,7 +346,12 @@ describe('the gate port: the precondition fails closed', () => {
 
     const line = 'dana-stub 4242 nobody 5u IPv4 TCP 192.0.2.2:PORT (LISTEN)'
     const refusal = await browserLegRefusal(port, [
-      { name: process.execPath, args: () => ['-e', `console.log(${JSON.stringify(line)})`], match: () => true },
+      {
+        name: process.execPath,
+        args: () => ['-e', `console.log(${JSON.stringify(line)})`],
+        accepts: (code) => code === 0,
+        match: () => true,
+      },
     ])
 
     expect(refusal).not.toBeNull()
@@ -373,6 +379,71 @@ describe('the gate port: the precondition fails closed', () => {
     expect(refusal?.note).toContain('no port-inspection tool')
     expect(refusal?.note).toContain(String(port))
     expect(refusal?.advice).toContain('lsof')
+  })
+
+  /*
+  A tool that is present and will not do what it was asked.
+
+  Being missing is not the only way a command fails to read the socket table,
+  and the first draft of this ladder only knew about that one: it resolved on
+  any exit and discarded the code, so a BusyBox `netstat`, which has no `-o`,
+  would write usage to stderr, exit non-zero, and have its empty stdout read as
+  an empty socket table — the fail-open, arriving through a command that was
+  there. The predicates are asserted directly, because they are the whole of
+  the rule, and then driven end to end through the injection seam.
+  */
+  it('takes an exit that means "nothing matched" and refuses one that means "I did not run"', () => {
+    const byName = new Map(PORT_INSPECTORS.map((one) => [one.name, one]))
+    const lsof = byName.get('lsof')
+    const ss = byName.get('ss')
+    const netstat = byName.get('netstat')
+
+    // lsof exits 1 for a port nothing is listening on, and says nothing while
+    // doing it. That is a reading of an empty table and is taken.
+    expect(lsof?.accepts(0, '')).toBe(true)
+    expect(lsof?.accepts(1, '')).toBe(true)
+    // The same exit code with a complaint behind it is not a reading.
+    expect(lsof?.accepts(1, 'lsof: unsupported option')).toBe(false)
+    expect(lsof?.accepts(127, '')).toBe(false)
+    expect(lsof?.accepts(null, '')).toBe(false)
+
+    // Neither of the other two has a no-match exit code, so only success
+    // counts, and only in silence.
+    for (const inspector of [ss, netstat]) {
+      expect(inspector?.accepts(0, '')).toBe(true)
+      expect(inspector?.accepts(1, '')).toBe(false)
+      expect(inspector?.accepts(1, 'netstat: invalid option -- o')).toBe(false)
+      expect(inspector?.accepts(0, 'netstat: invalid option -- o')).toBe(false)
+    }
+  })
+
+  it('moves past a tool that ran and rejected its flags, and refuses when it was the last one', async () => {
+    const { server, port } = await listenOnAFreePort()
+    await close(server)
+    await waitUntilFree(port)
+
+    // A BusyBox netstat, written as what one does: a usage message on stderr
+    // and a non-zero exit, with nothing on stdout. The entry carries the real
+    // netstat's own acceptance rule, which is the thing under test.
+    const busybox = {
+      name: process.execPath,
+      args: () => [
+        '-e',
+        'process.stderr.write("netstat: invalid option -- o"); process.exit(1)',
+      ],
+      accepts: (code: number | null, stderr: string) => code === 0 && stderr.trim() === '',
+      match: () => true,
+    }
+
+    expect(await listeningSockets(port, [busybox])).toEqual({
+      tool: null,
+      listening: null,
+      lines: [],
+    })
+
+    const refusal = await browserLegRefusal(port, [busybox])
+    expect(refusal, 'a tool that would not run was read as an empty socket table').not.toBeNull()
+    expect(refusal?.note).toContain('no port-inspection tool')
   })
 
   /*

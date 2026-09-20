@@ -131,6 +131,48 @@ describe('the gate record: the engine version is read from the server', () => {
     }
   })
 
+  /*
+  The failure path, and it is a timing assertion rather than a value one.
+
+  A `TEST_DATABASE_URL` naming a socket that accepts and then never speaks the
+  protocol left the first draft of `postgresVersion` waiting on the operating
+  system, measured at over 25 seconds — and because the step's *name* is an
+  argument, evaluated before `step()` decides whether to run at all, a gate
+  already red at lint sat there instead of printing the record it had earned.
+  So what is asserted is that the read gives up, and gives up in less time than
+  it would take anyone to notice.
+
+  The server here accepts the connection and writes nothing, which is the
+  shape that the connect timeout has to cover and a plain refused connection
+  does not.
+  */
+  it('gives up on a server that accepts and never answers, rather than hanging', async () => {
+    // Held so they can be destroyed from this side. `server.close()` waits for
+    // its accepted connections, and the client abandoning one does not end it
+    // here — measured: with the sockets left alone, close never called back
+    // and the case hung on its own teardown rather than on what it tests.
+    const accepted: net.Socket[] = []
+    const server = net.createServer((socket) => {
+      // Accepted, and deliberately never answered.
+      accepted.push(socket)
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    const { port } = server.address() as net.AddressInfo
+
+    try {
+      const started = Date.now()
+      const read = await postgresVersion(`postgresql://dana:dana@127.0.0.1:${String(port)}/dana`)
+      const took = Date.now() - started
+
+      expect(read, 'a server that never spoke produced a version').toBeNull()
+      expect(took, `the read took ${String(took)}ms, so it is not bounded`).toBeLessThan(15_000)
+      expect(testStepName('postgres', read)).toBe('test (Postgres, version unread)')
+    } finally {
+      for (const socket of accepted) socket.destroy()
+      await new Promise((resolve) => server.close(resolve))
+    }
+  }, 30_000)
+
   it('names the PGlite that is installed, which is not the range package.json declares', async () => {
     const version = await pgliteVersion()
     expect(version, 'no PGlite version could be read from node_modules').not.toBeNull()
@@ -178,10 +220,27 @@ describe('the browser leg: a path carrying a dot segment', () => {
   /*
   The wiring, because an exported refusal nobody calls is a check that cannot
   fail — which is the other half of the issue this file answers.
+
+  **And where in the run it is asked**, which the adversarial review of this
+  branch made a property rather than a detail. Asked where the leg starts, a
+  dot-path checkout paid for lint, typecheck, a whole test leg and a build
+  before being told it could never have got a verdict; CLAUDE.md's bullet says
+  this refusal exists so the trap costs one line rather than twenty reds. The
+  order is asserted by position in the source, which is crude and is the only
+  thing available from outside a single `main()` — the alternative is running a
+  real gate, which this suite may not do.
   */
-  it('is asked before the browser leg starts', async () => {
+  it('is asked before the browser leg starts, and before lint', async () => {
     const text = await readFile(fileURLToPath(new URL('scripts/gate.mjs', APP)), 'utf8')
-    expect(text).toContain('browserLegPathRefusal(APP)')
+    const asked = text.indexOf('browserLegPathRefusal(APP)')
+    const lint = text.indexOf("step('lint'")
+
+    expect(asked).toBeGreaterThan(-1)
+    expect(lint).toBeGreaterThan(-1)
+    expect(
+      asked,
+      'the path refusal is asked after lint starts, so a dot-path checkout pays for the whole gate before being refused',
+    ).toBeLessThan(lint)
   })
 })
 
