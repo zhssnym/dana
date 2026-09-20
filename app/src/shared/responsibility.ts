@@ -380,8 +380,8 @@ export const folderMemberDetails = z.object({
   responsibility: responsibilityStanding,
 
   /* Current work: informational only, and #230 says so twice. It is a count
-     of Tasks currently assigned to this member in this Folder, and it is
-     never Responsibility truth. */
+     of the Folder's `pending` Tasks currently assigned to this member -- 4.5's
+     word for open work -- and it is never Responsibility truth. */
   assigned_open_task_count: z.int().nonnegative(),
 
   /* History affordance: the two routes a panel calls, rather than a payload

@@ -209,8 +209,14 @@ export async function standingOf(
             ON h.responsibility_id = r.id
            AND h.revision_no = r.current_revision_no
           LEFT JOIN users u ON u.id = r.updated_by
-         WHERE r.folder_id = ${folderId}::uuid`,
+         WHERE r.folder_id = ${folderId}::uuid
+         ORDER BY (r.ended_at IS NULL) ASC, r.ended_at ASC, r.created_at ASC`,
   )
+  /* Last write wins, and the ORDER BY is what makes the winner the right row:
+     a member who rejoined has an ended document *and* a current one, and the
+     ended one must not be the answer. Ascending on `ended_at IS NULL` puts
+     false first and true last, so the active row -- if there is one -- is the
+     last to be written into the map. */
   for (const row of found) {
     const memberId = String(row.member_id)
     const endedAt = nullableIso(row.ended_at)
@@ -653,8 +659,7 @@ export async function endResponsibilityStanding(
 ): Promise<void> {
   const ended = await rowsOf(
     tx,
-    sql`UPDATE folder_responsibilities
-           SET ended_at = now(), ended_by = ${actorId}::uuid
+    sql`UPDATE folder_responsibilities SET ended_at = now()
          WHERE folder_id = ${folderId}::uuid
            AND member_id = ${memberId}::uuid
            AND ended_at IS NULL
@@ -822,7 +827,7 @@ export async function memberDetailsOf(
             ON wanted.member_id::uuid = t.assignee_id
          WHERE t.folder_id = ${folderId}::uuid
            AND t.deleted_at IS NULL
-           AND t.status = 'open'
+           AND t.status = 'pending'
          GROUP BY t.assignee_id`,
   )
   const byMember = new Map<string, number>()

@@ -58,11 +58,22 @@ export const EXPORT_FORMAT = 'dana-export'
  * whole classification silently missing, which is what the number exists to
  * prevent.
  *
- * **Version 3, issue #230**, adds `responsibilities`: the exporting person's
+ * **Version 4, issue #230**, adds `responsibilities`: the exporting person's
  * **own** current Responsibility document in each folder they are currently a
  * member of, with that document's own revisions. #230 asks for a deliberate
  * shape rather than an accreted one, and the deliberate part is what it
  * excludes, which is stated where the collection is declared below.
+ *
+ * **It is 4 rather than 3 because 3 is already spoken for, and the collision
+ * is the same shape as two branches picking one migration number.** Version 3
+ * is `backend/226-label-core-domain`'s, for the `my_label` to `my_shelf`
+ * rename inside `folders[]`; that branch merges before this one and was
+ * already pushed when this was written. Two branches each bumping 2 to 3 merge
+ * cleanly and leave **one version number covering two different shapes**,
+ * which is worse than either change alone: a reader that knows version 3 would
+ * then be right about one of them and wrong about the other, with nothing to
+ * tell it which. Read the number off the branches that are open rather than
+ * off the file, exactly as the backend README says for migration prefixes.
  */
 export const EXPORT_VERSION = 4
 

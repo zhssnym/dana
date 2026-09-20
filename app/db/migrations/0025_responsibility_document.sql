@@ -31,6 +31,11 @@
 --    in Dana links to a bullet inside a Responsibility, so there is no
 --    identity to give one.
 --
+--    There is deliberately **no `ended_by`** beside `ended_at`. Who ended a
+--    standing is on the `responsibility_ended` entry, which is the record and
+--    therefore the authority; a denormalized copy on this row would be a
+--    second answer to one question and could only ever drift from the first.
+--
 --    The uniqueness is partial: one *active* document per (folder, member),
 --    where active means ended_at IS NULL. That single index carries the whole
 --    of the leave/rejoin rule. Membership ending stamps ended_at, which both
@@ -101,14 +106,11 @@ CREATE TABLE folder_responsibilities (
   updated_at timestamptz NOT NULL DEFAULT now(),
   updated_by uuid NOT NULL,
   ended_at timestamptz,
-  ended_by uuid,
   CONSTRAINT folder_responsibilities_pkey PRIMARY KEY (id),
   CONSTRAINT folder_responsibilities_folder_id_fkey FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE CASCADE,
   CONSTRAINT folder_responsibilities_member_id_fkey FOREIGN KEY (member_id) REFERENCES users(id) ON DELETE RESTRICT,
   CONSTRAINT folder_responsibilities_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE RESTRICT,
-  CONSTRAINT folder_responsibilities_ended_by_fkey FOREIGN KEY (ended_by) REFERENCES users(id) ON DELETE RESTRICT,
-  CONSTRAINT folder_responsibilities_current_revision_no_check CHECK (current_revision_no > 0),
-  CONSTRAINT folder_responsibilities_ended_check CHECK ((ended_at IS NULL) = (ended_by IS NULL))
+  CONSTRAINT folder_responsibilities_current_revision_no_check CHECK (current_revision_no > 0)
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX folder_responsibilities_folder_id_member_id_active_idx

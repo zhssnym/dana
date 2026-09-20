@@ -280,13 +280,14 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
      content silently reactivates; the ended row and its revisions stay where
      they are, which is the other half of the same rule.
 
-     The ended CHECK is both-or-neither in its IS NULL form, which always
-     yields a real boolean (issue #27). folder_id cascades because a permanent
-     Folder purge takes the Responsibility with it under the Folder's own
-     retention lifecycle; the three user references are RESTRICT on
-     folder_access_history's precedent, 8.10 scrubbing an account rather than
-     deleting its row, and because SET NULL would forge a different
-     historical actor onto a document a person wrote. */
+     There is no `ended_by` beside `ended_at`: who ended a standing is on the
+     `responsibility_ended` entry, which is the record and therefore the
+     authority, and a copy here could only ever drift from it. folder_id
+     cascades because a permanent Folder purge takes the Responsibility with
+     it under the Folder's own retention lifecycle; the two user references
+     are RESTRICT on folder_access_history's precedent, 8.10 scrubbing an
+     account rather than deleting its row, and because SET NULL would forge a
+     different historical actor onto a document a person wrote. */
   folder_responsibilities: {
     primaryKey: { name: 'folder_responsibilities_pkey', columns: ['id'] },
     uniques: [],
@@ -295,18 +296,8 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
         name: 'folder_responsibilities_current_revision_no_check',
         columns: ['current_revision_no'],
       },
-      {
-        name: 'folder_responsibilities_ended_check',
-        columns: ['ended_at', 'ended_by'],
-      },
     ],
     foreignKeys: [
-      {
-        name: 'folder_responsibilities_ended_by_fkey',
-        columns: ['ended_by'],
-        references: { table: 'users', columns: ['id'] },
-        onDelete: 'restrict',
-      },
       {
         name: 'folder_responsibilities_folder_id_fkey',
         columns: ['folder_id'],

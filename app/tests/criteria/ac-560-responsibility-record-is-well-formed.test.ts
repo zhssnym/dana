@@ -14,7 +14,7 @@ and UNKNOWN is as good as TRUE to it**, so a constraint written with a
 comparison against a possibly-null column admits exactly the row it was
 written to refuse -- and passes AC-001, and passes the whole suite.
 
-Migration 0025 adds four CHECKs, three of them over nullable columns. So this
+Migration 0025 adds three CHECKs, two of them over nullable columns. So this
 is the behavioural case the README says is the author's job when a migration
 adds one: each is driven with the bad row and must be refused, and each is
 driven with the good rows either side of it and must admit them.
@@ -214,8 +214,7 @@ describe('AC-560 the Responsibility record refuses the rows it was written to re
       'folder_responsibilities_folder_id_member_id_active_idx',
     )
     await client.db.execute(
-      sql`UPDATE folder_responsibilities
-             SET ended_at = now(), ended_by = ${userId}::uuid
+      sql`UPDATE folder_responsibilities SET ended_at = now()
            WHERE id = ${documentId}::uuid`,
     )
     const second = await makeDocument(folderId, userId)
@@ -223,27 +222,6 @@ describe('AC-560 the Responsibility record refuses the rows it was written to re
       second,
       'once the first document has ended, the membership may hold a new current one (#209 R10, rejoin)',
     ).not.toBe(documentId)
-  })
-
-  test('AC-560: a document ends with both stamps or neither', async () => {
-    const { userId, folderId } = await scaffold()
-    const documentId = await makeDocument(folderId, userId)
-    await expectRejectedBy(
-      () =>
-        client.db.execute(
-          sql`UPDATE folder_responsibilities SET ended_at = now()
-               WHERE id = ${documentId}::uuid`,
-        ),
-      'folder_responsibilities_ended_check',
-    )
-    await expectRejectedBy(
-      () =>
-        client.db.execute(
-          sql`UPDATE folder_responsibilities SET ended_by = ${userId}::uuid
-               WHERE id = ${documentId}::uuid`,
-        ),
-      'folder_responsibilities_ended_check',
-    )
   })
 
   test('AC-560: a folderless invite cannot carry initial Responsibility content', async () => {

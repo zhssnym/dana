@@ -293,7 +293,6 @@ export interface DocumentRow {
   current_revision_no: number
   updated_by: string
   ended_at: string | null
-  ended_by: string | null
 }
 
 export async function documentRows(
@@ -306,7 +305,7 @@ export async function documentRows(
   const found = await rows(
     db,
     sql`SELECT id, content, content_hash, current_revision_no, updated_by,
-               ended_at, ended_by
+               ended_at
           FROM folder_responsibilities
          WHERE folder_id = ${folderId}::uuid${scope}
          ORDER BY created_at ASC, id ASC`,
@@ -321,10 +320,6 @@ export async function documentRows(
       row.ended_at === null || row.ended_at === undefined
         ? null
         : String(row.ended_at),
-    ended_by:
-      row.ended_by === null || row.ended_by === undefined
-        ? null
-        : String(row.ended_by),
   }))
 }
 
