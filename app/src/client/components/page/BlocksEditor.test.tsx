@@ -12,6 +12,8 @@ function paragraph(id: string, position: number, text: string): PageBlock {
   return {
     id,
     kind: 'paragraph',
+    list_parent_block_id: null,
+    checked: null,
     position,
     page_position: null,
     section_block_id: null,

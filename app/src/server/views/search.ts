@@ -121,7 +121,13 @@ export async function searchView(
         LEFT JOIN folders f ON f.id = b.folder_id
         LEFT JOIN shelves sh ON sh.id = b.shelf_id
         WHERE b.text ILIKE ${pattern}
-          AND b.kind IN ('section', 'paragraph')
+          /* Every text-bearing kind, #219 included: the text column is the one
+             plain-text projection of a block whatever its kind, so a bullet,
+             a checklist item, a quote, a callout and a code block are found by
+             the same search that finds a paragraph. An image and a folder
+             reference carry a caption and a label rather than writing. */
+          AND b.kind IN ('section', 'paragraph', 'bullet', 'numbered',
+                         'checklist', 'quote', 'callout', 'code')
           AND (
             (b.folder_id IS NOT NULL AND f.deleted_at IS NULL AND EXISTS (
               SELECT 1 FROM folder_members m

@@ -1,20 +1,21 @@
 import type { PartialBlock } from '@blocknote/core'
-import type { PageView } from '../../../../shared/pages.js'
-import { MAX_SECTION_DEPTH } from '../../../../shared/page-document.js'
+import type { PageBlockKind, PageView } from '../../../../shared/pages.js'
+import { MAX_SECTION_DEPTH, STRUCTURED_BLOCK_KINDS } from '../../../../shared/page-document.js'
 import type { CanvasBlock, canvasSchema } from './schema.js'
 
 export type CanvasInput = PartialBlock<typeof canvasSchema.blockSchema, typeof canvasSchema.inlineContentSchema, typeof canvasSchema.styleSchema>
 export interface RichRun { text: string; bold?: boolean; italic?: boolean; href?: string }
 export interface CanvasRecord {
   id: string
-  block_kind: 'section' | 'paragraph' | 'image' | 'folder_ref'
+  block_kind: PageBlockKind
   text: string | null
   rich_content: { version: 1; runs: RichRun[] } | null
   file_id: string | null
   ref_folder_id: string | null
   width_pct: number | null
+  checked: boolean | null
 }
-export interface CanvasPlacement { kind: 'block' | 'task'; id: string; section_block_id: string | null }
+export interface CanvasPlacement { kind: 'block' | 'task'; id: string; section_block_id: string | null; list_parent_block_id: string | null }
 export interface CanvasDocument { blocks: CanvasRecord[]; items: CanvasPlacement[] }
 
 function contentOf(text: string | null, rich?: { version: 1; runs: RichRun[] } | null): CanvasInput['content'] {
@@ -92,13 +93,13 @@ export function dehydrateCanvas(blocks: readonly CanvasBlock[], columnWidth: num
   function visit(children: readonly CanvasBlock[], parent: string | null): void {
     for (const block of children) {
       const task = block.type === 'danaTask'
-      result.items.push({ kind: task ? 'task' : 'block', id: task ? block.props.taskId : block.id, section_block_id: parent })
+      result.items.push({ kind: task ? 'task' : 'block', id: task ? block.props.taskId : block.id, section_block_id: parent, list_parent_block_id: null })
       if (!task) {
         const runs = richRuns(block)
         const image = block.type === 'image'
         const fileId = image ? /(?:^|\/)api\/v1\/files\/([0-9a-f-]{36})$/i.exec(block.props.url)?.[1] ?? null : null
         if (image && block.props.url && !fileId) throw new Error('Upload this image to Dana before saving. External image URLs are not supported.')
-        result.blocks.push({ id: block.id, block_kind: block.type === 'heading' ? 'section' : image ? 'image' : 'paragraph', text: image ? block.props.caption : runs.map((run) => run.text).join(''), rich_content: image ? null : { version: 1, runs }, file_id: fileId, ref_folder_id: null, width_pct: image ? Math.max(25, Math.min(100, Math.round((block.props.previewWidth || columnWidth) / columnWidth * 100))) : null })
+        result.blocks.push({ id: block.id, block_kind: block.type === 'heading' ? 'section' : image ? 'image' : 'paragraph', text: image ? block.props.caption : runs.map((run) => run.text).join(''), rich_content: image ? null : { version: 1, runs }, file_id: fileId, ref_folder_id: null, width_pct: image ? Math.max(25, Math.min(100, Math.round((block.props.previewWidth || columnWidth) / columnWidth * 100))) : null, checked: null })
       }
       visit(block.children, block.type === 'heading' ? block.id : parent)
     }
@@ -111,17 +112,54 @@ export function documentOf(page: PageView): CanvasDocument {
   const parents = new Map(page.task_placements?.map((task) => [task.id, task.section_block_id]) ?? [])
   const blocks = page.blocks.map((block): CanvasRecord => {
     parents.set(block.id, block.section_block_id)
-    return { id: block.id, block_kind: block.kind, text: block.text, rich_content: block.rich_content ?? null, file_id: block.file_id, ref_folder_id: block.ref_folder_id, width_pct: block.width_pct }
+    return { id: block.id, block_kind: block.kind, text: block.text, rich_content: block.rich_content ?? null, file_id: block.file_id, ref_folder_id: block.ref_folder_id, width_pct: block.width_pct, checked: block.checked }
   })
-  return { blocks, items: page.items.map((item) => ({ ...item, section_block_id: parents.get(item.id) ?? null })) }
+  const listParents = new Map(page.blocks.map((block) => [block.id, block.list_parent_block_id]))
+  return { blocks, items: page.items.map((item) => ({ ...item, section_block_id: parents.get(item.id) ?? null, list_parent_block_id: listParents.get(item.id) ?? null })) }
 }
+
+/*
+This build's editor draws every #219 structured kind as an ordinary paragraph
+and expresses no list nesting, because the BlockNote half of #219 is the
+frontend phase. Saving must therefore not read that rendering as a conversion:
+a page holding a nested checklist would otherwise come back as flat paragraphs
+with their ticks gone, which is silent loss rather than a refusal.
+
+So a block whose stored kind this editor cannot express keeps that kind, its
+tick and its list parent across a save. The dangling case is handled rather
+than refused: if the list parent itself is gone from the document, the child is
+promoted to the top level, exactly as ON DELETE SET NULL would leave it, so
+deleting a list parent cannot leave a document that will never save again.
+
+Every line of this disappears when the frontend phase teaches the editor the
+real vocabulary; until then it is what keeps the intermediate state lossless.
+*/
+const UNEXPRESSED = new Set<string>(STRUCTURED_BLOCK_KINDS)
 
 export function canvasOperations(before: CanvasDocument, after: CanvasDocument) {
   const old = new Map(before.blocks.map((block) => [block.id, block]))
   const ids = new Set(after.blocks.map((block) => block.id))
+  const blocks = after.blocks.map((block) => {
+    const previous = old.get(block.id)
+    return previous && block.block_kind === 'paragraph' && UNEXPRESSED.has(previous.block_kind)
+      ? { ...block, block_kind: previous.block_kind, checked: previous.checked }
+      : block
+  })
+  const kept = new Map(blocks.map((block) => [block.id, block]))
+  const items = after.items.map((item) => {
+    if (item.list_parent_block_id !== null || !UNEXPRESSED.has(kept.get(item.id)?.block_kind ?? '')) return item
+    const parent = before.items.find((candidate) => candidate.id === item.id)?.list_parent_block_id ?? null
+    // The parent must still exist and must still share this item's Section; the
+    // server refuses a list that spans two Sections, and dragging one item out
+    // of a Section is a gesture this editor can make while nesting is not.
+    const stays = after.items.find((candidate) => candidate.id === parent)
+    return parent !== null && ids.has(parent) && stays?.section_block_id === item.section_block_id
+      ? { ...item, list_parent_block_id: parent }
+      : item
+  })
   return [
     ...before.blocks.filter((block) => !ids.has(block.id)).map((block) => ({ op: 'delete_block' as const, id: block.id })),
-    ...after.blocks.filter((block) => JSON.stringify(old.get(block.id)) !== JSON.stringify(block)).map((block) => ({ op: 'put_block' as const, ...block })),
-    { op: 'set_outline' as const, items: after.items },
+    ...blocks.filter((block) => JSON.stringify(old.get(block.id)) !== JSON.stringify(block)).map((block) => ({ op: 'put_block' as const, ...block })),
+    { op: 'set_outline' as const, items },
   ]
 }

@@ -80,6 +80,8 @@ function blockFromRow(row: Record<string, unknown>): PageBlock {
     position: Number(row.position),
     page_position: nullableString(row.page_position),
     section_block_id: nullableString(row.section_block_id),
+    list_parent_block_id: nullableString(row.list_parent_block_id),
+    checked: row.checked === null || row.checked === undefined ? null : Boolean(row.checked),
     rich_content: (row.rich_content ?? null) as PageBlock["rich_content"],
     text: nullableString(row.text),
     file_id: nullableString(row.file_id),
@@ -332,7 +334,7 @@ export async function putPage(
     }
 
     if (home.folderId !== null) {
-      const modern = await rowsOf(tx,sql`SELECT id FROM page_blocks WHERE folder_id=${home.folderId}::uuid AND (rich_content IS NOT NULL OR (kind='section' AND section_block_id IS NOT NULL) OR EXISTS (SELECT 1 FROM page_document_receipts r WHERE r.folder_id=page_blocks.folder_id)) LIMIT 1`)
+      const modern = await rowsOf(tx,sql`SELECT id FROM page_blocks WHERE folder_id=${home.folderId}::uuid AND (rich_content IS NOT NULL OR (kind='section' AND section_block_id IS NOT NULL) OR kind NOT IN ('section','paragraph','image','folder_ref') OR EXISTS (SELECT 1 FROM page_document_receipts r WHERE r.folder_id=page_blocks.folder_id)) LIMIT 1`)
       if(modern.length) return {kind:'stale',blockId:String(modern[0]?.id)} as const
     }
     const current = await rowsOf(
@@ -536,7 +538,7 @@ export async function actOnFolderPage(
       const mutation = await applyDocument(tx, viewerId, folderId, body)
       return {kind:'written',page:{...await pageViewIn(tx,viewerId,{folderId,shelfId:null}),mutation}} as const
     }
-    const modern = await rowsOf(tx, sql`SELECT id FROM page_blocks WHERE folder_id=${folderId}::uuid AND (rich_content IS NOT NULL OR (kind='section' AND section_block_id IS NOT NULL) OR EXISTS (SELECT 1 FROM page_document_receipts r WHERE r.folder_id=page_blocks.folder_id)) LIMIT 1`)
+    const modern = await rowsOf(tx, sql`SELECT id FROM page_blocks WHERE folder_id=${folderId}::uuid AND (rich_content IS NOT NULL OR (kind='section' AND section_block_id IS NOT NULL) OR kind NOT IN ('section','paragraph','image','folder_ref') OR EXISTS (SELECT 1 FROM page_document_receipts r WHERE r.folder_id=page_blocks.folder_id)) LIMIT 1`)
     if (modern.length && body.action !== 'update_block') return {kind:'stale',blockId:folderId} as const
     const items = await seededItems(tx, folderId)
 
@@ -778,7 +780,8 @@ async function pageViewIn(
   const rows = await rowsOf(
     tx,
     sql`SELECT b.id, b.kind, b.position, b.page_position,
-               b.section_block_id, b.text, b.rich_content, b.file_id, b.ref_folder_id,
+               b.section_block_id, b.list_parent_block_id, b.checked,
+               b.text, b.rich_content, b.file_id, b.ref_folder_id,
                b.width_pct, b.updated_at,
                f.width AS file_width, f.height AS file_height
         FROM page_blocks b
