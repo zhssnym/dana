@@ -336,12 +336,37 @@ export async function createFile(
     The `else` is still total over `FileKind` minus `avatar`, so the two
     actions remain exhaustive.
 
-    **`file` is the one the merge does not settle, and it is left as #228
-    ruled it.** Before 0024 a `file` could only hang on a comment thread, so
-    commenting's bar *was* what it supports; #220 makes it a composer block
-    kind too, and a folder-scoped `file` uploaded for a page now takes the
-    commenting bar rather than the page one. That is a cross-cutting
-    authorization question, not a merge conflict, and nothing here decides it.
+    **`file` keeps the commenting bar, and that is decided rather than
+    inherited (#220 with #228).** Before 0024 a `file` could only hang on a
+    comment thread, so commenting's bar *was* what it supports; #220 makes it
+    a composer block kind too, and the question the merge raised is whether a
+    folder-scoped `file` should therefore have been promoted to the page bar.
+    It should not, for a reason about what this function can see.
+
+    **This route cannot know what the bytes are for.** An upload names a kind
+    and a folder and nothing about its destination: the same `file` upload is
+    a comment attachment or a composer File block depending on what the caller
+    does next, and nothing in `UploadInput` distinguishes them. So the bar here
+    has to be the *floor* over the destinations the kind admits, and a `file`
+    is always uploadable as a comment attachment. `file.upload.comment` is
+    that floor (`can_comment`, shared/folder-actions.ts); `file.upload.page` is
+    `can_edit`. Asking the higher one would refuse every commenter attaching a
+    file to a comment, which is a right #228 grants them outright, in order to
+    pre-empt a page write they may never attempt.
+
+    **Nothing is weakened by the floor, because placing a file on a page is
+    gated where that write happens rather than here.** Both page-write paths
+    ask for `can_edit` before a block is stored: `actOnFolderPage` asks
+    `folder.section.manage` (domain/pages.ts, reached through the route's own
+    gate in routes/workshop.ts) and the whole-page `PUT` asks
+    `folder.page.edit` (`putPage`). Both sit at `can_edit` in the same table
+    that puts `file.upload.comment` at `can_comment`, so a commenter who
+    uploads a `file` and then tries to insert it is refused at the
+    transaction, with no block written. What they are left holding is a
+    folder-scoped `files` row, which is listed in its folder and deletable by
+    its members exactly as any other folder-scoped attachment is — the reclaim
+    sweep does not and must not take it, `folder_id IS NULL` being one of the
+    two clauses AC-705 holds.
 
     This is the upload half of undoing "uploader authorship is standing
     authority". The delete half is in `deleteFile` below.
