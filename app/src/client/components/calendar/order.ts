@@ -22,8 +22,15 @@ view returns rows already ordered and clients never re-sort. A calendar cell
 interleaves two arrays the response returns separately, real rows and virtual
 instances, and no server order exists over the union; Q3C states the cell
 order for exactly that reason. Nothing below reorders either array within
-itself, and nothing below decides which rows a day holds: the date on each row
-does that, and the date is the server's.
+itself.
+
+**Which cell a row lands in is decided here, and since issue #216 that is a
+decision rather than a lookup.** The sentence above used to end "nothing below
+decides which rows a day holds: the date on each row does that, and the date
+is the server's", and a row carried one date while that was true. A task now
+carries a span, Q3C returns it to every grid that span crosses, and a grid
+holding neither of its ends still has to draw it somewhere; `cellDateOf`
+below is where that is answered and why.
 
 **The one display value taken from `parts/presenters.ts` is the folder
 colour**, through `folderDisplay`, because 7.0's card carries a folder stub
@@ -32,6 +39,7 @@ membership. A ghost has no folder to colour: it is drawn with the repeat glyph
 instead, which is what tells a projection from a row at a glance.
 */
 import { folderDisplay } from '../../parts/presenters.js'
+import { movableEnd } from '../../parts/schedule.js'
 import type { Folder } from '../../../shared/folders.js'
 import type { TaskCard, TaskStatus } from '../../../shared/tasks.js'
 import type { VirtualInstance } from '../../../shared/views.js'
@@ -60,6 +68,13 @@ export interface CellEvent {
   readonly status: TaskStatus | null
   /** 7.4's `my_color` for the row's folder, or null for a ghost. */
   readonly folderColor: string | null
+  /**
+   * Which field a drop on another day writes, or null where the row must not
+   * be dragged: `parts/schedule.ts`'s `movableEnd` carries the rule and Q3C
+   * the sentence. A ghost is a projection with no date of its own, so it is
+   * null here as well as undraggable for the reason `PlannedCalendar` gives.
+   */
+  readonly moves: 'start_date' | 'due_date' | null
 }
 
 /**
@@ -111,31 +126,82 @@ export function compareCellEvents(a: CellEvent, b: CellEvent): number {
   return compare(a.date, b.date) || compare(a.taskId, b.taskId)
 }
 
+/**
+ * The inclusive range of days the grid is drawing, which is the same range
+ * the request carried: `PlannedCalendar` reads both off the cells it laid
+ * out, so the grid and the response cannot disagree about it.
+ */
+export interface GridRange {
+  readonly start: string
+  readonly end: string
+}
+
+/**
+ * Which cell one real row draws in.
+ *
+ * **The deadline first, which is where a chip has always drawn**: a due-only
+ * task, a same-day pair and a pair whose deadline is on this grid all draw on
+ * the due date, so nothing that was drawn before moves.
+ *
+ * **Then the other end, and that is the fix issue #216 was named for.** Q3C
+ * now returns every task whose Schedule *overlaps* the range, so a row can
+ * arrive carrying a due date that is not on this grid at all: the issue's own
+ * example, a task starting 28 September and due 3 October, reaches a day or
+ * week grid around 28 September that has no 3 October cell. Placing it there
+ * put it in no cell, and a row in no cell is not drawn - the server had
+ * finally returned the row and the screen dropped it, which is worse than the
+ * absence the change set out to remove. So the chip goes on whichever end of
+ * the span the grid is actually showing.
+ *
+ * **And where neither end is on the grid, the first day of it.** A span that
+ * encloses the whole range - AC-452's single-day range inside a long span -
+ * has no end to draw on and is still a row the server returned, so it takes
+ * the first cell rather than none. That is the only case that invents a day
+ * the task does not carry, and it is guarded by the span genuinely covering
+ * the grid: a row whose Schedule misses the range entirely, which Q3C does
+ * not return, keeps its own date and lands in no cell exactly as before,
+ * because inventing a cell for it would draw a chip nobody's data asked for.
+ *
+ * **This is a chip and not a bar.** 9.5's continuous bar from Start through
+ * Due, split into weekly segments, is still unbuilt; what this guarantees is
+ * only that a row the server returned is drawn somewhere on the grid it was
+ * returned for.
+ */
+function cellDateOf(task: TaskCard, range: GridRange): string {
+  const inRange = (date: string): boolean =>
+    date >= range.start && date <= range.end
+  const { start_date: start, due_date: due } = task
+  if (due !== null && inRange(due)) return due
+  if (start !== null && inRange(start)) return start
+  if (start !== null && due !== null && start <= range.start && due >= range.end) {
+    return range.start
+  }
+  /* Q3C admits no row without a date, so the last fallback keeps the shape
+     total rather than asserting it; such a row lands in no cell. */
+  return due ?? start ?? ''
+}
+
 /** A real row, from 7.0's card. */
-function realEvent(task: TaskCard, folders: readonly Folder[]): CellEvent {
+function realEvent(
+  task: TaskCard,
+  folders: readonly Folder[],
+  range: GridRange,
+): CellEvent {
   return {
     key: `real:${task.id}`,
     kind: 'real',
     taskId: task.id,
     title: task.title,
-    /* Q3C selects real rows by a Schedule overlapping the range (issue
-       #216), so a card in this response carries at least one of the two
-       dates; the fallback keeps the shape total rather than asserting it, and
-       a row with no date at all lands in no cell.
-
-       A start-only task draws on its start date and a due-only one on its
-       due date, which are two of Q3C's four calendar forms. The other two -
-       a Start+Due pair on one day, and the continuous bar a pair on
-       different days is owed - still draw as a single chip on the due date
-       here. The server now returns the row for every grid its span touches,
-       so the bar is drawable; drawing it is the frontend slice #216 hands
-       over, and until that lands this cell placement is the old one with
-       start-only rows added rather than a bar. */
-    date: task.due_date ?? task.start_date ?? '',
+    date: cellDateOf(task, range),
     dueTime: task.due_time,
     statusRank: STATUS_RANK[task.status] ?? 0,
     status: task.status,
     folderColor: folderDisplay(task.folder, folders).color,
+    /* Which end of the Schedule a drop writes, decided from the row rather
+       than assumed to be the deadline (Q3C, issue #216). Null on a ghost,
+       which has no date of its own to move, and null on a Start+Due pair,
+       whose whole-range drag is unbuilt. */
+    moves: movableEnd(task),
   }
 }
 
@@ -153,6 +219,7 @@ function ghostEvent(instance: VirtualInstance): CellEvent {
     statusRank: STATUS_RANK.pending ?? 0,
     status: null,
     folderColor: null,
+    moves: null,
   }
 }
 
@@ -163,11 +230,18 @@ function ghostEvent(instance: VirtualInstance): CellEvent {
  * A map rather than a filter per cell: a month grid is forty-two cells, and
  * scanning both arrays once per cell is forty-two passes over a response that
  * 13.23 already records as unbounded in its ghost arm.
+ *
+ * `range` is the grid's own inclusive span and is what makes the placement
+ * above possible: a Schedule is a span now, and which of its two ends a cell
+ * can hold is a question about this grid rather than about the task. Ghosts
+ * are unaffected - a projection is one instant and the server already
+ * intersected them with the range.
  */
 export function cellsByDate(
   real: readonly TaskCard[],
   virtual: readonly VirtualInstance[],
   folders: readonly Folder[],
+  range: GridRange,
 ): Map<string, CellEvent[]> {
   const cells = new Map<string, CellEvent[]>()
   const place = (event: CellEvent): void => {
@@ -175,7 +249,7 @@ export function cellsByDate(
     if (existing === undefined) cells.set(event.date, [event])
     else existing.push(event)
   }
-  for (const task of real) place(realEvent(task, folders))
+  for (const task of real) place(realEvent(task, folders, range))
   for (const instance of virtual) place(ghostEvent(instance))
   for (const rows of cells.values()) rows.sort(compareCellEvents)
   return cells

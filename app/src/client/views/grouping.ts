@@ -28,7 +28,7 @@ import type { TaskCard } from '../../shared/tasks.js'
 import { DELETED_USER } from '../parts/presenters.js'
 import { UNASSIGNED } from './filter.js'
 import type { GroupBy } from './filter.js'
-import { rungFor } from './ladder.js'
+import { rungForTask } from './ladder.js'
 import type { ColumnValue } from './place-pages.js'
 
 /*
@@ -118,7 +118,22 @@ function slotFor(task: TaskCard, axis: GroupBy, today: string, viewerId: string 
       }
     }
     case 'date': {
-      const rung = rungFor(task.due_date, today)
+      /* The same rung the list ladder draws, from the same function.
+
+         It read `rungFor(task.due_date, today)` until 2026-09-20 while the
+         ladder read the schedule date, and the two then disagreed about
+         every Start-only row: one page put it under "Thursday" as a list and
+         in a "No date" column as a board, on a page whose whole membership
+         is "carries a date" since issue #216. A heading contradicting the
+         heading beside it is worse than either answer, so there is one
+         answer and `views/ladder.ts` holds it.
+
+         The capture is still a due date, and that is not the same question:
+         a task *made* in a day column is new and has no Schedule to keep, so
+         the column's day is its deadline. What a *drop* writes is the row's
+         own end of the Schedule, which `TaskBoard.tsx` reads off the task
+         through `movableEnd`. */
+      const rung = rungForTask(task, today)
       return {
         key: rung.key,
         name: rung.name,

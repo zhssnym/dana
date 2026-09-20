@@ -27,12 +27,24 @@ above Today. Sort inside each group: due_date ascending nulls last, due_time asc
 nulls first, created_at ascending, id. (created_at added at the polish round of
 2026-08-30: id is a random uuid, so without it a task captured on Today landed anywhere in
 its group; oldest first puts every capture at the group's foot.) The leading key is the
-**due date** and deliberately not the schedule date Q3 leads on since issue #216: every
-row on this page has an activation date of today or earlier by construction, so ordering
-by it would put every started task ahead of the work actually due today, and a task with
-a start date and no deadline sorts where every undated row on this page already sorts,
-last. Abandoned tasks never
+**due date** and deliberately not the schedule date Q3 leads on since issue #216: this
+page is the day's work in the order it is owed, so ordering by the date each row became
+active would put a task that started three days ago ahead of the task due today, which
+is the opposite of the question the page answers. A task with a start date and no
+deadline therefore sorts where every undated row on this page already sorts, last.
+
+**The argument above replaces a false one, on 2026-09-20, and the sort it argued for did
+not move.** The first version read "every row on this page has an activation date of
+today or earlier by construction". That is not true: the automatic clause is one arm of
+an OR and the pull is the other, so a pulled task whose Schedule has not begun is on this
+page with an activation date in the future — AC-450 seeds exactly that row and asserts it
+into the Today group. The claim was doing no work the sentence above does not do, and the
+sort is unchanged; what was wrong was the reason given for it, in this file and in the
+criterion that cites it. Abandoned tasks never
 match (status filter). The important toggle is a client-side filter to important = true
 within already-fetched groups; it changes no query. Empty state (both groups empty):
-"Nothing on your day. Tasks assigned to you appear here on their due date, or pull
-anything in yourself."
+"Nothing on your day. Tasks assigned to you appear here when they start or come due, or
+pull anything in yourself." (It read "appear here on their due date" until 2026-09-20 and
+issue #217 made that false: the clause admits a task from the day its Schedule begins, so
+the copy named one of the two ways onto the page and told a person the other one would
+not work.)

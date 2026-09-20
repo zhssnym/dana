@@ -46,6 +46,7 @@ import type { TaskCard } from '../../shared/tasks.js'
 import { groupHeadingMedia } from './group-mark.js'
 import type { GroupBy } from './filter.js'
 import type { TaskGroup } from './grouping.js'
+import { scheduleLanding } from './place-pages.js'
 import type { Place } from './usePlace.js'
 
 type BoardGiven = TaskRowProps['given']
@@ -154,8 +155,23 @@ export function TaskBoard({
         }
         const landing = column.capture
         if (landing === undefined || landing === null) return false
+        /*
+        A date column's value is a day, and which field of the row expresses
+        "this task is on that day" is the row's to say since issue #216:
+        Q3C's sentence, "dragging moves a Due-only task's Due Date, a
+        Start-only task's Start Date, and a Start+Due range whole". The
+        column writes `due_date` because a task *captured* in it is new and
+        has no Schedule to keep; a task *dropped* into it has one, and until
+        2026-09-20 this wrote that due date onto every row, so carrying a
+        Start-only card to another column converted it into a Start+Due task
+        with nothing saying so. A pair is refused rather than half-moved,
+        which is the same answer the calendar's drag gives and for the same
+        reason: the whole-range move is unbuilt.
+        */
+        const moved = scheduleLanding(task, landing)
+        if (moved === null) return false
         if (task.status === 'completed') actions.onToggleComplete(task)
-        actions.onMoveToColumn(task, landing)
+        actions.onMoveToColumn(task, moved)
         return true
       }}
       quickAdd={(column) => {

@@ -36,6 +36,7 @@ import { ladderRungs } from '../views/ladder.js'
 import { PLACES } from '../views/place-pages.js'
 import { TaskBoard } from '../views/TaskBoard.js'
 import { PlaceChrome, PlaceHead, usePlace } from '../views/usePlace.js'
+import { isScheduled } from '../parts/schedule.js'
 import { useRowActions } from '../parts/useRowActions.js'
 import { PageSection } from '../components/page/PageSection.js'
 import { CompletedFoot } from '../components/page/CompletedFoot.js'
@@ -150,7 +151,7 @@ export function ScheduledPage(): React.JSX.Element {
               moved with it on issue #216: a start-only task is scheduled
               work and its completion belongs at this foot. */}
           <CompletedFoot
-            keep={(task) => task.start_date !== null || task.due_date !== null}
+            keep={isScheduled}
             context={context}
             actions={actions}
             onAsk={confirm.ask}

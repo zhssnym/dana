@@ -32,11 +32,31 @@ issue #216 that is the schedule date: the due date where a task has one, the
 start date where it has only that. The rungs have to read the same date the
 server sorted by or they stop being buckets over a sorted stream - the walk
 would reopen a rung it had already closed, and rows of one day would be drawn
-under two headings. `rungFor` still takes one date and knows nothing about
-this; `ladderRungs` is where the choice is made, and `grouping.ts`'s date
-axis deliberately makes the other one.
+under two headings. `rungFor` takes one date and knows nothing about this;
+`rungForTask` below is where the choice is made, and `grouping.ts`'s date
+axis calls that same function, so a board column and a list heading can
+never say two things about one row.
+
+**A spent Start Date is not overdue, and that is the one place the schedule
+date is not enough by itself.** `rungFor` gives the Overdue rung to any date
+before today, which was right while the only date a task had was its
+deadline. Since #216 a Start-only task can lead this list by date - Q3 orders
+by the schedule date and a start three days spent sorts first - and 9.5 says
+in terms that "a Start Date passing is not overdue and is not styled as one",
+8.1 keeping overdue a relation to the deadline alone. So a row whose only
+date is a spent Start Date takes a rung of its own, **Started**, rather than
+a heading that calls it late. It is a relation to today rather than a day, so
+like Overdue it carries no date and captures nothing (DES-182).
+
+Where Started sits relative to Overdue is first appearance in Q3's order,
+which is the rule every other rung follows: the two both hold past dates and
+interleave in the stream, so whichever past date is earliest opens its rung
+first. Nothing is re-sorted to tidy that, because the page is Q3's order and
+tidying it would move rows.
 */
 import { addDays, monthLabelOf, weekStart, weekdayNameOf } from '../parts/format-dates.js'
+import { scheduleDateOf } from '../parts/schedule.js'
+import type { Schedule } from '../parts/schedule.js'
 import type { TaskCard } from '../../shared/tasks.js'
 
 export interface LadderRung {
@@ -54,6 +74,15 @@ interface Bucket {
   readonly name: string
   readonly date: string | null
 }
+
+/**
+ * The rung a Start-only task whose start has passed goes on.
+ *
+ * Its own constant because two files draw it - this ladder and the board's
+ * date columns - and a second spelling of the name is a second heading for
+ * one bucket.
+ */
+const STARTED: Bucket = { key: 'started', name: 'Started', date: null }
 
 /**
  * Which rung a date belongs on, given today.
@@ -81,6 +110,25 @@ export function rungFor(due: string | null, today: string): Bucket {
 }
 
 /**
+ * Which rung one task belongs on: `rungFor` over the schedule date, with
+ * 8.1's rule about what overdue means applied on top of it.
+ *
+ * The one function both the list ladder and the board's date axis call, so
+ * the two cannot disagree about a row. They did until 2026-09-20: this walk
+ * read `due_date ?? start_date` and `grouping.ts` read `due_date`, so one
+ * page filed a Start-only task under "Thursday" in list mode and under "No
+ * date" in board mode - on a page whose whole membership is "carries a date".
+ */
+export function rungForTask(task: Schedule, today: string): Bucket {
+  const bucket = rungFor(scheduleDateOf(task), today)
+  /* The schedule date is the start date exactly when there is no due date,
+     so this is "a spent start and no deadline" and not a second reading of
+     the coalesce. A Start+Due pair is placed by its deadline and is overdue
+     when that deadline has passed, like any other dated row. */
+  return bucket.key === 'overdue' && task.due_date === null ? STARTED : bucket
+}
+
+/**
  * Q3's rows under 9.5's headings, in the order they arrived.
  *
  * A rung with no rows is absent rather than a heading over nothing, which is
@@ -94,7 +142,7 @@ export function ladderRungs(
   const order: string[] = []
   const buckets = new Map<string, { bucket: Bucket; rows: TaskCard[] }>()
   for (const task of rows) {
-    const bucket = rungFor(task.due_date ?? task.start_date, today)
+    const bucket = rungForTask(task, today)
     const existing = buckets.get(bucket.key)
     if (existing === undefined) {
       order.push(bucket.key)

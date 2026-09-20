@@ -25,7 +25,11 @@ grid it crosses. A task starting 28 September and due 3 October was absent from 
 September and the October grid under the old reading, its bar disappearing on one screen
 and reappearing on another. For the two one-date states the two readings are the same
 statement, a span whose ends coincide overlapping a range exactly when its day is inside
-it, so AC-126 stands unchanged. **One row per task, whatever its span covers**: the row
+it, so AC-126's decision stands unchanged. (**AC-126 has no test file** — it was cut on
+2026-09-20 with 220 others, `app/tests/README.md` — so it is cited here as the decision
+it is and not as a pin. What executes the inclusive bounds is AC-452, which seeds a row
+on each end of the range and a row one day outside each end, in both directions.)
+**One row per task, whatever its span covers**: the row
 carries both dates and the grid draws one bar from them, and a row per day covered would
 be the duplication issue #216 refuses.
 
@@ -35,7 +39,20 @@ one-day scheduled event; and a Start+Due pair on different days one continuous s
 bar from Start through Due, rendered as connected weekly segments where the grid needs
 them but semantically one task. The range is inclusive at the day level. Dragging moves a
 Due-only task's Due Date, a Start-only task's Start Date, and a Start+Due range whole,
-preserving its day span; there is no edge resizing. Pending renders normal (overdue styled on past dates), completed faded and
+preserving its day span; there is no edge resizing.
+
+**Two dated build notes about the fourth state, both 2026-09-20 and both recorded because
+the honest half of an unbuilt feature is a decision rather than a gap.** The spanning bar
+is not built: a Start+Due pair draws as one chip, on its Due Date where this grid holds
+that day, on its Start Date where it holds that one instead, and on the grid's first day
+where the span encloses the whole range and holds neither end. That last case is what the
+overlap predicate made reachable and it is the reason the placement is stated at all — a
+row the query returned must be drawn somewhere, and the reading that placed it on a day
+with no cell dropped it from the screen entirely. And the whole-range drag is not built
+either, so **a Start+Due row is not draggable** on the calendar or on a date-grouped
+board: moving one end of a pair would resize a span nobody asked to resize, and refusing
+the gesture is the non-destructive half of the sentence above. The other two forms drag
+as that sentence says, each moving the one date it carries. Pending renders normal (overdue styled on past dates), completed faded and
 checked, abandoned faded and struck: the calendar is a record. Virtual instances: for
 every accessible pending task with a recurrence_rule, the rule instances strictly after
 that task's due_date, intersected with [start, end] (section 8.5). Ghost style, click

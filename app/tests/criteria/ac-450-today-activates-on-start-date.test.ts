@@ -35,10 +35,25 @@ not be there fails whether or not anybody thought of it.
 **Ordering is asserted and it is Q1's, unchanged.** A start-only task has no
 deadline, so it sorts where every undated row on this page already sorts,
 last, by `due_date ASC NULLS LAST`. That is a decision and it is pinned here:
-the alternative, leading Q1 on the activation date the way Q3 now leads on the
-schedule date, would put every started row ahead of work actually due today,
-since a row on this page has an activation date of today or earlier by
-construction.
+the alternative is leading Q1 on the activation date the way Q3 now leads on
+the schedule date, and this page is the day's work in the order it is owed, so
+ordering it by the day each row became active would put a task that started
+three days ago ahead of the task due today.
+
+**The Carried group carries a third row for that assertion alone, and the
+reason is worth stating.** The two rows this file first asserted the order
+over both activate on the same day, so the due-date key and the activation
+key produce the same sequence and `created_at` reproduces it a third time:
+the assertion passed under either rule and pinned neither. `startedYesterdayDueSoon`
+activates after both and is due before both, so the two keys rank it at
+opposite ends of the group and only Q1's own order answers the sequence below.
+
+**The argument this header used to give for that sort was false and is
+corrected rather than removed (2026-09-20).** It read "a row on this page has
+an activation date of today or earlier by construction". The automatic clause
+is one arm of an OR and the pull is the other: `pulledFuture` below is on this
+page with an activation date of tomorrow, asserted into the Today group two
+cases down. The sort did not move; the reason given for it did.
 
 **The pull stays a separate mechanism**, which the issue requires in terms, so
 a task starting tomorrow is pulled here and lands on the page by the entry
@@ -96,6 +111,17 @@ interface Stage {
   startsTomorrow: string
   /** Start three days ago, due in seven: started, carried, not yet due. */
   startedThreeDaysAgo: string
+  /**
+   * Start yesterday, due in two: carried, and the row that makes Q1's order
+   * observable.
+   *
+   * Every other carried row activates on the same day as another one, so the
+   * two candidate leading keys - the due date Q1 uses and the activation date
+   * Q3 uses since issue #216 - produce the same sequence and the sort cannot
+   * be seen. This one activates later than both and is due before both, so
+   * the two keys rank it at opposite ends.
+   */
+  startedYesterdayDueSoon: string
   /** Start-only, today. */
   startOnlyToday: string
   /** Start-only, three days ago. */
@@ -162,6 +188,12 @@ async function stage(): Promise<Stage> {
       title: 'ac450 started three days ago due in seven',
       startDate: shiftDate(today, -3),
       dueDate: shiftDate(today, 7),
+    })
+    const startedYesterdayDueSoon = await seed({
+      assigneeId: viewer.id,
+      title: 'ac450 started yesterday due in two',
+      startDate: shiftDate(today, -1),
+      dueDate: shiftDate(today, 2),
     })
     const startOnlyToday = await seed({
       assigneeId: viewer.id,
@@ -236,6 +268,7 @@ async function stage(): Promise<Stage> {
       startsToday,
       startsTomorrow,
       startedThreeDaysAgo,
+      startedYesterdayDueSoon,
       startOnlyToday,
       startOnlyPast,
       startOnlyTomorrow,
@@ -270,6 +303,7 @@ describe('AC-450: Today activates on the Start Date', () => {
         stage_.startsToday,
         stage_.startsTomorrow,
         stage_.startedThreeDaysAgo,
+        stage_.startedYesterdayDueSoon,
         stage_.startOnlyToday,
         stage_.startOnlyPast,
         stage_.startOnlyTomorrow,
@@ -321,7 +355,13 @@ describe('AC-450: Today activates on the Start Date', () => {
     expect(
       idsOf(body.carried).sort(),
       '8.2 makes qualify_date the day the automatic clause began to hold, so a task that started three days ago has been carrying for three days, exactly as an overdue one has (spec 8.2, 6 Q1)',
-    ).toEqual([stage_.startedThreeDaysAgo, stage_.startOnlyPast].sort())
+    ).toEqual(
+      [
+        stage_.startedThreeDaysAgo,
+        stage_.startedYesterdayDueSoon,
+        stage_.startOnlyPast,
+      ].sort(),
+    )
     const carried = body.carried
     for (const row of carried) {
       expect(
@@ -452,7 +492,11 @@ describe('AC-450: Today activates on the Start Date', () => {
     expectStillSameDay(tz, stage_.today, 'AC-450')
     expect(
       idsOf(body.carried),
-      "Q1 sorts by due_date ascending nulls last: the task due in seven days leads and the start-only task, having no deadline, trails. Q1's order is deliberately not Q3's - leading it on the activation date would put every started row ahead of work actually due today, every row here having an activation date of today or earlier by construction",
-    ).toEqual([stage_.startedThreeDaysAgo, stage_.startOnlyPast])
+      "Q1 sorts by due_date ascending nulls last, and the three rows here rank differently under the only other key anybody would reach for: the task due in two days leads though it started most recently, the task due in seven follows though it started first, and the start-only task, having no deadline, trails. Leading Q1 on the activation date the way Q3 leads on the schedule date reverses the first two, which is what this page must not do - it is the day's work in the order it is owed, not in the order it became active",
+    ).toEqual([
+      stage_.startedYesterdayDueSoon,
+      stage_.startedThreeDaysAgo,
+      stage_.startOnlyPast,
+    ])
   })
 })

@@ -11,8 +11,14 @@ than a column of their own - this sentence's own row adornments say so - so they
 with issue #216, and `schedule_date IS NULL` is Q2's predicate exactly.) Row
 adornments: Scheduled rows show due date and time like a Scheduled row; Anytime rows show
 their folder like an Anytime row; assignee chip; the star tooltip here points outward
-("Also in Scheduled, due 2026-07-28" or "Also in Anytime, in Work") since every row here
-is important by definition. (The two page names in this sentence read "Planned" and
+("Also in Scheduled, due 2026-07-28", "Also in Scheduled, starts 2026-09-28" for a
+Start-only row, or "Also in Anytime, in Work") since every row here
+is important by definition. (The middle form was added on 2026-09-20 with issue #216, and
+the omission was a defect rather than a silence for the six hours it existed: the tooltip
+split on the due date while the list above it split on the Schedule, so a Start-only
+starred row sat first in the Scheduled block and said "Also in Anytime" about itself. The
+tooltip names the fact its home would show, which 9.5 puts in those words, and for a
+Start-only row on Scheduled that is the Start Date.) (The two page names in this sentence read "Planned" and
 "Tasks" until 2026-09-03, issue #146. RFC 0005 renamed the pages and 9.1's route table
 fixes the v2 names; the client said the v1 words in this tooltip until issue #19 took it
 to the v2 ones, and AC-099, which cites this sentence for the two strings, was amended

@@ -21,5 +21,8 @@ all-day row it is. Completed rows never appear in list
 mode; the look-back lives in calendar mode only. Row adornments: folder name label,
 assignee chip (same default-folder exception), star, "unassigned" chip when assignee_id is
 null and the folder has more than one member. Empty state: "Nothing scheduled. Give any
-task a due date and it moves here." (A start date moves it here too since issue #216; the
-copy is 9.5's and moves with the client slice rather than here.)
+task a start or due date and it moves here." (It read "a due date" until 2026-09-20. The
+sentence this parenthesis replaces said a start date moves a task here too and left the
+copy for "the client slice", which is a spec that knowingly states a false string; the
+string moved with the client seams on the same day, and `pages/empty-states.ts` and
+`tests/e2e/harness.ts` carry the same words.)

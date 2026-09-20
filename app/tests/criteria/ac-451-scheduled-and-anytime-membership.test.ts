@@ -43,6 +43,16 @@ An implementation that moved Q3 and Q2 and left those two behind splits the
 same task into two different answers on two pages, which is the failure this
 file is here to make visible.
 
+**Q4's fixture carries a third starred row for that, added 2026-09-20, and
+the reason is the same class of gap the placement paragraph above describes.**
+The first two starred rows both carry a null due date, so Q4's boundary reads
+the same under `schedule_date IS NULL` and under `due_date IS NULL`, and
+`created_at` produces the same sequence a third time: the assertion held under
+the predicate this criterion is about and under the one it replaced, which is
+no assertion at all. `starredDueLater` is due after the start-only row's start
+and is seeded after it, so only the schedule-date boundary puts the start-only
+row in front of it.
+
 Spec: 6 Q2, 6 Q3, 6 Q4, 6 Q5, 6 Q7, 6.1 (the partition proof), 4.5
 (start_date and tasks_start_before_due_check), 7.10, 8.1 (overdue).
 */
@@ -98,6 +108,19 @@ interface Stage {
   starredStartOnly: string
   /** Starred, neither date: Q4's Anytime block. */
   starredUndated: string
+  /**
+   * Starred, due-only, eight days out, and seeded last: the row that makes
+   * Q4's block boundary observable.
+   *
+   * Without it the two starred rows both carry a null due date, so the
+   * boundary this criterion is about - `schedule_date IS NULL` against
+   * `due_date IS NULL` - puts them in the same block under either spelling
+   * and `created_at` reproduces the same sequence. This one is in the
+   * Scheduled block under both and has to sort *behind* the start-only row,
+   * which only the schedule date produces: a due-date boundary puts it in the
+   * first block alone and leads the list with it.
+   */
+  starredDueLater: string
 }
 let staged: Stage | undefined
 
@@ -152,6 +175,15 @@ async function stage(): Promise<Stage> {
       title: 'ac451 starred no dates',
       important: true,
     })
+    /* Seeded after the start-only one on purpose: under a boundary read off
+       the due date this row leads the page by being the only one with a
+       deadline, and under Q4's own boundary it follows the start-only row by
+       being due later. created_at cannot rescue either reading. */
+    const starredDueLater = await seed({
+      title: 'ac451 starred due in eight',
+      important: true,
+      dueDate: shiftDate(today, 8),
+    })
 
     staged = {
       viewer,
@@ -165,6 +197,7 @@ async function stage(): Promise<Stage> {
       neither,
       starredStartOnly,
       starredUndated,
+      starredDueLater,
     }
   }
   return staged
@@ -193,6 +226,7 @@ describe('AC-451: Scheduled and Anytime over the four Schedule states', () => {
         stage_.neither,
         stage_.starredStartOnly,
         stage_.starredUndated,
+        stage_.starredDueLater,
       ],
       [stage_.inboxId, stage_.workId],
       [stage_.viewer.id],
@@ -212,6 +246,7 @@ describe('AC-451: Scheduled and Anytime over the four Schedule states', () => {
       stage_.startOnly,
       stage_.startAndDue,
       stage_.starredStartOnly,
+      stage_.starredDueLater,
     ])
   })
 
@@ -251,6 +286,7 @@ describe('AC-451: Scheduled and Anytime over the four Schedule states', () => {
       stage_.neither,
       stage_.starredStartOnly,
       stage_.starredUndated,
+      stage_.starredDueLater,
     ]
     expect(
       [...scheduled, ...anytime].sort(),
@@ -306,6 +342,7 @@ describe('AC-451: Scheduled and Anytime over the four Schedule states', () => {
       stage_.startOnly,
       stage_.startAndDue,
       stage_.starredStartOnly,
+      stage_.starredDueLater,
     ])
     expect(
       idsOf(body.unscheduled),
@@ -319,7 +356,11 @@ describe('AC-451: Scheduled and Anytime over the four Schedule states', () => {
     expectStillSameDay(tz, stage_.today, 'AC-451')
     expect(
       idsOf(body.rows),
-      'Q4 puts its scheduled block first and its Anytime block after, and its own sentence says the first shows "due date and time like a Scheduled row" and the second "their folder like an Anytime row". A start-only task belongs to the first, so the starred one leads here instead of trailing under a nulls-last due date',
-    ).toEqual([stage_.starredStartOnly, stage_.starredUndated])
+      'Q4 puts its scheduled block first and its Anytime block after, and its own sentence says the first shows "due date and time like a Scheduled row" and the second "their folder like an Anytime row". A start-only task belongs to the first and is ordered inside it by the one date it has, so it leads the starred task due three days later rather than trailing every dated row under a nulls-last due date; the undated row is the only one in the second block',
+    ).toEqual([
+      stage_.starredStartOnly,
+      stage_.starredDueLater,
+      stage_.starredUndated,
+    ])
   })
 })
