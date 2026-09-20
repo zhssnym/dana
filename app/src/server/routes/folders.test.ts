@@ -247,28 +247,28 @@ describe('the folders router, driven through the harness idiom', () => {
     const set = await member.browser.json(
       `/folders/${folderId}/my-membership`,
       'PATCH',
-      { label: 'Deep work', color: '#AB12CD' },
+      { shelf: 'Deep work', color: '#AB12CD' },
     )
     expectStatus(set, 200, 'any member sets their own row (spec 7.4)')
 
-    const labelOnly = await member.browser.json(
+    const shelfOnly = await member.browser.json(
       `/folders/${folderId}/my-membership`,
       'PATCH',
-      { label: null },
+      { shelf: null },
     )
-    expectStatus(labelOnly, 200, 'a subset patch is legal (shared schema)')
+    expectStatus(shelfOnly, 200, 'a subset patch is legal (shared schema)')
     const mine = await folderInList(member, folderId)
-    expect(mine?.my_label, 'null cleared the label').toBeNull()
+    expect(mine?.my_shelf, 'null cleared the shelf membership').toBeNull()
     expect(mine?.my_color, 'the absent color stayed').toBe('#AB12CD')
     expect(
-      (await folderInList(owner, folderId))?.my_label,
+      (await folderInList(owner, folderId))?.my_shelf,
       'the other member row never moves (4.4)',
     ).toBeNull()
 
     const probe = await stranger.browser.json(
       `/folders/${folderId}/my-membership`,
       'PATCH',
-      { label: 'Intruding' },
+      { shelf: 'Intruding' },
     )
     expectStatus(probe, 404, 'no membership row to write reads as 404 (10.2)')
   })

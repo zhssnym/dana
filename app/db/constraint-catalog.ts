@@ -158,7 +158,29 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
     uniques: [],
     checks: [
       { name: 'folder_members_color_format_check', columns: ['color'] },
+      /*
+      **Two membership columns and two CHECKs for one release, deliberately.**
+
+      `label` has always held the viewer's own Shelf membership (4.4, held in
+      step with `shelves.name` by 4.18) and never a classification Label, and
+      #208's Label model needed the word back. Migration 0022 is the **expand**
+      half of that move: `shelf_name` is added beside `label` and backfilled,
+      `label` and its CHECK stay exactly as they were, and the application
+      reads the new column and writes both.
+
+      A single RENAME was the first draft and was refused under hard stop 1.
+      Render waits for the new instance to pass health checks before draining
+      the old one, so between the ALTER committing and traffic switching the
+      old instance is still serving and every one of its folder reads selects a
+      column that no longer exists — `GET /folders`, the sidebar and every
+      folder page, for the length of a deploy.
+
+      **Issue #247 is the contract half** and deletes the `label` row below,
+      after 0022 is live in production. Until then a catalog carrying only one
+      of the two would be a transcription of a schema that does not exist.
+      */
       { name: 'folder_members_label_length_check', columns: ['label'] },
+      { name: 'folder_members_shelf_name_length_check', columns: ['shelf_name'] },
       { name: 'folder_members_role_check', columns: ['role'] },
     ],
     foreignKeys: [
@@ -882,6 +904,156 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
         name: 'task_dependencies_blocking_task_id_idx',
         unique: false,
         columns: ['blocking_task_id'],
+        partial: false,
+      },
+    ],
+  },
+  /*
+  The M1 Label model, migration 0022 (issue #226, parent #208).
+
+  Two scopes and no third, and the two composite uniques below are the whole
+  reason the cross-scope invariants are the database's rather than the
+  handlers'. `labels_id_owner_user_id_key` is what the two personal
+  assignment tables' composite foreign keys point at, so a row can never name
+  a Label somebody else owns; `labels_folder_id_id_key` is what
+  `task_folder_labels` points at, so a Folder Label from Folder A on a Task in
+  Folder B is a row the database will not store.
+
+  The two unique indexes are partial because each names one catalog, and the
+  other scope's key column is NULL on every row of it; the expression member
+  `lower(name)` appears as 'expr' under this file's shape rules.
+  */
+  labels: {
+    primaryKey: { name: 'labels_pkey', columns: ['id'] },
+    uniques: [
+      { name: 'labels_folder_id_id_key', columns: ['folder_id', 'id'] },
+      { name: 'labels_id_owner_user_id_key', columns: ['id', 'owner_user_id'] },
+    ],
+    checks: [
+      { name: 'labels_color_format_check', columns: ['color'] },
+      { name: 'labels_description_length_check', columns: ['description'] },
+      { name: 'labels_name_length_check', columns: ['name'] },
+      {
+        name: 'labels_ownership_check',
+        columns: ['folder_id', 'owner_user_id', 'scope'],
+      },
+      { name: 'labels_scope_check', columns: ['scope'] },
+    ],
+    foreignKeys: [
+      {
+        name: 'labels_folder_id_fkey',
+        columns: ['folder_id'],
+        references: { table: 'folders', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+      {
+        name: 'labels_owner_user_id_fkey',
+        columns: ['owner_user_id'],
+        references: { table: 'users', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+    ],
+    indexes: [
+      {
+        name: 'labels_folder_name_idx',
+        unique: true,
+        columns: ['folder_id', 'expr'],
+        partial: true,
+      },
+      {
+        name: 'labels_personal_name_idx',
+        unique: true,
+        columns: ['owner_user_id', 'expr'],
+        partial: true,
+      },
+    ],
+  },
+  task_personal_labels: {
+    primaryKey: {
+      name: 'task_personal_labels_pkey',
+      columns: ['task_id', 'label_id'],
+    },
+    uniques: [],
+    checks: [],
+    foreignKeys: [
+      {
+        name: 'task_personal_labels_label_scope_fkey',
+        columns: ['label_id', 'owner_user_id'],
+        references: { table: 'labels', columns: ['id', 'owner_user_id'] },
+        onDelete: 'cascade',
+      },
+      {
+        name: 'task_personal_labels_task_id_fkey',
+        columns: ['task_id'],
+        references: { table: 'tasks', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+    ],
+    indexes: [
+      {
+        name: 'task_personal_labels_label_id_idx',
+        unique: false,
+        columns: ['label_id'],
+        partial: false,
+      },
+    ],
+  },
+  folder_personal_labels: {
+    primaryKey: {
+      name: 'folder_personal_labels_pkey',
+      columns: ['folder_id', 'label_id'],
+    },
+    uniques: [],
+    checks: [],
+    foreignKeys: [
+      {
+        name: 'folder_personal_labels_folder_id_fkey',
+        columns: ['folder_id'],
+        references: { table: 'folders', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+      {
+        name: 'folder_personal_labels_label_scope_fkey',
+        columns: ['label_id', 'owner_user_id'],
+        references: { table: 'labels', columns: ['id', 'owner_user_id'] },
+        onDelete: 'cascade',
+      },
+    ],
+    indexes: [
+      {
+        name: 'folder_personal_labels_label_id_idx',
+        unique: false,
+        columns: ['label_id'],
+        partial: false,
+      },
+    ],
+  },
+  task_folder_labels: {
+    primaryKey: {
+      name: 'task_folder_labels_pkey',
+      columns: ['task_id', 'label_id'],
+    },
+    uniques: [],
+    checks: [],
+    foreignKeys: [
+      {
+        name: 'task_folder_labels_label_scope_fkey',
+        columns: ['folder_id', 'label_id'],
+        references: { table: 'labels', columns: ['folder_id', 'id'] },
+        onDelete: 'cascade',
+      },
+      {
+        name: 'task_folder_labels_task_scope_fkey',
+        columns: ['folder_id', 'task_id'],
+        references: { table: 'tasks', columns: ['folder_id', 'id'] },
+        onDelete: 'cascade',
+      },
+    ],
+    indexes: [
+      {
+        name: 'task_folder_labels_label_idx',
+        unique: false,
+        columns: ['folder_id', 'label_id'],
         partial: false,
       },
     ],

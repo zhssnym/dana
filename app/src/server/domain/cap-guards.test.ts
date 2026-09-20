@@ -33,6 +33,12 @@ import { createTestDb, rows } from '../../../tests/support/helpers.js'
 import type { Executor } from '../database.js'
 import { addMember, createFolder } from './folders.js'
 import { acceptInvite, createInvite } from './invites.js'
+import {
+  attachFolderLabel,
+  attachTaskLabel,
+  createFolderLabel,
+  createPersonalLabel,
+} from './labels.js'
 import { addStep } from './tasks.js'
 
 let client: DbClient
@@ -399,6 +405,185 @@ describe('the 10.3 caps decide under a lock, not beside one', () => {
       inserted,
       'and the insert must follow the count it was admitted by',
     ).toBeGreaterThan(counted)
+    expect(log[log.length - 1], 'all of it committing together').toBe('commit')
+  })
+
+  /*
+  The five Label caps of issue #226, measured the same way, and there are five
+  rather than three because #208 made them product-visible contract: 500
+  Personal definitions per account, 250 Folder definitions per Folder, 100
+  Personal and 100 Folder Labels on one Task, and 100 Personal Labels on one
+  Folder.
+
+  Each is a guard rather than a constraint — migration 0022 puts nothing under
+  any of the five numbers — so each has the same defect available to it as the
+  three above: a count that is not tied to its insert is a suggestion, and on
+  PGlite, which is single-connection, the defect cannot fail a test that
+  measures outcomes. What these measure is the statement order, which is what
+  makes the second caller wait and then read the number the first one left.
+
+  **The lock is not the same row in all five, and which row it is matters.**
+  A definition cap counts "the Labels this account holds" or "the Labels this
+  Folder holds", so the lock is the account or the Folder — the row that would
+  break the cap is the one neither caller has created yet, so the Labels
+  themselves cannot be locked. An assignment cap counts what one target
+  carries, so the lock is the target.
+  */
+  test('createPersonalLabel locks the account before it counts its labels (#226, #208)', async () => {
+    const ownerId = await seedUser('label-personal')
+    seededUsers.push(ownerId)
+
+    const log: string[] = []
+    const result = await createPersonalLabel(recording(db, log), ownerId, {
+      name: 'cap guard personal',
+      color: '#123456',
+    })
+    expect(result.kind, 'the create still succeeds below the cap').toBe('created')
+
+    expect(log[0], 'one transaction').toBe('begin')
+    expect(
+      log[1],
+      'whose first statement locks the owning account, the only row that names the set being counted',
+    ).toContain('from users where id = $1 for update')
+
+    const counted = indexOfStatement(
+      log,
+      (statement) =>
+        statement.includes('count(*)') && statement.includes('from labels'),
+      'the count that decides the 500 cap',
+    )
+    const inserted = indexOfStatement(
+      log,
+      (statement) => statement.startsWith('insert into labels'),
+      'the insert the count admitted',
+    )
+    expect(
+      counted,
+      'the count must follow the lock, or two creates at 499 both read 499 and both insert',
+    ).toBeGreaterThan(1)
+    expect(inserted, 'and the insert follows the count').toBeGreaterThan(counted)
+    expect(log[log.length - 1], 'all of it committing together').toBe('commit')
+  })
+
+  test('createFolderLabel locks the folder before it counts its labels (#226, #208)', async () => {
+    const ownerId = await seedUser('label-folder')
+    seededUsers.push(ownerId)
+    const folderId = await seedFolder(ownerId)
+
+    const log: string[] = []
+    const result = await createFolderLabel(recording(db, log), folderId, {
+      name: 'cap guard folder',
+      color: '#123456',
+    })
+    expect(result.kind, 'the create still succeeds below the cap').toBe('created')
+
+    expect(log[0], 'one transaction').toBe('begin')
+    expect(
+      log[1],
+      'whose first statement locks the folder, the row that names the set being counted',
+    ).toContain('for update')
+    expect(log[1], 'and it is the folders row rather than any other').toContain(
+      'from folders',
+    )
+
+    const counted = indexOfStatement(
+      log,
+      (statement) =>
+        statement.includes('count(*)') && statement.includes('from labels'),
+      'the count that decides the 250 cap',
+    )
+    const inserted = indexOfStatement(
+      log,
+      (statement) => statement.startsWith('insert into labels'),
+      'the insert the count admitted',
+    )
+    expect(counted, 'the count follows the lock').toBeGreaterThan(1)
+    expect(inserted, 'and the insert follows the count').toBeGreaterThan(counted)
+    expect(log[log.length - 1], 'all of it committing together').toBe('commit')
+  })
+
+  test('attachTaskLabel locks the task before it counts what it carries (#226)', async () => {
+    const ownerId = await seedUser('label-attach-task')
+    seededUsers.push(ownerId)
+    const folderId = await seedFolder(ownerId)
+    const taskId = await seedTask(folderId, ownerId)
+    const made = await createPersonalLabel(db, ownerId, {
+      name: 'cap guard attach',
+      color: '#123456',
+    })
+    if (made.kind !== 'created') throw new Error('the fixture label must exist')
+
+    const log: string[] = []
+    const result = await attachTaskLabel(
+      recording(db, log),
+      ownerId,
+      taskId,
+      folderId,
+      made.label.id,
+    )
+    expect(result.kind, 'the attach still succeeds below the cap').toBe('attached')
+
+    expect(log[0], 'one transaction').toBe('begin')
+    expect(
+      log[1],
+      'whose first statement locks the task, because both of this endpoint\'s caps are counted per task',
+    ).toContain('from tasks where id = $1::uuid for update')
+
+    const counted = indexOfStatement(
+      log,
+      (statement) =>
+        statement.includes('count(*)') &&
+        statement.includes('from task_personal_labels'),
+      'the count that decides the 100 cap',
+    )
+    const inserted = indexOfStatement(
+      log,
+      (statement) => statement.startsWith('insert into task_personal_labels'),
+      'the insert the count admitted',
+    )
+    expect(counted, 'the count follows the lock').toBeGreaterThan(1)
+    expect(inserted, 'and the insert follows the count').toBeGreaterThan(counted)
+    expect(log[log.length - 1], 'all of it committing together').toBe('commit')
+  })
+
+  test('attachFolderLabel locks the folder before it counts what it carries (#226)', async () => {
+    const ownerId = await seedUser('label-attach-folder')
+    seededUsers.push(ownerId)
+    const folderId = await seedFolder(ownerId)
+    const made = await createPersonalLabel(db, ownerId, {
+      name: 'cap guard attach folder',
+      color: '#123456',
+    })
+    if (made.kind !== 'created') throw new Error('the fixture label must exist')
+
+    const log: string[] = []
+    const result = await attachFolderLabel(
+      recording(db, log),
+      ownerId,
+      folderId,
+      made.label.id,
+    )
+    expect(result.kind, 'the attach still succeeds below the cap').toBe('attached')
+
+    expect(log[0], 'one transaction').toBe('begin')
+    expect(log[1], 'whose first statement locks the folder').toContain(
+      'from folders where id = $1::uuid for update',
+    )
+
+    const counted = indexOfStatement(
+      log,
+      (statement) =>
+        statement.includes('count(*)') &&
+        statement.includes('from folder_personal_labels'),
+      'the count that decides the 100 cap',
+    )
+    const inserted = indexOfStatement(
+      log,
+      (statement) => statement.startsWith('insert into folder_personal_labels'),
+      'the insert the count admitted',
+    )
+    expect(counted, 'the count follows the lock').toBeGreaterThan(1)
+    expect(inserted, 'and the insert follows the count').toBeGreaterThan(counted)
     expect(log[log.length - 1], 'all of it committing together').toBe('commit')
   })
 

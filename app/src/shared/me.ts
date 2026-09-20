@@ -43,7 +43,7 @@ z.boolean refuses every non-boolean without coercing, which was the whole of
 AC-121 before #113 rewrote that criterion against 7.23's bundle. Null is
 among the refusals rather than a clear: 4.10's three columns
 are NOT NULL booleans with defaults, so there is no state to clear back to,
-unlike the label and color of 7.4's my-membership, which the frozen text
+unlike the shelf and color of 7.4's my-membership, which the frozen text
 itself marks nullable. Section 12 records that reading at the P2S opening;
 this is where it is enforced.
 */

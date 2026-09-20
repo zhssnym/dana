@@ -134,8 +134,18 @@ function jsonInit(method: string, body: unknown): RawRequestOptions {
   }
 }
 
-/** The fourteen keys of the 7.0 Folder object, and no others; the 4.3
- * identity four joined with RFC 0005, and item 58's cover pair. */
+/** The sixteen keys of the 7.0 Folder object, and no others; the 4.3
+ * identity four joined with RFC 0005, and item 58's cover pair.
+ *
+ * **`my_label` and `my_shelf` are both listed and that is deliberate.** Issue
+ * #226 renamed the key and #247 removes the old one; for the release between
+ * the two, the card carries both, the same value from the same column, so
+ * that a browser tab holding an old bundle across a deploy still reads a
+ * shelf. This list being asserted key-exact is what documents the pair —
+ * the assertion is the record, not an obstacle to be loosened — and when #247
+ * lands, removing `my_label` from this array is how the contract half is
+ * proved. `personal_labels` is the Label projection that arrived with the
+ * rename, the viewer's own Personal Labels on this folder. */
 const FOLDER_KEYS = [
   'color',
   'counts',
@@ -150,7 +160,9 @@ const FOLDER_KEYS = [
   'member_count',
   'my_color',
   'my_label',
+  'my_shelf',
   'name',
+  'personal_labels',
 ]
 
 /** 7.4's member element, and inside it 7.0's person shape as the review
@@ -300,13 +312,13 @@ describe('the 7.4 shapes against the mounted application', () => {
     const labeled = await api(
       owner,
       `/folders/${folderId}/my-membership`,
-      jsonInit('PATCH', { label: 'Contract', color: '#0044AA' }),
+      jsonInit('PATCH', { shelf: 'Contract', color: '#0044AA' }),
     )
     expect(labeled.status).toBe(200)
     const labeledParsed = folder.safeParse(labeled.json())
     expect(labeledParsed.success).toBe(true)
     if (labeledParsed.success) {
-      expect(labeledParsed.data.my_label).toBe('Contract')
+      expect(labeledParsed.data.my_shelf).toBe('Contract')
       expect(labeledParsed.data.my_color).toBe('#0044AA')
     }
   })

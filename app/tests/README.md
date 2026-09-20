@@ -98,6 +98,18 @@ carrying 232 cases and 6 browser specs carrying 20**. The colocated unit tests
 under `app/src/**` were deliberately left whole: they are not criteria, they
 are cheap, and they were not what made the gate slow.
 
+**47 to 51 the same day, for issue #226's Label model** (AC-470 to AC-481, spec
+12.24), and the direction is worth noting rather than the number: the cut was a
+ruling about coverage of work that already existed, not a rule that new work
+arrives without criteria. A feature landing after it still owes the criteria
+that pin its decisions, and #226's land in four files rather than twelve
+because several of its twelve numbers are clauses of one behaviour. The fourth
+file is `ac-481-shelf-wire-expand-and-contract.test.ts`, added when the owner's
+ruling of 2026-09-20 extended the Shelf expand-and-contract from the column to
+the wire; it is its own file because it pins a different decision from AC-479
+beside it — that decision being whether the rename can be deployed without
+losing somebody's edit, rather than whether it changed Shelf semantics.
+
 **Section 12 was not cut with them.** Every criterion it states is still the
 specification of Dana's behaviour; most of them simply have no executable form
 in this directory any more. A criterion number that resolves to no file here is

@@ -164,7 +164,7 @@ one-sentence recording in the frozen text through the Steward, the shape 7.2,
   the two do not conflict because they answer different questions. 7.10's stub
   is a group heading, and that ruling said outright why: a heading needs what a
   card's folder label needs, while Folder's counts, is_owner, member_count,
-  my_label and my_color are 7.4's business, where a client that wants them
+  my_shelf and my_color are 7.4's business, where a client that wants them
   already goes. An acceptance is not a heading. It is the moment a client
   acquires a folder it did not have, and every one of those five fields is
   something it needs and has no other way to learn here: whether it now owns

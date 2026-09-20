@@ -56,6 +56,7 @@ function card(over: {
     // scrubbed creator would.
     section_block_id: null,
     created_by: null,
+    labels: { personal: [], folder: [] },
     created_at: '2026-08-13T00:00:00.000Z',
     updated_at: '2026-08-13T00:00:00.000Z',
   }
@@ -83,12 +84,16 @@ const FOLDERS: Folder[] = [
     is_owner: true,
     member_count: 1,
     counts: { pending: 1, completed: 0 },
+    my_shelf: 'Home',
+    /* Paired with `my_shelf` by issue #226's wire expand-and-contract: one
+       column under two keys for one release, dropped by #247. */
     my_label: 'Home',
     /* Both columns are set deliberately, and they differ. 9.6 retires 4.4's
        per-member colour from every v2 surface, so a chip that painted this one
        would be reading the column the contract moved off; the case below reads
        the identity and would go green on either if the two agreed. */
     my_color: '#33AA55',
+    personal_labels: [],
     icon: null,
     color: '#4477CC',
     cover_file_id: null,

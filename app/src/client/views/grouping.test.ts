@@ -47,6 +47,7 @@ function card(
     // scrubbed creator would.
     section_block_id: null,
     created_by: null,
+    labels: { personal: [], folder: [] },
     created_at: '2026-08-01T00:00:00.000Z',
     updated_at: '2026-08-01T00:00:00.000Z',
   }

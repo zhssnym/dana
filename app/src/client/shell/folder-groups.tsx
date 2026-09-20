@@ -11,7 +11,7 @@ reason.
 
 **A group is a shelf as well, since S17b, and that is what this file changed.**
 The sentence above was the whole model until 7.16 landed, and it left this
-client with two disjoint worlds: a group made here wrote `folder_members.label`
+client with two disjoint worlds: a group made here wrote `folder_members.shelf_name`
 and no `shelves` row, so it had no page, no mark and none of the object
 contract's acts; a shelf made through 7.16 wrote a row and labelled nothing, so
 the Library could not see it. Two ways to make the same thing, each missing
@@ -184,18 +184,21 @@ export function useFolderGroupActions(
   const labels = useMemo(() => folderGroupLabels(folders, shelves), [folders, shelves])
 
   function inGroup(label: string): readonly Folder[] {
-    return folders.filter((folder) => folder.my_label === label)
+    return folders.filter((folder) => folder.my_shelf === label)
   }
 
-  /* 4.18 holds a shelf's name and its folders' labels in step, so the name is
-     the join key. Undefined for a label written before 7.16 existed. */
+  /* 4.18 holds a shelf's name and its folders' memberships in step, so the
+     name is the join key. Undefined for a membership written before 7.16
+     existed. The wire field is `shelf` since issue #226; the local variables
+     here still read `label` because they are this component's own word for
+     the string a person typed. */
   function shelfNamed(label: string): Shelf | undefined {
     return shelves.find((shelf) => shelf.name === label)
   }
 
   function writeLabel(ids: readonly string[], label: string | null): void {
     for (const id of ids) {
-      relabel.mutate({ id, body: { label } })
+      relabel.mutate({ id, body: { shelf: label } })
     }
   }
 
@@ -216,10 +219,10 @@ export function useFolderGroupActions(
     onMoveToGroup: (folder, label) => {
       /* polish: shelves F6. The sidebar's move has the undo bar like the
          folder page's: a way back that is not three presses in reverse. */
-      const previous = folder.my_label
+      const previous = folder.my_shelf
       if (previous === label) return
       relabel.mutate(
-        { id: folder.id, body: { label } },
+        { id: folder.id, body: { shelf: label } },
         {
           onSuccess: () => {
             pushUndo(
@@ -227,7 +230,7 @@ export function useFolderGroupActions(
                 ? `Took "${folder.name}" off ${previous ?? 'its shelf'}`
                 : `Moved "${folder.name}" to ${label}`,
               () => {
-                relabel.mutate({ id: folder.id, body: { label: previous } })
+                relabel.mutate({ id: folder.id, body: { shelf: previous } })
               },
             )
           },
@@ -272,7 +275,7 @@ export function useFolderGroupActions(
     if (dialog === null) return []
     return dialog.mode === 'create'
       ? folders.filter((folder) => !folder.is_default)
-      : folders.filter((folder) => folder.my_label === dialog.label)
+      : folders.filter((folder) => folder.my_shelf === dialog.label)
   }, [dialog, folders])
   const options = useMemo(() => folderGroupOptions(subject), [subject])
   // The folders the act was taken on arrive ticked, which is 9.1's "creating

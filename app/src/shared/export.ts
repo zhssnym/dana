@@ -43,8 +43,16 @@ export const EXPORT_FORMAT = 'dana-export'
  * Version 1 carries metadata for every file the person owns and none of the
  * bytes. A later version that embeds or archives them changes this number;
  * a reader must refuse a version it does not know rather than guess.
+ *
+ * **2 to 3 at issue #226**, which renamed one key of `exportFolder`:
+ * `my_label` became `my_shelf`, the Shelf half of removing the collision with
+ * #208's Label model. Nothing was added and no value changed, but a reader
+ * that knows version 2 would find the key it expects missing, and this number
+ * is the whole mechanism by which it is told to refuse rather than guess.
+ * #227 owns putting Labels themselves into the document and will move it
+ * again.
  */
-export const EXPORT_VERSION = 2
+export const EXPORT_VERSION = 3
 
 /**
  * 10.3's "List responses capped at 1000 rows with truncated flag", applied
@@ -185,8 +193,11 @@ export const exportFolder = z.object({
   cover_file_id: z.uuid().nullable(),
   cover_preset: z.string().nullable(),
   cover_focal_y: z.number().int(),
-  /** 4.4's two private columns, the owner's own row on their own folder. */
-  my_label: z.string().nullable(),
+  /** 4.4's two private columns, the owner's own row on their own folder.
+   *  `my_shelf` was `my_label` until issue #226 renamed the Shelf half of
+   *  the collision with #208's Label model; the value and the column behind
+   *  it are unchanged, and version 3 below is what says the key moved. */
+  my_shelf: z.string().nullable(),
   my_color: z.string().nullable(),
   created_at: z.string(),
   trashed: z.boolean(),

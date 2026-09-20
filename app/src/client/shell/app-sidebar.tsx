@@ -124,7 +124,7 @@ either way.
 
 The folder list is ordered by 9.1 and not by frozen 7.4: Inbox pinned, then
 per-member label groups with labels ascending, then unlabeled folders by name.
-The labels are the viewer's own, from the `my_label` of 7.4's membership row,
+The labels are the viewer's own, from the `my_shelf` of 7.4's membership row,
 so the same folder is inside a group for one member and among the unlabeled
 for another. AC-155 reads all four clauses.
 */
@@ -711,7 +711,7 @@ function SidebarFolderRow({
       tree={tree}
       treeLast={treeLast}
       groupLabels={groups.labels}
-      currentLabel={folder.my_label}
+      currentLabel={folder.my_shelf}
       // Desk is pinned first by 9.1 with a clause of its own, above the label
       // groups and never inside one, so a group act on this row would write a
       // label the sidebar then cannot render.

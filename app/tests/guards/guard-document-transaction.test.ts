@@ -58,7 +58,13 @@ test('Issue194 duplicate, export and workflow import retain hierarchy and rich c
  expect(importedPage.blocks[2]?.rich_content?.runs[0]?.bold).toBe(true)
  const exported=await owner.browser.json('/me/export','GET');expectStatus(exported,200,'account export')
  const data=exported.json() as {version:number;folders:{id:string;blocks:{id:string;rich_content:unknown;section_block_id:string|null}[]}[]}
- expect(data.version).toBe(2);expect(data.folders.find(f=>f.id===folder)?.blocks.find(b=>b.id===p)?.section_block_id).toBe(h2)
+ /* 2 to 3 at issue #226: the export's `exportFolder.my_label` became
+    `my_shelf`, the Shelf half of removing the collision with #208's Label
+    model, and EXPORT_VERSION is the mechanism by which a reader that knows
+    the old shape refuses rather than guesses. The decision this line pins is
+    "which version the document declares", and it moved in the same change as
+    the key it is about. */
+ expect(data.version).toBe(3);expect(data.folders.find(f=>f.id===folder)?.blocks.find(b=>b.id===p)?.section_block_id).toBe(h2)
  const current=await read(owner,folder)
  expectStatus(await owner.browser.json(`/folders/${folder}/page/actions`,'POST',{action:'document_transaction',mutation_id:randomUUID(),base_revision:current.revision,operations:[{op:'delete_block',id:h1},{op:'set_outline',items:[{kind:'block',id:h2,section_block_id:null,list_parent_block_id:null},{kind:'block',id:p,section_block_id:h2,list_parent_block_id:null}]}]}),200,'remove H1 promotes subgroup')
  expect((await read(owner,folder)).blocks.find(b=>b.id===h2)?.section_block_id).toBeNull()

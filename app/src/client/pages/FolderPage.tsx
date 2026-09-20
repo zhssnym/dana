@@ -901,13 +901,13 @@ export function FolderPage({
               move: {
                 choose: (
                   <DropdownMenuRadioGroup
-                    value={detail?.my_label ?? '__none'}
+                    value={detail?.my_shelf ?? '__none'}
                     onValueChange={(value) => {
-                      const previous = detail?.my_label ?? null
+                      const previous = detail?.my_shelf ?? null
                       const next = value === '__none' ? null : value
                       if (next === previous) return
                       membership.mutate(
-                        { id, body: { label: next } },
+                        { id, body: { shelf: next } },
                         {
                           /* polish: shelves F6. A shelf move has a way back
                              now, the undo bar, like every other move. */
@@ -917,7 +917,7 @@ export function FolderPage({
                                 ? `Took "${detail?.name ?? ''}" off ${previous ?? 'its shelf'}`
                                 : `Moved "${detail?.name ?? ''}" to ${next}`,
                               () => {
-                                membership.mutate({ id, body: { label: previous } })
+                                membership.mutate({ id, body: { shelf: previous } })
                               },
                             )
                           },

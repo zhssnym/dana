@@ -46,7 +46,8 @@ in memory afterwards, rather than as one statement per folder or per comment.
 The parent ids ride as **one** bind parameter, a jsonb array unnested in the
 statement, rather than as an IN list: a list would put up to two hundred
 thousand parameters on the wire for an account at 10.3's folder cap, which is
-past what the protocol carries at all. `idSet` below is that spelling, and it
+past what the protocol carries at all. `idSet` in `server/database.ts` is that
+spelling, and it
 was measured on both legs rather than assumed — drizzle expands a JavaScript
 array into `($1, $2, …)` rather than binding one array, so `= ANY(${ids})`
 does not do what it reads as and fails on both backends with "cannot cast type
@@ -81,7 +82,7 @@ import type {
   ExportStep,
   ExportTask,
 } from '../../shared/export.js'
-import { rowsOf } from '../database.js'
+import { idSet, rowsOf } from '../database.js'
 import { listViews, readBundle } from './bundle.js'
 import { listPlaceCovers } from './covers.js'
 import { listPlaceDescriptions } from './place-descriptions.js'
@@ -170,27 +171,6 @@ function cappedPerParent(
              AS export_rn
     ${source}
   ) capped WHERE capped.export_rn <= ${FETCH}`
-}
-
-/**
- * A set of uuids as **one** bind parameter, for a child statement restricted
- * to the parents that survived their cap.
- *
- * The list rides as a jsonb array unnested in the statement rather than as an
- * IN list of literals, because an account at 10.3's 200-folder cap with a
- * thousand tasks in each would otherwise need two hundred thousand bind
- * parameters, three times what the wire protocol carries. An empty array
- * yields no rows and needs no special case at the call sites.
- *
- * Measured on both legs on 2026-09-04, which is the reason for the spelling:
- * `= ANY(${ids})` reads like the obvious answer and is not one, drizzle
- * expanding a JavaScript array into a parameter *list* rather than binding a
- * single array, so the statement reaches the database as
- * `unnest(($1, $2)::uuid[])` and fails identically on PGlite and Postgres.
- */
-function idSet(ids: readonly string[]): SQL {
-  return sql`(SELECT e::uuid FROM
-    jsonb_array_elements_text(${JSON.stringify(ids)}::jsonb) e)`
 }
 
 /** Groups rows under the value of one column, preserving row order. */
@@ -389,7 +369,7 @@ export async function exportForViewer(
     sql`SELECT f.id, f.name, f.is_default, f.icon, f.color, f.description,
                f.cover_file_id, f.cover_preset, f.cover_focal_y,
                f.created_at, f.deleted_at,
-               m.label AS my_label, m.color AS my_color
+               m.shelf_name AS my_shelf, m.color AS my_color
         FROM folders f
         LEFT JOIN folder_members m
           ON m.folder_id = f.id AND m.user_id = ${viewerId}
@@ -618,7 +598,7 @@ export async function exportForViewer(
       cover_file_id: nullableString(row.cover_file_id),
       cover_preset: nullableString(row.cover_preset),
       cover_focal_y: Number(row.cover_focal_y ?? 50),
-      my_label: nullableString(row.my_label),
+      my_shelf: nullableString(row.my_shelf),
       my_color: nullableString(row.my_color),
       created_at: toIso(row.created_at),
       trashed: present(row.deleted_at),
