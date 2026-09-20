@@ -676,6 +676,67 @@ export async function exportForViewer(
   )
   const comments = truncation.apply('comments', commentRows)
 
+  /* ---------------------------------------------------------------- *
+   * The exporter's own Responsibility documents (issue #230, #209 R10).
+   *
+   * **Read the two joins rather than the columns.** `member_id = viewerId`
+   * is what keeps this the exporter's own and nobody else's, and the join to
+   * `folder_members` is what keeps it to folders they are *currently* in --
+   * which is #230's "do not expose inaccessible former-Folder data merely
+   * because a historical row exists", written as a predicate rather than as
+   * an intention. `ended_at IS NULL` is the third: a document belonging to a
+   * membership that ended is not an active Responsibility even while the
+   * membership that replaced it exists.
+   *
+   * Delete any one of the three and the statement leaks something different,
+   * which is 10.2's own test applied to a read that has no id to substitute.
+   * ---------------------------------------------------------------- */
+
+  const responsibilityRows = await rowsOf(
+    db,
+    sql`SELECT r.id, r.content, r.current_revision_no, r.updated_at,
+               f.id AS folder_id, f.name AS folder_name,
+               u.display_name AS updated_by
+          FROM folder_responsibilities r
+          JOIN folders f ON f.id = r.folder_id
+          JOIN folder_members m
+            ON m.folder_id = r.folder_id AND m.user_id = ${viewerId}
+          LEFT JOIN users u ON u.id = r.updated_by
+         WHERE r.member_id = ${viewerId} AND r.ended_at IS NULL
+         ORDER BY f.name ASC, f.id ASC
+         LIMIT ${FETCH}`,
+  )
+  const responsibilityCurrent = truncation.apply(
+    'responsibilities',
+    responsibilityRows,
+  )
+  const responsibilityIds = responsibilityCurrent.map((row) => String(row.id))
+  const revisionRows =
+    responsibilityIds.length === 0
+      ? []
+      : await rowsOf(
+          db,
+          cappedPerParent(
+            sql`h.responsibility_id, h.revision_no, h.content,
+                h.effective_at, hu.display_name AS committed_by`,
+            sql`FROM folder_responsibility_history h
+                JOIN folder_responsibilities r
+                  ON r.id = h.responsibility_id AND r.member_id = ${viewerId}
+                LEFT JOIN users hu ON hu.id = h.actor_id
+                WHERE h.responsibility_id IN ${idSet(responsibilityIds)}
+                  AND h.revision_no IS NOT NULL`,
+            sql`h.responsibility_id`,
+            sql`h.revision_no ASC`,
+          ),
+        )
+  const revisionsByDocument = new Map<string, Record<string, unknown>[]>()
+  for (const row of revisionRows) {
+    const key = String(row.responsibility_id)
+    const list = revisionsByDocument.get(key) ?? []
+    list.push(row)
+    revisionsByDocument.set(key, list)
+  }
+
   const commentFileRows = await rowsOf(
     db,
     cappedPerParent(
@@ -868,6 +929,30 @@ export async function exportForViewer(
     },
     folders: exportedFolders,
     tasks_elsewhere: exportedForeign,
+    responsibilities: responsibilityCurrent.map((row) => {
+      const id = String(row.id)
+      return {
+        folder: {
+          id: String(row.folder_id),
+          name: String(row.folder_name),
+        },
+        content: row.content ?? null,
+        revision_no: Number(row.current_revision_no),
+        updated_at: toIso(row.updated_at),
+        updated_by: nullableString(row.updated_by),
+        revisions: truncation
+          .apply(
+            'responsibilities.revisions',
+            revisionsByDocument.get(id) ?? [],
+          )
+          .map((revision) => ({
+            revision_no: Number(revision.revision_no),
+            content: revision.content ?? null,
+            committed_at: toIso(revision.effective_at),
+            committed_by: nullableString(revision.committed_by),
+          })),
+      }
+    }),
     comments: exportedComments,
     shelves: exportedShelves,
     views: views.map((view) => ({

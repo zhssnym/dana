@@ -57,6 +57,12 @@ export const EXPORT_FORMAT = 'dana-export'
  * strip every one of those keys and hand back a document with a person's
  * whole classification silently missing, which is what the number exists to
  * prevent.
+ *
+ * **Version 3, issue #230**, adds `responsibilities`: the exporting person's
+ * **own** current Responsibility document in each folder they are currently a
+ * member of, with that document's own revisions. #230 asks for a deliberate
+ * shape rather than an accreted one, and the deliberate part is what it
+ * excludes, which is stated where the collection is declared below.
  */
 export const EXPORT_VERSION = 4
 
@@ -76,6 +82,8 @@ export const EXPORT_ROW_CAP = 1000
 export const EXPORT_COLLECTIONS = [
   'folders',
   'folders.members',
+  'responsibilities',
+  'responsibilities.revisions',
   'folders.tasks',
   'folders.tasks.steps',
   'folders.blocks',
@@ -421,6 +429,52 @@ export type ExportSettings = z.infer<typeof exportSettings>
  * - **file bytes**, which version 1 names and does not embed; `files[].url`
  *   is how a session fetches them.
  */
+/**
+ * One folder's Responsibility standing, **the exporting person's own**
+ * (issue #230, #209 R10 "Export / duplication / workflows").
+ *
+ * R10 admits exactly this much: "account export preserves the exporting
+ * user's current/historical Responsibility and Access information only within
+ * the existing privacy/access boundary". So the four exclusions are the shape
+ * rather than omissions from it, and each one is a thing a careless version of
+ * this collection would have carried:
+ *
+ * - **no other member's Responsibility.** The document is Folder-visible, so
+ *   the exporter may *read* their colleagues' in the application; an export
+ *   is a file that leaves Dana, and #230 forbids "confidential personnel
+ *   information" and "another user's private future Member records" in one
+ *   breath. Their own is the boundary that needs no argument.
+ * - **no folder they have left.** The revisions survive with the folder (R10)
+ *   and are reachable by nobody outside it; #230 names this exactly --
+ *   "inaccessible former-Folder data merely because a historical row exists".
+ * - **no self-edit grant and no member roster**, which are member
+ *   administration rather than the exporter's own data.
+ * - **no actor identities beyond a display name**, the rule the whole
+ *   document already keeps.
+ */
+export const exportResponsibilityRevision = z.object({
+  revision_no: z.number().int(),
+  content: z.unknown(),
+  committed_at: z.string(),
+  /** The display name of whoever committed it, which may be the exporter or
+   * the administrator who wrote it for them. Names and never addresses, the
+   * rule `folders[].members` already keeps. */
+  committed_by: z.string().nullable(),
+})
+export type ExportResponsibilityRevision = z.infer<
+  typeof exportResponsibilityRevision
+>
+
+export const exportResponsibility = z.object({
+  folder: z.object({ id: z.uuid(), name: z.string() }),
+  content: z.unknown(),
+  revision_no: z.number().int(),
+  updated_at: z.string(),
+  updated_by: z.string().nullable(),
+  revisions: z.array(exportResponsibilityRevision),
+})
+export type ExportResponsibility = z.infer<typeof exportResponsibility>
+
 export const exportDocument = z.object({
   format: z.literal(EXPORT_FORMAT),
   version: z.literal(EXPORT_VERSION),
@@ -429,6 +483,9 @@ export const exportDocument = z.object({
   settings: exportSettings,
   folders: z.array(exportFolder),
   tasks_elsewhere: z.array(exportForeignTask),
+  /** Issue #230, version 3. The exporting person's own current Responsibility
+   * in each folder they are currently in, and nobody else's anywhere. */
+  responsibilities: z.array(exportResponsibility),
   comments: z.array(exportComment),
   shelves: z.array(exportShelf),
   views: z.array(exportView),

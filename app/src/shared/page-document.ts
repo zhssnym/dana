@@ -2,11 +2,14 @@ import { z } from 'zod'
 import { taskTitle } from './tasks.js'
 import type { FileKind } from './files.js'
 
-const richRun = z.object({text:z.string().max(4000),bold:z.boolean().optional(),italic:z.boolean().optional(),href:z.string().max(2048).refine(value => /^(https?:\/\/|mailto:|\/[^/])/i.test(value) && !Array.from(value).some(char=>char.charCodeAt(0)<=32), 'Use a safe web, mail or internal link.').optional()}).catchall(z.never()).transform(({text,bold,italic,href}) => ({text,...(bold===undefined?{}:{bold}),...(italic===undefined?{}:{italic}),...(href===undefined?{}:{href})}))
-export const richContent = z.object({version:z.literal(1),runs:z.array(richRun).max(4000)}).catchall(z.never()).superRefine((value,ctx)=>{
- if(value.runs.reduce((n,run)=>n+run.text.length,0)>4000 || new TextEncoder().encode(JSON.stringify(value)).length>65536) ctx.addIssue({code:'custom',message:'Rich content exceeds the paragraph limit.'})
-}).transform(({version,runs})=>({version,runs}))
-export type RichContent = z.infer<typeof richContent>
+/* `richContent` moved to `rich-content.ts` with issue #230 and is re-exported
+   here unchanged, because the Responsibility document is its third consumer
+   and importing this file from `shared/responsibility.ts` closed a cycle
+   through `tasks.ts` and `folders.ts`. That file carries the reasoning and
+   the definition; nothing about the rule moved with it. */
+export { richContent } from './rich-content.js'
+export type { RichContent } from './rich-content.js'
+import { richContent } from './rich-content.js'
 /**
  * Sections nest three levels deep: H1 at the page root, H2 under an H1, H3 under
  * an H2. There is no heading-level column; a Section's level is its depth in the

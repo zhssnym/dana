@@ -38,7 +38,7 @@ identity two clients can compute independently. That is what
 proof 9), and it is why it cannot be got wrong by a client that reorders its
 keys or sends `bold: undefined`.
 
-`richContent` from `page-document.ts` is reused rather than re-declared: it
+`richContent` from `rich-content.ts` is reused rather than re-declared: it
 already fixes its own key order, already caps a paragraph at 4000 characters
 and 64 KiB, and already refuses an unsafe `href` while admitting an internal
 `/...` one, which is what "Dana Links where the shared safe composer supports
@@ -47,8 +47,8 @@ to keep safe.
 
 ## Why the block objects refuse unknown keys
 
-`.catchall(z.never())`, which `richContent` itself uses three lines away in
-`page-document.ts`. 11.14's ruling — no `.strict()` on request bodies — is
+`.catchall(z.never())`, which `richContent` itself uses, in the leaf module
+this file imports it from. 11.14's ruling — no `.strict()` on request bodies — is
 about request *envelopes*, where an unknown key is a client sending something
 this version does not know about and 7.0 tolerates it. This is different: the
 object is **stored and replayed as the truth of what somebody wrote**, so a
@@ -58,7 +58,7 @@ the author sent.
 */
 import { z } from 'zod'
 
-import { richContent } from './page-document.js'
+import { richContent } from './rich-content.js'
 import { folderAccessPreset } from './folder-access.js'
 
 /* ------------------------------------------------------------------ *
