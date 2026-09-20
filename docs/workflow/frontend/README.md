@@ -133,7 +133,7 @@ browser rather than in a test.
 **`npm run gate` is the whole of it**, and it is what a pull request carries:
 
 ```
-npm run gate              spec 11.11's seven steps, in order, stopping at the first failure
+npm run gate              spec 11.11's six steps, in order, stopping at the first failure
 npm run gate -- --quick   lint, typecheck and build, for the middle of the work
 ```
 
@@ -158,7 +158,7 @@ one-time job rather than a reason to skip the leg.** Spec 11.10 carries the `CRE
 statement and `CLAUDE.md` describes the cluster here. Where the machine has one,
 `TEST_DATABASE_URL` names it and the gate runs that leg. **Where it does not, the gate ends
 `GATE: incomplete (Postgres leg not available on this machine)` and exits non-zero**, because
-green means all seven of 11.11's steps ran — so a machine without that database cannot open a
+green means all six of 11.11's steps ran — so a machine without that database cannot open a
 pull request until it has one. That variable is ambient here and has changed more than once,
 so read what the gate record printed rather than what you expected.
 
@@ -206,7 +206,7 @@ before the change could be shown to anybody. So: make the change, run
 `npm run gate -- --quick`, run the one Playwright spec that covers that screen, and look at
 it in a browser. Show it, take the corrections, and run `npm run gate` in full when the work
 is accepted and you are preparing the pull request. **Nothing is weakened by this: the same
-seven steps, in full, on the head commit, before every pull request. Only the order moves.**
+six steps, in full, on the head commit, before every pull request. Only the order moves.**
 
 **`npm test` is deliberately not in that fast loop**, and not to save the six minutes. Under
 `environment: 'node'` it proves the client compiles and almost nothing about what it does,

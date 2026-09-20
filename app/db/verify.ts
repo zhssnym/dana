@@ -169,7 +169,7 @@ for (const [table, expected] of Object.entries(constraintCatalog) as [
   broken across statements, so the absence of the flag is asserted as
   firmly as its presence.
 
-  The same comparison now runs in tests/ac-001-constraint-catalog.test.ts,
+  The same comparison now runs in tests/criteria/ac-001-constraint-catalog.test.ts,
   which is the copy CI executes: nothing runs this file, which was issue #75.
   It is kept here rather than deleted because this file is the data owner's
   whole-catalog check and a half of it missing would make the two disagree

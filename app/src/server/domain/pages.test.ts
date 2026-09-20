@@ -38,7 +38,7 @@ import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
 import type { Db, DbClient } from '../../../db/client.js'
-import { cleanupUsers, createTestDb, rows } from '../../../tests/helpers.js'
+import { cleanupUsers, createTestDb, rows } from '../../../tests/support/helpers.js'
 import { pageView, putPage } from './pages.js'
 
 let client: DbClient

@@ -13,11 +13,11 @@ import type { AddressInfo } from 'node:net'
 import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
-import { startAuthTestApp } from '../../../tests/auth-harness.js'
-import type { AuthTestApp } from '../../../tests/auth-harness.js'
-import { Cast, createFolder } from '../../../tests/folders-harness.js'
-import type { Actor } from '../../../tests/folders-harness.js'
-import { rows } from '../../../tests/helpers.js'
+import { startAuthTestApp } from '../../../tests/support/auth-harness.js'
+import type { AuthTestApp } from '../../../tests/support/auth-harness.js'
+import { Cast, createFolder } from '../../../tests/support/folders-harness.js'
+import type { Actor } from '../../../tests/support/folders-harness.js'
+import { rows } from '../../../tests/support/helpers.js'
 
 let app: AuthTestApp
 const cast = new Cast(['picker'], 'coverphoto')

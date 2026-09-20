@@ -1,9 +1,16 @@
 /*
 The gate, run where the code was written.
 
-**Why this file exists.** Spec 11.11 fixes seven steps and their order: npm ci,
-lint, typecheck, the PGlite leg, a real Postgres 18 leg, build, Playwright.
-Until 2026-09-04 the only thing that ran all seven was GitHub Actions on one
+**Why this file exists.** Spec 11.11 fixes six steps and their order: npm ci,
+lint, typecheck, one real Postgres 18 leg, build, Playwright. It fixed seven
+until 2026-09-20, when the owner ruled the duplicate PGlite leg out: the same
+files ran twice for a cross-engine disagreement that nearly none of them could
+produce, and the leg dropped was both the slower one and the one production
+does not run. PGlite survives as the fallback when no `TEST_DATABASE_URL` is
+present, so a machine without Postgres still runs its tests; that run is
+`incomplete` rather than green.
+
+Until 2026-09-04 the only thing that ran every step was GitHub Actions on one
 self-hosted runner, and CLAUDE.md records what that costs: a CI job holds about
 7.7 GB of this machine's 15.8, so agents and a CI job cannot share it, and
 every branch queues behind every other branch. Issue #180 moved the run to the
@@ -25,10 +32,11 @@ into the record so that a reader sees 295 files rather than the word "passed".
 summary behind it is the same false green one layer up.
 
 **Three verdicts, and only one of them opens a pull request.** `green` means all
-seven ran and all seven passed. `red at <step>` means one failed. `incomplete`
-means a step of the seven did not run — this machine has no `TEST_DATABASE_URL`,
-or you asked for `--quick`. Incomplete is not red, because there is no defect to
-point at, and it is not green, because 11.11 fixes seven steps.
+six ran and all six passed. `red at <step>` means one failed. `incomplete` means
+a step of the six did not run, or the test leg ran somewhere other than Postgres
+— this machine has no `TEST_DATABASE_URL`, or you asked for `--quick`.
+Incomplete is not red, because there is no defect to point at, and it is not
+green, because 11.11 fixes six steps and names the engine one of them runs on.
 
 **Read a red through CLAUDE.md before believing it.** Four flake classes are
 enumerated there and only two are answered by re-running. Nothing here tries to
@@ -182,7 +190,7 @@ async function main() {
   /** @type {{name: string, state: string, note: string, took: string}[]} */
   const rows = []
   let failedAt = null
-  /** Steps of the seven that did not run. A record with any of these is not green. */
+  /** Steps of the six that did not run, or ran off Postgres. Any of these is not green. */
   const missing = []
 
   const record = (name, state, note, took) => rows.push({ name, state, note, took })
@@ -207,7 +215,7 @@ async function main() {
     record(name, 'ok', verdict.note, took)
   }
 
-  // Step 1 of 11.11's seven. It is executed only when the lockfile has actually
+  // Step 1 of 11.11's six. It is executed only when the lockfile has actually
   // moved, and the comparison is against the merge base with origin/main rather
   // than against the working tree: what matters is whether this branch changed
   // the dependencies, not whether git happens to see the file as dirty.
@@ -217,7 +225,7 @@ async function main() {
   // So the two cases are said differently and neither is a guess: unmodified
   // since the base, and the record says the install was not re-run; modified,
   // and it is re-run here as a real step with its own timing, because the other
-  // six then ran against dependencies nobody had installed.
+  // five then ran against dependencies nobody had installed.
   const base = await read('git', ['merge-base', 'HEAD', 'origin/main'])
   const lockMoved =
     base === ''
@@ -247,29 +255,37 @@ async function main() {
   if (quick) {
     missing.push('the legs and the browser')
   } else {
-    // Empty rather than absent, which is the condition app/db/client.ts tests
-    // and the same spelling ci.yml uses on this step.
-    await step('test (PGlite)', 'npm', ['test'], { TEST_DATABASE_URL: '' }, vitestTally)
+    /*
+    One leg, and it is Postgres. Amended 2026-09-20 on the owner's ruling.
 
+    Until then this ran the same files twice, once on PGlite and once on
+    Postgres, and the second run was pure duplication for every file that
+    touches no engine-specific behaviour, which is nearly all of them. Postgres
+    is also the faster of the two here and the engine production actually runs,
+    so keeping PGlite as the mandatory leg was paying for the slower and less
+    faithful half.
+
+    What is given up is real and is written down rather than waved at: the
+    cross-engine class CLAUDE.md records — `current_date` reading in the
+    database session's zone, and text ordering under a locale PGlite does not
+    share — is now caught by whichever leg runs rather than by their
+    disagreement. 11.10's two locale checks still run inside the leg.
+
+    PGlite remains the fallback so that no machine ever runs zero tests. A run
+    that takes it is `incomplete` rather than green, on the same rule the old
+    missing-Postgres row used: the gate's job is to answer for the engine that
+    serves users, and a leg that did not touch it has not answered.
+    */
     if (havePostgres) {
       await step('test (Postgres 18)', 'npm', ['test'], { TEST_DATABASE_URL: postgres }, vitestTally)
-    } else if (failedAt !== null) {
-      // Nothing. An earlier step failed, the run has stopped, and a row saying
-      // this leg was unavailable would be describing a leg that was never
-      // reached for a different reason. `red at <step>` is the whole verdict.
     } else {
-      // Not a failure and not a pass. 11.11 fixes seven steps and this run did
-      // six, so the record cannot say green and must not say red either: red
-      // would read as a defect in the branch, and there is none. The one-time
-      // setup is spec 11.10's CREATE DATABASE statement, which is why the note
-      // names it rather than shrugging.
-      record(
-        'test (Postgres 18)',
-        'n/a',
-        'not available on this machine; TEST_DATABASE_URL is unset. Spec 11.10 has the setup',
-        '-',
-      )
-      missing.push('Postgres leg not available on this machine')
+      // Empty rather than absent, which is the condition app/db/client.ts tests
+      // and the same spelling ci.yml uses on this step.
+      await step('test (PGlite fallback)', 'npm', ['test'], { TEST_DATABASE_URL: '' }, vitestTally)
+
+      if (failedAt === null) {
+        missing.push('ran on PGlite; TEST_DATABASE_URL is unset, so no leg touched Postgres')
+      }
     }
   }
 
@@ -296,7 +312,17 @@ async function main() {
       // dead sit beside fresh ones with indistinguishable timestamps, and an
       // hour spent reading the wrong trace is how this was learned.
       await rm(new URL('../test-results/', import.meta.url), { recursive: true, force: true })
-      await step('playwright', 'npx', ['playwright', 'test'], undefined, playwrightTally)
+      // DANA_GATE_PREBUILT tells playwright.config.ts that the build step
+      // above already produced dist/client, so the browser leg's own server
+      // command skips the identical second `vite build`. Only the gate sets
+      // it, and only here, after that step has actually run.
+      await step(
+        'playwright',
+        'npx',
+        ['playwright', 'test'],
+        { DANA_GATE_PREBUILT: '1' },
+        playwrightTally,
+      )
     }
   }
 
@@ -318,9 +344,9 @@ async function main() {
   else if (dirtyAfter) treeLine = `tree dirty at ${shortSha} — edited while the run was going`
   if (moved) treeLine += `; HEAD moved to ${shaAfter} during the run`
 
-  // **Green means all seven ran and all seven passed, and nothing else does.**
+  // **Green means all six ran and all six passed, and nothing else does.**
   // A run that skipped one is `incomplete`: not red, because there is no defect
-  // to point at, and not green, because 11.11 fixes seven steps and this record
+  // to point at, and not green, because 11.11 fixes six steps and this record
   // is the evidence that they were answered for. `how-we-work.md` section 8 and
   // `hard-stops.md` both say a pull request needs a green gate, so a machine
   // with no Postgres cannot open one, and spec 11.10 carries the one CREATE

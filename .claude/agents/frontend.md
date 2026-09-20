@@ -30,7 +30,7 @@ Five things, repeated here because they are the ones that do damage:
 3. **Never edit a test to make your code pass.** If a test looks wrong, that is a finding.
    Say so and leave it failing. A criterion moves only when the decision it pins moves, and
    the pull request names it.
-4. **Run `npm run gate` from `app/`.** It runs the seven steps and prints a record. **The
+4. **Run `npm run gate` from `app/`.** It runs the six steps and prints a record. **The
    pull request exists only when that record is green on the head commit**, and it carries
    the record.
 5. **Say you are blocked rather than saying you are done.** A false green is worse than a

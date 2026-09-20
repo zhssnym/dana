@@ -19,8 +19,8 @@ import express from 'express'
 import { afterAll, beforeAll, expect, test } from 'vitest'
 
 import type { DbClient } from '../../../db/client.js'
-import { cleanupUsers, createTestDb, rows } from '../../../tests/helpers.js'
-import { TestBrowser } from '../../../tests/http-client.js'
+import { cleanupUsers, createTestDb, rows } from '../../../tests/support/helpers.js'
+import { TestBrowser } from '../../../tests/support/http-client.js'
 import { createAuthRouter } from './router.js'
 
 let dbClient: DbClient

@@ -9,7 +9,7 @@ on it, no `X-CSRF-Token` header, and no way to put either there. Everything
 under `/api/v1` requires both, and correctly, so an endpoint that cannot
 have them does not belong under that mount. It is `health.ts`'s neighbour
 for the same reason health is: a caller that is not a signed-in person.
-`tests/ac-236-structural-guard-sweep.test.ts` carries the exemption and the
+`tests/criteria/ac-236-structural-guard-sweep.test.ts` carries the exemption and the
 reason beside it.
 
 **What it may do is bounded to match.** It reads nothing, writes nothing,

@@ -32,24 +32,24 @@ import express from 'express'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
 import type { DbClient } from '../../../db/client.js'
-import type { AuthTestApp, EmailRecorder } from '../../../tests/auth-harness.js'
+import type { AuthTestApp, EmailRecorder } from '../../../tests/support/auth-harness.js'
 import {
   Cast,
   createFolder,
   defaultFolderOf,
   expectStatus,
-} from '../../../tests/folders-harness.js'
-import type { Actor } from '../../../tests/folders-harness.js'
-import { createTestDb } from '../../../tests/helpers.js'
-import { TestBrowser } from '../../../tests/http-client.js'
-import { startOidcStub } from '../../../tests/oidc-stub.js'
+} from '../../../tests/support/folders-harness.js'
+import type { Actor } from '../../../tests/support/folders-harness.js'
+import { createTestDb } from '../../../tests/support/helpers.js'
+import { TestBrowser } from '../../../tests/support/http-client.js'
+import { startOidcStub } from '../../../tests/support/oidc-stub.js'
 import {
   getView,
   middayZone,
   seedViewTask,
   shiftDate,
   todayIn,
-} from '../../../tests/views-harness.js'
+} from '../../../tests/support/views-harness.js'
 import {
   getAllResponse,
   getDoneResponse,

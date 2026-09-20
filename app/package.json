@@ -18,6 +18,7 @@
     "gate": "node scripts/gate.mjs",
     "e2e": "playwright test",
     "e2e:app": "vite build && tsx db/seed.ts && tsx src/server/index.ts",
+    "e2e:app:prebuilt": "tsx db/seed.ts && tsx src/server/index.ts",
     "e2e:install": "playwright install chromium",
     "db:seed": "tsx db/seed.ts",
     "db:verify": "tsx db/verify.ts"
