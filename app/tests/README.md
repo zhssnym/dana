@@ -202,6 +202,20 @@ defect exactly — and **re-adding a JavaScript name fold** takes two red,
 answering `422 folders.0.labels: … the name "φως" is declared twice in one
 folder`, which is the false 422 end to end.
 
+**And a third, 2026-09-20, for the field path itself.** Every assertion of
+`folders.<n>.labels` in the suite was made against a **one-folder** file —
+AC-780's first three cases and AC-782's fourth all read `folders.0.labels` — so
+the folder index the mapping carries had no watcher at all: hard-wiring
+`createWorkflowFolderLabels`'s `folderIndex` argument to `0` at its call site in
+`domain/acts.ts` left all four green. AC-780's sixth case is that watcher; it
+imports a two-folder file whose second folder collides, and under that mutation
+it is the only red in AC-780 and AC-782 together, answering
+`folders.0.labels: … the name "ac780 URGENT" is declared twice` where
+`folders.1.labels` is where the two definitions are. It asserts the rows as well:
+the clean first folder, its definition and its task are all written before the
+second folder throws, so the transaction taking them back is the half of the
+rule the response cannot show.
+
 **Every one of the fifteen was proved by breaking the code it watches**, one
 mutation at a time against the real Postgres leg, and two of them were green
 under a mutation the first time and were fixed rather than shrugged at: AC-547's

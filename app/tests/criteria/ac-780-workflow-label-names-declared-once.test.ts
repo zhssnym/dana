@@ -151,6 +151,20 @@ async function foldersNamed(ownerId: string, name: string): Promise<string[]> {
   return found.rows.map((row) => String(row.id))
 }
 
+/** Every Folder Label definition in the database carrying a name, whatever
+ * folder holds it. `folderLabelRows` takes a folder id, and the folder whose
+ * vocabulary a rolled-back import wrote no longer has one — so this is the
+ * only way to ask whether the definitions the transaction *did* write before
+ * it threw are still there. Names in this file are prefixed `ac780` so the
+ * question stays about this file's rows. */
+async function labelsNamed(name: string): Promise<string[]> {
+  const found = (await app.db.execute(
+    sql`SELECT id FROM labels
+         WHERE scope = 'folder' AND name = ${name}`,
+  )) as unknown as { rows: { id: unknown }[] }
+  return found.rows.map((row) => String(row.id))
+}
+
 beforeAll(async () => {
   app = await startAuthTestApp()
 }, 60_000)
@@ -333,5 +347,72 @@ describe('AC-780 one folder, one Label name', () => {
       [leftLabel?.color, rightLabel?.color],
       'each keeping the colour its own folder declared, which is what "not merged by name" looks like from the table',
     ).toEqual(['#AA1122', '#112233'])
+  })
+
+  /*
+  The path is the folder's own, and every other assertion of it in the suite
+  is blind to that. Cases one to three above and AC-782's fourth all import a
+  **one-folder** file and all assert `folders.0.labels`, so a `folderIndex`
+  hard-wired to `0` — or a later refactor hoisting `createWorkflowFolderLabels`
+  out of the indexed loop, which is the likelier way it goes — passes every one
+  of them while telling the owner of a twenty-folder file to go and look at the
+  wrong folder. This is the only case in the suite where the two differ.
+
+  The first folder is clean and is imported before the second is refused, so
+  its folder row, its Label and its task all exist when the throw happens: the
+  row assertions below are about what the rollback takes back rather than about
+  what was never written, which is the half a reading of the response alone
+  cannot see.
+  */
+  test('the 422 names the folder the collision is in, not the first folder of the file', async () => {
+    const [importer] = (await cast.of(app)) as [Actor]
+    const refused = await importWorkflow(importer, {
+      dana: 'workflow',
+      version: 3,
+      name: 'ac780 the second folder',
+      folders: [
+        {
+          name: 'ac780 clean first',
+          labels: [{ key: 'l1', name: 'ac780 Someday', color: '#AA1122' }],
+          tasks: [{ title: 'ac780 first work', labels: ['l1'] }],
+        },
+        {
+          name: 'ac780 colliding second',
+          labels: [
+            { key: 'l1', name: 'ac780 Urgent', color: '#112233' },
+            { key: 'l2', name: 'ac780 URGENT', color: '#334455' },
+          ],
+          tasks: [{ title: 'ac780 second work', labels: ['l1'] }],
+        },
+      ],
+    })
+    expect(
+      refused.status,
+      'the collision is in the second folder and is refused the same way the first would have been: labels_folder_name_idx raises 23505 on the second INSERT of that folder’s vocabulary, and createWorkflowFolderLabels maps it (spec 7.16, 10.3; issue #227 area 4)',
+    ).toBe(422)
+    expect(
+      messageOf(refused),
+      'and the field path is the index of the folder the two definitions are in rather than the first folder of the file: WorkflowLabelNameConflict is thrown with the folderIndex importWorkflow is iterating, and a hard-wired 0 — or a createWorkflowFolderLabels hoisted out of that loop — would send the file’s owner to a folder that has nothing wrong with it',
+    ).toMatch(/^folders\.1\.labels: /)
+    expect(
+      messageOf(refused),
+      'in the same voice as every other arrangement of this collision',
+    ).toContain('without regard to case')
+
+    expect(
+      await foldersNamed(importer.id, 'ac780 clean first'),
+      'and the folder the import had already finished is gone with the one it refused: the whole file is one transaction, so a first folder left standing would be half an import that the 422 says did not happen',
+    ).toEqual([])
+    expect(
+      await foldersNamed(importer.id, 'ac780 colliding second'),
+      'the refused folder no more than the clean one, it having been created three statements before its vocabulary was',
+    ).toEqual([])
+    expect(
+      [
+        ...(await labelsNamed('ac780 Someday')),
+        ...(await labelsNamed('ac780 Urgent')),
+      ],
+      'and no definition survives either — the first folder’s was written and committed to nothing, and the second folder’s first name reached the table before its partner collided with it',
+    ).toEqual([])
   })
 })
