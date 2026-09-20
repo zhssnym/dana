@@ -26,11 +26,20 @@ implementation emitting a row per covered day contains everything it should.
 
 **What this criterion does not assert is the bar.** Drawing a span across
 cells, and splitting it at week boundaries, is the client slice #216 hands to
-the frontend after this contract. `components/calendar/order.ts` currently
-places a real row on its due date where it has one and on its start date
-otherwise, which draws the two one-day forms correctly and draws a pair as a
-single chip on its deadline. That is stated here rather than implied, so the
-next reader knows this file proves the data and not the picture.
+the frontend after this contract. What `components/calendar/order.ts` draws is
+one chip: on the row's due date where the grid holds that day, on its start
+date where the grid holds that one instead, and on the grid's first day where
+the span encloses the whole range and holds neither end - which is the last
+case below, and the case a placement reading the due date alone put in a cell
+that does not exist. That is stated here rather than implied, so the next
+reader knows this file proves the data and not the picture.
+
+(It read "places a real row on its due date where it has one and on its start
+date otherwise" until 2026-09-20. That was the client at the moment this file
+was written and it is what made the row this criterion had just delivered
+vanish from the screen: a grid holding only the start end of a span placed the
+chip on a day it was not drawing. `components/calendar/order.test.ts` carries
+the client half.)
 
 **Q3C's order leads on the first day of the Schedule, which is the opposite
 of Q3's choice, and the fixture makes the two disagree.** The rows below are
