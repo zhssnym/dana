@@ -81,6 +81,17 @@ key, so AC-116 is untouched. Five criteria moved: AC-119 to AC-121 rewritten aga
 bundle, AC-122 and AC-123 retired, each with its reason in 12.3. The retirement ships in the
 same deploy as its client half (#150) and after it, which is what makes it safe.
 
+**Seventh, 7.24 is a new subsection added 2026-09-20 (issue #223), and it is purely
+additive.** It is the Dana Link foundation: a way to resolve a supported internal Dana
+URL into the small summary a reference chip draws, and a contextual search for the
+picker that will use it. No existing endpoint, response, status or field changes, and
+nothing that parsed before stops parsing. It is written as its own file rather than
+inside 7.10 because it is a surface with its own grammar, its own closed set of target
+kinds, and an authorization argument of its own — that a reference never grants access,
+and that an inaccessible target must be indistinguishable from a nonexistent one. It
+adds no table: a Dana Link's durable form is the href a rich-content block already
+holds, and 7.24 resolves it live.
+
 | | File | Covers |
 | - | - | - |
 | 7.0 | [`07.0-conventions.md`](07.0-conventions.md) | 7.0 Conventions |
@@ -107,3 +118,4 @@ same deploy as its client half (#150) and after it, which is what makes it safe.
 | 7.21 | [`07.21-place-descriptions.md`](07.21-place-descriptions.md) | 7.21 Place descriptions |
 | 7.22 | [`07.22-data-export.md`](07.22-data-export.md) | 7.22 Data export |
 | 7.23 | [`07.23-settings-bundle.md`](07.23-settings-bundle.md) | 7.23 The settings bundle |
+| 7.24 | [`07.24-dana-link-references.md`](07.24-dana-link-references.md) | 7.24 Dana Link references |
