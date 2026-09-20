@@ -1,7 +1,10 @@
 ## 12. Acceptance criteria
 
-Given/when/then, one behavior each. Each criterion is asserted by an automated test under
-`app/tests/` named for its number, and this section is the definition of done. Who added a
+Given/when/then, one behavior each, and this section is the definition of done. **Most
+criteria here have no executable form**, and a number that resolves to no file under
+`app/tests/` is still the specification of Dana's behaviour: the suite was cut to a core
+set on 2026-09-20 on the owner's ruling, and `app/tests/README.md` carries what was kept,
+on what rule, and how to run what is left. Who added a
 criterion and when is git's: `git log -S 'AC-268' -- docs/spec/` finds the commit that
 introduced one, with its date and its message.
 

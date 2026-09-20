@@ -46,7 +46,7 @@ handling, and PGlite's single connection.
 | - | - |
 | `docs/README.md` | **What belongs in `docs/` at all, added 2026-09-20.** One rule: if an agent could answer it by reading the code or running something in under a minute, it does not go there; if an agent could not answer it at all, it goes there and nowhere else. Read it before writing any document, and before defending one against deletion |
 | `docs/spec/` | The single source of truth, one contract split by numbered section. `README.md` maps the numbers; **section N is the directory beginning with N, section N.M is the file inside it beginning with N.M**. Sections 4 and 7 are frozen |
-| `docs/rfcs/` | Proposals to change the contract. RFCs 0001 to 0005 describe builds that are finished, and are history rather than instructions. New RFCs are per feature |
+| `docs/rfcs/` | History. RFCs 0001 to 0005 describe builds that are finished, and are history rather than instructions. **The process that produced them is not being followed and nothing new goes here** — measured 2026-09-20 at issue #247, `docs/workflow/big-features.md` |
 | `AGREEMENT.md` | The working agreement between the two people building Dana. A human document, not a specification. **No rule for an agent is derived from it** |
 | `CHANGELOG.md` | What changed per release. Its `[1.0.0]` block is a decision log of the v1 build and is being cut back |
 | `app/` | The application |
