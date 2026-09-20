@@ -2,14 +2,19 @@
 Q3C: GET /views/planned/calendar, the real rows of the grid and the ghosts
 drawn beside them.
 
-Two things separate this from Q3, and an implementation that reuses the
-Planned comparator here gets both wrong.
+Three things separate this from Q3, and an implementation that reuses the
+Planned comparator here gets all of them wrong.
 
 The predicate admits all three statuses, because "the calendar is a record":
 pending renders normal, completed faded and checked, abandoned faded and
 struck. Every other list view of section 6 drops at least one status, so this
 is the one place an over-copied status filter is invisible until a completed
 row goes missing from a past date.
+
+The range is an overlap rather than a containment, and the date it leads on
+is the Schedule's first day rather than its last. Both are issue #216's and
+both are argued where they are written below; the short of it is that a list
+places a task under the day it is owed and a grid draws its whole span.
 
 And the order is the cell's rather than the list's: "all-day banners first
 (status_rank, id), then timed rows (due_time, status_rank, id), then ghosts".
@@ -50,8 +55,10 @@ import { compareDates, virtualInstances } from '../time/index.js'
 import type { CalendarDate } from '../time/index.js'
 
 import {
+  ACTIVATION_DATE,
   DUE_DATE,
   DUE_TIME,
+  SCHEDULE_DATE,
   STATUS_RANK,
   accessibleTasks,
   nullableString,
@@ -65,8 +72,16 @@ import {
  * and the cell order follows within it; a client draws cells by date without
  * sorting anything, which is what section 6 means by every view returning
  * rows already ordered.
+ *
+ * **The leading date is the first day of the Schedule since issue #216, not
+ * the due date, and it is the opposite choice from Q3's.** A list is a ladder
+ * of deadlines and places a task under the day it is owed; a grid draws a
+ * Start-to-Due pair as one bar, and a bar is anchored where it begins. So the
+ * list leads on SCHEDULE_DATE and the grid on ACTIVATION_DATE, and for the
+ * two states that carry one date - due-only and start-only - the two
+ * expressions are the same date and nothing moved.
  */
-const Q3C_ORDER = sql`t.due_date ASC,
+const Q3C_ORDER = sql`${ACTIVATION_DATE} ASC,
        (t.due_time IS NOT NULL) ASC, t.due_time ASC NULLS FIRST,
        ${STATUS_RANK} ASC, t.id ASC`
 
@@ -144,14 +159,36 @@ function ghostsOf(
 }
 
 /**
- * GET /views/planned/calendar.
+ * GET /views/planned/calendar, whose real rows are the tasks whose Schedule
+ * overlaps the requested range.
  *
- * "Real rows: folder_id IN ACCESSIBLE(V) AND due_date BETWEEN start AND end,
- * all three statuses." BETWEEN is inclusive at both ends, which is the
- * reading AC-126 pins from both sides, and the dates are compared as dates
- * rather than as instants: 4.11 makes due_date floating, so no zone enters
- * this predicate and tz reaches this endpoint only as the parameter 7.0
- * requires of every view.
+ * Q3C said "due_date BETWEEN start AND end" until issue #216 gave a task a
+ * span rather than a day.
+ *
+ * The old reading is still what this does for the two one-date states: a
+ * Schedule whose ends are the same day overlaps a range exactly when that
+ * day is inside it.
+ * What it adds is the state a bar is drawn for. A task starting 28 September
+ * and due 3 October has to reach an October grid that holds neither of the
+ * days its bar begins on, and it has to reach the September one too, or the
+ * same bar disappears from one month and reappears in the next.
+ *
+ * Inclusive at both ends, which AC-126 pins from both sides and which the
+ * comparison keeps: overlap of two inclusive spans is "each begins no later
+ * than the other ends". ACTIVATION_DATE and SCHEDULE_DATE are the two ends of
+ * the task's own span under `tasks_start_before_due_check`, and neither is
+ * null for a row this predicate can admit, since a task with no date has no
+ * span to overlap anything.
+ *
+ * One row per task, whatever its span covers: the row carries both of its
+ * dates and the grid draws one bar from them. Q3C's array is not a list of
+ * cells and never was - the ghosts already put several entries on one task -
+ * but a real row appearing once per day it covers would be the duplication
+ * #216 refuses, and it is not what this returns.
+ *
+ * The dates are compared as dates rather than as instants: 4.11 makes both
+ * floating, so no zone enters this predicate and tz reaches this endpoint
+ * only as the parameter 7.0 requires of every view.
  */
 export async function plannedCalendarView(
   executor: Executor,
@@ -161,7 +198,8 @@ export async function plannedCalendarView(
 ): Promise<GetPlannedCalendarResponse> {
   const rows = await readCards(executor, {
     viewerId,
-    where: sql`t.due_date BETWEEN ${start}::date AND ${end}::date`,
+    where: sql`${ACTIVATION_DATE} <= ${end}::date
+               AND ${SCHEDULE_DATE} >= ${start}::date`,
     order: Q3C_ORDER,
   })
   const series = await projectionSources(executor, viewerId)

@@ -15,9 +15,15 @@ minimum, myDayGroup for the Carried and Today boundary, and localDayWindow
 for Q1R's "completed_at falls on today in V's timezone".
 
 The one date comparison that is not a call is the automatic clause's
-due_date <= today, which has to run in SQL to reach an index. It is written
-once, in AUTOMATIC below, and read back as a column so the row-level decision
-that follows is the helper's rather than a second copy of the comparison.
+activation date <= today, which has to run in SQL over a whole list. It is
+written once, in automaticClause below, and both it and the date it compared
+are read back as columns, so the row-level decision that follows is the
+helper's rather than a second copy of the comparison.
+
+Which date that clause reads moved on 2026-09-20 with issue #217: it is the
+start date where a task has one and the due date otherwise, so a Schedule
+begins surfacing on Today on the day its work is meant to begin. The clause
+moved; no second clause was added beside it.
 */
 import { sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
@@ -28,20 +34,41 @@ import { takeCapped } from '../../shared/views.js'
 import type { Executor } from '../database.js'
 import { localDayWindow, myDayGroup, qualifyDate, today } from '../time/index.js'
 
-import { CAP_PROBE, readCards } from './cards.js'
+import { ACTIVATION_DATE, CAP_PROBE, readCards } from './cards.js'
 
 /**
- * Q1's automatic clause: "assignee_id = V AND due_date IS NOT NULL AND
- * due_date <= today". The other arm of the OR is the My Day entry, which the
- * card source already joins.
+ * Q1's automatic clause: "assignee_id = V AND the task's activation date is
+ * not null AND that date <= today". The other arm of the OR is the My Day
+ * entry, which the card source already joins.
+ *
+ * **It read `due_date IS NOT NULL AND due_date <= today` until 2026-09-20,
+ * and issue #217 moved the date rather than adding a second clause beside
+ * it.** That is the issue's own requirement - "reconcile this with the
+ * existing Today automatic clause rather than layering a second contradictory
+ * qualification path beside it" - and it is also the only way the grouping
+ * below stays one rule: 8.2 computes qualify_date from whatever the automatic
+ * clause held on, so a second arm would mean a second qualify date and two
+ * answers to which group a row lands in.
+ *
+ * The date is ACTIVATION_DATE, the start date where the task has one and the
+ * due date otherwise. Under `tasks_start_before_due_check` that is the
+ * earlier end of the Schedule, so this clause is a widening and never a
+ * narrowing: every row it admitted before it admits still, because a task
+ * whose due date has arrived has a start date no later than it. What is new
+ * is that a task starting today and due in ten days qualifies on the day it
+ * starts, and a start-only task qualifies from its start and stays while it
+ * is open, both of which are #217's accepted behaviour.
+ *
+ * Nothing here is a status, a priority or an assignment: the row is the same
+ * row, and the only thing that changed is which day it began appearing.
  *
  * One fragment used twice, in the predicate and in the projection, because
- * qualify_date is "the due_date when the automatic clause holds" and a
+ * qualify_date is "the activation date when the automatic clause holds" and a
  * second spelling of the clause could hold in one place and not the other.
  */
 function automaticClause(viewerId: string, todayLocal: string): SQL {
-  return sql`(t.assignee_id = ${viewerId} AND t.due_date IS NOT NULL
-              AND t.due_date <= ${todayLocal}::date)`
+  return sql`(t.assignee_id = ${viewerId} AND ${ACTIVATION_DATE} IS NOT NULL
+              AND ${ACTIVATION_DATE} <= ${todayLocal}::date)`
 }
 
 /**
@@ -71,19 +98,30 @@ async function openGroups(
        id stays behind it as the deterministic tiebreak. */
     order: sql`t.due_date ASC NULLS LAST, t.due_time ASC NULLS FIRST, t.created_at ASC, t.id ASC`,
     limit: CAP_PROBE,
+    /* The activation date is read back as a column rather than rebuilt in
+       JavaScript from the card's two dates. The header's rule: the comparison
+       is written once, in SQL, and what follows is the helper's decision over
+       what that one expression said. `start_date ?? due_date` here would be a
+       second copy of ACTIVATION_DATE that could one day disagree with the
+       clause that admitted the row. */
     extra: sql`${automatic} AS automatic,
+               to_char(${ACTIVATION_DATE}, 'YYYY-MM-DD') AS activation_date,
                to_char(e.added_on, 'YYYY-MM-DD') AS added_on`,
   })
 
   const carried: TaskCard[] = []
   const todayGroup: TaskCard[] = []
   for (const row of rows) {
-    // 8.2: the least of the due_date, when the automatic clause holds for
-    // this row, and the entry's added_on, when an entry exists. At least one
-    // is present for every row the predicate admits, which is why the helper
-    // throws rather than defaulting when neither is.
+    // 8.2: the least of the activation date, when the automatic clause holds
+    // for this row, and the entry's added_on, when an entry exists. At least
+    // one is present for every row the predicate admits, which is why the
+    // helper throws rather than defaulting when neither is.
     const qualify = qualifyDate(
-      row.raw.automatic === true ? row.card.due_date : null,
+      row.raw.automatic === true &&
+        row.raw.activation_date !== null &&
+        row.raw.activation_date !== undefined
+        ? String(row.raw.activation_date)
+        : null,
       row.raw.added_on === null || row.raw.added_on === undefined
         ? null
         : String(row.raw.added_on),

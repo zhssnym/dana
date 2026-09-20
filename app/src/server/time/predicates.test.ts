@@ -5,7 +5,7 @@ import {
   CALENDAR_RANGE_MAX_DAYS,
   checkCalendarRange,
   dueRelation,
-  isDueByToday,
+  isActiveByToday,
   myDayGroup,
   qualifyDate,
 } from './predicates.js'
@@ -32,18 +32,18 @@ describe('dueRelation, section 8.1s boundary statement', () => {
   })
 })
 
-describe('isDueByToday, My Days automatic clause', () => {
+describe('isActiveByToday, My Days automatic clause', () => {
   test('admits D <= today and nothing after it', () => {
-    expect(isDueByToday(addDays(TODAY, -3), TODAY)).toBe(true)
-    expect(isDueByToday(TODAY, TODAY)).toBe(true)
-    expect(isDueByToday(addDays(TODAY, 1), TODAY)).toBe(false)
+    expect(isActiveByToday(addDays(TODAY, -3), TODAY)).toBe(true)
+    expect(isActiveByToday(TODAY, TODAY)).toBe(true)
+    expect(isActiveByToday(addDays(TODAY, 1), TODAY)).toBe(false)
   })
 
   test('has no lower bound, which is what makes AC-046 hold on every later day', () => {
     // AC-046's "on every subsequent day" follows from the absence of a floor
     // in the clause, not from any test that can run the clock forward.
     for (const back of [1, 3, 30, 365, 3650]) {
-      expect(isDueByToday(addDays(TODAY, -back), TODAY)).toBe(true)
+      expect(isActiveByToday(addDays(TODAY, -back), TODAY)).toBe(true)
     }
   })
 })

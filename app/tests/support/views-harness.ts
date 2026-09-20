@@ -327,6 +327,7 @@ export interface Card extends Record<string, unknown> {
   title: string
   status: string
   important: boolean
+  start_date: string | null
   due_date: string | null
   due_time: string | null
   pulled: boolean
@@ -829,6 +830,12 @@ export interface SeedViewTaskOptions {
   status?: 'pending' | 'completed' | 'abandoned'
   important?: boolean
   assigneeId?: string | null
+  /** 4.5's start_date. Named beside dueDate because the Schedule is a pair
+   * and the four valid states are what the view criteria of #216 and #217
+   * are about; `tasks_start_before_due_check` refuses a fixture that names
+   * both the wrong way round, which is the fixture failing rather than the
+   * result passing. */
+  startDate?: string | null
   dueDate?: string | null
   dueTime?: string | null
   createdAt?: string
@@ -860,11 +867,12 @@ export async function seedViewTask(
     : null
   await db.execute(sql`
     INSERT INTO tasks (id, folder_id, title, notes, status, important,
-                       due_date, due_time, assignee_id, created_by,
+                       start_date, due_date, due_time, assignee_id, created_by,
                        completed_at, completed_by, created_at, updated_at)
     VALUES (${id}::uuid, ${options.folderId}::uuid,
             ${options.title ?? `p4 task ${id.slice(0, 8)}`},
             ${options.notes ?? null}, ${status}, ${options.important ?? false},
+            ${options.startDate ?? null}::date,
             ${options.dueDate ?? null}::date, ${options.dueTime ?? null}::time,
             ${options.assigneeId ?? null}::uuid, ${options.createdBy}::uuid,
             ${completedAt}::timestamptz, ${completedBy}::uuid,

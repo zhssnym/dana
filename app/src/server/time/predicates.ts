@@ -29,20 +29,37 @@ export function dueRelation(
   return 'due_today'
 }
 
-/** My Day's automatic clause, which 8.1 says admits D <= today(V) and 8.2
- * spells as `due_date <= today`. The clause's other half, that the task is
- * assigned to V, is a scope condition and belongs to the query. */
-export function isDueByToday(
-  dueDate: CalendarDate,
+/**
+ * My Day's automatic clause, which 8.1 says admits D <= today(V).
+ *
+ * D is the task's **activation date** since issue #217: the start date where
+ * a task has one and the due date otherwise, which 8.2 now spells as
+ * `coalesce(start_date, due_date) <= today`. The arithmetic did not move and
+ * neither did this function; which date is handed to it did. The clause's
+ * other half, that the task is assigned to V, is a scope condition and
+ * belongs to the query.
+ *
+ * The comparison runs in SQL over a list, so the caller in views/my-day.ts is
+ * the query rather than this function; this is the same sentence in
+ * JavaScript, for the one-row reader and for the test that pins the boundary.
+ */
+export function isActiveByToday(
+  activationDate: CalendarDate,
   today: CalendarDate,
 ): boolean {
-  return compareDates(dueDate, today) <= 0
+  return compareDates(activationDate, today) <= 0
 }
 
 /**
- * 8.2's qualify_date: the least of the automatic date (the due_date, when the
- * automatic clause holds for this row) and the pulled date (the My Day
- * entry's added_on, when an entry exists).
+ * 8.2's qualify_date: the least of the automatic date (the activation date,
+ * when the automatic clause holds for this row) and the pulled date (the My
+ * Day entry's added_on, when an entry exists).
+ *
+ * The automatic date was the due_date until issue #217. It is the day the
+ * automatic clause began to hold, which is what makes the grouping below one
+ * rule rather than two: a task that started three days ago and is not yet due
+ * has been carrying since it started, and lands in Carried for the same
+ * reason an overdue task does.
  *
  * At least one is present for any row Q1's predicate admits, which is why a
  * pair of nulls throws rather than returning one: a row reaching here with
@@ -73,7 +90,8 @@ export type MyDayGroup = 'carried' | 'today'
  * Q1's grouping boundary.
  *
  * Only two groups exist, and a qualify_date after today cannot arise: the
- * automatic date is admitted only when due_date <= today, and added_on is the
+ * automatic date is admitted only when the activation date is on or before
+ * today, and added_on is the
  * adder's local date at pull time, so both candidates are today or earlier and
  * so is their minimum. A date after today is therefore grouped with Today
  * rather than dropped, because a row in neither group is the one outcome Q1

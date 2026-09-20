@@ -53,6 +53,7 @@ import {
 } from '../components/ui/copy.js'
 import { folderDisplay, presenterToday, taskRowDisplay } from '../parts/presenters.js'
 import type { RowContext } from '../parts/presenters.js'
+import { isScheduled } from '../parts/schedule.js'
 import { useTimeFormat } from '../lib/time-format.js'
 import type { TimeFormat } from '../lib/time-format.js'
 import { pushUndo, undoLabel } from '../shell/undo.js'
@@ -371,12 +372,22 @@ function useListActs(
     the order the list now shows, because 7.6's body names "the two rows the
     task was dropped between in its folder's unscheduled list" and the folder
     page's list is Q7's, Scheduled first then Unscheduled, concatenated. A
-    dated row carries no hand order (the endpoint's own 409), so a drag of one
-    is answered `false` here rather than sent to be refused: the refusal is a
-    state the client can read off the row, and a toast for a rule the row
-    already shows would be noise. A dated row a person drags past is skipped
-    for the same reason, so an undated task dropped among the scheduled rows
-    is placed first in the unscheduled list, which is where it will draw.
+    Scheduled row carries no hand order (the endpoint's own 409), so a drag of
+    one is answered `false` here rather than sent to be refused: the refusal
+    is a state the client can read off the row, and a toast for a rule the row
+    already shows would be noise. A Scheduled row a person drags past is
+    skipped for the same reason, so an Anytime task dropped among the
+    scheduled rows is placed first in the unscheduled list, which is where it
+    will draw.
+
+    **Scheduled here means the Schedule and not the due date, since issue
+    #216.** Both tests read `due_date === null` until 2026-09-20, which is what
+    `placeTaskInOrder` compared until the same day; the server moved to "a
+    start date or a due date" and this did not, so a drag of a Start-only row
+    was sent to an endpoint that now refuses it, and a Start-only peer was
+    counted into a neighbour list `folderUnscheduledIds` no longer returns -
+    which is a position computed against rows that are not in the list the
+    position is for.
 
     On success the views are read back before the list is told, because the
     list drops its own copy on the answer and must find the server's order
@@ -387,10 +398,10 @@ function useListActs(
       if (!arrangeable) return false
       const task = next[to] === undefined ? undefined : byId.get(next[to])
       if (task === undefined || from === to) return false
-      if (task.due_date !== null || task.status !== 'pending') return false
+      if (isScheduled(task) || task.status !== 'pending') return false
       const peers = next.filter((id) => {
         const peer = byId.get(id)
-        return peer !== undefined && peer.due_date === null && peer.status === 'pending'
+        return peer !== undefined && !isScheduled(peer) && peer.status === 'pending'
       })
       const at = peers.indexOf(task.id)
       const body = { after_id: peers[at - 1] ?? null, before_id: peers[at + 1] ?? null }

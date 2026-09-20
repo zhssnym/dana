@@ -52,7 +52,8 @@ export type PlaceTaskResult =
   | { kind: 'placed'; task: TaskDetail }
   /** The task is gone or the caller is not a member: 10.2's one answer. */
   | { kind: 'not_found' }
-  /** A dated or completed task, which the unscheduled list does not hold. */
+  /** A Scheduled or completed task, which the unscheduled list does not
+   * hold. */
   | { kind: 'not_arrangeable' }
   | { kind: 'bad_neighbour'; field: 'after_id' | 'before_id' }
 
@@ -93,7 +94,14 @@ export async function placeTaskInOrder(
   return inTransaction(db, async (tx) => {
     const task = await accessibleTask(tx, viewerId, taskId)
     if (task === null) return { kind: 'not_found' } as const
-    if (task.dueDate !== null || task.status === 'completed') {
+    /* Arrangeable means "in the list this endpoint orders", so the test is
+       Q2's membership and not a column. It read `task.dueDate !== null` until
+       issue #216 made Scheduled mean either date: a start-only task leaves
+       the unscheduled list exactly as a due-only one does, and accepting a
+       placement for a row `folderUnscheduledIds` no longer returns would
+       write a position nothing ever reads. */
+    const scheduled = task.startDate !== null || task.dueDate !== null
+    if (scheduled || task.status === 'completed') {
       return { kind: 'not_arrangeable' } as const
     }
     if (neighbours.afterId === taskId) {

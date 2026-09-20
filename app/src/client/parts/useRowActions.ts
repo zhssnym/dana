@@ -209,6 +209,10 @@ export function useRowActions(): RowActions {
           ? {}
           : { assignee_id: task.assignee?.id ?? null }),
         ...(value.due_date === undefined ? {} : { due_date: task.due_date }),
+        /* The other end of the Schedule, which a date column's drop writes
+           instead of the due date for a Start-only row (issue #216). Same
+           rule as every key above: invert only what the drop wrote. */
+        ...(value.start_date === undefined ? {} : { start_date: task.start_date }),
         /* S26, item 44's B2: where a card came from, so the undo puts it
            back under the section it was dragged out of. */
         ...(value.section_block_id === undefined
