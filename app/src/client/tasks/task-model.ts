@@ -263,6 +263,21 @@ export interface ConceptComment {
   `comment.moderate`, Full control's, and ownership is custody (AC-790).
   */
   deletable?: boolean
+  /**
+   * Whether this viewer may edit **this** comment, which the lab drew on
+   * `mine` alone. Added 2026-09-20 (issue #268): `comment.mutate.own` is
+   * authorship **and** currently holding Can comment or better, so a member
+   * downgraded to Can view keeps their words and loses the pencil. Absent
+   * falls back to `mine`, the lab's answer (AC-790).
+   */
+  editable?: boolean
+  /**
+   * Whether this viewer may like or unlike at all. #228's Can-comment list
+   * carries the pair and Can view leaves no mark on a thread; the lab has no
+   * such concept and offered it to everyone. Absent falls back to true
+   * (AC-790).
+   */
+  likeable?: boolean
   replies?: ConceptComment[]
 }
 

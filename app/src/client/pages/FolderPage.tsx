@@ -944,17 +944,31 @@ export function FolderPage({
     (authorId: string) => authorPeople.get(authorId) ?? { name: 'Someone' },
     [authorPeople],
   )
-  /* Who may remove somebody else's words here. It read `isOwner` until
-     2026-09-20 (issue #268), which had been false since R8A landed:
-     `DELETE /comments/:id` resolves moderation as `comment.moderate`, which is
-     Full control's, so a Full-control administrator who owns nothing was
-     offered no Delete and a demoted owner was offered one the route refuses
-     403. Same table, same call as every other gate on this page (AC-790). */
+  /* What this folder's conversation may offer. It was one boolean, `isOwner`,
+     until 2026-09-20 (issue #268), and every part of that was wrong: the
+     route resolves moderation as `comment.moderate` (Full control's, which
+     custody does not confer) and the author's own edit and delete as
+     `comment.mutate.own` (Can comment or better, which authorship does not
+     confer). Same table, same call as every other gate on this page (AC-790).
+
+     Memoised because it is the identity `useConceptThread` keys its own
+     memo on; `gates` is rebuilt every render, so an inline object would
+     remap the whole thread each time. Null gates means the roster has not
+     landed, and the honest answer then is to offer nothing rather than to
+     guess — the same direction every other gate on this page takes. */
+  const mayConverse = useMemo(
+    () => ({
+      moderate: gates?.moderate === true,
+      mutateOwnComment: gates?.mutateOwnComment === true,
+      likeComment: gates?.likeComment === true,
+    }),
+    [gates?.moderate, gates?.mutateOwnComment, gates?.likeComment],
+  )
   const conversation = useConceptThread(
     thread.data?.comments,
     basis.viewerId,
     personOf,
-    gates?.moderate === true,
+    mayConverse,
   )
 
   /*

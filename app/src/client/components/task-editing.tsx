@@ -153,17 +153,25 @@ export function useTaskEditing(editing: string | null): TaskEditing {
 
   /* The thread's own folder row, which `GET /folders` already answered for
      every page in this client, read through the same gate the sidebar's
-     folder row and the folder page use. `false` while the library is loading
-     or the folder is not in it, which leaves Delete on authorship alone. */
+     folder row and the folder page use. Everything false while the library
+     is loading or the folder is not in it, which offers nothing rather than
+     guessing — the direction every other gate in this client takes. */
   const threadFolder = folders.data?.find((row) => row.id === threadFolderId)
-  const moderates =
-    threadFolder === undefined
-      ? false
-      : folderGates({
-          access: threadFolder.my_access,
-          isOwner: threadFolder.is_owner,
-          isDefault: threadFolder.is_default,
-        }).moderate
+  const mayConverse = useMemo(() => {
+    if (threadFolder === undefined) {
+      return { moderate: false, mutateOwnComment: false, likeComment: false }
+    }
+    const gates = folderGates({
+      access: threadFolder.my_access,
+      isOwner: threadFolder.is_owner,
+      isDefault: threadFolder.is_default,
+    })
+    return {
+      moderate: gates.moderate,
+      mutateOwnComment: gates.mutateOwnComment,
+      likeComment: gates.likeComment,
+    }
+  }, [threadFolder])
 
   const conversation = useMemo(
     () =>
@@ -173,20 +181,21 @@ export function useTaskEditing(editing: string | null): TaskEditing {
         (authorId) => authorPeople.get(authorId) ?? { name: 'Someone' },
         Date.now(),
         /*
-        The other half of who may delete: whether this viewer moderates the
-        folder the thread belongs to.
+        What this viewer's Access lets the thread offer.
 
-        **It read `is_owner` off the same library row until 2026-09-20 (issue
-        #268)**, and that had been false since #228's R8A landed — moderation
-        is `comment.moderate`, which is Full control's, and custody neither
-        confers nor implies it. `my_access` rides the same row (Hassan's
-        Ruling 4 of 2026-09-20), so the correct gate costs the same lookup and
-        goes through `lib/folder-authority.ts`, the table the route itself
-        resolves against, rather than through a second ladder here (AC-790).
+        **It was one boolean off `is_owner` on the same library row until
+        2026-09-20 (issue #268)**, and that had been false since #228's R8A
+        landed — moderation is `comment.moderate`, Full control's, which
+        custody neither confers nor implies, and an author's own edit and
+        delete are `comment.mutate.own`, which authorship alone does not
+        confer either. `my_access` rides the same row (Hassan's Ruling 4 of
+        2026-09-20), so the correct gates cost the same lookup and go through
+        `lib/folder-authority.ts`, the table the routes themselves resolve
+        against, rather than through a second ladder here (AC-790).
         */
-        moderates,
+        mayConverse,
       ),
-    [thread.data?.comments, me.data?.user.id, authorPeople, moderates],
+    [thread.data?.comments, me.data?.user.id, authorPeople, mayConverse],
   )
 
   const rows = folders.data

@@ -12,15 +12,25 @@ So the criterion is split by what each half can compile against rather than by
 what it proves, and this half carries the number in its assertions, which is
 what `app/tests/README.md` means by a criterion running.
 
-**What it pins.** `deletable` is the whole of what
-`components/comments.tsx` draws its Delete control from, and it is answered
-once per comment so that the card mount and the folder page cannot disagree
-(L-201). Two facts go into it and they have different shapes: **authorship**,
-which is per comment, and **moderation**, which is per folder and is
-`folderGates(...).moderate` — #228's Full-control list, not custody. The
-parameter was `ownerDeletes` and read `is_owner` until 2026-09-20 (issue
-#268), which had been false since R8A landed, so the cases below are written
-as the two directions that were wrong on the screen.
+**What it pins.** `deletable`, `editable` and `likeable` are the whole of
+what `components/comments.tsx` draws its three controls from, and each is
+answered once per comment so that the card mount and the folder page cannot
+disagree (L-201). Every one multiplies a **per-comment** fact by a
+**per-folder** bar, and until 2026-09-20 (issue #268) every one of them was
+wrong:
+
+- Delete was `mine || is_owner`. Moderation is `comment.moderate`, Full
+  control's, which custody neither confers nor implies — so the second half
+  named the wrong fact.
+- And `mine` was the wrong *first* half of the same expression, and of Edit,
+  which was `mine` outright. `comment.mutate.own` is authorship **and**
+  currently holding Can comment or better, #228's authorship rule making
+  authorship provenance rather than standing authority. A member reduced to
+  Can view was offered Edit and Delete on every comment they had ever left
+  and answered 403 by the route; AC-518 pins those refusals from the
+  server's side.
+- Like was offered to everybody. `comment.like` is Can comment's, and Can
+  view reads a thread and leaves no mark on it.
 
 Pure functions only. The hook over `toConceptComments` is a `useMemo` around
 it, and a case that mounted one would be testing TanStack Query — the rule
@@ -31,6 +41,7 @@ import { describe, expect, test } from 'vitest'
 import type { CommentLine } from '../../shared/comments.js'
 import { folderGates } from './folder-authority.js'
 import { toConceptComments } from './thread.js'
+import type { ThreadAuthority } from './thread.js'
 
 const VIEWER = '11111111-1111-4111-8111-111111111111'
 const SOMEBODY_ELSE = '22222222-2222-4222-8222-222222222222'
@@ -55,10 +66,20 @@ function line(overrides: Partial<CommentLine> = {}): CommentLine {
 
 const personOf = (): { name: string } => ({ name: 'Someone' })
 
-/** What the folder page and the task card hand this module: the one gate,
- * over the viewer's own membership facts. */
-function moderatesAs(access: Parameters<typeof folderGates>[0]['access'], isOwner: boolean) {
-  return folderGates({ access, isOwner, isDefault: false }).moderate
+/** What the folder page and the task card hand this module: the three gates,
+ * over the viewer's own membership facts, exactly as both surfaces build
+ * them. Built through `folderGates` rather than written out, so a case here
+ * cannot pass on a bar this file invented. */
+function may(
+  access: Parameters<typeof folderGates>[0]['access'],
+  isOwner = false,
+): ThreadAuthority {
+  const gates = folderGates({ access, isOwner, isDefault: false })
+  return {
+    moderate: gates.moderate,
+    mutateOwnComment: gates.mutateOwnComment,
+    likeComment: gates.likeComment,
+  }
 }
 
 describe('AC-790 who a thread offers Delete to', () => {
@@ -68,7 +89,7 @@ describe('AC-790 who a thread offers Delete to', () => {
       VIEWER,
       personOf,
       NOW,
-      moderatesAs('full_control', false),
+      may('full_control'),
     )
     expect(
       drawn[0]?.deletable,
@@ -82,7 +103,7 @@ describe('AC-790 who a thread offers Delete to', () => {
       VIEWER,
       personOf,
       NOW,
-      moderatesAs('can_comment', true),
+      may('can_comment', true),
     )
     expect(
       drawn[0]?.deletable,
@@ -96,7 +117,7 @@ describe('AC-790 who a thread offers Delete to', () => {
       VIEWER,
       personOf,
       NOW,
-      moderatesAs('can_comment', true),
+      may('can_comment', true),
     )
     expect(
       drawn[0]?.deletable,
@@ -117,14 +138,71 @@ describe('AC-790 who a thread offers Delete to', () => {
       VIEWER,
       personOf,
       NOW,
-      moderatesAs('full_control', false),
+      may('full_control'),
     )
     expect(drawn[0]?.replies?.[0]?.deletable).toBe(true)
   })
 
-  test('AC-790: a surface with no standing in hand falls back to authorship alone', () => {
-    const drawn = toConceptComments([line({ author_id: VIEWER }), line({ id: '77777777-7777-4777-8777-777777777777' })], VIEWER, personOf, NOW)
+  test('AC-790: a surface with no standing in hand falls back to the lab', () => {
+    const drawn = toConceptComments(
+      [line({ author_id: VIEWER }), line({ id: '77777777-7777-4777-8777-777777777777' })],
+      VIEWER,
+      personOf,
+      NOW,
+    )
     expect(drawn[0]?.deletable).toBe(true)
+    expect(drawn[0]?.editable).toBe(true)
     expect(drawn[1]?.deletable).toBe(false)
+    expect(drawn[1]?.editable).toBe(false)
+    expect(drawn[0]?.likeable, 'the lab lets everybody like').toBe(true)
+  })
+
+  test('AC-790: a member downgraded to Can view keeps their words and is offered nothing', () => {
+    const drawn = toConceptComments(
+      [line({ author_id: VIEWER }), line({ id: '88888888-8888-4888-8888-888888888888' })],
+      VIEWER,
+      personOf,
+      NOW,
+      may('can_view'),
+    )
+    expect(
+      drawn[0]?.editable,
+      '#228: authorship is provenance rather than standing authority, so Can view loses the pencil on their own comment',
+    ).toBe(false)
+    expect(
+      drawn[0]?.deletable,
+      'and the delete with it — AC-518 is the route refusing exactly this',
+    ).toBe(false)
+    expect(drawn[1]?.deletable, 'and certainly not somebody else’s').toBe(false)
+    expect(
+      drawn[0]?.likeable,
+      '#228’s Can-comment list: Can view reads the thread and leaves no mark on it',
+    ).toBe(false)
+    expect(
+      drawn[0]?.body,
+      'the words themselves stay readable exactly as they were',
+    ).toBe('somebody else said this')
+  })
+
+  test('AC-790: a Can-comment author is offered Edit, Delete and Like on their own', () => {
+    const drawn = toConceptComments(
+      [line({ author_id: VIEWER })],
+      VIEWER,
+      personOf,
+      NOW,
+      may('can_comment'),
+    )
+    expect(drawn[0]?.editable).toBe(true)
+    expect(drawn[0]?.deletable).toBe(true)
+    expect(drawn[0]?.likeable).toBe(true)
+  })
+
+  test('AC-790: a Full-control administrator moderates but never edits another’s words', () => {
+    const drawn = toConceptComments([line()], VIEWER, personOf, NOW, may('full_control'))
+    expect(drawn[0]?.deletable, 'moderation removes').toBe(true)
+    expect(
+      drawn[0]?.editable,
+      'and does not rewrite: no preset lets one member edit another, which is #228 read exactly as written',
+    ).toBe(false)
   })
 })

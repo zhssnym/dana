@@ -30,6 +30,7 @@ import type { FolderMember } from '../../shared/folders.js'
 import {
   eligibleSuccessors,
   folderGates,
+  mayDraw,
   otherMembers,
   viewerFacts,
   viewerMembership,
@@ -235,6 +236,56 @@ describe('moderating somebody else’s comment', () => {
   })
 })
 
+describe('one’s own comment, and the like', () => {
+  /* AC-790's authorship half, added 2026-09-20 by issue #268. Both surfaces
+     drew Edit and Delete on `mine` alone and Like on everybody, which are the
+     lab's rules. #228's authorship rule makes authorship provenance rather
+     than standing authority, so `comment.mutate.own` needs Can comment or
+     better beside it, and `comment.like` is Can comment's outright. AC-518
+     pins the refusals these answers now agree with. */
+  const EXPECTED: Record<FolderAccessPreset, boolean> = {
+    full_control: true,
+    can_edit: true,
+    can_contribute: true,
+    assigned_work: true,
+    can_comment: true,
+    can_view: false,
+  }
+
+  for (const preset of FOLDER_ACCESS_PRESETS) {
+    test(`${preset} may change their own comment: ${String(EXPECTED[preset])}`, () => {
+      expect(folderGates(facts(preset)).mutateOwnComment).toBe(EXPECTED[preset])
+    })
+    test(`${preset} may like: ${String(EXPECTED[preset])}`, () => {
+      expect(folderGates(facts(preset)).likeComment).toBe(EXPECTED[preset])
+    })
+  }
+
+  test('the defect: a member downgraded to Can view keeps their words and loses both', () => {
+    const viewer = folderGates(facts('can_view'))
+    expect(viewer.mutateOwnComment).toBe(false)
+    expect(viewer.likeComment).toBe(false)
+    /* And still reads the thread, which is the half that must not move. */
+    expect(mayDraw(facts('can_view'), 'folder.read')).toBe(true)
+  })
+
+  test('ownership confers neither: an owner at Can view is offered nothing here', () => {
+    const demoted = folderGates(facts('can_view', { isOwner: true }))
+    expect(demoted.mutateOwnComment).toBe(false)
+    expect(demoted.likeComment).toBe(false)
+  })
+
+  test('the standing half is all this answers: it never asks whose comment it is', () => {
+    /* `comment.mutate.own` carries `requiresAuthor`, and a projection has no
+       comment in hand. `lib/thread.ts` multiplies this by `mine`, one comment
+       at a time; what must not happen is this answering false at every preset
+       because the target was left out, which is the shape of wrong that reads
+       as a working gate. */
+    expect(folderGates(facts('full_control')).mutateOwnComment).toBe(true)
+    expect(folderGates(facts('can_comment')).mutateOwnComment).toBe(true)
+  })
+})
+
 describe('the two permanent deletes, which are not one rule', () => {
   /* AC-790's Trash half, added 2026-09-20 by issue #268. `lib/trash.ts`
      answered both from `is_owner`, which was item 38's rule and had been
@@ -281,9 +332,12 @@ describe('the two permanent deletes, which are not one rule', () => {
   })
 
   /* `lib/trash.ts` passes `isDefault: false` because a Trash row does not
-     carry the flag. That is safe only while neither gate reads it, so the
-     safety is asserted here rather than stated in a comment there. */
-  test('neither gate reads isDefault, which is what lets a Trash row omit it', () => {
+     carry the flag, and for a trashed **task** that is a false fact rather
+     than a missing one: INV-2 refuses to trash the default folder, not to
+     trash a task out of it. That is safe only while neither gate reads the
+     flag, so the safety is asserted here rather than stated in a comment
+     there. */
+  test('neither gate reads isDefault, which is what lets a Trash row pass a false one', () => {
     for (const preset of FOLDER_ACCESS_PRESETS) {
       for (const isOwner of [false, true]) {
         const off = folderGates(facts(preset, { isOwner, isDefault: false }))

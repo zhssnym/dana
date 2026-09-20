@@ -60,7 +60,11 @@ nobody can follow is worse than none, and CLAUDE.md's first rule for this
 repository is that a comment is a claim to be checked rather than a fact.)
 */
 import { mayPerform } from '../../shared/folder-actions.js'
-import type { FolderAction, FolderActorFacts } from '../../shared/folder-actions.js'
+import type {
+  FolderAction,
+  FolderActionTarget,
+  FolderActorFacts,
+} from '../../shared/folder-actions.js'
 import type { FolderAccessPreset } from '../../shared/folder-access.js'
 import type { FolderMember } from '../../shared/folders.js'
 
@@ -121,25 +125,54 @@ export function viewerFacts(
   }
 }
 
+/**
+ * The stand-in id this file gives the viewer.
+ *
+ * `mayPerform` compares `facts.actorId` against a target's author or assignee,
+ * and a projection has no real id to offer — the page knows who the viewer is
+ * but the answer being computed here is "what does this *preset* allow",
+ * never "is this particular row mine". So the one way this value is ever
+ * used is deliberate and is right below: an action whose rule sets
+ * `requiresAuthor` is asked with this same id as the author, which makes the
+ * table answer the **standing** half of the question and leave the
+ * per-row half to the caller. Nothing else may pass it.
+ */
+const PROJECTED_ACTOR_ID = 'the-viewer'
+
 /* The two fields `mayPerform` wants that no drawing decision reads. Named
    rather than spelled at each call so that the next field added to
    `FolderActorFacts` for the server's benefit lands in one place here. */
-const NOT_READ_BY_A_PROJECTION = { folderId: '', actorId: '', name: '' } as const
+const NOT_READ_BY_A_PROJECTION = {
+  folderId: '',
+  actorId: PROJECTED_ACTOR_ID,
+  name: '',
+} as const
 
 /**
  * The table's answer for one action, on this viewer's facts.
  *
  * The one function in this file that talks to `shared/folder-actions.ts`, and
  * the reason every bar below is a citation rather than a number.
+ *
+ * `target` exists for the one rule shape a projection can honestly satisfy:
+ * `requiresAuthor`. See `mutateOwnComment` below. A target's **assignee** is
+ * never supplied here and must not be — #228 makes assignment authority
+ * resolvable only under the row lock of the transaction that writes, so a
+ * projection that answered on it would be the one thing this file's header
+ * says it never does.
  */
-export function mayDraw(facts: FolderViewerFacts, action: FolderAction): boolean {
+export function mayDraw(
+  facts: FolderViewerFacts,
+  action: FolderAction,
+  target: FolderActionTarget = {},
+): boolean {
   const actorFacts: FolderActorFacts = {
     ...NOT_READ_BY_A_PROJECTION,
     access: facts.access,
     isOwner: facts.isOwner,
     isDefault: facts.isDefault,
   }
-  return mayPerform(actorFacts, action).allowed
+  return mayPerform(actorFacts, action, target).allowed
 }
 
 /**
@@ -209,6 +242,27 @@ export interface FolderGates {
    * 2026-09-20, one boolean off `is_owner` answering for both (AC-790).
    */
   readonly destroyFolder: boolean
+  /**
+   * Changing or removing **one's own** comment: the standing half only.
+   *
+   * `comment.mutate.own` is two conditions — the actor is the author, *and*
+   * they currently hold Can comment or better — and #228's authorship rule is
+   * that the first is provenance rather than authority. Authorship is per
+   * comment and this member cannot know it, so what is answered here is the
+   * second condition alone, and `lib/thread.ts` multiplies it by `mine`.
+   *
+   * **The surfaces offered Edit and Delete on `mine` alone until 2026-09-20**
+   * (issue #268), so a member reduced to Can view was offered both on every
+   * comment they had ever left and answered 403 by the route, which AC-518
+   * pins from the other side (AC-790).
+   */
+  readonly mutateOwnComment: boolean
+  /**
+   * Liking and unliking, `comment.like`: #228's Can-comment list carries the
+   * pair, and Can view reads a thread and leaves no mark on it. Per folder
+   * and not per comment, a like being nobody's property (AC-790).
+   */
+  readonly likeComment: boolean
 }
 
 export function folderGates(facts: FolderViewerFacts): FolderGates {
@@ -238,6 +292,14 @@ export function folderGates(facts: FolderViewerFacts): FolderGates {
        a silent grant. */
     destroyTask: mayDraw(facts, 'task.destroy'),
     destroyFolder: mayDraw(facts, 'folder.destroy'),
+    /* The one `requiresAuthor` rule a projection may ask about, and the
+       stand-in id above is how: "if this comment were mine, could I change
+       it". Asking without the target would answer false at every preset,
+       which is the shape of wrong that reads as a working gate. */
+    mutateOwnComment: mayDraw(facts, 'comment.mutate.own', {
+      authorId: PROJECTED_ACTOR_ID,
+    }),
+    likeComment: mayDraw(facts, 'comment.like'),
   }
 }
 

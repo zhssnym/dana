@@ -70,10 +70,15 @@ trashed folder is not in `GET /folders` to read the preset from. The cases
 below drive the same two arms over both, and `screens/trash-screen.tsx` needed
 no change at all: it read `purgeable` before and reads it now.
 
-`lib/trash.ts`'s own row mapping is in `src/client/lib/trash.test.ts`, beside
-the module and for the same compile reason as `lib/thread.ts` above: that file
-reaches the DOM through `api/queries.js` and cannot be imported from this
-directory.
+`lib/trash.ts`'s own gate -- `mayPurge`, which is the whole of what
+`purgeable` is and which `useTrash` calls once per row -- is driven by
+`src/client/lib/trash.test.ts`, beside the module and for the same compile
+reason as `lib/thread.ts` above: that file reaches the DOM through
+`api/queries.js` and cannot be imported from this directory. **What is driven
+nowhere is `useTrash`'s own mapping**, the `.map` that turns a 7.13 row into a
+`TrashItem`: it is a hook over TanStack Query and mounting one needs a DOM.
+So the decision is proved and the shaping around it is not, which is the
+honest statement rather than a gap being described as covered.
 
 Spec: 7.14 as amended 2026-09-20, 10.2; #228's Full-control list and its
 authorship rule. AC-205 and AC-518 are the neighbours — the first asserts an
@@ -86,7 +91,11 @@ import { sql } from 'drizzle-orm'
 
 import { startAuthTestApp } from '../support/auth-harness.js'
 import type { AuthTestApp } from '../support/auth-harness.js'
-import { forcePreset, sharedFolder } from '../support/folder-access-harness.js'
+import {
+  forcePreset,
+  sharedFolder,
+  taskIn,
+} from '../support/folder-access-harness.js'
 import { Cast, expectStatus } from '../support/folders-harness.js'
 import type { Actor } from '../support/folders-harness.js'
 import { rows } from '../support/helpers.js'
@@ -159,6 +168,30 @@ describe('AC-790 what a conversation surface offers', () => {
     const demoted = folderGates(facts('can_comment', true))
     expect(demoted.destroyTask, 'a demoted owner destroys no trashed task').toBe(false)
     expect(demoted.destroyFolder, 'nor the folder they still own').toBe(false)
+  })
+
+  test('AC-790: the author’s own half is standing too, and Can view loses it', () => {
+    /* #228's authorship rule: authorship is provenance rather than standing
+       authority. Both surfaces drew Edit and Delete on `mine` alone, so a
+       member reduced to Can view was offered both on every comment they had
+       ever left and answered 403 by the route (AC-518). The gate answers the
+       standing half; `lib/thread.ts` multiplies it by `mine`. */
+    expect(
+      folderGates(facts('can_comment', false)).mutateOwnComment,
+      'Can comment keeps their own words changeable',
+    ).toBe(true)
+    expect(
+      folderGates(facts('can_view', false)).mutateOwnComment,
+      'Can view keeps the words and loses the power to change them',
+    ).toBe(false)
+    expect(
+      folderGates(facts('can_view', true)).mutateOwnComment,
+      'and owning the folder confers none of it back',
+    ).toBe(false)
+    expect(
+      folderGates(facts('can_view', false)).likeComment,
+      "#228's Can-comment list: Can view leaves no mark on a thread",
+    ).toBe(false)
   })
 
   test('AC-790: the two rows the defect was found at, named', () => {
@@ -270,5 +303,137 @@ describe('AC-790 what DELETE /comments/:id honours', () => {
       String(ownership[0]?.owner_id),
       'the refusal is about Access and this person is still the owner',
     ).toBe(owner.id)
+  })
+})
+
+/* ------------------------------------------------------------------ *
+ * The route's half, Trash: the same two people, the same two answers,
+ * and two acts that are not one rule
+ * ------------------------------------------------------------------ */
+
+/** Whether a row is still in its own table. Read from the table rather than
+ * from `GET /trash`, for the reason `stillThere` above gives. */
+async function rowSurvives(table: 'tasks' | 'folders', id: string): Promise<boolean> {
+  const found = await rows(
+    app.db,
+    table === 'tasks'
+      ? sql`SELECT id FROM tasks WHERE id = ${id}::uuid`
+      : sql`SELECT id FROM folders WHERE id = ${id}::uuid`,
+  )
+  return found.length === 1
+}
+
+/** A trashed task in a fresh shared folder, and the folder it sits in. */
+async function trashedTask(name: string): Promise<Stage & { taskId: string }> {
+  const staged = await stage(name)
+  const taskId = await taskIn(staged.owner, staged.folderId, `${name} doomed`, null)
+  expectStatus(
+    await staged.owner.browser.api(`/tasks/${taskId}`, { method: 'DELETE' }),
+    204,
+    'DELETE /tasks/:id trashes it (spec 7.13)',
+  )
+  return { ...staged, taskId }
+}
+
+/** A trashed folder, its roster still attached so the permanent delete has
+ * somebody to refuse. */
+async function trashedFolder(name: string): Promise<Stage> {
+  const staged = await stage(name)
+  expectStatus(
+    await staged.owner.browser.api(`/folders/${staged.folderId}`, {
+      method: 'DELETE',
+    }),
+    200,
+    'DELETE /folders/:id trashes it (spec 7.4, 7.13)',
+  )
+  return staged
+}
+
+describe('AC-790 what the two permanent deletes honour', () => {
+  test('AC-790: a Full-control member who owns nothing destroys a trashed task, and the row is gone', async () => {
+    const { administrator, taskId } = await trashedTask('ac790 purge task')
+
+    expectStatus(
+      await administrator.browser.api(`/trash/tasks/${taskId}`, {
+        method: 'DELETE',
+      }),
+      204,
+      "#228's Full-control list: permanently deleting a Task from Trash is an irreversible administrative act, and ownership is ignored by it",
+    )
+    expect(
+      await rowSurvives('tasks', taskId),
+      'the task is actually gone, not merely answered 204',
+    ).toBe(false)
+  })
+
+  test('AC-790: the same person is refused the folder, and the row is intact', async () => {
+    const { administrator, folderId } = await trashedFolder('ac790 purge folder')
+
+    expectStatus(
+      await administrator.browser.api(`/trash/folders/${folderId}`, {
+        method: 'DELETE',
+      }),
+      403,
+      'governing R5: permanent destruction of the whole Folder needs custody as well as Full control, so the two acts are not one rule',
+    )
+    expect(
+      await rowSurvives('folders', folderId),
+      'the folder survives the refusal',
+    ).toBe(true)
+  })
+
+  test('AC-790: an owner demoted to Can comment is refused both, and both rows are intact', async () => {
+    const withTask = await trashedTask('ac790 demoted purge task')
+    await forcePreset(app.db, withTask.folderId, withTask.owner.id, 'can_comment')
+    expectStatus(
+      await withTask.owner.browser.api(`/trash/tasks/${withTask.taskId}`, {
+        method: 'DELETE',
+      }),
+      403,
+      'custody is not Access: an owner below Full control destroys no trashed Task',
+    )
+    expect(await rowSurvives('tasks', withTask.taskId)).toBe(true)
+
+    const withFolder = await trashedFolder('ac790 demoted purge folder')
+    await forcePreset(app.db, withFolder.folderId, withFolder.owner.id, 'can_comment')
+    expectStatus(
+      await withFolder.owner.browser.api(`/trash/folders/${withFolder.folderId}`, {
+        method: 'DELETE',
+      }),
+      403,
+      'nor the Folder they still own: Full control is required beside custody, not instead of it',
+    )
+    expect(await rowSurvives('folders', withFolder.folderId)).toBe(true)
+  })
+
+  test('AC-790: GET /trash answers each reader their own my_access on the same rows', async () => {
+    const { owner, administrator, author, taskId } = await trashedTask(
+      'ac790 trash projection',
+    )
+
+    /* The same row read by three people at two presets. `my_access` is the
+       *viewer's* own and never the owner's and never the folder's, which is
+       the whole of what the field means and the thing a single shared value
+       would get wrong while passing every other assertion here. */
+    for (const [who, actor, expected] of [
+      ['the owner', owner, 'full_control'],
+      ['the Full-control administrator', administrator, 'full_control'],
+      ['the Can-edit member', author, 'can_edit'],
+    ] as const) {
+      const read = await actor.browser.api('/trash')
+      expectStatus(read, 200, `${who} reads Trash (spec 7.13)`)
+      const body = read.json() as {
+        tasks: { id: string; my_access: string; is_owner: boolean }[]
+      }
+      const row = body.tasks.find((entry) => entry.id === taskId)
+      expect(row, `${who} sees the trashed task`).toBeDefined()
+      expect(
+        row?.my_access,
+        `7.13 as amended 2026-09-20: my_access is ${who}'s own preset`,
+      ).toBe(expected)
+      expect(row?.is_owner, `and is_owner stays custody for ${who}`).toBe(
+        actor.id === owner.id,
+      )
+    }
   })
 })

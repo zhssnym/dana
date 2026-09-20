@@ -103,13 +103,22 @@ const EMPTY: TrashItem[] = []
  * the two routes resolve against (`shared/folder-actions.ts`, by way of
  * `folder-authority.ts`). Never a ladder written here (AC-790).
  *
- * `isDefault: false` is the one fact a Trash row does not carry, and neither
- * gate reads it: `folder.destroy` and `task.destroy` are preset and custody
- * and nothing else. It is `false` rather than absent because
- * `FolderViewerFacts` wants a boolean, and `folder-authority.test.ts` asserts
- * that both answers are the same either way, so a table that started reading
- * it fails there instead of granting quietly here. (A trashed *folder* is
- * never the default one in any case — INV-2 refuses to trash it.)
+ * `isDefault: false` is the one fact a Trash row does not carry, and it is
+ * **wrong for some rows rather than merely unread**: INV-2 refuses to trash
+ * the *default folder*, so a trashed folder is genuinely never the default
+ * one — but it says nothing about a **task**, and a task trashed out of the
+ * viewer's own Desk is an ordinary Trash row whose folder is the default one.
+ * So this passes a false fact, knowingly, and the reason it is safe is that
+ * neither gate reads it: `folder.destroy` and `task.destroy` are preset and
+ * custody and nothing else.
+ *
+ * That safety is asserted rather than stated. `folder-authority.test.ts`
+ * drives both gates over all six presets and both owner values with
+ * `isDefault` true and false and requires the same answer, so a table that
+ * started reading it fails there instead of granting quietly here. The
+ * honest alternative — putting `is_default` on the 7.13 rows — was not taken
+ * because it would be a second frozen-response field for a fact nothing
+ * consumes.
  *
  * Exported so that `trash.test.ts` beside this file can drive it as the pure
  * function it is; `useTrash` is a `useMemo` around it and a case that mounted

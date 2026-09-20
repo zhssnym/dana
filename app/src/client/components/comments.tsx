@@ -47,9 +47,24 @@ agree on.
 
 **The second half was "the folder's owner" until 2026-09-20 (issue #268)**, and
 had been false since #228's R8A landed: moderating another member's words is
-`comment.moderate`, which is Full control's, and ownership is custody. Nothing
-in this file moved — it draws whatever `deletable` says — and the correction is
-in `lib/thread.ts` and in the two surfaces that feed it (AC-790).
+`comment.moderate`, which is Full control's, and ownership is custody. That
+correction is in `lib/thread.ts` and in the two surfaces that feed it, and
+this file only reads `deletable`.
+
+**The *author's* half was wrong here, and this file did move for it.** Edit
+was drawn on `comment.mine` and Like on everybody, which are the lab's rules
+and not 7.14's: `comment.mutate.own` is authorship **and** currently holding
+Can comment or better, and `comment.like` is Can comment's, so a member
+reduced to Can view was offered the pencil on every comment they had ever
+left and the thumb on every comment in the folder, each answered 403. They
+now read `editable` and `likeable`, answered per comment by `lib/thread.ts`
+in the same place and for the same reason as `deletable`, and each falls back
+to the lab's answer when a surface supplies none (AC-518, AC-790).
+
+**An existing reaction pill is disabled rather than hidden**, unlike the three
+hover controls. It carries a count somebody below the bar may still read, and
+9.x's rule for a thread is that Can view reads everything and changes
+nothing; removing the pill would hide the fact as well as the act.
 */
 /*
 One conversation surface, wherever a conversation happens.
@@ -976,6 +991,7 @@ function CommentRow({
                     variant={mine ? "outline" : reaction.mine ? "secondary" : "outline"}
                     size="xs"
                     aria-pressed={reaction.mine || undefined}
+                    disabled={(comment.likeable ?? true) === false}
                     onClick={() => onUpdate(toggleReaction(comment, reaction.emoji))}
                     className={cn(
                       "rounded-full tabular-nums",
@@ -996,13 +1012,15 @@ function CommentRow({
                 T_FAST,
               )}
             >
-              <IconAction dense
-                icon={ThumbsUp}
-                label={comment.reactions?.some((r) => r.mine) ? "Remove like" : "Like"}
-                onClick={() => onUpdate(toggleReaction(comment))}
-              />
+              {(comment.likeable ?? true) ? (
+                <IconAction dense
+                  icon={ThumbsUp}
+                  label={comment.reactions?.some((r) => r.mine) ? "Remove like" : "Like"}
+                  onClick={() => onUpdate(toggleReaction(comment))}
+                />
+              ) : null}
               {onReply ? <IconAction dense icon={ReplyIcon} label="Reply" onClick={onReply} /> : null}
-              {comment.mine ? (
+              {(comment.editable ?? comment.mine) ? (
                 <IconAction dense
                   icon={Pencil}
                   label="Edit comment"
