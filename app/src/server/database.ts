@@ -59,3 +59,27 @@ export function idSet(ids: readonly string[]): SQL {
   return sql`(SELECT e::uuid FROM
     jsonb_array_elements_text(${JSON.stringify(ids)}::jsonb) e)`
 }
+
+/** One half of an `IdPairs` row: the id a copy was made from, and the id the
+ * copy was given. */
+export type IdPair = readonly [old: string, fresh: string]
+
+/**
+ * A source-to-copy id mapping as **one** bind parameter, joinable as
+ * `m(old_id, new_id)`.
+ *
+ * `idSet`'s argument one column wider, and it exists for the same reason at
+ * the other end of a duplication: a copy that has to remap a child table
+ * — issue #227's Folder Label assignments are the first — otherwise does one
+ * statement per row, and the row count here is 10.3's task cap rather than a
+ * handful. The pairs ride as a jsonb array of two-element arrays because that
+ * is the one shape both backends unnest without a composite type to declare;
+ * `e->>0` and `e->>1` are then ordinary text, cast once.
+ *
+ * An empty array yields no rows, so a join against it drops everything, which
+ * is what a copy with nothing to remap wants and needs no special case.
+ */
+export function pairSet(pairs: readonly IdPair[]): SQL {
+  return sql`(SELECT (e->>0)::uuid AS old_id, (e->>1)::uuid AS new_id
+    FROM jsonb_array_elements(${JSON.stringify(pairs)}::jsonb) e)`
+}

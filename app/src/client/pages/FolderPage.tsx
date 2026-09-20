@@ -222,6 +222,8 @@ import { MorePages, PageBody } from '../components/page/PageStates.js'
 import { FOLDER_EMPTY } from './empty-states.js'
 import { FolderSharingPanel } from './FolderSharingPanel.js'
 import { ConfirmDialog, TaskRows, useConfirm, useRowBasis } from './task-rows.js'
+import { getLabelsResponse } from '../../shared/labels.js'
+import type { LabelDefinition } from '../../shared/labels.js'
 import { getTaskResponse } from '../../shared/tasks.js'
 import type { TaskDetail } from '../../shared/tasks.js'
 import { folderToWorkflowFile } from '../../shared/workflows.js'
@@ -717,21 +719,52 @@ export function FolderPage({
       (task) => task.status === 'pending',
     )
     let tasks: TaskDetail[]
+    /*
+    The folder's own Label vocabulary, read beside the details (#227 area 4).
+
+    **It is read rather than gathered from the tasks**, because the file
+    carries the folder's *reusable* taxonomy: a category nothing currently
+    wears is exactly the thing a template exists to set up, and a vocabulary
+    scraped off the rows would lose it. `state` is left at the schema's default
+    of active, which is the other half of the same rule — an archived Label may
+    not be newly applied, so a file carrying one would ask the importer for a
+    row the live endpoints refuse.
+
+    A folder with no Folder Labels answers an empty array and the file that is
+    written is byte-for-byte the one this page wrote before #227.
+    */
+    let labels: LabelDefinition[]
     try {
-      tasks = await Promise.all(
-        pending.map((task) =>
-          cache.fetchQuery({
-            queryKey: queryKeys.task(task.id),
-            queryFn: () => getPlain(getTaskResponse, `/tasks/${task.id}`),
-          }),
+      ;[tasks, labels] = await Promise.all([
+        Promise.all(
+          pending.map((task) =>
+            cache.fetchQuery({
+              queryKey: queryKeys.task(task.id),
+              queryFn: () => getPlain(getTaskResponse, `/tasks/${task.id}`),
+            }),
+          ),
         ),
-      )
+        cache.fetchQuery({
+          queryKey: queryKeys.folderLabels(id),
+          queryFn: () =>
+            getPlain(
+              getLabelsResponse,
+              `/labels?scope=folder&folder_id=${encodeURIComponent(id)}`,
+            ),
+        }),
+      ])
     } catch {
       showToast('Could not read this folder’s tasks, so nothing was saved.')
       return
     }
     const file = JSON.stringify(
-      folderToWorkflowFile(folderName, tasks, page.data?.blocks ?? [], page.data),
+      folderToWorkflowFile(
+        folderName,
+        tasks,
+        page.data?.blocks ?? [],
+        page.data,
+        labels,
+      ),
       null,
       2,
     )

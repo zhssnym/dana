@@ -79,6 +79,14 @@ escalated rather than decided here. So an image item is dropped, and the
 sections and paragraphs around it keep their order.
 */
 import { z } from 'zod'
+import {
+  FOLDER_LABEL_DEFINITION_CAP,
+  TASK_FOLDER_LABEL_CAP,
+  labelColor,
+  labelDescription,
+  labelName,
+} from './labels.js'
+import type { LabelDefinition } from './labels.js'
 import { documentOperation, documentOutlineItem } from './page-document.js'
 import type { PageView } from './pages.js'
 
@@ -97,6 +105,44 @@ const importReminder = z.object({
     .regex(TIME_OF_DAY, 'reminder: a time of day as HH:MM'),
 })
 
+/*
+A Folder Label as a workflow file carries one (#227 area 4, version 3).
+
+**`key` is file-local and is never a database id.** A workflow file is a
+template that may be imported into any account any number of times, so an id
+in it would either be a dangling reference or — far worse — a live id of
+somebody else's Folder, read by an account that has no business resolving it.
+The key exists only to join a Task's `labels` to this list inside the one
+file, and the importer mints a fresh identity per import.
+
+**The three value fields are the live ones, imported rather than restated.**
+"Validate name/color/description using the same Label constraints as live
+creation" is #227's own sentence, and the way to satisfy it that cannot drift
+is to use the same zod primitives `POST /folders/:folderId/labels` uses. A file
+whose Label name is 41 characters is therefore refused by the same rule and
+with the same message a person typing one would meet.
+
+A workflow file carries **no Personal Label**, definition or assignment. The
+file is shared reusable classification: it is handed to other people, and a
+Personal Label is the one thing in this model that is never handed to anybody.
+There is no key for one, so nothing is stripped — there is nothing to strip.
+*/
+const importLabel = z.object({
+  key: z
+    .string()
+    .min(1, 'labels: each label needs a file-local key')
+    .max(64, 'labels: a label key is at most 64 characters'),
+  name: labelName,
+  color: labelColor,
+  /* `.nullable().optional()`, which is `postFolderLabelBody`'s own spelling
+     rather than a looser one chosen here: "the same Label constraints as live
+     creation" is #227's phrase, and a serialiser that writes "no description"
+     as `null` is not a malformed file — 422 naming `description` would be a
+     strange thing to tell the person who opened it, which is the reason
+     `dropNulls` above exists for the task keys. */
+  description: labelDescription.nullable().optional(),
+})
+
 const importTask = z.object({
   title: z.string().min(1).max(300),
   notes: z.string().max(10000).optional(),
@@ -104,6 +150,16 @@ const importTask = z.object({
   recurrence_rule: recurrenceRule.optional(),
   reminder: importReminder.optional(),
   steps: z.array(importStep).max(50).optional(),
+  /** The keys of this file's own `folders[].labels`, never ids. Capped at
+   * 10.3's per-Task Folder Label limit, so an imported Task is refused by
+   * exactly the number a typed one is. */
+  labels: z
+    .array(z.string().min(1).max(64))
+    .max(
+      TASK_FOLDER_LABEL_CAP,
+      `labels: a task carries at most ${String(TASK_FOLDER_LABEL_CAP)} labels`,
+    )
+    .optional(),
 })
 
 const importBlock = z.object({
@@ -116,12 +172,32 @@ const importFolder = z.object({
   name: z.string().min(1).max(100),
   tasks: z.array(importTask).optional(),
   blocks: z.array(importBlock).optional(),
+  /** The Folder's reusable vocabulary. Capped at 10.3's per-Folder definition
+   * limit for the reason every other cap here is the live one. */
+  labels: z
+    .array(importLabel)
+    .max(
+      FOLDER_LABEL_DEFINITION_CAP,
+      `labels: a folder carries at most ${String(FOLDER_LABEL_DEFINITION_CAP)} labels`,
+    )
+    .optional(),
 })
 
 const canonicalWorkflowBody = z
   .object({
     dana: z.literal('workflow'),
-    version: z.union([z.literal(1),z.literal(2)]),
+    /*
+    **1, 2 and now 3, and every one of them still imports.** The number says
+    what a *reader* must understand, so it goes up when the writer starts
+    emitting something an older reader would silently lose — which is exactly
+    what a Folder Label vocabulary is to a version-2 reader, whose schema does
+    not declare `labels` and would therefore strip it and import a folder with
+    its classification quietly gone. 3 is #227's Folder Labels (area 4), 2 was
+    the typed page document, 1 was the original. Older files are not
+    deprecated: `folderToWorkflowFile` still writes 1 for a file with neither,
+    and #227's own requirement is that they keep importing.
+    */
+    version: z.union([z.literal(1),z.literal(2),z.literal(3)]),
     name: z.string().max(100).optional(),
     folders: z
       .array(importFolder)
@@ -151,6 +227,49 @@ const canonicalWorkflowBody = z
         message: 'tasks: a workflow file carries at most 1000 across folders',
       })
     }
+    /*
+    The two things a Label key must satisfy that no per-field rule can see.
+
+    **Keys are unique within their folder**, because a repeated one makes the
+    join ambiguous and there is no honest way to resolve it — the importer
+    would have to pick a Label, and picking is what "never merge by name"
+    forbids one step later.
+
+    **And every key a task names is declared by its own folder.** An undeclared
+    key is refused rather than dropped, which is the one place this file parts
+    company with AC-201's "drop what cannot be a Dana object" rule, and it
+    parts company deliberately: a dropped page item loses a paragraph, while a
+    dropped Label key loses classification *silently* and leaves a file that
+    looks imported and is not. The normaliser's rule is about arrangements
+    older serialisers wrote; this is a file contradicting itself.
+
+    Scoped per folder rather than across the file, because scope is part of
+    identity: two folders in one file may each declare `l1` and they are two
+    different Labels, exactly as two folders may each hold a "Research".
+    */
+    file.folders.forEach((folder, index) => {
+      const declared = new Set<string>()
+      for (const label of folder.labels ?? []) {
+        if (declared.has(label.key)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['folders', index, 'labels'],
+            message: `labels: the key ${JSON.stringify(label.key)} is used twice in one folder`,
+          })
+        }
+        declared.add(label.key)
+      }
+      ;(folder.tasks ?? []).forEach((task, taskIndex) => {
+        for (const key of task.labels ?? []) {
+          if (declared.has(key)) continue
+          ctx.addIssue({
+            code: 'custom',
+            path: ['folders', index, 'tasks', taskIndex, 'labels'],
+            message: `labels: the key ${JSON.stringify(key)} is not one of this folder's labels`,
+          })
+        }
+      })
+    })
   })
 
 /* ------------------------------------------------------------------ *
@@ -202,7 +321,7 @@ function normalizeStep(step: unknown): Record<string, unknown> | null {
  * malformed file, and 422 naming `notes` would be a strange thing to tell
  * the person who opened it. */
 function dropNulls(task: Record<string, unknown>): void {
-  for (const key of ['notes', 'important', 'recurrence_rule', 'reminder', 'steps']) {
+  for (const key of ['notes', 'important', 'recurrence_rule', 'reminder', 'steps', 'labels']) {
     if (task[key] === null) delete task[key]
   }
 }
@@ -323,6 +442,32 @@ export interface ExportableBlock {
   text: string | null
 }
 
+/**
+ * One Task's Folder Labels as this file's own keys, in the order the
+ * projection answered them. A Label with no key is one the vocabulary left
+ * out — an archived one — and it drops rather than inventing a key for a
+ * definition the file does not carry.
+ *
+ * **An empty vocabulary answers before the projection is read at all**, and
+ * that is not a micro-optimisation: with no `labels` written into the file
+ * there is no key any assignment could resolve to, so the task's own arrays
+ * cannot change the answer. It also keeps this function's only requirement on
+ * its caller honest — it needs a real 7.6 TaskDetail, and it asks for one only
+ * in the case where it has something to do with it.
+ */
+function labelKeysOf(
+  task: TaskDetail,
+  keyOf: ReadonlyMap<string, string>,
+): string[] {
+  if (keyOf.size === 0) return []
+  const keys: string[] = []
+  for (const label of task.labels.folder) {
+    const key = keyOf.get(label.id)
+    if (key !== undefined) keys.push(key)
+  }
+  return keys
+}
+
 /*
 "Save as workflow", as the same contract that reads one.
 
@@ -349,14 +494,55 @@ export function folderToWorkflowFile(
   tasks: readonly TaskDetail[],
   blocks: readonly ExportableBlock[] = [],
   pageView?: PageView,
+  /*
+  The Folder's own Label vocabulary, as `GET /labels?scope=folder&folder_id=`
+  answers it (#227 area 4).
+
+  **It is a parameter rather than something derived from `tasks`**, and that is
+  the requirement rather than an implementation taste: #227 asks for the
+  Folder's *reusable* vocabulary, "including definitions not currently assigned
+  to a Task". A vocabulary read off the tasks would carry only what happens to
+  be in use today, so the template would lose exactly the empty categories a
+  template exists to set up.
+
+  Archived definitions are filtered here rather than at the call site, so the
+  caller may hand over whatever the endpoint answered.
+  */
+  folderLabels: readonly LabelDefinition[] = [],
 ): ImportWorkflowBody {
   /* 10.3 caps a folder name at 100 and admits no empty one, and this is the
      one place the name is not already a row that satisfied both. */
   const folderName = name.trim() === '' ? UNNAMED_IMPORT : name.slice(0, 100)
+  /*
+  The vocabulary, and the id-to-key table every task's assignments are written
+  through. The keys are positional (`l1`, `l2`, …) rather than the Label's
+  name, because a key is a join inside one file and a name is a person's word
+  for something: two files merged by hand, or one folder renamed after the
+  other was written, must not make two Labels one.
+
+  #227 excludes archived Folder Labels from the file. An archived Label may not
+  be newly applied, and every Label in an imported folder is applied to work
+  created in the same transaction, so a file carrying one would be asking for
+  a row the live rules refuse.
+  */
+  const vocabulary = folderLabels.filter((label) => !label.archived)
+  const keyOf = new Map(
+    vocabulary.map((label, index) => [label.id, `l${String(index + 1)}`]),
+  )
+  const exportedLabels = vocabulary.map((label) => ({
+    key: keyOf.get(label.id) as string,
+    name: label.name,
+    color: label.color,
+    ...(label.description !== null && label.description !== ''
+      ? { description: label.description }
+      : {}),
+  }))
   const page = blocks
     .map((block) => normalizeBlock(block))
     .filter((block): block is NormalBlock => block !== null)
-  const work = tasks.map((task) => ({
+  const work = tasks.map((task) => {
+  const labelKeys = labelKeysOf(task, keyOf)
+  return {
     title: task.title,
     ...(task.notes !== null && task.notes !== '' ? { notes: task.notes } : {}),
     ...(task.important ? { important: true } : {}),
@@ -372,14 +558,26 @@ export function folderToWorkflowFile(
     ...(task.steps.length > 0
       ? { steps: task.steps.map((step) => ({ title: step.title })) }
       : {}),
-  }))
+    /* The Task's Folder Labels by key, and **only** its Folder Labels:
+       `task.labels.personal` is the viewer's own private classification and is
+       not written at any version. An archived assignment finds no key, having
+       been filtered out of the vocabulary above, and drops out here. */
+    ...(labelKeys.length > 0 ? { labels: labelKeys } : {}),
+  }
+  })
   return {
     dana: 'workflow',
-    version: pageView === undefined ? 1 : 2,
+    /* What a reader must understand to read this file, and no more: 3 once it
+       carries a Label vocabulary, 2 for the typed page document, 1 for
+       neither. A folder with no Folder Labels writes exactly the file it wrote
+       before #227, which is what keeps every older reader honest about the
+       files it can still read. */
+    version: exportedLabels.length > 0 ? 3 : pageView === undefined ? 1 : 2,
     name: folderName,
     folders: [
       {
         name: folderName,
+        ...(exportedLabels.length > 0 ? { labels: exportedLabels } : {}),
         ...(pageView===undefined?{}:{document:{
           blocks:pageView.blocks.map(b=>({op:'put_block' as const,id:b.id,block_kind:b.kind,text:b.text,rich_content:b.rich_content??null,file_id:b.file_id,ref_folder_id:b.ref_folder_id,width_pct:b.width_pct,checked:b.checked})),
           task_ids:tasks.map(t=>t.id),

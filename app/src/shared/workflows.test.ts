@@ -94,13 +94,14 @@ describe('importWorkflowBody folds the one-folder file (DES-206)', () => {
     for (const file of [
       { dana: 'workflow', version: 1, name: 'nothing at all' },
       { dana: 'shopping-list', version: 1, folders: [{ name: 'x' }] },
-      // Version 3 rather than 2, corrected 2026-09-20. This row read
-      // `version: 2` from the day it was written until c7bd863 (#204, the
-      // folder writing canvas) widened the schema from `z.literal(1)` to
-      // `z.union([z.literal(1), z.literal(2)])` and left the row alone.
-      // Version 2 is an honest arrangement now and the case below pins it;
-      // what this row is for is the unknown version, so it names one.
-      { dana: 'workflow', version: 3, folders: [{ name: 'x' }] },
+      // Version 4 rather than 3, moved 2026-09-20 by issue #227, which added
+      // version 3 for the Folder Label vocabulary. The decision this row pins
+      // has not moved — **an unknown version is refused rather than read
+      // hopefully** — only which number is unknown has, which is the same
+      // move the note below this records for #204 and version 2. The row read
+      // `version: 2` until c7bd863 widened the schema and left it alone, and
+      // the pair of cases added then is why this one could not go quiet again.
+      { dana: 'workflow', version: 4, folders: [{ name: 'x' }] },
       'not an object',
       null,
     ]) {
@@ -115,6 +116,14 @@ describe('importWorkflowBody folds the one-folder file (DES-206)', () => {
   // false with no test naming the change. This is that test.
   test('version 2 is an arrangement, since the folder writing canvas (#204)', () => {
     const file = { dana: 'workflow', version: 2, folders: [{ name: 'x' }] }
+    expect(importWorkflowBody.safeParse(file).success, JSON.stringify(file)).toBe(true)
+  })
+
+  // And version 3, added by #227 for the Folder Label vocabulary, written
+  // here in the same pair so that the next number to arrive meets the same
+  // two cases rather than one of them.
+  test('version 3 is an arrangement, since the Folder Labels (#227)', () => {
+    const file = { dana: 'workflow', version: 3, folders: [{ name: 'x' }] }
     expect(importWorkflowBody.safeParse(file).success, JSON.stringify(file)).toBe(true)
   })
 })

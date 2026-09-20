@@ -63,8 +63,8 @@ import type {
   LabelScope,
   TaskLabels,
 } from '../../shared/labels.js'
-import { idSet, inTransaction, rowsOf } from '../database.js'
-import type { Executor } from '../database.js'
+import { idSet, inTransaction, pairSet, rowsOf } from '../database.js'
+import type { Executor, IdPair } from '../database.js'
 
 /* ------------------------------------------------------------------ *
  * Serialization
@@ -886,4 +886,252 @@ export async function dropFolderLabelsOnMove(
   await tx.execute(
     sql`DELETE FROM task_folder_labels WHERE task_id = ${taskId}::uuid`,
   )
+}
+
+/* ------------------------------------------------------------------ *
+ * The lifecycle integrations (issue #227, #208 R6A)
+ * ------------------------------------------------------------------ */
+
+/*
+Everything below is a copy rule, and one sentence decides all of them:
+
+> **A Personal Label is the viewer's own and never travels to another person;
+> a Folder Label belongs to its Folder and is re-created with new ids when the
+> Folder is copied, never pointed at the source's ids.**
+
+**The word "archived" means two different things across these functions, and
+that is the issue's own reading rather than an inconsistency.** Archiving a
+definition says "this may not be **newly applied**" (#208 R5), so a duplicate
+making *new* assignments must not make one out of an archived Label.
+Duplicating a Folder is not making new assignments in that sense: it copies a
+Folder's whole taxonomy, state included, so archived definitions come across
+archived and the assignments standing against them come with them. #227 area 9
+states both halves in one paragraph, and getting one of them backwards is the
+most likely way this section goes wrong.
+
+**No cap is checked here and none needs to be.** Every copy below is bounded by
+what the source already holds, and the source satisfied 10.3's cap when it was
+written: a Task carries at most 100 Folder Labels, so its copy carries at most
+100; a Folder holds at most 250 definitions, so its copy holds at most 250. A
+cap check would refuse nothing, and to mean anything it would need the lock
+`insertLabel` takes.
+*/
+
+/**
+ * The Labels a duplicated Task carries, written inside the caller's
+ * transaction, for a copy made **in the source's own Folder** — which is the
+ * only form 7.16's `POST /tasks/:id/duplicate` has.
+ *
+ * The Folder Label assignments keep the **same** ids, and that is the whole
+ * difference from the Folder duplicate below: the copy is in the same Folder,
+ * so the Folder's vocabulary is already the copy's vocabulary, and minting a
+ * second "Urgent" beside the first would be the name-merging #208 forbids,
+ * read backwards.
+ *
+ * Only `duplicatorId`'s own Personal assignments cross, and only active
+ * definitions on either side. Another member's Personal Labels are not copied
+ * and are not read: the statement carries `owner_user_id = <duplicator>` for
+ * the same reason every other statement in this file does.
+ */
+export async function copyTaskLabelsForDuplicate(
+  tx: Executor,
+  duplicatorId: string,
+  sourceTaskId: string,
+  copyTaskId: string,
+): Promise<void> {
+  /* The Folder rides from the source assignment row rather than from an
+     argument. `task_folder_labels_task_scope_fkey` holds the pair to the
+     Task's Folder, so taking the value from the row being copied makes the
+     invariant unfalsifiable here rather than merely satisfied. */
+  await tx.execute(
+    sql`INSERT INTO task_folder_labels (folder_id, task_id, label_id)
+        SELECT tfl.folder_id, ${copyTaskId}::uuid, tfl.label_id
+          FROM task_folder_labels tfl
+          JOIN labels l ON l.id = tfl.label_id
+         WHERE tfl.task_id = ${sourceTaskId}::uuid
+           AND l.archived_at IS NULL`,
+  )
+  await tx.execute(
+    sql`INSERT INTO task_personal_labels (task_id, label_id, owner_user_id)
+        SELECT ${copyTaskId}::uuid, tpl.label_id, tpl.owner_user_id
+          FROM task_personal_labels tpl
+          JOIN labels l ON l.id = tpl.label_id
+         WHERE tpl.task_id = ${sourceTaskId}::uuid
+           AND tpl.owner_user_id = ${duplicatorId}::uuid
+           AND l.archived_at IS NULL`,
+  )
+}
+
+/**
+ * The Folder Label vocabulary of a duplicated Folder: every definition of the
+ * source, archived ones included and still archived, under **new ids**.
+ *
+ * Answers the source-to-copy mapping, which is what the assignment copy below
+ * remaps through. A caller that pointed the copy's assignments at the source's
+ * ids would be refused by `task_folder_labels_label_scope_fkey` rather than
+ * quietly sharing one vocabulary across two Folders, which is why this can
+ * only be got wrong loudly.
+ *
+ * **The mapping is the reason this is a loop.** `INSERT ... SELECT ...
+ * RETURNING id` answers the new ids in no defined correspondence to the rows
+ * they came from, and the only column that could pair them up afterwards is
+ * the name — which is exactly the name-matching #208 forbids everywhere else.
+ * One statement per definition, bounded by 10.3's 250, inside a transaction
+ * that already writes one statement per page block and per task.
+ */
+export async function copyFolderLabelCatalog(
+  tx: Executor,
+  sourceFolderId: string,
+  copyFolderId: string,
+): Promise<IdPair[]> {
+  const sources = await rowsOf(
+    tx,
+    sql`SELECT id FROM labels
+         WHERE folder_id = ${sourceFolderId}::uuid AND scope = 'folder'
+         ORDER BY created_at ASC, id ASC`,
+  )
+  const pairs: IdPair[] = []
+  for (const row of sources) {
+    const sourceId = String(row.id)
+    /* `archived_at` is carried as a column rather than read out and written
+       back, so no timestamp crosses the driver: node-postgres hands back a
+       Date and PGlite a string, and a value that never leaves the database
+       cannot be spelled differently by the two legs. */
+    const made = await rowsOf(
+      tx,
+      sql`INSERT INTO labels
+            (scope, folder_id, name, color, description, archived_at)
+          SELECT 'folder', ${copyFolderId}::uuid, l.name, l.color,
+                 l.description, l.archived_at
+            FROM labels l WHERE l.id = ${sourceId}::uuid
+          RETURNING id`,
+    )
+    const copyId = made[0]?.id
+    if (copyId === undefined) continue
+    pairs.push([sourceId, String(copyId)])
+  }
+  return pairs
+}
+
+/**
+ * The assignments of a duplicated Folder: its Tasks' Folder Labels remapped
+ * onto the copied vocabulary, and the duplicator's own **active** Personal
+ * Labels on the source Folder and on the source Tasks.
+ *
+ * `labelPairs` is `copyFolderLabelCatalog`'s answer and `taskPairs` is the
+ * source-to-copy Task mapping the duplicate built as it went. Each rides as
+ * one bind parameter, so the whole remap is three statements whatever the
+ * Folder holds.
+ *
+ * **The Folder Label half copies archived assignments and the Personal half
+ * does not**, which is the two readings of "archived" the section header
+ * separates. The Folder's taxonomy is being duplicated, state and all; the
+ * duplicator's private classification is being newly applied to work that did
+ * not exist a moment ago, and an archived Personal Label may not be newly
+ * applied.
+ *
+ * **No other member's Personal Label crosses**, in either statement, and the
+ * scope is written into the FROM clause rather than inferred from the caller.
+ */
+export async function copyFolderLabelAssignments(
+  tx: Executor,
+  duplicatorId: string,
+  sourceFolderId: string,
+  copyFolderId: string,
+  labelPairs: readonly IdPair[],
+  taskPairs: readonly IdPair[],
+): Promise<void> {
+  if (labelPairs.length > 0 && taskPairs.length > 0) {
+    await tx.execute(
+      sql`INSERT INTO task_folder_labels (folder_id, task_id, label_id)
+          SELECT ${copyFolderId}::uuid, tm.new_id, lm.new_id
+            FROM task_folder_labels tfl
+            JOIN ${pairSet(taskPairs)} tm ON tm.old_id = tfl.task_id
+            JOIN ${pairSet(labelPairs)} lm ON lm.old_id = tfl.label_id
+           WHERE tfl.folder_id = ${sourceFolderId}::uuid`,
+    )
+  }
+
+  await tx.execute(
+    sql`INSERT INTO folder_personal_labels
+          (folder_id, label_id, owner_user_id)
+        SELECT ${copyFolderId}::uuid, fpl.label_id, fpl.owner_user_id
+          FROM folder_personal_labels fpl
+          JOIN labels l ON l.id = fpl.label_id
+         WHERE fpl.folder_id = ${sourceFolderId}::uuid
+           AND fpl.owner_user_id = ${duplicatorId}::uuid
+           AND l.archived_at IS NULL`,
+  )
+
+  if (taskPairs.length > 0) {
+    await tx.execute(
+      sql`INSERT INTO task_personal_labels (task_id, label_id, owner_user_id)
+          SELECT tm.new_id, tpl.label_id, tpl.owner_user_id
+            FROM task_personal_labels tpl
+            JOIN ${pairSet(taskPairs)} tm ON tm.old_id = tpl.task_id
+            JOIN labels l ON l.id = tpl.label_id
+           WHERE tpl.owner_user_id = ${duplicatorId}::uuid
+             AND l.archived_at IS NULL`,
+    )
+  }
+}
+
+/**
+ * The Folder Labels an imported workflow file asks for, created inside the
+ * Folder the import has just made, answered as a map from the file's own
+ * portable key to the id each one was given (7.16, #227 area 4).
+ *
+ * **Imported Labels are always active**, which is #227's rule and is also the
+ * only one that could be right: archived means "may not be newly applied", and
+ * every Label here is about to be applied to work created in the same
+ * transaction.
+ *
+ * Nothing merges against an existing catalog by name, because the Folder was
+ * created moments ago and its catalog is empty. That is worth stating rather
+ * than leaving to the reader: "do not merge against unrelated existing Labels
+ * by name" is satisfied structurally here, and would stop being satisfied the
+ * day an import learned to add to a Folder that already exists.
+ */
+export async function createWorkflowFolderLabels(
+  tx: Executor,
+  folderId: string,
+  definitions: readonly {
+    key: string
+    name: string
+    color: string
+    description?: string | null | undefined
+  }[],
+): Promise<Map<string, string>> {
+  const byKey = new Map<string, string>()
+  for (const definition of definitions) {
+    const made = await rowsOf(
+      tx,
+      sql`INSERT INTO labels (scope, folder_id, name, color, description)
+          VALUES ('folder', ${folderId}::uuid, ${definition.name},
+                  ${definition.color}, ${definition.description ?? null})
+          RETURNING id`,
+    )
+    const id = made[0]?.id
+    if (id !== undefined) byKey.set(definition.key, String(id))
+  }
+  return byKey
+}
+
+/** One imported Task's Folder Label assignments, by the ids
+ * `createWorkflowFolderLabels` answered. A key the file never declared is
+ * refused by the schema before this runs, so an unknown one cannot arrive
+ * here and is not silently dropped here either. */
+export async function applyWorkflowTaskLabels(
+  tx: Executor,
+  folderId: string,
+  taskId: string,
+  labelIds: readonly string[],
+): Promise<void> {
+  for (const labelId of labelIds) {
+    await tx.execute(
+      sql`INSERT INTO task_folder_labels (folder_id, task_id, label_id)
+          VALUES (${folderId}::uuid, ${taskId}::uuid, ${labelId}::uuid)
+          ON CONFLICT DO NOTHING`,
+    )
+  }
 }

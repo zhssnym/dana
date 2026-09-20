@@ -602,6 +602,53 @@ what that sentence is for.
   rule, and neither is anything else this branch stepped over. **The count at the top does
   not move with this bullet** either, on the AC-410 and AC-411 precedent; 12.24's row in the
   table below is exact, this being a new file no other branch is writing into.
+- **AC-540 to AC-554 were assigned as a block on 2026-09-20** (issue #227), fifteen
+  numbers, one per proof #227 requires. They are 12.24's, beside #226's eleven: the Label
+  lifecycle across duplication, move, workflow files, account export, Trash, purge,
+  membership loss and archive.
+
+  **"Assigned as a block" rather than "taken from the tail", and the difference is the
+  whole reason this bullet is long.** This branch first took **520 to 534** by the rule
+  the AC-361 to AC-365 bullet below states: it scanned every ref in the repository
+  immediately before allocating, found the highest number in any test filename was
+  **507** on `backend/220-files-and-media-blocks`, and stepped over 508 to 519 rather
+  than take the next number, on the AC-411 bullet's rule that a gap is cheaper than a
+  collision while siblings are spending. **That scan was correct when it ran and was
+  wrong ten minutes later**: `backend/228-folder-access-model` was concurrently being
+  moved off its own collisions into **510 to 523**, and that push landed while this
+  branch was working. 520 to 523 were then held twice, under four different filenames,
+  which merges cleanly and silently — the exact failure the rule exists to prevent,
+  produced *by* the rule rather than by anyone ignoring it.
+
+  So the numbers were **handed out** instead, and this branch renumbered 520→540 through
+  534→554 in one pass. **535 to 539 are left empty on purpose**: the gap is what says a
+  renumber happened rather than an ordinary allocation, and a later reader who finds it
+  should read this bullet rather than assume five numbers were wasted.
+
+  **The rule that fails here is recorded as issue #252.** Taking from the tail is
+  collision-proof only while one party spends it; it is not collision-proof against a
+  party *moving* an already-spent block, because the mover's new range can land on top of
+  a scan that has already been taken. Migration numbers were given central assignment for
+  the same reason and criteria had not been. Until #252 lands, **ask for a block rather
+  than scanning for one** when more than one branch is open.
+
+  **The true picture on 2026-09-20, after #228's move**, so a later reader can check it
+  rather than reconstruct it: 440 to 447 are #224's, 450 to 452 #217's, 464 to 466
+  #250's, 470 to 481 #226's, 490 to 507 #220's, 510 to 523 #228's, 540 to 554 these, and
+  560 upward `backend/230`'s. 508, 509, 524 to 539 and 555 to 559 are **deliberately not
+  added to the free list above**, for the reason the AC-412 bullet gives.
+
+  **Three collisions this bullet used to record as pending are resolved, and the record
+  is kept rather than deleted.** It named `ac-481` held by both #226 and #228, and
+  `ac-490`, `ac-491` and `ac-492` held by both #228 and #220. #228's move from 480 to 493
+  into 510 to 523 cleared all four. They are left written down because the value of the
+  entry is not the four filenames — it is that four collisions existed at once on a tail
+  four branches were reading, and were found by a fifth branch's scan rather than by a
+  merge.
+
+  **No total moves with this bullet**, on the AC-410 and AC-411 precedent; the count at
+  the top of this file is stale by #226's eleven and these fifteen until the merge that
+  comes last re-derives it over the files.
 - **AC-470 to AC-480 were taken from the tail on 2026-09-20** (issue #226), eleven numbers,
   on the rule the AC-361 to AC-365 bullet below states and for exactly the reason it gives:
   several branches were open at once that day and a gap is the one place two of them
@@ -618,7 +665,11 @@ what that sentence is for.
   count at the top of this file is therefore stale by twelve, the eleven here and AC-481
   above, until the merge that comes
   last re-derives it over the files. 12.24's own row in the table below is exact, this being
-  a new file that no other branch is writing into.
+  a new file that no other branch is writing into. **That last sentence stopped being true
+  on 2026-09-20**: issue #227 wrote its fifteen into the same file, so the row says 27 and
+  the top-of-file count is stale by twenty-six. The bullet is left as written because it
+  was true when written and because the correction is the point — "no other branch is
+  writing into it" is a claim about a moment, not a property of a file.
 
   The eleven are the backend half of #208 and nothing else: definitions, scope, privacy,
   assignments, archive, caps, projections and the Shelf rename. The Labels filter axis, the
@@ -653,4 +704,4 @@ what that sentence is for.
 | 12.21 | [`12.21-transactional-email.md`](12.21-transactional-email.md) | 12.21 Transactional email, 6 criteria |
 | 12.22 | [`12.22-the-public-surface.md`](12.22-the-public-surface.md) | 12.22 The public surface: landing, legal, install, offline, 7 criteria |
 | 12.23 | [`12.23-security-limits-and-rate-limits.md`](12.23-security-limits-and-rate-limits.md) | 12.23 Security, limits and rate limits, 21 criteria |
-| 12.24 | [`12.24-labels.md`](12.24-labels.md) | 12.24 Labels, 12 criteria |
+| 12.24 | [`12.24-labels.md`](12.24-labels.md) | 12.24 Labels, 27 criteria |

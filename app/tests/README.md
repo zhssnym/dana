@@ -135,6 +135,30 @@ the wire; it is its own file because it pins a different decision from AC-479
 beside it — that decision being whether the rename can be deployed without
 losing somebody's edit, rather than whether it changed Shelf semantics.
 
+**51 to 66 the same day, for issue #227's Label lifecycle** (AC-540 to AC-554,
+spec 12.24's second half — **and AC-520 to AC-534 for about an hour before
+that**, renumbered when a sibling branch was moved onto the block this one had
+just scanned; the registry carries the story and no criterion changed, only its
+number). Fifteen numbers and fifteen files, one apiece,
+which is the opposite of the ratio above and is deliberate: #226's twelve were
+clauses of four behaviours, while #227's fifteen are fifteen independent acts —
+two duplications, a move, a file format both ways, an export, a Trash, a purge,
+an account deletion and a membership loss — and a file that failed would
+otherwise take four unrelated areas red with it. `support/label-lifecycle-harness.ts`
+is theirs and sits beside `support/labels-harness.ts` rather than inside it, the
+split being definitions and projections against what happens to them when Work
+moves.
+
+**Every one of the fifteen was proved by breaking the code it watches**, one
+mutation at a time against the real Postgres leg, and two of them were green
+under a mutation the first time and were fixed rather than shrugged at: AC-547's
+fixture asked the endpoint for active definitions only, so the exporter's own
+exclusion of archived ones was never exercised, and AC-546's first mutation
+re-attached by name *after* the assignments were already deleted, so it could
+not have carried anything. The second was a bad mutation and the first was a
+weak criterion; both are recorded in the commit because the difference between
+them is the thing a mutation pass is for.
+
 **And six more for issue #263, the reclaim sweep** (AC-700 to AC-705, spec 12.9),
 on the same reading of that ruling. **Read the sentence above as the dated
 record it is rather than as a running total**: the tree already held 69

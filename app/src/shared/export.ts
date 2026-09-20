@@ -49,10 +49,16 @@ export const EXPORT_FORMAT = 'dana-export'
  * #208's Label model. Nothing was added and no value changed, but a reader
  * that knows version 2 would find the key it expects missing, and this number
  * is the whole mechanism by which it is told to refuse rather than guess.
- * #227 owns putting Labels themselves into the document and will move it
- * again.
+ *
+ * **3 to 4 at issue #227**, which put the Labels themselves in: the viewer's
+ * Personal Label definitions at the top level, each owned Folder's complete
+ * Folder Label vocabulary, the id arrays on every task and folder, and the
+ * definitions a foreign task needs to be readable. A version-3 reader would
+ * strip every one of those keys and hand back a document with a person's
+ * whole classification silently missing, which is what the number exists to
+ * prevent.
  */
-export const EXPORT_VERSION = 3
+export const EXPORT_VERSION = 4
 
 /**
  * 10.3's "List responses capped at 1000 rows with truncated flag", applied
@@ -73,6 +79,7 @@ export const EXPORT_COLLECTIONS = [
   'folders.tasks',
   'folders.tasks.steps',
   'folders.blocks',
+  'folders.labels',
   'tasks_elsewhere',
   'tasks_elsewhere.steps',
   'comments',
@@ -81,6 +88,7 @@ export const EXPORT_COLLECTIONS = [
   'shelves.blocks',
   'views',
   'files',
+  'personal_labels',
 ] as const
 export type ExportCollection = (typeof EXPORT_COLLECTIONS)[number]
 
@@ -106,6 +114,35 @@ export const exportFile = z.object({
   url: z.string(),
 })
 export type ExportFile = z.infer<typeof exportFile>
+
+/*
+A Label definition as the export carries one (#227 area 5).
+
+**It is `labelDefinition` written out rather than imported**, for the reason
+every other shape in this file is written out rather than imported from the
+read schema it resembles: an export is a document with a version on it, and a
+change to a read shape must not silently change the document's meaning under a
+version that says it did not. The fields are the same today and the two are
+free to part company tomorrow.
+
+**Where each definition may appear is the privacy rule, and the shape does not
+carry it.** A Personal definition appears only in `personal_labels`, which is
+the viewer's own catalog; a Folder definition appears in an owned Folder's
+`labels`, or on a foreign task that actually wears it, and nowhere else.
+`owner_user_id` is absent for `labelDefinition`'s reason: every Personal
+definition in this document is the viewer's, so the field would be a constant
+that happens to be an account id.
+*/
+export const exportLabel = z.object({
+  id: z.uuid(),
+  scope: z.string(),
+  name: z.string(),
+  color: z.string(),
+  description: z.string().nullable(),
+  archived: z.boolean(),
+  folder_id: z.uuid().nullable(),
+})
+export type ExportLabel = z.infer<typeof exportLabel>
 
 export const exportStep = z.object({
   id: z.uuid(),
@@ -156,6 +193,15 @@ export const exportTask = z.object({
   trashed: z.boolean(),
   steps: z.array(exportStep),
   reminder: exportReminder.nullable(),
+  /* Ids into the document's own definitions rather than definitions inlined
+     per task: a Label on forty tasks is one definition and forty references,
+     which is also the only spelling in which the archived state of a Label
+     cannot be written forty times and disagree with itself. `personal` are the
+     viewer's own and resolve in `personal_labels`; `folder` resolve in the
+     owning folder's `labels`, or — for a task in a folder the viewer does not
+     own — in that task's own `folder_labels` (#227 area 5). */
+  personal_label_ids: z.array(z.uuid()),
+  folder_label_ids: z.array(z.uuid()),
 })
 export type ExportTask = z.infer<typeof exportTask>
 
@@ -204,6 +250,14 @@ export const exportFolder = z.object({
   members: z.array(z.string()),
   tasks: z.array(exportTask),
   blocks: z.array(exportBlock),
+  /** The Folder's complete Folder Label vocabulary, archived definitions
+   * included with their state. This is an **owned** folder, so #227 asks for
+   * all of it: the taxonomy is the owner's to take with them, and a vocabulary
+   * cut down to what happens to be in use would not reconstruct the folder. */
+  labels: z.array(exportLabel),
+  /** The viewer's own Personal Labels applied to this Folder, by id into
+   * `personal_labels`. Never another member's, here or anywhere. */
+  personal_label_ids: z.array(z.uuid()),
 })
 export type ExportFolder = z.infer<typeof exportFolder>
 
@@ -214,6 +268,20 @@ export type ExportFolder = z.infer<typeof exportFolder>
  */
 export const exportForeignTask = exportTask.extend({
   folder: z.object({ id: z.uuid(), name: z.string() }),
+  /*
+  **Exactly the Folder Label definitions this task wears, and not one more.**
+
+  #227 draws the line here in terms: for a task exported out of a folder the
+  viewer does not own, include only what is needed to describe that task, and
+  do not export the other folder's unrelated vocabulary. So these are resolved
+  per task rather than per folder — a colleague's folder with forty categories
+  contributes the two on the one task that is the viewer's own work.
+
+  There is no Personal counterpart, and there is deliberately no key for one:
+  another person's Personal Labels are never exported, and the viewer's own
+  ones on such a task resolve in `personal_labels` like everywhere else.
+  */
+  folder_labels: z.array(exportLabel),
 })
 export type ExportForeignTask = z.infer<typeof exportForeignTask>
 
@@ -245,6 +313,19 @@ export const exportShelf = z.object({
 })
 export type ExportShelf = z.infer<typeof exportShelf>
 
+/*
+A saved view (4.19), its definition passed through as the generic JSON the
+column holds.
+
+**#227 area 6's rule lives in this shape's *unchanged*ness.** A definition may
+name Label ids in its criteria, and the export neither rewrites them, drops
+them, nor resolves them into definitions: a criterion naming a Folder Label the
+viewer can no longer reach stays exactly as it was stored, because dropping it
+would silently broaden the view — "tasks in Research" becoming "tasks" — and
+resolving it would add metadata about a Label the viewer may not read. The
+document adds Label definitions the viewer owns or may read on their own work,
+and the ids in a view definition get no special treatment beyond that.
+*/
 export const exportView = z.object({
   id: z.uuid(),
   name: z.string(),
@@ -352,6 +433,12 @@ export const exportDocument = z.object({
   shelves: z.array(exportShelf),
   views: z.array(exportView),
   files: z.array(exportFile),
+  /** Every Personal Label definition the viewer holds, archived state and
+   * all — the catalog rather than what happens to be applied, for the reason
+   * an owned folder's vocabulary is complete. Every `personal_label_ids`
+   * entry anywhere in this document resolves here, and no other account's
+   * Personal Label appears in this document at all (#227 area 5). */
+  personal_labels: z.array(exportLabel),
   /** The collections 10.3's cap cut, by the names in `EXPORT_COLLECTIONS`.
    * Empty on every export that fit, which is every ordinary one. */
   truncated: z.array(z.enum(EXPORT_COLLECTIONS)),
