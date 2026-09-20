@@ -74,8 +74,22 @@ agreeing on anything first.
 const FULL_BLEED = { marginInline: "calc(50% - 50cqw)" } as const
 
 /* The band, drawn only when the page has a cover. `storageName` is the key
-   the cover is remembered under, a folder's real name, or the page's. */
-export function PageCover({ storageName }: { storageName: string }) {
+   the cover is remembered under, a folder's real name, or the page's.
+
+   `readOnly` draws the picture and nothing that changes it (issue #228).
+   A folder's cover is part of its 4.3 identity, which accepted #209 R8A makes
+   ordinary shared Folder work: Can edit and above change it, and `PATCH
+   /folders/:id` answers 403 to everybody below, so the folder page passes
+   this for a viewer under that bar. It defaults to false, and a place page —
+   whose cover is 4.20's, per viewer and nobody else's business — never passes
+   it. */
+export function PageCover({
+  storageName,
+  readOnly = false,
+}: {
+  storageName: string
+  readOnly?: boolean
+}) {
   const identity = useFolderIdentity(storageName)
   const coverPos = identity.coverPos ?? 50
   const cover = resolveCover(identity.cover, storageName, coverPos)
@@ -147,6 +161,12 @@ export function PageCover({ storageName }: { storageName: string }) {
           </span>
         </div>
       ) : null}
+      {/* Change, Remove and Reposition, all three withheld together: a band
+          with no controls is the whole of what `readOnly` means here, and
+          repositioning cannot be entered any other way. Not rendered rather
+          than hidden, because `hidden` and `.flex` carry the same specificity
+          and the later rule wins. */}
+      {readOnly ? null : (
       <div
         className={cn(
           "absolute right-4 bottom-3 flex items-center gap-1 transition-opacity",
@@ -259,6 +279,7 @@ export function PageCover({ storageName }: { storageName: string }) {
           </span>
         )}
       </div>
+      )}
     </div>
   )
 }
@@ -283,9 +304,17 @@ control that is the sole way to do something, in the one state where it can be
 done, is not a control to hide. Once there is a cover the band itself is the
 affordance (DES-141) and this is gone.
 */
-export function AddCoverAction({ storageName }: { storageName: string }) {
+export function AddCoverAction({
+  storageName,
+  readOnly = false,
+}: {
+  storageName: string
+  /** The way in is withheld from a viewer who may not change the folder's
+   * identity (issue #228, accepted #209 R8A; see `PageCover`). */
+  readOnly?: boolean
+}) {
   const identity = useFolderIdentity(storageName)
-  if (identity.cover) return null
+  if (readOnly || identity.cover) return null
 
   return (
     <Popover>

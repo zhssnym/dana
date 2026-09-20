@@ -10,15 +10,26 @@ What is deliberate rather than transcription:
 **The identity is the folder's, written through 4.3's shared columns.** The
 mark opens the icon-and-colour picker and PATCHes icon and color; the cover
 uploads through 7.15 (kind 'cover') and PATCHes cover_file_id; the
-description PATCHes description. Any member writes all four, the event log
-says who (9.6's matrix, AC-193's client half). The name alone is the
-owner's: it renders as a heading for everybody and becomes an inline field
-for the owner on a click or on the menu's Rename, so a member is offered no
-control a 403 would answer (DES-225) and every reader still has a heading to
-land on. That last half is a correction AC-226 caught: an always-on field
-left the imported starter's page with no heading at all. The "Label and
-color" dialog is retired with its section sentence; 4.4's per-member color
-column is written by no v2 surface.
+description PATCHes description; the name renders as a heading for everybody
+and becomes an inline field on a click or on the menu's Rename.
+
+**All five are Can edit's, and until 2026-09-20 this page had them split.**
+The paragraph here read "any member writes all four" with "the name alone is
+the owner's", which was DES-225's split and 9.6's role matrix. **Accepted
+#209 R8A contradicts both halves**: Can view is "read only", Can edit may
+"plan/change all shared Folder work", and a folder's identity is shared
+Folder work. So a Can-view member could repaint a folder they may only read,
+and a Full-control member who did not own it could not rename one they
+administer. Hassan's ruling of 2026-09-20,
+https://github.com/zhssnym/dana/issues/228#issuecomment-5750892771; AC-011,
+AC-012 and AC-193 carry it, and `lib/folder-authority.ts` answers it here
+from the same table the routes resolve against.
+
+A reader below that bar is offered no control a 403 would answer, and still
+has a heading, a band and a paragraph to read. The heading half is a
+correction AC-226 caught: an always-on field left the imported starter's page
+with no heading at all. The "Label and color" dialog is retired with its
+section sentence; 4.4's per-member color column is written by no v2 surface.
 
 **Tasks sit under their sections since S17b, and the paragraph this replaces
 argued for the shape the code no longer has.** It said tasks render loose
@@ -61,17 +72,25 @@ different control".
 and no confirmation: two ways back is why the question left"). The inverse
 is 7.13's restore, registered the way every page registers one. Leave keeps
 its sentence verbatim and its confirm (AC-183), and walks through DELETE
-/my-membership, the door change control item 5 cut. An owner with other
-members is offered ownership transfer instead (5.3, 8.9), a sole owner
+/my-membership, the door change control item 5 cut.
+
+**An owner with other members is offered Transfer ownership rather than
+Leave, and that is now the server's rule and not only this page's.**
+Governing #209 R6 section 2 ended automatic succession: the owner's leave is
+409 until they have handed custody to a member who *currently holds Full
+control*, and the picker offers exactly those. A sole owner is offered
 Delete, and Desk neither.
 
 **The overflow menu lives in the window bar** (9.1: the bar's right end
 holds "the object's overflow menu"), named "More actions", offering exactly
-the viewer's role's acts: History, Copy link, Duplicate, Save as workflow
-to everyone; Rename, Delete folder and Transfer ownership to the owner;
-Leave folder to a member. Duplicate is the server's (DES-198); Save as
-workflow is the client-side export DES-206 keeps client-side, structure and
-titles only.
+the acts this viewer's Access permits: History, Copy link, Duplicate, Save as
+workflow to everyone; **Rename at Can edit and above, Delete folder at Full
+control, Leave folder to any member who is not the owner and is not the last
+Full control, and Transfer ownership to the owner alone**. Those four were
+`is_owner` until 2026-09-20 and are `lib/folder-authority.ts` now, for the
+reason in the identity paragraph above. Duplicate is the server's (DES-198);
+Save as workflow is the client-side export DES-206 keeps client-side,
+structure and titles only.
 
 **A stale block write is handled visibly**: the 409 carries 5.1's copy,
 which the mutation cache already raises as the toast, and the page refetches
@@ -175,6 +194,17 @@ import { folderGroupLabels, initialsOf } from '../parts/presenters.js'
 import type { RowContext } from '../parts/presenters.js'
 import { useRowActions } from '../parts/useRowActions.js'
 import { folderLink } from '../lib/nav-links.js'
+import {
+  eligibleSuccessors,
+  folderGates,
+  otherMembers,
+  viewerFacts,
+} from '../lib/folder-authority.js'
+import { ruleFor } from '../../shared/folder-actions.js'
+/* Aliased: `shell/app-sidebar.ts` exports a `FolderAction` too, and it is
+   a different thing — the five menu acts a Library row reaches by link,
+   against #228's closed vocabulary of every Folder action there is. */
+import type { FolderAction as FolderActionName } from '../../shared/folder-actions.js'
 import { applyThreadChange, commentFileKind, useConceptThread } from '../lib/thread.js'
 import { paths } from '../routes.js'
 import { FOLDER_ACTION_PARAM } from '../shell/app-sidebar.js'
@@ -231,18 +261,30 @@ const SHARING_PANEL_WIDTH = 440
  * 9.6's leave confirm, verbatim and one sentence (AC-183 turns on both).
  */
 /**
- * The owner's leave-or-delete question, RFC 0005 change control item 38's
+ * The owner's hand-on-or-delete question, RFC 0005 change control item 38's
  * rules in the order he gave them: leave it to the other members, or delete
  * it for them too. Both consequences are stated because they differ in the
- * half a person cannot see: leaving passes ownership and writes no Trash
- * row; deleting reaches every member's Trash for thirty days.
+ * half a person cannot see: handing it on passes ownership and writes no
+ * Trash row; deleting reaches every member's Trash for thirty days.
+ *
+ * **Rewritten 2026-09-20 under governing #209 R6 section 2**, which replaced
+ * automatic succession with an explicit transfer: the sentence promised the
+ * folder would pass "to the longest-standing member", which is the rule that
+ * was removed, and the button under it wrote a request that now answers 409.
+ * The person is told who it can pass to instead, because under R6 the answer
+ * is sometimes nobody and that changes what they should do next.
  */
-function ownerDeleteQuestion(name: string, others: number): string {
+function ownerDeleteQuestion(name: string, others: number, successors: number): string {
   const who = others === 1 ? '1 other person' : `${others} other people`
+  const handOn =
+    successors === 0
+      ? 'Nobody in it has Full control yet, so there is nobody to hand it to until you give somebody that access'
+      : successors === 1
+        ? 'You can hand it to the member who has Full control, and it leaves your sidebar'
+        : `You can hand it to one of the ${String(successors)} members who have Full control, and it leaves your sidebar`
   return (
-    `${name} is shared with ${who}. You can leave it to them, and it passes to ` +
-    'the longest-standing member and leaves your sidebar, or delete it for ' +
-    'everyone, and it waits in Trash for 30 days.'
+    `${name} is shared with ${who}. ${handOn}, or delete it for everyone, and ` +
+    'it waits in Trash for 30 days.'
   )
 }
 
@@ -531,10 +573,37 @@ export function FolderPage({
   const isOwner = detail?.is_owner ?? false
   const isDefault = detail?.is_default ?? false
   const members = detail?.members ?? []
-  /* 8.9's default successor: the longest-standing other member. */
-  const successors = members
-    .filter((member) => member.user.id !== basis.viewerId)
-    .sort((a, b) => a.joined_at.localeCompare(b.joined_at))
+  /*
+  **What this page may offer, from the server's own table** (issue #228;
+  accepted #209 R8A; Hassan's ruling of 2026-09-20,
+  https://github.com/zhssnym/dana/issues/228#issuecomment-5750892771).
+
+  Every gate below used to read `isOwner`, which was right while ownership was
+  the authority and is wrong now that Access is: a Full-control member who is
+  not the owner was offered no Rename, and an owner whose Access had been
+  lowered was still offered Delete. `lib/folder-authority.ts` answers each
+  from `shared/folder-actions.ts`, the same table the routes resolve against,
+  so no bar is written twice; its own header carries the argument and its test
+  the preset-by-preset table.
+
+  The facts need the roster, which this page already reads, because the
+  viewer's preset is their membership row and is never inferred from custody
+  (R5 lets an owner lower their own Access). `gates` is null until both have
+  arrived, so nothing draws on a guess.
+  */
+  const facts = viewerFacts(detail, members, basis.viewerId)
+  const gates = facts === null ? null : folderGates(facts)
+  /* Governing R6 section 2: ownership passes only to a member who *currently*
+     holds Full control, and there is no default successor. The list this
+     replaced sorted every other member by `joined_at` and labelled the first
+     "(longest-standing)", which was 8.9's automatic succession rule — the
+     precise rule R6 section 2 removed — and offered a set of choices the
+     server now answers 422. */
+  const successors = eligibleSuccessors(members, basis.viewerId)
+  /* Everybody else in the folder, which is a different question and the one
+     the owner's delete dialog asks: somebody to hand it to is not the same as
+     somebody who is in it. */
+  const others = otherMembers(members, basis.viewerId)
   const completionTotal =
     (detail?.counts.completed ?? 0) + (detail?.counts.pending ?? 0)
   /* The prototype's rule for offering the description at rest: a folder
@@ -591,22 +660,40 @@ export function FolderPage({
 
   /*
   Item 38's one question, asked of an owner whose folder has other members:
-  leave it to them, or delete it for them too. The first is 5.3's owner-leave
-  at `DELETE /folders/:id/my-membership`, ownership passing under 8.9 to the
-  longest-standing member with nobody asked to name one; the second is
-  `doDelete` above, 7.13's soft delete for every member with the undo bar.
-  An owner alone in the folder is asked nothing, 9.6's confirm-free delete
-  standing, because there is nobody to leave it to. A non-owner never
-  reaches here: their exit is `askLeave`, which tells them they lose access.
+  hand it on, or delete it for them too.
+
+  **Its first option used to be "Leave it to the members", and that act no
+  longer exists.** It wrote `DELETE /folders/:id/my-membership`, and ownership
+  passed under 8.9 to the longest-standing member with nobody asked to name
+  one; governing #209 R6 section 2 removed exactly that, so the same request
+  now answers 409 "Transfer ownership before leaving". Offering it would be
+  offering a button whose only outcome is an error toast. The question keeps
+  its shape and its purpose — an owner is asked once before a shared folder
+  goes to Trash — and its first option is now the transfer the server
+  requires, which is the same intent stated under the new rule: the folder
+  stays alive for the people in it and leaves this person's sidebar.
+  AC-283 moved with it, in this commit.
+
+  The second option is `doDelete` above, 7.13's soft delete for every member
+  with the undo bar. An owner alone in the folder is asked nothing, 9.6's
+  confirm-free delete standing, because there is nobody to hand it to.
+
+  **A Full-control member who is not the owner is not asked either**, and that
+  is new because the act is new to them (AC-015): the question is about
+  custody, and custody is not theirs to pass on. They get 9.6's plain delete
+  and the undo bar, exactly as a sole owner does.
   */
   function askDelete(): void {
-    if (successors.length > 0) setDeleteAsk(true)
+    if (isOwner && others.length > 0) setDeleteAsk(true)
     else doDelete()
   }
 
-  function leaveToMembers(): void {
+  /** The way out of the delete question that is not deletion: name a
+   * successor. Closes one dialog and opens the other rather than acting, so
+   * the person still chooses who. */
+  function handOn(): void {
     setDeleteAsk(false)
-    leave.mutate(id, { onSuccess: () => navigate(paths.desk) })
+    setTransferOpen(true)
   }
 
   /*
@@ -685,6 +772,11 @@ export function FolderPage({
     const action = search.get(FOLDER_ACTION_PARAM)
     if (action === null) return
     if (detail === undefined) return
+    /* And for the viewer's own membership row, for the same reason: three of
+       the five acts below are gated on the preset it carries, and a gate
+       evaluated before the roster arrives would swallow the act rather than
+       delay it — `ranAction` is set on the line after this one. */
+    if (gates === null) return
     ranAction.current = true
     /*
     **This reads React Router's lagging copy of the location, twice, and is
@@ -717,11 +809,43 @@ export function FolderPage({
       },
       { replace: true },
     )
-    if (action === 'rename' && isOwner) setRenaming(true)
-    else if (action === 'history') setHistoryOpen(true)
+    /*
+    The same three gates the menu above draws with, because this is the same
+    act reached by link from the Library (issue #228).
+
+    **A refused arrival says why rather than doing nothing.** This link is
+    generated by the sidebar's folder row, which still gates Rename and Delete
+    on `is_owner` because `GET /folders` carries no preset for it to read —
+    the open question the pull request records — so an owner whose Access was
+    lowered can still press an act they may not perform. Silence there is the
+    worst of the three possible behaviours: the field simply never opens.
+    The sentence is `ruleFor(...).why`, which is the **same string the route
+    would have answered with**, `mayPerform`'s reason being what
+    `sendError(res, 403, 'forbidden', ...)` carries; so the person is told the
+    same thing whether the client caught it or the server did, and there is no
+    second wording to keep in step.
+    */
+    const refuse = (act: FolderActionName): void => {
+      showToast(ruleFor(act).why)
+    }
+    if (action === 'rename') {
+      if (gates?.identity === true) setRenaming(true)
+      else refuse('folder.profile.edit')
+    } else if (action === 'history') setHistoryOpen(true)
     else if (action === 'workflow') void saveAsWorkflow()
-    else if (action === 'leave' && !isOwner) askLeave()
-    else if (action === 'delete' && isOwner && !isDefault) askDelete()
+    /* Leave is the exception and asks anyway. The two rules that refuse it
+       are state rather than preset — the owner's transfer-first rule and the
+       continuity invariant — so `ruleFor('member.leave').why` would answer
+       "leaving is any member's", which is true and is not why this one was
+       refused. The route's 409 carries the sentence that is ("Transfer
+       ownership before leaving", "This folder would be left with nobody in
+       Full control"), and the mutation cache already raises it; copying those
+       two strings here would be the second copy this whole change removes. */
+    else if (action === 'leave') askLeave()
+    else if (action === 'delete') {
+      if (gates?.trash === true) askDelete()
+      else refuse('folder.trash')
+    }
   })
 
   const conversationSwitch = (
@@ -907,8 +1031,16 @@ export function FolderPage({
                 className="size-7 rounded-md text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-900)]"
               />
             }
+            /* **Offered whenever the folder is shared and the viewer owns
+               it, rather than only when somebody is eligible.** It used to be
+               withheld unless the successor list had somebody in it; under
+               governing R6 section 2 that list can be empty for a folder full
+               of people, and an owner who must transfer before they can leave
+               would then be offered no route at all and no reason. The dialog
+               says what to do instead, which is a sentence the menu cannot
+               carry. */
             extra={
-              isOwner && successors.length > 0 && !isDefault ? (
+              gates?.transferOwnership === true && others.length > 0 ? (
                 <DropdownMenuItem
                   onClick={() => {
                     setTransferOpen(true)
@@ -923,11 +1055,15 @@ export function FolderPage({
               history: () => {
                 setHistoryOpen(true)
               },
-              rename: isOwner
-                ? () => {
-                    setRenaming(true)
-                  }
-                : undefined,
+              /* Accepted R8A: a folder's name is ordinary shared Folder work,
+                 which Can edit and above change and nobody below does
+                 (AC-011, AC-012, AC-193). It read `isOwner`. */
+              rename:
+                gates?.identity === true
+                  ? () => {
+                      setRenaming(true)
+                    }
+                  : undefined,
               /* The personal label, which the Library row has offered since
                  P8R and this page never did. It is arrangement rather than
                  identity (9.6's matrix: "personal, always"), so it is the
@@ -1004,8 +1140,18 @@ export function FolderPage({
               workflow: () => {
                 void saveAsWorkflow()
               },
-              leave: isOwner ? undefined : askLeave,
-              delete: isOwner && !isDefault ? askDelete : undefined,
+              /* Leaving is any member's (governing R6), and refused to the
+                 owner until they transfer and to the last Full-control member
+                 by the continuity invariant. Both of those are state rather
+                 than preset, and `folderGates` reads them off the roster this
+                 page already has. */
+              leave: gates?.leave === true ? askLeave : undefined,
+              /* **Hassan's ruling of 2026-09-20, not R8A**, which settles it
+                 neither way: moving a folder to Trash is Full control's, and
+                 custody does not confer it, so an owner whose Access dropped
+                 below Full control is no longer offered it (AC-015). It read
+                 `isOwner && !isDefault`. */
+              delete: gates?.trash === true ? askDelete : undefined,
             }}
           />
         </WindowBarActions>
@@ -1055,7 +1201,10 @@ export function FolderPage({
               here, and follows the shell's own two measures. */}
           {hasCover ? (
             <div className="-mt-4 md:-mt-6">
-              <PageCover storageName={coverKey} />
+              {/* The cover is one of the 4.3 identity fields accepted R8A
+                  makes Can edit's (AC-011, AC-193), so a viewer below that
+                  bar reads the band and is offered nothing on it. */}
+              <PageCover storageName={coverKey} readOnly={gates?.identity !== true} />
             </div>
           ) : null}
           {/* One column since the faces and Share moved to the window bar:
@@ -1063,31 +1212,49 @@ export function FolderPage({
               it, and `page-head.tsx` draws the same head without one. */}
           <header className={`group/head ${hasCover ? '' : 'pt-2'}`}>
             <div className="min-w-0">
-              <Popover open={markOpen} onOpenChange={setMarkOpen}>
-                <PopoverTrigger
-                  render={
-                    <PageMark
-                      icon={markIcon(detail?.icon ?? null)}
-                      hasCover={hasCover}
-                      color={detail?.color ?? IDENTITY_COLOR_FALLBACK}
-                      interactive
-                      aria-label={`Icon and colour for ${detail?.name ?? ''}`}
-                    />
-                  }
-                />
-                <PopoverContent align="start" className="w-auto p-0">
-                  <IconPicker
-                    icon={detail?.icon ?? null}
-                    color={detail?.color ?? null}
-                    onPick={(next) => {
-                      patch.mutate({ id, body: next })
-                    }}
+              {/*
+              The icon and the colour, two more of the five identity fields.
+              **Drawn as a plain mark rather than as a disabled trigger** for
+              a viewer below Can edit: `PageMark`'s `interactive` is what
+              gives it the hover and the pointer, and a control that looks
+              pressable and answers 403 is the thing AC-011 is about.
+              */}
+              {gates?.identity === true ? (
+                <Popover open={markOpen} onOpenChange={setMarkOpen}>
+                  <PopoverTrigger
+                    render={
+                      <PageMark
+                        icon={markIcon(detail?.icon ?? null)}
+                        hasCover={hasCover}
+                        color={detail?.color ?? IDENTITY_COLOR_FALLBACK}
+                        interactive
+                        aria-label={`Icon and colour for ${detail?.name ?? ''}`}
+                      />
+                    }
                   />
-                </PopoverContent>
-              </Popover>
+                  <PopoverContent align="start" className="w-auto p-0">
+                    <IconPicker
+                      icon={detail?.icon ?? null}
+                      color={detail?.color ?? null}
+                      onPick={(next) => {
+                        patch.mutate({ id, body: next })
+                      }}
+                    />
+                  </PopoverContent>
+                </Popover>
+              ) : (
+                <PageMark
+                  icon={markIcon(detail?.icon ?? null)}
+                  hasCover={hasCover}
+                  color={detail?.color ?? IDENTITY_COLOR_FALLBACK}
+                />
+              )}
 
               <div className="mt-1">
-                <AddCoverAction storageName={coverKey} />
+                <AddCoverAction
+                  storageName={coverKey}
+                  readOnly={gates?.identity !== true}
+                />
               </div>
 
               {/* The count rides the title's own line rather than stacking a
@@ -1097,7 +1264,7 @@ export function FolderPage({
               {/* polish: pagehead F6. On a phone the counter wraps under the
                   name rather than cutting it to "Apart...". */}
               <div className="mt-1.5 flex items-baseline gap-3 max-md:flex-col max-md:items-start max-md:gap-1">
-                {isOwner && renaming ? (
+                {gates?.identity === true && renaming ? (
                   <InlineInput
                     key={detail?.name ?? ''}
                     defaultValue={detail?.name ?? ''}
@@ -1122,12 +1289,20 @@ export function FolderPage({
                   />
                 ) : (
                   /* A heading, always: it is what a reader lands on and what
-                     AC-226 asks the imported starter's page for, and a member
-                     is offered no textbox at all (AC-217). */
+                     AC-226 asks the imported starter's page for, and a viewer
+                     who may not rename is offered no textbox at all (AC-217,
+                     rewritten 2026-09-20: the bar is Can edit rather than
+                     ownership). */
                   <h1
-                    onClick={isOwner ? () => { setRenaming(true) } : undefined}
+                    onClick={
+                      gates?.identity === true
+                        ? () => {
+                            setRenaming(true)
+                          }
+                        : undefined
+                    }
                     className={`min-w-0 max-w-full truncate text-2xl leading-8 font-semibold text-foreground max-md:whitespace-normal${
-                      isOwner ? ' cursor-text' : ''
+                      gates?.identity === true ? ' cursor-text' : ''
                     }`}
                   >
                     {detail?.name ?? ''}
@@ -1140,15 +1315,21 @@ export function FolderPage({
                 ) : null}
               </div>
 
-              {/* 9.6's editable description, any member's (the matrix: "the
-                  page: blocks, cover, icon, colour, description, yes for both
-                  roles; the event log says who"). It reads and writes 4.3's
+              {/* 9.6's editable description. **It was "any member's", on
+                  9.6's role matrix ("the page: blocks, cover, icon, colour,
+                  description, yes for both roles; the event log says who"),
+                  and accepted #209 R8A overturns that half of the matrix**:
+                  Can view is read only, and a folder's description is shared
+                  Folder work. AC-011 refuses it below Can edit on the wire,
+                  so the field is a paragraph there rather than a textarea
+                  that loses what was typed into it. It reads and writes 4.3's
                   column through `lib/page-identity.ts`'s folder half, which is
                   why the lifted field needs nothing of its own here. */}
               <PageDescription
                 storageName={coverKey}
                 label="Folder description"
                 offer={pristine}
+                readOnly={gates?.identity !== true}
               />
             </div>
           </header>
@@ -1274,6 +1455,7 @@ export function FolderPage({
         <FolderSharingPanel
           folder={detail}
           connections={connections.data}
+          viewer={facts}
           onClose={() => {
             setSharing(false)
           }}
@@ -1339,38 +1521,76 @@ export function FolderPage({
         scope="folder"
       />
 
-      {/* 9.6: an owner with other members leaves only by transferring
-          first; the default successor is the longest-standing member. */}
+      {/*
+      9.6: an owner with other members leaves only by transferring first.
+
+      **The list is every member who currently holds Full control, and the
+      dialog says so.** It was every other member, sorted by `joined_at`, with
+      the first labelled "(longest-standing)" — 8.9's automatic successor
+      dressed as a recommendation. Governing #209 R6 section 2 removed that
+      rule outright (joining first is not evidence that anybody intended you
+      to hold custody), and the server enforces the replacement: a target
+      below Full control is answered `422 to: must be a member of this folder
+      who currently has Full control`. So every entry the old picker put after
+      the first was, by then, a button whose only outcome was an error, and
+      the one it recommended was recommended on the very rule that had gone.
+
+      **There is no default and nothing is sorted**, because R6 leaves no
+      rule that would order them: the roster's own order is used, which is the
+      order the Share panel this person just came from shows.
+
+      **An empty list is a sentence and not an empty box.** A folder can be
+      full of people and have nobody eligible, and that person's next step —
+      give somebody Full control in Share, then come back — is not something
+      an empty picker communicates. The wording follows the server's own
+      refusal copy, "This folder would be left with nobody in Full control".
+      */}
       <Dialog open={transferOpen} onOpenChange={setTransferOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Transfer ownership</DialogTitle>
             <DialogDescription>
-              Choose who owns {detail?.name} next. You stay a member.
+              {successors.length === 0
+                ? `Nobody else in ${detail?.name ?? 'this folder'} has Full control, so there is nobody to hand it to yet. Give a member Full control in Share, then transfer it to them.`
+                : `Choose who owns ${detail?.name ?? 'this folder'} next. Only members who have Full control can take it on, and you stay a member.`}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-1 px-1 pb-2">
-            {successors.map((member, index) => (
+          {successors.length === 0 ? (
+            <DialogFooter>
+              <DialogClose render={<Button variant="ghost">Close</Button>} />
               <Button
-                key={member.user.id}
-                variant={index === 0 ? 'outline' : 'ghost'}
-                className="h-[var(--control-height)] w-full justify-start px-3 text-sm"
+                variant="outline"
                 onClick={() => {
-                  transfer.mutate(
-                    { id, to: member.user.id },
-                    {
-                      onSuccess: () => {
-                        setTransferOpen(false)
-                      },
-                    },
-                  )
+                  setTransferOpen(false)
+                  setSharing(true)
                 }}
               >
-                {member.user.display_name ?? 'Someone'}
-                {index === 0 ? ' (longest-standing)' : ''}
+                Open Share
               </Button>
-            ))}
-          </div>
+            </DialogFooter>
+          ) : (
+            <div className="space-y-1 px-1 pb-2">
+              {successors.map((member) => (
+                <Button
+                  key={member.user.id}
+                  variant="ghost"
+                  className="h-[var(--control-height)] w-full justify-start px-3 text-sm"
+                  onClick={() => {
+                    transfer.mutate(
+                      { id, to: member.user.id },
+                      {
+                        onSuccess: () => {
+                          setTransferOpen(false)
+                        },
+                      },
+                    )
+                  }}
+                >
+                  {member.user.display_name ?? 'Someone'}
+                </Button>
+              ))}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -1380,13 +1600,22 @@ export function FolderPage({
           <DialogHeader>
             <DialogTitle>Delete {detail?.name}?</DialogTitle>
             <DialogDescription>
-              {ownerDeleteQuestion(detail?.name ?? '', successors.length)}
+              {ownerDeleteQuestion(
+                detail?.name ?? '',
+                others.length,
+                successors.length,
+              )}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <DialogClose render={<Button variant="ghost">Cancel</Button>} />
-            <Button variant="outline" onClick={leaveToMembers}>
-              Leave it to the members
+            {/* "Leave it to the members" stood here and wrote the leave that
+                R6 section 2 now answers 409. Handing it on is the same
+                intent under the rule that replaced it, and it opens the
+                picker rather than acting, because under R6 somebody has to
+                be named. */}
+            <Button variant="outline" onClick={handOn}>
+              Hand it to a member…
             </Button>
             <Button
               variant="destructive"

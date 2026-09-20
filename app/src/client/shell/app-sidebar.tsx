@@ -612,6 +612,49 @@ branch in `folder-row.tsx`: the owner's row is given `delete` and the
 member's `leave`, from `folder.is_owner`, which 7.4 puts on the object.
 Desk is the standing exception, INV-2 making the default folder undeletable
 and 9.1 giving it a clause of its own above the label groups.
+
+## Those three gates are wrong, knowingly, and here is exactly how
+
+**Issue #228 replaced ownership with Access and this row cannot see it.**
+Accepted #209 R8A makes Rename `folder.profile.edit` at Can edit and above,
+Hassan's ruling of 2026-09-20 makes Delete `folder.trash` at Full control, and
+governing R6 refuses a leave to the owner and to the last Full-control member.
+`folder.is_owner` is neither necessary nor sufficient for any of the three, so
+two things are measurably wrong on this surface today:
+
+- a **Full-control member who is not the owner** is offered no Rename, though
+  they may rename;
+- an **owner whose Access was lowered** below Full control is still offered
+  Delete, which the route now answers 403.
+
+**The folder page's own menu is fixed and this one is not, and the difference
+is the wire and nothing else.** `GET /folders/:id` carries `members[].access`,
+so `pages/FolderPage.tsx` reads the viewer's own preset off the roster and
+gates every act through `lib/folder-authority.ts`. `GET /folders`, which this
+list is built from, carries `is_default`, `is_owner`, `member_count`, the
+counts, `my_label`, `my_color` and the 4.3 identity fields — **and no preset
+for anybody**. There is nothing here to gate on.
+
+Fetching the detail per row is up to 200 requests; reading it out of the query
+cache gives a menu that is right for visited folders and wrong for the rest,
+which is worse than consistently wrong; and `member_count === 1` does prove
+Full control (the continuity invariant refuses a sole member's self-demotion)
+but says nothing about the shared folders where both defects live.
+
+So the fix is one field, `my_access` on the 7.4 Folder object — `folderSelect`
+in `domain/folders.ts` already joins the viewer's own membership row — and
+**7.0 enumerates that object inside frozen section 7**, which hard stop 2
+makes a person's ruling rather than an agent's. Hassan's Ruling 2 on #228
+accepted three changed contracts and this is a fourth it did not consider.
+The pull request carries the question and what happens in each case; the
+alternative answer is that this row stops offering Rename and Delete at all,
+both of which the folder page's menu offers correctly, and AC-246 moves with
+it.
+
+**Until then this reads `is_owner` and the act it links to is refused with the
+route's own sentence** — `FolderPage`'s `?folder-action=` handler shows
+`ruleFor(...).why` rather than silently not opening the field. That is a worse
+screen than the one the fix gives and a better one than pretending.
 */
 export type FolderAction = 'rename' | 'history' | 'workflow' | 'leave' | 'delete'
 
