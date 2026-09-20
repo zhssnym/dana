@@ -74,7 +74,7 @@ import type { Actor } from '../support/folders-harness.js'
  * AC-399, the source sweep
  * ------------------------------------------------------------------ */
 
-const SERVER_ROOT = fileURLToPath(new URL('../src/server/', import.meta.url))
+const SERVER_ROOT = fileURLToPath(new URL('../../src/server/', import.meta.url))
 
 const PARSER = 'http/parse-body.ts'
 

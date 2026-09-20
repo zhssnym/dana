@@ -120,12 +120,12 @@ function directiveOf(csp: string, name: string): string | undefined {
    and present and possibly stale locally. */
 function shellDocument(): { html: string; from: string } {
   const here = path.dirname(fileURLToPath(import.meta.url))
-  const built = path.join(here, '..', 'dist', 'client', 'index.html')
+  const built = path.join(here, '..', '..', 'dist', 'client', 'index.html')
   if (existsSync(built)) {
     return { html: readFileSync(built, 'utf8'), from: 'dist/client/index.html' }
   }
   return {
-    html: readFileSync(path.join(here, '..', 'index.html'), 'utf8'),
+    html: readFileSync(path.join(here, '..', '..', 'index.html'), 'utf8'),
     from: 'index.html (this checkout has no dist/client/index.html to read)',
   }
 }

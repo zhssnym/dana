@@ -737,7 +737,7 @@ and the choice belongs to the implementing session. One pass per call, no
 interval: 11.7's own sentence that the pass is a plain callable is what makes
 an acceptance test of the loop possible at all.
 */
-const SCHEDULER_MODULE = ['../src/server/schedu', 'ler/index.js'].join('')
+const SCHEDULER_MODULE = ['../../src/server/schedu', 'ler/index.js'].join('')
 
 interface PassDeps {
   dbClient: DbClient
