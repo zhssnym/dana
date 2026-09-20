@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm'
 import type { Executor } from '../database.js'
 import { rowsOf } from '../database.js'
 import type { DocumentTransaction, DocumentOperation, DocumentOutlineItem } from '../../shared/pages.js'
+import { MAX_SECTION_DEPTH } from '../../shared/page-document.js'
 import { initialKeys } from './fractional-index.js'
 import { createTaskIn } from './tasks.js'
 import { positionedItems } from './page-order.js'
@@ -42,17 +43,21 @@ export async function applyDocument(tx:Executor,viewerId:string,folderId:string,
  }
  if(blocks.size>500)throw new DocumentRefusal('not_convertible','A page holds at most 500 blocks.')
  if(tasks.size>1000)throw new DocumentRefusal('not_convertible','A page holds at most 1000 Tasks.')
- const seen=new Set<string>();const parents=new Map(outline.map(i=>[i.id,i.section_block_id]));let active:string[]=[]
+ // A Section's heading level is its depth in this outline and nothing else; depths
+ // is the running ancestry measurement, recorded as each Section is accepted so that
+ // a child reads its parent's rather than re-walking the chain.
+ const seen=new Set<string>();const depths=new Map<string,number>();let active:string[]=[]
  for(const item of outline){
   if(seen.has(item.id)||(item.kind==='block'?!blocks.has(item.id):!tasks.has(item.id)))throw new DocumentRefusal('not_convertible','The outline has unknown or repeated identities.')
   seen.add(item.id)
   const parent=item.section_block_id
   if(parent!==null && (blocks.get(parent)?.block_kind!=='section'||!seen.has(parent)))throw new DocumentRefusal('not_convertible','A parent must precede its content.')
   const block=item.kind==='block'?blocks.get(item.id):undefined
-  if(block?.block_kind==='section' && parent!==null && parents.get(parent)!==null)throw new DocumentRefusal('not_convertible','Only two heading levels are supported.')
+  const depth=parent===null?1:(depths.get(parent)??0)+1
+  if(block?.block_kind==='section' && depth>MAX_SECTION_DEPTH)throw new DocumentRefusal('not_convertible',`Headings nest ${MAX_SECTION_DEPTH} levels deep at most.`)
   if(parent===null)active=[]
   else {const at=active.indexOf(parent);if(at<0)throw new DocumentRefusal('not_convertible','Heading content must form a contiguous group.');active=active.slice(0,at+1)}
-  if(block?.block_kind==='section')active.push(item.id)
+  if(block?.block_kind==='section'){active.push(item.id);depths.set(item.id,depth)}
  }
  if(seen.size!==blocks.size+tasks.size)throw new DocumentRefusal('not_convertible','The outline must retain every Task and undeleted block.')
  for(const block of blocks.values()){

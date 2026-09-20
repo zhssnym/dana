@@ -1,10 +1,17 @@
 import { BlockNoteSchema, createExtension, createHeadingBlockSpec, defaultBlockSpecs, defaultStyleSpecs } from '@blocknote/core'
 
+import { MAX_SECTION_DEPTH } from '../../../../shared/page-document.js'
+
 import { createCanvasTaskSpec } from './CanvasTask.js'
 import { createCanvasParagraph } from './CanvasParagraph.js'
 import { createTaskAtCursor, removeEmptyBeforeHeading } from './commands.js'
 
-const heading = createHeadingBlockSpec({ levels: [1, 2], defaultLevel: 1, allowToggleHeadings: true })
+// The vocabulary only, derived from the one ceiling rather than restated beside it.
+// A Section's level is its depth in the persisted outline, so the editor must be able
+// to hold an H3 to render a three-level page at all; offering one in the slash menu,
+// and the move rules that would keep it valid, are the surface's own (#218).
+const headingLevels = Array.from({ length: MAX_SECTION_DEPTH }, (_, index) => index + 1)
+const heading = createHeadingBlockSpec({ levels: headingLevels, defaultLevel: 1, allowToggleHeadings: true })
 const groupHeading = {
   ...heading,
   extensions: [...heading.extensions ?? [], createExtension({

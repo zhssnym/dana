@@ -1,5 +1,6 @@
 import type { PartialBlock } from '@blocknote/core'
 import type { PageView } from '../../../../shared/pages.js'
+import { MAX_SECTION_DEPTH } from '../../../../shared/page-document.js'
 import type { CanvasBlock, canvasSchema } from './schema.js'
 
 export type CanvasInput = PartialBlock<typeof canvasSchema.blockSchema, typeof canvasSchema.inlineContentSchema, typeof canvasSchema.styleSchema>
@@ -24,10 +25,19 @@ function contentOf(text: string | null, rich?: { version: 1; runs: RichRun[] } |
   })
 }
 
-/** Explicit parent IDs alone establish groups; root prose never follows proximity. */
+/**
+ * Explicit parent IDs alone establish groups; root prose never follows proximity.
+ *
+ * A Section carries no heading level of its own: its level is its depth in the
+ * section_block_id relation, so a root Section is H1, its child H2 and its
+ * grandchild H3. The outline lists a parent before its content, so each level is
+ * read off the parent's already-recorded one. The clamp is defensive only — the
+ * server refuses a deeper Section before it writes.
+ */
 export function hydrateCanvas(page: PageView, columnWidth: number): CanvasInput[] {
   const records = new Map(page.blocks.map((block) => [block.id, block]))
   const parents = new Map(page.task_placements?.map((task) => [task.id, task.section_block_id]) ?? [])
+  const levels = new Map<string, number>()
   const nodes = new Map<string, CanvasInput>()
   for (const item of page.items) {
     if (item.kind === 'task') {
@@ -37,8 +47,11 @@ export function hydrateCanvas(page: PageView, columnWidth: number): CanvasInput[
     const block = records.get(item.id)
     if (!block) throw new Error('The page contains an unavailable block. Reload before editing.')
     parents.set(block.id, block.section_block_id)
-    if (block.kind === 'section') nodes.set(block.id, { id: block.id, type: 'heading', props: { level: block.section_block_id === null ? 1 : 2, isToggleable: true }, content: contentOf(block.text, block.rich_content), children: [] })
-    else if (block.kind === 'image') nodes.set(block.id, { id: block.id, type: 'image', props: { url: block.file_id ? `/api/v1/files/${block.file_id}` : '', caption: block.text ?? '', previewWidth: columnWidth * (block.width_pct ?? 100) / 100 }, children: [] })
+    if (block.kind === 'section') {
+      const level = Math.min(block.section_block_id === null ? 1 : (levels.get(block.section_block_id) ?? 0) + 1, MAX_SECTION_DEPTH)
+      levels.set(block.id, level)
+      nodes.set(block.id, { id: block.id, type: 'heading', props: { level, isToggleable: true }, content: contentOf(block.text, block.rich_content), children: [] })
+    } else if (block.kind === 'image') nodes.set(block.id, { id: block.id, type: 'image', props: { url: block.file_id ? `/api/v1/files/${block.file_id}` : '', caption: block.text ?? '', previewWidth: columnWidth * (block.width_pct ?? 100) / 100 }, children: [] })
     else if (block.kind === 'folder_ref') nodes.set(block.id, { id: block.id, type: 'paragraph', content: [{ type: 'link', href: `/app/folders/${block.ref_folder_id}`, content: block.text ?? 'Open folder' }], children: [] })
     else nodes.set(block.id, { id: block.id, type: 'paragraph', content: contentOf(block.text, block.rich_content), children: [] })
   }
