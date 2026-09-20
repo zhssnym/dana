@@ -88,6 +88,8 @@ const FOLDERS: Folder[] = [
     /* Paired with `my_shelf` by issue #226's wire expand-and-contract: one
        column under two keys for one release, dropped by #247. */
     my_label: 'Home',
+    // Sole owner, so Full control (4.4 as widened by migration 0023).
+    my_access: 'full_control',
     /* Both columns are set deliberately, and they differ. 9.6 retires 4.4's
        per-member colour from every v2 surface, so a chip that painted this one
        would be reading the column the contract moved off; the case below reads

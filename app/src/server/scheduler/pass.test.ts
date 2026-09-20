@@ -123,8 +123,8 @@ async function seedFolder(ownerId: string): Promise<string> {
   )
   const folderId = String(found[0]?.id)
   await db.execute(
-    sql`INSERT INTO folder_members (folder_id, user_id)
-        VALUES (${folderId}::uuid, ${ownerId}::uuid)`,
+    sql`INSERT INTO folder_members (folder_id, user_id, access)
+        VALUES (${folderId}::uuid, ${ownerId}::uuid, 'full_control')`,
   )
   return folderId
 }
@@ -282,8 +282,8 @@ describe('the 11.7 pass over its rows', () => {
     const second = await seedUser()
     const folderId = await seedFolder(owner.id)
     await db.execute(
-      sql`INSERT INTO folder_members (folder_id, user_id)
-          VALUES (${folderId}::uuid, ${second.id}::uuid)`,
+      sql`INSERT INTO folder_members (folder_id, user_id, access)
+          VALUES (${folderId}::uuid, ${second.id}::uuid, 'full_control')`,
     )
 
     const completed = await seedTask({
@@ -334,8 +334,8 @@ describe('the 11.7 pass over its rows', () => {
     const delivered = await seedUser()
     const folderId = await seedFolder(refused.id)
     await db.execute(
-      sql`INSERT INTO folder_members (folder_id, user_id)
-          VALUES (${folderId}::uuid, ${delivered.id}::uuid)`,
+      sql`INSERT INTO folder_members (folder_id, user_id, access)
+          VALUES (${folderId}::uuid, ${delivered.id}::uuid, 'full_control')`,
     )
     const refusedTask = await seedTask({ folderId, creatorId: refused.id })
     const deliveredTask = await seedTask({

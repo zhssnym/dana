@@ -62,6 +62,7 @@ import type { Db } from '../../db/client.js'
 import { signIn, userForSub } from './auth-harness.js'
 import type { AuthTestApp, OutboundEmail, UserRow } from './auth-harness.js'
 import { expectStatus } from './folders-harness.js'
+import type { FolderAccessPreset } from '../../src/shared/folder-access.js'
 import type { Actor } from './folders-harness.js'
 import type { RawResponse } from './http-client.js'
 import { rows } from './helpers.js'
@@ -112,13 +113,35 @@ export interface InviteBody {
   email: string
   folder_id?: string
   task_id?: string
+  /** R9 section 5's intended preset, required with a folder_id and refused
+   * without one (issue #228). `postInvite` fills it where a caller sent a
+   * folder and left it out, so a case written before Access existed still
+   * parks the invite it meant. */
+  access?: FolderAccessPreset
 }
 
 /** The unjudged transport: refusals answer the 7.0 envelope, not an invite.
  * body is unknown, the tasks-harness convention, so adversarial callers can
  * send malformed shapes without a cast standing in their way. */
 export function postInvite(actor: Actor, body: unknown): Promise<RawResponse> {
-  return actor.browser.json('/invites', 'POST', body)
+  return actor.browser.json('/invites', 'POST', withDefaultAccess(body))
+}
+
+/**
+ * Fills `access` for a body that names a folder and omits it (issue #228).
+ *
+ * It is written here rather than in every call site because `access` became
+ * required with `folder_id` and roughly a dozen fixtures across the suite
+ * predate it; `can_edit` is the standing migration 0023 gives an existing
+ * member, so those fixtures keep meaning what they meant. **A body that
+ * names `access` is passed through untouched**, which is what lets an
+ * adversarial caller send a bad one and a #228 criterion send a chosen one.
+ */
+function withDefaultAccess(body: unknown): unknown {
+  if (typeof body !== 'object' || body === null) return body
+  const shape = body as Record<string, unknown>
+  if (shape.folder_id === undefined || 'access' in shape) return body
+  return { ...shape, access: 'can_edit' }
 }
 
 /*

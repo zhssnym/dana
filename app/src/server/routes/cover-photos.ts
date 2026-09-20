@@ -306,6 +306,14 @@ function refusal(res: Response, outcome: CreateFileResult): void {
     case 'quota_exceeded':
       sendError(res, 413, 'quota_exceeded', "You've used your 1 GB of storage. Delete some files to add more.")
       return
+    case 'forbidden':
+      /* Issue #228: `createFile` resolved the folder and refused the act, so
+         the caller demonstrably sees the folder and the refusal may say why.
+         A folder cover is Folder page content, which #228's Can-edit list
+         puts with Can edit; the folderless arm of this route never reaches
+         here, having no folder to resolve. */
+      sendError(res, 403, 'forbidden', outcome.reason)
+      return
     case 'voice_too_long':
     case 'created':
       return

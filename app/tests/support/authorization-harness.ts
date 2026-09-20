@@ -337,6 +337,10 @@ export async function makeInvite(
   const made = await owner.browser.json('/invites', 'POST', {
     email,
     folder_id: folderId,
+    // Issue #228: a folder invite names the preset it will grant. `can_edit`
+    // is the ordinary member standing; this fixture is about who may reach
+    // the route, not about which preset arrives.
+    access: 'can_edit',
   })
   expectStatus(made, 201, 'POST /invites must create the invite (spec 7.5)')
   const envelope = made.json() as { invite?: { id?: unknown } }

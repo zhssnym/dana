@@ -12,6 +12,13 @@ Deliberately compressed: one core probe per behavior, because the
 authoritative versions are AC-011 to AC-024 and this file must never
 become a second acceptance suite. Anything proven here is proven again,
 by the tester's sentences, the moment Platform mounts the router.
+
+**Three probes moved on 2026-09-20 with the criteria above them** -- the
+rename, the member add and the owner leave -- under Hassan's ruling on issue
+#228, https://github.com/zhssnym/dana/issues/228#issuecomment-5750892771. The
+records are accepted #209 R8A for the first two and governing #209 R6 for the
+third; AC-011, AC-012, AC-015, AC-019, AC-024 and AC-202 carry the full
+argument and this file follows them rather than restating it.
 */
 import { createServer } from 'node:http'
 import type { Server } from 'node:http'
@@ -54,7 +61,7 @@ import { createFoldersRouter } from './folders.js'
 let app: AuthTestApp
 let server: Server
 const delivered: OutboundMessage[] = []
-const cast = new Cast(['owner', 'member', 'stranger', 'target'])
+const cast = new Cast(['owner', 'member', 'stranger', 'target', 'viewer'])
 
 const recorder: EmailRecorder = {
   sent: () => delivered.map((m) => ({ template: m.template, to: m.to, raw: m })),
@@ -130,24 +137,28 @@ interface Stage {
   member: Actor
   stranger: Actor
   target: Actor
+  /** Admitted at Can view wherever a refusal below Can edit is the probe. */
+  viewer: Actor
 }
 let staged: Stage | undefined
 
 async function stage(): Promise<Stage> {
   if (staged === undefined) {
-    const [owner, member, stranger, target] = await cast.of(app)
+    const [owner, member, stranger, target, viewer] = await cast.of(app)
     if (
       owner === undefined ||
       member === undefined ||
       stranger === undefined ||
-      target === undefined
+      target === undefined ||
+      viewer === undefined
     ) {
-      throw new Error('cast must produce four actors')
+      throw new Error('cast must produce five actors')
     }
     await connect(app.db, owner.id, member.id)
     await connect(app.db, owner.id, target.id)
     await connect(app.db, member.id, target.id)
-    staged = { owner, member, stranger, target }
+    await connect(app.db, owner.id, viewer.id)
+    staged = { owner, member, stranger, target, viewer }
   }
   return staged
 }
@@ -178,15 +189,25 @@ describe('the folders router, driven through the harness idiom', () => {
     ).toEqual(['proof aaa', 'proof bbb'])
   })
 
-  test('rename: owner 200, member 403, stranger 404, anonymous 401', async () => {
-    const { owner, member, stranger } = await stage()
+  test('rename: Can edit 200, Can view 403, stranger 404, anonymous 401', async () => {
+    /* The probe read "owner 200, member 403" until 2026-09-20. The rule it
+       followed was the DES-225 split, which accepted #209 R8A replaces: a
+       folder's identity is ordinary shared Folder work, so Can edit and above
+       change it and Can contribute and below do not. AC-011 and AC-012 carry
+       the argument and the ruling. */
+    const { owner, member, stranger, viewer } = await stage()
     const folderId = await createFolder(owner, 'proof rename')
-    await addMemberOk(owner, folderId, member.id)
+    await addMemberOk(owner, folderId, member.id, 'can_edit')
+    await addMemberOk(owner, folderId, viewer.id, 'can_view')
 
-    const byMember = await member.browser.json(`/folders/${folderId}`, 'PATCH', {
+    const byViewer = await viewer.browser.json(`/folders/${folderId}`, 'PATCH', {
       name: 'usurped',
     })
-    expectStatus(byMember, 403, 'rename is owner-only (spec 5.4)')
+    expectStatus(
+      byViewer,
+      403,
+      'accepted R8A: Can view is read only (spec 7.4)',
+    )
 
     const byStranger = await stranger.browser.json(
       `/folders/${folderId}`,
@@ -200,10 +221,22 @@ describe('the folders router, driven through the harness idiom', () => {
       .json(`/folders/${folderId}`, 'PATCH', { name: 'nobody' }, { csrf: 'omit' })
     expectStatus(anonymous, 401, 'no session answers 401 (spec 7.0)')
 
+    const byMember = await member.browser.json(`/folders/${folderId}`, 'PATCH', {
+      name: 'proof renamed by Can edit',
+    })
+    expectStatus(
+      byMember,
+      200,
+      'accepted R8A: Can edit plans and changes all shared Folder work (spec 7.4)',
+    )
+    expect((await folderInList(viewer, folderId))?.name).toBe(
+      'proof renamed by Can edit',
+    )
+
     const byOwner = await owner.browser.json(`/folders/${folderId}`, 'PATCH', {
       name: 'proof renamed',
     })
-    expectStatus(byOwner, 200, 'the owner renames (spec 7.4)')
+    expectStatus(byOwner, 200, 'and the owner renames too (spec 7.4)')
     expect((await folderInList(member, folderId))?.name).toBe('proof renamed')
   })
 
@@ -274,9 +307,17 @@ describe('the folders router, driven through the harness idiom', () => {
   })
 
   test('member add: guards, the winning email, and the raced double add', async () => {
+    /* The second racer held Can edit until 2026-09-20 and the pair read
+       201/403 the moment `member.add` became Full control's -- which proves
+       the gate and says **nothing at all** about INV-10, the assertion this
+       probe exists for. Both racers now hold Full control, which is the only
+       standing from which the race is reachable, and the refusal below Full
+       control is probed separately on a folder of its own. Accepted #209 R8A:
+       "Full control -- administer members"; "Can edit ... cannot administer
+       people/Access". AC-024 carries the argument and the ruling. */
     const { owner, member, stranger, target } = await stage()
     const folderId = await createFolder(owner, 'proof adds')
-    await addMemberOk(owner, folderId, member.id)
+    await addMemberOk(owner, folderId, member.id, 'full_control')
     recorder.clear()
 
     const unconnected = await addMember(owner, folderId, stranger.id)
@@ -312,6 +353,25 @@ describe('the folders router, driven through the harness idiom', () => {
       body.members?.filter((element) => element.is_owner === true).length,
       'exactly one element carries is_owner (8.9)',
     ).toBe(1)
+
+    /* And below Full control the act is refused outright, on a folder of its
+       own so the counts above stay this probe's. The actor holds a roster
+       edge with the target -- `stage` makes it -- and a missing one answers
+       422, so a 403 here is the Access gate and nothing else. */
+    const gatedId = await createFolder(owner, 'proof adds gated')
+    await addMemberOk(owner, gatedId, member.id, 'can_edit')
+    recorder.clear()
+    const byEditor = await addMember(member, gatedId, target.id)
+    expectStatus(
+      byEditor,
+      403,
+      'accepted R8A: Can edit cannot administer people (spec 5.4)',
+    )
+    expect(
+      await membershipUserIds(app.db, gatedId),
+      'the refused add created no membership (5.3)',
+    ).not.toContain(target.id)
+    expect(recorder.shareGrants().length, 'and a refusal sends nothing').toBe(0)
   })
 
   test('removal and leave run R-CLEAN; the drop-to-one sweep assigns everything', async () => {
@@ -358,7 +418,13 @@ describe('the folders router, driven through the harness idiom', () => {
     expectStatus(again, 404, 'the departed member reads 404 (10.2)')
   })
 
-  test('owner leave: sole member 409 with copy, transfer to the earliest joiner', async () => {
+  test('owner leave: sole member 409 with copy, and no succession without a transfer', async () => {
+    /* The probe read "transfer to the earliest joiner" until 2026-09-20.
+       Governing #209 R6 section 2 replaces that with an explicit transfer to
+       an active member who currently holds Full control: joining first is not
+       evidence that anybody intended you to hold custody, and the old rule
+       handed it out on that evidence every time an owner walked away. AC-019
+       and AC-202 carry the argument and the ruling. */
     const { owner, member } = await stage()
     const soloId = await createFolder(owner, 'proof solo')
     const solo = await removeMember(owner, soloId, owner.id)
@@ -368,17 +434,43 @@ describe('the folders router, driven through the harness idiom', () => {
     const transferringId = await createFolder(owner, 'proof transfer')
     await seedMembership(app.db, transferringId, member.id, {
       createdAt: '2026-08-01T10:00:00.000Z',
+      access: 'full_control',
     })
-    const leave = await removeMember(owner, transferringId, owner.id)
-    expectStatus(leave, 204, 'the owner leave proceeds with others present (5.3)')
-    const ownerRow = await rows(
+    const refused = await removeMember(owner, transferringId, owner.id)
+    expectStatus(
+      refused,
+      409,
+      'governing R6: an owner transfers ownership before leaving, and being the earliest joiner is not a transfer (5.3)',
+    )
+    expect(refused.body.toLowerCase()).toContain('transfer ownership')
+    const stillOwned = await rows(
       app.db,
       sql`SELECT owner_id FROM folders WHERE id = ${transferringId}`,
     )
     expect(
-      String(ownerRow[0]?.owner_id),
-      'ownership moved to the earliest-joined member (8.9)',
-    ).toBe(member.id)
+      String(stillOwned[0]?.owner_id),
+      'the refusal promoted nobody (governing R6)',
+    ).toBe(owner.id)
+    expect(
+      (await membershipUserIds(app.db, transferringId)).slice().sort(),
+      'and cost the owner nothing: the refused leave left every membership standing (5.3)',
+    ).toEqual([member.id, owner.id].sort())
+
+    /* The transfer itself is `POST /folders/:id/transfer-ownership`, which
+       lives in `workshop.ts` and is not one of the two routers this file
+       mounts; AC-521 drives it end to end against the whole application. What
+       is this router's, and what is asserted here, is the half after it: once
+       custody has moved to a member who holds Full control, the previous
+       owner leaves like anybody else (AC-202's second clause). */
+    await app.db.execute(
+      sql`UPDATE folders SET owner_id = ${member.id} WHERE id = ${transferringId}`,
+    )
+    const leave = await removeMember(owner, transferringId, owner.id)
+    expectStatus(
+      leave,
+      204,
+      'the previous owner leaves once custody has moved (spec 5.3; AC-202)',
+    )
     expect(
       await membershipUserIds(app.db, transferringId),
       'the departed owner membership is gone (5.3)',

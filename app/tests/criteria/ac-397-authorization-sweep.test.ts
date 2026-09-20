@@ -54,11 +54,19 @@ says nothing about it, and the counts are what would notice.
 - **`stranger`**, on all but four routes: user B, signed in, with no
   membership, no authorship and no connection to anything user A made. 404 is
   the answer 10.2 requires, because a 403 tells a prober that the row exists.
-- **`member`**, on the eleven routes where 5.4, 7.15 or the code's own DES-225
-  split grants a member visibility and withholds the act: 403, and the refusal
-  may say why, precisely because the person can already see the thing. One of
-  the eleven, `DELETE /api/v1/files/:id`, is the defect this sweep found; it is
-  fixed, and its row carries the story.
+- **`member`**, on the twelve routes where 5.4, 7.15 or the Folder Access
+  model of issue #228 grants a member visibility and withholds the act: 403,
+  and the refusal may say why, precisely because the person can already see
+  the thing. One of the twelve, `DELETE /api/v1/files/:id`, is the defect this
+  sweep found; it is fixed, and its row carries the story. **The count is
+  prose and nothing asserts it** -- what is asserted is the route enumeration
+  below, in both directions -- so read it as a description of the table rather
+  than as a guard over it. It said eleven until 2026-09-20 and was already
+  stale by then: issue #228 added four id-bearing Access routes with member
+  variants, and `PATCH /api/v1/folders/:id` **lost** its variant the same day,
+  because accepted #209 R8A gives a folder's whole identity to Can edit and
+  `fx.member` is admitted at Can edit, so there is no act on that route this
+  actor is refused. That row carries the reasoning and Hassan's ruling.
 - **`viewerScoped`**, on four routes, which are this file's `PUBLIC_READS`:
   the id in the path names no row of ours that could belong to somebody else,
   so every signed-in caller gets the same answer and the row records why. An
@@ -473,14 +481,17 @@ const TABLE = new Map<string, Row>([
         expected: 404,
         rule: '5.4: a non-member sees nothing, so every act on the folder is 404',
       },
-      member: {
-        expected: 403,
-        rule: '5.4 "Rename folder: no (403)" for a member, the DES-225 split: the folder-owned identity is any member\'s, the name is the owner\'s',
-        attempt: (fx) => ({
-          path: `/folders/${fx.folderId}`,
-          body: { name: 'ac397 renamed by a member' },
-        }),
-      },
+      /* **No member variant, and its absence is the decision.** This row
+         carried one until 2026-09-20: 403 on a rename, the DES-225 split in
+         which the folder-owned identity was any member's and the name was the
+         owner's. `fx.member` is admitted at Can edit, and accepted #209 R8A
+         makes a folder's whole identity ordinary shared Folder work that Can
+         edit changes, so there is no act on this route this actor is refused
+         and a member row here would assert the superseded rule. AC-011,
+         AC-012 and AC-193 carry it, under Hassan's ruling of 2026-09-20,
+         https://github.com/zhssnym/dana/issues/228#issuecomment-5750892771.
+         The refusal that did not move is `DELETE /api/v1/folders/:id` below,
+         whose member row still reads 403. */
     },
   ],
   [
@@ -490,7 +501,7 @@ const TABLE = new Map<string, Row>([
       stranger: { expected: 404, rule: '5.4: a non-member sees nothing' },
       member: {
         expected: 403,
-        rule: '5.4 "Delete folder: no (403)" for a member',
+        rule: "Hassan's ruling of 2026-09-20 on #228: moving the folder to Trash is Full control's, and `fx.member` holds Can edit (AC-015). The status is unchanged from 5.4's \"Delete folder: no (403)\"; what moved is which members it refuses",
       },
     },
   ],
@@ -510,9 +521,16 @@ const TABLE = new Map<string, Row>([
   [
     'POST /api/v1/folders/:id/members',
     {
+      /* `access` joined this body with issue #228 and is required. The
+         attempt carries a valid one so the sweep measures the authorization
+         answer rather than the schema's: this surface parses the body before
+         it resolves the row, deliberately, because a refusal that reads no
+         row tells a prober nothing about which rows exist (the same ordering
+         7.5's invite create uses). Without it the stranger would be answered
+         422 and the sweep would be measuring the wrong refusal. */
       attempt: (fx) => ({
         path: `/folders/${fx.folderId}/members`,
-        body: { user_id: fx.stranger.id },
+        body: { user_id: fx.stranger.id, access: 'can_edit' },
       }),
       stranger: {
         expected: 404,
@@ -543,6 +561,69 @@ const TABLE = new Map<string, Row>([
       stranger: {
         expected: 404,
         rule: '5.3\'s leave addressed as one\'s own membership: a non-member has none, and 10.2 answers 404 rather than naming the folder',
+      },
+    },
+  ],
+  /*
+  The four routes issue #228 added, each with the row hard-stops.md asks for.
+
+  Three of them are member administration, so the *member* variant matters as
+  much as the stranger's: a plain member sees the folder and is refused the
+  act, which is 403, and somebody outside it is told nothing at all, which is
+  404. The fourth pair are reads and carry the folder's own visibility.
+  */
+  [
+    'PATCH /api/v1/folders/:id/members/:userId',
+    {
+      attempt: (fx) => ({
+        path: `/folders/${fx.folderId}/members/${fx.member.id}`,
+        body: { access: 'can_view' },
+      }),
+      stranger: {
+        expected: 404,
+        rule: "#228: changing a member's Access is member administration, and 10.2 refuses to confirm the folder exists to somebody outside it",
+      },
+      member: {
+        expected: 403,
+        rule: 'accepted #209 R8A: administering Access is Full control\'s and Can edit cannot, and the member demonstrably sees the folder, so the refusal may say why',
+        attempt: (fx) => ({
+          path: `/folders/${fx.folderId}/members/${fx.owner.id}`,
+          body: { access: 'can_view' },
+        }),
+      },
+    },
+  ],
+  [
+    'POST /api/v1/folders/:id/owner-recovery',
+    {
+      attempt: (fx) => ({ path: `/folders/${fx.folderId}/owner-recovery` }),
+      stranger: { expected: 404, rule: '5.4: a non-member sees nothing' },
+      member: {
+        expected: 403,
+        rule: "#209 R5: custody recovery is the structural owner's alone and Full control does not confer it, so a member who sees the folder is told why",
+        attempt: (fx) => ({ path: `/folders/${fx.folderId}/owner-recovery` }),
+      },
+    },
+  ],
+  [
+    'GET /api/v1/folders/:id/access-history',
+    {
+      attempt: (fx) => ({ path: `/folders/${fx.folderId}/access-history` }),
+      stranger: {
+        expected: 404,
+        rule: '#209 R9 section 13: Access history is visible to current Folder members; somebody outside the folder learns nothing, not even that it exists',
+      },
+    },
+  ],
+  [
+    'GET /api/v1/folders/:id/members/:userId/access-history',
+    {
+      attempt: (fx) => ({
+        path: `/folders/${fx.folderId}/members/${fx.member.id}/access-history`,
+      }),
+      stranger: {
+        expected: 404,
+        rule: "#209 R9 section 13: the member-specific slice is the folder's history filtered, and carries the folder's own visibility",
       },
     },
   ],
@@ -1500,11 +1581,17 @@ describe('AC-397 every id-bearing route refuses a stranger', () => {
     it takes its Folder selector from the query string rather than from a path
     id and this walker structurally cannot see it — 10.2 records that limit and
     AC-473 is what asserts that gate instead.
+
+    **76 to 80 on 2026-09-20** (issue #228): the two Access-administration
+    mutations and the two Access-history reads, each with its row above. #228
+    read 69 on its own tree, which held none of the fourteen above it, so this
+    is the same lesson a fourth time — 80 is what this sweep reported on the
+    rebased tree, not what either diff implies.
     */
     expect(
       routes.length,
-      `the walker found ${String(routes.length)} routes carrying a path parameter and there were 76 after issue #223 added the Dana Link resolver, issue #224 added the three task-dependency routes and issue #226 added the eleven id-bearing routes of the Label surface. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means an id-bearing route was added, and it owes this table a row saying what a stranger gets when they ask for somebody else's`,
-    ).toBe(76)
+      `the walker found ${String(routes.length)} routes carrying a path parameter and there were 80 after issue #223 added the Dana Link resolver, issue #224 added the three task-dependency routes, issue #226 added the eleven id-bearing routes of the Label surface and issue #228 added the two Access-administration mutations and the two Access-history reads. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means an id-bearing route was added, and it owes this table a row saying what a stranger gets when they ask for somebody else's`,
+    ).toBe(80)
 
     const missing = routes.filter((route) => !TABLE.has(route))
     expect(

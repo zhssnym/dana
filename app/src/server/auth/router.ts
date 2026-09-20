@@ -47,6 +47,7 @@ import {
 import type { Db, DbClient } from '../../../db/client.js'
 import { deleteMeBody } from '../../shared/me.js'
 import { isIanaTimezone } from '../../shared/timezone.js'
+import { ownedSharedFolders } from '../domain/folders.js'
 import type { ObjectStore } from '../files/store.js'
 import { sendError } from '../http/errors.js'
 import { parseBody } from '../http/parse-body.js'
@@ -456,6 +457,43 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
       const parsed = parseBody(deleteMeBody, req, res, securityLog)
       if (parsed === null) return
       const userId = sessionOf(req)?.userId ?? ''
+      /*
+      **Ownership succession, before anything is deleted** (issue #228; #209
+      R6 section 3).
+
+      8.10 step 2 hands every owned shared folder to "the remaining member
+      with the earliest join, ties to the lower user id". That was reasonable
+      under a flat membership model and is unsafe under an explicit one:
+      joining first is not evidence that anybody intended you to hold custody,
+      and R6 says in terms not to silently promote an arbitrary member.
+
+      So the interactive path refuses instead. Each owned shared folder must be
+      resolved first -- transfer ownership to an eligible successor, or delete
+      the folder -- and only then may the account go. The 409 names the folders
+      and says which of them already have somebody who could take them, so the
+      client can offer the two different next steps rather than one dead end.
+
+      **The automatic transfer is deliberately left in
+      `deleteAccountData`.** R6 keeps a non-interactive forced-removal path as
+      a distinct audited recovery rather than weakening the ordinary rule, and
+      that function is where such a path would enter. Nothing reaches it
+      through this route any more; its own test still pins its behaviour.
+      */
+      const blocking = await ownedSharedFolders(db, userId)
+      if (blocking.length > 0) {
+        sendError(
+          res,
+          409,
+          'conflict',
+          `Transfer ownership of ${String(blocking.length)} shared folder${blocking.length === 1 ? '' : 's'} before deleting your account: ${blocking
+            .map(
+              (folder) =>
+                `${folder.name}${folder.hasEligibleSuccessor ? '' : ' (no member has Full control yet)'}`,
+            )
+            .join(', ')}.`,
+        )
+        return
+      }
       const deleted = await handleDeleteMe(db, userId, res, options.fileStore)
       securityLog.deletionEvent('account_deleted', {
         actorId: userId,

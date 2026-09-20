@@ -94,6 +94,8 @@ function folder(overrides: Partial<Folder> = {}): Folder {
     my_label: null,
     my_color: null,
     personal_labels: [],
+    // Sole owner, so Full control (4.4 as widened by migration 0023).
+    my_access: 'full_control',
     icon: null,
     color: null,
     cover_file_id: null,

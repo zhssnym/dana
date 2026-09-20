@@ -47,6 +47,7 @@ import type { ObjectStore } from '../files/store.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
+import { recordAccessTransition } from './folder-access.js'
 import { copyCoverFile, readableFileScope } from './files.js'
 import { applyDocument, documentMetadata, DocumentRefusal } from './page-document.js'
 import { upsertReminder } from './tasks.js'
@@ -210,10 +211,24 @@ export async function duplicateFolder(
             RETURNING id`,
       )
       const copyId = String(made[0]?.id)
+      /* #228 puts duplication with Can edit, and the copy is the
+         duplicator's own new Folder, so they are its owner and its Full
+         control, and **nothing about the source's
+         Access travels** -- R10B says member identities, Access standing and
+         Responsibility documents are not copied by duplication or workflows
+         (issue #228). */
       await tx.execute(
-        sql`INSERT INTO folder_members (folder_id, user_id)
-            VALUES (${copyId}::uuid, ${viewerId}::uuid)`,
+        sql`INSERT INTO folder_members (folder_id, user_id, access)
+            VALUES (${copyId}::uuid, ${viewerId}::uuid, 'full_control')`,
       )
+      await recordAccessTransition(tx, {
+        folderId: copyId,
+        memberId: viewerId,
+        previousAccess: null,
+        newAccess: 'full_control',
+        actorId: viewerId,
+        transition: 'created_owner',
+      })
       if (coverFileId !== null) {
         // The scope, now that there is a folder to name (4.16, 7.15).
         await tx.execute(
@@ -585,10 +600,22 @@ export async function importWorkflow(
             RETURNING id`,
       )
       const folderId = String(made[0]?.id)
+      /* #228's account-state boundary: importing a workflow is an
+         account-level creation act, so the importer becomes owner and Full
+         control of the Folder it
+         creates, and the file carries no member standing to restore. */
       await tx.execute(
-        sql`INSERT INTO folder_members (folder_id, user_id)
-            VALUES (${folderId}::uuid, ${viewerId}::uuid)`,
+        sql`INSERT INTO folder_members (folder_id, user_id, access)
+            VALUES (${folderId}::uuid, ${viewerId}::uuid, 'full_control')`,
       )
+      await recordAccessTransition(tx, {
+        folderId,
+        memberId: viewerId,
+        previousAccess: null,
+        newAccess: 'full_control',
+        actorId: viewerId,
+        transition: 'created_owner',
+      })
       const taskMap = new Map<string,string>()
       for (const [index, block] of (folder.document === undefined ? folder.blocks ?? [] : []).entries()) {
         await tx.execute(

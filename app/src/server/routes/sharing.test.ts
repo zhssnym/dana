@@ -169,6 +169,11 @@ describe('the P5 routers, driven through the harness idiom', () => {
     const response = await inviter.browser.json('/invites', 'POST', {
       email,
       folder_id: folderId,
+      // Issue #228: a folder invite names the preset it will grant (R9
+      // section 5), and `can_edit` is the standing migration 0023 gives an
+      // existing member -- the value this fixture meant before the field
+      // existed.
+      access: 'can_edit',
     })
     expectStatus(response, 201, 'the parked path answers 201 (spec 7.5)')
     const parsed = postInvitesResponse.safeParse(response.json())
@@ -190,6 +195,11 @@ describe('the P5 routers, driven through the harness idiom', () => {
     const converted = await inviter.browser.json('/invites', 'POST', {
       email: connected.email,
       folder_id: folderId,
+      // Issue #228: a folder invite names the preset it will grant (R9
+      // section 5), and `can_edit` is the standing migration 0023 gives an
+      // existing member -- the value this fixture meant before the field
+      // existed.
+      access: 'can_edit',
     })
     expectStatus(converted, 200, 'the conversion answers 200 (spec 7.5, 8.7)')
     expect(
@@ -222,6 +232,11 @@ describe('the P5 routers, driven through the harness idiom', () => {
     const created = await inviter.browser.json('/invites', 'POST', {
       email,
       folder_id: folderId,
+      // Issue #228: a folder invite names the preset it will grant (R9
+      // section 5), and `can_edit` is the standing migration 0023 gives an
+      // existing member -- the value this fixture meant before the field
+      // existed.
+      access: 'can_edit',
     })
     expectStatus(created, 201, 'the invite parks for an account that does not exist yet')
     const inviteId = String(

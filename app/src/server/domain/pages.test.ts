@@ -74,8 +74,8 @@ async function seedFolder(ownerId: string, name: string): Promise<string> {
   )
   const id = String(found[0]?.id)
   await db.execute(
-    sql`INSERT INTO folder_members (folder_id, user_id)
-        VALUES (${id}::uuid, ${ownerId}::uuid)`,
+    sql`INSERT INTO folder_members (folder_id, user_id, access)
+        VALUES (${id}::uuid, ${ownerId}::uuid, 'full_control')`,
   )
   return id
 }

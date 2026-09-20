@@ -31,6 +31,7 @@ import { sql } from 'drizzle-orm'
 import { expect } from 'vitest'
 
 import type { Db } from '../../db/client.js'
+import type { FolderAccessPreset } from '../../src/shared/folder-access.js'
 import {
   cleanupAuthSubs,
   cleanupAuthUsers,
@@ -170,13 +171,25 @@ export async function createFolder(
   return body.id as string
 }
 
+/**
+ * POST /folders/:id/members.
+ *
+ * `access` became a required field of that body with issue #228 (R9 section
+ * 6: a direct add names the preset explicitly). It defaults to `can_edit`
+ * here, which is the standing a member arriving under the old flat model
+ * effectively had and which migration 0023 gives every existing one, so a
+ * case written before Access existed still adds the member it meant. Cases
+ * about Access pass the preset they are about.
+ */
 export function addMember(
   actor: Actor,
   folderId: string,
   targetUserId: string,
+  access: FolderAccessPreset = 'can_edit',
 ): Promise<RawResponse> {
   return actor.browser.json(`/folders/${folderId}/members`, 'POST', {
     user_id: targetUserId,
+    access,
   })
 }
 
@@ -185,8 +198,9 @@ export async function addMemberOk(
   actor: Actor,
   folderId: string,
   targetUserId: string,
+  access: FolderAccessPreset = 'can_edit',
 ): Promise<void> {
-  const response = await addMember(actor, folderId, targetUserId)
+  const response = await addMember(actor, folderId, targetUserId, access)
   expectStatus(
     response,
     201,
@@ -218,23 +232,39 @@ export async function connect(db: Db, a: string, b: string): Promise<void> {
   `)
 }
 
-/** A membership row with a chosen join instant, for AC-019's transfer order.
- * Everything else adds members through the endpoint instead. */
+/**
+ * A membership row with a chosen join instant, for AC-019's transfer order.
+ * Everything else adds members through the endpoint instead.
+ *
+ * **`access` is written explicitly and defaults to `can_edit`** (issue #228).
+ * The column's own DEFAULT is `can_view`, deliberately the most restrictive
+ * value so that a forgotten insert grants as little as possible; a seeded
+ * fixture wants the opposite default -- the standing migration 0023 gives an
+ * existing non-owner member -- so that a case written before Access existed
+ * still describes the member it meant. Cases about Access pass the preset
+ * they are about.
+ *
+ * No history transition is written beside it. These rows are fixtures rather
+ * than acts, and a case that cares about history makes its membership through
+ * the endpoint that records one.
+ */
 export async function seedMembership(
   db: Db,
   folderId: string,
   userId: string,
-  options: { createdAt?: string } = {},
+  options: { createdAt?: string; access?: FolderAccessPreset } = {},
 ): Promise<void> {
+  const access = options.access ?? 'can_edit'
   if (options.createdAt !== undefined) {
     await db.execute(sql`
-      INSERT INTO folder_members (folder_id, user_id, created_at)
-      VALUES (${folderId}, ${userId}, ${options.createdAt}::timestamptz)
+      INSERT INTO folder_members (folder_id, user_id, created_at, access)
+      VALUES (${folderId}, ${userId}, ${options.createdAt}::timestamptz,
+              ${access})
     `)
   } else {
     await db.execute(sql`
-      INSERT INTO folder_members (folder_id, user_id)
-      VALUES (${folderId}, ${userId})
+      INSERT INTO folder_members (folder_id, user_id, access)
+      VALUES (${folderId}, ${userId}, ${access})
     `)
   }
 }
@@ -338,21 +368,34 @@ export interface SeedInviteOptions {
   folderId?: string | null
   taskId?: string | null
   status?: string
+  access?: FolderAccessPreset
 }
 
 /** Invite rows are P5's surface; P2's folder deletion cascades them and
- * R-CLEAN leaves them standing. */
+ * R-CLEAN leaves them standing.
+ *
+ * `access` is derived rather than asked for (issue #228): a folder invite
+ * carries the preset it will grant and a bare roster invite carries none,
+ * which is `invites_access_requires_folder_check` said in TypeScript. The
+ * default for a folder invite is `can_edit`, the standing migration 0023
+ * gives an existing member, so a fixture written before Access existed still
+ * describes the invite it meant. */
 export async function seedInvite(
   db: Db,
   options: SeedInviteOptions,
 ): Promise<string> {
   const id = randomUUID()
+  const access =
+    options.folderId === undefined || options.folderId === null
+      ? null
+      : (options.access ?? 'can_edit')
   await db.execute(sql`
-    INSERT INTO invites (id, inviter_id, email, folder_id, task_id, status)
+    INSERT INTO invites (id, inviter_id, email, folder_id, task_id, status,
+                         access)
     VALUES (${id}::uuid, ${options.inviterId}::uuid,
             ${options.email ?? `invitee-${randomUUID()}@p2-folders.test`},
             ${options.folderId ?? null}::uuid, ${options.taskId ?? null}::uuid,
-            ${options.status ?? 'pending'})
+            ${options.status ?? 'pending'}, ${access})
   `)
   return id
 }

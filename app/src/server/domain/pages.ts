@@ -44,6 +44,7 @@ import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
 import { readableFileScope } from './files.js'
+import { mayPerform } from './folder-access.js'
 import { accessOf } from './folders.js'
 import { shelfView } from './shelves.js'
 import { initialKeys } from './fractional-index.js'
@@ -225,6 +226,8 @@ export type PutPageResult =
    * nothing either way (10.2). */
   | { kind: 'file_not_here'; blockIndexes: readonly number[] }
   | { kind: 'not_found' }
+  /** Visible, and not this member's to write (issue #228). */
+  | { kind: 'forbidden'; reason: string }
 
 /*
 The gate on a block's `file_id`, and it is two clauses because `page_blocks`
@@ -283,6 +286,22 @@ export async function putPage(
        so that a caller which forgets is refused rather than obeyed. */
     if (!(await homeIsVisible(tx, home, viewerId))) {
       return { kind: 'not_found' } as const
+    }
+
+    /* And the Access half of the same argument (issue #228). The route gates
+       before it calls, so this answers nobody today either; it is here for
+       the same reason the visibility check above is, and it is the reason
+       `mayPerform` is a pure function over facts rather than a middleware --
+       a future non-HTTP caller reaches the same answer through the same
+       door. A shelf page has no Folder and no Folder Access: it is one
+       person's own page (4.18), which `homeIsVisible` has already settled. */
+    if (home.folderId !== null) {
+      const facts = await accessOf(tx, viewerId, home.folderId)
+      if (facts === null) return { kind: 'not_found' } as const
+      const decision = mayPerform(facts, 'folder.page.edit')
+      if (!decision.allowed) {
+        return { kind: 'forbidden', reason: decision.reason } as const
+      }
     }
 
     /* The file gate (issue #107), before the row lock rather than after it:
@@ -522,6 +541,7 @@ export type PageActionResult =
   | { kind: 'section_not_here' }
   | { kind: 'file_not_here' }
   | { kind: 'not_convertible' }
+  | { kind: 'forbidden'; reason: string }
 
 /** #184's narrow transactional boundary: one user gesture, one folder lock,
  * one durable mixed placement. */
@@ -532,7 +552,12 @@ export async function actOnFolderPage(
   body: PageActionBody,
 ): Promise<PageActionResult> {
   return inTransaction<PageActionResult>(db, async (tx) => {
-    if ((await accessOf(tx, viewerId, folderId)) === null) return { kind: 'not_found' }
+    const facts = await accessOf(tx, viewerId, folderId)
+    if (facts === null) return { kind: 'not_found' }
+    const decision = mayPerform(facts, 'folder.section.manage')
+    if (!decision.allowed) {
+      return { kind: 'forbidden', reason: decision.reason }
+    }
     await tx.execute(sql`SELECT 1 FROM folders WHERE id = ${folderId}::uuid FOR UPDATE`)
     if (body.action === 'document_transaction') {
       const mutation = await applyDocument(tx, viewerId, folderId, body)

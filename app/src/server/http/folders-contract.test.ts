@@ -134,8 +134,9 @@ function jsonInit(method: string, body: unknown): RawRequestOptions {
   }
 }
 
-/** The sixteen keys of the 7.0 Folder object, and no others; the 4.3
- * identity four joined with RFC 0005, and item 58's cover pair.
+/** The seventeen keys of the 7.0 Folder object, and no others; the 4.3
+ * identity four joined with RFC 0005, item 58's cover pair, and `my_access`
+ * with issue #228.
  *
  * **`my_label` and `my_shelf` are both listed and that is deliberate.** Issue
  * #226 renamed the key and #247 removes the old one; for the release between
@@ -146,6 +147,12 @@ function jsonInit(method: string, body: unknown): RawRequestOptions {
  * lands, removing `my_label` from this array is how the contract half is
  * proved. `personal_labels` is the Label projection that arrived with the
  * rename, the viewer's own Personal Labels on this folder. */
+/* `my_access` is the viewer's own Access preset, added by 7.4's dated
+   amendment of 2026-09-20 (Hassan's Ruling 4,
+   https://github.com/zhssnym/dana/issues/228#issuecomment-5751449643). This
+   list is the reason to read that amendment rather than guess: it is asserted
+   exactly, so an eighteenth key appearing on the wire fails here whether or
+   not anybody wrote it down. */
 const FOLDER_KEYS = [
   'color',
   'counts',
@@ -158,6 +165,7 @@ const FOLDER_KEYS = [
   'is_default',
   'is_owner',
   'member_count',
+  'my_access',
   'my_color',
   'my_label',
   'my_shelf',
@@ -167,7 +175,11 @@ const FOLDER_KEYS = [
 
 /** 7.4's member element, and inside it 7.0's person shape as the review
  * ruled it: no email, the TaskCard-assignee object. */
-const MEMBER_KEYS = ['is_owner', 'joined_at', 'role', 'user']
+/* `access` joined the member element with issue #228 (#209 R8A, R9 section
+   13): a member's current Access preset is Folder-visible to every member,
+   and it sits beside `role` rather than replacing it -- `role` expressed no
+   authority before the change and expresses none after it. */
+const MEMBER_KEYS = ['access', 'is_owner', 'joined_at', 'role', 'user']
 const PERSON_KEYS = ['avatar_url', 'display_name', 'id']
 
 function expectMemberElementExact(element: unknown, where: string): void {
@@ -243,7 +255,7 @@ describe('the 7.4 shapes against the mounted application', () => {
     const added = await api(
       owner,
       `/folders/${folderId}/members`,
-      jsonInit('POST', { user_id: member.id }),
+      jsonInit('POST', { user_id: member.id, access: 'can_edit' }),
     )
     expect(added.status, 'the staging add must answer 201').toBe(201)
     const addedParsed = postFolderMembersResponse.safeParse(added.json())
@@ -259,8 +271,9 @@ describe('the 7.4 shapes against the mounted application', () => {
     // only the element's shape is under test here.
     const inviteEmail = `pending-${randomUUID()}@${domain}`
     await dbClient.db.execute(
-      sql`INSERT INTO invites (inviter_id, email, folder_id)
-          VALUES (${owner.id}::uuid, ${inviteEmail}, ${folderId}::uuid)`,
+      sql`INSERT INTO invites (inviter_id, email, folder_id, access)
+          VALUES (${owner.id}::uuid, ${inviteEmail}, ${folderId}::uuid,
+                  'can_edit')`,
     )
 
     const response = await api(owner, `/folders/${folderId}`)
@@ -354,11 +367,21 @@ describe('the 7.4 shapes against the mounted application', () => {
       ) as { id: string; is_default: boolean }[]
     ).find((entry) => entry.is_default)?.id
 
+    /* The 403 row was "a member rename" until 2026-09-20. It stopped being a
+       refusal: the member is staged at Can edit, and accepted #209 R8A makes
+       a folder's identity ordinary shared Folder work, which Can edit
+       changes. AC-011, AC-012 and AC-193 carry that decision and Hassan's
+       ruling, https://github.com/zhssnym/dana/issues/228#issuecomment-5750892771.
+       What this file needs is *a* 403 on this surface to parse, so the row is
+       now the act the same member is still refused -- moving the folder
+       itself to Trash, which Hassan's ruling of the same day makes Full
+       control's (AC-015). It mutates nothing when the rule holds, and when it
+       does not the status assertion fails before the envelope one. */
     const refusals: readonly [number, Promise<{ status: number; json(): unknown }>, string][] = [
       [
         403,
-        api(member, `/folders/${folderId}`, jsonInit('PATCH', { name: 'no' })),
-        'a member rename',
+        api(member, `/folders/${folderId}`, { method: 'DELETE' }),
+        'a Can-edit member trashing the folder',
       ],
       [
         404,
