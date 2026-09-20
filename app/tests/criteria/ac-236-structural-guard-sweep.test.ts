@@ -339,10 +339,16 @@ describe('AC-236 every mutating route is behind the whole chain', () => {
     // `GET /api/v1/me/settings` with its sibling write, on the owner's
     // ruling. See the mutating count above for why a fall is read more
     // carefully than a rise.
+    //
+    // 37 to 39 on 2026-09-20, for the two Dana Link reads of issue #223,
+    // `GET /references/search` and `GET /references/:kind/:id`. Same
+    // instruction followed as for `/me/export` above: the sweep already
+    // passed on both — each answers 401 bare — and only the count moved, in
+    // the change that added them.
     expect(
       routes.length,
-      `the walker found ${String(routes.length)} reading routes and there were 37 on 2026-09-04. Fewer means the enumeration lost sight of routes that still exist; more means a GET was added, and it must either answer 401 bare or earn a PUBLIC_READS entry, and this number moves with it in the same change`,
-    ).toBe(37)
+      `the walker found ${String(routes.length)} reading routes and there were 39 after issue #223 added the two Dana Link reads. Fewer means the enumeration lost sight of routes that still exist; more means a GET was added, and it must either answer 401 bare or earn a PUBLIC_READS entry, and this number moves with it in the same change`,
+    ).toBe(39)
 
     const failures: string[] = []
     for (const { method, path } of routes) {
