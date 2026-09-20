@@ -10,7 +10,8 @@
 # An agent opens an issue in exactly five cases - the task it was given, a
 # blocker it cannot resolve, a defect it found outside its task, a decision a
 # person must make, and the workflow itself being wrong - and
-# docs/workflow/how-we-work.md section 2 is the authority on that.
+# docs/workflow/workflow.md, under "What an agent may open, and it is five
+# things", is the authority on that.
 blank_issues_enabled: false
 contact_links:
   - name: An idea, a question, or something not yet decided

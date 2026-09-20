@@ -21,8 +21,9 @@ to be readable by someone who does not read code.
 says how far along. Two places tracking one thing is how a document starts lying, and
 the milestone is the one that updates itself.
 
-[`../workflow/big-features.md`](../workflow/big-features.md) is the process the RFC
-feeds: agree the contract, ship a stub, both sides build in parallel, merge in slices.
+[`../workflow/workflow.md`](../workflow/workflow.md), under *A feature too big for one pull
+request*, is the process the RFC feeds: agree the contract, ship a stub, both sides build in
+parallel, merge in slices.
 
 ## Numbering
 

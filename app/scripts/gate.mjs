@@ -347,7 +347,7 @@ async function main() {
   // **Green means all six ran and all six passed, and nothing else does.**
   // A run that skipped one is `incomplete`: not red, because there is no defect
   // to point at, and not green, because 11.11 fixes six steps and this record
-  // is the evidence that they were answered for. `how-we-work.md` section 8 and
+  // is the evidence that they were answered for. `workflow.md` rule 8 and
   // `hard-stops.md` both say a pull request needs a green gate, so a machine
   // with no Postgres cannot open one, and spec 11.10 carries the one CREATE
   // DATABASE statement that fixes it. `--quick` is incomplete by construction

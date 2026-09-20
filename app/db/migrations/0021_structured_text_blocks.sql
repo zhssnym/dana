@@ -31,7 +31,7 @@
 --
 -- The three CHECKs below keep their names and their column lists, so AC-001's
 -- catalog does not move for them, which is exactly the class of change
--- docs/workflow/backend/README.md warns is invisible to the catalog: only a
+-- docs/workflow/backend.md warns is invisible to the catalog: only a
 -- behavioural case sees it, and AC-460 to AC-463 are those cases. Every
 -- existing row passes by construction, because each of the three admits a
 -- strictly larger set than before.

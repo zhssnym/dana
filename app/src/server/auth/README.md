@@ -2,7 +2,7 @@
 
 `CODEOWNERS` at the repository root asks Hassan to review a change here, and
 since 2026-09-04 that is all it does: there is one team and no area anyone may
-not edit. `docs/workflow/backend/README.md` is how work on this module flows,
+not edit. `docs/workflow/backend.md` is how work on this module flows,
 and `docs/workflow/hard-stops.md` is what stops it. The thirteen persona files
 this line used to name were deleted at the workflow restructure (`a7886df`,
 2026-09-01) and are in git history before that commit.
@@ -84,12 +84,12 @@ which P9 extended rather than replaced.
 
 **The Steward this heading used to name went with the personas** (`a7886df`,
 2026-09-01). What is open below is Hassan's, and the channel for one is a
-GitHub issue; `docs/workflow/backend/README.md` is the process.
+GitHub issue; `docs/workflow/backend.md` is the process.
 
 - **AC-086's third case cannot pass beside AC-154's third case, and the fixture
   is why.** Raised at the P7 phase 3 session and escalated rather than fixed,
   under the build-era rule for "an acceptance criterion appears wrong"; the
-  standing rule now is `docs/workflow/README.md`'s rule 6, which says the same
+  standing rule now is `docs/workflow/workflow.md`'s rule 6, which says the same
   thing. `AC-086: one login recomputes two due dates either
   side of a transition` builds its two reminders on due dates in 2010, so
   `planReminder` computes an instant sixteen years past and frozen 7.9's own

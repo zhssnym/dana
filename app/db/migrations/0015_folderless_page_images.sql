@@ -6,7 +6,7 @@
 -- keeps its name and its columns, which is what AC-001's catalog asserts, so
 -- the catalog is unchanged and the change is invisible to it — which is
 -- exactly the class of change the fifth bullet of
--- docs/workflow/backend/README.md warns can only be seen by a behavioural
+-- docs/workflow/backend.md warns can only be seen by a behavioural
 -- case. AC-413 is that case.
 --
 -- Journal `when` 1789000000000, strictly above 0014's 1788900000000. The

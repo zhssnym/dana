@@ -14,7 +14,7 @@ the word and the specification sentence that named it, and all of that is one ch
 pull request. **A change that cannot be complete on its own is what this workflow exists to
 avoid.**
 
-**Read `docs/workflow/frontend/README.md` before you start**, then
+**Read `docs/workflow/frontend.md` before you start**, then
 `docs/workflow/hard-stops.md`. The first is the folder map and the things about this client
 that bite; the second is the whole of what stops you. Read `CLAUDE.md` too, for the commands
 and the ways this machine's tests fail that are not your fault. The rules live in those files
@@ -55,8 +55,8 @@ against `git show --stat`.
 **An issue exists when a person must decide something**, and only then: a product decision is
 Imran's, a technical one is Hassan's. Use the `Decision needed` template, say what you will do
 in each case, and carry on with whatever does not depend on the answer. Never open one to park
-a thought, to ask a question you could decide, or to split your own task. `docs/workflow/how-we-work.md`
-section 2 has the five cases in which you may open an issue at all.
+a thought, to ask a question you could decide, or to split your own task. `docs/workflow/workflow.md`,
+under "What an agent may open, and it is five things", has the cases in which you may open one at all.
 
 When what is wrong is the workflow rather than the code, `docs/workflow/` is yours like
 everything else: fix it in the pull request that hit the problem, or open an issue labelled

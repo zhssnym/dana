@@ -14,7 +14,7 @@ not edit. A change that cannot be complete on its own is what this workflow exis
 so a server change that leaves a screen showing the old thing takes the screen with it, in
 the same pull request.
 
-**Read `docs/workflow/backend/README.md` before you start**, then
+**Read `docs/workflow/backend.md` before you start**, then
 `docs/workflow/hard-stops.md`, and `CLAUDE.md` for the environment. The rules live there
 rather than here.
 
@@ -64,8 +64,8 @@ against `git show --stat`.
 Imran's, a technical one is Hassan's. Use the `Decision needed` template, say what you will do
 in each case, and carry on with whatever does not depend on the answer. Never open one to park
 a thought, to ask a question you could decide, or to split your own task.
-`docs/workflow/how-we-work.md` section 2 has the five cases in which you may open an issue at
-all.
+`docs/workflow/workflow.md`, under "What an agent may open, and it is five things", has the
+cases in which you may open an issue at all.
 
 When the workflow itself is what is wrong, `docs/workflow/` is yours like everything else:
 fix it in the pull request that hit the problem, or open an issue labelled `documentation`
