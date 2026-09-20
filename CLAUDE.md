@@ -76,6 +76,21 @@ npx vitest run -t "AC-042"                 # one acceptance criterion by number
 Environment specifics, hard-won and non-obvious. This file is their home; the
 protocol points here rather than repeating them.
 
+- **The acceptance suite was cut to a core set on 2026-09-20, and every count below it
+  predates that.** 221 of 268 criterion files and 113 of 119 browser specs were deleted
+  on the owner's ruling that M1 velocity outweighs exhaustive criterion coverage; 47
+  criterion files carrying 232 cases and 6 browser specs carrying 20 remain, and the
+  colocated tests under `app/src/**` were left whole. **Measured on a Linux container
+  rather than this machine, PGlite leg: 681 seconds for 362 files and 2216 tests before,
+  181 seconds for 141 files and 1344 tests after.** That container runs 3 workers against
+  this machine's 12, so read the *ratio* and not the seconds: the leg lost roughly
+  three quarters of its wall clock. lint went 13s to 9s and typecheck 26s to 23s there,
+  which is the part worth knowing — **cutting tests barely moves typecheck**, because
+  `tsconfig.server.json` still includes `tests/**` and the colocated tests are most of
+  what it compiles. `app/tests/README.md` carries what was kept and on what rule.
+  **Two of the deleted criteria were failing when they were deleted** — `ac-390` and
+  `ac-415`, both red on an untouched tree in the run measured immediately before — so
+  their defects are unfixed and now unwatched rather than fixed.
 - Scope the suite while you iterate and run it whole before you report. **Measured
   2026-09-03 on this machine, both legs green: 295 files and 1961 tests.** It was 279 and
   1899 on 2026-09-01, so read every count in this file as a dated measurement rather than
