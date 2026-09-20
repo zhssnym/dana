@@ -1,5 +1,5 @@
 /*
-The 8.10 account deletion transaction, steps 1 to 6a.
+The 8.10 account deletion transaction, steps 1 to 6c.
 
 This file and its caller sit either side of a deliberate seam: the auth
 module owns the DELETE /me route and session destruction, and this file owns
@@ -23,6 +23,22 @@ caller, step 3 is 8.8's cascade, step 4 is 5.3's R-CLEAN, each imported from
 the module that already owns it, so an implementation cannot drift from the
 one AC-016, AC-018 and AC-019 already state. None of the three has a test file
 since the 2026-09-20 cut, so they are the decision and not a check.
+
+**Step 6c exists because no ON DELETE clause on users(id) fires here, and that
+is the one thing to know before adding a table to this schema (issue #253,
+2026-09-20).** Step 7 scrubs the users row rather than deleting it, and in
+issue #230's words, which are better than #253's: *a row that is never deleted
+fires no `ON DELETE` clause — not `CASCADE`, not `SET NULL`, not `RESTRICT` —
+so a table that keyed its cleanup to `users` is not cleaned up at all, and
+nothing anywhere reports it.* Fourteen cascade keys are in that position and
+`sessions_user_id_fkey` is a fifteenth outside section 4, and before 6c nine
+of the fifteen left a departed account's rows standing indefinitely.
+`USER_CASCADE_DISPOSALS` below is the enumeration, one entry per foreign key
+with what happens to it and why, and
+`tests/guards/guard-account-deletion-sweep.test.ts` fails when the schema
+grows a sixteenth that nothing here names — over `SET NULL` as well as
+`CASCADE`, there being none of the former today and that being the reason to
+enumerate it rather than to wait for one.
 */
 import { sql } from 'drizzle-orm'
 
@@ -31,13 +47,148 @@ import { rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 
 /**
- * Steps 1 to 6 of 8.10 for one account, inside the caller's transaction.
+ * What becomes of one foreign key that points at `users(id)` with
+ * `ON DELETE CASCADE` when the account it names is deleted under 8.10.
+ *
+ * `deleted` means a statement in the deletion transaction removes the rows,
+ * and `where` names it. `retained` means the rows deliberately outlive the
+ * account, and `why` is the argument for that rather than a note that nobody
+ * got to it. **There is no third value meaning "the cascade handles it"**,
+ * which is the false premise issue #253 exists to remove from this file.
+ */
+export interface UserCascadeDisposal {
+  /** The constraint name, as `db/constraint-catalog.ts` spells it. */
+  fk: string
+  table: string
+  disposition: 'deleted' | 'retained'
+  /** Which statement removes the rows, or empty when they are retained. */
+  where: string
+  why: string
+}
+
+/**
+ * Every `ON DELETE CASCADE` foreign key referencing `users(id)`, and what
+ * account deletion does about each. The guard asserts this list against the
+ * schema in both directions, so a table added with such a key and no entry
+ * here goes red, and an entry naming a key the schema no longer has goes red
+ * too.
+ */
+export const USER_CASCADE_DISPOSALS: readonly UserCascadeDisposal[] = [
+  {
+    fk: 'connections_user_a_id_fkey',
+    table: 'connections',
+    disposition: 'deleted',
+    where: 'step 5, in this file',
+    why: '4.2 stores the pair once in canonical order, so one statement over both columns clears the entry from both rosters.',
+  },
+  {
+    fk: 'connections_user_b_id_fkey',
+    table: 'connections',
+    disposition: 'deleted',
+    where: 'step 5, in this file',
+    why: 'The same statement: 8.10 step 5 deletes every row containing the account, whichever column holds it.',
+  },
+  {
+    fk: 'folder_members_user_id_fkey',
+    table: 'folder_members',
+    disposition: 'deleted',
+    where: "step 3's folder deletes and step 4's R-CLEAN, in this file",
+    why: "Traced end to end for #253: folder_members_folder_id_fkey is itself ON DELETE CASCADE, so step 3 takes the rows in folders the account still owned, and step 4 then reads folder_members by user_id and runs 5.3's R-CLEAN over what is left, which deletes the membership row. Between them no row survives, whichever step reached it.",
+  },
+  {
+    fk: 'my_day_entries_user_id_fkey',
+    table: 'my_day_entries',
+    disposition: 'deleted',
+    where: 'step 6, in this file',
+    why: "Steps 3 and 4 take the entries their folders and memberships account for; step 6 is the remainder sweep by user_id, so the end state is zero rows however each one was reached.",
+  },
+  {
+    fk: 'sessions_user_id_fkey',
+    table: 'sessions',
+    disposition: 'deleted',
+    where: 'step 8, in src/server/auth/account.ts',
+    why: "Traced end to end for #253: handleDeleteMe runs DELETE FROM sessions WHERE user_id inside this same transaction, which is 11.6's rule that revocation never waits for the pruning pass. The table is 10.1's and sits outside section 4, so db/constraint-catalog.ts does not carry it and the guard names it as the one admitted exception, exactly as AC-001 does.",
+  },
+  {
+    fk: 'comment_likes_user_id_fkey',
+    table: 'comment_likes',
+    disposition: 'deleted',
+    where: 'step 6c, in this file',
+    why: "A like carries no text and names nobody on the wire: commentSelect answers a count and the viewer's own bit, and 4.15 calls it the whole reaction set. It is therefore not one of 8.10's three surviving references, and it is the same shape as my_day_entries and connections, which this transaction already deletes — a per-person marker on a shared object. What a remaining member sees change is one number on a comment.",
+  },
+  {
+    fk: 'labels_owner_user_id_fkey',
+    table: 'labels',
+    disposition: 'deleted',
+    where: 'step 6c, in this file',
+    why: "Added for #226's Label model when this branch rebased onto it, and it is the case this guard was written to catch rather than a table anybody forgot. 4.24's Personal Label is one person's own catalog, private to them, carrying a name, a colour and a description they wrote; db/migrations/0022_labels.sql says beside the constraint that \"A person's Personal Labels go with their account (8.10)\", which is the inert-cascade assumption itself and was false until this statement existed. Scoped by owner_user_id, which is NOT NULL on a Personal Label and NULL on every Folder Label, so it reaches exactly the personal catalog and no shared one. A Folder Label in a folder the account owned goes at step 3 through labels_folder_id_fkey, a cascade off a real DELETE that does fire, and the assignment rows follow this one: task_personal_labels and folder_personal_labels key onto labels(id, owner_user_id) ON DELETE CASCADE.",
+  },
+  {
+    fk: 'notifications_user_id_fkey',
+    table: 'notifications',
+    disposition: 'deleted',
+    where: 'step 6c, in this file',
+    why: "4.14's row is one recipient's copy, so every row keyed to this account is that account's own notification history and nobody else's. Events are untouched: events_actor_id_fkey is RESTRICT and other people's notifications about this account's acts are their history, not this account's.",
+  },
+  {
+    fk: 'sample_objects_user_id_fkey',
+    table: 'sample_objects',
+    disposition: 'deleted',
+    where: 'step 6c, in this file',
+    why: "4.21's bookkeeping marks which of this account's own objects came from the sample workspace. Its id column carries no foreign key at all, so once step 3 and this step have taken the shelves, folders, tasks and views it names, every row left is a mark on something that no longer exists.",
+  },
+  {
+    fk: 'shelves_user_id_fkey',
+    table: 'shelves',
+    disposition: 'deleted',
+    where: 'step 6c, in this file',
+    why: "4.18's shelf is one person's own grouping and nobody else can read it (AC-366), and it carries a name and a description the person wrote. The page blocks hanging on it go with it by page_blocks_shelf_id_fkey, which is a cascade off a real DELETE and does fire.",
+  },
+  {
+    fk: 'user_page_covers_user_id_fkey',
+    table: 'user_page_covers',
+    disposition: 'deleted',
+    where: 'step 6c, in this file',
+    why: "4.20's row dresses one person's own built-in pages. Step 6a reaches the ones whose picture this account uploaded, through user_page_covers_file_id_fkey; a cover set from a preset is reached by nothing, which is why this statement is by user_id rather than left to that cascade.",
+  },
+  {
+    fk: 'user_page_descriptions_user_id_fkey',
+    table: 'user_page_descriptions',
+    disposition: 'deleted',
+    where: 'step 6c, in this file',
+    why: '4.22 stores up to 500 characters the person wrote about their own built-in page, readable by nobody else. It is text on a dissolved account and nothing points at it.',
+  },
+  {
+    fk: 'user_settings_user_id_fkey',
+    table: 'user_settings',
+    disposition: 'deleted',
+    where: 'step 6c, in this file',
+    why: "4.10 and 4.19's preferences: theme, clock, density, pins, sidebar order. Purely this account's, read by nothing else, and a fresh sign-in on the same Google account provisions a new row rather than finding this one, the scrub having released google_sub.",
+  },
+  {
+    fk: 'user_views_user_id_fkey',
+    table: 'user_views',
+    disposition: 'deleted',
+    where: 'step 6c, in this file',
+    why: "4.19's saved View carries a name and a criteria document the person wrote, and it is private to them. A View can name folders this account no longer has any relationship to, so leaving it standing keeps a description of other people's work in a row nobody can reach.",
+  },
+  {
+    fk: 'page_document_receipts_actor_id_fkey',
+    table: 'page_document_receipts',
+    disposition: 'retained',
+    where: '',
+    why: "Retained deliberately, and this is the one of the fifteen that is. The row holds no text: an idempotency key, a SHA-256 of a payload, a revision string and the ids of tasks that survive in the folder. It is read a second way that is not about its actor at all — pages.ts treats any receipt on a folder as the mark that the folder's document is on #184's transaction path, and refuses the legacy whole-page writer against it. Deleting a departed member's receipts could therefore take the last such mark off a folder that other people are still editing and re-open a writer that must stay shut for them. The rows are not orphaned: page_document_receipts_folder_id_fkey is a cascade off a real DELETE, so step 3 takes the receipts of every folder that dies with the account, and what is left belongs to a folder that outlives it.",
+  },
+]
+
+/**
+ * Steps 1 to 6c of 8.10 for one account, inside the caller's transaction.
  *
  * The caller supplies the transaction and runs steps 7 and 8 after this
  * returns. Nothing here reads or writes the sessions table, and nothing here
  * scrubs the user row: after this function the account still exists, owns no
- * folder, holds no membership, appears on no roster, and offers no pending
- * invite.
+ * folder, holds no membership, appears on no roster, offers no pending
+ * invite, and holds no row in any of step 6c's nine personal tables.
  */
 export async function deleteAccountData(
   tx: Executor,
@@ -155,7 +306,68 @@ export async function deleteAccountData(
   for (const row of cascadeFiles) fileIds.add(String(row.id))
   for (const row of ownedFiles) fileIds.add(String(row.id))
 
+  /*
+  6c. The personal-rows sweep (issue #253, 2026-09-20).
+
+  Nine tables whose only tie to this account is a column declared
+  `REFERENCES users(id) ON DELETE CASCADE`. Reading the schema, none of them
+  belongs in this function — the cascade says the rows leave with the user.
+  **It never fires.** Step 7 scrubs the users row rather than deleting it, so
+  there is no DELETE for any of those cascades to hang off, and until this
+  step every one of these rows outlived the account that made it. The
+  argument for each table is its entry in `USER_CASCADE_DISPOSALS` above, and
+  the guard holds this list and that one equal to the schema.
+
+  Written as one statement per table rather than a loop over names: the
+  guard reads this source for `DELETE FROM <table>`, and a table swept by an
+  interpolated identifier would be invisible to it and to grep alike. The
+  order is alphabetical and carries no meaning, none of the nine referencing
+  another; `shelves` cascades its page blocks and `labels` its assignment
+  rows in task_personal_labels and folder_personal_labels, both of which are
+  cascades off a real DELETE and do fire.
+  */
+  const swept = [
+    await rowsOf(
+      tx,
+      sql`DELETE FROM comment_likes WHERE user_id = ${userId} RETURNING 1 AS one`,
+    ),
+    await rowsOf(
+      tx,
+      sql`DELETE FROM labels WHERE owner_user_id = ${userId} RETURNING 1 AS one`,
+    ),
+    await rowsOf(
+      tx,
+      sql`DELETE FROM notifications WHERE user_id = ${userId} RETURNING 1 AS one`,
+    ),
+    await rowsOf(
+      tx,
+      sql`DELETE FROM sample_objects WHERE user_id = ${userId} RETURNING 1 AS one`,
+    ),
+    await rowsOf(
+      tx,
+      sql`DELETE FROM shelves WHERE user_id = ${userId} RETURNING 1 AS one`,
+    ),
+    await rowsOf(
+      tx,
+      sql`DELETE FROM user_page_covers WHERE user_id = ${userId} RETURNING 1 AS one`,
+    ),
+    await rowsOf(
+      tx,
+      sql`DELETE FROM user_page_descriptions WHERE user_id = ${userId} RETURNING 1 AS one`,
+    ),
+    await rowsOf(
+      tx,
+      sql`DELETE FROM user_settings WHERE user_id = ${userId} RETURNING 1 AS one`,
+    ),
+    await rowsOf(
+      tx,
+      sql`DELETE FROM user_views WHERE user_id = ${userId} RETURNING 1 AS one`,
+    ),
+  ]
+  const personalRows = swept.reduce((total, rows) => total + rows.length, 0)
+
   return {
+    personalRows,
     invites: Number(pendingInvites[0]?.n ?? 0),
     foldersTransferred: transferable.length,
     foldersDeleted: doomed.length,
@@ -176,6 +388,11 @@ export interface AccountDeletionCounts {
   myDayEntries: number
   /** Files rows step 3's cascades dropped plus the rows step 6a deleted. */
   files: number
+  /** Step 6c's total across its nine tables: the rows fourteen inert
+   * cascades promised to take and did not (issue #253). One number rather
+   * than nine, because the deletion log's question is whether the sweep ran
+   * and reached something, not which table held what. */
+  personalRows: number
   /** The collected object ids: the caller removes each from the store after
    * the transaction commits (8.10 step 6a). */
   fileIds: string[]

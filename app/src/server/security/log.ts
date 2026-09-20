@@ -37,6 +37,11 @@ export interface DeletionLogFields {
   memberships?: number
   connections?: number
   myDayEntries?: number
+  /** 8.10 step 6c's total across its nine personal tables (issue #253).
+   * One number rather than nine: what the record needs to answer is
+   * whether the sweep ran, the per-table argument living in
+   * USER_CASCADE_DISPOSALS where it can be read and disagreed with. */
+  personalRows?: number
   sessions?: number
 }
 
@@ -381,6 +386,9 @@ export function createSecurityLogger(sink: LogSink = pino()): SecurityLogger {
           ...(fields.myDayEntries === undefined
             ? {}
             : { my_day_entries: fields.myDayEntries }),
+          ...(fields.personalRows === undefined
+            ? {}
+            : { personal_rows: fields.personalRows }),
           ...(fields.sessions === undefined ? {} : { sessions: fields.sessions }),
         },
         'deletion',
