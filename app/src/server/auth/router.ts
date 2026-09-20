@@ -503,6 +503,7 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
         memberships: deleted.memberships,
         connections: deleted.connections,
         myDayEntries: deleted.myDayEntries,
+        personalRows: deleted.personalRows,
         sessions: deleted.sessions,
       })
     },

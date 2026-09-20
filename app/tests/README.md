@@ -84,9 +84,13 @@ rather than their kind.
   behaviour: `guard-postgres-leg-isolation` fails any test that asserts server
   prose, `guard-postgres-leg-connection-loss` goes red if the pool's `'error'`
   listeners are removed, `guard-document-transaction` covers the document
-  transaction seam, and the two added on 2026-09-20 read the criterion registry
-  in both directions — `guard-criterion-registry` (issue #252) fails when two
-  files claim one number, when a criterion a test asserts has no bullet in
+  transaction seam, `guard-account-deletion-sweep` fails a table added with
+  `REFERENCES users(id) ON DELETE CASCADE` that 8.10's deletion transaction
+  neither sweeps nor argues for keeping — a cascade on that column never fires,
+  because step 7 scrubs the row rather than deleting it (issue #253), and the
+  pair added on 2026-09-20 for the criterion registry read it in both
+  directions — `guard-criterion-registry` (issue #252) fails when two files
+  claim one number, when a criterion a test asserts has no bullet in
   section 12, or when the registry's allocator line names a number this tree has
   already spent; `guard-criterion-citations` (issue #257) fails when a sentence
   in `docs/spec/**` or `app/src/**` says a criterion **pins, asserts or proves**

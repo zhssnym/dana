@@ -146,6 +146,21 @@ default, so read this list before spending one.
   precedent. **666 to 679 are not free by default either**, for the reason this bullet
   already gives: the sibling ranges from 640 were assigned to other branches that day and
   only whichever merge lands last can say what they spent.
+- **AC-620 to AC-622 were taken on 2026-09-20** (issue #253, the account-deletion
+  sweep), and they were taken from **620** rather than from 453 or from any gap below it.
+  Several branches were open that day, each holding a block of the run between 450 and
+  619 — 450 to 452, 464 to 466, 470 to 481, 490 to 507, 510 to 523, 540 to 554, and the
+  open-ended blocks from 560 (#230), 580 (#250) and 600 (#220) — and **494 to 509, 524 to
+  539 and 555 to 559 are deliberate renumber gaps rather than free numbers**. So this
+  branch stepped over the whole of it and took the next round number above every live
+  block, which is the AC-440 bullet's move over a range instead of over one number, and
+  the reason is the same: a gap is ordinary where a collision is a duplicate test
+  filename. **Nothing between 453 and 619 is added to the free list above**, on the
+  AC-377 bullet's rule — whether a sibling spent a number is not this branch's to say, and
+  listing one free that another branch has just taken is the collision the rule exists to
+  prevent. The three are 12.3's. **No total moves with them**, on the AC-410 and AC-411
+  precedent: the count at the top and 12.3's row in the table below belong to whichever of
+  the day's merges lands last.
 - **AC-450 to AC-452 are spent, by issues #217 and #216 on 2026-09-20.** AC-450 is in
   12.7 and AC-451 and AC-452 in 12.8. They were taken from the tail rather than from a
   gap, as this section's rule requires while several branches are open: 423 to 428 and
