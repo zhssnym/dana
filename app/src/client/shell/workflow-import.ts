@@ -37,8 +37,8 @@ function pageItems(folder: Record<string, unknown>): unknown[] | null {
 /**
  * The losses performed by `normalizeWorkflowFile`, as opposed to the keys
  * 7.16 intentionally never imports. Counts are enough because blocks and
- * steps keep their order; a foreign reminder and a `labels` key below version
- * 3 are the two the normaliser removes outright.
+ * steps keep their order, and a foreign reminder is the one scalar the
+ * normaliser removes.
  */
 function skippedByNormalization(
   source: Record<string, unknown>,
@@ -71,21 +71,6 @@ function skippedByNormalization(
       return true
     }
 
-    /* A `labels` key below version 3 (#227 area 4). The parser drops it as a
-       foreign arrangement rather than refusing the file, which is right — a
-       version 1 file declares no vocabulary and cannot contradict one — but a
-       dropped classification is exactly the "unsupported content left behind"
-       this function exists to report, and saying nothing is what the version
-       bump's own reasoning argues against. A null is absence rather than
-       loss, and is not reported. */
-    if (
-      beforeFolder.labels !== undefined &&
-      beforeFolder.labels !== null &&
-      afterFolder.labels === undefined
-    ) {
-      return true
-    }
-
     if (!Array.isArray(beforeFolder.tasks)) continue
     for (const [taskIndex, beforeTask] of beforeFolder.tasks.entries()) {
       if (!isRecord(beforeTask)) continue
@@ -99,13 +84,6 @@ function skippedByNormalization(
         return true
       }
       if (typeof beforeTask.reminder === 'string' && afterTask.reminder === undefined) {
-        return true
-      }
-      if (
-        beforeTask.labels !== undefined &&
-        beforeTask.labels !== null &&
-        afterTask.labels === undefined
-      ) {
         return true
       }
     }
@@ -124,27 +102,12 @@ function taskCount(folders: unknown[]): number {
  * Returns null only when the JSON is not recognisably a workflow at all.
  * Field errors and caps remain in `body` so POST /workflows/import can return
  * its existing 422 with the field name intact.
- *
- * **The envelope is `dana: 'workflow'` and nothing else, and the version is
- * deliberately not read here.** It was, until this line: `version !== 1`
- * refused every file above version 1 with "this is not a Dana workflow file",
- * which is the one message this module is for and the wrong one for a file
- * Dana itself wrote. #204 made version 2 a readable arrangement and #227 made
- * version 3 one, and "Save as workflow" writes a 3 for any folder with a
- * Folder Label — so this branch's own export could not be imported through
- * the product, measured rather than reasoned: `folderToWorkflowFile` writes
- * 3, and `prepareWorkflowImport` answered null for it.
- *
- * Reading the version here would be a second client validation rule, which
- * this module's header says in terms it does not do. `importWorkflowBody`
- * knows which versions are arrangements, the endpoint answers 422 for one it
- * does not know, and AC-548 pins both halves.
  */
 export function prepareWorkflowImport(
   value: unknown,
   takenNames: ReadonlySet<string>,
 ): PreparedWorkflowImport | null {
-  if (!isRecord(value) || value.dana !== 'workflow') return null
+  if (!isRecord(value) || value.dana !== 'workflow' || value.version !== 1) return null
 
   const normalized = normalizeWorkflowFile(value)
   if (!isRecord(normalized)) return null
