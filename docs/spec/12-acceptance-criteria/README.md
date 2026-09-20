@@ -14,7 +14,7 @@ groups next to it.
 
 ## The next number
 
-**The next number to take from the tail is 680.**
+**The next number to take from the tail is 705.**
 
 **This section is the allocator and `## Numbers` below it is not.** That one is a
 chronological record of what each branch spent and why, written newest-first in places and
@@ -54,6 +54,7 @@ cannot be read from any tree.
 | 620 upward | `backend/253-account-deletion-sweep` | no — branch not pushed |
 | 640 upward | `frontend/260-workflow-import-version` | no — branch not pushed |
 | 660 upward | `backend/255` | no — branch not pushed |
+| 700–704 | `backend/263-reclaim-sweep-coverage` | yes — five bullets in 12.9 and five files |
 
 **The gaps between those blocks are not free by default**, on the rule the AC-377 and
 AC-440 bullets below state: whichever merge lands last is the only one that can see what its
@@ -61,6 +62,12 @@ siblings actually spent, and listing a number free that an open branch has just 
 collision this section exists to prevent. Three of them are known **renumbers** and must
 stay empty so that the gap reads as a renumber rather than as an ordinary allocation:
 **508 to 509**, **524 to 539** and **555 to 559**.
+
+**680 to 699 is a fourth gap and is not a renumber**, written 2026-09-20 by issue #263,
+which took 700 to 704 rather than 680 because four of the branches in the table above had
+not pushed and their extent still could not be read from any tree. It is left open for
+whichever of them needs it, on the same rule as every other gap here: read this section,
+take what the line above offers, and move that line in the commit that spends it.
 
 *(494 to 509 was carried as one such gap in the brief this was written from, and that half
 of it is wrong: `backend/220` holds bullets for AC-490 through AC-507, so only 508 and 509
