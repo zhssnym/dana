@@ -6,10 +6,22 @@ the two questions the shell has to answer before it can make that request:
 is the selected JSON recognisably a Dana workflow, and did normalisation
 leave any unsupported content behind? It deliberately does not turn a
 server validation rule into a second client validation rule.
+
+**It broke that rule once, on the one field where it cost something.** The
+envelope check below carried a hand-written `value.version !== 1` from the
+day this file was written until #260, which is a second copy of a number the
+contract owns. #204 widened the contract to version 2 on 2026-09-17 and made
+"Save as workflow" write version 2 for every folder with a page, and from
+that day until this one Dana refused its own files as unreadable. The
+envelope still asks about the version — that is what tells a `package.json`
+from a workflow — but the set of readable versions is imported from the
+contract now, so a third version arrives here without anybody editing this
+line.
 */
 import {
   importWorkflowBody,
   normalizeWorkflowFile,
+  WORKFLOW_FILE_VERSIONS,
 } from '../../shared/workflows.js'
 import type { ImportWorkflowBody } from '../../shared/workflows.js'
 
@@ -141,7 +153,12 @@ export function prepareWorkflowImport(
   value: unknown,
   takenNames: ReadonlySet<string>,
 ): PreparedWorkflowImport | null {
-  if (!isRecord(value) || value.dana !== 'workflow' || value.version !== 1) return null
+  if (!isRecord(value) || value.dana !== 'workflow') return null
+  /* Widened to `unknown` rather than narrowed to the version type: the point
+     of the check is that `value.version` is not known to be one of these. */
+  if (!(WORKFLOW_FILE_VERSIONS as readonly unknown[]).includes(value.version)) {
+    return null
+  }
 
   const normalized = normalizeWorkflowFile(value)
   if (!isRecord(normalized)) return null
