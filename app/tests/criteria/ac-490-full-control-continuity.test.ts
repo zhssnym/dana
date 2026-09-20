@@ -40,11 +40,7 @@ import {
   sharedFolder,
   storedPreset,
 } from '../support/folder-access-harness.js'
-import {
-  Cast,
-  expectStatus,
-  removeMember,
-} from '../support/folders-harness.js'
+import { Cast, expectStatus } from '../support/folders-harness.js'
 import type { Actor } from '../support/folders-harness.js'
 
 let app: AuthTestApp

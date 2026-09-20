@@ -194,7 +194,11 @@ const FOLDER_KEYS = [
 ]
 
 /** 7.4's member element and 7.0's person shape inside it, no email. */
-const MEMBER_KEYS = ['is_owner', 'joined_at', 'role', 'user']
+/* `access` joined the member element with issue #228 (#209 R8A, R9 section
+   13): a member's current Access preset is Folder-visible to every member,
+   and it sits beside `role` rather than replacing it -- `role` expressed no
+   authority before the change and expresses none after it. */
+const MEMBER_KEYS = ['access', 'is_owner', 'joined_at', 'role', 'user']
 const PERSON_KEYS = ['avatar_url', 'display_name', 'id']
 
 /** Frozen 7.5's pending element, whose inviter carries two keys and not three. */
@@ -289,7 +293,7 @@ describe('the 7.5 and 7.3 shapes against the mounted application', () => {
     const response = await api(
       inviter,
       '/invites',
-      jsonInit('POST', { email: connected.email, folder_id: folderId }),
+      jsonInit('POST', { email: connected.email, folder_id: folderId, access: 'can_edit' }),
     )
     expect(
       response.status,
@@ -325,7 +329,7 @@ describe('the 7.5 and 7.3 shapes against the mounted application', () => {
     const created = await api(
       inviter,
       '/invites',
-      jsonInit('POST', { email: acceptor.email, folder_id: folderId }),
+      jsonInit('POST', { email: acceptor.email, folder_id: folderId, access: 'can_edit' }),
     )
     expect(created.status, 'a stranger with a folder parks an invite').toBe(201)
     const inviteId = (created.json() as { invite: { id: string } }).invite.id
@@ -375,7 +379,7 @@ describe('the 7.5 and 7.3 shapes against the mounted application', () => {
     const toDecline = await api(
       inviter,
       '/invites',
-      jsonInit('POST', { email: decliner.email, folder_id: folderId }),
+      jsonInit('POST', { email: decliner.email, folder_id: folderId, access: 'can_edit' }),
     )
     expect(toDecline.status).toBe(201)
     const declineId = (toDecline.json() as { invite: { id: string } }).invite.id
@@ -406,7 +410,7 @@ describe('the 7.5 and 7.3 shapes against the mounted application', () => {
     const toCancel = await api(
       inviter,
       '/invites',
-      jsonInit('POST', { email: stranger(), folder_id: folderId }),
+      jsonInit('POST', { email: stranger(), folder_id: folderId, access: 'can_edit' }),
     )
     expect(toCancel.status).toBe(201)
     const cancelId = (toCancel.json() as { invite: { id: string } }).invite.id
@@ -431,7 +435,7 @@ describe('the 7.5 and 7.3 shapes against the mounted application', () => {
     const toResend = await api(
       inviter,
       '/invites',
-      jsonInit('POST', { email: stranger(), folder_id: folderId }),
+      jsonInit('POST', { email: stranger(), folder_id: folderId, access: 'can_edit' }),
     )
     expect(toResend.status).toBe(201)
     const resendId = (toResend.json() as { invite: { id: string } }).invite.id
@@ -461,7 +465,7 @@ describe('the 7.5 and 7.3 shapes against the mounted application', () => {
     const withFolder = await api(
       inviter,
       '/invites',
-      jsonInit('POST', { email: viewer.email, folder_id: folderId }),
+      jsonInit('POST', { email: viewer.email, folder_id: folderId, access: 'can_edit' }),
     )
     expect(withFolder.status).toBe(201)
 
@@ -524,7 +528,7 @@ describe('the 7.5 and 7.3 shapes against the mounted application', () => {
     const fresh = await api(
       inviter,
       '/invites',
-      jsonInit('POST', { email: stranger(), folder_id: folderId }),
+      jsonInit('POST', { email: stranger(), folder_id: folderId, access: 'can_edit' }),
     )
     expect(fresh.status).toBe(201)
     const freshId = (fresh.json() as { invite: { id: string } }).invite.id

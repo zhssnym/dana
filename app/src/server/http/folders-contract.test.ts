@@ -167,7 +167,11 @@ const FOLDER_KEYS = [
 
 /** 7.4's member element, and inside it 7.0's person shape as the review
  * ruled it: no email, the TaskCard-assignee object. */
-const MEMBER_KEYS = ['is_owner', 'joined_at', 'role', 'user']
+/* `access` joined the member element with issue #228 (#209 R8A, R9 section
+   13): a member's current Access preset is Folder-visible to every member,
+   and it sits beside `role` rather than replacing it -- `role` expressed no
+   authority before the change and expresses none after it. */
+const MEMBER_KEYS = ['access', 'is_owner', 'joined_at', 'role', 'user']
 const PERSON_KEYS = ['avatar_url', 'display_name', 'id']
 
 function expectMemberElementExact(element: unknown, where: string): void {
@@ -243,7 +247,7 @@ describe('the 7.4 shapes against the mounted application', () => {
     const added = await api(
       owner,
       `/folders/${folderId}/members`,
-      jsonInit('POST', { user_id: member.id }),
+      jsonInit('POST', { user_id: member.id, access: 'can_edit' }),
     )
     expect(added.status, 'the staging add must answer 201').toBe(201)
     const addedParsed = postFolderMembersResponse.safeParse(added.json())

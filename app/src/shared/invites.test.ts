@@ -58,6 +58,9 @@ const FOLDER = {
 const MEMBERSHIP = {
   user: { id: THIRD_ID, display_name: 'Ada', avatar_url: null },
   role: 'member',
+  // Issue #228: every member element carries its current Access preset. The
+  // instant share grants the preset the invite named (R9 section 5).
+  access: 'can_edit',
   joined_at: WHEN,
   is_owner: false,
 }
@@ -105,19 +108,52 @@ describe('emailAddress (10.3: up to 320, syntactically valid, lowercased)', () =
   })
 })
 
-describe('postInvitesBody (7.5: { email, folder_id optional, task_id optional })', () => {
+describe('postInvitesBody (7.5: { email, folder_id optional, task_id optional, access with a folder })', () => {
   test('accepts the three shapes 7.5 admits: bare, folder, folder plus task', () => {
     expect(postInvitesBody.safeParse({ email: 'a@b.test' }).success).toBe(true)
     expect(
-      postInvitesBody.safeParse({ email: 'a@b.test', folder_id: ID }).success,
+      postInvitesBody.safeParse({
+        email: 'a@b.test',
+        folder_id: ID,
+        access: 'can_edit',
+      }).success,
     ).toBe(true)
     expect(
       postInvitesBody.safeParse({
         email: 'a@b.test',
         folder_id: ID,
         task_id: OTHER_ID,
+        access: 'assigned_work',
       }).success,
     ).toBe(true)
+  })
+
+  /*
+  Issue #228, R9 section 5: a pending folder invite persists the preset it
+  will grant, so `access` is required exactly when `folder_id` is -- and
+  refused without one, because a bare roster invite grants no Folder Access
+  and a preset on it would be a value nothing could ever read. The table's
+  `invites_access_requires_folder_check` says the same thing one layer down,
+  and AC-480 drives it there.
+  */
+  test('binds access to folder_id in both directions', () => {
+    expect(
+      postInvitesBody.safeParse({ email: 'a@b.test', folder_id: ID }).success,
+      'a folder invite with no intended Access',
+    ).toBe(false)
+    expect(
+      postInvitesBody.safeParse({ email: 'a@b.test', access: 'can_edit' })
+        .success,
+      'and a preset on an invite that names no folder',
+    ).toBe(false)
+    expect(
+      postInvitesBody.safeParse({
+        email: 'a@b.test',
+        folder_id: ID,
+        access: 'manager',
+      }).success,
+      'and R8A forbids a seventh preset',
+    ).toBe(false)
   })
 
   test('lowercases the email through the body, so V-INV compares one value', () => {
