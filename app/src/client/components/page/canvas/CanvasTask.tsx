@@ -51,15 +51,53 @@ export function CanvasTaskProvider({
  * Task…", because the answer it is waiting for is usually "this one belongs to
  * Done" and a line that announces a row which is not coming is worse than the
  * gap it fills.
+ *
+ * **A block that draws nothing must also occupy nothing, and `null` alone does
+ * not do that.** BlockNote wraps every block in `.bn-block-content`, which its
+ * own stylesheet gives `padding: 3px 0` and `display: flex`, so a React render
+ * that returns `null` is still a 6px blank line sitting in the middle of the
+ * writing at whatever `page_position` the Task was completed in. Measured on
+ * the running page rather than reasoned about: a folder holding an open Task,
+ * a finished Task and a second open Task read `bn-block-outer` heights of 52,
+ * 6 and 52, and hovering the 6 raised the side menu with Move up, Move down,
+ * Move out of group, Move into previous group and a line pointing at a Task
+ * menu that is not drawn. So this component marks the blank states with
+ * `data-canvas-task-blank`, `canvas.css` collapses that block to nothing, and
+ * the three things the gap caused go with it: the hole in the prose, a side
+ * menu offered on an invisible block, and Move on a block nobody can see. The
+ * second and third go because a zero-height block cannot be the hovered one —
+ * measured, not assumed: the menu raised at its y belongs to the neighbour it
+ * shares that y with, and Move down from it moves the neighbour.
+ *
+ * `aria-hidden` says the same thing to a reader who is not looking: an empty
+ * element announces nothing today, and the attribute is what keeps that true
+ * if anything is ever put inside it.
+ *
+ * **What the collapse cannot reach is the guard**, which reads the document
+ * rather than the screen: a drag-select across the prose either side of a
+ * finished Task still spans its block, and `installCanvasGuard` still refuses
+ * the whole transaction. That refusal's wording is `guard.ts`'s and had to
+ * move with this, because "use its Dana menu" names a control a finished Task
+ * does not draw.
  */
 function ResolvedTask({ taskId, bridge }: { readonly taskId: string; readonly bridge: TaskBridge }): React.JSX.Element {
   const listed = bridge.byId.get(taskId)
   const detail = useTask(listed === undefined ? taskId : null)
   const task = listed ?? detail.data
   const finished = listed === undefined && task?.status === 'completed'
+  /* Finished, and the moment before the by-id read has answered — which is
+     usually on its way to finished, so collapsing it too is what stops the
+     writing jumping by 6px a second after first paint. */
+  const blank = finished || (task === undefined && detail.isPending)
   return (
-    <div data-canvas-task-id={taskId} className="min-w-0" contentEditable={false}>
-      {finished || (task === undefined && detail.isPending) ? null : task === undefined ? (
+    <div
+      data-canvas-task-id={taskId}
+      data-canvas-task-blank={blank ? '' : undefined}
+      aria-hidden={blank || undefined}
+      className="min-w-0"
+      contentEditable={false}
+    >
+      {blank ? null : task === undefined ? (
         <p role="status" className="py-2 text-sm text-muted-foreground">
           This Task is unavailable. Its place is preserved.
         </p>
@@ -77,7 +115,8 @@ function ResolvedTask({ taskId, bridge }: { readonly taskId: string; readonly br
   )
 }
 
-function CanvasTask({ taskId }: { readonly taskId: string }): React.JSX.Element {
+/** Exported for `CanvasTask.test.tsx`; the editor reaches it through the spec below. */
+export function CanvasTask({ taskId }: { readonly taskId: string }): React.JSX.Element {
   const bridge = useContext(TaskContext)
   if (bridge === null) return <p role="status">This Task is unavailable. Its place is preserved.</p>
   return <ResolvedTask taskId={taskId} bridge={bridge} />

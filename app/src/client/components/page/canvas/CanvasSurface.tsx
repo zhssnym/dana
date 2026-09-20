@@ -42,7 +42,17 @@ function CanvasBlockMenu(): React.JSX.Element | null {
           <X size={16} /><span>Remove heading<span className="block text-xs text-muted-foreground">Keep its Tasks and content</span></span>
         </components.Generic.Menu.Item>
       ) : block.type === 'danaTask' ? (
-        <p className="px-3 py-2 text-sm text-muted-foreground">Use the Task menu for Task actions</p>
+        /*
+        Why a Task block has no Delete, said in words that name a control that
+        exists. "Use the Task menu for Task actions" named none: the row's
+        overflow is labelled "More actions" and there is nothing called a Task
+        menu anywhere in the product, and on a finished Task there was no row
+        under the pointer at all. A finished block now collapses to nothing
+        (`CanvasTask.tsx`), so this menu is not reachable on one; the Done
+        clause is here because a string that is only true where it happens to
+        be reachable is the same defect waiting for the next change.
+        */
+        <p className="px-3 py-2 text-sm text-muted-foreground">Delete a Task from its own row, under More actions. A finished Task keeps its row in Done.</p>
       ) : <RemoveBlockItem>Delete</RemoveBlockItem>}
     </DragHandleMenu>
   )
