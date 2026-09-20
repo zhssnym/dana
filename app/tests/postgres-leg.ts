@@ -143,7 +143,7 @@ export function createDatabaseSql(name: string): string {
  * forward-only migrations could change underneath it. The assertion now reads
  * the SQLSTATE and the column field of the server's error, which no locale
  * translates (helpers.ts, serverErrorFields), the routing is gone, and
- * `postgres-leg-isolation.test.ts` fails any file that grows a prose assertion
+ * `guard-postgres-leg-isolation.test.ts` fails any file that grows a prose assertion
  * so it has no reason to return.
  */
 export function targetDatabaseUrl(): string | undefined {

@@ -9,7 +9,7 @@ therefore redirects the seam, the advisory lock connection in `helpers.ts`, and
 anything else that reads it, without any of them knowing this file exists.
 Verified against Vitest 4.1.10 on 2026-09-03: a setup file completes before the
 test module is imported, and `VITEST_POOL_ID` is in the worker's environment by
-then, which `postgres-leg-isolation.test.ts` asserts every run by checking the
+then, which `guard-postgres-leg-isolation.test.ts` asserts every run by checking the
 name of the database it was handed.
 
 **This file opens no connection.** Creating and emptying the database is

@@ -466,7 +466,7 @@ protocol points here rather than repeating them.
     created database `lc_messages = C`, and a migration any branch ran into `dana_test`
     stayed there and failed `ac-001` for every branch behind it. It now asserts the
     SQLSTATE and the `column` field of the server's error, which no locale translates;
-    never assert server prose, and `tests/postgres-leg-isolation.test.ts` fails by name
+    never assert server prose, and `tests/guard-postgres-leg-isolation.test.ts` fails by name
     any test that does.
   - **The browser leg loses about one case a run** under memory pressure, and the
     bullets above cover it. Re-run the case alone, and read the note on when isolation
@@ -508,7 +508,7 @@ protocol points here rather than repeating them.
   That is exactly why the lost file differed every time and passed alone. Both windows
   were measured with a TCP proxy resetting a real pooled socket on demand, both now
   carry a listener that reports the loss once and lets the pool discard the connection,
-  and `tests/postgres-leg-connection-loss.test.ts` goes red if either is removed. **What
+  and `tests/guard-postgres-leg-connection-loss.test.ts` goes red if either is removed. **What
   a route sees is not this error**, which is worth knowing before you go looking for it:
   a socket that dies inside a transaction rejects the statement and drizzle then runs its
   ROLLBACK on the same dead connection, so the request error line and Sentry carry

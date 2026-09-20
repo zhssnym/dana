@@ -193,7 +193,7 @@ export function serverErrorFields(error: unknown): ServerErrorFields | undefined
  * Use this where the thing to pin is which column or which class of violation,
  * and expectRejectedBy where it is a constraint or index name, which every
  * translation keeps verbatim. Never assert the message: it is prose in the
- * cluster's language, and tests/postgres-leg-isolation.test.ts fails a file
+ * cluster's language, and tests/guard-postgres-leg-isolation.test.ts fails a file
  * that does.
  */
 export async function expectRejectedWith(

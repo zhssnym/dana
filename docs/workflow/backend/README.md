@@ -289,7 +289,7 @@ stays there. And so the third: **never assert the prose of a server message.** T
 databases answer in this cluster's language, which is French. Assert a constraint name,
 which every translation keeps verbatim, or the SQLSTATE and the table or column field of
 the error, which no locale touches; `expectRejectedWith` in `tests/helpers.ts` does the
-second, and `tests/postgres-leg-isolation.test.ts` fails by name any test that reads prose.
+second, and `tests/guard-postgres-leg-isolation.test.ts` fails by name any test that reads prose.
 
 ## When the work needs the client
 

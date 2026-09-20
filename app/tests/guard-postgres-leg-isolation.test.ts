@@ -153,7 +153,7 @@ describe('the Postgres leg gives each worker its own database (issue #32)', () =
   test('no test file asserts the text of a server message', () => {
     const offenders: string[] = []
     for (const file of [...testFilesUnder('tests'), ...testFilesUnder('src'), ...testFilesUnder('db')]) {
-      if (path.basename(file) === 'postgres-leg-isolation.test.ts') continue
+      if (path.basename(file) === 'guard-postgres-leg-isolation.test.ts') continue
       const source = readFileSync(file, 'utf8')
       for (const fragment of SERVER_PROSE) {
         if (source.includes(fragment)) offenders.push(`${file}: ${fragment}`)

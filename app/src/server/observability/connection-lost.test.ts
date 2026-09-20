@@ -4,7 +4,7 @@ The lost-connection report of issue #174, driven directly.
 A unit file rather than a criterion for the same reason `database-fallback.test.ts`
 is one: the condition cannot be produced through the API. A pooled connection has
 to die under a running server, which the acceptance suite has no way to arrange,
-and the leg-level test that does arrange it (`tests/postgres-leg-connection-loss.test.ts`)
+and the leg-level test that does arrange it (`tests/guard-postgres-leg-connection-loss.test.ts`)
 measures the seam rather than the boot's wiring of it.
 
 What is asserted is the whole of the rule: one line and one message per lost

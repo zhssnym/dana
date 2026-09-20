@@ -23,13 +23,41 @@ npx vitest run -t "AC-105"
 
 Two runners collect this directory and they never overlap. Vitest takes
 `tests/**/*.test.{ts,tsx}`; Playwright takes `tests/e2e/**/*.spec.ts`, which is
-P8's browser leg and the only place AC-091 to AC-100 run. Its own by-number
-form is `-g` rather than `-t`, and it needs no file naming because the runner
-builds the client and boots the server itself:
+the browser leg. Its own by-number form is `-g` rather than `-t`, and it needs
+no file naming because the runner builds the client and boots the server
+itself:
 
 ```bash
 npx playwright test -g "AC-095"
 ```
+
+*(That sentence used to say the browser leg is "the only place AC-091 to
+AC-100 run". After the 2026-09-20 reduction only AC-091 of that range survives,
+so the range is no longer a useful way to describe the leg and the claim was
+removed rather than corrected into a list of one.)*
+
+## Naming
+
+**Two families, and the prefix says which.** A listing of this directory should
+be readable top to bottom without having to open anything, which it was not
+until 2026-09-20: three files sat among the criteria under names that described
+their subject rather than their kind.
+
+- **`ac-NNN-slug.test.ts`** — one executable criterion from spec section 12.
+  `NNN` is the criterion number and it matches the number the test name carries,
+  which is what `-t "AC-042"` finds. A file here pins a decision, and
+  `docs/workflow/hard-stops.md` governs changing it.
+- **`guard-slug.test.ts`** — an infrastructure guard that pins no criterion.
+  These exist to keep the suite itself honest rather than to prove product
+  behaviour: `guard-postgres-leg-isolation` fails any test that asserts server
+  prose, `guard-postgres-leg-connection-loss` goes red if the pool's `'error'`
+  listeners are removed, and `guard-document-transaction` covers the document
+  transaction seam. They are not criteria and must never be renamed into the
+  `ac-` family, which would claim section 12 numbers that do not exist.
+
+Everything else beside them — `helpers.ts`, `*-harness.ts`, `http-client.ts`,
+`oidc-stub.ts`, the `postgres-leg-*.ts` setup modules — carries no `.test.ts`
+suffix, is collected by neither runner, and is support code rather than a test.
 
 ## Coverage
 
