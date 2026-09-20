@@ -1,6 +1,6 @@
 import type { PartialBlock } from '@blocknote/core'
 import type { PageBlockKind, PageView } from '../../../../shared/pages.js'
-import { MAX_SECTION_DEPTH, STRUCTURED_BLOCK_KINDS } from '../../../../shared/page-document.js'
+import { MAX_SECTION_DEPTH, RICH_TEXT_BLOCK_KINDS, STRUCTURED_BLOCK_KINDS } from '../../../../shared/page-document.js'
 import type { CanvasBlock, canvasSchema } from './schema.js'
 
 export type CanvasInput = PartialBlock<typeof canvasSchema.blockSchema, typeof canvasSchema.inlineContentSchema, typeof canvasSchema.styleSchema>
@@ -135,14 +135,34 @@ Every line of this disappears when the frontend phase teaches the editor the
 real vocabulary; until then it is what keeps the intermediate state lossless.
 */
 const UNEXPRESSED = new Set<string>(STRUCTURED_BLOCK_KINDS)
+/**
+ * Rich content belongs to the kind, so restoring a kind restores the rule that
+ * travels with it: `put_block` refuses rich content on a kind outside
+ * `RICH_TEXT_BLOCK_KINDS`, and `page_blocks_rich_content_check` says the same
+ * in the database. Derived from the shared constant rather than written as
+ * "except code" — `code` is the only kind outside it today, and a seventh kind
+ * added to 4.17 must not need this file edited before a page holding one can
+ * be saved.
+ */
+const RICH_TEXT = new Set<string>(RICH_TEXT_BLOCK_KINDS)
 
-export function canvasOperations(before: CanvasDocument, after: CanvasDocument) {
+/**
+ * `after` as it should be written, given that `before` is what is stored.
+ *
+ * Restoring a kind restores everything the kind decides: its tick, its list
+ * parent, and whether it may carry rich content at all. Dropping that last one
+ * is how the first draft of this guard would have turned silent loss into a
+ * page that answers 422 on every save forever, `dehydrateCanvas` putting a
+ * text projection on every non-image block including the ones the contract
+ * refuses it on.
+ */
+export function restoreCanvas(before: CanvasDocument, after: CanvasDocument): CanvasDocument {
   const old = new Map(before.blocks.map((block) => [block.id, block]))
   const ids = new Set(after.blocks.map((block) => block.id))
   const blocks = after.blocks.map((block) => {
     const previous = old.get(block.id)
     return previous && block.block_kind === 'paragraph' && UNEXPRESSED.has(previous.block_kind)
-      ? { ...block, block_kind: previous.block_kind, checked: previous.checked }
+      ? { ...block, block_kind: previous.block_kind, rich_content: RICH_TEXT.has(previous.block_kind) ? block.rich_content : null, checked: previous.checked }
       : block
   })
   const kept = new Map(blocks.map((block) => [block.id, block]))
@@ -157,9 +177,31 @@ export function canvasOperations(before: CanvasDocument, after: CanvasDocument) 
       ? { ...item, list_parent_block_id: parent }
       : item
   })
+  return { blocks, items }
+}
+
+/**
+ * The writer's baseline: what a save of this page, untouched, would send.
+ *
+ * `documentOf(page)` is the truth and `projected` is what the editor can draw
+ * of it, and neither alone is a baseline. The truth cannot be diffed against
+ * an editor projection — every plain paragraph would read as changed — and the
+ * projection carries none of the kinds, ticks and list parents the restore
+ * above needs to read. This is the two of them reconciled, and it is what the
+ * writer must hold at mount **and** after every commit: a baseline correct
+ * once and stale afterwards loses the same page one save later.
+ */
+export function baselineOf(page: PageView, projected: CanvasDocument): CanvasDocument {
+  return restoreCanvas(documentOf(page), projected)
+}
+
+export function canvasOperations(before: CanvasDocument, after: CanvasDocument) {
+  const restored = restoreCanvas(before, after)
+  const old = new Map(before.blocks.map((block) => [block.id, block]))
+  const ids = new Set(restored.blocks.map((block) => block.id))
   return [
     ...before.blocks.filter((block) => !ids.has(block.id)).map((block) => ({ op: 'delete_block' as const, id: block.id })),
-    ...blocks.filter((block) => JSON.stringify(old.get(block.id)) !== JSON.stringify(block)).map((block) => ({ op: 'put_block' as const, ...block })),
-    { op: 'set_outline' as const, items },
+    ...restored.blocks.filter((block) => JSON.stringify(old.get(block.id)) !== JSON.stringify(block)).map((block) => ({ op: 'put_block' as const, ...block })),
+    { op: 'set_outline' as const, items: restored.items },
   ]
 }
