@@ -335,4 +335,77 @@ describe('POST /workflows/import reads the file DES-206 writes', () => {
       'in one page sequence, the Task at its own position among the writing (4.17)',
     ).toEqual(['block', 'block', 'task'])
   })
+
+  /*
+  The zone, asked for wherever the Task is written (#185).
+
+  **This is the arrangement question again and it is the one that would have
+  gone quiet.** 7.16 requires tz exactly when the file carries a Task with a
+  repeat or a reminder, because 4.5 and 8.6 admit neither without a date. That
+  test reads the file's own Tasks — and format 4 moved where a Task is written.
+  A reader that kept looking only at `folders[].tasks` would find none, ask for
+  no zone, and hand the insert a repeat with a null date; what a caller would
+  see is not a helpful 422 but whatever the database says about the row.
+
+  Kept here rather than as a criterion because the rule is AC-273's and has not
+  moved; what is proven is that the new arrangement reaches it.
+  */
+  test('a repeat written as a page block asks for a zone exactly as one in a collection does', async () => {
+    const [importer] = (await cast.of(app)) as [Actor, Actor]
+    const file = {
+      dana: 'workflow',
+      version: 4,
+      name: 'wfimport weekly',
+      folders: [
+        {
+          name: 'wfimport weekly',
+          page: {
+            blocks: [
+              {
+                kind: 'task',
+                title: 'wfimport water the plants',
+                recurrence_rule: 'FREQ=WEEKLY;BYDAY=MO',
+              },
+            ],
+          },
+        },
+      ],
+    }
+
+    const refused = await importer.browser.json('/workflows/import', 'POST', file)
+    expectStatus(
+      refused,
+      422,
+      'a repeat on the page needs 4.5’s anchor, so the zone is required (7.16, AC-273)',
+    )
+    expect(refused.body, 'and the caller is told which parameter').toContain('tz')
+
+    const accepted = await importer.browser.json(
+      '/workflows/import?tz=UTC',
+      'POST',
+      file,
+    )
+    expectStatus(accepted, 201, 'and with a zone it imports (7.16)')
+    const madeId = String(
+      (accepted.json() as { folders: { id: string }[] }).folders[0]?.id,
+    )
+    const listed = await importer.browser.json(
+      `/folders/${madeId}/tasks?tz=UTC`,
+      'GET',
+    )
+    expectStatus(listed, 200, 'the imported folder reads (Q7)')
+    const cards = listed.json() as {
+      scheduled?: { id: string }[]
+      unscheduled?: { id: string }[]
+    }
+    const read = await importer.browser.json(
+      `/tasks/${String(cards.scheduled?.[0]?.id ?? cards.unscheduled?.[0]?.id)}`,
+      'GET',
+    )
+    expectStatus(read, 200, 'and the task reads (7.6)')
+    expect(
+      (read.json() as { recurrence_rule?: unknown }).recurrence_rule,
+      'with its repeat, anchored on the import day in the zone the request named',
+    ).toBe('FREQ=WEEKLY;BYDAY=MO')
+  })
 })

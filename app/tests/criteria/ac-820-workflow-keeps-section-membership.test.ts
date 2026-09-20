@@ -39,8 +39,9 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
 import { startAuthTestApp } from '../support/auth-harness.js'
 import type { AuthTestApp } from '../support/auth-harness.js'
-import { Cast, createFolder } from '../support/folders-harness.js'
+import { Cast, createFolder, expectStatus } from '../support/folders-harness.js'
 import type { Actor } from '../support/folders-harness.js'
+import { transition } from '../support/tasks-harness.js'
 import {
   asFile,
   at,
@@ -149,5 +150,69 @@ describe('AC-820 a Task travels under the Section it was under', () => {
       madeRows.some((row) => sourceRows.some((was) => was.id === row.id)),
       'and not one identity came across: a template names no row of the account that wrote it (#185)',
     ).toBe(false)
+  })
+
+  /*
+  A completed Task on the page, which is the case that used to make Dana refuse
+  its own export.
+
+  **This is a defect #185 closes rather than a rule it introduces, and it is
+  written down because nothing watched it.** 7.16 carries no state, so the
+  folder page hands the writer its **pending** work only — while the page's
+  `items` name every Task on it, completed ones included. Version 2 wrote both:
+  `task_ids` from the pending list and the outline from the items, so a folder
+  with one finished Task produced a file whose outline named a Task the file did
+  not carry, and importing it met
+  `422 Workflow outline references missing content.` Read from `folderToWorkflowFile`
+  and `importWorkflow` as they stood at 9682d14.
+
+  Format 4 has one array, so a Task the writer was not given is simply not
+  written, and nothing anywhere names it. What this case pins is both halves:
+  the file imports, and the finished work does not travel.
+  */
+  test('a completed Task on the page is not written, and the rest still imports', async () => {
+    const [author, reader] = (await cast.of(app)) as [Actor, Actor]
+    const sourceId = await createFolder(author, 'ac820 half done')
+
+    const heading = randomUUID()
+    const done = randomUUID()
+    const open = randomUUID()
+
+    await compose(
+      author,
+      sourceId,
+      [
+        put(heading, 'section', 'ac820 the morning'),
+        { op: 'create_task', id: done, title: 'ac820 already finished' },
+        { op: 'create_task', id: open, title: 'ac820 still to do' },
+        {
+          op: 'set_outline',
+          items: [at(heading), task(done, heading), task(open, heading)],
+        },
+      ],
+      'the fixture page must compose (7.16)',
+    )
+    expectStatus(
+      await transition(author, done, 'complete'),
+      200,
+      'the fixture Task must complete through 7.6’s own transition',
+    )
+
+    const saved = await savedWorkflow(author, sourceId, 'ac820 half done')
+    expect(
+      (saved.file.folders[0]?.page?.blocks ?? []).map((block) =>
+        block.kind === 'task' ? block.title : block.kind,
+      ),
+      'the finished Task is not in the file at all: 7.16 carries no state, and a template of work already done is not a template',
+    ).toEqual(['section', 'ac820 still to do'])
+
+    const madeId = await importWorkflowOk(reader, asFile(saved))
+    expect(
+      shapeOf(await pageRows(app.db, madeId)),
+      'and the file imports rather than naming work it does not carry — which is what a version 2 file did, its outline being written from the page while its Task list was written from the pending work alone (#185)',
+    ).toEqual([
+      { kind: 'section', text: 'ac820 the morning', under: null, nested_under: null },
+      { kind: 'task', text: 'ac820 still to do', under: 'ac820 the morning', nested_under: null },
+    ])
   })
 })
