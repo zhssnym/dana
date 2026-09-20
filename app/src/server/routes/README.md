@@ -545,3 +545,50 @@ Facts the wiring can rely on, each read off the file rather than assumed:
 
 Fulfilled at the same commit that wrote this entry, the line verbatim, beside
 the bundle mount.
+
+## references router (Dana Links, issue #223)
+
+`GET /references/:kind/:id` and `GET /references/search`, two reads, one file.
+Requested wiring, one line in `createApp`, after the export router's mount and
+ahead of the `/api` catch-all:
+
+```ts
+import { createReferencesRouter } from './routes/references.js'
+
+app.use(
+  '/api/v1',
+  createReferencesRouter({ dbClient: options.dbClient, rateLimits }),
+)
+```
+
+Facts the wiring can rely on, each read off the file rather than assumed:
+
+- The factory is synchronous, performs no I/O and opens no database, the same
+  11.10 discipline every router here keeps, and it goes through
+  `routes/preamble.ts` like the rest, so it is order-tolerant about the
+  session.
+- **Nothing under `/references` is claimed by any earlier router**, so this
+  mount is order-independent like every other one but the views/bundle pair.
+  Inside the file the two paths differ in arity — `/references/search` is one
+  segment and `/references/:kind/:id` is two — so neither shadows the other;
+  the literal is registered first anyway, so that a later
+  `/references/:something` cannot quietly acquire it.
+- Both are GETs, so 7.0 gives them no CSRF link. Both carry `requireSession`,
+  which AC-236's reading half asserts, and they move that count from 37 to 39
+  in the same change.
+- `GET /references/:kind/:id` carries a path id, so it owes AC-397 a row and
+  has one: a stranger gets 404, never 403. The `folder` parameter of
+  `/references/search` is on the **query string**, which that sweep cannot
+  see, and its gate is the hand-written `accessOf(...)` in the handler — the
+  same arrangement `GET /events?folder=` has, and the same reason it is
+  written down here.
+- It takes `rateLimits` and nothing else beside the database: 10.4's search
+  bucket covers the picker read, which is the same act at the same cost as
+  `GET /search`. It takes no security log, no store and no notifier, because
+  it writes nothing and sends nothing.
+- It reaches no module the boot file does not already construct, and adds no
+  table: a Dana Link is resolved live from the href a rich-content block
+  already holds.
+
+Fulfilled at the same commit that wrote this entry, the line verbatim, after
+the export mount.
