@@ -307,8 +307,13 @@ export function createFilesRouter(options: FilesRouterOptions = {}): Router {
          later an inline disposition by default, on this application's own
          origin, which is the one mistake this header exists to stop. Six
          kinds are validated on the way in — the three image kinds through
-         sharp's decode and re-encode, `voice` and #220's `audio` and `video`
-         through an allowlist and a container check — and those six are served
+         sharp's decode and re-encode, #220's `audio` and `video` through the
+         MIME allowlist and a container-signature read, and `voice` through its
+         own `audio/*` rule, which is deliberately neither of those: its bytes
+         come from the browser's own recorder rather than from a file picker,
+         and narrowing it to the allowlist would refuse recordings that work
+         today (`mimeMatchesKind` in `domain/files.ts` is the whole of it) —
+         and those six are served
          inline. `file` is untrusted bytes of any type whatever and is served
          as an attachment, always, which with nosniff beside it is what makes
          "Dana never executes an uploaded file" true rather than hoped for. */

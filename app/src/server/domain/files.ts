@@ -942,12 +942,14 @@ Every column in the schema that can name a file, as one predicate over a
 `comment_files`, `shelves.cover_file_id`, `page_blocks.file_id` and
 `folders.cover_file_id`, and 0005's `user_page_covers.file_id` — and this is
 all five. `users.avatar_url` is a URL rather than a key and needs no clause:
-the sweep takes folder-less `cover` and `image` rows and an avatar is never
-either. **That sentence is load-bearing and not an aside.** This predicate is
+the sweep takes folder-less `cover`, `image`, `file`, `audio` and `video` rows
+— the last three added for issue #220 on 2026-09-20 — and an avatar is none of
+them. **That sentence is load-bearing and not an aside.** This predicate is
 true of every avatar row that exists, and an avatar is folder-less by force
 (`createFile` refuses one that names a folder), so the `kind` clause below is
 the whole of what stands between the 11.7 tick and every profile picture in
-Dana.
+Dana — which is why #220 widened that clause by naming three more kinds and not
+by restating it as everything-but.
 `guard-reclaim-reference-arms.test.ts` cannot see that — it reads
 `pg_constraint`, and a reference held as text is not there — so AC-705 is what
 holds it, and it is the criterion to read before touching the two clauses that
