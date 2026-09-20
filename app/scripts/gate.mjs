@@ -296,7 +296,17 @@ async function main() {
       // dead sit beside fresh ones with indistinguishable timestamps, and an
       // hour spent reading the wrong trace is how this was learned.
       await rm(new URL('../test-results/', import.meta.url), { recursive: true, force: true })
-      await step('playwright', 'npx', ['playwright', 'test'], undefined, playwrightTally)
+      // DANA_GATE_PREBUILT tells playwright.config.ts that the build step
+      // above already produced dist/client, so the browser leg's own server
+      // command skips the identical second `vite build`. Only the gate sets
+      // it, and only here, after that step has actually run.
+      await step(
+        'playwright',
+        'npx',
+        ['playwright', 'test'],
+        { DANA_GATE_PREBUILT: '1' },
+        playwrightTally,
+      )
     }
   }
 

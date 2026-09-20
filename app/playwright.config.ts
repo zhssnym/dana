@@ -88,7 +88,14 @@ export default defineConfig({
     line above produced. The server serves dist/client when it is there, so
     the pair composes without either half knowing about this file.
     */
-    command: 'npm run e2e:app',
+    // The gate runs `npm run build` at its own step immediately before this
+    // leg, and that build's `vite build` half already wrote the same
+    // dist/client this command would rebuild. gate.mjs therefore sets
+    // DANA_GATE_PREBUILT and the redundant build is skipped. Nothing else
+    // sets it: a standalone `npx playwright test` still builds, because in
+    // that case nothing has.
+    command:
+      process.env.DANA_GATE_PREBUILT === '1' ? 'npm run e2e:app:prebuilt' : 'npm run e2e:app',
 
     // Health rather than the page: the server listens only after migrations
     // commit (11.5), so a 200 here means the database is ready too, and a
