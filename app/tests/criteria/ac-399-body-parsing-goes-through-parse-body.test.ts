@@ -277,16 +277,49 @@ describe('AC-399 no route parses a request body except through parseBody', () =>
     for (const file of files) {
       if (file === PARSER) continue
       const source = await code(file)
-      for (const [index, line] of source.split('\n').entries()) {
-        /* A call and not a mention, over source whose comments and strings
-           are already blanked: the identifier, an open parenthesis, and
-           something that could be a schema. **What this count can see** is a
-           call whose first argument sits on the same line, which all 28 do.
-           **What it cannot see** is one whose arguments begin on the next
-           line, and that is the first thing to check if this number ever
-           disagrees with a grep. */
-        if (!/\bparseBody\(\s*[A-Za-z_$]/.test(line)) continue
-        sites.push(`${file}:${String(index + 1)}`)
+      /* A call and not a mention, over source whose comments and strings are
+         already blanked: the identifier, an open parenthesis, and something
+         that could be a schema.
+
+         **Over the file and not over the line, since 2026-09-20 and issue
+         #275**, and the sentence this replaces is worth keeping because it was
+         an honest note about a limitation that then bit. It said the count
+         could see "a call whose first argument sits on the same line, which
+         all 28 do", and that the wrapping case was "the first thing to check
+         if this number ever disagrees with a grep". It did. Issue #228 added
+         `PATCH /folders/:id/members/:userId`, whose one-line `parseBody` call
+         in `routes/folders.ts` is 82 columns against a formatter's 80, so it
+         was wrapped, so the sweep could not see it, and the pinned count did
+         not move when a call site was added. Nothing failed — the branch's
+         author noticed only because they expected a number to move.
+
+         **The formatter deciding what a guard can see is the part that makes
+         this worth more than an off-by-one.** Whether a call was counted
+         depended on whether its first argument happened to fit in 80 columns,
+         so a renamed variable or a longer route path could move a site in or
+         out of the census with nothing behind it. `\s` matches a newline, so
+         matching the blanked file text rather than each of its lines costs one
+         regex flag and removes the whole class.
+
+         The two properties the line-by-line form had are kept. Comments and
+         strings are still blanked, so `parseBody(` inside prose or a literal
+         still does not count; and the line number is still reported, computed
+         from the offset of the match, so a failure still points at a line a
+         reader can open. One thing does change: this counts *calls*, where the
+         old form counted lines carrying at least one. No line in the tree has
+         two, so the numbers below are unaffected by that; a line that grew a
+         second call would now be counted twice, which is the honest reading of
+         "call sites".
+
+         **What it still cannot see** is a call reached through an alias or a
+         property — `const p = parseBody` and then `p(schema, …)`. That is
+         deliberate and is the same boundary the `req.body` sweep above draws:
+         the fault this counts exists to catch is a route written by copying an
+         older one, and an alias is a deliberate act. */
+      const call = /\bparseBody\(\s*[A-Za-z_$]/g
+      for (const found of source.matchAll(call)) {
+        const line = source.slice(0, found.index).split('\n').length
+        sites.push(`${file}:${String(line)}`)
         modules.add(file)
       }
     }
@@ -340,13 +373,41 @@ describe('AC-399 no route parses a request body except through parseBody', () =>
        sweep on the merged tree rather than by arithmetic on the two diffs.
        The module count is not a sum: #224 added no module, so 11 stands as
        #226 left it. */
+    /* **34 to 35 on 2026-09-20, and no route was added** (issue #275). Every
+       rise above this one came from a body-taking route arriving. This one is
+       the matcher above learning to see a call that had been in the tree since
+       #228 landed: `parseBody` in `routes/folders.ts` for
+       `PATCH /folders/:id/members/:userId`, wrapped across lines because the
+       one-line form is 82 columns, and therefore invisible to a sweep that
+       read one line at a time. So the number moved while the application did
+       not, which is the one direction this comment has never had to explain
+       before, and it is worth being plain about what that means: the census
+       was short by one for as long as that call has existed, and `35` is the
+       first reading of this tree that anything has taken.
+
+       The module count does not move with it. `routes/folders.ts` was already
+       reading bodies through the helper, so the newly visible site joins a
+       module that was already counted, and 11 stands as #226 left it.
+
+       The condition the paragraphs above set was met before either number was
+       touched: the `req.body` sweep passed, so nothing is reading a body
+       outside the helper and the count was the only thing that had anything
+       to say. **And the widening was proved rather than assumed** — a second
+       `parseBody` call was written in a wrapped form into a file this sweep
+       reaches, the count read 36, and the file was put back.
+
+       **A branch open at the same time also moves these two numbers.**
+       Nothing here is the arithmetic of two diffs, on the rule two paragraphs
+       up: whoever merges second re-runs this sweep on the merged tree and
+       takes the number it reports, which is neither side's and is not
+       necessarily their sum. */
     expect(
       sites.length,
-      `parseBody is called from ${String(sites.length)} places and there were 34 after issue #224 added the task-dependency create and issue #226 added the four body-taking Label routes. Fewer means a route stopped using it, and the sweep above is what says whether it went back to req.body; more means a body-taking route was added, and this number moves with it in the same change`,
-    ).toBe(34)
+      `parseBody is called from ${String(sites.length)} places and there were 35 when issue #275 taught this sweep to read the file rather than the line. Fewer means a route stopped using it, and the sweep above is what says whether it went back to req.body; more means a body-taking route was added, and this number moves with it in the same change`,
+    ).toBe(35)
     expect(
       [...modules].sort().length,
-      `${String(modules.size)} modules read a request body and there were 11 after issue #226 added routes/labels.ts: ${[...modules].sort().join(', ')}`,
+      `${String(modules.size)} modules read a request body and there were 11 after issue #226 added routes/labels.ts, unmoved by issue #275 because the call it made visible is in a module that was already counted: ${[...modules].sort().join(', ')}`,
     ).toBe(11)
   })
 })
