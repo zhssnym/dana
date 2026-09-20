@@ -111,33 +111,83 @@ describe('the Postgres leg gives each worker its own database (issue #32)', () =
   })
 
   /*
-  Spec 11.10's two verification queries, run against the database this file
-  was actually handed rather than against the one a person typed into psql
-  once. The ordering is the whole point: section 6 asks two agents to produce
-  byte-identical result sequences, nothing in the migrations or the query
-  modules writes COLLATE, so every ordering over text takes the database
-  default, and a worker database that inherited this cluster's French locale
-  would answer this differently from PGlite while passing everything else.
+  Spec 11.10's verification queries, run against the database this file was
+  actually handed rather than against the one a person typed into psql once. A
+  leg that creates its databases at run time needs them run every time, because
+  that is the database whose locale nobody chose by hand.
+
+  Split in two on 2026-09-20 so that the contract and the spelling of it are
+  asserted separately: this one is what must be true on every server, and the
+  one below is which provider said so.
   */
-  test('11.10: the database is builtin C.UTF-8 over UTF8 and orders by code point', async () => {
+  test('11.10: the database orders by code point over UTF8', async () => {
     if (client.kind !== 'postgres') return
 
-    const locale = await rows(
-      client.db,
-      sql`SELECT datlocprovider::text AS provider, datlocale AS locale,
-                 pg_encoding_to_char(encoding) AS encoding
-            FROM pg_database WHERE datname = current_database()`,
-    )
-    expect(locale[0]?.provider).toBe('b')
-    expect(locale[0]?.locale).toBe('C.UTF-8')
-    expect(locale[0]?.encoding).toBe('UTF8')
-
+    /*
+    The ordering is the contract and it is asserted unconditionally. Section 6
+    asks two agents to produce byte-identical result sequences, nothing in the
+    migrations or the query modules writes COLLATE, so every ordering over text
+    takes the database default; a worker database that inherited a cluster's
+    French locale answers this differently from PGlite while passing everything
+    else. This probe is what would catch that, whatever provider named the
+    locale.
+    */
     const ordered = await rows(
       client.db,
       sql`SELECT string_agg(v, '|' ORDER BY v) AS probe FROM (VALUES
             ('Zebra'),('apple'),('Apple'),('a-b'),('ab'),('coté'),('côte'),('_x')) AS s(v)`,
     )
     expect(ordered[0]?.probe).toBe('Apple|Zebra|_x|a-b|ab|apple|coté|côte')
+
+    const encoded = await rows(
+      client.db,
+      sql`SELECT pg_encoding_to_char(encoding) AS encoding
+            FROM pg_database WHERE datname = current_database()`,
+    )
+    expect(encoded[0]?.encoding).toBe('UTF8')
+  })
+
+  /*
+  The provider that ordering came from, asserted as the strongest one this
+  server can express.
+
+  11.10 is normative for the gate machine and writes `LOCALE_PROVIDER builtin
+  BUILTIN_LOCALE 'C.UTF-8'`, which arrived in Postgres 17; the gate runs 18 and
+  this asserts exactly what it asserted before. Below 17 there is no builtin
+  provider and no `pg_database.datlocale` column to read one out of — a 16
+  server answers the query with `column "datlocale" does not exist` — so the
+  leg creates the database with libc `LC_COLLATE 'C'`, which is the same
+  code-point ordering the test above proves, from the C library rather than
+  from Postgres itself. Both branches are asserted so that neither server
+  silently gives something else: what is not allowed on any version is a
+  collation that is not C.
+  */
+  test('11.10: the locale provider is the strongest this server offers', async () => {
+    if (client.kind !== 'postgres') return
+
+    const shown = await rows(client.db, sql`SHOW server_version_num`)
+    const version = Number(shown[0]?.server_version_num)
+    expect(Number.isFinite(version), 'the server did not answer server_version_num').toBe(true)
+
+    if (version >= 170000) {
+      const locale = await rows(
+        client.db,
+        sql`SELECT datlocprovider::text AS provider, datlocale AS locale
+              FROM pg_database WHERE datname = current_database()`,
+      )
+      expect(locale[0]?.provider, '11.10 wants the builtin provider on 17 and above').toBe('b')
+      expect(locale[0]?.locale).toBe('C.UTF-8')
+      return
+    }
+
+    const locale = await rows(
+      client.db,
+      sql`SELECT datlocprovider::text AS provider, datcollate AS collate, datctype AS ctype
+            FROM pg_database WHERE datname = current_database()`,
+    )
+    expect(locale[0]?.provider, 'below 17 the only provider that gives C ordering is libc').toBe('c')
+    expect(locale[0]?.collate).toBe('C')
+    expect(locale[0]?.ctype).toBe('C')
   })
 
   /*

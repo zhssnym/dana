@@ -14,10 +14,12 @@ import { randomInt } from 'node:crypto'
 
 import pg from 'pg'
 
+import type { LocaleProvider } from './postgres-leg.js'
 import {
   BASE_URL_ENV,
   RUN_LOCK_CLASS,
   createDatabaseSql,
+  localeProviderFor,
   quoteIdent,
   withDatabase,
   workerDatabasePattern,
@@ -26,6 +28,30 @@ import {
 function errorCode(error: unknown): string | undefined {
   const code = (error as { code?: unknown }).code
   return typeof code === 'string' ? code : undefined
+}
+
+/*
+Cached because the leg talks to one server for the whole run and this is asked
+once per worker database. It is a number rather than a boolean so that a future
+clause with a different floor reads the same value.
+*/
+let localeProvider: LocaleProvider | undefined
+
+async function providerFor(admin: pg.Client): Promise<LocaleProvider> {
+  if (localeProvider !== undefined) return localeProvider
+  const answer = await admin.query<{ server_version_num: string }>(
+    'SHOW server_version_num',
+  )
+  const raw = answer.rows[0]?.server_version_num
+  const parsed = Number(raw)
+  if (!Number.isFinite(parsed)) {
+    throw new Error(
+      `the server answered SHOW server_version_num with ${String(raw)}, which is not a number, ` +
+        'so the Postgres leg cannot tell which CREATE DATABASE locale clause it understands.',
+    )
+  }
+  localeProvider = localeProviderFor(parsed)
+  return localeProvider
 }
 
 /** Opens a client against one database. The caller always ends it. */
@@ -66,7 +92,7 @@ export async function ensureDatabase(
   name: string,
 ): Promise<boolean> {
   try {
-    await admin.query(createDatabaseSql(name))
+    await admin.query(createDatabaseSql(name, await providerFor(admin)))
   } catch (error) {
     // 42P04 is duplicate_database, which is the answer this wanted. Nothing
     // migrates on this path and nothing needs to: the caller is createTestDb(),

@@ -122,10 +122,45 @@ file must never read a credential out of and would be wrong the moment the leg
 ran as anything else. On this machine the creating role is dana_ci, so the two
 statements agree; anywhere else the clause would have been a lie.
 */
-export function createDatabaseSql(name: string): string {
+export type LocaleProvider = 'builtin' | 'libc'
+
+/**
+ * Which spelling of the locale clause a server understands.
+ *
+ * `LOCALE_PROVIDER builtin` arrived in Postgres 17 and the gate machine runs
+ * 18, so that is the normative form and what a gate run uses. A 16 server
+ * answers the same statement with `option "builtin_locale" not recognized`
+ * (SQLSTATE 42601), which reads as a broken suite and is a server too old for
+ * the clause rather than anything wrong with the leg.
+ *
+ * Read from `server_version_num`, which is an integer like `160013`.
+ */
+export function localeProviderFor(serverVersionNum: number): LocaleProvider {
+  return serverVersionNum >= 170000 ? 'builtin' : 'libc'
+}
+
+export function createDatabaseSql(
+  name: string,
+  provider: LocaleProvider = 'builtin',
+): string {
+  /*
+  The two clauses are the same collation by two routes, which is the only
+  reason the fallback is safe to have. 11.10 wants this leg to order text the
+  way PGlite does, and that is C ordering — bytewise, no language rules.
+  `LOCALE_PROVIDER builtin BUILTIN_LOCALE 'C.UTF-8'` is Postgres 17+ doing that
+  natively; `LC_COLLATE 'C' LC_CTYPE 'C'` over libc is the same ordering from
+  the C library, which is what every server before 17 had. What the builtin
+  provider buys on 18 is that the ordering no longer depends on the host's libc
+  at all, so the fallback is a slightly weaker guarantee and is deliberately
+  confined to servers that cannot express the stronger one.
+  */
+  const locale =
+    provider === 'builtin'
+      ? `LOCALE_PROVIDER builtin BUILTIN_LOCALE 'C.UTF-8' LC_COLLATE 'C' LC_CTYPE 'C'`
+      : `LC_COLLATE 'C' LC_CTYPE 'C'`
   return (
     `CREATE DATABASE ${quoteIdent(name)} TEMPLATE template0 ENCODING 'UTF8' ` +
-    `LOCALE_PROVIDER builtin BUILTIN_LOCALE 'C.UTF-8' LC_COLLATE 'C' LC_CTYPE 'C'`
+    locale
   )
 }
 
