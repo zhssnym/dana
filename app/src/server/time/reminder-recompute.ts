@@ -279,7 +279,8 @@ function planFrom(source: ComputationSource, at: Date): ReminderPlan {
  *
  * Write all three of fireAt, state and firedAt, on the insert and on the
  * conflict branch alike. An upsert that carried the instant across and left
- * the other two is the case frozen 7.9 states and AC-148 pins: a row that
+ * the other two is the case frozen 7.9 states and AC-148 writes down — writes down
+ * rather than checks, its test file having gone in the 2026-09-20 cut: a row that
  * already fired keeps its terminal state and its old fired_at, holding exactly
  * the value the user asked for and never firing again.
  *
@@ -452,7 +453,8 @@ async function recomputeForZoneChange(
  * a deadline that has not arrived. The argument is recorded rather than
  * deleted because what made it wrong was its shape: a path that computes an
  * instant and then names a state instead of reading the one the instant earns.
- * AC-168 pins it.
+ * AC-168 states it, and states rather than checks it: that criterion's test file went
+ * in the 2026-09-20 cut.
  *
  * `at` is the moment "already past" is measured against, and it is threaded
  * from generateSuccessor's own parameter rather than read here. Until the

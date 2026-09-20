@@ -8,8 +8,8 @@ colour together, both being the two fields of 7.4's my-membership and neither
 meaning anything without the other." That sentence is the whole design of this
 file: the two fields are one form and one PATCH, because 7.4 takes them in one
 body and a dialog offering one of them writes a null over the other, which is a
-loss nothing on the page reports. AC-181 asserts both fields and reads both
-values back through 7.4.
+loss nothing on the page reports. AC-181 (no test since the 2026-09-20 cut) names both
+fields and reads both values back through 7.4.
 
 **The two fields carry the names 9.1's table gives them, "Label" and "Color".**
 That row arrived at the P8R mid-package change control on 2026-08-13 with the

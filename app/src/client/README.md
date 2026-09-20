@@ -498,7 +498,7 @@ changed is that an `aria-label` is a *label* to the acceptance suite's
 roles because those fields are ten different roles. 9.3's own important toggle
 is one of them, and the seed puts a starred row on five of the six pages
 AC-093 opens the form from, so the two collided and the criterion could not be
-asserted at all. Measured, not reasoned: Playwright's label engine reads
+checked at all. Measured, not reasoned: Playwright's label engine reads
 `aria-label` off any element.
 
 ### Readings recorded, and what would let the client stop making them
@@ -522,7 +522,7 @@ specification asks the client to render something no response reports.
   7.4's counts carry the number the copy asks for.
 - **"Unassigned" is not offered by the assignee dropdown.** 9.3 says the
   dropdown lists the folder's members plus "Invite by email", and AC-094
-  asserts that by counting, so a null option would make the count wrong. INV-5
+  counted them (no test since the 2026-09-20 cut), so a null option would have made the count wrong. INV-5
   permits a null assignee in a multi-member folder, so this narrows what the
   form can express: the field falls back to the viewer where they are a
   member, which is also 9.3's own default. Recommendation: 9.3 say whether the
@@ -553,8 +553,9 @@ Both are the pattern `components/README.md` already reported twice and
   runner seeds once, so the second case sees two series and the title locator
   resolves to two elements. Measured: each of the three passes alone against a
   fresh seed.
-- **AC-156's fourth case.** It creates `ac156token pending row`, which its own
-  third case already created, and then asserts that title is visible. Same
+- **AC-156's fourth case** (no test since the 2026-09-20 cut)**.** It creates
+  `ac156token pending row`, which its own third case already created, and then
+  looks for that title. Same
   cause, same one-line fix.
 
 ## Extended by the page assembly session, and the owner's review of two others
@@ -834,8 +835,8 @@ took it.
 **`shell/TopBar.tsx` is retired by a ruling and not by a refactor.** The owner
 ruled on 2026-08-13 that the designer's shell wins here, and 9.1 was amended:
 there is no top bar, the app name and the global search control are in the
-sidebar header, and the avatar menu is in its footer. AC-174 asserts the
-removal as the absence of a banner landmark on every page, which is what an
+sidebar header, and the avatar menu is in its footer. AC-174 states the
+removal as the absence of a banner landmark on every page (no test since the 2026-09-20 cut), which is what an
 application header is. The consequence for every page: **a page's own
 `header` must stay inside `main`**, which it is, `SidebarInset` being the
 `main` landmark and the outlet sitting inside it.
@@ -874,7 +875,7 @@ portal, which escapes the scroll container by construction.
 
 ### The two view preferences of 9.1
 
-**Settled by 9.1 and asserted by AC-182.** The sidebar's width and whether it
+**Settled by 9.1 and written down as AC-182** (no test since the 2026-09-20 cut)**.** The sidebar's width and whether it
 is collapsed to a rail are the viewer's and persist. Both are `localStorage`,
 one key each, read synchronously at the first render so the sidebar paints at
 the width it was left at rather than jumping to it.

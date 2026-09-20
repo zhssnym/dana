@@ -43,8 +43,8 @@ the folder disagree with the sidebar it hangs in. It goes in
 or empty it through 7.4 like any other folder's, and this is a default rather
 than a fixture: nothing restores it.
 
-**The sentence lives in two files and AC-315 asserts that they agree (issue
-#97).** `routes.ts` is the client's and this constant is the server's, and
+**The sentence lives in two files and AC-315 is the decision that they agree (issue
+#97) — a decision and no longer a check, its test file having gone in the 2026-09-20 cut.** `routes.ts` is the client's and this constant is the server's, and
 neither side may import the other (the eslint boundary). The wording changed
 once already, on issue #21, and only the client moved: nothing on this side
 failed, and every new account would have gone on receiving the old sentence
@@ -287,8 +287,9 @@ export async function provisionUser(
  *
  * Both of those are "no write, and no 8.6 recompute" in 8.1's own sentence, so
  * the two guards below are one guard read twice and the recompute sits behind
- * them rather than beside them. AC-086 asserts both absences with a real zone
- * change beside each, because an implementation that recomputes on every login
+ * them rather than beside them. AC-086 states both absences with a real zone
+ * change beside each — states them and no longer runs, its test file having gone in
+ * the 2026-09-20 cut, because an implementation that recomputes on every login
  * passes the positive cases and moves a traveler's instants for a sign-in that
  * changed nothing.
  *

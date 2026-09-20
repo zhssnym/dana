@@ -487,7 +487,8 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
    * `pinned_views` while that column is null, which is what keeps a v1
    * account's sidebar the sidebar it had. The `settings` key of `GET /me`
    * still carries them too: 7.1 is frozen, untouched by this, and AC-116
-   * pins its shape. What went is the pair of endpoints that *wrote* them,
+   * states its shape — states it rather than holding it, that criterion's test file
+   * having gone in the 2026-09-20 cut. What went is the pair of endpoints that *wrote* them,
    * so nothing in this application writes those columns any more.
    * ---------------------------------------------------------------- */
 

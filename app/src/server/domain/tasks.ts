@@ -523,7 +523,8 @@ The instant, the state and fired_at are planReminder's answer and are written
 together on both arms of the conflict. 4.8 makes fire_at NOT NULL, so there
 is no half-row to insert and compute after; and an upsert that carried the
 new instant across while leaving state and fired_at alone is the failure
-AC-148 pins, a row holding exactly the value the user asked for that will
+AC-148 states — states it rather than holding it, its test file having gone in
+the 2026-09-20 cut — a row holding exactly the value the user asked for that will
 never fire again because it is still terminal from the last time it did.
 
 No recompute follows this call, and that is a decision rather than an

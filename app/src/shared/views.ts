@@ -207,8 +207,9 @@ A recommendation reading "the endpoint that issued it" would be frozen text
 that disagrees with the code on its first day.
 
 Nothing here is a change to behavior: AC-056 and AC-127 already page Done and
-search by sending a received next_cursor back, AC-127 asserting no overlap and
-no gap, and the router's own proof asserts the 422 on a garbage cursor and on
+search by sending a received next_cursor back, AC-127 describing no overlap and
+no gap — and describing rather than checking, its test file having gone in the 2026-09-20 cut
+— and the router's own proof asserts the 422 on a garbage cursor and on
 one issued for the other order. The sentence describes what this branch does.
 */
 const CURSOR_VERSION = 1
@@ -466,8 +467,8 @@ export type CompletedDay = z.infer<typeof completedDay>
 /*
 Q3C's ghosts, the five fields 7.10 enumerates. The array was empty from P4
 until P6: what draws in it is 8.5's projection over the 4.11 iterator that
-11.9 gives to src/server/time and P6 delivered, and AC-082 pins it
-in P6's range. The shape was declared ahead of that for the reason P3 declared
+11.9 gives to src/server/time and P6 delivered. AC-082 states it in P6's range,
+and states rather than runs it: that criterion's test file went in the 2026-09-20 cut. The shape was declared ahead of that for the reason P3 declared
 recurrence_rule and reminder while their computations were deferred: the key
 is frozen 7.10's, so a client can rely on it, and P6 filled a shape rather
 than inventing one.

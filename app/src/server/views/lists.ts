@@ -5,7 +5,9 @@ Q2, Q3, Q4 and Q5: the four capped list pages, GET /views/tasks,
 The three that 6.1's proof is about are built from one scope sentence,
 OPEN_SCOPE in cards.ts, and add their own conjunct to it: Q2 adds ANYTIME, Q3
 adds SCHEDULED, and Q5 adds nothing. That is not a convenience, it is the
-proof's stated dependency, and AC-070 is the property test that pins it.
+proof's stated dependency. **AC-070 was the property test over it and no longer
+exists**, having gone in the 2026-09-20 cut; sharing this fragment is what stands in for it,
+and 06.1's own dated correction says how much weaker that is.
 
 Both conjuncts moved on 2026-09-20 with issue #216 and they are in cards.ts
 rather than here for the reason that file's header gives: Scheduled stopped

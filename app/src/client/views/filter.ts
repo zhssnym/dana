@@ -359,7 +359,8 @@ export const ABANDONED_HIDDEN = 'Abandoned hidden'
  * The filter is already ids and enums, which is 11.15's port note as a
  * property rather than a promise: nothing here holds a display name, so a
  * person renamed or a folder renamed leaves every saved view intact. That is
- * what AC-209 pins on the server side and this is the client half of it.
+ * what AC-209 states on the server side (no test since the 2026-09-20 cut), and this
+ * is the client half of it.
  */
 export function viewDefinition(filter: PageFilter, page: string): Record<string, unknown> {
   const settled = customRangeOpen(filter) ? { ...filter, due: 'any', from: null, to: null } : filter

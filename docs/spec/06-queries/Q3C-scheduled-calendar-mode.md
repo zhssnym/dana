@@ -12,7 +12,11 @@ Year zoom is cut for v1 because projecting a daily rule at year scale produces h
 markers with no designed density rendering. The zoom levels name viewports rather than
 ranges: this query answers whatever inclusive range the request carries, and what the
 month zoom asks for is 9.5's, recorded there at the P6 change control of 2026-08-10
-because neither section had said it and AC-082 is asserted on the range its request names.
+because neither section had said it and AC-082 states the rule over the range its request
+names. **AC-082 has no test file**: it went in the 2026-09-20 cut, and the only thing left
+carrying the number is `components/calendar/grid.test.ts`, which is a geometry case about
+the six-week grid and reaches no wire at all. So the range rule here is the decision and
+not a proof.
 Real rows: folder_id IN ACCESSIBLE(V) AND the task's Schedule overlaps [start, end],
 all three statuses. The Schedule's span runs from activation_date = COALESCE(start_date,
 due_date) to schedule_date = COALESCE(due_date, start_date), and the overlap is
