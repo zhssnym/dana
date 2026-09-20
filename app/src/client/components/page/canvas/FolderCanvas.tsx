@@ -81,10 +81,28 @@ function CanvasSession({ page, initialPage, folderId, tasks, context, actions, o
      component against a real database in issue #255's review; AC-663 is it.
 
      `page` follows the server, so the entry goes as soon as the conversion
-     lands. **What that does not close is the round trip itself**: a conversion
-     and its undo inside one save's flight read a map nothing has updated yet,
-     and the relation is restored. That window is one request long, where the
-     one above was the whole life of the session. */
+     lands. **What that does not close is the flight itself**: a conversion and
+     its undo inside one save's flight read a map nothing has updated yet, and
+     the relation is restored.
+
+     **That window is one request long only while saves succeed, and it is
+     unbounded when one fails.** Measured on this commit in #255's second
+     review, which drove it end to end. `CanvasWriter.change` sets `latest`
+     unconditionally and latches only the state transition, so every keystroke
+     during a failure is still projected against this map; `committed` never
+     runs, so `onSaved` never runs, so `page` — and this map with it — is
+     frozen at the pre-failure row for the whole failure; and the editor stays
+     editable throughout. `retry()` then re-sends the original request,
+     `committed` runs, `settled(latest)` is computed from a projection built
+     against the stale map and answers `'changed'`, and the autosave ships it
+     **with no gesture after the retry**. Convert a reference to a heading, see
+     the save fail, press undo, click Retry save: the row comes back a
+     `folder_ref` under ON DELETE CASCADE on a block deliberately converted
+     away. Narrower than the hole above — it needs a failure straddling a
+     conversion — and far narrower than `main`, where the relation died on
+     every keystroke. Closing it means reading `writer.pending?.document`
+     rather than `page`, and it wants a criterion: nothing in the suite makes
+     `route.send` throw, so this whole path is unmeasured. */
   const folderRefs = useMemo(() => folderRefsOf(page), [page])
   const editor = useCreateBlockNote({
     schema: canvasSchema,
