@@ -51,6 +51,7 @@ import { copyCoverFile, readableFileScope } from './files.js'
 import { applyDocument, documentMetadata, DocumentRefusal } from './page-document.js'
 import { upsertReminder } from './tasks.js'
 import { positionAtSectionEnd, seededItems } from './page-order.js'
+import { copyDependenciesWithin } from './task-dependencies.js'
 /* 4.11 calendar arithmetic rather than a second copy of it here: both ends are
    UTC midnights, so no DST shift can round the division (issue #215). */
 import { addDays, daysBetween } from '../time/calendar-date.js'
@@ -255,6 +256,14 @@ export async function duplicateFolder(
             WHERE folder_id = ${sourceFolderId} AND deleted_at IS NULL
             ORDER BY created_at ASC, id ASC`,
       )
+      /* Old task id to new, built as the loop below inserts, because the
+         dependency relation is copied from it afterwards (issue #224). The
+         rule is that relationships travel only when both ends travel
+         together, and this map is the definition of "travelled": a task that
+         is not in it did not come, whether because it is trashed or because
+         it lives in another folder, and an edge touching it is dropped rather
+         than pointed back at the original. */
+      const taskIdentity = new Map<string, string>()
       for (const task of tasks) {
         const section =
           task.section_block_id === null
@@ -283,6 +292,7 @@ export async function duplicateFolder(
               RETURNING id`,
         )
         const newTaskId = String(inserted[0]?.id)
+        taskIdentity.set(String(task.id), newTaskId)
         const steps = await rowsOf(
           tx,
           sql`SELECT title, position FROM steps
@@ -297,6 +307,14 @@ export async function duplicateFolder(
           )
         }
       }
+
+      /* The dependency relation, after every task exists and so after the
+         identity map is whole (issue #224). It is inside this transaction
+         with everything else: a folder whose work arrived and whose ordering
+         between that work did not is a half-made copy, and the copy is one
+         unit. Only edges with both endpoints in the map are carried, which is
+         the accepted rule stated once in `copyDependenciesWithin`. */
+      await copyDependenciesWithin(tx, taskIdentity, viewerId)
 
       /* DES-198's date rule: spent plans re-anchor whole, live plans copy
          untouched. The shift is read once, then one UPDATE moves every date by

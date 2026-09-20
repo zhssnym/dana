@@ -99,6 +99,7 @@ import type { AuthTestApp } from '../support/auth-harness.js'
 import {
   STUB_PHOTO_ID,
   makeComment,
+  makeDependency,
   makeFile,
   makeInvite,
   makeNotification,
@@ -274,6 +275,8 @@ type ResourceId =
   | 'folderId'
   | 'trashedFolderId'
   | 'taskId'
+  | 'blockingTaskId'
+  | 'dependencyId'
   | 'trashedTaskId'
   | 'stepId'
   | 'shelfId'
@@ -306,6 +309,8 @@ async function fixturesOf(): Promise<Fixtures> {
   const folderId = await makeSharedFolder(app, owner, member, 'ac397 shared')
   const taskId = await makeTask(owner, folderId, 'ac397 the task')
   const stepId = await makeStep(owner, taskId, 'ac397 the step')
+  const blockingTaskId = await makeTask(owner, folderId, 'ac397 the blocker')
+  const dependencyId = await makeDependency(owner, taskId, blockingTaskId)
   const fileId = await makeFile(owner, folderId, 'ac397.png')
   const commentId = await makeComment(owner, folderId, 'ac397 the comment')
   const shelfId = await makeShelf(owner, 'ac397 the shelf')
@@ -348,6 +353,8 @@ async function fixturesOf(): Promise<Fixtures> {
     folderId,
     trashedFolderId,
     taskId,
+    blockingTaskId,
+    dependencyId,
     trashedTaskId,
     stepId,
     shelfId,
@@ -706,6 +713,50 @@ const TABLE = new Map<string, Row>([
       stranger: {
         expected: 404,
         rule: '7.16: the copy is made from a task the caller must be able to read',
+      },
+    },
+  ],
+  /* -------------------------------------------------------------- *
+   * Task dependencies (issue #224). Three routes, one relation, and the
+   * table has one thing to say about each: a person with no membership of
+   * the folder the task lives in cannot read its relations, cannot give it
+   * a blocker, and cannot take one away. The far end of an edge is named in
+   * the *body* on the create and so is invisible to this sweep, which is
+   * why the gate on it is hand-written in domain/task-dependencies.ts and
+   * pinned by AC-443 rather than here.
+   * -------------------------------------------------------------- */
+  [
+    'GET /api/v1/tasks/:id/dependencies',
+    {
+      attempt: (fx) => ({ path: `/tasks/${fx.taskId}/dependencies` }),
+      stranger: {
+        expected: 404,
+        rule: '10.2: a task\'s relations are read by exactly the people who read the task, and an inaccessible task is 404 rather than 403',
+      },
+    },
+  ],
+  [
+    'POST /api/v1/tasks/:id/dependencies',
+    {
+      attempt: (fx) => ({
+        path: `/tasks/${fx.taskId}/dependencies`,
+        body: { blocking_task_id: fx.blockingTaskId },
+      }),
+      stranger: {
+        expected: 404,
+        rule: '5.4 row 2: giving a task a blocker is an edit of that task, and a non-member makes none',
+      },
+    },
+  ],
+  [
+    'DELETE /api/v1/tasks/:id/dependencies/:dependencyId',
+    {
+      attempt: (fx) => ({
+        path: `/tasks/${fx.taskId}/dependencies/${fx.dependencyId}`,
+      }),
+      stranger: {
+        expected: 404,
+        rule: '5.4 row 2: either end of a relation may remove it, and a non-member is neither end',
       },
     },
   ],
@@ -1248,8 +1299,8 @@ describe('AC-397 every id-bearing route refuses a stranger', () => {
     */
     expect(
       routes.length,
-      `the walker found ${String(routes.length)} routes carrying a path parameter and there were 62 after issue #223 added the Dana Link resolver. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means an id-bearing route was added, and it owes this table a row saying what a stranger gets when they ask for somebody else's`,
-    ).toBe(62)
+      `the walker found ${String(routes.length)} routes carrying a path parameter and there were 65 after issue #223 added the Dana Link resolver and issue #224 added the three task-dependency routes. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means an id-bearing route was added, and it owes this table a row saying what a stranger gets when they ask for somebody else's`,
+    ).toBe(65)
 
     const missing = routes.filter((route) => !TABLE.has(route))
     expect(
@@ -1344,6 +1395,15 @@ describe('AC-397 every id-bearing route refuses a stranger', () => {
   > = {
     folderId: (fx) => ({ what: 'the folder', path: `/folders/${fx.folderId}` }),
     taskId: (fx) => ({ what: 'the task', path: `/tasks/${fx.taskId}` }),
+    blockingTaskId: (fx) => ({
+      what: 'the blocking task',
+      path: `/tasks/${fx.blockingTaskId}`,
+    }),
+    dependencyId: (fx) => ({
+      what: 'the dependency, on the dependent task it hangs from',
+      path: `/tasks/${fx.taskId}/dependencies`,
+      holds: fx.dependencyId,
+    }),
     stepId: (fx) => ({
       what: 'the step, on its task',
       path: `/tasks/${fx.taskId}`,
