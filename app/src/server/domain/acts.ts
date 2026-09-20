@@ -240,9 +240,15 @@ export async function duplicateFolder(
             }
           }
         }
-        await tx.execute(sql`INSERT INTO page_blocks (id,folder_id,kind,position,text,rich_content,ref_folder_id,file_id,width_pct,page_position) VALUES (${sectionMap.get(String(block.id))}::uuid,${copyId}::uuid,${String(block.kind)},${Number(block.position)},${block.text??null},${block.rich_content==null?null:JSON.stringify(block.rich_content)}::jsonb,${block.ref_folder_id??null}::uuid,${fileId}::uuid,${block.width_pct??null},${block.page_position??null})`)
+        await tx.execute(sql`INSERT INTO page_blocks (id,folder_id,kind,position,text,rich_content,ref_folder_id,file_id,width_pct,page_position,checked) VALUES (${sectionMap.get(String(block.id))}::uuid,${copyId}::uuid,${String(block.kind)},${Number(block.position)},${block.text??null},${block.rich_content==null?null:JSON.stringify(block.rich_content)}::jsonb,${block.ref_folder_id??null}::uuid,${fileId}::uuid,${block.width_pct??null},${block.page_position??null},${block.checked==null?null:Boolean(block.checked)})`)
       }
+      /* Both parent relations are remapped through the same copied-id map and
+         neither is inferred: a Section stays a Section's, a nested list item
+         stays that list item's (#219). A checklist item's tick is authored
+         content and is copied with the writing, unlike a Task's status, which
+         the comment below explains arrives pending. */
       for(const block of blocks)if(block.section_block_id!=null)await tx.execute(sql`UPDATE page_blocks SET section_block_id=${sectionMap.get(String(block.section_block_id))??null}::uuid WHERE id=${sectionMap.get(String(block.id))}::uuid`)
+      for(const block of blocks)if(block.list_parent_block_id!=null)await tx.execute(sql`UPDATE page_blocks SET list_parent_block_id=${sectionMap.get(String(block.list_parent_block_id))??null}::uuid WHERE id=${sectionMap.get(String(block.id))}::uuid`)
       // Structure, never the life (DES-198): every status arrives pending,
       // steps arrive undone, the work is the maker's, a repeat is a new
       // series, and my_day, reminders, comments and events stay home.
@@ -662,8 +668,12 @@ export async function importWorkflow(
         const outline=document.outline.map(item=>{
           const id=(item.kind==='block'?blockMap:taskMap).get(item.id)
           const parent=item.section_block_id===null?null:blockMap.get(item.section_block_id)
-          if(id===undefined||parent===undefined)throw new DocumentRefusal('not_convertible','Workflow outline references missing content.')
-          return {...item,id,section_block_id:parent}
+          // #219's second parent, remapped through the same map and refused on
+          // the same terms: a file naming a list parent it does not carry is a
+          // broken file rather than a flattened list.
+          const listParent=item.list_parent_block_id===null?null:blockMap.get(item.list_parent_block_id)
+          if(id===undefined||parent===undefined||listParent===undefined)throw new DocumentRefusal('not_convertible','Workflow outline references missing content.')
+          return {...item,id,section_block_id:parent,list_parent_block_id:listParent}
         })
         operations.push({op:'set_outline' as const,items:outline})
         const base=await documentMetadata(tx,folderId)

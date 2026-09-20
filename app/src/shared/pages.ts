@@ -7,17 +7,34 @@ back for the blocks it claims to be editing.
 */
 import { z } from 'zod'
 
-import { documentTransaction, richContent } from './page-document.js'
+import { DOCUMENT_BLOCK_KINDS, documentTransaction, richContent } from './page-document.js'
 import type { RichContent } from './page-document.js'
 export type { RichContent, DocumentTransaction, DocumentOperation, DocumentOutlineItem } from './page-document.js'
+export { DOCUMENT_BLOCK_KINDS, LIST_BLOCK_KINDS, STRUCTURED_BLOCK_KINDS, RICH_TEXT_BLOCK_KINDS, isListKind } from './page-document.js'
+export type { ListBlockKind, DocumentBlockKind } from './page-document.js'
 import { taskTitle } from './tasks.js'
 
-export const PAGE_BLOCK_KINDS = [
+/**
+ * The pre-canvas whole-page writer's vocabulary (`PUT /pages`, `insert_block`),
+ * unchanged by #219. A legacy client is not required to gain the structured
+ * vocabulary and must not be able to write a kind whose extra state it knows
+ * nothing about; the modern document transaction is the only way in.
+ */
+export const LEGACY_PAGE_BLOCK_KINDS = [
   'section',
   'paragraph',
   'image',
   'folder_ref',
 ] as const
+export type LegacyPageBlockKind = (typeof LEGACY_PAGE_BLOCK_KINDS)[number]
+
+/**
+ * Every kind a stored block may carry, which is what a *read* answers and what
+ * the browser validates a response against. It is wider than the write
+ * vocabulary above on purpose: #219's six structured kinds are readable by
+ * every client and writable only through `document_transaction`.
+ */
+export const PAGE_BLOCK_KINDS = DOCUMENT_BLOCK_KINDS
 export type PageBlockKind = (typeof PAGE_BLOCK_KINDS)[number]
 
 /** 10.3: blocks per page. */
@@ -28,7 +45,7 @@ const blockWrite = z
     /** Absent inserts; present edits the named block and must carry the
      * updated_at it read (4.17's evidence). */
     id: z.uuid().optional(),
-    kind: z.enum(PAGE_BLOCK_KINDS),
+    kind: z.enum(LEGACY_PAGE_BLOCK_KINDS),
     position: z.number().int().min(0),
     text: z.string().max(4000).nullable().optional(),
     file_id: z.uuid().nullable().optional(),
@@ -85,6 +102,16 @@ export interface PageBlock {
   position: number
   page_position: string | null
   section_block_id: string | null
+  /**
+   * #219's list nesting, and the second of two independent parents. This one is
+   * writing structure — the list item this list item sits under — where
+   * `section_block_id` above is Work grouping. A nested list item inside a
+   * Section carries both; either may be null while the other is not.
+   */
+  list_parent_block_id: string | null
+  /** A checklist item's tick, and null on every other kind. Authored content:
+   * it completes no Task, assigns nobody and moves no progress bar. */
+  checked: boolean | null
   rich_content?: RichContent | null
   text: string | null
   file_id: string | null
@@ -222,6 +249,8 @@ export const pageBlock = z.object({
   position: z.number().int(),
   page_position: z.string().nullable(),
   section_block_id: z.uuid().nullable(),
+  list_parent_block_id: z.uuid().nullable(),
+  checked: z.boolean().nullable(),
   text: z.string().nullable(),
   file_id: z.uuid().nullable(),
   file_width: z.number().int().nullable(),

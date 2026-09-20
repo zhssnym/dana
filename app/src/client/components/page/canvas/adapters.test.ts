@@ -6,7 +6,7 @@ import { canvasSchema } from './schema.js'
 import { canvasOperations, dehydrateCanvas, hydrateCanvas } from './adapters.js'
 
 function block(id: string, kind: PageBlock['kind'], parent: string | null = null): PageBlock {
-  return { id, kind, section_block_id: parent, position: 0, page_position: null, text: id, file_id: null, file_width: null, file_height: null, width_pct: null, ref_folder_id: null, updated_at: '2026-09-13T00:00:00Z' }
+  return { id, kind, section_block_id: parent, list_parent_block_id: null, checked: null, position: 0, page_position: null, text: id, file_id: null, file_width: null, file_height: null, width_pct: null, ref_folder_id: null, updated_at: '2026-09-13T00:00:00Z' }
 }
 describe('page and editor adapters', () => {
   test('round-trips explicit ancestry, root prose, rich labels and durable image width', () => {
@@ -37,17 +37,56 @@ describe('page and editor adapters', () => {
     expect(three.children!.map((child) => child.id)).toEqual(['prose', 'task'])
     const editor = BlockNoteEditor.create({ schema: canvasSchema, initialContent: input })
     expect(dehydrateCanvas(editor.document, 600).items).toEqual([
-      { kind: 'block', id: 'h1', section_block_id: null },
-      { kind: 'block', id: 'h2', section_block_id: 'h1' },
-      { kind: 'block', id: 'h3', section_block_id: 'h2' },
-      { kind: 'block', id: 'prose', section_block_id: 'h3' },
-      { kind: 'task', id: 'task', section_block_id: 'h3' },
+      // #219 gave every placement a second, independent parent. This editor
+      // expresses no list nesting yet, so every one of them is null here; what
+      // the field must never do is stand in for the Section beside it.
+      { kind: 'block', id: 'h1', section_block_id: null, list_parent_block_id: null },
+      { kind: 'block', id: 'h2', section_block_id: 'h1', list_parent_block_id: null },
+      { kind: 'block', id: 'h3', section_block_id: 'h2', list_parent_block_id: null },
+      { kind: 'block', id: 'prose', section_block_id: 'h3', list_parent_block_id: null },
+      { kind: 'task', id: 'task', section_block_id: 'h3', list_parent_block_id: null },
     ])
     editor.unmount()
     // A page that only ever had two levels hydrates exactly as it did before.
     const legacy = hydrateCanvas({ blocks: [block('a', 'section'), block('b', 'section', 'a')], items: [{ kind: 'block', id: 'a' }, { kind: 'block', id: 'b' }], task_placements: [] }, 600)
     expect(level(legacy[0])).toBe(1)
     expect(level(legacy[0]!.children![0])).toBe(2)
+  })
+  /*
+  #219's backend phase landed six structured kinds that this editor cannot draw
+  yet, so it hydrates each of them as a paragraph. Without the guard in
+  canvasOperations the next save would read that rendering as a conversion and
+  flatten the page: the kinds gone, the ticks gone, the nesting gone, silently.
+  These two cases are that guard in both directions.
+  */
+  test('a kind this editor cannot express is preserved across a save, and a dangling list parent is dropped', () => {
+    const record = (id: string, kind: PageBlock['kind'], checked: boolean | null = null) =>
+      ({ id, block_kind: kind, text: id, rich_content: { version: 1 as const, runs: [{ text: id }] }, file_id: null, ref_folder_id: null, width_pct: null, checked })
+    const before = {
+      blocks: [record('bullet', 'bullet'), record('tick', 'checklist', true)],
+      items: [
+        { kind: 'block' as const, id: 'bullet', section_block_id: null, list_parent_block_id: null },
+        { kind: 'block' as const, id: 'tick', section_block_id: null, list_parent_block_id: 'bullet' },
+      ],
+    }
+    // What this build's dehydrateCanvas produces from that page: paragraphs,
+    // no ticks, no nesting.
+    const flattened = {
+      blocks: [record('bullet', 'paragraph'), record('tick', 'paragraph')],
+      items: [
+        { kind: 'block' as const, id: 'bullet', section_block_id: null, list_parent_block_id: null },
+        { kind: 'block' as const, id: 'tick', section_block_id: null, list_parent_block_id: null },
+      ],
+    }
+    const unchanged = canvasOperations(before, flattened)
+    expect(unchanged.map((op) => op.op)).toEqual(['set_outline'])
+    expect(unchanged.at(-1)).toEqual({ op: 'set_outline', items: before.items })
+
+    // Delete the parent and the child is promoted rather than left naming a
+    // block the save no longer carries, which the server would refuse forever.
+    const removed = canvasOperations(before, { blocks: [flattened.blocks[1]!], items: [flattened.items[1]!] })
+    expect(removed.map((op) => op.op)).toEqual(['delete_block', 'set_outline'])
+    expect(removed.at(-1)).toEqual({ op: 'set_outline', items: [{ kind: 'block', id: 'tick', section_block_id: null, list_parent_block_id: null }] })
   })
   test('one multi-block edit emits only changed records and one complete outline', () => {
     const before = { blocks: [], items: [] }

@@ -257,6 +257,8 @@ function blockFrom(row: Record<string, unknown>): ExportBlock {
   return {
     rich_content:(row.rich_content??null) as ExportBlock['rich_content'],
     section_block_id:nullableString(row.section_block_id),
+    list_parent_block_id:nullableString(row.list_parent_block_id),
+    checked:row.checked===null||row.checked===undefined?null:Boolean(row.checked),
     page_position:nullableString(row.page_position),
     id: String(row.id),
     kind: String(row.kind),
@@ -428,7 +430,8 @@ export async function exportForViewer(
     db,
     cappedPerParent(
       sql`b.id, b.folder_id, b.kind, b.position, b.text, b.file_id,
-          b.ref_folder_id, b.width_pct, b.updated_at, b.rich_content, b.section_block_id, b.page_position`,
+          b.ref_folder_id, b.width_pct, b.updated_at, b.rich_content, b.section_block_id,
+          b.list_parent_block_id, b.checked, b.page_position`,
       sql`FROM page_blocks b
           JOIN folders f ON f.id = b.folder_id AND f.owner_id = ${viewerId}
           WHERE b.folder_id IN ${idSet(folderIds)}`,
@@ -571,7 +574,8 @@ export async function exportForViewer(
     db,
     cappedPerParent(
       sql`b.id, b.shelf_id, b.kind, b.position, b.text, b.file_id,
-          b.ref_folder_id, b.width_pct, b.updated_at, b.rich_content, b.section_block_id, b.page_position`,
+          b.ref_folder_id, b.width_pct, b.updated_at, b.rich_content, b.section_block_id,
+          b.list_parent_block_id, b.checked, b.page_position`,
       sql`FROM page_blocks b
           JOIN shelves s ON s.id = b.shelf_id AND s.user_id = ${viewerId}
           WHERE b.shelf_id IN ${idSet(
