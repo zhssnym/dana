@@ -147,9 +147,19 @@ async function seedPage(name: string, operations: DocumentOperation[]): Promise<
   return { folder, page }
 }
 
-/** What the person is shown: FolderCanvas's own save status region. */
+/** What the person is shown: FolderCanvas's own save status region.
+
+    The timeout is deliberately wider than `waitFor`'s 1000 ms default. What
+    this waits on is FolderCanvas's 450 ms autosave debounce, then a real
+    Postgres round trip through the document route, then the writer's
+    `committed` and a re-render to "Saved". A second is enough on a quiet
+    machine and not on a 12-worker CI leg: run 201 on `d5f5b3d` failed here
+    with `expected 'Saving…' to be 'Saved'` and passed on re-run, and the
+    same assertion had already failed and re-passed twice that evening on a
+    loaded container (issue #284). The assertion is unchanged; only the room
+    it gives the mechanism it observes. */
 async function savedStatus(container: HTMLElement): Promise<void> {
-  await waitFor(() => { expect(within(container).getByRole('status').textContent).toBe('Saved') })
+  await waitFor(() => { expect(within(container).getByRole('status').textContent).toBe('Saved') }, { timeout: 5000 })
 }
 
 describe('AC-580 a restored list parent never makes a page unsaveable', () => {
