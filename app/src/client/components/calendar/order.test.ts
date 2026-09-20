@@ -79,6 +79,9 @@ const FOLDERS: Folder[] = [
     member_count: 1,
     counts: { pending: 1, completed: 0 },
     my_shelf: 'Home',
+    /* Paired with `my_shelf` by issue #226's wire expand-and-contract: one
+       column under two keys for one release, dropped by #247. */
+    my_label: 'Home',
     /* Both columns are set deliberately, and they differ. 9.6 retires 4.4's
        per-member colour from every v2 surface, so a chip that painted this one
        would be reading the column the contract moved off; the case below reads

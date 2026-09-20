@@ -74,12 +74,14 @@ The same shape, a second time and for a second issue, is below.
 // migration and not this line cannot be green at all — the ordering forces
 // the transcription to be written before the ruling that authorises the text
 // it transcribes. The four names below (`folder_personal_labels`, `labels`,
-// `task_folder_labels`, `task_personal_labels`) are therefore **provisional
-// until the ruling lands on issue #226**, and the ruling, not this list, is
-// the authoritative restatement of what section 4 now says. If the ruling
-// comes back with different table names or a different physical shape, this
-// list and `db/constraint-catalog.ts` follow it rather than the other way
-// round. The ordering problem itself is filed as a documentation issue.
+// `task_folder_labels`, `task_personal_labels`) were **provisional until the
+// ruling landed**, and it has: the technical ruling of 2026-09-20 on issue
+// #226 authorised them and they are written into section 4 as 4.24 to 4.27,
+// which is where this list is now transcribed from. The ordering problem is
+// unchanged and is filed as a documentation issue — the four names had to be
+// here before the ruling existed, because the suite cannot be green otherwise,
+// and a list that has to precede its own authority is worth naming as a seam
+// rather than leaving as a habit.
 const SECTION_4_TABLES = [
   'comment_files',
   'comment_likes',

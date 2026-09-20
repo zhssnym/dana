@@ -169,8 +169,11 @@ const INVITE_KEYS = [
 ]
 
 /** The keys of the 7.0 Folder object, folders-contract.test.ts's list; the
- * 4.3 identity four joined with RFC 0005, and `my_shelf` (renamed from
- * `my_label`) plus `personal_labels` with issue #226. */
+ * 4.3 identity four joined with RFC 0005, and `my_shelf` plus
+ * `personal_labels` with issue #226. `my_label` is `my_shelf` under its
+ * previous name, carried beside it for one release so that a browser tab
+ * holding an old bundle across a deploy still reads a shelf; #247 drops it
+ * with the column. That file's list carries the argument in full. */
 const FOLDER_KEYS = [
   'color',
   'counts',
@@ -184,6 +187,7 @@ const FOLDER_KEYS = [
   'is_owner',
   'member_count',
   'my_color',
+  'my_label',
   'my_shelf',
   'name',
   'personal_labels',

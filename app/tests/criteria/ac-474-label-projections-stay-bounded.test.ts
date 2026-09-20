@@ -36,7 +36,14 @@ a separate UPDATE in a different file. So this walks all three: a membership
 written through 7.4 makes the shelf, a shelf rename rewrites the memberships,
 and a shelf delete clears them.
 
-Spec: 4.4, 4.18, 6.1, 7.4, 7.10, 7.16. Issue #226, #208 R9.
+It also walks both columns, because the database side is the expand half of
+an expand-and-contract pair (migration 0022) and the wire cannot see `label`
+at all. **What it no longer asserts is that the old request key writes
+nothing** — the owner's ruling of 2026-09-20 made `label` a declared
+compatibility field for this release, and AC-481 owns it; the block at the end
+of that case says why in full.
+
+Spec: 4.4, 4.18, 6.1, 7.4, 7.10, 7.16. Issue #226, #247, #208 R9.
 */
 import { sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
@@ -361,7 +368,8 @@ describe('AC-479 the Shelf rename moved the word and nothing else', () => {
       'and cleared both, so neither column is left holding a shelf that is gone',
     ).toEqual({ shelf_name: null, label: null })
 
-    // Back on a shelf, so the unknown-key case below has a value to not change.
+    /* Back on a shelf, so this case ends on a written row rather than a
+       cleared one. */
     expectStatus(
       await actor.browser.json(`/folders/${folderId}/my-membership`, 'PATCH', {
         shelf: 'ac479 Bench',
@@ -369,26 +377,28 @@ describe('AC-479 the Shelf rename moved the word and nothing else', () => {
       200,
       'placed again',
     )
-
-    /* And the old request field is now an unknown key, which 7.0 tolerates by
-       stripping — so it writes nothing rather than writing the wrong column.
-       Asserted because a rename that left both names working would be a
-       second way to write one column, which is the thing the rename was for. */
-    expectStatus(
-      await actor.browser.json(`/folders/${folderId}/my-membership`, 'PATCH', {
-        label: 'ac479 Ignored',
-      }),
-      200,
-      '7.0 tolerates an unknown key rather than refusing it (11.14)',
-    )
-    expect(
-      await myShelf(actor, folderId),
-      'and the stripped key changed nothing, which is what "tolerated" has to mean here',
-    ).toBe('ac479 Bench')
     expect(
       await columns(),
-      'and neither column moved, which is the assertion that matters while both are there: a stripped key that happened to reach the old column would leave the two disagreeing, and nothing on the wire could see it',
+      'and the third write path agrees on both columns too',
     ).toEqual({ shelf_name: 'ac479 Bench', label: 'ac479 Bench' })
+
+    /* **The old request key `label` used to be asserted here as a stripped
+       unknown key that writes nothing, and it is not that any more.** The
+       decision this criterion pinned was "a rename that left both names
+       working would be a second way to write one column"; the owner's
+       technical ruling of 2026-09-20 on issue #226 moved that decision, on
+       the grounds that the same expand-and-contract the column already gets
+       has to reach the wire: this body is a `z.object`, so a browser tab
+       holding an old bundle across a deploy would have its `label` stripped,
+       `shelf` would be absent, and the request would answer 200 having stored
+       nothing — hard stop 3's failure mode, and unbounded by the deploy
+       window because a tab lives as long as somebody leaves it open. So
+       `label` is a declared compatibility field for this release, `shelf`
+       wins when both are sent, and #247 removes it. **AC-481 is where that
+       behaviour is asserted**, and it is a criterion of its own rather than a
+       clause here because it pins a different decision: this one is about the
+       terminology move not changing Shelf semantics, and that one is about
+       the wire surviving a deploy. */
   })
 })
 

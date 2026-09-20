@@ -37,11 +37,11 @@ const TASK_CARD_KEYS = [
   'pending_invite_email',
   'section_block_id',
   'created_by',
-  /* Issue #226's Label projection. This list is a transcription of frozen 7.0
-     and it has moved ahead of the ruling for `ac-001`'s reason: the
+  /* Issue #226's Label projection, transcribed from frozen 7.0's amendment of
+     2026-09-20. It moved ahead of that amendment for `ac-001`'s reason — the
      assertions over it are exact in both directions, so a tree carrying the
-     projection and not this line cannot be green. The ruling on #226 is the
-     authoritative restatement. */
+     projection and not this line cannot be green — and the amendment has since
+     landed, so this is a transcription again rather than a promise. */
   'labels',
   'created_at',
   'updated_at',

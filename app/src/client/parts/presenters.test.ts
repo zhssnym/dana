@@ -89,6 +89,9 @@ function folder(overrides: Partial<Folder> = {}): Folder {
     member_count: 1,
     counts: { pending: 3, completed: 1 },
     my_shelf: null,
+    /* Paired with `my_shelf` by issue #226's wire expand-and-contract: one
+       column under two keys for one release, dropped by #247. */
+    my_label: null,
     my_color: null,
     personal_labels: [],
     icon: null,

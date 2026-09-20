@@ -43,6 +43,22 @@ which is what the freeze asks. Neither drops or renames a column. The migrations
 0010, and 0010 carries a data statement as well as a DDL one; its reasoning is in the file
 because forward-only migrations have no other place to keep it.
 
+**Fourth, five amendments landed on 2026-09-20 under issue #226, on the technical ruling
+recorded on that issue** (parent #208, the M1 Label model). Four are new subsections and are
+purely additive: 4.24 `labels`, 4.25 `task_personal_labels`, 4.26 `folder_personal_labels`
+and 4.27 `task_folder_labels`. The fifth is an addition to 4.4 and **drops nothing**: it
+appends `shelf_name` beside the existing `label` column, which stays for this release. That
+pair is deliberately an **expand-and-contract** split rather than a rename, and 4.4 carries
+the argument; **issue #247 is the contract half and must not merge until migration 0022 is
+live in production.**
+
+**The four numbers step over 4.23, and that gap is now closed.** `main` at 59161e9 holds
+`04.23-task-dependencies.md` from issue #224, merged while this work was in progress; this
+branch was behind it and took the next four rather than the next one, on the same rule the
+acceptance-criteria registry states for its own numbers. 4.23's row sits beside these four
+in the table below, added when this branch was rebased onto that `main`, so the table is
+contiguous from 4.1 to 4.27 and nothing is missing from it.
+
 | | File | Covers |
 | - | - | - |
 | 4.1 | [`04.1-users.md`](04.1-users.md) | 4.1 users |
@@ -68,3 +84,7 @@ because forward-only migrations have no other place to keep it.
 | 4.21 | [`04.21-sample-objects.md`](04.21-sample-objects.md) | 4.21 sample_objects |
 | 4.22 | [`04.22-user-page-descriptions.md`](04.22-user-page-descriptions.md) | 4.22 user_page_descriptions |
 | 4.23 | [`04.23-task-dependencies.md`](04.23-task-dependencies.md) | 4.23 task_dependencies |
+| 4.24 | [`04.24-labels.md`](04.24-labels.md) | 4.24 labels |
+| 4.25 | [`04.25-task-personal-labels.md`](04.25-task-personal-labels.md) | 4.25 task_personal_labels |
+| 4.26 | [`04.26-folder-personal-labels.md`](04.26-folder-personal-labels.md) | 4.26 folder_personal_labels |
+| 4.27 | [`04.27-task-folder-labels.md`](04.27-task-folder-labels.md) | 4.27 task_folder_labels |

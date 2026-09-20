@@ -90,6 +90,37 @@ authorization argument 7.6 does not — that a dependency read must be able to s
 end of it, including the state that would otherwise be derived from that task's
 status.
 
+**Ninth, 7.26 is a new subsection added 2026-09-20 (issue #226, parent #208), on the
+technical ruling recorded on that issue, and it is additive as a surface but not silent about
+the four keys it adds elsewhere.** It is the M1 Label model: thirteen routes over the two
+scopes, their definitions, their three assignment relations and their five caps. No existing
+endpoint, status or field changes. Four read shapes gain a key each, and each is named where
+it lands rather than folded in quietly — `labels` on TaskCard and TaskDetail, and
+`personal_labels` on the Folder object, all three in 7.0. It is its own file rather than part
+of 7.4 or 7.6 because it is a model rather than a prefix: three of its four groups hang off
+paths those two sections own, and what the thirteen share is one table, one set of caps, one
+status grammar and one set of scope rules.
+
+**It carries two things a later reader would otherwise rediscover the hard way.** That
+`/folders/:folderId/labels/:labelId` means two different things depending on the verb —
+`PATCH` edits the Folder Label with that id, `PUT` attaches the viewer's *Personal* Label
+with that id to the Folder — which the methods separate cleanly but which no reading of the
+path will tell you. And that `GET /labels` takes its Folder selector from the query string,
+so it is the one gate on this surface that `ac-397`'s path-only sweep can never drive with a
+stranger's id.
+
+**7.26 steps over 7.25, and that gap is now closed.** `main` at 59161e9 holds
+`07.25-task-dependencies.md` from issue #224, merged while this work was in progress; its
+row sits beside this one in the table below, added when this branch was rebased onto that
+`main`, so the table is contiguous from 7.0 to 7.26 and nothing is missing from it.
+
+**The same amendment gives 7.4's my-membership body and 7.0's Folder object a second
+spelling each for one release** — `shelf` beside `label`, `my_shelf` beside `my_label` — as
+the wire half of the `folder_members` expand-and-contract in 4.4. Each of those two files
+carries the argument. **Issue #247 is the contract half** and drops all three old spellings
+together, after migration 0022 is live in production; nothing about that half may merge
+before it is.
+
 **Seventh, 7.24 is a new subsection added 2026-09-20 (issue #223), and it is purely
 additive.** It is the Dana Link foundation: a way to resolve a supported internal Dana
 URL into the small summary a reference chip draws, and a contextual search for the
@@ -129,3 +160,4 @@ holds, and 7.24 resolves it live.
 | 7.23 | [`07.23-settings-bundle.md`](07.23-settings-bundle.md) | 7.23 The settings bundle |
 | 7.24 | [`07.24-dana-link-references.md`](07.24-dana-link-references.md) | 7.24 Dana Link references |
 | 7.25 | [`07.25-task-dependencies.md`](07.25-task-dependencies.md) | 7.25 Task dependencies |
+| 7.26 | [`07.26-labels.md`](07.26-labels.md) | 7.26 Labels |

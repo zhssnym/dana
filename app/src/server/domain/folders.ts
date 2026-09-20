@@ -99,6 +99,12 @@ function folderFromRow(
       completed: Number(row.completed),
     },
     my_shelf: nullableString(row.my_shelf),
+    /* The same value under the key an old bundle reads, for the deploy
+       window `shared/folders.ts` describes: one column, two keys, and #247
+       drops this one. It is read from `my_shelf`'s own source rather than
+       from `folder_members.label`, so the two can never disagree on the wire
+       even if the expand half's second write were ever to lapse. */
+    my_label: nullableString(row.my_shelf),
     my_color: nullableString(row.my_color),
     /* The M1 Label projection (issue #226): the viewer's own Personal Labels
        on this folder, and never a Folder Label, which classifies the tasks in
@@ -262,6 +268,7 @@ export async function createFolder(
         member_count: 1,
         counts: { pending: 0, completed: 0 },
         my_shelf: null,
+        my_label: null,
         my_color: null,
         personal_labels: [],
         icon: null,

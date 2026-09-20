@@ -206,6 +206,9 @@ describe('folder (7.0: the shared Folder object)', () => {
     member_count: 2,
     counts: { pending: 3, completed: 0 },
     my_shelf: null,
+    /* One column under two keys for one release (issue #226); #247 drops
+       this one with `folder_members.label`. */
+    my_label: null,
     my_color: null,
     personal_labels: [],
     icon: null,
@@ -272,6 +275,9 @@ describe('the 7.4 response shapes (settled at the P2 shape review)', () => {
     member_count: 1,
     counts: { pending: 0, completed: 0 },
     my_shelf: null,
+    /* One column under two keys for one release (issue #226); #247 drops
+       this one with `folder_members.label`. */
+    my_label: null,
     my_color: null,
     personal_labels: [],
     icon: null,

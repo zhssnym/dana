@@ -137,8 +137,10 @@ function jsonInit(method: string, body: unknown): RawRequestOptions {
 
 /* RFC 0005 unit 12a replaces 7.0's TaskCard line, so section_block_id and
  * created_by are transcribed from that unit and left the detail's extras.
- * `labels` is issue #226's, transcribed ahead of its ruling for the reason
- * `ac-001`'s SECTION_4_TABLES carries beside itself. */
+ * `labels` is issue #226's, transcribed from 7.0's amendment of 2026-09-20;
+ * it moved ahead of that amendment for the reason `ac-001`'s
+ * SECTION_4_TABLES carries beside itself, and the amendment has since
+ * landed. */
 const TASK_CARD_KEYS = [
   'assignee',
   'created_at',
