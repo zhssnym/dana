@@ -118,7 +118,34 @@ export function CanvasSurface({ editor, onChange, onCreateTask, editable = true 
           }
           core.splice(1, 0, {
             title: 'Task', subtext: 'A Dana Task', icon: <CheckCircle2 size={16} />,
-            onItemClick: onCreateTask ?? (() => setFeedback('Task creation and placement are not connected in this development preview yet. Existing Tasks use their native Dana controls.')),
+            /*
+            Called with no argument, and the wrapper is load-bearing rather
+            than a style.
+
+            `DefaultSuggestionItem.onItemClick` is typed `() => void`, and
+            `SuggestionMenuController` invokes it as `item.onItemClick(editor)`
+            — read off the installed build,
+            `node_modules/@blocknote/react/dist/blocknote-react.js`, rather than
+            recalled. So `onItemClick: onCreateTask` handed the **editor** to a
+            handler whose first parameter is an optional `CanvasBlock`:
+            `askTask` took it for the block to anchor on, read `.id` off it as
+            `undefined`, and set `taskAt` to `undefined`. The dialog opened
+            anyway, `taskAt !== null` being true of `undefined`, and
+            `createTask`'s own `if (!taskAt) return` then made the Create Task
+            button do nothing at all — no task, no error, no feedback line.
+            Shipped in #204 and live from 2026-09-17 to 2026-09-20 (#234, cause
+            4): the `/` menu is the first of the three routes 9.6 names to the
+            Create Task dialog, and it was the broken one. AC-166 is the
+            criterion that reaches it.
+
+            The type cannot catch this — it promises an arity the library does
+            not keep — so the arrow is the whole of the defence, and any handler
+            put here later needs the same one.
+            */
+            onItemClick: () => {
+              if (onCreateTask !== undefined) onCreateTask()
+              else setFeedback('Task creation and placement are not connected in this development preview yet. Existing Tasks use their native Dana controls.')
+            },
             aliases: ['todo'], group: 'Basic blocks',
           })
           return filterSuggestionItems(core.map((item) => ({ ...item, size: 'small' as const })), query)

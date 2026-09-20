@@ -370,10 +370,44 @@ export function FolderPage({
   const unscheduled = open.data?.unscheduled ?? []
   const bothEmpty = scheduled.length === 0 && unscheduled.length === 0
   /*
-  Q7's order, kept rather than made: Scheduled first with Q3's order, then
-  Unscheduled with Q2's, concatenated and never re-sorted (AC-176).
+  The folder's own composed sequence, which is `GET /page`'s `items` and not
+  Q7's two arrays.
+
+  **The comment this replaces was false, and it cited AC-176 for the opposite
+  of what AC-176 says.** It read "Q7's order, kept rather than made: Scheduled
+  first with Q3's order, then Unscheduled with Q2's, concatenated and never
+  re-sorted (AC-176)", and that was true until #184 made the page compose-first.
+  Since then 4.17's durable mixed order is the one the page stores, AC-176's own
+  header says so in terms — "the folder page now projects those task payloads
+  through `GET /page.items` ... The rows below are deliberately created out of
+  Q7 order so a client that falls back to the response arrays instead of the
+  composed item references fails here" — and this line was that fallback.
+
+  It did not show while the page was unfiltered, because the canvas draws from
+  the document and never from this array. Everything else on the page draws
+  from it: the Task view the filter switches to, the board's columns, the
+  ladder's keyboard order. So choosing *With a due date* answered a narrowing
+  question with a date-sorted list — Q3 orders `scheduled` by due date — and
+  the folder's arrangement survived exactly as long as nobody interrogated it.
+  Live from 2026-09-17 to 2026-09-20; #234 cause 2 is the ruling that the
+  filtered view orders by the composed sequence, 9.6 and AC-176 both unmoved.
+
+  A row the page has not composed yet keeps Q7's order behind the composed
+  ones, which is what a task created a moment ago looks like until the page
+  read catches up. `items` carries every undeleted task of the folder, so that
+  window is the only time the fallback is reached.
   */
-  const openRows = useMemo(() => [...scheduled, ...unscheduled], [scheduled, unscheduled])
+  const openRows = useMemo(() => {
+    const rows = [...scheduled, ...unscheduled]
+    const items = page.data?.items
+    if (items === undefined) return rows
+    const rank = new Map<string, number>()
+    for (const item of items) if (item.kind === 'task') rank.set(item.id, rank.size)
+    return rows
+      .map((row, index) => ({ row, index, placed: rank.get(row.id) ?? Number.MAX_SAFE_INTEGER }))
+      .sort((a, b) => a.placed - b.placed || a.index - b.index)
+      .map((entry) => entry.row)
+  }, [scheduled, unscheduled, page.data?.items])
 
   /*
   The folder page is a place-page since S17b (9.6, and the parity audit's
