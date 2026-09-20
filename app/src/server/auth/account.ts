@@ -150,11 +150,11 @@ export async function handlePatchMe(
 
 /*
 DELETE /me runs the section 8.10 transaction, and from P5 it runs all of it.
-Steps 1 to 6 (invalidating sent invites, transferring or deleting owned
-folders, cleaning memberships, clearing connections, sweeping My Day) are the
-Collaboration engineer's module, src/server/domain/account-deletion.ts, called
-below with this transaction's executor. The last two are this role's and stay
-here:
+Steps 1 to 6c (invalidating sent invites, transferring or deleting owned
+folders, cleaning memberships, clearing connections, sweeping My Day, the
+files, and 6c's nine personal tables) are the Collaboration engineer's
+module, src/server/domain/account-deletion.ts, called below with this
+transaction's executor. The last two are this role's and stay here:
 
   7  scrub the user row: google_sub, email, display_name, avatar_url set null,
      deleted_at = now()
@@ -183,6 +183,15 @@ Sessions are destroyed immediately and all of them (11.6: revocation never
 waits for the pruning pass). A failure between a committed scrub and an
 uncommitted revocation would leave a deleted account whose every session still
 authenticates, which is the one-transaction argument seen from the near end.
+
+**Step 8 is also the one thing standing between `sessions_user_id_fkey` and
+the class issue #253 found**, and it is named here because the statement
+below is the only place a reader can check it. That key is
+`ON DELETE CASCADE`, which for every other table in this schema means the
+rows are taken by nothing, the scrub two paragraphs up being an UPDATE. The
+sessions of a deleted account leave because the DELETE below is written, not
+because the constraint says so; `USER_CASCADE_DISPOSALS` in the domain module
+carries the same sentence for the other fourteen.
 */
 export async function handleDeleteMe(
   db: Db,
