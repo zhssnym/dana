@@ -8,6 +8,10 @@ import { initialKeys, keyBetween } from './fractional-index.js'
 export interface PositionedItem extends PageItemRef {
   pagePosition: string | null
   sectionBlockId: string | null
+  /** #219's list nesting, null for a Task and for any block that is not a
+   * nested list item. Read here so that a save which only re-nests a list item
+   * still counts as a structure change. */
+  listParentBlockId: string | null
   blockKind: string | null
 }
 
@@ -26,17 +30,19 @@ export async function positionedItems(
   const rows = await rowsOf(
     tx,
     sql`SELECT item.kind, item.id, item.page_position,
-               item.section_block_id, item.block_kind
+               item.section_block_id, item.list_parent_block_id, item.block_kind
           FROM (
             SELECT 'block'::text AS kind, b.id, b.page_position,
-                   b.section_block_id, b.kind::text AS block_kind,
+                   b.section_block_id, b.list_parent_block_id,
+                   b.kind::text AS block_kind,
                    1 AS fallback_kind, b.position::bigint AS fallback_position,
                    b.updated_at AS fallback_time
               FROM page_blocks b
              WHERE b.folder_id = ${folderId}::uuid
             UNION ALL
             SELECT 'task'::text AS kind, t.id, t.page_position,
-                   t.section_block_id, NULL::text AS block_kind,
+                   t.section_block_id, NULL::uuid AS list_parent_block_id,
+                   NULL::text AS block_kind,
                    0 AS fallback_kind, 0::bigint AS fallback_position,
                    t.created_at AS fallback_time
               FROM tasks t
@@ -55,6 +61,7 @@ export async function positionedItems(
     id: String(row.id),
     pagePosition: nullableString(row.page_position),
     sectionBlockId: nullableString(row.section_block_id),
+    listParentBlockId: nullableString(row.list_parent_block_id),
     blockKind: nullableString(row.block_kind),
   }))
 }

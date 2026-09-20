@@ -611,6 +611,16 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
     checks: [
       { name: 'page_blocks_rich_content_check', columns: ['kind', 'rich_content'] },
       { name: 'page_blocks_kind_check', columns: ['kind'] },
+      /* #219's two new CHECKs. A checklist item is the only kind that carries a
+         tick, and it always carries one; every other kind carries none, which
+         is one equality rather than two nullable comparisons (the nullable
+         CHECK trap in docs/workflow/backend/README.md). A list parent belongs
+         only to a list item on a folder page, and never to itself. */
+      { name: 'page_blocks_checked_kind_check', columns: ['checked', 'kind'] },
+      {
+        name: 'page_blocks_list_parent_kind_check',
+        columns: ['folder_id', 'id', 'kind', 'list_parent_block_id'],
+      },
       { name: 'page_blocks_one_home_check', columns: ['folder_id', 'shelf_id'] },
       { name: 'page_blocks_page_position_format_check', columns: ['page_position'] },
       {
@@ -652,6 +662,15 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
         references: { table: 'page_blocks', columns: ['id'] },
         onDelete: 'set null',
       },
+      /* #219's list nesting, a second and independent self-reference. Set null
+         rather than cascade for the same reason the Section one is: removing a
+         list parent promotes the writing underneath it, never deletes it. */
+      {
+        name: 'page_blocks_list_parent_block_id_fkey',
+        columns: ['list_parent_block_id'],
+        references: { table: 'page_blocks', columns: ['id'] },
+        onDelete: 'set null',
+      },
     ],
     indexes: [
       {
@@ -682,6 +701,12 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
         name: 'page_blocks_section_block_id_idx',
         unique: false,
         columns: ['section_block_id'],
+        partial: true,
+      },
+      {
+        name: 'page_blocks_list_parent_block_id_idx',
+        unique: false,
+        columns: ['list_parent_block_id'],
         partial: true,
       },
       {

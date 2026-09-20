@@ -381,9 +381,12 @@ export function folderToWorkflowFile(
       {
         name: folderName,
         ...(pageView===undefined?{}:{document:{
-          blocks:pageView.blocks.map(b=>({op:'put_block' as const,id:b.id,block_kind:b.kind,text:b.text,rich_content:b.rich_content??null,file_id:b.file_id,ref_folder_id:b.ref_folder_id,width_pct:b.width_pct})),
+          blocks:pageView.blocks.map(b=>({op:'put_block' as const,id:b.id,block_kind:b.kind,text:b.text,rich_content:b.rich_content??null,file_id:b.file_id,ref_folder_id:b.ref_folder_id,width_pct:b.width_pct,checked:b.checked})),
           task_ids:tasks.map(t=>t.id),
-          outline:pageView.items.map(item=>({...item,section_block_id:item.kind==='block'?(pageView.blocks.find(b=>b.id===item.id)?.section_block_id??null):(pageView.task_placements?.find(t=>t.id===item.id)?.section_block_id??null)})),
+          /* Both parents travel, and only a block can carry the second one
+             (#219). A version 2 file written before #219 simply omits it and
+             imports as a flat list, which is what the field's default is for. */
+          outline:pageView.items.map(item=>({...item,section_block_id:item.kind==='block'?(pageView.blocks.find(b=>b.id===item.id)?.section_block_id??null):(pageView.task_placements?.find(t=>t.id===item.id)?.section_block_id??null),list_parent_block_id:item.kind==='block'?(pageView.blocks.find(b=>b.id===item.id)?.list_parent_block_id??null):null})),
         }}),
         ...(work.length > 0 ? { tasks: work } : {}),
         ...(page.length > 0 ? { blocks: page } : {}),

@@ -156,6 +156,11 @@ export type ExportTask = z.infer<typeof exportTask>
 export const exportBlock = z.object({
   rich_content:richContent.nullable(),
   section_block_id:z.uuid().nullable(),
+  /* #219's two structured-block columns. They are here rather than derived,
+     because an export that dropped them would read back a flattened list and a
+     checklist with no ticks, which is the loss the issue exists to prevent. */
+  list_parent_block_id:z.uuid().nullable(),
+  checked:z.boolean().nullable(),
   page_position:z.string().nullable(),
   id: z.uuid(),
   kind: z.string(),

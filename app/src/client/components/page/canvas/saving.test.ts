@@ -4,7 +4,7 @@ import type { CanvasDocument } from './adapters.js'
 import type { PageView } from '../../../../shared/pages.js'
 
 const empty: CanvasDocument = { blocks: [], items: [] }
-const paragraph: CanvasDocument = { blocks: [{ id: 'block', block_kind: 'paragraph', text: 'Keep me', rich_content: { version: 1, runs: [{ text: 'Keep me', bold: true }] }, file_id: null, ref_folder_id: null, width_pct: null }], items: [{ kind: 'block', id: 'block', section_block_id: null }] }
+const paragraph: CanvasDocument = { blocks: [{ id: 'block', block_kind: 'paragraph', text: 'Keep me', rich_content: { version: 1, runs: [{ text: 'Keep me', bold: true }] }, file_id: null, ref_folder_id: null, width_pct: null, checked: null }], items: [{ kind: 'block', id: 'block', section_block_id: null, list_parent_block_id: null }] }
 const response: PageView = { blocks: [], items: [], revision: 'r2' }
 
 describe('atomic canvas saving', () => {

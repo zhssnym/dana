@@ -39,7 +39,8 @@ gestures, and section assignment.
 import { useEffect, useRef, useState } from 'react'
 import type { KeyboardEvent, ReactNode } from 'react'
 
-import type { PageBlock, PageBlockWrite } from '../../../shared/pages.js'
+import { LEGACY_PAGE_BLOCK_KINDS } from '../../../shared/pages.js'
+import type { LegacyPageBlockKind, PageBlock, PageBlockWrite } from '../../../shared/pages.js'
 import {
   ChevronDown,
   GripVertical,
@@ -66,11 +67,25 @@ import { cn } from '../ui/utils.js'
 import { linkedParts, linksIn, videoTarget } from '../../pages/composer-research-content.js'
 import { useSortableList } from '../../lib/use-sortable-list.js'
 
+/*
+This editor writes 7.16's legacy whole-page body, whose vocabulary #219 did not
+widen: a structured writing block is written by the document transaction alone.
+A page holding one is answered 409 by `putPage` before it reads a single block,
+so the narrowing below never reaches storage — it exists because the read
+vocabulary is wider than the write vocabulary and the compiler is right to say
+so.
+*/
+function legacyKind(kind: PageBlock['kind']): LegacyPageBlockKind {
+  return (LEGACY_PAGE_BLOCK_KINDS as readonly string[]).includes(kind)
+    ? (kind as LegacyPageBlockKind)
+    : 'paragraph'
+}
+
 /** A stored block, carried back with the evidence it was read with. */
 function carry(block: PageBlock): PageBlockWrite {
   return {
     id: block.id,
-    kind: block.kind,
+    kind: legacyKind(block.kind),
     position: block.position,
     text: block.text,
     file_id: block.file_id,
