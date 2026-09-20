@@ -96,14 +96,49 @@ export async function applyDocument(tx:Executor,viewerId:string,folderId:string,
   if(block?.block_kind==='section'){active.push(item.id);depths.set(item.id,depth)}
  }
  if(seen.size!==blocks.size+tasks.size)throw new DocumentRefusal('not_convertible','The outline must retain every Task and undeleted block.')
+ /*
+ The blocks this transaction writes, and the set every reference rule below is
+ asked over. It is the same set the INSERT pass uses further down, hoisted here
+ so that one answer to "what does this write store" governs both.
+
+ **It was the merged document until the adversarial review of #220, and that
+ was a trap rather than extra safety.** These rules are about what a write may
+ store; they were never about auditing rows somebody else wrote, and three
+ routes write `page_blocks.file_id` and `ref_folder_id` without passing through
+ this function at all — `update_block`, `insert_block` and 7.16's legacy
+ whole-page `PUT`. Migration 0024 records the ruling that leaves them alone,
+ and the same ruling is why no CHECK stands behind them either. So a row this
+ function would refuse is reachable today, and reading the rules over the
+ merged document turned one into a page that reads perfectly and can never be
+ saved again: every later transaction was refused for a row it was not
+ touching, including one editing an unrelated paragraph. Deleting the offending
+ block recovered it and nothing said so.
+
+ Two more ways in that are nobody's mistake, which is what settles it.
+ `page_blocks_file_id_fkey` is ON DELETE SET NULL, so 7.19's ordinary reclaim
+ leaves a media block naming nothing; and trashing a folder makes every
+ `folder_ref` block pointing at it unreachable. Neither is a bypass anyone
+ forgot, and under the old reading either one made somebody's page permanently
+ unsaveable.
+
+ Nothing is weakened by the scope. A block outside this set is not written by
+ the pass below, so no unvalidated `file_id` or `ref_folder_id` can reach the
+ table through here; `set_outline` writes placement and never a reference. What
+ changes is only which rows are *audited*, and auditing a row this transaction
+ leaves exactly as it found it was never this function's job.
+ */
+ const changed = new Set(body.operations.flatMap(op=>op.op==='put_block'?[op.id]:[]))
  for(const block of blocks.values()){
+  if(!changed.has(block.id))continue
   /*
   A block's file, in two questions that are asked in this order and are not the
   same question.
 
   **Scope first (10.2).** The row must be in this folder, and a row that is not
   and a row that does not exist answer identically, so the refusal discloses
-  nothing either way. That clause is issue #107's and is unchanged.
+  nothing either way. That clause is issue #107's; what it says is unchanged,
+  and the only thing that moved is which blocks it is asked about, which the
+  paragraph above this loop sets out.
 
   **Then the treatment (#220), and only for a caller who has already been told
   the file is here.** A media block's kind is the insertion mode the person
@@ -136,7 +171,6 @@ export async function applyDocument(tx:Executor,viewerId:string,folderId:string,
  if(fresh.length){const collisions=await rowsOf(tx,sql`SELECT id FROM page_blocks WHERE id IN (${sql.join(fresh.map(id=>sql`${id}::uuid`),sql`,`)}) UNION ALL SELECT id FROM tasks WHERE id IN (${sql.join(fresh.map(id=>sql`${id}::uuid`),sql`,`)})`);if(collisions.length)throw new DocumentRefusal('not_convertible','An inserted identity already exists.')}
  // All authorization and final-state validation precede the first write.
  for(const id of original)if(!blocks.has(id))await tx.execute(sql`DELETE FROM page_blocks WHERE id=${id}::uuid`)
- const changed = new Set(body.operations.flatMap(op=>op.op==='put_block'?[op.id]:[]))
  /* `checked` travels with the block rather than with the outline, because a
     tick is authored content and not placement. A kind that stops being a
     checklist loses it in the same statement that changes the kind, which is

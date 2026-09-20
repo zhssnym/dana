@@ -145,6 +145,31 @@ export const documentOperation = z.discriminatedUnion('op',[
   // shows is read from the `files` row rather than copied onto the block.
   if(isMediaKind(b.block_kind)&&b.ref_folder_id!==null)ctx.addIssue({code:'custom',path:['ref_folder_id'],message:'A media block carries no folder reference.'})
   if((b.block_kind==='file'||b.block_kind==='audio'||b.block_kind==='video')&&((b.text!==null&&b.text!=='')||b.rich_content!==null))ctx.addIssue({code:'custom',path:['text'],message:'A file, audio or video block carries no text of its own.'})
+  /*
+  4.17: a media block **references one stored file by `file_id`**. Until this
+  landed, a `file`, an `audio` or a `video` block naming nothing was accepted
+  here, accepted by `applyDocument` and accepted by the database, all three
+  answering 200 — a player with no track under it. The rule is stated here
+  rather than as a CHECK for the reason migration 0024 gives about the
+  constraint it deliberately does not write, and it is stated in the *schema*
+  rather than in `applyDocument` so that it is scoped to the operations this
+  transaction carries and to nothing else. That is not a detail. A null
+  `file_id` on a media row is routine: `page_blocks_file_id_fkey` is ON DELETE
+  SET NULL, so 7.19's ordinary reclaim produces one, and `update_block`
+  reaches the column directly and takes a null besides. Read over the merged
+  document the rule would turn deleting a picture into a page that can never be
+  saved again, which is the trap AC-600 closes for the pairing gate.
+
+  **`image` is exempt, and it is a decision rather than an omission.** Every
+  picture in the composer begins as an empty image block — BlockNote's own
+  image block is inserted with no URL and a file-picker panel, and the canvas
+  adapter projects a fileless one straight back to `file_id: null` — so the
+  editor saves one on the keystroke after a person inserts a picture, and has
+  since long before #220. The three kinds #220 added have no such placeholder
+  state: each is inserted from a file that already exists. AC-602 pins both
+  halves.
+  */
+  if((b.block_kind==='file'||b.block_kind==='audio'||b.block_kind==='video')&&b.file_id===null)ctx.addIssue({code:'custom',path:['file_id'],message:'A file, audio or video block names one stored file.'})
  }),
  z.object({op:z.literal('delete_block'),id:z.uuid()}),
  z.object({op:z.literal('create_task'),id:z.uuid(),title:taskTitle}),

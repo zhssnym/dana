@@ -117,9 +117,33 @@ the practical validation the issue asks for where one exists — it costs one
 buffer read, it needs no dependency, and it is the same discipline the image
 path already applies by decoding through sharp. It is **container validation
 and not codec validation**: nothing here can tell a playable H.264 stream from
-an unplayable one, and proving that would need the subsystem R1 forbids. What
-it does prove is that a caller cannot hand the `audio` or `video` path an
-executable, a zip or an HTML document by writing `audio/mpeg` on it.
+an unplayable one, and proving that would need the subsystem R1 forbids.
+
+**What it proves, exactly.** `containerOf` reads the leading bytes and refuses
+a payload whose leading bytes match no allowlisted container. That stops the
+honest mistake — the wrong file picked, the label a browser guessed from an
+extension — and it stops the lazy attempt, which is worth having and is the
+whole of what it is worth. **It does not prove anything about the rest of the
+payload**, and the sentence here used to claim it did: that a caller could not
+hand this path an executable, a zip or an HTML document by writing
+`audio/mpeg` on it. They can. Anything at all may follow a real signature, and
+one case needs no prefix even in principle — a UTF-16LE byte-order mark is
+`FF FE`, which is a legal MPEG-1 Layer I frame sync and is exactly what the
+last arm of `containerOf` looks for, so a UTF-16LE HTML document *is* an
+allowlisted container as far as this check can tell. Reading further than the
+leading bytes is the subsystem R1 rules out, so this is the ruled shape of the
+check rather than a hole to be closed.
+
+**What stops those bytes being rendered is the response, and it is worth
+naming here because it is not in this file.** Three things, none of them this
+check: `X-Content-Type-Options: nosniff`, so the browser never looks past the
+declared type at the bytes; a `Content-Type` that is the allowlisted audio or
+video type the caller declared, which no browser renders as markup; and 10.8's
+policy, set on every response including this one — `default-src 'self'`,
+`object-src 'none'`, and a `script-src` of `'self'` and one hash with no
+`unsafe-inline` in it. AC-601 asserts all three off the wire, and asserts the
+leading-byte reading above in the same file, so the two halves of this
+paragraph move together or not at all.
 */
 const MEDIA_MIMES: Readonly<Record<'audio' | 'video', ReadonlySet<string>>> = {
   audio: new Set(AUDIO_MIMES),
