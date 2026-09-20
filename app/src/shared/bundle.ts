@@ -115,7 +115,8 @@ export interface SettingsBundle {
 export const postViewBody = z.object({
   name: z.string().min(1).max(40),
   /** The filter model, zod-checked for shape and size; its values are ids
-   * by the client serializer's discipline, which AC-209 pins. */
+   * by the client serializer's discipline, which AC-209 states and, since its test file
+   * went in the 2026-09-20 cut, no longer checks. */
   definition: z.record(z.string().max(40), z.unknown()),
   pinned: z.boolean().optional(),
 })

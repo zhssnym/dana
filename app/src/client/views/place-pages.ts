@@ -25,7 +25,7 @@ task always has.
 **The capture column is 9.1's list read as a list.** "The floating 'Add task'
 button appears only on the pages with no capture affordance of their own,
 Today, Important, and Assignments, and never on Done or Abandoned." AC-096
-asserts that as three presences against seven absences precisely because an
+(no test since the 2026-09-20 cut) reads that as three presences against seven absences precisely because an
 implementation reading it as a mood passes the shorter test.
 */
 import type { LucideIcon } from '../lib/icons.js'
@@ -311,8 +311,8 @@ export interface CaptureDefaults {
   /**
    * Today's spine is a Today entry, and no field of 7.6's body writes one, so
    * the capture posts the task and then pulls it (7.8). This is the flag that
-   * says so, and the reason AC-221 asserts the row on Today after a reload
-   * rather than only inside the column it was typed in.
+   * says so, and the reason AC-221 (no test since the 2026-09-20 cut) looks for the
+   * row on Today after a reload rather than only inside the column it was typed in.
    */
   readonly pullIntoToday: boolean
 }

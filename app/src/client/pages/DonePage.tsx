@@ -36,7 +36,7 @@ is closed from both directions and neither of them is this file. 9.1's names
 table gives the string to a task row's completion checkbox in its complete
 state, 9.4 lists that checkbox among a row's elements, 9.3 as RFC 0002 rewrites
 it has the completion control confirm on exactly the G-SERIES branch, and AC-179
-asserts it doing so, so confirming is a property of the transition rather than of
+(no test since the 2026-09-20 cut) names it doing so, so confirming is a property of the transition rather than of
 a role. And the designer's own Done screen, measured in the running prototype on
 2026-08-13, hands its rows to his `TaskRow` at `status="completed"` and branches
 to the confirm from `onToggleComplete`: it renders `checkbox "Mark as not done"`

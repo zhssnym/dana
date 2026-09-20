@@ -267,7 +267,8 @@ with real bytes answered **200**.
 So: a folder-scoped file is its members', unchanged; an **avatar** with no
 folder stays readable by any signed-in account, because a member list renders
 other people's pictures and that behaviour is 7.15's; every other folder-less
-file is its owner's alone. AC-371 asserts all three arms.
+file is its owner's alone. AC-371 states all three arms, and states rather than checks
+them: its test file went in the 2026-09-20 cut.
 
 **Issue #167 widened which kinds may be folder-less and this predicate needed
 no widening at all**, which is worth saying because the obvious reading of the
@@ -277,7 +278,9 @@ became its uploader's alone the moment `createFile` began storing one, on the
 same clause that already held a folder-less `cover`. A predicate written as
 `kind = 'cover' OR ...` would have had to be found and changed here, and a
 change missed there would have been a disclosure rather than a refusal.
-AC-413 asserts the image arm directly for that reason.
+AC-413 states the image arm directly for that reason — states it, its test file having
+gone in the 2026-09-20 cut, so this predicate's widened arm is held by this comment and by
+`domain/files.test.ts` rather than by a criterion.
 
 The predicate is deliberately self-contained — a correlated EXISTS rather than
 a join — so a caller needs nothing in its FROM clause but `files f`.

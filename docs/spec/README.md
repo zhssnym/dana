@@ -92,7 +92,7 @@ wave-3 integration merged five branches and derived **381** the same way, six pe
 having moved with them. Two of those 381 are AC-122 and AC-123, retired by issue #113 and
 marked rather than removed as section 12 requires, so they carry their text and the bullet
 count counts them: **379 criteria are live**, and row 12 gives both numbers because they
-answer different questions. It also found AC-403 free — five branches spending from one tail
+answer different questions. It also found 403 free — five branches spending from one tail
 in one night each stepped over it — which is recorded in 12's own README rather than here.
 
 **382 as of the branch for issue #167**, which took AC-413 from the tail that same integration

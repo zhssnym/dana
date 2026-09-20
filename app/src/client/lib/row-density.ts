@@ -29,8 +29,9 @@ The prototype keeps the preference in `localStorage` under `dana.rowDensity`,
 and says so in its own header: "Lane 1: it lives in the browser and does not
 follow a person between devices. Syncing it is Lane 2 and waits on an RFC."
 Dana took Lane 2 before this file arrived. `row_density` is a `user_settings`
-column of 4.19, 9.7 names the control, AC-261 asserts that the choice survives
-a reload because it was written through the API rather than held in the page,
+column of 4.19, 9.7 names the control, AC-261 (no test since the 2026-09-20 cut) has the
+choice survive a reload because it was written through the API rather than held
+in the page,
 and `shell/appearance.ts` puts the answer on the document as `data-density`.
 So this module reads the document rather than storage. **The setter is the
 one write path**, added at S27 when `components/settings-page-content.tsx` crossed and

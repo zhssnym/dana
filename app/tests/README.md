@@ -80,9 +80,27 @@ rather than their kind.
   These exist to keep the suite itself honest rather than to prove product
   behaviour: `guard-postgres-leg-isolation` fails any test that asserts server
   prose, `guard-postgres-leg-connection-loss` goes red if the pool's `'error'`
-  listeners are removed, and `guard-document-transaction` covers the document
-  transaction seam. They are not criteria and must never be renamed into the
-  `ac-` family, which would claim section 12 numbers that do not exist.
+  listeners are removed, `guard-document-transaction` covers the document
+  transaction seam, and the two added on 2026-09-20 read the criterion registry
+  in both directions — `guard-criterion-registry` (issue #252) fails when two
+  files claim one number, when a criterion a test asserts has no bullet in
+  section 12, or when the registry's allocator line names a number this tree has
+  already spent; `guard-criterion-citations` (issue #257) fails when a sentence
+  in `docs/spec/**` or `app/src/**` says a criterion **pins, asserts or proves**
+  something and nothing under `app/` runs that criterion. They are not criteria
+  and must never be renamed into the `ac-` family, which would claim section 12
+  numbers that do not exist.
+
+  **The second of those two is why a citation of a cut criterion reads the way
+  it does across this repository now.** After the 2026-09-20 cut, "AC-370
+  asserts it" was false in the way that matters — it tells the next reader the
+  rule is defended when the thing that would have gone red was deleted. The
+  sweep that made the guard green found **107 such sentences in 71 files, over
+  83 distinct criterion numbers**, and reworded 106 of them; the one exception
+  is in the guard, with its reason. The house form is to state the criterion as
+  the **decision** it still is, and to say that its test file went in the cut.
+  `tests/support/criterion-registry.ts` carries what counts as a claim and what
+  counts as running.
 
 Everything else beside them — `helpers.ts`, `*-harness.ts`, `http-client.ts`,
 `oidc-stub.ts`, the `postgres-leg-*.ts` setup modules — carries no `.test.ts`

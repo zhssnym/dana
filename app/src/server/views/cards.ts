@@ -14,8 +14,9 @@ router, which parses a row of every 7.10 body through it.
 Three fragments live here for a sharper reason than reuse.
 
 - **The scope predicate is written once.** 6.1's proof of the partition
-  depends on Q2, Q3 and Q5 sharing the scope textually, and AC-070 is the
-  property test that pins it. A copy per query is a copy that can drift, so
+  depends on Q2, Q3 and Q5 sharing the scope textually. **AC-070 was the property test
+  over that dependency and it no longer exists**, having gone in the 2026-09-20 cut; 06.1's
+  own dated correction says so in terms, and this fragment is what stands in for it. A copy per query is a copy that can drift, so
   OPEN_SCOPE below is the sentence and the three queries add their own
   conjunct to it. Since issue #216 the two conjuncts are written here as
   well, SCHEDULED and ANYTIME, the second as the negation of the first: what

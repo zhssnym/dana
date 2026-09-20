@@ -17,8 +17,8 @@ on whatever URL it is standing on: a task is `?task=<id>`
 `window.location.search` to decide what to draw (`src/components/app-shell.tsx:89`).
 That is what a prototype served from one HTML file can do. Dana addresses the
 same objects by path, because 9.1 fixes a route table and 10.6 fixes an
-installed app's start_url inside it, and because AC-215 asserts that a
-retired path redirects rather than aliases. So every address below is built
+installed app's start_url inside it, and because AC-215 (no test since the 2026-09-20 cut)
+states that a retired path redirects rather than aliases. So every address below is built
 from `paths`, and a parameter never reaches the address bar.
 
 The *key* is the second seam and is the one that would have been missed. The

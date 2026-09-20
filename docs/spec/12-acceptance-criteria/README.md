@@ -12,6 +12,61 @@ The criteria are grouped by what they are about. A criterion that could honestly
 groups has exactly one home rather than a copy in each, and each file opens by naming the
 groups next to it.
 
+## The next number
+
+**The next number to take from the tail is 680.**
+
+**This section is the allocator and `## Numbers` below it is not.** That one is a
+chronological record of what each branch spent and why, written newest-first in places and
+oldest-first in others, and it carries at least four superseded sentences of exactly the
+shape of the one above — "the next number to take from the tail is 401", then 403, then
+423 — each true of the list its author could read and none of them true now. Reading the
+history and allocating from it is how a number gets spent twice. Read this section, take
+the number it names, and **move the line above in the same commit that spends it**.
+
+`app/tests/guards/guard-criterion-registry.test.ts` parses the bolded sentence above out of
+this section and fails when anything in the tree has spent that number or anything over it,
+which is what makes a stale allocator a red rather than a trap. It reads this section and no
+other part of this file, so keep the sentence's wording; everything else here is prose.
+
+**Assigned 2026-09-20 by issue #252, after reading every open branch rather than any
+list.** `git ls-tree -r --name-only origin/<branch> -- app/tests/criteria/` and the section
+12 bullets on each branch are the authority; the rows below were verified that way, and the
+ones that could not be are marked. 680 rather than the first number after the highest
+verified block, because the three branches at the bottom had not pushed and their extent
+cannot be read from any tree.
+
+| Block | Branch | Verified from the branch |
+| - | - | - |
+| 423 | merged, #239 | yes — and its bullet was missing until #252 wrote it |
+| 424–428 | merged, #223 | yes |
+| 440–447 | merged, #224 | yes |
+| 450–452 | merged, #216 and #217 | yes |
+| 460–463 | merged, #244 | yes |
+| 464–466 | `backend/250-canvas-save-path` | yes, bullets |
+| 470–481 | merged, #226 and #259 | yes |
+| 490–507 | `backend/220-files-and-media-blocks` | yes, eighteen bullets and ten test files |
+| 510–523 | `backend/228-folder-access-model` | yes |
+| 540–554 | `backend/227-label-lifecycle` | yes |
+| 560–573 | `backend/230-responsibility-document` | yes |
+| 580 upward | `backend/250-canvas-save-path` | yes — **spent, not reserved**: AC-580 and AC-581 carry bullets |
+| 600 upward | `backend/220-files-and-media-blocks` | no — nothing above 507 is on the pushed branch |
+| 620 upward | `backend/253-account-deletion-sweep` | no — branch not pushed |
+| 640 upward | `frontend/260-workflow-import-version` | no — branch not pushed |
+| 660 upward | `backend/255` | no — branch not pushed |
+
+**The gaps between those blocks are not free by default**, on the rule the AC-377 and
+AC-440 bullets below state: whichever merge lands last is the only one that can see what its
+siblings actually spent, and listing a number free that an open branch has just taken is the
+collision this section exists to prevent. Three of them are known **renumbers** and must
+stay empty so that the gap reads as a renumber rather than as an ordinary allocation:
+**508 to 509**, **524 to 539** and **555 to 559**.
+
+*(494 to 509 was carried as one such gap in the brief this was written from, and that half
+of it is wrong: `backend/220` holds bullets for AC-490 through AC-507, so only 508 and 509
+are empty there. This is the sort of thing the table above is verified against branches for,
+and the sort of thing a chat message about blocks cannot be.)*
+
 ## Numbers
 
 `AC-NNN` numbers are append-only: never renumbered, never reused, and a retired criterion is
@@ -55,6 +110,26 @@ default, so read this list before spending one.
   440 to 447 were already spoken for that day, so the next free number was 450 and the
   three run from there. The per-file totals in the table below are left to whichever of
   the day's merges lands last, as the branches of 2026-09-04 did.
+- **AC-429 and AC-430 were never spent, and two files in `app/src/server/` named them as
+  though they had been.** Found on 2026-09-20 by issue #257's citation guard.
+  `domain/references.ts` said "AC-429 asserts the agreement behaviourally" and
+  `routes/references.ts` said "AC-430 asserts that from the outside"; issue #223 landed
+  AC-424 to AC-428 and neither number reached a bullet, a test file or this list. The two
+  comments now say what is true and name AC-428, which does reach the second of the two
+  claims. **Both numbers stay unspent and neither is added to the free list**, on the AC-440
+  bullet's rule that 423 to 439 are not free by default while the branches that stepped over
+  them are open; they are recorded here so that whoever greps `AC-429` next finds the answer
+  rather than the two comments that used to be it.
+- **AC-423 was spent by issue #239 on 2026-09-20 and its bullet was written eight hours
+  later by issue #252**, which is the whole of why that issue exists. #239 took the number
+  the sentence below named as next, wrote
+  `app/tests/criteria/ac-423-task-schedule-start-date.test.ts`, amended 4.5 and 7.6 — and
+  never wrote the criterion into 12.6, never wrote a row here, and left this file still
+  naming 423 as the next number to take. **Nothing went red**, which is the point:
+  `run-suite.mjs` accounted for the new file, the suite passed, and the only artefact was a
+  number a test asserted and the specification did not claim. The bullet is now in 12.6 and
+  its text is derived from that file's own cases. `guard-criterion-registry.test.ts` is what
+  refuses the next one.
 - **AC-229 is spent and its text is not here.** It was written into its own test file,
   `app/tests/e2e/ac-229-done-row-drops-the-due-echo.spec.ts`, which is built, named for the
   number and running. The number is taken; do not spend it again.
@@ -78,8 +153,9 @@ default, so read this list before spending one.
   authorization sweep and 398 taken beside it (issue #74); 399 was handed to issue #104 and
   400 taken unassigned beside it. Neither branch could see the other's, which is why each
   wrote a different "next number" and why this list, rather than either bullet, is where the
-  answer is. **401 to 422 are spent but for 403, and the next number to take from the tail is
-  423.** Through 414 that sentence is the wave-3 integration's, written as the last merge of the night of
+  answer is. **401 to 422 are spent but for 403, and the next number to take from the tail was
+  423** — superseded, and the live answer is `## The next number` at the top of this file.
+  Through 414 that sentence is the wave-3 integration's, written as the last merge of the night of
   2026-09-04 and derived from the files: 401 and 402 went to the browser-suite branch, 404
   and 405 to the settings-and-zoom one, 406 to 408 to the covers one, 411 to the images one,
   and 409, 410 and 412 to the settings-bundle one. Issue #184 then took AC-415 through

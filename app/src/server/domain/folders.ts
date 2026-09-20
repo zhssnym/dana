@@ -204,7 +204,8 @@ both read 199 and both insert.
 
 The description is written by this insert and not by a PATCH behind it (7.4's
 dated paragraph of 2026-09-04, issues #21 and #70): making a folder is one
-request, which AC-279 asserts on the wire, and the sentence a new folder opens
+request, which AC-279 states on the wire — states rather than checks, its test file
+having gone in the 2026-09-20 cut — and the sentence a new folder opens
 with has to arrive in it. Defaulted to null so the callers that name only a
 folder keep the NULL every folder made before this carries.
 

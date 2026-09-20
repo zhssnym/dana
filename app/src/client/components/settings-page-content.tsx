@@ -617,8 +617,8 @@ export function SettingsPageContent({
                   fixer made it do something — `/app/tasks/:id` is the card
                   itself now, over the same editing hook the dialog uses, and
                   a row's click goes there. The working option is what
-                  survives the merge: 9.7 names three here, AC-354 asserts the
-                  page a Tab opens, and this row is where a person chooses
+                  survives the merge: 9.7 names three here, AC-354 names the
+                  page a Tab opens (no test since the 2026-09-20 cut), and this row is where a person chooses
                   it. */}
               <SettingRow
                 icon={PanelRight}

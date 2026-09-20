@@ -213,7 +213,8 @@ export function createRateLimits(
     ruled out is what happened: it said changing `trust proxy` would move
     every limiter at once and was therefore not a change to make inside this
     one, and #153 is that change made from outside it, with 10.4 re-read and
-    AC-410 proving the addresses.
+    AC-410 stating the addresses. (That criterion's test file went in
+    the 2026-09-20 cut, so it states them and does not check them.)
 
     **Two things about the library that the fix does not buy, said here
     because they read as safety nets and are not.** Its `trustProxy` and

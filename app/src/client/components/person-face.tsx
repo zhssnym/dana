@@ -30,7 +30,8 @@ forgotten, which is the state this replaces.
 **The disc is decorative and stays so.** The name beside it is what a reader
 is told; the disc carries no role and no label, because an avatar that
 announced its person a second time would double every roster row. AC-244
-asserts it as paint for exactly that reason, on AC-173's precedent.
+names it as paint for exactly that reason, on AC-173's precedent. Neither
+criterion has a test file since the 2026-09-20 cut.
 */
 import { personFacePaint } from '../parts/person-tint.js'
 

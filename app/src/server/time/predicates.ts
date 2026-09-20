@@ -106,7 +106,9 @@ export function myDayGroup(
 }
 
 /** 10.3's calendar range limit, which Q3C states as "end minus start at most
- * 62 days" and AC-125 pins from both sides. A span of 62 admits 63 inclusive
+ * 62 days" and AC-125 states it from both sides. **It states it and nothing runs it**:
+ * AC-125's test file went in the 2026-09-20 cut, so this boundary is held by the colocated
+ * tests beside this file and by nothing at the wire. A span of 62 admits 63 inclusive
  * dates; the arithmetic is the subtraction, not the count. */
 export const CALENDAR_RANGE_MAX_DAYS = 62
 

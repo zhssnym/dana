@@ -5,8 +5,8 @@ them, held in one place because they are one subject.
 "A group is the label of 7.4's my-membership and nothing else, so creating one
 is naming it on a folder, and deleting one clears that label from every folder
 carrying it." A client that reached for DELETE /folders on "Delete group" would
-destroy tasks for every member of every folder in it, and AC-180 asserts the
-survival of the folders and their tasks through section 7 for exactly that
+destroy tasks for every member of every folder in it, and AC-180 (no test since the 2026-09-20 cut)
+names the survival of the folders and their tasks through section 7 for exactly that
 reason.
 
 **A group is a shelf as well, since S17b, and that is what this file changed.**

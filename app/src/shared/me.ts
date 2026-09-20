@@ -65,7 +65,8 @@ them, and issue #150 is the branch that stopped. That branch is on this
 integration branch now, nothing imports any of the four, and they are deleted
 here. What is not dead is this object: 7.1 is frozen and untouched by #113, so
 the `settings` key of `GET /me` still carries the three booleans, AC-116 still
-pins that shape, and `domain/bundle.ts` still derives the three columns into
+describes that shape — describes rather than holds it, its test file having gone in
+the 2026-09-20 cut — and `domain/bundle.ts` still derives the three columns into
 `pinned_views` per 4.19.
 */
 export const settings = z.object({

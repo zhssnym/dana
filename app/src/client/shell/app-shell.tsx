@@ -15,8 +15,8 @@ this section opened with a bar carrying the app name, the global search
 control and the avatar menu; the designer's prototype has no bar at all and
 puts the first two in the sidebar header and the third in its footer. The
 ruling was on the merits, 9.1 changed, and `shell/TopBar.tsx` is retired with
-it. AC-174 asserts the removal as the absence of a banner landmark on every
-page, which is what an application header is; every `header` this shell
+it. AC-174 states the removal as the absence of a banner landmark on every
+page (no test since the 2026-09-20 cut), which is what an application header is; every `header` this shell
 renders sits inside `main` and is a page's own rather than the application's,
 so it is content and not chrome. That placement is a requirement of this file.
 
@@ -643,8 +643,9 @@ export function AppShell(): React.JSX.Element {
   bar and the highlighted sidebar row, are both correct; only the active tab
   is wrong, and it stays wrong until the next navigation.
 
-  This is what CI run 33820001308 caught in AC-312, and the criterion was
-  right. The trace proves the mechanism rather than suggesting it: the
+  This is what CI run 33820001308 found through AC-312, and the criterion was
+  right. That spec went in the 2026-09-20 cut. The trace shows the mechanism
+  rather than suggesting it: the
   Groceries folder was never fetched at all, so its route never rendered,
   while the sidebar's Desk row was highlighted, which only a committed render
   at Desk can do. A probe that throttles the CPU twenty-fold and asks for the
@@ -713,8 +714,8 @@ export function AppShell(): React.JSX.Element {
 
   This component is where it goes because this component is what /app renders,
   so "every /app path" and "in place of the application" are one condition and
-  one return rather than a rule each page has to remember. AC-172 walks five
-  paths, including a folder page and Settings, and asserts on each of them that
+  one return rather than a rule each page has to remember. AC-172 (no test since the 2026-09-20 cut)
+  walks five paths, including a folder page and Settings, and reads on each of them that
   the sidebar is not on the page.
 
   **The condition is a non-empty answer and never a pending read.** A gate that

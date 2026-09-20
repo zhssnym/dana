@@ -89,7 +89,8 @@ late. And `prefers-reduced-motion` turns it off entirely.
    ESM with real extensions and keeps that helper beside the primitives, for
    the reason `ui/utils.ts` records in its own header.
 2. **The root carries `data-dana-mark`.** The prototype needs no way to address
-   a mark because nothing asserts one; AC-265 does, and an `<svg>` addressed
+   a mark because nothing looked for one; AC-265 did (no test since the 2026-09-20 cut),
+   and an `<svg>` addressed
    by what is inside it is indistinguishable from the several dozen the icon
    family draws on any page. This is the addressing contract of 9.1 one level
    down, and it is the seam RFC 0005 change control item 40's finding (c)
