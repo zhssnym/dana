@@ -220,6 +220,24 @@ default, so read this list before spending one.
   collision this section's rule exists to prevent, it is between three other branches, and
   whichever of them merges second will find it as a duplicate criterion number rather than
   as a duplicate filename.
+- **AC-674 was assigned from the tail on 2026-09-20** (issue #228, Hassan's Ruling 4:
+  `my_access` on the 7.4 Folder object). It is filed in 12.4 beside the block below.
+  **It was not taken from the 494-to-509 gap that block left, and the gap is not what
+  the bullet below says it is**: `backend/220-files-and-media-blocks` spends 494 to 507,
+  so only 508 and 509 are free there, and 524 to 539 and 555 to 559 are gaps of the same
+  kind left by other branches. The number was **assigned by the owner** rather than read
+  off this file, which is the rule the AC-406-to-AC-408 bullet states for the case that
+  actually obtains here: several branches open at once, each of which would otherwise
+  read "the next free number" off a list the others are also reading. **The allocator
+  sentence higher up this file, which says the next number from the tail is 423, is stale
+  and is being corrected on another branch** — do not read a number from it and do not
+  fix it here, because two branches editing one sentence is the collision this whole
+  section exists to avoid.
+
+  **No total moves with it**, on the AC-410 and AC-411 precedent and on the same terms the
+  bullet below sets for its own block: the count at the top of this file and 12.4's row in
+  the table belong to whichever merge comes last rather than to one of several branches
+  open at once.
 - **AC-510 to AC-523 were taken on 2026-09-20** (issue #228, the Folder Access model), and
   they were **renumbered** rather than allocated: the branch wrote them as AC-480 to AC-493
   and was then found to overlap two siblings that were already pushed —

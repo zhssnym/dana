@@ -91,6 +91,20 @@ function folderFromRow(
   row: Record<string, unknown>,
   personalLabels: LabelRef[],
 ): Folder {
+  /* The viewer's own preset (7.4's amendment of 2026-09-20, Hassan's Ruling 4
+     on issue #228). It is read exactly as `membersOf` reads a member's: from
+     the column, through `presetOf`, and refused rather than defaulted when it
+     is unreadable, because every default here would be a guess about
+     authority. The row it comes from is `m`, which `folderSelect` joins on
+     `m.user_id = viewerId` -- the *viewer's* membership and never the
+     owner's, which is the confusion this field invites and AC-674 exists to
+     refuse. */
+  const myAccess = presetOf(row.my_access)
+  if (myAccess === null) {
+    throw new Error(
+      `folder_members.access holds an unknown preset for the viewer of folder ${String(row.id)}`,
+    )
+  }
   return {
     id: String(row.id),
     name: String(row.name),
@@ -109,6 +123,7 @@ function folderFromRow(
        even if the expand half's second write were ever to lapse. */
     my_label: nullableString(row.my_shelf),
     my_color: nullableString(row.my_color),
+    my_access: myAccess,
     /* The M1 Label projection (issue #226): the viewer's own Personal Labels
        on this folder, and never a Folder Label, which classifies the tasks in
        its folder rather than the folder (#208 R4). */
@@ -123,8 +138,18 @@ function folderFromRow(
 }
 
 /** One query serves the list and the single view: the membership join is
- * the scope (10.2), shelf and color ride the viewer's own row (4.4), and
- * the counts are 8.11's, abandoned on neither side. */
+ * the scope (10.2), shelf, color and Access ride the viewer's own row (4.4),
+ * and the counts are 8.11's, abandoned on neither side.
+ *
+ * **`m` is the viewer's membership and nothing else.** The `WHERE
+ * m.user_id = <viewer>` below is what makes that true, and it is the whole of
+ * why `my_access` costs no extra read: this query already had the row the
+ * preset lives on. The mistake the field invites is reading the *owner's*
+ * preset instead — `is_owner` sits two lines above it and comes from
+ * `f.owner_id` — which would answer the same value to everybody in the folder
+ * and would be invisible on a folder whose owner happens to hold Full control,
+ * which is most of them. AC-674 drives two members at two presets through this
+ * query in one folder for exactly that reason. */
 function folderSelect(viewerId: string, folderId?: string) {
   const scope =
     folderId === undefined ? sql`` : sql` AND f.id = ${folderId}`
@@ -134,6 +159,7 @@ function folderSelect(viewerId: string, folderId?: string) {
            f.icon, f.color, f.cover_file_id, f.cover_preset, f.cover_focal_y,
            f.description,
            m.shelf_name AS my_shelf, m.color AS my_color,
+           m.access AS my_access,
            (SELECT count(*)::int FROM folder_members mm
              WHERE mm.folder_id = f.id) AS member_count,
            (SELECT count(*)::int FROM tasks t
@@ -290,6 +316,16 @@ export async function createFolder(
         my_shelf: null,
         my_label: null,
         my_color: null,
+        /* The membership this transaction just wrote, spelled as the literal
+           it is rather than read back: the `INSERT INTO folder_members` above
+           names `full_control` and the creator is the only member there is. It is
+           the creator's *own* preset, which is what `my_access` means
+           everywhere (7.4's amendment of 2026-09-20), and here the creator,
+           the owner and the sole member are one person -- which is exactly
+           the case in which the owner-versus-viewer confusion is invisible,
+           so nothing about this line is evidence the projection is right.
+           AC-674 asks the question on a shared folder. */
+        my_access: 'full_control',
         personal_labels: [],
         icon: null,
         color: null,

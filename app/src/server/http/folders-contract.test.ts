@@ -134,8 +134,9 @@ function jsonInit(method: string, body: unknown): RawRequestOptions {
   }
 }
 
-/** The sixteen keys of the 7.0 Folder object, and no others; the 4.3
- * identity four joined with RFC 0005, and item 58's cover pair.
+/** The seventeen keys of the 7.0 Folder object, and no others; the 4.3
+ * identity four joined with RFC 0005, item 58's cover pair, and `my_access`
+ * with issue #228.
  *
  * **`my_label` and `my_shelf` are both listed and that is deliberate.** Issue
  * #226 renamed the key and #247 removes the old one; for the release between
@@ -146,6 +147,12 @@ function jsonInit(method: string, body: unknown): RawRequestOptions {
  * lands, removing `my_label` from this array is how the contract half is
  * proved. `personal_labels` is the Label projection that arrived with the
  * rename, the viewer's own Personal Labels on this folder. */
+/* `my_access` is the viewer's own Access preset, added by 7.4's dated
+   amendment of 2026-09-20 (Hassan's Ruling 4,
+   https://github.com/zhssnym/dana/issues/228#issuecomment-5751449643). This
+   list is the reason to read that amendment rather than guess: it is asserted
+   exactly, so an eighteenth key appearing on the wire fails here whether or
+   not anybody wrote it down. */
 const FOLDER_KEYS = [
   'color',
   'counts',
@@ -158,6 +165,7 @@ const FOLDER_KEYS = [
   'is_default',
   'is_owner',
   'member_count',
+  'my_access',
   'my_color',
   'my_label',
   'my_shelf',

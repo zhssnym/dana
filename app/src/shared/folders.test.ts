@@ -248,6 +248,9 @@ describe('folder (7.0: the shared Folder object)', () => {
     my_label: null,
     my_color: null,
     personal_labels: [],
+    /* Issue #228, Hassan's Ruling 4 of 2026-09-20: the *viewer's own* preset,
+       which is why it is a `my_` field and not a folder one. */
+    my_access: 'full_control',
     icon: null,
     color: null,
     cover_file_id: null,
@@ -283,6 +286,43 @@ describe('folder (7.0: the shared Folder object)', () => {
     const { id, ...withoutId } = valid
     void id
     expect(folder.safeParse(withoutId).success).toBe(false)
+  })
+
+  /* my_access, 7.4's amendment of 2026-09-20. Required rather than optional
+     and non-nullable rather than nullable, for one reason each: a Folder
+     object exists only for somebody who is a member, and INV-10 with
+     migration 0023 puts a preset on every membership row there is. An
+     optional field here would let a server that forgot the column answer a
+     Folder the client then gates on `undefined`, which every ladder
+     comparison reads as "below everything" -- a silent, total loss of
+     function rather than a validation error a person sees. */
+  test('requires my_access: a Folder with no preset is not a Folder', () => {
+    const { my_access, ...withoutAccess } = valid
+    void my_access
+    expect(folder.safeParse(withoutAccess).success).toBe(false)
+    expect(folder.safeParse({ ...valid, my_access: null }).success).toBe(false)
+  })
+
+  test('my_access admits the six presets and nothing else', () => {
+    for (const preset of [
+      'full_control',
+      'can_edit',
+      'can_contribute',
+      'assigned_work',
+      'can_comment',
+      'can_view',
+    ]) {
+      expect(
+        folder.safeParse({ ...valid, my_access: preset }).success,
+        `${preset} is one of R8A's six`,
+      ).toBe(true)
+    }
+    expect(folder.safeParse({ ...valid, my_access: 'owner' }).success).toBe(
+      false,
+    )
+    expect(folder.safeParse({ ...valid, my_access: 'member' }).success).toBe(
+      false,
+    )
   })
 })
 
@@ -323,6 +363,7 @@ describe('the 7.4 response shapes (settled at the P2 shape review)', () => {
     my_label: null,
     my_color: null,
     personal_labels: [],
+    my_access: 'full_control',
     icon: null,
     color: null,
     cover_file_id: null,

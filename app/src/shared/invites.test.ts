@@ -46,6 +46,8 @@ const FOLDER = {
   my_label: null,
   my_color: null,
   personal_labels: [],
+  // Issue #228: the accepting member's own preset, which the invite granted.
+  my_access: 'can_edit',
   icon: null,
   color: null,
   cover_file_id: null,

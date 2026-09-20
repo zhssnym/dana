@@ -43,9 +43,21 @@ after the gate, so they are checked here after it too:
   Full-control member's exit (`STRANDED` in `routes/folders.ts`), and the
   owner's ordinary leave outright until they have transferred (R6 section 2).
 
-Both are computed from the member list the folder page already reads, so they
-cost no request. Neither is available in the sidebar, which is the reason the
-sidebar's own note names issue #259.
+The first is computed from the folder itself and costs nothing anywhere. The
+second needs the member list, which the folder page already reads and the
+sidebar does not: `GET /folders` carries `member_count` and not who holds Full
+control. So the sidebar leaves `otherFullControl` undefined and `folderGates`
+offers Leave, letting the route's 409 be the refusal, which is the honest
+direction — hiding somebody's only way out of a folder on a guess is worse than
+offering an act that may be declined.
+
+(**Corrected 2026-09-20.** This sentence read "Neither is available in the
+sidebar, which is the reason the sidebar's own note names issue #259." Both
+halves were false: INV-2 is available there, `is_default` being on every
+Folder object, and the sidebar's note has never named #259, which is the M1
+Label core domain and has nothing to do with this file. A cross-reference
+nobody can follow is worse than none, and CLAUDE.md's first rule for this
+repository is that a comment is a claim to be checked rather than a fact.)
 */
 import { mayPerform } from '../../shared/folder-actions.js'
 import type { FolderAction, FolderActorFacts } from '../../shared/folder-actions.js'

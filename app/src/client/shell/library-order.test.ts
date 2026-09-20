@@ -39,6 +39,8 @@ function folderOf(id: string, name: string, label: string | null, isDefault = fa
     my_label: label,
     personal_labels: [],
     my_color: null,
+    // Sole owner, so Full control (4.4 as widened by migration 0023).
+    my_access: 'full_control',
     icon: null,
     color: null,
     cover_file_id: null,

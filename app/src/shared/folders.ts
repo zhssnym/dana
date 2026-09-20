@@ -250,6 +250,16 @@ only `my_shelf` would draw every shelf as unset until the person reloaded.
 That is cosmetic and self-healing where the write half is neither, but it
 costs one key to not do it at all. **Issue #247 drops `my_label`, the request
 body's `label`, and the `folder_members.label` column in one contract.**
+
+`my_access` joined them on 2026-09-20 under Hassan's Ruling 4 on issue #228
+(https://github.com/zhssnym/dana/issues/228#issuecomment-5751449643), a dated
+7.4 amendment in the shape `cover_preset`, `cover_focal_y` and `description`
+got theirs. It is the **viewer's own** membership preset and never anybody
+else's: the same value their own element of `GET /folders/:id`'s `members`
+carries, taken from the row `folderSelect` already joins to scope the query.
+It is not nullable, because a Folder object only exists for somebody who is in
+the folder, and INV-10 plus migration 0023 put a preset on every membership
+row there is.
 */
 export const folder = z.object({
   id: z.uuid(),
@@ -266,6 +276,21 @@ export const folder = z.object({
      the block above describes. Never a second fact; #247 removes it. */
   my_label: shelfName.nullable(),
   my_color: hexColor.nullable(),
+  /* The viewer's own Access preset (issue #228, Hassan's Ruling 4 of
+     2026-09-20). It sits with the other two `my_` fields because it is the
+     same kind of fact — something true of this reader's membership rather
+     than of the folder — and **not** beside `is_owner`, which is the folder's
+     `owner_id` and is now neither necessary nor sufficient for any act a
+     surface draws.
+
+     What it is for: the Library row in `shell/app-sidebar.tsx` is built from
+     `GET /folders` and never fetches a detail, so before this field it had
+     nothing but `is_owner` to gate Rename, Leave and Delete on, and both
+     halves of that were measurably wrong — a Full-control non-owner was
+     offered no Rename and a demoted owner was still offered Delete. Both
+     surfaces now gate through `lib/folder-authority.ts`, which answers from
+     `shared/folder-actions.ts`, so no bar is written twice. */
+  my_access: folderAccessPreset,
   /*
   The M1 Label projection for a Folder (issue #226, parent #208): the viewer's
   own Personal Labels applied to this Folder, ordered active before archived,
