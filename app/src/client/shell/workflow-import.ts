@@ -17,11 +17,16 @@ envelope still asks about the version — that is what tells a `package.json`
 from a workflow — but the set of readable versions is imported from the
 contract now, so a third version arrives here without anybody editing this
 line.
+
+**A fourth arrived four days later and this line did not move**, which is that
+claim being repaid rather than merely made: #185 made every export version 4,
+and a picker still carrying its own literal would have refused every file this
+product writes.
 */
 import {
+  WORKFLOW_FILE_VERSIONS,
   importWorkflowBody,
   normalizeWorkflowFile,
-  WORKFLOW_FILE_VERSIONS,
 } from '../../shared/workflows.js'
 import type { ImportWorkflowBody } from '../../shared/workflows.js'
 
@@ -137,10 +142,25 @@ function skippedByNormalization(
   return false
 }
 
+/**
+ * How many Tasks the import is about to make, which is what the toast says.
+ *
+ * **Both arrangements, because both are current.** A version 1 to 3 folder
+ * lists its work under `tasks`; a version 4 folder writes each Task as a block
+ * of its page, at the position it sits in (#185). Counting only the first would
+ * have told every person importing a file this product now writes that their
+ * folder arrived with no work in it.
+ */
 function taskCount(folders: unknown[]): number {
   return folders.reduce<number>((sum, folder) => {
-    if (!isRecord(folder) || !Array.isArray(folder.tasks)) return sum
-    return sum + folder.tasks.length
+    if (!isRecord(folder)) return sum
+    const listed = Array.isArray(folder.tasks) ? folder.tasks.length : 0
+    const page = isRecord(folder.page) && Array.isArray(folder.page.blocks)
+      ? folder.page.blocks.filter(
+          (block) => isRecord(block) && block.kind === 'task',
+        ).length
+      : 0
+    return sum + listed + page
   }, 0)
 }
 

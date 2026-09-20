@@ -782,17 +782,14 @@ export function FolderPage({
       showToast('Could not read this folder’s tasks, so nothing was saved.')
       return
     }
-    const file = JSON.stringify(
-      folderToWorkflowFile(
-        folderName,
-        tasks,
-        page.data?.blocks ?? [],
-        page.data,
-        labels,
-      ),
-      null,
-      2,
+    const saved = folderToWorkflowFile(
+      folderName,
+      tasks,
+      page.data?.blocks ?? [],
+      page.data,
+      labels,
     )
+    const file = JSON.stringify(saved.file, null, 2)
     const blob = new Blob([file], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement('a')
@@ -801,8 +798,21 @@ export function FolderPage({
     anchor.click()
     URL.revokeObjectURL(url)
     /* polish: tabstrip F7. A download that starts silently reads as nothing
-       happening; the toast says what was saved and where it went. */
-    showToast(`"${detail?.name ?? 'Folder'}" saved as a workflow file. Import it from the sidebar.`)
+       happening; the toast says what was saved and where it went.
+
+       **And what did not go with it (#185).** A workflow file carries writing
+       and work and no bytes: a picture, a file, a sound, a video or a link to
+       another folder is a row of this account, and the file records the gap
+       rather than carrying it. The person who pressed Save is the only one who
+       can decide whether that matters, so the count the writer answered is said
+       here rather than left in the JSON for them to notice. */
+    const missing =
+      saved.omitted === 0
+        ? ''
+        : ` ${String(saved.omitted)} ${saved.omitted === 1 ? 'image or file is' : 'images and files are'} not included.`
+    showToast(
+      `"${detail?.name ?? 'Folder'}" saved as a workflow file. Import it from the sidebar.${missing}`,
+    )
   }
 
   /*
