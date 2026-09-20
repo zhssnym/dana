@@ -180,6 +180,20 @@ the criteria answers a different one. All six are now watched — the privacy
 predicate by AC-553's second actor, the format by
 `src/shared/workflows.test.ts`'s Label block and AC-548's widened case list.
 
+**Commit before you mutate, and the reason is a failure mode of mutation
+testing rather than of git.** A mutation pass is apply, run, restore, and the
+obvious restore is `git checkout -- <file>` — which restores from the index,
+so it silently discards every uncommitted change in that file, including the
+fix the pass was written to prove. That happened during the pass above. It
+announces nothing: the script reports "restored", the working tree looks
+right, and the *next* mutation is what goes strange, because it runs against
+a file that has quietly lost the thing under test. It was caught because that
+mutation failed four cases instead of one and the extra three made no sense,
+which is luck standing in for a check. So: **commit the work first, then
+mutate**, and the restore is exact and total by construction. Where a commit
+is genuinely not wanted yet, copy the file and restore from the copy — never
+from the index.
+
 **And six more for issue #263, the reclaim sweep** (AC-700 to AC-705, spec 12.9),
 on the same reading of that ruling. **Read the sentence above as the dated
 record it is rather than as a running total**: the tree already held 69
