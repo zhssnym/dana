@@ -49,6 +49,7 @@ function card(overrides: Partial<TaskCard> & { id: string }): TaskCard {
     // missing and the widening is what unblocks it.
     section_block_id: overrides.section_block_id ?? null,
     created_by: overrides.created_by ?? null,
+    labels: { personal: [], folder: [] },
     created_at: overrides.created_at ?? '2026-08-01T00:00:00.000Z',
     updated_at: '2026-08-01T00:00:00.000Z',
   }

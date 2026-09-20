@@ -72,6 +72,7 @@ function card(overrides: Partial<TaskCard> = {}): TaskCard {
     // scrubbed creator would.
     section_block_id: null,
     created_by: null,
+    labels: { personal: [], folder: [] },
     created_at: '2026-08-01T09:00:00.000Z',
     updated_at: '2026-08-01T09:00:00.000Z',
     ...overrides,
@@ -87,8 +88,12 @@ function folder(overrides: Partial<Folder> = {}): Folder {
     is_owner: true,
     member_count: 1,
     counts: { pending: 3, completed: 1 },
+    my_shelf: null,
+    /* Paired with `my_shelf` by issue #226's wire expand-and-contract: one
+       column under two keys for one release, dropped by #247. */
     my_label: null,
     my_color: null,
+    personal_labels: [],
     icon: null,
     color: null,
     cover_file_id: null,
@@ -472,12 +477,12 @@ describe('folderRowDisplay: the sidebar row', () => {
 })
 
 describe('folder groups: his dialog is keyed by name and ours by id', () => {
-  const home = folder({ id: INBOX, name: 'Home', my_label: 'Personal' })
-  const work = folder({ id: WORK, name: 'Work', my_label: 'Studio' })
+  const home = folder({ id: INBOX, name: 'Home', my_shelf: 'Personal' })
+  const work = folder({ id: WORK, name: 'Work', my_shelf: 'Studio' })
   const twin = folder({
     id: '00000000-0000-4000-8000-0000000000a3',
     name: 'Home',
-    my_label: null,
+    my_shelf: null,
   })
 
   test('an option carries the name, the colour and the label and no id', () => {
@@ -506,7 +511,7 @@ describe('folder groups: his dialog is keyed by name and ours by id', () => {
   })
 
   test('the labels in use are distinct and ascending, per 9.1', () => {
-    expect(folderGroupLabels([work, home, folder({ my_label: 'Personal' })])).toEqual([
+    expect(folderGroupLabels([work, home, folder({ my_shelf: 'Personal' })])).toEqual([
       'Personal',
       'Studio',
     ])
@@ -528,16 +533,16 @@ describe('folderLabelFields: 9.6 takes the label and the colour together', () =>
   */
   test('a folder carrying both hands both back', () => {
     expect(
-      folderLabelFields({ my_label: 'Personal', my_color: '#7B2D8E' }),
+      folderLabelFields({ my_shelf: 'Personal', my_color: '#7B2D8E' }),
     ).toEqual({ label: 'Personal', color: '#7B2D8E' })
   })
 
   test('no label is the empty string, which is what a text box holds', () => {
-    expect(folderLabelFields({ my_label: null, my_color: '#7B2D8E' }).label).toBe('')
+    expect(folderLabelFields({ my_shelf: null, my_color: '#7B2D8E' }).label).toBe('')
   })
 
   test('no colour is undefined and never the token a dot is painted with', () => {
-    const fields = folderLabelFields({ my_label: 'Personal', my_color: null })
+    const fields = folderLabelFields({ my_shelf: 'Personal', my_color: null })
     expect(fields.color).toBeUndefined()
     expect(fields.color).not.toBe(DEFAULT_FOLDER_COLOR)
   })

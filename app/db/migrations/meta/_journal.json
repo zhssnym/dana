@@ -148,6 +148,13 @@
       "when": 1789600000000,
       "tag": "0021_structured_text_blocks",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1789700000000,
+      "tag": "0022_labels",
+      "breakpoints": true
     }
   ]
 }

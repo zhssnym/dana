@@ -38,6 +38,7 @@ import { createFilesRouter } from './routes/files.js'
 import { createFoldersRouter } from './routes/folders.js'
 import { HEALTH_PATH, healthRouter, recordDatabaseKind } from './routes/health.js'
 import { createInvitesRouter } from './routes/invites.js'
+import { createLabelsRouter } from './routes/labels.js'
 import { createReferencesRouter } from './routes/references.js'
 import { createSampleRouter } from './routes/sample.js'
 import { createTasksRouter } from './routes/tasks.js'
@@ -600,6 +601,26 @@ export function createApp(options: AppOptions = {}): express.Express {
   app.use(
     '/api/v1',
     createTasksRouter({ dbClient: options.dbClient, rateLimits, securityLog }),
+  )
+
+  /*
+  The M1 Label router (issue #226, parent #208): the definition listing, the
+  two definition CRUD groups, and the two assignment pairs.
+
+  **Position is deliberate and is not load-bearing, which is worth separating.**
+  It is mounted after the folders and tasks routers because three of its four
+  groups hang off their prefixes and reading it here is how a person finds it;
+  it would work anywhere ahead of the catch-all, because Express matches whole
+  paths and neither of those routers registers a route of any of these shapes.
+  `/folders/:id` is one segment and `/folders/:folderId/labels` is two;
+  `/folders/:id/my-membership` and `/folders/:folderId/labels/:labelId` differ
+  in their literal segment. Nothing here is a prefix of anything there, so
+  nothing is shadowed in either direction — unlike the `/views/:id` case two
+  blocks down, which genuinely is.
+  */
+  app.use(
+    '/api/v1',
+    createLabelsRouter({ dbClient: options.dbClient, rateLimits, securityLog }),
   )
 
   // The P4 views router, by the third request in that same ledger: the 7.10

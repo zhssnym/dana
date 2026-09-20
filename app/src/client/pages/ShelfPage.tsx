@@ -89,7 +89,7 @@ export function ShelfPage(): React.JSX.Element {
   const onShelf = useMemo(
     () =>
       (folders.data ?? []).filter(
-        (folder) => !folder.is_default && folder.my_label === name && name !== '',
+        (folder) => !folder.is_default && folder.my_shelf === name && name !== '',
       ),
     [folders.data, name],
   )
@@ -109,7 +109,7 @@ export function ShelfPage(): React.JSX.Element {
       (folders.data ?? [])
         .filter(
           (folder) =>
-            !folder.is_default && (folder.my_label === null || folder.my_label !== name),
+            !folder.is_default && (folder.my_shelf === null || folder.my_shelf !== name),
         )
         .map((folder) => ({
           id: folder.id,
@@ -171,9 +171,9 @@ export function ShelfPage(): React.JSX.Element {
             }}
             onAddFolder={(folderId) => {
               /* The same act the sidebar's "Move to shelf" performs: the
-                 label is the membership (4.18), so the row joins the page
-                 through the reconciliation with no reload (AC-223). */
-              move.mutate({ id: folderId, body: { label: name } })
+                 `shelf` field is the membership (4.18), so the row joins the
+                 page through the reconciliation with no reload (AC-223). */
+              move.mutate({ id: folderId, body: { shelf: name } })
             }}
             onCreateFolder={() => {
               openNewFolder(name)

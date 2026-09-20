@@ -475,7 +475,7 @@ export function folderGroupOptions(
   return folders.map((folder) => ({
     name: folder.name,
     color: folderMark(folder).color,
-    label: folder.my_label,
+    label: folder.my_shelf,
   }))
 }
 
@@ -515,7 +515,7 @@ export function folderGroupLabels(
 ): string[] {
   const labels = new Set<string>()
   for (const folder of folders) {
-    if (folder.my_label !== null) labels.add(folder.my_label)
+    if (folder.my_shelf !== null) labels.add(folder.my_shelf)
   }
   for (const shelf of shelves) labels.add(shelf.name)
   return [...labels].sort((a, b) => a.localeCompare(b))
@@ -548,11 +548,11 @@ export interface FolderLabelFields {
  * and a colour control holds a hex or nothing at all.
  */
 export function folderLabelFields(folder: {
-  my_label: string | null
+  my_shelf: string | null
   my_color: string | null
 }): FolderLabelFields {
   return {
-    label: folder.my_label ?? '',
+    label: folder.my_shelf ?? '',
     color: folder.my_color ?? undefined,
   }
 }

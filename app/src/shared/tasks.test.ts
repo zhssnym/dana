@@ -37,6 +37,12 @@ const TASK_CARD_KEYS = [
   'pending_invite_email',
   'section_block_id',
   'created_by',
+  /* Issue #226's Label projection, transcribed from frozen 7.0's amendment of
+     2026-09-20. It moved ahead of that amendment for `ac-001`'s reason — the
+     assertions over it are exact in both directions, so a tree carrying the
+     projection and not this line cannot be green — and the amendment has since
+     landed, so this is a transcription again rather than a promise. */
+  'labels',
   'created_at',
   'updated_at',
 ]
@@ -963,6 +969,7 @@ describe('the 7.0 response shapes', () => {
     pending_invite_email: null,
     section_block_id: null,
     created_by: { id: someUuid, display_name: 'Sara', avatar_url: null },
+    labels: { personal: [], folder: [] },
     created_at: '2026-08-01T10:00:00.000Z',
     updated_at: '2026-08-01T10:00:00.000Z',
   }

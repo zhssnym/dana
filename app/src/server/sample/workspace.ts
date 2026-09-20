@@ -190,11 +190,13 @@ async function writeFolder(
   )
   const folderId = String(inserted[0]?.id)
   await register(tx, userId, 'folder', folderId)
-  // 4.18: a folder is on a shelf by the viewer's own label, held in step
-  // with the shelf's name.
+  // 4.18: a folder is on a shelf by the viewer's own membership, held in step
+  // with the shelf's name. Both columns until issue #247 contracts migration
+  // 0022's expand half.
   await tx.execute(
-    sql`INSERT INTO folder_members (folder_id, user_id, label)
-        VALUES (${folderId}::uuid, ${userId}::uuid, ${folder.shelf ?? null})`,
+    sql`INSERT INTO folder_members (folder_id, user_id, shelf_name, label)
+        VALUES (${folderId}::uuid, ${userId}::uuid, ${folder.shelf ?? null},
+                ${folder.shelf ?? null})`,
   )
 
   const sections = new Map<string, string>()
@@ -387,9 +389,9 @@ export async function removeSampleWorkspace(
     )
     if (shelves.length > 0) {
       await tx.execute(
-        sql`UPDATE folder_members SET label = NULL
+        sql`UPDATE folder_members SET shelf_name = NULL, label = NULL
             WHERE user_id = ${userId}::uuid
-              AND label IN (${sql.join(
+              AND shelf_name IN (${sql.join(
                 shelves.map((row) => sql`${String(row.name)}`),
                 sql`, `,
               )})`,

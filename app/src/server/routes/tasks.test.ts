@@ -57,6 +57,13 @@ import {
   transitionOk,
 } from '../../../tests/support/tasks-harness.js'
 import {
+  countAssignments,
+  createFolderLabel,
+  createPersonalLabel,
+  putTaskLabel,
+} from '../../../tests/support/labels-harness.js'
+import type { TaskLabelsBody } from '../../../tests/support/labels-harness.js'
+import {
   putReminder,
   setReminderState,
 } from '../../../tests/support/reminders-harness.js'
@@ -69,6 +76,7 @@ import type { AuthConfig } from '../auth/index.js'
 import { attachNotifier, createNotifier } from '../notify/index.js'
 import type { OutboundMessage } from '../notify/index.js'
 import { createFoldersRouter } from './folders.js'
+import { createLabelsRouter } from './labels.js'
 import { createTasksRouter } from './tasks.js'
 
 let app: AuthTestApp
@@ -121,6 +129,16 @@ beforeAll(async () => {
   application.use('/api/v1', createAuthRouter({ dbClient, auth }))
   application.use('/api/v1', createFoldersRouter({ dbClient }))
   application.use('/api/v1', createTasksRouter({ dbClient }))
+  /* The labels router is mounted here for one case: 7.6's move (issue #226,
+     #208 R6A). 0022's `task_folder_labels_task_scope_fkey` is ON UPDATE NO
+     ACTION, so `UPDATE tasks SET folder_id` on a task carrying a Folder Label
+     is refused by the database and the endpoint answers 500. What prevents
+     that is `dropFolderLabelsOnMove` inside the PATCH transaction, and
+     nothing in the suite saw it: removing the call left this file and every
+     Label criterion green while the move broke. The Labels are attached
+     through their own endpoints rather than by INSERT, so the case exercises
+     the same rows a person would make. */
+  application.use('/api/v1', createLabelsRouter({ dbClient }))
   server.on('request', application)
 
   app = {
@@ -419,6 +437,63 @@ describe('the tasks router, driven through the harness idiom', () => {
       404,
       'a target the caller is not in reads as nonexistent (spec 7.6, 10.2)',
     )
+  })
+
+  test('PATCH /tasks/:id: a move drops the Folder Labels and keeps the Personal ones', async () => {
+    const { owner, sharedId, soloId } = await stage()
+
+    const folderLabel = await createFolderLabel(owner, sharedId, {
+      name: 'proof move folder label',
+    })
+    const personalLabel = await createPersonalLabel(owner, {
+      name: 'proof move personal label',
+    })
+    const moving = await createTaskOk(
+      owner,
+      { title: 'proof move labelled', folder_id: sharedId },
+      'the task to move is creatable',
+    )
+    expectStatus(
+      await putTaskLabel(owner, moving.id, folderLabel.id),
+      200,
+      'the folder label applies to a task in its own folder',
+    )
+    expectStatus(
+      await putTaskLabel(owner, moving.id, personalLabel.id),
+      200,
+      'and the personal label applies beside it',
+    )
+
+    /* The move itself is the assertion. 0022's task_scope_fkey is ON UPDATE
+       NO ACTION, so the UPDATE is refused by the database while a Folder
+       Label row still points at the old folder, and a 500 is what that looks
+       like from here — on an endpoint that has nothing to do with Labels and
+       worked before this feature existed. */
+    const moved = await patchTaskOk(
+      owner,
+      moving.id,
+      { folder_id: soloId },
+      'a task carrying a Folder Label still moves (spec 7.6; issue #226, #208 R6A)',
+    )
+
+    const labels = (moved as unknown as { labels: TaskLabelsBody }).labels
+    expect(
+      labels.folder.map((one) => one.id),
+      'the source folder\'s Labels go, because they belong to the folder the task left rather than to the task (#208 R6A: no destination name matching)',
+    ).not.toContain(folderLabel.id)
+    expect(
+      labels.personal.map((one) => one.id),
+      'and the viewer\'s Personal Labels stay, because they were never the folder\'s',
+    ).toContain(personalLabel.id)
+
+    expect(
+      await countAssignments(app.db, 'task_folder_labels', folderLabel.id),
+      'and the row is gone rather than orphaned',
+    ).toBe(0)
+    expect(
+      await countAssignments(app.db, 'task_personal_labels', personalLabel.id),
+      'while the Personal assignment row is untouched',
+    ).toBe(1)
   })
 
   test('PATCH /tasks/:id: the 8.4 clear-date cascade, in the PATCH transaction', async () => {

@@ -275,10 +275,26 @@ describe('AC-236 every mutating route is behind the whole chain', () => {
     // every rise above — the sweep passed on both of them, 401 bare and 403
     // without CSRF, before this number was touched — and the read the same
     // change adds moves the count below rather than this one.
+    //
+    // 70 to 82 on 2026-09-20, for the twelve mutating routes of the Label
+    // surface (issue #226): four Personal definition writes, four Folder
+    // definition writes, and the two assignment pairs. Same instruction
+    // followed as every rise above it: the sweep passed on all twelve first —
+    // each answers 401 bare and 403 with a session and no X-CSRF-Token — and
+    // only then was this number moved, in the change that added them.
+    // `GET /labels` is the thirteenth route of that surface and moves the
+    // reading count below rather than this one.
+    //
+    // **#224 and #226 were open at once and each moved this number from 68,
+    // to 70 and to 80. The resolution is neither side but the sum: 82.** The
+    // two dependency mutations and the twelve Label mutations are fourteen
+    // distinct routes and all fourteen are now mounted, so the count was
+    // re-derived by running this sweep on the merged tree rather than by
+    // arithmetic on the two diffs.
     expect(
       routes.length,
-      `the walker found ${String(routes.length)} mutating routes and there were 70 after issue #224 added the two task-dependency mutations. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means a route was added, and this number moves with it in the same change`,
-    ).toBe(70)
+      `the walker found ${String(routes.length)} mutating routes and there were 82 after issue #224 added the two task-dependency mutations and issue #226 added the twelve mutating routes of the Label surface. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means a route was added, and this number moves with it in the same change`,
+    ).toBe(82)
 
     const failures: string[] = []
     const jsonBody = {
@@ -355,14 +371,26 @@ describe('AC-236 every mutating route is behind the whole chain', () => {
     //
     // 39 to 40 on 2026-09-20 for `GET /tasks/:id/dependencies` (issue #224),
     // which earns no PUBLIC_READS entry and needs none: it answers 401 bare,
-    // which the sweep below established before this number moved. Both
-    // branches were open at once and each moved this number from 37; the
-    // resolution is the sum, because the two reads of #223 and the one read
-    // of #224 are three distinct routes and all three are now mounted.
+    // which the sweep below established before this number moved.
+    //
+    // 40 to 41 on 2026-09-20, for `GET /labels`, the definition listing of
+    // issue #226 and the only read on that surface. It answers 401 bare, so
+    // it earns no PUBLIC_READS entry; the sweep passed on it before this
+    // number moved.
+    //
+    // **Three branches were open at once and each moved this number from 37.
+    // #223 and #224 both read 40 on their own trees, and so did #226, and 40
+    // is nevertheless wrong for the merge of them: the resolution is the sum,
+    // 41.** Two sides agreeing on a number is not the same as the number
+    // being right, because each counted its own route against a base that
+    // did not hold the others'. The two reads of #223, the one read of #224
+    // and `GET /labels` from #226 are four distinct routes and all four are
+    // now mounted; this count was re-derived by running the sweep on the
+    // merged tree rather than by taking either side.
     expect(
       routes.length,
-      `the walker found ${String(routes.length)} reading routes and there were 40 after issue #223 added the two Dana Link reads and issue #224 added the task-dependency read. Fewer means the enumeration lost sight of routes that still exist; more means a GET was added, and it must either answer 401 bare or earn a PUBLIC_READS entry, and this number moves with it in the same change`,
-    ).toBe(40)
+      `the walker found ${String(routes.length)} reading routes and there were 41 after issue #223 added the two Dana Link reads, issue #224 added the task-dependency read and issue #226 added the Label definition listing. Fewer means the enumeration lost sight of routes that still exist; more means a GET was added, and it must either answer 401 bare or earn a PUBLIC_READS entry, and this number moves with it in the same change`,
+    ).toBe(41)
 
     const failures: string[] = []
     for (const { method, path } of routes) {

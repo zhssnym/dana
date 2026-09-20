@@ -64,6 +64,9 @@ function card(overrides: Partial<TaskCard> = {}): TaskCard {
     pending_invite_email: null,
     section_block_id: null,
     created_by: { id: UUID, display_name: 'a person', avatar_url: null },
+    // Issue #226's Label projection: both arrays, empty, which is what a card
+    // on an unlabelled task carries.
+    labels: { personal: [], folder: [] },
     created_at: '2026-08-07T10:00:00.000Z',
     updated_at: '2026-08-07T10:00:00.000Z',
     ...overrides,

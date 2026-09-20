@@ -441,7 +441,7 @@ export function AppShell(): React.JSX.Element {
   tab was already open, on the reasoning that "only a shelf tab needs shelf
   names, so the read waits until one is open rather than costing every page a
   request at mount". That was sound while the Library drew
-  `folder_members.label` strings and nothing else wanted shelves. 9.1 has
+  `folder_members.shelf_name` strings and nothing else wanted shelves. 9.1 has
   always wanted them, "the Library holds the viewer's shelves and folders as
   one ordered list", and the sidebar is on every page: so the condition the
   gate tested is now true everywhere, and a gate that is always true is a gate
@@ -987,7 +987,9 @@ export function AppShell(): React.JSX.Element {
                      section 7 change for a client convenience. polish:
                      sidebar F8, then the folder opens, ready for tasks. */
                   onSuccess: (made) => {
-                    if (label !== null) relabelFolder.mutate({ id: made.id, body: { label } })
+                    if (label !== null) {
+                      relabelFolder.mutate({ id: made.id, body: { shelf: label } })
+                    }
                     void navigate(paths.folder(made.id))
                   },
                 },

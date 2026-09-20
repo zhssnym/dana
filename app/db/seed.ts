@@ -244,13 +244,14 @@ export async function seed(): Promise<void> {
       (${seedIds.nadiaStudio}, ${seedIds.nadia}, 'Studio', false)
   `)
   await db.execute(sql`
-    INSERT INTO folder_members (folder_id, user_id, label, color) VALUES
-      (${seedIds.hassanDesk}, ${seedIds.hassan}, NULL, NULL),
-      (${seedIds.imranDesk}, ${seedIds.imran}, NULL, NULL),
-      (${seedIds.groceries}, ${seedIds.hassan}, 'Home', '#33AA55'),
-      (${seedIds.groceries}, ${seedIds.imran}, NULL, NULL),
-      (${seedIds.nadiaDesk}, ${seedIds.nadia}, NULL, NULL),
-      (${seedIds.nadiaStudio}, ${seedIds.nadia}, NULL, NULL)
+    INSERT INTO folder_members (folder_id, user_id, shelf_name, label, color)
+    VALUES
+      (${seedIds.hassanDesk}, ${seedIds.hassan}, NULL, NULL, NULL),
+      (${seedIds.imranDesk}, ${seedIds.imran}, NULL, NULL, NULL),
+      (${seedIds.groceries}, ${seedIds.hassan}, 'Home', 'Home', '#33AA55'),
+      (${seedIds.groceries}, ${seedIds.imran}, NULL, NULL, NULL),
+      (${seedIds.nadiaDesk}, ${seedIds.nadia}, NULL, NULL, NULL),
+      (${seedIds.nadiaStudio}, ${seedIds.nadia}, NULL, NULL, NULL)
   `)
 
   await db.execute(sql`

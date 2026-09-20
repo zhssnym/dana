@@ -85,40 +85,40 @@ describe('postFoldersBody and patchFolderBody (7.4: { name }, 10.3: 1 to 100)', 
   })
 })
 
-describe('patchFolderMyMembershipBody (7.4: { label, color }, either nullable)', () => {
+describe('patchFolderMyMembershipBody (7.4: { shelf, color }, either nullable)', () => {
   test('accepts both fields, upper or lower hex (the 4.4 CHECK admits both)', () => {
     for (const color of ['#AB12CD', '#ab12cd']) {
       const result = patchFolderMyMembershipBody.safeParse({
-        label: 'Deep work',
+        shelf: 'Deep work',
         color,
       })
       expect(result.success, `${color} is #RRGGBB`).toBe(true)
     }
   })
 
-  test('accepts both length boundaries of the label', () => {
-    expect(patchFolderMyMembershipBody.safeParse({ label: 'x' }).success).toBe(true)
+  test('accepts both length boundaries of the shelf membership', () => {
+    expect(patchFolderMyMembershipBody.safeParse({ shelf: 'x' }).success).toBe(true)
     expect(
-      patchFolderMyMembershipBody.safeParse({ label: 'x'.repeat(40) }).success,
+      patchFolderMyMembershipBody.safeParse({ shelf: 'x'.repeat(40) }).success,
     ).toBe(true)
   })
 
   test('accepts null as the clear signal for either field', () => {
     const result = patchFolderMyMembershipBody.safeParse({
-      label: null,
+      shelf: null,
       color: null,
     })
     expect(result.success).toBe(true)
     if (result.success) {
-      expect(result.data).toEqual({ label: null, color: null })
+      expect(result.data).toEqual({ shelf: null, color: null })
     }
   })
 
   test('accepts any subset, keeping absent distinct from null', () => {
-    const labelOnly = patchFolderMyMembershipBody.safeParse({ label: 'Home' })
+    const labelOnly = patchFolderMyMembershipBody.safeParse({ shelf: 'Home' })
     expect(labelOnly.success).toBe(true)
     if (labelOnly.success) {
-      expect(labelOnly.data).toEqual({ label: 'Home' })
+      expect(labelOnly.data).toEqual({ shelf: 'Home' })
       expect('color' in labelOnly.data, 'absent color stays absent').toBe(false)
     }
     expect(
@@ -132,12 +132,12 @@ describe('patchFolderMyMembershipBody (7.4: { label, color }, either nullable)',
 
   test('refuses the AC-023 limit and format probes', () => {
     const refusals: readonly [unknown, string][] = [
-      [{ label: '' }, 'an empty label is under the 1 to 40 range'],
-      [{ label: 'x'.repeat(41) }, 'a 41-character label is over the range'],
-      [{ label: 'ok', color: 'red' }, 'a named color is not #RRGGBB'],
-      [{ label: 'ok', color: '#12345' }, 'five hex digits are not #RRGGBB'],
-      [{ label: 'ok', color: '#GGHHII' }, 'non-hex digits are not #RRGGBB'],
-      [{ label: 7, color: '#AB12CD' }, 'a wrong-typed label is a refusal'],
+      [{ shelf: '' }, 'an empty label is under the 1 to 40 range'],
+      [{ shelf: 'x'.repeat(41) }, 'a 41-character label is over the range'],
+      [{ shelf: 'ok', color: 'red' }, 'a named color is not #RRGGBB'],
+      [{ shelf: 'ok', color: '#12345' }, 'five hex digits are not #RRGGBB'],
+      [{ shelf: 'ok', color: '#GGHHII' }, 'non-hex digits are not #RRGGBB'],
+      [{ shelf: 7, color: '#AB12CD' }, 'a wrong-typed label is a refusal'],
       [{ color: '#AB12CD1' }, 'seven hex digits are not #RRGGBB'],
     ]
     for (const [body, why] of refusals) {
@@ -147,7 +147,7 @@ describe('patchFolderMyMembershipBody (7.4: { label, color }, either nullable)',
 
   test('names the failing field in its issue path', () => {
     const result = patchFolderMyMembershipBody.safeParse({
-      label: 'ok',
+      shelf: 'ok',
       color: 'red',
     })
     expect(result.success).toBe(false)
@@ -158,12 +158,12 @@ describe('patchFolderMyMembershipBody (7.4: { label, color }, either nullable)',
 
   test('strips unknown fields rather than refusing them (7.0)', () => {
     const result = patchFolderMyMembershipBody.safeParse({
-      label: 'ok',
+      shelf: 'ok',
       role: 'owner',
     })
     expect(result.success).toBe(true)
     if (result.success) {
-      expect(result.data).toEqual({ label: 'ok' })
+      expect(result.data).toEqual({ shelf: 'ok' })
     }
   })
 })
@@ -205,8 +205,12 @@ describe('folder (7.0: the shared Folder object)', () => {
     is_owner: true,
     member_count: 2,
     counts: { pending: 3, completed: 0 },
+    my_shelf: null,
+    /* One column under two keys for one release (issue #226); #247 drops
+       this one with `folder_members.label`. */
     my_label: null,
     my_color: null,
+    personal_labels: [],
     icon: null,
     color: null,
     cover_file_id: null,
@@ -218,7 +222,7 @@ describe('folder (7.0: the shared Folder object)', () => {
   test('accepts the shape with and without personal fields set', () => {
     expect(folder.safeParse(valid).success).toBe(true)
     expect(
-      folder.safeParse({ ...valid, my_label: 'Home', my_color: '#00aa00' })
+      folder.safeParse({ ...valid, my_shelf: 'Home', my_color: '#00aa00' })
         .success,
     ).toBe(true)
   })
@@ -270,8 +274,12 @@ describe('the 7.4 response shapes (settled at the P2 shape review)', () => {
     is_owner: true,
     member_count: 1,
     counts: { pending: 0, completed: 0 },
+    my_shelf: null,
+    /* One column under two keys for one release (issue #226); #247 drops
+       this one with `folder_members.label`. */
     my_label: null,
     my_color: null,
+    personal_labels: [],
     icon: null,
     color: null,
     cover_file_id: null,

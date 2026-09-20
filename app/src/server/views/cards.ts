@@ -36,10 +36,12 @@ eye (11.5).
 import { sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 
+import type { LabelRef, TaskLabels } from '../../shared/labels.js'
 import type { TaskCard } from '../../shared/tasks.js'
 import { LIST_ROW_CAP } from '../../shared/views.js'
 import { rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
+import { taskLabelsFor } from '../domain/labels.js'
 
 /* ------------------------------------------------------------------ *
  * Serialization
@@ -271,7 +273,10 @@ export function cardSource(viewerId: string): SQL {
     ) c ON true`
 }
 
-function cardFromRow(row: Record<string, unknown>): TaskCard {
+function cardFromRow(
+  row: Record<string, unknown>,
+  labels: TaskLabels,
+): TaskCard {
   return {
     id: String(row.id),
     title: String(row.title),
@@ -307,6 +312,7 @@ function cardFromRow(row: Record<string, unknown>): TaskCard {
             display_name: nullableString(row.creator_display_name),
             avatar_url: nullableString(row.creator_avatar_url),
           },
+    labels,
     created_at: toIso(row.created_at),
     updated_at: toIso(row.updated_at),
   }
@@ -335,8 +341,24 @@ export interface CardQuery {
   extra?: SQL
 }
 
-/** One statement, one shape: every list endpoint of 7.10 reads its rows
- * through here, so the projection cannot vary between them. */
+/**
+ * One statement, one shape: every list endpoint of 7.10 reads its rows
+ * through here, so the projection cannot vary between them.
+ *
+ * **Two statements since issue #226, and never more than two.** The Label
+ * projection cannot ride the card query: a Task carries many Labels of two
+ * kinds, so joining them in would multiply the rows the LIMIT above is
+ * counting, and the cap would then truncate a page by how many Labels its
+ * tasks happen to wear. So the ids the first statement produced are handed to
+ * `taskLabelsFor` in one batch and the projections are attached in memory.
+ *
+ * That is the seam #226 asks for by name — "avoid N+1 reads across list/view
+ * endpoints, extend the existing batch assembly so all Task lists remain
+ * bounded-query operations" — and it is here rather than in each of the eight
+ * section 6 queries because this is the one place all of them pass through.
+ * AC-474 drives a list endpoint with a recording executor and fails if the
+ * statement count moves with the row count.
+ */
 export async function readCards(
   executor: Executor,
   query: CardQuery,
@@ -350,8 +372,37 @@ export async function readCards(
         WHERE ${query.where}
         ORDER BY ${query.order}${limit}`,
   )
-  return found.map((row) => ({ card: cardFromRow(row), raw: row }))
+  const labels = await taskLabelsFor(
+    executor,
+    query.viewerId,
+    found.map((row) => String(row.id)),
+  )
+  return found.map((row) => ({
+    card: cardFromRow(row, labels.get(String(row.id)) ?? EMPTY_LABELS),
+    raw: row,
+  }))
 }
+
+/**
+ * The projection a row gets when the batch has nothing for it, which cannot
+ * happen — every id handed over comes back with an entry — and is spelled
+ * rather than asserted because a card with no `labels` key would fail the
+ * shared schema at the client rather than here.
+ *
+ * **Frozen, object and arrays, because one shared mutable default handed to
+ * every card that misses the batch is a defect waiting for the day the
+ * comment above stops being true.** The comment is the only thing keeping
+ * these arrays empty; a caller that pushed into a card's `labels.folder`
+ * would be writing into the default that every other missing row is about to
+ * be given. Freezing makes that a TypeError at the write rather than a label
+ * appearing on unrelated cards, which is the shape CLAUDE.md's opening note
+ * warns about — a confident comment describing intent rather than behaviour.
+ */
+const noLabels = (): LabelRef[] => Object.freeze([] as LabelRef[]) as LabelRef[]
+const EMPTY_LABELS: TaskLabels = Object.freeze({
+  personal: noLabels(),
+  folder: noLabels(),
+})
 
 /* ------------------------------------------------------------------ *
  * The caps

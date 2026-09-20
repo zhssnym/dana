@@ -72,6 +72,14 @@ export const TASK_CARD_KEYS = [
   'id',
   'important',
   'is_recurring',
+  /* Issue #226's Label projection, and this list has the same standing as
+     `ac-001`'s SECTION_4_TABLES: it is a transcription of frozen 7.0 and it
+     has moved **ahead of the ruling** that authorises the text it
+     transcribes, because `expectExactKeys` is exact in both directions and a
+     tree carrying the projection without this line cannot be green at all.
+     The ruling on issue #226 is the authoritative restatement; if it comes
+     back with a different key or a different shape, this line follows it. */
+  'labels',
   'pending_invite_email',
   'pulled',
   'section_block_id',
@@ -253,6 +261,53 @@ export function expectTaskCardShape(value: unknown, source: string): void {
   */
   expectPersonOrNull(card.created_by, `${source}.created_by`)
   expectUuidOrNull(card.section_block_id, `${source}.section_block_id`)
+
+  /*
+  Issue #226's Label projection. A shape judge, for the reason the two above
+  are one: which Labels a particular card should carry is a fact about the
+  fixtures, and the criteria that know the fixtures assert it — AC-470 for the
+  privacy of the two arrays, AC-471 for their order.
+
+  What is judged here is the promise the shape makes: both keys always
+  present, both arrays, and every element a LabelRef with exactly its six
+  keys. An endpoint that answered `labels: null` for an unlabelled task, or
+  that leaked a description into a dense row, would fail here rather than in
+  whichever criterion happened to look.
+  */
+  const labels = asRecord(card.labels, `${source}.labels`)
+  expectExactKeys(labels, ['folder', 'personal'], `${source}.labels`)
+  for (const bucket of ['personal', 'folder'] as const) {
+    const refs = labels[bucket]
+    expect(
+      Array.isArray(refs),
+      `${source}.labels.${bucket} must be an array (issue #226)`,
+    ).toBe(true)
+    for (const [index, ref] of (refs as unknown[]).entries()) {
+      const where = `${source}.labels.${bucket}[${String(index)}]`
+      const record = asRecord(ref, where)
+      expectExactKeys(
+        record,
+        ['archived', 'color', 'folder_id', 'id', 'name', 'scope'],
+        where,
+      )
+      expect(
+        ['personal', 'folder'],
+        `${where}.scope must be one of the two M1 scopes`,
+      ).toContain(record.scope)
+      expect(typeof record.name, `${where}.name must be a string`).toBe('string')
+      expect(typeof record.color, `${where}.color must be a string`).toBe('string')
+      expect(typeof record.archived, `${where}.archived must be a boolean`).toBe(
+        'boolean',
+      )
+      expectUuidOrNull(record.folder_id, `${where}.folder_id`)
+      // A Folder Label names its Folder and a Personal one names none, which
+      // is the ownership XOR of migration 0022 read off the wire.
+      expect(
+        record.folder_id === null,
+        `${where}: scope ${String(record.scope)} with folder_id ${JSON.stringify(record.folder_id)}; a folder label names its folder and a personal one names none`,
+      ).toBe(record.scope === 'personal')
+    }
+  }
 }
 
 export interface TaskDetailBody extends Record<string, unknown> {

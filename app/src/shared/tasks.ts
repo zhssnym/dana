@@ -34,6 +34,7 @@ wrapper question to the review that followed it.
 import { z } from 'zod'
 
 import { folderMemberUser, folderName } from './folders.js'
+import { taskLabels } from './labels.js'
 import { parseRecurrenceRule } from './recurrence.js'
 
 /*
@@ -955,6 +956,21 @@ export const taskCard = z.object({
   pending_invite_email: z.string().min(1).nullable(),
   section_block_id: z.uuid().nullable(),
   created_by: folderMemberUser.nullable(),
+  /*
+  The M1 Label projection (issue #226, parent #208): the viewer's own Personal
+  Labels applied to this Task, and the Task's Folder Labels, and never another
+  member's Personal ones.
+
+  It rides the card rather than the detail for `section_block_id`'s reason:
+  every list endpoint of 7.10 answers arrays of TaskCards, and a Label chip on
+  a row is the whole point of the feature, so a Label on the folder read has
+  to be a Label on TaskCard. Both arrays are always present and may be empty;
+  the shape and its order are `shared/labels.ts`'s.
+
+  Two members reading the same Task get the same `folder` array and different
+  `personal` arrays, which is the same per-viewer field `pulled` already is.
+  */
+  labels: taskLabels,
   created_at: z.iso.datetime(),
   updated_at: z.iso.datetime(),
 })

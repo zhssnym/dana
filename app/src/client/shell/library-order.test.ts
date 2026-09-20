@@ -33,7 +33,11 @@ function folderOf(id: string, name: string, label: string | null, isDefault = fa
     is_owner: true,
     member_count: 1,
     counts: { pending: 0, completed: 0 },
+    my_shelf: label,
+    /* Paired with `my_shelf` by issue #226's wire expand-and-contract: one
+       column under two keys for one release, dropped by #247. */
     my_label: label,
+    personal_labels: [],
     my_color: null,
     icon: null,
     color: null,
