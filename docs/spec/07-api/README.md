@@ -81,6 +81,15 @@ key, so AC-116 is untouched. Five criteria moved: AC-119 to AC-121 rewritten aga
 bundle, AC-122 and AC-123 retired, each with its reason in 12.3. The retirement ships in the
 same deploy as its client half (#150) and after it, which is what makes it safe.
 
+**Eighth, 7.25 is a new subsection added 2026-09-20 (issue #224), and it is also
+purely additive.** Task dependencies: one directed relation with three endpoints
+around it, and nothing folded into TaskCard or TaskDetail, whose keys this section
+does not touch. It is its own file rather than part of 7.6 because it has an
+authorization argument 7.6 does not — that a dependency read must be able to say
+"there is an edge here" while saying nothing whatever about the task at the other
+end of it, including the state that would otherwise be derived from that task's
+status.
+
 **Seventh, 7.24 is a new subsection added 2026-09-20 (issue #223), and it is purely
 additive.** It is the Dana Link foundation: a way to resolve a supported internal Dana
 URL into the small summary a reference chip draws, and a contextual search for the
@@ -119,3 +128,4 @@ holds, and 7.24 resolves it live.
 | 7.22 | [`07.22-data-export.md`](07.22-data-export.md) | 7.22 Data export |
 | 7.23 | [`07.23-settings-bundle.md`](07.23-settings-bundle.md) | 7.23 The settings bundle |
 | 7.24 | [`07.24-dana-link-references.md`](07.24-dana-link-references.md) | 7.24 Dana Link references |
+| 7.25 | [`07.25-task-dependencies.md`](07.25-task-dependencies.md) | 7.25 Task dependencies |
