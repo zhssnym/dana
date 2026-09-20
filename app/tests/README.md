@@ -6,11 +6,12 @@ files, and what governs the edit is `docs/workflow/hard-stops.md`. **A criterion
 changes only when the decision it pins changes, and the pull request names it.**
 Nobody edits one to make their code pass: an acceptance test that seems wrong is
 a finding you report and leave failing, which is `docs/workflow/workflow.md`'s
-rule 6. `docs/workflow/backend.md` records the **six** counts in this suite and
+rule 6. `docs/workflow/backend.md` records the **seven** counts in this suite and
 its neighbours that are fixtures over the shape of the server rather than
 behaviours, and the three conditions all of them must meet before one may move.
 (It said **two** until 2026-09-20; the other four were named by no document
-while carrying the same instruction beside themselves, issue #240.)
+while carrying the same instruction beside themselves, issue #240, and the
+seventh arrived the same day with issue #263.)
 
 *(The "Adversarial Test role" and the "protocol section 8" this paragraph used
 to name were deleted at the workflow restructure, `a7886df` on 2026-09-01, and

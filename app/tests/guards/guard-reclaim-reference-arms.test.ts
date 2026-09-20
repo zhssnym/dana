@@ -48,6 +48,34 @@ const DOMAIN_FILES = path.join(APP_ROOT, 'src', 'server', 'domain', 'files.ts')
  * Every foreign key into `files(id)` as of issue #263, and what a wrong sweep
  * costs on each. `ON DELETE CASCADE` is the expensive half: the referencing
  * row goes with the picture, so nothing is left to notice.
+ *
+ * **This list is one of the movable fixtures `docs/workflow/backend.md`
+ * enumerates, and it is the strictest of them.** Rule 3 — never edit a test to
+ * make your code pass — does not forbid moving it, because it describes the
+ * shape of the schema rather than a behaviour anybody asked Dana for. What it
+ * does forbid is moving it *first*. A migration that adds a sixth foreign key
+ * fails this file by design, and the order that is safe is:
+ *
+ * 1. add the matching `NOT EXISTS` arm to `fileIsUnreferenced()` in
+ *    `app/src/server/domain/files.ts`;
+ * 2. write the criterion that proves it, on the AC-700 to AC-704 pattern — a
+ *    picture held through the new column, aged past thirty days, spared with
+ *    its row and its object, beside an identically aged twin that nothing
+ *    holds and is taken;
+ * 3. watch the second test below pass on the new arm, so that only this list
+ *    is failing;
+ * 4. then add the row here.
+ *
+ * Doing step 4 on its own makes this file green and leaves the 11.7 tick
+ * deleting a picture somebody is looking at, thirty days later, with no
+ * request behind it. There is no down migration and the bytes are gone.
+ *
+ * **Worked example, the one this file was written from.** On 2026-09-20 the
+ * schema held exactly these five and `fileIsUnreferenced()` named all five, so
+ * both tests passed with nothing to move. Removing any one arm from that
+ * predicate left the first test green — the schema had not changed — and took
+ * the second red naming the column, which is the direction that matters: the
+ * guard reports the predicate falling behind the schema, never the reverse.
  */
 const KNOWN_ARMS: readonly { relation: string; column: string; onDelete: string }[] = [
   { relation: 'comment_files', column: 'file_id', onDelete: 'CASCADE — the attachment row goes too' },

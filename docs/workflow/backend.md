@@ -139,9 +139,9 @@ nobody did, take the next free one and say in your pull request that you took it
 unassigned.** A collision is trivial to fix before a merge and is a production incident
 after one.
 
-**Six counts in the suite are fixtures over the implementation, and moving them is not
+**Seven counts in the suite are fixtures over the implementation, and moving them is not
 breaking rule 3 (added 2026-09-04 from issues #116 and #128; corrected from two to six on
-2026-09-20, issue #240).** Rule 3 says never edit a test to make your code pass, and it is
+2026-09-20, issue #240, and to seven the same day by issue #263).** Rule 3 says never edit a test to make your code pass, and it is
 the right rule; these are the exception it needs stated, because otherwise the honest reading
 is to stop — and three of the six spent a month in exactly that position, named by no
 document, while a session that added a route and watched one go red had been told in effect
@@ -157,7 +157,7 @@ that it must not touch it.
 The third is the whole safeguard. If the sweep itself failed, the number is telling you
 something and moving it is precisely the thing rule 3 forbids.
 
-Six lines across four files meet all three today:
+Seven lines across five files meet all three today:
 
 | File | What it counts |
 | - | - |
@@ -167,11 +167,21 @@ Six lines across four files meet all three today:
 | `app/tests/criteria/ac-399-body-parsing-goes-through-parse-body.test.ts` | `parseBody` **call sites** |
 | `app/tests/criteria/ac-399-body-parsing-goes-through-parse-body.test.ts` | **modules** that read a request body |
 | `app/src/server/scheduler/interval.test.ts` | statements the 11.7 pass runs **after its delivery transaction** |
+| `app/tests/guards/guard-reclaim-reference-arms.test.ts` | **foreign keys into `files(id)`**, each an arm of the reclaim sweep (issue #263) |
 
-Two of them carry a further condition that is theirs alone. `ac-236`'s mutating count moves
+Three of them carry a further condition that is theirs alone. `ac-236`'s mutating count moves
 only once the sweep passed on your new route — 401 bare, 403 without CSRF. And
 `interval.test.ts`'s comment **enumerates which statements they are**: keep that enumeration
 in step or the next person cannot tell a legitimate move from a lost duty.
+
+**The seventh is the strictest, and it is the one a migration will hit.** A new foreign key
+into `files(id)` fails `guard-reclaim-reference-arms` by design, and the list moves only
+after `fileIsUnreferenced()` in `app/src/server/domain/files.ts` has grown the matching
+`NOT EXISTS` **and** a criterion on the AC-700 to AC-704 pattern proves that a picture held
+through the new column survives the 11.7 pass past thirty days. Moving the list first makes
+the guard green and leaves the sweep deleting a picture somebody is looking at, thirty days
+later, with no request to point at and — for the two keys that cascade — no row left saying
+the reference existed. That is a data-loss fix-forward, not a red to clear.
 
 **When two branches both move one of these, the resolution is the sum and it is neither
 side.** This is not arithmetic you do on two diffs — run the sweep on the merged tree and
