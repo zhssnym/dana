@@ -250,12 +250,17 @@ export interface ConceptComment {
   **The second widening this file makes, added at S26 and a named seam.**
 
   The lab has no permission system, so the prototype offers Edit and Delete
-  on `mine` alone. 4.15 gives a comment's deletion to its author **or** the
-  folder's owner, and `domain/comments.ts` resolves exactly those two. This
-  carries that answer per comment rather than per thread, so that the card
-  mount and the folder page cannot disagree about the same comment, which is
-  what ledger L-201 asks of one surface drawn twice. Absent falls back to
-  `mine`, so a surface that has no role in hand behaves as the lab does.
+  on `mine` alone. 7.14 gives a comment's deletion to its author **or** to a
+  member who may moderate the folder, and `routes/conversation.ts` resolves
+  exactly those two. This carries that answer per comment rather than per
+  thread, so that the card mount and the folder page cannot disagree about the
+  same comment, which is what ledger L-201 asks of one surface drawn twice.
+  Absent falls back to `mine`, so a surface that has no standing in hand
+  behaves as the lab does.
+
+  **The second half read "the folder's owner" until 2026-09-20 (issue #268)**,
+  which had been false since #228's R8A landed: moderation is
+  `comment.moderate`, Full control's, and ownership is custody (AC-790).
   */
   deletable?: boolean
   replies?: ConceptComment[]

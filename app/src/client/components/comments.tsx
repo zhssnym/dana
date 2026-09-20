@@ -36,13 +36,20 @@ say about a file somebody else attached; the read now carries 4.16's columns
 name and the meta line from them, and the composer offers any file 10.3
 admits. The picture-only branch below stays for a file that arrives nameless.
 
-**Five. A folder's owner deletes, which is 4.15 and not the prototype.** The
-lab has no permission system, so it offers Edit and Delete on `mine` alone;
-4.15 gives a comment's deletion to its author **or** the folder's owner, and
-`domain/comments.ts` resolves exactly those two. The answer rides the comment itself
-rather than the thread, so the card mount and the folder page cannot disagree,
-which is what L-201 asks of one surface drawn twice. Editing stays the author's,
-which the prototype and 4.15 agree on.
+**Five. Somebody other than the author deletes, which is 7.14 and not the
+prototype.** The lab has no permission system, so it offers Edit and Delete on
+`mine` alone; 7.14 gives a comment's deletion to its author **or** to a member
+who may moderate the folder, and `routes/conversation.ts` resolves exactly
+those two. The answer rides the comment itself rather than the thread, so the
+card mount and the folder page cannot disagree, which is what L-201 asks of one
+surface drawn twice. Editing stays the author's, which the prototype and 7.14
+agree on.
+
+**The second half was "the folder's owner" until 2026-09-20 (issue #268)**, and
+had been false since #228's R8A landed: moderating another member's words is
+`comment.moderate`, which is Full control's, and ownership is custody. Nothing
+in this file moved — it draws whatever `deletable` says — and the correction is
+in `lib/thread.ts` and in the two surfaces that feed it (AC-790).
 */
 /*
 One conversation surface, wherever a conversation happens.
@@ -1005,11 +1012,11 @@ function CommentRow({
                   }}
                 />
               ) : null}
-              {/* Seam five: 4.15 gives a deletion to the author or the
-                  folder's owner, and the lab has neither concept. The answer
-                  rides the comment rather than the thread, so that the card's
-                  mount and the folder page's cannot disagree, which is what
-                  L-201 asks of one surface drawn twice. */}
+              {/* Seam five: 7.14 gives a deletion to the author or to a
+                  member who may moderate, and the lab has neither concept. The
+                  answer rides the comment rather than the thread, so that the
+                  card's mount and the folder page's cannot disagree, which is
+                  what L-201 asks of one surface drawn twice. */}
               {(comment.deletable ?? comment.mine) ? (
                 <IconAction dense icon={Trash2} label="Delete comment" tone="danger" onClick={onDelete} />
               ) : null}

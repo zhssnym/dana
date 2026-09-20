@@ -31,6 +31,7 @@ import {
 } from '../api/mutations.js'
 import { useConnections, useFolders, useMe, useTask, useThread } from '../api/queries.js'
 import { uploadFile } from '../api/http.js'
+import { folderGates } from '../lib/folder-authority.js'
 import { applyThreadChange, commentFileKind, threadAttachments, toConceptComments } from '../lib/thread.js'
 import { useTimeFormat } from '../lib/time-format.js'
 import { presenterToday } from '../parts/presenters.js'
@@ -150,6 +151,20 @@ export function useTaskEditing(editing: string | null): TaskEditing {
     return people
   }, [connections.data, me.data?.user])
 
+  /* The thread's own folder row, which `GET /folders` already answered for
+     every page in this client, read through the same gate the sidebar's
+     folder row and the folder page use. `false` while the library is loading
+     or the folder is not in it, which leaves Delete on authorship alone. */
+  const threadFolder = folders.data?.find((row) => row.id === threadFolderId)
+  const moderates =
+    threadFolder === undefined
+      ? false
+      : folderGates({
+          access: threadFolder.my_access,
+          isOwner: threadFolder.is_owner,
+          isDefault: threadFolder.is_default,
+        }).moderate
+
   const conversation = useMemo(
     () =>
       toConceptComments(
@@ -157,10 +172,21 @@ export function useTaskEditing(editing: string | null): TaskEditing {
         me.data?.user.id ?? null,
         (authorId) => authorPeople.get(authorId) ?? { name: 'Someone' },
         Date.now(),
-        /* 4.15's other half, off the library row every page already holds. */
-        folders.data?.find((row) => row.id === threadFolderId)?.is_owner ?? false,
+        /*
+        The other half of who may delete: whether this viewer moderates the
+        folder the thread belongs to.
+
+        **It read `is_owner` off the same library row until 2026-09-20 (issue
+        #268)**, and that had been false since #228's R8A landed — moderation
+        is `comment.moderate`, which is Full control's, and custody neither
+        confers nor implies it. `my_access` rides the same row (Hassan's
+        Ruling 4 of 2026-09-20), so the correct gate costs the same lookup and
+        goes through `lib/folder-authority.ts`, the table the route itself
+        resolves against, rather than through a second ladder here (AC-790).
+        */
+        moderates,
       ),
-    [thread.data?.comments, me.data?.user.id, authorPeople, folders.data, threadFolderId],
+    [thread.data?.comments, me.data?.user.id, authorPeople, moderates],
   )
 
   const rows = folders.data

@@ -173,6 +173,22 @@ export interface FolderGates {
   /** Changing somebody else's Access: administering Access, R8A's other half
    * of the same sentence (AC-512). */
   readonly administerAccess: boolean
+  /**
+   * Removing **somebody else's** comment.
+   *
+   * #228's Full-control list makes moderating another member's words member
+   * administration, and `DELETE /comments/:id` has resolved it that way since
+   * R8A landed. This member of the interface is the half that did not move:
+   * both conversation surfaces went on offering Delete on `is_owner`, so a
+   * Full-control administrator who owns nothing was offered nothing and a
+   * demoted owner was offered a control the route answers 403 (AC-790).
+   *
+   * **It is not the whole of what a surface draws.** A comment's own author
+   * deletes their own words under `comment.mutate.own`, which is authorship
+   * and therefore per comment rather than per folder; `lib/thread.ts` is
+   * where the two are added together, one comment at a time.
+   */
+  readonly moderate: boolean
 }
 
 export function folderGates(facts: FolderViewerFacts): FolderGates {
@@ -194,6 +210,7 @@ export function folderGates(facts: FolderViewerFacts): FolderGates {
       mayDraw(facts, 'folder.ownership.transfer') && !facts.isDefault,
     addMember: mayDraw(facts, 'member.add'),
     administerAccess: mayDraw(facts, 'member.access.change'),
+    moderate: mayDraw(facts, 'comment.moderate'),
   }
 }
 

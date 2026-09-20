@@ -775,7 +775,10 @@ export function usePatchComment(): UseMutationResult<
   })
 }
 
-/** Author or folder owner (7.14); the menu offers it to exactly them. */
+/** The author, or a member who may moderate — `comment.moderate`, which is
+ * Full control's rather than custody's (7.14 as amended 2026-09-20, issue
+ * #228). The menu offers it to exactly them, through
+ * `folderGates(...).moderate` and `lib/thread.ts` (AC-790). */
 export function useDeleteComment(): UseMutationResult<void, Error, string> {
   return useMutation({
     mutationFn: (id: string) =>

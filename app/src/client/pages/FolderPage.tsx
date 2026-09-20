@@ -944,11 +944,17 @@ export function FolderPage({
     (authorId: string) => authorPeople.get(authorId) ?? { name: 'Someone' },
     [authorPeople],
   )
+  /* Who may remove somebody else's words here. It read `isOwner` until
+     2026-09-20 (issue #268), which had been false since R8A landed:
+     `DELETE /comments/:id` resolves moderation as `comment.moderate`, which is
+     Full control's, so a Full-control administrator who owns nothing was
+     offered no Delete and a demoted owner was offered one the route refuses
+     403. Same table, same call as every other gate on this page (AC-790). */
   const conversation = useConceptThread(
     thread.data?.comments,
     basis.viewerId,
     personOf,
-    isOwner,
+    gates?.moderate === true,
   )
 
   /*
