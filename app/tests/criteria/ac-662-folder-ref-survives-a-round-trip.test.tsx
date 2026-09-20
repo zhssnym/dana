@@ -48,12 +48,12 @@ import { duplicateFolder } from '../../src/server/domain/acts.js'
 import { exportForViewer } from '../../src/server/domain/export.js'
 import type { ObjectStore } from '../../src/server/files/store.js'
 import type { Db, DbClient } from '../../db/client.js'
-import type { CanvasApiSpy, CanvasSurfaceSpy } from '../support/folder-ref-canvas-harness.js'
-import { editAndSave, mountCanvas, settled, typeInto } from '../support/folder-ref-canvas-harness.js'
+import type { CanvasApiSpy, CanvasSurfaceSpy } from '../support/folder-canvas-harness.js'
+import { editAndSave, mountCanvas, settled, typeInto } from '../support/folder-canvas-harness.js'
 import { cleanupUsers, createTestDb, rows } from '../support/helpers.js'
 
 const surface = vi.hoisted((): CanvasSurfaceSpy => ({ props: null }))
-const api = vi.hoisted((): CanvasApiSpy => ({ sent: [], page: { blocks: [], items: [] } }))
+const api = vi.hoisted((): CanvasApiSpy => ({ sent: [], page: { blocks: [], items: [] }, revision: 1 }))
 const route = vi.hoisted((): { send: ((body: DocumentTransaction) => Promise<PageView>) | null; refusals: string[] } => ({ send: null, refusals: [] }))
 
 vi.mock('../../src/client/components/page/canvas/CanvasSurface.js', () => ({

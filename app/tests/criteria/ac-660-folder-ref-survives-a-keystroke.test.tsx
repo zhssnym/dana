@@ -44,12 +44,12 @@ import type { DocumentOperation, PageView } from '../../src/shared/pages.js'
 import type { DocumentTransaction } from '../../src/shared/page-document.js'
 import { actOnFolderPage, pageView } from '../../src/server/domain/pages.js'
 import type { Db, DbClient } from '../../db/client.js'
-import type { CanvasApiSpy, CanvasSurfaceSpy } from '../support/folder-ref-canvas-harness.js'
-import { editAndSave, mountCanvas, settled, typeInto } from '../support/folder-ref-canvas-harness.js'
+import type { CanvasApiSpy, CanvasSurfaceSpy } from '../support/folder-canvas-harness.js'
+import { editAndSave, mountCanvas, settled, typeInto } from '../support/folder-canvas-harness.js'
 import { cleanupUsers, createTestDb, rows } from '../support/helpers.js'
 
 const surface = vi.hoisted((): CanvasSurfaceSpy => ({ props: null }))
-const api = vi.hoisted((): CanvasApiSpy => ({ sent: [], page: { blocks: [], items: [] } }))
+const api = vi.hoisted((): CanvasApiSpy => ({ sent: [], page: { blocks: [], items: [] }, revision: 1 }))
 /* The one mutable seam: each case points this at its own folder before it
    mounts, because the mock factory is hoisted above every `let` in the file. */
 const route = vi.hoisted((): { send: ((body: DocumentTransaction) => Promise<PageView>) | null; refusals: string[] } => ({ send: null, refusals: [] }))

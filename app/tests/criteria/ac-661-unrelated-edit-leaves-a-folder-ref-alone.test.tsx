@@ -30,11 +30,11 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { documentTransaction } from '../../src/shared/page-document.js'
 import type { DocumentTransaction } from '../../src/shared/page-document.js'
 import type { PageView } from '../../src/shared/pages.js'
-import type { CanvasApiSpy, CanvasSurfaceSpy } from '../support/folder-ref-canvas-harness.js'
-import { editAndSave, mountCanvas, pageBlock, typeInto } from '../support/folder-ref-canvas-harness.js'
+import type { CanvasApiSpy, CanvasSurfaceSpy } from '../support/folder-canvas-harness.js'
+import { editAndSave, mountCanvas, pageBlock, typeInto } from '../support/folder-canvas-harness.js'
 
 const surface = vi.hoisted((): CanvasSurfaceSpy => ({ props: null }))
-const api = vi.hoisted((): CanvasApiSpy => ({ sent: [], page: { blocks: [], items: [] } }))
+const api = vi.hoisted((): CanvasApiSpy => ({ sent: [], page: { blocks: [], items: [] }, revision: 1 }))
 
 vi.mock('../../src/client/components/page/canvas/CanvasSurface.js', () => ({
   CanvasSurface: (props: NonNullable<CanvasSurfaceSpy['props']>) => { surface.props = props; return null },
