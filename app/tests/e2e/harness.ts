@@ -2193,7 +2193,7 @@ export async function createShelf(page: Page, name: string): Promise<{ id: strin
 /**
  * A folder put on a shelf, or taken off every shelf with null.
  *
- * A shelf's membership is frozen 7.4's `folder_members.label`, held in step
+ * A shelf's membership is frozen 7.4's `folder_members.shelf_name`, held in step
  * with the shelf's own name by 4.18, so putting a folder on a shelf is
  * writing that shelf's name onto the viewer's membership. This is what the
  * row's "Move to shelf" commits, and a fixture uses the address rather than
@@ -2206,7 +2206,7 @@ export async function labelFolder(
 ): Promise<void> {
   const token = await csrfToken(page.context())
   const response = await page.request.patch(`/api/v1/folders/${id}/my-membership`, {
-    data: { label },
+    data: { shelf: label },
     headers: { 'X-CSRF-Token': token },
   })
   expect(

@@ -359,9 +359,36 @@ default, so read this list before spending one.
   **Whoever merges last re-derives the total** rather than taking either side of the
   conflict: it is arithmetic over the files, not a preference between two diffs.
 
-The subsection numbers obey the same rule. 12.1 to 12.23 are addresses rather than an
+The subsection numbers obey the same rule. 12.1 to 12.24 are addresses rather than an
 ordering: a group that dies becomes a tombstone row in the table below, and a new topic takes
-12.24.
+the next free number after them.
+
+**12.24 is the first new group since the section was written**, taken on 2026-09-20 by issue
+#226 for the M1 Label model of #208. It took the number the sentence above named, which is
+what that sentence is for.
+
+- **AC-470 to AC-480 were taken from the tail on 2026-09-20** (issue #226), eleven numbers,
+  on the rule the AC-361 to AC-365 bullet below states and for exactly the reason it gives:
+  several branches were open at once that day and a gap is the one place two of them
+  silently collide. **423 to 428 and 440 to 447 were spent by sibling branches the same
+  day, and 450 upward and 460 upward were assigned to branches still open**, so this branch
+  was assigned 470 upward rather than taking the next number the list named. The numbers
+  between — 429 to 439, 448, 449, and whatever the 450 and 460 ranges do not use — are
+  **deliberately not added to the free list above**, on the AC-412 bullet's rule: listing a
+  number free that a branch open at this moment has just spent is the collision the rule
+  exists to prevent, and whoever merges last is the one who can see which of them are
+  really free.
+
+  **No total moves with this bullet**, on the AC-410 and AC-411 precedent, and the
+  count at the top of this file is therefore stale by eleven until the merge that comes
+  last re-derives it over the files. 12.24's own row in the table below is exact, this being
+  a new file that no other branch is writing into.
+
+  The eleven are the backend half of #208 and nothing else: definitions, scope, privacy,
+  assignments, archive, caps, projections and the Shelf rename. The Labels filter axis, the
+  picker and the Manage Labels surface are #228's and are not numbered here, and the
+  lifecycle integrations — move, duplicate, workflow files, export, Trash and purge — are
+  #227's.
 
 ## The files
 
@@ -390,3 +417,4 @@ ordering: a group that dies becomes a tombstone row in the table below, and a ne
 | 12.21 | [`12.21-transactional-email.md`](12.21-transactional-email.md) | 12.21 Transactional email, 6 criteria |
 | 12.22 | [`12.22-the-public-surface.md`](12.22-the-public-surface.md) | 12.22 The public surface: landing, legal, install, offline, 7 criteria |
 | 12.23 | [`12.23-security-limits-and-rate-limits.md`](12.23-security-limits-and-rate-limits.md) | 12.23 Security, limits and rate limits, 21 criteria |
+| 12.24 | [`12.24-labels.md`](12.24-labels.md) | 12.24 Labels, 11 criteria |

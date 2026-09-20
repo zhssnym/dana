@@ -62,7 +62,24 @@ table to section 4 is posted on #224 and written into the section. The
 migration, `db/constraint-catalog.ts` and this line restate one contract three
 times by design; the ruling is the fourth restatement and the authoritative
 one. If it goes the other way, all four come out together.
+
+The same shape, a second time and for a second issue, is below.
 */
+//
+// **This list has moved ahead of the frozen section, and that is a process
+// seam rather than a licence.** Section 4 is frozen and changes only by a
+// person's ruling on the issue (hard stop 2). Migration 0022 adds four tables
+// for the M1 Label model of issue #226, and this transcription is what every
+// other assertion in the file enumerates against, so a tree carrying the
+// migration and not this line cannot be green at all — the ordering forces
+// the transcription to be written before the ruling that authorises the text
+// it transcribes. The four names below (`folder_personal_labels`, `labels`,
+// `task_folder_labels`, `task_personal_labels`) are therefore **provisional
+// until the ruling lands on issue #226**, and the ruling, not this list, is
+// the authoritative restatement of what section 4 now says. If the ruling
+// comes back with different table names or a different physical shape, this
+// list and `db/constraint-catalog.ts` follow it rather than the other way
+// round. The ordering problem itself is filed as a documentation issue.
 const SECTION_4_TABLES = [
   'comment_files',
   'comment_likes',
@@ -71,8 +88,10 @@ const SECTION_4_TABLES = [
   'events',
   'files',
   'folder_members',
+  'folder_personal_labels',
   'folders',
   'invites',
+  'labels',
   'my_day_entries',
   'notifications',
   'page_blocks',
@@ -82,6 +101,8 @@ const SECTION_4_TABLES = [
   'shelves',
   'steps',
   'task_dependencies',
+  'task_folder_labels',
+  'task_personal_labels',
   'tasks',
   'user_page_covers',
   'user_page_descriptions',

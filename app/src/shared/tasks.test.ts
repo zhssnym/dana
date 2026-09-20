@@ -37,6 +37,12 @@ const TASK_CARD_KEYS = [
   'pending_invite_email',
   'section_block_id',
   'created_by',
+  /* Issue #226's Label projection. This list is a transcription of frozen 7.0
+     and it has moved ahead of the ruling for `ac-001`'s reason: the
+     assertions over it are exact in both directions, so a tree carrying the
+     projection and not this line cannot be green. The ruling on #226 is the
+     authoritative restatement. */
+  'labels',
   'created_at',
   'updated_at',
 ]
@@ -963,6 +969,7 @@ describe('the 7.0 response shapes', () => {
     pending_invite_email: null,
     section_block_id: null,
     created_by: { id: someUuid, display_name: 'Sara', avatar_url: null },
+    labels: { personal: [], folder: [] },
     created_at: '2026-08-01T10:00:00.000Z',
     updated_at: '2026-08-01T10:00:00.000Z',
   }

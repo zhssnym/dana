@@ -1,7 +1,8 @@
 /*
 The 7.16 shelf contract (RFC 0005, 4.18): a shelf is a stable id wearing a
-changeable name. Membership of a shelf stays folder_members.label, frozen
-since 4.4; these shapes carry only what the shelves table owns.
+changeable name. Membership of a shelf stays folder_members.shelf_name, frozen
+since 4.4 as `label`, which issue #226 added this column beside rather than
+renaming, `label` staying until #247 contracts the pair; these shapes carry only what the shelves table owns.
 
 The message convention is `folders.ts`'s, and #39 brought this file into it
 after measuring what the old messages actually put on the wire. A per-field
@@ -27,9 +28,11 @@ import { hexColor } from './folders.js'
 
 /*
 7.16's name bound, kept as its own primitive rather than folded into
-`folders.ts`'s `personalLabel`, which happens to share the 1-to-40 range: a
-shelf's name (4.18) and a member's private label for a folder (4.4) are two
-contract facts, and one moving should not drag the other.
+`folders.ts`'s `shelfName`, which happens to share the 1-to-40 range: a
+shelf's name (4.18) and a member's own Shelf membership on a folder (4.4) are
+two contract facts, and one moving should not drag the other. That one was
+called `personalLabel` until issue #226 renamed it; the two now read as near
+neighbours, which they are, and they are still separate for the reason above.
 
 The colour is **not** its own primitive, and that is the #39 fix. It was a
 second copy of `folders.ts`'s `hexColor` regex, already diverged in its

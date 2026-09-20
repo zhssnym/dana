@@ -1,7 +1,7 @@
 /*
 The S5 shelf module (4.18, 7.16): a per-user container whose membership
-remains folder_members.label, unchanged and frozen, and whose page needs a
-stable key a rename cannot move. The API holds label and shelf name in step
+remains folder_members.shelf_name, unchanged and frozen, and whose page needs a
+stable key a rename cannot move. The API holds membership and shelf name in step
 in one transaction, both directions: a rename rewrites the viewer's matching
 labels, a delete clears them, and the id never changes. Shelves are private
 by construction (DES-195/196), so every read below is scoped to the viewer
@@ -72,21 +72,21 @@ export async function shelfView(
 }
 
 /**
- * The shelf a label names, made if it is not there already (issue #65).
+ * The shelf a membership names, made if it is not there already (issue #65).
  *
- * 4.18's sentence is that the API "holds label and shelf name in step in one
- * transaction", and until this function existed it held them in step in two
- * directions out of three: a rename rewrote the matching labels, a delete
- * cleared them, and a label written through frozen 7.4 named whatever string
- * it liked. The third direction is the reported defect. 9.1 draws the Library
+ * 4.18's sentence is that the API "holds membership and shelf name in step in
+ * one transaction", and until this function existed it held them in step in
+ * two directions out of three: a rename rewrote the matching memberships, a
+ * delete cleared them, and a membership written through frozen 7.4 named
+ * whatever string it liked. The third direction is the reported defect. 9.1 draws the Library
  * as "the viewer's shelves and folders as one ordered list" and its roles
- * table makes every shelf row a link, so a group heading whose label no
+ * table makes every shelf row a link, so a group heading whose membership no
  * shelves row names has no id to link to and no page to open; the client
  * draws it as plain text and the shelf, in the person's words, "stays only as
  * a sidebar group".
  *
- * Called inside the caller's transaction, so a folder that took a label and
- * the shelf that label names commit together or not at all.
+ * Called inside the caller's transaction, so a folder that took a membership
+ * and the shelf that membership names commit together or not at all.
  *
  * ON CONFLICT DO NOTHING rather than a SELECT and then an INSERT: two
  * requests filing two folders onto one new shelf race, and 4.18's UNIQUE
@@ -105,7 +105,7 @@ export async function shelfView(
  * a rule for ("nothing recorded yet means nothing to say", DES-144).
  *
  * The lengths agree by contract and nothing here has to check: 10.3 gives the
- * personal label and the shelf name the same 1 to 40 bound, and
+ * Shelf membership and the shelf name the same 1 to 40 bound, and
  * `shared/folders.ts` has already refused anything outside it with a 422
  * before this runs.
  */
@@ -311,12 +311,18 @@ export async function patchShelf(
               WHERE id = ${shelfId}::uuid`,
         )
       }
-      // 4.18: label and shelf name held in step, one transaction. The labels
-      // are the viewer's own; nobody else's arrangement moves.
+      // 4.18: membership and shelf name held in step, one transaction. The
+      // memberships are the viewer's own; nobody else's arrangement moves.
+      //
+      // Both columns are written and the predicate reads the new one, which
+      // is migration 0022's expand half: `label` is still there so that the
+      // instance Render has not drained yet sees current data, and issue #247
+      // drops it along with the second assignment here.
       if (renaming) {
         await tx.execute(
-          sql`UPDATE folder_members SET label = ${patch.name}
-              WHERE user_id = ${viewerId} AND label = ${oldName}`,
+          sql`UPDATE folder_members
+                 SET shelf_name = ${patch.name}, label = ${patch.name}
+              WHERE user_id = ${viewerId} AND shelf_name = ${oldName}`,
         )
       }
       if (sets.length > 0) {
@@ -348,7 +354,7 @@ export async function patchShelf(
 }
 
 /** The folders survive their shelf (4.18): only the shelf row, its page
- * (the 4.17 cascade), and the viewer's matching labels go. */
+ * (the 4.17 cascade), and the viewer's matching memberships go. */
 export async function deleteShelf(
   db: Db,
   viewerId: string,
@@ -364,8 +370,8 @@ export async function deleteShelf(
     const row = removed[0]
     if (row === undefined) return 'not_found' as const
     await tx.execute(
-      sql`UPDATE folder_members SET label = NULL
-          WHERE user_id = ${viewerId} AND label = ${String(row.name)}`,
+      sql`UPDATE folder_members SET shelf_name = NULL, label = NULL
+          WHERE user_id = ${viewerId} AND shelf_name = ${String(row.name)}`,
     )
     await recordEvent(tx, {
       actorId: viewerId,

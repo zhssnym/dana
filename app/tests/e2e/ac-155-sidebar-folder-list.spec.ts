@@ -132,7 +132,7 @@ test.describe('AC-155: the sidebar folder list', () => {
     const token = await csrfToken(page.context())
     const labelled = await page.request.patch(
       `/api/v1/folders/${labeled.id}/my-membership`,
-      { data: { label: LABEL, color: '#4477CC' }, headers: { 'X-CSRF-Token': token } },
+      { data: { shelf: LABEL, color: '#4477CC' }, headers: { 'X-CSRF-Token': token } },
     )
     expect(
       labelled.status(),

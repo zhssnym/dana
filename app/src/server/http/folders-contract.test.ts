@@ -149,8 +149,13 @@ const FOLDER_KEYS = [
   'is_owner',
   'member_count',
   'my_color',
-  'my_label',
+  'my_shelf',
   'name',
+  /* Issue #226: `my_label` became `my_shelf` — the same column carrying the
+     same Shelf membership, renamed so that #208's Label model could have the
+     word — and `personal_labels` is the Label projection arriving beside it,
+     the viewer's own Personal Labels on this folder. */
+  'personal_labels',
 ]
 
 /** 7.4's member element, and inside it 7.0's person shape as the review
@@ -300,13 +305,13 @@ describe('the 7.4 shapes against the mounted application', () => {
     const labeled = await api(
       owner,
       `/folders/${folderId}/my-membership`,
-      jsonInit('PATCH', { label: 'Contract', color: '#0044AA' }),
+      jsonInit('PATCH', { shelf: 'Contract', color: '#0044AA' }),
     )
     expect(labeled.status).toBe(200)
     const labeledParsed = folder.safeParse(labeled.json())
     expect(labeledParsed.success).toBe(true)
     if (labeledParsed.success) {
-      expect(labeledParsed.data.my_label).toBe('Contract')
+      expect(labeledParsed.data.my_shelf).toBe('Contract')
       expect(labeledParsed.data.my_color).toBe('#0044AA')
     }
   })

@@ -228,6 +228,41 @@ export async function makeShelf(owner: Actor, name: string): Promise<string> {
   return idOf(made, 'the created shelf')
 }
 
+/**
+ * A Personal Label (issue #226, parent #208): one account's private
+ * classification vocabulary, which nobody else can read or write.
+ */
+export async function makePersonalLabel(
+  owner: Actor,
+  name: string,
+): Promise<string> {
+  const made = await owner.browser.json('/labels/personal', 'POST', {
+    name,
+    color: '#336699',
+  })
+  expectStatus(made, 201, 'POST /labels/personal must create the label (issue #226)')
+  return idOf(made, 'the created personal label')
+}
+
+/** A Folder Label: shared vocabulary belonging to one Folder, which every
+ * current member of that Folder may manage until #209 says otherwise. */
+export async function makeFolderLabel(
+  owner: Actor,
+  folderId: string,
+  name: string,
+): Promise<string> {
+  const made = await owner.browser.json(`/folders/${folderId}/labels`, 'POST', {
+    name,
+    color: '#993366',
+  })
+  expectStatus(
+    made,
+    201,
+    'POST /folders/:folderId/labels must create the label (issue #226)',
+  )
+  return idOf(made, 'the created folder label')
+}
+
 /** A saved view, one person's own by construction (RFC 0005). */
 export async function makeSavedView(
   owner: Actor,

@@ -168,8 +168,9 @@ const INVITE_KEYS = [
   'task_id',
 ]
 
-/** The twelve keys of the 7.0 Folder object, folders-contract.test.ts's
- * list; the 4.3 identity four joined with RFC 0005. */
+/** The keys of the 7.0 Folder object, folders-contract.test.ts's list; the
+ * 4.3 identity four joined with RFC 0005, and `my_shelf` (renamed from
+ * `my_label`) plus `personal_labels` with issue #226. */
 const FOLDER_KEYS = [
   'color',
   'counts',
@@ -183,8 +184,9 @@ const FOLDER_KEYS = [
   'is_owner',
   'member_count',
   'my_color',
-  'my_label',
+  'my_shelf',
   'name',
+  'personal_labels',
 ]
 
 /** 7.4's member element and 7.0's person shape inside it, no email. */

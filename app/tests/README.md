@@ -98,6 +98,13 @@ carrying 232 cases and 6 browser specs carrying 20**. The colocated unit tests
 under `app/src/**` were deliberately left whole: they are not criteria, they
 are cheap, and they were not what made the gate slow.
 
+**47 to 50 the same day, for issue #226's Label model** (AC-470 to AC-480, spec
+12.24), and the direction is worth noting rather than the number: the cut was a
+ruling about coverage of work that already existed, not a rule that new work
+arrives without criteria. A feature landing after it still owes the criteria
+that pin its decisions, and #226's land in three files rather than eleven
+because several of its eleven numbers are clauses of one behaviour.
+
 **Section 12 was not cut with them.** Every criterion it states is still the
 specification of Dana's behaviour; most of them simply have no executable form
 in this directory any more. A criterion number that resolves to no file here is

@@ -136,7 +136,9 @@ function jsonInit(method: string, body: unknown): RawRequestOptions {
  * ------------------------------------------------------------------ */
 
 /* RFC 0005 unit 12a replaces 7.0's TaskCard line, so section_block_id and
- * created_by are transcribed from that unit and left the detail's extras. */
+ * created_by are transcribed from that unit and left the detail's extras.
+ * `labels` is issue #226's, transcribed ahead of its ruling for the reason
+ * `ac-001`'s SECTION_4_TABLES carries beside itself. */
 const TASK_CARD_KEYS = [
   'assignee',
   'created_at',
@@ -147,6 +149,7 @@ const TASK_CARD_KEYS = [
   'id',
   'important',
   'is_recurring',
+  'labels',
   'pending_invite_email',
   'pulled',
   'section_block_id',
@@ -192,7 +195,7 @@ function expectTaskDetailExact(body: unknown, where: string): Record<string, unk
   const record = body as Record<string, unknown>
   expect(
     Object.keys(record).sort(),
-    `${where} must carry exactly the 24 keys 7.0 gives TaskDetail, as unit 12a leaves them`,
+    `${where} must carry exactly the 25 keys 7.0 gives TaskDetail, as unit 12a leaves them`,
   ).toEqual(TASK_DETAIL_KEYS)
   expect(
     Object.keys(record.folder as Record<string, unknown>).sort(),

@@ -62,6 +62,7 @@ import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
 import { accessOf } from './folders.js'
+import { dropFolderLabelsOnMove, taskLabelsOf } from './labels.js'
 import { positionAtSectionEnd, seededItems } from './page-order.js'
 
 /* ------------------------------------------------------------------ *
@@ -350,6 +351,12 @@ export async function taskView(
             display_name: nullableString(row.creator_display_name),
             avatar_url: nullableString(row.creator_avatar_url),
           },
+    /* The M1 Label projection (issue #226). Read through the same batch
+       function `readCards` uses, with a list of one, rather than by a second
+       query of its own: two producers of this object already exist and a third
+       reader of the Label tables that could scope itself differently would be
+       one too many. */
+    labels: await taskLabelsOf(executor, viewerId, taskId),
     created_at: toIso(row.created_at),
     updated_at: toIso(row.updated_at),
     notes: nullableString(row.notes),
@@ -1071,6 +1078,17 @@ export async function patchTask(
         // deferred to the commit because neither UPDATE can satisfy it
         // while the other has not run (migration 0007).
         await tx.execute(sql`SET CONSTRAINTS comments_task_scope_fkey DEFERRED`)
+        /* The Folder Labels go, and they go rather than moving because they
+           belong to the folder the task is leaving (issue #226, #208 R6A:
+           "Personal Labels remain, source Folder Labels are removed, no
+           destination name matching"). It is a DELETE before the UPDATE
+           rather than a deferred pair like the comments above, because there
+           is no destination row to point them at: migration 0022's
+           task_scope_fkey would refuse them either way, and deferring would
+           only move the refusal to the commit. The viewer's Personal
+           assignments are untouched, which is the same sentence read the
+           other way: they were never the folder's. */
+        await dropFolderLabelsOnMove(tx, taskId)
       }
       await tx.execute(
         sql`UPDATE tasks SET ${sql.join(sets, sql`, `)}

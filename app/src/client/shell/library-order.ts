@@ -22,7 +22,7 @@ opposite directions until they are written out:
 **The store is a flat sequence of folder ids, and that is a decision worth the
 paragraph.** `patchSettingsBody.sidebar_order` is `z.array(z.uuid()).max(300)`,
 so an entry it can name has to have a uuid, and a group in today's Library is
-`folder_members.label`: a string, with no id of its own. The designer's
+`folder_members.shelf_name`: a string, with no id of its own. The designer's
 prototype stores entries and a per-group sequence, which needs both, and
 writing that shape here would need 4.19's column to change, which is S7's file
 and a frozen-adjacent contract this package has no business widening.
@@ -45,7 +45,7 @@ demonstrated the consequence live: a shelf created through 7.16 renders its own
 page and **is absent from the Library after a full reload**. 9.1 is what the
 model owed all along, "the Library holds the viewer's shelves and folders as
 one ordered list", and 4.18 is what makes the join possible: a shelf's
-membership *is* `folder_members.label`, held in step with the shelf's own name
+membership *is* `folder_members.shelf_name`, held in step with the shelf's own name
 by the server in one transaction, so a label and a shelf name are two views of
 one string rather than two facts to reconcile.
 
@@ -163,7 +163,7 @@ export function seedColumn(
   const byLabel = new Map<string, Folder[]>()
   const loose: Folder[] = []
   for (const folder of rest) {
-    const label = folder.my_label
+    const label = folder.my_shelf
     if (label === null || label === '') {
       loose.push(folder)
       continue

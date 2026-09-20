@@ -102,7 +102,9 @@ import {
   makeDependency,
   makeFile,
   makeInvite,
+  makeFolderLabel,
   makeNotification,
+  makePersonalLabel,
   makePlaceCover,
   makeSavedView,
   makeSharedFolder,
@@ -285,6 +287,8 @@ type ResourceId =
   | 'fileId'
   | 'inviteId'
   | 'notificationId'
+  | 'personalLabelId'
+  | 'folderLabelId'
 
 interface Fixtures extends Record<ResourceId, string> {
   owner: Actor
@@ -329,6 +333,13 @@ async function fixturesOf(): Promise<Fixtures> {
   await writePage(owner, 'folders', folderId, 'ac397 folder page')
   await writePage(owner, 'shelves', shelfId, 'ac397 shelf page')
 
+  /* Issue #226's two Label scopes, one fixture each. Both are the owner's to
+     reach and neither is the stranger's: a Personal Label is private to the
+     account that made it, and a Folder Label belongs to a Folder the stranger
+     is not in. The eleven rows below address them. */
+  const personalLabelId = await makePersonalLabel(owner, 'ac397 personal')
+  const folderLabelId = await makeFolderLabel(owner, folderId, 'ac397 folder')
+
   /* The owner's cover on the same place the viewer-scoped rows write, so
      those rows assert something. Without it the stranger's PUT and DELETE on
      `today` touch a place nobody had claimed, and "the statement carries
@@ -363,6 +374,8 @@ async function fixturesOf(): Promise<Fixtures> {
     fileId,
     inviteId,
     notificationId,
+    personalLabelId,
+    folderLabelId,
   }
   return fixtures
 }
@@ -465,11 +478,11 @@ const TABLE = new Map<string, Row>([
     {
       attempt: (fx) => ({
         path: `/folders/${fx.folderId}/my-membership`,
-        body: { label: 'ac397' },
+        body: { shelf: 'ac397' },
       }),
       stranger: {
         expected: 404,
-        rule: '5.4 "Set or clear own label and color: no" for a non-member; the UPDATE is viewer-scoped besides',
+        rule: '5.4 "Set or clear own label and color: no" for a non-member; the UPDATE is viewer-scoped besides. The body field is `shelf` since issue #226 renamed 4.4\'s column, and it is the same act',
       },
     },
   ],
@@ -1178,6 +1191,156 @@ const TABLE = new Map<string, Row>([
       },
     },
   ],
+
+  /* -------------------------------------------------------------- *
+   * Labels (issue #226, parent #208)
+   *
+   * Eleven rows, one per id-bearing route of the Label surface, and every one
+   * of them 404. There is no `member` variant anywhere in this block and that
+   * is the model rather than an omission: #208's accepted R5A rule is that
+   * **all current Folder members have equal rights** to create, rename,
+   * recolor, describe, archive, restore, apply and remove Folder Labels, so
+   * there is no act here that 5.4 grants a member sight of and withholds. When
+   * #209 introduces explicit Responsibilities and Authorities, that is the
+   * change that would put `member` variants in this block, and the sweep will
+   * ask for them by failing.
+   *
+   * `GET /api/v1/labels` is deliberately absent, and it is the standing
+   * example this file's header warns about: it takes `folder_id` from the
+   * **query string**, so it carries no path parameter, does not enumerate
+   * here, and cannot be swept. AC-473 is its gate's criterion.
+   * -------------------------------------------------------------- */
+  [
+    'PATCH /api/v1/labels/personal/:labelId',
+    {
+      attempt: (fx) => ({
+        path: `/labels/personal/${fx.personalLabelId}`,
+        body: { name: 'ac397 renamed by a stranger' },
+      }),
+      stranger: {
+        expected: 404,
+        rule: "#208 R4: a Personal Label is private to its owner. The statement's predicate carries owner_user_id = viewer, so a foreign id resolves to nothing rather than to a row this handler then refuses — which is what 10.2 requires, a 403 here confirming that somebody has a label by that id",
+      },
+    },
+  ],
+  [
+    'POST /api/v1/labels/personal/:labelId/archive',
+    {
+      attempt: (fx) => ({ path: `/labels/personal/${fx.personalLabelId}/archive` }),
+      stranger: {
+        expected: 404,
+        rule: '#208 R4, as the PATCH above: archiving somebody else\'s private vocabulary is not a thing the query can express',
+      },
+    },
+  ],
+  [
+    'POST /api/v1/labels/personal/:labelId/restore',
+    {
+      attempt: (fx) => ({ path: `/labels/personal/${fx.personalLabelId}/restore` }),
+      stranger: {
+        expected: 404,
+        rule: '#208 R4, as its twin above',
+      },
+    },
+  ],
+  [
+    'POST /api/v1/folders/:folderId/labels',
+    {
+      attempt: (fx) => ({
+        path: `/folders/${fx.folderId}/labels`,
+        body: { name: 'ac397 intruder', color: '#123456' },
+      }),
+      stranger: {
+        expected: 404,
+        rule: '5.4 "See folder and every task in it: no (404)" for a non-member, and a Folder\'s Label vocabulary is part of the Folder. The gate is accessOf on the path folder, before the body is even read for a decision',
+      },
+    },
+  ],
+  [
+    'PATCH /api/v1/folders/:folderId/labels/:labelId',
+    {
+      attempt: (fx) => ({
+        path: `/folders/${fx.folderId}/labels/${fx.folderLabelId}`,
+        body: { color: '#654321' },
+      }),
+      stranger: {
+        expected: 404,
+        rule: '5.4 and 10.2: the folder gate refuses a non-member before the label is resolved, and the label predicate carries the path folder besides, so neither id alone is a way in',
+      },
+    },
+  ],
+  [
+    'POST /api/v1/folders/:folderId/labels/:labelId/archive',
+    {
+      attempt: (fx) => ({
+        path: `/folders/${fx.folderId}/labels/${fx.folderLabelId}/archive`,
+      }),
+      stranger: { expected: 404, rule: '5.4 and 10.2, as the PATCH above' },
+    },
+  ],
+  [
+    'POST /api/v1/folders/:folderId/labels/:labelId/restore',
+    {
+      attempt: (fx) => ({
+        path: `/folders/${fx.folderId}/labels/${fx.folderLabelId}/restore`,
+      }),
+      stranger: { expected: 404, rule: '5.4 and 10.2, as its twin above' },
+    },
+  ],
+  [
+    'PUT /api/v1/folders/:folderId/labels/:labelId',
+    {
+      /* Driven with the stranger's own Personal Label rather than with the
+         owner's, which is the harder of the two questions and the one worth
+         asking. A stranger handing over a label they genuinely own must still
+         be refused, because what they may not reach is the **folder**; a row
+         driving the owner's label would pass on the label gate alone and would
+         say nothing about the folder gate this route also needs. */
+      attempt: (fx) => ({
+        path: `/folders/${fx.folderId}/labels/${fx.personalLabelId}`,
+      }),
+      stranger: {
+        expected: 404,
+        rule: "5.4: a non-member cannot see the folder, so they cannot classify it either, and 10.2 makes that a 404. The label in the path is the stranger's own here, so the refusal is the folder gate's and could not be the label's",
+      },
+    },
+  ],
+  [
+    'DELETE /api/v1/folders/:folderId/labels/:labelId',
+    {
+      attempt: (fx) => ({
+        path: `/folders/${fx.folderId}/labels/${fx.personalLabelId}`,
+      }),
+      stranger: {
+        expected: 404,
+        rule: '5.4 and 10.2, as the PUT above; the delete is idempotent for a member and still unreachable for a stranger',
+      },
+    },
+  ],
+  [
+    'PUT /api/v1/tasks/:taskId/labels/:labelId',
+    {
+      attempt: (fx) => ({
+        path: `/tasks/${fx.taskId}/labels/${fx.personalLabelId}`,
+      }),
+      stranger: {
+        expected: 404,
+        rule: "5.4 and 10.2: the task gate is accessibleTask, whose membership join is in its FROM clause, so a task in a folder the caller is not in is null rather than a row. The label is the stranger's own, so the 404 is the task's",
+      },
+    },
+  ],
+  [
+    'DELETE /api/v1/tasks/:taskId/labels/:labelId',
+    {
+      attempt: (fx) => ({
+        path: `/tasks/${fx.taskId}/labels/${fx.personalLabelId}`,
+      }),
+      stranger: {
+        expected: 404,
+        rule: '5.4 and 10.2, as the PUT above',
+      },
+    },
+  ],
 ])
 
 /**
@@ -1296,11 +1459,25 @@ describe('AC-397 every id-bearing route refuses a stranger', () => {
     2026-09-04 at 59 and again at 60 an hour later, when the wave-1 merge brought
     `POST /shelves/:id/duplicate`; it moves in the same change as the route that
     moves it.
+
+    **62 to 76 on 2026-09-20, and the number is neither side of the merge that
+    produced it.** Three issues moved this count off 62 at the same time and
+    each measured its own rise against a tree that held none of the others:
+    #223's Dana Link resolver and #224's three task-dependency routes read 65
+    together, and #226's eleven id-bearing Label routes read 73. Fourteen
+    distinct routes are now mounted, so the count is 76, and it was re-derived
+    by running this sweep on the merged tree rather than by taking a side or by
+    doing arithmetic on the two diffs. The eleven of #226 are the four Personal
+    definition routes by id, the four Folder definition routes and the three
+    assignment routes that carry one; `GET /labels` is not among them, because
+    it takes its Folder selector from the query string rather than from a path
+    id and this walker structurally cannot see it — 10.2 records that limit and
+    AC-473 is what asserts that gate instead.
     */
     expect(
       routes.length,
-      `the walker found ${String(routes.length)} routes carrying a path parameter and there were 65 after issue #223 added the Dana Link resolver and issue #224 added the three task-dependency routes. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means an id-bearing route was added, and it owes this table a row saying what a stranger gets when they ask for somebody else's`,
-    ).toBe(65)
+      `the walker found ${String(routes.length)} routes carrying a path parameter and there were 76 after issue #223 added the Dana Link resolver, issue #224 added the three task-dependency routes and issue #226 added the eleven id-bearing routes of the Label surface. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means an id-bearing route was added, and it owes this table a row saying what a stranger gets when they ask for somebody else's`,
+    ).toBe(76)
 
     const missing = routes.filter((route) => !TABLE.has(route))
     expect(
@@ -1436,6 +1613,19 @@ describe('AC-397 every id-bearing route refuses a stranger', () => {
       what: 'the trashed folder',
       path: '/trash',
       holds: fx.trashedFolderId,
+    }),
+    /* Both Label fixtures are read through the one listing that answers for
+       both scopes, with `scope=all`, which is also the cheapest way to prove
+       the definition listing shows an owner their own work. */
+    personalLabelId: (fx) => ({
+      what: 'the personal label',
+      path: '/labels?scope=all',
+      holds: fx.personalLabelId,
+    }),
+    folderLabelId: (fx) => ({
+      what: 'the folder label',
+      path: '/labels?scope=all',
+      holds: fx.folderLabelId,
     }),
   }
 

@@ -324,14 +324,30 @@ describe('AC-399 no route parses a request body except through parseBody', () =>
        already on the list. The sweep above passed on the new route before
        this number was touched, which is the condition the paragraph above
        sets. */
+    /* 30 to 34 on 2026-09-20, and 10 modules to 11, for issue #226's Label
+       surface. Four of its thirteen routes take a body — the create and the
+       patch in each of the two scopes — and all four go through the helper;
+       the archive and restore pairs and the four assignment routes carry no
+       body at all, and `GET /labels` reads the query string rather than a
+       body, so none of those nine moves this number. `routes/labels.ts` is
+       the eleventh module. Same instruction followed as every rise above:
+       the sweep passed on the new file first.
+
+       **#224 and #226 were open at once and each moved the site count off 29,
+       to 30 and to 33. The resolution is the sum, 34, and neither side.** The
+       one call site of #224 and the four of #226 are five distinct sites and
+       all five are now in the tree; the number was re-derived by running this
+       sweep on the merged tree rather than by arithmetic on the two diffs.
+       The module count is not a sum: #224 added no module, so 11 stands as
+       #226 left it. */
     expect(
       sites.length,
-      `parseBody is called from ${String(sites.length)} places and there were 30 after issue #224 added the task-dependency create. Fewer means a route stopped using it, and the sweep above is what says whether it went back to req.body; more means a body-taking route was added, and this number moves with it in the same change`,
-    ).toBe(30)
+      `parseBody is called from ${String(sites.length)} places and there were 34 after issue #224 added the task-dependency create and issue #226 added the four body-taking Label routes. Fewer means a route stopped using it, and the sweep above is what says whether it went back to req.body; more means a body-taking route was added, and this number moves with it in the same change`,
+    ).toBe(34)
     expect(
       [...modules].sort().length,
-      `${String(modules.size)} modules read a request body and there were 10 on 2026-09-04: ${[...modules].sort().join(', ')}`,
-    ).toBe(10)
+      `${String(modules.size)} modules read a request body and there were 11 after issue #226 added routes/labels.ts: ${[...modules].sort().join(', ')}`,
+    ).toBe(11)
   })
 })
 

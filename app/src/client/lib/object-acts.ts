@@ -60,7 +60,7 @@ shelves reaching the Library was that row rather than S17a's. **That row has
 landed and this is the one place the word changed**, which is what the sentence
 this replaces promised. 9.6 fixes the string, "a member's personal shelf
 placement is 'Move to shelf' on the row"; the Library's groups are the viewer's
-shelves now rather than the bare `folder_members.label` strings they were, so
+shelves now rather than the bare `folder_members.shelf_name` strings they were, so
 the act and the thing it moves a folder onto carry one name. AC-180 and AC-246
 moved with it, in S17b's criteria commit and red, which is item 15's
 sequencing.

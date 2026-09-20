@@ -42,8 +42,9 @@ const FOLDER = {
   is_owner: false,
   member_count: 2,
   counts: { pending: 1, completed: 0 },
-  my_label: null,
+  my_shelf: null,
   my_color: null,
+  personal_labels: [],
   icon: null,
   color: null,
   cover_file_id: null,
@@ -360,7 +361,7 @@ describe('the 7.5 response shapes', () => {
       'is_owner',
       'member_count',
       'counts',
-      'my_label',
+      'my_shelf',
       'my_color',
     ] as const) {
       const partial: Record<string, unknown> = { ...FOLDER }

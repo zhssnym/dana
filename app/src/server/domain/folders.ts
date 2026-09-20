@@ -15,9 +15,11 @@ import type { SQL } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
 import type { Folder } from '../../shared/folders.js'
+import type { LabelRef } from '../../shared/labels.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
+import { folderPersonalLabelsFor } from './labels.js'
 import { ensureShelf } from './shelves.js'
 
 /* ------------------------------------------------------------------ *
@@ -82,7 +84,10 @@ export async function accessOf(
  * The Folder object (7.0) and the 7.4 list
  * ------------------------------------------------------------------ */
 
-function folderFromRow(row: Record<string, unknown>): Folder {
+function folderFromRow(
+  row: Record<string, unknown>,
+  personalLabels: LabelRef[],
+): Folder {
   return {
     id: String(row.id),
     name: String(row.name),
@@ -93,8 +98,12 @@ function folderFromRow(row: Record<string, unknown>): Folder {
       pending: Number(row.pending),
       completed: Number(row.completed),
     },
-    my_label: nullableString(row.my_label),
+    my_shelf: nullableString(row.my_shelf),
     my_color: nullableString(row.my_color),
+    /* The M1 Label projection (issue #226): the viewer's own Personal Labels
+       on this folder, and never a Folder Label, which classifies the tasks in
+       its folder rather than the folder (#208 R4). */
+    personal_labels: personalLabels,
     icon: nullableString(row.icon),
     color: nullableString(row.color),
     cover_file_id: nullableString(row.cover_file_id),
@@ -105,7 +114,7 @@ function folderFromRow(row: Record<string, unknown>): Folder {
 }
 
 /** One query serves the list and the single view: the membership join is
- * the scope (10.2), label and color ride the viewer's own row (4.4), and
+ * the scope (10.2), shelf and color ride the viewer's own row (4.4), and
  * the counts are 8.11's, abandoned on neither side. */
 function folderSelect(viewerId: string, folderId?: string) {
   const scope =
@@ -115,7 +124,7 @@ function folderSelect(viewerId: string, folderId?: string) {
            (f.owner_id = ${viewerId}) AS is_owner,
            f.icon, f.color, f.cover_file_id, f.cover_preset, f.cover_focal_y,
            f.description,
-           m.label AS my_label, m.color AS my_color,
+           m.shelf_name AS my_shelf, m.color AS my_color,
            (SELECT count(*)::int FROM folder_members mm
              WHERE mm.folder_id = f.id) AS member_count,
            (SELECT count(*)::int FROM tasks t
@@ -130,10 +139,32 @@ function folderSelect(viewerId: string, folderId?: string) {
     ORDER BY f.is_default DESC, lower(f.name) ASC, f.id ASC`
 }
 
+/**
+ * Both reads' second statement, and the reason there is exactly one of them.
+ *
+ * A folder carries many Personal Labels, so joining them into the select
+ * above would multiply its rows and every count inside it would then have to
+ * be de-duplicated. The ids the first statement produced go to
+ * `folderPersonalLabelsFor` in one batch instead, which is the same seam
+ * `readCards` uses for tasks: two statements for a list of any length, never
+ * one per row (issue #226, AC-474).
+ */
+async function withPersonalLabels(
+  db: Db,
+  viewerId: string,
+  rows: Record<string, unknown>[],
+): Promise<Folder[]> {
+  const labels = await folderPersonalLabelsFor(
+    db,
+    viewerId,
+    rows.map((row) => String(row.id)),
+  )
+  return rows.map((row) => folderFromRow(row, labels.get(String(row.id)) ?? []))
+}
+
 /** GET /folders, in 7.4's order: is_default first, then lower(name), id. */
 export async function listFolders(db: Db, viewerId: string): Promise<Folder[]> {
-  const found = await rowsOf(db, folderSelect(viewerId))
-  return found.map(folderFromRow)
+  return withPersonalLabels(db, viewerId, await rowsOf(db, folderSelect(viewerId)))
 }
 
 export async function folderView(
@@ -142,8 +173,9 @@ export async function folderView(
   folderId: string,
 ): Promise<Folder | null> {
   const found = await rowsOf(db, folderSelect(viewerId, folderId))
-  const row = found[0]
-  return row === undefined ? null : folderFromRow(row)
+  if (found.length === 0) return null
+  const [folder] = await withPersonalLabels(db, viewerId, found)
+  return folder ?? null
 }
 
 /* ------------------------------------------------------------------ *
@@ -229,8 +261,9 @@ export async function createFolder(
         is_owner: true,
         member_count: 1,
         counts: { pending: 0, completed: 0 },
-        my_label: null,
+        my_shelf: null,
         my_color: null,
+        personal_labels: [],
         icon: null,
         color: null,
         cover_file_id: null,
@@ -421,7 +454,9 @@ export async function deleteFolderRow(
  * ------------------------------------------------------------------ */
 
 export interface MyMembershipPatch {
-  label?: string | null
+  /** The Shelf this folder sits on for this viewer. `label` until issue #226
+   * renamed it with its column; the concept never moved. */
+  shelf?: string | null
   color?: string | null
 }
 
@@ -430,24 +465,35 @@ export interface MyMembershipPatch {
  * alone, null clears it (4.4 stores null for both). An empty patch is a
  * no-op by construction.
  *
- * **A label written here names a shelf, and makes it if there is not one
+ * **A shelf name written here names a shelf, and makes it if there is not one
  * (issue #65).** 4.18's membership *is* this column, and its own sentence is
- * that the API holds the label and the shelf's name in step in one
+ * that the API holds the membership and the shelf's name in step in one
  * transaction; `patchShelf` and `deleteShelf` have always done that in their
  * direction and this is the direction that was missing. Without it a person
  * can hold a folder group the Library draws as a heading with nothing behind
  * it: no id, so no `/app/shelves/:id` to link to, no page, no mark and none
- * of 9.10's acts. The one-off repair for the labels already stored is
+ * of 9.10's acts. The one-off repair for the memberships already stored is
  * migration 0011; this is what stops the state being reachable again.
  *
- * Clearing a label leaves the shelf standing, which is deliberate and is
- * 9.1's model since S17b: "a shelf outlives its folders", the shelf being the
- * thing and the label its membership. Taking the last folder off a shelf
- * therefore empties it rather than deleting it, exactly as it already did for
- * a shelf made through 7.16.
+ * Clearing the membership leaves the shelf standing, which is deliberate and
+ * is 9.1's model since S17b: "a shelf outlives its folders", the shelf being
+ * the thing and this column its membership. Taking the last folder off a
+ * shelf therefore empties it rather than deleting it, exactly as it already
+ * did for a shelf made through 7.16.
  *
  * The UPDATE and the INSERT ride one transaction so that a folder never
- * carries a label whose shelf is not there.
+ * carries a membership whose shelf is not there.
+ *
+ * The field was called `label` on both sides until issue #226. It is the same
+ * rule; #208's Label model needed the word back.
+ *
+ * **The write goes to two columns for one release, and the second one is not
+ * redundant.** Migration 0022 is the expand half of an expand-and-contract
+ * pair: `shelf_name` is the column this code reads, and `label` is still
+ * there because Render runs the old instance until the new one is healthy, so
+ * for the length of a deploy something is still selecting `label` and needs
+ * to see current data rather than a stale membership. Issue #247 drops the
+ * column and this second assignment together, after 0022 is live.
  */
 export async function setMyMembership(
   db: Db,
@@ -456,16 +502,20 @@ export async function setMyMembership(
   patch: MyMembershipPatch,
 ): Promise<void> {
   const sets: SQL[] = []
-  if (patch.label !== undefined) sets.push(sql`label = ${patch.label}`)
+  if (patch.shelf !== undefined) {
+    sets.push(sql`shelf_name = ${patch.shelf}`)
+    // The expand half's second write, #247 removes it.
+    sets.push(sql`label = ${patch.shelf}`)
+  }
   if (patch.color !== undefined) sets.push(sql`color = ${patch.color}`)
   if (sets.length === 0) return
-  const label = patch.label
+  const shelf = patch.shelf
   await inTransaction(db, async (tx) => {
     await tx.execute(
       sql`UPDATE folder_members SET ${sql.join(sets, sql`, `)}
           WHERE folder_id = ${folderId} AND user_id = ${viewerId}`,
     )
-    if (typeof label === 'string') await ensureShelf(tx, viewerId, label)
+    if (typeof shelf === 'string') await ensureShelf(tx, viewerId, shelf)
   })
 }
 

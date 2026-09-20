@@ -17,6 +17,8 @@ decides the open shape once, with the implemented routes in front of it.
 */
 import { z } from 'zod'
 
+import { labelRef } from './labels.js'
+
 /*
 The three 7.4 field primitives, one definition each so the write path, the
 read path, and the client's convenience validation cannot drift. The lengths
@@ -29,7 +31,20 @@ export const folderName = z
   .min(1, { error: 'must be 1 to 100 characters' })
   .max(100, { error: 'must be 1 to 100 characters' })
 
-export const personalLabel = z
+/**
+ * The viewer's own Shelf membership on a folder: 4.18's `folder_members`
+ * column, 1 to 40 characters, held in step with `shelves.name`.
+ *
+ * **It was called `personalLabel` until issue #226 and it never was one.** A
+ * Shelf is how one person groups their own folders; a Label is the M1
+ * classification vocabulary of #208, which is a different model with its own
+ * table, its own scopes and its own endpoints. The two words collided in the
+ * database, in this contract and on the screen, and #226 renames the Shelf
+ * side of the collision rather than the Label side, because the Label side is
+ * the one that matches what the word means everywhere else. Nothing about
+ * Shelf semantics moved with the name.
+ */
+export const shelfName = z
   .string({ error: 'must be a string' })
   .min(1, { error: 'must be 1 to 40 characters' })
   .max(40, { error: 'must be 1 to 40 characters' })
@@ -113,8 +128,10 @@ export const patchFolderBody = z.object({
 export type PatchFolderBody = z.infer<typeof patchFolderBody>
 
 /*
-PATCH /folders/:id/my-membership. Body { label, color }, either nullable
-(7.4); null clears the field, which 4.4 stores as null.
+PATCH /folders/:id/my-membership. Body { shelf, color }, either nullable
+(7.4); null clears the field, which 4.4 stores as null. The first key was
+`label` until issue #226 gave the word back to #208's Label model; it is the
+same field writing the same column.
 
 Presence follows the PATCH convention that holds everywhere else in the
 frozen surface (7.2 "any subset", 7.6 "only present fields change", 7.7
@@ -125,7 +142,10 @@ requires it: AC-023 probes a label-only body against an inaccessible folder
 and must reach the 404, so the schema cannot refuse the absent color first.
 */
 export const patchFolderMyMembershipBody = z.object({
-  label: personalLabel.nullable().optional(),
+  /* `label` until issue #226, and renamed with the column it writes: this has
+     always been the viewer's Shelf membership rather than a classification
+     Label, and the Label model of #208 needed the word back. */
+  shelf: shelfName.nullable().optional(),
   color: hexColor.nullable().optional(),
 })
 export type PatchFolderMyMembershipBody = z.infer<
@@ -147,13 +167,18 @@ The 7.0 Folder object, the row shape of GET /folders and the base of GET
 artifact the client, the server, and the tests all import, and a shape
 declared beside a handler is a second definition of the same promise.
 
-Field truths, each from its owning section: name, my_label, and my_color
+Field truths, each from its owning section: name, my_shelf, and my_color
 reuse the write primitives because the 4.3 and 4.4 CHECKs guarantee stored
 values satisfy them already; is_owner derives from folders.owner_id, the one
 ownership source (4.3); member_count is at least 1 because INV-10 keeps the
 owner's membership row on every folder that exists; counts are 8.11's
-pending and completed tallies, abandoned rows on neither side; my_label and
+pending and completed tallies, abandoned rows on neither side; my_shelf and
 my_color are null for a member who set none (4.4).
+
+`my_shelf` was `my_label` until issue #226. It is the same field carrying the
+same value from the same column: the rename is the Shelf half of removing the
+collision with #208's Label model, and `personal_labels` below is the Label
+half arriving beside it. Anything reading `my_label` is reading the Shelf.
 */
 export const folder = z.object({
   id: z.uuid(),
@@ -165,8 +190,21 @@ export const folder = z.object({
     pending: z.int().nonnegative(),
     completed: z.int().nonnegative(),
   }),
-  my_label: personalLabel.nullable(),
+  my_shelf: shelfName.nullable(),
   my_color: hexColor.nullable(),
+  /*
+  The M1 Label projection for a Folder (issue #226, parent #208): the viewer's
+  own Personal Labels applied to this Folder, ordered active before archived,
+  then lower(name), then id.
+
+  **Only Personal, and that is the model rather than a simplification.** A
+  Folder Label belongs to one Folder and classifies the Tasks inside it; it
+  never classifies the Folder that owns it (R4), so there is no second array
+  here to hold one. And because the array is the viewer's own, two members
+  reading the same Folder read different arrays, exactly as they read
+  different `my_shelf` values.
+  */
+  personal_labels: z.array(labelRef),
   // The 4.3 identity (RFC 0005): the folder's own, one look for every
   // member, null where never set.
   icon: z.string().nullable(),
