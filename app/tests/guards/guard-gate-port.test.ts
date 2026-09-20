@@ -30,6 +30,23 @@ to be safe, and none of them is visible from reading either file alone.
    must aim it rather than weaken it. It is driven here against a real listening
    socket on a real port, not against a stubbed probe, and both of its texts
    are read for the port they name.
+4. **And it fails closed**, added 2026-09-20 by issue #273. A connect probe
+   answers "nothing accepted", which is not the same fact as "nothing holds
+   this port": a socket bound to an address the probe does not ask still takes
+   the port from this run's own server, which binds the wildcard and gets
+   EADDRINUSE. Measured that day on the container, on an ephemeral port bound
+   to its `eth0` address: the connect probe read `free`, `lsof` read the
+   listener, and a wildcard bind on the same port answered EADDRINUSE. So the
+   host's socket table is read as well, and **a host where no tool can read it
+   is refused rather than reported clear** — the documented `netstat` loop
+   greps the output of a command that container does not have, which greps to
+   nothing, which reads as every port on the machine being free.
+
+**One consequence worth stating before it surprises somebody.** The
+free-port test below now needs this host to have one of `lsof`, `ss` or
+`netstat`, because a host with none is one the gate refuses to start a browser
+leg on. That is the fail-closed choice showing through, and a red here means
+exactly what it says.
 
 **The socket this test opens is on an ephemeral port the operating system
 chooses**, never a fixed one and never the default. Another gate may well be
@@ -45,7 +62,13 @@ import type { PlaywrightTestConfig } from '@playwright/test'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { DEFAULT_GATE_PORT, gatePort } from '../../scripts/gate-port.mjs'
-import { browserLegRefusal, occupied, portLine } from '../../scripts/gate.mjs'
+import {
+  browserLegRefusal,
+  listeningSockets,
+  occupied,
+  portLine,
+  probeConnect,
+} from '../../scripts/gate.mjs'
 
 /** Listen on a port the OS picks, and answer with the port it picked. */
 function listenOnAFreePort(): Promise<{ server: net.Server; port: number }> {
@@ -277,6 +300,96 @@ describe('the gate port: the occupancy precondition', () => {
 
     expect(await occupied(port)).toBe(false)
     expect(await browserLegRefusal(port)).toBeNull()
+  })
+})
+
+describe('the gate port: the precondition fails closed', () => {
+  /*
+  The host's own socket table, read with whatever this host has. Both
+  directions, because a reader that answered `true` for every port would be
+  the mirror of the fault issue #273 is about and would refuse every browser
+  leg on the machine.
+  */
+  it('reads a real listener out of this host’s socket table, and its absence too', async () => {
+    const { server, port } = await listenOnAFreePort()
+    try {
+      const held = await listeningSockets(port)
+      expect(held.tool, 'no lsof, ss or netstat on this host').not.toBeNull()
+      expect(held.listening).toBe(true)
+      // The lines are what the refusal shows a reader, so an empty set with a
+      // true verdict would be a refusal naming nothing to go and stop.
+      expect(held.lines.length).toBeGreaterThan(0)
+    } finally {
+      await close(server)
+    }
+
+    await waitUntilFree(port)
+    expect((await listeningSockets(port)).listening).toBe(false)
+  })
+
+  /*
+  A listener the connect probe cannot see. The real instance of this is a
+  socket bound to a second network interface, and it was measured that way on
+  the container — connect `free`, lsof holding it, wildcard bind EADDRINUSE.
+  It is driven here through an injected reading instead, because a branch that
+  only fires on a host with a second interface is one nobody can show still
+  bites, which is the same argument this file already makes for the occupancy
+  check itself. The command is node, which is present wherever this suite runs
+  by definition; what is asserted is the shape of the refusal rather than the
+  name of whatever answered.
+  */
+  it('refuses a listening socket that answered no connection', async () => {
+    const { server, port } = await listenOnAFreePort()
+    await close(server)
+    await waitUntilFree(port)
+
+    const line = 'dana-stub 4242 nobody 5u IPv4 TCP 192.0.2.2:PORT (LISTEN)'
+    const refusal = await browserLegRefusal(port, [
+      { name: process.execPath, args: () => ['-e', `console.log(${JSON.stringify(line)})`], match: () => true },
+    ])
+
+    expect(refusal).not.toBeNull()
+    expect(refusal?.note).toContain('listening socket')
+    expect(refusal?.note).toContain(String(port))
+    // The lines go to the console so that a reader has something to act on.
+    expect(refusal?.advice).toContain(line)
+  })
+
+  /*
+  The fail-closed case itself: nothing on this host could read the socket
+  table. An empty list of inspectors is what that host looks like from here,
+  and it is exactly the container issue #273 was found on, which has neither
+  netstat nor ss.
+  */
+  it('refuses when nothing on the host can read the socket table', async () => {
+    const { server, port } = await listenOnAFreePort()
+    await close(server)
+    await waitUntilFree(port)
+
+    expect(await listeningSockets(port, [])).toEqual({ tool: null, listening: null, lines: [] })
+
+    const refusal = await browserLegRefusal(port, [])
+    expect(refusal, 'a port nothing could look at was reported clear').not.toBeNull()
+    expect(refusal?.note).toContain('no port-inspection tool')
+    expect(refusal?.note).toContain(String(port))
+    expect(refusal?.advice).toContain('lsof')
+  })
+
+  /*
+  The probe's own third answer. A free port on loopback is refused at once, so
+  `free` here is a real reading rather than a timeout wearing its clothes —
+  and `occupied`, which the rest of this file uses, is that reading narrowed
+  to a boolean.
+  */
+  it('tells a refused connection apart from an unanswered one', async () => {
+    const { server, port } = await listenOnAFreePort()
+    try {
+      expect(await probeConnect(port)).toBe('occupied')
+    } finally {
+      await close(server)
+    }
+    await waitUntilFree(port)
+    expect(await probeConnect(port)).toBe('free')
   })
 })
 
