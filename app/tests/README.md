@@ -202,6 +202,31 @@ defect exactly — and **re-adding a JavaScript name fold** takes two red,
 answering `422 folders.0.labels: … the name "φως" is declared twice in one
 folder`, which is the false 422 end to end.
 
+**The first of those three mutations no longer exists, and what replaced it was
+re-measured (2026-09-20, issue #279).** The vocabulary is written by one
+multi-row INSERT now rather than by one statement per definition, and a
+multi-row INSERT raises its 23505 once for the statement: it knows the
+constraint and not which of the 250 rows the file's owner should go and look
+at. So there is no 23505 mapping left to remove. The refusal is the same
+`lower()` in the same session, run over the file's own rows one statement ahead
+of the write, and **deleting that fold** is the mutation that stands in its
+place: it takes **five** cases red at 500 rather than the four above — AC-780's
+first, second, third and sixth, and AC-782's fourth. The sixth is in this list
+and not in that one because it did not exist when the four were measured, which
+is worth reading as the mutation record catching up rather than as the mapping
+having been weaker than it said. The other two mutations below are untouched.
+
+**And one more, for the assignment write the same issue made set-based.**
+Writing only the first of a Task's Folder Labels — a `LIMIT 1` inside
+`applyWorkflowTaskLabels`'s INSERT — is caught by **AC-780's fourth case
+alone**, across AC-540 to AC-554, AC-780 to AC-782 and
+`src/shared/workflows.test.ts`: 1 failed, 67 passed. No round-trip criterion
+gives one imported Task two Folder Labels, so the case that exists to prove
+`ΦΩΣ` and `φως` are two Labels is also the only watcher the import's
+assignment write has. That is a thin place rather than a finding about this
+change, and it is recorded here because the next person to touch that statement
+should know what is and is not standing behind it.
+
 **And a third, 2026-09-20, for the field path itself.** Every assertion of
 `folders.<n>.labels` in the suite was made against a **one-folder** file —
 AC-780's first three cases and AC-782's fourth all read `folders.0.labels` — so
