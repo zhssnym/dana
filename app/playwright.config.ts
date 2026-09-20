@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test'
 
+import { gatePort } from './scripts/gate-port.mjs'
+
 /*
 The end to end runner of spec 11.10: Playwright drives the browser tests on
 Windows and in CI, against the seed dataset and the development login.
@@ -17,12 +19,14 @@ come from where they do is written at webServer below, because a browser test
 is only as trustworthy as the thing it points at.
 */
 
-// Not 3000, which npm run dev already uses. The two cannot run at once
-// anyway, both wanting the same single-connection PGlite directory (11.15),
-// but a stale dev API answering on 3000 would otherwise be a plausible thing
-// for this runner to attach to, and the failure would look like the
-// application misbehaving rather than like the wrong application.
-const PORT = 3100
+// The port is a setting rather than a constant since issue #254, and it is
+// read through the same resolver gate.mjs reads so that the port the gate
+// probes before starting this leg cannot differ from the port this leg serves
+// on. `DANA_GATE_PORT` chooses it; unset, it is the number it has always been,
+// which is what makes every invocation that predates the variable mean exactly
+// what it meant before. scripts/gate-port.mjs carries the default, the reason
+// it is not 3000, and why two gates on one machine needed this at all.
+const PORT = gatePort()
 const baseURL = `http://localhost:${PORT}`
 
 const inCI = process.env.CI !== undefined && process.env.CI !== ''

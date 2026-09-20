@@ -266,9 +266,9 @@ protocol points here rather than repeating them.
   leg needs a quiet machine, and the counts recorded for it, were this fault
   rather than load; `C:\Users\hassan\gate.ps1` still carries the superseded
   explanation and a stale count of 94.
-- **Two browser legs cannot share this machine, and the collision does not
+- **Two browser legs cannot share a port, and the collision does not
   announce itself as one.** Measured 2026-08-25. `playwright.config.ts`
-  hardcodes port 3100 and sets `reuseExistingServer: false`, so every run starts
+  served on port 3100 and sets `reuseExistingServer: false`, so every run starts
   an `e2e:app` of its own; a run that has printed its tally has *not* released
   the port, because the `npx` process outlives the report. That session's own
   finished full leg held 3100 for over an hour while a concurrent
@@ -280,14 +280,21 @@ protocol points here rather than repeating them.
   whole leg read 141 of 158; the eight affected files re-run alone on a quiet
   machine read 17 of 19 in 1.5 minutes against 32.8 for the contended whole, and
   the two remaining reds were the genuine ones. So: **before a browser leg,
-  check that nothing else is on 3100 and that no stale `npx playwright` survives
-  a previous run**, and where two sessions must overlap, give each its own port
-  through an untracked config copy (`sed 's/3100/3110/' playwright.config.ts >
-  s10-verify.config.ts`, never committed) rather than taking turns. This is not
+  check that nothing else is on the port you are about to use and that no stale
+  `npx playwright` survives a previous run**, and where two sessions must overlap,
+  give each its own port. **Since 2026-09-20 and issue #254 that is
+  `DANA_GATE_PORT`, which both `playwright.config.ts` and the gate read, and
+  which defaults to 3100** — so two sessions overlap by each exporting one, and
+  `npm run gate` works on an alternate port rather than only a bare
+  `npx playwright test`. The workaround this bullet used to carry, an untracked
+  `sed 's/3100/3110/' playwright.config.ts > s10-verify.config.ts`, is superseded:
+  it produced no gate record, which is what made it useless for the thing that was
+  actually queued, and `gate.mjs` passes no `--config` so it could never have
+  reached one. This is not
   the vitest fork-flake and must not be treated as it: that one is not caused by
   load, corrected above, and `run-suite.mjs` fails a run that loses files.
   Separate worktrees make vitest legs genuinely independent, having no port and
-  no shared database; only the browser leg has a single hardcoded one.
+  no shared database; only the browser leg has a port at all.
 - **Killing a browser leg's server does not kill the leg, and the next run
   then collides with the survivor.** Measured 2026-08-27, and it is
   the collision two bullets above caused by one session rather than two.
@@ -471,9 +478,16 @@ protocol points here rather than repeating them.
   the second, because the exit code answers "did you get what you asked for" while the
   verdict line answers "is this a pull request's gate". **A leg that reports no tally at
   all is red rather than ok**, an exit code with no summary behind it being the same false
-  green one layer up. It **refuses to start the browser leg when anything answers on
-  3100**, which is the port collision two bullets below written as a precondition rather
-  than as a postmortem, and it deletes `test-results/` first. It reaches the vitest legs
+  green one layer up. It **refuses to start the browser leg when anything answers on the
+  port it is about to serve on**, which is the port collision two bullets below written as
+  a precondition rather than as a postmortem, and it deletes `test-results/` first.
+  **That port is `DANA_GATE_PORT` since 2026-09-20 and issue #254, and unset it is 3100**,
+  so nothing about an existing invocation moved; setting it is how two gates run on one
+  machine at once, and the record names the port it used so that two records taken in
+  parallel can be told apart afterwards. `app/scripts/gate-port.mjs` is the one place the
+  number is resolved, for gate.mjs and `playwright.config.ts` alike, and
+  `app/tests/guards/guard-gate-port.test.ts` fails if those two ever disagree or if the
+  precondition stops biting. It reaches the vitest legs
   through `npm test`, so `run-suite.mjs`'s false-green guard is in the path and the record
   prints the file count that guard checks. And it runs **`npm ci` only when
   `package-lock.json` moved since `git merge-base HEAD origin/main`**, since that command
