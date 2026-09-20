@@ -68,6 +68,46 @@ structural test drives it with a stranger's id. The gate is
 `listLabels`'s own membership probe, it answers 404 rather than 403 for the
 reason above, and AC-473 is the criterion that asserts it, because nothing
 else will.
+
+## Membership was the whole gate until issue #274, and is not any more
+
+Every shared-Label route here used to admit every member of the Folder: the
+gate answered 404 when `accessOf` found nothing and said yes to all six
+presets otherwise. That was #208's accepted R5A, and R5A calls itself interim
+in its own words, because when it was written **membership was the only
+distinction a Folder had** — "any member" was not a lax bar, it was the only
+bar there was.
+
+#228 gave Folders a ladder, and against a ladder "any member" admits Can view.
+Folder Labels are not private annotations: they are shared vocabulary that
+drives everybody's filters and views, so a read-only member relabelling other
+people's work is a write wearing a read's clothes. **R8 supersedes R5A**, the
+ruling is issue #274's, and the decision that moved is stated there in one
+line: #208 predates graded Access, #228 introduced it, and "any member" is
+replaced by the ladder.
+
+So each route below names the action it performs and asks
+`shared/folder-actions.ts` for the answer. **Nothing in this file states a
+bar**, which is the same arrangement `routes/folders.ts` has had since #228;
+AC-523 maps every one of these routes to the action it asks for, and AC-800
+drives one actor per preset at both of them. Three shapes, and the third is
+the interesting one:
+
+- the four **vocabulary** writes ask `label.vocabulary.manage`, whose answer is
+  the preset alone, so `gate` below resolves it beside its own `accessOf`;
+- the two **Folder assignment** routes ask `personal.label`, which is a
+  Personal Label on a Folder and therefore outside Folder Access at every
+  preset (#228's personal-actions rule). They go through the same `gate` for
+  uniformity and refuse nobody a membership check had not refused already;
+- the two **Task assignment** routes ask nothing here. `label.apply` carries
+  `whenAssignedToActor`, so its answer depends on the Task's current assignee,
+  and #228 requires that fact be read in the mutation's own transaction and
+  snapshot. `domain/labels.ts` takes the row lock, reads it, and answers
+  `forbidden` with the rule's sentence; this file turns that into a 403.
+
+The four Personal-vocabulary routes name no Folder and are untouched: a
+Personal Label is one person's own, and account ownership rather than Folder
+Access governs it.
 */
 import type { Request, Response, Router } from 'express'
 
@@ -85,6 +125,8 @@ import {
   postPersonalLabelBody,
 } from '../../shared/labels.js'
 import { requireCsrf, requireSession } from '../auth/index.js'
+import { mayPerform } from '../domain/folder-access.js'
+import type { FolderAction } from '../domain/folder-access.js'
 import { accessOf, folderView } from '../domain/folders.js'
 import {
   attachFolderLabel,
@@ -302,27 +344,42 @@ export function createLabelsRouter(options: LabelsRouterOptions = {}): Router {
   /* ---------------------------------------------------------------- *
    * Folder definitions
    *
-   * Every current member may create, rename, recolor, describe, archive and
-   * restore, with no owner exception. That is #208's accepted R5A rule and it
-   * is interim by its own words: #209 introduces explicit Responsibilities
-   * and Authorities and may then distinguish managing Labels from applying
-   * them. Nothing here anticipates that split, because a guess at it would be
-   * a rule to unpick rather than a rule to extend.
+   * Can edit and above create, rename, recolor, describe, archive and
+   * restore, with no owner exception — accepted R8A gives a Folder's shared
+   * Work to Can edit and makes custody irrelevant to it. #274 is where that
+   * replaced #208's interim all-members rule; the header carries the ruling.
    * ---------------------------------------------------------------- */
 
-  /** Folder access, or null after this call has answered 404. Every route in
-   * this group and the assignment pair below begins with it, which is the
-   * `accessOf` gate hard stop 5 requires and `ac-397` enumerates. */
-  const folderAccess = async (
+  /**
+   * The folder id this act names, or null after this call has answered.
+   *
+   * Two steps, and the order is 10.2's, exactly as `routes/folders.ts`'s own
+   * `gate` has it: resolve the Folder first, which answers 404 to anybody
+   * outside it and so never confirms that it exists, and then ask the
+   * resolver whether the *action* is permitted, which answers 403 to somebody
+   * who demonstrably sees the Folder already.
+   *
+   * This is the `accessOf` gate hard stop 5 requires and `ac-397` enumerates,
+   * with the second half #274 added. Nothing here decides anything: the whole
+   * answer is `mayPerform`'s.
+   */
+  const gate = async (
     req: Request,
     res: Response,
+    action: FolderAction,
   ): Promise<string | null> => {
     const db = database(res)
     if (db === null) return null
     const folderId = parsedId(res, req.params.folderId)
     if (folderId === null) return null
-    if ((await accessOf(db, viewer(req), folderId)) === null) {
+    const facts = await accessOf(db, viewer(req), folderId)
+    if (facts === null) {
       notFound(res)
+      return null
+    }
+    const decision = mayPerform(facts, action)
+    if (!decision.allowed) {
+      sendError(res, 403, 'forbidden', decision.reason)
       return null
     }
     return folderId
@@ -336,7 +393,7 @@ export function createLabelsRouter(options: LabelsRouterOptions = {}): Router {
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
-      const folderId = await folderAccess(req, res)
+      const folderId = await gate(req, res, 'label.vocabulary.manage')
       if (folderId === null) return
       const parsed = parseBody(postFolderLabelBody, req, res, securityLog)
       if (parsed === null) return
@@ -366,7 +423,7 @@ export function createLabelsRouter(options: LabelsRouterOptions = {}): Router {
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
-      const folderId = await folderAccess(req, res)
+      const folderId = await gate(req, res, 'label.vocabulary.manage')
       if (folderId === null) return
       const labelId = parsedId(res, req.params.labelId)
       if (labelId === null) return
@@ -399,7 +456,7 @@ export function createLabelsRouter(options: LabelsRouterOptions = {}): Router {
     async (req: Request, res: Response): Promise<void> => {
       const db = database(res)
       if (db === null) return
-      const folderId = await folderAccess(req, res)
+      const folderId = await gate(req, res, 'label.vocabulary.manage')
       if (folderId === null) return
       const labelId = parsedId(res, req.params.labelId)
       if (labelId === null) return
@@ -455,6 +512,13 @@ export function createLabelsRouter(options: LabelsRouterOptions = {}): Router {
       case 'not_found':
         notFound(res)
         return
+      case 'forbidden':
+        /* Issue #274. The caller sees the Task and the Label — membership was
+           resolved before this — so 10.2 permits a 403 and the sentence is the
+           rule's own `why` from `shared/folder-actions.ts`, which is product
+           copy a person reads rather than a comment. */
+        sendError(res, 403, 'forbidden', outcome.reason)
+        return
       case 'wrong_target':
         sendError(
           res,
@@ -498,19 +562,19 @@ export function createLabelsRouter(options: LabelsRouterOptions = {}): Router {
       if (labelId === null) return
       /* The Task gate: `accessibleTask` writes the membership join into its
          FROM clause, so an inaccessible Task is null rather than a row this
-         handler has to remember to refuse. */
-      const task = await accessibleTask(db, viewer(req), taskId)
-      if (task === null) {
+         handler has to remember to refuse.
+
+         It answers the 404 and nothing else. The *authority* question is
+         `attachTaskLabel`'s, because `label.apply`'s answer depends on the
+         Task's current assignee and #228 requires that fact to be read inside
+         the mutation's own transaction — this read is outside it, so an
+         assignment that changed in between would be decided against a row
+         that no longer exists (AC-516's shape, AC-800's subject). */
+      if ((await accessibleTask(db, viewer(req), taskId)) === null) {
         notFound(res)
         return
       }
-      const outcome = await attachTaskLabel(
-        db,
-        viewer(req),
-        taskId,
-        task.folderId,
-        labelId,
-      )
+      const outcome = await attachTaskLabel(db, viewer(req), taskId, labelId)
       if (outcome.kind !== 'attached') {
         /* Both Task caps are the same number, and the domain does not report
            which of the two refused, because nothing a caller can do depends
@@ -549,6 +613,12 @@ export function createLabelsRouter(options: LabelsRouterOptions = {}): Router {
         return
       }
       const outcome = await detachTaskLabel(db, viewer(req), taskId, labelId)
+      if (outcome.kind === 'forbidden') {
+        /* R8 names application and removal in one clause, so removal is
+           refused at the same bar and with the same sentence (#274). */
+        sendError(res, 403, 'forbidden', outcome.reason)
+        return
+      }
       if (outcome.kind !== 'detached') {
         notFound(res)
         return
@@ -569,7 +639,7 @@ export function createLabelsRouter(options: LabelsRouterOptions = {}): Router {
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
-      const folderId = await folderAccess(req, res)
+      const folderId = await gate(req, res, 'personal.label')
       if (folderId === null) return
       const labelId = parsedId(res, req.params.labelId)
       if (labelId === null) return
@@ -600,7 +670,7 @@ export function createLabelsRouter(options: LabelsRouterOptions = {}): Router {
     async (req: Request, res: Response) => {
       const db = database(res)
       if (db === null) return
-      const folderId = await folderAccess(req, res)
+      const folderId = await gate(req, res, 'personal.label')
       if (folderId === null) return
       const labelId = parsedId(res, req.params.labelId)
       if (labelId === null) return
@@ -610,6 +680,14 @@ export function createLabelsRouter(options: LabelsRouterOptions = {}): Router {
         folderId,
         labelId,
       )
+      if (outcome.kind === 'forbidden') {
+        /* Unreachable today: `personal.label` admits every member and the
+           gate above has already answered. It is mapped rather than folded
+           into the 404 below so that a refusal added inside the domain
+           cannot silently become a not-found. */
+        sendError(res, 403, 'forbidden', outcome.reason)
+        return
+      }
       if (outcome.kind !== 'detached') {
         notFound(res)
         return

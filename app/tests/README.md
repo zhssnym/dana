@@ -324,6 +324,20 @@ id and nobody adds the arm to match — a new table or a second column on a tabl
 it already lists, the second of those having been a hole in it until that same
 review.
 
+**And one for issue #274, the Label routes on Access** (AC-800, spec 12.24), on
+the same reading again and worth one sentence for what it is evidence *of*.
+The twelve Label mutation routes gated on membership alone while
+`shared/folder-actions.ts` declared two bars for them, and AC-523 recorded the
+mapping while saying in its own header that it does not check the mapping is
+right. So the whole suite was green over a surface where a Can-view member
+could rename a folder's shared vocabulary and relabel everybody's work.
+**Nothing structural could have found that**, which is the argument for writing
+a criterion after a cut: the sweeps prove a route is gated *somehow*, and only
+an actor at a preset proves which. It was verified by making each of the two
+gates always-true in turn and watching five of its seven cases go red — and by
+a third mutation, gating the Personal arm as though it were shared, which
+turns the sixth red and is the over-reaching direction nothing else watches.
+
 **Section 12 was not cut with them.** Every criterion it states is still the
 specification of Dana's behaviour; most of them simply have no executable form
 in this directory any more. A criterion number that resolves to no file here is
