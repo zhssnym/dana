@@ -20,7 +20,7 @@ and finding that out costs a minute.
 | What you are about to do | The rule that releases it |
 | - | - |
 | **A database migration** — a new file under `app/db/migrations/`, or an edit to one | Assign the number **and** the `when` in `meta/_journal.json` before you write it, and check them against every other branch open at the same time. Run **both** legs. Name every constraint and index. Say in the pull request that you did, and whether the number was assigned or you took it unassigned. |
-| **A change to spec section 4 or 7** | Those two are frozen. Get a **ruling comment on the issue before the code**: a product ruling is Imran's, a technical ruling is Hassan's. The pull request quotes it or links to it. |
+| **A change to spec section 4 or 7** | Those two are frozen. Get a **ruling comment on the issue before the code**: a product ruling is Imran's, a technical ruling is Hassan's. The pull request quotes it or links to it. A criterion that *transcribes* the frozen text — `ac-001`'s `SECTION_4_TABLES`, the exact-key lists — moves with the code and ahead of the ruling; see below. |
 | **A field on a request schema** in `app/src/shared/` | The field, **the server code that reads it**, and **an acceptance criterion that proves the value arrives**, all in the same change. |
 | **A source in the Content Security Policy** — `securityHeaders` in `app/src/server/index.ts` | Name the source and what it is for in the pull request, and check it in a real browser rather than in a test. |
 | **A new route that takes an id** | Write the `accessOf(...)` gate, and write the route's row in `app/tests/criteria/ac-397-authorization-sweep.test.ts` saying what a stranger gets. Both, in the same change. |
@@ -48,6 +48,24 @@ that it is perfect. A frozen section changes by a person's ruling on the issue, 
 code exists, because the code is the expensive way to discover that the ruling would have
 gone the other way. Product rulings are Imran's and technical rulings are Hassan's; that
 split is settled and neither the work nor the review reopens it.
+
+**One thing in the suite necessarily moves ahead of that ruling, and it is not a breach of
+this stop** (added 2026-09-20, issue #240). A handful of criteria hold **transcriptions** of a
+frozen section: `SECTION_4_TABLES` in `app/tests/criteria/ac-001-constraint-catalog.test.ts`
+is section 4's table list, and `expectExactKeys` lists in `app/tests/support/` are section
+7's response shapes. They are exact in both directions, so **a tree carrying the code without
+the transcription edit cannot be green at all** — and this stop says the ruling comes before
+the code. Both rules are right on their own and they point opposite ways.
+
+The order that works: write the code and the transcription edit, get the suite green, take
+the ruling, then amend the frozen section. Put a paragraph beside the transcription saying it
+has moved ahead of the ruling and that the ruling is the authoritative restatement — if the
+ruling comes back with a different shape, the transcription follows it. #224 ran in that
+order on 2026-09-20 and `tasks-harness.ts` carries the paragraph as an example.
+
+Nothing about this stop weakens. The ruling is still required, it is still a person's, and
+the pull request still quotes it. What moves first is a list that *describes* the frozen
+text, never the frozen text itself, and the pull request is where the two are reconciled.
 
 **A request-schema field the server does not read is accepted, dropped, and answered 200.**
 Two ways to lose one, and neither leaves anything on the wire. A field the schema does not

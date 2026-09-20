@@ -139,24 +139,46 @@ nobody did, take the next free one and say in your pull request that you took it
 unassigned.** A collision is trivial to fix before a merge and is a production incident
 after one.
 
-**Two counts in the suite are fixtures over the implementation, and moving them is not
-breaking rule 3 (added 2026-09-04 from issues #116 and #128, which moved both).** Rule 3 says
-never edit a test to make your code pass, and it is the right rule; these two are the
-exception it needs stated, because otherwise the honest reading is to stop. Each is a number
-describing the shape of the server rather than a behaviour anybody asked for, each says so
-beside itself, and each is written to fail when that shape changes so that the change is
-noticed rather than assumed.
+**Six counts in the suite are fixtures over the implementation, and moving them is not
+breaking rule 3 (added 2026-09-04 from issues #116 and #128; corrected from two to six on
+2026-09-20, issue #240).** Rule 3 says never edit a test to make your code pass, and it is
+the right rule; these are the exception it needs stated, because otherwise the honest reading
+is to stop — and three of the six spent a month in exactly that position, named by no
+document, while a session that added a route and watched one go red had been told in effect
+that it must not touch it.
 
-- `app/tests/criteria/ac-236-structural-guard-sweep.test.ts` asserts the **count of mutating routes**
-  the walker found. Adding a route moves it by one. What must be true before you touch it is
-  that the sweep itself **passed on your new route** — 401 bare, 403 without CSRF — so that
-  only the count failed; if the sweep failed, the number is telling you something and moving
-  it is the thing rule 3 forbids.
-- `app/src/server/scheduler/interval.test.ts` asserts the **count of statements the 11.7 pass
-  runs after its delivery transaction**, as the way to see that a held pass ran to
-  completion. A new duty on the tick moves it by one, and the comment beside it enumerates
-  which statements they are: keep that enumeration in step or the next person cannot tell a
-  legitimate move from a lost duty.
+**The rule, rather than the examples.** A count is movable when three things hold together:
+
+1. it describes the **shape of the server** rather than a behaviour anybody asked for;
+2. it **says so beside itself**, in its own file, with the instruction for moving it;
+3. the sweep it belongs to **passed on your new code** — so the count was the only thing that
+   failed.
+
+The third is the whole safeguard. If the sweep itself failed, the number is telling you
+something and moving it is precisely the thing rule 3 forbids.
+
+Six lines across four files meet all three today:
+
+| File | What it counts |
+| - | - |
+| `app/tests/criteria/ac-236-structural-guard-sweep.test.ts` | **mutating** routes the walker found |
+| `app/tests/criteria/ac-236-structural-guard-sweep.test.ts` | **reading** routes (added by issue #33) |
+| `app/tests/criteria/ac-397-authorization-sweep.test.ts` | routes carrying a **path parameter** |
+| `app/tests/criteria/ac-399-body-parsing-goes-through-parse-body.test.ts` | `parseBody` **call sites** |
+| `app/tests/criteria/ac-399-body-parsing-goes-through-parse-body.test.ts` | **modules** that read a request body |
+| `app/src/server/scheduler/interval.test.ts` | statements the 11.7 pass runs **after its delivery transaction** |
+
+Two of them carry a further condition that is theirs alone. `ac-236`'s mutating count moves
+only once the sweep passed on your new route — 401 bare, 403 without CSRF. And
+`interval.test.ts`'s comment **enumerates which statements they are**: keep that enumeration
+in step or the next person cannot tell a legitimate move from a lost duty.
+
+**When two branches both move one of these, the resolution is the sum and it is neither
+side.** This is not arithmetic you do on two diffs — run the sweep on the merged tree and
+read the number it reports. Two sides agreeing on a number is not the same as the number
+being right, because each counted its own routes against a base that did not hold the
+other's: on 2026-09-20 issues #223, #224 and #226 all independently read 40 reading routes,
+and 41 was correct. Every one of the six carries a worked example of this in its own comment.
 
 Move the number **and** its comment in the same change, say in the pull request that you did,
 and say which. A moved count with no note is indistinguishable from the thing rule 3 exists
