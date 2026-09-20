@@ -222,10 +222,22 @@ Writing only the first of a Task's Folder Labels — a `LIMIT 1` inside
 alone**, across AC-540 to AC-554, AC-780 to AC-782 and
 `src/shared/workflows.test.ts`: 1 failed, 67 passed. No round-trip criterion
 gives one imported Task two Folder Labels, so the case that exists to prove
-`ΦΩΣ` and `φως` are two Labels is also the only watcher the import's
-assignment write has. That is a thin place rather than a finding about this
-change, and it is recorded here because the next person to touch that statement
-should know what is and is not standing behind it.
+`ΦΩΣ` and `φως` are two Labels was also the only watcher the import's
+assignment write had.
+
+**Three more properties of those two statements have no criterion at all, and
+they are `src/server/domain/workflow-label-writes.test.ts`'s** — a colocated
+test rather than a criterion, on `src/server/domain/cap-guards.test.ts`'s
+precedent and for its reason: what is under test is the statements a path
+issues and what one of them does, which no run of the suite can see from the
+outside. It counts them through a recording executor, so a later edit putting
+either loop back is red rather than eleven seconds slower; it drives a file
+naming one key twice on one Task, which nothing else in the suite does and
+which is what `ON CONFLICT DO NOTHING` absorbs *within* one statement; and it
+asserts which of two colliding spellings `WorkflowLabelNameConflict` carries
+and which folder index, neither of which any endpoint case can see — measured
+by mutation, naming `definitions[0]` instead of the colliding row leaves AC-780
+and AC-782 both green and takes only this file red.
 
 **And a third, 2026-09-20, for the field path itself.** Every assertion of
 `folders.<n>.labels` in the suite was made against a **one-folder** file —
