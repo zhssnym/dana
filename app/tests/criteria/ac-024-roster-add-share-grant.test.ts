@@ -1,21 +1,44 @@
 /*
-AC-024: given any member adds from their roster, then 201 and one
-share-grant email is sent to the target.
+AC-024: given a member holding Full control adds from their roster, then 201
+and one share-grant email is sent to the target; given a member holding Can
+edit or below, then 403, no membership is created and no email is sent.
 
-Any member means the actor here is deliberately the non-owner, and the
-roster edge is deliberately theirs alone: the owner holds no connection to
-the target, so a 201 proves the add ran on the actor's roster and 5.4's
-"add members" row really extends past the owner. The email is counted, not
-just noticed: exactly one, to the target's address and nobody else's,
-observed through the recorder the harness injects because 11.8 makes the
-notification module log rather than send under test.
+## What this criterion said, and what moved it
+
+**It read:** "given any member adds from their roster, then 201 and one
+share-grant email is sent to the target." **Any member** was the point of it:
+the actor was deliberately the non-owner and the roster edge was deliberately
+theirs alone, so that a 201 proved 5.4's "add members" row really extended
+past the owner.
+
+**It now reads** what the header above says. Adding a member is administering
+members, and administering members is Full control's. The actor here is still
+deliberately **not the owner** and the roster edge is still theirs alone --
+that half of the original argument is untouched and still worth proving, and
+it is now proven by a Full-control member who owns nothing. What changed is
+that a member at Can edit, who may change every piece of the folder's Work, is
+refused; that is the widest of the membership-only write paths issue #228
+closes.
+
+**The record that authorises it is accepted #209 R8A**, "Status: ACCEPTED by
+owner": Full control is "administer members, Access, Responsibilities and all
+shared Folder work", and Can edit is "plan/change all shared Folder work;
+**cannot administer people/Access**". Hassan's ruling of 2026-09-20 made the
+change and corrected the authority the branch had cited -- R7, marked
+"(PROPOSED, not accepted)" in #209 and superseded by R8A. The ruling is
+https://github.com/zhssnym/dana/issues/228#issuecomment-5750892771.
+
+**AC-021 is unaffected in substance and reachable differently.** Its raced
+double add still splits 201 and 409, but both racers must now hold Full
+control for the race to be reachable at all: a racer below it is refused 403
+before the insert, which proves nothing about INV-10's unique membership.
 
 The membership listing of GET /folders/:id is asserted once here, since
 this criterion is where membership becomes visible surface: 7.4 names
-members [{user, role, joined_at, is_owner}], and exactly one element may
-carry is_owner true.
+members [{user, role, access, joined_at, is_owner}], and exactly one element
+may carry is_owner true.
 
-Spec: 5.3, 5.4, 7.0, 7.4, 11.8.
+Spec: 5.3, 5.4, 7.0, 7.4, 11.8; accepted #209 R8A.
 */
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
@@ -35,36 +58,60 @@ import {
 import type { Actor } from '../support/folders-harness.js'
 
 let app: AuthTestApp
-const cast = new Cast(['owner', 'adder', 'target', 'owners-friend'])
+const cast = new Cast([
+  'owner',
+  'adder',
+  'target',
+  'owners-friend',
+  'editor',
+  'editors-friend',
+])
 
 interface Stage {
   owner: Actor
+  /** Full control, owns nothing: the actor the criterion is about. */
   adder: Actor
   target: Actor
   ownersFriend: Actor
+  /** Can edit, in a folder of their own, with a roster edge of their own. */
+  editor: Actor
+  editorsFriend: Actor
   folderId: string
 }
 let staged: Stage | undefined
 
 async function stage(): Promise<Stage> {
   if (staged === undefined) {
-    const [owner, adder, target, ownersFriend] = await cast.of(app)
+    const [owner, adder, target, ownersFriend, editor, editorsFriend] =
+      await cast.of(app)
     if (
       owner === undefined ||
       adder === undefined ||
       target === undefined ||
-      ownersFriend === undefined
+      ownersFriend === undefined ||
+      editor === undefined ||
+      editorsFriend === undefined
     ) {
-      throw new Error('cast must produce four actors')
+      throw new Error('cast must produce six actors')
     }
     const db = app.db
     await connect(db, owner.id, adder.id)
     // The roster edge under test belongs to the non-owner actor alone.
     await connect(db, adder.id, target.id)
     await connect(db, owner.id, ownersFriend.id)
+    await connect(db, owner.id, editor.id)
+    await connect(db, editor.id, editorsFriend.id)
     const folderId = await createFolder(owner, 'p2 ac024 granted')
-    await addMemberOk(owner, folderId, adder.id)
-    staged = { owner, adder, target, ownersFriend, folderId }
+    await addMemberOk(owner, folderId, adder.id, 'full_control')
+    staged = {
+      owner,
+      adder,
+      target,
+      ownersFriend,
+      editor,
+      editorsFriend,
+      folderId,
+    }
   }
   return staged
 }
@@ -79,15 +126,21 @@ afterAll(async () => {
   await app.close()
 })
 
-describe('AC-024: a roster add admits the target and mails them once', () => {
-  test('AC-024: the non-owner member adds from their own roster, 201', async () => {
+describe('AC-024: a Full-control roster add admits the target and mails them once', () => {
+  test('AC-024: a Full-control member who is not the owner adds from their own roster, 201', async () => {
     const { adder, target, folderId } = await stage()
+    const entry = await folderInList(adder, folderId)
+    expect(
+      entry?.is_owner,
+      'the actor must not be the owner: Full control confers no ownership and needs none (accepted R8A)',
+    ).toBe(false)
+
     app.emails.clear()
     const response = await addMember(adder, folderId, target.id)
     expectStatus(
       response,
       201,
-      'any member adds from their roster (spec 5.3, 5.4, 7.4)',
+      'accepted R8A: Full control administers members, and the roster edge is the actor\'s own (spec 5.3, 7.4)',
     )
     expect(
       await membershipUserIds(app.db, folderId),
@@ -150,6 +203,36 @@ describe('AC-024: a roster add admits the target and mails them once', () => {
     expect(entry?.is_owner, 'the target is no owner (spec 7.0)').toBe(false)
   })
 
+  test('AC-024: a Can-edit member adding from their own roster is refused 403', async () => {
+    /* The half of the rewritten rule that is a refusal, on a folder of its
+       own so that the counts above stay this criterion's. The actor may
+       change every piece of this folder's Work; accepted R8A stops them
+       exactly at the people in it. */
+    const { owner, editor, editorsFriend } = await stage()
+    const folderId = await createFolder(owner, 'p2 ac024 refused')
+    await addMemberOk(owner, folderId, editor.id, 'can_edit')
+
+    app.emails.clear()
+    const response = await addMember(editor, folderId, editorsFriend.id)
+    expectStatus(
+      response,
+      403,
+      'accepted R8A: Can edit "cannot administer people/Access", and a roster edge of their own does not change that (spec 5.4, 7.4)',
+    )
+    expect(
+      await membershipUserIds(app.db, folderId),
+      'the refused add created no membership (spec 5.3)',
+    ).not.toContain(editorsFriend.id)
+    expect(
+      app.emails.shareGrants().length,
+      'and a refusal sends nothing (spec 5.3, 11.8)',
+    ).toBe(0)
+    expect(
+      await folderInList(editorsFriend, folderId),
+      'and the target never saw the folder (spec 10.2)',
+    ).toBeUndefined()
+  })
+
   test('AC-024 adversarial: the members listing reflects the add', async () => {
     const { owner, folderId } = await stage()
     const response = await owner.browser.api(`/folders/${folderId}`)
@@ -161,7 +244,7 @@ describe('AC-024: a roster add admits the target and mails them once', () => {
     const body = response.json() as { members?: unknown }
     expect(
       Array.isArray(body.members),
-      'the detail carries members [{user, role, joined_at, is_owner}] (spec 7.4)',
+      'the detail carries members [{user, role, access, joined_at, is_owner}] (spec 7.4)',
     ).toBe(true)
     const members = body.members as { is_owner?: unknown }[]
     expect(members.length, 'three memberships, three elements (spec 7.4)').toBe(3)
@@ -189,7 +272,7 @@ describe('AC-024: a roster add admits the target and mails them once', () => {
     expectStatus(
       response,
       201,
-      'any member includes the owner (spec 5.3, 5.4)',
+      'the owner holds Full control too, and the act follows Access rather than custody (spec 5.3, 5.4)',
     )
     const grants = app.emails.shareGrants()
     expect(
@@ -199,11 +282,19 @@ describe('AC-024: a roster add admits the target and mails them once', () => {
   })
 
   test('AC-024: invariants hold afterwards', async () => {
-    const { owner, adder, target, ownersFriend, folderId } = await stage()
+    const { owner, adder, target, ownersFriend, editor, editorsFriend, folderId } =
+      await stage()
     await expectFolderInvariants(
       app.db,
       [folderId],
-      [owner.id, adder.id, target.id, ownersFriend.id],
+      [
+        owner.id,
+        adder.id,
+        target.id,
+        ownersFriend.id,
+        editor.id,
+        editorsFriend.id,
+      ],
     )
   })
 })

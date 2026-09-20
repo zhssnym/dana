@@ -4,7 +4,8 @@ mutation is read in the same transaction and under the same row lock as the
 mutation itself, so a reassignment that commits first is seen -- and a stale
 client projection saying "assigned to me" never authorizes.
 
-Issue #228 required proof 9. Product authority: #209 R7 section E,
+Issue #228 required proof 9. Product authority: accepted #209 R8A and
+#228's Assigned-work rule,
 "Transactional requirement", which is the one place in the accepted model
 that specifies an implementation property rather than a capability:
 
@@ -35,7 +36,7 @@ completion won, it was authorized by an assignee that was still true when it
 wrote. An assertion about which one wins would be an assertion about the
 scheduler, and it would flake.
 
-Spec: 7.6, 8.3; #209 R7 section E.
+Spec: 7.6, 8.3; accepted #209 R8A; #228's Assigned-work rule.
 */
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
@@ -99,7 +100,7 @@ describe('AC-516 the assignee that authorizes is the assignee that is written', 
     const { manager, worker, replacement, taskId } = await stage('ac486 stale')
 
     // The worker reads the Task and sees themselves on it. This is exactly
-    // the "projection saying assigned to me" R7 names, and it is genuinely
+    // the stale "assigned to me" projection #228 names, and it is genuinely
     // true at the moment it is read.
     expect(
       await assigneeOf(worker, taskId),
@@ -121,7 +122,7 @@ describe('AC-516 the assignee that authorizes is the assignee that is written', 
     expectStatus(
       completed,
       403,
-      'R7 section E: the server reads the *authoritative current* assignee at mutation time, so what the client last saw authorizes nothing',
+      '#228: the assignee is checked in the same authoritative mutation transaction, so a stale client projection never authorizes after reassignment',
     )
     expect(
       await statusOf(manager, taskId),
@@ -248,7 +249,7 @@ describe('AC-516 the assignee that authorizes is the assignee that is written', 
     expectStatus(
       beforeMove,
       200,
-      'while it is theirs, the holder ticks the Step (R7 section G)',
+      "while it is theirs, the holder ticks the Step (#228's Assigned-work list)",
     )
 
     const moved = await manager.browser.json(`/tasks/${taskId}`, 'PATCH', {

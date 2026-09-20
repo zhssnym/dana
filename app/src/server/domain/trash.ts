@@ -179,8 +179,8 @@ export async function restoreTask(
     )
     const row = found[0]
     if (row === undefined) return 'not_found'
-    /* R7 section F: restoring from Trash sits with Can edit, beside trashing
-       itself. The task is trashed, so `lockedTask` cannot see it; the read
+    /* #228's Can-edit list: restoring from Trash sits with Can edit, beside
+       trashing itself. The task is trashed, so `lockedTask` cannot see it; the read
        above is the same membership scope with the deleted_at predicate
        inverted, and the facts come from it. */
     const held = await trashedTaskFacts(tx, viewerId, taskId)
@@ -225,7 +225,8 @@ export async function restoreFolder(
     const row = found[0]
     if (row === undefined) return 'not_found'
     /*
-    R7 section N: Full control restores, **and so does the owner whatever
+    #228's Full-control list -- "trash/restore Folder administratively" --
+    with governing R5: Full control restores, **and so does the owner whatever
     their ordinary Access**. That second clause is the custody anchor doing
     its job: an owner who lowered themselves to Can view, and whose folder was
     then trashed by an administrator, must still be able to get it back. The
@@ -412,10 +413,10 @@ export type DestroyOutcome =
   | { kind: 'destroyed'; fileIds: string[] }
   /** Visible to the caller and not theirs to perform, so this is 403 and not
    * 10.2's 404. The two acts no longer share one rule: permanently deleting
-   * a **task** is Full control's (R7 section F), and permanently destroying
-   * a **folder** needs custody *and* Full control together (R7 section N), so
-   * the refusal carries the resolver's own sentence rather than one string
-   * for both. */
+   * a **task** is Full control's (#228's Full-control list), and permanently
+   * destroying a **folder** needs custody *and* Full control together (#228
+   * and governing R5), so the refusal carries the resolver's own sentence
+   * rather than one string for both. */
   | { kind: 'forbidden'; reason: string }
   /** Does not exist, is not in Trash, rides a trashed folder, or is out of
    * the viewer's membership: one answer (10.2). */
@@ -447,8 +448,9 @@ export async function destroyTask(
     )
     const row = found[0]
     if (row === undefined) return { kind: 'not_found' } as const
-    /* R7 section F: permanent deletion is an irreversible administrative act
-       and belongs to Full control. It was the folder owner's (item 38), which
+    /* #228 gives permanently deleting a Task from Trash to Full control:
+       permanent deletion is an irreversible administrative act. It was the
+       folder owner's (item 38), which
        is the ownership-as-authority proxy #209 removes; a Full-control
        administrator who never owned the folder now has it, and an owner who
        lowered their own Access no longer does. */
@@ -501,7 +503,7 @@ export async function destroyFolder(
     )
     const row = found[0]
     if (row === undefined) return { kind: 'not_found' } as const
-    /* R7 section N and R5: permanent structural destruction requires custody
+    /* #228 and governing R5: permanent structural destruction requires custody
        **and** active administrative authority together -- the owner, who is
        also currently Full control. Either alone is refused. The resolver
        expresses it as `owner: 'required'` over a `full_control` bar. */

@@ -103,9 +103,15 @@ const coverPreset = z
 
 export const patchFolderBody = z.object({
   name: folderName.optional(),
-  // The 4.3 identity, folder-owned since RFC 0005 (D1): any member writes
-  // these four; the rename above stays the owner's, and the route splits
-  // the two by role rather than this schema. The icon key is
+  // The 4.3 identity, folder-owned since RFC 0005 (D1). **The DES-225 split
+  // this comment used to describe is gone** -- it read "any member writes
+  // these four; the rename above stays the owner's, and the route splits the
+  // two by role rather than this schema", and by issue #228 the route had
+  // stopped doing that while the sentence stayed. The name and the dressing
+  // are one thing now, ordinary shared Folder work that Can edit and above
+  // change and nobody below does; accepted #209 R8A, AC-011, AC-012 and
+  // AC-193. The schema still splits nothing by authority -- that is the
+  // route's single `folder.profile.edit` gate. The icon key is
   // pattern-validated until S8 exports the set; the server stores it
   // opaquely either way.
   icon: z
@@ -359,9 +365,10 @@ export type GetFoldersResponse = z.infer<typeof getFoldersResponse>
  * GET /folders/:id.
  *
  * `pending_invites` is **empty for every member below Full control** since
- * issue #228: R7 section B and #228 both classify a pending invite's email
- * and intended Access as member-administration data rather than ordinary
- * Work. The key is still present and still an array, because a response that
+ * issue #228, which classifies a pending invite's email and intended Access
+ * as member-administration data rather than ordinary Work: accepted R8A
+ * gives administering people and Access to Full control alone. The key is
+ * still present and still an array, because a response that
  * dropped a key would make "you may not see this" and "there are none" two
  * different shapes for the client to handle, and the second is the one the
  * panel already renders.

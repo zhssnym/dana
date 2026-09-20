@@ -981,8 +981,8 @@ export type ChangeAccessResult =
   /** `expected_access` was sent and does not match the authoritative current
    * value: another administrator got there first (R9 section 16). */
   | { kind: 'stale'; actual: FolderAccessPreset }
-  /** The target is the structural owner and the actor is not: R7 section M
-   * forbids a Full-control member from demoting the owner. */
+  /** The target is the structural owner and the actor is not: #228's
+   * ownership rules forbid a Full-control member from demoting the owner. */
   | { kind: 'target_is_owner' }
   /** The change would leave the folder with no active human Full-control
    * member (R5's continuity invariant). */
@@ -1032,8 +1032,9 @@ export async function changeMemberAccess(
     if (target.access === next) {
       return { kind: 'unchanged', access: target.access } as const
     }
-    /* R7 section M: the owner's Access is the owner's. A Full-control member
-       may administer every other member and not this one, which is what keeps
+    /* #228's ownership rules: the owner's Access is the owner's. A
+       Full-control member may administer every other member and not this
+       one, which is what keeps
        a lowered owner's custody anchor from being administered away by the
        people they delegated to. */
     if (target.isOwner && targetId !== actorId) {
@@ -1093,7 +1094,8 @@ export type OwnerRecoveryResult =
 
 /**
  * The structural owner restoring their own ordinary Access to Full control
- * (R5 "Owner Access may be restricted", R7 section M, R9 section 8).
+ * (governing R5 "Owner Access may be restricted", #228's ownership rules,
+ * R9 section 8).
  *
  * It exists as its own act, rather than as a Full-control member granting
  * themselves something, because the recovery anchor has to work precisely

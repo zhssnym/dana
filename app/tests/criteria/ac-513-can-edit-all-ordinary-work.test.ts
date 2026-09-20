@@ -1,27 +1,32 @@
 /*
 AC-513: Can edit changes every piece of ordinary shared Work in the folder --
 its identity, its page, its Sections, and every Task in it whoever holds them
--- and stops exactly at the acts R7 reserves.
+-- and stops exactly at the acts the accepted records reserve.
 
-Issue #228 required proof 4. Product authority: #209 R8A and R7 section C,
-which revises R4 by moving the folder's own identity out of "people
-administration" and into ordinary Work.
+Issue #228 required proof 4. Product authority: accepted #209 R8A -- "Can
+edit -- plan/change all shared Folder work" -- with #228's Can-edit list,
+which names "Folder name/description/icon/color/cover" and the "Folder
+page/composer" inside it. The folder's own identity is ordinary Work rather
+than people administration.
 
 ## Two decisions moved here and both are named
 
 **The rename was the owner's.** `PATCH /folders/:id` split the body by role:
 the name was the owner's and the rest of the 4.3 identity was any member's
-(the DES-225 split of RFC 0005). R7 section C replaces both halves with one
+(the DES-225 split of RFC 0005). Accepted R8A replaces both halves with one
 rule -- the folder's identity is ordinary shared Work -- which *narrows* the
-dressing and *widens* the rename. AC-011 and AC-012 pin the superseded split
-and are named in the pull request.
+dressing and *widens* the rename. AC-011, AC-012 and AC-193 were rewritten
+against that record on 2026-09-20 under Hassan's ruling,
+https://github.com/zhssnym/dana/issues/228#issuecomment-5750892771.
 
-**Trashing the folder was the owner's too.** R7 section N makes recoverable
-administrative deletion Full control's, so Can edit is refused it here. That
-is the boundary this criterion is about: broad authority over the contents is
-not authority over the container.
+**Trashing the folder was the owner's too.** Hassan's ruling of 2026-09-20
+makes recoverable administrative deletion Full control's -- accepted R8A does
+not settle it either way -- so Can edit is refused it here, and AC-015 carries
+that ruling. That is the boundary this criterion is about: broad authority
+over the contents is not authority over the container.
 
-Spec: 4.3, 4.17, 7.4, 7.6, 7.16; #209 R7 sections C, F and N, R8A.
+Spec: 4.3, 4.17, 7.4, 7.6, 7.16; accepted #209 R8A, #228's capability
+boundaries, and Hassan's ruling of 2026-09-20 for the folder's own Trash.
 */
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
@@ -66,7 +71,7 @@ describe('AC-513 Can edit owns the Work and not the container', () => {
     expectStatus(
       patched,
       200,
-      "R7 section C: a folder's name, description, icon, colour and cover are ordinary shared Work, and the DES-225 owner-only rename is superseded (AC-011, AC-012)",
+      "accepted R8A: a folder's name, description, icon, colour and cover are ordinary shared Work, and the DES-225 owner-only rename is superseded (AC-011, AC-012, AC-193)",
     )
     const body = patched.json() as { name?: string; description?: string }
     expect(body.name, 'the rename landed').toBe('ac483 renamed')
@@ -87,7 +92,7 @@ describe('AC-513 Can edit owns the Work and not the container', () => {
     expectStatus(
       written,
       200,
-      'R7 section C: the folder page and composer are ordinary shared Work',
+      "#228's Can-edit list: the folder page and composer are ordinary shared Work",
     )
 
     /* A folder of its own, because `insert_block` takes an anchor and an
@@ -110,7 +115,7 @@ describe('AC-513 Can edit owns the Work and not the container', () => {
     expectStatus(
       sectioned,
       200,
-      "creating a Section is Can edit's, and it is the authority R8 keeps away from Can contribute: they may place their own Task among existing Sections and may not make one (#209 R8)",
+      "creating a Section is Can edit's, and it is the authority #228's Can-contribute list keeps away from them: they may place their own Task among existing Sections and may not make one (accepted #209 R8A)",
     )
   })
 
@@ -131,7 +136,7 @@ describe('AC-513 Can edit owns the Work and not the container', () => {
     expectStatus(
       renamed,
       200,
-      "#209 R8A: Can edit plans and changes *all* shared Folder work, not only their own",
+      "accepted #209 R8A: Can edit plans and changes *all* shared Folder work, not only their own",
     )
 
     const reassigned = await editor.browser.json(
@@ -142,7 +147,7 @@ describe('AC-513 Can edit owns the Work and not the container', () => {
     expectStatus(
       reassigned,
       200,
-      'R7 section D: assign, reassign and unassign are planning authority and Can edit has it',
+      "#228's Can-edit list: assign, reassign and unassign are planning authority and Can edit has it",
     )
 
     const trashed = await editor.browser.api(`/tasks/${ownersTask}`, {
@@ -151,11 +156,11 @@ describe('AC-513 Can edit owns the Work and not the container', () => {
     expectStatus(
       trashed,
       204,
-      'R7 section F: trashing a Task is Can edit\'s; only the permanent delete is held back',
+      "#228's Can-edit list: trashing a Task is Can edit's; only the permanent delete is held back",
     )
   })
 
-  test('AC-513: and stops at the three acts R7 reserves', async () => {
+  test('AC-513: and stops at the three acts the accepted records reserve', async () => {
     const { owner, editor, folderId } = await stage('ac483 the boundary')
 
     const trashedFolder = await editor.browser.api(`/folders/${folderId}`, {
@@ -164,7 +169,7 @@ describe('AC-513 Can edit owns the Work and not the container', () => {
     expectStatus(
       trashedFolder,
       403,
-      'R7 section N: moving the folder itself to Trash is recoverable administrative deletion, which is Full control\'s',
+      "Hassan's ruling of 2026-09-20 on #228: moving the folder itself to Trash is recoverable administrative deletion, which is Full control's",
     )
 
     const taskId = await taskIn(owner, folderId, 'ac483 to be destroyed', owner.id)
@@ -175,7 +180,7 @@ describe('AC-513 Can edit owns the Work and not the container', () => {
     expectStatus(
       destroyed,
       403,
-      'R7 section F: permanent deletion is an irreversible administrative act and stays with Full control even though soft Task editing is Can edit\'s',
+      "#228's Full-control list: permanent deletion is an irreversible administrative act and stays with Full control even though soft Task editing is Can edit's",
     )
 
     const handed = await editor.browser.json(
@@ -186,7 +191,7 @@ describe('AC-513 Can edit owns the Work and not the container', () => {
     expectStatus(
       handed,
       403,
-      "R5: transferring ownership is the owner's alone, and even Full control does not confer it -- let alone Can edit",
+      "governing R5 and R6: transferring ownership is the owner's alone, and even Full control does not confer it -- let alone Can edit",
     )
   })
 })

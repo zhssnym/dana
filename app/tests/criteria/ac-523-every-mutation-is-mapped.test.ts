@@ -6,7 +6,8 @@ the mapping is enumerated over the router in both directions, so a route that
 joins the application without a decision fails here.
 
 Issue #228 required proof 24, and the forward half of proof 25. Product
-authority: #209 R7 section Q and R8A; #228 "Existing mutation audit".
+authority: accepted #209 R8A; #228's authorization-resolver section and
+its "Existing mutation audit".
 
 ## What this is and what it is not
 
@@ -29,7 +30,7 @@ would otherwise inherit whatever its neighbours happened to do.
 ## The classifications, and why "outside" needs a reason each
 
 `OUTSIDE_FOLDER_ACCESS` is not an exemption list; it is the other half of the
-answer. R7 section A puts personal and account state outside Folder Access
+answer. #228's personal-actions rule puts personal and account state outside Folder Access
 deliberately, and a route that belongs there is not ungoverned -- it is
 governed by ownership of the account, which `requireSession` and a
 viewer-scoped query already settle. Each entry carries the reason, because a
@@ -45,7 +46,8 @@ enumeration above, which will fail the moment #226's twelve routes arrive
 without a decision beside each. That is the handoff, and it is written in the
 pull request as well as here.
 
-Spec: 10.2; #209 R7 sections A, H and Q, R8A.
+Spec: 10.2; accepted #209 R8A; #228's personal-actions rule and its
+authorization-resolver section.
 */
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
@@ -223,9 +225,9 @@ const OUTSIDE_FOLDER_ACCESS: Record<string, string> = {
   'POST /api/v1/sample': "the account's own sample workspace (7.22)",
   'DELETE /api/v1/sample': "the account's own sample workspace",
   'POST /api/v1/folders':
-    'creating a folder is an account-level creation act (R7 section A): the creator becomes its owner and Full control, and no existing folder is touched',
+    "creating a folder is an account-level creation act (#228's account-state boundary): the creator becomes its owner and Full control, and no existing folder is touched",
   'POST /api/v1/workflows/import':
-    'importing a workflow creates the importer\'s own folders (R7 section A, R7 section K: "Workflow import creates the importer\'s own Folder and is an account-level action outside source-Folder Access")',
+    "importing a workflow creates the importer's own folders (#228: it is an account-level creation act outside source-Folder Access, and R10B keeps member identities and Access standing out of duplication and workflows)",
   'POST /api/v1/shelves': 'a shelf is private to one person (4.18)',
   'PATCH /api/v1/shelves/:id': "the person's own shelf; viewer-scoped",
   'DELETE /api/v1/shelves/:id': "the person's own shelf",
@@ -234,7 +236,7 @@ const OUTSIDE_FOLDER_ACCESS: Record<string, string> = {
   'POST /api/v1/covers/photo':
     'stores a picture owned by the caller with no folder at all, spending their own quota (7.19, issues #20 and #100)',
   'POST /api/v1/invites/:id/accept':
-    "the recipient's own decision. R7 section L: \"Accepting/declining one's own invitation is a recipient action and does not require existing Folder Access\"",
+    "the recipient's own decision. #228: acceptance activates the membership with the inviter's intended preset, and the recipient is never represented as self-granting Access merely because they accepted",
   'POST /api/v1/invites/:id/decline': "the recipient's own decision",
   'POST /api/csp-report/':
     "the browser's own report of a policy refusal (issue #99). No session, no database, no folder",

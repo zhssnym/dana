@@ -359,11 +359,21 @@ describe('the 7.4 shapes against the mounted application', () => {
       ) as { id: string; is_default: boolean }[]
     ).find((entry) => entry.is_default)?.id
 
+    /* The 403 row was "a member rename" until 2026-09-20. It stopped being a
+       refusal: the member is staged at Can edit, and accepted #209 R8A makes
+       a folder's identity ordinary shared Folder work, which Can edit
+       changes. AC-011, AC-012 and AC-193 carry that decision and Hassan's
+       ruling, https://github.com/zhssnym/dana/issues/228#issuecomment-5750892771.
+       What this file needs is *a* 403 on this surface to parse, so the row is
+       now the act the same member is still refused -- moving the folder
+       itself to Trash, which Hassan's ruling of the same day makes Full
+       control's (AC-015). It mutates nothing when the rule holds, and when it
+       does not the status assertion fails before the envelope one. */
     const refusals: readonly [number, Promise<{ status: number; json(): unknown }>, string][] = [
       [
         403,
-        api(member, `/folders/${folderId}`, jsonInit('PATCH', { name: 'no' })),
-        'a member rename',
+        api(member, `/folders/${folderId}`, { method: 'DELETE' }),
+        'a Can-edit member trashing the folder',
       ],
       [
         404,

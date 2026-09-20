@@ -105,7 +105,7 @@ export function createConversationRouter(
         sendError(res, 404, 'not_found', 'Not found.')
         return
       }
-      /* R7 section I: Consultation is participation, and Can comment is the
+      /* Accepted R8A: Consultation is participation, and Can comment is the
          preset that names it. Can view reads the thread and does not write to
          it, which is the whole of the distinction between the two lowest
          rungs of R8A's ladder.
@@ -259,9 +259,9 @@ export function createConversationRouter(
 
       The rule was "author or folder owner". Both halves move: the author
       needs current Can comment standing, for the authorship reason above; and
-      removing somebody *else's* comment is moderation, which R7 section I
-      gives to Full control rather than to custody. An owner who lowered their
-      own Access to Can view no longer moderates, and a Full-control member
+      removing somebody *else's* comment is moderation, which #228's
+      Full-control list gives to Full control rather than to custody. An
+      owner who lowered their own Access to Can view no longer moderates, and a Full-control member
       who never owned anything now does.
       */
       const own = mayPerform(access.facts, 'comment.mutate.own', {
@@ -299,8 +299,8 @@ export function createConversationRouter(
         sendError(res, 404, 'not_found', 'Not found.')
         return
       }
-      // R7 section I puts liking with commenting: Can view reads the thread
-      // and leaves no mark on it.
+      // #228's Can-comment list puts liking with commenting: Can view reads
+      // the thread and leaves no mark on it.
       const mayLike = mayPerform(liked.facts, 'comment.like')
       if (!mayLike.allowed) {
         sendError(res, 403, 'forbidden', mayLike.reason)

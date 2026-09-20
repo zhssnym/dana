@@ -129,7 +129,7 @@ export interface TaskAccess {
    * that scoped this read (issue #228).
    *
    * It rides here rather than being fetched beside each call because of what
-   * R7's transactional requirement asks for: the Access preset, the owner
+   * #228's Assigned-work rule asks for: the Access preset, the owner
    * fact and the Task's current assignee must be one consistent picture, read
    * in the transaction that is about to write. `lockedTask` takes the task
    * row `FOR UPDATE OF t` and returns this with `assigneeId` beside it, so a
@@ -190,7 +190,7 @@ function taskAccessFromRow(
  * about to write.
  *
  * This is the only place in this file that decides anything about authority.
- * `mayPerform` holds the rules; this carries the target fact R7 requires be
+ * `mayPerform` holds the rules; this carries the target fact #228 requires be
  * evaluated in the mutation's own snapshot, and nothing else.
  */
 export function mayActOnTask(
@@ -985,9 +985,9 @@ export async function patchTask(
     The Access gate (issue #228), and the reason it sits exactly here.
 
     `lockedTask` has just taken this row `FOR UPDATE OF t` and returned the
-    assignee it holds *now*, in this transaction's snapshot. That is R7's
-    transactional requirement met literally: a Can-contribute or Assigned-work
-    member whose standing over this Task comes from being its assignee is
+    assignee it holds *now*, in this transaction's snapshot. That is #228's
+    same-transaction assignee rule met literally: a Can-contribute or an
+    Assigned-work member whose standing over this Task comes from being its assignee is
     measured against the row the write is about to touch, so a reassignment
     that commits between somebody's screen and their request is seen. A gate
     placed before the lock would be a projection, and a projection must never
@@ -1032,9 +1032,10 @@ export async function patchTask(
       const into = await accessOf(tx, viewerId, target)
       if (into === null) return { kind: 'target_not_found' }
       /* Authority in the folder the Task is moving *into*, asked with no
-         assignee target on purpose: R7 section D puts "move to another
-         Folder" squarely with Can edit, so the current-assignee clause that
-         lets Can contribute rearrange their own work inside one Folder must
+         assignee target on purpose: #228 puts "create/edit/move/order" of
+         Tasks with Can edit and lets Can contribute move only their own
+         current Task "among existing Sections", so the current-assignee
+         clause that lets Can contribute rearrange their own work inside one Folder must
          not fire across the boundary between two. Without this the gate above
          would let a Can-contribute member push their Task into a Folder where
          they may only contribute, or a Can-edit member push one into a Folder
@@ -1591,7 +1592,7 @@ export async function transitionTask(
 
     /*
     The Access gate, and this is the one the whole race-safety argument is
-    about (issue #228, R7 section E).
+    about (issue #228; accepted R8A's Assigned work).
 
     Assigned work means: execute the plan for Tasks *currently* assigned to
     you. `lockedTask` a line above took this row `FOR UPDATE OF t`, so the
@@ -1601,8 +1602,8 @@ export async function transitionTask(
     would let somebody complete a Task that had just been taken off them.
 
     Complete and uncomplete are execution and belong to the assignee; abandon
-    and restore are not, which R7 section E states outright, so they carry the
-    different action and Assigned work is refused them.
+    and restore are not, which #228's Assigned-work list states outright, so
+    they carry the different action and Assigned work is refused them.
     */
     const decision = mayActOnTask(
       current,
@@ -1718,8 +1719,9 @@ export async function addStep(
     if (current === null) {
       return { kind: 'not_found' }
     }
-    /* R7 section G: adding a Step rewrites the checklist that defines what
-       completion means, which is not execution. Assigned work is refused it
+    /* #228's Assigned-work list refuses Step create: adding a Step rewrites
+       the checklist that defines what completion means, which is not
+       execution. Assigned work is refused it
        even on their own Task; Can contribute has it over work currently
        assigned to them, which the locked assignee decides. */
     const decision = mayActOnTask(current, 'step.manage')
@@ -1815,13 +1817,15 @@ export async function patchStep(
     if (step === null) return { kind: 'not_found' }
     /*
     The parent Task, locked, because the Step's authorization is the parent's
-    (issue #228). It costs one statement and buys the property R7 requires:
+    (issue #228). It costs one statement and buys the property #228 requires:
     the assignee this gate reads is the assignee under the lock, so a Step
     cannot be ticked by somebody the Task was reassigned away from.
 
     **Ticking a Step and rewriting one are two different acts**, and the split
-    is R7 section G's whole point: an Assigned-work member executes the
-    checklist and may not rewrite the scope it describes. So `done` alone is
+    is the whole point of #228's split between toggling an existing Step and
+    creating, renaming, reordering, deleting or promoting one: an
+    Assigned-work member executes the checklist and may not rewrite the scope
+    it describes. So `done` alone is
     `step.toggle`, and a body that also renames or reorders is `step.manage`.
     A body carrying both is the stricter of the two rather than the looser.
     */
@@ -1881,8 +1885,8 @@ export async function deleteStep(
     if (step === null) return 'not_found'
     const parent = await lockedTask(tx, viewerId, step.taskId)
     if (parent === null) return 'not_found'
-    // R7 section G: deleting a Step is rewriting the checklist, never
-    // executing it.
+    // #228's Assigned-work list: deleting a Step is rewriting the checklist,
+    // never executing it.
     const decision = mayActOnTask(parent, 'step.manage')
     if (!decision.allowed) {
       return { kind: 'forbidden', reason: decision.reason }
@@ -1929,8 +1933,8 @@ export async function promoteStep(
     const step = await accessibleStep(tx, viewerId, stepId)
     if (step === null || step.taskId !== taskId) return { kind: 'not_found' }
     await tx.execute(sql`SELECT 1 FROM folders WHERE id=${step.folderId}::uuid FOR UPDATE`)
-    /* R7 section G lists promote among the Step acts Assigned work may not
-       perform, and it is the strongest of them: it takes a line out of the
+    /* #228's Assigned-work list names promote among the Step acts Assigned
+       work may not perform, and it is the strongest of them: it takes a line out of the
        checklist somebody is being measured against and makes it separate
        work. `step.manage`, against the locked parent. */
     const held = await lockedTask(tx, viewerId, taskId)
@@ -2018,8 +2022,8 @@ than two agreeing by luck.
  * My Day's two results.
  *
  * It was `StepResult` until issue #228 gave that union a `forbidden` arm, and
- * My Day has no such arm and must not grow one: R7 section A puts personal
- * state outside Folder Access, so every member who can *see* the Task may put
+ * My Day has no such arm and must not grow one: #228's personal-actions rule
+ * puts personal state outside Folder Access, so every member who can *see* the Task may put
  * it on their own day, Can view included. A type that admitted a refusal here
  * would be an invitation to add one.
  */
@@ -2098,8 +2102,9 @@ export async function putTaskReminder(
   return inTransaction(db, async (tx) => {
     const current = await lockedTask(tx, viewerId, taskId)
     if (current === null) return { kind: 'not_found' }
-    /* R7 section E puts the reminder with the assignee, and the reason is
-       8.6: Dana delivers it to whoever the Task is assigned to, so the person
+    /* #228's Assigned-work list puts the assignee-delivered reminder with the
+       assignee, and the reason is 8.6: Dana delivers it to whoever the Task
+       is assigned to, so the person
        who will be woken by it is the person who sets it. Can edit and above
        may set it on anybody's Task; Assigned work and Can contribute may set
        it on the one currently assigned to them, which the locked row decides.

@@ -3,20 +3,20 @@ AC-518: a member reduced to Can view keeps the comments they wrote and the
 files they uploaded, and loses every power to change either.
 
 Issue #228 required proof 12. Product authority: #209's accepted cross-cutting
-rule -- "Authorship is provenance, not standing authority" -- with R7 section I
-for comments and R7 section J for files.
+rule -- "Authorship is provenance, not standing authority" -- read against
+accepted R8A's ladder and #228's own Can-comment and Full-control lists.
 
 ## The two rules this replaces, both by name
 
 **Comments.** `PATCH /comments/:id` and `DELETE /comments/:id` gated on
 `access.isAuthor`, full stop. A person downgraded to Can view could still
 rewrite or delete anything they had ever said in the folder, which is exactly
-the hidden mutation authority the accepted rule names. R7 section I: "If a
+the hidden mutation authority the accepted rule names. #228: "If a
 prior commenter is later downgraded to Can view, they can still read their old
 comment but may no longer mutate it."
 
 **Files.** `DELETE /files/:id` gated on "the uploader **or** the folder
-owner". R7 section J says in terms that this is superseded: "Uploader
+owner". #228 says in terms that this is superseded: "Uploader
 authorship alone must not survive a downgrade as hidden mutation authority",
 and direct permanent deletion of a Folder-scoped file is Full control's.
 
@@ -29,7 +29,7 @@ move. The middle step is an ordinary `PATCH
 administration surface a second time, which is deliberate -- a downgrade that
 did not actually land would make every refusal below meaningless.
 
-Spec: 7.14, 7.15, 10.2; #209 R7 sections I and J.
+Spec: 7.14, 7.15, 10.2; #228's authorship rule and its Full-control list.
 */
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
@@ -118,7 +118,7 @@ describe('AC-518 the words and the bytes stay; the power to change them does not
     expectStatus(
       stillThere,
       200,
-      'R7 section I: "they can still read their old comment"',
+      "#228's authorship rule: a downgraded member still reads their old comment",
     )
     expect(
       stillThere.body,
@@ -133,7 +133,7 @@ describe('AC-518 the words and the bytes stay; the power to change them does not
     expectStatus(
       afterwards,
       403,
-      'R7 section I: "...but may no longer mutate it". Authorship is provenance, not standing authority',
+      "#228's authorship rule: ...and may no longer mutate it. Authorship is provenance, not standing authority",
     )
 
     const removed = await author.browser.api(`/comments/${commentId}`, {
@@ -158,7 +158,7 @@ describe('AC-518 the words and the bytes stay; the power to change them does not
     const uploaded = await uploadInto(author, folderId)
     expect(
       uploaded.status,
-      'R7 section J: a picture for the folder page is ordinary shared Work, which Can edit uploads',
+      "#228's Can-edit list: a picture for the folder page is ordinary shared Work, which Can edit uploads",
     ).toBe(201)
     const fileId = uploaded.id as string
 
@@ -167,7 +167,7 @@ describe('AC-518 the words and the bytes stay; the power to change them does not
     expectStatus(
       await author.browser.api(`/files/${fileId}`),
       200,
-      'R7 section J: every preset reads a Folder-visible file, the uploader included',
+      'accepted R8A: Can view is read only and reads everything Folder-visible, the uploader included',
     )
 
     const deleted = await author.browser.api(`/files/${fileId}`, {
@@ -176,7 +176,7 @@ describe('AC-518 the words and the bytes stay; the power to change them does not
     expectStatus(
       deleted,
       403,
-      'R7 section J: "Uploader authorship alone must not survive a downgrade as hidden mutation authority", and the refusal is 403 rather than 404 because they demonstrably read the same bytes at 200',
+      "#228's authorship rule -- a member reduced to Can view must not retain mutation power over a file merely because they uploaded it -- and the refusal is 403 rather than 404 because they demonstrably read the same bytes at 200",
     )
     expectStatus(
       await owner.browser.api(`/files/${fileId}`),
@@ -186,7 +186,7 @@ describe('AC-518 the words and the bytes stay; the power to change them does not
   })
 
   test('AC-518: the uploader rule is superseded outright, not merely narrowed', async () => {
-    // The other half of R7 section J, and the part that is easy to miss: a
+    // The other half of #228's Full-control list, and the part that is easy to miss: a
     // Can-edit member who uploaded the file still cannot delete it, because
     // the rule is no longer about who uploaded anything. Only Full control
     // deletes a Folder-scoped file.
@@ -201,7 +201,7 @@ describe('AC-518 the words and the bytes stay; the power to change them does not
     expectStatus(
       byUploader,
       403,
-      'R7 section J: direct permanent deletion of a Folder-scoped file is Full control\'s, and Can edit is not it however the file got there',
+      "#228's Full-control list: direct permanent deletion of a Folder-scoped file is Full control's, and Can edit is not it however the file got there",
     )
 
     const byFullControl = await owner.browser.api(`/files/${fileId}`, {

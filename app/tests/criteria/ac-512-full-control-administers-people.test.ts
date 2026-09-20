@@ -3,7 +3,10 @@ AC-512: Full control administers members, Access and invitations; Can edit --
 which may change every piece of shared Work in the folder -- may administer
 none of it.
 
-Issue #228 required proof 3. Product authority: #209 R8A and R7 section L.
+Issue #228 required proof 3. Product authority: accepted #209 R8A --
+"Full control -- administer members, Access, Responsibilities and all
+shared Folder work" against "Can edit ... cannot administer
+people/Access" -- with #228's own Full-control list.
 
 ## The line this draws
 
@@ -22,7 +25,8 @@ member, so the folder's existence is not a thing a refusal could still be
 protecting, and 10.2 wants a refusal that says why (the same grammar #74
 moved `DELETE /files/:id` to).
 
-Spec: 5.3, 5.4, 7.4, 7.5, 10.2; #209 R7 section L, R8A.
+Spec: 5.3, 5.4, 7.4, 7.5, 10.2; accepted #209 R8A and #228's capability
+boundaries.
 */
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
@@ -98,7 +102,7 @@ describe('AC-512 people administration is Full control and nothing below it', ()
     expectStatus(
       byEditor,
       403,
-      'Can edit may change every piece of shared Work and may not administer people (#209 R7 section L)',
+      'Can edit may change every piece of shared Work and may not administer people (accepted #209 R8A)',
     )
 
     const byOwner = await owner.browser.json(
@@ -147,7 +151,7 @@ describe('AC-512 people administration is Full control and nothing below it', ()
     expectStatus(
       byEditor,
       403,
-      "changing a member's Access is member administration (#209 R7 section L)",
+      "changing a member's Access is administering Access (accepted #209 R8A)",
     )
     expect(
       await storedPreset(app.db, folderId, bystander.id),
@@ -155,7 +159,7 @@ describe('AC-512 people administration is Full control and nothing below it', ()
     ).toBe('can_comment')
 
     const byOwner = await setAccess(owner, folderId, bystander.id, 'can_edit')
-    expectStatus(byOwner, 200, 'Full control administers Access (#209 R7 section L)')
+    expectStatus(byOwner, 200, 'Full control administers Access (accepted #209 R8A)')
     expect(
       await storedPreset(app.db, folderId, bystander.id),
       'and the grant lands on the column that decides',
@@ -169,7 +173,7 @@ describe('AC-512 people administration is Full control and nothing below it', ()
     expectStatus(
       byEditor,
       403,
-      'removing a member is member administration (#209 R7 section L)',
+      'removing a member is administering members (accepted #209 R8A)',
     )
 
     const byOwner = await removeMember(owner, folderId, bystander.id)
@@ -187,7 +191,7 @@ describe('AC-512 people administration is Full control and nothing below it', ()
     expectStatus(
       byEditor,
       403,
-      'inviting somebody into a folder is member administration (#209 R7 section L)',
+      'inviting somebody into a folder is administering members (accepted #209 R8A)',
     )
 
     const byOwner = await postInvite(owner, {
@@ -225,7 +229,7 @@ describe('AC-512 people administration is Full control and nothing below it', ()
     ).json() as { pending_invites?: unknown[] }
     expect(
       toEditor.pending_invites,
-      'a member below Full control gets the empty array rather than the addresses: an invitee\'s email and intended Access are member administration, not ordinary Work (#209 R7 section B, #228)',
+      'a member below Full control gets the empty array rather than the addresses: an invitee\'s email and intended Access are member administration, not ordinary Work (#228; accepted #209 R8A)',
     ).toEqual([])
   })
 
@@ -242,7 +246,7 @@ describe('AC-512 people administration is Full control and nothing below it', ()
     expectStatus(
       renamed,
       200,
-      "R7 section C: a folder's identity is ordinary shared Work, so Can edit changes all of it",
+      "accepted R8A: Can edit plans and changes all shared Folder work, and a folder's identity is inside it",
     )
 
     const made = await editor.browser.json('/tasks', 'POST', {

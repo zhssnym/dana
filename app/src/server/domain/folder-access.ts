@@ -1,6 +1,33 @@
 /*
-The Folder action authorization layer (issue #228; product authority #209
-R8A for the ladder, R7 section Q for this shape, R9 for the history).
+The Folder action authorization layer (issue #228; product authority
+accepted #209 R8A for the ladder, #228's own authorization-resolver section
+for this shape, R9 for the history).
+
+## Which record every line below cites, and why it is not R7
+
+An earlier draft of this file grounded most of the table in "#209 R7 section
+X". **R7 is marked "(PROPOSED, not accepted)" in #209 and R8A supersedes it**
+-- "R8A supersedes the five-level recommendation in R7 and earlier R4 matrices
+where they conflict" -- so it is authority for nothing, and a citation pointing
+at a superseded record is worse than none because it reads as authoritative.
+Corrected on 2026-09-20 under Hassan's ruling,
+https://github.com/zhssnym/dana/issues/228#issuecomment-5750892771.
+
+Every `why` below now names one of four records, and they are the only four:
+
+- **accepted R8A** -- "Status: ACCEPTED by owner" -- for the six presets and
+  what each of them is *for*;
+- **#228's capability boundaries**, the product issue's own per-preset lists,
+  whose stated canonical authority is accepted R8A and R10B, for the rules
+  finer-grained than R8A's six lines;
+- **governing R5/R6**, which R8A's supersession clause keeps governing for
+  structural ownership and explicit owner succession;
+- **Hassan's ruling of 2026-09-20**, named as his, for `folder.trash`, which
+  R8A does not settle either way.
+
+**These `why` strings are on the wire.** A refused mutation answers
+`{"error":{"code":"forbidden","message":<why>}}`, so this is product copy read
+by a person and not only a comment read by the next agent.
 
 ## Why this file exists at all
 
@@ -16,8 +43,10 @@ both *which* question to ask and *what the answer was*; the second half was
 duplicated, drifted, and was invisible to the suite. After it, a route still
 decides which action it is performing and which target facts it must read --
 that part is irreducibly per-route -- but the answer comes from
-`mayPerform` and from nowhere else. R7 section Q asks for exactly that and
-forbids the two things either side of it: scattered `if (role === ...)`
+`mayPerform` and from nowhere else. #228's authorization-resolver section
+asks for exactly that and forbids the two things either side of it -- "do not
+scatter independent role checks route-by-route and do not build a generic
+RBAC/policy engine": scattered `if (role === ...)`
 conditions, and a generic RBAC/policy engine. The vocabulary below is fixed,
 enumerable and small on purpose.
 
@@ -34,8 +63,8 @@ and, for the two presets whose authority is bounded by the current
 assignment, from **the target Task's authoritative current assignee**.
 
 That last one is the dangerous one, and it is why `FolderActionTarget` is a
-separate argument rather than a field on the facts. R7's transactional
-requirement is that the assignee condition be evaluated in the same
+separate argument rather than a field on the facts. #228's Assigned-work
+rule is that the assignee condition be evaluated in the same
 transaction and snapshot as the mutation it authorizes: a projection saying
 "assigned to me", however fresh, must never authorize after a reassignment. In
 this codebase the row lock that makes that true already exists -- `lockedTask`
@@ -102,8 +131,8 @@ export function presetOf(value: unknown): FolderAccessPreset | null {
  * first.
  *
  * Five of them carry `personal: true` below. Those are governed by membership
- * and by nothing else, because R7 section A puts personal state outside Folder
- * Access outright: a Can-view member may still put a Task they can see on
+ * and by nothing else, because #228's personal-actions rule puts personal
+ * state outside Folder Access outright: a Can-view member may still put a Task they can see on
  * their own My Day. They are listed here rather than left unlisted so that the
  * mapping is total and provable, which is acceptance proof 24.
  */
@@ -197,54 +226,64 @@ from the shape of the code, which is how a capability boundary drifts.
 Two systematic notes rather than repeating them forty times.
 
 **`can_edit` is the bar for all ordinary shared Work**, including Folder
-identity and the Folder page: R7 section C revised R4 explicitly here, on the
-grounds that a Folder's profile is ordinary shared Work and not people
-administration.
+identity and the Folder page: accepted R8A gives Can edit "plan/change all
+shared Folder work", and #228's Can-edit list names "Folder
+name/description/icon/color/cover" and the "Folder page/composer" inside it. A
+Folder's profile is ordinary shared Work and not people administration.
 
 **`full_control` is the bar for everything irreversible or about people**:
 member and invite administration, moderating somebody else's comment, the
-permanent deletes, and moving the Folder itself to Trash. R7 sections F, J, L
-and N.
+permanent deletes, and moving the Folder itself to Trash. Accepted R8A gives
+Full control "administer members, Access, Responsibilities and all shared
+Folder work" and denies Can edit the power to "administer people/Access";
+#228's Full-control list carries the permanent deletes and the moderation; and
+the Folder's own trip to Trash is Hassan's ruling of 2026-09-20, which R8A
+does not settle.
 */
 const RULES: Record<FolderAction, ActionRule> = {
   'folder.read': {
     atLeast: 'can_view',
-    why: 'R7 section B: every preset reads ordinary Folder-visible content',
+    why: 'accepted R8A: Can view is read only, so every preset reads ordinary Folder-visible content',
   },
   'folder.profile.edit': {
     atLeast: 'can_edit',
-    why: "R7 section C: a Folder's name, description, icon, colour and cover are ordinary shared Work, revising R4's people-administration reading",
+    why: "accepted R8A: Can edit plans and changes all shared Folder work, and #228 names a Folder's name, description, icon, colour and cover inside it",
   },
   'folder.page.edit': {
     atLeast: 'can_edit',
-    why: 'R7 section C: the Folder page and composer are ordinary shared Work',
+    why: "#228's Can-edit list: the Folder page and composer are ordinary shared Work",
   },
   'folder.section.manage': {
     atLeast: 'can_edit',
-    why: 'R8: Can contribute may place their own Task among existing Sections but may not create, delete or reorder the Sections themselves',
+    why: "#228's Can-contribute list: they may place their own Task among existing Sections but may not create, delete or reorder the Sections themselves",
   },
   'folder.duplicate': {
     atLeast: 'can_edit',
-    why: 'R7 section K: copying a whole shared work structure is more than ordinary read participation',
+    why: "#228's Can-edit list puts duplication of Folders and workflow content there: copying a whole shared work structure is more than ordinary read participation",
   },
   'folder.trash': {
     atLeast: 'full_control',
-    why: 'R7 section N: recoverable administrative deletion is Full control',
+    /* The one line here that no accepted record settles. R8A's "Can edit may
+       change all shared Folder work" reads either way for trashing the whole
+       Folder; the narrower reading was taken because the recoverable
+       direction of a wrong call is the restrictive one. AC-015 carries the
+       argument in full. */
+    why: "Hassan's ruling of 2026-09-20 on #228: moving a Folder to Trash is recoverable administrative deletion, which is Full control's",
   },
   'folder.restore': {
     atLeast: 'full_control',
     owner: 'sufficient',
-    why: 'R7 section N: Full control restores, and the owner may recover a trashed Folder even when their ordinary Access is lower',
+    why: "#228's Full-control list -- trash/restore Folder administratively -- with governing R5 keeping recovery with custody, so the owner may restore a trashed Folder even when their ordinary Access is lower",
   },
   'folder.destroy': {
     atLeast: 'full_control',
     owner: 'required',
-    why: 'R7 section N and R5: permanent structural destruction requires custody and active administrative authority together',
+    why: '#228 and governing R5: permanent Folder destruction requires the owner and current Full control together, custody and active administrative authority at once',
   },
   'folder.ownership.transfer': {
     atLeast: null,
     owner: 'required',
-    why: "R5: transferring ownership is the owner's alone, and Full control does not confer it",
+    why: "governing R5 and R6: transferring ownership is the owner's alone, and Full control does not confer it",
   },
   'owner.custody_recovery': {
     atLeast: null,
@@ -253,19 +292,19 @@ const RULES: Record<FolderAction, ActionRule> = {
   },
   'member.add': {
     atLeast: 'full_control',
-    why: 'R7 section L: only Full control administers ordinary member standing',
+    why: 'accepted R8A: administering members is Full control\'s, and Can edit cannot administer people or Access',
   },
   'member.remove': {
     atLeast: 'full_control',
-    why: 'R7 section L: only Full control removes a non-owner member',
+    why: "accepted R8A and #228's Full-control list: only Full control removes a non-owner member",
   },
   'member.leave': {
     atLeast: 'can_view',
-    why: "R7 section M: leaving is any member's, subject to the continuity invariant and to the owner's transfer-first rule, which are state rather than preset",
+    why: "governing R6: leaving is any member's, subject to the continuity invariant and to the owner's transfer-first rule, which are state rather than preset",
   },
   'member.access.change': {
     atLeast: 'full_control',
-    why: "R7 section L: changing a non-owner member's Access is Full control's",
+    why: "accepted R8A: administering Access is Full control's, and a non-owner member's preset is changed by nobody below it",
   },
   'member.access.history.read': {
     atLeast: 'can_view',
@@ -273,78 +312,78 @@ const RULES: Record<FolderAction, ActionRule> = {
   },
   'invite.create': {
     atLeast: 'full_control',
-    why: 'R7 section L: inviting into the Folder is member administration',
+    why: 'accepted R8A: inviting into the Folder is administering members, which Can edit explicitly cannot do',
   },
   'invite.administer': {
     atLeast: 'full_control',
-    why: 'R7 section L: cancelling and resending a pending Folder invitation is member administration, and "I created the invite" is not permanent authority',
+    why: '#228: managing pending Folder invitations is Full control\'s, and #228\'s authorship rule makes "I created the invite" provenance rather than standing authority',
   },
   'invite.view': {
     atLeast: 'full_control',
-    why: 'R7 section B and #228: pending-invite email and intended Access are member-administration data, not ordinary Work',
+    why: '#228: pending-invitation projections carrying email and intended Access are member-administration data and are Full-control-only, not ordinary Work',
   },
   'task.create': {
     atLeast: 'can_contribute',
-    why: 'R8A: Can contribute originates new Task work, including choosing the initial assignee',
+    why: 'accepted R8A: Can contribute originates new Task work, including choosing the initial assignee',
   },
   'task.edit': {
     atLeast: 'can_edit',
     whenAssignedToActor: ['can_contribute'],
-    why: "R8: Can contribute fully plans work currently assigned to themselves and may not edit another member's existing Task; Assigned work may not materially replan",
+    why: "accepted R8A: Can contribute fully plans work currently assigned to themselves and may not edit another member's existing Task; Assigned work may not materially replan",
   },
   'task.assign': {
     atLeast: 'can_edit',
-    why: 'R8: reassigning or unassigning an existing Task is planning authority, which Can contribute does not have even over their own',
+    why: "#228's Can-contribute list refuses reassign and unassign outright: changing who holds an existing Task is planning authority, which Can contribute does not have even over their own",
   },
   'task.move': {
     atLeast: 'can_edit',
     whenAssignedToActor: ['can_contribute'],
-    why: "R8: Can contribute may place their own Task among existing Sections; moving another member's work, or between Folders, is Can edit",
+    why: "#228's Can-contribute list: they may move their own current Task among existing Sections; moving another member's work, or between Folders, is Can edit's",
   },
   'task.status.complete': {
     atLeast: 'can_edit',
     whenAssignedToActor: ['can_contribute', 'assigned_work'],
-    why: 'R7 section E: executing the assigned plan is exactly what Assigned work is for',
+    why: 'accepted R8A: Assigned work executes the existing plan for Tasks currently assigned to the member, which is exactly what completing one is',
   },
   'task.status.abandon': {
     atLeast: 'can_edit',
     whenAssignedToActor: ['can_contribute'],
-    why: 'R7 section E lists abandon and restore among the things Assigned work may not do; R8 gives them to Can contribute over their own current work',
+    why: "#228's Assigned-work list refuses abandon and restore by name; accepted R8A gives them to Can contribute over their own current work",
   },
   'task.trash': {
     atLeast: 'can_edit',
-    why: 'R8: Can contribute may not trash shared Tasks, their own included',
+    why: "#228's Can-contribute list: they may not trash shared Tasks, their own included",
   },
   'task.restore': {
     atLeast: 'can_edit',
-    why: 'R7 section F: restoring from Trash sits with Can edit',
+    why: "#228's Can-edit list, which carries restore beside abandon and trash: restoring a Task from Trash sits with Can edit",
   },
   'task.destroy': {
     atLeast: 'full_control',
-    why: 'R7 section F: permanent deletion is an irreversible administrative act',
+    why: '#228 gives permanently deleting a Task from Trash to Full control: it is an irreversible administrative act',
   },
   'task.duplicate': {
     atLeast: 'can_edit',
-    why: 'R7 section K and #228: duplication is Can edit. R8 would extend it to Can contribute "where implementation can preserve the accepted boundary", and this implementation cannot -- see the refusals list in the pull request',
+    why: '#228: duplication is Can edit\'s. Accepted R8A would extend it to Can contribute "where implementation can preserve the accepted boundary", and this implementation cannot -- see the refusals list in the pull request',
   },
   'task.dependency.manage': {
     atLeast: 'can_edit',
-    why: "R8: a dependency imposes planning consequences on another member's work, which Can contribute may not create",
+    why: "#228's Can-contribute list: a dependency imposes planning consequences on another member's existing work, which Can contribute may not create",
   },
   'task.reminder.manage': {
     atLeast: 'can_edit',
     whenAssignedToActor: ['can_contribute', 'assigned_work'],
-    why: 'R7 section E: Dana delivers the reminder to the assignee, so setting and clearing it belongs to the assignee',
+    why: "#228's Assigned-work list carries the assignee-delivered reminder: Dana delivers it to the assignee, so setting and clearing it belongs to them",
   },
   'step.toggle': {
     atLeast: 'can_edit',
     whenAssignedToActor: ['can_contribute', 'assigned_work'],
-    why: 'R7 section G: ticking an existing Step is execution',
+    why: "#228's Assigned-work list: toggling an existing Step's completion is execution",
   },
   'step.manage': {
     atLeast: 'can_edit',
     whenAssignedToActor: ['can_contribute'],
-    why: 'R7 section G: rewriting the checklist that defines completion is not execution, so Assigned work may not, while R8 gives it to Can contribute over their own current work',
+    why: "#228's Assigned-work list refuses Step create, rename, reorder, delete and promote: rewriting the checklist that defines completion is not execution. Accepted R8A gives it to Can contribute over their own current work",
   },
   'label.vocabulary.manage': {
     atLeast: 'can_edit',
@@ -357,57 +396,57 @@ const RULES: Record<FolderAction, ActionRule> = {
   },
   'comment.create': {
     atLeast: 'can_comment',
-    why: 'R7 section I: Consultation is an intentional form of participation',
+    why: 'accepted R8A: Can comment participates in Consultation and discussion without changing shared Work state',
   },
   'comment.mutate.own': {
     atLeast: 'can_comment',
     requiresAuthor: true,
-    why: 'R7 section I and the accepted authorship rule: a member downgraded to Can view keeps their old words and loses the power to change them',
+    why: "#228's authorship rule: authorship is provenance rather than standing authority, so a member downgraded to Can view keeps their old words and loses the power to change them",
   },
   'comment.moderate': {
     atLeast: 'full_control',
-    why: "R7 section I: removing another member's comment is moderation",
+    why: "#228's Full-control list: removing or moderating another member's comment is member administration",
   },
   'comment.like': {
     atLeast: 'can_comment',
-    why: 'R7 section I',
+    why: "#228's Can-comment list, which carries like and unlike",
   },
   'file.upload.comment': {
     atLeast: 'can_comment',
-    why: 'R7 section J: an attachment on an allowed comment is part of commenting',
+    why: "#228's Can-comment list: attaching and removing a file through an allowed own-comment edit path is part of commenting",
   },
   'file.upload.page': {
     atLeast: 'can_edit',
-    why: 'R7 section J: a file used for Folder page content is ordinary shared Work',
+    why: "#228's Can-edit list: a file used for Folder page content is ordinary shared Work",
   },
   'file.delete': {
     atLeast: 'full_control',
-    why: 'R7 section J: direct permanent deletion of a Folder-scoped file is Full control, superseding the uploader-or-owner rule, because uploader authorship must not survive a downgrade as hidden mutation authority',
+    why: "#228's authorship rule: direct permanent deletion of a Folder-scoped file is Full control's, superseding the uploader-or-owner rule, because uploader authorship must not survive a downgrade as hidden mutation authority",
   },
   'personal.my_day': {
     atLeast: 'can_view',
     personal: true,
-    why: 'R7 section A: My Day is private projection over Work the actor may already read',
+    why: "#228's personal-actions rule: My Day is a private projection over Work the actor may already read",
   },
   'personal.membership_label': {
     atLeast: 'can_view',
     personal: true,
-    why: "R7 section A: a member's own label and colour for a Folder are their own arrangement",
+    why: "#228's personal-actions rule: a member's own label and colour for a Folder are their own arrangement",
   },
   'personal.reminder_snooze': {
     atLeast: 'can_view',
     personal: true,
-    why: 'R7 section A: notification state is personal',
+    why: "#228's personal-actions rule: notification state is personal",
   },
   'personal.label': {
     atLeast: 'can_view',
     personal: true,
-    why: 'R7 section H: Personal Labels are own-only at every preset',
+    why: "#228's personal-actions rule: Personal Labels are own-only at every preset",
   },
   'personal.view_preferences': {
     atLeast: 'can_view',
     personal: true,
-    why: 'R7 section A: saved Views and view preferences are account state',
+    why: "#228's personal-actions rule: saved Views and view preferences are account state",
   },
 }
 

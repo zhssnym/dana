@@ -3,18 +3,24 @@ AC-515: Assigned work executes the existing plan for the Task currently
 assigned to them -- complete, uncomplete, tick a Step, set their reminder,
 comment -- and may not materially replan it.
 
-Issue #228 required proof 8. Product authority: #209 R7 section E and R8A.
+Issue #228 required proof 8. Product authority: accepted #209 R8A --
+"Assigned work -- execute the existing plan for Tasks currently assigned
+to the member; does not materially replan the Task or Folder" -- with
+#228's own Assigned-work list.
 
 ## What "materially replan" means, said as statuses
 
-R7 section E's worked case is the whole criterion in one sentence:
+#228's Assigned-work list is the whole criterion, in two halves:
 
-> A manager assigns "Inspect fire doors by Friday." An Assigned-work employee
-> may perform it, tick the existing checklist, attach/comment evidence, set
-> their reminder and complete the Task. They cannot change the deadline to
-> next month, rewrite the Task scope, assign it away, delete checklist
-> requirements, mark another employee's Task complete, or change the
-> recurring plan.
+> On a Task whose authoritative current assignee is the actor, may:
+> complete/uncomplete under existing recurrence guards; toggle existing Step
+> completion; set/remove the assignee-delivered reminder; comment/reply/attach
+> evidence; use personal/private organization.
+>
+> Must not materially replan the Task: no title/context/date/importance/
+> recurrence edits; no reassign/unassign; no Folder/Section/order move; no
+> Step create/rename/reorder/delete/promote; no abandon/restore/trash; no
+> shared Label/dependency management.
 
 So this file drives both halves against one Task the actor holds. The refusals
 matter more than the grants: an implementation that gave Assigned work nothing
@@ -22,13 +28,15 @@ would pass a criterion that only listed what they may not do, and an
 implementation that gave them Can edit would pass one that only listed what
 they may.
 
-**Abandon and restore are refused and that is not an oversight.** R7 section E
-lists them among the acts Assigned work may not perform, beside trash: they
+**Abandon and restore are refused and that is not an oversight.** #228's
+Assigned-work list names them among the acts Assigned work may not perform,
+beside trash: they
 are judgements about whether work should happen at all, which is planning.
 Complete and uncomplete are execution and carry a different action in the
 resolver for exactly this reason.
 
-Spec: 5.1, 7.6, 7.7, 7.9, 7.14; #209 R7 sections E and G, R8A.
+Spec: 5.1, 7.6, 7.7, 7.9, 7.14; accepted #209 R8A and #228's Assigned-work
+list.
 */
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
@@ -99,7 +107,7 @@ describe('AC-515 Assigned work performs the plan and does not write it', () => {
     expectStatus(
       ticked,
       200,
-      'R7 section G: toggling an existing Step done or undone is execution',
+      "#228's Assigned-work list: toggling an existing Step done or undone is execution",
     )
 
     const completed = await worker.browser.json(
@@ -110,7 +118,7 @@ describe('AC-515 Assigned work performs the plan and does not write it', () => {
     expectStatus(
       completed,
       200,
-      'R7 section E: "an executor must be able to complete assigned work"',
+      "accepted R8A: Assigned work executes the existing plan, and completing the Task is what that means",
     )
 
     const reopened = await worker.browser.json(
@@ -139,7 +147,7 @@ describe('AC-515 Assigned work performs the plan and does not write it', () => {
     expectStatus(
       set,
       200,
-      'R7 section E: Dana delivers the reminder to the assignee, so setting it belongs to the assignee',
+      "#228's Assigned-work list carries the assignee-delivered reminder: Dana delivers it to the assignee, so setting it belongs to them",
     )
 
     const cleared = await worker.browser.api(`/tasks/${theirs}/reminder`, {
@@ -158,7 +166,7 @@ describe('AC-515 Assigned work performs the plan and does not write it', () => {
     expectStatus(
       said,
       201,
-      'R7 section E: comment, reply and attach evidence, which every preset from Can comment upward may do',
+      "#228's Assigned-work list: comment, reply and attach evidence, which every preset from Can comment upward may do",
     )
   })
 
@@ -176,7 +184,7 @@ describe('AC-515 Assigned work performs the plan and does not write it', () => {
       expectStatus(
         response,
         403,
-        `R7 section E: Assigned work may not change ${field} -- "they cannot change the deadline to next month, rewrite the Task scope... or change the recurring plan"`,
+        `#228's Assigned-work list may not change ${field} -- "no title/context/date/importance/recurrence edits"`,
       )
     }
   })
@@ -187,7 +195,7 @@ describe('AC-515 Assigned work performs the plan and does not write it', () => {
     const reassigned = await worker.browser.json(`/tasks/${theirs}`, 'PATCH', {
       assignee_id: manager.id,
     })
-    expectStatus(reassigned, 403, 'R7 section E: no reassign or unassign')
+    expectStatus(reassigned, 403, "#228's Assigned-work list: no reassign or unassign")
 
     const abandoned = await worker.browser.json(
       `/tasks/${theirs}/abandon?tz=UTC`,
@@ -197,13 +205,13 @@ describe('AC-515 Assigned work performs the plan and does not write it', () => {
     expectStatus(
       abandoned,
       403,
-      'R7 section E lists abandon among the acts Assigned work may not perform: deciding that work should not happen is a judgement about the plan, not execution of it',
+      "#228's Assigned-work list names abandon among the acts Assigned work may not perform: deciding that work should not happen is a judgement about the plan, not execution of it",
     )
 
     const trashed = await worker.browser.api(`/tasks/${theirs}`, {
       method: 'DELETE',
     })
-    expectStatus(trashed, 403, 'R7 section E: no trash')
+    expectStatus(trashed, 403, "#228's Assigned-work list: no trash")
 
     expect(folderId.length, 'the folder is the one staged').toBeGreaterThan(0)
   })
@@ -217,25 +225,25 @@ describe('AC-515 Assigned work performs the plan and does not write it', () => {
     expectStatus(
       renamed,
       403,
-      'R7 section G: renaming a Step rewrites the scope that defines completion, which "protects an assigned worker from silently rewriting the checklist"',
+      "#228's Assigned-work list -- no Step create, rename, reorder, delete or promote: renaming a Step rewrites the scope that defines completion",
     )
 
     const added = await worker.browser.json(`/tasks/${theirs}/steps`, 'POST', {
       title: 'ac485 one they made up',
     })
-    expectStatus(added, 403, 'R7 section G: no Step creation')
+    expectStatus(added, 403, "#228's Assigned-work list: no Step creation")
 
     const removed = await worker.browser.api(`/steps/${stepId}`, {
       method: 'DELETE',
     })
-    expectStatus(removed, 403, 'R7 section G: no Step deletion')
+    expectStatus(removed, 403, "#228's Assigned-work list: no Step deletion")
 
     const promoted = await worker.browser.json(
       `/tasks/${theirs}/steps/${stepId}/promote`,
       'POST',
       {},
     )
-    expectStatus(promoted, 403, 'R7 section G: no promotion to a Task of its own')
+    expectStatus(promoted, 403, "#228's Assigned-work list: no promotion to a Task of its own")
   })
 
   test("AC-515: may not execute somebody else's Task at all", async () => {
@@ -248,7 +256,7 @@ describe('AC-515 Assigned work performs the plan and does not write it', () => {
     expectStatus(
       completed,
       403,
-      'R7 section E: assignment is the condition that activates execution rights, and it activates them on that Task alone -- "mark another employee\'s Task complete" is on the forbidden list',
+      "accepted R8A: assignment is the condition that activates execution rights, and it activates them on the Task *currently* assigned to the member alone",
     )
   })
 })

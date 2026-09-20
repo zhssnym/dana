@@ -132,7 +132,7 @@ describe('AC-522 the Access record is complete, exact and append-only', () => {
       'PATCH',
       { access: 'can_view' },
     )
-    expectStatus(refused, 403, 'Can edit does not administer Access (R7 section L)')
+    expectStatus(refused, 403, 'Can edit does not administer Access (accepted R8A)')
 
     expect(
       await historyOf(app.db, folderId),

@@ -180,7 +180,7 @@ export async function createFile(
     const facts = await accessOf(db, viewerId, input.folderId)
     if (facts === null) return { kind: 'folder_not_found' }
     /*
-    R7 section J splits folder-scoped uploads by *what the file supports*,
+    #228 splits folder-scoped uploads by *what the file supports*,
     not by who is uploading it, and the two bars are different. A `file` or a
     `voice` note hangs on a comment thread, so it takes commenting's bar; a
     `cover` or an `image` decorates the Folder's page, so it takes ordinary
@@ -405,7 +405,7 @@ export async function deleteFile(
   const outcome = await inTransaction(db, async (tx) => {
     /*
     **The rule changed here, and it is the sharpest edge of the authorship
-    ruling** (issue #228; #209 R7 section J says it supersedes the old one in
+    ruling** (issue #228, whose authorship rule supersedes the old one in
     terms).
 
     It was "the uploader or the folder owner". The uploader half is exactly
@@ -416,12 +416,13 @@ export async function deleteFile(
     everywhere else.
 
     Both are replaced by one question: does the actor hold Full control of the
-    Folder this file lives in? R7 section J puts direct permanent deletion of
-    a Folder-scoped file there, beside the other irreversible acts.
+    Folder this file lives in? #228's Full-control list puts direct
+    permanent deletion of a Folder-scoped file there, beside the other
+    irreversible acts.
 
     A **folderless** file has no Folder Access to resolve -- an avatar, a
-    shelf's picture, a place cover -- and stays the owner's alone, which R7
-    section J also says outright and which the statement's own `folder_id IS
+    shelf's picture, a place cover -- and stays the owner's alone, which no
+    accepted record touches and which the statement's own `folder_id IS
     NULL` branch expresses. That is not a hole: those rows are personal by
     construction and no Folder's members can read them.
     */

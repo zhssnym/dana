@@ -237,10 +237,16 @@ default, so read this list before spending one.
   precedent: the count at the top and 12.4's row in the table below belong to whichever merge
   comes last rather than to one of several branches open at once.
 
-  **Five earlier criteria state decisions this block supersedes and none of them is edited
-  here**: AC-011, AC-012, AC-015, AC-019 and AC-024, with AC-202's succession clause. 12.4's
-  own paragraph names each and says which accepted record replaces it; they move when a person
-  rules on them, which is hard-stops.md's rule for a criterion whose decision has moved.
+  **Six earlier criteria stated decisions this block supersedes, and all six were rewritten
+  on 2026-09-20 under Hassan's ruling**: AC-011, AC-012, AC-015, AC-019, AC-193 and AC-024,
+  with AC-202's succession clause. They were left red on this branch until a person ruled,
+  which is hard-stops.md's rule for a criterion whose decision has moved; the ruling is
+  https://github.com/zhssnym/dana/issues/228#issuecomment-5750892771 and 12.4's own paragraph
+  carries the table of which record authorises which. **None was deleted and none was
+  weakened beyond what that ruling states.** The request that produced the ruling cited "R7",
+  which is marked "(PROPOSED, not accepted)" in #209 and is superseded by R8A; the ruling
+  corrects it, and the authority is accepted R8A, governing R6, and Hassan's own call for
+  AC-015 alone.
 - **AC-440 to AC-447 were taken on 2026-09-20** (issue #224, task dependencies), and they
   were taken from **440** rather than from 423, which the sentence above names as next.
   Three branches were open at once that day; 423 was assigned to one of them and the range

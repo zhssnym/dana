@@ -355,9 +355,10 @@ export async function createInvite(
       if (folderAccess === null) return { kind: 'folder_not_found' }
       // INV-3: a default folder is never shared, so it refuses every invite.
       if (folderAccess.isDefault) return { kind: 'default_folder' }
-      /* R7 section L: inviting somebody into a Folder is member
-         administration, so it is Full control's. Before #228 any member could
-         invite anybody into any folder they were in, which is the same
+      /* Accepted R8A: inviting somebody into a Folder is administering
+         members, which Can edit explicitly cannot do, so it is Full
+         control's. Before #228 any member could invite anybody into any
+         folder they were in, which is the same
          membership-only write path `POST /folders/:id/members` carried. A
          **bare** roster invite, with no folder, is untouched: it grants no
          Folder Access and is an ordinary personal act (7.5). */
@@ -562,8 +563,10 @@ export interface InviteActorFacts {
    * #228).
    *
    * It is what turns "the inviter may cancel" into "whoever currently
-   * administers this Folder's members may cancel", which R7 section L asks
-   * for in terms: a former inviter who is later downgraded loses
+   * administers this Folder's members may cancel", which #228 asks
+   * for in terms -- managing pending Folder invitations sits in its
+   * Full-control list, and authorship is provenance rather than standing
+   * authority: a former inviter who is later downgraded loses
    * Folder-invite administration, because "I created the invite" is not
    * permanent authority. A bare roster invite has no Folder and keeps its old
    * rule -- the inviter's alone -- because there is no Folder Access to

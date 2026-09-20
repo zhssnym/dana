@@ -281,9 +281,9 @@ export function createFoldersRouter(
       // question; pending_invites is the candidate, precise about which
       // invites 7.4 lists.
       //
-      // The invites are Full control's alone since issue #228: R7 section B
-      // and #228 both classify a pending invite's email and intended Access
-      // as member administration rather than ordinary Work. Everyone else
+      // The invites are Full control's alone since issue #228, which
+      // classifies a pending invite's email and intended Access as
+      // member administration rather than ordinary Work. Everyone else
       // gets the empty array rather than a missing key, so that "not yours to
       // see" and "there are none" stay one shape on the wire; the members
       // array, with each member's current Access, stays visible to every
@@ -313,7 +313,7 @@ export function createFoldersRouter(
       /*
       **The DES-225 split is gone, and this is the decision that moved.**
       It used to read: the name is the owner's, the rest of the 4.3 identity
-      is any member's. #209 R7 section C revises both halves in one sentence
+      is any member's. Accepted #209 R8A revises both halves in one sentence
       -- a Folder's identity is ordinary shared Work, so Can edit and above
       change all of it, and Can contribute and below change none of it. The
       old rule let a Can-view member repaint a folder they may not otherwise
@@ -321,8 +321,11 @@ export function createFoldersRouter(
       not the owner, which is precisely the ownership-as-authority proxy
       #209 exists to remove.
 
-      AC-011 and AC-012 pin the superseded split and are named in the pull
-      request as criteria whose decision moved.
+      AC-011, AC-012 and AC-193 pinned the superseded split and were
+      rewritten against accepted R8A on 2026-09-20, under Hassan's ruling,
+      https://github.com/zhssnym/dana/issues/228#issuecomment-5750892771.
+      AC-011's actor is now a Can-view member and AC-012's is a Full-control
+      member who owns nothing, which is what tells the new rule from the old.
       */
       const access = await gate(req, res, folderId, 'folder.profile.edit')
       if (access === null) return
@@ -359,11 +362,16 @@ export function createFoldersRouter(
       if (db === null) return
       const folderId = parsedId(res, req.params.id)
       if (folderId === null) return
-      /* R7 section N: moving a Folder to Trash is recoverable administrative
-         deletion and belongs to Full control, not to custody. The owner who
-         lowered their own Access no longer reaches it here; what they keep is
-         `folder.restore` and the permanent destruction below, which are the
-         two custody acts. AC-015 pins the superseded owner-only rule. */
+      /* Hassan's ruling of 2026-09-20 on #228
+         (https://github.com/zhssnym/dana/issues/228#issuecomment-5750892771):
+         moving a Folder to Trash is recoverable administrative deletion and
+         belongs to Full control, not to custody. **Accepted R8A settles it
+         neither way**, and the narrower reading was taken because the
+         recoverable direction of a wrong call is the restrictive one. The
+         owner who lowered their own Access no longer reaches it here; what
+         they keep is `folder.restore` and the permanent destruction below,
+         which are the two custody acts. AC-015 was rewritten against that
+         ruling the same day and now drives both halves. */
       const access = await gate(req, res, folderId, 'folder.trash')
       if (access === null) return
       if (access.isDefault) {
@@ -403,9 +411,9 @@ export function createFoldersRouter(
       if (folderId === null) return
       const parsed = parseBody(patchFolderMyMembershipBody, req, res, securityLog)
       if (parsed === null) return
-      /* `personal.membership_label` rather than an ungated read: R7 section A
-         puts a member's own label and colour for a Folder outside Folder
-         Access, so every preset down to Can view may set it, and the action
+      /* `personal.membership_label` rather than an ungated read: #228's
+         personal-actions rule puts a member's own label and colour for a
+         Folder outside Folder Access, so every preset down to Can view may set it, and the action
          is *named* so that the audit in #228 is total rather than silent
          about it. */
       const access = await gate(
@@ -440,9 +448,11 @@ export function createFoldersRouter(
       const parsed = parseBody(postFolderMembersBody, req, res, securityLog)
       if (parsed === null) return
       const actorId = viewer(req)
-      /* R7 section L: only Full control administers member standing. Before
-         issue #228 any member could add any other, which is the widest of the
-         membership-only write paths R8A closes. */
+      /* Accepted R8A: administering members is Full control's and Can edit
+         explicitly cannot administer people. Before issue #228 any member
+         could add any other, which is the widest of the membership-only
+         write paths R8A closes; AC-024 carried that rule and was rewritten
+         against R8A on 2026-09-20. */
       const access = await gate(req, res, folderId, 'member.add')
       if (access === null) return
       const result = await addMember(
@@ -555,8 +565,9 @@ export function createFoldersRouter(
 
       // The three legal shapes of 5.3 and 7.4, in one place.
       if (targetId !== actorId) {
-        /* R7 section L: removal is Full control's rather than the owner's.
-           The same line refuses removing the structural owner outright: the
+        /* Accepted R8A: removal is administering members, so it is Full
+           control's rather than the owner's. The same line refuses removing
+           the structural owner outright: the
            owner leaves by transferring custody first, and nobody administers
            them out of it. AC-397's member row pins the 403 either way. */
         const decision = mayPerform(access, 'member.remove')
@@ -701,7 +712,7 @@ export function createFoldersRouter(
             res,
             403,
             'forbidden',
-            "Only the folder's owner can change the owner's access (R7 section M).",
+            "Only the folder's owner can change the owner's access (governing R5, issue #228).",
           )
           return
         case 'would_strand':
@@ -734,7 +745,7 @@ export function createFoldersRouter(
   )
 
   /*
-  Owner custody recovery (R5, R7 section M, R9 section 8).
+  Owner custody recovery (governing R5, #228's ownership rules, R9 section 8).
 
   The one act on this surface that reads no preset at all. It exists so that
   an owner who lowered their ordinary Access -- which R5 explicitly permits,

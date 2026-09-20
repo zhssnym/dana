@@ -3,7 +3,8 @@ AC-519: Folder Access does not govern personal state. A member who may read a
 Task may put it on their own My Day, label the folder on their own shelf, and
 keep their own saved views, at every preset down to Can view.
 
-Issue #228 required proof 13. Product authority: #209 R7 section A, which
+Issue #228 required proof 13. Product authority: #228's personal-actions
+rule, which
 lists what is outside Folder Access and says why: "Any user who may currently
 read the target may use their own applicable personal features regardless of
 Folder preset."
@@ -27,7 +28,7 @@ were thought about and deliberately set to admit every member.
 state over a Task in a folder you are not in is not personal state, it is a
 read you do not have, and the last case asserts the 404.
 
-Spec: 7.4, 7.8, 7.23, 4.19; #209 R7 section A.
+Spec: 7.4, 7.8, 7.23, 4.19; #228's personal-actions rule.
 */
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
@@ -93,7 +94,7 @@ describe('AC-519 personal state is the member\'s, whatever their preset', () => 
       expectStatus(
         pulled,
         200,
-        `R7 section A: My Day is a private projection over Work the actor may already read, so ${preset} may use it`,
+        `#228's personal-actions rule: My Day is a private projection over Work the actor may already read, so ${preset} may use it`,
       )
       const dropped = await actor.browser.api(
         `/tasks/${taskId}/my-day?tz=UTC`,
@@ -118,7 +119,7 @@ describe('AC-519 personal state is the member\'s, whatever their preset', () => 
     expectStatus(
       labelled,
       200,
-      "R7 section A: a member's own shelf placement and arrangement of a folder are personal, so Can view sets them",
+      "#228's personal-actions rule: a member's own shelf placement and arrangement of a folder are personal, so Can view sets them",
     )
     const body = labelled.json() as { my_label?: string; my_color?: string }
     expect(body.my_label, 'and the label is theirs').toBe('ac489 Audits')
@@ -133,7 +134,7 @@ describe('AC-519 personal state is the member\'s, whatever their preset', () => 
     })
     expect(
       view.status,
-      'R7 section A: saved Views are account state, outside Folder Access entirely',
+      "#228's personal-actions rule: saved Views are account state, outside Folder Access entirely",
     ).toBe(201)
 
     const settings = await viewer.browser.json('/settings', 'PATCH', {
@@ -156,7 +157,7 @@ describe('AC-519 personal state is the member\'s, whatever their preset', () => 
     expectStatus(
       pulled,
       404,
-      'R7 section A grants personal features over a target the actor "may currently read"; somebody outside the folder may read nothing, and 10.2 makes that 404 rather than 403',
+      "#228's personal-actions rule reaches Work the actor may already read; somebody outside the folder may read nothing, and 10.2 makes that 404 rather than 403",
     )
   })
 

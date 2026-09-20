@@ -197,8 +197,8 @@ export function createWorkshopRouter(
       if (db === null) return
       const folderId = parsedId(res, req.params.id)
       if (folderId === null) return
-      /* R7 section C: the Folder page and composer are ordinary shared Work,
-         so Can edit and above write them. The header above this block said
+      /* #228's Can-edit list: the Folder page and composer are ordinary
+         shared Work, so Can edit and above write them. The header above this block said
          "any member edits (D1)"; that was the rule before #209 and it is the
          one R8A narrows. */
       if (!(await gate(req, res, folderId, 'folder.page.edit'))) return
@@ -597,8 +597,9 @@ export function createWorkshopRouter(
       if (db === null) return
       const folderId = parsedId(res, req.params.id)
       if (folderId === null) return
-      /* R7 section K: copying a whole shared work structure is more than
-         ordinary read participation, so it is Can edit and above. The copy
+      /* #228's Can-edit list, which carries duplication: copying a whole
+         shared work structure is more than ordinary read participation, so
+         it is Can edit and above. The copy
          itself is the duplicator's own new Folder, of which they become owner
          and Full control -- `createFolder` sees to that -- so nothing about
          the source's Access travels with it. */
@@ -652,7 +653,7 @@ export function createWorkshopRouter(
         sendError(res, 404, 'not_found', 'Not found.')
         return
       }
-      /* R7 section K and #228: duplicating a Task is Can edit's. R8 would
+      /* #228: duplicating a Task is Can edit's. Accepted R8A would
          extend it to Can contribute "where implementation can preserve the
          accepted boundary", and this implementation cannot: `duplicateTask`
          copies the source's assignee, so a contributor could mint a second

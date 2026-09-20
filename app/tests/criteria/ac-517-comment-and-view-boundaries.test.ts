@@ -2,13 +2,15 @@
 AC-517: Can comment participates in Consultation and changes no shared Work
 state; Can view reads and leaves no mark at all.
 
-Issue #228 required proofs 10 and 11. Product authority: #209 R8A and R7
-sections B and I.
+Issue #228 required proofs 10 and 11. Product authority: accepted #209 R8A
+-- "Can comment -- participate in Consultation/discussion without changing
+shared Work state" against "Can view -- read only" -- with #228's own
+Can-comment list.
 
 ## The two lowest rungs, and why they are two
 
-R8's removal test is the argument: "Can comment is not Can view -- Consultation
-is an intentional form of participation". An adviser who may say "this door
+Accepted R8A keeps them apart deliberately: Can comment participates in
+Consultation and discussion, and Can view is read only. An adviser who may say "this door
 needs a second inspection" is doing something the product exists for, and is
 not thereby able to change the plan they are commenting on.
 
@@ -16,7 +18,7 @@ So the pair of cases below is symmetric on purpose. Each preset is driven at
 the *same* four endpoints -- a comment, a like, a Task edit and a completion --
 and the only difference between the two columns is the first two.
 
-Spec: 7.6, 7.14, 10.2; #209 R7 sections B and I, R8A.
+Spec: 7.6, 7.14, 10.2; accepted #209 R8A and #228's Can-comment list.
 */
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
@@ -82,7 +84,7 @@ describe('AC-517 the two reading presets, and the one that may speak', () => {
       expectStatus(
         await actor.browser.api(`/folders/${folderId}`),
         200,
-        `R7 section B: ${who} reads ordinary Folder-visible content`,
+        `accepted R8A: Can view is read only, so ${who} reads ordinary Folder-visible content`,
       )
       expectStatus(
         await actor.browser.api(`/tasks/${taskId}`),
@@ -108,24 +110,24 @@ describe('AC-517 the two reading presets, and the one that may speak', () => {
     expectStatus(
       replied,
       201,
-      'R7 section I: comment and reply is what Can comment is for -- "Consultation is an intentional form of participation"',
+      "accepted R8A: Can comment participates in Consultation and discussion without changing shared Work state",
     )
     const ownId = String((replied.json() as { id: string }).id)
 
     const liked = await adviser.browser.api(`/comments/${commentId}/like`, {
       method: 'PUT',
     })
-    expectStatus(liked, 204, 'R7 section I: like and unlike')
+    expectStatus(liked, 204, "#228's Can-comment list: like and unlike")
 
     const edited = await adviser.browser.json(`/comments/${ownId}`, 'PATCH', {
       body: 'ac487 it needs two more inspections',
     })
-    expectStatus(edited, 200, 'R7 section I: edit their own comment')
+    expectStatus(edited, 200, "#228's Can-comment list: edit their own comment")
 
     const removed = await adviser.browser.api(`/comments/${ownId}`, {
       method: 'DELETE',
     })
-    expectStatus(removed, 204, 'R7 section I: and delete their own comment')
+    expectStatus(removed, 204, "#228's Can-comment list: and delete their own comment")
   })
 
   test('AC-517 proof 10: Can comment changes no shared Work state', async () => {
@@ -175,7 +177,7 @@ describe('AC-517 the two reading presets, and the one that may speak', () => {
     expectStatus(
       await auditor.browser.api(`/comments/${commentId}/like`, { method: 'PUT' }),
       403,
-      'R7 section I: a like is a mark on somebody else\'s words, which Can view does not leave',
+      "accepted R8A: Can view is read only, and a like is a mark on somebody else's words",
     )
     expectStatus(
       await auditor.browser.api(`/comments/${commentId}`, { method: 'DELETE' }),

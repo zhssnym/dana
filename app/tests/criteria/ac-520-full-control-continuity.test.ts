@@ -4,7 +4,7 @@ member. The last one cannot be demoted, cannot be removed and cannot leave --
 and the owner may lower their own Access only once somebody else holds it.
 
 Issue #228 required proofs 14 and 15. Product authority: #209 R5,
-"Administrative continuity invariant", and R7 section M.
+"Administrative continuity invariant", and #228's ownership rules.
 
 ## What the invariant is for
 
@@ -28,7 +28,7 @@ is checked separately because each is a different route. The owner's
 self-demotion is the fourth: R5 permits it *only* when another human
 Full-control member exists, which is the same count read from the other side.
 
-Spec: 5.3, 7.4, 7.0; #209 R5, R7 section M.
+Spec: 5.3, 7.4, 7.0; governing #209 R5; #228's ownership rules.
 */
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
@@ -96,7 +96,7 @@ describe('AC-520 a shared folder never runs out of custodians', () => {
 
   test('AC-520 proof 14: the last Full-control member cannot be removed', async () => {
     const { owner, deputy, folderId } = await stage('ac490 remove')
-    // The deputy demotes the owner? No -- R7 section M forbids administering
+    // The deputy demotes the owner? No -- #228's ownership rules forbid administering
     // the owner at all, which AC-521 pins. Here the *deputy* is made the sole
     // custodian by the owner stepping down, and then somebody tries to remove
     // them.

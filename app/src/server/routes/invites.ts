@@ -111,9 +111,9 @@ function inviteMessage(
  * Who may cancel or resend a pending invite (issue #228).
  *
  * **Both rules moved, and in the same direction.** Cancel was "the inviter or
- * the folder's owner"; resend was "the inviter" alone. R7 section L makes
- * both member administration, which is Full control's, and says the inviter
- * half out loud: a former inviter who is later downgraded loses Folder-invite
+ * the folder's owner"; resend was "the inviter" alone. Accepted R8A makes
+ * both administering people, which is Full control's, and #228 says the
+ * inviter half out loud: a former inviter who is later downgraded loses Folder-invite
  * administration, because "I created the invite" is not permanent authority.
  * The owner half goes for the reason every other ownership-as-authority proxy
  * goes in #209 -- custody is not an operating permission.

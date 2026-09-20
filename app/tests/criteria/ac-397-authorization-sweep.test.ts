@@ -54,11 +54,19 @@ says nothing about it, and the counts are what would notice.
 - **`stranger`**, on all but four routes: user B, signed in, with no
   membership, no authorship and no connection to anything user A made. 404 is
   the answer 10.2 requires, because a 403 tells a prober that the row exists.
-- **`member`**, on the eleven routes where 5.4, 7.15 or the code's own DES-225
-  split grants a member visibility and withholds the act: 403, and the refusal
-  may say why, precisely because the person can already see the thing. One of
-  the eleven, `DELETE /api/v1/files/:id`, is the defect this sweep found; it is
-  fixed, and its row carries the story.
+- **`member`**, on the twelve routes where 5.4, 7.15 or the Folder Access
+  model of issue #228 grants a member visibility and withholds the act: 403,
+  and the refusal may say why, precisely because the person can already see
+  the thing. One of the twelve, `DELETE /api/v1/files/:id`, is the defect this
+  sweep found; it is fixed, and its row carries the story. **The count is
+  prose and nothing asserts it** -- what is asserted is the route enumeration
+  below, in both directions -- so read it as a description of the table rather
+  than as a guard over it. It said eleven until 2026-09-20 and was already
+  stale by then: issue #228 added four id-bearing Access routes with member
+  variants, and `PATCH /api/v1/folders/:id` **lost** its variant the same day,
+  because accepted #209 R8A gives a folder's whole identity to Can edit and
+  `fx.member` is admitted at Can edit, so there is no act on that route this
+  actor is refused. That row carries the reasoning and Hassan's ruling.
 - **`viewerScoped`**, on four routes, which are this file's `PUBLIC_READS`:
   the id in the path names no row of ours that could belong to somebody else,
   so every signed-in caller gets the same answer and the row records why. An
@@ -473,14 +481,17 @@ const TABLE = new Map<string, Row>([
         expected: 404,
         rule: '5.4: a non-member sees nothing, so every act on the folder is 404',
       },
-      member: {
-        expected: 403,
-        rule: '5.4 "Rename folder: no (403)" for a member, the DES-225 split: the folder-owned identity is any member\'s, the name is the owner\'s',
-        attempt: (fx) => ({
-          path: `/folders/${fx.folderId}`,
-          body: { name: 'ac397 renamed by a member' },
-        }),
-      },
+      /* **No member variant, and its absence is the decision.** This row
+         carried one until 2026-09-20: 403 on a rename, the DES-225 split in
+         which the folder-owned identity was any member's and the name was the
+         owner's. `fx.member` is admitted at Can edit, and accepted #209 R8A
+         makes a folder's whole identity ordinary shared Folder work that Can
+         edit changes, so there is no act on this route this actor is refused
+         and a member row here would assert the superseded rule. AC-011,
+         AC-012 and AC-193 carry it, under Hassan's ruling of 2026-09-20,
+         https://github.com/zhssnym/dana/issues/228#issuecomment-5750892771.
+         The refusal that did not move is `DELETE /api/v1/folders/:id` below,
+         whose member row still reads 403. */
     },
   ],
   [
@@ -490,7 +501,7 @@ const TABLE = new Map<string, Row>([
       stranger: { expected: 404, rule: '5.4: a non-member sees nothing' },
       member: {
         expected: 403,
-        rule: '5.4 "Delete folder: no (403)" for a member',
+        rule: "Hassan's ruling of 2026-09-20 on #228: moving the folder to Trash is Full control's, and `fx.member` holds Can edit (AC-015). The status is unchanged from 5.4's \"Delete folder: no (403)\"; what moved is which members it refuses",
       },
     },
   ],
@@ -574,7 +585,7 @@ const TABLE = new Map<string, Row>([
       },
       member: {
         expected: 403,
-        rule: '#209 R7 section L: only Full control administers Access, and the member demonstrably sees the folder, so the refusal may say why',
+        rule: 'accepted #209 R8A: administering Access is Full control\'s and Can edit cannot, and the member demonstrably sees the folder, so the refusal may say why',
         attempt: (fx) => ({
           path: `/folders/${fx.folderId}/members/${fx.owner.id}`,
           body: { access: 'can_view' },

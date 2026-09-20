@@ -211,8 +211,9 @@ export async function duplicateFolder(
             RETURNING id`,
       )
       const copyId = String(made[0]?.id)
-      /* R7 section K: the copy is the duplicator's own new Folder, so they
-         are its owner and its Full control, and **nothing about the source's
+      /* #228 puts duplication with Can edit, and the copy is the
+         duplicator's own new Folder, so they are its owner and its Full
+         control, and **nothing about the source's
          Access travels** -- R10B says member identities, Access standing and
          Responsibility documents are not copied by duplication or workflows
          (issue #228). */
@@ -599,8 +600,9 @@ export async function importWorkflow(
             RETURNING id`,
       )
       const folderId = String(made[0]?.id)
-      /* R7 section A: importing a workflow is an account-level creation act,
-         so the importer becomes owner and Full control of the Folder it
+      /* #228's account-state boundary: importing a workflow is an
+         account-level creation act, so the importer becomes owner and Full
+         control of the Folder it
          creates, and the file carries no member standing to restore. */
       await tx.execute(
         sql`INSERT INTO folder_members (folder_id, user_id, access)

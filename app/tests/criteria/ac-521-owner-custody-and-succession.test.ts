@@ -5,7 +5,7 @@ whoever joined earliest; and ownership transfers only to an active member who
 currently holds Full control.
 
 Issue #228 required proofs 16, 17 and 18. Product authority: #209 R5, R6
-sections 2 and 3, R7 section M, and R9 section 8.
+sections 2 and 3, #228's ownership rules, and R9 section 8.
 
 ## The behaviour that goes, and why it was unsafe
 
@@ -30,7 +30,8 @@ that the transition be distinguishable in history from an ordinary grant, so
 that "Imran restored Full control using owner recovery" is not rendered as
 somebody promoting him.
 
-Spec: 5.3, 7.4, 7.16, 8.9; #209 R5, R6, R7 section M, R9 section 8.
+Spec: 5.3, 7.4, 7.16, 8.9; governing #209 R5 and R6; #228's ownership
+rules; R9 section 8.
 */
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
@@ -112,7 +113,7 @@ describe('AC-521 custody is a separate fact and moves on purpose', () => {
     expectStatus(
       recovered,
       200,
-      'R5 and R7 section M: "the owner may restore their own Access to Full control as a custody/recovery action"',
+      "governing R5 and #228: the owner may restore their own Access to Full control through explicit custody recovery, recorded distinctly in Access history",
     )
     expect(
       await storedPreset(app.db, folderId, owner.id),
