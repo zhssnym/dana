@@ -223,6 +223,164 @@ describe('importWorkflowBody drops what it cannot read and refuses what 10.3 ref
   })
 })
 
+/*
+The Label vocabulary, version 3 (#227 area 4).
+
+**Every case here was written because a mutation of the code it watches left
+the whole suite green.** An adversarial review raised both caps to 100000,
+deleted each half of the `superRefine`, and removed `'labels'` from
+`dropNulls`, one at a time: nothing in any test or any criterion moved. So
+this block is the format's own guard on its newest keys, and it is the unit
+half — AC-547 drives the round trip and AC-548 drives the version line through
+the endpoint.
+
+**The cap numbers are literals and must stay literals.** Reading
+`FOLDER_LABEL_DEFINITION_CAP` here would make the test agree with whatever the
+constant says, which is exactly the mutation it exists to catch; the sibling
+"the 10.3 caps are where they were" above spells 301, 50 and 1001 for the same
+reason. 250 and 100 are 10.3's numbers, and a change to either is a contract
+change that should have to edit this line.
+*/
+describe('importWorkflowBody reads a Label vocabulary at version 3, and nowhere else', () => {
+  function labels(count: number): { key: string; name: string; color: string }[] {
+    return Array.from({ length: count }, (_, index) => ({
+      key: `l${String(index)}`,
+      name: `Label ${String(index)}`,
+      color: '#123456',
+    }))
+  }
+
+  function v3(folder: Record<string, unknown>): unknown {
+    return {
+      dana: 'workflow',
+      version: 3,
+      folders: [{ name: 'Launch', ...folder }],
+    }
+  }
+
+  test('a declared key travels and an undeclared one is refused', () => {
+    const file = v3({
+      labels: labels(2),
+      tasks: [{ title: 'Book the room', labels: ['l0'] }],
+    })
+    expect(parsed(file).folders[0]?.tasks?.[0]?.labels, 'the key is the join').toEqual([
+      'l0',
+    ])
+    expect(
+      importWorkflowBody.safeParse(
+        v3({ labels: labels(2), tasks: [{ title: 'x', labels: ['nope'] }] }),
+      ).success,
+      'a key no folder declared is a file contradicting itself, and is refused rather than dropped: dropping it loses classification silently and leaves a file that looks imported and is not',
+    ).toBe(false)
+  })
+
+  test('a key is declared once per folder, and each folder has its own', () => {
+    expect(
+      importWorkflowBody.safeParse(
+        v3({
+          labels: [
+            { key: 'l0', name: 'Work', color: '#123456' },
+            { key: 'l0', name: 'Home', color: '#654321' },
+          ],
+        }),
+      ).success,
+      'a repeated key makes the join ambiguous, and picking one is what "never merge by name" forbids a step later',
+    ).toBe(false)
+    expect(
+      importWorkflowBody.safeParse({
+        dana: 'workflow',
+        version: 3,
+        folders: [
+          { name: 'A', labels: labels(1), tasks: [{ title: 'a', labels: ['l0'] }] },
+          { name: 'B', labels: labels(1), tasks: [{ title: 'b', labels: ['l0'] }] },
+        ],
+      }).success,
+      'and two folders each declaring l0 are two Labels, because scope is part of identity',
+    ).toBe(true)
+  })
+
+  test('10.3’s two Label caps are where they were', () => {
+    expect(
+      importWorkflowBody.safeParse(v3({ labels: labels(250) })).success,
+      '250 definitions in one folder',
+    ).toBe(true)
+    expect(
+      importWorkflowBody.safeParse(v3({ labels: labels(251) })).success,
+      '251',
+    ).toBe(false)
+    const onTask = (count: number): unknown =>
+      v3({
+        labels: labels(count),
+        tasks: [
+          {
+            title: 'Book the room',
+            labels: labels(count).map((label) => label.key),
+          },
+        ],
+      })
+    expect(importWorkflowBody.safeParse(onTask(100)).success, '100 on a task').toBe(
+      true,
+    )
+    expect(importWorkflowBody.safeParse(onTask(101)).success, '101').toBe(false)
+  })
+
+  test('a null vocabulary means absent, at both levels', () => {
+    /* Version 3 deliberately: at any other version the key is dropped by the
+       version rule below, which would hide whether `dropNulls` still names
+       `labels` at all. */
+    const folder = parsed(
+      v3({ labels: null, tasks: [{ title: 'Book the room', labels: null }], blocks: null }),
+    ).folders[0]
+    expect(folder?.labels, 'the folder’s').toBeUndefined()
+    expect(folder?.tasks?.[0], 'and the task’s').toEqual({ title: 'Book the room' })
+  })
+
+  test('a labels key at any other version is a foreign arrangement, and is dropped', () => {
+    /* The six shapes an adversarial review measured, every one of them
+       accepted before #227 declared the key and 422 after it. The first is
+       the one that matters: `labels` as an array of tag names per task is
+       what most to-do exports write, Todoist included. */
+    const v1 = (folder: Record<string, unknown>): unknown => ({
+      dana: 'workflow',
+      version: 1,
+      name: 'Launch',
+      folders: [{ name: 'Launch', ...folder }],
+    })
+    const shapes: [string, unknown][] = [
+      ['tag names per task', v1({ tasks: [{ title: 'x', labels: ['work', 'home'] }] })],
+      ['one tag as a string', v1({ tasks: [{ title: 'x', labels: 'work' }] })],
+      ['a null vocabulary', v1({ labels: null, tasks: [{ title: 'x' }] })],
+      ['a vocabulary of names', v1({ labels: ['work'], tasks: [{ title: 'x' }] })],
+      [
+        'a vocabulary with no keys',
+        v1({ labels: [{ name: 'Work', color: '#123456' }], tasks: [{ title: 'x' }] }),
+      ],
+      [
+        'the one-folder fold',
+        { dana: 'workflow', version: 1, name: 'Launch', tasks: [{ title: 'x', labels: ['work'] }] },
+      ],
+    ]
+    for (const [what, file] of shapes) {
+      const folder = parsed(file).folders[0]
+      expect(folder?.labels, `${what}: the folder carries no vocabulary`).toBeUndefined()
+      expect(folder?.tasks?.[0]?.labels, `${what}: and the task carries no keys`).toBeUndefined()
+      expect(folder?.tasks?.[0]?.title, `${what}: and the work still arrives`).toBe('x')
+    }
+  })
+
+  test('version 2 is no more a Label reader than version 1', () => {
+    const folder = parsed({
+      dana: 'workflow',
+      version: 2,
+      folders: [
+        { name: 'Launch', labels: ['work'], tasks: [{ title: 'x', labels: ['work'] }] },
+      ],
+    }).folders[0]
+    expect(folder?.labels).toBeUndefined()
+    expect(folder?.tasks?.[0]?.labels).toBeUndefined()
+  })
+})
+
 describe('needsImportAnchor reads the folded file', () => {
   test('a top-level file whose task repeats asks for a zone', () => {
     expect(

@@ -243,6 +243,17 @@ const canonicalWorkflowBody = z
     looks imported and is not. The normaliser's rule is about arrangements
     older serialisers wrote; this is a file contradicting itself.
 
+    **Both rules only ever see a version 3 file, and that is what makes the
+    sentence above true rather than merely stated.** `readsLabels` strips every
+    `labels` key from a file of any other version before this runs, so what is
+    left here is a file that declared a vocabulary — which is the only kind of
+    file that *can* contradict itself about one. A version 1 file carrying a
+    foreign tag list reaches this loop with nothing to check, which is why it
+    imports rather than meeting a 422 about a vocabulary it never claimed to
+    have. There is deliberately no `version === 3` test in this function: one
+    mechanism, in the place whose job is folding arrangements, and AC-548
+    drives both sides of the line through the endpoint.
+
     Scoped per folder rather than across the file, because scope is part of
     identity: two folders in one file may each declare `l1` and they are two
     different Labels, exactly as two folders may each hold a "Research".
@@ -326,10 +337,49 @@ function dropNulls(task: Record<string, unknown>): void {
   }
 }
 
-function normalizeTask(task: unknown): unknown {
+/** The same rule one level up, and it was missing until an adversarial review
+ * measured the asymmetry: a task's `labels: null` was tolerated while a
+ * folder's was a 422, for no reason either half could state. Every optional
+ * key `importFolder` names is here, because "null means absent" is a property
+ * of the format rather than of any one key. */
+function dropFolderNulls(folder: Record<string, unknown>): void {
+  for (const key of ['tasks', 'blocks', 'document', 'labels']) {
+    if (folder[key] === null) delete folder[key]
+  }
+}
+
+/*
+A `labels` key belongs to version 3, and to a file of any other version it is
+a foreign arrangement to be dropped rather than a Dana one to be validated.
+
+**This is the line between tolerance and refusal, and getting it wrong is a
+regression rather than a nicety.** `labels` as an array of tag names per task
+is what most to-do exports write — Todoist writes exactly that key — and
+before #227 declared the key, every such file imported with it quietly
+stripped by `z.object`. Once declared, the same file met `expected array`, a
+per-task cap of 100 and the undeclared-key refusal below, none of which it has
+any way to satisfy: a version 1 file declares no vocabulary, so it cannot
+contradict itself, and there is nothing for its keys to join to.
+
+So the version gates the key, which is what a version is for — it says what a
+*reader* must understand, and a file that says 1 has said its reader needs to
+understand no vocabulary. The refusals below are then exactly what they claim
+to be: a file that declares a vocabulary and then contradicts it.
+
+Folding a foreign tag list *into* a vocabulary is the thing deliberately not
+done here. It would have to invent a colour and a key per name, which is a
+product decision #227 did not take, and this file's rule everywhere else is
+that an arrangement it cannot read is dropped rather than guessed at.
+*/
+function readsLabels(file: Record<string, unknown>): boolean {
+  return file.version === 3
+}
+
+function normalizeTask(task: unknown, labels: boolean): unknown {
   if (!isRecord(task)) return task
   const next: Record<string, unknown> = { ...task }
   dropNulls(next)
+  if (!labels) delete next.labels
   if (Array.isArray(next.steps)) {
     next.steps = next.steps
       .map(normalizeStep)
@@ -346,12 +396,14 @@ function normalizeTask(task: unknown): unknown {
   return next
 }
 
-function normalizeFolder(folder: unknown): unknown {
+function normalizeFolder(folder: unknown, labels: boolean): unknown {
   /* A folder given as its name alone, which is what a file listing the
      folders of an arrangement writes. */
   if (typeof folder === 'string') return { name: folder }
   if (!isRecord(folder)) return folder
   const next: Record<string, unknown> = { ...folder }
+  dropFolderNulls(next)
+  if (!labels) delete next.labels
   const page = Array.isArray(next.blocks)
     ? next.blocks
     : Array.isArray(next.items)
@@ -362,7 +414,9 @@ function normalizeFolder(folder: unknown): unknown {
       .map(normalizeBlock)
       .filter((block): block is NormalBlock => block !== null)
   }
-  if (Array.isArray(next.tasks)) next.tasks = next.tasks.map(normalizeTask)
+  if (Array.isArray(next.tasks)) {
+    next.tasks = next.tasks.map((task) => normalizeTask(task, labels))
+  }
   return next
 }
 
@@ -392,7 +446,8 @@ export function normalizeWorkflowFile(value: unknown): unknown {
       },
     ]
   }
-  file.folders = folders.map(normalizeFolder)
+  const labels = readsLabels(file)
+  file.folders = folders.map((folder) => normalizeFolder(folder, labels))
   return file
 }
 

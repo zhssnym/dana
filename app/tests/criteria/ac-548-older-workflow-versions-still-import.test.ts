@@ -17,14 +17,34 @@ on importing. So this file drives real older files through the live endpoint
 and asserts the folder they make: the page, the work, the steps, the star, the
 notes — and no Labels, because they carried none.
 
+## An older file is not only a file Dana wrote
+
+**The first draft of this criterion tested Dana's own version 1 and version 2
+shapes and nothing else, and neither carries a `labels` key — so it could not
+see the regression an adversarial review then measured.** Declaring `labels`
+on the task and the folder made it a *validated* key at every version, and six
+inputs that were accepted before #227 (the key stripped by `z.object`) became
+422 after it. The one that matters is `tasks[].labels: ["work", "home"]`:
+`labels` as an array of tag names per task is what most to-do exports write,
+Todoist among them, and tolerating foreign arrangements is the entire reason
+`normalizeWorkflowFile` exists. A version 1 file declares no vocabulary and so
+cannot contradict itself about one; 422 telling its owner that "work" is not
+one of this folder's labels is a sentence about a vocabulary that file never
+claimed to have.
+
+So two of those inputs are driven here, and the *same* refusal at version 3 is
+driven beside them. The pair is the point: the tolerance is scoped by the
+version rather than removed, and a change that deleted the refusal outright
+would pass the first two cases and fail the third.
+
 ## The unknown version is the other half
 
 A criterion that only proved "old files still work" would be satisfied by a
 schema that accepted any number at all, which would put the silent-strip
 failure straight back. So the last case names a version nothing writes and
-requires 422. `src/shared/workflows.test.ts` carries the same pair at the unit
-level; this one drives the endpoint, because the refusal a person meets is an
-HTTP status rather than a parse result.
+requires 422. `src/shared/workflows.test.ts` carries the same pairs at the unit
+level, including both 10.3 Label caps; this one drives the endpoint, because
+the refusal a person meets is an HTTP status rather than a parse result.
 
 Spec: 7.16, 10.3. Issue #227 area 4.
 */
@@ -145,6 +165,75 @@ describe('AC-548 the older versions are files, not history', () => {
       await folderLabelRows(app.db, folderId),
       'and no vocabulary is invented for it either',
     ).toEqual([])
+  })
+
+  test('a version 1 file whose tasks carry foreign tag names still imports', async () => {
+    const [importer] = (await cast.of(app)) as [Actor]
+    const made = await importWorkflowOk(importer, {
+      dana: 'workflow',
+      version: 1,
+      name: 'ac528 from another product',
+      folders: [
+        {
+          name: 'ac528 from another product',
+          tasks: [
+            { title: 'ac528 foreign tags', labels: ['work', 'home'] },
+            { title: 'ac528 no tags' },
+          ],
+        },
+      ],
+    })
+    const folderId = String(made[0]?.id)
+    expect(
+      [...(await tasksByTitle(app.db, folderId)).keys()].sort(),
+      'the work arrives: a version 1 file declares no vocabulary, so its `labels` is a foreign arrangement to be dropped rather than a Dana one to be validated (#227 area 4)',
+    ).toEqual(['ac528 foreign tags', 'ac528 no tags'])
+    expect(
+      await folderLabelRows(app.db, folderId),
+      'and nothing is invented from the tag names: folding them into a vocabulary would have to invent a colour and a key, which is a product decision #227 did not take',
+    ).toEqual([])
+  })
+
+  test('a null in a folder’s optional keys means absent, as it does in a task’s', async () => {
+    const [importer] = (await cast.of(app)) as [Actor]
+    const made = await importWorkflowOk(importer, {
+      dana: 'workflow',
+      version: 1,
+      name: 'ac528 nulls',
+      folders: [
+        {
+          name: 'ac528 nulls',
+          labels: null,
+          blocks: null,
+          tasks: [{ title: 'ac528 the only task', labels: null, steps: null }],
+        },
+      ],
+    })
+    const folderId = String(made[0]?.id)
+    expect(
+      [...(await tasksByTitle(app.db, folderId)).keys()],
+      'a serialiser that spells "none" as null has not written a malformed file, and the rule is the format’s rather than any one key’s',
+    ).toEqual(['ac528 the only task'])
+  })
+
+  test('a version 3 file that contradicts its own vocabulary is refused', async () => {
+    const [importer] = (await cast.of(app)) as [Actor]
+    const refused = await importWorkflow(importer, {
+      dana: 'workflow',
+      version: 3,
+      name: 'ac528 contradicts itself',
+      folders: [
+        {
+          name: 'ac528 contradicts itself',
+          labels: [{ key: 'l1', name: 'ac528 work', color: '#123456' }],
+          tasks: [{ title: 'ac528 names a key it has not', labels: ['l2'] }],
+        },
+      ],
+    })
+    expect(
+      refused.status,
+      'the tolerance above is scoped by the version, not removed: a file that declares a vocabulary and then names a key outside it is refused rather than imported with its classification silently gone (#227 area 4)',
+    ).toBe(422)
   })
 
   test('a version nobody writes is still refused', async () => {

@@ -29,6 +29,17 @@ it was applied to takes the assignment and leaves the Label. An implementation
 that cascaded the other way would delete a person's vocabulary because they
 emptied their Trash.
 
+**And the deletion statement is scoped to the leaving account, which is the
+predicate this file exists to hold.** A `DELETE FROM labels WHERE scope =
+'personal'` deletes every Personal Label in the product and, through 0022's
+composite cascades, every Personal assignment anybody ever made — and the
+"it is gone" half of this criterion is satisfied by it perfectly. So the third
+case puts **a second person's** Personal Label on the very task the leaver
+classified, and requires it to be standing afterwards. Without that row the
+whole privacy surface has no guard against the widest possible statement, and
+an adversarial review measured exactly that: the broad DELETE left this file,
+AC-470, AC-473, AC-009, AC-118 and `account-deletion.test.ts` all green.
+
 Spec: 7.13, 8.10, 4.3, 4.5. Issue #227 area 7, #208 R4.
 */
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
@@ -52,6 +63,7 @@ import {
   putTaskLabel,
 } from '../support/labels-harness.js'
 import {
+  allFolderPersonalRows,
   allTaskPersonalRows,
   deleteFolder,
   deleteTask,
@@ -245,6 +257,22 @@ describe('AC-553 purge takes the assignments and leaves the vocabulary that outl
       'and the shared folder too (spec 7.0)',
     )
 
+    /* The other side of the statement, on the same two targets: a second
+       person's private classification of the same Task and the same Folder.
+       A scoped DELETE leaves both standing and a broad one takes them, and
+       nothing else in the suite tells those two apart. */
+    const staying = await createPersonalLabel(owner, { name: 'ac533 staying' })
+    expectStatus(
+      await putTaskLabel(owner, survivingTask.id, staying.id),
+      200,
+      'the owner classifies the same task privately (spec 7.0)',
+    )
+    expectStatus(
+      await putFolderLabel(owner, shared, staying.id),
+      200,
+      'and the same folder (spec 7.0)',
+    )
+
     const gone = await leaver.browser.json('/me', 'DELETE', {
       confirm: 'DELETE',
     })
@@ -256,12 +284,20 @@ describe('AC-553 purge takes the assignments and leaves the vocabulary that outl
     ).toEqual([])
     expect(
       await allTaskPersonalRows(app.db, survivingTask.id),
-      'and the assignment it left on work that survives it is gone, by 0022’s composite cascade off the definition',
-    ).toEqual([])
+      'the assignment it left on work that survives it is gone by 0022’s composite cascade, and the owner’s on the same task is untouched: the statement is scoped to the leaving account, and a DELETE over every Personal Label in the product satisfies the first half and fails here (#227 area 7)',
+    ).toEqual([{ label_id: staying.id, owner_user_id: owner.id }])
     expect(
       await assignmentCount('folder_personal_labels', theirs.id),
       'as is the one on the folder',
     ).toBe(0)
+    expect(
+      await allFolderPersonalRows(app.db, shared),
+      'and the folder keeps the owner’s, for the same reason',
+    ).toEqual([{ label_id: staying.id, owner_user_id: owner.id }])
+    expect(
+      (await personalLabelRows(app.db, owner.id)).map((label) => label.id),
+      'and the owner’s **definition** is where they left it: somebody else closing their account does not empty your vocabulary',
+    ).toContain(staying.id)
 
     /* The work itself survives, which is 8.10 unchanged: what left is the
        person's private classification of it, not the shared rows. */

@@ -159,6 +159,27 @@ not have carried anything. The second was a bad mutation and the first was a
 weak criterion; both are recorded in the commit because the difference between
 them is the thing a mutation pass is for.
 
+**And a mutation pass over fifteen criteria is not a mutation pass over the
+change, which an adversarial review then measured.** Each of the fifteen was
+broken at the behaviour it names, and every line the branch added that *no*
+criterion names went unmeasured — six mutations survived the whole suite. The
+worst was the privacy one: replacing the Personal Label delete's statement
+with `DELETE FROM labels WHERE scope = 'personal'` wipes every
+account's Personal Labels and, through 0022's composite cascades, every
+Personal assignment in the product, and AC-553, AC-470, AC-473, AC-009,
+AC-118 and `domain/account-deletion.test.ts` were all green under it — AC-553's
+surviving task carried only the leaver's row, so its assertion was `[]` either
+way. **That statement is 8.10 step 6c's in `domain/account-deletion.ts` since
+this branch rebased onto #253**, which took the Personal Label delete into its
+nine-table sweep; the mutation and what it proves are unchanged, the predicate
+being `owner_user_id` either way. The other five were the whole of `canonicalWorkflowBody`'s `superRefine`
+(both halves), both 10.3 Label caps raised to 100000, and `'labels'` removed
+from `dropNulls`. The lesson is the ratio rather than any one of them: the
+question a pass answers is "which of my lines has a watcher", and enumerating
+the criteria answers a different one. All six are now watched — the privacy
+predicate by AC-553's second actor, the format by
+`src/shared/workflows.test.ts`'s Label block and AC-548's widened case list.
+
 **And six more for issue #263, the reclaim sweep** (AC-700 to AC-705, spec 12.9),
 on the same reading of that ruling. **Read the sentence above as the dated
 record it is rather than as a running total**: the tree already held 69

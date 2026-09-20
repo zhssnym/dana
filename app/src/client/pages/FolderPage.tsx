@@ -310,6 +310,29 @@ function readConversationHome(): ConversationHome {
   }
 }
 
+/*
+The rows out of the body `GET /labels` answered (#227 area 4).
+
+**`truncated` is not read, and that is a fact about this path rather than an
+oversight.** 10.3 caps a Folder's definitions at 250
+(`FOLDER_LABEL_DEFINITION_CAP`) and the list cap at 1000, so a single folder's
+vocabulary cannot reach it. A second scope on this query, or a cap raised past
+1000, would make that false and would want the flag read.
+
+**This read two shapes until the rebase of 2026-09-20 and now reads one.** The
+branch forked from #226 mid-flight, when `getLabelsResponse` was still a bare
+array; #226 then wrapped it as `{ rows, truncated }` for its own 10.3 row-cap
+fix and landed on `main` as #259. Reading both let this branch compile where it
+stood and be correct once rebased, and the array arm was dead the moment it was
+— so it went, which is what the comment that stood here asked its rebaser to
+do.
+*/
+function labelRowsOf(
+  answered: { rows: readonly LabelDefinition[] },
+): readonly LabelDefinition[] {
+  return answered.rows
+}
+
 /**
  * The folder page of 9.6.
  *
@@ -718,7 +741,6 @@ export function FolderPage({
     const pending = [...scheduled, ...unscheduled].filter(
       (task) => task.status === 'pending',
     )
-    let tasks: TaskDetail[]
     /*
     The folder's own Label vocabulary, read beside the details (#227 area 4).
 
@@ -730,12 +752,13 @@ export function FolderPage({
     not be newly applied, so a file carrying one would ask the importer for a
     row the live endpoints refuse.
 
-    A folder with no Folder Labels answers an empty array and the file that is
-    written is byte-for-byte the one this page wrote before #227.
+    A folder with no Folder Labels answers an empty vocabulary and the file
+    that is written is byte-for-byte the one this page wrote before #227.
     */
-    let labels: LabelDefinition[]
+    let tasks: TaskDetail[]
+    let labels: readonly LabelDefinition[]
     try {
-      ;[tasks, labels] = await Promise.all([
+      const [details, vocabulary] = await Promise.all([
         Promise.all(
           pending.map((task) =>
             cache.fetchQuery({
@@ -753,6 +776,8 @@ export function FolderPage({
             ),
         }),
       ])
+      tasks = details
+      labels = labelRowsOf(vocabulary)
     } catch {
       showToast('Could not read this folder’s tasks, so nothing was saved.')
       return
