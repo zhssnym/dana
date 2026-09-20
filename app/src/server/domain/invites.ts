@@ -26,6 +26,9 @@ import { accessOf } from './folders.js'
 import type { FolderAccess } from './folders.js'
 import { inTransaction, rowsOf } from '../database.js'
 import { recordEvent } from './events.js'
+import { createInitialResponsibility } from './responsibility.js'
+import { responsibilityDocument } from '../../shared/responsibility.js'
+import type { ResponsibilityDocument } from '../../shared/responsibility.js'
 import type { Executor } from '../database.js'
 
 /** 10.3's members-per-folder limit, the number every 8.7 grant checks. It is
@@ -213,6 +216,10 @@ export interface CreateInviteInput {
   /** R9 section 5's intended preset. Present exactly when `folder_id` is;
    * the shared schema refuses every other combination. */
   access?: FolderAccessPreset
+  /** Issue #230's optional initial Responsibility content, admitted only with
+   * a folder. Absent means the member arrives with no document; R10 forbids
+   * fabricating one. */
+  responsibility?: ResponsibilityDocument
 }
 
 export type CreateInviteResult =
@@ -326,6 +333,7 @@ export async function createInvite(
   const folderId = input.folder_id ?? null
   const taskId = input.task_id ?? null
   const granted = input.access ?? null
+  const initialResponsibility = input.responsibility ?? null
 
   return inTransaction(db, async (tx) => {
     /*
@@ -444,6 +452,20 @@ export async function createInvite(
         actorId: inviterId,
         transition: 'member_added',
       })
+      /* 8.7's instant share never becomes an invite row, so #230's initial
+         content has to land here in the same transaction as the membership
+         it belongs to -- attributed to the inviter, who wrote it, and never
+         to the person it describes. */
+      if (initialResponsibility !== null) {
+        await createInitialResponsibility(
+          tx,
+          folderId,
+          target.id,
+          inviterId,
+          initialResponsibility,
+          folderAccess.name,
+        )
+      }
 
       /*
       8.7's third entry path: membership first, then the assignment applies,
@@ -492,9 +514,11 @@ export async function createInvite(
 
     const inserted = await rowsOf(
       tx,
-      sql`INSERT INTO invites (inviter_id, email, folder_id, task_id, access)
+      sql`INSERT INTO invites (inviter_id, email, folder_id, task_id, access,
+                               responsibility)
           VALUES (${inviterId}::uuid, ${email}, ${folderId}::uuid,
-                  ${taskId}::uuid, ${granted})
+                  ${taskId}::uuid, ${granted},
+                  ${initialResponsibility === null ? null : JSON.stringify(initialResponsibility)}::jsonb)
           ON CONFLICT DO NOTHING
           RETURNING id`,
     )
@@ -697,7 +721,8 @@ export async function acceptInvite(
                SET status = 'accepted', accepted_by = ${acceptorId}::uuid,
                    responded_at = now()
              WHERE id = ${inviteId} AND status = 'pending'
-             RETURNING inviter_id, folder_id, task_id, access`,
+             RETURNING inviter_id, folder_id, task_id, access,
+                       responsibility`,
       )
       const invite = claimed[0]
       if (invite === undefined) return { kind: 'not_pending' }
@@ -706,6 +731,7 @@ export async function acceptInvite(
       const folderId = nullableString(invite.folder_id)
       const taskId = nullableString(invite.task_id)
       const granted = presetOf(invite.access)
+      const initial = responsibilityDocument.safeParse(invite.responsibility)
 
       // INV-9's canonical pair, upserted: the connection is created once
       // however many invites the same two people exchange, and the returned
@@ -784,6 +810,34 @@ export async function acceptInvite(
             actorId: inviterId,
             transition: 'invite_accepted',
           })
+          /*
+          Issue #230, and the sentence that shapes this block is R9 section
+          5's read across from Access: **the initial content becomes active
+          only when the membership does, and the actor is the inviter who
+          wrote it.** History must not pretend the recipient authored the
+          content merely by accepting, which is exactly what recording the
+          acceptor here would do.
+
+          A row whose stored payload does not parse is *skipped* rather than
+          thrown on. The invite is being accepted, and refusing a membership
+          over unreadable text somebody else wrote months ago would be worse
+          than arriving with no Responsibility -- which is a state #230 makes
+          ordinary. Nothing is fabricated either way.
+          */
+          if (initial.success) {
+            const folderName = await rowsOf(
+              tx,
+              sql`SELECT name FROM folders WHERE id = ${folderId}::uuid`,
+            )
+            await createInitialResponsibility(
+              tx,
+              folderId,
+              acceptorId,
+              inviterId,
+              initial.data,
+              String(folderName[0]?.name ?? ''),
+            )
+          }
         }
       }
 

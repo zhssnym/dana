@@ -17,6 +17,7 @@ import type { Db } from '../../../db/client.js'
 import type { FolderAccessPreset } from '../../shared/folder-access.js'
 import type { Folder } from '../../shared/folders.js'
 import type { LabelRef } from '../../shared/labels.js'
+import type { ResponsibilityDocument } from '../../shared/responsibility.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
@@ -29,6 +30,10 @@ import {
 } from './folder-access.js'
 import type { FolderActorFacts } from './folder-access.js'
 import { folderPersonalLabelsFor } from './labels.js'
+import {
+  createInitialResponsibility,
+  endResponsibilityStanding,
+} from './responsibility.js'
 import { ensureShelf } from './shelves.js'
 
 /* ------------------------------------------------------------------ *
@@ -735,6 +740,11 @@ export async function addMember(
    * default, because a default here would be one person's authority chosen
    * by nobody. The route's schema refuses a body without it. */
   granted: FolderAccessPreset,
+  /** Issue #230's optional initial Responsibility content. Absent means the
+   * member arrives with no document at all: R10 forbids fabricating one, and
+   * `createInitialResponsibility` refuses a canonically empty payload for the
+   * same reason, so an explicit empty document writes nothing either. */
+  initialResponsibility?: ResponsibilityDocument,
 ): Promise<AddMemberResult> {
   // The default-folder refusal reads no row: INV-2 fixes is_default at
   // creation and no endpoint moves it, so this answer cannot go stale inside
@@ -786,6 +796,22 @@ export async function addMember(
       actorId,
       transition: 'member_added',
     })
+
+    /* R10 and #230: the initial document and the membership standing commit
+       together, and the actor recorded on the first revision is the
+       **administrator** who chose the content rather than the person it
+       describes. That is R9 section 5's rule about Access read across to
+       Responsibility, and AC-569 reads exactly this row back. */
+    if (initialResponsibility !== undefined) {
+      await createInitialResponsibility(
+        tx,
+        folderId,
+        targetId,
+        actorId,
+        initialResponsibility,
+        access.name,
+      )
+    }
 
     // The share-grant email goes to the target's address (5.3). A null can
     // only mean a soft-deleted account, whose connections 8.10 removes, so
@@ -904,7 +930,7 @@ export async function removeMembership(
           options.actorId === leaverId ? 'member_left' : 'member_removed',
       })
     }
-    await runRClean(tx, folderId, leaverId)
+    await runRClean(tx, folderId, leaverId, { actorId: options.actorId })
     // 'left' when the leaver acted, 'removed' when someone removed them
     // (4.13's two verbs for the two directions of the same row change).
     const named = await rowsOf(
@@ -943,7 +969,37 @@ export async function runRClean(
   tx: Executor,
   folderId: string,
   leaverId: string,
+  /** Who ended this membership. Defaults to the leaver, which is true of the
+   * two callers that do not name one: an ordinary leave, and 8.10's account
+   * deletion, where the person ending every membership they hold is the
+   * person deleting their own account. */
+  options: { actorId?: string } = {},
 ): Promise<void> {
+  /*
+  R10, issue #230: "current active Responsibility standing ends in the same
+  governed membership operation". It is written here rather than in
+  `removeMembership` **because of where 8.10 enters**: account deletion step 4
+  does not call `removeMembership` at all, it calls this function once per
+  surviving membership, so a hook on the caller would have covered a leave and
+  a removal and silently missed every account deletion. The same reasoning the
+  header above already gives for R-CLEAN living here rather than being copied
+  into the deletion module, applied to one more duty.
+
+  And 8.10 is the case that cannot be got right by accident: step 7 *scrubs*
+  the `users` row rather than deleting it, so no `ON DELETE` clause on a user
+  foreign key ever fires for an account deletion — a cascade would have left
+  the standing open forever and a person would keep appearing as an active
+  Responsibility holder in a folder they are no longer in. Nothing here relies
+  on one. The document and its revisions stay exactly where they are, which is
+  R10's other half: history survives the membership it describes, and #230
+  forbids scrubbing from fabricating a different historical actor.
+  */
+  await endResponsibilityStanding(
+    tx,
+    folderId,
+    leaverId,
+    options.actorId ?? leaverId,
+  )
   await tx.execute(
     sql`UPDATE tasks SET assignee_id = NULL, updated_at = now()
         WHERE folder_id = ${folderId} AND assignee_id = ${leaverId}`,

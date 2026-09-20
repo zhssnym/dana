@@ -287,6 +287,11 @@ export interface LockedMembership {
   userId: string
   access: FolderAccessPreset
   isOwner: boolean
+  /** R7 section O's explicit narrow grant (issue #230), read under the same
+   * `FOR UPDATE` as the preset beside it. Every write that consults it reads
+   * it here, so a grant revoked by a concurrent administrator cannot
+   * authorize a write that started before the revocation committed. */
+  canEditOwnResponsibilities: boolean
 }
 
 /**
@@ -306,7 +311,8 @@ export async function lockedMembership(
 ): Promise<LockedMembership | null> {
   const found = await rowsOf(
     tx,
-    sql`SELECT m.user_id, m.access, (f.owner_id = m.user_id) AS is_owner
+    sql`SELECT m.user_id, m.access, m.can_edit_own_responsibilities,
+               (f.owner_id = m.user_id) AS is_owner
         FROM folder_members m
         JOIN folders f ON f.id = m.folder_id
         WHERE m.folder_id = ${folderId} AND m.user_id = ${userId}
@@ -324,5 +330,6 @@ export async function lockedMembership(
     userId: String(row.user_id),
     access,
     isOwner: row.is_owner === true,
+    canEditOwnResponsibilities: row.can_edit_own_responsibilities === true,
   }
 }

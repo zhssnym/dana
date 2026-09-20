@@ -66,6 +66,23 @@ import {
   patchFolderMemberAccessBody,
 } from '../../shared/folder-access.js'
 import type { GetFolderAccessHistoryResponse } from '../../shared/folder-access.js'
+import {
+  putResponsibilityBody,
+  putSelfEditGrantBody,
+} from '../../shared/responsibility.js'
+import type {
+  GetFolderMemberDetailsResponse,
+  GetResponsibilityHistoryResponse,
+  GetResponsibilityResponse,
+  PutResponsibilityResponse,
+} from '../../shared/responsibility.js'
+import {
+  activeStandingOf,
+  commitResponsibility,
+  memberDetailsOf,
+  responsibilityHistoryOf,
+  setSelfEditGrant,
+} from '../domain/responsibility.js'
 import { routerWithPreamble } from './preamble.js'
 
 export interface FoldersRouterOptions {
@@ -462,6 +479,7 @@ export function createFoldersRouter(
         parsed.user_id,
         access,
         parsed.access,
+        parsed.responsibility,
       )
       switch (result.kind) {
         case 'default_folder':
@@ -838,6 +856,256 @@ export function createFoldersRouter(
       const memberId = parsedId(res, req.params.userId)
       if (memberId === null) return
       await history(req, res, folderId, memberId)
+    },
+  )
+
+  /* ---------------------------------------------------------------- *
+   * Responsibility (issue #230, #209 R5 / R7 section O / R10)
+   * ---------------------------------------------------------------- */
+
+  /*
+  Five routes, and the thing worth reading before any of them is where the
+  authority decision lives, because it is not the same place for all five.
+
+  Three of them -- the two reads and the member-details projection -- decide
+  entirely here, through `gate`, because their answer depends on nothing but
+  the viewer's own durable facts. The self-edit grant toggle decides here too,
+  for the same reason: `responsibility.self_edit_grant.manage` is Full
+  control's whatever the target holds.
+
+  **The commit does not**, and that is deliberate. Whether the actor may write
+  this document can depend on the *target's* `can_edit_own_responsibilities`,
+  which is a fact about another row that must be read under the same lock as
+  the write it authorizes -- R7's transactional requirement, the one the
+  assignee check already obeys in `domain/tasks.ts`. So the route resolves the
+  folder (404 for anybody outside it, 10.2) and `commitResponsibility` makes
+  the decision inside its transaction, handing back `forbidden` with the
+  resolver's own reason. A gate here that read the grant first would be a
+  projection authorizing a write, however fresh it was.
+  */
+  const memberOfPath = (
+    req: Request,
+    res: Response,
+  ): { folderId: string; memberId: string } | null => {
+    const folderId = parsedId(res, req.params.id)
+    if (folderId === null) return null
+    const memberId = parsedId(res, req.params.userId)
+    if (memberId === null) return null
+    return { folderId, memberId }
+  }
+
+  router.get(
+    '/folders/:id/members/:userId/responsibility',
+    requireSession,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const ids = memberOfPath(req, res)
+      if (ids === null) return
+      const access = await gate(req, res, ids.folderId, 'responsibility.read')
+      if (access === null) return
+      /* No membership check on the *subject*. A document belonging to a
+         membership that ended is not an active member's Responsibility and
+         `activeStandingOf` will not return it, so this answers the empty
+         standing for a former member rather than 404 -- the same shape a
+         current member with nothing written gets, and for the same reason:
+         "there is none" and "you may not see it" must not be two answers a
+         prober can tell apart. */
+      const body: GetResponsibilityResponse = {
+        member_id: ids.memberId,
+        responsibility: await activeStandingOf(db, ids.folderId, ids.memberId),
+      }
+      res.status(200).json(body)
+    },
+  )
+
+  router.put(
+    '/folders/:id/members/:userId/responsibility',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const ids = memberOfPath(req, res)
+      if (ids === null) return
+      const parsed = parseBody(putResponsibilityBody, req, res, securityLog)
+      if (parsed === null) return
+      const facts = await accessOf(db, viewer(req), ids.folderId)
+      if (facts === null) {
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      const outcome = await commitResponsibility(db, facts, ids.memberId, {
+        content: parsed.content,
+        base_revision: parsed.base_revision,
+      })
+      switch (outcome.kind) {
+        case 'not_member':
+          sendError(res, 404, 'not_found', 'Not found.')
+          return
+        case 'forbidden':
+          sendError(res, 403, 'forbidden', outcome.reason)
+          return
+        case 'stale':
+          /* R10's optimistic-concurrency rule, answered the way the page
+             document answers its own: 409, the draft stays the caller's, and
+             nothing was overwritten. */
+          sendError(
+            res,
+            409,
+            'conflict',
+            'These Responsibilities changed while you were editing. Your draft is retained; reconcile it with the current version.',
+          )
+          return
+        case 'unchanged':
+        case 'committed': {
+          const body: PutResponsibilityResponse = {
+            member_id: ids.memberId,
+            committed: outcome.kind === 'committed',
+            responsibility: outcome.standing,
+          }
+          res.status(200).json(body)
+          return
+        }
+      }
+    },
+  )
+
+  router.get(
+    '/folders/:id/members/:userId/responsibility/history',
+    requireSession,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const ids = memberOfPath(req, res)
+      if (ids === null) return
+      const access = await gate(
+        req,
+        res,
+        ids.folderId,
+        'responsibility.history.read',
+      )
+      if (access === null) return
+      /* Proof 15, and it is this gate and nothing else: a former member reads
+         404 here because they are no longer in the folder, not because
+         anything hides their own entries from them. Being the subject of a
+         record is not a route back into a folder. */
+      const body: GetResponsibilityHistoryResponse = {
+        entries: await responsibilityHistoryOf(db, ids.folderId, {
+          memberId: ids.memberId,
+        }),
+      }
+      res.status(200).json(body)
+    },
+  )
+
+  router.put(
+    '/folders/:id/members/:userId/self-edit-grant',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const ids = memberOfPath(req, res)
+      if (ids === null) return
+      const parsed = parseBody(putSelfEditGrantBody, req, res, securityLog)
+      if (parsed === null) return
+      const access = await gate(
+        req,
+        res,
+        ids.folderId,
+        'responsibility.self_edit_grant.manage',
+      )
+      if (access === null) return
+      const outcome = await setSelfEditGrant(
+        db,
+        viewer(req),
+        ids.folderId,
+        ids.memberId,
+        parsed.enabled,
+      )
+      switch (outcome.kind) {
+        case 'not_member':
+          sendError(res, 404, 'not_found', 'Not found.')
+          return
+        case 'target_is_owner':
+          sendError(
+            res,
+            403,
+            'forbidden',
+            "The folder's owner needs no grant to write their own Responsibilities, and nobody else administers the owner's standing (R7 section M).",
+          )
+          return
+        case 'unchanged':
+        case 'changed':
+          res.status(200).json({
+            member_id: ids.memberId,
+            can_edit_own_responsibilities: outcome.enabled,
+            changed: outcome.kind === 'changed',
+          })
+          return
+      }
+    },
+  )
+
+  /*
+  The member-details projection (#230 "Member-details backend contract").
+
+  It reads at `folder.read`, which is every member: R9 section 13 already
+  makes a member's Access Folder-visible and R5 makes their Responsibility
+  Folder-visible, so this composes two things the roster already shows with a
+  count of their current work.
+
+  The three `viewer_may_*` flags are computed here from `mayPerform` rather
+  than in the domain, because a projection that answered them would be a
+  projection that authorizes, which R8A forbids by name. They say whether a
+  control is worth rendering. The answer to "may this happen" is still only
+  the route's, and every one of the four routes above asks it again.
+  */
+  router.get(
+    '/folders/:id/members/:userId',
+    requireSession,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const ids = memberOfPath(req, res)
+      if (ids === null) return
+      const access = await gate(req, res, ids.folderId, 'folder.read')
+      if (access === null) return
+      const details = await memberDetailsOf(db, ids.folderId, [ids.memberId])
+      const member = details.get(ids.memberId)
+      if (member === undefined) {
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      const target = {
+        memberId: ids.memberId,
+        selfEditGranted: member.canEditOwnResponsibilities,
+      }
+      const body: GetFolderMemberDetailsResponse = {
+        user: member.user,
+        is_owner: member.isOwner,
+        joined_at: member.joinedAt,
+        access: member.access,
+        viewer_may_change_access:
+          mayPerform(access, 'member.access.change').allowed && !member.isOwner,
+        can_edit_own_responsibilities: member.canEditOwnResponsibilities,
+        viewer_may_change_self_edit_grant:
+          mayPerform(access, 'responsibility.self_edit_grant.manage').allowed &&
+          !member.isOwner,
+        viewer_may_edit_responsibility:
+          mayPerform(access, 'responsibility.manage', target).allowed ||
+          mayPerform(access, 'responsibility.edit.own', target).allowed,
+        responsibility: member.responsibility,
+        assigned_open_task_count: member.assignedOpenTaskCount,
+        history: {
+          responsibility_path: `/folders/${ids.folderId}/members/${ids.memberId}/responsibility/history`,
+          access_path: `/folders/${ids.folderId}/members/${ids.memberId}/access-history`,
+        },
+      }
+      res.status(200).json(body)
     },
   )
 

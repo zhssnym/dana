@@ -177,6 +177,11 @@ export const FOLDER_ACTIONS = [
   'member.leave',
   'member.access.change',
   'member.access.history.read',
+  'responsibility.read',
+  'responsibility.history.read',
+  'responsibility.manage',
+  'responsibility.edit.own',
+  'responsibility.self_edit_grant.manage',
   'invite.create',
   'invite.administer',
   'invite.view',
@@ -232,6 +237,18 @@ interface ActionRule {
    * assignee is the actor. Evaluated only when the caller supplies an
    * assignee, because an action with no Task target has no such boundary. */
   whenAssignedToActor?: readonly FolderAccessPreset[]
+  /**
+   * R7 section O's explicit narrow grant (issue #230): the action is admitted
+   * at *any* preset when the target member is the actor themselves and that
+   * member's `can_edit_own_responsibilities` is set.
+   *
+   * It is deliberately a per-action flag rather than a preset, because R7
+   * section O says what it is not: "not a sixth Access level ... this
+   * permission is explicit and narrow; it must not silently widen any other
+   * Work permission". Exactly one action carries it, and AC-563 enumerates
+   * the other forty-nine to prove the grant moves none of them.
+   */
+  whenSelfEditGranted?: true
   owner?: OwnerRule
   /** The actor must also be the author of the target (a comment). Authorship
    * is provenance and never standing authority, so this is an *extra*
@@ -334,6 +351,27 @@ const RULES: Record<FolderAction, ActionRule> = {
   'member.access.history.read': {
     atLeast: 'can_view',
     why: 'R9 section 13: effective Access-change history is visible to current Folder members',
+  },
+  'responsibility.read': {
+    atLeast: 'can_view',
+    why: 'R5 and R10: the Responsibility document is Folder-visible in M1, because a statement of scope that coordinates shared work has to be readable by the people it coordinates',
+  },
+  'responsibility.history.read': {
+    atLeast: 'can_view',
+    why: 'R10 "Prior versions": authorized current Folder members inspect prior revisions according to ordinary Folder visibility',
+  },
+  'responsibility.manage': {
+    atLeast: 'full_control',
+    why: "R7 section O and R10: without the explicit self-edit grant, only Full control may write a member's Responsibility document",
+  },
+  'responsibility.edit.own': {
+    atLeast: null,
+    whenSelfEditGranted: true,
+    why: 'R7 section O: editing your own Responsibility needs the explicit self-edit grant, which only Full control may give you',
+  },
+  'responsibility.self_edit_grant.manage': {
+    atLeast: 'full_control',
+    why: "R7 section L and #230: turning a member's self-edit grant on or off is member administration, and a member who could turn their own on would be granting themselves the thing the grant exists to withhold",
   },
   'invite.create': {
     atLeast: 'full_control',
@@ -509,6 +547,20 @@ export interface FolderActionTarget {
   assigneeId?: string | null
   /** The author of the comment the action targets. */
   authorId?: string | null
+  /**
+   * The member whose Responsibility standing the action targets (issue #230),
+   * and that member's explicit self-edit grant.
+   *
+   * These live here rather than on `FolderActorFacts` for the reason
+   * `assigneeId` does, which is the whole of R7's transactional requirement
+   * restated for a different column: the grant must be read in the *same*
+   * transaction and snapshot as the write it authorizes, under the same row
+   * lock, so that a grant revoked a moment ago cannot authorize through a
+   * projection that is merely fresh. `lockedMembership` is where a caller
+   * reads both.
+   */
+  memberId?: string | null
+  selfEditGranted?: boolean
 }
 
 export type FolderActionDecision =
@@ -550,7 +602,21 @@ export function mayPerform(
     target.assigneeId === facts.actorId &&
     rule.whenAssignedToActor.includes(facts.access)
 
-  const qualified = byPreset || byAssignment
+  /* R7 section O, issue #230. Narrow in three ways at once, and each one is
+     load-bearing: only an action whose rule opts in, only when the target
+     member is the actor themselves, and only when the grant that was read
+     under the write's own lock is set. A grant with no `memberId` beside it
+     authorizes nothing, so a caller who forgets to say whose Responsibility
+     this is gets a refusal rather than a self-edit of somebody else's. */
+  const bySelfEditGrant =
+    !byPreset &&
+    rule.whenSelfEditGranted === true &&
+    target.selfEditGranted === true &&
+    target.memberId !== undefined &&
+    target.memberId !== null &&
+    target.memberId === facts.actorId
+
+  const qualified = byPreset || byAssignment || bySelfEditGrant
   const owner = rule.owner ?? 'ignored'
 
   const allowed =

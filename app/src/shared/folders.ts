@@ -19,6 +19,7 @@ import { z } from 'zod'
 
 import { folderAccessPreset } from './folder-access.js'
 import { labelRef } from './labels.js'
+import { responsibilityDocument } from './responsibility.js'
 
 /*
 The three 7.4 field primitives, one definition each so the write path, the
@@ -215,9 +216,24 @@ membership row and into the `null -> preset` history transition in one
 transaction, and AC-513 drives the endpoint with each of the six presets and
 reads the stored value back.
 */
+/*
+`responsibility` is **optional** and is issue #230's initial-content field
+(#230 "Invite / member activation"). Where `access` has no default because a
+default would be an authority nobody chose, this one has no default because a
+default would be *text nobody wrote*: R10's "do not fabricate" applies exactly
+here, so an absent field means the new member starts with no Responsibility
+document at all rather than with an empty one.
+
+It is read by `addMember`, which writes the first revision in the same
+transaction as the membership row and attributes it to the **administrator**,
+never to the person arriving. AC-569 drives the endpoint with content and
+without it, and reads back both the stored document and the actor on its first
+revision, which is the criterion hard stop 3 asks for.
+*/
 export const postFolderMembersBody = z.object({
   user_id: z.uuid({ error: 'must be a uuid' }),
   access: folderAccessPreset,
+  responsibility: responsibilityDocument.optional(),
 })
 export type PostFolderMembersBody = z.infer<typeof postFolderMembersBody>
 

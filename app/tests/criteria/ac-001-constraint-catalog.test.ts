@@ -108,6 +108,12 @@ const SECTION_4_TABLES = [
   'folder_access_history',
   'folder_members',
   'folder_personal_labels',
+  // Migration 0025, issue #230: the current Responsibility document and its
+  // append-only record. Section 4 gains both under the ruling requested on
+  // #230; until that ruling lands the catalog and the migration are the two
+  // statements of the same contract and this list is the third.
+  'folder_responsibilities',
+  'folder_responsibility_history',
   'folders',
   'invites',
   'labels',
