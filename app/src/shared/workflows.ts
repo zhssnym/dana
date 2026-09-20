@@ -183,12 +183,45 @@ const importFolder = z.object({
     .optional(),
 })
 
+/*
+**Every version of the file format this contract reads, and the only place
+any of them is written down.** #260.
+
+There were two places. The endpoint's schema widened from `z.literal(1)` to
+both at #204 on 2026-09-17, and the client's file picker
+(`client/shell/workflow-import.ts`) kept a hand-written `value.version !== 1`
+of its own, so from that day until this one "Save as workflow" wrote version
+2 for every folder with a page and Dana's own Import answered those files
+with "that file isn't a workflow Dana can read". The bump walked past the
+second copy because nothing tied it to the first and nothing tested the
+picker's envelope above version 1, and a second bump to 3 was in flight on
+`backend/227-label-lifecycle` when this was written. That bump has since
+landed as #227's Folder Labels, and 3 joining this array is the whole of what
+it cost the picker — which is the claim this file was changed to make.
+
+So the number is a list here, `workflowFileVersion` is derived from it, and
+the picker is derived from the list rather than repeating it. **Adding a
+version is this array and nothing else**; anything that needs to know which
+versions are readable imports one of these two rather than writing a
+literal.
+*/
+export const WORKFLOW_FILE_VERSIONS = [1, 2, 3] as const
+
+/** The array as the body schema reads it. A union of literals rather than
+ * `z.literal([...])` so the issue a bad version produces keeps the shape it
+ * has had since #204, this being a derivation and not a contract change. */
+export const workflowFileVersion = z.union(
+  WORKFLOW_FILE_VERSIONS.map((version) => z.literal(version)),
+)
+
 const canonicalWorkflowBody = z
   .object({
     dana: z.literal('workflow'),
     /*
-    **1, 2 and now 3, and every one of them still imports.** The number says
-    what a *reader* must understand, so it goes up when the writer starts
+    **1, 2 and now 3, and every one of them still imports.** The numbers
+    themselves are `WORKFLOW_FILE_VERSIONS` above and this field is derived
+    from it (#260); what follows is what the number *means*. It says what a
+    *reader* must understand, so it goes up when the writer starts
     emitting something an older reader would silently lose — which is exactly
     what a Folder Label vocabulary is to a version-2 reader, whose schema does
     not declare `labels` and would therefore strip it and import a folder with
@@ -197,7 +230,7 @@ const canonicalWorkflowBody = z
     deprecated: `folderToWorkflowFile` still writes 1 for a file with neither,
     and #227's own requirement is that they keep importing.
     */
-    version: z.union([z.literal(1),z.literal(2),z.literal(3)]),
+    version: workflowFileVersion,
     name: z.string().max(100).optional(),
     folders: z
       .array(importFolder)
