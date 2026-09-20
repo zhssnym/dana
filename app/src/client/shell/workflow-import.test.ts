@@ -1,5 +1,13 @@
 import { describe, expect, test } from 'vitest'
 
+import type { LabelDefinition, LabelRef } from '../../shared/labels.js'
+import type { PageView } from '../../shared/pages.js'
+import type { TaskDetail } from '../../shared/tasks.js'
+import {
+  folderToWorkflowFile,
+  importWorkflowBody,
+  WORKFLOW_FILE_VERSIONS,
+} from '../../shared/workflows.js'
 import { prepareWorkflowImport } from './workflow-import.js'
 
 const names = new Set<string>()
@@ -202,5 +210,230 @@ describe('prepareWorkflowImport reports partial normalisation', () => {
       'with the foreign vocabulary gone, the version gating the key wherever it sat',
     ).toBeUndefined()
     expect(prepared?.skippedContent, 'and the loss reported').toBe(true)
+  })
+})
+
+/* ------------------------------------------------------------------ *
+ * The envelope's version, which is the contract's and not this file's
+ * (#260)
+ *
+ * Nothing exercised the picker above version 1 until this block, which is
+ * the whole of why the defect shipped: `Save as workflow` has written
+ * version 2 for every folder since #204 on 2026-09-17, the endpoint has read
+ * both since the same commit, and the picker kept a hand-written
+ * `value.version !== 1` that answered every one of those files with "that
+ * file isn't a workflow Dana can read".
+ *
+ * Two kinds of case, because one of them would have caught it and the other
+ * catches the next one. The round trips below run the real writer, through
+ * JSON, into the real picker, at every version the writer emits. The two
+ * after them assert the picker and the contract agree about *every* version
+ * rather than about a fixed few, reading the list from the contract, so a
+ * further version is covered here the day it is added.
+ *
+ * It was written at versions 1 and 2 and the day arrived during this
+ * branch's own rebase: #227 added 3 for a Folder Label vocabulary, the
+ * derived cases went red on the list rather than on a number, and the round
+ * trip below at version 3 is what answering them cost.
+ * ------------------------------------------------------------------ */
+
+const TASK_ID = '00000000-0000-4000-8000-000000000001'
+const BLOCK_ID = '00000000-0000-4000-8000-0000000000b1'
+
+/* Built without a cast, deliberately. The same helper in
+   `shared/workflows.test.ts` casts, and the cast is why it silently stopped
+   naming every field of a shape that has since grown one. */
+function detail(folderLabels: readonly LabelRef[] = []): TaskDetail {
+  return {
+    id: TASK_ID,
+    title: 'Book the room',
+    status: 'pending',
+    important: true,
+    start_date: null,
+    due_date: null,
+    due_time: null,
+    folder: {
+      id: '00000000-0000-4000-8000-0000000000f1',
+      name: 'Launch',
+      is_default: false,
+    },
+    assignee: null,
+    is_recurring: false,
+    steps_done: 0,
+    steps_total: 1,
+    pulled: false,
+    pending_invite_email: null,
+    section_block_id: null,
+    created_by: null,
+    created_at: '2026-09-17T09:00:00.000Z',
+    updated_at: '2026-09-17T09:00:00.000Z',
+    notes: 'Ask for the big one.',
+    recurrence_rule: null,
+    series_id: null,
+    reminder: { offset_minutes: null, time_of_day: '08:30:00' },
+    steps: [
+      {
+        id: '00000000-0000-4000-8000-00000000000a',
+        title: 'Check the calendar',
+        done: false,
+        position: 0,
+      },
+    ],
+    completed_at: null,
+    completed_by: null,
+    /* #227's projection. `personal` stays empty on purpose: the writer never
+       writes a Personal Label at any version, so a non-empty one here would
+       be asserting about a key that cannot appear in the file. */
+    labels: { personal: [], folder: [...folderLabels] },
+  }
+}
+
+/* The Folder's reusable vocabulary as `GET /labels?scope=folder&folder_id=`
+   answers it, and the assignment on the task that joins to it. Two shapes
+   rather than one because `folderToWorkflowFile` reads the definition for the
+   file's `labels` list and the task's ref for the key it writes on the task,
+   and a helper that conflated them would not notice the two disagreeing. */
+const LABEL_ID = '00000000-0000-4000-8000-0000000000c1'
+const VOCABULARY: readonly LabelDefinition[] = [
+  {
+    id: LABEL_ID,
+    scope: 'folder',
+    name: 'Blocked',
+    color: '#C0392B',
+    description: null,
+    archived: false,
+    folder_id: '00000000-0000-4000-8000-0000000000f1',
+  },
+]
+const ASSIGNED: readonly LabelRef[] = [
+  {
+    id: LABEL_ID,
+    scope: 'folder',
+    name: 'Blocked',
+    color: '#C0392B',
+    archived: false,
+    folder_id: '00000000-0000-4000-8000-0000000000f1',
+  },
+]
+
+/** A folder page as `useFolderPage` answers one. The hook is unconditional,
+ * so this — and therefore version 2 — is what a real folder has. */
+const PAGE: PageView = {
+  revision: '1',
+  blocks: [
+    {
+      id: BLOCK_ID,
+      kind: 'paragraph',
+      position: 0,
+      page_position: 'a0',
+      section_block_id: null,
+      list_parent_block_id: null,
+      checked: null,
+      rich_content: null,
+      text: 'Read this first.',
+      file_id: null,
+      file_width: null,
+      file_height: null,
+      ref_folder_id: null,
+      width_pct: null,
+      updated_at: '2026-09-17T09:00:00.000Z',
+    },
+  ],
+  items: [
+    { kind: 'block', id: BLOCK_ID },
+    { kind: 'task', id: TASK_ID },
+  ],
+  task_placements: [{ id: TASK_ID, section_block_id: null }],
+}
+
+/** What the picker is actually handed: the bytes `FolderPage.tsx` puts in
+ * the download, read back as JSON. The arguments mirror that call site
+ * exactly (`page.data?.blocks ?? []`, then `page.data`, then the vocabulary
+ * `labelRowsOf` hands it since #227), so a change to either end of the round
+ * trip shows up here. */
+function savedAsWorkflow(
+  pageView: PageView | undefined,
+  vocabulary: readonly LabelDefinition[] = [],
+): unknown {
+  const file = folderToWorkflowFile(
+    'Launch',
+    [detail(vocabulary.length > 0 ? ASSIGNED : [])],
+    pageView?.blocks ?? [],
+    pageView,
+    vocabulary,
+  )
+  return JSON.parse(JSON.stringify(file))
+}
+
+function versionOf(file: unknown): unknown {
+  return (file as { version: unknown }).version
+}
+
+describe('the picker reads every file "Save as workflow" writes', () => {
+  test('a folder with no page writes version 1, and the picker reads it', () => {
+    const file = savedAsWorkflow(undefined)
+    expect(versionOf(file)).toBe(1)
+    expect(importWorkflowBody.safeParse(file).success).toBe(true)
+    expect(prepareWorkflowImport(file, names)).not.toBeNull()
+  })
+
+  test('a folder with a page writes version 2, and the picker reads it', () => {
+    const file = savedAsWorkflow(PAGE)
+    expect(versionOf(file)).toBe(2)
+    expect(importWorkflowBody.safeParse(file).success).toBe(true)
+    expect(prepareWorkflowImport(file, names)).not.toBeNull()
+  })
+
+  /* #227 area 4, added on this branch's rebase. A vocabulary outranks the
+     page: the writer picks 3 whenever it has one, whether or not there is a
+     document, so this is the same folder as the case above plus one Label. */
+  test('a folder with a label vocabulary writes version 3, and the picker reads it', () => {
+    const file = savedAsWorkflow(PAGE, VOCABULARY)
+    expect(versionOf(file)).toBe(3)
+    expect(importWorkflowBody.safeParse(file).success).toBe(true)
+    const prepared = prepareWorkflowImport(file, names)
+    expect(prepared).not.toBeNull()
+    /* The point of the version, and not incidental: a version 3 file carries
+       its vocabulary through the picker rather than having it stripped as
+       foreign, so nothing is reported as left behind. */
+    expect(
+      (prepared?.body.folders as Array<{ labels?: unknown[] }>)[0]?.labels,
+      'the vocabulary reaches the request',
+    ).toHaveLength(1)
+    expect(prepared?.skippedContent, 'and nothing is reported as dropped').toBe(false)
+  })
+
+  test('the versions the writer emits are every version it can emit', () => {
+    // Guards the rows above against becoming a subset: if the writer ever
+    // emits a fourth, one of these rows stops standing for a version and this
+    // fails rather than quietly covering less.
+    expect(
+      new Set([
+        versionOf(savedAsWorkflow(undefined)),
+        versionOf(savedAsWorkflow(PAGE)),
+        versionOf(savedAsWorkflow(PAGE, VOCABULARY)),
+      ]),
+    ).toEqual(new Set(WORKFLOW_FILE_VERSIONS))
+  })
+})
+
+describe('the picker refuses exactly the versions the endpoint refuses', () => {
+  test('every version the contract reads reaches the request', () => {
+    for (const version of WORKFLOW_FILE_VERSIONS) {
+      const file = { dana: 'workflow', version, folders: [{ name: 'Launch' }] }
+      expect(importWorkflowBody.safeParse(file).success, `contract v${String(version)}`).toBe(
+        true,
+      )
+      expect(prepareWorkflowImport(file, names), `picker v${String(version)}`).not.toBeNull()
+    }
+  })
+
+  test('a version past the contract is refused here rather than at the endpoint', () => {
+    // Derived rather than written: whatever the list holds, this is outside
+    // it, so this case keeps meaning what it says after the next bump.
+    const unread = Math.max(...WORKFLOW_FILE_VERSIONS) + 1
+    const file = { dana: 'workflow', version: unread, folders: [{ name: 'Launch' }] }
+    expect(importWorkflowBody.safeParse(file).success).toBe(false)
+    expect(prepareWorkflowImport(file, names)).toBeNull()
   })
 })
