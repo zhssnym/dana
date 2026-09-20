@@ -985,12 +985,19 @@ export async function runRClean(
   header above already gives for R-CLEAN living here rather than being copied
   into the deletion module, applied to one more duty.
 
-  And 8.10 is the case that cannot be got right by accident: step 7 *scrubs*
-  the `users` row rather than deleting it, so no `ON DELETE` clause on a user
-  foreign key ever fires for an account deletion — a cascade would have left
-  the standing open forever and a person would keep appearing as an active
-  Responsibility holder in a folder they are no longer in. Nothing here relies
-  on one. The document and its revisions stay exactly where they are, which is
+  And 8.10 is the case that cannot be got right by accident, for a reason worth
+  stating in full because half of it is the half people miss. **Step 7 scrubs
+  the `users` row rather than deleting it**, deliberately, so that
+  `tasks.created_by` and every other provenance reference keeps resolving. A
+  row that is never deleted fires **no** `ON DELETE` clause — not `CASCADE`,
+  not `SET NULL`, not `RESTRICT` — so a table that keyed its cleanup to
+  `users` is not cleaned up at all, and nothing anywhere reports it. Here that
+  would have left a deleted account holding an **open**
+  `folder_responsibilities` row in every folder they were in, forever: still
+  returned as an active member Responsibility, still holding the partial
+  unique index against anybody who came after. Nothing in this path relies on
+  a cascade. It is issue #253's class, and #227 met the same shape with
+  Personal Labels; AC-570's last case is what pins it. The document and its revisions stay exactly where they are, which is
   R10's other half: history survives the membership it describes, and #230
   forbids scrubbing from fabricating a different historical actor.
   */

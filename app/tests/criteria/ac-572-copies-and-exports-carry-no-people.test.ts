@@ -219,8 +219,8 @@ describe('AC-572 copies and exports carry no other people', () => {
     const ownersFile = await exportOf(owner)
     expect(
       ownersFile.version,
-      "the document says which shape it is, so a reader refuses a version it does not know rather than guessing",
-    ).toBe(4)
+      "the document says which shape it is, so a reader refuses a version it does not know rather than guessing. The literal is written out rather than compared against `EXPORT_VERSION`, which would agree with the constant whatever the constant said. 5 and not 4 because 3 is #226's and 4 is #227's; `shared/export.ts` carries the chain",
+    ).toBe(5)
     const ownersEntries = ownersFile.responsibilities.filter(
       (entry) => entry.folder.id === folderId,
     )

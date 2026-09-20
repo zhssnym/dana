@@ -71,7 +71,13 @@ number; the previous table was measured without them and read about half of this
 `app/db/` holds `client.ts` (the one seam that chooses PGlite or Postgres), `migrate.ts`,
 `seed.ts`, `verify.ts` and `constraint-catalog.ts`.
 
-## Five things that are true and not obvious
+## Things that are true and not obvious
+
+**The heading used to say "Five" and the section had long outgrown it** before this branch
+added to it again, so it now says neither a number nor a promise to keep one in step. The
+count is deliberately not restated here: a number in a heading is a thing every later edit
+has to remember, no test can see it, and this sentence naming one would be the same
+mistake one line further down. Count them if you need the figure.
 
 **There is no authorization chokepoint, despite what spec 10.2 says.** There cannot be one,
 because what counts as authorized depends on what is being asked for. What exists instead is
@@ -118,6 +124,35 @@ fails something.
 **Route mount order is load-bearing and undocumented.** In `app/src/server/routes/bundle.ts`,
 `/views/:id` would shadow six page endpoints if anyone reordered it. Do not reorder mounts
 casually.
+
+**An import cycle in `app/src/shared/` or `app/src/server/domain/` fails as broken code, in a
+file that has nothing to do with it.** Added 2026-09-20 from issue #230, which closed two of
+them in one branch. Node evaluates a cycle in whatever order the **entry point** reaches it,
+so the binding is initialized for most importers and `undefined` for whichever one enters the
+cycle first — and the error is thrown wherever that `undefined` is finally *used*, which is
+not where the cycle is. Both of #230's read as ordinary bugs:
+
+- `TypeError: Cannot read properties of undefined (reading 'optional')`, pointing at a
+  perfectly ordinary `.optional()` in `shared/folders.ts`, three modules from anything to do
+  with the rich-text primitive that was actually cycling;
+- `TypeError: documentHash is not a function` **in exactly one file of the whole suite**,
+  pointing four modules away at a function every other file was calling successfully.
+
+The second is the expensive one, because a function that works everywhere but here reads as
+a test-environment problem rather than as an import graph. **The tell is that the named
+symbol is fine when you look at it**; if a symbol is `undefined` at module scope and its
+definition is obviously correct, follow the imports rather than the symbol.
+
+Both are answered the same way: move the shared leaf into a module that imports nothing but
+its own dependency, and re-export it from where it used to live so no call site changes.
+`app/src/shared/rich-content.ts` and `app/src/server/domain/document-hash.ts` are the two,
+and each opens with a sentence saying it exists to break a cycle and naming the symptom —
+which is the cheap part, and the part that stops the next person paying for it.
+
+**The reason it bites this directory in particular** is that `shared/` and `domain/` are both
+webs rather than trees: `folders` reaches `responsibility` reaches `page-document` reaches
+`tasks` reaches `folders` is four ordinary, individually reasonable imports. A new module
+that both imports from and is imported by that web is the shape to watch for.
 
 **Migrations are forward only.** No down migration exists, and a migration runs against
 production the moment the merge deploys. Recovery is a fix-forward migration or a restore.

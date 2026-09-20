@@ -32,6 +32,13 @@ person's classification silently missing; the number is the mechanism by which
 it is told to refuse instead. The criterion pins it, because a shape added
 without the bump is the same defect wearing a green suite.
 
+**It moved again, 4 → 5, at issue #230**, which adds the `responsibilities`
+collection; 4 is still the number this file's own shape arrived at, and the
+pin below is the document's current number rather than that one. The pin is
+what makes the bump visible, so it moves in the same change that moves the
+constant — this file asserts what the keys below are worth, not which release
+put them there, and `shared/export.ts` carries the whole chain.
+
 Spec: 7.22, 10.9. Issue #227 area 5, #208 R4 and R5.
 */
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
@@ -147,7 +154,10 @@ describe('AC-550 the export carries the person’s whole classification', () => 
       document.version,
       'the version moved with the shape: a reader that knows version 3 must refuse rather than strip every Label key and hand back a document quietly missing a person’s taxonomy (7.22, #227 area 5)',
     ).toBe(EXPORT_VERSION)
-    expect(EXPORT_VERSION, 'and the number is 4').toBe(4)
+    expect(
+      EXPORT_VERSION,
+      'and the number is 5: 4 is what #227 took for the Label keys below, and issue #230 moved it again for the `responsibilities` collection. The literal is written out rather than compared against the constant, which would agree with it whatever it said, so it moves in the same change the constant does (#230)',
+    ).toBe(5)
 
     const personal = document.personal_labels
     expect(

@@ -1,6 +1,12 @@
 /*
-`richContent`, Dana's one safe inline-formatting primitive, in a module that
-imports nothing but zod.
+`richContent`, Dana's one safe inline-formatting primitive.
+
+**This module exists to break an import cycle, and it must keep importing
+nothing but zod.** Anything added here that reaches another `shared/` module
+re-closes the cycle described below, and the failure will not look like an
+import problem: it looked like `TypeError: Cannot read properties of undefined
+(reading 'optional')` pointing at a perfectly ordinary `.optional()` call in
+`shared/folders.ts`, three modules away from anything to do with rich text.
 
 ## Why it moved here (issue #230)
 
@@ -13,6 +19,14 @@ The Responsibility document is the third consumer and it made the dependency a
 `postFolderMembersBody` now carries a Responsibility document. Node resolved it
 at import time as `Cannot read properties of undefined (reading 'optional')`,
 which reads as a broken schema and is not one.
+
+**The symptom is worth memorising because it names the wrong file.** Node
+evaluates a cycle in whatever order the entry point reaches it, so the binding
+is initialized for most importers and `undefined` for the one that enters the
+cycle first — and the error is thrown wherever that `undefined` is finally
+used, which is not where the cycle is. `document-hash.ts` in `server/domain/`
+is the same move for the same reason on the same branch, with a symptom that
+misdirects even harder.
 
 So the primitive is in a leaf module, `page-document.ts` re-exports it for the
 call sites that already name it, and nothing about its behaviour changed. **The

@@ -58,24 +58,50 @@ export const EXPORT_FORMAT = 'dana-export'
  * whole classification silently missing, which is what the number exists to
  * prevent.
  *
- * **Version 4, issue #230**, adds `responsibilities`: the exporting person's
+ * **Version 5, issue #230**, adds `responsibilities`: the exporting person's
  * **own** current Responsibility document in each folder they are currently a
  * member of, with that document's own revisions. #230 asks for a deliberate
  * shape rather than an accreted one, and the deliberate part is what it
  * excludes, which is stated where the collection is declared below.
  *
- * **It is 4 rather than 3 because 3 is already spoken for, and the collision
- * is the same shape as two branches picking one migration number.** Version 3
- * is `backend/226-label-core-domain`'s, for the `my_label` to `my_shelf`
- * rename inside `folders[]`; that branch merges before this one and was
- * already pushed when this was written. Two branches each bumping 2 to 3 merge
- * cleanly and leave **one version number covering two different shapes**,
- * which is worse than either change alone: a reader that knows version 3 would
- * then be right about one of them and wrong about the other, with nothing to
- * tell it which. Read the number off the branches that are open rather than
- * off the file, exactly as the backend README says for migration prefixes.
+ * ## Why it is 5, and what 3 and 4 were
+ *
+ * A reader meeting version 5 will want to know what it skipped, because this
+ * file only ever carries the current shape. Three branches were open at once
+ * on 2026-09-20 and each adds a collection the versions below it do not
+ * declare:
+ *
+ * - **3 — `backend/226-label-core-domain`**, the `my_label` to `my_shelf`
+ *   rename inside `folders[]`.
+ * - **4 — `backend/227-label-lifecycle`**, the viewer's `personal_labels`
+ *   catalog, each owned folder's Folder Label vocabulary, and the id arrays
+ *   that connect both to the Work.
+ * - **5 — this**, `responsibilities`.
+ *
+ * **Each number describes exactly one shape, and that is the whole point of
+ * not taking 4.** The collision is the same shape as two branches picking one
+ * migration prefix: two branches each bumping to the same number merge
+ * cleanly and leave **one version covering two different documents**, which is
+ * worse than either change alone. A reader that knows version 4 would then be
+ * right about one of them and wrong about the other, with nothing in the file
+ * to tell it which — and a version number exists precisely so that a reader
+ * can refuse what it does not know rather than hand back a document quietly
+ * missing somebody's data.
+ *
+ * So **read the number off the branches that are open rather than off this
+ * file**, exactly as the backend README says for migration prefixes. This
+ * branch took 4 first, having seen #226 and not #227 — which finished after
+ * it started — and was corrected. Seeing one collision is not evidence that
+ * you have seen them all.
+ *
+ * **Both predecessors have since landed on `main`, which settles it**: #226 is
+ * version 3 and #227 is version 4, so 5 is this document's number and the
+ * reservation held. The conditional this paragraph used to carry — 5 coming
+ * down to 4 or 3 if one or both of them went — is spent, and is recorded as
+ * spent rather than deleted, because the reasoning above is why the number is
+ * 5 and a reader meeting a gap would otherwise re-derive it from nothing.
  */
-export const EXPORT_VERSION = 4
+export const EXPORT_VERSION = 5
 
 /**
  * 10.3's "List responses capped at 1000 rows with truncated flag", applied
@@ -494,7 +520,7 @@ export const exportDocument = z.object({
   settings: exportSettings,
   folders: z.array(exportFolder),
   tasks_elsewhere: z.array(exportForeignTask),
-  /** Issue #230, version 3. The exporting person's own current Responsibility
+  /** Issue #230, version 5. The exporting person's own current Responsibility
    * in each folder they are currently in, and nobody else's anywhere. */
   responsibilities: z.array(exportResponsibility),
   comments: z.array(exportComment),

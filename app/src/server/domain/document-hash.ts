@@ -1,6 +1,12 @@
 /*
-`documentHash`, Dana's one content-identity function, in a module that imports
-nothing but node's crypto.
+`documentHash`, Dana's one content-identity function.
+
+**This module exists to break an import cycle, and it must keep importing
+nothing but node's crypto.** Anything added here that reaches another domain
+module re-closes the cycle described below, and the failure will not look like
+an import problem: it looked like `TypeError: documentHash is not a function`
+in exactly one file of the whole suite, pointing four modules away at a
+function every other file was calling successfully.
 
 ## Why it moved here (issue #230)
 

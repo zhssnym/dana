@@ -17,13 +17,39 @@ than a delete, and the criterion has to check both halves or it proves the
 wrong one: a `DELETE` would pass "no longer an active Responsibility" and fail
 the folder's memory of it.
 
-**The path that is easy to miss is account deletion**, and it is covered here
-rather than left to 8.10's own criteria for a specific reason. 8.10 step 7
-*scrubs* the `users` row rather than deleting it, so no `ON DELETE` clause on a
-user foreign key ever fires for an account deletion -- a design that leaned on
-a cascade would leave a deleted account standing as an active Responsibility
-holder in every folder they were in, indefinitely, and nothing would say so.
-#227 hit exactly this shape with Personal Labels.
+## The account-deletion case, and why it is in this file
+
+**A cascade on a `users` foreign key never fires for an account deletion, and
+the reason is not obvious from either end.** It is issue #253's class; this is
+its third recorded instance, after #227's Personal Labels and this branch's
+own.
+
+The mechanism, in full, because half of it is the half people miss. 8.10 does
+not delete the `users` row: **step 7 scrubs it**, deliberately, so that
+`tasks.created_by` and every other provenance reference keeps resolving and a
+person's acts survive them (4.13 and 4.19 are why). A row that is never deleted
+fires no `ON DELETE` clause -- not `CASCADE`, not `SET NULL`, not `RESTRICT`.
+So a table that keyed its cleanup to `users` and trusted the database to do it
+is not cleaned up at all, and **nothing anywhere reports that**: the account
+vanishes from every surface a person looks at, and the row it left behind is
+only visible to a query nobody runs.
+
+For this table the consequence is specific and would have been shipped: the
+deleted account would have kept an **open** `folder_responsibilities` row --
+`ended_at IS NULL` -- in every folder they were a member of, forever. It would
+have gone on being returned as an *active member Responsibility* by
+`activeStandingOf`, it would have held the partial unique index against a
+future member of the same id, and it would have contradicted R10's "active
+standing ends" while passing every other case in this file.
+
+The second half is where the closing has to live. **8.10 step 4 never calls
+`removeMembership`**; it calls `runRClean` once per surviving membership. So a
+hook on `removeMembership` would cover a leave and a removal -- the two cases
+above -- and silently miss every account deletion, which is the one that cannot
+be noticed by using the product. `endResponsibilityStanding` is therefore
+called inside `runRClean`, where all three paths meet.
+
+**If this case is deleted, nothing else in the suite pins any of that.**
 
 ## Proof 15 is about the reader, not about the record
 
@@ -236,14 +262,11 @@ describe('AC-570 membership end closes standing and keeps the history', () => {
   test('AC-570: deleting an account closes its Responsibility standing in folders it was only a member of', async () => {
     const [, , stayer] = (await cast.of(app)) as [Actor, Actor, Actor]
     /*
-    A folder the deleting account does **not** own, so 8.10 step 4's
-    per-membership cleanup is the path rather than step 3's folder delete.
-    That step calls `runRClean` directly and never `removeMembership`, which
-    is why the standing is closed inside `runRClean` and not in its caller.
-
-    And 8.10 step 7 scrubs the `users` row rather than deleting it, so nothing
-    here can lean on a cascade: `ON DELETE` never fires for an account
-    deletion at all (#227 met the same shape with Personal Labels).
+    A folder the deleting account does **not** own, which is what makes this
+    case the one the header describes. An owned folder goes through 8.10 step
+    3, `deleteFolderRow`, and the `folder_id` cascade takes the Responsibility
+    with it -- correct, and it proves nothing about `users`. Only a membership
+    in somebody else's folder reaches step 4.
     */
     const departing = await (async () => {
       const [, leaver] = (await cast.of(app)) as [Actor, Actor, Actor]
@@ -272,7 +295,7 @@ describe('AC-570 membership end closes standing and keeps the history', () => {
     ).toBe(1)
     expect(
       documents[0]?.ended_at,
-      'and the standing is closed, rather than left open forever by a cascade that never fires',
+      'and the standing is **closed**. This is the assertion the whole case exists for: 8.10 scrubs the `users` row rather than deleting it, so no `ON DELETE` clause on a user foreign key fires here at all, and an implementation that trusted a cascade would leave this row open forever with nothing anywhere reporting it (issue #253\'s class)',
     ).not.toBeNull()
     expect(
       transitionsOf(await recordOf(app.db, folderId, departing.id)),
