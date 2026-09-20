@@ -1602,98 +1602,89 @@ export async function expectServiceWorkerControl(page: Page): Promise<void> {
 }
 
 /* ------------------------------------------------------------------ *
- * The page's insert control (9.6, 9.10)
+ * Making a Task on the folder page's canvas (9.6)
  * ------------------------------------------------------------------ */
 
 /**
- * What the page's insert menu offers. Paragraph is deliberately absent: it
- * is written by typing on the line and pressing Enter, not chosen from a
- * menu, which is the whole of what "writing-first" meant in #178.
+ * Creates a real Task on a composed folder page, titled on the way in.
+ *
+ * **The route this drives changed with #204 and the three names it used to
+ * look for exist nowhere in the product.** What stood here drove a structural
+ * `+` button — `Insert into page`, `Add to page` or `Add between items`,
+ * whichever the surface offered — and then renamed the "New task" row the
+ * menu had already created. #204 (`c7bd863`, 2026-09-17) replaced the whole
+ * compose-seam surface with BlockNote, and 9.6 was rewritten on 2026-09-20 by
+ * #249 to record it: "a structural `+` offering exactly Task, Section and
+ * Image ... none of it exists". The same section fixes what replaced it — "**A
+ * Task is only ever made through the 'Create Task' dialog**, which keeps the
+ * block's position and takes the prose as its title" — and names exactly three
+ * routes to that dialog: the `/` suggestion menu's Task, "Convert to Task" in
+ * a paragraph's drag-handle menu, and `Ctrl/Command + Enter`. The first is
+ * what this drives, because it is the one a person discovers.
+ *
+ * **The spec is the authority for the new route and the page is not.** The
+ * criterion did not move to match what the DOM happened to hold; it moved to
+ * match a section that had already moved, on a merged ruling, and nothing it
+ * asserts afterwards changed — the task is created once, in the folder the
+ * page belongs to, with no due date (9.3's sixth entry-point row).
+ *
+ * The title is given *before* the Task exists, so there is no "New task" row
+ * to rename and no second commit to wait for. That is the shipped behaviour
+ * rather than a convenience: 9.6 says the dialog "takes the prose as its
+ * title".
+ *
+ * **What the commit barrier is and is not doing here, measured rather than
+ * assumed.** It is on the dialog's button so that the write is answered before
+ * the criterion reads the task back off `/search`. It is *not* the assertion
+ * that catches a Create Task which commits nothing: the canvas autosaves the
+ * paragraph the `/` left behind on a 450 ms debounce, and `createTask` flushes
+ * that same paragraph before it does anything else, so traffic moves after the
+ * click whether or not a Task was made. Measured on 2026-09-20 by putting the
+ * #234 defect back: the red landed on the row assertion below, not on
+ * `settled`. That is `watchCommit`'s own rule — it never says *which* write
+ * went out — and the oracles here are this assertion and the criterion's own
+ * read of the stored row.
  */
-export type InsertKind = 'Task' | 'Section' | 'Image'
+export async function captureTaskFromCanvas(page: Page, title: string): Promise<void> {
+  const canvas = regionOf(page, 'All open tasks').getByRole('textbox')
+  await expect(
+    canvas,
+    "spec 9.6: the folder page's body is one canvas of Sections, prose, images and real task " +
+      'rows, and it is the editable surface every route to a Task starts from',
+  ).toHaveCount(1)
 
-/**
- * A structural insert trigger on one of the page's insertion surfaces.
- *
- * There is one per gap between blocks, so which one is asked for matters:
- * `'last'` is the resting line at the foot of the page, which is the one
- * drawn at reduced opacity rather than at zero, and `'first'` is the line
- * above every block, which is where a shelf page's section has to land to
- * stand above its folder rows.
- */
-export function insertTrigger(page: Page, at: 'first' | 'last' = 'last'): Locator {
-  const triggers = page
-    .getByRole('main')
-    .getByRole('button', { name: /^(?:Insert into page|Add to page|Add between items)$/ })
-  return at === 'first' ? triggers.first() : triggers.last()
-}
+  /* Below the last block rather than on it: every block on a seeded folder
+     page is a Task, whose content is not editable, so a click in the middle of
+     the canvas places no cursor and the menu never opens. The foot of the
+     surface is the line BlockNote opens to write on. */
+  const box = await canvas.boundingBox()
+  if (box === null) throw new Error('the canvas is in the page and has no box to click in')
+  await page.mouse.click(box.x + 24, box.y + box.height - 4)
+  await page.keyboard.press('End')
+  await page.keyboard.type('/task')
 
-/**
- * Inserts a block of `kind` through the page's insert menu.
- *
- * **The control this drives moved on 2026-09-04, and this helper exists so
- * that the next move of it costs one edit rather than four.** Until #145 and
- * #178 the page carried a row of chips at its foot, one button per kind,
- * named `Section`, `Paragraph` and `Image`; three criteria pinned those
- * names and went red the moment the writing-first composer shipped. Hassan's
- * ruling on #181 is that the product decision stands and the criteria follow
- * it, so what changed in each of them is the way the insert is reached and
- * nothing that is asserted afterwards.
- *
- * The shipped control is a structural button whose accessible name reflects
- * its context: `Add to page` at the terminal continuation, `Add between
- * items` at a native structural boundary, and the legacy `Insert into page`
- * on surfaces that have not adopted the unified document canvas. Its
- * menu items are named for the kind and then for what it does -- `Task Add to
- * No section`, `Section Begin a new part of the page`, `Image Choose, paste,
- * or drop` -- so the kind is matched as a prefix. An exact match on `Section`
- * finds nothing, which is exactly how the three criteria failed.
- *
- * `force` on the trigger because a line that is not the resting one is drawn
- * at opacity zero until its row is hovered, which is 9.6's quiet affordance
- * rather than a control that is missing.
- */
-export async function insertBlock(
-  page: Page,
-  kind: InsertKind,
-  options: { readonly at?: 'first' | 'last'; readonly why?: string } = {},
-): Promise<void> {
-  const why = options.why ?? `spec 9.6: the page's insert affordance offers ${kind}`
-  await clickControl(insertTrigger(page, options.at ?? 'last'), why, { force: true })
   await clickControl(
-    page.getByRole('menuitem', { name: new RegExp(`^${kind}`) }),
-    `${why}: the menu names it "${kind}" and then says what it does`,
+    page.getByRole('option', { name: /^Task\b/ }),
+    "spec 9.6: the `/` menu offers Task, which opens the Create Task dialog at the block's " +
+      'own position',
   )
-}
 
-/** Creates a real task at a composed folder page seam, then gives it the
- * requested title through the existing row rename control. The insert menu
- * intentionally creates first: unlike legacy Quick Add, Task is a structural
- * canvas item and therefore has a durable position before it is named. */
-export async function captureTaskFromCanvas(
-  page: Page,
-  title: string,
-  at: 'first' | 'last' = 'last',
-): Promise<void> {
-  const inserted = watchCommit(page)
-  await insertBlock(page, 'Task', { at })
-  await inserted.settled('the canvas Task item is stored before its row is renamed')
-
-  const row = taskRow(page, 'New task').last()
-  await expect(row, 'the Task insert creates one real task row in the chosen seam').toBeVisible()
+  await fillControl(
+    page.getByRole('textbox', { name: 'Task title', exact: true }),
+    title,
+    'spec 9.6: the Create Task dialog takes the title, the Task being named before it exists ' +
+      'rather than created and renamed',
+  )
+  const created = watchCommit(page)
   await clickControl(
-    row.getByRole('button', { name: 'New task', exact: true }),
-    'the existing task title control renames the inserted real task',
+    page.getByRole('button', { name: 'Create Task', exact: true }),
+    'spec 9.6: and its commit control is what makes the Task',
   )
-  /* `row` is located by rendered text. Once rename starts that text becomes
-     an input value, not a text descendant, so the filtered locator would
-     make the row disappear from its own next assertion. */
-  const input = page.getByRole('textbox', { name: 'Task title', exact: true }).last()
-  await fillControl(input, title, 'the title editor holds the requested task name')
-  const renamed = watchCommit(page)
-  await input.blur()
-  await renamed.settled('the task rename reaches the server before its defaults are read')
-  await expect(taskRow(page, title), 'the renamed task remains at its composed position').toBeVisible()
+  await created.settled('the Task reaches the server before its entry-point defaults are read')
+  await expect(
+    taskRow(page, title),
+    'the new Task renders at the position the dialog was opened from',
+  ).toBeVisible()
 }
 
 /* ------------------------------------------------------------------ *
