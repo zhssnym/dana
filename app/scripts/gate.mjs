@@ -50,13 +50,21 @@ import path from 'node:path'
 import { rm } from 'node:fs/promises'
 import process from 'node:process'
 import { URL, fileURLToPath } from 'node:url'
+import { gatePort } from './gate-port.mjs'
 import { summarise } from './run-suite.mjs'
 
 /** The application root: this file lives in app/scripts/. */
 const APP = fileURLToPath(new URL('..', import.meta.url))
 
-/** The port playwright.config.ts hardcodes. Not a setting here; a fact there. */
-const PLAYWRIGHT_PORT = 3100
+/**
+ * The port the browser leg will serve on. A setting in both places now, read
+ * from `DANA_GATE_PORT` by the one resolver playwright.config.ts also reads,
+ * so the port this file probes and names in its record cannot differ from the
+ * port Playwright serves on. Unset is the default it has always been, which is
+ * what lets this change be invisible to every invocation that predates it.
+ * scripts/gate-port.mjs carries why the variable exists at all (issue #254).
+ */
+export const PLAYWRIGHT_PORT = gatePort()
 
 /** Playwright's list reporter tail, e.g. "  134 passed (11.3m)". */
 const PLAYWRIGHT_TALLY = /^\s*(\d+)\s+(passed|failed|flaky|skipped|interrupted|did not run)\b/
@@ -131,6 +139,63 @@ export function occupied(port) {
     })
 
   return Promise.all([probe('127.0.0.1'), probe('::1')]).then((answers) => answers.includes(true))
+}
+
+/**
+ * The browser leg's precondition: `null` when the port is free, and the two
+ * texts a refusal is written in when it is not — the short one the record
+ * carries and the long one the console gets.
+ *
+ * **A function rather than two string literals inside main(), so that the
+ * refusal can be driven against a real socket by a test.** It is the
+ * postmortem of a real incident written as a precondition, and issue #254
+ * aimed it at a chosen port without weakening it; a precondition exercised
+ * only by the incident it prevents is one nobody can show still bites.
+ *
+ * **Both texts name the port that was actually probed**, which is the half
+ * that had to move when the port did. A refusal naming a constant while
+ * probing a variable would send its reader to stop processes on a port that
+ * nothing was wrong with.
+ *
+ * @param {number} port
+ * @returns {Promise<{note: string, advice: string} | null>}
+ */
+export async function browserLegRefusal(port) {
+  if (!(await occupied(port))) return null
+
+  return {
+    note: `something is listening on ${port}; the browser leg was not started`,
+    advice:
+      `Something is already listening on ${port}. playwright.config.ts serves the\n` +
+      'browser leg there and never reuses a server, so this run would seed and\n' +
+      "truncate another run's database underneath its browser. Either stop every\n" +
+      'node process whose command line matches playwright or e2e:app and wait for\n' +
+      'the port to go quiet, or give this run a port of its own by setting\n' +
+      'DANA_GATE_PORT to a free one. CLAUDE.md carries the whole story.\n',
+  }
+}
+
+/**
+ * The record's port line.
+ *
+ * **Two records taken side by side on one machine are otherwise
+ * indistinguishable**, and telling them apart afterwards is the whole
+ * justification for letting a second lane exist at all (issue #254): the
+ * honest claim for that change is that it removes an artificial serialisation
+ * and exposes a real one, and only a record naming its port lets anybody read
+ * back which of the two a bad run met.
+ *
+ * It says where the number came from as well as what it was, because the
+ * default because nobody chose and the same number because somebody chose it
+ * are different facts when two records are being compared.
+ *
+ * @param {number} port
+ * @param {Record<string, string | undefined>} env
+ */
+export function portLine(port, env = process.env) {
+  const chosen = env.DANA_GATE_PORT
+  const source = chosen === undefined || chosen.trim() === '' ? 'default' : 'DANA_GATE_PORT'
+  return `port      ${port} (browser leg, ${source})`
 }
 
 /** "5m02s", "14s". Durations a person reads, not milliseconds. */
@@ -292,21 +357,11 @@ async function main() {
   await step('build', 'npm', ['run', 'build'])
 
   if (!quick && failedAt === null) {
-    if (await occupied(PLAYWRIGHT_PORT)) {
+    const refusal = await browserLegRefusal(PLAYWRIGHT_PORT)
+    if (refusal !== null) {
       failedAt = 'playwright'
-      record(
-        'playwright',
-        'RED',
-        `something is listening on ${PLAYWRIGHT_PORT}; the browser leg was not started`,
-        '-',
-      )
-      process.stdout.write(
-        `\nSomething is already listening on ${PLAYWRIGHT_PORT}. playwright.config.ts\n` +
-          'hardcodes that port and never reuses a server, so this run would seed and\n' +
-          "truncate another run's database underneath its browser. Stop every node\n" +
-          'process whose command line matches playwright or e2e:app, wait for the port\n' +
-          'to go quiet, and run the gate again. CLAUDE.md carries the whole story.\n',
-      )
+      record('playwright', 'RED', refusal.note, '-')
+      process.stdout.write(`\n${refusal.advice}`)
     } else {
       // Deleted rather than merged into: artifacts from a run that is already
       // dead sit beside fresh ones with indistinguishable timestamps, and an
@@ -316,11 +371,19 @@ async function main() {
       // above already produced dist/client, so the browser leg's own server
       // command skips the identical second `vite build`. Only the gate sets
       // it, and only here, after that step has actually run.
+      //
+      // DANA_GATE_PORT is handed over explicitly rather than left to be
+      // inherited, and that is not belt and braces. The child would read the
+      // same variable out of the same environment and reach the same answer,
+      // but what the record owes a reader is stronger: the port probed a
+      // moment ago is the port this process was told to serve on, in one
+      // statement rather than in two files agreeing. Unset in the parent, this
+      // hands the child the default it would have resolved for itself.
       await step(
         'playwright',
         'npx',
         ['playwright', 'test'],
-        { DANA_GATE_PREBUILT: '1' },
+        { DANA_GATE_PREBUILT: '1', DANA_GATE_PORT: String(PLAYWRIGHT_PORT) },
         playwrightTally,
       )
     }
@@ -378,6 +441,10 @@ async function main() {
     `commit    ${shortSha} (${fullSha})`,
     `tree      ${treeLine}`,
     `machine   ${os.hostname()}`,
+    // Absent under --quick, where the browser leg did not run and no port was
+    // taken; the quick line further down already says so, and a port line
+    // there would be a number nothing used.
+    quick ? null : portLine(PLAYWRIGHT_PORT),
     `start     ${started.toISOString()}`,
     `end       ${ended.toISOString()}`,
     '',

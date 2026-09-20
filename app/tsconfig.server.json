@@ -4,7 +4,18 @@
     "module": "nodenext",
     "moduleResolution": "nodenext",
     "lib": ["es2023"],
-    "types": ["node"]
+    "types": ["node"],
+    // tests/guards/guard-gate-port.test.ts imports scripts/gate-port.mjs and
+    // scripts/gate.mjs, which are plain JavaScript because node runs them with
+    // no build step. Without this the imports are implicit any and TS7016
+    // fails the typecheck; tsconfig.node.json carries the same line for
+    // playwright.config.ts's half of the same import.
+    //
+    // allowJs, not checkJs: those files are read for the types TypeScript can
+    // infer from them rather than typechecked, which is what lets the port
+    // resolver be shared without a hand-written .d.mts to drift from it. No
+    // file this project includes is JavaScript, so nothing else changes.
+    "allowJs": true
   },
   "include": ["src/server/**/*", "src/shared/**/*", "db/**/*", "tests/**/*"],
   // The acceptance suite's component leg is .tsx under tests/ and belongs to

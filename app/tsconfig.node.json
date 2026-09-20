@@ -3,7 +3,18 @@
   "compilerOptions": {
     "module": "esnext",
     "moduleResolution": "bundler",
-    "types": ["node"]
+    "types": ["node"],
+    // playwright.config.ts imports scripts/gate-port.mjs, which is plain
+    // JavaScript because scripts/gate.mjs — the other reader of it — is run by
+    // node with no build step and cannot import TypeScript. Without this, that
+    // import is an implicit any and TS7016 fails the typecheck.
+    //
+    // allowJs, not checkJs: the .mjs files under scripts/ are not typechecked,
+    // they are read for the types TypeScript can infer from them, which is
+    // what makes the shared resolver usable from both sides without a
+    // hand-written .d.mts that could drift from the code it describes. No file
+    // this project includes is JavaScript, so nothing else changes.
+    "allowJs": true
   },
   "include": [
     "eslint.config.ts",
