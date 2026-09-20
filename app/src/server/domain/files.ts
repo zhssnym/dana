@@ -697,7 +697,15 @@ Every column in the schema that can name a file, as one predicate over a
 `folders.cover_file_id`, and 0005's `user_page_covers.file_id` — and this is
 all five. `users.avatar_url` is a URL rather than a key and needs no clause:
 the sweep takes folder-less `cover` and `image` rows and an avatar is never
-either.
+either. **That sentence is load-bearing and not an aside.** This predicate is
+true of every avatar row that exists, and an avatar is folder-less by force
+(`createFile` refuses one that names a folder), so the `kind` clause below is
+the whole of what stands between the 11.7 tick and every profile picture in
+Dana.
+`guard-reclaim-reference-arms.test.ts` cannot see that — it reads
+`pg_constraint`, and a reference held as text is not there — so AC-705 is what
+holds it, and it is the criterion to read before touching the two clauses that
+decide what is sweepable.
 
 **It is a query and not a counter column**, which is why no migration comes
 with this work. A counter is a second record of a fact the foreign keys
@@ -756,7 +764,12 @@ function fileIsUnreferenced(): SQL {
  * unreferenced clause excludes on its own. The delete therefore never depends
  * on the other two having run first.
  *
- * Narrow on purpose, and every clause earns its place.
+ * Narrow on purpose, and every clause earns its place. **AC-705 is the case
+ * over the two clauses in this paragraph**, both of which are written twice
+ * below, once in the mark arm and once in the delete arm; AC-700 to AC-704
+ * hold the five reference arms and every one of them uses a folder-less
+ * cover or image, so they are all green under a sweep widened to take a
+ * third kind or a folder-scoped row.
  * **`kind IN ('cover', 'image')`**, because a comment's attachment or a voice
  * note is a thing somebody put somewhere and is reachable through surfaces
  * this query knows nothing about, while a cover and a page image are only

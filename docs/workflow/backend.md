@@ -139,9 +139,9 @@ nobody did, take the next free one and say in your pull request that you took it
 unassigned.** A collision is trivial to fix before a merge and is a production incident
 after one.
 
-**Six counts in the suite are fixtures over the implementation, and moving them is not
+**Seven counts in the suite are fixtures over the implementation, and moving them is not
 breaking rule 3 (added 2026-09-04 from issues #116 and #128; corrected from two to six on
-2026-09-20, issue #240).** Rule 3 says never edit a test to make your code pass, and it is
+2026-09-20, issue #240, and to seven the same day by issue #263).** Rule 3 says never edit a test to make your code pass, and it is
 the right rule; these are the exception it needs stated, because otherwise the honest reading
 is to stop — and three of the six spent a month in exactly that position, named by no
 document, while a session that added a route and watched one go red had been told in effect
@@ -157,7 +157,7 @@ that it must not touch it.
 The third is the whole safeguard. If the sweep itself failed, the number is telling you
 something and moving it is precisely the thing rule 3 forbids.
 
-Six lines across four files meet all three today:
+Seven lines across five files meet all three today:
 
 | File | What it counts |
 | - | - |
@@ -167,18 +167,47 @@ Six lines across four files meet all three today:
 | `app/tests/criteria/ac-399-body-parsing-goes-through-parse-body.test.ts` | `parseBody` **call sites** |
 | `app/tests/criteria/ac-399-body-parsing-goes-through-parse-body.test.ts` | **modules** that read a request body |
 | `app/src/server/scheduler/interval.test.ts` | statements the 11.7 pass runs **after its delivery transaction** |
+| `app/tests/guards/guard-reclaim-reference-arms.test.ts` | **foreign keys into `files(id)`**, each an arm of the reclaim sweep (issue #263) |
 
-Two of them carry a further condition that is theirs alone. `ac-236`'s mutating count moves
-only once the sweep passed on your new route — 401 bare, 403 without CSRF. And
-`interval.test.ts`'s comment **enumerates which statements they are**: keep that enumeration
-in step or the next person cannot tell a legitimate move from a lost duty.
+Three of them carry a further condition that is theirs alone, and the third is the reclaim
+list in the paragraph below. `ac-236`'s mutating count moves only once the sweep passed on
+your new route — 401 bare, 403 without CSRF. And `interval.test.ts`'s comment **enumerates
+which statements they are**: keep that enumeration in step or the next person cannot tell a
+legitimate move from a lost duty.
+
+**The seventh is the strictest, and it is the one a migration will hit.** A new foreign key
+into `files(id)` fails `guard-reclaim-reference-arms` by design. Add the matching
+`NOT EXISTS` to `fileIsUnreferenced()` in `app/src/server/domain/files.ts`, write the
+criterion on the AC-700 to AC-705 pattern that proves a picture held through the new column
+survives the 11.7 pass past thirty days, and then move the list.
+
+**Moving the list first does not make that guard green, and the sentence here that said it
+did was half wrong** (corrected 2026-09-20 by the adversarial review of #263). It read
+"doing step 4 on its own makes this file green and leaves the 11.7 tick deleting a picture
+somebody is looking at". For a new **table** that was never true — the guard's second test
+went red naming the relation. For a second key on a table it already lists, such as a
+`banner_file_id` beside `shelves.cover_file_id`, it was true, because that test matched on
+the relation name alone; it now ties each relation to the alias the predicate gives it and
+looks for that alias's own column, so both cases are red. The old list's step 3, "watch the
+second test pass on the new arm", is gone for the same review's other reason: that test
+iterates the list, which does not hold the new arm until the step after it, so it passed
+vacuously.
+
+**What no guard sees, and what does.** Writing the criterion is on you; nothing structural
+can tell that you did. And a reference that is **not a foreign key** is invisible to that
+guard entirely, because it reads `pg_constraint` — `users.avatar_url` is a `text` URL, so
+every avatar in the product is unreferenced as far as the sweep's own query is concerned,
+and what spares it is the sweep's `kind IN ('cover', 'image')` clause. **AC-705 is what
+holds that line**, and it is the criterion to read before editing the sweep's scope rather
+than its arms.
 
 **When two branches both move one of these, the resolution is the sum and it is neither
 side.** This is not arithmetic you do on two diffs — run the sweep on the merged tree and
 read the number it reports. Two sides agreeing on a number is not the same as the number
 being right, because each counted its own routes against a base that did not hold the
 other's: on 2026-09-20 issues #223, #224 and #226 all independently read 40 reading routes,
-and 41 was correct. Every one of the six carries a worked example of this in its own comment.
+and 41 was correct. Every one of the seven carries a worked example of this in its own
+comment.
 
 Move the number **and** its comment in the same change, say in the pull request that you did,
 and say which. A moved count with no note is indistinguishable from the thing rule 3 exists
