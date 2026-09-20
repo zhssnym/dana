@@ -38,6 +38,7 @@ import { createFilesRouter } from './routes/files.js'
 import { createFoldersRouter } from './routes/folders.js'
 import { HEALTH_PATH, healthRouter, recordDatabaseKind } from './routes/health.js'
 import { createInvitesRouter } from './routes/invites.js'
+import { createReferencesRouter } from './routes/references.js'
 import { createSampleRouter } from './routes/sample.js'
 import { createTasksRouter } from './routes/tasks.js'
 import { createTrashRouter } from './routes/trash.js'
@@ -717,6 +718,18 @@ export function createApp(options: AppOptions = {}): express.Express {
   app.use(
     '/api/v1',
     createExportRouter({ dbClient: options.dbClient, rateLimits, securityLog }),
+  )
+
+  // Dana Link references (issue #223): two GETs under the `/references`
+  // prefix, which no earlier router claims, so this mount is
+  // order-independent like every other one but the views/bundle pair above.
+  // Its own `/references/:kind/:id` is two segments and its
+  // `/references/search` is one, so neither shadows the other and neither
+  // can reach a path outside the prefix. It takes the limiter set because
+  // 10.4's search bucket covers the picker read.
+  app.use(
+    '/api/v1',
+    createReferencesRouter({ dbClient: options.dbClient, rateLimits }),
   )
 
   app.use('/api', (_req: Request, res: Response) => {

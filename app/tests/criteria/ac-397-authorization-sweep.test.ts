@@ -1105,6 +1105,28 @@ const TABLE = new Map<string, Row>([
     'GET /api/v1/covers/photos/:id/thumb',
     { attempt: () => ({ path: `/covers/photos/${STUB_PHOTO_ID}/thumb` }) },
   ],
+
+  /* -------------------------------------------------------------- *
+   * Dana Link references (issue #223)
+   * -------------------------------------------------------------- */
+  [
+    'GET /api/v1/references/:kind/:id',
+    {
+      /* Driven as a folder, deliberately, and not because a folder is the
+         interesting kind. This sweep drives one concrete path per route, so
+         the row can only speak for one of the three; the criterion that
+         covers the other two, and the case that a shelf and a task refuse
+         the same way, is AC-425, which asks all three of both accounts.
+         What this row is for is the structural half: the route cannot join
+         the application without somebody writing down what a stranger
+         gets. */
+      attempt: (fx) => ({ path: `/references/folder/${fx.folderId}` }),
+      stranger: {
+        expected: 404,
+        rule: '10.2 and issue #223: a Dana Link never grants access, and an inaccessible target must be indistinguishable from a nonexistent one, so a non-member is told exactly what an id naming nothing is told — 404, never 403, and never a label',
+      },
+    },
+  ],
 ])
 
 /**
@@ -1226,8 +1248,8 @@ describe('AC-397 every id-bearing route refuses a stranger', () => {
     */
     expect(
       routes.length,
-      `the walker found ${String(routes.length)} routes carrying a path parameter and there were 61 after issue #184 added the composed-page action route. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means an id-bearing route was added, and it owes this table a row saying what a stranger gets when they ask for somebody else's`,
-    ).toBe(61)
+      `the walker found ${String(routes.length)} routes carrying a path parameter and there were 62 after issue #223 added the Dana Link resolver. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means an id-bearing route was added, and it owes this table a row saying what a stranger gets when they ask for somebody else's`,
+    ).toBe(62)
 
     const missing = routes.filter((route) => !TABLE.has(route))
     expect(
