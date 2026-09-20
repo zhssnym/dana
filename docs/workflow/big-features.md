@@ -1,6 +1,6 @@
 # A feature too big for one pull request
 
-**Cut to a note, 2026-09-20, issue #247.** What stood here was a seven-step sequence for an
+**Cut to a note, 2026-09-20, issue #249.** What stood here was a seven-step sequence for an
 RFC-sized feature: Hassan writes an RFC, the RFC becomes a GitHub milestone, the work
 becomes issues inside that milestone, schemas and a stub endpoint land on `main` first,
 both sides then build in parallel and merge in slices.
