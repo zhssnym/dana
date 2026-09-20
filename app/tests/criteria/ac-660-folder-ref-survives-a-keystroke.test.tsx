@@ -123,7 +123,20 @@ async function send(folder: string, body: DocumentTransaction): Promise<PageView
 async function seedFolder(name: string): Promise<string> {
   const found = await rows(db, sql`INSERT INTO folders (owner_id,name) VALUES (${viewer}::uuid,${name}) RETURNING id`)
   const id = String(found[0]?.id)
-  await db.execute(sql`INSERT INTO folder_members (folder_id,user_id) VALUES (${id}::uuid,${viewer}::uuid)`)
+  /* `full_control` spelled rather than left to the default, because the gate
+     `send` goes through reads it. `createFolder` writes exactly this preset
+     for whoever created the Folder (`domain/folders.ts`, R8A and R5), so a
+     membership row without it seeds a state the product cannot produce:
+     migration 0023 made the column NOT NULL DEFAULT 'can_view', which is the
+     safe floor, and `actOnFolderPage` then refuses `folder.page.edit` so
+     that every transaction below answers `forbidden` before it has written
+     anything (issue #228). Nothing in this criterion is about Access -- it
+     is the keystroke inside a `folder_ref` -- so the preset is the one this
+     folder's owner would really hold. The same line is in
+     `tests/support/folder-ref-page.ts`; the header there says why the
+     spelling is duplicated, and anything that changes the seed's meaning
+     moves both. */
+  await db.execute(sql`INSERT INTO folder_members (folder_id,user_id,access) VALUES (${id}::uuid,${viewer}::uuid,'full_control')`)
   return id
 }
 

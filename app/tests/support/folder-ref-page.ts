@@ -62,11 +62,24 @@ export async function seedOwner(db: Db, label: string): Promise<string> {
   return String(found[0]?.id)
 }
 
-/** One folder the viewer owns and is a member of, which 10.2's gate reads. */
+/**
+ * One folder the viewer owns and is a member of at Full control, which 10.2's
+ * gate reads.
+ */
 export async function seedFolder(db: Db, viewer: string, name: string): Promise<string> {
   const found = await rows(db, sql`INSERT INTO folders (owner_id,name) VALUES (${viewer}::uuid,${name}) RETURNING id`)
   const id = String(found[0]?.id)
-  await db.execute(sql`INSERT INTO folder_members (folder_id,user_id) VALUES (${id}::uuid,${viewer}::uuid)`)
+  /* `full_control` spelled rather than left to the default, because the gate
+     reads it. `createFolder` writes exactly this preset for whoever created
+     the Folder (`domain/folders.ts`, R8A and R5), so a membership row without
+     it seeds a state the product cannot produce: migration 0023 made the
+     column NOT NULL DEFAULT 'can_view', which is the safe floor, and
+     `actOnFolderPage` then refuses `folder.page.edit` so that every
+     transaction `sendThroughTheRoute` sends below answers `forbidden` before
+     it has written anything (issue #228). Nothing in AC-660 to AC-665 is
+     about Access -- they are the folder-reference carry -- so the preset is
+     the one this folder's owner would really hold. */
+  await db.execute(sql`INSERT INTO folder_members (folder_id,user_id,access) VALUES (${id}::uuid,${viewer}::uuid,'full_control')`)
   return id
 }
 
