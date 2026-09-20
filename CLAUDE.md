@@ -17,7 +17,8 @@ process is restated in this file.
 
 That workflow replaced an earlier one built for a fleet of thirteen agent personas working
 package by package. The former rulebook at `docs/team/_shared-protocol.md` is deleted along
-with the personas, and three agents in `.claude/agents/` replace them. The restructure that
+with the personas, and three agents in `.claude/agents/` replaced them; that directory
+holds seven as of 2026-09-20, #246 having added four more. The restructure that
 did it ran on 2026-08-31 and 2026-09-01; its reasoning is in git, and what it left undone is
 in the GitHub issues.
 
@@ -53,7 +54,7 @@ handling, and PGlite's single connection.
 Deleted, and mentioned here only because references to them survive elsewhere in the
 repository: `docs/team/`, `docs/design/`, `docs/learn/`, `docs/operator/`, `docs/ux/`,
 `docs/parity/`, `docs/security/`, `dana-reports/`, `AGENTS.md`, `SESSION-LOG.md`.
-Where one appears in an RFC or in a dated record inside the specification, it is history
+Where one appears in a dated record inside the specification or in `docs/milestones/M0.md`, it is history
 and accurate as history. Where one appears anywhere else, it is a mistake worth fixing.
 
 ## Commands and this machine

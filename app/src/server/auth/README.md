@@ -115,7 +115,7 @@ GitHub issue; `docs/workflow/backend.md` is the process.
   `oidc.ts` switches on `enableNonRepudiationChecks`; verified against the
   installed version, a rogue-key token signed in without it. A
   library-versus-specification difference belongs in spec section 13, and
-  `docs/spec/` is changed through an RFC rather than from a module README.
+  `docs/spec/` is changed through the issue that rules it, rather than from a module README.
 - **An email collision with a different `google_sub` was unruled and is ruled.**
   7.1 makes provisioning idempotent under `google_sub` only; a new subject
   claiming an email that already belongs to an active account hits
