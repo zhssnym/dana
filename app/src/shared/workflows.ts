@@ -351,10 +351,24 @@ const pageContentBlock = z
     }
   })
 
-/** A Task at its place on the page: 7.16's portable keys, inline. */
+/**
+ * A Task at its place on the page: 7.16's portable keys, inline.
+ *
+ * **`list_parent` is declared in order to be refused**, which is 11.14's house
+ * spelling (`shelves.ts` carries the same idiom) and is here for #185's own
+ * rule rather than for tidiness. #219 says a Task is never a nested list item,
+ * and an undeclared key is *stripped*: a file nesting a Task under a bullet
+ * would import with the nesting silently gone, which is the one thing this
+ * format is not allowed to do. The content block above refuses the same thing
+ * for the kinds that cannot nest; this is the Task's half of it, and AC-824
+ * drives it.
+ */
 const pageTaskBlock = importTask.extend({
   kind: z.literal('task'),
   section: pageBlockIndex.nullable().optional(),
+  list_parent: z
+    .never({ error: 'A Task is never a nested list item.' })
+    .optional(),
 })
 
 /*

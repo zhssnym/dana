@@ -299,15 +299,26 @@ function withoutPlaceholders(file: ImportWorkflowBody): ImportWorkflowBody {
       {
         ...folder,
         page: {
-          blocks: kept.map(([block]) => ({
-            ...block,
-            ...('section' in block && typeof block.section === 'number'
-              ? { section: movedTo.get(block.section) as number }
-              : {}),
-            ...('list_parent' in block && typeof block.list_parent === 'number'
-              ? { list_parent: movedTo.get(block.list_parent) as number }
-              : {}),
-          })),
+          blocks: kept.map(([block]) => {
+            const moved = (at: number): number => movedTo.get(at) as number
+            /* Filtered out above; the branch is here because the union still
+               carries it and a cast would be a way to be wrong quietly. */
+            if (block.kind === 'omitted') return block
+            if (block.kind === 'task') {
+              return typeof block.section === 'number'
+                ? { ...block, section: moved(block.section) }
+                : block
+            }
+            return {
+              ...block,
+              ...(typeof block.section === 'number'
+                ? { section: moved(block.section) }
+                : {}),
+              ...(typeof block.list_parent === 'number'
+                ? { list_parent: moved(block.list_parent) }
+                : {}),
+            }
+          }),
         },
       },
     ],

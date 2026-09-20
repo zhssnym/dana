@@ -15,7 +15,7 @@ understands this page, so a kind it does not define is the file contradicting
 itself, and dropping it would leave a person holding a file that looked
 imported and was not.
 
-## Four shapes, and each one is a different way to claim too much
+## Five shapes, and each one is a different way to claim too much
 
 - **A kind nobody carries.** An `image` block written into a version 4 page is
   the one a hand-edited or third-party file is most likely to carry, since it
@@ -25,8 +25,12 @@ imported and was not.
   other side and is what stops the discriminator being widened by accident.
 - **A page beside a collection.** A version 4 folder says everything in its
   page, so a `tasks` key next to one is work the import would not create.
-- **An index that resolves to nothing.** `list_parent: 9` in a three-block page
-  is a nesting the file asserts and the import cannot build.
+- **An index that resolves to nothing.** `list_parent: 9` in a two-block page is
+  a nesting the file asserts and the import cannot build.
+- **A Task nested under a list item**, which #219 says is not a thing. This one
+  is the reason `pageTaskBlock` declares `list_parent` at all: an undeclared key
+  is *stripped*, so without the declaration the file would import with the
+  nesting silently gone, which is the single behaviour format 4 exists to end.
 
 ## No folder is created, and that is asserted rather than assumed
 
@@ -85,7 +89,7 @@ async function ownedFolders(importerId: string): Promise<number> {
 }
 
 describe('AC-824 a version 4 page cannot claim what the import discards', () => {
-  test('four claims, four 422s naming the field, and nothing written', async () => {
+  test('five claims, five 422s naming the field, and nothing written', async () => {
     const [importer] = (await cast.of(app)) as [Actor]
 
     const cases: [string, unknown, string][] = [
@@ -128,6 +132,26 @@ describe('AC-824 a version 4 page cannot claim what the import discards', () => 
             blocks: [
               { kind: 'bullet', text: 'ac824 open the room' },
               { kind: 'bullet', text: 'ac824 unlock the cupboard', list_parent: 9 },
+            ],
+          },
+        }),
+        'folders.0.page.blocks.1.list_parent',
+      ],
+      /*
+      A Task nested under a bullet, which #219 says is not a thing. It is the
+      one claim in this list that would otherwise be **stripped rather than
+      refused** — `z.object` drops a key no branch declares, and 11.14 rules
+      that nothing in `shared/` becomes strict — so `pageTaskBlock` declares it
+      as `z.never().optional()`, which is that ruling's own answer for a field
+      an endpoint means to refuse.
+      */
+      [
+        'a Task nested under a list item',
+        fileWith({
+          page: {
+            blocks: [
+              { kind: 'bullet', text: 'ac824 open the room' },
+              { kind: 'task', title: 'ac824 book the room', list_parent: 0 },
             ],
           },
         }),
