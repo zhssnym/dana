@@ -146,12 +146,12 @@ describe('AC-547 the workflow file carries a portable taxonomy', () => {
       [],
       undefined,
       vocabulary,
-    )
+    ).file
 
     expect(
       file.version,
-      'a file carrying a Label vocabulary says version 3, so a reader that does not know Labels refuses rather than importing a folder with its classification quietly missing (#227 area 4)',
-    ).toBe(3)
+      'a file carrying a Label vocabulary says a version whose reader knows what a Label is, so a reader that does not refuses rather than importing a folder with its classification quietly missing (#227 area 4; 4 rather than 3 since #185, the writer now emitting one version)',
+    ).toBe(4)
     const written = file.folders[0]?.labels ?? []
     expect(
       written.map((label) => label.name),
@@ -189,8 +189,12 @@ describe('AC-547 the workflow file carries a portable taxonomy', () => {
       'nor any task’s',
     ).toBe(false)
 
-    const secondWritten = file.folders[0]?.tasks?.find(
-      (task) => task.title === 'ac527 send the invite',
+    /* Format 4 writes each Task as a block of the page at its own position
+       (#185), so the file's work is read off `page.blocks` rather than off a
+       `tasks` collection. What is asserted below is unchanged. */
+    const secondWritten = (file.folders[0]?.page?.blocks ?? []).find(
+      (block): block is Extract<typeof block, { kind: 'task' }> =>
+        block.kind === 'task' && block.title === 'ac527 send the invite',
     )
     expect(
       secondWritten?.labels,
@@ -250,7 +254,18 @@ describe('AC-547 the workflow file carries a portable taxonomy', () => {
     ).toBe(4)
   })
 
-  test('a folder with no labels writes the file it wrote before #227', async () => {
+  /*
+  **This case moved with the format and it still pins the same decision.** It
+  read "a folder with no labels writes the file it wrote before #227" and
+  asserted version 1, on the rule that the version says what a reader must
+  understand and a folder with no vocabulary needs no reader that knows one.
+  #185 moved that decision one step: the writer now emits one version, 4,
+  because every file it writes carries the ordered page and a second output
+  format would be a second thing to keep in step. What is asserted here is what
+  was always the point of the case — **no vocabulary means no `labels` key
+  anywhere in the file**, on the folder or on the work.
+  */
+  test('a folder with no labels writes no vocabulary at all', async () => {
     const [author] = (await cast.of(app)) as [Actor]
     const plainId = await createFolder(author, 'ac527 plain')
     const task = await createTaskOk(
@@ -260,14 +275,15 @@ describe('AC-547 the workflow file carries a portable taxonomy', () => {
     )
     const detail = (await readTask(author, task.id)) as unknown as TaskDetail
 
-    const file = folderToWorkflowFile('ac527 plain', [detail], [], undefined, [])
+    const file = folderToWorkflowFile('ac527 plain', [detail], [], undefined, []).file
     expect(
       file.version,
-      'no vocabulary, no bump: the version says what a reader must understand, and a reader that never met Labels can read this one whole (#227 area 4)',
-    ).toBe(1)
+      'the writer emits one version and it is 4 (#185); what the number means is unchanged — it says what a reader must understand (#227 area 4)',
+    ).toBe(4)
     expect(file.folders[0]?.labels, 'and there is no labels key at all').toBeUndefined()
+    const written = file.folders[0]?.page?.blocks?.[0]
     expect(
-      file.folders[0]?.tasks?.[0]?.labels,
+      written?.kind === 'task' ? written.labels : 'the work is not on the page',
       'nor on the task',
     ).toBeUndefined()
   })

@@ -138,12 +138,12 @@ describe('AC-446 a dependency is made on purpose or not at all', () => {
     const file = folderToWorkflowFile('ac446 the template', [
       (await readTask(owner, second.id)) as unknown as TaskDetail,
       (await readTask(owner, first.id)) as unknown as TaskDetail,
-    ])
+    ]).file
 
     const serialized = JSON.stringify(file)
     expect(
       serialized,
-      'the file names neither task, 7.16 carrying titles and never ids; this is the precondition #185 has to change before a dependency can travel in one',
+      'the file names neither task, 7.16 carrying titles and never ids; #185 has landed and did not change it — format 4 places each Task on the page by position, so the contract gained an *order* and still no identity a dependency could be expressed against',
     ).not.toContain(second.id)
     expect(serialized, 'nor the other one').not.toContain(first.id)
 
@@ -160,7 +160,7 @@ describe('AC-446 a dependency is made on purpose or not at all', () => {
 
     expect(
       await storedEdges(app.db, [...arrived.values()]),
-      'and it arrived unrelated: with no identity in the file, there is nothing for a dependency to be expressed against, so the round trip preserves none. When #185 gives the contract both tasks, this assertion becomes its opposite, in the same change',
+      'and it arrived unrelated: with no identity in the file, there is nothing for a dependency to be expressed against, so the round trip preserves none. #185 landed on 2026-09-20 and this assertion did not become its opposite — format 4 carries a Task’s position and not its identity, so a dependency still has nothing to name. The day a contract gives one, this line moves in that change',
     ).toEqual([])
   })
 })

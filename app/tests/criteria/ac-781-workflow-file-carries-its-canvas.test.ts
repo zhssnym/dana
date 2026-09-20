@@ -1,53 +1,58 @@
 /*
-AC-781: a version 3 workflow file written from a Folder that has both a canvas
-page and a Label vocabulary carries both, and importing it restores both —
-the typed document with its section nesting, and the vocabulary with each
-Task's assignments remapped onto it.
+AC-781: a workflow file written from a Folder that has both a composed page and
+a Label vocabulary carries both, and importing it restores both — the page with
+its Section nesting, and the vocabulary with each Task's assignments remapped
+onto it.
 
 ## The combination this exists for, and why nothing drove it
 
-`folderToWorkflowFile` writes `version: exportedLabels.length > 0 ? 3 :
-pageView === undefined ? 1 : 2`. So the **default** file a real folder produces
-today — the folder page every folder has, plus any vocabulary at all — is a
-version 3 file carrying a `document`. AC-547 drives the vocabulary and passes
-`undefined` for `pageView`; AC-505 drove the document before version 3 existed.
-**Neither drives the pair**, which left the single most likely file this
-product writes covered by two criteria that each see half of it.
+The **default** file a real folder produces — the folder page every folder has,
+plus any vocabulary at all — carries a page and a vocabulary at once. AC-547
+drives the vocabulary and passes `undefined` for `pageView`; AC-505 drove the
+page before a vocabulary could travel with it. **Neither drives the pair**,
+which left the single most likely file this product writes covered by two
+criteria that each see half of it.
 
-**It is a coverage note rather than a defect, and that was measured before this
-file was written rather than assumed.** `importFolder.document` is not gated by
-`readsLabels` — the version gates `labels` and nothing else — so a version 3
-file reaches the document validator exactly as a version 2 one does. This file
-is here so that a later change to the version rule cannot quietly stop being
-true: gating the document on the version, or reading `folder.blocks` as well as
-`folder.document`, would leave AC-547 and AC-548 green.
+**It was a coverage note rather than a defect, and that was measured before
+this file was written rather than assumed.** The page was never gated on the
+version that carried Labels — the version gated `labels` and nothing else — so
+a file with both reached the page validator exactly as a file with one did.
+This file is here so that a later change to the version rule cannot quietly
+stop being true.
+
+## What moved, and what did not (#185)
+
+**The decision this criterion pins has not moved**: a file carrying both
+carries both, and the import restores both. What moved underneath it is the
+format. Until #185 the writer emitted `version: exportedLabels.length > 0 ? 3 :
+pageView === undefined ? 1 : 2` and wrote the page as a `document` of
+`put_block` operations keyed by the exporting account's own uuids, beside a
+flat `blocks` key that repeated the same writing in a lossier form. It now
+emits one version, 4, and one ordered `page` whose every reference is a
+position in its own array. So the three assertions that named `version` 3 and
+the `document` key name 4 and `page`; every other assertion in this file is
+untouched, including the one that catches a page applied twice.
+
+That older shape is still **read** — `importFolder.document` is unchanged and
+AC-548 covers it — so nothing about a file written before this date changed.
 
 ## Written through the same call the product makes
 
 `FolderPage.tsx` calls `folderToWorkflowFile(name, details, page.blocks, page,
-labels)` — the page view passed twice, once as the flat block list and once as
-the typed document. This file makes that call with the same arguments read
-from the same endpoints, so what is driven is the file a person actually
-downloads rather than a fixture assembled to suit the assertion.
+labels)`. This file makes that call with the same arguments read from the same
+endpoints, so what is driven is the file a person actually downloads rather
+than a fixture assembled to suit the assertion.
 
-**The flat `blocks` key is in that file too**, because the writer emits both,
-and the importer must apply the document and ignore it.
+**The block count below is asserted rather than only the text**, because it is
+what would catch a *quiet* double — a second reading of the same writing whose
+extra rows the outline happened to cover. A loud one dies at the import call
+instead: measured 2026-09-20 by making `importWorkflow` read `folder.blocks`
+beside the typed page, the mutation answered
+`422 The outline must retain every Task and undeleted block.`, `applyDocument`
+running after the flat blocks were already rows and the outline naming only the
+page's. The criterion discriminates either way, which is what it is for.
 
-**What that regression actually does is worth stating, because the sentence
-here used to get it wrong.** It said an importer applying both "would answer
-four blocks here rather than two", which reads as though the block count below
-is the assertion that catches it. It is not. Measured 2026-09-20 by making
-`importWorkflow` read `folder.blocks` beside the document: the mutation dies
-**at the import call**, with
-`422 The outline must retain every Task and undeleted block.` — `applyDocument`
-runs after the flat blocks are already rows, and the file's `set_outline` names
-only the document's, so the page loses the ones the outline does not mention
-and the invariant refuses the whole transaction. The criterion discriminates
-either way, which is what it is for; the count below is still asserted rather
-than only the text, because it is the assertion that would catch a *quieter*
-double — one the outline happened to cover.
-
-Spec: 7.16. Issue #227 area 4, #204, #219.
+Spec: 7.16. Issue #227 area 4, #204, #219, #185.
 */
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
@@ -155,21 +160,22 @@ describe('AC-781 a canvas and a vocabulary travel in one file', () => {
     })
 
     /* The call `FolderPage.tsx` makes, argument for argument. */
-    const file = folderToWorkflowFile(
+    const saved = folderToWorkflowFile(
       'ac781 launch canvas',
       details,
       page.blocks,
       page,
       vocabulary,
     )
+    const file = saved.file
 
     expect(
       file.version,
-      'a folder with both says 3: the version names the newest thing a reader must understand, and a vocabulary is newer than a document (#227 area 4)',
-    ).toBe(3)
+      'a folder with both says 4 (#185): the writer emits one version, and it is the one whose reader understands both the page and the vocabulary (#227 area 4)',
+    ).toBe(4)
     expect(
-      file.folders[0]?.document === undefined,
-      'and the document is in the file beside it — this is the file a real folder produces, and until this criterion nothing drove the two together',
+      file.folders[0]?.page === undefined,
+      'and the page is in the file beside the vocabulary — this is the file a real folder produces, and until this criterion nothing drove the two together',
     ).toBe(false)
     expect(
       (file.folders[0]?.labels ?? []).map((label) => label.name),
@@ -212,7 +218,7 @@ describe('AC-781 a canvas and a vocabulary travel in one file', () => {
     const madePage = await pageOf(reader, madeId)
     expect(
       madePage.blocks.map((block) => [block.kind, block.text]),
-      'the typed document arrives once and in order: the writer emits the flat `blocks` key beside the document, and an importer that applied both would answer four blocks here rather than two (spec 7.16)',
+      'the page arrives once and in order, and the count is what would catch a quiet double — a second reading of the same writing, applied beside the first (spec 7.16)',
     ).toEqual([
       ['section', 'ac781 before the day'],
       ['paragraph', 'ac781 read this first.'],
