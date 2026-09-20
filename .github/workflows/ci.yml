@@ -127,6 +127,15 @@ name: CI
 # above; `.github/workflows/**` is in no ignore list on either trigger, so
 # nothing about the filtering above changes with it.
 #
+# It flags a second state as well, and the `concurrency` block below is half of
+# why: a head whose `pull_request` runs of this file all ended `cancelled`,
+# `skipped`, `action_required` or `stale` had nothing linted, typechecked,
+# built or name-checked either, and said so with a grey icon nobody is mailed
+# about. `cancel-in-progress` here normally cancels a run on a head that is no
+# longer the head, which the watchdog never reads; what it does read is a head
+# left with only cancelled runs, which is what CLAUDE.md's instruction to
+# cancel a stuck run and free the runner produces.
+#
 # What is deliberately NOT done here: choosing which tests to run from which
 # files changed. CLAUDE.md is explicit that a change under app/src/shared/** or
 # app/src/server/domain/** reaches criteria in packages nobody was thinking

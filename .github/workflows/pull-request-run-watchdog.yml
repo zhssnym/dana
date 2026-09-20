@@ -48,20 +48,32 @@ name: Pull request run watchdog
 # have missed that window entirely, reporting only the after-the-fact warning at
 # 14:30. `*/10` covers an eleven-minute window with certainty.
 #
-# **What it costs, said rather than discovered later: about 144 run records a
-# day**, each a job of seconds. Two consequences. `gh run list` is swamped
-# unless it is given `--workflow ci.yml`, and CLAUDE.md's bullet about reading
-# CI on this machine now says so. And a pile-up after a night with the machine
-# off - one queued tick per ten minutes of sleep - is collapsed by the
-# concurrency group below rather than run one after another ahead of the CI job
-# somebody is waiting for.
+# **What it will cost, said ahead of time rather than discovered later: 144 run
+# records a day**, each a job of seconds. That number is arithmetic off the
+# schedule - six ticks an hour, twenty-four hours - and not a measurement; this
+# workflow has never executed, and whoever first reads a week of its history
+# should replace this sentence with what it actually did. Two consequences.
+# `gh run list` will be swamped unless it is given `--workflow ci.yml`, and
+# CLAUDE.md's bullet about reading CI on this machine now says so - along with
+# the other half of that, which is that the same filter hides this workflow's
+# own reds, so its runs have to be read on their own rather than never. And a
+# pile-up after a night with the machine off - one queued tick per ten minutes
+# of sleep - is collapsed by the concurrency group below rather than run one
+# after another ahead of the CI job somebody is waiting for.
 #
-# **What a red here means.** At least one open pull request has no `ci.yml` run
-# for its current head. It never means a run went red: this workflow does not
-# read conclusions, and the existing `check` job is what does that. GitHub mails
-# a failed scheduled run to whoever last committed to this file, which is a
-# quirk worth knowing rather than a design - the comment on the pull request is
-# the notification meant to be read.
+# **What a red here means.** At least one open pull request had nothing check
+# it: either no `ci.yml` run at all for its current head, or `ci.yml` runs from
+# the `pull_request` event that every one of them ended `cancelled`, `skipped`,
+# `action_required` or `stale`. The second is read because it is as quiet as the
+# first - a grey neutral icon GitHub mails nobody about - and because cancelling
+# is something this project does on purpose: CLAUDE.md tells a session to cancel
+# a stuck run to free the runner, and ci.yml carries `cancel-in-progress` for
+# every pull request ref. **A red here still never means a run went red.** A
+# `failure` conclusion is loud, is mailed, and is the `check` job's to report;
+# this workflow reads a conclusion only far enough to tell those two apart.
+# GitHub mails a failed scheduled run to whoever last committed to this file,
+# which is a quirk worth knowing rather than a design - the comment on the pull
+# request is the notification meant to be read.
 
 on:
   schedule:

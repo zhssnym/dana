@@ -26,12 +26,22 @@ criterion that does not exist.
    for less than the ten-minute grace (9m33s, 7m56s, 71s, 25s). A docs-only pull
    request of that era open for twenty minutes would have been a false positive.
 
-2. **The predicate reads for the presence of a run and never for its
-   conclusion**, and it counts only runs of `ci.yml`. The second is load-bearing
-   rather than tidy: the watchdog's own workflow triggers on `pull_request`, so
-   without the filter every head would have a run of *something* and every
-   verdict would be `ok` - the check would pass on the exact state it exists to
-   catch.
+2. **The predicate reads for the presence of a run, and reads a conclusion only
+   to tell a silent absence of verification from a loud one**, and it counts
+   only runs of `ci.yml`. The counting is load-bearing rather than tidy: the
+   watchdog's own workflow triggers on `pull_request`, so without the filter
+   every head would have a run of *something* and every verdict would be `ok` -
+   the check would pass on the exact state it exists to catch.
+
+   The conclusion half is narrow on purpose and the cases below pin both edges
+   of it. A `failure` is loud and is somebody's to fix, so it is `ok` here; a
+   `cancelled`, `skipped`, `action_required` or `stale` run is a grey icon
+   GitHub mails nobody about, verified nothing, and is `inconclusive`. That
+   distinction was missing until 2026-09-20 and the gap was not hypothetical:
+   `CLAUDE.md` instructs cancelling a stuck run to free the runner and `ci.yml`
+   carries `cancel-in-progress` for every pull request ref, so a head whose only
+   run had been cancelled took a **green** `ci/pull-request-has-a-run` status
+   beside its grey one, with nothing linted, typechecked, built or name-checked.
 
 3. **The workflow runs on the self-hosted runner and has a schedule.** Those two
    lines are the whole of why it does not cry wolf every night and why it can
@@ -50,7 +60,9 @@ tick against the runs that existed at that instant. It fired once, on #244, from
 fired on nothing else, including across the night runs 24, 26 and 31 sat queued
 for eleven hours with the runner asleep.
 */
+import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
+import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
@@ -63,7 +75,9 @@ import {
   commentBody,
   headSince,
   minutesSince,
+  modeRefusal,
   pullRequestTriggerFilters,
+  statusFor,
 } from '../../scripts/pull-request-run-watchdog.mjs'
 
 const repositoryFile = (relative: string): string =>
@@ -71,11 +85,17 @@ const repositoryFile = (relative: string): string =>
 
 const WATCHDOG_WORKFLOW_PATH = '.github/workflows/pull-request-run-watchdog.yml'
 
-/** The run shape the classifier reads: a workflow path, an event, a status. */
-const run = (path: string, event: string, status = 'completed'): { path: string; event: string; status: string } => ({
+/** The run shape the classifier reads: a workflow path, an event, a status, a conclusion. */
+const run = (
+  path: string,
+  event: string,
+  status = 'completed',
+  conclusion: string | null = null,
+): { path: string; event: string; status: string; conclusion: string | null } => ({
   path,
   event,
   status,
+  conclusion,
 })
 
 describe('the pull_request trigger ci.yml is read against', () => {
@@ -149,14 +169,14 @@ describe('the verdict on one pull request', () => {
   The property the whole mechanism rests on. A run created while the runner is
   asleep exists as a queued record from the instant the event fires - measured
   in this repository at eleven hours and twenty-seven minutes of waiting - so
-  reading for the record rather than for a conclusion is what tells "the runner
-  is asleep" apart from "the event never fired".
+  reading for the record rather than for a verdict is what tells "the runner is
+  asleep" apart from "the event never fired".
   */
   it('is ok for a run that has not started, which is the asleep runner', () => {
     expect(classify({ runs: [run(ci, 'pull_request', 'queued')], ...old })).toBe('ok')
   })
 
-  it('is ok for a run that failed, because this never reads a conclusion', () => {
+  it('is ok for a completed run with no conclusion recorded either way', () => {
     expect(classify({ runs: [run(ci, 'pull_request')], ...old })).toBe('ok')
   })
 
@@ -171,6 +191,130 @@ describe('the verdict on one pull request', () => {
   it('is dispatch-only when the branch was verified by hand instead', () => {
     expect(classify({ runs: [run(ci, 'workflow_dispatch')], ...old })).toBe('dispatch-only')
     expect(classify({ runs: [run(ci, 'workflow_dispatch'), run(ci, 'pull_request')], ...old })).toBe('ok')
+  })
+
+  /*
+  The case this classifier answered `ok` on until 2026-09-20, and it is the one
+  the file exists to catch wearing a different hat: a run record exists, so the
+  #248 defect is absent, and yet nothing was linted, typechecked, built or
+  name-checked and nothing anywhere said so. A cancelled run is a grey neutral
+  icon that GitHub mails no one about, so the pull request showed that beside a
+  green status this file had posted.
+  */
+  it('is inconclusive when every pull_request run was cancelled', () => {
+    expect(classify({ runs: [run(ci, 'pull_request', 'completed', 'cancelled')], ...old })).toBe('inconclusive')
+  })
+
+  it('is inconclusive for the other three quiet endings as well', () => {
+    for (const conclusion of ['skipped', 'action_required', 'stale']) {
+      expect(classify({ runs: [run(ci, 'pull_request', 'completed', conclusion)], ...old })).toBe('inconclusive')
+    }
+  })
+
+  /*
+  Every one of them, not any one of them. A head pushed to while a run was in
+  flight carries a cancelled record beside a live one, which is the ordinary
+  shape of working rather than a defect.
+  */
+  it('is ok when one pull_request run was cancelled and another reached a verdict', () => {
+    expect(
+      classify({
+        runs: [run(ci, 'pull_request', 'completed', 'cancelled'), run(ci, 'pull_request', 'completed', 'failure')],
+        ...old,
+      }),
+    ).toBe('ok')
+    expect(
+      classify({
+        runs: [run(ci, 'pull_request', 'completed', 'cancelled'), run(ci, 'pull_request', 'in_progress')],
+        ...old,
+      }),
+    ).toBe('ok')
+  })
+
+  /* A loud ending stays ok: a red run is mailed and is somebody else's to fix. */
+  it('is ok for a conclusion that is loud', () => {
+    for (const conclusion of ['failure', 'timed_out', 'success', 'neutral']) {
+      expect(classify({ runs: [run(ci, 'pull_request', 'completed', conclusion)], ...old })).toBe('ok')
+    }
+  })
+
+  /*
+  A cancelled dispatch run is still dispatch-only rather than inconclusive. The
+  conclusion is read on the pull_request runs, which are the ones the check job
+  rides on; a dispatch run never carried the branch-name check or the merge ref
+  and so has nothing of that to lose by being cancelled.
+  */
+  it('is dispatch-only when the only run is a cancelled dispatch', () => {
+    expect(classify({ runs: [run(ci, 'workflow_dispatch', 'completed', 'cancelled')], ...old })).toBe('dispatch-only')
+  })
+})
+
+describe('the commit status a verdict earns', () => {
+  /*
+  The defect this pins, plainly: every verdict that was not `missing` fell
+  through to `success`, so a cancelled run took a green tick. `inconclusive` is
+  red and says why in its own words rather than inheriting anybody's.
+  */
+  it('is never success for a head nothing verified', () => {
+    expect(statusFor('missing').state).toBe('failure')
+    expect(statusFor('inconclusive').state).toBe('failure')
+  })
+
+  it('is success only where a run reached a verdict, and claims nothing about it', () => {
+    expect(statusFor('ok').state).toBe('success')
+    expect(statusFor('dispatch-only').state).toBe('success')
+    expect(statusFor('ok').description).toContain('says nothing about whether it passed')
+  })
+
+  /* Two failures share a state and differ in words, so the words must differ. */
+  it('says which of the two failures it is', () => {
+    expect(statusFor('missing').description).not.toBe(statusFor('inconclusive').description)
+    expect(statusFor('inconclusive').description).toContain('cancelled or skipped')
+  })
+
+  /* GitHub truncates a status description past 140 characters. */
+  it('fits in what GitHub will show', () => {
+    for (const verdict of ['missing', 'inconclusive', 'ok', 'dispatch-only'] as const) {
+      expect(statusFor(verdict).description.length).toBeLessThanOrEqual(140)
+    }
+  })
+})
+
+describe('the two flags that cannot be used together', () => {
+  /*
+  `--audit` reads state=all with grace 0 and age Infinity; `--write` posts a
+  comment and a failing status. Together they post both on every closed and
+  merged pull request whose head has no run - four of them in this repository
+  on the day this was written, and one more each time a run record ages out. A
+  comment on a merged pull request has no undo, which is why the refusal comes
+  before the first network call rather than after a partial sweep.
+  */
+  it('is refused, and the message says which and why', () => {
+    const refusal = modeRefusal({ audit: true, write: true })
+    expect(refusal).toMatch(/--audit and --write cannot be used together/)
+    expect(refusal).toMatch(/merged pull request/)
+  })
+
+  it('leaves each of them alone on its own', () => {
+    expect(modeRefusal({ audit: true, write: false })).toBeUndefined()
+    expect(modeRefusal({ audit: false, write: true })).toBeUndefined()
+    expect(modeRefusal({ audit: false, write: false })).toBeUndefined()
+  })
+
+  /*
+  The predicate above is pure and the flag parsing is not, so this drives the
+  real command line. It is handed a repository and a token that would otherwise
+  let it run: the refusal has to come before the usage check and before the
+  first request, and an exit of 2 with that annotation is what shows it did.
+  */
+  it('exits 2 from the command line before it reads anything', () => {
+    const script = fileURLToPath(new URL('../../scripts/pull-request-run-watchdog.mjs', import.meta.url))
+    const result = spawnSync(process.execPath, [script, '--audit', '--write'], {
+      encoding: 'utf8',
+      env: { ...process.env, GITHUB_REPOSITORY: 'zhssnym/dana', GITHUB_TOKEN: 'not-a-real-token' },
+    })
+    expect(result.status).toBe(2)
+    expect(result.stdout).toContain('::error::--audit and --write cannot be used together')
   })
 })
 

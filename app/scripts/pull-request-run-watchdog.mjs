@@ -14,8 +14,11 @@ that a wrong cause written down is worse than none.
 So this file does not diagnose. It converts an absence into a presence: a red
 commit status on the pull request's own head, a comment on the pull request, and
 a non-zero exit from the workflow that runs it. **It reads for the presence of a
-run and never for its conclusion.** A red CI run is already loud and is somebody
-else's problem; the thing nobody can see is no run at all.
+run, and reads a conclusion only to tell a loud absence of verification from a
+silent one.** A run that failed or timed out is already loud and is somebody
+else's problem; a run that was cancelled or skipped verified nothing and said
+nothing while doing it, which is the thing nobody can see, and so is no run at
+all. The section below draws that line exactly.
 
 ## The one thing that would make this cry wolf, and why it does not
 
@@ -52,6 +55,24 @@ re-checks every open pull request rather than only its own.
 is load-bearing rather than tidy: this file's own workflow triggers on
 `pull_request`, so without the filter every head would have a run of *something*
 and every verdict would be `ok`.
+
+**It reads a conclusion for one thing only, and is blind to the rest.** A
+`ci.yml` run from the `pull_request` event that ended `cancelled`, `skipped`,
+`action_required` or `stale` checked nothing and told nobody: GitHub draws a
+grey neutral icon beside it and mails no one. It is therefore as invisible as no
+run at all and is reported the same way, as `inconclusive`. That is the whole of
+the conclusion reading. Whether the steps that *did* run passed is not this
+file's question - a `failure` is loud, it is mailed, and it is somebody's to
+fix. **So `ok` means a run exists and was allowed to reach a verdict, and never
+that the verdict was green.**
+
+The cancelled case is why that is read at all, and it is not hypothetical.
+`CLAUDE.md` instructs cancelling a stuck run to free the runner, and `ci.yml`'s
+own `concurrency` block carries `cancel-in-progress` for every ref that is not
+`main`. A head whose only `pull_request` run was cancelled has had nothing
+linted, typechecked, built or branch-name-checked, and it shows a grey icon that
+no one is mailed about - #248's failure exactly, and until 2026-09-20 this file
+posted a green status on top of it.
 
 **It makes no claim about why.** Where a run is missing it reports the facts it
 can see and stops: which other workflows did produce a run for that head, and
@@ -189,22 +210,94 @@ export function headSince(pullCreatedAt, headCommittedAt) {
 }
 
 /**
+ * The conclusions of a completed run that mean it verified nothing, quietly.
+ *
+ * `failure` and `timed_out` are deliberately not here: they are loud, they are
+ * mailed, and a run that reached them ran the steps. `neutral` is not here
+ * either, being a deliberate pass. These four end a run before it answers, and
+ * GitHub renders every one of them as a grey icon nobody is notified about.
+ */
+export const SILENT_CONCLUSIONS = new Set(['cancelled', 'skipped', 'action_required', 'stale'])
+
+/**
  * One pull request's verdict.
  *
  * `runs` is every workflow run GitHub holds for this head sha, of every
- * workflow and every event. Nothing here reads a conclusion: a queued run, a
- * failed run and a cancelled run all mean a verdict exists or is coming, which
- * is the question.
+ * workflow and every event. A queued run and a failed run both mean a verdict
+ * exists or is coming, which is the question, so neither is read further. A run
+ * that ended in one of `SILENT_CONCLUSIONS` is the exception and the reason a
+ * conclusion is read at all: it is a verdict that never arrived and made no
+ * noise about it. `inconclusive` is only reported when **every** `ci.yml` run
+ * from the `pull_request` event ended that way - one live run, or one that
+ * reached a real conclusion, is enough for `ok`.
  *
- * @param {{ runs: Array<{ path?: string, event?: string, status?: string }>, ageMinutes: number, graceMinutes: number }} input
- * @returns {'young' | 'ok' | 'dispatch-only' | 'missing'}
+ * @param {{ runs: Array<{ path?: string, event?: string, status?: string, conclusion?: string | null }>, ageMinutes: number, graceMinutes: number }} input
+ * @returns {'young' | 'ok' | 'inconclusive' | 'dispatch-only' | 'missing'}
  */
 export function classify({ runs, ageMinutes, graceMinutes }) {
   if (ageMinutes < graceMinutes) return 'young'
   const ci = runs.filter((run) => run.path === CI_WORKFLOW_PATH)
-  if (ci.some((run) => run.event === 'pull_request')) return 'ok'
+  const fromPullRequest = ci.filter((run) => run.event === 'pull_request')
+  if (fromPullRequest.length > 0) {
+    const silent = fromPullRequest.every(
+      (run) => run.status === 'completed' && SILENT_CONCLUSIONS.has(run.conclusion ?? ''),
+    )
+    return silent ? 'inconclusive' : 'ok'
+  }
   if (ci.length > 0) return 'dispatch-only'
   return 'missing'
+}
+
+/**
+ * The commit status a verdict earns, and the one place `success` is spelled.
+ *
+ * A verdict that is not `missing` used to mean `success` by falling through,
+ * which is how a cancelled run came to be reported green. The mapping is
+ * written out here so that a fifth verdict has to choose rather than inherit.
+ *
+ * @param {'ok' | 'inconclusive' | 'dispatch-only' | 'missing'} verdict
+ * @returns {{ state: 'success' | 'failure', description: string }}
+ */
+export function statusFor(verdict) {
+  if (verdict === 'missing') {
+    return { state: 'failure', description: 'No ci.yml run exists for this head. Not queued, not failed - absent.' }
+  }
+  if (verdict === 'inconclusive') {
+    return {
+      state: 'failure',
+      description: 'Every ci.yml run for this head was cancelled or skipped. Nothing was verified.',
+    }
+  }
+  return { state: 'success', description: 'ci.yml produced a run for this head. This says nothing about whether it passed.' }
+}
+
+/**
+ * Why two flags cannot be used together, or undefined when they can.
+ *
+ * `--audit` reads `state=all` with no grace and no age limit, so every pull
+ * request this repository has ever had is a candidate; `--write` posts a
+ * failing commit status and a comment. Together they post both on every closed
+ * and merged pull request whose head has no run - #54, #58, #144 and #151 by
+ * this file's own audit, and more of them every time a run record ages out of
+ * GitHub's retention. **A comment on a merged pull request has no undo.** So
+ * this is a refusal before the first network call rather than a warning in a
+ * log nobody reads until afterwards: `--audit` reads history, `--write` acts on
+ * what is open, and the exit code already says as much by excluding audit from
+ * it.
+ *
+ * @param {{ audit: boolean, write: boolean }} flags
+ * @returns {string | undefined}
+ */
+export function modeRefusal({ audit, write }) {
+  if (audit && write) {
+    return (
+      '--audit and --write cannot be used together. --audit reads every pull request this repository has ' +
+      'had, closed and merged ones included, with no grace period; --write posts a failing commit status and ' +
+      'a comment. Together they would comment on merged pull requests whose run records have simply aged out, ' +
+      'and a comment on a merged pull request cannot be taken back. Use --audit to read, --write to act.'
+    )
+  }
+  return undefined
 }
 
 /** Minutes between two instants, floored at zero. */
@@ -229,11 +322,17 @@ export function commentBody({ number, headSha, since, otherWorkflows, mergeable,
     '',
     '**This is not the runner being asleep.** A run created while the self-hosted runner is',
     'offline exists as a `queued` record from the moment the event fires; this head has no',
-    'record of any status. It is also not a red run: this check never reads a conclusion.',
+    'record of any status. It is also not a red run, and not a cancelled one: a conclusion is',
+    'read here only to tell a cancelled run from one that reached a verdict, and this head has',
+    'no run to read either way.',
     '',
-    '**What to do now.** Run `ci.yml` against the branch with `workflow_dispatch`, which',
-    'queues immediately and runs all six steps against the branch rather than four against',
-    'the merge ref. Do not merge on the strength of an empty check list.',
+    '**What to do now.** Run `ci.yml` against the branch with `workflow_dispatch`, which queues',
+    'immediately and runs all six steps against the branch. That is more *testing* than the',
+    '`check` job runs and it is not a substitute for it: `check` matches the branch name against',
+    'the shape this project requires, and it builds `refs/pull/N/merge` rather than the branch',
+    'head. A dispatch run does neither, `github.head_ref` being empty on any event but a pull',
+    'request. Closing and reopening this pull request is what fires the event again. Do not',
+    'merge on the strength of an empty check list.',
     '',
     '**Facts recorded for issue #248, and asserted as nothing more than facts:**',
     '',
@@ -291,6 +390,17 @@ function annotate(level, message) {
   process.stdout.write(`::${level}::${message}\n`)
 }
 
+/**
+ * One run, as `event/status/conclusion`, for the summary line and the
+ * annotations. The conclusion is printed because it is now what separates an
+ * `ok` from an `inconclusive`, and a verdict whose evidence is not on the line
+ * beside it sends the reader to the API to find out why.
+ */
+function describeRun(run) {
+  const conclusion = run.conclusion === null || run.conclusion === undefined ? '' : `/${run.conclusion}`
+  return `${run.event}/${run.status}${conclusion}`
+}
+
 async function main() {
   const argv = process.argv.slice(2)
   const flag = (name, fallback) => {
@@ -304,9 +414,20 @@ async function main() {
   const audit = argv.includes('--audit')
   const graceMinutes = Number(flag('grace', String(DEFAULT_GRACE_MINUTES)))
 
+  // First, and ahead of the usage check, because this one is a misuse whatever
+  // the environment holds and the only safe place to catch it is before the
+  // first write. The reasoning is on modeRefusal.
+  const refusal = modeRefusal({ audit, write })
+  if (refusal !== undefined) {
+    annotate('error', refusal)
+    process.exitCode = 2
+    return
+  }
+
   if (repo === undefined || token === undefined) {
     process.stderr.write(
-      'usage: node scripts/pull-request-run-watchdog.mjs [--repo owner/name] [--grace 10] [--write] [--audit]\n' +
+      'usage: node app/scripts/pull-request-run-watchdog.mjs [--repo owner/name] [--grace 10] [--write | --audit]\n' +
+        'Run it from the repository root: it reads .github/workflows/ci.yml relative to itself.\n' +
         'GITHUB_REPOSITORY and GITHUB_TOKEN (or GH_TOKEN) must be set.\n',
     )
     process.exitCode = 2
@@ -355,6 +476,7 @@ async function main() {
   const pulls = await all(token, `/repos/${repo}/pulls?state=${audit ? 'all' : 'open'}&sort=created&direction=desc`)
   const lines = []
   let missing = 0
+  let inconclusive = 0
   let dispatchOnly = 0
   let refusedWrites = 0
 
@@ -391,7 +513,7 @@ async function main() {
     lines.push(
       `${verdict.padEnd(13)} #${String(pull.number).padEnd(5)} ${headSha.slice(0, 10)}  ${pull.head.ref}` +
         `  head since ${since.toISOString()}` +
-        `  ci runs: ${ciRuns.length === 0 ? 'none' : ciRuns.map((run) => `${run.event}/${run.status}`).join(' ')}`,
+        `  ci runs: ${ciRuns.length === 0 ? 'none' : ciRuns.map(describeRun).join(' ')}`,
     )
 
     if (verdict === 'dispatch-only') {
@@ -399,8 +521,22 @@ async function main() {
       annotate(
         'warning',
         `#${pull.number} (${pull.head.ref}) has a ci.yml run for ${headSha.slice(0, 10)} but none from the ` +
-          'pull_request event. That is more verification than the check job gives, not less, and it is ' +
-          'recorded here because issue #248 asks for the branches this happens on.',
+          'pull_request event. That is more testing than the check job runs and strictly less of what the ' +
+          'check job is for: a dispatch run makes no branch-name check, github.head_ref being empty on any ' +
+          'event but a pull request, and it builds the branch head rather than refs/pull/N/merge. Recorded ' +
+          'here because issue #248 asks for the branches this happens on.',
+      )
+    }
+
+    if (verdict === 'inconclusive') {
+      inconclusive += 1
+      annotate(
+        'error',
+        `#${pull.number} (${pull.head.ref}) has ci.yml runs from the pull_request event for ` +
+          `${headSha.slice(0, 10)} and every one of them ended without verifying anything: ` +
+          `${ciRuns.filter((run) => run.event === 'pull_request').map(describeRun).join(' ')}. ` +
+          'Nothing was linted, typechecked, built or branch-name-checked, and a cancelled run is a grey ' +
+          'icon GitHub mails nobody about. Close and reopen the pull request to fire the event again.',
       )
     }
 
@@ -444,24 +580,22 @@ async function main() {
     pull request left open for a week would reach that on its own at one tick
     every ten minutes, and the cap is reached silently. One read is cheaper than
     a write anyway.
+
+    The description is compared as well as the state, because two verdicts now
+    share `failure` and differ only in what they say: a head with no run that
+    later gets one and has it cancelled goes `missing` to `inconclusive`, and on
+    state alone that would leave the earlier description standing against the
+    later fact.
     */
     if (write && verdict !== 'young') {
-      const state = verdict === 'missing' ? 'failure' : 'success'
+      const { state, description } = statusFor(verdict)
       await attempt(`the ${STATUS_CONTEXT} status on #${pull.number}`, async () => {
         const combined = await api(token, `/repos/${repo}/commits/${headSha}/status`).catch(() => null)
         const standing = combined?.statuses?.find((status) => status.context === STATUS_CONTEXT)
-        if (standing?.state === state) return
+        if (standing?.state === state && standing?.description === description) return
         await api(token, `/repos/${repo}/statuses/${headSha}`, {
           method: 'POST',
-          body: JSON.stringify({
-            state,
-            context: STATUS_CONTEXT,
-            target_url: runUrl,
-            description:
-              verdict === 'missing'
-                ? 'No ci.yml run exists for this head. Not queued, not failed - absent.'
-                : 'ci.yml produced a run for this head. This says nothing about whether it passed.',
-          }),
+          body: JSON.stringify({ state, context: STATUS_CONTEXT, target_url: runUrl, description }),
         })
       })
     }
@@ -475,7 +609,7 @@ async function main() {
     '',
     ...(lines.length === 0 ? ['no pull requests to read'] : lines),
     '',
-    `missing ${missing}   dispatch-only ${dispatchOnly}   refused writes ${refusedWrites}`,
+    `missing ${missing}   inconclusive ${inconclusive}   dispatch-only ${dispatchOnly}   refused writes ${refusedWrites}`,
     '```',
   ].join('\n')
 
@@ -485,8 +619,11 @@ async function main() {
   }
 
   // A refused write is red for the same reason a missing run is: a mechanism
-  // that is not working and says nothing is the failure this file is about.
-  process.exitCode = (missing > 0 && !audit) || refusedWrites > 0 ? 1 : 0
+  // that is not working and says nothing is the failure this file is about. An
+  // inconclusive head is red for that reason too - it is a pull request nothing
+  // checked - and it is excluded from an audit for the same reason missing is,
+  // history being full of both legitimately.
+  process.exitCode = ((missing > 0 || inconclusive > 0) && !audit) || refusedWrites > 0 ? 1 : 0
 }
 
 // The same entry guard gate.mjs and run-suite.mjs carry: the classifier and the
