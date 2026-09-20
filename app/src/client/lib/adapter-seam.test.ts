@@ -111,6 +111,10 @@ function member(
   return {
     user: { id, display_name: name, avatar_url: null },
     role: 'member',
+    // Issue #228: every member element now carries its Access preset. This
+    // fixture is about the adapter seam and reads no preset; `can_edit` is
+    // what migration 0023 initializes an existing non-owner member to.
+    access: 'can_edit',
     joined_at: '2026-08-01T09:00:00.000Z',
     is_owner: false,
   }

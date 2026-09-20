@@ -243,15 +243,19 @@ export async function seed(): Promise<void> {
       (${seedIds.nadiaDesk}, ${seedIds.nadia}, 'Desk', true),
       (${seedIds.nadiaStudio}, ${seedIds.nadia}, 'Studio', false)
   `)
+  /* Access is written explicitly (issue #228) and the values are migration
+     0023's own rule read forward: the folder's owner is Full control and
+     every other member is Can edit. Imran is the one non-owner here, in
+     Hassan's Groceries. */
   await db.execute(sql`
-    INSERT INTO folder_members (folder_id, user_id, shelf_name, label, color)
+    INSERT INTO folder_members (folder_id, user_id, shelf_name, label, color, access)
     VALUES
-      (${seedIds.hassanDesk}, ${seedIds.hassan}, NULL, NULL, NULL),
-      (${seedIds.imranDesk}, ${seedIds.imran}, NULL, NULL, NULL),
-      (${seedIds.groceries}, ${seedIds.hassan}, 'Home', 'Home', '#33AA55'),
-      (${seedIds.groceries}, ${seedIds.imran}, NULL, NULL, NULL),
-      (${seedIds.nadiaDesk}, ${seedIds.nadia}, NULL, NULL, NULL),
-      (${seedIds.nadiaStudio}, ${seedIds.nadia}, NULL, NULL, NULL)
+      (${seedIds.hassanDesk}, ${seedIds.hassan}, NULL, NULL, NULL, 'full_control'),
+      (${seedIds.imranDesk}, ${seedIds.imran}, NULL, NULL, NULL, 'full_control'),
+      (${seedIds.groceries}, ${seedIds.hassan}, 'Home', 'Home', '#33AA55', 'full_control'),
+      (${seedIds.groceries}, ${seedIds.imran}, NULL, NULL, NULL, 'can_edit'),
+      (${seedIds.nadiaDesk}, ${seedIds.nadia}, NULL, NULL, NULL, 'full_control'),
+      (${seedIds.nadiaStudio}, ${seedIds.nadia}, NULL, NULL, NULL, 'full_control')
   `)
 
   await db.execute(sql`
@@ -288,8 +292,9 @@ export async function seed(): Promise<void> {
     VALUES (${seedIds.taskCallPlumber}, 60, NULL, ${reminderFireInstant}, ${seedIds.hassan})
   `)
   await db.execute(sql`
-    INSERT INTO invites (inviter_id, email, folder_id, task_id, status)
-    VALUES (${seedIds.hassan}, 'sana@example.com', ${seedIds.groceries}, NULL, 'pending')
+    INSERT INTO invites (inviter_id, email, folder_id, task_id, status, access)
+    VALUES (${seedIds.hassan}, 'sana@example.com', ${seedIds.groceries}, NULL,
+            'pending', 'can_edit')
   `)
 
   /* ---------------------------------------------------------------- *

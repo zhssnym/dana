@@ -46,7 +46,7 @@ import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
 import { initialKeys, keyBetween } from './fractional-index.js'
-import { accessibleTask, taskView } from './tasks.js'
+import { accessibleTask, mayActOnTask, taskView } from './tasks.js'
 
 export type PlaceTaskResult =
   | { kind: 'placed'; task: TaskDetail }
@@ -56,6 +56,8 @@ export type PlaceTaskResult =
    * hold. */
   | { kind: 'not_arrangeable' }
   | { kind: 'bad_neighbour'; field: 'after_id' | 'before_id' }
+  /** Visible, and not this member's to rearrange (issue #228). */
+  | { kind: 'forbidden'; reason: string }
 
 export interface Neighbours {
   afterId: string | null
@@ -117,6 +119,25 @@ export async function placeTaskInOrder(
     await tx.execute(
       sql`SELECT 1 FROM folders WHERE id = ${task.folderId}::uuid FOR UPDATE`,
     )
+    /* `task.move` (issue #228). Re-read under the folder lock rather than
+       reusing the resolution above, because the first placement rewrites the
+       whole list and the assignee that decides a Can-contribute member's
+       standing must be the one this transaction will write against.
+
+       **A first placement is a special case and is deliberately not treated
+       as one.** Seeding keys touches every row in the list, including other
+       members' work, which is exactly the coordination effect R8 keeps away
+       from Can contribute; but the seeding moves nothing a reader can see, so
+       refusing the whole drag over it would cost a contributor the
+       rearrangement of their own Task for a write nobody observes. The gate
+       is the ordinary one and the note is here so the next reader knows the
+       question was asked. */
+    const held = await accessibleTask(tx, viewerId, taskId)
+    if (held === null) return { kind: 'not_found' } as const
+    const decision = mayActOnTask(held, 'task.move')
+    if (!decision.allowed) {
+      return { kind: 'forbidden', reason: decision.reason } as const
+    }
     const list = await folderUnscheduledIds(tx, task.folderId)
     const places = new Map(list.map((row, index) => [row.id, index] as const))
     for (const [field, id] of [

@@ -71,6 +71,10 @@ export function createTrashRouter(options: TrashRouterOptions = {}): Router {
         sendError(res, 404, 'not_found', 'Not found.')
         return
       }
+      if (outcome !== 'restored') {
+        sendError(res, 403, 'forbidden', outcome.reason)
+        return
+      }
       res.status(200).json(await folderView(db, viewer(req), folderId))
     },
   )
@@ -84,12 +88,9 @@ export function createTrashRouter(options: TrashRouterOptions = {}): Router {
       return
     }
     if (outcome.kind === 'forbidden') {
-      sendError(
-        res,
-        403,
-        'forbidden',
-        'Only the folder owner can delete permanently.',
-      )
+      // The resolver's own sentence (issue #228): the two permanent deletes
+      // no longer share one rule, so they no longer share one refusal.
+      sendError(res, 403, 'forbidden', outcome.reason)
       return
     }
     // After the commit, 7.15's order: a row that no longer exists is the

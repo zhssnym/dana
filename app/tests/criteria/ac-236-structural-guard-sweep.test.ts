@@ -291,10 +291,21 @@ describe('AC-236 every mutating route is behind the whole chain', () => {
     // distinct routes and all fourteen are now mounted, so the count was
     // re-derived by running this sweep on the merged tree rather than by
     // arithmetic on the two diffs.
+    //
+    // **82 to 84 on 2026-09-20 for the two Access-administration mutations**
+    // (issue #228): `PATCH /folders/:id/members/:userId`, which changes one
+    // member's Access preset, and `POST /folders/:id/owner-recovery`, the
+    // structural owner's custody recovery. The same way round as every rise
+    // above — the sweep passed on both before this number was touched, 401
+    // bare and 403 without CSRF — and the two Access-history reads the same
+    // change adds move the count below rather than this one. #228 read 72 on
+    // its own tree, which held neither #224's two nor #226's twelve; the
+    // resolution is again the sum, and 84 is what this sweep itself reported
+    // on the rebased tree rather than what either diff implies.
     expect(
       routes.length,
-      `the walker found ${String(routes.length)} mutating routes and there were 82 after issue #224 added the two task-dependency mutations and issue #226 added the twelve mutating routes of the Label surface. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means a route was added, and this number moves with it in the same change`,
-    ).toBe(82)
+      `the walker found ${String(routes.length)} mutating routes and there were 84 after issue #224 added the two task-dependency mutations, issue #226 added the twelve mutating routes of the Label surface and issue #228 added the two Access-administration mutations. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means a route was added, and this number moves with it in the same change`,
+    ).toBe(84)
 
     const failures: string[] = []
     const jsonBody = {
@@ -387,10 +398,18 @@ describe('AC-236 every mutating route is behind the whole chain', () => {
     // and `GET /labels` from #226 are four distinct routes and all four are
     // now mounted; this count was re-derived by running the sweep on the
     // merged tree rather than by taking either side.
+    //
+    // 41 to 43 on 2026-09-20 for the two Access-history reads (issue #228):
+    // `GET /folders/:id/access-history` and
+    // `GET /folders/:id/members/:userId/access-history`. Neither earns a
+    // PUBLIC_READS entry and neither needs one: both answer 401 bare, which
+    // the sweep below established before this number moved. #228 read 42 on
+    // its own tree, which held none of the four above it, so 43 is this
+    // sweep's own answer on the rebased tree and not either diff's.
     expect(
       routes.length,
-      `the walker found ${String(routes.length)} reading routes and there were 41 after issue #223 added the two Dana Link reads, issue #224 added the task-dependency read and issue #226 added the Label definition listing. Fewer means the enumeration lost sight of routes that still exist; more means a GET was added, and it must either answer 401 bare or earn a PUBLIC_READS entry, and this number moves with it in the same change`,
-    ).toBe(41)
+      `the walker found ${String(routes.length)} reading routes and there were 43 after issue #223 added the two Dana Link reads, issue #224 added the task-dependency read, issue #226 added the Label definition listing and issue #228 added the two Access-history reads. Fewer means the enumeration lost sight of routes that still exist; more means a GET was added, and it must either answer 401 bare or earn a PUBLIC_READS entry, and this number moves with it in the same change`,
+    ).toBe(43)
 
     const failures: string[] = []
     for (const { method, path } of routes) {

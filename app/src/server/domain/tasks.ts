@@ -61,6 +61,12 @@ import type { ReminderTrigger } from '../time/index.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
+import { mayPerform, presetOf } from './folder-access.js'
+import type {
+  FolderAction,
+  FolderActionDecision,
+  FolderActorFacts,
+} from './folder-access.js'
 import { accessOf } from './folders.js'
 import { dropFolderLabelsOnMove, taskLabelsOf } from './labels.js'
 import { positionAtSectionEnd, seededItems } from './page-order.js'
@@ -118,14 +124,44 @@ export interface TaskAccess {
      two columns, so a PATCH setting one of them has to be checked against
      whichever the row already holds (issue #215). */
   startDate: string | null
+  /**
+   * The actor's durable Folder facts, carried by the same membership join
+   * that scoped this read (issue #228).
+   *
+   * It rides here rather than being fetched beside each call because of what
+   * R7's transactional requirement asks for: the Access preset, the owner
+   * fact and the Task's current assignee must be one consistent picture, read
+   * in the transaction that is about to write. `lockedTask` takes the task
+   * row `FOR UPDATE OF t` and returns this with `assigneeId` beside it, so a
+   * reassignment that commits between somebody's screen and their request is
+   * seen by the gate rather than by nobody.
+   */
+  facts: FolderActorFacts
 }
 
+/* The three columns issue #228 added carry the actor's Folder facts: the
+   persisted preset from the membership row the join already makes, and the
+   owner flag and name from the folders row it already joins. No extra
+   statement, and no window in which the preset could be read from a
+   different snapshot than the assignee. */
 const TASK_ACCESS_COLUMNS = sql`t.id, t.folder_id, t.title, t.status,
        t.assignee_id, ${START_DATE} AS start_date,
        ${DUE_DATE} AS due_date, ${DUE_TIME} AS due_time,
-       t.recurrence_rule, t.section_block_id`
+       t.recurrence_rule, t.section_block_id,
+       m.access AS actor_access, fo.name AS folder_name,
+       fo.is_default AS folder_is_default,
+       (fo.owner_id = m.user_id) AS actor_is_owner`
 
-function taskAccessFromRow(row: Record<string, unknown>): TaskAccess {
+function taskAccessFromRow(
+  row: Record<string, unknown>,
+  viewerId: string,
+): TaskAccess {
+  const access = presetOf(row.actor_access)
+  if (access === null) {
+    throw new Error(
+      `folder_members.access holds an unknown preset for ${viewerId} in ${String(row.folder_id)}`,
+    )
+  }
   return {
     id: String(row.id),
     folderId: String(row.folder_id),
@@ -137,7 +173,31 @@ function taskAccessFromRow(row: Record<string, unknown>): TaskAccess {
     recurrenceRule: nullableString(row.recurrence_rule),
     sectionBlockId: nullableString(row.section_block_id),
     startDate: nullableString(row.start_date),
+    facts: {
+      folderId: String(row.folder_id),
+      actorId: viewerId,
+      access,
+      isOwner: row.actor_is_owner === true,
+      isDefault: row.folder_is_default === true,
+      name: String(row.folder_name),
+    },
   }
+}
+
+/**
+ * The whole authorization answer for an act on one Task, with the assignee
+ * taken from the row the caller read -- under a lock, where the caller is
+ * about to write.
+ *
+ * This is the only place in this file that decides anything about authority.
+ * `mayPerform` holds the rules; this carries the target fact R7 requires be
+ * evaluated in the mutation's own snapshot, and nothing else.
+ */
+export function mayActOnTask(
+  task: TaskAccess,
+  action: FolderAction,
+): FolderActionDecision {
+  return mayPerform(task.facts, action, { assigneeId: task.assigneeId })
 }
 
 /** Null means the task does not exist or lives in a folder the viewer is not
@@ -158,7 +218,7 @@ export async function accessibleTask(
         WHERE t.id = ${taskId} AND t.deleted_at IS NULL`,
   )
   const row = found[0]
-  return row === undefined ? null : taskAccessFromRow(row)
+  return row === undefined ? null : taskAccessFromRow(row, viewerId)
 }
 
 /*
@@ -194,7 +254,7 @@ async function lockedTask(
         FOR UPDATE OF t`,
   )
   const row = found[0]
-  return row === undefined ? null : taskAccessFromRow(row)
+  return row === undefined ? null : taskAccessFromRow(row, viewerId)
 }
 
 /*
@@ -595,6 +655,10 @@ export type CreateTaskResult =
   | { kind: 'folder_not_found' }
   | { kind: 'assignee_not_member' }
   | { kind: 'section_not_here' }
+  /** The folder is visible to the actor and the act is not theirs to perform
+   * (issue #228). 403 with the resolver's own sentence, never 404: 10.2 keeps
+   * 404 for what the caller cannot see, and they can see this. */
+  | { kind: 'forbidden'; reason: string }
 
 /** 4.17: the block exists, it is a section, and its page is this folder's. */
 async function sectionInFolder(
@@ -644,6 +708,16 @@ export async function createTaskIn(
     const folderId = body.folder_id ?? (await inboxOf(tx, viewerId))
     const access = await accessOf(tx, viewerId, folderId)
     if (access === null) return { kind: 'folder_not_found' }
+    /* R8A: originating new Task work in a Folder is Can contribute's and
+       above. The initial assignee the body names is part of that origination
+       act and is *not* a separate `task.assign` -- R8 says so in terms -- so
+       it is deliberately not checked here; what a contributor does not get is
+       edit authority over the Task afterwards, which `patchTask`'s own gate
+       resolves from the assignee rather than from who created it. */
+    const admitted = mayPerform(access, 'task.create')
+    if (!admitted.allowed) {
+      return { kind: 'forbidden', reason: admitted.reason }
+    }
 
     /* #184 gives every folder one mixed ordering domain. Lock it before
        validating a Section or choosing an append position, so a concurrent
@@ -780,6 +854,7 @@ export type PatchTaskResult =
   | { kind: 'start_after_due'; field: 'start_date' | 'due_date' }
   | { kind: 'section_not_here' }
   | { kind: 'reminder_refused'; refusal: ReminderRefusal }
+  | { kind: 'forbidden'; reason: string }
 
 /*
 7.6's PATCH, one transaction, and every refusal returns before the first
@@ -882,15 +957,68 @@ export async function patchTask(
       return { kind: 'not_found' }
     }
 
+    /*
+    The Access gate (issue #228), and the reason it sits exactly here.
+
+    `lockedTask` has just taken this row `FOR UPDATE OF t` and returned the
+    assignee it holds *now*, in this transaction's snapshot. That is R7's
+    transactional requirement met literally: a Can-contribute or Assigned-work
+    member whose standing over this Task comes from being its assignee is
+    measured against the row the write is about to touch, so a reassignment
+    that commits between somebody's screen and their request is seen. A gate
+    placed before the lock would be a projection, and a projection must never
+    authorize.
+
+    One PATCH can be three different acts, and each is checked separately
+    rather than collapsed into the widest of them -- a body that renames a
+    Task *and* reassigns it must satisfy both `task.edit` and `task.assign`,
+    and a member who may do only the first is refused the whole request rather
+    than having half of it applied. Every other refusal in this function has
+    the same all-or-nothing shape.
+    */
+    const acts: FolderAction[] = []
+    if (
+      patch.title !== undefined ||
+      patch.notes !== undefined ||
+      patch.important !== undefined ||
+      patch.start_date !== undefined ||
+      patch.due_date !== undefined ||
+      patch.due_time !== undefined ||
+      patch.recurrence_rule !== undefined
+    ) {
+      acts.push('task.edit')
+    }
+    if (patch.assignee_id !== undefined) acts.push('task.assign')
+    if (patch.folder_id !== undefined || patch.section_block_id !== undefined) {
+      acts.push('task.move')
+    }
+    if (patch.reminder !== undefined) acts.push('task.reminder.manage')
+    for (const act of acts) {
+      const decision = mayActOnTask(current, act)
+      if (!decision.allowed) {
+        return { kind: 'forbidden', reason: decision.reason }
+      }
+    }
+
     const target =
       patch.folder_id !== undefined && patch.folder_id !== current.folderId
         ? patch.folder_id
         : undefined
-    if (
-      target !== undefined &&
-      (await accessOf(tx, viewerId, target)) === null
-    ) {
-      return { kind: 'target_not_found' }
+    if (target !== undefined) {
+      const into = await accessOf(tx, viewerId, target)
+      if (into === null) return { kind: 'target_not_found' }
+      /* Authority in the folder the Task is moving *into*, asked with no
+         assignee target on purpose: R7 section D puts "move to another
+         Folder" squarely with Can edit, so the current-assignee clause that
+         lets Can contribute rearrange their own work inside one Folder must
+         not fire across the boundary between two. Without this the gate above
+         would let a Can-contribute member push their Task into a Folder where
+         they may only contribute, or a Can-edit member push one into a Folder
+         where they may only comment. */
+      const admitted = mayPerform(into, 'task.move')
+      if (!admitted.allowed) {
+        return { kind: 'forbidden', reason: admitted.reason }
+      }
     }
     const moving = target !== undefined
     const folderId = target ?? current.folderId
@@ -1243,7 +1371,7 @@ export async function deleteTask(
   db: Db,
   viewerId: string,
   taskId: string,
-): Promise<'deleted' | 'not_found'> {
+): Promise<'deleted' | 'not_found' | { kind: 'forbidden'; reason: string }> {
   return inTransaction(db, async (tx) => {
     const preview = await accessibleTask(tx,viewerId,taskId)
     if(preview===null)return 'not_found'
@@ -1251,6 +1379,15 @@ export async function deleteTask(
     const current = await accessibleTask(tx, viewerId, taskId)
     if (current === null) {
       return 'not_found'
+    }
+    /* R8, in terms: Can contribute may not trash shared Tasks, their own
+       included. This gate is therefore asked with no assignment escape --
+       `task.trash` names no `whenAssignedToActor` presets, so the assignee
+       the read carries changes nothing here, and passing it costs nothing and
+       keeps every task gate in this file one shape. */
+    const decision = mayActOnTask(current, 'task.trash')
+    if (!decision.allowed) {
+      return { kind: 'forbidden', reason: decision.reason }
     }
     await tx.execute(
       sql`UPDATE tasks SET deleted_at = now(), updated_at = now()
@@ -1289,6 +1426,7 @@ export type TransitionResult =
   | { kind: 'noop'; task: TaskDetail }
   | { kind: 'conflict'; message: string }
   | { kind: 'not_found' }
+  | { kind: 'forbidden'; reason: string }
   /** Frozen 7.6 as ruled on 2026-08-10: the transition would run generation
    * and the request named no zone. Nothing is written, so the same call
    * retried with one gets the transition it asked for. */
@@ -1427,6 +1565,31 @@ export async function transitionTask(
     const current = await lockedTask(tx, viewerId, taskId)
     if (current === null) return { kind: 'not_found' }
 
+    /*
+    The Access gate, and this is the one the whole race-safety argument is
+    about (issue #228, R7 section E).
+
+    Assigned work means: execute the plan for Tasks *currently* assigned to
+    you. `lockedTask` a line above took this row `FOR UPDATE OF t`, so the
+    assignee it returned is the assignee the guarded UPDATE below will act on,
+    and no concurrent reassignment can slip between them. A gate that read the
+    assignee outside this lock -- or, worse, trusted the client's copy --
+    would let somebody complete a Task that had just been taken off them.
+
+    Complete and uncomplete are execution and belong to the assignee; abandon
+    and restore are not, which R7 section E states outright, so they carry the
+    different action and Assigned work is refused them.
+    */
+    const decision = mayActOnTask(
+      current,
+      event === 'complete' || event === 'uncomplete'
+        ? 'task.status.complete'
+        : 'task.status.abandon',
+    )
+    if (!decision.allowed) {
+      return { kind: 'forbidden', reason: decision.reason }
+    }
+
     // 8.3's expected-status predicate, read once under the lock: the update
     // below carries it too, and these two cannot disagree while the lock is
     // held.
@@ -1503,6 +1666,7 @@ export type AddStepResult =
   | { kind: 'added'; task: TaskDetail }
   | { kind: 'not_found' }
   | { kind: 'step_cap' }
+  | { kind: 'forbidden'; reason: string }
 
 /*
 7.7's create. The cap is a live count of rows rather than a high-water mark,
@@ -1529,6 +1693,14 @@ export async function addStep(
     const current = await lockedTask(tx, viewerId, taskId)
     if (current === null) {
       return { kind: 'not_found' }
+    }
+    /* R7 section G: adding a Step rewrites the checklist that defines what
+       completion means, which is not execution. Assigned work is refused it
+       even on their own Task; Can contribute has it over work currently
+       assigned to them, which the locked assignee decides. */
+    const decision = mayActOnTask(current, 'step.manage')
+    if (!decision.allowed) {
+      return { kind: 'forbidden', reason: decision.reason }
     }
     const counted = await rowsOf(
       tx,
@@ -1563,6 +1735,7 @@ export async function addStep(
 export type StepResult =
   | { kind: 'ok'; task: TaskDetail }
   | { kind: 'not_found' }
+  | { kind: 'forbidden'; reason: string }
 
 /** A step named inside 4.13's 200-character detail: whole when short, cut
  * with an ellipsis when not, so a long step never makes the event refuse. */
@@ -1616,6 +1789,29 @@ export async function patchStep(
   return inTransaction(db, async (tx) => {
     const step = await accessibleStep(tx, viewerId, stepId)
     if (step === null) return { kind: 'not_found' }
+    /*
+    The parent Task, locked, because the Step's authorization is the parent's
+    (issue #228). It costs one statement and buys the property R7 requires:
+    the assignee this gate reads is the assignee under the lock, so a Step
+    cannot be ticked by somebody the Task was reassigned away from.
+
+    **Ticking a Step and rewriting one are two different acts**, and the split
+    is R7 section G's whole point: an Assigned-work member executes the
+    checklist and may not rewrite the scope it describes. So `done` alone is
+    `step.toggle`, and a body that also renames or reorders is `step.manage`.
+    A body carrying both is the stricter of the two rather than the looser.
+    */
+    const parent = await lockedTask(tx, viewerId, step.taskId)
+    if (parent === null) return { kind: 'not_found' }
+    const structural =
+      patch.title !== undefined || patch.position !== undefined
+    const decision = mayActOnTask(
+      parent,
+      structural ? 'step.manage' : 'step.toggle',
+    )
+    if (!decision.allowed) {
+      return { kind: 'forbidden', reason: decision.reason }
+    }
 
     const sets: SQL[] = []
     if (patch.title !== undefined) sets.push(sql`title = ${patch.title}`)
@@ -1655,10 +1851,18 @@ export async function deleteStep(
   db: Db,
   viewerId: string,
   stepId: string,
-): Promise<'deleted' | 'not_found'> {
+): Promise<'deleted' | 'not_found' | { kind: 'forbidden'; reason: string }> {
   return inTransaction(db, async (tx) => {
     const step = await accessibleStep(tx, viewerId, stepId)
     if (step === null) return 'not_found'
+    const parent = await lockedTask(tx, viewerId, step.taskId)
+    if (parent === null) return 'not_found'
+    // R7 section G: deleting a Step is rewriting the checklist, never
+    // executing it.
+    const decision = mayActOnTask(parent, 'step.manage')
+    if (!decision.allowed) {
+      return { kind: 'forbidden', reason: decision.reason }
+    }
     await tx.execute(sql`DELETE FROM steps WHERE id = ${stepId}::uuid`)
     await recordEvent(tx, {
       actorId: viewerId,
@@ -1676,6 +1880,7 @@ export async function deleteStep(
 export type PromoteStepResult =
   | { kind: 'promoted'; task: TaskDetail }
   | { kind: 'not_found' }
+  | { kind: 'forbidden'; reason: string }
 
 /*
 POST /tasks/:id/steps/:stepId/promote (RFC 0005 change control item 58, B9's
@@ -1700,6 +1905,16 @@ export async function promoteStep(
     const step = await accessibleStep(tx, viewerId, stepId)
     if (step === null || step.taskId !== taskId) return { kind: 'not_found' }
     await tx.execute(sql`SELECT 1 FROM folders WHERE id=${step.folderId}::uuid FOR UPDATE`)
+    /* R7 section G lists promote among the Step acts Assigned work may not
+       perform, and it is the strongest of them: it takes a line out of the
+       checklist somebody is being measured against and makes it separate
+       work. `step.manage`, against the locked parent. */
+    const held = await lockedTask(tx, viewerId, taskId)
+    if (held === null) return { kind: 'not_found' }
+    const decision = mayActOnTask(held, 'step.manage')
+    if (!decision.allowed) {
+      return { kind: 'forbidden', reason: decision.reason }
+    }
     const parent = (
       await rowsOf(
         tx,
@@ -1775,12 +1990,25 @@ function the view reads it with. today() from src/server/time is what Q1
 calls, so the two civil dates are now one computation with one input rather
 than two agreeing by luck.
 */
+/**
+ * My Day's two results.
+ *
+ * It was `StepResult` until issue #228 gave that union a `forbidden` arm, and
+ * My Day has no such arm and must not grow one: R7 section A puts personal
+ * state outside Folder Access, so every member who can *see* the Task may put
+ * it on their own day, Can view included. A type that admitted a refusal here
+ * would be an invitation to add one.
+ */
+export type MyDayResult =
+  | { kind: 'ok'; task: TaskDetail }
+  | { kind: 'not_found' }
+
 export async function pullIntoMyDay(
   db: Db,
   viewerId: string,
   taskId: string,
   tz: string,
-): Promise<StepResult> {
+): Promise<MyDayResult> {
   return inTransaction(db, async (tx) => {
     if ((await accessibleTask(tx, viewerId, taskId)) === null) {
       return { kind: 'not_found' }
@@ -1801,7 +2029,7 @@ export async function dropFromMyDay(
   db: Db,
   viewerId: string,
   taskId: string,
-): Promise<StepResult> {
+): Promise<MyDayResult> {
   return inTransaction(db, async (tx) => {
     if ((await accessibleTask(tx, viewerId, taskId)) === null) {
       return { kind: 'not_found' }
@@ -1822,6 +2050,7 @@ export type PutReminderResult =
   | { kind: 'written'; task: TaskDetail }
   | { kind: 'not_found' }
   | { kind: 'refused'; refusal: ReminderRefusal }
+  | { kind: 'forbidden'; reason: string }
 
 /**
  * Frozen 7.9's PUT: the whole reminder, upserted, answering the affected
@@ -1845,6 +2074,19 @@ export async function putTaskReminder(
   return inTransaction(db, async (tx) => {
     const current = await lockedTask(tx, viewerId, taskId)
     if (current === null) return { kind: 'not_found' }
+    /* R7 section E puts the reminder with the assignee, and the reason is
+       8.6: Dana delivers it to whoever the Task is assigned to, so the person
+       who will be woken by it is the person who sets it. Can edit and above
+       may set it on anybody's Task; Assigned work and Can contribute may set
+       it on the one currently assigned to them, which the locked row decides.
+
+       Order is 10.2's and unchanged: access first, then the body's own
+       refusals, so a caller outside the folder never learns whether their
+       body would have been valid. */
+    const decision = mayActOnTask(current, 'task.reminder.manage')
+    if (!decision.allowed) {
+      return { kind: 'forbidden', reason: decision.reason }
+    }
 
     const mode = modeOf(body)
     const refusal = reminderRefusal(current.dueDate, current.dueTime, mode)
@@ -1883,11 +2125,18 @@ export async function deleteTaskReminder(
   db: Db,
   viewerId: string,
   taskId: string,
-): Promise<'deleted' | 'not_found'> {
+): Promise<'deleted' | 'not_found' | { kind: 'forbidden'; reason: string }> {
   return inTransaction(db, async (tx) => {
-    const current = await accessibleTask(tx, viewerId, taskId)
+    const current = await lockedTask(tx, viewerId, taskId)
     if (current === null) {
       return 'not_found'
+    }
+    // The same rule as the PUT: whoever may set it may clear it. The read is
+    // the locked one so the assignee this decides on is the assignee the
+    // DELETE below acts against (issue #228).
+    const decision = mayActOnTask(current, 'task.reminder.manage')
+    if (!decision.allowed) {
+      return { kind: 'forbidden', reason: decision.reason }
     }
     const removed = await rowsOf(
       tx,

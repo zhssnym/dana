@@ -35,6 +35,7 @@ import type { Db } from '../../../db/client.js'
 import type { ObjectStore } from '../files/store.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
+import { mayPerform } from './folder-access.js'
 import { accessOf } from './folders.js'
 
 export type FileKind = 'image' | 'file' | 'voice' | 'cover' | 'avatar'
@@ -105,6 +106,9 @@ export type CreateFileResult =
   | { kind: 'too_large' }
   | { kind: 'voice_too_long' }
   | { kind: 'quota_exceeded' }
+  /** The folder is visible to the actor and the upload is not theirs to make
+   * (issue #228). */
+  | { kind: 'forbidden'; reason: string }
 
 function mimeMatchesKind(kind: FileKind, mime: string): boolean {
   if (IMAGE_KINDS.has(kind)) return RASTER_MIMES.has(mime)
@@ -172,8 +176,27 @@ export async function createFile(
     if (input.folderId !== null) return { kind: 'kind_mime_mismatch' }
   } else if (input.folderId === null) {
     if (!FOLDERLESS_KINDS.has(input.kind)) return { kind: 'folder_not_found' }
-  } else if ((await accessOf(db, viewerId, input.folderId)) === null) {
-    return { kind: 'folder_not_found' }
+  } else {
+    const facts = await accessOf(db, viewerId, input.folderId)
+    if (facts === null) return { kind: 'folder_not_found' }
+    /*
+    R7 section J splits folder-scoped uploads by *what the file supports*,
+    not by who is uploading it, and the two bars are different. A `file` or a
+    `voice` note hangs on a comment thread, so it takes commenting's bar; a
+    `cover` or an `image` decorates the Folder's page, so it takes ordinary
+    shared Work's. Those four kinds are the whole of what can arrive here with
+    a folder -- an avatar refuses one outright, three lines up -- so the two
+    actions between them are total over this branch.
+
+    This is the upload half of undoing "uploader authorship is standing
+    authority". The delete half is in `deleteFile` below.
+    */
+    const action =
+      input.kind === 'file' || input.kind === 'voice'
+        ? 'file.upload.comment'
+        : 'file.upload.page'
+    const allowed = mayPerform(facts, action)
+    if (!allowed.allowed) return { kind: 'forbidden', reason: allowed.reason }
   }
 
   if (!mimeMatchesKind(input.kind, input.mime)) {
@@ -380,15 +403,40 @@ export async function deleteFile(
   fileId: string,
 ): Promise<DeleteFileResult> {
   const outcome = await inTransaction(db, async (tx) => {
+    /*
+    **The rule changed here, and it is the sharpest edge of the authorship
+    ruling** (issue #228; #209 R7 section J says it supersedes the old one in
+    terms).
+
+    It was "the uploader or the folder owner". The uploader half is exactly
+    what the accepted cross-cutting rule forbids -- a member reduced to Can
+    view kept permanent delete authority over every file they had ever put in
+    the Folder, which is authorship surviving a downgrade as hidden mutation
+    power. The owner half is the ownership-as-authority proxy #209 removes
+    everywhere else.
+
+    Both are replaced by one question: does the actor hold Full control of the
+    Folder this file lives in? R7 section J puts direct permanent deletion of
+    a Folder-scoped file there, beside the other irreversible acts.
+
+    A **folderless** file has no Folder Access to resolve -- an avatar, a
+    shelf's picture, a place cover -- and stays the owner's alone, which R7
+    section J also says outright and which the statement's own `folder_id IS
+    NULL` branch expresses. That is not a hole: those rows are personal by
+    construction and no Folder's members can read them.
+    */
     const removed = await rowsOf(
       tx,
       sql`DELETE FROM files f
           WHERE f.id = ${fileId}
             AND (
-              f.owner_id = ${viewerId}
-              OR EXISTS (SELECT 1 FROM folders fo
-                          WHERE fo.id = f.folder_id
-                            AND fo.owner_id = ${viewerId})
+              (f.folder_id IS NULL AND f.owner_id = ${viewerId})
+              OR EXISTS (SELECT 1 FROM folder_members m
+                          JOIN folders fo ON fo.id = m.folder_id
+                          WHERE m.folder_id = f.folder_id
+                            AND m.user_id = ${viewerId}
+                            AND m.access = 'full_control'
+                            AND fo.deleted_at IS NULL)
             )
           RETURNING f.id`,
     )

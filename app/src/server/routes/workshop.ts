@@ -30,7 +30,9 @@ import {
   importWorkflow,
   transferOwnershipTo,
 } from '../domain/acts.js'
-import { accessOf } from '../domain/folders.js'
+import { accessOf, isEligibleSuccessor } from '../domain/folders.js'
+import { mayPerform } from '../domain/folder-access.js'
+import type { FolderAction } from '../domain/folder-access.js'
 import { today } from '../time/today.js'
 import { DocumentRefusal } from '../domain/page-document.js'
 import { actOnFolderPage, pageView, putPage } from '../domain/pages.js'
@@ -42,7 +44,7 @@ import {
   patchShelf,
   shelfView,
 } from '../domain/shelves.js'
-import { accessibleTask, taskView } from '../domain/tasks.js'
+import { accessibleTask, mayActOnTask, taskView } from '../domain/tasks.js'
 import type { ObjectStore } from '../files/store.js'
 import {
   sendError,
@@ -107,6 +109,33 @@ export function createWorkshopRouter(
 ): Router {
   const { router, database, viewer, parsedId } = routerWithPreamble(options)
   const mutationLimit = optionalLimit(options.rateLimits?.generalMutations)
+
+  /** `routes/folders.ts`'s gate, one router over (issue #228): resolve the
+   * folder first so an outsider gets 10.2's 404, then ask the resolver
+   * whether the act is this member's and answer 403 with its own sentence.
+   * Duplicated as four lines rather than shared, because a router in this
+   * directory takes its own `database`/`viewer` closures from the preamble
+   * and a shared helper would have to be handed both. */
+  const gate = async (
+    req: Request,
+    res: Response,
+    folderId: string,
+    action: FolderAction,
+  ): Promise<boolean> => {
+    const db = database(res)
+    if (db === null) return false
+    const facts = await accessOf(db, viewer(req), folderId)
+    if (facts === null) {
+      sendError(res, 404, 'not_found', 'Not found.')
+      return false
+    }
+    const decision = mayPerform(facts, action)
+    if (!decision.allowed) {
+      sendError(res, 403, 'forbidden', decision.reason)
+      return false
+    }
+    return true
+  }
   const securityLog = options.securityLog ?? createSecurityLogger()
 
   /** `routes/files.ts`'s guard, one router over: an application constructed
@@ -168,10 +197,11 @@ export function createWorkshopRouter(
       if (db === null) return
       const folderId = parsedId(res, req.params.id)
       if (folderId === null) return
-      if ((await accessOf(db, viewer(req), folderId)) === null) {
-        sendError(res, 404, 'not_found', 'Not found.')
-        return
-      }
+      /* R7 section C: the Folder page and composer are ordinary shared Work,
+         so Can edit and above write them. The header above this block said
+         "any member edits (D1)"; that was the rule before #209 and it is the
+         one R8A narrows. */
+      if (!(await gate(req, res, folderId, 'folder.page.edit'))) return
       const parsed = parseBody(putPageBody, req, res, securityLog)
       if (parsed === null) return
       const outcome = await putPage(
@@ -214,6 +244,14 @@ export function createWorkshopRouter(
         )
         return
       }
+      if (outcome.kind === 'forbidden') {
+        /* Unreachable behind the route gate above and kept for its reason:
+           the domain refuses a caller it was handed rather than trusting
+           one (issue #35), and a result arm with no mapping would answer
+           this 403 as an unhandled shape. */
+        sendError(res, 403, 'forbidden', outcome.reason)
+        return
+      }
       res.status(200).json(outcome.page)
     },
   )
@@ -228,12 +266,16 @@ export function createWorkshopRouter(
       if (db === null) return
       const folderId = parsedId(res, req.params.id)
       if (folderId === null) return
-      /* AC-397's explicit route gate. The domain repeats it so a future
-         non-HTTP caller cannot turn an id into authority. */
-      if ((await accessOf(db, viewer(req), folderId)) === null) {
-        sendError(res, 404, 'not_found', 'Not found.')
-        return
-      }
+      /* AC-397's explicit route gate, now carrying the Access answer too.
+         A page action creates, deletes and reorders Sections and moves Tasks
+         between them, which R8 keeps away from Can contribute in terms: they
+         may place their own Task among *existing* Sections and may not
+         rewrite the Folder's structure. `folder.section.manage` is the
+         stricter of the two readings and is deliberately the one asked here,
+         because this endpoint's body can carry either kind of action and
+         telling them apart would put an authorization decision inside a
+         batch. Said out loud in the pull request's refusals list. */
+      if (!(await gate(req, res, folderId, 'folder.section.manage'))) return
       const parsed = parseBody(pageActionBody, req, res, securityLog)
       if (parsed === null) return
       const outcome = await actOnFolderPage(db, viewer(req), folderId, parsed)
@@ -273,6 +315,14 @@ export function createWorkshopRouter(
       }
       if (outcome.kind === 'not_convertible') {
         sendError(res, 422, 'validation_failed', 'This page block cannot be changed that way.')
+        return
+      }
+      if (outcome.kind === 'forbidden') {
+        /* Unreachable behind the route gate above and kept for its reason:
+           the domain refuses a caller it was handed rather than trusting
+           one (issue #35), and a result arm with no mapping would answer
+           this 403 as an unhandled shape. */
+        sendError(res, 403, 'forbidden', outcome.reason)
         return
       }
       res.status(200).json(outcome.page)
@@ -521,6 +571,14 @@ export function createWorkshopRouter(
         )
         return
       }
+      if (outcome.kind === 'forbidden') {
+        /* Unreachable behind the route gate above and kept for its reason:
+           the domain refuses a caller it was handed rather than trusting
+           one (issue #35), and a result arm with no mapping would answer
+           this 403 as an unhandled shape. */
+        sendError(res, 403, 'forbidden', outcome.reason)
+        return
+      }
       res.status(200).json(outcome.page)
     },
   )
@@ -539,10 +597,12 @@ export function createWorkshopRouter(
       if (db === null) return
       const folderId = parsedId(res, req.params.id)
       if (folderId === null) return
-      if ((await accessOf(db, viewer(req), folderId)) === null) {
-        sendError(res, 404, 'not_found', 'Not found.')
-        return
-      }
+      /* R7 section K: copying a whole shared work structure is more than
+         ordinary read participation, so it is Can edit and above. The copy
+         itself is the duplicator's own new Folder, of which they become owner
+         and Full control -- `createFolder` sees to that -- so nothing about
+         the source's Access travels with it. */
+      if (!(await gate(req, res, folderId, 'folder.duplicate'))) return
       const anchor = anchorOf(req, res)
       if (anchor === REFUSED) return
       const store = storeOf(res)
@@ -590,6 +650,19 @@ export function createWorkshopRouter(
       const source = await accessibleTask(db, viewer(req), taskId)
       if (source === null) {
         sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      /* R7 section K and #228: duplicating a Task is Can edit's. R8 would
+         extend it to Can contribute "where implementation can preserve the
+         accepted boundary", and this implementation cannot: `duplicateTask`
+         copies the source's assignee, so a contributor could mint a second
+         copy of somebody else's Task still assigned to that person, which is
+         originating work *for* another member rather than for themselves.
+         Refusing is the safe half of an ambiguity and is on the pull
+         request's refusals list. */
+      const mayCopy = mayActOnTask(source, 'task.duplicate')
+      if (!mayCopy.allowed) {
+        sendError(res, 403, 'forbidden', mayCopy.reason)
         return
       }
       const anchor = anchorOf(req, res)
@@ -679,20 +752,13 @@ export function createWorkshopRouter(
       if (folderId === null) return
       const parsed = parseBody(z.object({ to: z.uuid() }), req, res, securityLog)
       if (parsed === null) return
+      /* Owner-only, and Full control does not confer it (R5's small custody
+         set). The resolver says so as `atLeast: null, owner: 'required'`,
+         which is the one rule on this surface that reads no preset at all. */
+      if (!(await gate(req, res, folderId, 'folder.ownership.transfer'))) return
       const access = await accessOf(db, viewer(req), folderId)
       if (access === null) {
         sendError(res, 404, 'not_found', 'Not found.')
-        return
-      }
-      if (!access.isOwner) {
-        // Visible but not permitted (DES-225): the member sees the folder,
-        // so the refusal may say why.
-        sendError(
-          res,
-          403,
-          'forbidden',
-          'Only the folder owner can transfer ownership.',
-        )
         return
       }
       if (access.isDefault) {
@@ -701,6 +767,28 @@ export function createWorkshopRouter(
           409,
           'conflict',
           'The default folder cannot change hands (INV-2).',
+        )
+        return
+      }
+      /*
+      **Successor eligibility, which is new and is R6 section 2's whole
+      point.** An owner may hand custody only to an active human member who
+      currently holds Full control. Before #228 any member would do, which
+      meant custody of a shared Folder could land on somebody with no
+      administrative standing in it at all -- and, through the automatic
+      "earliest remaining member" rule the leave path used, on somebody who
+      had not been asked.
+
+      422 rather than 403: the field the caller sent names somebody who does
+      not qualify, which is a fact about the body, and it is the same 422 the
+      non-member case already answered.
+      */
+      if (!(await isEligibleSuccessor(db, folderId, parsed.to))) {
+        sendError(
+          res,
+          422,
+          'validation_failed',
+          'to: must be a member of this folder who currently has Full control.',
         )
         return
       }

@@ -259,8 +259,9 @@ describe('the 7.4 shapes against the mounted application', () => {
     // only the element's shape is under test here.
     const inviteEmail = `pending-${randomUUID()}@${domain}`
     await dbClient.db.execute(
-      sql`INSERT INTO invites (inviter_id, email, folder_id)
-          VALUES (${owner.id}::uuid, ${inviteEmail}, ${folderId}::uuid)`,
+      sql`INSERT INTO invites (inviter_id, email, folder_id, access)
+          VALUES (${owner.id}::uuid, ${inviteEmail}, ${folderId}::uuid,
+                  'can_edit')`,
     )
 
     const response = await api(owner, `/folders/${folderId}`)

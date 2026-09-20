@@ -341,6 +341,30 @@ async function blockingColumnsOnUsers(db: Db): Promise<BlockingColumn[]> {
  * In-memory PGlite discards its database at close, so this is load-bearing
  * only where a database outlives the file that used it.
  */
+/**
+ * The nullable columns whose null does **not** mean "somebody else's row that
+ * merely mentions this person" (issue #228).
+ *
+ * The rule above reads a nullable reference to `users` as a mention and nulls
+ * it. That reading is right for `tasks.completed_by` and
+ * `invites.accepted_by`, and wrong for `folder_access_history.actor_id`: null
+ * there means *governed system provenance*, and the table's
+ * `folder_access_history_system_actor_check` refuses it on any transition but
+ * `migration_initialized`. Nulling it would be claiming a person's act was
+ * the system's -- which is the one thing that column exists to keep apart --
+ * and the database is right to refuse.
+ *
+ * So the row goes with its actor, exactly as `events.actor_id` does one rank
+ * up, and for the same reason: it is the record of something that person did.
+ * **This cannot arise in the product**, where 4.19 soft-deletes an account
+ * (4.13) precisely so that its acts survive it, and nothing hard-deletes a
+ * user outside this suite.
+ */
+const ACTS_RATHER_THAN_MENTIONS = new Set(['folder_access_history.actor_id'])
+
+const key = (reference: BlockingColumn): string =>
+  `${reference.table_name}.${reference.column_name}`
+
 export async function cleanupUsers(
   db: Db,
   userIds: readonly string[],
@@ -358,7 +382,7 @@ export async function cleanupUsers(
       // rather than trusting one driver's spelling of the same catalog.
       const notNull =
         reference.not_null === true || String(reference.not_null) === 't'
-      if (notNull) {
+      if (notNull || ACTS_RATHER_THAN_MENTIONS.has(key(reference))) {
         await db.execute(sql`DELETE FROM ${target} WHERE ${column} = ${id}`)
         continue
       }

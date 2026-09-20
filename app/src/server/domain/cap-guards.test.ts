@@ -112,8 +112,8 @@ async function seedFolder(ownerId: string): Promise<string> {
   )
   const folderId = String(found[0]?.id)
   await db.execute(
-    sql`INSERT INTO folder_members (folder_id, user_id)
-        VALUES (${folderId}::uuid, ${ownerId}::uuid)`,
+    sql`INSERT INTO folder_members (folder_id, user_id, access)
+        VALUES (${folderId}::uuid, ${ownerId}::uuid, 'full_control')`,
   )
   return folderId
 }
@@ -207,7 +207,22 @@ describe('the 10.3 caps decide under a lock, not beside one', () => {
       ownerId,
       folderId,
       targetId,
-      { isOwner: true, isDefault: false, name: 'a folder' },
+      /* Issue #228 widened `FolderAccess` to carry the actor's persisted
+         Access preset and the two ids the resolver resolves over, and gave
+         `addMember` the preset the administrator chose for the new member.
+         This fixture gains both fields and the argument; what it asserts --
+         that the lock precedes the count and the count precedes the insert --
+         is untouched, and `full_control` is simply what the owner of a folder
+         holds. */
+      {
+        folderId,
+        actorId: ownerId,
+        access: 'full_control',
+        isOwner: true,
+        isDefault: false,
+        name: 'a folder',
+      },
+      'can_edit',
     )
     expect(result.kind, 'the add still succeeds: this changes when, not what').toBe(
       'added',
@@ -320,6 +335,9 @@ describe('the 10.3 caps decide under a lock, not beside one', () => {
     const result = await createInvite(recording(db, log), inviterId, {
       email: String(targetEmail),
       folder_id: folderId,
+      // Issue #228: a folder invite names the preset it grants, and the
+      // instant-share arm writes it straight onto the membership.
+      access: 'can_edit',
     })
     expect(
       result.kind,
@@ -368,8 +386,9 @@ describe('the 10.3 caps decide under a lock, not beside one', () => {
       (
         await rows(
           db,
-          sql`INSERT INTO invites (inviter_id, email, folder_id)
-              VALUES (${inviterId}::uuid, ${acceptorEmail}, ${folderId}::uuid)
+          sql`INSERT INTO invites (inviter_id, email, folder_id, access)
+              VALUES (${inviterId}::uuid, ${acceptorEmail}, ${folderId}::uuid,
+                      'can_edit')
               RETURNING id`,
         )
       )[0]?.id,
@@ -596,7 +615,15 @@ describe('the 10.3 caps decide under a lock, not beside one', () => {
       ownerId,
       randomUUID(),
       ownerId,
-      { isOwner: true, isDefault: true, name: 'Desk' },
+      {
+        folderId: '00000000-0000-0000-0000-000000000000',
+        actorId: ownerId,
+        access: 'full_control',
+        isOwner: true,
+        isDefault: true,
+        name: 'Desk',
+      },
+      'can_edit',
     )
     expect(result.kind).toBe('default_folder')
     expect(

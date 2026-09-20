@@ -84,7 +84,7 @@ import type {
 import type { TaskStatus } from '../../shared/tasks.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
-import { accessibleTask } from './tasks.js'
+import { accessibleTask, mayActOnTask } from './tasks.js'
 
 /**
  * The one key every dependency write takes, for the whole of its transaction.
@@ -246,6 +246,8 @@ export type CreateDependencyResult =
   /** The pair was already related, so the request asked for a state that
    * already holds. 200 with the edge that was already there. */
   | { kind: 'exists'; edge: TaskDependencyEdge }
+  /** Visible, and not this member's to relate (issue #228). */
+  | { kind: 'forbidden'; reason: string }
 
 /**
  * `POST /tasks/:id/dependencies`, where `:id` is the dependent.
@@ -272,6 +274,25 @@ export async function createTaskDependency(
     if (dependent === null) return { kind: 'not_found' } as const
     const blocker = await accessibleTask(tx, viewerId, blockingTaskId)
     if (blocker === null) return { kind: 'not_found' } as const
+
+    /*
+    `task.dependency.manage` on **both** ends (issue #228).
+
+    R8 puts this beyond Can contribute for a reason worth restating here: a
+    dependency is not a private annotation, it imposes a planning consequence
+    on whoever holds the other task. Checking only the dependent end would let
+    a member with Can edit in one Folder hang somebody else's work in a Folder
+    where they merely comment. The two ends can be in different Folders --
+    `createTaskDependency` resolves each separately and the contract admits a
+    cross-Folder edge -- so both are asked, and neither is asked with an
+    assignee escape, because this action names none.
+    */
+    for (const end of [dependent, blocker]) {
+      const decision = mayActOnTask(end, 'task.dependency.manage')
+      if (!decision.allowed) {
+        return { kind: 'forbidden', reason: decision.reason } as const
+      }
+    }
 
     /* The new edge says the dependent waits on the blocker, so it closes a
        cycle exactly when the blocker already waits — through any number of
@@ -384,10 +405,20 @@ export async function deleteTaskDependency(
   viewerId: string,
   taskId: string,
   dependencyId: string,
-): Promise<'not_found' | 'deleted'> {
+): Promise<'not_found' | 'deleted' | { kind: 'forbidden'; reason: string }> {
   return inTransaction(db, async (tx) => {
     const task = await accessibleTask(tx, viewerId, taskId)
     if (task === null) return 'not_found'
+    /* The same authority that creates a relation removes one, on this
+       function's own stated reasoning: there is no reading under which a
+       member may add a blocker to a task and not take one off. Only the end
+       named in the path is checked, because that is the only end this caller
+       has demonstrably resolved; the far end may be a task they cannot read
+       at all, which is what the edge's surrogate id exists for. */
+    const decision = mayActOnTask(task, 'task.dependency.manage')
+    if (!decision.allowed) {
+      return { kind: 'forbidden', reason: decision.reason }
+    }
     const removed = await rowsOf(
       tx,
       sql`DELETE FROM task_dependencies

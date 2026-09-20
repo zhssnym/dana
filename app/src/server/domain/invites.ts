@@ -18,6 +18,10 @@ day, now frozen 7.5's appended paragraph).
 import { sql } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
+import { mayPerform, presetOf } from './folder-access.js'
+import { recordAccessTransition } from './folder-access.js'
+import type { FolderAccessPreset } from '../../shared/folder-access.js'
+import type { FolderActorFacts } from './folder-access.js'
 import { accessOf } from './folders.js'
 import type { FolderAccess } from './folders.js'
 import { inTransaction, rowsOf } from '../database.js'
@@ -206,6 +210,9 @@ export interface CreateInviteInput {
   email: string
   folder_id?: string
   task_id?: string
+  /** R9 section 5's intended preset. Present exactly when `folder_id` is;
+   * the shared schema refuses every other combination. */
+  access?: FolderAccessPreset
 }
 
 export type CreateInviteResult =
@@ -230,6 +237,9 @@ export type CreateInviteResult =
   | { kind: 'already_connected' }
   | { kind: 'duplicate'; existingId: string }
   | { kind: 'member_cap' }
+  /** The folder is visible to the inviter and inviting into it is not theirs
+   * to do (issue #228). */
+  | { kind: 'forbidden'; reason: string }
 
 /** The active account holding an address, if any. Soft-deleted rows are not
  * accounts: 4.1 scrubs the email at deletion, and 8.7 says "active user". */
@@ -315,6 +325,7 @@ export async function createInvite(
   const email = input.email
   const folderId = input.folder_id ?? null
   const taskId = input.task_id ?? null
+  const granted = input.access ?? null
 
   return inTransaction(db, async (tx) => {
     /*
@@ -344,6 +355,16 @@ export async function createInvite(
       if (folderAccess === null) return { kind: 'folder_not_found' }
       // INV-3: a default folder is never shared, so it refuses every invite.
       if (folderAccess.isDefault) return { kind: 'default_folder' }
+      /* R7 section L: inviting somebody into a Folder is member
+         administration, so it is Full control's. Before #228 any member could
+         invite anybody into any folder they were in, which is the same
+         membership-only write path `POST /folders/:id/members` carried. A
+         **bare** roster invite, with no folder, is untouched: it grants no
+         Folder Access and is an ordinary personal act (7.5). */
+      const admitted = mayPerform(folderAccess, 'invite.create')
+      if (!admitted.allowed) {
+        return { kind: 'forbidden', reason: admitted.reason }
+      }
     }
 
     const target = await activeUserByEmail(tx, email)
@@ -401,10 +422,27 @@ export async function createInvite(
       )
       if (Number(count[0]?.n ?? 0) >= MEMBER_CAP) return { kind: 'member_cap' }
 
+      /* 8.7's instant share: the invite never becomes a row, so the preset
+         the inviter chose has to land on the membership directly, and the
+         `null -> preset` transition is recorded with the inviter as actor.
+         `granted` is non-null here by the shared schema's refine -- a folder
+         invite carries a preset -- and the assertion is written rather than
+         assumed because this is a grant of authority. */
+      if (granted === null) {
+        throw new Error('a folder invite reached the share arm with no preset')
+      }
       await tx.execute(
-        sql`INSERT INTO folder_members (folder_id, user_id)
-            VALUES (${folderId}::uuid, ${target.id}::uuid)`,
+        sql`INSERT INTO folder_members (folder_id, user_id, access)
+            VALUES (${folderId}::uuid, ${target.id}::uuid, ${granted})`,
       )
+      await recordAccessTransition(tx, {
+        folderId,
+        memberId: target.id,
+        previousAccess: null,
+        newAccess: granted,
+        actorId: inviterId,
+        transition: 'member_added',
+      })
 
       /*
       8.7's third entry path: membership first, then the assignment applies,
@@ -453,9 +491,9 @@ export async function createInvite(
 
     const inserted = await rowsOf(
       tx,
-      sql`INSERT INTO invites (inviter_id, email, folder_id, task_id)
+      sql`INSERT INTO invites (inviter_id, email, folder_id, task_id, access)
           VALUES (${inviterId}::uuid, ${email}, ${folderId}::uuid,
-                  ${taskId}::uuid)
+                  ${taskId}::uuid, ${granted})
           ON CONFLICT DO NOTHING
           RETURNING id`,
     )
@@ -518,6 +556,20 @@ export interface InviteActorFacts {
   isRecipient: boolean
   isFolderOwner: boolean
   isFolderMember: boolean
+  /**
+   * The caller's durable Folder facts for the invite's folder, or null when
+   * the invite carries no folder or the caller is not a member of it (issue
+   * #228).
+   *
+   * It is what turns "the inviter may cancel" into "whoever currently
+   * administers this Folder's members may cancel", which R7 section L asks
+   * for in terms: a former inviter who is later downgraded loses
+   * Folder-invite administration, because "I created the invite" is not
+   * permanent authority. A bare roster invite has no Folder and keeps its old
+   * rule -- the inviter's alone -- because there is no Folder Access to
+   * resolve.
+   */
+  folderFacts: FolderActorFacts | null
   lastSentAt: Date
 }
 
@@ -534,7 +586,8 @@ export async function inviteFactsFor(
                (me.deleted_at IS NULL AND i.email = lower(me.email))
                  AS is_recipient,
                (f.owner_id = ${viewerId}) AS is_folder_owner,
-               (m.user_id IS NOT NULL) AS is_folder_member
+               (m.user_id IS NOT NULL) AS is_folder_member,
+               m.access, f.name AS folder_name, f.is_default
         FROM invites i
         JOIN users me ON me.id = ${viewerId}
         LEFT JOIN folders f ON f.id = i.folder_id
@@ -553,6 +606,21 @@ export async function inviteFactsFor(
     isRecipient: row.is_recipient === true,
     isFolderOwner: row.is_folder_owner === true,
     isFolderMember: row.is_folder_member === true,
+    folderFacts:
+      row.is_folder_member === true && row.folder_id !== null
+        ? {
+            folderId: String(row.folder_id),
+            actorId: viewerId,
+            /* A member row always carries a preset -- the column is NOT NULL
+               with a CHECK -- so the fallback is unreachable. It is the least
+               authority rather than the most, which is the only direction an
+               impossible value about authorization may be resolved in. */
+            access: presetOf(row.access) ?? 'can_view',
+            isOwner: row.is_folder_owner === true,
+            isDefault: row.is_default === true,
+            name: String(row.folder_name ?? ''),
+          }
+        : null,
     lastSentAt:
       row.last_sent_at instanceof Date
         ? row.last_sent_at
@@ -626,7 +694,7 @@ export async function acceptInvite(
                SET status = 'accepted', accepted_by = ${acceptorId}::uuid,
                    responded_at = now()
              WHERE id = ${inviteId} AND status = 'pending'
-             RETURNING inviter_id, folder_id, task_id`,
+             RETURNING inviter_id, folder_id, task_id, access`,
       )
       const invite = claimed[0]
       if (invite === undefined) return { kind: 'not_pending' }
@@ -634,6 +702,7 @@ export async function acceptInvite(
       const inviterId = String(invite.inviter_id)
       const folderId = nullableString(invite.folder_id)
       const taskId = nullableString(invite.task_id)
+      const granted = presetOf(invite.access)
 
       // INV-9's canonical pair, upserted: the connection is created once
       // however many invites the same two people exchange, and the returned
@@ -681,10 +750,37 @@ export async function acceptInvite(
                 WHERE folder_id = ${folderId}`,
           )
           if (Number(count[0]?.n ?? 0) >= MEMBER_CAP) throw CAP_ROLLBACK
+          /*
+          R9 section 5, and the sentence that shapes this block: **do not
+          pretend the recipient granted themselves the preset merely because
+          they clicked Accept.** The preset is the one the invite has carried
+          since it was created, the actor recorded is the inviter who chose
+          it, and the effective time is now -- the moment the membership
+          actually becomes active -- rather than when the invite was written.
+
+          The preset is read off the invite row rather than defaulted. Every
+          folder invite carries one (the table's both-or-neither CHECK, and
+          migration 0023's backfill for the rows that predate it), so a null
+          here means a row nobody can account for, and a grant of authority is
+          the last place to guess.
+          */
+          if (granted === null) {
+            throw new Error(
+              `invite ${inviteId} carries a folder and no access preset`,
+            )
+          }
           await tx.execute(
-            sql`INSERT INTO folder_members (folder_id, user_id)
-                VALUES (${folderId}::uuid, ${acceptorId}::uuid)`,
+            sql`INSERT INTO folder_members (folder_id, user_id, access)
+                VALUES (${folderId}::uuid, ${acceptorId}::uuid, ${granted})`,
           )
+          await recordAccessTransition(tx, {
+            folderId,
+            memberId: acceptorId,
+            previousAccess: null,
+            newAccess: granted,
+            actorId: inviterId,
+            transition: 'invite_accepted',
+          })
         }
       }
 

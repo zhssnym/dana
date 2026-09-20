@@ -67,8 +67,8 @@ async function seedFolder(
 
 async function joinFolder(folderId: string, userId: string): Promise<void> {
   await db.execute(
-    sql`INSERT INTO folder_members (folder_id, user_id)
-        VALUES (${folderId}::uuid, ${userId}::uuid)`,
+    sql`INSERT INTO folder_members (folder_id, user_id, access)
+        VALUES (${folderId}::uuid, ${userId}::uuid, 'full_control')`,
   )
 }
 
@@ -93,11 +93,12 @@ async function seedInvite(
 ): Promise<string> {
   const found = await rows(
     db,
-    sql`INSERT INTO invites (inviter_id, email, folder_id, status)
+    sql`INSERT INTO invites (inviter_id, email, folder_id, status, access)
         VALUES (${inviterId}::uuid,
                 ${`invitee-${randomUUID()}@account-deletion.test`},
                 ${options.folderId ?? null}::uuid,
-                ${options.status ?? 'pending'})
+                ${options.status ?? 'pending'},
+                ${options.folderId === undefined ? null : 'can_edit'})
         RETURNING id`,
   )
   return String(found[0]?.id)

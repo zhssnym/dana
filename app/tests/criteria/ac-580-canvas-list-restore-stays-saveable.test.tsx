@@ -128,7 +128,13 @@ async function send(folder: string, body: DocumentTransaction): Promise<PageView
 async function seedFolder(name: string): Promise<string> {
   const found = await rows(db, sql`INSERT INTO folders (owner_id,name) VALUES (${viewer}::uuid,${name}) RETURNING id`)
   const id = String(found[0]?.id)
-  await db.execute(sql`INSERT INTO folder_members (folder_id,user_id) VALUES (${id}::uuid,${viewer}::uuid)`)
+  /* The viewer owns this folder, so migration 0023's own rule gives the
+     membership `full_control` (issue #228). Spelled rather than defaulted:
+     the column is NOT NULL DEFAULT 'can_view', which is the safe floor and
+     would refuse every write this criterion makes. Nothing here is about
+     Access -- the criterion is the canvas save path -- so the preset is the
+     one the folder's owner would really hold. */
+  await db.execute(sql`INSERT INTO folder_members (folder_id,user_id,access) VALUES (${id}::uuid,${viewer}::uuid,'full_control')`)
   return id
 }
 

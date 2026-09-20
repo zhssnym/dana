@@ -34,6 +34,7 @@ import {
   unlikeComment,
 } from '../domain/comments.js'
 import { accessOf } from '../domain/folders.js'
+import { mayPerform } from '../domain/folder-access.js'
 import { sendError, sendValidationError } from '../http/errors.js'
 import { parseBody } from '../http/parse-body.js'
 import { createSecurityLogger } from '../security/log.js'
@@ -99,8 +100,22 @@ export function createConversationRouter(
       }
       const parsed = parseBody(postCommentBody, req, res, securityLog)
       if (parsed === null) return
-      if ((await accessOf(db, viewer(req), folderId)) === null) {
+      const facts = await accessOf(db, viewer(req), folderId)
+      if (facts === null) {
         sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      /* R7 section I: Consultation is participation, and Can comment is the
+         preset that names it. Can view reads the thread and does not write to
+         it, which is the whole of the distinction between the two lowest
+         rungs of R8A's ladder.
+
+         The attachments a comment carries ride the same gate --
+         `file.upload.comment` has the same bar -- so there is nothing to ask
+         twice. */
+      const allowed = mayPerform(facts, 'comment.create')
+      if (!allowed.allowed) {
+        sendError(res, 403, 'forbidden', allowed.reason)
         return
       }
       const outcome = await createComment(
@@ -172,13 +187,22 @@ export function createConversationRouter(
         sendError(res, 404, 'not_found', 'Not found.')
         return
       }
-      if (!access.isAuthor) {
-        sendError(
-          res,
-          403,
-          'forbidden',
-          'Only the author can edit their comment.',
-        )
+      /*
+      **Authorship is provenance, not standing authority** (issue #228, and
+      #209's accepted cross-cutting rule).
+
+      Before this change the gate was `access.isAuthor` alone, which meant a
+      member later reduced to Can view kept the power to rewrite every comment
+      they had ever left. `comment.mutate.own` is both conditions in one
+      answer: the actor is the author *and* currently holds Can comment or
+      better. Losing standing loses the edit; it does not lose the words,
+      which stay readable exactly as they were.
+      */
+      const allowed = mayPerform(access.facts, 'comment.mutate.own', {
+        authorId: access.authorId,
+      })
+      if (!allowed.allowed) {
+        sendError(res, 403, 'forbidden', allowed.reason)
         return
       }
       /* Issue #94: one gate covers the words and the attachments. A person
@@ -230,12 +254,28 @@ export function createConversationRouter(
         sendError(res, 404, 'not_found', 'Not found.')
         return
       }
-      if (!access.isAuthor && !access.isFolderOwner) {
+      /*
+      Two ways to be allowed, and neither is the old one.
+
+      The rule was "author or folder owner". Both halves move: the author
+      needs current Can comment standing, for the authorship reason above; and
+      removing somebody *else's* comment is moderation, which R7 section I
+      gives to Full control rather than to custody. An owner who lowered their
+      own Access to Can view no longer moderates, and a Full-control member
+      who never owned anything now does.
+      */
+      const own = mayPerform(access.facts, 'comment.mutate.own', {
+        authorId: access.authorId,
+      })
+      const moderating = mayPerform(access.facts, 'comment.moderate')
+      if (!own.allowed && !moderating.allowed) {
         sendError(
           res,
           403,
           'forbidden',
-          'Only the author or the folder owner can remove a comment.',
+          access.isAuthor
+            ? own.reason
+            : 'Only Full control can remove another member\'s comment.',
         )
         return
       }
@@ -254,8 +294,16 @@ export function createConversationRouter(
       if (db === null) return
       const commentId = parsedId(res, req.params.id)
       if (commentId === null) return
-      if ((await accessibleComment(db, viewer(req), commentId)) === null) {
+      const liked = await accessibleComment(db, viewer(req), commentId)
+      if (liked === null) {
         sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      // R7 section I puts liking with commenting: Can view reads the thread
+      // and leaves no mark on it.
+      const mayLike = mayPerform(liked.facts, 'comment.like')
+      if (!mayLike.allowed) {
+        sendError(res, 403, 'forbidden', mayLike.reason)
         return
       }
       await likeComment(db, viewer(req), commentId)
@@ -273,8 +321,14 @@ export function createConversationRouter(
       if (db === null) return
       const commentId = parsedId(res, req.params.id)
       if (commentId === null) return
-      if ((await accessibleComment(db, viewer(req), commentId)) === null) {
+      const unliked = await accessibleComment(db, viewer(req), commentId)
+      if (unliked === null) {
         sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      const mayUnlike = mayPerform(unliked.facts, 'comment.like')
+      if (!mayUnlike.allowed) {
+        sendError(res, 403, 'forbidden', mayUnlike.reason)
         return
       }
       await unlikeComment(db, viewer(req), commentId)

@@ -17,6 +17,7 @@ decides the open shape once, with the implemented routes in front of it.
 */
 import { z } from 'zod'
 
+import { folderAccessPreset } from './folder-access.js'
 import { labelRef } from './labels.js'
 
 /*
@@ -192,12 +193,25 @@ export type PatchFolderMyMembershipBody = z.infer<
   typeof patchFolderMyMembershipBody
 >
 
-// POST /folders/:id/members. Body { user_id }: the target account. The body
-// fact is only that user_id is a uuid; everything else the endpoint refuses
-// (default folder, existing member, missing roster connection, the 25 cap)
-// is state, resolved by the domain module against 5.3 row 1.
+/*
+POST /folders/:id/members. Body { user_id, access }: the target account and
+the Access preset they arrive with. Everything else the endpoint refuses
+(default folder, existing member, missing roster connection, the 25 cap) is
+state, resolved by the domain module against 5.3 row 1.
+
+`access` is **required**, added with issue #228 (R9 section 6: "Direct member
+add similarly requires an explicit Access preset"). It has deliberately no
+default. A default would be one person's authority chosen by nobody, and the
+value would then be invisible in the request that granted it -- which is the
+exact class `shared/tasks.ts` records losing a reminder field to for four
+packages. The server reads it in `addMember`, which writes it into the
+membership row and into the `null -> preset` history transition in one
+transaction, and AC-483 drives the endpoint with each of the six presets and
+reads the stored value back.
+*/
 export const postFolderMembersBody = z.object({
   user_id: z.uuid({ error: 'must be a uuid' }),
+  access: folderAccessPreset,
 })
 export type PostFolderMembersBody = z.infer<typeof postFolderMembersBody>
 
@@ -309,6 +323,16 @@ export const folderMember = z.object({
   // 4.4 admits exactly 'member' in v1; ownership is the folder column,
   // never this field (8.9).
   role: z.literal('member'),
+  /* The member's current Access preset (issue #228, R8A). It sits beside
+     `role` rather than replacing it: `role` expressed no authority before
+     this change and expresses none now, and dropping a field from a frozen
+     response is a separate decision from adding one.
+
+     Folder-visible to every member, which is R9 section 13's recommended M1
+     rule: knowing what the people you work with may do is ordinary Work
+     awareness. Pending-invite administration is the part that is not, and it
+     is withheld separately below. */
+  access: folderAccessPreset,
   joined_at: z.iso.datetime(),
   is_owner: z.boolean(),
 })
@@ -318,6 +342,11 @@ export const folderPendingInvite = z.object({
   id: z.uuid(),
   email: z.string().min(1),
   task_id: z.uuid().nullable(),
+  /** The preset this invite grants on acceptance (R9 section 5). Null cannot
+   * occur on a folder invite -- the table's both-or-neither CHECK sees to
+   * that -- and is admitted here because the projection's type is the
+   * column's. */
+  access: folderAccessPreset.nullable(),
   created_at: z.iso.datetime(),
   last_sent_at: z.iso.datetime(),
 })
@@ -326,6 +355,17 @@ export type FolderPendingInvite = z.infer<typeof folderPendingInvite>
 export const getFoldersResponse = z.array(folder)
 export type GetFoldersResponse = z.infer<typeof getFoldersResponse>
 
+/**
+ * GET /folders/:id.
+ *
+ * `pending_invites` is **empty for every member below Full control** since
+ * issue #228: R7 section B and #228 both classify a pending invite's email
+ * and intended Access as member-administration data rather than ordinary
+ * Work. The key is still present and still an array, because a response that
+ * dropped a key would make "you may not see this" and "there are none" two
+ * different shapes for the client to handle, and the second is the one the
+ * panel already renders.
+ */
 export const getFolderResponse = folder.extend({
   members: z.array(folderMember),
   pending_invites: z.array(folderPendingInvite),

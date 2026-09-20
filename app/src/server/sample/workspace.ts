@@ -38,6 +38,7 @@ import type { SampleCounts, SampleStatus } from '../../shared/sample.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from '../domain/events.js'
+import { recordAccessTransition } from '../domain/folder-access.js'
 import { upsertReminder } from '../domain/tasks.js'
 import { destroyFolders, destroyTasks } from '../domain/trash.js'
 import { today } from '../time/today.js'
@@ -193,11 +194,22 @@ async function writeFolder(
   // 4.18: a folder is on a shelf by the viewer's own membership, held in step
   // with the shelf's name. Both columns until issue #247 contracts migration
   // 0022's expand half.
+  /* The sample workspace is the new account's own, so its folders are theirs
+     to own and to administer: owner plus Full control, with the baseline
+     transition beside it (issue #228). */
   await tx.execute(
-    sql`INSERT INTO folder_members (folder_id, user_id, shelf_name, label)
+    sql`INSERT INTO folder_members (folder_id, user_id, shelf_name, label, access)
         VALUES (${folderId}::uuid, ${userId}::uuid, ${folder.shelf ?? null},
-                ${folder.shelf ?? null})`,
+                ${folder.shelf ?? null}, 'full_control')`,
   )
+  await recordAccessTransition(tx, {
+    folderId,
+    memberId: userId,
+    previousAccess: null,
+    newAccess: 'full_control',
+    actorId: userId,
+    transition: 'created_owner',
+  })
 
   const sections = new Map<string, string>()
   for (const [index, block] of (folder.blocks ?? []).entries()) {
