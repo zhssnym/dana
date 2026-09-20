@@ -36,15 +36,24 @@ governed by ownership of the account, which `requireSession` and a
 viewer-scoped query already settle. Each entry carries the reason, because a
 list of paths with no reasons is a list nobody can review.
 
-## Proof 25, in the state #226 leaves it
+## Proof 25, and the handoff that has now been taken
 
 #228 supersedes #208/#226's interim "all Folder members may manage Folder
-Labels" rule. **The Label routes are not on this branch**: #226 is in flight
-and merges before this. So the forward contract is what can be proved today --
-that the two Label actions exist in the vocabulary at R8A's bars -- plus the
-enumeration above, which will fail the moment #226's twelve routes arrive
-without a decision beside each. That is the handoff, and it is written in the
-pull request as well as here.
+Labels" rule. When this file was written **the Label routes were not on this
+branch**: #226 was in flight and merged before it, so the forward contract was
+what could be proved then -- that the two Label actions exist in the vocabulary
+at R8A's bars -- plus the enumeration above, which was expected to fail the
+moment #226's twelve routes arrived without a decision beside each.
+
+**It did, on the rebase onto #226, and the decision is now beside each**: eight
+rows in `GOVERNED` and four in `OUTSIDE_FOLDER_ACCESS`, with the block comment
+above them carrying the part that matters. Read that comment rather than this
+paragraph, because it says the thing a list cannot: **six of the twelve name a
+bar their route does not yet ask for**, the routes still gating on membership
+alone, and **issue #274** is where they are rewritten to resolve through
+`mayPerform`. A row here answers which Folder action a route is an instance of.
+Whether the bar is enforced is AC-512 to AC-521's subject, and this criterion
+has never claimed otherwise.
 
 Spec: 10.2; accepted #209 R8A; #228's personal-actions rule and its
 authorization-resolver section.
@@ -178,6 +187,58 @@ const GOVERNED: Record<string, FolderAction> = {
   'POST /api/v1/tasks/:id/my-day': 'personal.my_day',
   'DELETE /api/v1/tasks/:id/my-day': 'personal.my_day',
   'PATCH /api/v1/folders/:id/my-membership': 'personal.membership_label',
+  /* ---------------------------------------------------------------- *
+   * #226's Label surface, mapped on the #228 rebase (issue #274)
+   * ---------------------------------------------------------------- *
+
+   **Six of these eight rows name a bar the route does not yet ask for, and
+   that gap is the point of this comment rather than an oversight.** Read it
+   before trusting any of them.
+
+   What is true today: every shared-Label route below gates on **membership
+   alone** -- `routes/labels.ts`'s `folderAccess` helper answers 404 when
+   `accessOf(db, viewer, folderId)` is null and admits every preset otherwise,
+   which is #226's interim "all Folder members may manage Folder Labels" rule.
+   A `can_view` member can currently create, rename, archive and restore a
+   shared Folder Label and apply one to a Task.
+
+   What is not yet true: `label.vocabulary.manage` and `label.apply` are both
+   `atLeast: 'can_edit'` in `shared/folder-actions.ts`, and #228's own
+   per-preset list says "Assigned work / Can comment / Can view may not modify
+   shared Folder Labels". **The routes have not been rewritten to ask for those
+   bars.** Until they are, the six shared-Label rows record which action each
+   route is an instance of, which is what this table asks: a row names the act,
+   and whether the bar is *enforced* is AC-512 to AC-521's subject, driven
+   against real actors. "What this is and what it is not" above says so.
+
+   Where the difference gets closed: **issue #274**, which rewrites
+   `routes/labels.ts` to resolve through `mayPerform` like every other Folder
+   mutation. #274 also carries the ruling that makes it legitimate -- **R8
+   supersedes #208's R5A** ("any member may apply an existing Folder Label"),
+   written before Folders had graded Access, and still asserted by
+   `ac-470-label-scope-privacy-and-identity.test.ts:205`. That criterion is
+   accurate about the routes as they stand and is deliberately **not** touched
+   here; it moves in #274 with hard stop 7 declared there.
+
+   The two `personal.label` rows are different and carry **no** gap: that action
+   is `atLeast: 'can_view'` and `personal: true`, which is exactly what
+   membership already enforces, so both are true today in both senses. */
+  'POST /api/v1/folders/:folderId/labels': 'label.vocabulary.manage',
+  'PATCH /api/v1/folders/:folderId/labels/:labelId': 'label.vocabulary.manage',
+  'POST /api/v1/folders/:folderId/labels/:labelId/archive': 'label.vocabulary.manage',
+  'POST /api/v1/folders/:folderId/labels/:labelId/restore': 'label.vocabulary.manage',
+  /* The Task assignment pair takes either kind -- "a personal label of yours
+     or a label of this task's folder" -- so it names the stricter of the two
+     acts, which is the header's rule for a route that performs more than one. */
+  'PUT /api/v1/tasks/:taskId/labels/:labelId': 'label.apply',
+  'DELETE /api/v1/tasks/:taskId/labels/:labelId': 'label.apply',
+  /* The Folder assignment pair is **Personal Labels only** -- the handler
+     refuses anything else with "must name a personal label of yours; a folder
+     label classifies the tasks in its folder, never the folder itself" -- so it
+     is the viewer's own arrangement of their own library, beside
+     `personal.membership_label` above and not beside the four shared rows. */
+  'PUT /api/v1/folders/:folderId/labels/:labelId': 'personal.label',
+  'DELETE /api/v1/folders/:folderId/labels/:labelId': 'personal.label',
   'POST /api/v1/invites': 'invite.create',
   'POST /api/v1/invites/:id/cancel': 'invite.administer',
   'POST /api/v1/invites/:id/resend': 'invite.administer',
@@ -238,6 +299,18 @@ const OUTSIDE_FOLDER_ACCESS: Record<string, string> = {
   'POST /api/v1/invites/:id/accept':
     "the recipient's own decision. #228: acceptance activates the membership with the inviter's intended preset, and the recipient is never represented as self-granting Access merely because they accepted",
   'POST /api/v1/invites/:id/decline': "the recipient's own decision",
+  /* #226's Personal Label vocabulary, mapped on the #228 rebase. These four
+     name no folder at all: a Personal Label is one person's own, scoped to the
+     viewer by construction exactly as `/shelves` above is, and no folder
+     membership is read on any of them. #228's personal-actions rule puts them
+     outside Folder Access rather than at a bar inside it, and **#274 does not
+     move them** -- it rewrites the shared-Folder-Label routes only. */
+  'POST /api/v1/labels/personal':
+    "the person's own Label vocabulary (#208 R1, 7.24). Personal state, viewer-scoped, and no folder is named",
+  'PATCH /api/v1/labels/personal/:labelId':
+    "the person's own Label; the query is viewer-scoped",
+  'POST /api/v1/labels/personal/:labelId/archive': "the person's own Label",
+  'POST /api/v1/labels/personal/:labelId/restore': "the person's own Label",
   'POST /api/csp-report/':
     "the browser's own report of a policy refusal (issue #99). No session, no database, no folder",
 }
