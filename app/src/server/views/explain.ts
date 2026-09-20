@@ -232,9 +232,10 @@ function predicateProbes(
 ): { label: string; where: SQL; expect: string }[] {
   return [
     {
-      label: 'Q1: the automatic clause (assignee, status, due_date)',
+      label: 'Q1: the automatic clause (assignee, status, activation date)',
       where: sql`t.assignee_id = ${viewer}::uuid AND t.status = 'pending'
-                 AND t.due_date IS NOT NULL AND t.due_date <= CURRENT_DATE`,
+                 AND coalesce(t.start_date, t.due_date) IS NOT NULL
+                 AND coalesce(t.start_date, t.due_date) <= CURRENT_DATE`,
       expect: 'tasks_assignee_status_due_idx',
     },
     {
@@ -244,9 +245,17 @@ function predicateProbes(
       expect: 'tasks_folder_status_due_idx',
     },
     {
-      label: 'Q3C: the folder scope with a date range over all three statuses',
+      label:
+        "Q3: Scheduled membership, which since issue #216 is an OR over two nullable columns",
+      where: sql`t.status IN ('pending', 'abandoned')
+                 AND (t.start_date IS NOT NULL OR t.due_date IS NOT NULL)`,
+      expect: '4.12 names no index for this predicate, as for Q4s star',
+    },
+    {
+      label: 'Q3C: the folder scope with a Schedule overlapping a date range',
       where: sql`t.folder_id = ${folder}::uuid
-                 AND t.due_date BETWEEN CURRENT_DATE - 30 AND CURRENT_DATE + 30`,
+                 AND coalesce(t.start_date, t.due_date) <= CURRENT_DATE + 30
+                 AND coalesce(t.due_date, t.start_date) >= CURRENT_DATE - 30`,
       expect: 'tasks_folder_status_due_idx',
     },
     {
@@ -342,11 +351,13 @@ function render(
     '',
     '## Findings',
     '',
-    '1. **Every 4.12 index that section 6 names is reachable by the predicate',
-    '   it was created for.** The probes at the end show each one chosen: the',
-    '   assignee index for Q1, the folder index for the folder-scoped',
+    '1. **Every 4.12 index that section 6 names is reached by the predicate',
+    '   it was created for, and since issue #217 one of them is reached by',
+    '   fewer of its columns.** The probes at the end show each index chosen:',
+    '   the assignee index for Q1, the folder index for the folder-scoped',
     '   predicates of Q3C, its projection, and Q7, the partial completed index',
-    '   for Q6, and the GIN trigram index for Q8.',
+    '   for Q6, and the GIN trigram index for Q8. Finding 7 is the part that',
+    '   moved.',
     '2. **At page scope the folder is not a constant, and the plan says so.**',
     '   4.12 justifies `tasks_folder_status_due_idx` by "Q2, Q3, Q5, Q7 home',
     '   and view scans within accessible folders", and Q7 is where that reads',
@@ -403,6 +414,35 @@ function render(
     '   once one account held tens of thousands of open series. Recorded',
     '   rather than requested, like the star in finding 3, and the route to',
     '   the data-model question stays open with this query.',
+    '7. **Issue #217 turned Q1s date from an index bound into a filter, and',
+    '   issue #216s Scheduled membership rides no index at all. Neither is',
+    '   asked to be fixed here, and this finding is the argument for that',
+    '   rather than a note that it was not noticed.** Q1s probe used to read',
+    '   `Index Cond: (assignee_id = .. AND status = .. AND due_date IS NOT',
+    '   NULL AND due_date <= CURRENT_DATE)`, three columns of',
+    '   `tasks_assignee_status_due_idx`. The clause now compares',
+    '   `coalesce(start_date, due_date)`, which no index carries, so the plan',
+    '   below bounds on the first two columns and rechecks the date as a',
+    '   Filter. What the two remaining columns bound to is one persons',
+    '   pending tasks, which is the set the third column was narrowing, and',
+    '   4.12s standing argument for Q4s star applies here with more force',
+    '   than it does there: the rows are already bounded, and the response is',
+    '   capped at 1000. Q3s membership is the second half. An OR over two',
+    '   nullable columns is no b-tree range, and the probe shows what that',
+    '   means: a sequential scan by the planners choice, and with the',
+    '   sequential option removed the status bound with the pair as a Filter.',
+    '   Finding 2 is why that costs nothing new - Q2, Q3 and Q5 carry no',
+    '   folder in their predicate and never rode this index by its leading',
+    '   column anyway - and Q3s ORDER BY was never answered from an index',
+    '   either, its second key being a CASE. An expression index on',
+    '   `coalesce(start_date, due_date)`, or a pair of partial ones under a',
+    '   BitmapOr, would restore what Q1 lost and give Q3 something to ride.',
+    '   Both are refused for now on the same two grounds every entry in this',
+    '   file refuses one: the cost is a write on every task whose dates move,',
+    '   and 4.12 is a frozen section, so an index belongs there before it',
+    '   belongs in a migration. Revisit with a real account whose Today or',
+    '   Scheduled page reads slowly, which is the same sentence 4.12 closes',
+    '   with.',
     '',
     '## The statements the router issues',
     '',

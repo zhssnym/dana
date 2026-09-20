@@ -8,16 +8,24 @@ structure and the copy reads as a contract, and so that a reviewer comparing
 them to section 6 has one file to compare.
 */
 
+/* The two strings below moved with issue #216 and #217, in section 6 and
+   here in the same change, because both described a page whose membership is
+   a due date and neither page's is any more. Q1 admits a task from the day
+   its Schedule begins and Q3 holds everything carrying either date, so the
+   old copy told a person the one thing they could do to reach the page was
+   the one thing they might not have to do. */
+
 /** Q1, both My Day groups empty. */
 export const MY_DAY_EMPTY =
-  'Nothing on your day. Tasks assigned to you appear here on their due date, ' +
-  'or pull anything in yourself.'
+  'Nothing on your day. Tasks assigned to you appear here when they start ' +
+  'or come due, or pull anything in yourself.'
 
 /** Q2. */
 export const TASKS_EMPTY = 'No undated tasks. Anything you capture without a date lands here.'
 
 /** Q3. */
-export const PLANNED_EMPTY = 'Nothing scheduled. Give any task a due date and it moves here.'
+export const PLANNED_EMPTY =
+  'Nothing scheduled. Give any task a start or due date and it moves here.'
 
 /** Q4. */
 export const IMPORTANT_EMPTY = 'Nothing marked important. Star any task and it shows up here.'

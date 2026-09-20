@@ -3,10 +3,17 @@ Q2, Q3, Q4 and Q5: the four capped list pages, GET /views/tasks,
 /views/planned, /views/important and /views/all.
 
 The three that 6.1's proof is about are built from one scope sentence,
-OPEN_SCOPE in cards.ts, and add their own conjunct to it: Q2 adds due_date IS
-NULL, Q3 adds due_date IS NOT NULL, and Q5 adds nothing. That is not a
-convenience, it is the proof's stated dependency, and AC-070 is the property
-test that pins it.
+OPEN_SCOPE in cards.ts, and add their own conjunct to it: Q2 adds ANYTIME, Q3
+adds SCHEDULED, and Q5 adds nothing. That is not a convenience, it is the
+proof's stated dependency, and AC-070 is the property test that pins it.
+
+Both conjuncts moved on 2026-09-20 with issue #216 and they are in cards.ts
+rather than here for the reason that file's header gives: Scheduled stopped
+being "due_date IS NOT NULL" and became "a Start Date or a Due Date", so
+Anytime is written as the negation of it and the partition holds structurally
+instead of by two sentences agreeing. What a Scheduled row is ordered by moved
+with it, from due_date to SCHEDULE_DATE, which is the due date where there is
+one and the start date otherwise.
 
 Q5 goes further and reuses the two functions rather than the two predicates.
 Section 6 says All is "two stacked sections in one scroll: Planned rendered
@@ -37,7 +44,15 @@ import { takeCapped } from '../../shared/views.js'
 import { rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 
-import { CAP_PROBE, OPEN_SCOPE, STATUS_RANK, readCards } from './cards.js'
+import {
+  ANYTIME,
+  CAP_PROBE,
+  OPEN_SCOPE,
+  SCHEDULED,
+  SCHEDULE_DATE,
+  STATUS_RANK,
+  readCards,
+} from './cards.js'
 
 /* ------------------------------------------------------------------ *
  * The orders of section 6, one fragment each
@@ -77,16 +92,27 @@ export const FOLDER_UNSCHEDULED_ORDER = sql`t.position ASC NULLS LAST,
        ${Q2_ROW_ORDER}`
 
 /**
- * Q3's order: "due_date ascending, status_rank, timed flag (all-day rows
+ * Q3's order: "schedule date ascending, status_rank, timed flag (all-day rows
  * first: due_time IS NOT NULL sorts after IS NULL), due_time ascending,
  * created_at ascending, id".
+ *
+ * The leading key was `t.due_date` until issue #216 gave a task two dates.
+ * It is SCHEDULE_DATE now, which is the due date where the task has one, so
+ * the list stays deadline-oriented and a due-only task sorts exactly where it
+ * always did; a start-only task takes its place by the one date it has rather
+ * than trailing every dated row as a null would. No row is emitted twice: one
+ * task is one row and the expression picks one of its dates.
+ *
+ * The keys behind it are the due date's own and stay that way. due_time is a
+ * time of day on the deadline (4.5 makes it require a due_date), so a
+ * start-only row sorts as an all-day row, which is what it is.
  *
  * The timed flag is spelled as the comparison section 6 spells it rather
  * than as a NULLS FIRST modifier on due_time, because it is a key of its own
  * and sits above due_time: false sorts before true in Postgres, so an
  * all-day row leads.
  */
-const Q3_ORDER = sql`t.due_date ASC, ${STATUS_RANK} ASC,
+const Q3_ORDER = sql`${SCHEDULE_DATE} ASC, ${STATUS_RANK} ASC,
        (t.due_time IS NOT NULL) ASC, t.due_time ASC NULLS FIRST,
        t.created_at ASC, t.id ASC`
 
@@ -104,11 +130,19 @@ const Q2_ORDER = sql`f.is_default DESC, lower(f.name) ASC, f.id ASC,
        ${Q2_ROW_ORDER}`
 
 /**
- * Q4's order, one list across the boundary: "due_date ascending nulls last,
- * then within dated rows the Q3 keys (status_rank, timed flag, due_time,
- * created_at, id), within undated rows the Q2 keys (status_rank, created_at
- * ascending, id ascending — descending until the polish round of
+ * Q4's order, one list across the boundary: "schedule date ascending nulls
+ * last, then within scheduled rows the Q3 keys (status_rank, timed flag,
+ * due_time, created_at, id), within Anytime rows the Q2 keys (status_rank,
+ * created_at ascending, id ascending — descending until the polish round of
  * 2026-08-30)".
+ *
+ * The boundary this list crosses is Q3's against Q2's, and since issue #216
+ * that is the Scheduled boundary rather than the due date's: Q4's own
+ * sentence says a row of the first block "shows due date and time like a
+ * Scheduled row" and a row of the second "shows their folder like an Anytime
+ * row", so the two blocks are those two pages' membership and move with it.
+ * `SCHEDULE_DATE IS NULL` is ANYTIME exactly, which is why the split is one
+ * expression here and not a second copy of the membership sentence.
  *
  * Nulls last is spelled as its own leading key so the block boundary is
  * visible, and the keys the two blocks disagree on are written as CASE
@@ -116,19 +150,19 @@ const Q2_ORDER = sql`f.is_default DESC, lower(f.name) ASC, f.id ASC,
  * discriminate nothing. Everything the two blocks agree on, status_rank
  * first among them, is written once.
  */
-const Q4_ORDER = sql`(t.due_date IS NULL) ASC, t.due_date ASC,
+const Q4_ORDER = sql`(${SCHEDULE_DATE} IS NULL) ASC, ${SCHEDULE_DATE} ASC,
        ${STATUS_RANK} ASC,
        (t.due_time IS NOT NULL) ASC, t.due_time ASC NULLS FIRST,
-       CASE WHEN t.due_date IS NULL THEN NULL ELSE t.created_at END ASC,
-       CASE WHEN t.due_date IS NULL THEN NULL ELSE t.id END ASC,
-       CASE WHEN t.due_date IS NULL THEN t.created_at END ASC,
-       CASE WHEN t.due_date IS NULL THEN t.id END ASC`
+       CASE WHEN ${SCHEDULE_DATE} IS NULL THEN NULL ELSE t.created_at END ASC,
+       CASE WHEN ${SCHEDULE_DATE} IS NULL THEN NULL ELSE t.id END ASC,
+       CASE WHEN ${SCHEDULE_DATE} IS NULL THEN t.created_at END ASC,
+       CASE WHEN ${SCHEDULE_DATE} IS NULL THEN t.id END ASC`
 
 /* ------------------------------------------------------------------ *
  * The two open halves, which All stacks
  * ------------------------------------------------------------------ */
 
-/** Q3's rows: the scope, plus a due_date. */
+/** Q3's rows: the scope, plus a Schedule. */
 async function plannedRows(
   executor: Executor,
   viewerId: string,
@@ -136,14 +170,14 @@ async function plannedRows(
 ): Promise<TaskCard[]> {
   const rows = await readCards(executor, {
     viewerId,
-    where: sql`${OPEN_SCOPE} AND t.due_date IS NOT NULL${extraScope}`,
+    where: sql`${OPEN_SCOPE} AND ${SCHEDULED}${extraScope}`,
     order: Q3_ORDER,
     limit: CAP_PROBE,
   })
   return rows.map((row) => row.card)
 }
 
-/** Q2's rows: the scope, minus a due_date, in the grouped order. */
+/** Q2's rows: the scope, minus a Schedule, in the grouped order. */
 async function tasksRows(
   executor: Executor,
   viewerId: string,
@@ -152,7 +186,7 @@ async function tasksRows(
 ): Promise<TaskCard[]> {
   const rows = await readCards(executor, {
     viewerId,
-    where: sql`${OPEN_SCOPE} AND t.due_date IS NULL${extraScope}`,
+    where: sql`${OPEN_SCOPE} AND ${ANYTIME}${extraScope}`,
     order,
     limit: CAP_PROBE,
   })
@@ -299,8 +333,10 @@ export function folderUnscheduled(
  * domain would be one of section 6's orders stated twice, which is the drift
  * this file refuses everywhere else.
  *
- * The scope is `folderScheduled`'s mirror image, OPEN_SCOPE plus an absent
- * due_date plus the folder. Folder membership is the caller's to have
+ * The scope is `folderScheduled`'s mirror image, OPEN_SCOPE plus ANYTIME
+ * plus the folder. It is the mirror image because ANYTIME is written as the
+ * negation of SCHEDULED, which is what keeps this list and that one from
+ * both holding a task or neither holding it (issue #216). Folder membership is the caller's to have
  * resolved: this is not a view endpoint, and the 10.2 chokepoint for it is
  * `accessibleTask` in the domain module that calls this.
  */
@@ -312,7 +348,7 @@ export async function folderUnscheduledIds(
     executor,
     sql`SELECT t.id, t.position
         FROM tasks t
-        WHERE ${OPEN_SCOPE} AND t.due_date IS NULL
+        WHERE ${OPEN_SCOPE} AND ${ANYTIME}
           AND t.deleted_at IS NULL AND t.folder_id = ${folderId}
         ORDER BY ${FOLDER_UNSCHEDULED_ORDER}
         LIMIT ${CAP_PROBE}`,

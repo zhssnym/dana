@@ -41,7 +41,7 @@ export {
   CALENDAR_RANGE_MAX_DAYS,
   checkCalendarRange,
   dueRelation,
-  isDueByToday,
+  isActiveByToday,
   myDayGroup,
   qualifyDate,
 } from './predicates.js'

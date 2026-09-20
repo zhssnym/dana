@@ -77,6 +77,7 @@ import { usePlannedCalendarView, useFolders } from '../../api/queries.js'
 import { useUpdateTask } from '../../api/mutations.js'
 import { showToast } from '../../state/toasts.js'
 import { formatDueDate, presenterToday } from '../../parts/presenters.js'
+import { movableEnd } from '../../parts/schedule.js'
 import { openTaskForm } from '../../shell/overlays.js'
 import { InlineError } from '../state-patterns.js'
 import { Button } from '../ui/button.js'
@@ -171,8 +172,15 @@ function CalendarEvent({
   const completed = event.status === 'completed'
   const abandoned = event.status === 'abandoned'
   /* polish: places F6. A real, open row can be carried to another day; a
-     ghost is a projection and has no date of its own to move. */
-  const movable = !ghost && !completed && !abandoned
+     ghost is a projection and has no date of its own to move.
+
+     `moves` is the fourth condition and is issue #216's: it names which end
+     of the Schedule a drop writes, and is null for a Start+Due pair, whose
+     whole-range drag Q3C asks for and nothing has built. A pair stayed
+     draggable until 2026-09-20 and a drop wrote its due date alone, which
+     resized a span the person was carrying with nothing saying so. Refusing
+     the drag is the non-destructive reading of an unbuilt feature. */
+  const movable = !ghost && !completed && !abandoned && event.moves !== null
 
   return (
     <button
@@ -425,21 +433,42 @@ export function PlannedCalendar(): React.JSX.Element {
     cell.scrollIntoView({ block: 'center' })
   }, [view.data])
 
-  /* polish: places F6: 7.6's PATCH of the due date, from a drop. */
+  /*
+  polish: places F6: 7.6's PATCH of one end of the Schedule, from a drop.
+
+  **Which end is the row's to say, not this function's, since issue #216.**
+  Q3C: "Dragging moves a Due-only task's Due Date, a Start-only task's Start
+  Date, and a Start+Due range whole." This issued `{ due_date: date }` for
+  every row until 2026-09-20, and the same commit that made Start-only rows
+  appear on the grid made them draggable, so dropping one after its start
+  date silently turned a Start-only task into a Start+Due task. `movableEnd`
+  answers the first two forms and refuses the third, whose whole-range drag
+  is unbuilt; the card is not draggable in that case either, so reaching here
+  with a null end is a drop the grid should not have offered and is dropped
+  rather than approximated.
+  */
   function moveTaskTo(taskId: string, date: string): void {
-    const already = (view.data?.real ?? []).find(
-      (row) => row.id === taskId && row.due_date === date,
-    )
-    if (already !== undefined) return
+    const row = (view.data?.real ?? []).find((card) => card.id === taskId)
+    if (row === undefined) return
+    const end = movableEnd(row)
+    if (end === null) return
+    if (row[end] === date) return
     update.mutate(
-      { id: taskId, body: { due_date: date } },
+      {
+        id: taskId,
+        body: end === 'due_date' ? { due_date: date } : { start_date: date },
+      },
       { onSuccess: () => showToast(`Moved to ${formatDueDate(date, today)}`) },
     )
   }
 
   const cells = useMemo(
-    () => cellsByDate(view.data?.real ?? [], view.data?.virtual ?? [], folders.data ?? []),
-    [view.data, folders.data],
+    () =>
+      cellsByDate(view.data?.real ?? [], view.data?.virtual ?? [], folders.data ?? [], {
+        start,
+        end,
+      }),
+    [view.data, folders.data, start, end],
   )
 
   const columns = zoom === 'day' ? 1 : 7

@@ -48,6 +48,7 @@ import type { FolderRowProps } from '../components/folder-row.js'
 import type { TaskRowProps } from '../components/task-row.js'
 import { formatTime } from '../lib/time-format.js'
 import type { TimeFormat } from '../lib/time-format.js'
+import { activationDateOf } from './schedule.js'
 
 /* ------------------------------------------------------------------ *
  * Today
@@ -185,12 +186,20 @@ function formatDueTime(dueTime: string, clock: TimeFormat): string {
 export type DueDisplay = NonNullable<TaskRowProps['due']>
 
 /**
- * The due badge for one card, or undefined when the task has no date.
+ * The due badge for one card, or undefined when the task has no **deadline**.
  *
  * `status` decides only whether the overdue form is reachable; the comparison
  * itself is 8.10's. Both operands are 4.11 dates, so the lexicographic
  * comparison is the chronological one, which is the property that format was
  * chosen for.
+ *
+ * **It reads `due_date` and only `due_date`, and since issue #216 that is a
+ * decision rather than the only reading available.** 8.1 makes overdue, due
+ * today and future relations to the deadline alone, and 9.5 says in terms
+ * that "a Start Date passing is not overdue and is not styled as one". So a
+ * Start-only card draws no badge here: it has nothing that can pass. What
+ * places it on a page is `parts/schedule.ts`'s schedule date, which is a
+ * different question and a different function.
  */
 export function dueDisplay(
   task: Pick<TaskCard, 'status' | 'due_date' | 'due_time'>,
@@ -700,15 +709,27 @@ Q4's outward tooltip uses the current page names: "Also in Scheduled, due
 2026-07-28" for a dated row and "Also in Anytime, in Work" for an undated one. The date is
 rendered as the card carries it, which is the form Q4's example writes and
 therefore the one place in this file where a date is not the design's format.
+
+**The split is Scheduled's membership and not the due date's presence, since
+issue #216, and it read `due_date === null` until 2026-09-20.** Q4's two
+blocks are Q3's and Q2's membership - its own sentence says the first shows
+rows "like a Scheduled row" and the second "like an Anytime row" - so a
+Start-only row sits in the Scheduled block, and a tooltip that read the due
+date alone told a person their row was "Also in Anytime" while the same page
+was drawing it above the boundary. A Start-only row therefore names the fact
+its home would show, which is its Start Date: Q4's third form, "Also in
+Scheduled, starts 2026-09-28".
 */
 function importantTooltipFor(
-  task: Pick<TaskCard, 'important' | 'due_date' | 'folder'>,
+  task: Pick<TaskCard, 'important' | 'start_date' | 'due_date' | 'folder'>,
   mode: StarTooltipMode,
 ): string | undefined {
   if (mode === 'inward') return undefined
-  return task.due_date === null
-    ? `Also in Anytime, in ${task.folder.name}`
-    : `Also in Scheduled, due ${task.due_date}`
+  if (task.due_date !== null) return `Also in Scheduled, due ${task.due_date}`
+  if (task.start_date !== null) {
+    return `Also in Scheduled, starts ${task.start_date}`
+  }
+  return `Also in Anytime, in ${task.folder.name}`
 }
 
 /*
@@ -717,23 +738,33 @@ qualifies automatically", and 7.8 is why it has to be: DELETE removes the
 viewer's entry and the task stays in My Day while it still qualifies, so a
 control offered on such a row promises a removal it cannot perform.
 
-Q1's automatic disjunct is the whole condition, assigned to the viewer with a
-due date on or before today. Nothing on the wire reports it, 7.0's card
-carrying the row rather than the reason it is on this page, so the client
+Q1's automatic disjunct is the whole condition, assigned to the viewer with an
+**activation date** on or before today. Nothing on the wire reports it, 7.0's
+card carrying the row rather than the reason it is on this page, so the client
 derives it; today here is the same civil date the request that fetched the row
 carried, so the two agree by construction. The residual is a midnight crossed
 between fetch and render, which the next refetch of 8.3 corrects.
+
+**The date is `coalesce(start_date, due_date)` since issue #217, and this
+function read `due_date` alone until 2026-09-20 while the comment above
+already claimed to mirror Q1's clause.** The clause moved on the server and
+this did not, so a task assigned to the viewer that started three days ago
+and is due next week qualified automatically on the page and not here: the
+un-pull control was drawn on it, and pressing it deleted the entry and left
+the row where it was, which is the exact promise the paragraph above says the
+control must never make.
 */
 function qualifiesAutomatically(
-  task: Pick<TaskCard, 'assignee' | 'due_date'>,
+  task: Pick<TaskCard, 'assignee' | 'start_date' | 'due_date'>,
   viewerId: string | null,
   today: string,
 ): boolean {
+  const activation = activationDateOf(task)
   return (
     viewerId !== null &&
     task.assignee?.id === viewerId &&
-    task.due_date !== null &&
-    task.due_date <= today
+    activation !== null &&
+    activation <= today
   )
 }
 

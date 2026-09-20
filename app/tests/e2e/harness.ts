@@ -848,12 +848,12 @@ export const copy = {
 export const emptyState = {
   /** Q1, both My Day groups empty. */
   myDay:
-    'Nothing on your day. Tasks assigned to you appear here on their due date, ' +
-    'or pull anything in yourself.',
+    'Nothing on your day. Tasks assigned to you appear here when they start ' +
+    'or come due, or pull anything in yourself.',
   /** Q2. */
   tasks: 'No undated tasks. Anything you capture without a date lands here.',
   /** Q3. */
-  planned: 'Nothing scheduled. Give any task a due date and it moves here.',
+  planned: 'Nothing scheduled. Give any task a start or due date and it moves here.',
   /** Q4. */
   important: 'Nothing marked important. Star any task and it shows up here.',
   /** Q5. */

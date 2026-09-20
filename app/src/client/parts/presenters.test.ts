@@ -706,6 +706,47 @@ describe('taskRowDisplay: one 7.0 card as his row takes it', () => {
     expect(taskRowDisplay(future, context({ showPullMarker: true })).pulled).toBe(true)
   })
 
+  /*
+  The same rule read against the **activation** date, which is what Q1's
+  clause compares since issue #217: the start date where a task has one and
+  the due date otherwise.
+
+  This is the case that was live on My Day between 2026-09-20 and the fix.
+  The server admitted a started task automatically and this file still asked
+  whether the due date had arrived, so the un-pull control was drawn on a row
+  that qualifies without any entry - and 7.8 makes DELETE remove the entry and
+  leave the task on the page, so pressing it deleted something and changed
+  nothing a person could see. AC-165 pins the rule and has no test file, cut
+  on 2026-09-20, so this is what watches it.
+  */
+  test('a row that qualifies from its start date shows no un-pull control', () => {
+    const started = card({
+      pulled: true,
+      assignee: { id: VIEWER, display_name: 'Hassan', avatar_url: null },
+      start_date: '2026-08-07',
+      due_date: '2026-08-17',
+    })
+    expect(taskRowDisplay(started, context({ showPullMarker: true })).pulled).toBe(false)
+    const startOnly = card({
+      pulled: true,
+      assignee: { id: VIEWER, display_name: 'Hassan', avatar_url: null },
+      start_date: '2026-08-10',
+    })
+    expect(taskRowDisplay(startOnly, context({ showPullMarker: true })).pulled).toBe(false)
+  })
+
+  test('a pulled row whose Schedule has not begun still shows the control', () => {
+    // The other arm of Q1's OR, and the one AC-450 seeds: a task starting
+    // tomorrow is here by the entry alone, so the entry is removable.
+    const notYet = card({
+      pulled: true,
+      assignee: { id: VIEWER, display_name: 'Hassan', avatar_url: null },
+      start_date: '2026-08-11',
+      due_date: '2026-08-20',
+    })
+    expect(taskRowDisplay(notYet, context({ showPullMarker: true })).pulled).toBe(true)
+  })
+
   test('steps arrive as a done-and-total pair, and vanish when there are none', () => {
     expect(taskRowDisplay(card({ steps_done: 2, steps_total: 5 }), context()).steps).toEqual({
       complete: 2,
@@ -736,6 +777,47 @@ describe('taskRowDisplay: one 7.0 card as his row takes it', () => {
     expect(
       taskRowDisplay(card(), context({ starTooltip: 'outward' })).importantTooltip,
     ).toBe('Also in Anytime, in Work')
+  })
+
+  /*
+  Q4's third form, and the reason it exists.
+
+  The two blocks of Important are Q3's and Q2's membership since issue #216,
+  not a column's, so a Start-only row leads the Scheduled block. This tooltip
+  split on the due date, so the same page drew that row first and told the
+  person it was "Also in Anytime" - a row contradicting the list it was
+  sitting in. 9.5: the tooltip names "the fact that home would show", which
+  for a Start-only row on Scheduled is the Start Date it is placed by.
+  */
+  test('a start-only row names Scheduled and the date it is placed by', () => {
+    expect(
+      taskRowDisplay(
+        card({ start_date: '2026-09-28' }),
+        context({ starTooltip: 'outward' }),
+      ).importantTooltip,
+    ).toBe('Also in Scheduled, starts 2026-09-28')
+    // A pair still names its deadline, which is the date Scheduled places it
+    // under: one form per Schedule state and no row gets two.
+    expect(
+      taskRowDisplay(
+        card({ start_date: '2026-09-20', due_date: '2026-09-30' }),
+        context({ starTooltip: 'outward' }),
+      ).importantTooltip,
+    ).toBe('Also in Scheduled, due 2026-09-30')
+  })
+
+  /*
+  And the badge is the other half of the same page: 9.5 says "a Start Date
+  passing is not overdue and is not styled as one", 8.1 keeping overdue a
+  relation to the deadline. A Start-only row has no deadline to pass, so it
+  draws no due badge at all and cannot draw the overdue one.
+  */
+  test('a spent start date draws no due badge and no overdue styling', () => {
+    expect(taskRowDisplay(card({ start_date: '2026-08-01' }), context()).due).toBeUndefined()
+    expect(
+      taskRowDisplay(card({ start_date: '2026-08-01', due_date: '2026-08-20' }), context())
+        .due,
+    ).toEqual({ label: 'Due 20 Aug' })
   })
 
   /*

@@ -40,6 +40,8 @@ import {
   UserRoundCheck,
 } from '../lib/icons.js'
 import { paths } from '../routes.js'
+import { movableEnd } from '../parts/schedule.js'
+import type { Schedule } from '../parts/schedule.js'
 import type { GroupBy } from './filter.js'
 import type { ViewMode } from './view-mode.js'
 
@@ -248,6 +250,17 @@ export interface ColumnValue {
   readonly assignee_id?: string | null
   readonly due_date?: string | null
   /**
+   * 4.5's start date, added for issue #216 and written by a **drop** alone.
+   *
+   * A date column's value is a day and its capture writes that day as a due
+   * date, a new task having no Schedule to keep. A task dropped into the
+   * column has one, and Q3C says a Start-only task's drag moves its Start
+   * Date, so `TaskBoard`'s `scheduleLanding` swaps the field for that row and
+   * this is the field it swaps to. Nothing captures it: `captureDefaults`
+   * below reads folder, due date and assignee and deliberately not this.
+   */
+  readonly start_date?: string | null
+  /**
    * 4.5's section, added at S26 for item 44's B2.
    *
    * Null is the loose list, which is 9.6's own name for the tasks under no
@@ -255,6 +268,38 @@ export interface ColumnValue {
    * section has to write something.
    */
   readonly section_block_id?: string | null
+}
+
+/**
+ * The value a **drop** writes, which is the column's value with a date
+ * column's day moved onto the end of the Schedule that row actually carries,
+ * or null where the drop is refused.
+ *
+ * Q3C, since issue #216: "Dragging moves a Due-only task's Due Date, a
+ * Start-only task's Start Date, and a Start+Due range whole." The third is
+ * unbuilt, so a pair is refused rather than half-moved - writing one end of a
+ * span resizes work the person was carrying with nothing on screen saying so,
+ * which is what every drop did until 2026-09-20, the same commit having made
+ * Start-only rows appear on these surfaces for the first time.
+ *
+ * Only the date axis is touched. A folder, person or section column writes a
+ * field the Schedule has nothing to do with, and passing those through
+ * unchanged is what keeps this one rule about one axis.
+ *
+ * A **capture** does not go through here and should not: a task typed into a
+ * day column is new and has no Schedule to keep, so the column's day is its
+ * deadline, which is what `captureDefaults` below writes.
+ */
+export function scheduleLanding(
+  task: Schedule,
+  landing: ColumnValue,
+): ColumnValue | null {
+  if (landing.due_date === undefined) return landing
+  const end = movableEnd(task)
+  if (end === null) return null
+  if (end === 'due_date') return landing
+  const { due_date: day, ...rest } = landing
+  return { ...rest, start_date: day }
 }
 
 /** What a capture writes: the POST body fragment, and Today's own extra act. */

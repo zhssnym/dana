@@ -14,6 +14,7 @@ import { describe, expect, test } from 'vitest'
 
 import type { TaskCard } from '../../shared/tasks.js'
 import { groupRows } from './grouping.js'
+import { ladderRungs } from './ladder.js'
 import { UNASSIGNED } from './filter.js'
 
 const TODAY = '2026-08-25'
@@ -24,13 +25,14 @@ function card(
   folder: { id: string; name: string },
   assignee: { id: string; display_name: string | null } | null,
   due: string | null = null,
+  start: string | null = null,
 ): TaskCard {
   return {
     id,
     title: id,
     status: 'pending',
     important: false,
-    start_date: null,
+    start_date: start,
     due_date: due,
     due_time: null,
     folder: { ...folder, is_default: false },
@@ -101,6 +103,41 @@ describe('the date axis', () => {
     expect(columns.map((column) => column.name)).toEqual(['Overdue', 'Today', 'No date'])
     expect(columns[0]?.capture).toBeNull()
     expect(columns[1]?.capture).toEqual({ due_date: TODAY })
+  })
+
+  /*
+  The board and the list are one page in two modes, so a row cannot be under
+  two headings at once. This axis read `task.due_date` while `ladderRungs`
+  read the schedule date, and between 2026-09-20 and the fix a Start-only
+  task sat under "Thursday" as a list and in a "No date" column as a board -
+  on a page, Scheduled, whose whole membership is "carries a date" (issue
+  #216). Both now come from `rungForTask`, and this case is the one that
+  would go red if either seam grew its own copy of the rule again.
+  */
+  test('agrees with the list ladder about every Schedule state', () => {
+    const rows = [
+      card('start-only-thu', groceries, null, null, '2026-08-27'),
+      card('started', groceries, null, null, '2026-08-22'),
+      card('pair', groceries, null, TODAY, '2026-08-18'),
+      card('none', groceries, null, null, null),
+    ]
+    const columns = groupRows(rows, 'date', TODAY, VIEWER)
+    expect(columns.map((column) => column.name)).toEqual([
+      'Thursday',
+      'Started',
+      'Today',
+      'No date',
+    ])
+    expect(columns.map((column) => column.name)).toEqual(
+      ladderRungs(rows, TODAY).map((rung) => rung.name),
+    )
+    /* Started is a relation to today and not a day, so it offers nothing to
+       capture with, exactly as Overdue does (DES-182). */
+    expect(columns[1]?.capture).toBeNull()
+    /* And a day column still captures a due date: a task made there is new
+       and carries no Schedule to keep. What a *drop* writes is the row's own
+       end of the Schedule and is TaskBoard's, not this function's. */
+    expect(columns[0]?.capture).toEqual({ due_date: '2026-08-27' })
   })
 })
 
