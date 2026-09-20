@@ -71,12 +71,19 @@ is stated there: refusing would make honest exports from older versions
 unimportable.
 
 **A page image does not travel**, and that is 7.16 rather than an oversight:
-it admits sections and paragraphs, and an image block is a `file_id` into
-the exporting account, which is a row the importing account cannot read
-(10.2) rather than a picture. Carrying the bytes instead would be 7.15's
-upload path inside an import, which is a widening of a frozen section and is
-escalated rather than decided here. So an image item is dropped, and the
-sections and paragraphs around it keep their order.
+an image block is a `file_id` into the exporting account, which is a row the
+importing account cannot read (10.2) rather than a picture. Carrying the
+bytes instead would be 7.15's upload path inside an import, which is a
+widening of a frozen section and is escalated rather than decided here. So an
+image item creates nothing, and the writing around it keeps its order.
+
+**What changed at #185 is that the file now says so.** This paragraph used to
+end "an image item is dropped", and dropped is exactly what it was: the page
+had a picture, the file had a gap, and nobody was told at either end. At
+version 4 the gap is an explicit `{ kind: 'omitted', was }` placeholder and
+the writer answers a count of them, so the loss is recorded in the bytes and
+said at the export surface. Versions 1 to 3 still drop, because a file of
+those versions has no way to say anything else.
 */
 import { z } from 'zod'
 import {

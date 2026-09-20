@@ -18,15 +18,29 @@ so what has to be proven on the wire is that the fold reaches the endpoint
 intact: the whole keep-set of 7.16 arrives, and everything 7.16 excludes still
 reaches nothing.
 
-Spec: 7.16 as amended (RFC 0005 change control item 44 B3), 10.2, 10.3,
-DES-206.
+**And since #185, the same question asked of the file the product writes
+*today*.** The two cases above are about a file an older Dana handed somebody;
+the case at the foot of this file is about the current one — the bytes
+`folderToWorkflowFile` produces, sent to the endpoint over the wire and read
+back, with no object passed from one half to the other inside this process. The
+arrangement is still what is being proven; it is just that the arrangement has
+moved on, and "the endpoint reads what the writer writes" is a claim that has to
+be re-made every time the format does.
+
+Spec: 7.16 as amended (RFC 0005 change control item 44 B3, and #185's ordered
+page), 10.2, 10.3, DES-206.
 */
+import { randomUUID } from 'node:crypto'
+
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
 import { startAuthTestApp } from '../../../tests/support/auth-harness.js'
 import type { AuthTestApp } from '../../../tests/support/auth-harness.js'
 import { Cast, expectStatus } from '../../../tests/support/folders-harness.js'
 import type { Actor } from '../../../tests/support/folders-harness.js'
+import { folderToWorkflowFile } from '../../shared/workflows.js'
+import type { PageView } from '../../shared/pages.js'
+import type { TaskDetail } from '../../shared/tasks.js'
 
 let app: AuthTestApp
 const cast = new Cast(['importer', 'other'], 'wfimport')
@@ -199,5 +213,126 @@ describe('POST /workflows/import reads the file DES-206 writes', () => {
       detail.reminder,
       'a label 4.8 has no mode for is dropped, and the zone it would have needed is not demanded',
     ).toBeNull()
+  })
+
+  /*
+  The round trip against the exact file the product exports (#185).
+
+  **Nothing here builds a file.** `folderToWorkflowFile` is called with the
+  three things `FolderPage.tsx` hands it, the result is serialised to JSON as
+  the download is, and the JSON is posted. What is being proven is the
+  arrangement on the wire, which is this file's whole subject: a file the
+  product writes and the endpoint cannot read is the defect that opened this
+  file in the first place, and it has now happened twice — once at #204, which
+  bumped the version past a client check nobody had tied to the contract.
+  */
+  test('the file the product writes today is read by the endpoint, whole', async () => {
+    const [importer] = (await cast.of(app)) as [Actor, Actor]
+
+    const source = await importer.browser.json('/folders', 'POST', {
+      name: 'wfimport composed',
+    })
+    expectStatus(source, 201, 'the source folder must stage (7.4)')
+    const sourceId = String((source.json() as { id?: unknown }).id)
+
+    const heading = randomUUID()
+    const note = randomUUID()
+    const work = randomUUID()
+    const page = await importer.browser.json(`/folders/${sourceId}/page`, 'GET')
+    expectStatus(page, 200, 'the empty page must read (7.16)')
+    expectStatus(
+      await importer.browser.json(`/folders/${sourceId}/page/actions`, 'POST', {
+        action: 'document_transaction',
+        mutation_id: randomUUID(),
+        base_revision: (page.json() as { revision: string }).revision,
+        operations: [
+          {
+            op: 'put_block',
+            id: heading,
+            block_kind: 'section',
+            text: 'wfimport before the day',
+            rich_content: null,
+            file_id: null,
+            ref_folder_id: null,
+            width_pct: null,
+            checked: null,
+          },
+          {
+            op: 'put_block',
+            id: note,
+            block_kind: 'paragraph',
+            text: 'wfimport read this first',
+            rich_content: null,
+            file_id: null,
+            ref_folder_id: null,
+            width_pct: null,
+            checked: null,
+          },
+          { op: 'create_task', id: work, title: 'wfimport book the room' },
+          {
+            op: 'set_outline',
+            items: [
+              { kind: 'block', id: heading, section_block_id: null, list_parent_block_id: null },
+              { kind: 'block', id: note, section_block_id: heading, list_parent_block_id: null },
+              { kind: 'task', id: work, section_block_id: heading, list_parent_block_id: null },
+            ],
+          },
+        ],
+      }),
+      200,
+      'the composed page must save (7.16)',
+    )
+
+    const read = await importer.browser.json(`/folders/${sourceId}/page`, 'GET')
+    expectStatus(read, 200, 'the composed page must read back (7.16)')
+    const view = read.json() as PageView
+    const detail = await importer.browser.json(`/tasks/${work}`, 'GET')
+    expectStatus(detail, 200, 'the task detail must read (7.6)')
+    const saved = folderToWorkflowFile(
+      'wfimport composed',
+      [detail.json() as TaskDetail],
+      view.blocks,
+      view,
+      [],
+    )
+
+    /* Over the wire as bytes, because that is what a download is. */
+    const imported = await importer.browser.json(
+      '/workflows/import?tz=UTC',
+      'POST',
+      JSON.parse(JSON.stringify(saved.file)) as unknown,
+    )
+    expectStatus(
+      imported,
+      201,
+      'the endpoint reads the file the product writes; a version the picker or the schema does not know is how this broke at #204 (7.16, #185)',
+    )
+    const madeId = String(
+      (imported.json() as { folders: { id: string }[] }).folders[0]?.id,
+    )
+
+    const madePage = await importer.browser.json(`/folders/${madeId}/page`, 'GET')
+    expectStatus(madePage, 200, 'the imported page reads (7.16)')
+    const made = madePage.json() as PageView
+    const madeHeading = made.blocks.find((block) => block.kind === 'section')
+    expect(
+      made.blocks.map((block) => [block.kind, block.text]),
+      'the writing arrives in the file’s order',
+    ).toEqual([
+      ['section', 'wfimport before the day'],
+      ['paragraph', 'wfimport read this first'],
+    ])
+    expect(
+      made.blocks.find((block) => block.kind === 'paragraph')?.section_block_id,
+      'under the heading it was under, on an id this import minted',
+    ).toBe(madeHeading?.id)
+    expect(
+      made.task_placements?.map((place) => place.section_block_id),
+      'and so is the work, which is the relationship the file could not carry before #185',
+    ).toEqual([madeHeading?.id])
+    expect(
+      made.items.map((item) => item.kind),
+      'in one page sequence, the Task at its own position among the writing (4.17)',
+    ).toEqual(['block', 'block', 'task'])
   })
 })
