@@ -101,7 +101,7 @@ arrives with is somebody's decision, and a default would make it nobody's.
 The server reads it in `createInvite`, which stores it on the pending row and,
 on the instant-share arm, writes it straight into the membership and its
 `null -> preset` transition; `acceptInvite` reads it back when the invite is
-accepted. AC-489 drives both arms and reads the stored value back.
+accepted. AC-519 drives both arms and reads the stored value back.
 */
 export const postInvitesBody = z
   .object({

@@ -220,6 +220,27 @@ default, so read this list before spending one.
   collision this section's rule exists to prevent, it is between three other branches, and
   whichever of them merges second will find it as a duplicate criterion number rather than
   as a duplicate filename.
+- **AC-510 to AC-523 were taken on 2026-09-20** (issue #228, the Folder Access model), and
+  they were **renumbered** rather than allocated: the branch wrote them as AC-480 to AC-493
+  and was then found to overlap two siblings that were already pushed —
+  `backend/226-label-core-domain` holding AC-481 inside a block running from 470, and
+  `backend/220-files-and-media-blocks` holding AC-490 to AC-492 inside one running to 507.
+  **Nothing would have announced that collision**, which is the reason this bullet is long:
+  the clash is in the *number* and not in the filename, so two files called
+  `ac-481-<different-slug>.test.ts` merge cleanly and leave one number meaning two things.
+  The branch that overlapped both moved, in one pass, 480→510 through 493→523.
+
+  **494 to 509 are deliberately left free and are not claimed by anybody**, so that the gap
+  reads as this renumber rather than as an ordinary allocation — the same reasoning the
+  AC-413 and AC-423-to-439 bullets record for their own gaps, over a block instead of over a
+  number. The fourteen are 12.4's. **No total moves with them**, on the AC-410 and AC-411
+  precedent: the count at the top and 12.4's row in the table below belong to whichever merge
+  comes last rather than to one of several branches open at once.
+
+  **Five earlier criteria state decisions this block supersedes and none of them is edited
+  here**: AC-011, AC-012, AC-015, AC-019 and AC-024, with AC-202's succession clause. 12.4's
+  own paragraph names each and says which accepted record replaces it; they move when a person
+  rules on them, which is hard-stops.md's rule for a criterion whose decision has moved.
 - **AC-440 to AC-447 were taken on 2026-09-20** (issue #224, task dependencies), and they
   were taken from **440** rather than from 423, which the sentence above names as next.
   Three branches were open at once that day; 423 was assigned to one of them and the range

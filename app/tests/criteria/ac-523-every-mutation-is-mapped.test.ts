@@ -1,5 +1,5 @@
 /*
-AC-493: every mutating route on the mounted application is mapped, by name, to
+AC-523: every mutating route on the mounted application is mapped, by name, to
 either a Folder action the resolver governs or an explicit classification as
 personal, account or system state that Folder Access does not govern -- and
 the mapping is enumerated over the router in both directions, so a route that
@@ -21,7 +21,7 @@ strike and the only property that makes a hand-written list a guard:
 
 **It does not check that the mapping is right.** Nothing structural can: the
 question "is trashing a Task Can edit's or Full control's" is a product
-question, and it is answered by AC-482 through AC-491, each driving real
+question, and it is answered by AC-512 through AC-521, each driving real
 actors at real routes. What this catches is the different and more likely
 failure -- a route added later with no thought about Access at all, which
 would otherwise inherit whatever its neighbours happened to do.
@@ -240,8 +240,8 @@ const OUTSIDE_FOLDER_ACCESS: Record<string, string> = {
     "the browser's own report of a policy refusal (issue #99). No session, no database, no folder",
 }
 
-describe('AC-493 every mutation is mapped to an action or classified outside', () => {
-  test('AC-493 proof 24: the router and the audit describe the same surface', () => {
+describe('AC-523 every mutation is mapped to an action or classified outside', () => {
+  test('AC-523 proof 24: the router and the audit describe the same surface', () => {
     const mounted = mutatingRoutes(app.application)
     const mapped = [
       ...Object.keys(GOVERNED),
@@ -266,7 +266,7 @@ describe('AC-493 every mutation is mapped to an action or classified outside', (
     ).toBe(mapped.length)
   })
 
-  test('AC-493 proof 24: every mapped action is one the resolver actually knows', () => {
+  test('AC-523 proof 24: every mapped action is one the resolver actually knows', () => {
     // A typo in the table would otherwise map a route to an action that
     // decides nothing, and the row would read as a decision.
     for (const [route, action] of Object.entries(GOVERNED)) {
@@ -277,7 +277,7 @@ describe('AC-493 every mutation is mapped to an action or classified outside', (
     }
   })
 
-  test('AC-493 proof 24: no governed action admits a preset below its stated bar', () => {
+  test('AC-523 proof 24: no governed action admits a preset below its stated bar', () => {
     /*
     The resolver's own table, read back as a matrix. This does not say whether
     a bar is *right* -- the capability criteria do that against real actors --
@@ -314,7 +314,7 @@ describe('AC-493 every mutation is mapped to an action or classified outside', (
     }
   })
 
-  test('AC-493 proof 24: the assignment clause never admits a preset the bar already refused for others', () => {
+  test('AC-523 proof 24: the assignment clause never admits a preset the bar already refused for others', () => {
     // The `whenAssignedToActor` escape is a boundary rather than a grant: it
     // may let Can contribute plan *their own* Task, and it must never let a
     // preset act on a Task that is not theirs.
@@ -350,7 +350,7 @@ describe('AC-493 every mutation is mapped to an action or classified outside', (
     }
   })
 
-  test('AC-493 proof 25: the Label actions exist at R8A\'s bars, ahead of #226\'s routes', () => {
+  test('AC-523 proof 25: the Label actions exist at R8A\'s bars, ahead of #226\'s routes', () => {
     /*
     #228 supersedes #208/#226's interim "all Folder members may manage Folder
     Labels" rule, and #226 is a branch in flight: its twelve routes are not on

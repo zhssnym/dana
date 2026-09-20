@@ -1,5 +1,5 @@
 /*
-AC-486: the assignee that authorizes an Assigned-work or Can-contribute
+AC-516: the assignee that authorizes an Assigned-work or Can-contribute
 mutation is read in the same transaction and under the same row lock as the
 mutation itself, so a reassignment that commits first is seen -- and a stale
 client projection saying "assigned to me" never authorizes.
@@ -94,8 +94,8 @@ async function assigneeOf(actor: Actor, taskId: string): Promise<string | null> 
   return body.assignee?.id ?? null
 }
 
-describe('AC-486 the assignee that authorizes is the assignee that is written', () => {
-  test('AC-486: a projection the client already holds does not authorize after a reassignment', async () => {
+describe('AC-516 the assignee that authorizes is the assignee that is written', () => {
+  test('AC-516: a projection the client already holds does not authorize after a reassignment', async () => {
     const { manager, worker, replacement, taskId } = await stage('ac486 stale')
 
     // The worker reads the Task and sees themselves on it. This is exactly
@@ -141,7 +141,7 @@ describe('AC-486 the assignee that authorizes is the assignee that is written', 
     )
   })
 
-  test('AC-486: a reassignment and a completion in flight together cannot both act on one snapshot', async () => {
+  test('AC-516: a reassignment and a completion in flight together cannot both act on one snapshot', async () => {
     const { manager, worker, replacement, taskId } = await stage('ac486 raced')
 
     /*
@@ -184,9 +184,14 @@ describe('AC-486 the assignee that authorizes is the assignee that is written', 
     the same defect, a decision made outside the lock that performs the
     write.
     */
+    /* The body rides the message because the one wrong answer this race can
+       give is a 500, and a 500 with no body says nothing about which of the
+       two locks it died on. It gave one on 2026-09-20, from a lock-order
+       inversion in `patchTask` that `domain/tasks.ts` now records and fixes;
+       leaving the body out would have cost that investigation an hour. */
     expect(
       [200, 403],
-      `the completion answered ${String(completed.status)}, which is neither the grant nor the refusal this race admits`,
+      `the completion answered ${String(completed.status)}, which is neither the grant nor the refusal this race admits; body ${completed.body.slice(0, 300)}`,
     ).toContain(completed.status)
     expect(
       finalStatus,
@@ -200,7 +205,7 @@ describe('AC-486 the assignee that authorizes is the assignee that is written', 
     ).toBe(replacement.id)
   })
 
-  test('AC-486: the same rule binds Can contribute, whose authority is the same boundary', async () => {
+  test('AC-516: the same rule binds Can contribute, whose authority is the same boundary', async () => {
     const [manager, worker, replacement] = (await cast.of(app)) as [
       Actor,
       Actor,
@@ -227,7 +232,7 @@ describe('AC-486 the assignee that authorizes is the assignee that is written', 
     )
   })
 
-  test('AC-486: a Step toggle is gated by the parent Task\'s locked assignee too', async () => {
+  test('AC-516: a Step toggle is gated by the parent Task\'s locked assignee too', async () => {
     const { manager, worker, replacement, taskId } = await stage('ac486 steps')
     const made = await manager.browser.json(`/tasks/${taskId}/steps`, 'POST', {
       title: 'ac486 a requirement',

@@ -1,5 +1,5 @@
 /*
-AC-491: ownership is custody. The owner recovers Full control explicitly and
+AC-521: ownership is custody. The owner recovers Full control explicitly and
 the recovery is recorded as one; an ordinary voluntary leave never promotes
 whoever joined earliest; and ownership transfers only to an active member who
 currently holds Full control.
@@ -21,7 +21,7 @@ So proof 17 is a refusal where there used to be a silent promotion, and proof
 
 ## The recovery anchor
 
-R5 lets the owner lower their own Access -- AC-490 proves that -- and the
+R5 lets the owner lower their own Access -- AC-520 proves that -- and the
 whole reason it is safe to let them is that they can always climb back.
 `POST /folders/:id/owner-recovery` is that door, and it reads **no preset at
 all**: an owner sitting at Can view, in a folder whose other administrators
@@ -89,8 +89,8 @@ async function ownerIdOf(actor: Actor, folderId: string): Promise<boolean> {
   return (read.json() as { is_owner?: boolean }).is_owner === true
 }
 
-describe('AC-491 custody is a separate fact and moves on purpose', () => {
-  test('AC-491 proof 16: the owner recovers Full control explicitly, from any preset', async () => {
+describe('AC-521 custody is a separate fact and moves on purpose', () => {
+  test('AC-521 proof 16: the owner recovers Full control explicitly, from any preset', async () => {
     const { owner, deputy, folderId } = await stage('ac491 recovery')
 
     // The owner steps all the way down -- permitted because the deputy holds
@@ -143,7 +143,7 @@ describe('AC-491 custody is a separate fact and moves on purpose', () => {
     )
   })
 
-  test('AC-491 proof 16: recovery is the only way up, and self-promotion is not', async () => {
+  test('AC-521 proof 16: recovery is the only way up, and self-promotion is not', async () => {
     const { owner, folderId } = await stage('ac491 no self promotion')
     await forcePreset(app.db, folderId, owner.id, 'can_comment')
 
@@ -159,7 +159,7 @@ describe('AC-491 custody is a separate fact and moves on purpose', () => {
     ).toBe('can_comment')
   })
 
-  test('AC-491 proof 17: an ordinary owner leave is refused rather than silently succeeded', async () => {
+  test('AC-521 proof 17: an ordinary owner leave is refused rather than silently succeeded', async () => {
     const { owner, deputy, oldest, folderId } = await stage('ac491 owner leave')
 
     const left = await owner.browser.api(`/folders/${folderId}/my-membership`, {
@@ -185,7 +185,7 @@ describe('AC-491 custody is a separate fact and moves on purpose', () => {
     ).toBe('full_control')
   })
 
-  test('AC-491 proof 17: the same refusal when the leave is addressed as a removal', async () => {
+  test('AC-521 proof 17: the same refusal when the leave is addressed as a removal', async () => {
     // `DELETE /folders/:id/members/:userId` with the owner's own id is the
     // same act by another door, and a rule that held on one and not the other
     // would be no rule.
@@ -198,7 +198,7 @@ describe('AC-491 custody is a separate fact and moves on purpose', () => {
     )
   })
 
-  test('AC-491 proof 17: and the owner may not be removed by an administrator either', async () => {
+  test('AC-521 proof 17: and the owner may not be removed by an administrator either', async () => {
     const { owner, deputy, folderId } = await stage('ac491 owner removal')
     const removed = await removeMember(deputy, folderId, owner.id)
     expectStatus(
@@ -212,7 +212,7 @@ describe('AC-491 custody is a separate fact and moves on purpose', () => {
     ).toBe(true)
   })
 
-  test('AC-491 proof 18: ownership transfers only to a current Full-control member', async () => {
+  test('AC-521 proof 18: ownership transfers only to a current Full-control member', async () => {
     const { owner, deputy, oldest, folderId } = await stage('ac491 succession')
 
     const toOrdinary = await transferOwnership(owner, folderId, oldest.id)
@@ -242,7 +242,7 @@ describe('AC-491 custody is a separate fact and moves on purpose', () => {
     ).toBe(false)
   })
 
-  test('AC-491 proof 18: the transfer is the owner\'s, whoever else holds Full control', async () => {
+  test('AC-521 proof 18: the transfer is the owner\'s, whoever else holds Full control', async () => {
     const { deputy, folderId } = await stage('ac491 not the deputy\'s to give')
     const byDeputy = await transferOwnership(deputy, folderId, deputy.id)
     expectStatus(
@@ -252,7 +252,7 @@ describe('AC-491 custody is a separate fact and moves on purpose', () => {
     )
   })
 
-  test('AC-491: once a successor exists and takes it, the old owner may leave', async () => {
+  test('AC-521: once a successor exists and takes it, the old owner may leave', async () => {
     // The whole point of the refusal in proof 17 is that it is a step rather
     // than a wall: transfer, then leave.
     const { owner, deputy, folderId } = await stage('ac491 the way out')

@@ -201,7 +201,7 @@ describe('postFolderMembersBody (7.4: { user_id, access })', () => {
   direct member add "requires an explicit Access preset"). It has no default
   on purpose -- a default would be one person's authority chosen by nobody --
   so the body is refused without it, and refused with a value outside R8A's
-  six. AC-482 proves the same two refusals on the wire and reads the stored
+  six. AC-512 proves the same two refusals on the wire and reads the stored
   preset back, which is the half a schema test cannot do.
   */
   test('requires an explicit Access preset, and one of R8A\'s six', () => {

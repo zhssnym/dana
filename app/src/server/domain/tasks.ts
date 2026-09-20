@@ -931,15 +931,39 @@ export async function patchTask(
   patch: PatchTaskBody,
 ): Promise<PatchTaskResult> {
   return inTransaction(db, async (tx) => {
-    /* A folder/Section PATCH participates in #184's folder ordering domain.
-       Resolve only enough to acquire every affected folder row first, in a
-       stable order, then lock and re-read the task. Page actions use the same
-       folder-before-task order, so a board drop and a canvas drag queue rather
-       than deadlock while deciding one mixed position. */
-    const structural = patch.folder_id !== undefined || patch.section_block_id !== undefined
-    const preview = structural ? await accessibleTask(tx, viewerId, taskId) : null
-    if (structural && preview === null) return { kind: 'not_found' }
-    if (preview !== null) {
+    /*
+    A PATCH participates in #184's folder ordering domain. Resolve only enough
+    to acquire every affected folder row first, in a stable order, then lock
+    and re-read the task. Page actions use the same folder-before-task order,
+    so a board drop and a canvas drag queue rather than deadlock while
+    deciding one mixed position.
+
+    **The folder lock used to be taken only for a folder or Section move, and
+    that was a lock-order inversion that deadlocked under load.** Found on
+    2026-09-20 by AC-516, which races a reassigning PATCH against a completing
+    transition on one Task and read a 500 on a contended leg; it reproduces on
+    no quiet one, which is what a deadlock does.
+
+    The mechanism, because it is not obvious and the fix looks like a
+    pessimisation without it. `transitionTask` takes the folder row
+    `FOR UPDATE` and then the task row. A non-structural PATCH took the task
+    row and never asked for the folder -- until `recordEvent`, which inserts
+    an `events` row carrying `folder_id`, and **an insert against a foreign key
+    takes `FOR KEY SHARE` on the referenced row**, which `FOR UPDATE` blocks.
+    So the transition held the folder and waited for the task while the PATCH
+    held the task and waited for the folder, and Postgres broke the cycle with
+    40P01. Every path in this file already took folder-then-task except this
+    one, so the fix is to stop making it the exception rather than to weaken
+    anything.
+
+    The cost is that two PATCHes on Tasks in one folder now queue where they
+    used to interleave. That is the price of one lock order, it is the price
+    `transitionTask`, `deleteTask`, `placeTaskInOrder` and the page actions
+    already pay, and a deadlocked request is a 500 in somebody's face.
+    */
+    const preview = await accessibleTask(tx, viewerId, taskId)
+    if (preview === null) return { kind: 'not_found' }
+    {
       const folderIds = [
         ...new Set([
           preview.folderId,

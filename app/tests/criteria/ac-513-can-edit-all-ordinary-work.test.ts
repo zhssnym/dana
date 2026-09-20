@@ -1,5 +1,5 @@
 /*
-AC-483: Can edit changes every piece of ordinary shared Work in the folder --
+AC-513: Can edit changes every piece of ordinary shared Work in the folder --
 its identity, its page, its Sections, and every Task in it whoever holds them
 -- and stops exactly at the acts R7 reserves.
 
@@ -54,8 +54,8 @@ async function stage(name: string): Promise<{
   return { owner, editor, folderId }
 }
 
-describe('AC-483 Can edit owns the Work and not the container', () => {
-  test("AC-483: the folder's whole identity, the rename included", async () => {
+describe('AC-513 Can edit owns the Work and not the container', () => {
+  test("AC-513: the folder's whole identity, the rename included", async () => {
     const { editor, folderId } = await stage('ac483 identity')
     const patched = await editor.browser.json(`/folders/${folderId}`, 'PATCH', {
       name: 'ac483 renamed',
@@ -73,7 +73,7 @@ describe('AC-483 Can edit owns the Work and not the container', () => {
     expect(body.description, 'and so did the sentence').toBe('ac483 described')
   })
 
-  test("AC-483: the folder page and its Sections", async () => {
+  test("AC-513: the folder page and its Sections", async () => {
     const { editor, folderId } = await stage('ac483 page')
     const written = await editor.browser.json(
       `/folders/${folderId}/page`,
@@ -114,7 +114,7 @@ describe('AC-483 Can edit owns the Work and not the container', () => {
     )
   })
 
-  test("AC-483: every Task in the folder, including another member's", async () => {
+  test("AC-513: every Task in the folder, including another member's", async () => {
     const { owner, editor, folderId } = await stage('ac483 tasks')
     const ownersTask = await taskIn(
       owner,
@@ -155,7 +155,7 @@ describe('AC-483 Can edit owns the Work and not the container', () => {
     )
   })
 
-  test('AC-483: and stops at the three acts R7 reserves', async () => {
+  test('AC-513: and stops at the three acts R7 reserves', async () => {
     const { owner, editor, folderId } = await stage('ac483 the boundary')
 
     const trashedFolder = await editor.browser.api(`/folders/${folderId}`, {

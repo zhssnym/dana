@@ -1,5 +1,5 @@
 /*
-AC-490: every shared folder keeps at least one active human Full-control
+AC-520: every shared folder keeps at least one active human Full-control
 member. The last one cannot be demoted, cannot be removed and cannot leave --
 and the owner may lower their own Access only once somebody else holds it.
 
@@ -74,8 +74,8 @@ async function stage(name: string): Promise<Stage> {
   return { owner, deputy, worker, folderId }
 }
 
-describe('AC-490 a shared folder never runs out of custodians', () => {
-  test('AC-490 proof 14: the last Full-control member cannot be demoted', async () => {
+describe('AC-520 a shared folder never runs out of custodians', () => {
+  test('AC-520 proof 14: the last Full-control member cannot be demoted', async () => {
     const { owner, deputy, folderId } = await stage('ac490 demote')
 
     // Take the deputy out of Full control first, leaving the owner as the
@@ -94,10 +94,10 @@ describe('AC-490 a shared folder never runs out of custodians', () => {
     ).toBe('full_control')
   })
 
-  test('AC-490 proof 14: the last Full-control member cannot be removed', async () => {
+  test('AC-520 proof 14: the last Full-control member cannot be removed', async () => {
     const { owner, deputy, folderId } = await stage('ac490 remove')
     // The deputy demotes the owner? No -- R7 section M forbids administering
-    // the owner at all, which AC-491 pins. Here the *deputy* is made the sole
+    // the owner at all, which AC-521 pins. Here the *deputy* is made the sole
     // custodian by the owner stepping down, and then somebody tries to remove
     // them.
     await setAccessOk(owner, folderId, owner.id, 'can_edit')
@@ -121,7 +121,7 @@ describe('AC-490 a shared folder never runs out of custodians', () => {
     ).toBe('full_control')
   })
 
-  test('AC-490 proof 14: the last Full-control member cannot leave', async () => {
+  test('AC-520 proof 14: the last Full-control member cannot leave', async () => {
     const { owner, deputy, folderId } = await stage('ac490 leave')
     await setAccessOk(owner, folderId, owner.id, 'can_edit')
 
@@ -140,7 +140,7 @@ describe('AC-490 a shared folder never runs out of custodians', () => {
     ).toBe('full_control')
   })
 
-  test('AC-490 proof 15: the owner may lower their own Access only once somebody else holds Full control', async () => {
+  test('AC-520 proof 15: the owner may lower their own Access only once somebody else holds Full control', async () => {
     const { owner, deputy, worker, folderId } = await stage('ac490 owner steps down')
 
     // First, with a second custodian present: permitted, and R5's worked case.
@@ -171,7 +171,7 @@ describe('AC-490 a shared folder never runs out of custodians', () => {
     ).toBe('full_control')
   })
 
-  test('AC-490: a member who is not the last custodian leaves freely', async () => {
+  test('AC-520: a member who is not the last custodian leaves freely', async () => {
     // The control. Without it the four refusals above would be satisfied by
     // an implementation that simply refused every leave and every demotion.
     const { owner, deputy, worker, folderId } = await stage('ac490 ordinary leave')
@@ -197,7 +197,7 @@ describe('AC-490 a shared folder never runs out of custodians', () => {
     ).toBe('can_comment')
   })
 
-  test('AC-490 adversarial: two custodians cannot both step down at once', async () => {
+  test('AC-520 adversarial: two custodians cannot both step down at once', async () => {
     /*
     R9 section 16 requires racing Access changes to serialize or refuse. The
     invariant is what makes that matter here: two Full-control members each

@@ -1,5 +1,5 @@
 /*
-AC-482: Full control administers members, Access and invitations; Can edit --
+AC-512: Full control administers members, Access and invitations; Can edit --
 which may change every piece of shared Work in the folder -- may administer
 none of it.
 
@@ -84,8 +84,8 @@ async function stage(name: string): Promise<Stage> {
   return { owner, editor, bystander, candidate, folderId }
 }
 
-describe('AC-482 people administration is Full control and nothing below it', () => {
-  test('AC-482: Full control adds a member at a chosen preset; Can edit cannot add at all', async () => {
+describe('AC-512 people administration is Full control and nothing below it', () => {
+  test('AC-512: Full control adds a member at a chosen preset; Can edit cannot add at all', async () => {
     const { owner, editor, candidate, folderId } = await stage(
       'ac482 adding people',
     )
@@ -117,7 +117,7 @@ describe('AC-482 people administration is Full control and nothing below it', ()
     ).toBe('can_contribute')
   })
 
-  test('AC-482: the add refuses a body with no Access at all', async () => {
+  test('AC-512: the add refuses a body with no Access at all', async () => {
     const { owner, candidate, folderId } = await stage('ac482 no preset')
     const silent = await owner.browser.json(
       `/folders/${folderId}/members`,
@@ -135,7 +135,7 @@ describe('AC-482 people administration is Full control and nothing below it', ()
     ).toBeNull()
   })
 
-  test('AC-482: Full control changes another member\'s Access; Can edit cannot', async () => {
+  test('AC-512: Full control changes another member\'s Access; Can edit cannot', async () => {
     const { owner, editor, bystander, folderId } = await stage('ac482 access')
 
     const byEditor = await setAccess(
@@ -162,7 +162,7 @@ describe('AC-482 people administration is Full control and nothing below it', ()
     ).toBe('can_edit')
   })
 
-  test('AC-482: Full control removes a non-owner member; Can edit cannot', async () => {
+  test('AC-512: Full control removes a non-owner member; Can edit cannot', async () => {
     const { owner, editor, bystander, folderId } = await stage('ac482 removal')
 
     const byEditor = await removeMember(editor, folderId, bystander.id)
@@ -176,7 +176,7 @@ describe('AC-482 people administration is Full control and nothing below it', ()
     expectStatus(byOwner, 204, 'Full control removes a non-owner member (spec 5.3)')
   })
 
-  test('AC-482: Full control invites into the folder; Can edit cannot', async () => {
+  test('AC-512: Full control invites into the folder; Can edit cannot', async () => {
     const { owner, editor, folderId } = await stage('ac482 invites')
 
     const byEditor = await postInvite(editor, {
@@ -198,7 +198,7 @@ describe('AC-482 people administration is Full control and nothing below it', ()
     expectStatus(byOwner, 201, 'Full control invites (spec 7.5)')
   })
 
-  test('AC-482: a pending invite is Full control\'s to see, and its preset rides it', async () => {
+  test('AC-512: a pending invite is Full control\'s to see, and its preset rides it', async () => {
     const { owner, editor, folderId } = await stage('ac482 invite visibility')
     const email = freshEmail('ac482-pending')
     const parked = await postInvite(owner, {
@@ -229,7 +229,7 @@ describe('AC-482 people administration is Full control and nothing below it', ()
     ).toEqual([])
   })
 
-  test('AC-482 adversarial: Can edit still changes every piece of shared Work', async () => {
+  test('AC-512 adversarial: Can edit still changes every piece of shared Work', async () => {
     // The control that makes the five refusals above mean what they say. If
     // Can edit were simply refused everything, the criterion would pass while
     // describing a different and much narrower preset.

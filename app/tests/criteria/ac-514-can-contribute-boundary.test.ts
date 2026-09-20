@@ -1,5 +1,5 @@
 /*
-AC-484: Can contribute originates new Task work and chooses its initial
+AC-514: Can contribute originates new Task work and chooses its initial
 assignee, fully plans and manages the work currently assigned to them, and may
 not touch another member's existing Task -- whoever created it.
 
@@ -66,8 +66,8 @@ async function stage(name: string): Promise<Stage> {
   return { owner, contributor, colleague, folderId }
 }
 
-describe('AC-484 Can contribute originates and self-manages', () => {
-  test('AC-484: creates a Task and chooses its initial assignee, including somebody else', async () => {
+describe('AC-514 Can contribute originates and self-manages', () => {
+  test('AC-514: creates a Task and chooses its initial assignee, including somebody else', async () => {
     const { contributor, colleague, folderId } = await stage('ac484 origination')
 
     const mine = await contributor.browser.json('/tasks', 'POST', {
@@ -102,7 +102,7 @@ describe('AC-484 Can contribute originates and self-manages', () => {
     expectStatus(unassigned, 201, 'and unassigned where the Task contract permits it')
   })
 
-  test('AC-484: fully plans and manages the Task currently assigned to them', async () => {
+  test('AC-514: fully plans and manages the Task currently assigned to them', async () => {
     const { owner, contributor, folderId } = await stage('ac484 self-management')
     const taskId = await taskIn(owner, folderId, 'ac484 handed over', contributor.id)
 
@@ -145,7 +145,7 @@ describe('AC-484 Can contribute originates and self-manages', () => {
     expectStatus(abandoned, 200, 'and uncompletes it')
   })
 
-  test("AC-484: may not touch another member's existing Task", async () => {
+  test("AC-514: may not touch another member's existing Task", async () => {
     const { owner, contributor, folderId } = await stage('ac484 not theirs')
     const taskId = await taskIn(owner, folderId, "ac484 the owner's own", owner.id)
 
@@ -177,7 +177,7 @@ describe('AC-484 Can contribute originates and self-manages', () => {
     expectStatus(stepped, 403, "nor rewrite another member's checklist")
   })
 
-  test('AC-484 proof 6: authorship does not survive the assignment', async () => {
+  test('AC-514 proof 6: authorship does not survive the assignment', async () => {
     const { contributor, colleague, folderId } = await stage('ac484 authorship')
 
     const made = await contributor.browser.json('/tasks', 'POST', {
@@ -217,7 +217,7 @@ describe('AC-484 Can contribute originates and self-manages', () => {
     )
   })
 
-  test('AC-484: the five acts R8 lists as beyond Can contribute', async () => {
+  test('AC-514: the five acts R8 lists as beyond Can contribute', async () => {
     const { owner, contributor, folderId } = await stage('ac484 beyond')
     const ownTask = await taskIn(
       owner,

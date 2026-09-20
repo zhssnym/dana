@@ -206,7 +206,7 @@ value would then be invisible in the request that granted it -- which is the
 exact class `shared/tasks.ts` records losing a reminder field to for four
 packages. The server reads it in `addMember`, which writes it into the
 membership row and into the `null -> preset` history transition in one
-transaction, and AC-483 drives the endpoint with each of the six presets and
+transaction, and AC-513 drives the endpoint with each of the six presets and
 reads the stored value back.
 */
 export const postFolderMembersBody = z.object({

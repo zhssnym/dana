@@ -1,5 +1,5 @@
 /*
-AC-492: every effective Access change writes one append-only transition with
+AC-522: every effective Access change writes one append-only transition with
 the exact from, to, actor, kind and time, atomically with the change itself;
 membership ending records `preset -> null` and the record survives the
 membership; a rejoin is a new grant rather than a restored one; an invitation
@@ -75,8 +75,8 @@ afterAll(async () => {
   await app.close()
 })
 
-describe('AC-492 the Access record is complete, exact and append-only', () => {
-  test('AC-492 proof 19: a change records exact from, to, actor, kind and time', async () => {
+describe('AC-522 the Access record is complete, exact and append-only', () => {
+  test('AC-522 proof 19: a change records exact from, to, actor, kind and time', async () => {
     const [owner, , member] = (await cast.of(app)) as [Actor, Actor, Actor]
     const folderId = await sharedFolder(app, owner, 'ac492 exact', [
       [member, 'assigned_work'],
@@ -117,7 +117,7 @@ describe('AC-492 the Access record is complete, exact and append-only', () => {
     )
   })
 
-  test('AC-492 proof 19: a refused change records nothing at all', async () => {
+  test('AC-522 proof 19: a refused change records nothing at all', async () => {
     // Atomicity read from the side that is easy to get wrong: a transition
     // written before the guard, or outside the transaction, would leave a
     // record of a change that did not happen.
@@ -140,7 +140,7 @@ describe('AC-492 the Access record is complete, exact and append-only', () => {
     ).toEqual(before)
   })
 
-  test('AC-492 proof 19: self-demotion is distinguished from a grant somebody made', async () => {
+  test('AC-522 proof 19: self-demotion is distinguished from a grant somebody made', async () => {
     const [owner, deputy] = (await cast.of(app)) as [Actor, Actor]
     const folderId = await sharedFolder(app, owner, 'ac492 self', [
       [deputy, 'full_control'],
@@ -156,7 +156,7 @@ describe('AC-492 the Access record is complete, exact and append-only', () => {
     expect(last?.actor_id, 'and the actor is the affected member').toBe(owner.id)
   })
 
-  test('AC-492 proof 20: leaving and removal record preset -> null, and the record outlives the membership', async () => {
+  test('AC-522 proof 20: leaving and removal record preset -> null, and the record outlives the membership', async () => {
     const [owner, deputy, member] = (await cast.of(app)) as [
       Actor,
       Actor,
@@ -212,7 +212,7 @@ describe('AC-492 the Access record is complete, exact and append-only', () => {
     ).toBe(5)
   })
 
-  test('AC-492 proof 21: a rejoin is a new explicit grant, never the old one restored', async () => {
+  test('AC-522 proof 21: a rejoin is a new explicit grant, never the old one restored', async () => {
     const [owner, , member] = (await cast.of(app)) as [Actor, Actor, Actor]
     const folderId = await sharedFolder(app, owner, 'ac492 rejoin', [
       [member, 'can_edit'],
@@ -245,7 +245,7 @@ describe('AC-492 the Access record is complete, exact and append-only', () => {
     )
   })
 
-  test('AC-492 proof 22: invite acceptance records the inviter as the grantor', async () => {
+  test('AC-522 proof 22: invite acceptance records the inviter as the grantor', async () => {
     const [owner] = (await cast.of(app)) as [Actor]
     const folderId = await sharedFolder(app, owner, 'ac492 invitation')
 
@@ -293,7 +293,7 @@ describe('AC-492 the Access record is complete, exact and append-only', () => {
     ).toBe(false)
   })
 
-  test('AC-492 proof 23: an ownership transfer that changes no Access writes no transition', async () => {
+  test('AC-522 proof 23: an ownership transfer that changes no Access writes no transition', async () => {
     const [owner, deputy] = (await cast.of(app)) as [Actor, Actor]
     const folderId = await sharedFolder(app, owner, 'ac492 transfer', [
       [deputy, 'full_control'],
@@ -312,7 +312,7 @@ describe('AC-492 the Access record is complete, exact and append-only', () => {
     ).toEqual(before)
   })
 
-  test('AC-492: the history is readable by every current member and by nobody else', async () => {
+  test('AC-522: the history is readable by every current member and by nobody else', async () => {
     // R9 section 13's M1 visibility rule, and R9A's boundary: #228 owes the
     // Folder view and a member-specific one, and owes no filter taxonomy.
     const [owner, deputy, member] = (await cast.of(app)) as [

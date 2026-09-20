@@ -1,5 +1,5 @@
 /*
-AC-485: Assigned work executes the existing plan for the Task currently
+AC-515: Assigned work executes the existing plan for the Task currently
 assigned to them -- complete, uncomplete, tick a Step, set their reminder,
 comment -- and may not materially replan it.
 
@@ -89,8 +89,8 @@ async function stage(name: string): Promise<Stage> {
   return { manager, worker, folderId, theirs, notTheirs, stepId }
 }
 
-describe('AC-485 Assigned work performs the plan and does not write it', () => {
-  test('AC-485: completes, uncompletes and ticks an existing Step on their own Task', async () => {
+describe('AC-515 Assigned work performs the plan and does not write it', () => {
+  test('AC-515: completes, uncompletes and ticks an existing Step on their own Task', async () => {
     const { worker, theirs, stepId } = await stage('ac485 execution')
 
     const ticked = await worker.browser.json(`/steps/${stepId}`, 'PATCH', {
@@ -125,7 +125,7 @@ describe('AC-485 Assigned work performs the plan and does not write it', () => {
     )
   })
 
-  test('AC-485: sets and clears the reminder Dana will deliver to them', async () => {
+  test('AC-515: sets and clears the reminder Dana will deliver to them', async () => {
     const { manager, worker, theirs } = await stage('ac485 reminder')
     // A reminder needs a dated task (4.8); the plan is the manager's to set.
     const dated = await manager.browser.json(`/tasks/${theirs}`, 'PATCH', {
@@ -148,7 +148,7 @@ describe('AC-485 Assigned work performs the plan and does not write it', () => {
     expectStatus(cleared, 204, 'and clearing it is the same authority')
   })
 
-  test('AC-485: comments on it, which is Consultation and not Work state', async () => {
+  test('AC-515: comments on it, which is Consultation and not Work state', async () => {
     const { worker, folderId, theirs } = await stage('ac485 evidence')
     const said = await worker.browser.json(
       `/folders/${folderId}/comments?task=${theirs}`,
@@ -162,7 +162,7 @@ describe('AC-485 Assigned work performs the plan and does not write it', () => {
     )
   })
 
-  test('AC-485: may not replan the scope, the schedule or the recurrence', async () => {
+  test('AC-515: may not replan the scope, the schedule or the recurrence', async () => {
     const { worker, theirs } = await stage('ac485 no replanning')
 
     for (const [field, patch] of [
@@ -181,7 +181,7 @@ describe('AC-485 Assigned work performs the plan and does not write it', () => {
     }
   })
 
-  test('AC-485: may not reassign, move, abandon, restore or trash it', async () => {
+  test('AC-515: may not reassign, move, abandon, restore or trash it', async () => {
     const { manager, worker, folderId, theirs } = await stage('ac485 no disposal')
 
     const reassigned = await worker.browser.json(`/tasks/${theirs}`, 'PATCH', {
@@ -208,7 +208,7 @@ describe('AC-485 Assigned work performs the plan and does not write it', () => {
     expect(folderId.length, 'the folder is the one staged').toBeGreaterThan(0)
   })
 
-  test('AC-485: may not rewrite the checklist it is measured against', async () => {
+  test('AC-515: may not rewrite the checklist it is measured against', async () => {
     const { worker, theirs, stepId } = await stage('ac485 no checklist edits')
 
     const renamed = await worker.browser.json(`/steps/${stepId}`, 'PATCH', {
@@ -238,7 +238,7 @@ describe('AC-485 Assigned work performs the plan and does not write it', () => {
     expectStatus(promoted, 403, 'R7 section G: no promotion to a Task of its own')
   })
 
-  test("AC-485: may not execute somebody else's Task at all", async () => {
+  test("AC-515: may not execute somebody else's Task at all", async () => {
     const { worker, notTheirs } = await stage('ac485 not theirs')
     const completed = await worker.browser.json(
       `/tasks/${notTheirs}/complete?tz=UTC`,

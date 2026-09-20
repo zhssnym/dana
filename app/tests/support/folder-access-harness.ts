@@ -1,5 +1,5 @@
 /*
-Fixtures for the AC-480 to AC-493 criteria, which are issue #228's twenty-five
+Fixtures for the AC-510 to AC-523 criteria, which are issue #228's twenty-five
 required proofs of the Folder Access model (#209 R8A / R9 / R10B).
 
 **Why a harness rather than per-file setup.** Nearly every one of those
@@ -75,7 +75,7 @@ export async function sharedFolder(
  * second administrator it is not about.
  *
  * It writes no history row, deliberately. These are fixtures rather than
- * acts, and AC-492 -- the criterion that is about history -- makes every
+ * acts, and AC-522 -- the criterion that is about history -- makes every
  * transition it reads through the endpoint that records one.
  */
 export async function forcePreset(
@@ -180,7 +180,7 @@ export interface HistoryEntry {
  * Read from the table rather than through `GET /folders/:id/access-history`
  * on purpose: the route is one reader of this record and R9 section 12 is
  * explicit that the record is the authority and the renderings are not, so a
- * criterion about what was recorded asks the record. AC-492 drives the route
+ * criterion about what was recorded asks the record. AC-522 drives the route
  * separately, which is a different question -- who may read it.
  */
 export async function historyOf(

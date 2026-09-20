@@ -1,5 +1,5 @@
 /*
-AC-480: migration 0023 maps the folder's owner to Full control and every other
+AC-510: migration 0023 maps the folder's owner to Full control and every other
 existing member to Can edit, and writes one baseline history transition per
 membership that says the model started here rather than pretending the preset
 existed before.
@@ -126,8 +126,8 @@ async function runMigrationMapping(folderId: string): Promise<void> {
   )
 }
 
-describe('AC-480 the Access model is initialized, not backdated', () => {
-  test('AC-480: the owner becomes Full control and every other member Can edit', async () => {
+describe('AC-510 the Access model is initialized, not backdated', () => {
+  test('AC-510: the owner becomes Full control and every other member Can edit', async () => {
     const { folderId, ownerId, memberIds } = await preMigrationFolder()
     await runMigrationMapping(folderId)
 
@@ -151,7 +151,7 @@ describe('AC-480 the Access model is initialized, not backdated', () => {
     }
   })
 
-  test('AC-480: each initialized membership gets one baseline transition', async () => {
+  test('AC-510: each initialized membership gets one baseline transition', async () => {
     const { folderId, ownerId, memberIds } = await preMigrationFolder()
     await runMigrationMapping(folderId)
 
@@ -195,7 +195,7 @@ describe('AC-480 the Access model is initialized, not backdated', () => {
     }
   })
 
-  test('AC-480 adversarial: no other transition kind may carry a null actor', async () => {
+  test('AC-510 adversarial: no other transition kind may carry a null actor', async () => {
     // The distinction R9 section 11 draws -- governed system provenance
     // against a grant a person made -- is only worth anything if the database
     // refuses to blur it. Every other kind needs an actor, and this is the
@@ -216,7 +216,7 @@ describe('AC-480 the Access model is initialized, not backdated', () => {
     )
   })
 
-  test('AC-480 adversarial: a transition that changes nothing at all is refused', async () => {
+  test('AC-510 adversarial: a transition that changes nothing at all is refused', async () => {
     // Both-null is not a transition, it is a row with no content, and a
     // history that admitted one would be reconstructable into a standing
     // nobody ever held.
@@ -234,7 +234,7 @@ describe('AC-480 the Access model is initialized, not backdated', () => {
     )
   })
 
-  test('AC-480: a pending folder invite carries the preset it will grant', async () => {
+  test('AC-510: a pending folder invite carries the preset it will grant', async () => {
     // The invite half of the same migration: R9 section 5 makes the intended
     // preset part of the pending row, and the both-or-neither CHECK is what
     // stops a folder invite existing without one.

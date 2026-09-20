@@ -1,5 +1,5 @@
 /*
-AC-488: a member reduced to Can view keeps the comments they wrote and the
+AC-518: a member reduced to Can view keeps the comments they wrote and the
 files they uploaded, and loses every power to change either.
 
 Issue #228 required proof 12. Product authority: #209's accepted cross-cutting
@@ -89,8 +89,8 @@ async function uploadInto(
   }
 }
 
-describe('AC-488 the words and the bytes stay; the power to change them does not', () => {
-  test('AC-488: a downgraded author can read their comment and no longer edit or delete it', async () => {
+describe('AC-518 the words and the bytes stay; the power to change them does not', () => {
+  test('AC-518: a downgraded author can read their comment and no longer edit or delete it', async () => {
     const { owner, author, folderId } = await stage('ac488 comments')
 
     const said = await author.browser.json(
@@ -152,7 +152,7 @@ describe('AC-488 the words and the bytes stay; the power to change them does not
     ).toContain('ac488 edited while they could')
   })
 
-  test('AC-488: a downgraded uploader can still read their file and no longer delete it', async () => {
+  test('AC-518: a downgraded uploader can still read their file and no longer delete it', async () => {
     const { owner, author, folderId } = await stage('ac488 files')
 
     const uploaded = await uploadInto(author, folderId)
@@ -185,7 +185,7 @@ describe('AC-488 the words and the bytes stay; the power to change them does not
     )
   })
 
-  test('AC-488: the uploader rule is superseded outright, not merely narrowed', async () => {
+  test('AC-518: the uploader rule is superseded outright, not merely narrowed', async () => {
     // The other half of R7 section J, and the part that is easy to miss: a
     // Can-edit member who uploaded the file still cannot delete it, because
     // the rule is no longer about who uploaded anything. Only Full control
@@ -214,7 +214,7 @@ describe('AC-488 the words and the bytes stay; the power to change them does not
     )
   })
 
-  test('AC-488: a downgraded member keeps their own Task history and loses the Task', async () => {
+  test('AC-518: a downgraded member keeps their own Task history and loses the Task', async () => {
     // The same rule at the third place it could have hidden: `tasks.created_by`.
     const { owner, author, folderId } = await stage('ac488 authored tasks')
     const made = await author.browser.json('/tasks', 'POST', {

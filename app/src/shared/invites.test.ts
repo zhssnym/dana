@@ -134,7 +134,7 @@ describe('postInvitesBody (7.5: { email, folder_id optional, task_id optional, a
   refused without one, because a bare roster invite grants no Folder Access
   and a preset on it would be a value nothing could ever read. The table's
   `invites_access_requires_folder_check` says the same thing one layer down,
-  and AC-480 drives it there.
+  and AC-510 drives it there.
   */
   test('binds access to folder_id in both directions', () => {
     expect(

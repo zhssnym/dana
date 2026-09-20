@@ -1,5 +1,5 @@
 /*
-AC-481: Access is the value on the membership row, and nothing else confers
+AC-511: Access is the value on the membership row, and nothing else confers
 it -- not ownership, not authorship, not assignment, not how long somebody has
 been a member.
 
@@ -52,8 +52,8 @@ afterAll(async () => {
   await app.close()
 })
 
-describe('AC-481 the preset decides, and the four proxies do not', () => {
-  test('AC-481: ownership does not confer Access, and Access does not confer ownership', async () => {
+describe('AC-511 the preset decides, and the four proxies do not', () => {
+  test('AC-511: ownership does not confer Access, and Access does not confer ownership', async () => {
     const [owner, admin] = (await cast.of(app)) as [Actor, Actor]
     const folderId = await sharedFolder(app, owner, 'ac481 custody apart', [
       [admin, 'full_control'],
@@ -92,7 +92,7 @@ describe('AC-481 the preset decides, and the four proxies do not', () => {
     ).toBe(false)
   })
 
-  test('AC-481: authorship of a Task confers nothing after it is created', async () => {
+  test('AC-511: authorship of a Task confers nothing after it is created', async () => {
     const [owner, , worker] = (await cast.of(app)) as [Actor, Actor, Actor]
     const folderId = await sharedFolder(app, owner, 'ac481 authorship', [
       [worker, 'can_contribute'],
@@ -122,7 +122,7 @@ describe('AC-481 the preset decides, and the four proxies do not', () => {
     )
   })
 
-  test('AC-481: assignment confers nothing that the preset does not carry', async () => {
+  test('AC-511: assignment confers nothing that the preset does not carry', async () => {
     const [owner, , , newcomer] = (await cast.of(app)) as [
       Actor,
       Actor,
@@ -146,7 +146,7 @@ describe('AC-481 the preset decides, and the four proxies do not', () => {
     )
   })
 
-  test('AC-481: a member added later is not a member with less Access', async () => {
+  test('AC-511: a member added later is not a member with less Access', async () => {
     const [owner, admin, worker, newcomer] = (await cast.of(app)) as [
       Actor,
       Actor,

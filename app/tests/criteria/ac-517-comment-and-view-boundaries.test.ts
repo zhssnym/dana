@@ -1,5 +1,5 @@
 /*
-AC-487: Can comment participates in Consultation and changes no shared Work
+AC-517: Can comment participates in Consultation and changes no shared Work
 state; Can view reads and leaves no mark at all.
 
 Issue #228 required proofs 10 and 11. Product authority: #209 R8A and R7
@@ -72,8 +72,8 @@ async function stage(name: string): Promise<Stage> {
   return { owner, adviser, auditor, folderId, taskId, commentId }
 }
 
-describe('AC-487 the two reading presets, and the one that may speak', () => {
-  test('AC-487: both read the folder, its tasks and its thread', async () => {
+describe('AC-517 the two reading presets, and the one that may speak', () => {
+  test('AC-517: both read the folder, its tasks and its thread', async () => {
     const { adviser, auditor, folderId, taskId } = await stage('ac487 reading')
     for (const [who, actor] of [
       ['Can comment', adviser],
@@ -97,7 +97,7 @@ describe('AC-487 the two reading presets, and the one that may speak', () => {
     }
   })
 
-  test('AC-487 proof 10: Can comment discusses and likes', async () => {
+  test('AC-517 proof 10: Can comment discusses and likes', async () => {
     const { adviser, folderId, taskId, commentId } = await stage('ac487 speech')
 
     const replied = await adviser.browser.json(
@@ -128,7 +128,7 @@ describe('AC-487 the two reading presets, and the one that may speak', () => {
     expectStatus(removed, 204, 'R7 section I: and delete their own comment')
   })
 
-  test('AC-487 proof 10: Can comment changes no shared Work state', async () => {
+  test('AC-517 proof 10: Can comment changes no shared Work state', async () => {
     const { adviser, folderId, taskId } = await stage('ac487 not work')
 
     expectStatus(
@@ -160,7 +160,7 @@ describe('AC-487 the two reading presets, and the one that may speak', () => {
     )
   })
 
-  test('AC-487 proof 11: Can view cannot mutate a comment or any shared Work', async () => {
+  test('AC-517 proof 11: Can view cannot mutate a comment or any shared Work', async () => {
     const { auditor, folderId, taskId, commentId } = await stage('ac487 read only')
 
     expectStatus(
@@ -191,7 +191,7 @@ describe('AC-487 the two reading presets, and the one that may speak', () => {
     )
   })
 
-  test('AC-487 adversarial: a stranger still gets 404 rather than 403 at every one of these', async () => {
+  test('AC-517 adversarial: a stranger still gets 404 rather than 403 at every one of these', async () => {
     // The two refusals mean different things and must not be confused. A
     // member is told why; somebody outside the folder is told nothing, because
     // a 403 would confirm the folder exists (10.2).

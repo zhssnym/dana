@@ -1,5 +1,5 @@
 /*
-AC-489: Folder Access does not govern personal state. A member who may read a
+AC-519: Folder Access does not govern personal state. A member who may read a
 Task may put it on their own My Day, label the folder on their own shelf, and
 keep their own saved views, at every preset down to Can view.
 
@@ -75,8 +75,8 @@ async function stage(name: string): Promise<Stage> {
   return { owner, viewer, adviser, stranger, folderId, taskId }
 }
 
-describe('AC-489 personal state is the member\'s, whatever their preset', () => {
-  test('AC-489: My Day admits every preset that can read the Task', async () => {
+describe('AC-519 personal state is the member\'s, whatever their preset', () => {
+  test('AC-519: My Day admits every preset that can read the Task', async () => {
     const { owner, viewer, adviser, folderId, taskId } = await stage(
       'ac489 my day',
     )
@@ -108,7 +108,7 @@ describe('AC-489 personal state is the member\'s, whatever their preset', () => 
     expect(folderId.length, 'one folder staged').toBeGreaterThan(0)
   })
 
-  test("AC-489: a member's own label and colour for the folder are their own", async () => {
+  test("AC-519: a member's own label and colour for the folder are their own", async () => {
     const { viewer, folderId } = await stage('ac489 own label')
     const labelled = await viewer.browser.json(
       `/folders/${folderId}/my-membership`,
@@ -125,7 +125,7 @@ describe('AC-489 personal state is the member\'s, whatever their preset', () => 
     expect(body.my_color, 'and so is the colour').toBe('#33AA55')
   })
 
-  test('AC-489: saved views and settings are account state and no folder governs them', async () => {
+  test('AC-519: saved views and settings are account state and no folder governs them', async () => {
     const { viewer } = await stage('ac489 account state')
     const view = await viewer.browser.json('/views', 'POST', {
       name: 'ac489 what I am watching',
@@ -146,7 +146,7 @@ describe('AC-489 personal state is the member\'s, whatever their preset', () => 
     )
   })
 
-  test('AC-489: personal state stops where the read stops', async () => {
+  test('AC-519: personal state stops where the read stops', async () => {
     const { stranger, taskId } = await stage('ac489 no read no day')
     const pulled = await stranger.browser.json(
       `/tasks/${taskId}/my-day?tz=UTC`,
@@ -160,7 +160,7 @@ describe('AC-489 personal state is the member\'s, whatever their preset', () => 
     )
   })
 
-  test('AC-489 adversarial: the personal grant does not leak into shared Work', async () => {
+  test('AC-519 adversarial: the personal grant does not leak into shared Work', async () => {
     // The control that keeps the four cases above from being a hole. Can view
     // may arrange their own sidebar and may not move the folder's work, and
     // the two run through the same router.
