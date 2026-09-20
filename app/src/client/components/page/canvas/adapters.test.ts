@@ -21,6 +21,34 @@ describe('page and editor adapters', () => {
     expect(document.blocks.find((item) => item.id === 'image')).toMatchObject({ file_id: page.blocks[4]?.file_id, width_pct: 50 })
     editor.unmount()
   })
+  test('heading level is ancestry depth, so a third Section level hydrates as H3 while a legacy page keeps H1/H2', () => {
+    const level = (node: { props?: unknown } | undefined): number | undefined => (node?.props as { level?: number } | undefined)?.level
+    const deep: PageView = {
+      blocks: [block('h1', 'section'), block('h2', 'section', 'h1'), block('h3', 'section', 'h2'), block('prose', 'paragraph', 'h3')],
+      items: ['h1', 'h2', 'h3', 'prose', 'task'].map((id) => ({ kind: id === 'task' ? 'task' : 'block', id })),
+      task_placements: [{ id: 'task', section_block_id: 'h3' }],
+    }
+    const input = hydrateCanvas(deep, 600)
+    expect(input.map((item) => item.id)).toEqual(['h1'])
+    const one = input[0]!, two = one.children![0]!, three = two.children![0]!
+    expect([two.id, three.id]).toEqual(['h2', 'h3'])
+    expect([level(one), level(two), level(three)]).toEqual([1, 2, 3])
+    // The Task and its prose hang off the H3 itself, not off either ancestor.
+    expect(three.children!.map((child) => child.id)).toEqual(['prose', 'task'])
+    const editor = BlockNoteEditor.create({ schema: canvasSchema, initialContent: input })
+    expect(dehydrateCanvas(editor.document, 600).items).toEqual([
+      { kind: 'block', id: 'h1', section_block_id: null },
+      { kind: 'block', id: 'h2', section_block_id: 'h1' },
+      { kind: 'block', id: 'h3', section_block_id: 'h2' },
+      { kind: 'block', id: 'prose', section_block_id: 'h3' },
+      { kind: 'task', id: 'task', section_block_id: 'h3' },
+    ])
+    editor.unmount()
+    // A page that only ever had two levels hydrates exactly as it did before.
+    const legacy = hydrateCanvas({ blocks: [block('a', 'section'), block('b', 'section', 'a')], items: [{ kind: 'block', id: 'a' }, { kind: 'block', id: 'b' }], task_placements: [] }, 600)
+    expect(level(legacy[0])).toBe(1)
+    expect(level(legacy[0]!.children![0])).toBe(2)
+  })
   test('one multi-block edit emits only changed records and one complete outline', () => {
     const before = { blocks: [], items: [] }
     const editor = BlockNoteEditor.create({ schema: canvasSchema, initialContent: [{ id: 'p1', type: 'paragraph', content: 'One' }, { id: 'p2', type: 'paragraph', content: 'Two' }] })
