@@ -268,8 +268,8 @@ value is realised.
 npm run gate
 ```
 
-It runs spec 11.11's seven steps in order on this machine — install, lint, typecheck, the
-PGlite leg, the Postgres 18 leg, build, Playwright — stops at the first failure, and prints a
+It runs spec 11.11's six steps in order on this machine — install, lint, typecheck, the
+Postgres 18 leg, build, Playwright — stops at the first failure, and prints a
 **gate record**: the head sha, whether the tree was dirty at either end of the run, the
 machine, the clock, and the tally each step reported. `npm run gate -- --quick` runs lint,
 typecheck and build only, and says so in the record; it is for the middle of the work and
@@ -285,8 +285,8 @@ Four things about it:
   measured something else, and one that says `tree dirty at <sha>` measured a tree nobody can
   reconstruct.
 - **There are three verdicts and only `green` opens a pull request.** `red at <step>` means a
-  step failed. **`incomplete` means a step of the seven did not run**, and it is neither: not
-  red, because there is no defect to point at, and not green, because 11.11 fixes seven steps
+  step failed. **`incomplete` means a step of the six did not run**, and it is neither: not
+  red, because there is no defect to point at, and not green, because 11.11 fixes six steps
   and this record is the evidence they were answered for.
 - **So the Postgres leg is not optional.** It needs `TEST_DATABASE_URL` set in the process
   that runs the gate, and without it the record ends
@@ -305,7 +305,7 @@ half an hour, and spending it before anyone has seen a seventeen-line change spe
 wrong order; issue #66 measured fourteen minutes before the change could be shown to
 anybody. So make the change, run `npm run gate -- --quick`, run the one Playwright spec that
 covers that screen, and look at it in a browser. Show it, take the corrections, and run the
-whole gate when the work is accepted. **Nothing is weakened by this: the same seven steps in
+whole gate when the work is accepted. **Nothing is weakened by this: the same six steps in
 full before every pull request. Only the order moves.**
 
 ### What GitHub Actions still does
@@ -317,10 +317,10 @@ CI is the safety net, not the gate.
   working on this machine. It exists to catch a pull request opened without a gate run, not
   to be that run. **A documentation-only pull request gets it too**, because a branch is
   misnamed whatever files it touches.
-- **On a push to `main`**: all seven steps of 11.11, unchanged. That is the run that matters,
+- **On a push to `main`**: all six steps of 11.11, unchanged. That is the run that matters,
   because it measures what was actually merged.
 - **A documentation-only push to `main` skips that one.** `paths-ignore` in
-  `.github/workflows/ci.yml` keeps the seven-step job off `docs/`, `.claude/`, `.vscode/`,
+  `.github/workflows/ci.yml` keeps the full job off `docs/`, `.claude/`, `.vscode/`,
   the issue and pull request templates and the root markdown files, with the reasoning beside
   it. It is on that trigger alone.
 
@@ -334,8 +334,8 @@ collapse into one, `concurrency` cancelling the run in progress when the next ar
 true:
 
 - `npm run gate` says **`GATE: green` on the head commit**, and its record goes in the body.
-  Green and not `incomplete`: a record missing one of the seven has not answered for the
-  seven, whatever the reason it gives;
+  Green and not `incomplete`: a record missing one of the six has not answered for the
+  six, whatever the reason it gives;
 - the **`reviewer` agent has run** on the branch, and its verdict goes in the body;
 - every **hard stop** the change touched is named, with the rule that was met;
 - every **criterion** the change moved is named, with the decision that moved;
@@ -389,7 +389,7 @@ settled and the review does not reopen it.
 **Merging into `main` deploys to production within minutes.** There is no staging.
 
 Hassan merges, and only Hassan. Squash merge, so a pull request becomes one commit. The
-branch is deleted automatically. The seven steps then run on `main`, and that run is the
+branch is deleted automatically. The six steps then run on `main`, and that run is the
 verdict on what was merged.
 
 ## Versions

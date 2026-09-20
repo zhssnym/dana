@@ -24,7 +24,7 @@ Australia/Lord_Howe, whose half-hour shift dates from 1985. Nothing here is
 dated later than 2010, and a tzdb that moved one of them fails as "this is no
 longer a gap" rather than as a wrong instant.
 
-**The fixture instants agree with app/tests/reminders-harness.ts and are
+**The fixture instants agree with app/tests/support/reminders-harness.ts and are
 derived independently.** The two files reach the same numbers from the same
 transitions without sharing a definition, which is the point: the acceptance
 suite must not import from the module it measures, and this file must not

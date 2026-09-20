@@ -34,11 +34,11 @@ export default defineConfig({
     id once, in Vitest's own process, and sweeps the databases dead runs left
     behind; the setup file then points each test file at the database its pool
     slot owns and empties it first. Both are inert on the PGlite leg, where
-    every createTestDb() already gets a database of its own. tests/postgres-leg.ts
+    every createTestDb() already gets a database of its own. tests/support/postgres-leg.ts
     carries the reasoning, and spec 11.10 the contract.
     */
-    globalSetup: ['./tests/postgres-leg-global.ts'],
-    setupFiles: ['./tests/vitest-setup.ts', './tests/postgres-leg-setup.ts'],
+    globalSetup: ['./tests/support/postgres-leg-global.ts'],
+    setupFiles: ['./tests/support/vitest-setup.ts', './tests/support/postgres-leg-setup.ts'],
     include: [
       'src/**/*.test.{ts,tsx}',
       'db/**/*.test.{ts,tsx}',

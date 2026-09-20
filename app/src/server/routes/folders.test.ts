@@ -23,7 +23,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
 import type { DbClient } from '../../../db/client.js'
 import { folder as folderSchema } from '../../shared/folders.js'
-import type { AuthTestApp, EmailRecorder } from '../../../tests/auth-harness.js'
+import type { AuthTestApp, EmailRecorder } from '../../../tests/support/auth-harness.js'
 import {
   Cast,
   addMember,
@@ -40,11 +40,11 @@ import {
   seedMyDayEntry,
   seedTask,
   taskAssignee,
-} from '../../../tests/folders-harness.js'
-import type { Actor } from '../../../tests/folders-harness.js'
-import { createTestDb, rows } from '../../../tests/helpers.js'
-import { startOidcStub } from '../../../tests/oidc-stub.js'
-import { TestBrowser } from '../../../tests/http-client.js'
+} from '../../../tests/support/folders-harness.js'
+import type { Actor } from '../../../tests/support/folders-harness.js'
+import { createTestDb, rows } from '../../../tests/support/helpers.js'
+import { startOidcStub } from '../../../tests/support/oidc-stub.js'
+import { TestBrowser } from '../../../tests/support/http-client.js'
 import { createAuthRouter } from '../auth/index.js'
 import type { AuthConfig } from '../auth/index.js'
 import { attachNotifier, createNotifier } from '../notify/index.js'

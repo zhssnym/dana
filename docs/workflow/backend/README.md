@@ -83,7 +83,7 @@ with `grep -rn "accessOf(" app/src/server --include="*.ts"`; the sentence this r
 for you.
 
 **What is structurally checked, since 2026-09-04 and issue #74**, is that no id-bearing route
-is left ungated *silently*. `app/tests/ac-397-authorization-sweep.test.ts` walks the mounted
+is left ungated *silently*. `app/tests/criteria/ac-397-authorization-sweep.test.ts` walks the mounted
 router, takes every route whose path carries a parameter, and drives each as a signed-in
 person with no relationship to the row that id names. It pins the count, and it asserts its
 hand-written expected-status table against the enumeration in both directions — so **a route
@@ -99,7 +99,7 @@ answered 404 where 10.2 wants 403, to a member who reads the same file at 200 (A
 
 **The structural guard covers authentication, on every method. Authorization is a second
 guard's, and it landed the same day — the paragraph above.**
-`app/tests/ac-236-structural-guard-sweep.test.ts` walks the mounted router and fails any
+`app/tests/criteria/ac-236-structural-guard-sweep.test.ts` walks the mounted router and fails any
 mutating route missing a session or CSRF check, and since issue #33 any GET that answers
 something other than 401 without a session. Three reads are exempt by name — the health
 probe and the two OAuth legs — and since issue #99 two mutations are: the development
@@ -147,7 +147,7 @@ describing the shape of the server rather than a behaviour anybody asked for, ea
 beside itself, and each is written to fail when that shape changes so that the change is
 noticed rather than assumed.
 
-- `app/tests/ac-236-structural-guard-sweep.test.ts` asserts the **count of mutating routes**
+- `app/tests/criteria/ac-236-structural-guard-sweep.test.ts` asserts the **count of mutating routes**
   the walker found. Adding a route moves it by one. What must be true before you touch it is
   that the sweep itself **passed on your new route** — 401 bare, 403 without CSRF — so that
   only the count failed; if the sweep failed, the number is telling you something and moving
@@ -205,12 +205,12 @@ criterion that proves it.** Spec 11.15 names both classes and what catches each.
 
 ## Testing
 
-**`npm run gate` is what a pull request carries.** It runs spec 11.11's seven steps in order
+**`npm run gate` is what a pull request carries.** It runs spec 11.11's six steps in order
 on this machine, stops at the first failure, and prints the record: the head sha, whether the
 tree was dirty, the machine, the clock, and each step's tally.
 
 ```
-npm run gate              the seven steps, about half an hour
+npm run gate              the six steps
 npm run gate -- --quick   lint, typecheck and build, for the middle of the work
 ```
 
@@ -224,21 +224,23 @@ npm run build
 npm run e2e       the browser leg
 ```
 
-There are two database legs and they are not interchangeable.
+**There is one database leg since 11.11's 2026-09-20 amendment, and it is Postgres.**
+PGlite is the fallback when `TEST_DATABASE_URL` is absent, never the gate.
+
 **Never select a leg by habit. Print the variable and check.** `TEST_DATABASE_URL` is
-ambient on this machine and has changed more than once. Set it for Postgres, empty it for
-PGlite. Running `npm test` twice measures one leg twice and reports two greens. The gate does
-that selection explicitly — empty for the PGlite leg, the parent process's value for the
-Postgres one — and writes into the record which of the two it got, which is the answer to
-read rather than any file's.
+ambient on this machine and has changed more than once, and **this matters more now than it
+did when there were two legs, not less**: nothing else is left to notice that your run fell
+back to PGlite and told you it was green. The gate makes the selection explicitly and writes
+into the record which engine it got, which is the answer to read rather than any file's.
 
 **A gate that could not run the Postgres leg is `incomplete`, not green, and exits non-zero.**
-Green means all seven of 11.11's steps ran, and a pull request needs green, so a machine with
+Green means all six of 11.11's steps ran and the test step reached Postgres, and a pull
+request needs green, so a machine with
 no `TEST_DATABASE_URL` cannot open one. **The setup is one-time and lives in spec 11.10**: its
-`CREATE DATABASE` statement fixes the builtin `C.UTF-8` locale so the two legs order text
-identically, and `CLAUDE.md` describes this cluster, whose own locale is French and must never
-become the suite's. Point the variable at a database that inherited the cluster default and
-the two legs stop agreeing.
+`CREATE DATABASE` statement fixes the builtin `C.UTF-8` locale so the leg orders text the way
+the application expects, and `CLAUDE.md` describes this cluster, whose own locale is French
+and must never become the suite's. Point the variable at a database that inherited the
+cluster default and the leg stops matching production.
 
 `CLAUDE.md` holds the environment lore, and it is worth reading before you believe a red: the
 PGlite worker crashes, the port collisions on the browser leg, and the counts that turn out
@@ -255,7 +257,7 @@ not know them, and **only two of them are answered by re-running**:
   PGlite's session zone is `Etc/GMT-1` and the local cluster's is `Europe/Paris`, so
   `current_date` read `2026-09-03` while UTC was still the 2nd. **It is not the fork flake
   and isolation confirms nothing**: on one commit, `TZ=UTC env -u TEST_DATABASE_URL npx
-  vitest run tests/ac-277-task-duplicate-copy-rules.test.ts` was 2 of 2 while the same
+  vitest run tests/criteria/ac-277-task-duplicate-copy-rules.test.ts` was 2 of 2 while the same
   command without `TZ=UTC` was 1 of 2. **So the check that separates this class from a
   defect is the timezone, not a second run** — force the zone, and if it goes green the red
   is the clock. Note `TZ=UTC` settles only the PGlite leg; on Postgres the cluster's own
@@ -288,8 +290,8 @@ forward-only migrations could break, since whatever a branch migrates into `dana
 stays there. And so the third: **never assert the prose of a server message.** The created
 databases answer in this cluster's language, which is French. Assert a constraint name,
 which every translation keeps verbatim, or the SQLSTATE and the table or column field of
-the error, which no locale touches; `expectRejectedWith` in `tests/helpers.ts` does the
-second, and `tests/guard-postgres-leg-isolation.test.ts` fails by name any test that reads prose.
+the error, which no locale touches; `expectRejectedWith` in `tests/support/helpers.ts` does the
+second, and `tests/guards/guard-postgres-leg-isolation.test.ts` fails by name any test that reads prose.
 
 ## When the work needs the client
 
@@ -334,5 +336,5 @@ The template asks for four things and none is optional: the **gate record**, pas
 why, or "none"; and the **reviewer's verdict** in a paragraph. Title it as a Conventional
 Commit, because the version is read from it.
 
-Then Hassan merges. Merging deploys to production within minutes, and the seven steps run
+Then Hassan merges. Merging deploys to production within minutes, and the six steps run
 again on `main`, which is the verdict on what was merged.

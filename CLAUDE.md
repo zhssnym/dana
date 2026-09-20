@@ -63,13 +63,13 @@ Everything runs from `app/`, never from the repository root, where there is no
 
 ```bash
 npm ci
-npm run gate                               # the gate: 11.11's seven steps, in order, with a record
+npm run gate                               # the gate: 11.11's six steps, in order, with a record
 npm run gate -- --quick                    # lint, typecheck, build only
-npm run lint && npm run typecheck && npm test && npm run build   # four of the seven, by hand
+npm run lint && npm run typecheck && npm test && npm run build   # four of the six, by hand
 npm test -- --maxWorkers=2                 # vitest flags go after the --
 npm run dev                                # API server plus client dev server
-npx vitest run tests/some-file.test.ts     # one file (Vitest 4 is the runner)
-npx vitest run tests/ac-05*.test.ts tests/ac-06*.test.ts   # a range of criteria
+npx vitest run tests/criteria/ac-025-create-defaults.test.ts   # one file (Vitest 4 is the runner)
+npx vitest run tests/criteria/ tests/guards/     # a whole category
 npx vitest run -t "AC-042"                 # one acceptance criterion by number
 ```
 
@@ -91,6 +91,17 @@ protocol points here rather than repeating them.
   **Two of the deleted criteria were failing when they were deleted** — `ac-390` and
   `ac-415`, both red on an untouched tree in the run measured immediately before — so
   their defects are unfixed and now unwatched rather than fixed.
+- **The PGlite leg stopped being one of the steps on 2026-09-20, and the gate now runs one
+  test leg rather than two.** 11.11's amendment is the ruling and `scripts/gate.mjs` the
+  implementation. Postgres is the leg, because it is the engine production runs and, at the
+  2026-09-03 measurement on this machine, the faster of the two: **94 seconds against 291**.
+  **PGlite is the fallback and never the gate** — a process with no `TEST_DATABASE_URL` runs
+  the suite on PGlite rather than running nothing, and that record is `incomplete` rather
+  than green. Two things follow for a session here. The bullet below about selecting a leg
+  explicitly still holds and matters more, not less: there is no second leg left to notice
+  that this one fell back, so **print the variable before you trust a green**. And the
+  cross-engine class recorded further down — the `current_date` zone defect — is now caught
+  by whichever leg ran rather than by two legs disagreeing.
 - Scope the suite while you iterate and run it whole before you report. **Measured
   2026-09-03 on this machine, both legs green: 295 files and 1961 tests.** It was 279 and
   1899 on 2026-09-01, so read every count in this file as a dated measurement rather than
@@ -391,15 +402,15 @@ protocol points here rather than repeating them.
 - **CI triggers on pull requests and on pushes to `main`, not on every push, and since
   2026-09-04 the two run different jobs.** A pull request gets `check`: the branch name
   against `^(frontend|backend|chore)/[0-9]+-[a-z0-9-]+$`, then `npm ci`, lint, typecheck,
-  build. A push to `main` gets `ci`, all seven steps of 11.11 unchanged. **The gate is
-  now `npm run gate` on the machine the code was written on**, which runs the same seven
+  build. A push to `main` gets `ci`, all six steps of 11.11 unchanged. **The gate is
+  now `npm run gate` on the machine the code was written on**, which runs the same six
   and prints a record a pull request carries; issue #180 and 11.11's dated amendment are
   the reasoning. A branch with no pull request still gets no verdict, which is correct
   under a workflow where nothing reaches `main` except through one.
 - **The CI runner and your own agents cannot share this machine, and the way that
   fails reads exactly like broken code. Scoped 2026-09-04: this is about the `main`
   job, and no longer about every job.** Measured 2026-09-03 across a night of eight
-  branches, when a pull request ran all seven steps. A seven-step CI job holds about
+  branches, when a pull request ran the full gate. A full CI job holds about
   **7.7 GB of this machine's 15.8**: killing the runner
   mid-job took free memory from **2.0 GB to 9.7 GB** in one step. With five or six
   agents running vitest beside it, the job goes red with
@@ -411,9 +422,9 @@ protocol points here rather than repeating them.
   **So run agents or run a `main` job, not both.** The pull-request `check` job is a
   different matter and is *why* the split exists: `npm ci`, lint, typecheck and build hold
   no database, start no browser and run no vitest pool, so it can run beside agents.
-  **This is a measurement about the seven steps and it does not license the four**; a
+  **This is a measurement about the full gate and it does not license the four**; a
   `check` job that ever grows a leg back stops being covered by this sentence.
-  Queue the work when the seven-step job is what you need: stopping the runner leaves jobs
+  Queue the work when the full job is what you need: stopping the runner leaves jobs
   queued at GitHub harmlessly, and they run clean afterwards. Three things about doing
   that, all learned the hard way the same night. `Stop-ScheduledTask` does **not** stop
   it — `run.cmd` detaches, the task reports `Ready` while `Runner.Listener` keeps
@@ -421,14 +432,16 @@ protocol points here rather than repeating them.
   `busy=true` with a session that no longer exists, and it dispatches nothing to a busy
   runner, so **cancel the stuck run** to free it. And the job it was running is lost, so
   stop it between jobs where you can.
-- **`npm run gate` is the local seven steps, and it is what a pull request carries.**
-  Added 2026-09-04 with issue #180. It runs lint, typecheck, the PGlite leg with
-  `TEST_DATABASE_URL` empty, the Postgres leg with whatever this process has, build, and
+- **`npm run gate` is the local six steps, and it is what a pull request carries.**
+  Added 2026-09-04 with issue #180. It runs lint, typecheck, **one** test leg — Postgres
+  with whatever `TEST_DATABASE_URL` this process has, or PGlite as a fallback when it has
+  none, the PGlite leg having stopped being mandatory at 11.11's 2026-09-20 amendment —
+  build, and
   Playwright, stops at the first failure, and prints a record naming the head sha, whether
   `git status --porcelain` was empty at **either end** of the run, the machine, the clock
   and each step's tally. Five things worth knowing before you run it. **It prints three
   verdicts and only `GATE: green` opens a pull request**: `red at <step>` is a failure, and
-  **`incomplete` is a step of the seven that did not run** — this machine without
+  **`incomplete` is a step of the six that did not run** — this machine without
   `TEST_DATABASE_URL`, or `--quick`. Incomplete exits non-zero for the first and zero for
   the second, because the exit code answers "did you get what you asked for" while the
   verdict line answers "is this a pull request's gate". **A leg that reports no tally at
@@ -466,7 +479,7 @@ protocol points here rather than repeating them.
     created database `lc_messages = C`, and a migration any branch ran into `dana_test`
     stayed there and failed `ac-001` for every branch behind it. It now asserts the
     SQLSTATE and the `column` field of the server's error, which no locale translates;
-    never assert server prose, and `tests/guard-postgres-leg-isolation.test.ts` fails by name
+    never assert server prose, and `tests/guards/guard-postgres-leg-isolation.test.ts` fails by name
     any test that does.
   - **The browser leg loses about one case a run** under memory pressure, and the
     bullets above cover it. Re-run the case alone, and read the note on when isolation
@@ -508,7 +521,7 @@ protocol points here rather than repeating them.
   That is exactly why the lost file differed every time and passed alone. Both windows
   were measured with a TCP proxy resetting a real pooled socket on demand, both now
   carry a listener that reports the loss once and lets the pool discard the connection,
-  and `tests/guard-postgres-leg-connection-loss.test.ts` goes red if either is removed. **What
+  and `tests/guards/guard-postgres-leg-connection-loss.test.ts` goes red if either is removed. **What
   a route sees is not this error**, which is worth knowing before you go looking for it:
   a socket that dies inside a transaction rejects the statement and drizzle then runs its
   ROLLBACK on the same dead connection, so the request error line and Sentry carry

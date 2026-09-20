@@ -45,11 +45,11 @@ import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
 import type { DbClient } from '../../../db/client.js'
-import { cleanupUsers, createTestDb, rows } from '../../../tests/helpers.js'
-import { TestBrowser } from '../../../tests/http-client.js'
-import type { RawRequestOptions, RawResponse } from '../../../tests/http-client.js'
-import { startOidcStub } from '../../../tests/oidc-stub.js'
-import type { OidcStub } from '../../../tests/oidc-stub.js'
+import { cleanupUsers, createTestDb, rows } from '../../../tests/support/helpers.js'
+import { TestBrowser } from '../../../tests/support/http-client.js'
+import type { RawRequestOptions, RawResponse } from '../../../tests/support/http-client.js'
+import { startOidcStub } from '../../../tests/support/oidc-stub.js'
+import type { OidcStub } from '../../../tests/support/oidc-stub.js'
 import {
   DEFAULT_CALENDAR_ZOOM,
   patchSettingsBody,
@@ -306,7 +306,7 @@ interface DocumentedField {
 /**
  * 7.23's fields table, read out of the markdown as text.
  *
- * Read rather than imported, the way `tests/ac-315-...` reads `routes.ts`,
+ * Read rather than imported, the way `tests/criteria/ac-315-...` reads `routes.ts`,
  * and for a stronger reason than that one had: the document is the artifact
  * under test here. A criterion that imported its list from the same module
  * 7.23 is supposed to describe would assert the schema against itself and

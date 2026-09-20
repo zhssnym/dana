@@ -23,10 +23,10 @@ DES-206.
 */
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
-import { startAuthTestApp } from '../../../tests/auth-harness.js'
-import type { AuthTestApp } from '../../../tests/auth-harness.js'
-import { Cast, expectStatus } from '../../../tests/folders-harness.js'
-import type { Actor } from '../../../tests/folders-harness.js'
+import { startAuthTestApp } from '../../../tests/support/auth-harness.js'
+import type { AuthTestApp } from '../../../tests/support/auth-harness.js'
+import { Cast, expectStatus } from '../../../tests/support/folders-harness.js'
+import type { Actor } from '../../../tests/support/folders-harness.js'
 
 let app: AuthTestApp
 const cast = new Cast(['importer', 'other'], 'wfimport')

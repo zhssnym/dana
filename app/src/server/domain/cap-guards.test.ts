@@ -29,7 +29,7 @@ import { PgDialect } from 'drizzle-orm/pg-core'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
 import type { Db, DbClient } from '../../../db/client.js'
-import { createTestDb, rows } from '../../../tests/helpers.js'
+import { createTestDb, rows } from '../../../tests/support/helpers.js'
 import type { Executor } from '../database.js'
 import { addMember, createFolder } from './folders.js'
 import { acceptInvite, createInvite } from './invites.js'

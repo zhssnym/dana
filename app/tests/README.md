@@ -36,12 +36,41 @@ AC-100 run". After the 2026-09-20 reduction only AC-091 of that range survives,
 so the range is no longer a useful way to describe the leg and the claim was
 removed rather than corrected into a list of one.)*
 
+## Layout
+
+**Four folders, one per kind, and nothing loose beside them but this file.**
+Until 2026-09-20 this directory was flat: 47 tests, 22 support modules and an
+`e2e/` folder all in one listing, which made `e2e/` look like the odd one out
+when the real problem was that everything else had been tipped in around it.
+
+```
+tests/
+  criteria/   ac-NNN-slug.test.ts    one executable criterion from spec section 12
+  guards/     guard-slug.test.ts     pins no criterion; keeps the suite honest
+  e2e/        ac-NNN-slug.spec.ts    the browser leg, plus its own harness.ts
+  support/    harnesses and helpers  imported by tests; never collected as one
+```
+
+Neither runner needs telling about the split. Vitest's `include` is
+`tests/**/*.test.{ts,tsx}` and matches at any depth; Playwright's `testDir` is
+`tests/e2e` and its `testMatch` is `**/*.spec.ts`, so `support/` and
+`e2e/harness.ts` are invisible to both by virtue of their suffixes rather than
+by an exclusion anyone has to maintain.
+
+`e2e/` keeps its harness rather than sharing `support/`: it is Playwright's,
+not Vitest's, and the two harness layers have no code in common.
+
+**Importing across the split.** A criterion or guard reaches its harness at
+`../support/x.js` and the application at `../../src/...`. The colocated tests
+under `app/src/**` that borrow a harness reach it at
+`../../../tests/support/x.js`.
+
 ## Naming
 
-**Two families, and the prefix says which.** A listing of this directory should
-be readable top to bottom without having to open anything, which it was not
-until 2026-09-20: three files sat among the criteria under names that described
-their subject rather than their kind.
+**Two families, and the prefix says which.** A listing should be readable top
+to bottom without having to open anything, which it was not until 2026-09-20:
+three files sat among the criteria under names that described their subject
+rather than their kind.
 
 - **`ac-NNN-slug.test.ts`** — one executable criterion from spec section 12.
   `NNN` is the criterion number and it matches the number the test name carries,

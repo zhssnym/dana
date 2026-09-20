@@ -101,7 +101,7 @@ GitHub issue; `docs/workflow/backend/README.md` is the process.
   without contradicting settled spec text or the engine it imports.
   Recommendation, verified against the engine before being written down: the
   case seeds the two rows back to `scheduled` before the login, with
-  `setReminderState` from `tests/reminders-harness.ts`, which AC-154 already
+  `setReminderState` from `tests/support/reminders-harness.ts`, which AC-154 already
   uses for the same reason. With that one line the recompute writes exactly the
   instants the case asserts, `2010-01-15T14:00:00Z` and `2010-07-15T13:00:00Z`,
   and the rows land back in `skipped` afterwards, which the case never reads.

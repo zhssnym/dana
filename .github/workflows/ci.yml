@@ -3,14 +3,15 @@ name: CI
 # TWO JOBS SINCE 2026-09-04, AND ONLY ONE OF THEM IS THE GATE. Issue #180, and
 # 11.11 carries the amendment.
 #
-# The seven steps and their order are normative: spec 11.11 fixes them as npm ci,
-# lint, typecheck, test on PGlite, test on a real Postgres 18, build, Playwright.
+# The six steps and their order are normative: spec 11.11 fixes them as npm ci,
+# lint, typecheck, test on a real Postgres 18, build, Playwright. The PGlite leg
+# was the fourth until 11.11 was amended on 2026-09-20 and is gone.
 # Changing the set or the order is an amendment there, not an edit here. Where
 # the job runs, where the postgres leg's database comes from, and which
 # interpreter a step's script is handed to are job configuration: they move
 # without amending 11.11, exactly as the service block they replaced always was.
 #
-# `ci` below still runs all seven, on pushes to main, unchanged. **That is the
+# `ci` below still runs all six, on pushes to main. **That is the
 # run that matters**, because it measures what was actually merged, and it is
 # the one 11.11's order is normative for.
 #
@@ -24,7 +25,7 @@ name: CI
 #   machine with the agents doing the work: killing a runner mid-job took free
 #   memory from 2.0 to 9.7 GB in one step, and the jobs that lost that fight
 #   went red with hook timeouts and zero assertion failures. A job this light
-#   can run beside them; the seven-step one cannot.
+#   can run beside them; the full one cannot.
 #
 #   One runner serves both people. Twenty-five backend issues queued behind it
 #   on 2026-09-03 (#73), which is the whole reason branch grouping had to be
@@ -46,7 +47,7 @@ name: CI
 # gets no verdict, which is correct under a workflow where nothing reaches main
 # except through one.
 #
-# `paths-ignore` keeps the seven-step job off changes no step of it can read.
+# `paths-ignore` keeps the full job off changes no step of it can read.
 # Measured on PR #52: five markdown files started all seven steps, twenty minutes
 # of the one runner, and a docs job holding that runner is a code job not
 # running. The second cost is the one that decided it. Every run is a fresh roll
@@ -70,7 +71,7 @@ name: CI
 # happened (a study branch named after a tool, issue #180). The job is `npm ci`,
 # lint, typecheck and build: minutes, not the twenty that decided the filter.
 #
-# The reasoning that kept it on `push` is untouched: that job is the seven steps,
+# The reasoning that kept it on `push` is untouched: that job is the full gate,
 # it is where the twenty minutes and the flake roll live, and a merge of five
 # markdown files has nothing for it to measure.
 #
@@ -122,7 +123,7 @@ jobs:
   # The pull request job. Light on purpose, and each of its four steps is here
   # because it can fail for a reason the author's gate record cannot show:
   # a branch name nothing else enforces, and a merge result the author never
-  # built. It is deliberately NOT the seven steps.
+  # built. It is deliberately NOT the full gate.
   check:
     if: github.event_name == 'pull_request'
     runs-on: [self-hosted, windows, x64]
@@ -176,7 +177,7 @@ jobs:
       - name: Build
         run: npm run build
 
-  # The seven steps of 11.11, on the merge itself. Unchanged by #180 except for
+  # The six steps of 11.11, on the merge itself. Unchanged by #180 except for
   # the `if` that keeps it off pull requests.
   ci:
     if: github.event_name != 'pull_request'
@@ -209,20 +210,13 @@ jobs:
         run: npm run lint
       - name: Typecheck
         run: npm run typecheck
-      # The empty string is what makes this leg PGlite, and without it this step
-      # has been running Postgres. TEST_DATABASE_URL arrives from the runner
-      # installation's .env into the *job* environment, per the bullet below,
-      # so every step inherits it, including this one. Two Postgres legs, no
-      # PGlite leg, and both green: the exact false green the guard on the next
-      # step exists to prevent, in mirror image.
+      # The PGlite leg was removed on 2026-09-20 with 11.11's amendment. It ran
+      # the same files this step runs, on an engine production does not use, and
+      # the pair existed to catch a cross-engine disagreement almost no file in
+      # the suite can produce. The step below is now the only leg, and the guard
+      # on it matters more for that: there is no second leg left to notice that
+      # this one fell back to PGlite.
       #
-      # Empty rather than absent because app/db/client.ts treats '' as unset by
-      # construction, which is the same condition the next step's guard tests.
-      # The two agree without being kept in step.
-      - name: Test on PGlite
-        env:
-          TEST_DATABASE_URL: ''
-        run: npm test
       # TEST_DATABASE_URL arrives from the runner installation's own .env file,
       # never from a repository secret and never from this file: 11.11's Secrets
       # bullet rules that a credential for a resource GitHub cannot reach is not
@@ -241,11 +235,13 @@ jobs:
       # is unset or empty, so an empty value would produce a PGlite run *and* no
       # isolation, and still report green.
       #
-      # The guard is what stops this step passing by running PGlite twice.
+      # The guard is what stops this step passing without touching Postgres at
+      # all, and since the PGlite leg was removed it is the only thing that can.
       # Because the string arrives from outside this file, a missing .env, a
       # misspelled name, or a service started before the file was written all
       # leave the seam in app/db/client.ts falling back to PGlite, and the step
-      # would report a second identical green having measured nothing. It tests
+      # would report green having never reached the engine that serves users.
+      # It tests
       # presence and nothing else: the value is never read into a command, never
       # echoed, and never named here. Unset and empty are one case because that
       # is exactly the seam's own fallback condition, so the two agree by
@@ -254,7 +250,7 @@ jobs:
         shell: cmd
         run: |
           if "%TEST_DATABASE_URL%"=="" (
-            echo TEST_DATABASE_URL is unset or empty, so this step would re-run the PGlite leg and report a green that measured nothing. Set it in the runner installation .env file ^(spec 11.11^) and restart the runner service.
+            echo TEST_DATABASE_URL is unset or empty, so this step would silently fall back to PGlite and report a green that never touched Postgres. Set it in the runner installation .env file ^(spec 11.11^) and restart the runner service.
             exit /b 1
           )
           npm test

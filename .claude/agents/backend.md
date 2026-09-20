@@ -36,7 +36,7 @@ The things this codebase will punish you for not knowing:
 **`docs/workflow/hard-stops.md` is the whole of what stops you.** Read it before you start
 and again when the work turns. Everything else: decide, do it, and say what you decided.
 
-**Run `npm run gate` from `app/`.** It runs the seven steps and prints a record. **The pull
+**Run `npm run gate` from `app/`.** It runs the six steps and prints a record. **The pull
 request exists only when that record is green on the head commit**, and it carries the
 record. Read a red through `CLAUDE.md`'s four flake classes and say in the pull request which
 one you decided it was.
