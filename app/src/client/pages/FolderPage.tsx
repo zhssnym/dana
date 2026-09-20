@@ -222,6 +222,8 @@ import { MorePages, PageBody } from '../components/page/PageStates.js'
 import { FOLDER_EMPTY } from './empty-states.js'
 import { FolderSharingPanel } from './FolderSharingPanel.js'
 import { ConfirmDialog, TaskRows, useConfirm, useRowBasis } from './task-rows.js'
+import { getLabelsResponse } from '../../shared/labels.js'
+import type { LabelDefinition } from '../../shared/labels.js'
 import { getTaskResponse } from '../../shared/tasks.js'
 import type { TaskDetail } from '../../shared/tasks.js'
 import { folderToWorkflowFile } from '../../shared/workflows.js'
@@ -306,6 +308,29 @@ function readConversationHome(): ConversationHome {
   } catch {
     return 'foot'
   }
+}
+
+/*
+The rows out of the body `GET /labels` answered (#227 area 4).
+
+**`truncated` is not read, and that is a fact about this path rather than an
+oversight.** 10.3 caps a Folder's definitions at 250
+(`FOLDER_LABEL_DEFINITION_CAP`) and the list cap at 1000, so a single folder's
+vocabulary cannot reach it. A second scope on this query, or a cap raised past
+1000, would make that false and would want the flag read.
+
+**This read two shapes until the rebase of 2026-09-20 and now reads one.** The
+branch forked from #226 mid-flight, when `getLabelsResponse` was still a bare
+array; #226 then wrapped it as `{ rows, truncated }` for its own 10.3 row-cap
+fix and landed on `main` as #259. Reading both let this branch compile where it
+stood and be correct once rebased, and the array arm was dead the moment it was
+— so it went, which is what the comment that stood here asked its rebaser to
+do.
+*/
+function labelRowsOf(
+  answered: { rows: readonly LabelDefinition[] },
+): readonly LabelDefinition[] {
+  return answered.rows
 }
 
 /**
@@ -716,22 +741,55 @@ export function FolderPage({
     const pending = [...scheduled, ...unscheduled].filter(
       (task) => task.status === 'pending',
     )
+    /*
+    The folder's own Label vocabulary, read beside the details (#227 area 4).
+
+    **It is read rather than gathered from the tasks**, because the file
+    carries the folder's *reusable* taxonomy: a category nothing currently
+    wears is exactly the thing a template exists to set up, and a vocabulary
+    scraped off the rows would lose it. `state` is left at the schema's default
+    of active, which is the other half of the same rule — an archived Label may
+    not be newly applied, so a file carrying one would ask the importer for a
+    row the live endpoints refuse.
+
+    A folder with no Folder Labels answers an empty vocabulary and the file
+    that is written is byte-for-byte the one this page wrote before #227.
+    */
     let tasks: TaskDetail[]
+    let labels: readonly LabelDefinition[]
     try {
-      tasks = await Promise.all(
-        pending.map((task) =>
-          cache.fetchQuery({
-            queryKey: queryKeys.task(task.id),
-            queryFn: () => getPlain(getTaskResponse, `/tasks/${task.id}`),
-          }),
+      const [details, vocabulary] = await Promise.all([
+        Promise.all(
+          pending.map((task) =>
+            cache.fetchQuery({
+              queryKey: queryKeys.task(task.id),
+              queryFn: () => getPlain(getTaskResponse, `/tasks/${task.id}`),
+            }),
+          ),
         ),
-      )
+        cache.fetchQuery({
+          queryKey: queryKeys.folderLabels(id),
+          queryFn: () =>
+            getPlain(
+              getLabelsResponse,
+              `/labels?scope=folder&folder_id=${encodeURIComponent(id)}`,
+            ),
+        }),
+      ])
+      tasks = details
+      labels = labelRowsOf(vocabulary)
     } catch {
       showToast('Could not read this folder’s tasks, so nothing was saved.')
       return
     }
     const file = JSON.stringify(
-      folderToWorkflowFile(folderName, tasks, page.data?.blocks ?? [], page.data),
+      folderToWorkflowFile(
+        folderName,
+        tasks,
+        page.data?.blocks ?? [],
+        page.data,
+        labels,
+      ),
       null,
       2,
     )

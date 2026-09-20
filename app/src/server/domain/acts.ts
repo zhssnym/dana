@@ -50,6 +50,13 @@ import { recordEvent } from './events.js'
 import { recordAccessTransition } from './folder-access.js'
 import { copyCoverFile, readableFileScope } from './files.js'
 import { applyDocument, documentMetadata, DocumentRefusal } from './page-document.js'
+import {
+  applyWorkflowTaskLabels,
+  copyFolderLabelAssignments,
+  copyFolderLabelCatalog,
+  copyTaskLabelsForDuplicate,
+  createWorkflowFolderLabels,
+} from './labels.js'
 import { upsertReminder } from './tasks.js'
 import { positionAtSectionEnd, seededItems } from './page-order.js'
 import { copyDependenciesWithin } from './task-dependencies.js'
@@ -264,6 +271,22 @@ export async function duplicateFolder(
          the comment below explains arrives pending. */
       for(const block of blocks)if(block.section_block_id!=null)await tx.execute(sql`UPDATE page_blocks SET section_block_id=${sectionMap.get(String(block.section_block_id))??null}::uuid WHERE id=${sectionMap.get(String(block.id))}::uuid`)
       for(const block of blocks)if(block.list_parent_block_id!=null)await tx.execute(sql`UPDATE page_blocks SET list_parent_block_id=${sectionMap.get(String(block.list_parent_block_id))??null}::uuid WHERE id=${sectionMap.get(String(block.id))}::uuid`)
+
+      /*
+      The Folder's Label vocabulary, before the tasks that point at it (#227
+      area 2). A duplicated Folder is a **new Folder-Label scope**: every
+      definition is re-created under a new id, archived ones archived, and the
+      copied tasks' assignments are remapped onto those ids below. Pointing the
+      copy at the source's ids would be refused by migration 0022's composite
+      key, so the only way to get this wrong is to lose the classification
+      rather than to share it.
+      */
+      const labelPairs = await copyFolderLabelCatalog(
+        tx,
+        sourceFolderId,
+        copyId,
+      )
+
       // Structure, never the life (DES-198): every status arrives pending,
       // steps arrive undone, the work is the maker's, a repeat is a new
       // series, and my_day, reminders, comments and events stay home.
@@ -278,12 +301,15 @@ export async function duplicateFolder(
             ORDER BY created_at ASC, id ASC`,
       )
       /* Old task id to new, built as the loop below inserts, because the
-         dependency relation is copied from it afterwards (issue #224). The
-         rule is that relationships travel only when both ends travel
-         together, and this map is the definition of "travelled": a task that
-         is not in it did not come, whether because it is trashed or because
-         it lives in another folder, and an edge touching it is dropped rather
-         than pointed back at the original. */
+         dependency relation is copied from it afterwards (issue #224) and the
+         Label remap below reads it too (#227 area 2). The rule is that
+         relationships travel only when both ends travel together, and this map
+         is the definition of "travelled": a task that is not in it did not
+         come, whether because it is trashed or because it lives in another
+         folder, and an edge touching it is dropped rather than pointed back at
+         the original. Nothing else pairs the two rows: the copy shares the
+         source's title and its position and has neither its id nor any column
+         pointing back at it. */
       const taskIdentity = new Map<string, string>()
       for (const task of tasks) {
         const section =
@@ -336,6 +362,25 @@ export async function duplicateFolder(
          unit. Only edges with both endpoints in the map are carried, which is
          the accepted rule stated once in `copyDependenciesWithin`. */
       await copyDependenciesWithin(tx, taskIdentity, viewerId)
+
+      /*
+      The assignments, now that both id mappings exist (#227 area 2). Three
+      statements: the Tasks' Folder Labels remapped onto the copy's own
+      vocabulary, the duplicator's active Personal Labels on the source Folder,
+      and their active Personal Labels on the source Tasks. Nobody else's
+      Personal Labels cross, and no archived Personal Label is newly attached —
+      while the Folder's own archived definitions and the assignments against
+      them do come across, because that is the taxonomy being duplicated rather
+      than a new application of a retired Label.
+      */
+      await copyFolderLabelAssignments(
+        tx,
+        viewerId,
+        sourceFolderId,
+        copyId,
+        labelPairs,
+        [...taskIdentity],
+      )
 
       /* DES-198's date rule: spent plans re-anchor whole, live plans copy
          untouched. The shift is read once, then one UPDATE moves every date by
@@ -547,6 +592,19 @@ export async function duplicateTask(
                     ${Number(step.position)})`,
       )
     }
+    /*
+    The Labels (#227 area 1). The copy is in the source's own Folder, so the
+    Folder Label assignments carry the **same** ids: the vocabulary is already
+    the copy's. The duplicator's own Personal assignments cross, nobody else's
+    does, and neither side newly attaches an archived Label — a duplicate is a
+    new application, and archived means "may not be newly applied".
+
+    Classification is structure rather than life, which is the DES-198 line
+    this sits under: the copy arrives pending, unassigned to anyone but its
+    maker and with its conversation left behind, and it arrives wearing the
+    same Labels the original wore.
+    */
+    await copyTaskLabelsForDuplicate(tx, viewerId, source.id, newId)
     await recordEvent(tx, {
       actorId: viewerId,
       verb: 'duplicated',
@@ -592,7 +650,11 @@ export async function importWorkflow(
     }
 
     const created: Array<{ id: string; name: string }> = []
-    for (const folder of file.folders) {
+    /* Indexed, because `createWorkflowFolderLabels` needs to be able to say
+       *which* folder of the file the database refused a vocabulary for, and
+       the path it answers with — `folders.<n>.labels` — is the one
+       `canonicalWorkflowBody`'s own refusals already use. */
+    for (const [folderIndex, folder] of file.folders.entries()) {
       const made = await rowsOf(
         tx,
         sql`INSERT INTO folders (owner_id, name)
@@ -617,6 +679,28 @@ export async function importWorkflow(
         transition: 'created_owner',
       })
       const taskMap = new Map<string,string>()
+      /*
+      The Folder's reusable vocabulary, before the work that points at it
+      (#227 area 4). **New identities inside this Folder**, always active, and
+      never merged against anything by name: the Folder was created three
+      statements ago and its catalog is empty, so there is nothing to merge
+      with. The file's own keys are the only join, and the schema has already
+      refused a file that names a key it does not declare.
+
+      **A file whose vocabulary contradicts itself by *name* is refused here
+      rather than by the schema**, and that is deliberate: the fold is
+      `labels_folder_name_idx`'s `lower(name)` and a second one in JavaScript
+      disagrees with it. The throw leaves this transaction on its way to the
+      route, which turns it into the same 422 the schema's own refusals
+      answer, so nothing half-made survives — the folder three statements ago
+      included.
+      */
+      const labelIdOf = await createWorkflowFolderLabels(
+        tx,
+        folderId,
+        folder.labels ?? [],
+        folderIndex,
+      )
       for (const [index, block] of (folder.document === undefined ? folder.blocks ?? [] : []).entries()) {
         await tx.execute(
           sql`INSERT INTO page_blocks (folder_id, kind, position, text)
@@ -665,6 +749,19 @@ export async function importWorkflow(
             viewerId,
           )
         }
+        /* The file's keys remapped onto the ids this import minted. A key the
+           file never declared cannot reach here — `canonicalWorkflowBody`
+           refuses the file — so the lookup is total and nothing is dropped in
+           silence. */
+        await applyWorkflowTaskLabels(
+          tx,
+          folderId,
+          taskId,
+          (task.labels ?? []).flatMap((key) => {
+            const id = labelIdOf.get(key)
+            return id === undefined ? [] : [id]
+          }),
+        )
       }
       if(folder.document!==undefined){
         const document=folder.document

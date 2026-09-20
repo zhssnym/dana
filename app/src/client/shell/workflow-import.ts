@@ -37,8 +37,8 @@ function pageItems(folder: Record<string, unknown>): unknown[] | null {
 /**
  * The losses performed by `normalizeWorkflowFile`, as opposed to the keys
  * 7.16 intentionally never imports. Counts are enough because blocks and
- * steps keep their order, and a foreign reminder is the one scalar the
- * normaliser removes.
+ * steps keep their order; a foreign reminder and a `labels` key below
+ * version 3 are the two the normaliser removes outright.
  */
 function skippedByNormalization(
   source: Record<string, unknown>,
@@ -71,6 +71,31 @@ function skippedByNormalization(
       return true
     }
 
+    /*
+    A `labels` key the parser dropped (#227 area 4).
+
+    **Tolerating the file and saying nothing are two different decisions, and
+    this is the second one.** `shared/workflows.ts` drops `labels` from a file
+    below version 3 as a foreign arrangement rather than refusing it — a
+    version 1 file declares no vocabulary, so it cannot contradict one, and
+    `labels` as an array of tag names per task is what most to-do exports
+    write. That is right, and it is also exactly the "unsupported content left
+    behind" this function exists to report: a dropped paragraph loses a
+    sentence, a dropped classification loses the reason the work was sorted.
+    The file still imports; the toast says something did not come with it.
+
+    A null is absence rather than loss — `dropFolderNulls` reads it as "no
+    vocabulary", which is what a serialiser spelling "none" as `null` meant —
+    so it is not reported.
+    */
+    if (
+      beforeFolder.labels !== undefined &&
+      beforeFolder.labels !== null &&
+      afterFolder.labels === undefined
+    ) {
+      return true
+    }
+
     if (!Array.isArray(beforeFolder.tasks)) continue
     for (const [taskIndex, beforeTask] of beforeFolder.tasks.entries()) {
       if (!isRecord(beforeTask)) continue
@@ -84,6 +109,15 @@ function skippedByNormalization(
         return true
       }
       if (typeof beforeTask.reminder === 'string' && afterTask.reminder === undefined) {
+        return true
+      }
+      /* The task's half of the rule above: its own `labels`, which is the key
+         a foreign export is most likely to carry. */
+      if (
+        beforeTask.labels !== undefined &&
+        beforeTask.labels !== null &&
+        afterTask.labels === undefined
+      ) {
         return true
       }
     }
