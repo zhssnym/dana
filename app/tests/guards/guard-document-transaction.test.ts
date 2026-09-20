@@ -63,8 +63,18 @@ test('Issue194 duplicate, export and workflow import retain hierarchy and rich c
     model, and EXPORT_VERSION is the mechanism by which a reader that knows
     the old shape refuses rather than guesses. The decision this line pins is
     "which version the document declares", and it moved in the same change as
-    the key it is about. */
- expect(data.version).toBe(3);expect(data.folders.find(f=>f.id===folder)?.blocks.find(b=>b.id===p)?.section_block_id).toBe(h2)
+    the key it is about.
+
+    **3 to 4 at issue #227**, on exactly the same rule and in the same shape:
+    the document gained the viewer's Personal Label catalog, each owned
+    folder's Folder Label vocabulary, and the id arrays that connect them to
+    the Work. A version-3 reader's schema declares none of those keys and
+    would strip them, so the bump is again what tells it to refuse rather
+    than hand back a document quietly missing a person's classification.
+    AC-550 asserts the number against `EXPORT_VERSION` and the shape beside
+    it; this line stays because it is the one that notices a *shape* change
+    that forgot its bump, which is the direction a green suite cannot see. */
+ expect(data.version).toBe(4);expect(data.folders.find(f=>f.id===folder)?.blocks.find(b=>b.id===p)?.section_block_id).toBe(h2)
  const current=await read(owner,folder)
  expectStatus(await owner.browser.json(`/folders/${folder}/page/actions`,'POST',{action:'document_transaction',mutation_id:randomUUID(),base_revision:current.revision,operations:[{op:'delete_block',id:h1},{op:'set_outline',items:[{kind:'block',id:h2,section_block_id:null,list_parent_block_id:null},{kind:'block',id:p,section_block_id:h2,list_parent_block_id:null}]}]}),200,'remove H1 promotes subgroup')
  expect((await read(owner,folder)).blocks.find(b=>b.id===h2)?.section_block_id).toBeNull()

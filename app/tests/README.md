@@ -135,6 +135,132 @@ the wire; it is its own file because it pins a different decision from AC-479
 beside it — that decision being whether the rename can be deployed without
 losing somebody's edit, rather than whether it changed Shelf semantics.
 
+**51 to 66 the same day, for issue #227's Label lifecycle** (AC-540 to AC-554,
+spec 12.24's second half — **and AC-520 to AC-534 for about an hour before
+that**, renumbered when a sibling branch was moved onto the block this one had
+just scanned; the registry carries the story and no criterion changed, only its
+number). Fifteen numbers and fifteen files, one apiece,
+which is the opposite of the ratio above and is deliberate: #226's twelve were
+clauses of four behaviours, while #227's fifteen are fifteen independent acts —
+two duplications, a move, a file format both ways, an export, a Trash, a purge,
+an account deletion and a membership loss — and a file that failed would
+otherwise take four unrelated areas red with it. `support/label-lifecycle-harness.ts`
+is theirs and sits beside `support/labels-harness.ts` rather than inside it, the
+split being definitions and projections against what happens to them when Work
+moves.
+
+**66 to 69 the same day, from the first adversarial read of that branch**
+(AC-780 to AC-782, spec 12.24's third block). One defect and two uncovered
+shapes, **all three found by reading `shared/workflows.ts` against migration
+0022 and against the writer rather than by any red**, which is the note worth
+keeping: the fifteen above were proved by mutation and the mutation pass could
+not have found any of these, because a mutation pass asks whether a line has a
+watcher and every one of these is a line that was never written. AC-780 is a
+500 now answered at 422; AC-781 is the file `folderToWorkflowFile` actually
+writes for a real folder — a canvas **and** a vocabulary — which AC-547 misses
+by passing `undefined` for the page; AC-782 is the one-folder arrangement
+dropping the vocabulary before validation saw it. Each was proved by breaking
+the line it watches and watching it go red, and AC-781 by two mutations rather
+than one, it being the only one of the three that was green on arrival.
+
+**AC-780 was then rewritten, and this is the part worth reading.** Its first
+fix refused the file in `canonicalWorkflowBody.superRefine`, folding with
+JavaScript `toLowerCase()` in front of `labels_folder_name_idx`'s
+`lower(name)`, and argued the two folds' disagreements were all in the safe
+direction. A single-string fold has no direction — `toLowerCase` is
+idempotent, so for any name the folds disagree about, the pair
+`(x, x.toLowerCase())` is one name to JavaScript and two to Postgres, which is
+a **false 422**. Nine BMP code points disagree plus Greek final sigma — ten
+pairs, every one of them stricter in JavaScript, none looser — and the product
+met it: `ΦΩΣ` and `φως` are two live Labels in one folder,
+`folderToWorkflowFile` writes both, and re-importing that file was 422.
+**Dana could not import its own export.** The fold is gone,
+`createWorkflowFolderLabels` maps the SQLSTATE instead, and AC-780's fourth
+case drives that pair through the endpoint and expects 201.
+
+**Two mutation records here were wrong, and both were wrong in the same
+direction — naming one watcher where there were two, or the wrong one.** They
+are corrected rather than deleted, because a mutation record that overstates
+how *precisely* a criterion fires is how a later session mis-attributes a red.
+
+- The `.toLowerCase()` mutation was recorded as taking "only the case-only
+  one" red. Re-measured on the Postgres leg: **two** cases, AC-780's second
+  and **AC-782's fourth**, both at 500 — AC-782 reaches AC-780's refusal
+  through the folded folder and is therefore a watcher of the same line.
+- AC-781's own header said an importer applying `folder.blocks` beside the
+  document "would answer four blocks here rather than two". It does not get
+  that far: the mutation dies **at the import call** with `422 The outline must
+  retain every Task and undeleted block.`, because `applyDocument`'s outline
+  names only the document's blocks. The criterion discriminates either way;
+  the sentence naming *how* did not.
+
+The mutations that prove the rewrite, measured 2026-09-20 on the Postgres leg,
+one at a time from a clean tree: **removing the 23505 mapping** takes four
+cases red at **500** — AC-780's first three and AC-782's fourth, the original
+defect exactly — and **re-adding a JavaScript name fold** takes two red,
+`src/shared/workflows.test.ts`'s name case and AC-780's fourth, the latter
+answering `422 folders.0.labels: … the name "φως" is declared twice in one
+folder`, which is the false 422 end to end.
+
+**And a third, 2026-09-20, for the field path itself.** Every assertion of
+`folders.<n>.labels` in the suite was made against a **one-folder** file —
+AC-780's first three cases and AC-782's fourth all read `folders.0.labels` — so
+the folder index the mapping carries had no watcher at all: hard-wiring
+`createWorkflowFolderLabels`'s `folderIndex` argument to `0` at its call site in
+`domain/acts.ts` left all four green. AC-780's sixth case is that watcher; it
+imports a two-folder file whose second folder collides, and under that mutation
+it is the only red in AC-780 and AC-782 together, answering
+`folders.0.labels: … the name "ac780 URGENT" is declared twice` where
+`folders.1.labels` is where the two definitions are. It asserts the rows as well:
+the clean first folder, its definition and its task are all written before the
+second folder throws, so the transaction taking them back is the half of the
+rule the response cannot show.
+
+**Every one of the fifteen was proved by breaking the code it watches**, one
+mutation at a time against the real Postgres leg, and two of them were green
+under a mutation the first time and were fixed rather than shrugged at: AC-547's
+fixture asked the endpoint for active definitions only, so the exporter's own
+exclusion of archived ones was never exercised, and AC-546's first mutation
+re-attached by name *after* the assignments were already deleted, so it could
+not have carried anything. The second was a bad mutation and the first was a
+weak criterion; both are recorded in the commit because the difference between
+them is the thing a mutation pass is for.
+
+**And a mutation pass over fifteen criteria is not a mutation pass over the
+change, which an adversarial review then measured.** Each of the fifteen was
+broken at the behaviour it names, and every line the branch added that *no*
+criterion names went unmeasured — six mutations survived the whole suite. The
+worst was the privacy one: replacing the Personal Label delete's statement
+with `DELETE FROM labels WHERE scope = 'personal'` wipes every
+account's Personal Labels and, through 0022's composite cascades, every
+Personal assignment in the product, and AC-553, AC-470, AC-473, AC-009,
+AC-118 and `domain/account-deletion.test.ts` were all green under it — AC-553's
+surviving task carried only the leaver's row, so its assertion was `[]` either
+way. **That statement is 8.10 step 6c's in `domain/account-deletion.ts` since
+this branch rebased onto #253**, which took the Personal Label delete into its
+nine-table sweep; the mutation and what it proves are unchanged, the predicate
+being `owner_user_id` either way. The other five were the whole of `canonicalWorkflowBody`'s `superRefine`
+(both halves), both 10.3 Label caps raised to 100000, and `'labels'` removed
+from `dropNulls`. The lesson is the ratio rather than any one of them: the
+question a pass answers is "which of my lines has a watcher", and enumerating
+the criteria answers a different one. All six are now watched — the privacy
+predicate by AC-553's second actor, the format by
+`src/shared/workflows.test.ts`'s Label block and AC-548's widened case list.
+
+**Commit before you mutate, and the reason is a failure mode of mutation
+testing rather than of git.** A mutation pass is apply, run, restore, and the
+obvious restore is `git checkout -- <file>` — which restores from the index,
+so it silently discards every uncommitted change in that file, including the
+fix the pass was written to prove. That happened during the pass above. It
+announces nothing: the script reports "restored", the working tree looks
+right, and the *next* mutation is what goes strange, because it runs against
+a file that has quietly lost the thing under test. It was caught because that
+mutation failed four cases instead of one and the extra three made no sense,
+which is luck standing in for a check. So: **commit the work first, then
+mutate**, and the restore is exact and total by construction. Where a commit
+is genuinely not wanted yet, copy the file and restore from the copy — never
+from the index.
+
 **And six more for issue #263, the reclaim sweep** (AC-700 to AC-705, spec 12.9),
 on the same reading of that ruling. **Read the sentence above as the dated
 record it is rather than as a running total**: the tree already held 69

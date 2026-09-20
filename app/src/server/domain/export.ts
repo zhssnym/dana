@@ -77,6 +77,7 @@ import type {
   ExportFile,
   ExportFolder,
   ExportForeignTask,
+  ExportLabel,
   ExportReminder,
   ExportShelf,
   ExportStep,
@@ -251,9 +252,33 @@ function blockFrom(row: Record<string, unknown>): ExportBlock {
   }
 }
 
+function labelFrom(row: Record<string, unknown>): ExportLabel {
+  return {
+    id: String(row.id),
+    scope: String(row.scope),
+    name: String(row.name),
+    color: String(row.color),
+    description: nullableString(row.description),
+    archived: present(row.archived_at),
+    folder_id: nullableString(row.folder_id),
+  }
+}
+
+/** The definition columns every Label statement below selects, so the three
+ * of them cannot drift into three different documents. */
+const LABEL_COLUMNS = sql`l.id, l.scope, l.name, l.color, l.description,
+  l.archived_at, l.folder_id`
+
+/** Active before archived, then lower(name), then id — the order #208 fixes
+ * for every Label list in the product, applied here so that two exports of an
+ * unchanged account are the same bytes. */
+const LABEL_ORDER = sql`(l.archived_at IS NOT NULL) ASC, lower(l.name) ASC,
+  l.id ASC`
+
 function taskFrom(
   row: Record<string, unknown>,
   steps: ExportStep[],
+  labels: { personal: string[]; folder: string[] },
 ): ExportTask {
   return {
     section_block_id:nullableString(row.section_block_id),
@@ -279,6 +304,8 @@ function taskFrom(
     trashed: present(row.deleted_at),
     steps,
     reminder: present(row.fire_at) ? reminderFrom(row) : null,
+    personal_label_ids: labels.personal,
+    folder_label_ids: labels.folder,
   }
 }
 
@@ -494,6 +521,138 @@ export async function exportForViewer(
   )
   const stepsByTask = groupBy(stepRows, 'task_id')
 
+  /* ---------------------------------------------------------------- *
+   * Labels (#208's M1 model, #227 area 5)
+   *
+   * Six statements, and the privacy boundary is the whole design rather
+   * than a filter applied afterwards:
+   *
+   * - the viewer's **own** Personal definitions, complete with their
+   *   archived state, scoped by `owner_user_id`;
+   * - the **complete** Folder Label vocabulary of each owned folder,
+   *   scoped by `folders.owner_id`;
+   * - the viewer's Personal assignments to those folders and to every
+   *   exported task, scoped by `owner_user_id` again;
+   * - the Folder Label assignments of every exported task;
+   * - and, for a task in a folder the viewer does **not** own, exactly
+   *   the definitions that task wears and no others.
+   *
+   * **The last one is the line #227 draws and it is the only place in
+   * this module where a definition is resolved per row rather than per
+   * parent.** A colleague's folder may hold forty categories; what
+   * belongs in this person's export is the two that are on the one task
+   * that is their own work. A statement scoped by folder rather than by
+   * task would hand them the other thirty-eight, which is exactly the
+   * widening the issue forbids.
+   *
+   * **No statement here reads another account's Personal Label.** Both
+   * Personal statements carry `owner_user_id = <viewer>`, so deleting
+   * that clause returns nothing rather than somebody else's
+   * classification of shared work — 10.2's own test, applied to the
+   * second kind of privacy this model has.
+   *
+   * **Two of the six carry no cap, and that is a decision rather than an
+   * omission.** The assignment statements are bounded below 10.3's
+   * export cap by 10.3's own Label caps: 100 Folder and 100 Personal
+   * Labels on one Task, 100 Personal on one Folder, all of them a tenth
+   * of `EXPORT_ROW_CAP`, so a `cappedPerParent` over them could never
+   * fire and would only add a window function to every export. The two
+   * definition statements keep their caps anyway — 500 per account and
+   * 250 per folder are equally unreachable — because they are named
+   * collections in `truncated` and a collection that can be named
+   * should be counted the same way as its neighbours.
+   * ---------------------------------------------------------------- */
+
+  const personalLabelRows = await rowsOf(
+    db,
+    sql`SELECT ${LABEL_COLUMNS} FROM labels l
+         WHERE l.owner_user_id = ${viewerId} AND l.scope = 'personal'
+         ORDER BY ${LABEL_ORDER}
+         LIMIT ${FETCH}`,
+  )
+
+  const folderLabelRows = await rowsOf(
+    db,
+    cappedPerParent(
+      sql`${LABEL_COLUMNS}`,
+      sql`FROM labels l
+          JOIN folders f ON f.id = l.folder_id AND f.owner_id = ${viewerId}
+          WHERE l.scope = 'folder' AND l.folder_id IN ${idSet(folderIds)}`,
+      sql`l.folder_id`,
+      sql`(l.archived_at IS NOT NULL) ASC, lower(l.name) ASC, l.id ASC`,
+    ),
+  )
+
+  const folderPersonalRows = await rowsOf(
+    db,
+    sql`SELECT fpl.folder_id, fpl.label_id
+          FROM folder_personal_labels fpl
+          JOIN labels l ON l.id = fpl.label_id
+         WHERE fpl.owner_user_id = ${viewerId}
+           AND fpl.folder_id IN ${idSet(folderIds)}
+         ORDER BY fpl.folder_id ASC, ${LABEL_ORDER}`,
+  )
+
+  const taskPersonalRows = await rowsOf(
+    db,
+    sql`SELECT tpl.task_id, tpl.label_id
+          FROM task_personal_labels tpl
+          JOIN labels l ON l.id = tpl.label_id
+         WHERE tpl.owner_user_id = ${viewerId}
+           AND tpl.task_id IN ${idSet(cappedTaskIds)}
+         ORDER BY tpl.task_id ASC, ${LABEL_ORDER}`,
+  )
+
+  /* The scope repeats the step statement's, which is the two arms an
+     exported task can have: a folder the viewer owns, or a live folder they
+     belong to where the task is their own work. The id list already came
+     from a scoped read; the predicate stays anyway, on this module's rule. */
+  const exportedTaskScope = sql`JOIN tasks t ON t.id = tfl.task_id
+      JOIN folders f ON f.id = t.folder_id
+      LEFT JOIN folder_members m
+        ON m.folder_id = t.folder_id AND m.user_id = ${viewerId}
+     WHERE tfl.task_id IN ${idSet(cappedTaskIds)}
+       AND (f.owner_id = ${viewerId}
+            OR (m.user_id IS NOT NULL
+                AND f.deleted_at IS NULL
+                AND (t.created_by = ${viewerId}
+                     OR t.assignee_id = ${viewerId})))`
+
+  const taskFolderRows = await rowsOf(
+    db,
+    sql`SELECT tfl.task_id, tfl.label_id
+          FROM task_folder_labels tfl
+          JOIN labels l ON l.id = tfl.label_id
+          ${exportedTaskScope}
+         ORDER BY tfl.task_id ASC, ${LABEL_ORDER}`,
+  )
+
+  const foreignLabelRows = await rowsOf(
+    db,
+    sql`SELECT tfl.task_id, ${LABEL_COLUMNS}
+          FROM task_folder_labels tfl
+          JOIN labels l ON l.id = tfl.label_id
+          ${exportedTaskScope}
+           AND f.owner_id <> ${viewerId}
+         ORDER BY tfl.task_id ASC, ${LABEL_ORDER}`,
+  )
+
+  const personalLabels = truncation
+    .apply('personal_labels', personalLabelRows)
+    .map(labelFrom)
+  const labelsByFolder = groupBy(folderLabelRows, 'folder_id')
+  const personalOnFolder = groupBy(folderPersonalRows, 'folder_id')
+  const personalOnTask = groupBy(taskPersonalRows, 'task_id')
+  const folderOnTask = groupBy(taskFolderRows, 'task_id')
+  const definitionsOnForeignTask = groupBy(foreignLabelRows, 'task_id')
+
+  const labelIdsOf = (taskId: string): { personal: string[]; folder: string[] } => ({
+    personal: (personalOnTask.get(taskId) ?? []).map((row) =>
+      String(row.label_id),
+    ),
+    folder: (folderOnTask.get(taskId) ?? []).map((row) => String(row.label_id)),
+  })
+
   const stepsOf = (
     taskId: string,
     collection: ExportCollection,
@@ -618,18 +777,32 @@ export async function exportForViewer(
       // nothing) and would read as though the cap were taken here, which is
       // the thing the step statement above depends on it not being.
       tasks: (tasksByFolder.get(id) ?? []).map((task) =>
-        taskFrom(task, stepsOf(String(task.id), 'folders.tasks.steps')),
+        taskFrom(
+          task,
+          stepsOf(String(task.id), 'folders.tasks.steps'),
+          labelIdsOf(String(task.id)),
+        ),
       ),
       blocks: truncation
         .apply('folders.blocks', blocksByFolder.get(id) ?? [])
         .map(blockFrom),
+      labels: truncation
+        .apply('folders.labels', labelsByFolder.get(id) ?? [])
+        .map(labelFrom),
+      personal_label_ids: (personalOnFolder.get(id) ?? []).map((row) =>
+        String(row.label_id),
+      ),
     }
   })
 
-  const exportedForeign: ExportForeignTask[] = foreignTasks.map((row) => ({
-    ...taskFrom(row, stepsOf(String(row.id), 'tasks_elsewhere.steps')),
-    folder: { id: String(row.folder_id), name: String(row.folder_name) },
-  }))
+  const exportedForeign: ExportForeignTask[] = foreignTasks.map((row) => {
+    const id = String(row.id)
+    return {
+      ...taskFrom(row, stepsOf(id, 'tasks_elsewhere.steps'), labelIdsOf(id)),
+      folder: { id: String(row.folder_id), name: String(row.folder_name) },
+      folder_labels: (definitionsOnForeignTask.get(id) ?? []).map(labelFrom),
+    }
+  })
 
   const exportedComments: ExportComment[] = comments.map((row) => {
     const id = String(row.id)
@@ -705,6 +878,7 @@ export async function exportForViewer(
       created_at: view.created_at,
     })),
     files: truncation.apply('files', fileRows).map(fileFrom),
+    personal_labels: personalLabels,
     truncated: truncation.names(),
   }
 }

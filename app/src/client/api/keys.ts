@@ -53,4 +53,10 @@ export const queryKeys = {
   placeDescriptions: () => ['place-descriptions'] as const,
   /** Item 60's sample workspace: present or not, and its counts. */
   sample: () => ['sample'] as const,
+
+  /** One folder's active Folder Label vocabulary (#208's M1 model, #226's
+   * `GET /labels`). Read by "Save as workflow", which writes the folder's
+   * *reusable* taxonomy into the file and therefore needs the definitions
+   * nothing is currently wearing (#227 area 4). */
+  folderLabels: (id: string) => ['folders', id, 'labels'] as const,
 } as const
