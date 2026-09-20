@@ -42,7 +42,11 @@ import { sql } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
 import type { DocumentOperation } from '../../shared/pages.js'
-import type { ImportWorkflowBody } from '../../shared/workflows.js'
+import { readWorkflowPage } from '../../shared/workflows.js'
+import type {
+  ImportWorkflowBody,
+  ImportWorkflowTask,
+} from '../../shared/workflows.js'
 import type { ObjectStore } from '../files/store.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
@@ -750,18 +754,41 @@ export async function importWorkflow(
         folder.labels ?? [],
         folderIndex,
       )
-      for (const [index, block] of (folder.document === undefined ? folder.blocks ?? [] : []).entries()) {
+      const flatBlocks =
+        folder.document === undefined && folder.page === undefined
+          ? (folder.blocks ?? [])
+          : []
+      for (const [index, block] of flatBlocks.entries()) {
         await tx.execute(
           sql`INSERT INTO page_blocks (folder_id, kind, position, text)
               VALUES (${folderId}::uuid, ${block.kind}, ${index},
                       ${block.text})`,
         )
       }
+      /*
+      The work, wherever the file wrote it.
+
+      **A format 4 Task is a block of the page and a format 1 to 3 Task is a
+      member of a collection, and they are the same Task** — the same keys, the
+      same caps, the same anchor rule. So the loop below reads one list, and
+      which list that is is the only thing the version decides. The schema has
+      already refused a folder that carries both (#185), so there is no case in
+      which these two sources are both non-empty.
+      */
+      const work: ImportWorkflowTask[] =
+        folder.page === undefined
+          ? (folder.tasks ?? [])
+          : folder.page.blocks.flatMap((block) =>
+              block.kind === 'task' ? [block] : [],
+            )
+      /** The ids this import minted, in the file's own order, so that format
+       * 4's page can name its Tasks by position. */
+      const madeTaskIds: string[] = []
       // Work arrives as typed work would: pending, unticked, the
       // importer's (the DES-198 contradiction's one rule). What travels is
       // item 44's B3 list and no more, which is the widening; what does not
       // is still ids, people, due dates and states.
-      for (const [taskIndex,task] of (folder.tasks ?? []).entries()) {
+      for (const [taskIndex,task] of work.entries()) {
         // A repeat needs 4.5's anchor and a reminder needs 8.6's, and the
         // file carries no date, so the day the run began is the date they
         // get. A task carrying neither stays undated, which is what the
@@ -782,6 +809,7 @@ export async function importWorkflow(
               RETURNING id`,
         )
         const taskId = String(madeTask[0]?.id)
+        madeTaskIds.push(taskId)
         const sourceTaskId=folder.document?.task_ids[taskIndex]
         if(sourceTaskId!==undefined)taskMap.set(sourceTaskId,taskId)
         for (const [index, step] of (task.steps ?? []).entries()) {
@@ -811,6 +839,71 @@ export async function importWorkflow(
             return id === undefined ? [] : [id]
           }),
         )
+      }
+      /*
+      Format 4's page, rebuilt through the transaction that already owns a
+      page's structure (#185).
+
+      **`applyDocument` is the validator, and reusing it is the point.** It is
+      what a person's own save goes through, so an imported page is refused by
+      exactly the rules a typed one is: contiguous Sections, at most
+      `MAX_SECTION_DEPTH` heading levels, a list parent that precedes its
+      descendants and shares their Section, 500 blocks, 1000 Tasks, no repeated
+      identity, and no Task left off the outline. Writing a second validator
+      here would be a second set of rules to keep in step with that one, which
+      is the failure mode this whole issue is about.
+
+      **What this code does and nothing more**: turn positions into identities.
+      Every carried block gets a fresh uuid, every Task block resolves to the
+      row the loop above just inserted, and the outline's two parents are those
+      same positions looked up in the same table. A placeholder resolves to
+      nothing at all, which is what makes it import as nothing.
+      */
+      if(folder.page!==undefined){
+        const page=folder.page
+        const reading=readWorkflowPage(page.blocks)
+        /* Unreachable through the endpoint: `canonicalWorkflowBody` runs the
+           same reading and answers 422 naming the block. Asserted rather than
+           assumed because the alternative is a `Map.get` returning undefined
+           three lines down and a half-built page. */
+        if(reading.issues.length>0)throw new DocumentRefusal('not_convertible','The workflow page names content it does not carry.')
+        const idOf=new Map<number,string>()
+        let placed=0
+        for(const item of reading.items){
+          if(item.kind==='task'){
+            const made=madeTaskIds[placed]
+            placed+=1
+            if(made===undefined)throw new DocumentRefusal('not_convertible','The workflow page names more Tasks than it carries.')
+            idOf.set(item.index,made)
+          } else idOf.set(item.index,randomUUID())
+        }
+        const operations:DocumentOperation[]=[]
+        for(const item of reading.items){
+          const block=page.blocks[item.index]
+          if(item.kind==='task'||block===undefined||block.kind==='task'||block.kind==='omitted')continue
+          operations.push({
+            op:'put_block',
+            id:idOf.get(item.index) as string,
+            block_kind:block.kind,
+            text:block.text??null,
+            rich_content:block.rich_content??null,
+            /* A format 4 file carries no picture, no stored file and no folder
+               reference, so there is nothing here to authorize and nothing to
+               copy: the page it rebuilds holds writing only (#185). */
+            file_id:null,
+            ref_folder_id:null,
+            width_pct:null,
+            checked:block.kind==='checklist'?(block.checked??false):null,
+          })
+        }
+        operations.push({op:'set_outline' as const,items:reading.items.map(item=>({
+          kind:item.kind,
+          id:idOf.get(item.index) as string,
+          section_block_id:item.sectionIndex===null?null:(idOf.get(item.sectionIndex) as string),
+          list_parent_block_id:item.listParentIndex===null?null:(idOf.get(item.listParentIndex) as string),
+        }))})
+        const base=await documentMetadata(tx,folderId)
+        await applyDocument(tx,viewerId,folderId,{action:'document_transaction',mutation_id:randomUUID(),base_revision:base.revision,operations})
       }
       if(folder.document!==undefined){
         const document=folder.document
