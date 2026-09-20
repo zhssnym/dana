@@ -17,6 +17,7 @@ decides the open shape once, with the implemented routes in front of it.
 */
 import { z } from 'zod'
 
+import { folderAccessPreset } from './folder-access.js'
 import { labelRef } from './labels.js'
 
 /*
@@ -102,9 +103,15 @@ const coverPreset = z
 
 export const patchFolderBody = z.object({
   name: folderName.optional(),
-  // The 4.3 identity, folder-owned since RFC 0005 (D1): any member writes
-  // these four; the rename above stays the owner's, and the route splits
-  // the two by role rather than this schema. The icon key is
+  // The 4.3 identity, folder-owned since RFC 0005 (D1). **The DES-225 split
+  // this comment used to describe is gone** -- it read "any member writes
+  // these four; the rename above stays the owner's, and the route splits the
+  // two by role rather than this schema", and by issue #228 the route had
+  // stopped doing that while the sentence stayed. The name and the dressing
+  // are one thing now, ordinary shared Folder work that Can edit and above
+  // change and nobody below does; accepted #209 R8A, AC-011, AC-012 and
+  // AC-193. The schema still splits nothing by authority -- that is the
+  // route's single `folder.profile.edit` gate. The icon key is
   // pattern-validated until S8 exports the set; the server stores it
   // opaquely either way.
   icon: z
@@ -192,12 +199,25 @@ export type PatchFolderMyMembershipBody = z.infer<
   typeof patchFolderMyMembershipBody
 >
 
-// POST /folders/:id/members. Body { user_id }: the target account. The body
-// fact is only that user_id is a uuid; everything else the endpoint refuses
-// (default folder, existing member, missing roster connection, the 25 cap)
-// is state, resolved by the domain module against 5.3 row 1.
+/*
+POST /folders/:id/members. Body { user_id, access }: the target account and
+the Access preset they arrive with. Everything else the endpoint refuses
+(default folder, existing member, missing roster connection, the 25 cap) is
+state, resolved by the domain module against 5.3 row 1.
+
+`access` is **required**, added with issue #228 (R9 section 6: "Direct member
+add similarly requires an explicit Access preset"). It has deliberately no
+default. A default would be one person's authority chosen by nobody, and the
+value would then be invisible in the request that granted it -- which is the
+exact class `shared/tasks.ts` records losing a reminder field to for four
+packages. The server reads it in `addMember`, which writes it into the
+membership row and into the `null -> preset` history transition in one
+transaction, and AC-513 drives the endpoint with each of the six presets and
+reads the stored value back.
+*/
 export const postFolderMembersBody = z.object({
   user_id: z.uuid({ error: 'must be a uuid' }),
+  access: folderAccessPreset,
 })
 export type PostFolderMembersBody = z.infer<typeof postFolderMembersBody>
 
@@ -230,6 +250,16 @@ only `my_shelf` would draw every shelf as unset until the person reloaded.
 That is cosmetic and self-healing where the write half is neither, but it
 costs one key to not do it at all. **Issue #247 drops `my_label`, the request
 body's `label`, and the `folder_members.label` column in one contract.**
+
+`my_access` joined them on 2026-09-20 under Hassan's Ruling 4 on issue #228
+(https://github.com/zhssnym/dana/issues/228#issuecomment-5751449643), a dated
+7.4 amendment in the shape `cover_preset`, `cover_focal_y` and `description`
+got theirs. It is the **viewer's own** membership preset and never anybody
+else's: the same value their own element of `GET /folders/:id`'s `members`
+carries, taken from the row `folderSelect` already joins to scope the query.
+It is not nullable, because a Folder object only exists for somebody who is in
+the folder, and INV-10 plus migration 0023 put a preset on every membership
+row there is.
 */
 export const folder = z.object({
   id: z.uuid(),
@@ -246,6 +276,21 @@ export const folder = z.object({
      the block above describes. Never a second fact; #247 removes it. */
   my_label: shelfName.nullable(),
   my_color: hexColor.nullable(),
+  /* The viewer's own Access preset (issue #228, Hassan's Ruling 4 of
+     2026-09-20). It sits with the other two `my_` fields because it is the
+     same kind of fact — something true of this reader's membership rather
+     than of the folder — and **not** beside `is_owner`, which is the folder's
+     `owner_id` and is now neither necessary nor sufficient for any act a
+     surface draws.
+
+     What it is for: the Library row in `shell/app-sidebar.tsx` is built from
+     `GET /folders` and never fetches a detail, so before this field it had
+     nothing but `is_owner` to gate Rename, Leave and Delete on, and both
+     halves of that were measurably wrong — a Full-control non-owner was
+     offered no Rename and a demoted owner was still offered Delete. Both
+     surfaces now gate through `lib/folder-authority.ts`, which answers from
+     `shared/folder-actions.ts`, so no bar is written twice. */
+  my_access: folderAccessPreset,
   /*
   The M1 Label projection for a Folder (issue #226, parent #208): the viewer's
   own Personal Labels applied to this Folder, ordered active before archived,
@@ -309,6 +354,16 @@ export const folderMember = z.object({
   // 4.4 admits exactly 'member' in v1; ownership is the folder column,
   // never this field (8.9).
   role: z.literal('member'),
+  /* The member's current Access preset (issue #228, R8A). It sits beside
+     `role` rather than replacing it: `role` expressed no authority before
+     this change and expresses none now, and dropping a field from a frozen
+     response is a separate decision from adding one.
+
+     Folder-visible to every member, which is R9 section 13's recommended M1
+     rule: knowing what the people you work with may do is ordinary Work
+     awareness. Pending-invite administration is the part that is not, and it
+     is withheld separately below. */
+  access: folderAccessPreset,
   joined_at: z.iso.datetime(),
   is_owner: z.boolean(),
 })
@@ -318,6 +373,11 @@ export const folderPendingInvite = z.object({
   id: z.uuid(),
   email: z.string().min(1),
   task_id: z.uuid().nullable(),
+  /** The preset this invite grants on acceptance (R9 section 5). Null cannot
+   * occur on a folder invite -- the table's both-or-neither CHECK sees to
+   * that -- and is admitted here because the projection's type is the
+   * column's. */
+  access: folderAccessPreset.nullable(),
   created_at: z.iso.datetime(),
   last_sent_at: z.iso.datetime(),
 })
@@ -326,6 +386,18 @@ export type FolderPendingInvite = z.infer<typeof folderPendingInvite>
 export const getFoldersResponse = z.array(folder)
 export type GetFoldersResponse = z.infer<typeof getFoldersResponse>
 
+/**
+ * GET /folders/:id.
+ *
+ * `pending_invites` is **empty for every member below Full control** since
+ * issue #228, which classifies a pending invite's email and intended Access
+ * as member-administration data rather than ordinary Work: accepted R8A
+ * gives administering people and Access to Full control alone. The key is
+ * still present and still an array, because a response that
+ * dropped a key would make "you may not see this" and "there are none" two
+ * different shapes for the client to handle, and the second is the one the
+ * panel already renders.
+ */
 export const getFolderResponse = folder.extend({
   members: z.array(folderMember),
   pending_invites: z.array(folderPendingInvite),

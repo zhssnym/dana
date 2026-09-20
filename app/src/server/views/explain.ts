@@ -129,9 +129,15 @@ async function seed(db: Db): Promise<{ viewer: string; folder: string }> {
     )
     const id = String(inserted[0]?.id)
     for (const member of members) {
+      // Explicit since issue #228: this diagnostic builds a synthetic corpus
+      // to read query plans over, and the preset it writes is the one
+      // migration 0023 initializes a real folder to -- Full control for the
+      // owner, Can edit for everybody else -- so the plans it measures are
+      // the plans production has.
       await db.execute(
-        sql`INSERT INTO folder_members (folder_id, user_id)
-            VALUES (${id}::uuid, ${member}::uuid)`,
+        sql`INSERT INTO folder_members (folder_id, user_id, access)
+            VALUES (${id}::uuid, ${member}::uuid,
+                    ${member === owner ? 'full_control' : 'can_edit'})`,
       )
     }
     return id

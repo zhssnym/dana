@@ -139,6 +139,12 @@ export function createFilesRouter(options: FilesRouterOptions = {}): Router {
       case 'folder_not_found':
         sendError(res, 404, 'not_found', 'Not found.')
         return
+      case 'forbidden':
+        // 10.2's second half (issue #228): the folder resolved, so the
+        // caller demonstrably sees it, and the refusal may say which rule it
+        // broke -- the same grammar `DELETE /files/:id` moved to at #74.
+        sendError(res, 403, 'forbidden', outcome.reason)
+        return
       case 'kind_mime_mismatch':
         sendError(
           res,
@@ -314,7 +320,7 @@ export function createFilesRouter(options: FilesRouterOptions = {}): Router {
           res,
           403,
           'forbidden',
-          'Only the person who uploaded this file or the folder owner can delete it.',
+          'Only Full control can delete a file from this folder.',
         )
         return
       }

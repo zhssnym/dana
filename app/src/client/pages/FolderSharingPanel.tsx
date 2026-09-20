@@ -21,10 +21,29 @@ refuse anyway.** 7.11 lists that under client conveniences with no authority,
 which is the rule this file is written to: every condition below is decided
 again by 5.3 and 5.4 server-side, and none of them is enforced here.
 
-- **Remove is offered to the owner alone**, and never on the owner's own row.
-  5.4 gives "remove another member" to the owner and 403s everyone else, and
-  the owner's own exit is 5.3's transfer rule, which 9.6 puts in the header's
-  overflow menu as Leave rather than here.
+**Administering people is Full control's now, not the owner's** (issue #228;
+accepted #209 R8A: Full control may "administer members, Access", and Can edit
+"cannot administer people/Access"). Three of the four blocks below are that
+one sentence -- removing a member, adding one from the roster, and inviting by
+email -- so a viewer below Full control sees the member list and nothing else
+on this panel. The gate is `lib/folder-authority.ts`'s `mayDraw`, reading the
+same table `POST /folders/:id/members` resolves against; AC-024 carries the
+decision and was rewritten on 2026-09-20 under Hassan's ruling,
+https://github.com/zhssnym/dana/issues/228#issuecomment-5750892771.
+
+*(The pending-invite list needs no gate of its own: R9 makes it member
+administration data, and the server answers `[]` below Full control, so there
+is nothing left to draw.)*
+
+**What this panel still does not have is the Access control itself.** R8A's
+six presets are on the wire for every member and this surface renders none of
+them, so Access is administered through the API alone. That is named here
+rather than left to be discovered, and it is not this change's to build.
+
+- **Remove is offered to Full control alone**, and never on the owner's own
+  row: the owner's membership is not another member's to end (the route
+  answers "The folder's owner cannot be removed"), and the owner's own exit is
+  R6's transfer-then-leave, which 9.6 puts in the header's overflow menu.
 - **The roster picker offers connections who are not already members.** 5.3
   refuses an add for a non-connection (422) and for an existing member (409),
   and 7.3's roster is what the picker is built from.
@@ -85,6 +104,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '../components/ui/tooltip.js'
+import { mayDraw } from '../lib/folder-authority.js'
+import type { FolderViewerFacts } from '../lib/folder-authority.js'
 import { formatCompactDate, formatRelativeDay } from '../parts/format-dates.js'
 import { initialsOf, presenterToday } from '../parts/presenters.js'
 import { ConfirmDialog, useConfirm } from './task-rows.js'
@@ -149,13 +170,23 @@ function PanelHeading({
 export function FolderSharingPanel({
   folder,
   connections,
+  viewer,
   onClose,
 }: {
   readonly folder: GetFolderResponse
   /** 7.3's roster, which the picker is built from. Absent while it loads. */
   readonly connections: GetConnectionsResponse | undefined
+  /** The viewer's own Access facts, read off the same folder detail this
+   * panel draws (issue #228). Null while the roster has not arrived, which
+   * withholds the three administrative blocks rather than flashing them. */
+  readonly viewer: FolderViewerFacts | null
   readonly onClose: () => void
 }): React.JSX.Element {
+  /* One question per block, each asked of `shared/folder-actions.ts` -- the
+     table the routes resolve against -- rather than restated here. */
+  const mayRemove = viewer !== null && mayDraw(viewer, 'member.remove')
+  const mayAdd = viewer !== null && mayDraw(viewer, 'member.add')
+  const mayInvite = viewer !== null && mayDraw(viewer, 'invite.create')
   const addMember = useAddFolderMember()
   const removeMember = useRemoveFolderMember()
   const invite = useCreateInvite()
@@ -265,7 +296,7 @@ export function FolderSharingPanel({
                           Joined {formatCompactDate(member.joined_at.slice(0, 10))}
                         </p>
                       </div>
-                      {folder.is_owner && !member.is_owner ? (
+                      {mayRemove && !member.is_owner ? (
                         <Button
                           variant="outline"
                           className="h-8 px-3 text-xs"
@@ -287,6 +318,7 @@ export function FolderSharingPanel({
               </ul>
             </div>
 
+            {mayAdd ? (
             <div className="mt-7">
               <PanelHeading icon={UserPlus}>{ROSTER_PICKER}</PanelHeading>
               <div className="flex gap-2">
@@ -320,7 +352,9 @@ export function FolderSharingPanel({
                 </Button>
               </div>
             </div>
+            ) : null}
 
+            {mayInvite ? (
             <div className="mt-7">
               <PanelHeading icon={Mail}>{INVITE_BY_EMAIL}</PanelHeading>
               <div className="flex gap-2">
@@ -349,6 +383,7 @@ export function FolderSharingPanel({
                 </Button>
               </div>
             </div>
+            ) : null}
 
             {folder.pending_invites.length === 0 ? null : (
               <div className="mt-7">

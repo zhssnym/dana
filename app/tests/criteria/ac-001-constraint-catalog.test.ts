@@ -64,6 +64,22 @@ times by design; the ruling is the fourth restatement and the authoritative
 one. If it goes the other way, all four come out together.
 
 The same shape, a second time and for a second issue, is below.
+
+**`folder_access_history` joined it on 2026-09-20 with migration 0023 (issue
+#228, product authority #209 R9), on the same terms and with the same gap.**
+Section 4 is frozen, so this line moves ahead of the section rather than
+behind it, and the change is incomplete until the ruling that adds the table
+to section 4 is posted on #228 and written into the section.
+
+**That ordering seam is known and filed as issue #240.** A migration cannot
+land without its table appearing here, because AC-001 compares this list
+against the live schema in both directions and a new table fails it; and the
+section it belongs in cannot be edited until a person rules. So the criterion
+is edited first and the ruling catches up, which is exactly the shape
+hard-stops.md warns about — a criterion that moved with no sentence beside it
+is indistinguishable from one that was in the way. This paragraph is that
+sentence for `folder_access_history`, and #240 is where the seam itself gets
+fixed rather than re-explained per migration.
 */
 //
 // **This list has moved ahead of the frozen section, and that is a process
@@ -89,6 +105,7 @@ const SECTION_4_TABLES = [
   'connections',
   'events',
   'files',
+  'folder_access_history',
   'folder_members',
   'folder_personal_labels',
   'folders',

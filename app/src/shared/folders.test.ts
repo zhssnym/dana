@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
+import { FOLDER_ACCESS_PRESETS } from './folder-access.js'
 import {
   deleteFolderResponse,
   folder,
@@ -168,28 +169,64 @@ describe('patchFolderMyMembershipBody (7.4: { shelf, color }, either nullable)',
   })
 })
 
-describe('postFolderMembersBody (7.4: { user_id })', () => {
+describe('postFolderMembersBody (7.4: { user_id, access })', () => {
   test('accepts a uuid in either case', () => {
     for (const user_id of [
       '123e4567-e89b-42d3-a456-426614174000',
       '123E4567-E89B-42D3-A456-426614174000',
     ]) {
-      expect(postFolderMembersBody.safeParse({ user_id }).success).toBe(true)
+      expect(
+        postFolderMembersBody.safeParse({ user_id, access: 'can_edit' })
+          .success,
+      ).toBe(true)
     }
   })
 
   test('refuses non-uuids, wrong types, and the absent field', () => {
     for (const user_id of ['abc', '', 42, null, ['x'], {}]) {
       expect(
-        postFolderMembersBody.safeParse({ user_id }).success,
+        postFolderMembersBody.safeParse({ user_id, access: 'can_edit' })
+          .success,
         `${JSON.stringify(user_id)} is not a uuid`,
       ).toBe(false)
     }
-    expect(postFolderMembersBody.safeParse({}).success, 'missing user_id').toBe(false)
+    expect(
+      postFolderMembersBody.safeParse({ access: 'can_edit' }).success,
+      'missing user_id',
+    ).toBe(false)
+  })
+
+  /*
+  Issue #228 made `access` a required field of this body (R9 section 6: a
+  direct member add "requires an explicit Access preset"). It has no default
+  on purpose -- a default would be one person's authority chosen by nobody --
+  so the body is refused without it, and refused with a value outside R8A's
+  six. AC-512 proves the same two refusals on the wire and reads the stored
+  preset back, which is the half a schema test cannot do.
+  */
+  test('requires an explicit Access preset, and one of R8A\'s six', () => {
+    const user_id = '123e4567-e89b-42d3-a456-426614174000'
+    expect(
+      postFolderMembersBody.safeParse({ user_id }).success,
+      'a member add with no preset names an authority nobody chose',
+    ).toBe(false)
+    expect(
+      postFolderMembersBody.safeParse({ user_id, access: 'manager' }).success,
+      'and R8A forbids inventing a seventh preset to express narrower authority',
+    ).toBe(false)
+    for (const access of FOLDER_ACCESS_PRESETS) {
+      expect(
+        postFolderMembersBody.safeParse({ user_id, access }).success,
+        `${access} is one of the six`,
+      ).toBe(true)
+    }
   })
 
   test('names the field in its issue path', () => {
-    const result = postFolderMembersBody.safeParse({ user_id: 'abc' })
+    const result = postFolderMembersBody.safeParse({
+      user_id: 'abc',
+      access: 'can_edit',
+    })
     expect(result.success).toBe(false)
     if (!result.success) {
       expect(result.error.issues[0]?.path).toEqual(['user_id'])
@@ -211,6 +248,9 @@ describe('folder (7.0: the shared Folder object)', () => {
     my_label: null,
     my_color: null,
     personal_labels: [],
+    /* Issue #228, Hassan's Ruling 4 of 2026-09-20: the *viewer's own* preset,
+       which is why it is a `my_` field and not a folder one. */
+    my_access: 'full_control',
     icon: null,
     color: null,
     cover_file_id: null,
@@ -247,6 +287,43 @@ describe('folder (7.0: the shared Folder object)', () => {
     void id
     expect(folder.safeParse(withoutId).success).toBe(false)
   })
+
+  /* my_access, 7.4's amendment of 2026-09-20. Required rather than optional
+     and non-nullable rather than nullable, for one reason each: a Folder
+     object exists only for somebody who is a member, and INV-10 with
+     migration 0023 puts a preset on every membership row there is. An
+     optional field here would let a server that forgot the column answer a
+     Folder the client then gates on `undefined`, which every ladder
+     comparison reads as "below everything" -- a silent, total loss of
+     function rather than a validation error a person sees. */
+  test('requires my_access: a Folder with no preset is not a Folder', () => {
+    const { my_access, ...withoutAccess } = valid
+    void my_access
+    expect(folder.safeParse(withoutAccess).success).toBe(false)
+    expect(folder.safeParse({ ...valid, my_access: null }).success).toBe(false)
+  })
+
+  test('my_access admits the six presets and nothing else', () => {
+    for (const preset of [
+      'full_control',
+      'can_edit',
+      'can_contribute',
+      'assigned_work',
+      'can_comment',
+      'can_view',
+    ]) {
+      expect(
+        folder.safeParse({ ...valid, my_access: preset }).success,
+        `${preset} is one of R8A's six`,
+      ).toBe(true)
+    }
+    expect(folder.safeParse({ ...valid, my_access: 'owner' }).success).toBe(
+      false,
+    )
+    expect(folder.safeParse({ ...valid, my_access: 'member' }).success).toBe(
+      false,
+    )
+  })
 })
 
 describe('the 7.4 response shapes (settled at the P2 shape review)', () => {
@@ -257,6 +334,10 @@ describe('the 7.4 response shapes (settled at the P2 shape review)', () => {
       avatar_url: null,
     },
     role: 'member',
+    // Issue #228: a member element carries its current Access preset, beside
+    // `role` rather than instead of it -- `role` expressed no authority
+    // before and expresses none now.
+    access: 'full_control',
     joined_at: '2026-08-01T10:00:00.000Z',
     is_owner: true,
   }
@@ -264,6 +345,8 @@ describe('the 7.4 response shapes (settled at the P2 shape review)', () => {
     id: '223e4567-e89b-42d3-a456-426614174000',
     email: 'friend@example.test',
     task_id: null,
+    // Issue #228: the preset the invite will grant on acceptance (R9 s5).
+    access: 'can_edit',
     created_at: '2026-08-02T10:00:00.000Z',
     last_sent_at: '2026-08-02T10:00:00.000Z',
   }
@@ -280,6 +363,7 @@ describe('the 7.4 response shapes (settled at the P2 shape review)', () => {
     my_label: null,
     my_color: null,
     personal_labels: [],
+    my_access: 'full_control',
     icon: null,
     color: null,
     cover_file_id: null,

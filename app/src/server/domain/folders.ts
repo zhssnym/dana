@@ -14,11 +14,20 @@ import { sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
+import type { FolderAccessPreset } from '../../shared/folder-access.js'
 import type { Folder } from '../../shared/folders.js'
 import type { LabelRef } from '../../shared/labels.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
+import {
+  folderActorFacts,
+  lockedMembership,
+  otherFullControlCount,
+  presetOf,
+  recordAccessTransition,
+} from './folder-access.js'
+import type { FolderActorFacts } from './folder-access.js'
 import { folderPersonalLabelsFor } from './labels.js'
 import { ensureShelf } from './shelves.js'
 
@@ -42,42 +51,36 @@ function nullableString(value: unknown): string | null {
  * Access resolution: the 10.2 chokepoint fact
  * ------------------------------------------------------------------ */
 
-export interface FolderAccess {
-  isOwner: boolean
-  isDefault: boolean
-  /** The folder's name, which the share-grant email renders and links a
-   * person to (RFC 0005 change control item 32). It rides this read rather
-   * than a second one because every share-grant call site resolves access
-   * before it grants, and the row is already open in front of it. */
-  name: string
-}
+/**
+ * What every call site of `accessOf` has always had -- ownership, the default
+ * flag and the folder's name, which the share-grant email renders (RFC 0005
+ * change control item 32) -- plus, since issue #228, the member's persisted
+ * Access preset and the two ids the resolver needs.
+ *
+ * It *is* `FolderActorFacts` rather than a shape of its own, so that the
+ * twenty-odd existing gates can hand what they already resolved straight to
+ * `mayPerform` without a second read and without a conversion that could
+ * lose a field.
+ */
+export type FolderAccess = FolderActorFacts
 
-/** Null means the folder does not exist or the viewer is not a member,
- * which 10.2 makes the same answer: 404, never 403.
+/** Null means the folder does not exist, is in Trash, or the viewer is not a
+ * member, which 10.2 makes the same answer: 404, never 403.
  *
  * The executor rather than the handle, so a caller inside a transaction
  * resolves access against the same snapshot it will write in; P3's task
- * moves need exactly that, and every Db is an Executor. */
+ * moves need exactly that, and every Db is an Executor.
+ *
+ * The body moved to `domain/folder-access.ts` at issue #228. The name stays
+ * here because twenty-two call sites across twelve files spell it, and
+ * because "resolve the folder" and "decide the action" are two steps that
+ * should keep two names. */
 export async function accessOf(
   executor: Executor,
   viewerId: string,
   folderId: string,
 ): Promise<FolderAccess | null> {
-  const found = await rowsOf(
-    executor,
-    sql`SELECT (f.owner_id = ${viewerId}) AS is_owner, f.is_default, f.name
-        FROM folders f
-        JOIN folder_members m ON m.folder_id = f.id
-        WHERE f.id = ${folderId} AND m.user_id = ${viewerId}
-          AND f.deleted_at IS NULL`,
-  )
-  const row = found[0]
-  if (row === undefined) return null
-  return {
-    isOwner: row.is_owner === true,
-    isDefault: row.is_default === true,
-    name: String(row.name),
-  }
+  return folderActorFacts(executor, viewerId, folderId)
 }
 
 /* ------------------------------------------------------------------ *
@@ -88,6 +91,20 @@ function folderFromRow(
   row: Record<string, unknown>,
   personalLabels: LabelRef[],
 ): Folder {
+  /* The viewer's own preset (7.4's amendment of 2026-09-20, Hassan's Ruling 4
+     on issue #228). It is read exactly as `membersOf` reads a member's: from
+     the column, through `presetOf`, and refused rather than defaulted when it
+     is unreadable, because every default here would be a guess about
+     authority. The row it comes from is `m`, which `folderSelect` joins on
+     `m.user_id = viewerId` -- the *viewer's* membership and never the
+     owner's, which is the confusion this field invites and AC-674 exists to
+     refuse. */
+  const myAccess = presetOf(row.my_access)
+  if (myAccess === null) {
+    throw new Error(
+      `folder_members.access holds an unknown preset for the viewer of folder ${String(row.id)}`,
+    )
+  }
   return {
     id: String(row.id),
     name: String(row.name),
@@ -106,6 +123,7 @@ function folderFromRow(
        even if the expand half's second write were ever to lapse. */
     my_label: nullableString(row.my_shelf),
     my_color: nullableString(row.my_color),
+    my_access: myAccess,
     /* The M1 Label projection (issue #226): the viewer's own Personal Labels
        on this folder, and never a Folder Label, which classifies the tasks in
        its folder rather than the folder (#208 R4). */
@@ -120,8 +138,18 @@ function folderFromRow(
 }
 
 /** One query serves the list and the single view: the membership join is
- * the scope (10.2), shelf and color ride the viewer's own row (4.4), and
- * the counts are 8.11's, abandoned on neither side. */
+ * the scope (10.2), shelf, color and Access ride the viewer's own row (4.4),
+ * and the counts are 8.11's, abandoned on neither side.
+ *
+ * **`m` is the viewer's membership and nothing else.** The `WHERE
+ * m.user_id = <viewer>` below is what makes that true, and it is the whole of
+ * why `my_access` costs no extra read: this query already had the row the
+ * preset lives on. The mistake the field invites is reading the *owner's*
+ * preset instead — `is_owner` sits two lines above it and comes from
+ * `f.owner_id` — which would answer the same value to everybody in the folder
+ * and would be invisible on a folder whose owner happens to hold Full control,
+ * which is most of them. AC-674 drives two members at two presets through this
+ * query in one folder for exactly that reason. */
 function folderSelect(viewerId: string, folderId?: string) {
   const scope =
     folderId === undefined ? sql`` : sql` AND f.id = ${folderId}`
@@ -131,6 +159,7 @@ function folderSelect(viewerId: string, folderId?: string) {
            f.icon, f.color, f.cover_file_id, f.cover_preset, f.cover_focal_y,
            f.description,
            m.shelf_name AS my_shelf, m.color AS my_color,
+           m.access AS my_access,
            (SELECT count(*)::int FROM folder_members mm
              WHERE mm.folder_id = f.id) AS member_count,
            (SELECT count(*)::int FROM tasks t
@@ -246,10 +275,26 @@ export async function createFolder(
           RETURNING id`,
     )
     const id = String(inserted[0]?.id)
+    /* R8A and R5: the creator starts owner *and* Full control, and the two
+       are separate facts from this line onward -- the owner may later be
+       lowered, and a Full-control member who is not the owner may later
+       exist. The transition is written in the same transaction as the
+       membership, which is R9 section 3's atomicity rule, and it is
+       `created_owner` rather than `member_added` so that the Folder's very
+       first standing is distinguishable in history from a grant somebody
+       made afterwards. */
     await tx.execute(
-      sql`INSERT INTO folder_members (folder_id, user_id)
-          VALUES (${id}::uuid, ${viewerId}::uuid)`,
+      sql`INSERT INTO folder_members (folder_id, user_id, access)
+          VALUES (${id}::uuid, ${viewerId}::uuid, 'full_control')`,
     )
+    await recordAccessTransition(tx, {
+      folderId: id,
+      memberId: viewerId,
+      previousAccess: null,
+      newAccess: 'full_control',
+      actorId: viewerId,
+      transition: 'created_owner',
+    })
     await recordEvent(tx, {
       actorId: viewerId,
       verb: 'created',
@@ -271,6 +316,16 @@ export async function createFolder(
         my_shelf: null,
         my_label: null,
         my_color: null,
+        /* The membership this transaction just wrote, spelled as the literal
+           it is rather than read back: the `INSERT INTO folder_members` above
+           names `full_control` and the creator is the only member there is. It is
+           the creator's *own* preset, which is what `my_access` means
+           everywhere (7.4's amendment of 2026-09-20), and here the creator,
+           the owner and the sole member are one person -- which is exactly
+           the case in which the owner-versus-viewer confusion is invisible,
+           so nothing about this line is evidence the projection is right.
+           AC-674 asks the question on a shared folder. */
+        my_access: 'full_control',
         personal_labels: [],
         icon: null,
         color: null,
@@ -538,6 +593,8 @@ export interface MemberElement {
     avatar_url: string | null
   }
   role: string
+  /** The member's current Access preset (issue #228, R8A). */
+  access: FolderAccessPreset
   joined_at: string
   is_owner: boolean
 }
@@ -546,6 +603,10 @@ export interface PendingInviteElement {
   id: string
   email: string
   task_id: string | null
+  /** The Access preset this invite will grant on acceptance (R9 section 5).
+   * Member-administration data, and the route shows the whole element to
+   * Full control alone. */
+  access: FolderAccessPreset | null
   created_at: string
   last_sent_at: string
 }
@@ -564,7 +625,7 @@ export async function membersOf(
   const found = await rowsOf(
     db,
     sql`SELECT u.id, u.display_name, u.avatar_url,
-               m.role, m.created_at AS joined_at,
+               m.role, m.access, m.created_at AS joined_at,
                (m.user_id = f.owner_id) AS is_owner
         FROM folder_members m
         JOIN folders f ON f.id = m.folder_id
@@ -572,16 +633,30 @@ export async function membersOf(
         WHERE m.folder_id = ${folderId}
         ORDER BY m.created_at ASC, u.id ASC`,
   )
-  return found.map((row) => ({
-    user: {
-      id: String(row.id),
-      display_name: nullableString(row.display_name),
-      avatar_url: nullableString(row.avatar_url),
-    },
-    role: String(row.role),
-    joined_at: toIso(row.joined_at),
-    is_owner: row.is_owner === true,
-  }))
+  return found.map((row) => {
+    const access = presetOf(row.access)
+    if (access === null) {
+      throw new Error(
+        `folder_members.access holds an unknown preset in ${folderId}`,
+      )
+    }
+    return {
+      user: {
+        id: String(row.id),
+        display_name: nullableString(row.display_name),
+        avatar_url: nullableString(row.avatar_url),
+      },
+      role: String(row.role),
+      /* Issue #228: the member's current Access preset, Folder-visible to
+         every member under R9 section 13. `role` stays beside it and stays
+         'member': it expressed no authority before this and expresses none
+         now, and removing a column from a frozen response is not this
+         change's to make. */
+      access,
+      joined_at: toIso(row.joined_at),
+      is_owner: row.is_owner === true,
+    }
+  })
 }
 
 export async function pendingInvitesOf(
@@ -590,7 +665,7 @@ export async function pendingInvitesOf(
 ): Promise<PendingInviteElement[]> {
   const found = await rowsOf(
     db,
-    sql`SELECT id, email, task_id, created_at, last_sent_at
+    sql`SELECT id, email, task_id, access, created_at, last_sent_at
         FROM invites
         WHERE folder_id = ${folderId} AND status = 'pending'
         ORDER BY created_at ASC, id ASC`,
@@ -599,6 +674,7 @@ export async function pendingInvitesOf(
     id: String(row.id),
     email: String(row.email),
     task_id: nullableString(row.task_id),
+    access: presetOf(row.access),
     created_at: toIso(row.created_at),
     last_sent_at: toIso(row.last_sent_at),
   }))
@@ -653,6 +729,12 @@ export async function addMember(
   folderId: string,
   targetId: string,
   access: FolderAccess,
+  /** The Access preset the administrator chose for the new member. R9
+   * section 6 makes it explicit and required: a direct add records
+   * `null -> preset` with the adding administrator as actor, and there is no
+   * default, because a default here would be one person's authority chosen
+   * by nobody. The route's schema refuses a body without it. */
+  granted: FolderAccessPreset,
 ): Promise<AddMemberResult> {
   // The default-folder refusal reads no row: INV-2 fixes is_default at
   // creation and no endpoint moves it, so this answer cannot go stale inside
@@ -688,12 +770,22 @@ export async function addMember(
 
     const inserted = await rowsOf(
       tx,
-      sql`INSERT INTO folder_members (folder_id, user_id)
-          VALUES (${folderId}::uuid, ${targetId}::uuid)
+      sql`INSERT INTO folder_members (folder_id, user_id, access)
+          VALUES (${folderId}::uuid, ${targetId}::uuid, ${granted})
           ON CONFLICT DO NOTHING
           RETURNING user_id`,
     )
     if (inserted.length === 0) return { kind: 'already_member' }
+
+    // R9 section 6, in the same transaction as the grant it describes.
+    await recordAccessTransition(tx, {
+      folderId,
+      memberId: targetId,
+      previousAccess: null,
+      newAccess: granted,
+      actorId,
+      transition: 'member_added',
+    })
 
     // The share-grant email goes to the target's address (5.3). A null can
     // only mean a soft-deleted account, whose connections 8.10 removes, so
@@ -783,6 +875,34 @@ export async function removeMembership(
   await inTransaction(db, async (tx) => {
     if (options.transferOwnership) {
       await transferOwnership(tx, folderId, leaverId)
+    }
+    /* R9 section 9: the end of active membership is `current preset -> null`,
+       written before the row is deleted because the row is where the current
+       preset lives. The actor distinguishes the two directions of the same
+       change -- the departing member for a leave, the administrator for a
+       removal -- exactly as 4.13's two verbs do a few lines below.
+
+       The read is not locked here on purpose. Every path that can change this
+       row concurrently -- demote, remove, leave -- goes through the route
+       gates added at issue #228, which take the folder row `FOR UPDATE`
+       first; and the history row is about a membership this transaction is
+       deleting, so a lost update would take the membership with it. */
+    const standing = await rowsOf(
+      tx,
+      sql`SELECT access FROM folder_members
+          WHERE folder_id = ${folderId} AND user_id = ${leaverId}`,
+    )
+    const heldAccess = presetOf(standing[0]?.access)
+    if (heldAccess !== null) {
+      await recordAccessTransition(tx, {
+        folderId,
+        memberId: leaverId,
+        previousAccess: heldAccess,
+        newAccess: null,
+        actorId: options.actorId,
+        transition:
+          options.actorId === leaverId ? 'member_left' : 'member_removed',
+      })
     }
     await runRClean(tx, folderId, leaverId)
     // 'left' when the leaver acted, 'removed' when someone removed them
@@ -879,4 +999,251 @@ export async function transferOwnership(
     sql`UPDATE folders SET owner_id = ${String(heir.user_id)}
         WHERE id = ${folderId}`,
   )
+}
+
+/* ------------------------------------------------------------------ *
+ * Access administration (issue #228, #209 R8A / R9)
+ * ------------------------------------------------------------------ */
+
+export type ChangeAccessResult =
+  | { kind: 'changed'; previous: FolderAccessPreset; next: FolderAccessPreset }
+  /** The named person is not a member of this folder. */
+  | { kind: 'not_member' }
+  /** The target already holds the requested preset, so nothing changed and
+   * nothing is recorded. R9 section 10's rule about ownership transfer not
+   * fabricating a `Full control -> Full control` entry is the same rule read
+   * from the other end: a transition record describes a change. */
+  | { kind: 'unchanged'; access: FolderAccessPreset }
+  /** `expected_access` was sent and does not match the authoritative current
+   * value: another administrator got there first (R9 section 16). */
+  | { kind: 'stale'; actual: FolderAccessPreset }
+  /** The target is the structural owner and the actor is not: #228's
+   * ownership rules forbid a Full-control member from demoting the owner. */
+  | { kind: 'target_is_owner' }
+  /** The change would leave the folder with no active human Full-control
+   * member (R5's continuity invariant). */
+  | { kind: 'would_strand' }
+
+/**
+ * Change one member's Access, atomically with its history row.
+ *
+ * This is R9 section 16's list of things the *same transaction* must enforce,
+ * in its order: the affected member is still active, the old preset matches
+ * authoritative current state, the owner restriction applies, the
+ * last-Full-control-human invariant holds, then the write, then the append.
+ * The actor's own authority is checked by the route through `mayPerform`
+ * before this is called, and is re-read here only where the rule is about
+ * *who the actor is relative to the target*, which the preset ladder cannot
+ * express.
+ *
+ * The folder row is locked first, before any membership row is read. Every
+ * other operation that can move a membership -- add, remove, leave, transfer
+ * -- takes the same row in the same order, so they queue rather than
+ * deadlock, and two racing Access changes serialize instead of both recording
+ * a transition claiming the same `from`.
+ *
+ * Self-demotion is admitted here and distinguished in history: R9 section 8
+ * asks for `self_demoted` where the actor is the affected member, because
+ * "Omar lowered Sarah" and "Sarah lowered herself" are different facts about
+ * the same row.
+ */
+export async function changeMemberAccess(
+  db: Db,
+  actorId: string,
+  folderId: string,
+  targetId: string,
+  next: FolderAccessPreset,
+  options: { expected?: FolderAccessPreset } = {},
+): Promise<ChangeAccessResult> {
+  return inTransaction(db, async (tx) => {
+    await tx.execute(
+      sql`SELECT 1 FROM folders WHERE id = ${folderId} FOR UPDATE`,
+    )
+    const target = await lockedMembership(tx, folderId, targetId)
+    if (target === null) return { kind: 'not_member' } as const
+
+    if (options.expected !== undefined && options.expected !== target.access) {
+      return { kind: 'stale', actual: target.access } as const
+    }
+    if (target.access === next) {
+      return { kind: 'unchanged', access: target.access } as const
+    }
+    /* #228's ownership rules: the owner's Access is the owner's. A
+       Full-control member may administer every other member and not this
+       one, which is what keeps
+       a lowered owner's custody anchor from being administered away by the
+       people they delegated to. */
+    if (target.isOwner && targetId !== actorId) {
+      return { kind: 'target_is_owner' } as const
+    }
+    /* R5's continuity invariant, and it binds self-demotion as much as
+       anything else: an owner may lower their own Access only when another
+       human Full-control member exists, which is this same count. */
+    if (
+      target.access === 'full_control' &&
+      (await otherFullControlCount(tx, folderId, targetId)) === 0
+    ) {
+      return { kind: 'would_strand' } as const
+    }
+
+    await tx.execute(
+      sql`UPDATE folder_members SET access = ${next}
+          WHERE folder_id = ${folderId} AND user_id = ${targetId}`,
+    )
+    await recordAccessTransition(tx, {
+      folderId,
+      memberId: targetId,
+      previousAccess: target.access,
+      newAccess: next,
+      actorId,
+      transition: targetId === actorId ? 'self_demoted' : 'access_changed',
+    })
+    const named = await rowsOf(
+      tx,
+      sql`SELECT f.name,
+                 (SELECT u.display_name FROM users u WHERE u.id = ${targetId})
+                   AS target_name
+          FROM folders f WHERE f.id = ${folderId}`,
+    )
+    /* The generic history line R9 section 12 permits: a projection of the
+       structured transition above, never a second authoritative copy. 4.13's
+       verb list is a CHECK constraint, so this rides 'edited' with the
+       predicate in `detail`, exactly as a member's arrival does. */
+    await recordEvent(tx, {
+      actorId,
+      verb: 'edited',
+      subjectKind: 'folder',
+      subjectId: folderId,
+      subjectName: String(named[0]?.name ?? ''),
+      folderId,
+      detail: `changed ${String(named[0]?.target_name ?? 'a member')}'s access to ${next}`,
+      recipients: targetId === actorId ? undefined : [targetId],
+    })
+    return { kind: 'changed', previous: target.access, next } as const
+  })
+}
+
+export type OwnerRecoveryResult =
+  | { kind: 'recovered'; previous: FolderAccessPreset }
+  | { kind: 'unchanged' }
+  | { kind: 'not_member' }
+
+/**
+ * The structural owner restoring their own ordinary Access to Full control
+ * (governing R5 "Owner Access may be restricted", #228's ownership rules,
+ * R9 section 8).
+ *
+ * It exists as its own act, rather than as a Full-control member granting
+ * themselves something, because the recovery anchor has to work precisely
+ * when there is nobody left willing to grant it. The route checks
+ * `owner.custody_recovery`, which is owner-only and reads no preset at all,
+ * so an owner who lowered themselves to Can view can always climb back and
+ * nobody else can climb for them.
+ *
+ * The transition kind is distinct for R9 section 8's stated reason: ordinary
+ * History must show a recovery as a recovery rather than as a normal manager
+ * grant whose grantor nobody can find.
+ */
+export async function recoverOwnerFullControl(
+  db: Db,
+  ownerId: string,
+  folderId: string,
+): Promise<OwnerRecoveryResult> {
+  return inTransaction(db, async (tx) => {
+    await tx.execute(
+      sql`SELECT 1 FROM folders WHERE id = ${folderId} FOR UPDATE`,
+    )
+    const held = await lockedMembership(tx, folderId, ownerId)
+    if (held === null) return { kind: 'not_member' } as const
+    if (held.access === 'full_control') return { kind: 'unchanged' } as const
+    await tx.execute(
+      sql`UPDATE folder_members SET access = 'full_control'
+          WHERE folder_id = ${folderId} AND user_id = ${ownerId}`,
+    )
+    await recordAccessTransition(tx, {
+      folderId,
+      memberId: ownerId,
+      previousAccess: held.access,
+      newAccess: 'full_control',
+      actorId: ownerId,
+      transition: 'owner_recovered_full_control',
+    })
+    const named = await rowsOf(
+      tx,
+      sql`SELECT name FROM folders WHERE id = ${folderId}`,
+    )
+    await recordEvent(tx, {
+      actorId: ownerId,
+      verb: 'edited',
+      subjectKind: 'folder',
+      subjectId: folderId,
+      subjectName: String(named[0]?.name ?? ''),
+      folderId,
+      detail: 'restored Full control using owner recovery',
+    })
+    return { kind: 'recovered', previous: held.access } as const
+  })
+}
+
+/**
+ * Whether `userId` currently holds Full control of `folderId`, which is the
+ * M1 successor-eligibility test (R6 section 2: an active human Folder member
+ * who is currently Full control).
+ *
+ * "Human" is every member in M1; the note on `otherFullControlCount` says
+ * where that has to be taught otherwise when AI members arrive.
+ */
+export async function isEligibleSuccessor(
+  executor: Executor,
+  folderId: string,
+  userId: string,
+): Promise<boolean> {
+  const found = await rowsOf(
+    executor,
+    sql`SELECT 1 AS present FROM folder_members
+        WHERE folder_id = ${folderId} AND user_id = ${userId}
+          AND access = 'full_control'`,
+  )
+  return found.length > 0
+}
+
+export interface OwnedSharedFolder {
+  id: string
+  name: string
+  hasEligibleSuccessor: boolean
+}
+
+/**
+ * The shared folders this account owns that somebody else is still in, with
+ * whether each has an eligible successor.
+ *
+ * `DELETE /me` reads this before it does anything, because R6 section 3 makes
+ * interactive account deletion resolve every owned shared Folder *first* --
+ * choose a successor, transfer explicitly, then delete -- rather than letting
+ * the deletion silently promote whoever happened to join earliest. The
+ * default folder is excluded: INV-2 never lets one transfer and INV-3 never
+ * lets one hold a second member, so it is nobody's to succeed to.
+ */
+export async function ownedSharedFolders(
+  executor: Executor,
+  ownerId: string,
+): Promise<OwnedSharedFolder[]> {
+  const found = await rowsOf(
+    executor,
+    sql`SELECT f.id, f.name,
+               EXISTS (SELECT 1 FROM folder_members s
+                        WHERE s.folder_id = f.id AND s.user_id <> ${ownerId}
+                          AND s.access = 'full_control') AS heir
+        FROM folders f
+        WHERE f.owner_id = ${ownerId} AND NOT f.is_default
+          AND f.deleted_at IS NULL
+          AND EXISTS (SELECT 1 FROM folder_members m
+                       WHERE m.folder_id = f.id AND m.user_id <> ${ownerId})
+        ORDER BY lower(f.name) ASC, f.id ASC`,
+  )
+  return found.map((row) => ({
+    id: String(row.id),
+    name: String(row.name),
+    hasEligibleSuccessor: row.heir === true,
+  }))
 }

@@ -828,10 +828,14 @@ export const copy = {
   resentRecently: 'Resent recently',
   /** 9.7, the note under the three page toggles. */
   alwaysShown: 'My Day, Tasks, and Planned are always shown.',
-  /** 9.7, the danger zone's two sentences. */
+  /** 9.7, the danger zone's two sentences. Rewritten 2026-09-20 with the
+   * screen, under governing #209 R6 sections 2 and 3: there is no automatic
+   * succession any more, and `DELETE /me` refuses until every owned shared
+   * folder has been handed on or deleted. */
   deleteAccount:
-    'Folders you share will be handed to their longest-standing member. ' +
-    'Private folders and their tasks are permanently deleted.',
+    'Shared folders you own must be handed to another member, or deleted, ' +
+    'first \u2014 Dana will tell you which ones. Private folders and their ' +
+    'tasks are permanently deleted.',
   /** 9.8, the People screen's refusal for an address already on the roster. */
   alreadyConnected:
     "You're already connected to this person. They're in your People list.",

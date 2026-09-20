@@ -36,6 +36,8 @@ import type { ObjectStore } from '../files/store.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
+import { mayPerform, presetOf } from './folder-access.js'
+import type { FolderActorFacts } from './folder-access.js'
 
 function toIso(value: unknown): string {
   return value instanceof Date
@@ -115,11 +117,52 @@ export async function trashView(
 /** Clears the mark and records the return; 'not_found' covers the row that
  * does not exist, is not trashed, is out of the viewer's membership, or
  * rides a trashed folder, which 10.2 makes one answer. */
+/**
+ * The actor's Folder facts for a **trashed** task (issue #228).
+ *
+ * `folderActorFacts` refuses a trashed folder and `accessibleTask` refuses a
+ * trashed task, both correctly: the ordinary surface must not see either.
+ * 7.13's two acts are the exceptions, and they need the same facts over the
+ * rows those predicates hide, so this is that read and nothing more.
+ */
+async function trashedTaskFacts(
+  tx: Executor,
+  viewerId: string,
+  taskId: string,
+): Promise<FolderActorFacts | null> {
+  const found = await rowsOf(
+    tx,
+    sql`SELECT t.folder_id, f.name, f.is_default, m.access,
+               (f.owner_id = ${viewerId}) AS is_owner
+        FROM tasks t
+        JOIN folder_members m
+          ON m.folder_id = t.folder_id AND m.user_id = ${viewerId}
+        JOIN folders f ON f.id = t.folder_id
+        WHERE t.id = ${taskId}`,
+  )
+  const row = found[0]
+  if (row === undefined) return null
+  const access = presetOf(row.access)
+  if (access === null) {
+    throw new Error(
+      `folder_members.access holds an unknown preset for ${viewerId} in ${String(row.folder_id)}`,
+    )
+  }
+  return {
+    folderId: String(row.folder_id),
+    actorId: viewerId,
+    access,
+    isOwner: row.is_owner === true,
+    isDefault: row.is_default === true,
+    name: String(row.name),
+  }
+}
+
 export async function restoreTask(
   db: Db,
   viewerId: string,
   taskId: string,
-): Promise<'restored' | 'not_found'> {
+): Promise<'restored' | 'not_found' | { kind: 'forbidden'; reason: string }> {
   return inTransaction(db, async (tx) => {
     const homes = await rowsOf(tx,sql`SELECT folder_id FROM tasks WHERE id=${taskId}::uuid`)
     if(homes[0]===undefined)return 'not_found'
@@ -136,6 +179,16 @@ export async function restoreTask(
     )
     const row = found[0]
     if (row === undefined) return 'not_found'
+    /* #228's Can-edit list: restoring from Trash sits with Can edit, beside
+       trashing itself. The task is trashed, so `lockedTask` cannot see it; the read
+       above is the same membership scope with the deleted_at predicate
+       inverted, and the facts come from it. */
+    const held = await trashedTaskFacts(tx, viewerId, taskId)
+    if (held === null) return 'not_found'
+    const decision = mayPerform(held, 'task.restore')
+    if (!decision.allowed) {
+      return { kind: 'forbidden', reason: decision.reason }
+    }
     await tx.execute(
       sql`UPDATE tasks SET deleted_at = NULL, updated_at = now()
           WHERE id = ${taskId}`,
@@ -157,11 +210,12 @@ export async function restoreFolder(
   db: Db,
   viewerId: string,
   folderId: string,
-): Promise<'restored' | 'not_found'> {
+): Promise<'restored' | 'not_found' | { kind: 'forbidden'; reason: string }> {
   return inTransaction(db, async (tx) => {
     const found = await rowsOf(
       tx,
-      sql`SELECT f.id, f.name
+      sql`SELECT f.id, f.name, f.is_default, m.access,
+                 (f.owner_id = ${viewerId}) AS is_owner
           FROM folders f
           JOIN folder_members m
             ON m.folder_id = f.id AND m.user_id = ${viewerId}
@@ -170,6 +224,40 @@ export async function restoreFolder(
     )
     const row = found[0]
     if (row === undefined) return 'not_found'
+    /*
+    #228's Full-control list -- "trash/restore Folder administratively" --
+    with governing R5: Full control restores, **and so does the owner whatever
+    their ordinary Access**. That second clause is the custody anchor doing
+    its job: an owner who lowered themselves to Can view, and whose folder was
+    then trashed by an administrator, must still be able to get it back. The
+    resolver expresses it as `owner: 'sufficient'` and this reads the
+    resolver rather than restating the rule.
+
+    Access is resolved here rather than through `folderActorFacts`, which
+    hides a trashed folder by design; the join above is the same membership
+    scope with the deleted_at predicate inverted (7.13: access to a trashed
+    row is by membership, never by who deleted it).
+    */
+    const access = presetOf(row.access)
+    if (access === null) {
+      throw new Error(
+        `folder_members.access holds an unknown preset for ${viewerId} in ${folderId}`,
+      )
+    }
+    const decision = mayPerform(
+      {
+        folderId,
+        actorId: viewerId,
+        access,
+        isOwner: row.is_owner === true,
+        isDefault: row.is_default === true,
+        name: String(row.name),
+      },
+      'folder.restore',
+    )
+    if (!decision.allowed) {
+      return { kind: 'forbidden', reason: decision.reason }
+    }
     await tx.execute(
       sql`UPDATE folders SET deleted_at = NULL WHERE id = ${folderId}`,
     )
@@ -323,10 +411,13 @@ export async function removeObjects(
 
 export type DestroyOutcome =
   | { kind: 'destroyed'; fileIds: string[] }
-  /** A member who is not the folder's owner: the act is the owner's alone
-   * (item 38), and the row is visible to them, so this is 403 and not
-   * 10.2's 404. */
-  | { kind: 'forbidden' }
+  /** Visible to the caller and not theirs to perform, so this is 403 and not
+   * 10.2's 404. The two acts no longer share one rule: permanently deleting
+   * a **task** is Full control's (#228's Full-control list), and permanently
+   * destroying a **folder** needs custody *and* Full control together (#228
+   * and governing R5), so the refusal carries the resolver's own sentence
+   * rather than one string for both. */
+  | { kind: 'forbidden'; reason: string }
   /** Does not exist, is not in Trash, rides a trashed folder, or is out of
    * the viewer's membership: one answer (10.2). */
   | { kind: 'not_found' }
@@ -357,7 +448,18 @@ export async function destroyTask(
     )
     const row = found[0]
     if (row === undefined) return { kind: 'not_found' } as const
-    if (row.is_owner !== true) return { kind: 'forbidden' } as const
+    /* #228 gives permanently deleting a Task from Trash to Full control:
+       permanent deletion is an irreversible administrative act. It was the
+       folder owner's (item 38), which
+       is the ownership-as-authority proxy #209 removes; a Full-control
+       administrator who never owned the folder now has it, and an owner who
+       lowered their own Access no longer does. */
+    const facts = await trashedTaskFacts(tx, viewerId, taskId)
+    if (facts === null) return { kind: 'not_found' } as const
+    const decision = mayPerform(facts, 'task.destroy')
+    if (!decision.allowed) {
+      return { kind: 'forbidden', reason: decision.reason } as const
+    }
     const destroyed = await destroyTasks(
       tx,
       sql`SELECT id FROM tasks WHERE id = ${taskId}`,
@@ -391,7 +493,8 @@ export async function destroyFolder(
   return inTransaction(db, async (tx) => {
     const found = await rowsOf(
       tx,
-      sql`SELECT (f.owner_id = ${viewerId}) AS is_owner
+      sql`SELECT (f.owner_id = ${viewerId}) AS is_owner, f.name, f.is_default,
+                 m.access
           FROM folders f
           JOIN folder_members m
             ON m.folder_id = f.id AND m.user_id = ${viewerId}
@@ -400,7 +503,30 @@ export async function destroyFolder(
     )
     const row = found[0]
     if (row === undefined) return { kind: 'not_found' } as const
-    if (row.is_owner !== true) return { kind: 'forbidden' } as const
+    /* #228 and governing R5: permanent structural destruction requires custody
+       **and** active administrative authority together -- the owner, who is
+       also currently Full control. Either alone is refused. The resolver
+       expresses it as `owner: 'required'` over a `full_control` bar. */
+    const access = presetOf(row.access)
+    if (access === null) {
+      throw new Error(
+        `folder_members.access holds an unknown preset for ${viewerId} in ${folderId}`,
+      )
+    }
+    const decision = mayPerform(
+      {
+        folderId,
+        actorId: viewerId,
+        access,
+        isOwner: row.is_owner === true,
+        isDefault: row.is_default === true,
+        name: String(row.name),
+      },
+      'folder.destroy',
+    )
+    if (!decision.allowed) {
+      return { kind: 'forbidden', reason: decision.reason } as const
+    }
     const destroyed = await destroyFolders(
       tx,
       sql`SELECT id FROM folders WHERE id = ${folderId}`,

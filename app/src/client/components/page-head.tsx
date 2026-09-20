@@ -376,15 +376,23 @@ export function PageDescription({
   fallback,
   label,
   offer = false,
+  readOnly = false,
 }: {
   storageName: string
   /* Dana's own sentence for this place, from `pageQuestion`. Undefined for a
      folder, which has nothing to fall back to. */
   fallback?: string
   label: string
-  /* Show the ghost without being hovered, for a page nobody has touched, 
+  /* Show the ghost without being hovered, for a page nobody has touched,
      where a hidden affordance is one nobody discovers. */
   offer?: boolean
+  /* Read the sentence, do not offer to write it (issue #228). A folder's
+     description is part of its 4.3 identity, which accepted #209 R8A makes
+     ordinary shared Folder work, so `PATCH /folders/:id` answers 403 below
+     Can edit; a place's description is the viewer's own and never passes
+     this. **A textarea nobody may submit is worse than a paragraph**, because
+     it takes the typing first and loses it to a 403 afterwards. */
+  readOnly?: boolean
 }) {
   const identity = useFolderIdentity(storageName)
   const [editing, setEditing] = useState(false)
@@ -398,6 +406,17 @@ export function PageDescription({
       description: text && text !== fallback ? text : undefined,
     })
     setEditing(false)
+  }
+
+  if (readOnly) {
+    /* Nothing at all where there is no sentence: the ghost is an offer, and
+       there is nothing to read. */
+    if (!value) return null
+    return (
+      <p className="-mx-1 mt-1 max-w-xl px-1 py-0.5 text-[12px] leading-5 whitespace-pre-wrap text-[var(--color-graphite-600)]">
+        {value}
+      </p>
+    )
   }
 
   if (!value && !editing) {

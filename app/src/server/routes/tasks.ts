@@ -82,6 +82,15 @@ function notFound(res: Response): void {
   sendError(res, 404, 'not_found', 'Not found.')
 }
 
+/** 10.2's other half, and the one every Access refusal on this surface uses
+ * (issue #228): the caller demonstrably sees the folder -- the domain module
+ * resolved their membership before it refused -- so there is no existence
+ * left for a 404 to protect, and the refusal carries the resolver's own
+ * sentence about which rule it broke. */
+function forbidden(res: Response, reason: string): void {
+  sendError(res, 403, 'forbidden', reason)
+}
+
 /** 10.3's 422 for a rule the rows answer rather than the body: the field is
  * named the way sendValidationError names one, so a caller reads one grammar
  * whichever layer refused. */
@@ -159,6 +168,9 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
             'section_block_id',
             'must name a section of the folder the task is created in',
           )
+          return
+        case 'forbidden':
+          forbidden(res, result.reason)
           return
         case 'created':
           res.status(201).json(result.task)
@@ -270,6 +282,9 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
           // it answers the refusals 7.9 names, in the same words.
           reminderError(res, result.refusal)
           return
+        case 'forbidden':
+          forbidden(res, result.reason)
+          return
         case 'patched':
           res.status(200).json(result.task)
           return
@@ -290,6 +305,10 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
       const result = await deleteTask(db, viewer(req), taskId)
       if (result === 'not_found') {
         notFound(res)
+        return
+      }
+      if (result !== 'deleted') {
+        forbidden(res, result.reason)
         return
       }
       res.status(204).end()
@@ -365,6 +384,15 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
           res.status(200).json(transitionBody(returned))
           return
         }
+        /* The un-trash refused on Access rather than on the row's state, so
+           the fall-through below must not happen: this task *is* trashed, the
+           5.1 transition cannot see it, and letting it through would turn a
+           403 the caller earned into a 404 about a row they can see in Trash
+           (issue #228). */
+        if (untrashed !== 'not_found') {
+          forbidden(res, untrashed.reason)
+          return
+        }
       }
       const result = await transitionTask(db, viewer(req), taskId, event, tz)
       switch (result.kind) {
@@ -383,6 +411,9 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
             'tz',
             'must be supplied, as an IANA timezone identifier, on a repeating task',
           )
+          return
+        case 'forbidden':
+          forbidden(res, result.reason)
           return
         case 'noop':
           res.status(200).json(transitionBody(result.task))
@@ -462,6 +493,9 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
             outcome.field,
             'must name another task in the same unscheduled list',
           )
+          return
+        case 'forbidden':
+          forbidden(res, outcome.reason)
           return
         case 'placed':
           res.status(200).json(outcome.task)
@@ -555,6 +589,9 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
           // that is there, which is what makes a retry safe.
           res.status(200).json(result.edge)
           return
+        case 'forbidden':
+          forbidden(res, result.reason)
+          return
         case 'created':
           res.status(201).json(result.edge)
           return
@@ -586,6 +623,10 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
       )
       if (result === 'not_found') {
         notFound(res)
+        return
+      }
+      if (result !== 'deleted') {
+        forbidden(res, result.reason)
         return
       }
       res.status(204).end()
@@ -620,6 +661,9 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
             'a task holds at most 50 steps, the most 10.3 allows',
           )
           return
+        case 'forbidden':
+          forbidden(res, result.reason)
+          return
         case 'added':
           res.status(201).json(result.task)
           return
@@ -644,6 +688,10 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
         notFound(res)
         return
       }
+      if (result.kind === 'forbidden') {
+        forbidden(res, result.reason)
+        return
+      }
       res.status(200).json(result.task)
     },
   )
@@ -661,6 +709,10 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
       const result = await deleteStep(db, viewer(req), stepId)
       if (result === 'not_found') {
         notFound(res)
+        return
+      }
+      if (result !== 'deleted') {
+        forbidden(res, result.reason)
         return
       }
       res.status(204).end()
@@ -683,6 +735,10 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
       const result = await promoteStep(db, viewer(req), taskId, stepId)
       if (result.kind === 'not_found') {
         notFound(res)
+        return
+      }
+      if (result.kind === 'forbidden') {
+        forbidden(res, result.reason)
         return
       }
       res.status(201).json(result.task)
@@ -786,6 +842,9 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
         case 'refused':
           reminderError(res, result.refusal)
           return
+        case 'forbidden':
+          forbidden(res, result.reason)
+          return
         case 'written':
           // 200 with the affected TaskDetail, by the owner's ruling of
           // 2026-08-10 on the silence this bullet carried: 7.0 gives the
@@ -810,6 +869,10 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
       const result = await deleteTaskReminder(db, viewer(req), taskId)
       if (result === 'not_found') {
         notFound(res)
+        return
+      }
+      if (result !== 'deleted') {
+        forbidden(res, result.reason)
         return
       }
       // 7.9's own 204, and idempotent: the 404 above is the task's, never the

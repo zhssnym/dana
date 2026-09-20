@@ -27,6 +27,8 @@ it.
 */
 import { z } from 'zod'
 
+import { folderAccessPreset } from './folder-access.js'
+
 import { folder, folderMember, folderName } from './folders.js'
 
 /*
@@ -86,16 +88,36 @@ bare invite an omitted key asks for. The distinction is not pedantry on this
 endpoint: with the owner's ruling standing, a folder_id the client meant to
 send and nulled by accident is the difference between a conversion and a 409.
 */
+/*
+`access` joined this body with issue #228 (R9 section 5: "A pending Folder
+invite must persist the **intended Access preset**").
+
+It is required exactly when `folder_id` is, and refused when it is not -- a
+bare roster invite grants no Folder Access, so a preset on one would be a
+value nothing could ever read, and the table's own both-or-neither CHECK says
+the same thing one layer down. There is no default: the preset a person
+arrives with is somebody's decision, and a default would make it nobody's.
+
+The server reads it in `createInvite`, which stores it on the pending row and,
+on the instant-share arm, writes it straight into the membership and its
+`null -> preset` transition; `acceptInvite` reads it back when the invite is
+accepted. AC-519 drives both arms and reads the stored value back.
+*/
 export const postInvitesBody = z
   .object({
     email: emailAddress,
     folder_id: uuid.optional(),
     task_id: uuid.optional(),
+    access: folderAccessPreset.optional(),
   })
   .refine(
     (body) => body.task_id === undefined || body.folder_id !== undefined,
     { error: 'requires a folder_id', path: ['task_id'] },
   )
+  .refine((body) => (body.folder_id === undefined) === (body.access === undefined), {
+    error: 'is required with a folder_id, and is not accepted without one',
+    path: ['access'],
+  })
 export type PostInvitesBody = z.infer<typeof postInvitesBody>
 
 /*

@@ -29,6 +29,7 @@ import { sql } from 'drizzle-orm'
 import type { Db } from '../../../db/client.js'
 import type { Executor } from '../database.js'
 import { inTransaction, rowsOf } from '../database.js'
+import { recordAccessTransition } from '../domain/folder-access.js'
 import { createSampleWorkspace } from '../sample/workspace.js'
 import { sameZone, writeTimezone } from './timezone-sync.js'
 
@@ -264,9 +265,23 @@ export async function provisionUser(
     const folderId = String(folders[0]?.id)
     // INV-3 and INV-10: the owner is a member of their own default folder,
     // or the account cannot see its own Desk.
+    /* R8A: the creator of a Folder starts owner *and* Full control, and the
+       personal Desk is no exception -- INV-3 keeps it to one member, so its
+       owner is its only custodian (issue #228). The baseline transition is
+       written with it, in this same transaction, so every membership row in
+       the database has a history entry explaining where it came from. */
     await tx.execute(
-      sql`INSERT INTO folder_members (folder_id, user_id) VALUES (${folderId}, ${userId})`,
+      sql`INSERT INTO folder_members (folder_id, user_id, access)
+          VALUES (${folderId}, ${userId}, 'full_control')`,
     )
+    await recordAccessTransition(tx, {
+      folderId,
+      memberId: userId,
+      previousAccess: null,
+      newAccess: 'full_control',
+      actorId: userId,
+      transition: 'created_owner',
+    })
     await tx.execute(sql`INSERT INTO user_settings (user_id) VALUES (${userId})`)
 
     // Item 60: the sample workspace, in this same transaction, so the first

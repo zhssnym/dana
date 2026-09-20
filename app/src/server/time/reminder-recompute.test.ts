@@ -76,16 +76,16 @@ async function seedFolder(ownerId: string): Promise<string> {
   )
   const folderId = String(found[0]?.id)
   await db.execute(
-    sql`INSERT INTO folder_members (folder_id, user_id)
-        VALUES (${folderId}::uuid, ${ownerId}::uuid)`,
+    sql`INSERT INTO folder_members (folder_id, user_id, access)
+        VALUES (${folderId}::uuid, ${ownerId}::uuid, 'full_control')`,
   )
   return folderId
 }
 
 async function addMember(folderId: string, userId: string): Promise<void> {
   await db.execute(
-    sql`INSERT INTO folder_members (folder_id, user_id)
-        VALUES (${folderId}::uuid, ${userId}::uuid)`,
+    sql`INSERT INTO folder_members (folder_id, user_id, access)
+        VALUES (${folderId}::uuid, ${userId}::uuid, 'full_control')`,
   )
 }
 

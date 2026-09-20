@@ -1,6 +1,33 @@
 /*
-AC-012: given the owner, when renaming, then 200 and every member reads the
-new name.
+AC-012: given a member holding Can edit or above -- the owner, and equally a
+member holding Full control who is not the owner -- when renaming, then 200
+and every member reads the new name.
+
+## What this criterion said, and what moved it
+
+**It read:** "given the owner, when renaming, then 200 and every member reads
+the new name." Its actor was the structural owner, so it held after the rule
+moved for a reason that had nothing to do with the rule: the owner holds
+custody *and*, since migration 0023, Full control. **It passed by luck**, and
+a criterion that passes for the wrong reason proves nothing about the decision
+it is supposed to pin.
+
+**It now reads** what the header above says, and the actor that carries it is
+a **Full-control member who is not the owner** -- the actor the superseded
+rule refused. AC-011's file takes the other side with a **Can-view** member.
+Between them the two files distinguish the new rule from the old one; neither
+could do it alone.
+
+**The record that authorises it is accepted #209 R8A**, "Status: ACCEPTED by
+owner": Can edit may "plan/change all shared Folder work", and a folder's name
+is shared Folder work. The old DES-225 split made the name the owner's and the
+dressing any member's, which contradicted R8A in both directions at once.
+Hassan's ruling of 2026-09-20 made the change and corrected the authority the
+branch had cited -- R7, marked "(PROPOSED, not accepted)" in #209 and
+superseded by R8A. The ruling is
+https://github.com/zhssnym/dana/issues/228#issuecomment-5750892771.
+
+## What else is here
 
 Around the criterion sit the rules that make the endpoint honest, each with
 its own way of failing silently: the 10.3 length limits (1 to 100), the
@@ -9,9 +36,11 @@ a body that is not a JSON object answers 400, the mapping the P1 merge ruled
 and the P2 row holds at this package's gate), the tolerance of unknown
 fields, the rename of a default folder that 7.4 explicitly allows, and the
 7.4 list order (is_default first, then lower(name), then id), which a rename
-must re-rank.
+must re-rank. Those are the owner's own folders and are unaffected by the
+Access change; they stay with the owner.
 
-Spec: 7.0, 7.4, 10.3; RFC 0001 P2 row for the held 400 mapping.
+Spec: 7.0, 7.4, 10.3; accepted #209 R8A; RFC 0001 P2 row for the held 400
+mapping.
 */
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
@@ -31,11 +60,15 @@ import {
 import type { Actor } from '../support/folders-harness.js'
 
 let app: AuthTestApp
-const cast = new Cast(['owner', 'member'])
+const cast = new Cast(['owner', 'deputy', 'reader'])
 
 interface Stage {
   owner: Actor
-  member: Actor
+  /** Full control, and owns nothing. The actor the superseded rule refused. */
+  deputy: Actor
+  /** Can view, so that "every member reads the new name" is read by somebody
+   * who could not have written it. */
+  reader: Actor
   folderId: string
   secondFolderId: string
 }
@@ -43,15 +76,17 @@ let staged: Stage | undefined
 
 async function stage(): Promise<Stage> {
   if (staged === undefined) {
-    const [owner, member] = await cast.of(app)
-    if (owner === undefined || member === undefined) {
-      throw new Error('cast must produce two actors')
+    const [owner, deputy, reader] = await cast.of(app)
+    if (owner === undefined || deputy === undefined || reader === undefined) {
+      throw new Error('cast must produce three actors')
     }
-    await connect(app.db, owner.id, member.id)
+    await connect(app.db, owner.id, deputy.id)
+    await connect(app.db, owner.id, reader.id)
     const folderId = await createFolder(owner, 'p2 ac012 bbb')
     const secondFolderId = await createFolder(owner, 'p2 ac012 mmm')
-    await addMemberOk(owner, folderId, member.id)
-    staged = { owner, member, folderId, secondFolderId }
+    await addMemberOk(owner, folderId, deputy.id, 'full_control')
+    await addMemberOk(owner, folderId, reader.id, 'can_view')
+    staged = { owner, deputy, reader, folderId, secondFolderId }
   }
   return staged
 }
@@ -66,8 +101,34 @@ afterAll(async () => {
   await app.close()
 })
 
-describe('AC-012: the owner renames and every member reads the new name', () => {
-  test('AC-012: the owner rename answers 200 with the Folder a fresh GET reads', async () => {
+describe('AC-012: Can edit and above rename, and every member reads it', () => {
+  test('AC-012: a Full-control member who is not the owner renames, 200', async () => {
+    /* The case the criterion turns on. Under the superseded DES-225 split
+       this actor -- every bit of authority over the folder except custody --
+       answered 403 here, which is the contradiction with accepted R8A the
+       ruling names. */
+    const { deputy, folderId } = await stage()
+    const entry = await folderInList(deputy, folderId)
+    expect(
+      entry?.is_owner,
+      'the actor must not be the owner, or this case proves the old rule (accepted R8A)',
+    ).toBe(false)
+
+    const response = await deputy.browser.json(`/folders/${folderId}`, 'PATCH', {
+      name: 'p2 ac012 renamed by the deputy',
+    })
+    expectStatus(
+      response,
+      200,
+      'accepted R8A: Full control plans and changes all shared Folder work, the name included, and confers no ownership (spec 7.4)',
+    )
+    expect(
+      (await folderInList(deputy, folderId))?.is_owner,
+      'and the rename moved no custody: Access is not ownership (accepted R8A)',
+    ).toBe(false)
+  })
+
+  test('AC-012: the owner renames too, and the body is what a fresh GET reads', async () => {
     const { owner, folderId } = await stage()
     const response = await owner.browser.json(`/folders/${folderId}`, 'PATCH', {
       name: 'p2 ac012 renamed',
@@ -87,13 +148,13 @@ describe('AC-012: the owner renames and every member reads the new name', () => 
     ).toEqual(fresh)
   })
 
-  test('AC-012: every member reads the new name', async () => {
-    const { owner, member, folderId } = await stage()
-    for (const viewer of [owner, member]) {
+  test('AC-012: every member reads the new name, Can view included', async () => {
+    const { owner, deputy, reader, folderId } = await stage()
+    for (const viewer of [owner, deputy, reader]) {
       const entry = await folderInList(viewer, folderId)
       expect(
         entry?.name,
-        'both the owner and the member must read the renamed folder (spec 7.4)',
+        'every member must read the renamed folder whatever their Access (spec 7.4)',
       ).toBe('p2 ac012 renamed')
     }
   })
@@ -174,7 +235,7 @@ describe('AC-012: the owner renames and every member reads the new name', () => 
   })
 
   test('AC-012 adversarial: a wrong-typed name answers 422, unknown fields are tolerated', async () => {
-    const { owner, member, folderId } = await stage()
+    const { owner, reader, folderId } = await stage()
     const wrongType = await owner.browser.json(`/folders/${folderId}`, 'PATCH', {
       name: 123,
     })
@@ -193,7 +254,7 @@ describe('AC-012: the owner renames and every member reads the new name', () => 
       200,
       'unknown fields on a parsed object are tolerated (spec 7.0)',
     )
-    const entry = await folderInList(member, folderId)
+    const entry = await folderInList(reader, folderId)
     expect(entry?.name).toBe('p2 ac012 final')
   })
 
@@ -251,12 +312,12 @@ describe('AC-012: the owner renames and every member reads the new name', () => 
   })
 
   test('AC-012: invariants hold afterwards', async () => {
-    const { owner, member, folderId, secondFolderId } = await stage()
+    const { owner, deputy, reader, folderId, secondFolderId } = await stage()
     const defaultId = await defaultFolderOf(app.db, owner.id)
     await expectFolderInvariants(
       app.db,
       [folderId, secondFolderId, defaultId],
-      [owner.id, member.id],
+      [owner.id, deputy.id, reader.id],
     )
   })
 })

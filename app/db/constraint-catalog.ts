@@ -157,6 +157,11 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
     primaryKey: { name: 'folder_members_pkey', columns: ['folder_id', 'user_id'] },
     uniques: [],
     checks: [
+      /* Migration 0023, issue #228: the member's one durable Access preset,
+         R8A's six and no seventh. `role` is left exactly as it was, admitting
+         only 'member': ownership is folders.owner_id and Access is this
+         column, and a third authority proxy is what #209 exists to remove. */
+      { name: 'folder_members_access_check', columns: ['access'] },
       { name: 'folder_members_color_format_check', columns: ['color'] },
       /*
       **Two membership columns and two CHECKs for one release, deliberately.**
@@ -199,6 +204,69 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
     ],
     indexes: [
       { name: 'folder_members_user_id_idx', unique: false, columns: ['user_id'], partial: false },
+    ],
+  },
+  /* Migration 0023, issue #228: R9's structured append-only Access transition
+     record, and the authority for "what could this member do then, and who
+     changed it". The generic events table renders a transition and is
+     explicitly not the source of truth (R9 section 12).
+
+     The two nullable Access columns mean different things -- previous NULL is
+     first activation, new NULL is the end of active membership -- and the
+     some_access CHECK refuses the row where both are null. It is written with
+     IS NOT NULL rather than with a comparison, because a CHECK passes on
+     UNKNOWN (backend README, issue #27).
+
+     actor_id is nullable only for the migration's own baseline rows, which
+     the system_actor CHECK ties to that one transition kind. folder_id
+     cascades because R9 section 15 keeps history exactly as long as the
+     Folder; the two user references are RESTRICT on the
+     tasks_created_by_fkey precedent, 8.10 scrubbing an account rather than
+     deleting its row, and because SET NULL on actor_id would forge system
+     provenance onto a transition a person made. */
+  folder_access_history: {
+    primaryKey: { name: 'folder_access_history_pkey', columns: ['id'] },
+    uniques: [],
+    checks: [
+      { name: 'folder_access_history_new_access_check', columns: ['new_access'] },
+      { name: 'folder_access_history_previous_access_check', columns: ['previous_access'] },
+      { name: 'folder_access_history_some_access_check', columns: ['new_access', 'previous_access'] },
+      { name: 'folder_access_history_system_actor_check', columns: ['actor_id', 'transition'] },
+      { name: 'folder_access_history_transition_check', columns: ['transition'] },
+    ],
+    foreignKeys: [
+      {
+        name: 'folder_access_history_actor_id_fkey',
+        columns: ['actor_id'],
+        references: { table: 'users', columns: ['id'] },
+        onDelete: 'restrict',
+      },
+      {
+        name: 'folder_access_history_folder_id_fkey',
+        columns: ['folder_id'],
+        references: { table: 'folders', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+      {
+        name: 'folder_access_history_member_id_fkey',
+        columns: ['member_id'],
+        references: { table: 'users', columns: ['id'] },
+        onDelete: 'restrict',
+      },
+    ],
+    indexes: [
+      {
+        name: 'folder_access_history_folder_id_effective_at_idx',
+        unique: false,
+        columns: ['folder_id', 'effective_at'],
+        partial: false,
+      },
+      {
+        name: 'folder_access_history_member_id_effective_at_idx',
+        unique: false,
+        columns: ['member_id', 'effective_at'],
+        partial: false,
+      },
     ],
   },
   tasks: {
@@ -362,6 +430,13 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
     primaryKey: { name: 'invites_pkey', columns: ['id'] },
     uniques: [],
     checks: [
+      /* Migration 0023, issue #228: the intended Access preset a pending
+         Folder invite carries (R9 section 5). The second check is
+         both-or-neither in its IS NULL form, which always yields a real
+         boolean; a folderless roster invite grants no Folder Access and so
+         carries no preset. */
+      { name: 'invites_access_check', columns: ['access'] },
+      { name: 'invites_access_requires_folder_check', columns: ['access', 'folder_id'] },
       { name: 'invites_email_length_check', columns: ['email'] },
       { name: 'invites_email_lower_check', columns: ['email'] },
       { name: 'invites_status_check', columns: ['status'] },

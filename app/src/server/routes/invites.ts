@@ -43,6 +43,7 @@ import { optionalLimit } from '../security/rate-limit.js'
 import type { RateLimits } from '../security/rate-limit.js'
 import { createSecurityLogger } from '../security/log.js'
 import type { SecurityLogger } from '../security/log.js'
+import { mayPerform } from '../domain/folder-access.js'
 import { folderView, membersOf } from '../domain/folders.js'
 import {
   acceptInvite,
@@ -106,6 +107,28 @@ function inviteMessage(
   }
 }
 
+/**
+ * Who may cancel or resend a pending invite (issue #228).
+ *
+ * **Both rules moved, and in the same direction.** Cancel was "the inviter or
+ * the folder's owner"; resend was "the inviter" alone. Accepted R8A makes
+ * both administering people, which is Full control's, and #228 says the
+ * inviter half out loud: a former inviter who is later downgraded loses Folder-invite
+ * administration, because "I created the invite" is not permanent authority.
+ * The owner half goes for the reason every other ownership-as-authority proxy
+ * goes in #209 -- custody is not an operating permission.
+ *
+ * A **bare** roster invite carries no folder, so there is no Folder Access to
+ * resolve and nobody to administer it but the person who sent it. That arm is
+ * unchanged, and it is why this is a function rather than one call to
+ * `mayPerform`.
+ */
+function mayAdministerInvite(facts: InviteActorFacts): boolean {
+  if (facts.folderId === null) return facts.isInviter
+  if (facts.folderFacts === null) return false
+  return mayPerform(facts.folderFacts, 'invite.administer').allowed
+}
+
 export function createInvitesRouter(
   options: InvitesRouterOptions = {},
 ): Router {
@@ -145,6 +168,11 @@ export function createInvitesRouter(
               message: 'is your own address, which needs no invitation',
             },
           ])
+          return
+        case 'forbidden':
+          // 10.2's second half: the folder resolved for this caller, so the
+          // refusal may say which rule it broke (issue #228).
+          sendError(res, 403, 'forbidden', result.reason)
           return
         case 'folder_not_found':
           sendError(res, 404, 'not_found', 'Not found.')
@@ -432,13 +460,13 @@ export function createInvitesRouter(
       including every caller of a bare invite that has no folder and
       therefore no owner arm, cannot see it at all and gets 404.
       */
-      if (!facts.isInviter && !facts.isFolderOwner) {
+      if (!mayAdministerInvite(facts)) {
         if (facts.isFolderMember) {
           sendError(
             res,
             403,
             'forbidden',
-            'Only the inviter or the folder owner can cancel this invite.',
+            'Only Full control can cancel an invite into this folder.',
           )
           return
         }
@@ -471,13 +499,13 @@ export function createInvitesRouter(
       // 5.2 gives resend one actor, the inviter. The folder's owner can see
       // the invite, so their refusal is 403 by the same visibility rule
       // cancel uses; anybody else gets 404.
-      if (!facts.isInviter) {
-        if (facts.isFolderOwner || facts.isFolderMember) {
+      if (!mayAdministerInvite(facts)) {
+        if (facts.isFolderMember) {
           sendError(
             res,
             403,
             'forbidden',
-            'Only the inviter can resend this invite.',
+            'Only Full control can resend an invite into this folder.',
           )
           return
         }

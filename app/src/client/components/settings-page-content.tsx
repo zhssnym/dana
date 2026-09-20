@@ -788,7 +788,14 @@ export function SettingsPageContent({
             <SettingsSection
               id="settings-danger"
               title="Deleting your account"
-              description="Folders you share pass to their longest-standing member. Private folders and their tasks are deleted with the account."
+              /* **Rewritten 2026-09-20** (issue #228, governing #209 R6
+                 sections 2 and 3). It read "Folders you share pass to their
+                 longest-standing member", which was 8.10 step 2's automatic
+                 succession; R6 ended it, and `DELETE /me` now answers 409
+                 naming every owned shared folder until each has been handed
+                 on or deleted. A promise the server refuses to keep is worse
+                 than no sentence, because the person plans around it. */
+              description="Shared folders you own must be handed to another member, or deleted, before your account can go. Private folders and their tasks are deleted with the account."
               danger
             >
               <div className="flex min-h-16 items-center gap-3 rounded-lg border border-[var(--color-danger-200)] bg-[var(--color-danger-100)]/45 px-3">
@@ -824,7 +831,7 @@ export function SettingsPageContent({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete your Dana account?</AlertDialogTitle>
             <AlertDialogDescription>
-              Folders you share will be handed to their longest-standing member. Private folders and their tasks are permanently deleted.
+              Shared folders you own must be handed to another member, or deleted, first — Dana will tell you which ones. Private folders and their tasks are permanently deleted.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div>

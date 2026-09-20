@@ -192,6 +192,7 @@ import { MORE_ACTIONS } from '../components/ui/copy.js'
 import { ObjectMenu } from '../components/object-menu.js'
 import { cn } from '../components/ui/utils.js'
 import { useDuplicateFolder } from '../api/mutations.js'
+import { folderGates } from '../lib/folder-authority.js'
 import { folderRowDisplay, initialsOf, shelfMark } from '../parts/presenters.js'
 import { folderLink, shelfLink } from '../lib/nav-links.js'
 import { navPages, paths, pinnedNavPages } from '../routes.js'
@@ -608,10 +609,59 @@ tab, copying an address, and the duplicate, whose whole behaviour is a server
 call (DES-198).
 
 **An act with no handler is not drawn**, so the role split of 9.6 needs no
-branch in `folder-row.tsx`: the owner's row is given `delete` and the
-member's `leave`, from `folder.is_owner`, which 7.4 puts on the object.
-Desk is the standing exception, INV-2 making the default folder undeletable
-and 9.1 giving it a clause of its own above the label groups.
+branch in `folder-row.tsx`: a row is given `delete`, `rename` or `leave` by
+whether `folderGates` allows it. Desk is the standing exception, INV-2 making
+the default folder undeletable and 9.1 giving it a clause of its own above the
+label groups — and that exception is inside `folderGates` too, so this file
+does not spell it a second time.
+
+## Those three gates used to read `is_owner`, and the fix was one field
+
+**Issue #228 replaced ownership with Access and this row could not see it.**
+Accepted #209 R8A makes Rename `folder.profile.edit` at Can edit and above,
+Hassan's ruling of 2026-09-20 makes Delete `folder.trash` at Full control, and
+governing R6 refuses a leave to the owner and to the last Full-control member.
+`folder.is_owner` is neither necessary nor sufficient for any of the three, so
+two things were measurably wrong on this surface:
+
+- a **Full-control member who is not the owner** was offered no Rename, though
+  they may rename;
+- an **owner whose Access was lowered** below Full control was still offered
+  Delete, which the route now answers 403.
+
+**The folder page's menu was fixed first and this one was not, and the
+difference was the wire and nothing else.** `GET /folders/:id` carries
+`members[].access`, so `pages/FolderPage.tsx` reads the viewer's own preset off
+the roster. `GET /folders`, which this list is built from, carried
+`is_default`, `is_owner`, `member_count`, the counts, `my_shelf` (with
+`my_label` beside it for one release), `my_color`, `personal_labels` and the
+4.3 identity fields — **and no preset for anybody**. There was nothing
+here to gate on.
+
+**Three workarounds were rejected and the reasoning is kept, because each is
+the obvious idea and each is wrong for a reason that is not obvious.**
+Fetching the detail per row is up to 200 requests; reading it out of the query
+cache gives a menu that is right for visited folders and wrong for the rest,
+which is worse than being consistently wrong; and `member_count === 1` does
+prove Full control — the continuity invariant refuses a sole member's
+self-demotion — but says nothing about the *shared* folders where both defects
+lived.
+
+**Ruled, and done: `my_access` on the 7.4 Folder object.** Hassan's Ruling 4 of
+2026-09-20, https://github.com/zhssnym/dana/issues/228#issuecomment-5751449643,
+with 7.4's dated amendment carrying it into frozen section 7. It is one line of
+SQL on a query that already joined the viewer's own membership row, and AC-674
+proves the value is that viewer's row and not the owner's, which is the mistake
+the shape invites. So the three gates below are `folderGates(...)` — the same
+call `pages/FolderPage.tsx` makes, answering from `shared/folder-actions.ts`,
+which is the table the routes themselves resolve against.
+
+**The one thing this surface still cannot know is the roster**, so
+`otherFullControl` is left undefined here: the list carries `member_count` and
+not who holds Full control. `folderGates` reads that as "offer Leave and let
+the server refuse it" rather than hiding a person's only way out of a folder,
+which is the honest direction and is asserted in `folder-authority.test.ts`.
+A leave the continuity invariant refuses comes back as the route's own 409.
 */
 export type FolderAction = 'rename' | 'history' | 'workflow' | 'leave' | 'delete'
 
@@ -659,6 +709,19 @@ function SidebarFolderRow({
   const display = folderRowDisplay(folder)
   const navigate = useNavigate()
   const duplicate = useDuplicateFolder()
+  /* What this row may offer, from `shared/folder-actions.ts` by way of
+     `lib/folder-authority.ts` — the same table the routes resolve against and
+     the same call `pages/FolderPage.tsx` makes, so the two menus cannot drift
+     (AC-246). `otherFullControl` is deliberately absent: see the block above.
+
+     No `useMemo`. This is three lookups in a frozen table over three fields of
+     a prop, and memoising it would cost a dependency array that has to be kept
+     in step with `FolderViewerFacts`. */
+  const gates = folderGates({
+    access: folder.my_access,
+    isOwner: folder.is_owner,
+    isDefault: folder.is_default,
+  })
   return (
     <FolderRow
       itemRef={drag?.itemRef}
@@ -737,7 +800,7 @@ function SidebarFolderRow({
         navigate(folderActionPath(folder.id, 'history'))
       }}
       onRename={
-        folder.is_owner
+        gates.identity
           ? () => {
               navigate(folderActionPath(folder.id, 'rename'))
             }
@@ -763,14 +826,14 @@ function SidebarFolderRow({
         navigate(folderActionPath(folder.id, 'workflow'))
       }}
       onLeave={
-        folder.is_owner
-          ? undefined
-          : () => {
+        gates.leave
+          ? () => {
               navigate(folderActionPath(folder.id, 'leave'))
             }
+          : undefined
       }
       onDelete={
-        folder.is_owner && !folder.is_default
+        gates.trash
           ? () => {
               navigate(folderActionPath(folder.id, 'delete'))
             }

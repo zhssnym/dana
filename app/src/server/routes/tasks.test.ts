@@ -413,8 +413,8 @@ describe('the tasks router, driven through the harness idiom', () => {
     const third = await seedUser(app.db, 'proof-third')
     cast.trackUser(third)
     await app.db.execute(
-      sql`INSERT INTO folder_members (folder_id, user_id)
-          VALUES (${target}::uuid, ${third}::uuid)`,
+      sql`INSERT INTO folder_members (folder_id, user_id, access)
+          VALUES (${target}::uuid, ${third}::uuid, 'full_control')`,
     )
     const moving = await createTaskOk(
       owner,
