@@ -56,10 +56,36 @@ name: CI
 # nothing to do with the commit. A prose change that can produce a meaningless
 # red is how a team learns to skim past red.
 #
-# The list is only paths nothing in app/ opens. Checked rather than assumed:
-# no file under app/tests/, app/src/, app/db/ or app/scripts/ reads a `docs/`
-# path or any `.md`. `*` does not match `/` in these patterns, so `*.md` is the
-# four root files and not app/src/client/components/README.md.
+# **`docs/**` came off this list on 2026-09-20 (issue #242), because the
+# sentence that put it there was false.** It read: "The list is only paths
+# nothing in app/ opens. Checked rather than assumed: no file under app/tests/,
+# app/src/, app/db/ or app/scripts/ reads a `docs/` path or any `.md`."
+#
+# `app/src/server/http/bundle-contract.test.ts` reads
+# `docs/spec/07-api/07.23-settings-bundle.md` with readFileSync, parses its
+# "## The fields" table, and asserts six things against it (AC-409) - among them
+# that the documented field list equals two zod shapes in both directions, and
+# that each Fresh cell equals what GET /settings actually answers a new account.
+# The parse runs at describe-body evaluation, so a missing file is an ENOENT at
+# collection rather than one red case.
+#
+# That test landed in 98b0d55 and this comment in 79f74ca, **the same day**. So
+# the claim was false within hours of being written, and for the sixteen days
+# after it a docs-only push to main skipped every check: this job by the ignore,
+# and the pull request's `check` job because it runs npm ci, lint, typecheck and
+# build and no tests. Editing that markdown table is an ordinary-looking
+# documentation edit that turns the suite red on somebody else's next push.
+#
+# The paragraph above still describes a real cost and it has not gone away: a
+# prose change that produces a meaningless red is how a team learns to skim past
+# red. It is simply the smaller of the two costs now, and the trade was made on
+# a fact that was not one. `.claude/**`, `.vscode/**` and the issue templates
+# stay ignored; nothing under app/ opens those, and this time that is checked by
+# `grep -rn "docs/" app/src app/tests app/db app/scripts` returning exactly one
+# non-comment hit, the file named above.
+#
+# `*` does not match `/` in these patterns, so `*.md` is the four root files and
+# not app/src/client/components/README.md.
 #
 # **It is on `push` only, and that is a change of 2026-09-04.** It used to be
 # written twice, once per trigger, with a comment saying the two lists had to be
@@ -94,7 +120,6 @@ on:
   push:
     branches: [main]
     paths-ignore:
-      - 'docs/**'
       - '.claude/**'
       - '.vscode/**'
       - '.github/ISSUE_TEMPLATE/**'
