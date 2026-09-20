@@ -33,8 +33,9 @@ import type { SQL } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
 import type { ObjectStore } from '../files/store.js'
-import { inTransaction, rowsOf } from '../database.js'
+import { SWEEP_BATCH, inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
+import type { SecurityLogger } from '../security/log.js'
 import { mayPerform } from './folder-access.js'
 import { accessOf } from './folders.js'
 import {
@@ -1020,6 +1021,65 @@ function fileIsUnreferenced(): SQL {
   )`
 }
 
+/*
+The kinds the 11.7 reclaim sweep may touch, in one place because all three of
+its arms must agree (issue #276's rebase onto #220, 2026-09-21).
+
+**This list was written out three times and the three did not agree, which is
+the defect this constant exists to make impossible.** #220 widened the mark
+and the delete from `('cover', 'image')` to these five; #276, written against
+the tree before it, gave the clear arm a `kind` clause of the two. Git merged
+both cleanly — neither touched the other's line — and the result marked five
+kinds and cleared two. What that costs is not a file taken while referenced,
+which the delete arm's own `fileIsUnreferenced()` still refuses on its own;
+it is the **clock**. A `file`, `audio` or `video` that is referenced again
+after being marked would keep the stale mark for ever, so the thirty days
+would be counted from the first time it went unreferenced rather than from
+the last, and the pass after it next came off a block would delete it on the
+same tick with no window at all. The window is the whole of what 7.19 and
+migration 0014 bought, and a two-kind clear arm silently withdraws it from
+three of the five kinds.
+
+**AC-705 is the watcher, over all three arms, and AC-810 reads the trace
+rather than the scope.** AC-705's first two cases hold the mark and the delete
+— the avatar the list must never admit and the three kinds #220 added — and
+its third, `a marked folder-less video that something references again is
+unmarked by the next pass`, is the only thing in the suite that reads this
+list in the clear arm; narrowing that arm alone turns it red and nothing
+else. AC-810 stays green under either, which is why it is not the watcher:
+its subject is the `file_reclaimed` line and the batch cap.
+
+Widen this list by naming kinds and never by restating it as a `NOT IN`: an
+avatar's absence from it is the only thing standing between the tick and every
+profile picture in Dana, and `voice` is absent structurally, being the one kind
+that still requires a folder (migration 0024) and so unable to satisfy the
+`folder_id IS NULL` beside it.
+
+**It is its own list rather than `FOLDERLESS_UPLOAD_KINDS`**, which #220 left
+in `shared/files.ts` holding these same five today. That one answers what an
+upload may send with no folder, and it omits the avatar because the avatar has
+a route of its own rather than because a timer must never eat one. Two
+different questions that agree by coincidence, and the day the upload one
+widens — an avatar moving onto `POST /files` would do it — importing it here
+would hand the sweep every profile picture in Dana with nothing to review.
+*/
+const RECLAIMABLE_KINDS = [
+  'cover',
+  'image',
+  'file',
+  'audio',
+  'video',
+] as const satisfies readonly FileKind[]
+
+/** `RECLAIMABLE_KINDS` as a predicate over a `files` row aliased `f`, bound
+ * as parameters rather than interpolated, for the three arms of the sweep. */
+function kindIsReclaimable(): SQL {
+  return sql`f.kind IN (${sql.join(
+    RECLAIMABLE_KINDS.map((kind) => sql`${kind}`),
+    sql`, `,
+  )})`
+}
+
 /**
  * The 11.7 tick's fifth duty: reclaim the folder-less pictures nothing uses.
  *
@@ -1064,14 +1124,16 @@ function fileIsUnreferenced(): SQL {
  * on the other two having run first.
  *
  * Narrow on purpose, and every clause earns its place. **AC-705 is the case
- * over the two clauses in this paragraph**, both of which are written twice
- * below, once in the mark arm and once in the delete arm; AC-700 to AC-704
+ * over the two clauses in this paragraph**; AC-700 to AC-704
  * hold the five reference arms and every one of them uses a folder-less
  * cover or image, so they are all green under a sweep widened to take a
  * third kind or a folder-scoped row.
- * **`kind IN ('cover', 'image', 'file', 'audio', 'video')`**, widened from the
+ * **`RECLAIMABLE_KINDS`**, which is
+ * `('cover', 'image', 'file', 'audio', 'video')` — widened from the
  * first two on 2026-09-20 for issue #220 and on the clause's own reasoning
- * rather than past it. A voice note is still absent, and now for a structural
+ * rather than past it, and hoisted to that one constant on 2026-09-21 when
+ * #276's rebase proved three hand-written copies could disagree. A voice
+ * note is still absent, and now for a structural
  * reason rather than a judged one: `voice` is the only kind that still
  * requires a folder (migration 0024), so no `voice` row can satisfy the
  * `folder_id IS NULL` beside this and naming it would be decoration. An
@@ -1105,6 +1167,53 @@ function fileIsUnreferenced(): SQL {
  * rows are gone, 7.15's order, so a refused delete cannot have destroyed
  * bytes whose rows survived.
  *
+ * **The claim is capped at `SWEEP_BATCH`, and that arm alone (issue #276).**
+ * This is the one duty that follows its statement with per-row work outside
+ * the database — a serial, awaited `store.remove(id)` — so it is the one
+ * that can make a 60-second tick arbitrarily long, and `interval.ts` answers
+ * a long pass by *skipping* the next tick rather than queueing it. The cap
+ * is on the delete arm and not on the clear or the mark, which do their work
+ * inside one statement the planner bounds; the honest statement of what is
+ * left is that the mark arm still scans `files` for want of an index on
+ * `(kind, folder_id) WHERE unreferenced_since IS NULL`, which is a migration
+ * and is not this change. Truncating a pass is safe because every pass is
+ * idempotent: the rest waits one tick, having already waited thirty days.
+ *
+ * **The clear arm carries the kind clause too, since issue #276, and it is
+ * the same list as the other two — `RECLAIMABLE_KINDS`, from one constant
+ * rather than from three copies.** #276 was written against the tree before
+ * #220 and gave this arm a clause of `('cover', 'image')`, which was true of
+ * the mark arm then and false of it by the time the two met: the rebase of
+ * 2026-09-21 merged both cleanly and left the sweep marking five kinds and
+ * clearing two. **The cost of that is the window, not a wrongly taken file.**
+ * The delete arm tests `fileIsUnreferenced()` itself, so a referenced row is
+ * safe from it whatever mark it carries; what a narrow clear arm loses is the
+ * thirty days. A `file`, `audio` or `video` referenced again after a mark
+ * would keep that mark for ever, so the window would be counted from the
+ * first time it went unreferenced rather than from the last, and the pass
+ * after it next came off a block would take it on that same tick. That is the
+ * whole of what migration 0014 and 7.19 bought, withdrawn from three kinds
+ * by a clause that reads like a narrowing of what is scanned. **AC-705's
+ * third case is what holds this arm** — a marked folder-less video that
+ * regains a reference, unmarked by the next pass — and it is the only thing
+ * in the suite that goes red when this arm alone is narrowed; the constant's
+ * own comment carries the rest.
+ *
+ * **What it destroys, it says (issue #276).** One `file_reclaimed` line per
+ * row, carrying the id, the owner, the kind, the bytes and the mark the
+ * thirty days were counted from. Before #276 this path wrote nothing at all
+ * on success: `pass.ts` put the count in its outcome and `interval.ts`
+ * discarded it, so a person asking where their picture went had no count, no
+ * id and no date to check — and two of the five reference arms cascade, so
+ * the row that recorded the reference had gone with the file. **Which arm
+ * last held it is not logged because nothing knows**: the mark is written by
+ * the first pass that finds every arm false, and no column records which one
+ * was true last. That would be a migration, and it is not this change.
+ * **And no `events` row**, on the ground the sweep's own scope clause gives:
+ * `events` are folder-scoped (4.13) and a reclaimable file is folder-less by
+ * `folder_id IS NULL`, so the folder-event form has no home to be written
+ * in.
+ *
  * **No backfill, and the direction of that is the safe one.** Every existing
  * row has a null mark, so the first pass after 0014 deploys marks today's
  * orphans and reclaims nothing; they wait one window from the mark rather
@@ -1113,32 +1222,58 @@ function fileIsUnreferenced(): SQL {
 export async function reclaimUnwornPictures(
   db: Db,
   store: ObjectStore | undefined,
+  logger: SecurityLogger,
 ): Promise<string[]> {
   const removed = await rowsOf(
     db,
     sql`WITH cleared AS (
           UPDATE files f SET unreferenced_since = NULL
            WHERE f.unreferenced_since IS NOT NULL
+             AND ${kindIsReclaimable()}
              AND NOT ${fileIsUnreferenced()}
           RETURNING f.id),
         marked AS (
           UPDATE files f SET unreferenced_since = now()
-           WHERE f.kind IN ('cover', 'image', 'file', 'audio', 'video')
+           WHERE ${kindIsReclaimable()}
              AND f.folder_id IS NULL
              AND f.unreferenced_since IS NULL
              AND ${fileIsUnreferenced()}
           RETURNING f.id)
         DELETE FROM files WHERE id IN (
           SELECT f.id FROM files f
-           WHERE f.kind IN ('cover', 'image', 'file', 'audio', 'video')
+           WHERE ${kindIsReclaimable()}
              AND f.folder_id IS NULL
              AND f.unreferenced_since
                    < now() - ${COVER_RECLAIM_DAYS}::int * interval '1 day'
              AND ${fileIsUnreferenced()}
+           LIMIT ${SWEEP_BATCH}
            FOR UPDATE SKIP LOCKED)
-        RETURNING id`,
+        RETURNING id, kind, owner_id, bytes,
+                  to_char(unreferenced_since AT TIME ZONE 'UTC',
+                          'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS unreferenced_since`,
   )
   const ids = removed.map((row) => String(row.id))
+
+  /* Every line before any object leaves, rather than one line per removal
+     inside the loop below. The rows are already gone when this function
+     resumes — the statement committed — so the window in which a crash
+     destroys data and records nothing is exactly the length of this loop,
+     and writing the whole record first closes it. Per-row interleaving would
+     satisfy "before the object is removed" for each file and would still
+     lose the record of every file after the one that killed the process. */
+  for (const row of removed) {
+    logger.fileReclaimed({
+      fileId: String(row.id),
+      ownerId: String(row.owner_id),
+      kind: String(row.kind),
+      bytes: Number(row.bytes),
+      unreferencedSince:
+        row.unreferenced_since === null || row.unreferenced_since === undefined
+          ? null
+          : String(row.unreferenced_since),
+    })
+  }
+
   if (store !== undefined) {
     for (const id of ids) {
       try {

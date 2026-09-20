@@ -751,16 +751,40 @@ interface PassDeps {
     get(id: string): Promise<Buffer | null>
     remove(id: string): Promise<void>
   }
+  /** 11.7 fixes the required deps at two and the logger has always ridden
+   * beside them; `passCapturingLogs` below is the only caller that sets it,
+   * and it is the only way a criterion can read what a pass wrote down
+   * (issue #276). */
+  logger?: {
+    info(fields: Record<string, unknown>, message: string): void
+    warn(fields: Record<string, unknown>, message: string): void
+    error(fields: Record<string, unknown>, message: string): void
+  }
+  /** Issue #276: how long a pass may take before it logs its outcome even
+   * with nothing to report. Production never sets it; a criterion sets it to
+   * zero to stand in front of the arm that is otherwise half a minute
+   * long. */
+  slowPassMs?: number
 }
 
 type Pass = () => Promise<unknown>
 
 const passes = new WeakMap<AuthTestApp, Pass>()
 
-async function loadPass(app: AuthTestApp): Promise<Pass> {
-  const cached = passes.get(app)
-  if (cached !== undefined) return cached
-
+/**
+ * One pass over the ratified seam, composed rather than cached.
+ *
+ * `loadPass` below is this with the cache in front of it, and it is what
+ * every criterion but AC-810 wants. The split exists because the deps a
+ * criterion may need are no longer fixed at two: issue #276 gave the pass a
+ * `file_reclaimed` line per row and a `reminder_pass_completed` line per
+ * pass, and reading either means composing a pass over a logger of the
+ * caller's rather than over the module's own pino.
+ */
+async function composePass(
+  app: AuthTestApp,
+  extra: Partial<PassDeps> = {},
+): Promise<Pass> {
   let module: Record<string, unknown> | undefined
   let failure = ''
   try {
@@ -784,6 +808,7 @@ async function loadPass(app: AuthTestApp): Promise<Pass> {
     dbClient: app.dbClient,
     notifications: app.emailSink as PassDeps['notifications'],
     ...(app.fileStore === undefined ? {} : { fileStore: app.fileStore }),
+    ...extra,
   }
 
   expect(
@@ -805,6 +830,13 @@ async function loadPass(app: AuthTestApp): Promise<Pass> {
     // every criterion here turns on running exactly the passes it asks for.
     pass = () => (direct as (deps: PassDeps) => Promise<unknown>)(deps)
   }
+  return pass
+}
+
+async function loadPass(app: AuthTestApp): Promise<Pass> {
+  const cached = passes.get(app)
+  if (cached !== undefined) return cached
+  const pass = await composePass(app)
   passes.set(app, pass)
   return pass
 }
@@ -813,6 +845,68 @@ async function loadPass(app: AuthTestApp): Promise<Pass> {
 export async function runPass(app: AuthTestApp): Promise<void> {
   const pass = await loadPass(app)
   await pass()
+}
+
+/** One line the 11.7 pass wrote, as the pino-shaped sink received it. */
+export interface CapturedPassLine {
+  fields: Record<string, unknown>
+  message: string
+}
+
+export interface CapturingPass {
+  /** One cycle, awaited to completion. Lines accumulate across cycles. */
+  run(): Promise<void>
+  /** Every line the pass and everything it called wrote, in order. */
+  lines: CapturedPassLine[]
+  /** The lines whose `event` is this one, which is how every 10.5 line is
+   * addressed. */
+  of(event: string): Record<string, unknown>[]
+}
+
+/**
+ * A pass composed over a sink this process can read (issue #276).
+ *
+ * **Not cached, and never shared with `runPass`.** A criterion that reads
+ * what a pass wrote has to know which pass wrote it, and the cached one is
+ * held per application for every other criterion in the file. Two passes over
+ * one database is exactly what 11.7's SKIP LOCKED makes safe, so composing a
+ * second one costs nothing.
+ *
+ * The sink is pino's shape — `(fields, message)` — because that is what
+ * `SchedulerLogger` in `src/server/scheduler/pass.ts` declares and what
+ * `createSecurityLogger` writes into. Reading `fields.event` is how 10.5
+ * lines are addressed everywhere else in this suite.
+ */
+export async function passCapturingLogs(
+  app: AuthTestApp,
+  options: { slowPassMs?: number } = {},
+): Promise<CapturingPass> {
+  const lines: CapturedPassLine[] = []
+  const sink = {
+    info: (fields: Record<string, unknown>, message: string) => {
+      lines.push({ fields, message })
+    },
+    warn: (fields: Record<string, unknown>, message: string) => {
+      lines.push({ fields, message })
+    },
+    error: (fields: Record<string, unknown>, message: string) => {
+      lines.push({ fields, message })
+    },
+  }
+  const pass = await composePass(app, {
+    logger: sink,
+    ...(options.slowPassMs === undefined
+      ? {}
+      : { slowPassMs: options.slowPassMs }),
+  })
+  return {
+    run: async () => {
+      await pass()
+    },
+    lines,
+    of: (event) =>
+      lines.filter((line) => line.fields.event === event).map((line) => line.fields),
+  }
 }
 
 /** Two cycles issued together, for the case 11.7's SELECT ... FOR UPDATE SKIP
