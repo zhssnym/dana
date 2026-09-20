@@ -29,7 +29,12 @@ describe('restrained BlockNote integration', () => {
     const original = editor.document
     editor.removeBlocks(['before', 'task-block'])
     expect(editor.document).toEqual(original)
-    expect(explain).toHaveBeenCalledWith(expect.stringContaining('Dana menu'))
+    /* The phrase that tells this refusal apart from the outline ones, which
+       is the whole of what this line ever checked. It read 'Dana menu' until
+       the wording moved: that clause named a control no Task draws, and a
+       finished Task draws no row to hang one off at all. guard.ts carries the
+       reasoning; nothing about what is refused has changed. */
+    expect(explain).toHaveBeenCalledWith(expect.stringContaining('contains a Task'))
     editor.updateBlock('after', { content: 'Still editable' })
     expect(editor.document[2]?.content).toEqual([{ type: 'text', text: 'Still editable', styles: {} }])
     stop()

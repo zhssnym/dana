@@ -42,7 +42,17 @@ function CanvasBlockMenu(): React.JSX.Element | null {
           <X size={16} /><span>Remove heading<span className="block text-xs text-muted-foreground">Keep its Tasks and content</span></span>
         </components.Generic.Menu.Item>
       ) : block.type === 'danaTask' ? (
-        <p className="px-3 py-2 text-sm text-muted-foreground">Use the Task menu for Task actions</p>
+        /*
+        Why a Task block has no Delete, said in words that name a control that
+        exists. "Use the Task menu for Task actions" named none: the row's
+        overflow is labelled "More actions" and there is nothing called a Task
+        menu anywhere in the product, and on a finished Task there was no row
+        under the pointer at all. A finished block now collapses to nothing
+        (`CanvasTask.tsx`), so this menu is not reachable on one; the Done
+        clause is here because a string that is only true where it happens to
+        be reachable is the same defect waiting for the next change.
+        */
+        <p className="px-3 py-2 text-sm text-muted-foreground">Delete a Task from its own row, under More actions. A finished Task keeps its row in Done.</p>
       ) : <RemoveBlockItem>Delete</RemoveBlockItem>}
     </DragHandleMenu>
   )
@@ -118,7 +128,34 @@ export function CanvasSurface({ editor, onChange, onCreateTask, editable = true 
           }
           core.splice(1, 0, {
             title: 'Task', subtext: 'A Dana Task', icon: <CheckCircle2 size={16} />,
-            onItemClick: onCreateTask ?? (() => setFeedback('Task creation and placement are not connected in this development preview yet. Existing Tasks use their native Dana controls.')),
+            /*
+            Called with no argument, and the wrapper is load-bearing rather
+            than a style.
+
+            `DefaultSuggestionItem.onItemClick` is typed `() => void`, and
+            `SuggestionMenuController` invokes it as `item.onItemClick(editor)`
+            — read off the installed build,
+            `node_modules/@blocknote/react/dist/blocknote-react.js`, rather than
+            recalled. So `onItemClick: onCreateTask` handed the **editor** to a
+            handler whose first parameter is an optional `CanvasBlock`:
+            `askTask` took it for the block to anchor on, read `.id` off it as
+            `undefined`, and set `taskAt` to `undefined`. The dialog opened
+            anyway, `taskAt !== null` being true of `undefined`, and
+            `createTask`'s own `if (!taskAt) return` then made the Create Task
+            button do nothing at all — no task, no error, no feedback line.
+            Shipped in #204 and live from 2026-09-17 to 2026-09-20 (#234, cause
+            4): the `/` menu is the first of the three routes 9.6 names to the
+            Create Task dialog, and it was the broken one. AC-166 is the
+            criterion that reaches it.
+
+            The type cannot catch this — it promises an arity the library does
+            not keep — so the arrow is the whole of the defence, and any handler
+            put here later needs the same one.
+            */
+            onItemClick: () => {
+              if (onCreateTask !== undefined) onCreateTask()
+              else setFeedback('Task creation and placement are not connected in this development preview yet. Existing Tasks use their native Dana controls.')
+            },
             aliases: ['todo'], group: 'Basic blocks',
           })
           return filterSuggestionItems(core.map((item) => ({ ...item, size: 'small' as const })), query)

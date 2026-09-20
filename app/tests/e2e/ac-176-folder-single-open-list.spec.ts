@@ -126,7 +126,31 @@ async function chooseFilter(page: Page, option: RegExp, why: string): Promise<vo
   )
 }
 
-/** The titles the open-tasks region is rendering, top to bottom. */
+/**
+ * The titles the open-tasks region is rendering, top to bottom.
+ *
+ * **Waits on the rows and not on the region, and the difference is the whole
+ * of what this reader got wrong.** It awaited `expect(region).toHaveCount(1)`
+ * and then sampled the DOM at that instant. The region is a static wrapper
+ * that this page paints before it has anything to put in it, so that await
+ * returned immediately and the sample could be taken while the rows were
+ * still arriving — the composed order case then read `[]` and reported an
+ * empty list on a page whose own failure snapshot showed all four rows in
+ * exactly the asserted order. Before #204 the list rendered with the region
+ * and there was nothing to wait for, which is why the reader was correct as
+ * written and stopped being so without being touched.
+ *
+ * It is a race and not a defect, proven on an unchanged tree: two whole
+ * browser legs minutes apart read four failures and then three, this case
+ * being the one that moved (#234, cause 1). **Isolation lies about it in the
+ * opposite direction from the memory-pressure flake `CLAUDE.md` records**: a
+ * quiet machine hydrates sooner, so running this case alone makes it pass more
+ * often, and a single green run alone is no evidence at all.
+ *
+ * The wait is sound rather than merely longer because every state this file
+ * reads holds at least one row: the fixture's four open tasks, and two under
+ * either of the narrow filters.
+ */
 async function openTitles(page: Page): Promise<string[]> {
   const region = regionOf(page, 'All open tasks')
   await expect(
@@ -135,11 +159,14 @@ async function openTitles(page: Page): Promise<string[]> {
       'tasks" and "Completed", the two names that go being section names. A region is what a ' +
       'control inside it is addressed within, so its absence is not cosmetic',
   ).toHaveCount(1)
-  const rows = await region
-    .getByRole('listitem')
-    .or(region.getByRole('row'))
-    .allTextContents()
-  return rows.map((text) => text.replace(/\s+/g, ' ').trim())
+  const rows = region.getByRole('listitem').or(region.getByRole('row'))
+  await expect(
+    rows.first(),
+    'spec 9.6: the region holds the folder\'s open tasks, and this criterion turns on which ' +
+      'rows are in it and in what order. The region alone is painted before the page read ' +
+      'answers, so it is the rows that say the list has been rendered',
+  ).toBeVisible()
+  return (await rows.allTextContents()).map((text) => text.replace(/\s+/g, ' ').trim())
 }
 
 /** Which of this file's four rows the region is showing, in order. */
