@@ -38,6 +38,7 @@ import {
   putTaskReminderBody,
 } from '../../shared/tasks.js'
 import type { TaskCard, TaskDetail } from '../../shared/tasks.js'
+import { postTaskDependencyBody } from '../../shared/task-dependencies.js'
 import { viewTz } from '../../shared/views.js'
 import { requireCsrf, requireSession } from '../auth/index.js'
 import { sendError, sendValidationError } from '../http/errors.js'
@@ -62,6 +63,11 @@ import {
   transitionTask,
 } from '../domain/tasks.js'
 import type { ReminderRefusal, TransitionEvent } from '../domain/tasks.js'
+import {
+  createTaskDependency,
+  deleteTaskDependency,
+  readTaskDependencies,
+} from '../domain/task-dependencies.js'
 import { placeTaskInOrder } from '../domain/task-order.js'
 import { restoreTask } from '../domain/trash.js'
 import { routerWithPreamble } from './preamble.js'
@@ -461,6 +467,128 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
           res.status(200).json(outcome.task)
           return
       }
+    },
+  )
+
+  /* ---------------------------------------------------------------- *
+   * Task dependencies (M1-C2, issue #224)
+   * ---------------------------------------------------------------- */
+
+  /*
+  Three endpoints around one directed relation: the task in the path is the
+  **dependent**, and the task in the body is what it waits on. "Blocks…" is
+  the same contract with source and target reversed — to make A block B, the
+  client posts to B naming A — which is why there is no second surface for it
+  and no second row in the table.
+
+  **They are not on the TaskDetail and deliberately not.** Frozen 7.0
+  enumerates that object's keys and the acceptance suite asserts them exactly,
+  so a dependency projection folded into it would be a change to a frozen
+  section rather than an addition beside one. A task's relations are their own
+  read, which is also what lets a row-level client ask for them only where it
+  draws them.
+
+  The status grammar is this router's throughout: an inaccessible end of
+  either kind is 404 and never 403 (10.2), a refusal the rows answer rather
+  than the body is 422 naming the field (10.3), and the domain module makes
+  every one of those decisions.
+  */
+
+  router.get(
+    '/tasks/:id/dependencies',
+    requireSession,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const taskId = parsedId(res, req.params.id)
+      if (taskId === null) return
+      const found = await readTaskDependencies(db, viewer(req), taskId)
+      if (found === null) {
+        notFound(res)
+        return
+      }
+      res.status(200).json(found)
+    },
+  )
+
+  router.post(
+    '/tasks/:id/dependencies',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const taskId = parsedId(res, req.params.id)
+      if (taskId === null) return
+      const parsed = parseBody(postTaskDependencyBody, req, res, securityLog)
+      if (parsed === null) return
+      const result = await createTaskDependency(
+        db,
+        viewer(req),
+        taskId,
+        parsed.blocking_task_id,
+      )
+      switch (result.kind) {
+        case 'not_found':
+          // Either end. One answer for both, so the refusal says nothing
+          // about which of the two ids the caller was not allowed to name.
+          notFound(res)
+          return
+        case 'self_dependency':
+          fieldError(
+            res,
+            'blocking_task_id',
+            'must name another task, because a task cannot wait on itself',
+          )
+          return
+        case 'cycle':
+          fieldError(
+            res,
+            'blocking_task_id',
+            'must not already depend on this task, directly or through others',
+          )
+          return
+        case 'exists':
+          // The pair was already related, so nothing was created and the
+          // request asked for a state that already held. 200 with the edge
+          // that is there, which is what makes a retry safe.
+          res.status(200).json(result.edge)
+          return
+        case 'created':
+          res.status(201).json(result.edge)
+          return
+      }
+    },
+  )
+
+  router.delete(
+    '/tasks/:id/dependencies/:dependencyId',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const taskId = parsedId(res, req.params.id)
+      if (taskId === null) return
+      const dependencyId = parsedId(res, req.params.dependencyId)
+      if (dependencyId === null) return
+      // 404 for an edge that is not there, which is this repository's normal
+      // delete semantics (DELETE /connections/:userId, DELETE /tasks/:id)
+      // rather than an idempotent 204: a caller naming an edge that does not
+      // touch this task has asked for something that was never true.
+      const result = await deleteTaskDependency(
+        db,
+        viewer(req),
+        taskId,
+        dependencyId,
+      )
+      if (result === 'not_found') {
+        notFound(res)
+        return
+      }
+      res.status(204).end()
     },
   )
 

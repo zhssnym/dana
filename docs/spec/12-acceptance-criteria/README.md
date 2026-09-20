@@ -100,6 +100,18 @@ default, so read this list before spending one.
   being ordinary where a collision is a duplicate test filename. **No total moves with it**,
   on the AC-410 and AC-411 precedent: the count at the top and 12.23's row in the table below
   belong to whichever merge comes last rather than to one of two branches open at once.
+- **AC-440 to AC-447 were taken on 2026-09-20** (issue #224, task dependencies), and they
+  were taken from **440** rather than from 423, which the sentence above names as next.
+  Three branches were open at once that day; 423 was assigned to one of them and the range
+  above it was being spent by another, so this branch stepped over the whole of it rather
+  than take a number a sibling might already hold — the same move the AC-411 and AC-413
+  bullets record, over a range instead of over a single number. **423 to 439 are therefore
+  not free by default and are deliberately not added to the list above**, on the AC-377
+  bullet's rule: whichever merge comes last is the one that can see what the siblings
+  actually spent, and listing a number free that another branch has just taken is the
+  collision this rule exists to prevent. The eight are 12.6's. **No total moves with them**,
+  on the AC-410 and AC-411 precedent: the count at the top and 12.6's row in the table below
+  belong to the last merge rather than to one of three branches open at once.
 - **AC-413 was taken from the tail on 2026-09-04** (issue #167), on the rule the AC-361 to
   AC-365 bullet below states, and it is 12.9's, beside AC-375 whose gate it leans on: a
   picture on a shelf page had no folder to be uploaded into, so `POST /files { kind: image }`

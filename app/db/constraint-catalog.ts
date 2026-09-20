@@ -808,4 +808,57 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
       {name:'page_document_receipts_actor_id_fkey',columns:['actor_id'],references:{table:'users',columns:['id']},onDelete:'cascade'},
       {name:'page_document_receipts_folder_id_fkey',columns:['folder_id'],references:{table:'folders',columns:['id']},onDelete:'cascade'},
     ],
-  },}
+  },
+  /* Migration 0019, issue #224: one directed row, dependent depends on
+     blocking, and "blocks" is the same row read from the other end. The
+     surrogate primary key is what lets an edge whose far task the viewer
+     cannot read be named for removal without handing back that task's id; the
+     pair unique is the relation's real identity, and its own index is what
+     every depends_on read leads with. The self-edge CHECK is the one cycle a
+     constraint can see — every longer one is the domain module's, before the
+     write. Both endpoints cascade so that a permanent delete takes the
+     relations and a soft delete leaves them standing. */
+  task_dependencies: {
+    primaryKey: { name: 'task_dependencies_pkey', columns: ['id'] },
+    uniques: [
+      {
+        name: 'task_dependencies_pair_key',
+        columns: ['dependent_task_id', 'blocking_task_id'],
+      },
+    ],
+    checks: [
+      {
+        name: 'task_dependencies_no_self_edge_check',
+        columns: ['blocking_task_id', 'dependent_task_id'],
+      },
+    ],
+    foreignKeys: [
+      {
+        name: 'task_dependencies_blocking_task_id_fkey',
+        columns: ['blocking_task_id'],
+        references: { table: 'tasks', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+      {
+        name: 'task_dependencies_created_by_fkey',
+        columns: ['created_by'],
+        references: { table: 'users', columns: ['id'] },
+        onDelete: 'restrict',
+      },
+      {
+        name: 'task_dependencies_dependent_task_id_fkey',
+        columns: ['dependent_task_id'],
+        references: { table: 'tasks', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+    ],
+    indexes: [
+      {
+        name: 'task_dependencies_blocking_task_id_idx',
+        unique: false,
+        columns: ['blocking_task_id'],
+        partial: false,
+      },
+    ],
+  },
+}

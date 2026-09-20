@@ -315,11 +315,19 @@ describe('AC-399 no route parses a request body except through parseBody', () =>
        and the diff, where the module is gone rather than merely quiet. The
        module count falls with it, 11 to 10: `auth/settings.ts` was the whole
        of that module's body reading, so it leaves the list rather than
-       shrinking inside it. */
+       shrinking inside it.
+
+       **29 to 30 on 2026-09-20** for `POST /tasks/:id/dependencies` (issue
+       #224), the one body-taking route of that slice; its two siblings take
+       no body at all. The module count does not move: `routes/tasks.ts` was
+       already reading bodies, so the new call site joins a module that is
+       already on the list. The sweep above passed on the new route before
+       this number was touched, which is the condition the paragraph above
+       sets. */
     expect(
       sites.length,
-      `parseBody is called from ${String(sites.length)} places and there were 29 after issue #184 added the composed-page action route. Fewer means a route stopped using it, and the sweep above is what says whether it went back to req.body; more means a body-taking route was added, and this number moves with it in the same change`,
-    ).toBe(29)
+      `parseBody is called from ${String(sites.length)} places and there were 30 after issue #224 added the task-dependency create. Fewer means a route stopped using it, and the sweep above is what says whether it went back to req.body; more means a body-taking route was added, and this number moves with it in the same change`,
+    ).toBe(30)
     expect(
       [...modules].sort().length,
       `${String(modules.size)} modules read a request body and there were 10 on 2026-09-04: ${[...modules].sort().join(', ')}`,
