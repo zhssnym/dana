@@ -13,14 +13,19 @@ a block nobody touched, on every save, for the life of the page — and the
 suite would read green because AC-660 only asks that the relation survive.
 
 **What makes it pass is that the baseline and the save are the same
-projection.** `folderRefsOf` is read once from the page the editor was
-hydrated from and handed to `dehydrateCanvas` at every call site, so the
-writer's baseline holds the reference exactly as the next projection will, and
+projection.** `folderRefsOf` is read from the page the server last answered
+with — the same page `CanvasWriter` rebases its baseline on after every commit
+— and handed to `dehydrateCanvas` at every call site, so the writer's baseline
+holds the reference exactly as the next projection will, and
 `canvasOperations` emits a record only for a block whose projection moved.
 Restoring the kind later, out of a baseline that had already lost it, is the
 shape that cannot do this: `backend/250-canvas-save-path` is the branch that
 found that a baseline built from the editor's own rendering has nothing to
 restore from.
+
+*(That source was `initialPage`, the page the editor was hydrated from, until
+AC-663. It is the same map on the one save this criterion measures and a stale
+one several saves later, so nothing asserted here moved with that change.)*
 
 Spec 4.17, 7.16, 12.9. Issue #255.
 */

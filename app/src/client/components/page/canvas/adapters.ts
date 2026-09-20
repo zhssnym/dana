@@ -97,11 +97,18 @@ export function richRuns(block: CanvasBlock): RichRun[] {
  * `ref_folder_id` null — the link surviving as a rich-content run, so the
  * person sees a working link and the relation is gone (issue #255). This map
  * is the page's own answer to "which of these paragraphs is really a
- * reference", read from the page the editor was hydrated from, and it is the
- * only source: an href in the content is the person's text, and a paragraph
- * that merely contains a folder link must not become a relation, because
- * `page_blocks_ref_folder_id_fkey` is ON DELETE CASCADE and would take that
- * paragraph with the folder.
+ * reference", and it is the only source: an href in the content is the
+ * person's text, and a paragraph that merely contains a folder link must not
+ * become a relation, because `page_blocks_ref_folder_id_fkey` is ON DELETE
+ * CASCADE and would take that paragraph with the folder.
+ *
+ * **Which page to read it from is the caller's decision and it is not free.**
+ * The page the editor was *hydrated* from is the wrong one: the session
+ * outlives many saves, so a map taken there keeps an entry for a block a save
+ * has already converted, and the projection below puts the relation back on
+ * the person's next keystroke. `FolderCanvas` reads it from the query row the
+ * writer writes back after every save, and carries the measurement; AC-663
+ * pins it.
  *
  * A reference with no folder is left out. `shelfItemsOf` drops one on read for
  * the same reason, and carrying a null relation would write a `folder_ref`
@@ -147,10 +154,26 @@ export function dehydrateCanvas(blocks: readonly CanvasBlock[], columnWidth: num
            the same test the structured carry below makes: a block the person
            has deliberately retyped as a heading or an image is a conversion
            they asked for, and restoring the relation onto it would undo a
-           gesture rather than preserve one. `rich_content` goes with the kind —
-           `page_blocks_rich_content_check` and `put_block` both refuse it on a
-           `folder_ref` — and `hydrateCanvas` rebuilds the link from the
-           relation on the next read, so nothing the person can see is lost. */
+           gesture rather than preserve one. The map answering that question
+           has to follow the server rather than the page the editor was
+           hydrated from, or the conversion is reverted one save later;
+           `FolderCanvas` carries why, and AC-663 pins it.
+
+           **`rich_content` goes with the kind, and on this kind it costs
+           something.** `page_blocks_rich_content_check` and `put_block` both
+           refuse rich content on a `folder_ref`, so a reference keeps its
+           words and loses its runs: bold and italic are dropped, and a second
+           link typed inside it is dropped with them. `hydrateCanvas` then
+           draws the whole remaining string as one link to the folder, so a
+           reference typed as "Design notes **urgent**[elsewhere](…)" comes
+           back as "Design notes urgentelsewhere" under a single folder link.
+           That is a real loss and it is still the ruling, because the
+           alternative is not a better projection but a 422: the database
+           refuses the column on this kind, and a save that will not save is
+           worse than a style that will not survive — the same direction the
+           structured carry below argues at length. On `main` those runs
+           survived and the relation did not, which is this loss pointed the
+           other way. AC-665 pins it, with two runs and a style. */
         const reference = block.type === 'paragraph' ? folderRefs.get(block.id) ?? null : null
         result.blocks.push({ id: block.id, block_kind: block.type === 'heading' ? 'section' : image ? 'image' : reference !== null ? 'folder_ref' : 'paragraph', text: image ? block.props.caption : runs.map((run) => run.text).join(''), rich_content: image || reference !== null ? null : { version: 1, runs }, file_id: fileId, ref_folder_id: reference, width_pct: image ? Math.max(25, Math.min(100, Math.round((block.props.previewWidth || columnWidth) / columnWidth * 100))) : null, checked: null })
       }

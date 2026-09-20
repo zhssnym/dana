@@ -148,6 +148,26 @@ async function seedFolder(name: string): Promise<string> {
  * writes shelf pages, which are not this editor's. So the defect is real on
  * the path and its population is a question only production data answers.
  * Issue #255 says so and calls it the multiplier on the whole thing.
+ *
+ * **And what 4.17's "shelf pages only" means, which is the fourth thing and
+ * the one a reader of this file will ask about first.** 4.17 gives
+ * `ref_folder_id` as "FK folders(id) ON DELETE CASCADE; folder_ref kind,
+ * shelf pages only", and this change makes the folder-page client emit
+ * `block_kind: 'folder_ref'` for the first time. **Hassan ruled on 2026-09-20,
+ * on issue #255, that the clause describes where these blocks are *authored*
+ * and not where they may be stored, and that 4.17 therefore does not move**;
+ * no frozen section changes with this work. Three facts settle it and each is
+ * checkable from this tree. The branch **preserves rather than composes** — the
+ * paragraph above is that finding, and it is why carrying a relation the person
+ * did not ask to destroy is not the same act as creating one. Folder-page
+ * `folder_ref` rows **already exist**: `app/db/seed.ts` writes one
+ * (`blockNadiaFolderRef`) with `folder_id` set and `shelf_id` NULL, and the
+ * only constraints on the column are `page_blocks_ref_folder_id_fkey` and a
+ * partial index — **no CHECK forbids it** — so reading the clause as a storage
+ * constraint would make Dana's own seeded database non-conforming. And 7.16
+ * admits `ref_folder_id` on a folder-page transaction and says nothing about
+ * shelves. The clause does not license destroying a reference that is already
+ * there, which is what `main` did.
  */
 async function seedReferencePage(name: string): Promise<{ folder: string; referenced: string; prose: string; reference: string; page: PageView }> {
   const folder = await seedFolder(`${name} page`)

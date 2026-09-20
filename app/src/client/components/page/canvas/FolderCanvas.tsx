@@ -61,12 +61,31 @@ function CanvasSession({ page, initialPage, folderId, tasks, context, actions, o
   const [recovery, setRecovery] = useState(false)
   const [previousDraft, setPreviousDraft] = useState<string | null>(null)
   const initial = useMemo(() => hydrateCanvas(initialPage, width), [initialPage, width])
-  /* Read from the same page the editor was hydrated from, because the block
-     ids it keys are that page's. This session remounts on a new `initialPage`
-     (FolderCanvas keys on the checkpoint epoch), so the map cannot go stale
-     under the editor, and this editor can never make a `folder_ref` — only
-     lose one — so it never needs to grow. */
-  const folderRefs = useMemo(() => folderRefsOf(initialPage), [initialPage])
+  /* Which of these block ids the server *currently* stores as a reference, so
+     it is read from `page` — the query row `onSaved` writes back after every
+     save — and never from `initialPage`, which the editor's content comes from.
+     The two differ on purpose and reading both from `initialPage` is wrong in
+     one direction.
+
+     This session does not remount after an ordinary save. `onCheckpoint` fires
+     only for a transaction carrying `create_task`, and the reconciliation
+     effect below returns early while `page.revision === writer.revision`, so a
+     map taken at mount keeps an entry for a block long after a save wrote
+     `ref_folder_id: null` for it. BlockNote keeps a block's id across a type
+     conversion and `dehydrateCanvas` re-applies the entry to whatever is a
+     paragraph under that id, so reference → heading → paragraph inside one
+     mounted session put the relation back and dropped the rich content the
+     block gathered while it was a heading — a deliberate conversion silently
+     reverted, and `page_blocks_ref_folder_id_fkey` being ON DELETE CASCADE,
+     the folder then took the paragraph with it. Measured through this
+     component against a real database in issue #255's review; AC-663 is it.
+
+     `page` follows the server, so the entry goes as soon as the conversion
+     lands. **What that does not close is the round trip itself**: a conversion
+     and its undo inside one save's flight read a map nothing has updated yet,
+     and the relation is restored. That window is one request long, where the
+     one above was the whole life of the session. */
+  const folderRefs = useMemo(() => folderRefsOf(page), [page])
   const editor = useCreateBlockNote({
     schema: canvasSchema,
     initialContent: initial.length ? initial : [{ id: crypto.randomUUID(), type: 'paragraph', content: '' }],
