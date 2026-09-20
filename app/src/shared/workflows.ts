@@ -262,11 +262,31 @@ const canonicalWorkflowBody = z
     renamed after the other was written — and from any hand-edited or
     third-party version 3 file.
 
-    **The fold is JavaScript's and the index's is Postgres's**, and they are
-    two implementations of Unicode lowercasing rather than one. They agree on
-    everything a Label name is likely to hold; where they ever did not, the
-    index still refuses the row, so the residue is the 500 this check exists to
-    remove and never a duplicate that gets in.
+    **The fold is JavaScript's and the index's is Postgres's, and they are two
+    implementations of Unicode lowercasing rather than one. Measured rather
+    than assumed**, 2026-09-20, against a database built with the test leg's
+    own clause (`LC_COLLATE 'C' LC_CTYPE 'C.UTF-8'`, libc, the #235 fallback a
+    server below 17 gets): of eight sample names, six fold identically and two
+    do not. `İstanbul` — Postgres drops the combining dot, JavaScript keeps it.
+    And a Greek word ending in Σ — Postgres writes a medial sigma, JavaScript
+    the final one.
+
+    **Both disagreements are in the safe direction, and the direction is the
+    whole of what matters here.** In each, this fold is the *looser* of the
+    two: the pair passes here, reaches the index, and the index refuses it. So
+    the residue is the original 500 on a pair of exotic names, never a
+    duplicate row. The opposite direction is possible in principle — a fold
+    this check makes and the index does not, which would be a 422 for a file
+    the database would have taken — and it is the common case for any
+    non-ASCII name on a database whose ctype is plain `C`, which folds ASCII
+    only. **No database this application runs on is built that way**: 11.10's
+    statement and the #235 fallback beside it both fix a Unicode-aware ctype,
+    and `postgres-leg.ts` records why the fallback could not use `C`.
+
+    Closing the residue needs `createWorkflowFolderLabels` to map the 23505 the
+    way `insertLabel` already does. That is a second change with a second
+    decision in it — what a *file* should be told when the collision is one
+    only the database can see — and it is deliberately not made here.
 
     **And every key a task names is declared by its own folder.** An undeclared
     key is refused rather than dropped, which is the one place this file parts
