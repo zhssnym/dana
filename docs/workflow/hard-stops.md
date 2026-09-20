@@ -23,7 +23,7 @@ and finding that out costs a minute.
 | **A change to spec section 4 or 7** | Those two are frozen. Get a **ruling comment on the issue before the code**: a product ruling is Imran's, a technical ruling is Hassan's. The pull request quotes it or links to it. |
 | **A field on a request schema** in `app/src/shared/` | The field, **the server code that reads it**, and **an acceptance criterion that proves the value arrives**, all in the same change. |
 | **A source in the Content Security Policy** — `securityHeaders` in `app/src/server/index.ts` | Name the source and what it is for in the pull request, and check it in a real browser rather than in a test. |
-| **A new route that takes an id** | Write the `accessOf(...)` gate, and write the route's row in `app/tests/ac-397-authorization-sweep.test.ts` saying what a stranger gets. Both, in the same change. |
+| **A new route that takes an id** | Write the `accessOf(...)` gate, and write the route's row in `app/tests/criteria/ac-397-authorization-sweep.test.ts` saying what a stranger gets. Both, in the same change. |
 | **Renaming a `localStorage` or `sessionStorage` key** | Never. There is no rule that releases this one. |
 | **Deleting or weakening an acceptance criterion** | A criterion changes only when **the decision it pins** changes. The pull request names the criterion, says which decision moved, and links the issue where that was decided. |
 | **A value in `app/src/client/styles/tokens.css`, or anything in `app/src/client/parts/presenters.ts`** | Declare it in the pull request, file and line, with what it looked like before and after. No acceptance criterion sees either. |
@@ -124,8 +124,8 @@ now stand where the list used to.
 the gate, and say in the pull request what you were unsure about. Whoever merges reads that
 sentence first.
 
-**And a gate that could not run all seven steps is not a green one.** `npm run gate` says
-`GATE: incomplete` rather than green when a step of 11.11's seven did not run — the usual
+**And a gate that could not run all six steps is not a green one.** `npm run gate` says
+`GATE: incomplete` rather than green when a step of 11.11's six did not run — the usual
 reason being a machine with no `TEST_DATABASE_URL` — and a pull request needs green. That is
 a one-time setup rather than a hard stop: spec 11.10 carries the `CREATE DATABASE` statement,
 and once it is run the leg runs with everything else.

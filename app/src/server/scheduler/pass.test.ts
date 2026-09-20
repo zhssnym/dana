@@ -41,7 +41,7 @@ import { sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
 
 import type { Db, DbClient } from '../../../db/client.js'
-import { createTestDb, rows } from '../../../tests/helpers.js'
+import { createTestDb, rows } from '../../../tests/support/helpers.js'
 import type { OutboundMessage } from '../notify/index.js'
 import { secondsSinceLastPass } from '../routes/health.js'
 import { createReminderPass } from './pass.js'

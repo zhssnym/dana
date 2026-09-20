@@ -26,7 +26,7 @@ whoever merges arrives.
    branch, and check whether it says the tree was dirty. **A record for a different commit
    measured something else, and a record from a dirty tree measured a tree nobody can
    reconstruct.** The last line must read `GATE: green`: `GATE: incomplete` means a step of
-   the seven did not run, and it is not a gate however good its reason. Read the tallies
+   the six did not run, and it is not a gate however good its reason. Read the tallies
    rather than the word beside them — a row with a file count is a measurement, and a row
    without one should not have been `ok` at all.
 3. **Do the claims match the evidence?** A criterion the pull request says it moved, and the

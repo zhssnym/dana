@@ -159,7 +159,7 @@ function defaultDiskStore(): ObjectStore {
  * It is a literal rather than a digest computed at boot because createApp
  * performs no I/O (11.10) and because the file it would read does not exist
  * in a source checkout that has never built. What keeps it honest is
- * `tests/ac-238-response-security-headers.test.ts`, which recomputes the
+ * `tests/criteria/ac-238-response-security-headers.test.ts`, which recomputes the
  * digest from the shell document itself, preferring the built
  * `dist/client/index.html` the browser is actually served and falling back
  * to `app/index.html` when nothing has been built, and fails if `script-src`
@@ -319,7 +319,7 @@ export function createApp(options: AppOptions = {}): express.Express {
     and over 'unsafe-inline' because widening the one directive that decides
     whether an injected script runs, in order to remove a flash, is not a
     trade worth making. The literal below is the digest of that script's
-    body, and `tests/ac-238` recomputes it from the shell document rather
+    body, and `tests/criteria/ac-238` recomputes it from the shell document rather
     than importing it, so an edit to the script fails the suite instead of
     silently restoring the flash.
   - img-src blob:: the client turns a chosen File into an object URL and

@@ -16,7 +16,7 @@ import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
 import type { Db, DbClient } from '../../../db/client.js'
-import { createTestDb, rows } from '../../../tests/helpers.js'
+import { createTestDb, rows } from '../../../tests/support/helpers.js'
 import { inTransaction } from '../database.js'
 
 import { applySeriesGuard, SERIES_MOVED_ON } from './series-guard.js'

@@ -30,7 +30,7 @@ describe('localDateOf and today', () => {
   })
 
   test('the harness zone pair reads the two dates its header claims', () => {
-    // tests/views-harness.ts substitutes Pacific/Kiritimati and
+    // tests/support/views-harness.ts substitutes Pacific/Kiritimati and
     // Pacific/Honolulu for the criterion's pair and states that at the
     // criterion's instant they read 2026-07-24 and 2026-07-23. Checked here
     // rather than imported: the harness deliberately never imports this

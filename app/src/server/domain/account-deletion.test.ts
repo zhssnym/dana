@@ -26,7 +26,7 @@ import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
 import type { Db, DbClient } from '../../../db/client.js'
-import { createTestDb, rows } from '../../../tests/helpers.js'
+import { createTestDb, rows } from '../../../tests/support/helpers.js'
 import { deleteAccountData } from './account-deletion.js'
 import { inTransaction } from '../database.js'
 

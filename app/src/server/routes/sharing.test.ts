@@ -36,23 +36,23 @@ import {
   getInvitesPendingResponse,
   postInvitesResponse,
 } from '../../shared/invites.js'
-import type { AuthTestApp, EmailRecorder } from '../../../tests/auth-harness.js'
+import type { AuthTestApp, EmailRecorder } from '../../../tests/support/auth-harness.js'
 import {
   Cast,
   connect,
   createFolder,
   expectStatus,
   membershipUserIds,
-} from '../../../tests/folders-harness.js'
-import type { Actor } from '../../../tests/folders-harness.js'
-import { createTestDb } from '../../../tests/helpers.js'
-import { startOidcStub } from '../../../tests/oidc-stub.js'
-import { TestBrowser } from '../../../tests/http-client.js'
+} from '../../../tests/support/folders-harness.js'
+import type { Actor } from '../../../tests/support/folders-harness.js'
+import { createTestDb } from '../../../tests/support/helpers.js'
+import { startOidcStub } from '../../../tests/support/oidc-stub.js'
+import { TestBrowser } from '../../../tests/support/http-client.js'
 import {
   backdateLastSent,
   freshEmail,
   signInActorWithEmail,
-} from '../../../tests/sharing-harness.js'
+} from '../../../tests/support/sharing-harness.js'
 import { createAuthRouter } from '../auth/index.js'
 import type { AuthConfig } from '../auth/index.js'
 import { attachNotifier, createNotifier } from '../notify/index.js'
