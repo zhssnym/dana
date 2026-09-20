@@ -75,8 +75,8 @@ export function OfflineBanner({ className }: { className?: string }) {
  * "Try again" control of that section's control table.
  *
  * `onRetry` is a callback and this component performs no refetch itself,
- * which is the rule for everything in this directory. AC-171 presses the
- * control and asserts the read happened, so a page that renders this state
+ * which is the rule for everything in this directory. AC-171 (no test since the 2026-09-20 cut)
+ * presses the control and looks for the read, so a page that renders this state
  * without wiring the callback has rendered a control that does nothing.
  */
 export function InlineError({ onRetry }: { onRetry?: () => void }) {

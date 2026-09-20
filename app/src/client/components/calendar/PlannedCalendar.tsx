@@ -54,8 +54,8 @@ has.
 **A ghost is a projection and is drawn as one.** 9.5 requires ghost styling
 for virtual instances, and his treatment is a dashed outline, a transparent
 fill, the quieter text colour and the repeat glyph in place of the folder dot.
-AC-098 reads the computed style off the title of a ghost and off the title of
-a real row and asserts they differ, which is what "ghost styling" has to mean
+AC-098 (no test since the 2026-09-20 cut) reads the computed style off the title of a
+ghost and off the title of a real row and looks for a difference, which is what "ghost styling" has to mean
 if it is to mean anything a reader can check. Clicking one opens the series'
 current occurrence with 9.5's banner, and clicking a real row opens it
 without: the banner rides the ghost path alone because the opened row shows a

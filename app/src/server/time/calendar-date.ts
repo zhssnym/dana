@@ -145,7 +145,9 @@ export function earliestDate(...dates: readonly CalendarDate[]): CalendarDate {
 /**
  * Inclusive on both ends, which is the reading Q3C's "start and end dates,
  * inclusive" fixes and the one the 62-day span is measured against: a span of
- * 62 admits 63 dates, and AC-125 pins that boundary from both sides.
+ * 62 admits 63 dates, and AC-125 states that boundary from both sides. **It states it
+ * and nothing runs it**: AC-125's test file went in the 2026-09-20 cut, so the boundary is
+ * held by `calendar-date.test.ts` beside this file and by nothing at the wire.
  */
 export function withinInclusive(
   date: CalendarDate,

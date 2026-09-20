@@ -562,7 +562,8 @@ function SurfaceChrome({
         saying it twice by the same measure.
 
         **The measured cost of repeating it is larger than clutter.** AC-178
-        asserts that an open task's surface says nothing matching /completed/i,
+        (no test since the 2026-09-20 cut) refuses an open task's surface saying
+        anything matching /completed/i,
         which is how it proves the history block "renders the completion only
         when the task has one". A title read as text puts every word of the
         task's own name into that assertion, and one of the seeded tasks is

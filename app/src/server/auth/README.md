@@ -96,7 +96,7 @@ GitHub issue; `docs/workflow/backend.md` is the process.
   qualifier writes them `skipped`, which the probe confirms. 8.6's ruling of
   2026-08-10 then puts them outside the timezone trigger, in the sentence
   AC-154's third case transcribes: "a skipped row is outside the timezone
-  trigger too". The case asserts the two instants move; the ruling says they do
+  trigger too". The case said the two instants move; the ruling says they do
   not. No implementation satisfies both, and this module cannot resolve it
   without contradicting settled spec text or the engine it imports.
   Recommendation, verified against the engine before being written down: the

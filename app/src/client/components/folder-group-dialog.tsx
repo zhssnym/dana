@@ -7,8 +7,8 @@ creating one is naming it on a folder and renaming one rewrites that label on
 every folder carrying it. That is why the create mode picks folders and the
 rename mode does not: with no folder selected there is nothing to write the
 label to, and a group that exists nowhere is a group this data model cannot
-hold. AC-180 asserts creating, renaming, moving a folder between groups and
-deleting a group.
+hold. AC-180 (no test since the 2026-09-20 cut) names creating, renaming, moving a
+folder between groups and deleting a group.
 
 Deleting a group is not here, and that is deliberate rather than missing.
 9.1 gives it a confirmation with normative copy, "Delete folder group? {N}
@@ -137,7 +137,7 @@ export function FolderGroupDialog({
             </DialogTitle>
             {/* polish: sidebar F5 and shelves F1 found this dialog together.
                 The create sentence is the shell fixer's, because sidebar F9
-                made an empty shelf legal and AC-313 asserts one: a sentence
+                made an empty shelf legal and AC-313 names one (no test since the 2026-09-20 cut): a sentence
                 asking for at least one folder would describe a rule this
                 dialog no longer keeps. */}
             <DialogDescription>

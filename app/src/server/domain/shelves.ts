@@ -239,7 +239,8 @@ export async function patchShelf(
       the right gate rather than the wrong one. A fix written from the deferral
       sentence alone would have gated folder pages and left shelf pages ungated
       — where the folder-less pictures this change introduces live. `putPage`
-      carries both halves; AC-375 asserts both.
+      carries both halves; AC-375 states both, and states rather than checks
+      them, its test file having gone in the 2026-09-20 cut.
       */
       let coverFileId = patch.cover_file_id
       if (patch.cover_file_id !== undefined && patch.cover_file_id !== null) {

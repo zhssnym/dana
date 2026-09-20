@@ -188,7 +188,8 @@ difference from his files.** His star, overflow and un-pull controls animate
 from zero width and are revealed by hover or by focus within the row, so at
 rest each has a bounding box of 0 by 40. Four criteria act on those controls
 from a page they have just loaded, without hovering: AC-157, AC-162 and AC-183
-open a row's "More actions", and AC-165 asserts the un-pull control on My Day.
+open a row's "More actions", and AC-165 reaches the un-pull control on My Day.
+Of the four only AC-183 still runs; the other three went in the 2026-09-20 cut.
 9.1's addressing sentence is what settles it rather than the tests, every
 control section 9 names being reachable by its role and its name, and 9.4
 listing all three as row elements. So the reveal is opacity alone and the box
@@ -358,7 +359,7 @@ the role that owns the file.
   forbids, and routed the file and its two exemption lines to this package
   together. Both notes that stood here, about rendering it inside `main` and
   about its `onUpdate` fallback, went with it; the first is now the window
-  bar's and AC-174 still asserts the absence of a banner on every page.
+  bar's and AC-174 still states the absence of a banner on every page (no test since the 2026-09-20 cut).
 
 ## One escalation open against this directory
 

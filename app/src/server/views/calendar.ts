@@ -33,7 +33,7 @@ scopes the projection by three things, accessible, pending and rule-carrying,
 and by nothing else; in particular not by the task's own due_date lying inside
 the requested range, which is the real-row predicate and belongs to the real
 rows alone. Projecting off the BETWEEN-bounded result set is one line shorter,
-passes AC-082 outright, whose current occurrence sits inside its own grid, and
+would have satisfied AC-082 outright, whose current occurrence sits inside its own grid, and
 silently empties every month-ahead view of a series anchored before the range,
 which is the ordinary way a repeating task is looked at. AC-143 exists to fail
 against that implementation, and section 12 records the reading beside it.

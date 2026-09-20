@@ -37,7 +37,7 @@ contract enforces neither because the server does (10.2).
 **Order is data.** The groups run: reach it, change it, copy it, stop it,
 destroy it. Destructive last and behind a separator, everywhere, because a
 menu whose dangerous item moves is a menu you cannot use without reading.
-AC-246 asserts the order and not only the set.
+AC-246 names the order and not only the set (no test since the 2026-09-20 cut).
 
 **The ellipses are the designer's after all, and 9.1 now says so.** This
 paragraph used to read that three of his labels were Dana's instead, and the
@@ -55,7 +55,7 @@ AC-183 read them, reworked red first at S24 under persona 11.
 
 The third of the three stands and is unrelated: the
 folder's move was "Move to group" rather than his "Move to shelf" until S17b,
-because that was what AC-180 asserted on the surface that had it and because
+because that was what AC-180 read on the surface that had it (no test since the 2026-09-20 cut) and because
 shelves reaching the Library was that row rather than S17a's. **That row has
 landed and this is the one place the word changed**, which is what the sentence
 this replaces promised. 9.6 fixes the string, "a member's personal shelf

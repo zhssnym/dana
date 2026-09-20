@@ -18,7 +18,8 @@ reader the same thing twice and tells a pointer nothing.
 
 **It is absent on Done and present everywhere else, which is one page fewer
 than his.** His shell also hides it on People and on Settings. 9.1 spells the
-exception as "every page except Done" and AC-096 asserts that page alone, so
+exception as "every page except Done" and AC-096 names that page alone
+(no test since the 2026-09-20 cut), so
 the section decides it; the two extra hides are the kind of divergence 11.13
 routes to the owner rather than to an implementer.
 

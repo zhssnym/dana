@@ -122,7 +122,9 @@ export function StarterOffer(): React.JSX.Element | null {
   if (all.data === undefined) return null
   /*
   Q5 hands All back already partitioned into the dated and the undated, which
-  AC-070 pins as covering every task with no gap and no overlap. So all three
+  AC-070 stated as covering every task with no gap and no overlap. **AC-070 has
+  no test file**: it went in the 2026-09-20 cut, and 06.1's own dated correction
+  says what stands in for it. So all three
   arrays empty is "no task anywhere" in that criterion's own terms, and reading
   one of them would be reading half the account.
   */

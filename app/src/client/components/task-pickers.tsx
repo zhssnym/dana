@@ -666,7 +666,8 @@ point in v1, where 4.8 stored a reminder either way. 9.3's v2 reminder row
 retires one of the two arms in one clause: "requires a due date; **one picker,
 a time on that day**, writing 4.8's time_of_day mode". AC-169 says the same
 from the other side and says why it matters: "A picker offering an offset is
-the v1 control surviving its own row", and AC-212 pins what the write stores.
+the v1 control surviving its own row", and AC-212 names what the write stores
+(no test since the 2026-09-20 cut).
 
 So the presets go and a clock takes their place. What survives from the
 prototype is everything else about the panel: the shape, the width, the

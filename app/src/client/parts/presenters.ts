@@ -433,8 +433,10 @@ export type FolderRowDisplay = Pick<
  *
  * `pending` is 8.11's pending tally, which 7.4 already puts on the Folder
  * object, and `href` is 9.1's routes table read through `routes.ts` rather
- * than spelled again here. AC-175 asserts that the row is a link to this path,
- * and AC-243 that its mark is the one that folder's own page draws.
+ * than spelled again here. AC-175 names the row as a link to this path, and
+ * AC-243 its mark as the one that folder's own page draws. Neither has a test
+ * file since the 2026-09-20 cut, which is worth knowing in this file above all:
+ * `docs/workflow/hard-stops.md` already names it as one no criterion reads.
  */
 export function folderRowDisplay(folder: Folder): FolderRowDisplay {
   const mark = folderMark(folder)

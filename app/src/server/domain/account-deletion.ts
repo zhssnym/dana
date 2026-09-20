@@ -21,7 +21,8 @@ counts what is left of it.
 Nothing here is new machinery. Step 2 is 8.9's transfer with its second
 caller, step 3 is 8.8's cascade, step 4 is 5.3's R-CLEAN, each imported from
 the module that already owns it, so an implementation cannot drift from the
-one AC-016, AC-018 and AC-019 already pin.
+one AC-016, AC-018 and AC-019 already state. None of the three has a test file
+since the 2026-09-20 cut, so they are the decision and not a check.
 */
 import { sql } from 'drizzle-orm'
 

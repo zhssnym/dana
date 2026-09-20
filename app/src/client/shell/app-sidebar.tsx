@@ -13,8 +13,8 @@ than remembered.
 `nav` elements and zero `role="navigation"` in his whole document. 9.1's roles
 table, added at the RFC 0002 change control, fixes the sidebar as a navigation
 landmark on the section's own ground, that it is 9.1's only chrome and holds
-the page set, and a landmark is what lets a person skip to it. AC-174 asserts
-exactly one. The role goes on the vendored `Sidebar`, which spreads unknown
+the page set, and a landmark is what lets a person skip to it. AC-174 names
+exactly one (no test since the 2026-09-20 cut). The role goes on the vendored `Sidebar`, which spreads unknown
 props onto the element that carries the sidebar's own width, so the landmark
 and the thing AC-182 measures are one box.
 
@@ -22,7 +22,7 @@ and the thing AC-182 measures are one box.
 `button` elements carrying `aria-current="page"`, the brand being the only
 anchor anywhere in his sidebar. The same roles table fixes them as links,
 because the routes table makes every page a URL and a page reachable at a URL
-is navigated to; AC-175 asserts both the role and the `href`. They are React
+is navigated to; AC-175 names both the role and the `href` (no test since the 2026-09-20 cut). They are React
 Router `Link`s handed to `SidebarMenuButton`'s `render`, which is how that
 distribution composes with a router, so the anchor is real and the navigation
 is the client's.
@@ -60,7 +60,7 @@ carries `group-data-[collapsible=icon]:hidden`, so collapsing to the rail
 drops Inbox, every shelf and every folder. This file dropped that class and
 kept all of them, on a sentence 9.1 carried at the time, "the width and the
 collapsed state change nothing about what the sidebar holds", and on AC-182,
-which asserts that the rail still reaches every page and every folder. **That
+which has the rail still reach every page and every folder (no test since the 2026-09-20 cut). **That
 sentence is no longer in 9.1**: RFC 0005 rewrote the section and it did not
 survive, so what the rail must hold is no longer stated anywhere except in
 that criterion. The owner ruled on the surface itself on 2026-08-30: a rail
@@ -70,8 +70,9 @@ have open. `railFolderIds` and `RailLibrary` below are that rule; the page
 block, the footer and every control are untouched, so what the rail loses is
 folder rows and nothing else.
 
-**AC-182's third case is red on this and is escalated rather than worked
-around.** It opens Desk, collapses the sidebar and asserts a link for
+**AC-182's third case was red on this and was escalated rather than worked
+around, and the escalation now stands against nothing executable**: that browser
+spec went in the 2026-09-20 cut. It opened Desk, collapsed the sidebar and looked for a link for
 Groceries, a folder on a shelf that nothing has opened, which is exactly the
 row this change stops drawing. Its own header argues from the 9.1 sentence
 quoted above, which that section no longer carries, so the criterion is
@@ -447,8 +448,8 @@ const NAVIGATION_ROW_CLASS =
  * `aria-current` is set here rather than taken from `NavLink`, because which
  * entry is current is a question about the route table and My Day's `/app` is
  * a prefix of every other path in it; deciding it in one place is what keeps
- * the answer from depending on a prop somebody forgets to pass. AC-175
- * asserts the mark on Planned and its absence on My Day in one case.
+ * the answer from depending on a prop somebody forgets to pass. AC-175 names
+ * the mark on Planned and its absence on My Day in one case (no test since the 2026-09-20 cut).
  */
 /* polish: places F3, shelves F12: two sidebar disclosures remembered per
    browser, the "More" row and each shelf's fold. Nothing here is a
@@ -1759,7 +1760,8 @@ export function AppSidebar({
    * Absent while the bundle read is in flight or has failed, and the model
    * falls back to 9.1's defaults rather than to an empty list: a sidebar that
    * empties on a failed read strands a person wherever they are standing,
-   * which is AC-095's third case generalised to the pin list.
+   * which is AC-095's third case generalised to the pin list
+   * (no test since the 2026-09-20 cut).
    */
   readonly pinnedViews: readonly string[] | undefined
   readonly folders: readonly Folder[] | undefined

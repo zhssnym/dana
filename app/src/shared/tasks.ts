@@ -1086,8 +1086,8 @@ one-day lead time completed an hour after its due time putting the successor's
 instant an hour in the past. The recommendation is that 8.5's arm take the
 qualifier 7.9's PUT took, since the copy already computes the state and then
 overrides it, which would make all four write paths to this row state one
-rule; AC-150 pins a successor a week out with a 45-minute lead and is
-unaffected either way.
+rule; AC-150 describes a successor a week out with a 45-minute lead and is
+unaffected either way. (AC-150 describes it: its test file went in the 2026-09-20 cut.)
 */
 export const taskTransitionResponse = z.object({
   task: taskDetail,

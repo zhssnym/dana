@@ -117,7 +117,7 @@ Facts the wiring can rely on:
   requests and mount in either order.
 - It reaches no module the boot file does not already construct: no notify
   call site exists on a read surface.
-- Mounting this router is what turns AC-045 to AC-058, AC-070 and AC-125 to
+- Mounting this router is what turned AC-045 to AC-058, AC-070 and AC-125 to
   AC-130 green. Verified before this request was written, by mounting the
   line above locally and running the whole suite, with the mount reverted
   before the commit so the tree this request describes is the tree the boot
@@ -138,7 +138,7 @@ because this boot file is Platform's, so on the committed tree every one of the
 895 of 896 across 111 files on PGlite. The three tests the difference names are
 AC-131's, added since; of the five reds that were escalated, four are repaired
 and green. The fifth is still red and was misdiagnosed rather than repaired:
-`AC-052: on the shared date the all-day row precedes the timed one` asserts
+`AC-052: on the shared date the all-day row precedes the timed one` reached
 across every pending row on the page rather than across the shared date, and
 Q3 sorts by due_date first, so the fixture's own later-dated all-day row sits
 after the shared date's timed rows exactly as the criterion requires. It
@@ -411,9 +411,10 @@ chosen. The rest are the plugin's defaults spelled out.
 - **`clientsClaim: true`** is what makes the worker control the page that
   registered it, without waiting for a second navigation. Without it,
   `navigator.serviceWorker.controller` is null for the whole of a first visit,
-  which is the precondition AC-091, AC-100 and AC-160 each assert before
+  which is the precondition AC-091, AC-100 and AC-160 each took before
   anything else; measured, all six of those cases failed on that one
-  assertion with the plugin otherwise correctly configured.
+  assertion with the plugin otherwise correctly configured. AC-100's browser spec went
+  in the 2026-09-20 cut; AC-091 and AC-160 survive it.
 - **`skipWaiting: false`** is 10.6's no-forced-reload rule and is the plugin's
   default for `registerType: 'prompt'`. It is spelled out because it sits
   beside `clientsClaim` and the pair reads as one decision: the first worker
@@ -430,9 +431,10 @@ chosen. The rest are the plugin's defaults spelled out.
   line: the alternative, Vite's default `app/public/`, is a directory no
   persona owns and would have needed a ruling of its own. **The two files are
   placeholders**, flat 192 and 512 squares in the theme colour, and they are
-  design's to replace under 11.13; AC-163 fetches them and asserts the
-  manifest lists both sizes, which they satisfy, and asserts nothing about
-  what is drawn on them, which is the part that is still owed.
+  design's to replace under 11.13; AC-163 fetched them and read the
+  manifest for both sizes, which they satisfy, and said nothing about
+  what is drawn on them, which is the part that is still owed — and is now the whole of
+  it, that browser spec having gone in the 2026-09-20 cut.
 
 Facts the wiring can rely on:
 

@@ -25,8 +25,13 @@ gates and neither has a read of its own:
 `resolveReference` calls those three functions. The search queries below
 repeat their `FROM` clauses rather than calling them per row, which is the one
 place the two doors are written twice; each query carries the same membership
-join in the same position, and AC-429 asserts the agreement behaviourally
-rather than trusting this paragraph.
+join in the same position. **AC-429 was named here as the criterion that would check
+that agreement behaviourally, and no such criterion was ever written**: issue #223
+landed AC-424 to AC-428 and the number 429 belongs to no bullet in section 12, no file
+under `app/tests/` and no row in the registry (found by
+`app/tests/guards/guard-criterion-citations.test.ts`, issue #257). What holds the two
+doors together is this paragraph and `ac-428-reference-doors-agree-and-grant-nothing`,
+which reaches the same verdict from both doors without reading these `FROM` clauses.
 
 ## Ordering, and why there is no cursor
 

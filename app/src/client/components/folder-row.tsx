@@ -8,9 +8,9 @@ Measured against the running prototype on 2026-08-13: every entry in his
 sidebar is a `button`, and the only anchor anywhere in it is the brand. That
 table fixes "the six page entries, and each folder row" as links, on the
 ground the section already carried: the routes table makes every surface a
-URL, and a page you can reach at a URL is navigated to. AC-175 asserts both
-halves, the role and the `href`, and asserts `aria-current` on the row for the
-folder currently open.
+URL, and a page you can reach at a URL is navigated to. AC-175 names both
+halves, the role and the `href`, and names `aria-current` on the row for the
+folder currently open (no test since the 2026-09-20 cut).
 
 So `href` is required. `render` is offered beside it because this client
 routes with React Router in library mode and a router's own link element has
@@ -126,7 +126,7 @@ export interface FolderRowProps {
    */
   qualifier?: string
   pending: number
-  /** 9.1's routes table: `/app/folders/:id`. Asserted by AC-175. */
+  /** 9.1's routes table: `/app/folders/:id`. Named by AC-175 (no test since the 2026-09-20 cut). */
   href: string
   /**
    * The element the row renders as, for a router that owns navigation. It

@@ -16,8 +16,9 @@ had since P5.
 
 **Restore is offered on every row, not only on rows the viewer deleted.**
 9.11 states it: "Anyone with access to the object may restore it, Trash is
-scoped by access, not by who deleted." The server enforces it (AC-190), and
-the page must not be narrower than the rule.
+scoped by access, not by who deleted." It is the server's rule to keep, and
+AC-190 is where it is written down (no test since the 2026-09-20 cut). The page must
+not be narrower than the rule.
 
 **No capture anywhere on the page**, which 9.11 says in terms and which the
 shell honours by the floating button's own rule; this file adds none.
