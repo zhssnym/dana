@@ -176,4 +176,31 @@ describe('prepareWorkflowImport reports partial normalisation', () => {
       'a null is a serialiser spelling "none", which lost nothing',
     ).toBe(false)
   })
+
+  /* The one-folder arrangement, added 2026-09-20 with AC-782, which taught
+     `normalizeWorkflowFile` to carry a top-level `labels` into the folded
+     folder. `sourceFolders` falls back to `[source]` here, so the top-level
+     key is the folded folder's key to this module and the report is unchanged
+     by the fold: a version 1 file's vocabulary is still dropped on the
+     version and still reported. A test rather than a sentence, because the
+     two modules now read one key from two shapes and nothing else would
+     notice them disagreeing. */
+  test('a top-level vocabulary in the one-folder arrangement is reported like any other', () => {
+    const prepared = prepareWorkflowImport(
+      {
+        dana: 'workflow',
+        version: 1,
+        name: 'Launch',
+        labels: ['work'],
+        tasks: [{ title: 'Book room' }],
+      },
+      names,
+    )
+    expect(prepared, 'the file still imports').not.toBeNull()
+    expect(
+      (prepared?.body.folders as Array<Record<string, unknown>>)[0]?.labels,
+      'with the foreign vocabulary gone, the version gating the key wherever it sat',
+    ).toBeUndefined()
+    expect(prepared?.skippedContent, 'and the loss reported').toBe(true)
+  })
 })

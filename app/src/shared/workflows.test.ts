@@ -299,6 +299,60 @@ describe('importWorkflowBody reads a Label vocabulary at version 3, and nowhere 
     ).toBe(true)
   })
 
+  /* The name half of the same rule, added 2026-09-20 with AC-780. Until it
+     existed a file naming one folder's Label twice parsed clean, reached
+     `createWorkflowFolderLabels`' raw INSERT, met 0022's
+     `labels_folder_name_idx` and answered 500. The unit half is here for the
+     reason every case in this block is: the whole suite was green while the
+     rule was absent. */
+  test('a name is declared once per folder too, and case is not a difference', () => {
+    for (const [what, second] of [
+      ['the same name twice', 'Work'],
+      ['the same name in another case', 'wORK'],
+      ['the same name with space around it', '  Work  '],
+    ] as const) {
+      expect(
+        importWorkflowBody.safeParse(
+          v3({
+            labels: [
+              { key: 'l0', name: 'Work', color: '#123456' },
+              { key: 'l1', name: second, color: '#654321' },
+            ],
+          }),
+        ).success,
+        `${what}: labels_folder_name_idx is on (folder_id, lower(name)) and labelName trims, so this pair is one row to the database and 422 here rather than 500 there`,
+      ).toBe(false)
+    }
+    expect(
+      importWorkflowBody.safeParse({
+        dana: 'workflow',
+        version: 3,
+        folders: [
+          { name: 'A', labels: [{ key: 'l0', name: 'Work', color: '#123456' }] },
+          { name: 'B', labels: [{ key: 'l0', name: 'Work', color: '#654321' }] },
+        ],
+      }).success,
+      'and two folders may each hold a "Work", scope being part of identity exactly as it is for the key',
+    ).toBe(true)
+  })
+
+  test('the one-folder fold carries the vocabulary it was handed', () => {
+    const folder = parsed({
+      dana: 'workflow',
+      version: 3,
+      name: 'Launch',
+      labels: [{ key: 'l0', name: 'Work', color: '#123456' }],
+      tasks: [{ title: 'Book the room', labels: ['l0'] }],
+    }).folders[0]
+    expect(
+      folder?.labels?.map((label) => label.key),
+      'a top-level `labels` folds with the top-level work it classifies: rebuilding the folder from name, tasks and items alone dropped the declaration before validation saw it, so the file met 422 about the task or imported with the vocabulary gone',
+    ).toEqual(['l0'])
+    expect(folder?.tasks?.[0]?.labels, 'and the key still joins to it').toEqual([
+      'l0',
+    ])
+  })
+
   test('10.3’s two Label caps are where they were', () => {
     expect(
       importWorkflowBody.safeParse(v3({ labels: labels(250) })).success,

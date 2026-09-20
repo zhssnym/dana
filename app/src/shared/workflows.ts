@@ -228,12 +228,45 @@ const canonicalWorkflowBody = z
       })
     }
     /*
-    The two things a Label key must satisfy that no per-field rule can see.
+    The three things a folder's vocabulary must satisfy that no per-field rule
+    can see.
 
     **Keys are unique within their folder**, because a repeated one makes the
     join ambiguous and there is no honest way to resolve it — the importer
     would have to pick a Label, and picking is what "never merge by name"
     forbids one step later.
+
+    **And names are unique within their folder too, compared without regard to
+    case.** 0022's `labels_folder_name_idx` is on `(folder_id, lower(name))`
+    and the live create path turns its 23505 into the 409 a person typing a
+    second "Urgent" meets; `createWorkflowFolderLabels` has no such handling,
+    so until this check existed a file naming one folder's Label twice reached
+    a raw INSERT and answered **500** with a stack in the log. The transaction
+    rolls back, so nothing is corrupted — what is wrong is that a file
+    contradicting itself is told "Something went wrong" instead of what is
+    wrong with it.
+
+    **Refused here rather than mapped from the SQLSTATE**, for the reason every
+    other rule in this block is here: 7.16's own sentence is that an import
+    "validates name, colour and description by the same rules a live create
+    uses", and refusing before the first write is what makes that a sentence
+    its owner can act on rather than a code. The status is the 422 of the two
+    rules either side of it and not the live create's 409, because those two
+    answer different questions — a 409 is a collision with a catalog that was
+    already there, and this is one file disagreeing with itself, which is
+    exactly what an undeclared key is.
+
+    Dana's own writer cannot emit one: `folderToWorkflowFile` reads a live
+    vocabulary the index has already made unique. This arrives from the cases
+    the writer's own comment names — two files merged by hand, one folder
+    renamed after the other was written — and from any hand-edited or
+    third-party version 3 file.
+
+    **The fold is JavaScript's and the index's is Postgres's**, and they are
+    two implementations of Unicode lowercasing rather than one. They agree on
+    everything a Label name is likely to hold; where they ever did not, the
+    index still refuses the row, so the residue is the 500 this check exists to
+    remove and never a duplicate that gets in.
 
     **And every key a task names is declared by its own folder.** An undeclared
     key is refused rather than dropped, which is the one place this file parts
@@ -243,8 +276,8 @@ const canonicalWorkflowBody = z
     looks imported and is not. The normaliser's rule is about arrangements
     older serialisers wrote; this is a file contradicting itself.
 
-    **Both rules only ever see a version 3 file, and that is what makes the
-    sentence above true rather than merely stated.** `readsLabels` strips every
+    **All three rules only ever see a version 3 file, and that is what makes
+    the sentence above true rather than merely stated.** `readsLabels` strips every
     `labels` key from a file of any other version before this runs, so what is
     left here is a file that declared a vocabulary — which is the only kind of
     file that *can* contradict itself about one. A version 1 file carrying a
@@ -260,6 +293,7 @@ const canonicalWorkflowBody = z
     */
     file.folders.forEach((folder, index) => {
       const declared = new Set<string>()
+      const named = new Set<string>()
       for (const label of folder.labels ?? []) {
         if (declared.has(label.key)) {
           ctx.addIssue({
@@ -269,6 +303,19 @@ const canonicalWorkflowBody = z
           })
         }
         declared.add(label.key)
+        /* `labelName` has already trimmed, so the value compared here is the
+           value the INSERT would carry and a file spelling one of the two
+           with spaces around it is the same collision rather than a new
+           hole. */
+        const folded = label.name.toLowerCase()
+        if (named.has(folded)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['folders', index, 'labels'],
+            message: `labels: the name ${JSON.stringify(label.name)} is declared twice in one folder, and names are compared without regard to case`,
+          })
+        }
+        named.add(folded)
       }
       ;(folder.tasks ?? []).forEach((task, taskIndex) => {
         for (const key of task.labels ?? []) {
@@ -432,15 +479,45 @@ export function normalizeWorkflowFile(value: unknown): unknown {
   let folders: unknown[]
   if (Array.isArray(file.folders)) folders = file.folders as unknown[]
   else {
-    /* The one-folder file: its page and its work at the top level. Folded
-       only where one of the two is actually there, so a file with no
-       `folders` key and nothing to put in one is still refused by the
-       canonical schema rather than turned into an empty folder. */
+    /* The one-folder file: its page, its work and — since #227 — its
+       vocabulary, at the top level. Folded only where the page or the work is
+       actually there, so a file with no `folders` key and nothing to put in
+       one is still refused by the canonical schema rather than turned into an
+       empty folder.
+
+       **`labels` is carried for the same reason `tasks` and `items` are, and
+       leaving it out was a silent loss of exactly the thing #227 exists to
+       stop being silent.** Until this line, a one-folder file declaring a
+       vocabulary at the top level was rebuilt from `name`, `tasks` and
+       `items` alone, so the vocabulary vanished before validation ever saw
+       it: with task keys the file met `folders.0.tasks.0.labels: the key "l1"
+       is not one of this folder's labels`, which names the task for the
+       folder's missing declaration, and with no task keys it imported 201
+       with the classification gone and nothing said about it.
+
+       **The reporter would have seen it and never gets the chance**, which is
+       worth stating because the obvious guess is the opposite one.
+       `workflow-import.ts`'s `sourceFolders` falls back to `[source]` for
+       exactly this arrangement, so a top-level `labels` is the folded
+       folder's `labels` to it; what keeps a version 3 file away from it is
+       `prepareWorkflowImport`'s envelope check, which answers "not a Dana
+       workflow file" to anything but version 1 until issue #260 widens it.
+       So the loss was silent by the route it took rather than by the
+       reporter's reach, and once #260 lands this line is also what stops the
+       reporter calling a carried vocabulary a dropped one.
+
+       Carrying it rather than refusing the arrangement, because the
+       arrangement is honest: this is the shape DES-206's own serialiser
+       wrote, and every other key it wrote at the top level is folded rather
+       than argued with. The version still gates it — `normalizeFolder` drops
+       the key from a file below 3 exactly as it does a per-folder one — so a
+       foreign top-level tag list is dropped and reported, not validated. */
     if (!Array.isArray(file.tasks) && !Array.isArray(file.items)) return file
     const named = typeof file.name === 'string' && file.name.trim() !== ''
     folders = [
       {
         name: named ? file.name : UNNAMED_IMPORT,
+        ...(Array.isArray(file.labels) ? { labels: file.labels } : {}),
         ...(Array.isArray(file.tasks) ? { tasks: file.tasks } : {}),
         ...(Array.isArray(file.items) ? { items: file.items } : {}),
       },

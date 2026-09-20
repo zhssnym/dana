@@ -14,7 +14,7 @@ groups next to it.
 
 ## The next number
 
-**The next number to take from the tail is 706.**
+**The next number to take from the tail is 783.**
 
 **This section is the allocator and `## Numbers` below it is not.** That one is a
 chronological record of what each branch spent and why, written newest-first in places and
@@ -55,6 +55,20 @@ cannot be read from any tree.
 | 640 upward | `frontend/260-workflow-import-version` | no — branch not pushed |
 | 660 upward | `backend/255` | no — branch not pushed |
 | 700–705 | `backend/263-reclaim-sweep-coverage` | yes — six bullets in 12.9 and six files |
+| 780–782 | `backend/227-label-lifecycle`, second pass | yes, three bullets and three test files |
+
+**780 rather than 681, because the three were assigned rather than scanned for.** On
+2026-09-20 the party holding this branch's review named 780 upward and named what was
+already out: 700 to 704 and 750, beside 620 to 622, 660 to 662 and 674. **Not one of those
+is readable from any pushed tree**, so a scan of this tree would have found 681 free and
+would have been wrong about five of the six. That is the AC-540 bullet's rule applied a
+second time — ask for a block rather than scan for one, while more than one branch is
+open.
+
+The line above therefore moves to **783**, one past the highest of the three, which also
+clears every number named as taken. **It is still only true of this tree**, which is what
+the guard checks and all it can check: a sibling that spends 800 tomorrow moves it again,
+and the merge that lands last is the one that can see all of them.
 
 **The gaps between those blocks are not free by default**, on the rule the AC-377 and
 AC-440 bullets below state: whichever merge lands last is the only one that can see what its
@@ -666,8 +680,12 @@ what that sentence is for.
   above, until the merge that comes
   last re-derives it over the files. 12.24's own row in the table below is exact, this being
   a new file that no other branch is writing into. **That last sentence stopped being true
-  on 2026-09-20**: issue #227 wrote its fifteen into the same file, so the row says 27 and
-  the top-of-file count is stale by twenty-six. The bullet is left as written because it
+  on 2026-09-20**: issue #227 wrote its fifteen into the same file, so the row said 27 and
+  the top-of-file count was stale by twenty-six. **And then #227's second pass added three
+  more the same day, so the row says 30 and the top-of-file count is stale by
+  twenty-nine.** The row is re-derived by `grep -c "^- AC-"` over the file rather than by
+  adding to the previous number, which is the check the count at the top of this file is
+  waiting for the last merge to do. The bullet is left as written because it
   was true when written and because the correction is the point — "no other branch is
   writing into it" is a claim about a moment, not a property of a file.
 
@@ -704,4 +722,4 @@ what that sentence is for.
 | 12.21 | [`12.21-transactional-email.md`](12.21-transactional-email.md) | 12.21 Transactional email, 6 criteria |
 | 12.22 | [`12.22-the-public-surface.md`](12.22-the-public-surface.md) | 12.22 The public surface: landing, legal, install, offline, 7 criteria |
 | 12.23 | [`12.23-security-limits-and-rate-limits.md`](12.23-security-limits-and-rate-limits.md) | 12.23 Security, limits and rate limits, 21 criteria |
-| 12.24 | [`12.24-labels.md`](12.24-labels.md) | 12.24 Labels, 27 criteria |
+| 12.24 | [`12.24-labels.md`](12.24-labels.md) | 12.24 Labels, 30 criteria |

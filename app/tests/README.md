@@ -149,6 +149,21 @@ is theirs and sits beside `support/labels-harness.ts` rather than inside it, the
 split being definitions and projections against what happens to them when Work
 moves.
 
+**66 to 69 the same day, from the first adversarial read of that branch**
+(AC-780 to AC-782, spec 12.24's third block). One defect and two uncovered
+shapes, **all three found by reading `shared/workflows.ts` against migration
+0022 and against the writer rather than by any red**, which is the note worth
+keeping: the fifteen above were proved by mutation and the mutation pass could
+not have found any of these, because a mutation pass asks whether a line has a
+watcher and every one of these is a line that was never written. AC-780 is a
+500 the schema now refuses at 422; AC-781 is the file `folderToWorkflowFile`
+actually writes for a real folder — a canvas **and** a vocabulary — which
+AC-547 misses by passing `undefined` for the page; AC-782 is the one-folder
+arrangement dropping the vocabulary before validation saw it. Each was proved
+by breaking the line it watches and watching it go red, and AC-781 by two
+mutations rather than one, it being the only one of the three that was green
+on arrival.
+
 **Every one of the fifteen was proved by breaking the code it watches**, one
 mutation at a time against the real Postgres leg, and two of them were green
 under a mutation the first time and were fixed rather than shrugged at: AC-547's
