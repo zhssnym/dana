@@ -199,6 +199,42 @@ describe('custody and people', () => {
   })
 })
 
+describe('moderating somebody else’s comment', () => {
+  /* AC-790, added 2026-09-20 by issue #268: `comment.moderate` is #228's
+     Full-control list, which the route has resolved since R8A landed and the
+     two conversation surfaces had not — they went on offering Delete on
+     `is_owner`. Transcribed from AC-790 rather than re-derived from
+     `shared/folder-actions.ts`, on this file's own rule. */
+  const EXPECTED: Record<FolderAccessPreset, boolean> = {
+    full_control: true,
+    can_edit: false,
+    can_contribute: false,
+    assigned_work: false,
+    can_comment: false,
+    can_view: false,
+  }
+
+  for (const preset of FOLDER_ACCESS_PRESETS) {
+    test(`${preset} holder who is not the owner: ${String(EXPECTED[preset])}`, () => {
+      expect(folderGates(facts(preset)).moderate).toBe(EXPECTED[preset])
+    })
+  }
+
+  test('the defect, first half: a Full-control member who owns nothing moderates', () => {
+    expect(folderGates(facts('full_control', { isOwner: false })).moderate).toBe(true)
+  })
+
+  test('the defect, second half: an owner demoted to Can comment moderates nothing', () => {
+    expect(folderGates(facts('can_comment', { isOwner: true })).moderate).toBe(false)
+  })
+
+  test('INV-2 is not this gate’s business: the default folder’s own thread is moderated', () => {
+    expect(
+      folderGates(facts('full_control', { isOwner: true, isDefault: true })).moderate,
+    ).toBe(true)
+  })
+})
+
 describe('the successor picker', () => {
   /* Governing #209 R6 section 2, and the server's own `isEligibleSuccessor`:
      a member who currently holds Full control, and nobody else. */

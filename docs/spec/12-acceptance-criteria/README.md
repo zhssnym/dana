@@ -14,7 +14,7 @@ groups next to it.
 
 ## The next number
 
-**The next number to take from the tail is 783.**
+**The next number to take from the tail is 791.**
 
 **This section is the allocator and `## Numbers` below it is not.** That one is a
 chronological record of what each branch spent and why, written newest-first in places and
@@ -56,6 +56,7 @@ cannot be read from any tree.
 | 660 upward | `backend/255` | no — branch not pushed |
 | 700–705 | `backend/263-reclaim-sweep-coverage` | yes — six bullets in 12.9 and six files |
 | 780–782 | `backend/227-label-lifecycle`, second pass | yes, three bullets and three test files |
+| 790 | `backend/268-comment-moderation-on-access` | yes — one bullet in 12.14 and one file |
 
 **780 rather than 681, because the three were assigned rather than scanned for.** On
 2026-09-20 the party holding this branch's review named 780 upward and named what was
@@ -101,6 +102,16 @@ tree rather than assigned. Nothing else in either diff touches the other.
 of it is wrong: `backend/220` holds bullets for AC-490 through AC-507, so only 508 and 509
 are empty there. This is the sort of thing the table above is verified against branches for,
 and the sort of thing a chat message about blocks cannot be.)*
+
+**`backend/268-comment-moderation-on-access` took 790 rather than 706, and the gap between
+them is not free** (written on that branch, 2026-09-20). It was **assigned** rather than read
+off this line: branches open at the same time hold ranges up to 782, and
+`backend/227-label-lifecycle` moves this same line to 783 on its own branch, so taking the
+706 written here would have collided with work that has not merged and cannot be read from
+any tree — the exact failure `guard-criterion-registry` exists to catch one merge too late.
+One number is spent, 790, and the line above is 791. **The resolution when this branch meets
+any of those is the max of the two lines and every row**, which is the rule the #247 and #263
+paragraph above states; nothing else in this diff touches this file.
 
 ## Numbers
 
