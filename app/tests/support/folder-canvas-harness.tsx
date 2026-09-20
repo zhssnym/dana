@@ -1,6 +1,10 @@
 /*
-The harness for AC-464, AC-465 and AC-466: the folder canvas save path driven
-through `FolderCanvas` itself.
+The harness for the folder canvas criteria that are driven through
+`FolderCanvas` itself: AC-464 to AC-466, AC-580, AC-581 and AC-660 to AC-665.
+The database half that five of them need — AC-660, AC-662, AC-663, AC-664 and
+AC-665, a real folder page holding a real `folder_ref` — is
+`folder-ref-page.ts` beside this file, and that file's header says why it is
+not in here.
 
 **Why this renders the component rather than calling the adapters.** The #219
 losslessness guard shipped with a unit test beside it that hand-built the
@@ -10,33 +14,46 @@ guard could never fire and the page was flattened on every save with a green
 suite. The defect lived in the *composition*, so the proof has to be composed:
 these criteria mount the component, let it build its own baseline from its own
 props, drive its own editor, and read what it puts on the wire. Rebuilding that
-composition here would reproduce the mistake exactly.
+composition here would reproduce the mistake exactly. Issue #255 reached the
+same conclusion independently about `folder_ref`, a typed relation this editor
+draws as a paragraph and the projection dropped for exactly that reason.
 
 Two things are doubled and neither is the behaviour under test. `CanvasSurface`
 is replaced by a spy that captures the editor and the change callback, because
 the visual editor is not what these criteria are about and mounting ProseMirror
-under jsdom would be a second thing able to fail. And the API is replaced by
-`applyTransaction` below, which is a deliberately small stand-in for
-`applyDocument`: it records what was sent and answers the page that results, so
-a transaction that loses something answers a page that has lost it, exactly as
-the server would.
+under jsdom would be a second thing able to fail. And the API is replaced: by
+`applyTransaction` below, a deliberately small stand-in for `applyDocument`
+which records what was sent and answers the page that results, so a transaction
+that loses something answers a page that has lost it, exactly as the server
+would — and, for AC-580 and for AC-660 and AC-662 to AC-665, by
+`actOnFolderPage` against a real database, which is the route's own
+composition.
 
 **What that stand-in cannot do is refuse**, and the distinction is worth
 reading before trusting a green here. It writes whatever it is handed, and
-`refusalOf` below runs only the zod half of the contract, so these three
-criteria prove that nothing is *lost* on the way to the server and say nothing
-about whether the server would take it. Issue #250's review found two canvas
-gestures that produced an outline `applyDocument` answers 422 to while all
-three of them stayed green. AC-580 is the half that was missing: it drives the
-component the same way and sends the result through `actOnFolderPage` against a
-real database, which is the route's own composition.
+`refusalOf` below runs only the zod half of the contract, so a criterion that
+stops there proves that nothing is *lost* on the way to the server and says
+nothing about whether the server would take it. Issue #250's review found two
+canvas gestures that produced an outline `applyDocument` answers 422 to while
+AC-464 to AC-466 stayed green. AC-580 is the half that was missing: it drives
+the component the same way and sends the result through `actOnFolderPage`
+against a real database, and AC-660 and AC-662 to AC-665 do the same.
+
+**Two harnesses became this one on the #255 rebase, and that was planned rather
+than discovered.** `backend/255-folder-ref-survives-edit` was written beside
+`backend/250-canvas-save-path` and carried `folder-ref-canvas-harness.tsx` —
+this idea with less in it — under a distinct name, so that two branches editing
+one support file would not collide while both were open. That file's own header
+said to keep this one, move AC-660 to AC-662 onto it and delete it, which is
+what the rebase did; `settled` and `typeInto` below are what came across with
+them.
 */
-import { act, render, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { expect } from 'vitest'
 
 import FolderCanvas from '../../src/client/components/page/canvas/FolderCanvas.js'
-import type { CanvasEditor } from '../../src/client/components/page/canvas/schema.js'
+import type { CanvasBlock, CanvasEditor } from '../../src/client/components/page/canvas/schema.js'
 import { queryKeys } from '../../src/client/api/keys.js'
 import type { RowActions } from '../../src/client/parts/useRowActions.js'
 import type { RowContext } from '../../src/client/parts/presenters.js'
@@ -44,11 +61,31 @@ import { documentTransaction } from '../../src/shared/page-document.js'
 import type { DocumentTransaction } from '../../src/shared/page-document.js'
 import type { PageBlock, PageView } from '../../src/shared/pages.js'
 
-/** What the spy standing in for `CanvasSurface` captures from its props. */
+/**
+ * What the spy standing in for `CanvasSurface` captures from its props.
+ *
+ * `onCreateTask` and `editable` are the other two the real component takes,
+ * and they are here because a criterion that drives Task creation has no other
+ * way in: the gesture starts at the side menu, which this spy replaces.
+ * AC-664 is that criterion and `createTaskThroughTheDialog` below is the
+ * gesture; the two optional props are spelled exactly as `CanvasSurface`
+ * declares them so that the spy stays assignable to it.
+ */
 export interface CanvasSurfaceSpy {
-  props: { editor: CanvasEditor; onChange: (editor: CanvasEditor) => void } | null
+  props: {
+    editor: CanvasEditor
+    onChange: (editor: CanvasEditor) => void
+    onCreateTask?: (block?: CanvasBlock) => void
+    editable?: boolean
+  } | null
 }
-/** What the spy standing in for `api/http.js` records and answers. */
+/**
+ * What the spy standing in for `api/http.js` records and answers.
+ *
+ * `revision` is the counter the `applyTransaction` stand-in stamps pages with.
+ * A criterion that sends to a real route takes its revisions from the server
+ * and initialises this field without reading it.
+ */
 export interface CanvasApiSpy {
   sent: DocumentTransaction[]
   page: PageView
@@ -67,7 +104,7 @@ export const canvasIds = {
   code: id('a5'),
 } as const
 
-function block(blockId: string, kind: PageBlock['kind'], text: string | null, extra: Partial<PageBlock> = {}): PageBlock {
+export function pageBlock(blockId: string, kind: PageBlock['kind'], text: string | null, extra: Partial<PageBlock> = {}): PageBlock {
   return {
     id: blockId, kind, position: 0, page_position: null, section_block_id: null, list_parent_block_id: null,
     checked: null, rich_content: null, text, file_id: null, file_width: null, file_height: null,
@@ -89,11 +126,11 @@ export function structuredPage(): PageView {
   return {
     revision: 'r1',
     blocks: [
-      block(canvasIds.section, 'section', 'Shopping', { rich_content: runs('Shopping') }),
-      block(canvasIds.prose, 'paragraph', 'Before we go', { section_block_id: canvasIds.section, rich_content: runs('Before we go') }),
-      block(canvasIds.bullet, 'bullet', 'Groceries', { section_block_id: canvasIds.section, rich_content: runs('Groceries') }),
-      block(canvasIds.tick, 'checklist', 'Milk', { section_block_id: canvasIds.section, list_parent_block_id: canvasIds.bullet, checked: true, rich_content: runs('Milk') }),
-      block(canvasIds.code, 'code', 'npm run gate', { section_block_id: canvasIds.section }),
+      pageBlock(canvasIds.section, 'section', 'Shopping', { rich_content: runs('Shopping') }),
+      pageBlock(canvasIds.prose, 'paragraph', 'Before we go', { section_block_id: canvasIds.section, rich_content: runs('Before we go') }),
+      pageBlock(canvasIds.bullet, 'bullet', 'Groceries', { section_block_id: canvasIds.section, rich_content: runs('Groceries') }),
+      pageBlock(canvasIds.tick, 'checklist', 'Milk', { section_block_id: canvasIds.section, list_parent_block_id: canvasIds.bullet, checked: true, rich_content: runs('Milk') }),
+      pageBlock(canvasIds.code, 'code', 'npm run gate', { section_block_id: canvasIds.section }),
     ],
     items: [canvasIds.section, canvasIds.prose, canvasIds.bullet, canvasIds.tick, canvasIds.code].map((each) => ({ kind: 'block' as const, id: each })),
     task_placements: [],
@@ -116,8 +153,8 @@ export function legacyPage(): PageView {
   return {
     revision: 'r1',
     blocks: [
-      block(canvasIds.section, 'section', 'Shopping'),
-      block(canvasIds.prose, 'paragraph', 'Before we go', { section_block_id: canvasIds.section }),
+      pageBlock(canvasIds.section, 'section', 'Shopping'),
+      pageBlock(canvasIds.prose, 'paragraph', 'Before we go', { section_block_id: canvasIds.section }),
     ],
     items: [canvasIds.section, canvasIds.prose].map((each) => ({ kind: 'block' as const, id: each })),
     task_placements: [],
@@ -134,7 +171,7 @@ export function applyTransaction(page: PageView, body: DocumentTransaction, revi
   for (const operation of body.operations) {
     if (operation.op === 'delete_block') blocks.delete(operation.id)
     else if (operation.op === 'put_block') {
-      const existing = blocks.get(operation.id) ?? block(operation.id, operation.block_kind, null)
+      const existing = blocks.get(operation.id) ?? pageBlock(operation.id, operation.block_kind, null)
       blocks.set(operation.id, {
         ...existing, kind: operation.block_kind, text: operation.text, rich_content: operation.rich_content,
         file_id: operation.file_id, ref_folder_id: operation.ref_folder_id, width_pct: operation.width_pct,
@@ -229,6 +266,60 @@ export async function editAndSave(surface: CanvasSurfaceSpy, api: CanvasApiSpy, 
 export function refusalOf(body: DocumentTransaction): string[] {
   const parsed = documentTransaction.safeParse(body)
   return parsed.success ? [] : parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`)
+}
+
+/**
+ * The canvas back at rest, read from the region the person reads.
+ *
+ * `editAndSave` returns as soon as the request has been *made*, which is the
+ * only moment it can capture the body; a save that lands in a database is many
+ * awaits later than that, so a criterion that reads a row straight afterwards
+ * reads it before the write. This waits for what `CanvasWriter` tells the
+ * person — "Saved" — which is the same event, said where a failure says
+ * something legible instead of timing out on a row that never changed.
+ */
+export async function settled(container: HTMLElement): Promise<void> {
+  await waitFor(() => { expect(within(container).getByRole('status').textContent).toBe('Saved') }, { timeout: 10_000 })
+}
+
+/** The one edit AC-660 to AC-662 drive: the block's content, replaced whole. */
+export function typeInto(blockId: string, text: string): (editor: CanvasEditor) => void {
+  return (editor) => { editor.updateBlock(blockId, { content: [{ type: 'text', text, styles: {} }] }) }
+}
+
+/**
+ * Turning a paragraph into a Task, the whole gesture, through the dialog the
+ * person actually sees.
+ *
+ * **Why not call `createTask` directly: it is not reachable, and that is the
+ * point.** `FolderCanvas` keeps it private and the only way in is
+ * `onCreateTask`, which the side menu's "Convert to Task" item calls and which
+ * this spy captures. So the gesture is: ask for the block, fill the title the
+ * dialog opens with, commit. It flushes any unsaved writing first and then
+ * sends a second transaction carrying `create_task`, which is the path AC-664
+ * measures — and which forces a checkpoint, so the editor remounts and undo
+ * cannot reach back past it.
+ *
+ * The dialog renders into a portal on `document.body` rather than into
+ * `mountCanvas`'s container, so it is queried with `screen` and not with
+ * `within(container)`. `fireEvent` rather than `userEvent`: the input is a
+ * controlled `<Input>` whose `onChange` is all this needs, and `userEvent`'s
+ * pointer setup wants APIs jsdom does not have.
+ */
+export async function createTaskThroughTheDialog(surface: CanvasSurfaceSpy, blockId: string, title: string): Promise<void> {
+  const captured = surface.props
+  if (captured === null) throw new Error('CanvasSurface was never rendered; the canvas did not mount.')
+  const ask = captured.onCreateTask
+  if (ask === undefined) throw new Error('CanvasSurface was rendered without onCreateTask; Task creation is off.')
+  const block = captured.editor.document.find((each) => each.id === blockId)
+  if (block === undefined) throw new Error(`The editor no longer holds ${blockId}.`)
+  await act(async () => { ask(block) })
+
+  const field = await screen.findByLabelText('Task title')
+  await act(async () => { fireEvent.change(field, { target: { value: title } }) })
+  const commit = screen.getByRole('button', { name: 'Create Task' })
+  await act(async () => { fireEvent.click(commit) })
+  await waitFor(() => { expect(screen.queryByLabelText('Task title')).toBeNull() }, { timeout: 10_000 })
 }
 
 export function blockOf(page: PageView, blockId: string): PageBlock {
