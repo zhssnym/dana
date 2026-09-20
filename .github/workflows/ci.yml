@@ -111,6 +111,22 @@ name: CI
 # nothing, which is a branch protection question about main and not about any
 # pull request.
 #
+# **`on.pull_request` having no filter is now load-bearing for a second reason,
+# and something else reads this file to check it.** Issue #248: pull request
+# #244 had no workflow run at all — not queued, not cancelled, absent — and sat
+# looking mergeable for twenty minutes, because the absence of a verdict is
+# indistinguishable from a passing one. `.github/workflows/pull-request-run-watchdog.yml`
+# answers that by flagging any open pull request whose head has no run of this
+# file, and its whole predicate rests on a missing run being illegitimate. A
+# `paths`, `paths-ignore`, `types` or `branches` filter here would make a missing
+# run legitimate and turn that check into one that cries wolf. So the watchdog
+# refuses to run when it finds one, and
+# `app/tests/guards/guard-pull-request-run-watchdog.test.ts` reads this file in
+# the gate and fails before the branch is pushed. That test is the **second**
+# file under app/ that opens a path outside it, after the bundle contract named
+# above; `.github/workflows/**` is in no ignore list on either trigger, so
+# nothing about the filtering above changes with it.
+#
 # What is deliberately NOT done here: choosing which tests to run from which
 # files changed. CLAUDE.md is explicit that a change under app/src/shared/** or
 # app/src/server/domain/** reaches criteria in packages nobody was thinking
@@ -126,8 +142,9 @@ on:
       - '.github/pull_request_template.md'
       - '*.md'
       - 'LICENSE'
-  # No paths-ignore: every pull request gets the branch-name check, including a
-  # docs-only one. See the header.
+  # No paths-ignore, no types, no branches: every pull request gets the
+  # branch-name check, including a docs-only one, and the watchdog reads a
+  # missing run here as a defect. See the header, and #248 before adding one.
   pull_request:
   workflow_dispatch:
 
