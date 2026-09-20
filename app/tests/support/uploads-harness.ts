@@ -152,3 +152,97 @@ export async function uploadImageOk(
   expect(typeof id, 'the stored row answers with its id (spec 7.0)').toBe('string')
   return id as string
 }
+
+/*
+========================================================================
+#220's media and generic-file fixtures
+========================================================================
+
+**These are container fixtures and not playable media, and that is the whole
+of what the server checks.** #220 R1 forbids introducing FFmpeg or any media
+probing in M1, so `createFile` validates two things and no more: the declared
+MIME is on the narrow `audio` or `video` allowlist, and the bytes carry the
+container signature that type implies. Nothing here claims a decoder would
+play them, and no criterion below asserts that it would — asserting playback
+would be asserting a subsystem the issue rules out.
+
+What they *do* prove is the direction that matters. Each fixture pairs real
+leading bytes with a declared type, so a case can hand the media path bytes
+that are something else entirely — a ZIP, an HTML document, a PNG — under an
+allowlisted label and watch it be refused. A browser's MIME label is a guess
+taken from the filename, and a filename is presentation, never security truth.
+*/
+
+/** `ID3` tag, then one MPEG frame header. Declared `audio/mpeg`. */
+export const MP3_BYTES = Buffer.concat([
+  Buffer.from('ID3\u0003\u0000\u0000\u0000\u0000\u0000\u0000', 'latin1'),
+  Buffer.from('fffb9064', 'hex'),
+  Buffer.alloc(64),
+])
+
+/** An ISO base-media box: size, `ftyp`, `isom`. Declared `audio/mp4` or
+ * `video/mp4` — the container is the same one, which is exactly why the kind
+ * is declared by the caller and validated rather than inferred. */
+export const MP4_BYTES = Buffer.concat([
+  Buffer.from('0000001c', 'hex'),
+  Buffer.from('ftypisom', 'latin1'),
+  Buffer.from('00000200', 'hex'),
+  Buffer.from('isomiso2mp41', 'latin1'),
+  Buffer.alloc(32),
+])
+
+/** The EBML/Matroska signature, shared by WebM audio and WebM video. */
+export const WEBM_BYTES = Buffer.concat([
+  Buffer.from('1a45dfa3', 'hex'),
+  Buffer.alloc(48),
+])
+
+/** An Ogg page header. */
+export const OGG_BYTES = Buffer.concat([
+  Buffer.from('OggS', 'latin1'),
+  Buffer.alloc(48),
+])
+
+/** A RIFF/WAVE header. */
+export const WAV_BYTES = Buffer.concat([
+  Buffer.from('RIFF', 'latin1'),
+  Buffer.from('24000000', 'hex'),
+  Buffer.from('WAVEfmt ', 'latin1'),
+  Buffer.alloc(32),
+])
+
+/** Bytes that are not any media container at all: a ZIP local file header,
+ * which is what an `.xlsx`, a `.docx` and a `.jar` all begin with. */
+export const ZIP_BYTES = Buffer.concat([
+  Buffer.from('504b0304', 'hex'),
+  Buffer.alloc(32),
+])
+
+/**
+ * One stored file of any kind, in a folder or in none, answering its id.
+ *
+ * The folder-less arm sends **no** `folder_id` part at all, which is the wire
+ * shape migration 0024 admits for every kind but `voice`, rather than an empty
+ * one. `uploadImageOk` and `uploadCoverOk` above are the two special cases
+ * that predate this; everything #220 adds goes through here.
+ */
+export async function uploadKindOk(
+  actor: Actor,
+  kind: string,
+  folderId: string | null,
+  file: UploadFile,
+): Promise<string> {
+  const stored = await upload(
+    actor,
+    '/files',
+    folderId === null ? { kind } : { kind, folder_id: folderId },
+    file,
+  )
+  expect(
+    stored.status,
+    `the ${kind} upload of ${file.name} must land before anything can reference it (spec 7.15, issue #220); answered ${String(stored.status)} ${stored.body.slice(0, 200)}`,
+  ).toBe(201)
+  const id = (stored.json() as { id?: unknown }).id
+  expect(typeof id, 'the stored row answers with its id (spec 7.0)').toBe('string')
+  return id as string
+}

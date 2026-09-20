@@ -162,6 +162,13 @@
       "when": 1789800000000,
       "tag": "0023_folder_access",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1789900000000,
+      "tag": "0024_files_and_media_blocks",
+      "breakpoints": true
     }
   ]
 }

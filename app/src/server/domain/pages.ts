@@ -540,6 +540,11 @@ export type PageActionResult =
   | { kind: 'bad_anchor'; field: 'after' | 'before' }
   | { kind: 'section_not_here' }
   | { kind: 'file_not_here' }
+  /** #220: the file is here and it was uploaded as a different kind from the
+   * one this block declares. Distinct from `file_not_here` on purpose — that
+   * one must disclose nothing about a row the caller cannot reach, and this
+   * one is about a row they demonstrably can. */
+  | { kind: 'file_kind_mismatch'; message: string }
   | { kind: 'not_convertible' }
   | { kind: 'forbidden'; reason: string }
 
@@ -791,7 +796,14 @@ export async function actOnFolderPage(
       page: await pageViewIn(tx, viewerId, { folderId, shelfId: null }),
     }
   }).catch((error: unknown) => {
-    if (error instanceof DocumentRefusal) return error.kind === 'stale' ? {kind:'stale' as const,blockId:folderId} : {kind:error.kind} as const
+    if (error instanceof DocumentRefusal) {
+      if (error.kind === 'stale') return {kind:'stale' as const,blockId:folderId}
+      // #220's mismatch carries its own sentence, which names the block kind
+      // and the kind the file was actually uploaded as; a generic 422 here
+      // would leave the caller guessing which of the two to change.
+      if (error.kind === 'file_kind_mismatch') return {kind:'file_kind_mismatch' as const,message:error.message}
+      return {kind:error.kind} as const
+    }
     throw error
   })
 }

@@ -37,11 +37,21 @@ import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { mayPerform } from './folder-access.js'
 import { accessOf } from './folders.js'
+import {
+  AUDIO_MIMES,
+  FOLDERLESS_UPLOAD_KINDS,
+  MAX_FILE_BYTES,
+  RASTER_MIMES as RASTER_MIME_LIST,
+  VIDEO_MIMES,
+} from '../../shared/files.js'
+import type { FileKind } from '../../shared/files.js'
 
-export type FileKind = 'image' | 'file' | 'voice' | 'cover' | 'avatar'
+/** 4.16's vocabulary lives in `shared/files.ts` since #220, because the
+ * browser needs it too; this re-export keeps every existing importer of
+ * `domain/files.js` working. */
+export type { FileKind }
 
-/** 10.3: one uploaded file up to 25 MB. */
-export const MAX_FILE_BYTES = 25 * 1024 * 1024
+export { MAX_FILE_BYTES }
 /** 10.3: a voice note up to 10 minutes. */
 export const MAX_VOICE_MS = 10 * 60 * 1000
 /** 10.3 (D5): 1 GB per account across every kind. */
@@ -63,23 +73,112 @@ take its visibility from, and `POST /files { kind: image }` answered 422 for
 the one page kind that most needed it. The picture belongs to the uploader
 instead, readable under `readableFileScope`'s folder-less owner arm below and
 nameable by a block only where `putPage`'s shelf-homed clause admits it
-(issue #107). `file` and `voice` keep requiring a folder: a comment's
-attachment and a voice note hang on a thread that lives in one, and there is
-no page kind for which that is not so.
+(issue #107).
+
+**`file`, `audio` and `video` joined them on 2026-09-20 for issue #220, and
+`voice` is now the only kind still requiring a folder.** The sentence above is
+what changed: a composer File, Audio or Video block is in exactly the position
+the shelf page's image was, and the private Shelf composer #220 names is the
+case it has to serve. `voice` stays out because a recorded voice note hangs on
+a comment thread and a thread lives in a folder, which is still true of every
+page kind there is.
+
+**A folder-less row of any of these kinds is its owner's alone**, and the
+predicate below needed no widening to make that so — it names `avatar` and
+falls through to ownership for everything else, which is the property issue
+#167 already relied on. Nothing else may read one: not another member, not a
+signed-in stranger, and no page they can open, because a page block may only
+name a file its own home can reach.
 */
-const FOLDERLESS_KINDS: ReadonlySet<FileKind> = new Set(['image', 'cover'])
+const FOLDERLESS_KINDS: ReadonlySet<FileKind> = new Set(FOLDERLESS_UPLOAD_KINDS)
 
 /** Raster formats only for the image kinds (the S4 security review's first
  * condition): SVG decodes like an image and serves like a document, and a
  * document with scripts on the application's own origin is a session
  * walking out the door. */
-const RASTER_MIMES: ReadonlySet<string> = new Set([
-  'image/png',
-  'image/jpeg',
-  'image/webp',
-  'image/gif',
-  'image/avif',
-])
+const RASTER_MIMES: ReadonlySet<string> = new Set(RASTER_MIME_LIST)
+
+/*
+#220's two media allowlists, and the container check behind them.
+
+**They fail closed, and that is the ruled behaviour rather than a compromise.**
+R1 forbids introducing FFmpeg or any media-probing subsystem in M1 and says
+what to do instead: keep the allowlist narrow, fail closed, and leave the
+generic File path available. So a payload that is not one of these container
+types is refused *as `audio` or `video`* and may be uploaded as a generic
+`file` instead, where it is served as an attachment and offered for download
+rather than dressed as something the browser can play.
+
+**The declared MIME is checked and then not believed.** A browser's label is a
+guess taken from the filename in the first place, which is exactly what #220
+says must never be security truth. `looksLikeMedia` reads the first bytes of
+the payload for the container signature the declared type implies, which is
+the practical validation the issue asks for where one exists — it costs one
+buffer read, it needs no dependency, and it is the same discipline the image
+path already applies by decoding through sharp. It is **container validation
+and not codec validation**: nothing here can tell a playable H.264 stream from
+an unplayable one, and proving that would need the subsystem R1 forbids. What
+it does prove is that a caller cannot hand the `audio` or `video` path an
+executable, a zip or an HTML document by writing `audio/mpeg` on it.
+*/
+const MEDIA_MIMES: Readonly<Record<'audio' | 'video', ReadonlySet<string>>> = {
+  audio: new Set(AUDIO_MIMES),
+  video: new Set(VIDEO_MIMES),
+}
+
+/** The container signatures, by the leading bytes they put on the wire. Each
+ * is a fact about the file format rather than about any codec inside it. */
+function containerOf(bytes: Buffer): string | null {
+  const at = (offset: number, text: string): boolean =>
+    bytes.length >= offset + text.length &&
+    bytes.subarray(offset, offset + text.length).toString('latin1') === text
+  if (at(0, 'ID3')) return 'mp3'
+  if (at(0, 'OggS')) return 'ogg'
+  if (at(0, 'fLaC')) return 'flac'
+  if (at(0, 'RIFF') && at(8, 'WAVE')) return 'wav'
+  if (at(4, 'ftyp')) return 'iso'
+  if (
+    bytes.length >= 4 &&
+    bytes[0] === 0x1a &&
+    bytes[1] === 0x45 &&
+    bytes[2] === 0xdf &&
+    bytes[3] === 0xa3
+  ) {
+    return 'matroska'
+  }
+  /* A bare MPEG audio frame: eleven set sync bits, which is also every ADTS
+     AAC frame. Last, so a tagged file is recognised by its tag first. */
+  if (
+    bytes.length >= 2 &&
+    bytes[0] === 0xff &&
+    ((bytes[1] ?? 0) & 0xe0) === 0xe0
+  ) {
+    return 'mpeg-frame'
+  }
+  return null
+}
+
+/** Which containers each allowlisted MIME may actually arrive in. A type
+ * whose bytes say something else is refused, whatever the label claims. */
+const MIME_CONTAINERS: Readonly<Record<string, readonly string[]>> = {
+  'audio/mpeg': ['mp3', 'mpeg-frame'],
+  'audio/aac': ['mpeg-frame', 'iso'],
+  'audio/mp4': ['iso'],
+  'audio/ogg': ['ogg'],
+  'audio/wav': ['wav'],
+  'audio/x-wav': ['wav'],
+  'audio/webm': ['matroska'],
+  'audio/flac': ['flac'],
+  'video/mp4': ['iso'],
+  'video/webm': ['matroska'],
+  'video/ogg': ['ogg'],
+}
+
+function looksLikeMedia(mime: string, bytes: Buffer): boolean {
+  const container = containerOf(bytes)
+  if (container === null) return false
+  return (MIME_CONTAINERS[mime] ?? []).includes(container)
+}
 
 export interface UploadInput {
   kind: FileKind
@@ -103,6 +202,9 @@ export type CreateFileResult =
   | { kind: 'folder_not_found' }
   | { kind: 'kind_mime_mismatch' }
   | { kind: 'not_an_image' }
+  /** #220: the declared MIME is on the `audio` or `video` allowlist and the
+   *  bytes are not that container. The generic `file` path is still open. */
+  | { kind: 'not_supported_media' }
   | { kind: 'too_large' }
   | { kind: 'voice_too_long' }
   | { kind: 'quota_exceeded' }
@@ -110,9 +212,24 @@ export type CreateFileResult =
    * (issue #228). */
   | { kind: 'forbidden'; reason: string }
 
+/*
+**`file` is the only kind that accepts anything**, and it accepts anything on
+purpose: #220 R1 rules that a generic file may carry essentially any extension
+or none, that it is untrusted bytes, that Dana never executes it, and that it
+is always served `Content-Disposition: attachment` with nosniff. The safety of
+that path is in how it is *served*, not in what it is allowed to be, which is
+why no list here is doing any work for it.
+
+`voice` keeps `audio/*` rather than the new allowlist, deliberately. It is the
+recorded voice note of 7.14, its bytes come from the browser's own recorder
+rather than from a file picker, and narrowing it would refuse recordings that
+work today for a reason #220 never asked for. `voice` is untouched by this
+issue and must stay untouched.
+*/
 function mimeMatchesKind(kind: FileKind, mime: string): boolean {
   if (IMAGE_KINDS.has(kind)) return RASTER_MIMES.has(mime)
   if (kind === 'voice') return mime.startsWith('audio/')
+  if (kind === 'audio' || kind === 'video') return MEDIA_MIMES[kind].has(mime)
   return true
 }
 
@@ -184,9 +301,23 @@ export async function createFile(
     not by who is uploading it, and the two bars are different. A `file` or a
     `voice` note hangs on a comment thread, so it takes commenting's bar; a
     `cover` or an `image` decorates the Folder's page, so it takes ordinary
-    shared Work's. Those four kinds are the whole of what can arrive here with
-    a folder -- an avatar refuses one outright, three lines up -- so the two
-    actions between them are total over this branch.
+    shared Work's.
+
+    **#228 wrote "those four kinds are the whole of what can arrive here with
+    a folder" and migration 0024 (#220) made that six**, which is recorded
+    here rather than quietly corrected because the two halves landed on
+    different branches and only their merge can see it. `audio` and `video`
+    join `cover` and `image` on the page bar: they are composer assets that
+    decorate a page, which is the sentence above applied and not extended.
+    The `else` is still total over `FileKind` minus `avatar`, so the two
+    actions remain exhaustive.
+
+    **`file` is the one the merge does not settle, and it is left as #228
+    ruled it.** Before 0024 a `file` could only hang on a comment thread, so
+    commenting's bar *was* what it supports; #220 makes it a composer block
+    kind too, and a folder-scoped `file` uploaded for a page now takes the
+    commenting bar rather than the page one. That is a cross-cutting
+    authorization question, not a merge conflict, and nothing here decides it.
 
     This is the upload half of undoing "uploader authorship is standing
     authority". The delete half is in `deleteFile` below.
@@ -209,6 +340,19 @@ export async function createFile(
     input.durationMs > MAX_VOICE_MS
   ) {
     return { kind: 'voice_too_long' }
+  }
+
+  /* #220's practical validation for the two previewable media kinds, after
+     the size cap so a 25 MB payload is refused on its size first. The bytes
+     must be the container their declared type implies; a lying label is
+     refused here rather than served to an `<audio>` element that will show a
+     broken player. The refusal is its own outcome so the route can say that
+     the generic File path is still available, which R1 requires it to be. */
+  if (
+    (input.kind === 'audio' || input.kind === 'video') &&
+    !looksLikeMedia(input.mime, input.bytes)
+  ) {
+    return { kind: 'not_supported_media' }
   }
 
   let stored = input.bytes
@@ -649,7 +793,7 @@ export async function coverFileFor(
   ) {
     return { kind: 'kept', id: String(source.id) }
   }
-  return copyOf(tx, store, viewerId, source, scopeFolderId)
+  return copyOf(tx, store, viewerId, source, scopeFolderId, 'cover')
 }
 
 /** The duplicate's arm: a second picture, always, whatever the source's
@@ -663,7 +807,52 @@ export async function copyCoverFile(
 ): Promise<CoverFileResult> {
   const source = await coverSource(tx, sourceFileId)
   if (source === undefined) return { kind: 'bytes_missing' }
-  return copyOf(tx, store, viewerId, source, scopeFolderId)
+  return copyOf(tx, store, viewerId, source, scopeFolderId, 'cover')
+}
+
+/*
+#220's generalisation, and the trap it closes is named in the issue.
+
+Folder duplication and workflow import both wanted "a second, independent copy
+of the bytes behind this page block". Neither had one. What they had was
+`copyCoverFile`, which writes `kind = 'cover'` whatever the source was, so each
+call site followed it with `UPDATE files SET kind = 'image'` to put the copy
+back where a page block could use it. That was true while a page block could
+only hold a picture. The moment a block may be a File, an Audio or a Video, the
+same two statements **destroy the thing #220 exists to preserve**: an MP4
+duplicated into a new folder would come out declared an image, a generic File —
+untrusted bytes, attachment-served — would come out declared previewable media,
+and the insertion mode the person chose would be gone with no way to recover it.
+
+So this is the primitive those two call sites needed all along: copy the bytes,
+**and keep the source's own semantic kind and metadata**. It answers with the
+kind it wrote, so a caller never has to guess. Nothing is rewritten afterwards
+and no caller may rewrite it.
+
+`duration_ms` rides across only for `voice`, the one kind allowed to carry it
+(`files_duration_voice_check`); width and height ride only for the kinds
+allowed to carry them (`files_dimensions_kind_check`), and the bytes are the
+same bytes sharp already reported on, so nothing is re-measured. No audio or
+video duration is persisted at all, which is R1's ruling: browser playback
+discovers it at runtime and M1 adds no probing subsystem to write it down.
+*/
+export async function copyPageFile(
+  tx: Executor,
+  store: ObjectStore,
+  viewerId: string,
+  sourceFileId: string,
+  scopeFolderId: string | null,
+): Promise<CoverFileResult> {
+  const source = await coverSource(tx, sourceFileId)
+  if (source === undefined) return { kind: 'bytes_missing' }
+  return copyOf(
+    tx,
+    store,
+    viewerId,
+    source,
+    scopeFolderId,
+    String(source.kind) as FileKind,
+  )
 }
 
 async function coverSource(
@@ -672,7 +861,8 @@ async function coverSource(
 ): Promise<Record<string, unknown> | undefined> {
   const found = await rowsOf(
     tx,
-    sql`SELECT id, owner_id, folder_id, kind, name, mime, width, height
+    sql`SELECT id, owner_id, folder_id, kind, name, mime, width, height,
+               duration_ms
         FROM files WHERE id = ${sourceFileId}`,
   )
   return found[0]
@@ -684,6 +874,7 @@ async function copyOf(
   viewerId: string,
   source: Record<string, unknown>,
   scopeFolderId: string | null,
+  kind: FileKind,
 ): Promise<CoverFileResult> {
   const bytes = await store.get(String(source.id))
   if (bytes === null) return { kind: 'bytes_missing' }
@@ -701,20 +892,26 @@ async function copyOf(
     return { kind: 'quota_exceeded' }
   }
 
-  /* `kind` is 'cover' whatever the source was: an `image` on a folder page
-     may be named as a cover (7.16's pair), and the copy is a cover and
-     nothing else, so the sweep below can recognise it. The dimensions ride
-     across rather than being re-measured, the bytes being the same bytes
-     sharp already reported on (4.16, migration 0009). */
+  /* `kind` is the caller's, and there are exactly two callers of that choice.
+     A cover copy is a `cover` whatever the source was, because an `image` on a
+     folder page may be named as a cover (7.16's pair) and the copy must be
+     recognisable to the reclaim sweep below. A page copy keeps the source's
+     kind, because that kind *is* the insertion mode the person chose (#220).
+     The dimensions and a voice note's duration ride across rather than being
+     re-measured — the bytes are the same bytes (4.16, migrations 0003 and
+     0009) — and each is written only where its own CHECK admits it, so a copy
+     that lands as a different kind cannot carry a column that kind forbids. */
+  const carriesShape = IMAGE_KINDS.has(kind)
   const inserted = await rowsOf(
     tx,
     sql`INSERT INTO files (owner_id, folder_id, kind, name, mime, bytes,
-                           width, height)
-        VALUES (${viewerId}::uuid, ${scopeFolderId}, 'cover',
+                           width, height, duration_ms)
+        VALUES (${viewerId}::uuid, ${scopeFolderId}, ${kind},
                 ${String(source.name)}, ${String(source.mime)},
                 ${bytes.byteLength},
-                ${source.width === null ? null : Number(source.width)},
-                ${source.height === null ? null : Number(source.height)})
+                ${!carriesShape || source.width === null || source.width === undefined ? null : Number(source.width)},
+                ${!carriesShape || source.height === null || source.height === undefined ? null : Number(source.height)},
+                ${kind !== 'voice' || source.duration_ms === null || source.duration_ms === undefined ? null : Number(source.duration_ms)})
         RETURNING id`,
   )
   const id = String(inserted[0]?.id)
@@ -785,9 +982,11 @@ function fileIsUnreferenced(): SQL {
  * that named it is gone, which is exactly the state this duty exists for. So
  * the same reference query, the same mark and the same window: an image
  * dropped from a shelf page is reclaimed thirty days after it came off, and
- * one put back inside the window loses its mark and starts over. `file` and
- * `voice` cannot reach this sweep at all, `folder_id IS NULL` being
- * impossible for them (migration 0015).
+ * one put back inside the window loses its mark and starts over. **`file`,
+ * `audio` and `video` joined it on 2026-09-20 for issue #220**, on the same
+ * sentence: they too may now be folder-less, and a folder-less one is reached
+ * by nothing once its block is gone. `voice` still cannot reach this sweep at
+ * all, `folder_id IS NULL` being impossible for it (migration 0024).
  *
  * **Three acts, and one statement rather than three.** Clear: a marked row
  * that something references again loses its mark, which is what makes a
@@ -819,11 +1018,23 @@ function fileIsUnreferenced(): SQL {
  * hold the five reference arms and every one of them uses a folder-less
  * cover or image, so they are all green under a sweep widened to take a
  * third kind or a folder-scoped row.
- * **`kind IN ('cover', 'image')`**, because a comment's attachment or a voice
- * note is a thing somebody put somewhere and is reachable through surfaces
- * this query knows nothing about, while a cover and a page image are only
- * ever pointed at — and a page image that is *not* pointed at, having no
- * folder either, is reachable by nothing whatever. **`folder_id IS NULL`**,
+ * **`kind IN ('cover', 'image', 'file', 'audio', 'video')`**, widened from the
+ * first two on 2026-09-20 for issue #220 and on the clause's own reasoning
+ * rather than past it. A voice note is still absent, and now for a structural
+ * reason rather than a judged one: `voice` is the only kind that still
+ * requires a folder (migration 0024), so no `voice` row can satisfy the
+ * `folder_id IS NULL` beside this and naming it would be decoration. An
+ * avatar is still absent too, and that exclusion stays judged and
+ * load-bearing rather than structural — it is the half of AC-705 where being
+ * wrong destroys every profile picture in the product, so this list is
+ * widened by naming kinds and never by restating it as a `NOT IN`. What
+ * changed is that a composer File, Audio or Video may now be folder-less, and
+ * a folder-less one is in exactly the position the folder-less page image was
+ * in at issue #167: listed by no surface, reachable by no route once the block
+ * that named it is gone, and otherwise spending its owner's gigabyte for ever
+ * with nothing able to delete it. A folder-**scoped** attachment is still
+ * untouched, because it is listed in its folder and its members can delete it
+ * themselves. **`folder_id IS NULL`**,
  * because a folder-scoped file is listed in its folder and its members can
  * delete it themselves, and because a folder's own deletion already cascades
  * it away (8.8) with the purge removing its object. **And unreferenced**, by
@@ -861,14 +1072,14 @@ export async function reclaimUnwornPictures(
           RETURNING f.id),
         marked AS (
           UPDATE files f SET unreferenced_since = now()
-           WHERE f.kind IN ('cover', 'image')
+           WHERE f.kind IN ('cover', 'image', 'file', 'audio', 'video')
              AND f.folder_id IS NULL
              AND f.unreferenced_since IS NULL
              AND ${fileIsUnreferenced()}
           RETURNING f.id)
         DELETE FROM files WHERE id IN (
           SELECT f.id FROM files f
-           WHERE f.kind IN ('cover', 'image')
+           WHERE f.kind IN ('cover', 'image', 'file', 'audio', 'video')
              AND f.folder_id IS NULL
              AND f.unreferenced_since
                    < now() - ${COVER_RECLAIM_DAYS}::int * interval '1 day'

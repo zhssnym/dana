@@ -50,3 +50,117 @@ export const postAvatarResponse = z.object({
   avatar_url: z.string(),
 })
 export type PostAvatarResponse = z.infer<typeof postAvatarResponse>
+
+/*
+========================================================================
+#220's file vocabulary: the kinds, and the MIME allowlists behind them
+========================================================================
+
+**This is the single place the vocabulary is written down**, and it is here
+rather than in `server/domain/files.ts` because the frontend has to know it
+too: which kinds it may declare on an upload, which of them may stand outside
+a folder, and which MIME types the server will accept as previewable media
+before it falls back to the generic File treatment. A second copy in the
+client is the fault `postFilesResponse` above exists to stop, one field over.
+
+**`voice` and `audio` are different kinds and stay different.** `voice` is the
+recorded voice note on a comment thread (4.16, 7.14) with its own ten-minute
+duration rule and its own folder requirement. `audio` is an uploaded composer
+track. Nothing converts between them.
+
+**Filename and extension are presentation and never security truth.** Nothing
+in this file reads a filename, and nothing on the server classifies a file
+from one. The kind is *declared* by the caller, *validated* by the server, and
+then preserved: the same JPG is an `image` when it was dropped as media and a
+`file` when it was inserted through the File command, and no later code path
+re-derives which.
+*/
+
+/** 4.16's durable file vocabulary as #220 leaves it. */
+export const FILE_KINDS = [
+  'image',
+  'file',
+  'voice',
+  'cover',
+  'audio',
+  'video',
+  'avatar',
+] as const
+export type FileKind = (typeof FILE_KINDS)[number]
+
+/** What `POST /files` accepts in its `kind` field. `avatar` is absent on
+ * purpose: it has its own route, and `createFile` refuses a folder for it. */
+export const UPLOAD_FILE_KINDS = [
+  'image',
+  'file',
+  'voice',
+  'cover',
+  'audio',
+  'video',
+] as const
+export type UploadFileKind = (typeof UPLOAD_FILE_KINDS)[number]
+
+/**
+ * The kinds an upload may send with no `folder_id` at all, which is migration
+ * 0024's `files_folderless_kind_check` less the avatar — an avatar *refuses* a
+ * folder rather than merely allowing none.
+ *
+ * **`voice` is the only kind left out**, and the reason is the reason it was
+ * left out before: a voice note hangs on a comment thread, a thread lives in a
+ * folder, and there is no page kind for which that is not so. Every other kind
+ * decorates or attaches to a page, and not every page is a folder — a shelf is
+ * private (4.18) and has none — so a composer asset has to be able to take its
+ * page's scope. A folder-less row of any of these kinds is **its owner's
+ * alone**: `readableFileScope` serves it to nobody else, and no page a
+ * stranger can read may name it.
+ */
+export const FOLDERLESS_UPLOAD_KINDS = [
+  'cover',
+  'image',
+  'file',
+  'audio',
+  'video',
+] as const
+
+/** The raster set the image kinds decode and re-encode through sharp. SVG is
+ * absent and must stay absent: it decodes like an image and serves like a
+ * document, and a document with scripts on this origin is a session walking
+ * out the door (the S4 security review's first condition). */
+export const RASTER_MIMES = [
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'image/gif',
+  'image/avif',
+] as const
+
+/**
+ * `audio`'s allowlist, and it is deliberately short.
+ *
+ * #220 R1 forbids introducing FFmpeg or any media-probing subsystem in M1 and
+ * says in terms what to do instead: **keep the allowlist narrow and fail
+ * closed, with the generic File path still available.** So this is the set of
+ * container types a current browser plays from an `<audio>` element without
+ * help, and anything else — including a format some browsers do play — is not
+ * refused outright but may be uploaded as a generic `file` and offered for
+ * download. Refusing to *preview* something is cheap; claiming playback that
+ * does not work is not.
+ */
+export const AUDIO_MIMES = [
+  'audio/mpeg',
+  'audio/mp4',
+  'audio/aac',
+  'audio/ogg',
+  'audio/wav',
+  'audio/x-wav',
+  'audio/webm',
+  'audio/flac',
+] as const
+
+/** `video`'s allowlist, on the same rule and the same reasoning. QuickTime is
+ * deliberately absent: `.mov` plays in some browsers and not others, so it
+ * takes the generic File path rather than a player that may show nothing. */
+export const VIDEO_MIMES = ['video/mp4', 'video/webm', 'video/ogg'] as const
+
+/** 10.3, unchanged by #220: one uploaded file up to 25 MiB. */
+export const MAX_FILE_BYTES = 25 * 1024 * 1024

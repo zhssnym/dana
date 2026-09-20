@@ -3,7 +3,7 @@ import { sql } from 'drizzle-orm'
 import type { Executor } from '../database.js'
 import { rowsOf } from '../database.js'
 import type { DocumentTransaction, DocumentOperation, DocumentOutlineItem } from '../../shared/pages.js'
-import { MAX_SECTION_DEPTH, isListKind } from '../../shared/page-document.js'
+import { BLOCK_FILE_KINDS, MAX_SECTION_DEPTH, isListKind, isMediaKind } from '../../shared/page-document.js'
 import { initialKeys } from './fractional-index.js'
 import { createTaskIn } from './tasks.js'
 import { positionedItems } from './page-order.js'
@@ -11,7 +11,7 @@ import { recordEvent } from './events.js'
 
 type BlockOp = Extract<DocumentOperation,{op:'put_block'}>
 export const documentHash = (value:unknown):string => createHash('sha256').update(JSON.stringify(value)).digest('hex')
-export class DocumentRefusal extends Error { constructor(readonly kind:'stale'|'not_convertible'|'file_not_here'|'not_found',message:string){super(message)} }
+export class DocumentRefusal extends Error { constructor(readonly kind:'stale'|'not_convertible'|'file_not_here'|'file_kind_mismatch'|'not_found',message:string){super(message)} }
 export async function documentMetadata(tx:Executor,folderId:string|null) {
  if(folderId===null)return {revision:documentHash(null),task_placements:[]}
  const blocks=await rowsOf(tx,sql`SELECT id,kind,text,rich_content,file_id,ref_folder_id,width_pct,section_block_id,list_parent_block_id,checked,page_position,position FROM page_blocks WHERE folder_id=${folderId}::uuid ORDER BY id`)
@@ -97,7 +97,39 @@ export async function applyDocument(tx:Executor,viewerId:string,folderId:string,
  }
  if(seen.size!==blocks.size+tasks.size)throw new DocumentRefusal('not_convertible','The outline must retain every Task and undeleted block.')
  for(const block of blocks.values()){
-  if(block.file_id!==null){const files=await rowsOf(tx,sql`SELECT id FROM files WHERE id=${block.file_id}::uuid AND folder_id=${folderId}::uuid`);if(files.length===0)throw new DocumentRefusal('file_not_here','Image is not in this folder.')}
+  /*
+  A block's file, in two questions that are asked in this order and are not the
+  same question.
+
+  **Scope first (10.2).** The row must be in this folder, and a row that is not
+  and a row that does not exist answer identically, so the refusal discloses
+  nothing either way. That clause is issue #107's and is unchanged.
+
+  **Then the treatment (#220), and only for a caller who has already been told
+  the file is here.** A media block's kind is the insertion mode the person
+  chose and the server validated at upload: the same JPG is an Image block when
+  it was dropped as media and a File block when it was inserted through the
+  File command, and `BLOCK_FILE_KINDS` is the table that keeps them apart. The
+  server **never re-derives which from the filename or the extension** — those
+  are presentation and are not security truth — so what it does instead is
+  refuse a pairing the upload did not produce.
+
+  It fails closed in the direction that matters. A `file` row is untrusted
+  bytes of any type, served as an attachment with nosniff; an `image`, `audio`
+  or `video` row passed a validation on the way in and is served inline. So a
+  `file` row may never be dressed as previewable media, which is the mismatch
+  with consequences, and previewable bytes may not be quietly demoted into a
+  File block either, because a File block is one by virtue of how its bytes
+  were uploaded.
+
+  Both run before the first write, with everything else in this function.
+  */
+  if(block.file_id!==null){
+   const files=await rowsOf(tx,sql`SELECT id,kind FROM files WHERE id=${block.file_id}::uuid AND folder_id=${folderId}::uuid`)
+   const file=files[0]
+   if(file===undefined)throw new DocumentRefusal('file_not_here','That file is not in this folder.')
+   if(isMediaKind(block.block_kind)&&!(BLOCK_FILE_KINDS[block.block_kind] as readonly string[]).includes(String(file.kind)))throw new DocumentRefusal('file_kind_mismatch',`A ${block.block_kind} block names a file uploaded as ${String(file.kind)}. Upload it again as the kind you mean to insert.`)
+  }
   if(block.ref_folder_id!==null){const refs=await rowsOf(tx,sql`SELECT f.id FROM folders f JOIN folder_members m ON m.folder_id=f.id WHERE f.id=${block.ref_folder_id}::uuid AND m.user_id=${viewerId}::uuid AND f.deleted_at IS NULL`);if(refs.length===0)throw new DocumentRefusal('not_found','Referenced folder is not accessible.')}
  }
  const fresh=[...blocks.keys()].filter(id=>!original.has(id)).concat(created.map(t=>t.id))
