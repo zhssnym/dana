@@ -43,6 +43,7 @@ function card(overrides: Partial<TaskCard> = {}): TaskCard {
     title: 'Send the venue deposit',
     status: 'pending',
     important: false,
+    start_date: null,
     due_date: null,
     due_time: null,
     folder: { id: WORK, name: 'Work', is_default: false },

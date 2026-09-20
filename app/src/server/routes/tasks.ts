@@ -244,6 +244,20 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
           // sent in the same breath as a cleared date.
           fieldError(res, 'recurrence_rule', 'requires a due_date')
           return
+        case 'start_after_due':
+          /* 4.5's start-before-due CHECK said as a 422 before the constraint
+             speaks, the way the two above are. The domain names which of the
+             pair the body sent, because that is the end the person moved, and
+             the message is written from the other end so it reads the same
+             either way. */
+          fieldError(
+            res,
+            result.field,
+            result.field === 'start_date'
+              ? 'must not be later than due_date'
+              : 'must not be earlier than start_date',
+          )
+          return
         case 'reminder_refused':
           // The third field of the same dependency check, and 4.8's mode rule
           // with it. A reminder sent here writes the row 7.9's PUT writes, so

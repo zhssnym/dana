@@ -245,6 +245,7 @@ export async function duplicateFolder(
       const tasks = await rowsOf(
         tx,
         sql`SELECT id, title, notes, important,
+                   to_char(start_date, 'YYYY-MM-DD') AS start_date,
                    to_char(due_date, 'YYYY-MM-DD') AS due_date,
                    recurrence_rule, section_block_id, position, page_position
             FROM tasks
@@ -265,11 +266,12 @@ export async function duplicateFolder(
              copy came out in creation order, which is not the order the
              person had arranged. */
           sql`INSERT INTO tasks
-                (folder_id, title, notes, important, due_date, recurrence_rule,
+                (folder_id, title, notes, important, start_date, due_date, recurrence_rule,
                  series_id, assignee_id, created_by, section_block_id, position, page_position)
               VALUES (${copyId}::uuid, ${String(task.title)},
                       ${task.notes === null ? null : String(task.notes)},
                       ${task.important === true},
+                      ${task.start_date === null || task.start_date === undefined ? null : String(task.start_date)}::date,
                       ${task.due_date === null ? null : String(task.due_date)}::date,
                       ${rule},
                       ${rule === null ? sql`NULL` : sql`gen_random_uuid()`},
@@ -392,6 +394,7 @@ export async function duplicateTask(
       await rowsOf(
         tx,
         sql`SELECT title, notes, important,
+                   to_char(start_date, 'YYYY-MM-DD') AS start_date,
                    to_char(due_date, 'YYYY-MM-DD') AS due_date,
                    recurrence_rule, section_block_id
             FROM tasks WHERE id = ${source.id}::uuid`,
@@ -413,6 +416,24 @@ export async function duplicateTask(
       storedDue !== null && anchor !== null && storedDue < anchor
         ? anchor
         : storedDue
+    /*
+    The start date copies as it stands, and is deliberately not re-anchored
+    with the due date (issue #215).
+
+    9.6's rule is about a deadline that has already passed, and a start is not
+    a deadline: a copy that began last Tuesday began last Tuesday. Moving it by
+    the same delta would be inventing a start-to-due window, which is the thing
+    #215 says not to build, and moving it to today would silently start work
+    the person had scheduled for later.
+
+    It cannot break 4.5's CHECK either way round. The due date only ever moves
+    forward here, and the stored pair already satisfied start <= due, so the
+    copied pair satisfies it with room to spare.
+    */
+    const startForCopy =
+      stored?.start_date === null || stored?.start_date === undefined
+        ? null
+        : String(stored.start_date)
     const row = stored
     const rule =
       row?.recurrence_rule === null || row?.recurrence_rule === undefined
@@ -423,11 +444,12 @@ export async function duplicateTask(
     const inserted = await rowsOf(
       tx,
       sql`INSERT INTO tasks
-            (folder_id, title, notes, important, due_date, recurrence_rule,
+            (folder_id, title, notes, important, start_date, due_date, recurrence_rule,
              series_id, assignee_id, created_by, section_block_id,page_position)
           VALUES (${source.folderId}::uuid, ${title},
                   ${row?.notes === null ? null : String(row?.notes ?? '')},
                   ${row?.important === true},
+                  ${startForCopy}::date,
                   ${dueForCopy}::date,
                   ${rule},
                   ${rule === null ? sql`NULL` : sql`gen_random_uuid()`},

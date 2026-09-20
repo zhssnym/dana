@@ -55,6 +55,7 @@ string while node-postgres parses OID 1082 into a JS Date, which would
 serialize as an instant and reintroduce the timezone 4.11's floating format
 exists to remove.
 */
+export const START_DATE = sql`to_char(t.start_date, 'YYYY-MM-DD')`
 export const DUE_DATE = sql`to_char(t.due_date, 'YYYY-MM-DD')`
 export const DUE_TIME = sql`to_char(t.due_time, 'HH24:MI')`
 
@@ -134,6 +135,7 @@ never a missing column.
 */
 const CARD_COLUMNS = sql`
     t.id, t.title, t.status, t.important,
+    ${START_DATE} AS start_date,
     ${DUE_DATE} AS due_date, ${DUE_TIME} AS due_time,
     f.id AS folder_id, f.name AS folder_name,
     f.is_default AS folder_is_default,
@@ -216,6 +218,7 @@ function cardFromRow(row: Record<string, unknown>): TaskCard {
     title: String(row.title),
     status: String(row.status) as TaskCard['status'],
     important: row.important === true,
+    start_date: nullableString(row.start_date),
     due_date: nullableString(row.due_date),
     due_time: nullableString(row.due_time),
     folder: {

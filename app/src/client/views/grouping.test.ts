@@ -30,6 +30,7 @@ function card(
     title: id,
     status: 'pending',
     important: false,
+    start_date: null,
     due_date: due,
     due_time: null,
     folder: { ...folder, is_default: false },

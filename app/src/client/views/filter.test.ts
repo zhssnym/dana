@@ -34,6 +34,7 @@ function card(overrides: Partial<TaskCard> & { id: string }): TaskCard {
     title: overrides.title ?? overrides.id,
     status: overrides.status ?? 'pending',
     important: overrides.important ?? false,
+    start_date: null,
     due_date: overrides.due_date ?? null,
     due_time: null,
     folder: overrides.folder ?? { id: 'folder-1', name: 'Groceries', is_default: false },
