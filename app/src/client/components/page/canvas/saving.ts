@@ -1,5 +1,5 @@
 import type { PageActionBody, PageView } from '../../../../shared/pages.js'
-import { canvasOperations } from './adapters.js'
+import { baselineOf, canvasOperations, restoreCanvas } from './adapters.js'
 import type { CanvasDocument } from './adapters.js'
 
 export type DocumentRequest = Extract<PageActionBody, { action: 'document_transaction' }>
@@ -23,9 +23,24 @@ export class CanvasWriter {
     this.latest = document
     this.revision = revision
   }
+  /**
+   * Whether this document would write anything, which is not whether it equals
+   * the baseline byte for byte.
+   *
+   * The baseline carries kinds, ticks and list parents this editor cannot
+   * draw, so the projection it hands back never equals it and a plain
+   * comparison reads "unsaved" forever — and the 450 ms autosave then sends
+   * one no-op transaction after another for as long as the page is open. What
+   * "unchanged" means here is unchanged *after* restoration, and `restoreCanvas`
+   * is idempotent over a baseline built by `baselineOf`, which is what makes
+   * this the same question `canvasOperations` answers.
+   */
+  private settled(document: CanvasDocument): boolean {
+    return JSON.stringify(restoreCanvas(this.acknowledged, document)) === JSON.stringify(this.acknowledged)
+  }
   change(document: CanvasDocument): void {
     this.latest = document
-    if (this.state !== 'failed' && this.state !== 'saving') this.state = JSON.stringify(document) === JSON.stringify(this.acknowledged) ? 'saved' : 'changed'
+    if (this.state !== 'failed' && this.state !== 'saving') this.state = this.settled(document) ? 'saved' : 'changed'
     this.notify()
   }
   async flush(createTask?: { id: string; title: string }): Promise<void> {
@@ -44,7 +59,11 @@ export class CanvasWriter {
       try {
         const page = await this.send(pending.request)
         this.revision = page.revision!
-        this.acknowledged = pending.document
+        // Re-based on what the server now holds, not on the projection that was
+        // sent. The projection expresses none of the structured kinds, so a
+        // baseline taken from it is flat from the second save onward and the
+        // next one destroys exactly what the first one preserved.
+        this.acknowledged = baselineOf(page, pending.document)
         this.pending = null
         const checkpoint = pending.request.operations.some((op) => op.op === 'create_task')
         // A matching receipt can return newer state. Preserve the local draft and
@@ -54,7 +73,7 @@ export class CanvasWriter {
           this.error = new Error('Your edit was saved, but the page changed again. Keep a copy of your writing and load the latest page before continuing.')
           return
         }
-        this.state = JSON.stringify(this.latest) === JSON.stringify(this.acknowledged) ? 'saved' : 'changed'
+        this.state = this.settled(this.latest) ? 'saved' : 'changed'
         this.error = undefined
         this.committed(page, checkpoint)
       } catch (error) {

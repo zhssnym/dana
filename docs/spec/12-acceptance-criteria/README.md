@@ -109,6 +109,41 @@ default, so read this list before spending one.
   being ordinary where a collision is a duplicate test filename. **No total moves with it**,
   on the AC-410 and AC-411 precedent: the count at the top and 12.23's row in the table below
   belong to whichever merge comes last rather than to one of two branches open at once.
+- **AC-580 and AC-581 were taken on 2026-09-20** (issue #250 again, after a review of the
+  branch that took AC-464 to AC-466 below), and they are 12.9's, beside those three. **Taken
+  from 580 rather than from the tail this list names**, and the reason is the same one the
+  AC-440 and AC-464 bullets give, one step further along: re-read immediately before
+  spending, the live ranges across the open branches were 450 to 452, 464 to 466, 470 to 481,
+  490 to 507, 510 to 523 and 540 to 554, with 560 upward reserved, and **494 to 509, 524 to
+  539 and 555 to 559 are deliberate renumber gaps that must not be filled**. 580 is above
+  every one of them and above the reservation, which is what makes it safe to spend from a
+  branch that cannot see what the others will take. **560 to 579 are therefore not free by
+  default and are deliberately not added to the free list above**, on the AC-377 bullet's
+  rule. **No total moves with these two**, on the AC-410, AC-413 and AC-464 precedent: the
+  count at the head of this file and 12.9's row in the table below belong to whichever of the
+  open branches merges last.
+- **AC-464 to AC-466 were taken on 2026-09-20** (issue #250, the folder canvas save path),
+  and they are 12.9's, beside the AC-460 to AC-463 they repair. Taken from **464** rather
+  than from 423 or from 448, and the three were checked against every open branch rather
+  than against this list alone, immediately before they were spent: 423 to 428 and 440 to
+  447 were already merged, #219 had just taken 460 to 463, and six branches open at the same
+  time held 450 to 452, 470 to 481, 480 to 493 and 490 to 499 between them. 464 to 466 is
+  the widest gap nobody was standing in, and taking it keeps the #219 criteria and the ones
+  that prove its client half in one run of numbers. **453 to 459 and 467 to 469 are
+  therefore not free by default and are deliberately not added to the list above**, on the
+  AC-377 bullet's rule: only the merge that comes last can see what the siblings actually
+  spent. **No total moves with them**, on the AC-410 and AC-413 precedent: the count at the
+  head of this file and 12.9's row in the table below belong to whichever of the open
+  branches merges last.
+
+  **Two of those six overlap each other and this branch is not the place to fix it**,
+  recorded because the next reader of this list will otherwise take the silence for
+  agreement: as of this branch's last read of the remote, `backend/226-label-core-domain`
+  carries AC-480 and AC-481 and `backend/228-folder-access-model` carries AC-480 to AC-493,
+  which also runs over `backend/220-files-and-media-blocks`'s AC-490 to AC-492. That is the
+  collision this section's rule exists to prevent, it is between three other branches, and
+  whichever of them merges second will find it as a duplicate criterion number rather than
+  as a duplicate filename.
 - **AC-440 to AC-447 were taken on 2026-09-20** (issue #224, task dependencies), and they
   were taken from **440** rather than from 423, which the sentence above names as next.
   Three branches were open at once that day; 423 was assigned to one of them and the range

@@ -15,7 +15,7 @@ import { CanvasTaskProvider } from './CanvasTask.js'
 import { CanvasSurface } from './CanvasSurface.js'
 import { canvasSchema } from './schema.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
-import { dehydrateCanvas, hydrateCanvas, richRuns } from './adapters.js'
+import { baselineOf, dehydrateCanvas, hydrateCanvas, richRuns } from './adapters.js'
 import type { CanvasInput } from './adapters.js'
 import { CanvasWriter } from './saving.js'
 import { pasteIntoCanvas } from './paste.js'
@@ -75,7 +75,12 @@ function CanvasSession({ page, initialPage, folderId, tasks, context, actions, o
       }
     },
   })
-  const [writer] = useState(() => new CanvasWriter(initial.length ? dehydrateCanvas(editor.document, width) : { blocks: [], items: [] }, initialPage.revision!,
+  // The baseline is the server's page reconciled with what this editor can draw
+  // of it, never the editor's rendering alone: `dehydrateCanvas` knows three
+  // kinds and no nesting, so a writer based on it has nothing to restore from
+  // and every save flattens the page. An empty page still starts from an empty
+  // baseline, so the placeholder paragraph is written rather than assumed.
+  const [writer] = useState(() => new CanvasWriter(baselineOf(initialPage, initial.length ? dehydrateCanvas(editor.document, width) : { blocks: [], items: [] }), initialPage.revision!,
     (body) => mutateApi(getPageResponse, { method: 'POST', path: `/folders/${folderId}/page/actions`, body }),
     () => {
       render((value) => value + 1)
