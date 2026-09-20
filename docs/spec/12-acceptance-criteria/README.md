@@ -104,6 +104,19 @@ default, so read this list before spending one.
   wrote a bullet below deferring the totals to whichever merge came last, and this is that
   merge. Twenty-one of the twenty-three rows were already right; the one that was not was
   12.23, exactly as the AC-414 bullet said it would be.
+- **AC-660 to AC-662 are spent, by issue #255 on 2026-09-20**, and all three are 12.9's:
+  a `folder_ref` block on a folder page survives being typed in, an unrelated edit still
+  writes nothing to it, and the relation is still there for an export and a duplicate to
+  read. They were taken from **660** and not from 453, which is what the tail rule would
+  otherwise name. Several branches were open at once that day and the ranges from 580, 600,
+  620 and 640 were each assigned to one of them, so this branch stepped over the whole of
+  453 to 659 rather than take a number a sibling might already hold — the AC-411 and AC-413
+  move, over four ranges instead of over one number. **453 to 659 are therefore not free by
+  default and are deliberately not added to the free list above**, on the AC-377 bullet's
+  rule: whichever merge lands last is the one that can see what the siblings actually spent.
+  **494 to 509, 524 to 539 and 555 to 559 are renumber gaps rather than free numbers and
+  must not be filled.** **No total moves with these three**, on the AC-410 and AC-411
+  precedent.
 - **AC-450 to AC-452 are spent, by issues #217 and #216 on 2026-09-20.** AC-450 is in
   12.7 and AC-451 and AC-452 in 12.8. They were taken from the tail rather than from a
   gap, as this section's rule requires while several branches are open: 423 to 428 and

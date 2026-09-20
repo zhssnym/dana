@@ -15,7 +15,7 @@ import { CanvasTaskProvider } from './CanvasTask.js'
 import { CanvasSurface } from './CanvasSurface.js'
 import { canvasSchema } from './schema.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
-import { baselineOf, dehydrateCanvas, hydrateCanvas, richRuns } from './adapters.js'
+import { baselineOf, dehydrateCanvas, folderRefsOf, hydrateCanvas, richRuns } from './adapters.js'
 import type { CanvasInput } from './adapters.js'
 import { CanvasWriter } from './saving.js'
 import { pasteIntoCanvas } from './paste.js'
@@ -61,6 +61,12 @@ function CanvasSession({ page, initialPage, folderId, tasks, context, actions, o
   const [recovery, setRecovery] = useState(false)
   const [previousDraft, setPreviousDraft] = useState<string | null>(null)
   const initial = useMemo(() => hydrateCanvas(initialPage, width), [initialPage, width])
+  /* Read from the same page the editor was hydrated from, because the block
+     ids it keys are that page's. This session remounts on a new `initialPage`
+     (FolderCanvas keys on the checkpoint epoch), so the map cannot go stale
+     under the editor, and this editor can never make a `folder_ref` — only
+     lose one — so it never needs to grow. */
+  const folderRefs = useMemo(() => folderRefsOf(initialPage), [initialPage])
   const editor = useCreateBlockNote({
     schema: canvasSchema,
     initialContent: initial.length ? initial : [{ id: crypto.randomUUID(), type: 'paragraph', content: '' }],
@@ -80,7 +86,7 @@ function CanvasSession({ page, initialPage, folderId, tasks, context, actions, o
   // kinds and no nesting, so a writer based on it has nothing to restore from
   // and every save flattens the page. An empty page still starts from an empty
   // baseline, so the placeholder paragraph is written rather than assumed.
-  const [writer] = useState(() => new CanvasWriter(baselineOf(initialPage, initial.length ? dehydrateCanvas(editor.document, width) : { blocks: [], items: [] }), initialPage.revision!,
+  const [writer] = useState(() => new CanvasWriter(baselineOf(initialPage, initial.length ? dehydrateCanvas(editor.document, width, folderRefs) : { blocks: [], items: [] }), initialPage.revision!,
     (body) => mutateApi(getPageResponse, { method: 'POST', path: `/folders/${folderId}/page/actions`, body }),
     () => {
       render((value) => value + 1)
@@ -115,7 +121,7 @@ function CanvasSession({ page, initialPage, folderId, tasks, context, actions, o
 
   function changed(current: CanvasEditor): void {
     try {
-      writer.change(dehydrateCanvas(current.document, width))
+      writer.change(dehydrateCanvas(current.document, width, folderRefs))
       setError('')
     } catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not prepare this edit for saving.') }
   }
@@ -154,7 +160,7 @@ function CanvasSession({ page, initialPage, folderId, tasks, context, actions, o
     // simulated mutable Task record is put into the live editor before commit.
     const temporary = BlockNoteEditor.create({ schema: canvasSchema, initialContent: proposal })
     try {
-      writer.change(dehydrateCanvas(temporary.document, width))
+      writer.change(dehydrateCanvas(temporary.document, width, folderRefs))
       await writer.flush({ id, title: title.trim() })
     } finally { temporary.unmount(); setCreating(false); setTaskAt(null) }
   }
