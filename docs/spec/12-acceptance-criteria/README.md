@@ -109,6 +109,19 @@ default, so read this list before spending one.
   being ordinary where a collision is a duplicate test filename. **No total moves with it**,
   on the AC-410 and AC-411 precedent: the count at the top and 12.23's row in the table below
   belong to whichever merge comes last rather than to one of two branches open at once.
+- **AC-580 and AC-581 were taken on 2026-09-20** (issue #250 again, after a review of the
+  branch that took AC-464 to AC-466 below), and they are 12.9's, beside those three. **Taken
+  from 580 rather than from the tail this list names**, and the reason is the same one the
+  AC-440 and AC-464 bullets give, one step further along: re-read immediately before
+  spending, the live ranges across the open branches were 450 to 452, 464 to 466, 470 to 481,
+  490 to 507, 510 to 523 and 540 to 554, with 560 upward reserved, and **494 to 509, 524 to
+  539 and 555 to 559 are deliberate renumber gaps that must not be filled**. 580 is above
+  every one of them and above the reservation, which is what makes it safe to spend from a
+  branch that cannot see what the others will take. **560 to 579 are therefore not free by
+  default and are deliberately not added to the free list above**, on the AC-377 bullet's
+  rule. **No total moves with these two**, on the AC-410, AC-413 and AC-464 precedent: the
+  count at the head of this file and 12.9's row in the table below belong to whichever of the
+  open branches merges last.
 - **AC-464 to AC-466 were taken on 2026-09-20** (issue #250, the folder canvas save path),
   and they are 12.9's, beside the AC-460 to AC-463 they repair. Taken from **464** rather
   than from 423 or from 448, and the three were checked against every open branch rather

@@ -19,9 +19,17 @@ under jsdom would be a second thing able to fail. And the API is replaced by
 `applyTransaction` below, which is a deliberately small stand-in for
 `applyDocument`: it records what was sent and answers the page that results, so
 a transaction that loses something answers a page that has lost it, exactly as
-the server would. The contract those transactions are checked against is not
-doubled — the tests parse them with the real `documentTransaction` schema,
-which is the same code that answers 422 in production.
+the server would.
+
+**What that stand-in cannot do is refuse**, and the distinction is worth
+reading before trusting a green here. It writes whatever it is handed, and
+`refusalOf` below runs only the zod half of the contract, so these three
+criteria prove that nothing is *lost* on the way to the server and say nothing
+about whether the server would take it. Issue #250's review found two canvas
+gestures that produced an outline `applyDocument` answers 422 to while all
+three of them stayed green. AC-580 is the half that was missing: it drives the
+component the same way and sends the result through `actOnFolderPage` against a
+real database, which is the route's own composition.
 */
 import { act, render, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
@@ -93,6 +101,30 @@ export function structuredPage(): PageView {
 }
 
 /**
+ * A page the way the endpoint that predates `document_transaction` writes one:
+ * `text` and no `rich_content` at all. `insert_block` in `actOnFolderPage`
+ * names eight columns and `rich_content` is not among them, so every block
+ * written that way — and every block written before #219 — is this shape.
+ *
+ * It is here because it is the input that separates a baseline reconciling the
+ * server's page with the editor's projection from one that is either alone:
+ * `dehydrateCanvas` puts runs on every non-image block, so `documentOf` and the
+ * projection disagree about this block while agreeing about every block in
+ * `structuredPage` above. AC-581 is what reads it.
+ */
+export function legacyPage(): PageView {
+  return {
+    revision: 'r1',
+    blocks: [
+      block(canvasIds.section, 'section', 'Shopping'),
+      block(canvasIds.prose, 'paragraph', 'Before we go', { section_block_id: canvasIds.section }),
+    ],
+    items: [canvasIds.section, canvasIds.prose].map((each) => ({ kind: 'block' as const, id: each })),
+    task_placements: [],
+  }
+}
+
+/**
  * `applyDocument` in miniature: what the page looks like after a transaction.
  * Deliberately literal — it writes exactly what it was sent — so that a save
  * which drops a kind, a tick or a list parent answers a page without it.
@@ -139,19 +171,25 @@ const rowActions: RowActions = {
  * the writer after the first save and remounts the editor on the stale page,
  * which would make a second save unmeasurable.
  */
-function Host({ initialPage }: { readonly initialPage: PageView }): React.JSX.Element {
+function Host({ initialPage, folderId }: { readonly initialPage: PageView; readonly folderId: string }): React.JSX.Element {
   const page = useQuery({
-    queryKey: queryKeys.folderPage(FOLDER),
+    queryKey: queryKeys.folderPage(folderId),
     queryFn: () => initialPage,
     initialData: initialPage,
     staleTime: Infinity,
   })
-  return <FolderCanvas page={page.data} folderId={FOLDER} tasks={[]} context={rowContext} actions={rowActions} onAsk={noop} arrangeable />
+  return <FolderCanvas page={page.data} folderId={folderId} tasks={[]} context={rowContext} actions={rowActions} onAsk={noop} arrangeable />
 }
 
-export function mountCanvas(initialPage: PageView): void {
+/**
+ * The folder id is a parameter because AC-580 mounts on a folder that exists in
+ * a real database rather than on this file's fixture id; it defaults to the
+ * fixture so that the criteria written before it read unchanged. The container
+ * is returned for the same reason: that criterion reads the save status region.
+ */
+export function mountCanvas(initialPage: PageView, folderId: string = FOLDER): HTMLElement {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  render(<QueryClientProvider client={client}><Host initialPage={initialPage} /></QueryClientProvider>)
+  return render(<QueryClientProvider client={client}><Host initialPage={initialPage} folderId={folderId} /></QueryClientProvider>).container
 }
 
 /**
@@ -173,7 +211,21 @@ export async function editAndSave(surface: CanvasSurfaceSpy, api: CanvasApiSpy, 
   return sent
 }
 
-/** The refusal the server would answer, run through the contract itself. */
+/**
+ * What `documentTransaction` refuses, and nothing else.
+ *
+ * This is the zod layer the route parses a body with, so a transaction this
+ * accepts is one that reaches `applyDocument` — it is not one `applyDocument`
+ * accepts. That function states seven further refusals no schema can see,
+ * because each of them reads the outline as a whole: unknown or repeated
+ * identities, a Section parent that does not precede its content, heading depth,
+ * the three list-nesting rules, and the outline retaining every block. Two of
+ * those were reachable from this editor and answered 422 with the page unmoved
+ * (issue #250), so **an empty array from this function is not a save that
+ * works**. AC-580 is the criterion that asks the other question, and it asks it
+ * by running `actOnFolderPage` against a database rather than by restating a
+ * rule here.
+ */
 export function refusalOf(body: DocumentTransaction): string[] {
   const parsed = documentTransaction.safeParse(body)
   return parsed.success ? [] : parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`)

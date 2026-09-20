@@ -58,6 +58,16 @@ describe('page and editor adapters', () => {
   canvasOperations the next save would read that rendering as a conversion and
   flatten the page: the kinds gone, the ticks gone, the nesting gone, silently.
   These two cases are that guard in both directions.
+
+  **They are not evidence that a save keeps any of it, and this file is where
+  that was believed.** Both hand `before` the true kinds; the caller built it
+  with `dehydrateCanvas`, which knows three kinds and no nesting, so the branch
+  they exercise could not fire in the composition these assertions were read as
+  covering, and every save flattened the page for a release with this test
+  green (issue #250). The criteria that measure the composition are AC-464 to
+  AC-466, which drive `FolderCanvas` itself, and AC-580, which sends what it
+  emits through the server. Read these two as unit cases over one function and
+  take no comfort from them about the save path.
   */
   test('a kind this editor cannot express is preserved across a save, and a dangling list parent is dropped', () => {
     const record = (id: string, kind: PageBlock['kind'], checked: boolean | null = null) =>

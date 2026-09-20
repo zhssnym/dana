@@ -1,6 +1,6 @@
 import type { PartialBlock } from '@blocknote/core'
 import type { PageBlockKind, PageView } from '../../../../shared/pages.js'
-import { MAX_SECTION_DEPTH, RICH_TEXT_BLOCK_KINDS, STRUCTURED_BLOCK_KINDS } from '../../../../shared/page-document.js'
+import { MAX_SECTION_DEPTH, RICH_TEXT_BLOCK_KINDS, STRUCTURED_BLOCK_KINDS, isListKind } from '../../../../shared/page-document.js'
 import type { CanvasBlock, canvasSchema } from './schema.js'
 
 export type CanvasInput = PartialBlock<typeof canvasSchema.blockSchema, typeof canvasSchema.inlineContentSchema, typeof canvasSchema.styleSchema>
@@ -126,10 +126,15 @@ a page holding a nested checklist would otherwise come back as flat paragraphs
 with their ticks gone, which is silent loss rather than a refusal.
 
 So a block whose stored kind this editor cannot express keeps that kind, its
-tick and its list parent across a save. The dangling case is handled rather
-than refused: if the list parent itself is gone from the document, the child is
-promoted to the top level, exactly as ON DELETE SET NULL would leave it, so
-deleting a list parent cannot leave a document that will never save again.
+tick and its list parent across a save. Every case the server would refuse is
+handled rather than restored: if the list parent is gone from the document, or
+no longer precedes this item, or is no longer a list item at all, the child is
+promoted to the top level, exactly as ON DELETE SET NULL would leave it. That
+direction is not a preference. A save this editor makes that `applyDocument`
+refuses is worse than the nesting the restore was protecting, because
+`CanvasWriter.flush` latches `failed` on a refusal and nothing the person types
+after it is ever sent again; losing one list's indentation is recoverable by
+re-indenting, and a page that will not save is not recoverable at all.
 
 Every line of this disappears when the frontend phase teaches the editor the
 real vocabulary; until then it is what keeps the intermediate state lossless.
@@ -158,7 +163,6 @@ const RICH_TEXT = new Set<string>(RICH_TEXT_BLOCK_KINDS)
  */
 export function restoreCanvas(before: CanvasDocument, after: CanvasDocument): CanvasDocument {
   const old = new Map(before.blocks.map((block) => [block.id, block]))
-  const ids = new Set(after.blocks.map((block) => block.id))
   const blocks = after.blocks.map((block) => {
     const previous = old.get(block.id)
     return previous && block.block_kind === 'paragraph' && UNEXPRESSED.has(previous.block_kind)
@@ -166,16 +170,47 @@ export function restoreCanvas(before: CanvasDocument, after: CanvasDocument): Ca
       : block
   })
   const kept = new Map(blocks.map((block) => [block.id, block]))
+  const placed = new Map(after.items.map((item) => [item.id, item]))
+  const nested = new Map(before.items.map((item) => [item.id, item.list_parent_block_id]))
+  /*
+  A restored list parent is written into the outline the save sends, so it has
+  to satisfy every rule `applyDocument` states about one. The four conditions
+  below are that function's own, read off this outline the way it reads that
+  one, each against the document *after* restoration because that is what the
+  server will be given:
+
+  - the item is still a list item, which `isListKind` answers and nothing else
+    may (`page-document.ts`'s "Only a bullet, numbered or checklist item is a
+    nested list item"). **This one is unreachable while
+    `page_blocks_list_parent_kind_check` holds** — the database cannot store a
+    list parent on any other kind, so `before` cannot carry one to restore — and
+    it is written anyway so that all three of the server's list rules are read
+    off one function here rather than two of them being;
+  - the parent is still a list item too, after this same pass has restored the
+    kinds — retyping a bullet as a heading is one editor gesture and leaves the
+    child naming a `section`;
+  - the parent appears **earlier in this outline**, which is the server's whole
+    cycle rule and is what Move up on a nested item breaks by putting the child
+    above its parent;
+  - and the parent shares this item's Section, because a list inside two
+    Sections is one no reader can draw.
+
+  `isListKind` is imported rather than restated: it is the written-once test the
+  server uses, and a fifth list kind added to 4.17 must move both ends at once.
+  */
+  const earlier = new Set<string>()
   const items = after.items.map((item) => {
-    if (item.list_parent_block_id !== null || !UNEXPRESSED.has(kept.get(item.id)?.block_kind ?? '')) return item
-    const parent = before.items.find((candidate) => candidate.id === item.id)?.list_parent_block_id ?? null
-    // The parent must still exist and must still share this item's Section; the
-    // server refuses a list that spans two Sections, and dragging one item out
-    // of a Section is a gesture this editor can make while nesting is not.
-    const stays = after.items.find((candidate) => candidate.id === parent)
-    return parent !== null && ids.has(parent) && stays?.section_block_id === item.section_block_id
-      ? { ...item, list_parent_block_id: parent }
-      : item
+    const restored = ((): CanvasPlacement => {
+      if (item.list_parent_block_id !== null || !isListKind(kept.get(item.id)?.block_kind ?? '')) return item
+      const parent = nested.get(item.id) ?? null
+      if (parent === null) return item
+      const keeps = earlier.has(parent)
+        && isListKind(kept.get(parent)?.block_kind ?? '')
+        && placed.get(parent)?.section_block_id === item.section_block_id
+      return keeps ? { ...item, list_parent_block_id: parent } : item
+    })()
+    earlier.add(item.id)
+    return restored
   })
   return { blocks, items }
 }
