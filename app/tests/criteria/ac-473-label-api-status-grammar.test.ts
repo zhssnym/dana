@@ -51,7 +51,9 @@ import { randomUUID } from 'node:crypto'
 import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
+import { LIST_ROW_CAP } from '../../src/shared/list-cap.js'
 import {
+  FOLDER_LABEL_DEFINITION_CAP,
   FOLDER_PERSONAL_LABEL_CAP,
   PERSONAL_LABEL_DEFINITION_CAP,
   TASK_FOLDER_LABEL_CAP,
@@ -82,7 +84,9 @@ import {
   deleteTaskLabel,
   folderLabelsOf,
   getLabels,
+  labelRow,
   listLabels,
+  listLabelsBody,
   patchPersonalLabel,
   postFolderLabel,
   postPersonalLabel,
@@ -93,12 +97,17 @@ import {
 } from '../support/labels-harness.js'
 
 let app: AuthTestApp
-const cast = new Cast(['owner', 'member', 'stranger'], 'ac473')
+const cast = new Cast(['owner', 'member', 'stranger', 'hoarder'], 'ac473')
 
 interface Stage {
   owner: Actor
   member: Actor
   stranger: Actor
+  /** An account of its own for the cap case, which seeds more definitions
+   * than the cap admits. Nobody else's listing may be perturbed by that, and
+   * a Label catalog is per account and per folder, so a fourth actor with
+   * folders of its own is the whole of the isolation needed. */
+  hoarder: Actor
   shared: string
   taskId: string
 }
@@ -107,7 +116,8 @@ let staged: Stage | undefined
 
 async function stage(): Promise<Stage> {
   if (staged !== undefined) return staged
-  const [owner, member, stranger] = (await cast.of(app)) as [
+  const [owner, member, stranger, hoarder] = (await cast.of(app)) as [
+    Actor,
     Actor,
     Actor,
     Actor,
@@ -120,7 +130,7 @@ async function stage(): Promise<Stage> {
     createdBy: owner.id,
     title: 'ac473 the task',
   })
-  staged = { owner, member, stranger, shared, taskId }
+  staged = { owner, member, stranger, hoarder, shared, taskId }
   return staged
 }
 
@@ -232,6 +242,73 @@ describe('AC-473 the definition listing is gated and its three query fields arri
       narrowed,
       'and excludes a Folder Label of another accessible folder, which is the whole of what the field does',
     ).not.toContain(inThere.id)
+  })
+
+  test('AC-473: the listing stops at 10.3\'s row cap and says whether it dropped anything', async () => {
+    const fx = await stage()
+
+    /* Under the cap first, so that the flag is shown to mean something. A
+       response holding fewer rows than the cap is complete and says so;
+       `truncated` reports dropped rows and nothing else. */
+    const under = await listLabelsBody(fx.member, { scope: 'all', state: 'all' })
+    expect(
+      under.rows.length,
+      'the ordinary account this file builds is nowhere near the cap',
+    ).toBeLessThan(LIST_ROW_CAP)
+    expect(
+      under.truncated,
+      'so nothing was dropped and the body says so, rather than leaving a caller to guess from the count',
+    ).toBe(false)
+
+    /* Over it. 10.3 caps a list response at 1000 rows with a truncated flag,
+       and this listing's worst case is 500 Personal definitions plus 250 for
+       every Folder the viewer belongs to — so one member of four folders is
+       already past it. Until 2026-09-20 `listLabels` had no LIMIT and no
+       flag: a viewer over the cap was answered every row, and 7.26 said
+       "the bare array" without a bound.
+
+       Seeded by INSERT rather than through the API, which is the one place
+       this file's harness rule gives way: 1250 creates are 1250 locked
+       transactions, and what is under test is the read. Every catalog stays
+       inside its own definition cap — 500 Personal, 250 per Folder — so the
+       state is one the API could have produced, which is what that rule is
+       actually for. */
+    const hoarder = fx.hoarder
+    await app.db.execute(
+      sql`INSERT INTO labels (scope, owner_user_id, name, color)
+          SELECT 'personal', ${hoarder.id}::uuid,
+                 'ac473 cap p' || i, '#334455'
+            FROM generate_series(1, ${PERSONAL_LABEL_DEFINITION_CAP}) AS i`,
+    )
+    let seeded = PERSONAL_LABEL_DEFINITION_CAP
+    for (const suffix of ['a', 'b', 'c']) {
+      const folderId = await createFolder(hoarder, `ac473 cap ${suffix}`)
+      await app.db.execute(
+        sql`INSERT INTO labels (scope, folder_id, name, color)
+            SELECT 'folder', ${folderId}::uuid,
+                   ${`ac473 cap ${suffix}`} || i, '#334455'
+              FROM generate_series(1, ${FOLDER_LABEL_DEFINITION_CAP}) AS i`,
+      )
+      seeded += FOLDER_LABEL_DEFINITION_CAP
+    }
+    expect(
+      seeded,
+      'the fixture is genuinely over the cap, or the assertion below measures nothing',
+    ).toBeGreaterThan(LIST_ROW_CAP)
+
+    const over = await listLabelsBody(hoarder, { scope: 'all' })
+    expect(
+      over.rows.length,
+      'the response carries the cap and not one row more (10.3, and the per-response reading section 6 fixes)',
+    ).toBe(LIST_ROW_CAP)
+    expect(
+      over.truncated,
+      'and it says it dropped rows, which is the whole of what the flag is for: a caller cannot tell a full page from a complete one by counting',
+    ).toBe(true)
+    expect(
+      new Set(over.rows.map((label) => label.id)).size,
+      'and the kept rows are the first of the one stated order rather than a repeated page',
+    ).toBe(LIST_ROW_CAP)
   })
 
   test('AC-473: an invalid query value is 422 naming the field', async () => {
@@ -379,10 +456,36 @@ describe('AC-475 archive retires a Label without detaching anything', () => {
       200,
       '#208 R5 clause 7: rename, colour and description may remain available while archived, and #226 says so outright',
     )
-    const after = edited.json() as { archived: boolean; name: string }
+    const after = edited.json() as {
+      archived: boolean
+      name: string
+      color: string
+      description: string | null
+    }
     expect(after.archived, 'and the edit did not quietly restore it').toBe(true)
     expect(after.name, 'the new name is the one that was sent').toBe(
       'ac475 Retired and tidied',
+    )
+    /* All three of the acts this criterion names, not just the one. `color`
+       and `description` are declared PATCH fields, and a declared field the
+       route does not act on is stripped and answered 200 — hard stop 3's
+       second class, the one that cost this project four packages. Until
+       2026-09-20 only the name was read back, so forcing a colour inside
+       `patchLabel` or dropping `description` from its SET list left this and
+       every other Label criterion green. */
+    expect(after.color, 'the recolour is the second of the three acts').toBe(
+      '#112233',
+    )
+    expect(after.description, 'and the description the third').toBe(
+      'tidying an archived vocabulary is a reasonable thing to do',
+    )
+    const stored = await labelRow(app.db, label.id)
+    expect(
+      stored.color,
+      'and the row carries them, which is the half a response echo cannot prove',
+    ).toBe('#112233')
+    expect(stored.description, 'both of them, in the row').toBe(
+      'tidying an archived vocabulary is a reasonable thing to do',
     )
     expectStatus(
       await restorePersonalLabel(fx.owner, label.id),

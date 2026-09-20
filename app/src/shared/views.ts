@@ -45,6 +45,7 @@ second home for them:
 */
 import { z } from 'zod'
 
+import { LIST_ROW_CAP } from './list-cap.js'
 // dueDate is imported under a second name: a completion day, a calendar range
 // boundary and a due date are one format, 4.11's YYYY-MM-DD, so they are one
 // primitive, and the alias is what lets the use sites read correctly without
@@ -396,12 +397,16 @@ export type SearchQuery = z.infer<typeof searchQuery>
  * ------------------------------------------------------------------ */
 
 /*
-10.3's row, "List responses capped at 1000 rows with truncated flag", and
-section 6's preamble as ruled on 2026-08-07: per response, not per array, with
-the kept rows the first 1000 in the order 7.10 enumerates that response's own
-sections.
+The number and the allocation moved to `list-cap.ts` on 2026-09-20 with issue
+#226, and are re-exported here so that every call site reads unchanged. They
+moved because `GET /labels` took the same cap and `labels.ts` cannot import
+this file: this one imports `tasks.ts`, which imports `labels.ts`, and the
+loop kills whichever of the three is loaded first. That file carries the
+reasoning; nothing about the cap itself changed.
 */
-export const LIST_ROW_CAP = 1000
+export { takeCapped } from './list-cap.js'
+export type { CappedSections } from './list-cap.js'
+export { LIST_ROW_CAP }
 
 const OVER_CAP = `must carry at most ${String(LIST_ROW_CAP)} rows across the sections of one response (spec 6)`
 
@@ -417,43 +422,6 @@ function groupRows(
   groups: readonly { readonly rows: readonly unknown[] }[],
 ): readonly unknown[] {
   return groups.flatMap((group) => group.rows)
-}
-
-/** What a capped response is built from: the sections that survived, in the
- * order they were given, and the one flag 7.10 gives the body to report them
- * with. */
-export interface CappedSections<T> {
-  sections: T[][]
-  truncated: boolean
-}
-
-/**
- * The ruled allocation: sections given in the order 7.10 enumerates them, each
- * taking what is left of the cap, and truncated true exactly when a row was
- * dropped.
- *
- * One function because three responses need it. Tasks is inbox then groups,
- * All is planned then tasks_inbox then tasks_groups, and the folder page is
- * scheduled then unscheduled; an implementation filling a later section first
- * answers the same total with a different page, which is the difference
- * section 6's byte-identical guarantee turns on once a cap can bite.
- *
- * truncated reports dropped rows and nothing else. A response holding exactly
- * the cap with nothing behind it is complete, and says so.
- */
-export function takeCapped<T>(
-  sections: readonly (readonly T[])[],
-): CappedSections<T> {
-  const kept: T[][] = []
-  let room = LIST_ROW_CAP
-  let truncated = false
-  for (const section of sections) {
-    const take = Math.min(section.length, room)
-    kept.push(section.slice(0, take))
-    if (take < section.length) truncated = true
-    room -= take
-  }
-  return { sections: kept, truncated }
 }
 
 /* ------------------------------------------------------------------ *

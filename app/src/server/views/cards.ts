@@ -32,7 +32,7 @@ eye (11.5).
 import { sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 
-import type { TaskLabels } from '../../shared/labels.js'
+import type { LabelRef, TaskLabels } from '../../shared/labels.js'
 import type { TaskCard } from '../../shared/tasks.js'
 import { LIST_ROW_CAP } from '../../shared/views.js'
 import { rowsOf } from '../database.js'
@@ -324,11 +324,26 @@ export async function readCards(
   }))
 }
 
-/** The projection a row gets when the batch has nothing for it, which cannot
+/**
+ * The projection a row gets when the batch has nothing for it, which cannot
  * happen — every id handed over comes back with an entry — and is spelled
  * rather than asserted because a card with no `labels` key would fail the
- * shared schema at the client rather than here. */
-const EMPTY_LABELS: TaskLabels = { personal: [], folder: [] }
+ * shared schema at the client rather than here.
+ *
+ * **Frozen, object and arrays, because one shared mutable default handed to
+ * every card that misses the batch is a defect waiting for the day the
+ * comment above stops being true.** The comment is the only thing keeping
+ * these arrays empty; a caller that pushed into a card's `labels.folder`
+ * would be writing into the default that every other missing row is about to
+ * be given. Freezing makes that a TypeError at the write rather than a label
+ * appearing on unrelated cards, which is the shape CLAUDE.md's opening note
+ * warns about — a confident comment describing intent rather than behaviour.
+ */
+const noLabels = (): LabelRef[] => Object.freeze([] as LabelRef[]) as LabelRef[]
+const EMPTY_LABELS: TaskLabels = Object.freeze({
+  personal: noLabels(),
+  folder: noLabels(),
+})
 
 /* ------------------------------------------------------------------ *
  * The caps

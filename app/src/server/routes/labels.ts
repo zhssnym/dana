@@ -51,6 +51,13 @@ the consistency #208 asks for, and AC-472 pins all four.
 The other 409 on this surface is applying an archived Label, which #208 fixes
 directly. Both are state conflicts and both leave the row untouched.
 
+**The listing is capped and the body says so.** `GET /labels` answers
+`{ rows, truncated }` rather than a bare array, which is 10.3's standing rule
+for a list response and the shape `getPlannedResponse` already uses. Its worst
+case is 500 Personal definitions plus 250 for every Folder the viewer belongs
+to, so it is one of the lists that rule is about; it shipped uncapped for the
+length of one review, and AC-473 now asserts both sides of the flag.
+
 ## The gates, including the one no sweep can see
 
 Every route below whose **path** carries an id resolves access before it acts,
@@ -156,7 +163,7 @@ export function createLabelsRouter(options: LabelsRouterOptions = {}): Router {
   }
 
   /* ---------------------------------------------------------------- *
-   * GET /labels — every definition the viewer may read
+   * GET /labels — every definition the viewer may read, to 10.3's cap
    * ---------------------------------------------------------------- */
 
   router.get('/labels', requireSession, async (req: Request, res: Response) => {
@@ -187,7 +194,11 @@ export function createLabelsRouter(options: LabelsRouterOptions = {}): Router {
       notFound(res)
       return
     }
-    res.status(200).json(outcome.labels)
+    /* 10.3's capped-list body, `{ rows, truncated }`, which is the spelling
+       every other capped response on this API already uses. The cap is
+       applied in the domain, where the LIMIT can be part of the one statement
+       rather than a slice of a list already read. */
+    res.status(200).json({ rows: outcome.labels, truncated: outcome.truncated })
   })
 
   /* ---------------------------------------------------------------- *

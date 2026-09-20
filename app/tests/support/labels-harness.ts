@@ -172,13 +172,29 @@ export function getLabels(
   )
 }
 
+/** The whole 10.3 capped body: the rows that fit and the flag that says
+ * whether any were dropped. */
+export interface LabelListBody {
+  rows: LabelDefinition[]
+  truncated: boolean
+}
+
+export async function listLabelsBody(
+  actor: Actor,
+  query: ListQuery = {},
+): Promise<LabelListBody> {
+  const answer = await getLabels(actor, query)
+  expectStatus(answer, 200, 'GET /labels must answer the definitions')
+  return answer.json() as LabelListBody
+}
+
+/** Just the rows, for the many cases that are about which definitions came
+ * back rather than about the cap. */
 export async function listLabels(
   actor: Actor,
   query: ListQuery = {},
 ): Promise<LabelDefinition[]> {
-  const answer = await getLabels(actor, query)
-  expectStatus(answer, 200, 'GET /labels must answer the definitions')
-  return answer.json() as LabelDefinition[]
+  return (await listLabelsBody(actor, query)).rows
 }
 
 /* ------------------------------------------------------------------ *
@@ -279,6 +295,37 @@ export async function folderLabelsOf(
 /* ------------------------------------------------------------------ *
  * Rows
  * ------------------------------------------------------------------ */
+
+/** What a definition looks like in the row, for the half of a round-trip
+ * assertion that a response cannot make.
+ *
+ * A response echoing a field proves the handler had the value; only the row
+ * proves the write carried it. Both halves are needed because the two ways of
+ * losing a declared field look identical on the wire — hard stop 3 — and one
+ * of them (a handler that answers what it was sent and stores a default)
+ * passes a response-only assertion.
+ */
+export async function labelRow(
+  db: Db,
+  labelId: string,
+): Promise<{ name: string; color: string; description: string | null }> {
+  const found = (await db.execute(
+    sql`SELECT name, color, description FROM labels WHERE id = ${labelId}`,
+  )) as unknown as {
+    rows: { name: unknown; color: unknown; description: unknown }[]
+  }
+  const row = found.rows[0]
+  expect(row, `the labels row for ${labelId} must exist`).toBeDefined()
+  const present = row as { name: unknown; color: unknown; description: unknown }
+  return {
+    name: String(present.name),
+    color: String(present.color),
+    description:
+      present.description === null || present.description === undefined
+        ? null
+        : String(present.description),
+  }
+}
 
 export async function countAssignments(
   db: Db,

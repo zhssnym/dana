@@ -35,6 +35,8 @@ name, because `sendValidationError` prefixes the path when it builds the 422.
 */
 import { z } from 'zod'
 
+import { LIST_ROW_CAP } from './list-cap.js'
+
 /* ------------------------------------------------------------------ *
  * The field primitives
  * ------------------------------------------------------------------ */
@@ -267,10 +269,33 @@ export type TaskLabels = z.infer<typeof taskLabels>
  * Response shapes
  * ------------------------------------------------------------------ */
 
-/** GET /labels. A bare array, the shape 7.4's `GET /folders` uses and for the
- * same reason: the response carries rows and nothing else, so there is
- * nothing for a wrapper key to name. */
-export const getLabelsResponse = z.array(labelDefinition)
+/**
+ * GET /labels: `{ rows, truncated }`, 10.3's capped-list shape.
+ *
+ * **It was a bare array until 2026-09-20 and the change is the cap**, not a
+ * preference about wrappers. 10.3's standing rule is "List responses capped at
+ * 1000 rows with truncated flag", and this listing's worst case is 500
+ * Personal definitions plus 250 for every Folder the viewer belongs to, so it
+ * is one of the lists that rule is about. A flag needs somewhere to live, and
+ * a bare array has nowhere; `{ rows, truncated }` is the spelling
+ * `getPlannedResponse` and `getImportantResponse` already use for a capped
+ * body with one section, followed here rather than a second one invented.
+ *
+ * The cap is the shared `LIST_ROW_CAP` rather than a number of this feature's
+ * own, and it is one number across the whole response rather than one per
+ * scope: that is section 6's per-response reading as ruled on 2026-08-07, and
+ * a Personal cap separate from a Folder cap would be a contract decision 10.3
+ * has not taken.
+ */
+export const getLabelsResponse = z
+  .object({
+    rows: z.array(labelDefinition),
+    truncated: z.boolean(),
+  })
+  .refine((body) => body.rows.length <= LIST_ROW_CAP, {
+    error: `must carry at most ${String(LIST_ROW_CAP)} rows (spec 10.3)`,
+  })
+export type GetLabelsResponse = z.infer<typeof getLabelsResponse>
 
 /** The four definition-writing endpoints of each scope answer the definition
  * they wrote, which is the PATCH /me convention this surface inherits: a

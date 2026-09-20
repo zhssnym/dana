@@ -288,6 +288,7 @@ type ResourceId =
   | 'inviteId'
   | 'notificationId'
   | 'personalLabelId'
+  | 'strangerPersonalLabelId'
   | 'folderLabelId'
 
 interface Fixtures extends Record<ResourceId, string> {
@@ -336,9 +337,28 @@ async function fixturesOf(): Promise<Fixtures> {
   /* Issue #226's two Label scopes, one fixture each. Both are the owner's to
      reach and neither is the stranger's: a Personal Label is private to the
      account that made it, and a Folder Label belongs to a Folder the stranger
-     is not in. The eleven rows below address them. */
+     is not in. The eleven rows below address them, seven with these two and
+     four with the third fixture underneath. */
   const personalLabelId = await makePersonalLabel(owner, 'ac397 personal')
   const folderLabelId = await makeFolderLabel(owner, folderId, 'ac397 folder')
+
+  /* A third Label, and it is the **stranger's own**, which is the only thing
+     that makes the four assignment rows measure what their `rule` strings
+     say. Those rows drive `PUT` and `DELETE` on
+     `/folders/:folderId/labels/:labelId` and `/tasks/:taskId/labels/:labelId`,
+     each of which has two gates — the target and the Label — and each of
+     which answers 404 to a stranger either way. Driven with the *owner's*
+     Personal Label the row is satisfied by the Label gate alone, so deleting
+     the target gate leaves it green; that is exactly what a mutation found on
+     2026-09-20, with the folder gate removed and a stranger writing a
+     `folder_personal_labels` row against a Folder they cannot see, and with
+     `accessibleTask` removed and both this file and `ac-236` still green.
+     Handing over a Label they genuinely own takes the Label gate out of the
+     answer and leaves only the target's. */
+  const strangerPersonalLabelId = await makePersonalLabel(
+    stranger,
+    'ac397 the stranger\'s own personal',
+  )
 
   /* The owner's cover on the same place the viewer-scoped rows write, so
      those rows assert something. Without it the stranger's PUT and DELETE on
@@ -375,6 +395,7 @@ async function fixturesOf(): Promise<Fixtures> {
     inviteId,
     notificationId,
     personalLabelId,
+    strangerPersonalLabelId,
     folderLabelId,
   }
   return fixtures
@@ -1295,9 +1316,15 @@ const TABLE = new Map<string, Row>([
          asking. A stranger handing over a label they genuinely own must still
          be refused, because what they may not reach is the **folder**; a row
          driving the owner's label would pass on the label gate alone and would
-         say nothing about the folder gate this route also needs. */
+         say nothing about the folder gate this route also needs.
+
+         It drove the owner's until 2026-09-20 while saying it drove the
+         stranger's, and the gap was provable: with `folderAccess` replaced by
+         a bare `parsedId` in this route, this file stayed green and a stranger
+         wrote a `folder_personal_labels` row against a folder they cannot
+         see. The four assignment rows all carried it. */
       attempt: (fx) => ({
-        path: `/folders/${fx.folderId}/labels/${fx.personalLabelId}`,
+        path: `/folders/${fx.folderId}/labels/${fx.strangerPersonalLabelId}`,
       }),
       stranger: {
         expected: 404,
@@ -1309,7 +1336,7 @@ const TABLE = new Map<string, Row>([
     'DELETE /api/v1/folders/:folderId/labels/:labelId',
     {
       attempt: (fx) => ({
-        path: `/folders/${fx.folderId}/labels/${fx.personalLabelId}`,
+        path: `/folders/${fx.folderId}/labels/${fx.strangerPersonalLabelId}`,
       }),
       stranger: {
         expected: 404,
@@ -1321,7 +1348,7 @@ const TABLE = new Map<string, Row>([
     'PUT /api/v1/tasks/:taskId/labels/:labelId',
     {
       attempt: (fx) => ({
-        path: `/tasks/${fx.taskId}/labels/${fx.personalLabelId}`,
+        path: `/tasks/${fx.taskId}/labels/${fx.strangerPersonalLabelId}`,
       }),
       stranger: {
         expected: 404,
@@ -1333,7 +1360,7 @@ const TABLE = new Map<string, Row>([
     'DELETE /api/v1/tasks/:taskId/labels/:labelId',
     {
       attempt: (fx) => ({
-        path: `/tasks/${fx.taskId}/labels/${fx.personalLabelId}`,
+        path: `/tasks/${fx.taskId}/labels/${fx.strangerPersonalLabelId}`,
       }),
       stranger: {
         expected: 404,
@@ -1568,7 +1595,16 @@ describe('AC-397 every id-bearing route refuses a stranger', () => {
   */
   const VISIBLE_TO_ITS_OWNER: Record<
     ResourceId,
-    (fx: Fixtures) => { what: string; path: string; holds?: string }
+    (fx: Fixtures) => {
+      what: string
+      path: string
+      holds?: string
+      /** Who to ask, where the fixture's maker is not `owner`. Added with
+       * `strangerPersonalLabelId`, whose whole point is that it belongs to
+       * somebody else; asking the owner about it would answer 200 without it
+       * and read as a missing fixture. */
+      as?: Actor
+    }
   > = {
     folderId: (fx) => ({ what: 'the folder', path: `/folders/${fx.folderId}` }),
     taskId: (fx) => ({ what: 'the task', path: `/tasks/${fx.taskId}` }),
@@ -1622,6 +1658,12 @@ describe('AC-397 every id-bearing route refuses a stranger', () => {
       path: '/labels?scope=all',
       holds: fx.personalLabelId,
     }),
+    strangerPersonalLabelId: (fx) => ({
+      what: "the stranger's own personal label",
+      path: '/labels?scope=all',
+      holds: fx.strangerPersonalLabelId,
+      as: fx.stranger,
+    }),
     folderLabelId: (fx) => ({
       what: 'the folder label',
       path: '/labels?scope=all',
@@ -1637,8 +1679,9 @@ describe('AC-397 every id-bearing route refuses a stranger', () => {
       what: string,
       path: string,
       holds?: string,
+      as?: Actor,
     ): Promise<void> => {
-      const answer = await fx.owner.browser.api(path)
+      const answer = await (as ?? fx.owner).browser.api(path)
       if (answer.status !== 200) {
         invisible.push(
           `${what}: GET ${path} answered ${String(answer.status)} to the person who made it`,
@@ -1651,8 +1694,8 @@ describe('AC-397 every id-bearing route refuses a stranger', () => {
     }
 
     for (const probe of Object.values(VISIBLE_TO_ITS_OWNER)) {
-      const { what, path, holds } = probe(fx)
-      await seen(what, path, holds)
+      const { what, path, holds, as } = probe(fx)
+      await seen(what, path, holds, as)
     }
     await seen('the folder page', `/folders/${fx.folderId}/page`)
     await seen('the shelf page', `/shelves/${fx.shelfId}/page`)

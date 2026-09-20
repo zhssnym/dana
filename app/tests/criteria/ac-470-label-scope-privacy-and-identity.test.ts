@@ -53,6 +53,7 @@ import {
   createFolderLabel,
   createPersonalLabel,
   folderLabelsOf,
+  labelRow,
   listLabels,
   namesOf,
   patchFolderLabel,
@@ -260,12 +261,35 @@ describe('AC-470 a Personal Label is private and a Folder Label is the Folder\'s
 describe('AC-471 scope is part of identity, and the order is total', () => {
   test('AC-471: one name may exist in three catalogs at once', async () => {
     const fx = await stage()
-    const personal = await createPersonalLabel(fx.owner, { name: 'Research' })
+    /* Each of the three is given its own colour and description, and each is
+       read back from the response and from the row. That is the strongest
+       available statement of "never merged": three rows sharing one name and
+       differing in every other field cannot be one row, and a reader of the
+       assertion can tell which Label answered.
+
+       It is also hard stop 3 for the create body in both scopes. `color` and
+       `description` are declared request fields, and a declared field the
+       server does not act on is stripped and answered 200 with nothing on the
+       wire to say so — the class that cost this project four packages. Before
+       2026-09-20 nothing here read either value back: forcing `'#000000'`
+       inside `insertLabel`, or dropping `description` from the INSERT
+       entirely, left every Label criterion green. The row half is not
+       decoration either; a handler that echoed what it was sent and stored a
+       default would pass a response-only check. */
+    const personal = await createPersonalLabel(fx.owner, {
+      name: 'Research',
+      color: '#AB1234',
+      description: 'the personal one',
+    })
     const inShared = await createFolderLabel(fx.owner, fx.shared, {
       name: 'Research',
+      color: '#12CD56',
+      description: 'the shared folder one',
     })
     const inOther = await createFolderLabel(fx.owner, fx.other, {
       name: 'Research',
+      color: '#7890EF',
+      description: 'the other folder one',
     })
 
     const ids = new Set([personal.id, inShared.id, inOther.id])
@@ -276,6 +300,50 @@ describe('AC-471 scope is part of identity, and the order is total', () => {
     expect(personal.folder_id, 'a Personal Label names no folder').toBeNull()
     expect(inShared.folder_id, 'a Folder Label names its folder').toBe(fx.shared)
     expect(inOther.folder_id, 'and the other names the other').toBe(fx.other)
+
+    const sent: [string, string, string][] = [
+      [personal.id, '#AB1234', 'the personal one'],
+      [inShared.id, '#12CD56', 'the shared folder one'],
+      [inOther.id, '#7890EF', 'the other folder one'],
+    ]
+    const answered = new Map(
+      [personal, inShared, inOther].map((label) => [label.id, label]),
+    )
+    for (const [id, color, description] of sent) {
+      const got = answered.get(id)
+      expect(
+        got?.color,
+        `the create answered the colour it was sent for ${id}, rather than a default`,
+      ).toBe(color)
+      expect(
+        got?.description,
+        `and the description it was sent for ${id}, which nothing asserted until the value was proved to be droppable`,
+      ).toBe(description)
+
+      const stored = await labelRow(app.db, id)
+      expect(
+        stored.color,
+        `and the row for ${id} holds that colour, which is the half a response echo cannot make`,
+      ).toBe(color)
+      expect(
+        stored.description,
+        `and the row for ${id} holds that description`,
+      ).toBe(description)
+    }
+
+    /* And the listing, which is the third producer of a definition, carries
+       both fields too — a Label whose description survives the write and is
+       dropped by the read is the same loss one layer along. */
+    const listed = await listLabels(fx.owner, { scope: 'all' })
+    const fromList = listed.find((label) => label.id === personal.id)
+    expect(
+      fromList?.color,
+      'GET /labels answers the colour it stored',
+    ).toBe('#AB1234')
+    expect(
+      fromList?.description,
+      'and the description, which is the field LabelDefinition carries and LabelRef does not',
+    ).toBe('the personal one')
   })
 
   test('AC-471: a name differing only by case is refused inside one catalog', async () => {
@@ -468,8 +536,27 @@ describe('AC-480 every Folder member manages that Folder\'s Labels', () => {
        is why this whole block is driven by the member. */
     const made = await createFolderLabel(fx.member, folderId, {
       name: 'ac480 Member made',
+      color: '#5566CC',
       description: 'by someone who does not own the folder',
     })
+    /* "Describe" and "recolour" are two of the eight acts this criterion
+       names, so they are asserted as acts rather than as statuses: a 201 says
+       the request was accepted, and a field that was accepted and dropped
+       answers exactly the same 201 (hard stop 3). The row is read beside the
+       response because only the row distinguishes a value that was stored
+       from one that was echoed. */
+    expect(made.color, 'the create answered the colour the member sent').toBe(
+      '#5566CC',
+    )
+    expect(
+      made.description,
+      'and the description, which is the act this criterion calls "describe"',
+    ).toBe('by someone who does not own the folder')
+    const createdRow = await labelRow(app.db, made.id)
+    expect(createdRow.color, 'and the row holds that colour').toBe('#5566CC')
+    expect(createdRow.description, 'and that description').toBe(
+      'by someone who does not own the folder',
+    )
 
     const renamed = await patchFolderLabel(fx.member, folderId, made.id, {
       name: 'ac480 Member renamed',
@@ -477,6 +564,21 @@ describe('AC-480 every Folder member manages that Folder\'s Labels', () => {
       description: 'and recoloured and described',
     })
     expectStatus(renamed, 200, 'rename, recolor and describe, by the member')
+    const patched = renamed.json() as {
+      name: string
+      color: string
+      description: string | null
+    }
+    expect(patched.name, 'the rename took').toBe('ac480 Member renamed')
+    expect(patched.color, 'the recolour took').toBe('#AA2255')
+    expect(patched.description, 'and the description took').toBe(
+      'and recoloured and described',
+    )
+    const patchedRow = await labelRow(app.db, made.id)
+    expect(patchedRow.color, 'and the row moved with it').toBe('#AA2255')
+    expect(patchedRow.description, 'both fields, in the row').toBe(
+      'and recoloured and described',
+    )
 
     expectStatus(
       await putTaskLabel(fx.member, taskId, made.id),

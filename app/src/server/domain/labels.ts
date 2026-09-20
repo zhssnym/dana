@@ -48,6 +48,7 @@ import { sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
+import { LIST_ROW_CAP, takeCapped } from '../../shared/list-cap.js'
 import {
   FOLDER_LABEL_DEFINITION_CAP,
   FOLDER_PERSONAL_LABEL_CAP,
@@ -237,7 +238,7 @@ export async function folderPersonalLabelsFor(
  * ------------------------------------------------------------------ */
 
 export type ListLabelsResult =
-  | { kind: 'listed'; labels: LabelDefinition[] }
+  | { kind: 'listed'; labels: LabelDefinition[]; truncated: boolean }
   /** The `folder_id` selector named a Folder the viewer cannot reach. 404
    * rather than 403, because a 403 confirms the Folder exists (10.2). */
   | { kind: 'folder_not_found' }
@@ -299,14 +300,29 @@ export async function listLabels(
           ON m.folder_id = l.folder_id AND m.user_id = ${viewerId}
        WHERE l.scope = 'folder'${one}${state}`)
   }
-  if (halves.length === 0) return { kind: 'listed', labels: [] }
+  if (halves.length === 0) {
+    return { kind: 'listed', labels: [], truncated: false }
+  }
 
+  /* 10.3's list cap, read one row over so that a full answer is known to have
+     had something behind it without a second count — the same probe
+     `views/cards.ts` calls CAP_PROBE, spelled here because that constant lives
+     downstream of this module and importing it would be a cycle. The
+     allocation is `takeCapped`, which every other capped body uses; this one
+     has a single section, so it takes the first LIST_ROW_CAP of the order
+     above and reports whether it dropped anything. */
   const found = await rowsOf(
     db,
     sql`SELECT * FROM (${sql.join(halves, sql` UNION ALL `)}) visible
-        ORDER BY scope_rank ASC, folder_rank ASC NULLS FIRST, ${LABEL_ORDER}`,
+        ORDER BY scope_rank ASC, folder_rank ASC NULLS FIRST, ${LABEL_ORDER}
+        LIMIT ${LIST_ROW_CAP + 1}`,
   )
-  return { kind: 'listed', labels: found.map(definitionFromRow) }
+  const capped = takeCapped([found.map(definitionFromRow)])
+  return {
+    kind: 'listed',
+    labels: capped.sections[0] ?? [],
+    truncated: capped.truncated,
+  }
 }
 
 /* ------------------------------------------------------------------ *
