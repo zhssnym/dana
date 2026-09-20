@@ -248,14 +248,14 @@ export async function seed(): Promise<void> {
      every other member is Can edit. Imran is the one non-owner here, in
      Hassan's Groceries. */
   await db.execute(sql`
-    INSERT INTO folder_members (folder_id, user_id, shelf_name, label, color, access)
+    INSERT INTO folder_members (folder_id, user_id, shelf_name, color, access)
     VALUES
-      (${seedIds.hassanDesk}, ${seedIds.hassan}, NULL, NULL, NULL, 'full_control'),
-      (${seedIds.imranDesk}, ${seedIds.imran}, NULL, NULL, NULL, 'full_control'),
-      (${seedIds.groceries}, ${seedIds.hassan}, 'Home', 'Home', '#33AA55', 'full_control'),
-      (${seedIds.groceries}, ${seedIds.imran}, NULL, NULL, NULL, 'can_edit'),
-      (${seedIds.nadiaDesk}, ${seedIds.nadia}, NULL, NULL, NULL, 'full_control'),
-      (${seedIds.nadiaStudio}, ${seedIds.nadia}, NULL, NULL, NULL, 'full_control')
+      (${seedIds.hassanDesk}, ${seedIds.hassan}, NULL, NULL, 'full_control'),
+      (${seedIds.imranDesk}, ${seedIds.imran}, NULL, NULL, 'full_control'),
+      (${seedIds.groceries}, ${seedIds.hassan}, 'Home', '#33AA55', 'full_control'),
+      (${seedIds.groceries}, ${seedIds.imran}, NULL, NULL, 'can_edit'),
+      (${seedIds.nadiaDesk}, ${seedIds.nadia}, NULL, NULL, 'full_control'),
+      (${seedIds.nadiaStudio}, ${seedIds.nadia}, NULL, NULL, 'full_control')
   `)
 
   await db.execute(sql`

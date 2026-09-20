@@ -192,15 +192,17 @@ async function writeFolder(
   const folderId = String(inserted[0]?.id)
   await register(tx, userId, 'folder', folderId)
   // 4.18: a folder is on a shelf by the viewer's own membership, held in step
-  // with the shelf's name. Both columns until issue #247 contracts migration
-  // 0022's expand half.
+  // with the shelf's name. One column written since issue #247 contracted
+  // migration 0022's expand half; `folder_members.label` is still in the
+  // table until #247's second release drops it, and this INSERT leaves it
+  // null, which its CHECK admits.
   /* The sample workspace is the new account's own, so its folders are theirs
      to own and to administer: owner plus Full control, with the baseline
      transition beside it (issue #228). */
   await tx.execute(
-    sql`INSERT INTO folder_members (folder_id, user_id, shelf_name, label, access)
+    sql`INSERT INTO folder_members (folder_id, user_id, shelf_name, access)
         VALUES (${folderId}::uuid, ${userId}::uuid, ${folder.shelf ?? null},
-                ${folder.shelf ?? null}, 'full_control')`,
+                'full_control')`,
   )
   await recordAccessTransition(tx, {
     folderId,
@@ -389,8 +391,8 @@ export async function removeSampleWorkspace(
       fileIds.push(...destroyed.fileIds)
     }
 
-    // Shelves, and the labels that spelled them on any folder the person
-    // labelled themselves (4.18 holds the two in step).
+    // Shelves, and the memberships that spelled them on any folder the person
+    // put on one themselves (4.18 holds the two in step).
     const shelves = await rowsOf(
       tx,
       sql`DELETE FROM shelves
@@ -401,7 +403,7 @@ export async function removeSampleWorkspace(
     )
     if (shelves.length > 0) {
       await tx.execute(
-        sql`UPDATE folder_members SET shelf_name = NULL, label = NULL
+        sql`UPDATE folder_members SET shelf_name = NULL
             WHERE user_id = ${userId}::uuid
               AND shelf_name IN (${sql.join(
                 shelves.map((row) => sql`${String(row.name)}`),

@@ -55,6 +55,7 @@ cannot be read from any tree.
 | 640 upward | `frontend/260-workflow-import-version` | no — branch not pushed |
 | 660 upward | `backend/255` | no — branch not pushed |
 | 700–705 | `backend/263-reclaim-sweep-coverage` | yes — six bullets in 12.9 and six files |
+| 750 | `backend/247-contract-label-spellings` | yes — AC-750, one bullet and one file |
 | 780–782 | `backend/227-label-lifecycle`, second pass | yes, three bullets and three test files |
 | 790 | `backend/268-comment-moderation-on-access` | yes — one bullet in 12.14 and one file |
 | 800 | `backend/274-label-routes-on-access` | yes — one bullet in 12.24 and one file |
@@ -101,6 +102,15 @@ for 800 and 810 in favour of theirs. **Do not read 783 to 819 as free**: 783 to 
 call free by default, #185 spent none of them, and only the last merge of the day can say
 what is in them.
 
+**#247 took 750 rather than 680, and it does not move the line above.** Its block was
+assigned by the person holding the open branches rather than read from this section, which
+is what this section asks for while several are open: 700 upward was already spoken for by
+`backend/263` on the day, and none of the unverified rows above could be read from a tree
+at all. The line has since gone past it three times for other branches' blocks — to 783,
+then to 811, then to 826, for the reasons the three paragraphs above give — so 750 is
+recorded here as spent and nothing about the tail moves for it. The gap from 680 to 749
+stays exactly as unfree as the rule below says it is.
+
 **The gaps between those blocks are not free by default**, on the rule the AC-377 and
 AC-440 bullets below state: whichever merge lands last is the only one that can see what its
 siblings actually spent, and listing a number free that an open branch has just taken is the
@@ -126,7 +136,11 @@ record that AC-750 is spent. Git conflicts on that line and forces the question,
 the answer should not have to be rediscovered at a merge conflict at speed. It is:
 **keep 760**, keep #247's `| 750 |` row, and keep this branch's `| 700–705 |` row in place
 of the `| 700 upward |` row #247 carries for it, that row being the same block read from a
-tree rather than assigned. Nothing else in either diff touches the other.
+tree rather than assigned. Nothing else in either diff touches the other. *(Resolved that
+way on 2026-09-21 when #247 rebased, with one difference the rule itself dictates: #276,
+#274 and #185 had spent 810, 800 and 820 to 825 in between, so the max was **826** rather
+than 760 and the line stayed there. "Keep the max" is the rule; 760 was only the max on the
+day this was written.)*
 
 *(494 to 509 was carried as one such gap in the brief this was written from, and that half
 of it is wrong: `backend/220` holds bullets for AC-490 through AC-507, so only 508 and 509
@@ -688,6 +702,28 @@ the next free number after them.
 #226 for the M1 Label model of #208. It took the number the sentence above named, which is
 what that sentence is for.
 
+- **AC-750 was taken on 2026-09-20 by issue #247, and AC-481 was retired in the same
+  commit.** One number for one criterion, in 12.24. **The block was assigned rather than
+  read from this section**, which is the rule while several branches are open: 700 upward
+  was already `backend/263`'s that day, and four of the rows in the table above name
+  branches whose extent cannot be read from any tree, so 680 was not a number to take. The
+  allocator line moved to 760 in this commit, past the whole block rather than to the next
+  integer, and the reason is in that table.
+
+  **AC-481 is marked retired rather than removed, and its text is kept verbatim in 12.24**,
+  on this list's own append-only rule and on the AC-122 and AC-123 precedent above.
+  Hard stop 7 releases the retirement on the decision it pinned having moved: AC-481 pinned
+  "the wire carries both Shelf spellings for one deploy window", ruled by the owner at
+  issue #226 on 2026-09-20, and the window closed when migration 0022 reached production.
+  **The number is not reused** — AC-750 is a new number for the inverse assertion rather
+  than AC-481 turned inside out, because a number that means one thing in 2026 and its
+  opposite in 2027 stops being an address.
+
+  **751 to 759 are deliberately not added to the free list above**, on the AC-412 bullet's
+  rule, and neither is anything between 680 and 749. **No total at the top of this file
+  moves with this bullet**, on the AC-410 and AC-411 precedent: the count is already stale
+  by the twelve the two bullets below name, and this commit adds one bullet and retires
+  none of the numbers it counts.
 - **AC-481 was taken from the tail on 2026-09-20** (issue #226), beside the eleven in the
   bullet below and out of the same assignment, when the owner's technical ruling on that
   issue extended the `folder_members.label` expand-and-contract to the wire. It is 12.24's.

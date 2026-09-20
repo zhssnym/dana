@@ -121,12 +121,6 @@ function folderFromRow(
       completed: Number(row.completed),
     },
     my_shelf: nullableString(row.my_shelf),
-    /* The same value under the key an old bundle reads, for the deploy
-       window `shared/folders.ts` describes: one column, two keys, and #247
-       drops this one. It is read from `my_shelf`'s own source rather than
-       from `folder_members.label`, so the two can never disagree on the wire
-       even if the expand half's second write were ever to lapse. */
-    my_label: nullableString(row.my_shelf),
     my_color: nullableString(row.my_color),
     my_access: myAccess,
     /* The M1 Label projection (issue #226): the viewer's own Personal Labels
@@ -319,7 +313,6 @@ export async function createFolder(
         member_count: 1,
         counts: { pending: 0, completed: 0 },
         my_shelf: null,
-        my_label: null,
         my_color: null,
         /* The membership this transaction just wrote, spelled as the literal
            it is rather than read back: the `INSERT INTO folder_members` above
@@ -555,13 +548,19 @@ export interface MyMembershipPatch {
  * The field was called `label` on both sides until issue #226. It is the same
  * rule; #208's Label model needed the word back.
  *
- * **The write goes to two columns for one release, and the second one is not
- * redundant.** Migration 0022 is the expand half of an expand-and-contract
- * pair: `shelf_name` is the column this code reads, and `label` is still
- * there because Render runs the old instance until the new one is healthy, so
- * for the length of a deploy something is still selecting `label` and needs
- * to see current data rather than a stale membership. Issue #247 drops the
- * column and this second assignment together, after 0022 is live.
+ * **The write went to two columns for one release and goes to one now.**
+ * Migration 0022 was the expand half of an expand-and-contract pair —
+ * `shelf_name` beside `label`, both written, because Render runs the old
+ * instance until the new one is healthy and for the length of a deploy
+ * something was still selecting `label`. Issue #247 is the contract half, and
+ * **it contracts across two releases rather than one, which is what 11.5
+ * asks for.** This is the first: the second assignment is gone and
+ * `folder_members.label` is still in the table, holding whatever the last
+ * write left and read by nothing. The migration that drops it is the release
+ * after this one, and it is safe only once this code is live and drained —
+ * dropping the column in the release that stopped writing it would leave the
+ * instance Render has not drained yet running every one of these writes
+ * against a column that is no longer there.
  */
 export async function setMyMembership(
   db: Db,
@@ -570,11 +569,7 @@ export async function setMyMembership(
   patch: MyMembershipPatch,
 ): Promise<void> {
   const sets: SQL[] = []
-  if (patch.shelf !== undefined) {
-    sets.push(sql`shelf_name = ${patch.shelf}`)
-    // The expand half's second write, #247 removes it.
-    sets.push(sql`label = ${patch.shelf}`)
-  }
+  if (patch.shelf !== undefined) sets.push(sql`shelf_name = ${patch.shelf}`)
   if (patch.color !== undefined) sets.push(sql`color = ${patch.color}`)
   if (sets.length === 0) return
   const shelf = patch.shelf
