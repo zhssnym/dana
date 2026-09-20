@@ -1,4 +1,11 @@
-node_modules/
+# No trailing slash, corrected 2026-09-20. A trailing slash matches directories
+# only, and an agent working in a git worktree symlinks app/node_modules to the
+# main checkout's copy rather than paying for a second npm ci - so the symlink
+# showed as untracked in every such worktree. Two agents flagged it on one day.
+# Nothing was committed, because hard-stops.md forbids the sweeping add that
+# would have done it, but a rule that relies on nobody typing `git add -A` is
+# one character from not needing to.
+node_modules
 .next/
 .data/
 dist/
