@@ -340,6 +340,7 @@ export const postTasksBody = z
     folder_id: uuid.optional(),
     notes: taskNotes.nullable().optional(),
     important: z.boolean({ error: 'must be a boolean' }).optional(),
+    start_date: dueDate.nullable().optional(),
     due_date: dueDate.nullable().optional(),
     due_time: dueTime.nullable().optional(),
     recurrence_rule: recurrenceRule.nullable().optional(),
@@ -429,6 +430,32 @@ export const postTasksBody = z
       path: ['reminder', 'time_of_day'],
     },
   )
+  /*
+  The Schedule's own rule, 4.5's tasks_start_before_due_check said as a 422
+  (issue #215). A create body answers it whole for the reason the three
+  dependency checks above answer theirs: there is no prior row, so both dates
+  are this body's or neither is.
+
+  It is only a rule when both are set. Start alone, due alone and neither are
+  the other three valid states, and isSet is what tells a null apart from an
+  absence — a create carrying start_date null is the ordinary create, not a
+  task starting on the null date.
+
+  The path names start_date rather than the pair, the way every other message
+  in this file names one field: of the two it is the one the person just moved
+  in the case this refuses, since a due date already earlier than a start is
+  what makes the start illegal.
+  */
+  .refine(
+    (body) =>
+      !isSet(body.start_date) ||
+      !isSet(body.due_date) ||
+      body.start_date <= body.due_date,
+    {
+      error: 'must not be later than due_date',
+      path: ['start_date'],
+    },
+  )
 export type PostTasksBody = z.infer<typeof postTasksBody>
 
 /*
@@ -515,6 +542,7 @@ export const patchTaskBody = z
     title: taskTitle.optional(),
     notes: taskNotes.nullable().optional(),
     important: z.boolean({ error: 'must be a boolean' }).optional(),
+    start_date: dueDate.nullable().optional(),
     due_date: dueDate.nullable().optional(),
     due_time: dueTime.nullable().optional(),
     recurrence_rule: recurrenceRule.nullable().optional(),
@@ -912,6 +940,10 @@ export const taskCard = z.object({
   title: taskTitle,
   status: taskStatus,
   important: z.boolean(),
+  /* 4.5 and 7.0 as issue #215 amends them: a task's Schedule is the pair, and
+     start_date reads through the same primitive due_date does because it is
+     the same floating calendar date in the same column type. */
+  start_date: dueDate.nullable(),
   due_date: dueDate.nullable(),
   due_time: wallClockTime.nullable(),
   folder: taskCardFolder,

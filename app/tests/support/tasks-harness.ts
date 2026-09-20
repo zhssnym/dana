@@ -75,6 +75,7 @@ export const TASK_CARD_KEYS = [
   'pending_invite_email',
   'pulled',
   'section_block_id',
+  'start_date',
   'status',
   'steps_done',
   'steps_total',
@@ -197,6 +198,7 @@ export function expectTaskCardShape(value: unknown, source: string): void {
   expect(typeof card.important, `${source}.important must be a boolean`).toBe(
     'boolean',
   )
+  expectDateOrNull(card.start_date, `${source}.start_date`)
   expectDateOrNull(card.due_date, `${source}.due_date`)
   expectTimeOrNull(card.due_time, `${source}.due_time`)
 
@@ -755,6 +757,7 @@ export interface TaskRow extends Record<string, unknown> {
   title: string
   status: string
   assignee_id: string | null
+  start_date: string | null
   due_date: string | null
   due_time: string | null
   recurrence_rule: string | null
@@ -782,6 +785,7 @@ export async function taskRow(
     db,
     sql`
       SELECT id, folder_id, title, notes, status, important,
+             ${dateColumn('start_date')},
              ${dateColumn('due_date')}, ${timeColumn('due_time')},
              recurrence_rule, series_id, assignee_id, created_by, completed_by,
              ${instantColumn('completed_at')},

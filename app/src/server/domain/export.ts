@@ -118,6 +118,7 @@ Floating dates and times ride to_char, never the driver, for the reason
 a JS Date while PGlite hands back a string, so only a SQL cast makes the two
 legs put the same bytes on the wire. 4.11 fixes both formats.
 */
+const START_DATE = sql`to_char(t.start_date, 'YYYY-MM-DD')`
 const DUE_DATE = sql`to_char(t.due_date, 'YYYY-MM-DD')`
 const DUE_TIME = sql`to_char(t.due_time, 'HH24:MI')`
 
@@ -280,6 +281,7 @@ function taskFrom(
     notes: nullableString(row.notes),
     status: String(row.status),
     important: row.important === true,
+    start_date: nullableString(row.start_date),
     due_date: nullableString(row.due_date),
     due_time: nullableString(row.due_time),
     recurrence_rule: nullableString(row.recurrence_rule),
@@ -306,6 +308,7 @@ columns with exactly one non-null (7.0's TaskDetail rule); `state` and
 work out which table a bare name came from.
 */
 const TASK_COLUMNS = sql`t.id, t.section_block_id, t.page_position, t.title, t.notes, t.status, t.important,
+  ${START_DATE} AS start_date,
   ${DUE_DATE} AS due_date, ${DUE_TIME} AS due_time,
   t.recurrence_rule, t.series_id, t.completed_at, t.created_at, t.updated_at,
   t.deleted_at, t.folder_id,
