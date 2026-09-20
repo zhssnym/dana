@@ -144,4 +144,71 @@ describe('AC-823 the file says what did not come with it', () => {
       'and no `files` row was made either: an import that copied bytes would be 7.15’s upload path inside 7.16, which is a widening nobody ruled (10.2)',
     ).toBe(0)
   })
+
+  /*
+  A link to another folder, which is the placeholder's other half — and the
+  case where the old file did not merely lose something, it could not be
+  imported at all.
+
+  **A `folder_ref` block names a `folders` row of the exporting account.** It is
+  the same argument as a picture's `file_id` one relation over: the thing named
+  is a row, not content, and an importing account has no business resolving it.
+  What made it worse than a picture is what the old format did with it. AC-662
+  records the reading: a version 2 file carried the reference verbatim, and
+  `applyDocument` requires the referenced folder to be one the **importer** is a
+  member of, so the whole import was refused with `not_found` — a folder with a
+  folder link on its page produced a file nobody else could import.
+
+  Under format 4 it is a placeholder, which imports as nothing and takes nothing
+  else with it. Both halves are asserted: the file says what it dropped, and the
+  file imports.
+  */
+  test('a folder link is a placeholder too, and the file still imports elsewhere', async () => {
+    const [author, reader] = (await cast.of(app)) as [Actor, Actor]
+    const sourceId = await createFolder(author, 'ac823 the plan')
+    const elsewhere = await createFolder(author, 'ac823 the other folder')
+
+    const heading = randomUUID()
+    const link = randomUUID()
+    const note = randomUUID()
+
+    await compose(
+      author,
+      sourceId,
+      [
+        put(heading, 'section', 'ac823 see also'),
+        put(link, 'folder_ref', null, { ref_folder_id: elsewhere }),
+        put(note, 'paragraph', 'ac823 the details are there'),
+        {
+          op: 'set_outline',
+          items: [at(heading), at(link, heading), at(note, heading)],
+        },
+      ],
+      'the fixture page must compose with a folder link on it (7.16)',
+    )
+
+    const saved = await savedWorkflow(author, sourceId, 'ac823 the plan')
+    expect(
+      saved.file.folders[0]?.page?.blocks[1],
+      'the link is a placeholder naming the kind it stood for, and carries no folder id',
+    ).toEqual({ kind: 'omitted', was: 'folder_ref' })
+    expect(saved.omitted, 'and it is in the count the export surface says').toBe(1)
+    expect(
+      JSON.stringify(saved.file).includes(elsewhere),
+      'the referenced folder’s id is nowhere in the bytes (10.2)',
+    ).toBe(false)
+
+    const madeId = await importWorkflowOk(
+      reader,
+      asFile(saved),
+      'the file imports into an account that is no member of the folder it linked to — which a version 2 file could not, the reference being carried verbatim and refused whole (AC-662, #185)',
+    )
+    expect(
+      shapeOf(await pageRows(app.db, madeId)),
+      'and what is left is the writing around it, in order',
+    ).toEqual([
+      { kind: 'section', text: 'ac823 see also', under: null, nested_under: null },
+      { kind: 'paragraph', text: 'ac823 the details are there', under: 'ac823 see also', nested_under: null },
+    ])
+  })
 })

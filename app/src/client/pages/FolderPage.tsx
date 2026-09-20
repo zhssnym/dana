@@ -805,11 +805,17 @@ export function FolderPage({
        another folder is a row of this account, and the file records the gap
        rather than carrying it. The person who pressed Save is the only one who
        can decide whether that matters, so the count the writer answered is said
-       here rather than left in the JSON for them to notice. */
+       here rather than left in the JSON for them to notice.
+
+       The sentence names folder links as well as pictures and files, which is
+       one word wider than #185's ruling wrote it and is the accurate set: a
+       `folder_ref` block is in the same count, because it names a `folders` row
+       of this account exactly as an image names a `files` row. AC-823 drives
+       both. */
     const missing =
       saved.omitted === 0
         ? ''
-        : ` ${String(saved.omitted)} ${saved.omitted === 1 ? 'image or file is' : 'images and files are'} not included.`
+        : ` ${String(saved.omitted)} ${saved.omitted === 1 ? 'picture, file or folder link is' : 'pictures, files and folder links are'} not included.`
     showToast(
       `"${detail?.name ?? 'Folder'}" saved as a workflow file. Import it from the sidebar.${missing}`,
     )
