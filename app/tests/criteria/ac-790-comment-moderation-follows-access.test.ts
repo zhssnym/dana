@@ -11,7 +11,7 @@ extends Hassan's rulings of the same date on #228
 (https://github.com/zhssnym/dana/issues/228#issuecomment-5751449643 and
 https://github.com/zhssnym/dana/issues/228#issuecomment-5750892771).
 
-## Why this criterion exists, and why it drives two things
+## Why this criterion exists, and why it drives both sides
 
 The route has resolved this correctly since R8A landed: `DELETE /comments/:id`
 asks `comment.mutate.own` or `comment.moderate`. **Both conversation surfaces
@@ -34,8 +34,10 @@ folder's surfaces ask what they may offer and the whole of the path between
 decision was moved out of the JSX on purpose, and a surface that stops
 spreading these answers over its handlers is the browser leg's to catch.
 
-**The second client step, `deletable = mine || moderates` in `lib/thread.ts`,
-is driven by `src/client/lib/thread.test.ts` beside that file and carries this
+**The second client step is `lib/thread.ts`, where each per-folder bar is
+multiplied by the per-comment fact -- `deletable = (mine && mutateOwnComment)
+|| moderate`, and `editable`, `likeable` and `replyable` beside it. It is
+driven by `src/client/lib/thread.test.ts` beside that file, which carries this
 number in its assertions.** It is not here for a mechanical reason worth
 stating rather than working around: `tsconfig.server.json` compiles every
 `.ts` under `tests/` with `lib: ["es2023"]` and no jsx, and `lib/thread.ts`
@@ -79,6 +81,13 @@ nowhere is `useTrash`'s own mapping**, the `.map` that turns a 7.13 row into a
 `TrashItem`: it is a hook over TanStack Query and mounting one needs a DOM.
 So the decision is proved and the shaping around it is not, which is the
 honest statement rather than a gap being described as covered.
+
+And a third file, for the one part of this criterion that is not a decision in
+a pure function at all: `src/client/components/comments.test.tsx` renders
+`CommentsThread` under jsdom and reads the composer, because what
+`comment.create` buys a Can-view member is a *disabled field carrying a
+particular sentence* and no pure function returns one. It is the only rendered
+evidence any half of this criterion has.
 
 Spec: 7.14 as amended 2026-09-20, 10.2; #228's Full-control list and its
 authorship rule. AC-205 and AC-518 are the neighbours — the first asserts an
@@ -191,6 +200,25 @@ describe('AC-790 what a conversation surface offers', () => {
     expect(
       folderGates(facts('can_view', false)).likeComment,
       "#228's Can-comment list: Can view leaves no mark on a thread",
+    ).toBe(false)
+  })
+
+  test('AC-790: writing into the thread at all is Can comment’s, Reply included', () => {
+    /* `comment.create`, and Reply is the same act as a first comment. The
+       owner's ruling of 2026-09-20 splits what the two surfaces do with the
+       answer: Reply is **hidden**, being one of a row's own controls, and the
+       composer is **rendered and disabled** carrying a sentence, because it
+       carries the fact that the conversation takes comments and hiding it
+       would hide the fact with the act. `components/comments.test.tsx` is
+       where that half is driven. */
+    for (const preset of FOLDER_ACCESS_PRESETS) {
+      expect(folderGates(facts(preset, false)).createComment, preset).toBe(
+        preset !== 'can_view',
+      )
+    }
+    expect(
+      folderGates(facts('can_view', true)).createComment,
+      'and owning the folder does not make a reader a participant',
     ).toBe(false)
   })
 

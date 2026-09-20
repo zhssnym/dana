@@ -278,6 +278,12 @@ export interface ConceptComment {
    * (AC-790).
    */
   likeable?: boolean
+  /**
+   * Whether this viewer may reply to this comment. `comment.create`, Can
+   * comment's, the same act as a first comment; the lab offers Reply to
+   * everybody. Absent falls back to true (AC-790).
+   */
+  replyable?: boolean
   replies?: ConceptComment[]
 }
 
@@ -344,6 +350,17 @@ export interface ConceptTask {
   /* The conversation about the task, pinned after the content blocks and
      outside their order: commentary is not content. DES-129. */
   comments?: ConceptComment[]
+  /**
+   * Whether this viewer may write into that conversation at all
+   * (`comment.create`, Can comment's).
+   *
+   * It rides the task rather than a comment because **a thread with nothing
+   * in it still has a composer**, and no per-comment field can answer for
+   * one. The card hands it straight to `CommentsThread`, which renders the
+   * composer disabled rather than hiding it. Absent falls back to true, the
+   * lab's answer (owner's ruling of 2026-09-20 on #268; AC-790).
+   */
+  canComment?: boolean
 }
 
 export function stepCount(task: ConceptTask): { done: number; total: number } | null {

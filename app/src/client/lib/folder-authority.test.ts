@@ -275,6 +275,21 @@ describe('one’s own comment, and the like', () => {
     expect(demoted.likeComment).toBe(false)
   })
 
+  test('writing into the thread at all is Can comment’s: R8A’s two lowest rungs', () => {
+    /* `comment.create`. Reply is the same act as a first comment, so this is
+       the one gate behind both; the surfaces hide Reply and disable the
+       composer on it (owner's ruling of 2026-09-20 on #268). */
+    for (const preset of FOLDER_ACCESS_PRESETS) {
+      expect(folderGates(facts(preset)).createComment, preset).toBe(
+        preset !== 'can_view',
+      )
+    }
+    expect(
+      folderGates(facts('can_view', { isOwner: true })).createComment,
+      'and owning the folder does not make a reader a participant',
+    ).toBe(false)
+  })
+
   test('the standing half is all this answers: it never asks whose comment it is', () => {
     /* `comment.mutate.own` carries `requiresAuthor`, and a projection has no
        comment in hand. `lib/thread.ts` multiplies this by `mine`, one comment

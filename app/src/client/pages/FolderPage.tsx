@@ -961,8 +961,14 @@ export function FolderPage({
       moderate: gates?.moderate === true,
       mutateOwnComment: gates?.mutateOwnComment === true,
       likeComment: gates?.likeComment === true,
+      createComment: gates?.createComment === true,
     }),
-    [gates?.moderate, gates?.mutateOwnComment, gates?.likeComment],
+    [
+      gates?.moderate,
+      gates?.mutateOwnComment,
+      gates?.likeComment,
+      gates?.createComment,
+    ],
   )
   const conversation = useConceptThread(
     thread.data?.comments,
@@ -985,6 +991,11 @@ export function FolderPage({
       <div className="flex justify-end pb-1">{conversationSwitch}</div>
       <CommentsThread
         comments={conversation}
+        /* The composer's own half of `comment.create`; Reply's half rides
+           each comment. Disabled rather than hidden, and its sentence says
+           what standing commenting needs (owner's ruling of 2026-09-20 on
+           issue #268; AC-790). */
+        canComment={mayConverse.createComment}
         emptyWord={conversationHome === 'panel' ? 'message' : 'comment'}
         layout={conversationHome === 'panel' ? 'pinned' : 'block'}
         onChange={(next) => {

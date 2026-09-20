@@ -263,6 +263,19 @@ export interface FolderGates {
    * and not per comment, a like being nobody's property (AC-790).
    */
   readonly likeComment: boolean
+  /**
+   * Writing into the conversation at all: `comment.create`, which accepted
+   * R8A gives to Can comment as the preset that names participation, and
+   * which Can view does not have — it reads the thread and does not write to
+   * it, the whole of the distinction between R8A's two lowest rungs.
+   *
+   * Reply is the same act as a first comment and is gated on this too. The
+   * composer is **not hidden** on it: it is disabled and says what standing
+   * commenting needs, because it carries a fact a Can-view member may read —
+   * that this conversation takes comments — and hiding it would hide the
+   * fact with the act (owner's ruling of 2026-09-20 on #268; AC-790).
+   */
+  readonly createComment: boolean
 }
 
 export function folderGates(facts: FolderViewerFacts): FolderGates {
@@ -300,6 +313,7 @@ export function folderGates(facts: FolderViewerFacts): FolderGates {
       authorId: PROJECTED_ACTOR_ID,
     }),
     likeComment: mayDraw(facts, 'comment.like'),
+    createComment: mayDraw(facts, 'comment.create'),
   }
 }
 

@@ -190,6 +190,18 @@ export interface ThreadAuthority {
   readonly mutateOwnComment: boolean
   /** `comment.like`. */
   readonly likeComment: boolean
+  /**
+   * `comment.create`: writing into this conversation at all.
+   *
+   * Two surfaces read it and they read it differently, on the owner's ruling
+   * of 2026-09-20. **Reply is hidden**, being a per-comment control like the
+   * three above, so it rides `replyable` on each comment. **The composer is
+   * rendered and disabled**, saying what standing commenting needs, which is
+   * why `components/comments.tsx` also takes it as a prop of its own: a
+   * thread with no comments in it still has a composer, and no per-comment
+   * field can carry an answer for it.
+   */
+  readonly createComment: boolean
 }
 
 /**
@@ -202,6 +214,7 @@ const AUTHORSHIP_ALONE: ThreadAuthority = {
   moderate: false,
   mutateOwnComment: true,
   likeComment: true,
+  createComment: true,
 }
 
 function conceptOf(
@@ -255,6 +268,11 @@ function conceptOf(
     deletable: (mine && may.mutateOwnComment) || may.moderate,
     editable: mine && may.mutateOwnComment,
     likeable: may.likeComment,
+    /* Replying is `comment.create`, the same act as a first comment, so a
+       member below Can comment is offered no Reply anywhere in the thread.
+       Per comment because the control is (owner's ruling of 2026-09-20 on
+       #268); the composer's own half is a prop on the lifted component. */
+    replyable: may.createComment,
   }
 }
 

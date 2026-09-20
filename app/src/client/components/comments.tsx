@@ -380,6 +380,21 @@ function CommentFiles({ files }: { files: NonNullable<ConceptComment["files"]> }
 
 /* ---------------------------------------------------------- the composer -- */
 
+/*
+What the composer says to somebody who may read this conversation and not
+write in it (the owner's ruling of 2026-09-20 on issue #268).
+
+**The composer is disabled rather than hidden**, which is the ruling and is
+the same reasoning as the reaction pill above: it carries a fact a Can-view
+member may read — that this conversation takes comments, and what standing
+that needs — and hiding it would hide the fact with the act. The sentence
+stands in for the placeholder rather than sitting beside it, so the composer
+stays the one quiet line its own header argues for and says the one thing
+there is to say.
+*/
+const COMMENTING_NEEDS_STANDING =
+  "You can read this conversation. Commenting needs Can comment."
+
 function readableSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
@@ -412,6 +427,7 @@ function Composer({
   onCancel,
   voice = false,
   maxFiles = 1,
+  disabled = false,
 }: {
   placeholder: string
   autoFocus?: boolean
@@ -422,6 +438,13 @@ function Composer({
   voice?: boolean
   /* Seam four: 7.14 carries one `file_id` per comment. */
   maxFiles?: number
+  /* Seam six (issue #268): the viewer reads this conversation and may not
+     write in it. The field is disabled and says so, the attach menu and the
+     trailing control are not drawn, and `submitText` refuses — three answers
+     rather than one, because a disabled textarea still takes a programmatic
+     Enter and the composer's own keydown handler is the thing that posts.
+     Nothing about the enabled composer moves. */
+  disabled?: boolean
 }) {
   const me = useViewerPerson()
   const [text, setText] = useState("")
@@ -454,6 +477,7 @@ function Composer({
   }, [])
 
   function submitText() {
+    if (disabled) return
     const body = text.trim()
     if (!body && files.length === 0) return
     onSubmit({ body: body || undefined, files: files.length ? files : undefined })
@@ -605,7 +629,8 @@ function Composer({
             ref={fieldRef}
             value={text}
             rows={1}
-            autoFocus={autoFocus}
+            autoFocus={autoFocus && !disabled}
+            disabled={disabled}
             placeholder={placeholder}
             aria-label={placeholder}
             onChange={(event) => setText(event.target.value)}
@@ -654,6 +679,7 @@ function Composer({
           a link (DES-161 made those real), a person to mention, which is the
           division the reference draws too.
           */}
+          {disabled ? null : (
           <InputGroupAddon align="inline-start">
             <DropdownMenu>
               <DropdownMenuTrigger
@@ -688,8 +714,9 @@ function Composer({
               </DropdownMenuContent>
             </DropdownMenu>
           </InputGroupAddon>
+          )}
           <InputGroupAddon align="inline-end">
-            {hasSomethingToSend ? (
+            {disabled ? null : hasSomethingToSend ? (
               <InputGroupButton
                 size="icon-sm"
                 variant="commit"
@@ -1019,7 +1046,15 @@ function CommentRow({
                   onClick={() => onUpdate(toggleReaction(comment))}
                 />
               ) : null}
-              {onReply ? <IconAction dense icon={ReplyIcon} label="Reply" onClick={onReply} /> : null}
+              {/* Replying is `comment.create`, the same act as a first
+                  comment, and it is hidden rather than disabled because it is
+                  one of this row's own controls: the composer below carries
+                  the fact that the conversation takes comments, so a second
+                  greyed control per row would say it four more times (owner's
+                  ruling of 2026-09-20 on #268). */}
+              {onReply && (comment.replyable ?? true) ? (
+                <IconAction dense icon={ReplyIcon} label="Reply" onClick={onReply} />
+              ) : null}
               {(comment.editable ?? comment.mine) ? (
                 <IconAction dense
                   icon={Pencil}
@@ -1062,10 +1097,21 @@ export function CommentsThread({
   placeholder = "Write a comment",
   emptyWord = "comment",
   layout = "block",
+  canComment = true,
 }: {
   comments: ConceptComment[]
   onChange: (next: ConceptComment[]) => void
   placeholder?: string
+  /* Whether this viewer may write into the conversation at all
+     (`comment.create`, Can comment's; issue #268).
+
+     **A prop rather than a field on a comment, and that is not an
+     inconsistency.** Reply is per comment and rides `replyable`; the composer
+     belongs to the thread and exists when the thread holds nothing at all, so
+     there is no comment to carry an answer for it. It defaults to true, which
+     is the lab's answer and what every surface that has not worked out the
+     viewer's Access gets. */
+  canComment?: boolean
   /* "comment" in a card, "message" in a chat panel, the only wording that
      differs between the surfaces. */
   emptyWord?: string
@@ -1182,7 +1228,14 @@ export function CommentsThread({
 
   const composer = (
     <Composer
-      placeholder={comments.length === 0 ? `Write the first ${emptyWord}` : placeholder}
+      disabled={!canComment}
+      placeholder={
+        canComment
+          ? comments.length === 0
+            ? `Write the first ${emptyWord}`
+            : placeholder
+          : COMMENTING_NEEDS_STANDING
+      }
       onSubmit={(partial) => onChange([...comments, newComment(partial)])}
     />
   )

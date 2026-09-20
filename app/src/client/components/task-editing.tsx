@@ -159,7 +159,12 @@ export function useTaskEditing(editing: string | null): TaskEditing {
   const threadFolder = folders.data?.find((row) => row.id === threadFolderId)
   const mayConverse = useMemo(() => {
     if (threadFolder === undefined) {
-      return { moderate: false, mutateOwnComment: false, likeComment: false }
+      return {
+        moderate: false,
+        mutateOwnComment: false,
+        likeComment: false,
+        createComment: false,
+      }
     }
     const gates = folderGates({
       access: threadFolder.my_access,
@@ -170,6 +175,7 @@ export function useTaskEditing(editing: string | null): TaskEditing {
       moderate: gates.moderate,
       mutateOwnComment: gates.mutateOwnComment,
       likeComment: gates.likeComment,
+      createComment: gates.createComment,
     }
   }, [threadFolder])
 
@@ -207,6 +213,10 @@ export function useTaskEditing(editing: string | null): TaskEditing {
         {
           ...toConceptTask(task.data, { today: presenterToday(), folders: rows, clock }),
           comments: conversation,
+          /* The composer's half of `comment.create`, which no comment can
+             carry (issue #268). The rest of this viewer's conversation
+             standing is already inside `conversation`. */
+          canComment: mayConverse.createComment,
           /* Item 58 (D): the Attachments block is the conversation's files,
              which is the only place 4.16 lets a task's file live. */
           attachments: threadAttachments(conversation),

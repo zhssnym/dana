@@ -79,6 +79,7 @@ function may(
     moderate: gates.moderate,
     mutateOwnComment: gates.mutateOwnComment,
     likeComment: gates.likeComment,
+    createComment: gates.createComment,
   }
 }
 
@@ -195,6 +196,34 @@ describe('AC-790 who a thread offers Delete to', () => {
     expect(drawn[0]?.editable).toBe(true)
     expect(drawn[0]?.deletable).toBe(true)
     expect(drawn[0]?.likeable).toBe(true)
+  })
+
+  test('AC-790: Can view is offered no Reply on any comment in the thread', () => {
+    const drawn = toConceptComments(
+      [line({ author_id: VIEWER }), line({ id: '99999999-9999-4999-8999-999999999999' })],
+      VIEWER,
+      personOf,
+      NOW,
+      may('can_view'),
+    )
+    for (const comment of drawn) {
+      expect(
+        comment.replyable,
+        'replying is `comment.create`, the same act as a first comment, and Can view does not write into a thread',
+      ).toBe(false)
+    }
+  })
+
+  test('AC-790: Can comment replies, and so does every preset above it', () => {
+    for (const preset of ['can_comment', 'assigned_work', 'can_edit', 'full_control'] as const) {
+      const drawn = toConceptComments([line()], VIEWER, personOf, NOW, may(preset))
+      expect(drawn[0]?.replyable, preset).toBe(true)
+    }
+  })
+
+  test('AC-790: the lab replies, so a surface with no standing in hand offers it', () => {
+    const drawn = toConceptComments([line()], VIEWER, personOf, NOW)
+    expect(drawn[0]?.replyable).toBe(true)
   })
 
   test('AC-790: a Full-control administrator moderates but never edits another’s words', () => {
