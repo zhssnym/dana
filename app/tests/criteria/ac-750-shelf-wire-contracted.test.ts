@@ -66,14 +66,14 @@ would fail the setup rather than the assertion.
    the non-vacuity check is the *presence* of that key rather than its value:
    an empty object, a 500 body or an error envelope fails it.
 
-The column half is AC-479's, in
-`ac-474-label-projections-stay-bounded.test.ts`. **It is not "one column"
-yet**, and the reason is 11.5: this release stops writing
-`folder_members.label` and the release after it drops the column, because the
-instance Render has not drained yet is still writing that column while the
-new one serves. So AC-479 asserts, for this release, that the column is there
-and that no write path touches it; the drop and the 42703 refusal arrive with
-the migration.
+The column half — that `folder_members` has one membership column and that
+the old name is refused by the server — is AC-479's, in
+`ac-474-label-projections-stay-bounded.test.ts`. **It arrived one release after
+this file did**, and the reason is 11.5: the release that stopped writing
+`folder_members.label` had to be live and drained before the column could be
+dropped, because the instance Render has not drained yet is still writing that
+column while the new one serves. So AC-479 asserted for that release that the
+column was there and untouched, and asserts now that it is gone.
 
 Spec: 4.4, 4.18, 7.0, 7.4, 11.11, 11.14. Issue #247, #226, #208 R9.
 */
@@ -125,9 +125,7 @@ afterAll(async () => {
  * Folder object, so a response that reports the old value is evidence of a
  * read and not of a write. Every arm below reads the row.
  *
- * `shelf_name` is the only column the application writes, since #247. The
- * retired `folder_members.label` is still in the table for one more release
- * and no longer written; AC-479 is what asserts both halves of that.
+ * One column, since migration 0026 (#247). AC-479 is what asserts that.
  */
 async function shelfColumnOf(actor: Actor, folderId: string): Promise<string | null> {
   const found = (await app.db.execute(

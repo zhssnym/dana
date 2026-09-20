@@ -12,13 +12,14 @@ test at all. Raw SQL in a template literal is exactly what the type checker
 cannot see: a column that does not exist, a column list that no longer matches
 its VALUES, or a value written into the wrong column are all well-typed.
 
-That mattered to #247 in particular. This release stops writing
+That mattered to #247 in particular. Its first release stopped writing
 `folder_members.label` on five paths, AC-479 drives three of them over the
 wire, and this one was the path its own comment names ("the sample workspace
-or the seed") and could not reach. The next release drops the column, and a
-`label` left in this statement would answer 42703 **inside 7.1's provisioning
-transaction** — that is, every new account, at sign-in, in production, with no
-test having gone red first.
+or the seed") and could not reach. Its second release, migration 0026, dropped
+the column, so a `label` left in this statement now answers 42703 **inside
+7.1's provisioning transaction** — that is, every new account, at sign-in, in
+production, with no test having gone red first. That is no longer a hazard
+waiting on a future release: it is what this file executes on every run.
 
 ## What this asserts, and what would have to be true for it to pass wrongly
 
@@ -32,7 +33,11 @@ freshly seeded user, and then reads the membership rows it wrote:
 - `shelf_name` carrying the shelf the content file names for that folder,
   which is the same check from the other side: the third column and the third
   value still belong to each other;
-- and `label` NULL on every row, which is this release's contract.
+- and `folder_members` carrying no `label` column at all, read from the
+  catalog. That bullet said "`label` NULL on every row" while the column
+  stood; migration 0026 dropped it, so the fact worth asserting moved from
+  the value to the column. It is not dropped from this file, because it is
+  what says the statement above is reaching a table of the shape it names.
 
 The counts the call returns are asserted first, so a run in which the sample
 wrote nothing at all fails as a setup failure rather than passing four
@@ -121,7 +126,6 @@ async function freshAccount(): Promise<string> {
 interface MembershipRow {
   name: string
   shelf_name: string | null
-  label: string | null
   access: string | null
 }
 
@@ -129,7 +133,7 @@ interface MembershipRow {
 async function sampleMemberships(userId: string): Promise<MembershipRow[]> {
   return (await rows(
     db,
-    sql`SELECT f.name, m.shelf_name, m.label, m.access
+    sql`SELECT f.name, m.shelf_name, m.access
           FROM folder_members m
           JOIN folders f ON f.id = m.folder_id
           JOIN sample_objects s ON s.id = f.id AND s.kind = 'folder'
@@ -139,7 +143,7 @@ async function sampleMemberships(userId: string): Promise<MembershipRow[]> {
 }
 
 describe('the sample workspace writes the memberships it claims to', () => {
-  test('createSampleWorkspace puts every sample folder on its shelf, with access, and writes no label', async () => {
+  test('createSampleWorkspace puts every sample folder on its shelf, with access, and the retired label column is gone', async () => {
     const userId = await freshAccount()
 
     const counts = await createSampleWorkspace(db, userId, 'UTC')
@@ -171,10 +175,24 @@ describe('the sample workspace writes the memberships it claims to', () => {
         row.access,
         `${row.name} must carry the Access preset the sample grants its own account. It is the fourth column of a hand-written column list, and a list that drifted from its VALUES would put a shelf name or a null here (issue #228, R9)`,
       ).toBe('full_control')
-      expect(
-        row.label,
-        `${row.name} must leave the retired \`folder_members.label\` untouched. This is the write path AC-479 names and cannot reach, and the release after this one drops the column: a value here is a 42703 inside 7.1's provisioning transaction, which is every new account at sign-in (11.5, issue #247)`,
-      ).toBeNull()
     }
+
+    /* And the retired column is gone rather than merely unwritten. This
+       asserted `label` NULL on every row while the column stood, which is
+       what proved this write path had stopped reaching it; migration 0026
+       dropped it, so the same fact is now the catalog's. Read rather than
+       inferred from the SELECT above: a `label` still in that statement would
+       throw 42703 and take this file red with an error nobody asked for,
+       which says the same thing far less legibly (11.5, issue #247). */
+    const columns = (await rows(
+      db,
+      sql`SELECT column_name FROM information_schema.columns
+           WHERE table_name = 'folder_members'
+           ORDER BY column_name`,
+    )) as unknown as { column_name: string }[]
+    expect(
+      columns.map((column) => column.column_name),
+      'folder_members must carry no `label` column: migration 0026 dropped it, and a catalog still holding it would mean that migration never ran — which is what a journal `when` below an already-applied one does, silently and permanently',
+    ).not.toContain('label')
   })
 })

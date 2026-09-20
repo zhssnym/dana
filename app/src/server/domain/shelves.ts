@@ -315,11 +315,11 @@ export async function patchShelf(
       // 4.18: membership and shelf name held in step, one transaction. The
       // memberships are the viewer's own; nobody else's arrangement moves.
       //
-      // One column written, since issue #247 contracted migration 0022's
-      // expand half: `label` was written beside `shelf_name` only for as long
-      // as an instance Render had not drained yet was reading it. The column
-      // is still in the table and stops being written here; the migration
-      // that drops it is #247's second release, which is 11.5's rule.
+      // One column, since issue #247 contracted migration 0022's expand half:
+      // `label` was written beside `shelf_name` only for as long as an
+      // instance Render had not drained yet was reading it. #247 stopped this
+      // write one release and dropped the column the next, which is 11.5's
+      // rule and the reason migration 0026 is a release of its own.
       if (renaming) {
         await tx.execute(
           sql`UPDATE folder_members SET shelf_name = ${patch.name}

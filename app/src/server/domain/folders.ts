@@ -553,14 +553,13 @@ export interface MyMembershipPatch {
  * `shelf_name` beside `label`, both written, because Render runs the old
  * instance until the new one is healthy and for the length of a deploy
  * something was still selecting `label`. Issue #247 is the contract half, and
- * **it contracts across two releases rather than one, which is what 11.5
- * asks for.** This is the first: the second assignment is gone and
- * `folder_members.label` is still in the table, holding whatever the last
- * write left and read by nothing. The migration that drops it is the release
- * after this one, and it is safe only once this code is live and drained —
- * dropping the column in the release that stopped writing it would leave the
- * instance Render has not drained yet running every one of these writes
- * against a column that is no longer there.
+ * **it contracted across two releases rather than one, which is what 11.5
+ * asks for.** The first took the second assignment out of this function and
+ * left the column standing; migration 0026, a release later, dropped the
+ * column. That order is the whole of the rule: dropping it in the release
+ * that stopped writing it would have left the instance Render had not drained
+ * yet running every one of these writes against a column that was no longer
+ * there.
  */
 export async function setMyMembership(
   db: Db,

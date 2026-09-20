@@ -36,17 +36,17 @@ a separate UPDATE in a different file. So this walks all three: a membership
 written through 7.4 makes the shelf, a shelf rename rewrites the memberships,
 and a shelf delete clears them.
 
-**The second case moved with issue #247, and it moves once more in the
-release after it.** The database side shipped as expand and contract:
-migration 0022 added `shelf_name` beside `label`, and until #247 this case
-asserted that the two **agreed** after each write path. They cannot agree any
-more, because #247's first release stops writing `label` at all — so the case
-now asserts the state that release actually has: the column is still in the
-table, `shelf_name` is where every write path puts the membership, and
-`label` is never touched. The drop is #247's second release, under 11.5, and
-that is when this becomes "one column, and the old name refused". The
-decision being pinned — where the membership lives — is what moved, and it
-moved in #247 rather than in this file.
+**The second case moved twice with issue #247, and this is the second move.**
+The database side shipped as expand and contract: migration 0022 added
+`shelf_name` beside `label`, and until #247 this case asserted that the two
+**agreed** after each write path, saying in terms that when the contract half
+landed it would become the assertion one column is left. That half is two
+releases rather than one, which is what 11.5 asks for: the first stopped every
+write to `label` and left the column standing, and this case asserted for that
+release that `shelf_name` took every write while `label` was never touched.
+This is the second, and it is the form the original text named. The decision
+being pinned — where the membership lives — is what moved, and it moved across
+#247's two releases rather than in this file.
 
 Spec: 4.4, 4.18, 6.1, 7.4, 7.10, 7.16. Issue #226, #247, #208 R9.
 */
@@ -60,6 +60,7 @@ import { folderOpenView } from '../../src/server/views/index.js'
 
 import { startAuthTestApp } from '../support/auth-harness.js'
 import type { AuthTestApp } from '../support/auth-harness.js'
+import { expectRejectedWith } from '../support/helpers.js'
 import {
   Cast,
   createFolder,
@@ -291,63 +292,52 @@ describe('AC-479 the Shelf rename moved the word and nothing else', () => {
     ).toBeNull()
   })
 
-  test('AC-479: one membership column is written, on every write path, and the retired one is never touched', async () => {
+  test('AC-479: one membership column is left, on every write path, and nothing answers to the old name', async () => {
     /*
-    **The contract half's first release, asserted as such (issue #247).**
+    **The contract half's second release, asserted as such (issue #247).**
 
-    This case read "both membership columns exist and agree" until #247, and
+    Until #247 this case read "both membership columns exist and agree", and
     said in terms that when the contract half landed it would become "one
-    column, and nothing answering to the old name". **It becomes that in two
-    steps rather than one, and this is the first.** 11.5 splits a destructive
-    change expand-and-contract across two releases, because the host keeps the
-    old instance serving until the new one is healthy: the code that still
-    writes `folder_members.label` is live while the ALTER commits, so a drop
-    in this release would answer 500 to every shelf write for the length of a
-    deploy. So #247 ships the code half here — five write paths reduced to one
-    column — and the migration in the release after it.
+    column, and nothing answering to the old name". This is that, and it
+    arrives one release after the code it belongs to. The decision it pins is
+    **where the membership lives**, and that decision moved with #247 rather
+    than with any edit made to keep a test green.
 
-    What that makes true of *this* release, and what the assertions below
-    therefore are: `folder_members.label` is still in the table, and no write
-    path touches it. That is a stronger statement than "the code no longer
-    mentions it", because the column is still there to be written: a second
-    assignment left behind anywhere — `setMyMembership`, the shelf rename, the
-    shelf delete, the sample workspace or the seed — would put a value in it
-    and this case would see it.
+    The order is 11.5's and both halves of it are the same argument. Migration
+    0022 added `shelf_name` beside `label` and backfilled it rather than
+    renaming, because Render waits for the new instance to pass health checks
+    before draining the old one and a rename would have left the old instance
+    selecting a column that no longer exists for the length of a deploy —
+    `GET /folders`, the sidebar and every folder page. Migration 0026 drops
+    `label` and `folder_members_label_length_check`, and it waits for #247's
+    first release for the mirror of that reason: the old instance there is one
+    that still *writes* `label`, and a drop shipped beside the code would have
+    answered 500 to every shelf write across the same window. This case's
+    previous form — one column written, the retired one never touched — is
+    what proved that first release had actually stopped the writes.
 
-    The decision being pinned is **where the membership lives**, and it moved
-    with #247 rather than with any edit made to keep a test green. When the
-    second release lands, the expectation at the end of this case becomes a
-    catalog read that finds one column and a statement the server refuses with
-    42703; nothing else here moves.
+    Two halves, and they fail differently. The column read says the three
+    write paths still hold membership and shelf name in step now that there is
+    one column to hold it in; the refusal says the old name is gone from the
+    table rather than merely gone from the code, which is the only thing that
+    distinguishes a dropped column from a column nobody writes.
     */
     const actor = await owner()
     const folderId = await createFolder(actor, 'ac479 column')
 
-    /** Both columns of the viewer's own membership row, straight from the
-     * table. The wire has never shown either one under any name, so only a
-     * read of the row can say which write paths reached which column — and
-     * `label` is in this SELECT precisely because it is still there to be
-     * written by mistake. */
-    const membership = async (): Promise<{
-      shelf_name: string | null
-      label: string | null
-    }> => {
+    /** The viewer's own membership row, straight from the table. The wire
+     * never showed this column under any name, so only a read of the row can
+     * say which write paths reached it. */
+    const membership = async (): Promise<{ shelf_name: string | null }> => {
       const found = (await app.db.execute(
-        sql`SELECT shelf_name, label FROM folder_members
+        sql`SELECT shelf_name FROM folder_members
             WHERE folder_id = ${folderId}::uuid
               AND user_id = ${actor.id}::uuid`,
-      )) as unknown as {
-        rows: { shelf_name: string | null; label: string | null }[]
-      }
+      )) as unknown as { rows: { shelf_name: string | null }[] }
       const row = found.rows[0]
       expect(row, 'the membership row must exist').toBeDefined()
-      return row as { shelf_name: string | null; label: string | null }
+      return row as { shelf_name: string | null }
     }
-
-    expect(
-      await membership(),
-      'the membership a new folder creates writes neither column',
-    ).toEqual({ shelf_name: null, label: null })
 
     // Path one: the membership write of 7.4.
     expectStatus(
@@ -359,8 +349,8 @@ describe('AC-479 the Shelf rename moved the word and nothing else', () => {
     )
     expect(
       await membership(),
-      'the value written through the renamed request field lands in shelf_name and in nothing else: `label` is still a column, and setMyMembership no longer writes it',
-    ).toEqual({ shelf_name: 'ac479 Bench', label: null })
+      'the value written through the renamed request field lands in shelf_name, which is now the only column it can land in',
+    ).toEqual({ shelf_name: 'ac479 Bench' })
 
     // Path two: the shelf rename, which rewrites the viewer's memberships.
     const shelves = await actor.browser.api('/shelves')
@@ -378,8 +368,8 @@ describe('AC-479 the Shelf rename moved the word and nothing else', () => {
     )
     expect(
       await membership(),
-      'and the rename moved the column the predicate reads, and left the retired one alone',
-    ).toEqual({ shelf_name: 'ac479 Workbench', label: null })
+      'and the rename moved the surviving column, which is the one the predicate reads',
+    ).toEqual({ shelf_name: 'ac479 Workbench' })
 
     // Path three: the shelf delete, which clears them.
     expect(
@@ -390,7 +380,7 @@ describe('AC-479 the Shelf rename moved the word and nothing else', () => {
     expect(
       await membership(),
       'and cleared it, so no column is left holding a shelf that is gone',
-    ).toEqual({ shelf_name: null, label: null })
+    ).toEqual({ shelf_name: null })
 
     /* Back on a shelf, so this case ends on a written row rather than a
        cleared one. */
@@ -403,19 +393,21 @@ describe('AC-479 the Shelf rename moved the word and nothing else', () => {
     )
     expect(
       await membership(),
-      'and the third write path reaches the one column too',
-    ).toEqual({ shelf_name: 'ac479 Bench', label: null })
+      'and the third write path reaches the surviving column too',
+    ).toEqual({ shelf_name: 'ac479 Bench' })
 
     /*
-    And the old name is still in the table, which is what makes every
-    `label: null` above an assertion rather than a tautology.
+    And the old name is gone from the table.
 
-    Read it from the catalog rather than inferred from the SELECT above: a
-    missing column would make that SELECT throw, and the file would go red
-    with a 42703 nobody asked for, which says the same thing far less
-    legibly. This expectation is the one that inverts in #247's second
-    release — the drop lands, the array becomes `['shelf_name']`, and a
-    statement naming `label` is refused by the server.
+    **Two reads rather than one, because each is weak alone.** The catalog
+    read says the column is absent and could pass over a table that never had
+    it; the statement says the server refuses the name and would pass over a
+    typo. Together they say the drop happened here.
+
+    SQLSTATE rather than the message: the databases this leg creates answer in
+    the cluster's language, and `tests/guards/guard-postgres-leg-isolation.test.ts`
+    fails by name any file that reads server prose. 42703 is undefined_column
+    on both engines the suite runs on.
     */
     const columns = (await app.db.execute(
       sql`SELECT column_name FROM information_schema.columns
@@ -425,8 +417,13 @@ describe('AC-479 the Shelf rename moved the word and nothing else', () => {
     )) as unknown as { rows: { column_name: string }[] }
     expect(
       columns.rows.map((row) => row.column_name),
-      'folder_members still carries both columns in this release. 11.5 has the drop wait for the code that stopped writing `label` to be live and drained, and that migration is #247\'s second release; a catalog answering only `shelf_name` here would mean it merged in the same release as this code, which is the thing the split exists to prevent',
-    ).toEqual(['label', 'shelf_name'])
+      'folder_members carries the membership under one name, and `label` is not it. Migration 0026 dropped that column; a catalog still holding it would mean this migration never ran, which is what a journal `when` lower than an already-applied one does — silently, permanently, and with nothing else in the suite to say so',
+    ).toEqual(['shelf_name'])
+
+    await expectRejectedWith(
+      () => app.db.execute(sql`SELECT label FROM folder_members LIMIT 1`),
+      { code: '42703' },
+    )
   })
 })
 

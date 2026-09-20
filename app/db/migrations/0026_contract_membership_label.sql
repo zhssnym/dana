@@ -1,0 +1,68 @@
+-- The Shelf terminology cleanup (#208 R9, #226), **contract half** (issue #247).
+--
+-- **The precondition, and it is the whole reason this is a file of its own.**
+-- Issue #247's first release — the commit that stopped writing `label` on all
+-- five of its write paths and took `label` and `my_label` off the wire — must
+-- be **live and drained** before this migration runs. That is what makes the
+-- drop safe under 11.5, and it is why this is a separate release rather than
+-- one commit with the code in it.
+--
+-- Migrations run at boot before the process serves, and Dana runs exactly one
+-- production instance: that is true of steady state and not of a deploy.
+-- 11.11 has Render bring the new instance up and pass its health checks
+-- before draining the old one, so between this ALTER committing and traffic
+-- switching the old instance is still serving. Ship this with the code and
+-- the old instance is the one that still writes `label` — `setMyMembership`,
+-- the shelf rename, the shelf delete, the sample workspace and db/seed.ts —
+-- and every shelf write answers 500 with SQLSTATE 42703 for the length of a
+-- deploy. Ship it a release later and the instance still serving is one that
+-- already writes `shelf_name` alone, and the column it drops is one nothing
+-- has touched since the previous deploy. Hard stop 1, and 11.5's sentence in
+-- terms: "the old code runs against the new schema during the overlap window".
+--
+-- The mirror of that argument is why 0022 exists. It added `shelf_name`
+-- beside `label` and backfilled it rather than renaming, because a rename
+-- would have left the *old* instance selecting a column that no longer
+-- existed — `GET /folders`, the sidebar and every folder page, a total outage
+-- of the main surface for the length of a deploy. The same hazard, the same
+-- window, the other direction.
+--
+-- **The number and the `when` are assigned rather than taken, and they are
+-- the highest on purpose.** 0026 and 1790100000000, against the siblings open
+-- when they were assigned: 0023/1789800000000 (#228, since merged),
+-- 0024/1789900000000 (#220) and 0025/1790000000000 (#230). The drizzle
+-- migrator reads the last applied `created_at` **once, before its loop**, and
+-- applies a file only when that value is lower than the file's own, so a
+-- migration that deploys with a higher `when` than a sibling makes that
+-- sibling be skipped silently and permanently. Ours being the highest means
+-- ours must merge last, which is exactly what a contract step wants anyway.
+-- **Check it again before merging**: if a branch opened after this one takes
+-- a `when` above 1790100000000 and merges first, this file never runs, no
+-- error is reported, and AC-479 in the suite is the only thing that says so.
+--
+-- Nothing reads or writes `label` by the time this runs: since #247's first
+-- release the five write paths above write `shelf_name` alone, `folderSelect`
+-- reads it alone, and AC-479 asserted for that release that the column was
+-- present and untouched. This file is what turns that assertion into "one
+-- column is left and the old name is refused", which it does in the same
+-- change.
+--
+-- The CHECK is dropped explicitly rather than left to fall with its column.
+-- It would fall either way, and AC-001 asserts this table's constraints by
+-- name out of db/constraint-catalog.ts, where the row is deleted in the same
+-- change: naming it here is what makes the two files legible against each
+-- other by one reader rather than by a catalog diff.
+--
+-- Forward only, and destructive in the one direction that cannot be undone by
+-- reverting a pull request: the values in `label` are a copy of `shelf_name`
+-- and nothing else, so what is lost is a duplicate. Recovery, if 0022's
+-- backfill had ever lapsed, is a fix-forward migration and not a rollback.
+--
+-- Two statements, so drizzle's own breakpoint marker sits between them. The
+-- splitter is textual and cuts the file wherever that marker appears, so its
+-- literal text must never be written inside a comment here.
+ALTER TABLE folder_members
+  DROP CONSTRAINT folder_members_label_length_check;
+--> statement-breakpoint
+ALTER TABLE folder_members
+  DROP COLUMN label;
