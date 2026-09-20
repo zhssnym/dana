@@ -135,9 +135,19 @@ async function seedFolder(name: string): Promise<string> {
  * `page_blocks_one_home_check` lets a `folder_ref` sit on a `folder_id`, the
  * seed writes exactly such a row on a folder, and `put_block` accepts the kind
  * — `DOCUMENT_BLOCK_KINDS` carries it and `documentOperation` refuses
- * `ref_folder_id` only on the six structured kinds. `insert_block` is the one
- * door that refuses it (`z.enum(['section','paragraph','image'])`), which is
- * why no screen makes one on a folder page today.
+ * `ref_folder_id` only on the six structured kinds.
+ *
+ * **What is not established, and this criterion does not pretend to: whether
+ * any real folder page holds one.** Three doors write a `folder_ref` onto a
+ * folder page — this one, 7.16's whole-page PUT, and `duplicateFolder`, which
+ * copies kind and `ref_folder_id` verbatim — and **no screen drives any of
+ * them.** `insert_block` refuses the kind outright
+ * (`z.enum(['section','paragraph','image'])`), `usePutFolderPage` has no
+ * caller left in the client, and `canvasOperations` emitted no `folder_ref`
+ * before this change; the one screen that *makes* them, `shelfWritesOf`,
+ * writes shelf pages, which are not this editor's. So the defect is real on
+ * the path and its population is a question only production data answers.
+ * Issue #255 says so and calls it the multiplier on the whole thing.
  */
 async function seedReferencePage(name: string): Promise<{ folder: string; referenced: string; prose: string; reference: string; page: PageView }> {
   const folder = await seedFolder(`${name} page`)

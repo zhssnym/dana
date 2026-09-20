@@ -21,10 +21,16 @@ a href buried in `rich_content` — an export that names no folder at all.
 `duplicateFolder` copies `kind` and `ref_folder_id` verbatim while remapping
 both parent relations through its own id map, so the copy of a flattened block
 is a paragraph for ever: there is nothing left for any later rewrite to find.
-The third reader, workflow import, is deliberately not driven here — its
-legacy block path writes `section` and `paragraph` only, so it cannot make or
-carry one, and asserting over it would pin an emptiness rather than a
-behaviour.
+**The third reader, workflow import, is deliberately not driven here, and the
+reason is worth writing down rather than leaving as an omission.** Its two
+paths behave differently. The legacy `folder.blocks` path writes `section` and
+`paragraph` only and cannot carry a reference at all. The version 2
+`folder.document` path carries `documentOperation`s, so a `folder_ref` does
+travel in the file — and `applyDocument` requires the referenced folder to be
+one the *importer* is a member of, so an import into another account is refused
+whole with `not_found` rather than landing a reference to a folder that is not
+there. That refusal is `applyDocument`'s rule and predates this change; pinning
+it here would be pinning somebody else's decision under this issue's number.
 
 Spec 4.17, 7.16, 7.22, 12.9. Issue #255.
 */
