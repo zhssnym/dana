@@ -1142,19 +1142,39 @@ export class WorkflowLabelNameConflict extends Error {
  * day an import learned to add to a Folder that already exists.
  *
  * **A file naming one Folder's Label twice is refused here and nowhere
- * else** (2026-09-20). `labels_folder_name_idx` is on
- * `(folder_id, lower(name))`, so the second INSERT of a colliding pair raises
- * 23505 and this maps it the way `insertLabel` above maps the live create's.
- * Two things are worth saying about that, because the obvious alternative was
- * tried on this branch and reverted.
+ * else** (2026-09-20). Two things are worth saying about that, because the
+ * obvious alternative was tried on #227's branch and reverted.
  *
- * **It is the only fold.** A check in `canonicalWorkflowBody` folding with
- * JavaScript `toLowerCase()` stood here for a day and had to go: two
- * implementations of Unicode lowercasing disagree on nine BMP code points and
- * on Greek final sigma, and every disagreement is a *false 422* for whichever
- * of the two partners the file happens to carry. The measurement and the
- * export Dana could not re-import are in `shared/workflows.ts` beside the
- * rules that remain.
+ * **It is the only fold, and it is `lower()` in the database.** A check in
+ * `canonicalWorkflowBody` folding with JavaScript `toLowerCase()` stood here
+ * for a day and had to go: two implementations of Unicode lowercasing
+ * disagree on nine BMP code points and on Greek final sigma, and every
+ * disagreement is a *false 422* for whichever of the two partners the file
+ * happens to carry. The measurement and the export Dana could not re-import
+ * are in `shared/workflows.ts` beside the rules that remain.
+ *
+ * **Which statement raises it moved in #279 and the fold did not.** The
+ * vocabulary is now written by one multi-row INSERT rather than by one
+ * statement per definition — 250 per Folder and 50 Folders is 12,500 awaited
+ * round trips inside the import's write transaction — and a multi-row INSERT
+ * raises its 23505 once for the whole statement, which knows the constraint
+ * but not which of the 250 rows the file's owner should go and look at. So
+ * the fold runs first, over the file's own rows, as
+ * `row_number() OVER (PARTITION BY lower(name))` in the same session and
+ * therefore under the same collation and ctype as
+ * `labels_folder_name_idx` itself: same fold, same answer, and the ordinal it
+ * returns is the one the loop's second INSERT would have raised on, so the
+ * name in the message is still the file's own spelling of the colliding
+ * definition.
+ *
+ * **It is not a check untied to its write**, which is the thing
+ * `isDuplicateName` above warns about for the live create. That warning is
+ * about a SELECT over a table two callers can write to between the read and
+ * the INSERT. This reads the statement's own input array, inside the
+ * transaction that made the Folder three statements ago, and the index is
+ * still there underneath: a 23505 escaping this function means the Folder's
+ * catalog was not empty, which is a defect in the caller rather than a file
+ * to refuse, and a 500 is the honest answer to it.
  *
  * **And it answers 422 rather than the live create's 409.** The two answer
  * different questions: a 409 is a collision with a catalog the caller can go
@@ -1182,40 +1202,122 @@ export async function createWorkflowFolderLabels(
   folderIndex: number,
 ): Promise<Map<string, string>> {
   const byKey = new Map<string, string>()
+  if (definitions.length === 0) return byKey
+
+  /* The file's vocabulary as rows, written once and read by both statements
+     below, so that what the fold refused and what the INSERT wrote cannot
+     drift apart. Each value is an ordinary bind parameter rather than one
+     jsonb document — `idSet`'s spelling is right for a list of uuids and
+     wrong for a person's text, a lone surrogate in a hand-made file being a
+     jsonb cast error where the driver's own encoding has always taken it —
+     and 250 definitions is 10.3's cap, so this is at most 1000 parameters
+     against the protocol's 65535. */
+  const input = sql`(VALUES ${sql.join(
+    definitions.map(
+      (definition, index) =>
+        sql`(${definition.name}::text, ${definition.color}::text,
+             ${definition.description ?? null}::text, ${index + 1}::int)`,
+    ),
+    sql`, `,
+  )}) AS d(name, color, description, ord)`
+
+  /* The fold, ahead of the write and in the database's own `lower()`: the
+     first definition whose name repeats an earlier one is the row the
+     per-definition loop's INSERT used to raise 23505 on, and naming it is the
+     whole point of the class this throws. */
+  const collision = await rowsOf(
+    tx,
+    sql`SELECT c.ord AS ord
+          FROM (SELECT d.ord AS ord,
+                       row_number() OVER (PARTITION BY lower(d.name)
+                                          ORDER BY d.ord) AS seq
+                  FROM ${input}) c
+         WHERE c.seq > 1
+         ORDER BY c.ord ASC
+         LIMIT 1`,
+  )
+  const at = collision[0]?.ord
+  if (at !== undefined) {
+    const offending = definitions[Number(at) - 1]
+    if (offending === undefined) {
+      throw new Error('the fold named a definition the file does not carry')
+    }
+    throw new WorkflowLabelNameConflict(folderIndex, offending.name)
+  }
+
+  const made = await rowsOf(
+    tx,
+    sql`INSERT INTO labels (scope, folder_id, name, color, description)
+        SELECT 'folder', ${folderId}::uuid, d.name, d.color, d.description
+          FROM ${input}
+         ORDER BY d.ord
+        RETURNING id, name`,
+  )
+  /* `RETURNING` answers the ids in no promised correspondence to the rows
+     they came from, which is why `copyFolderLabelCatalog` above is still a
+     loop — there the only column that could pair them is the name, and the
+     two catalogs are two vocabularies that #208 forbids matching by name. It
+     is sound here and only here: these rows are one Folder's own new
+     vocabulary, and the fold two statements up has just proved the file
+     carries no two names `lower()` makes one, so no two carry the same name
+     exactly either. A key with no row is a defect rather than a Label to drop
+     in silence. */
+  const idByName = new Map(made.map((row) => [String(row.name), String(row.id)]))
   for (const definition of definitions) {
-    const made = await rowsOf(
-      tx,
-      sql`INSERT INTO labels (scope, folder_id, name, color, description)
-          VALUES ('folder', ${folderId}::uuid, ${definition.name},
-                  ${definition.color}, ${definition.description ?? null})
-          RETURNING id`,
-    ).catch((error: unknown) => {
-      if (uniqueViolationConstraint(error) === 'labels_folder_name_idx') {
-        throw new WorkflowLabelNameConflict(folderIndex, definition.name)
-      }
-      throw error
-    })
-    const id = made[0]?.id
-    if (id !== undefined) byKey.set(definition.key, String(id))
+    const id = idByName.get(definition.name)
+    if (id === undefined) {
+      throw new Error('INSERT INTO labels returned no row for a definition')
+    }
+    byKey.set(definition.key, id)
   }
   return byKey
 }
 
-/** One imported Task's Folder Label assignments, by the ids
+/**
+ * One imported Task's Folder Label assignments, by the ids
  * `createWorkflowFolderLabels` answered. A key the file never declared is
  * refused by the schema before this runs, so an unknown one cannot arrive
- * here and is not silently dropped here either. */
+ * here and is not silently dropped here either.
+ *
+ * **One statement per Task rather than one per assignment** (issue #279). The
+ * loop this replaces was the import's own worst case: 10.3 admits 100 Folder
+ * Labels per Task and the format admits 1000 Tasks, so a valid file could
+ * spend 100,000 awaited round trips inside one write transaction, measured at
+ * about 11 seconds on a machine where the same file without Labels cost 0.7.
+ * Dana runs exactly one production instance with one `pg.Pool` and an
+ * in-process reminder tick sharing it, so that window is an availability
+ * shape rather than a slow request.
+ *
+ * The ids ride as one bind parameter through `idSet`, which is the spelling
+ * `database.ts` measured on both backends; `ON CONFLICT DO NOTHING` still
+ * absorbs a file that names one key twice on one Task, which a multi-row
+ * INSERT needs it to do for rows *within* the statement as much as against
+ * rows already there — verified on the leg, and it is DO UPDATE rather than
+ * DO NOTHING that refuses to touch a row twice in one command.
+ *
+ * **Per Task and deliberately not per Folder**, which was written and
+ * measured before this was chosen. Collecting a whole Folder's assignments
+ * and writing them in one statement took the same file from 3.2 seconds to
+ * 2.6 against a 0.7-second floor the Labels have nothing to do with — and it
+ * makes the bind parameter grow with the file rather than with 10.3's
+ * per-Task cap of 100. A 3 MB body can declare something like half a million
+ * assignments in one Folder, which is tens of megabytes of jsonb built in
+ * this process and parsed in that one, so the Folder-wide spelling buys half
+ * a second at the cap by making the worst case a memory shape instead of a
+ * time one. One statement per Task keeps the parameter bounded by a cap
+ * 10.3 states.
+ */
 export async function applyWorkflowTaskLabels(
   tx: Executor,
   folderId: string,
   taskId: string,
   labelIds: readonly string[],
 ): Promise<void> {
-  for (const labelId of labelIds) {
-    await tx.execute(
-      sql`INSERT INTO task_folder_labels (folder_id, task_id, label_id)
-          VALUES (${folderId}::uuid, ${taskId}::uuid, ${labelId}::uuid)
-          ON CONFLICT DO NOTHING`,
-    )
-  }
+  if (labelIds.length === 0) return
+  await tx.execute(
+    sql`INSERT INTO task_folder_labels (folder_id, task_id, label_id)
+        SELECT ${folderId}::uuid, ${taskId}::uuid, assigned.label_id
+          FROM ${idSet(labelIds)} AS assigned(label_id)
+        ON CONFLICT DO NOTHING`,
+  )
 }
