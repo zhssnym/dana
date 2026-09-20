@@ -50,6 +50,19 @@ import {
 // Transcribed from section 4 directly, not read from the catalog file, so a
 // catalog edit that drops or renames a table cannot narrow this suite's
 // coverage without going red here.
+/*
+The tables section 4 describes, in name order.
+
+**`task_dependencies` joined this list on 2026-09-20 with migration 0019
+(issue #224), and section 4 is frozen, so the list moved ahead of the section
+rather than behind it.** This is the one shape of edit hard-stops.md allows
+here — the decision the criterion pins is "which tables section 4 names", and
+that decision moved — and it is incomplete until the ruling that adds the
+table to section 4 is posted on #224 and written into the section. The
+migration, `db/constraint-catalog.ts` and this line restate one contract three
+times by design; the ruling is the fourth restatement and the authoritative
+one. If it goes the other way, all four come out together.
+*/
 const SECTION_4_TABLES = [
   'comment_files',
   'comment_likes',
@@ -68,6 +81,7 @@ const SECTION_4_TABLES = [
   'sample_objects',
   'shelves',
   'steps',
+  'task_dependencies',
   'tasks',
   'user_page_covers',
   'user_page_descriptions',

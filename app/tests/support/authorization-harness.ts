@@ -173,6 +173,31 @@ export async function makeTask(
   return idOf(made, 'the created task')
 }
 
+/**
+ * One dependency edge: `dependent` comes to wait on `blocking` (issue #224).
+ *
+ * The 201 answers the edge itself, whose id is what names it for removal —
+ * the endpoints are never handed back, because the same object is answered to
+ * a viewer who may not be able to read the far end.
+ */
+export async function makeDependency(
+  owner: Actor,
+  dependentTaskId: string,
+  blockingTaskId: string,
+): Promise<string> {
+  const made = await owner.browser.json(
+    `/tasks/${dependentTaskId}/dependencies`,
+    'POST',
+    { blocking_task_id: blockingTaskId },
+  )
+  expectStatus(
+    made,
+    201,
+    'POST /tasks/:id/dependencies must create the edge for a member of both ends',
+  )
+  return idOf(made, 'the created dependency')
+}
+
 /** 7.7's step. The 201 answers the affected task, so the step's own id comes
  * off that task's steps rather than off the envelope. */
 export async function makeStep(

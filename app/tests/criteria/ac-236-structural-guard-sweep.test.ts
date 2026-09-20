@@ -268,10 +268,17 @@ describe('AC-236 every mutating route is behind the whole chain', () => {
     // answers 404 on the mounted application rather than being merely absent
     // from the walk — `bundle-contract.test.ts` asserts that for the surface
     // that replaced it.
+    //
+    // **68 to 70 on 2026-09-20 for the two dependency mutations** (issue
+    // #224): `POST /tasks/:id/dependencies` and
+    // `DELETE /tasks/:id/dependencies/:dependencyId`. The same way round as
+    // every rise above — the sweep passed on both of them, 401 bare and 403
+    // without CSRF, before this number was touched — and the read the same
+    // change adds moves the count below rather than this one.
     expect(
       routes.length,
-      `the walker found ${String(routes.length)} mutating routes and there were 68 after issue #184 added the composed-page action route. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means a route was added, and this number moves with it in the same change`,
-    ).toBe(68)
+      `the walker found ${String(routes.length)} mutating routes and there were 70 after issue #224 added the two task-dependency mutations. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means a route was added, and this number moves with it in the same change`,
+    ).toBe(70)
 
     const failures: string[] = []
     const jsonBody = {
@@ -345,10 +352,17 @@ describe('AC-236 every mutating route is behind the whole chain', () => {
     // instruction followed as for `/me/export` above: the sweep already
     // passed on both — each answers 401 bare — and only the count moved, in
     // the change that added them.
+    //
+    // 39 to 40 on 2026-09-20 for `GET /tasks/:id/dependencies` (issue #224),
+    // which earns no PUBLIC_READS entry and needs none: it answers 401 bare,
+    // which the sweep below established before this number moved. Both
+    // branches were open at once and each moved this number from 37; the
+    // resolution is the sum, because the two reads of #223 and the one read
+    // of #224 are three distinct routes and all three are now mounted.
     expect(
       routes.length,
-      `the walker found ${String(routes.length)} reading routes and there were 39 after issue #223 added the two Dana Link reads. Fewer means the enumeration lost sight of routes that still exist; more means a GET was added, and it must either answer 401 bare or earn a PUBLIC_READS entry, and this number moves with it in the same change`,
-    ).toBe(39)
+      `the walker found ${String(routes.length)} reading routes and there were 40 after issue #223 added the two Dana Link reads and issue #224 added the task-dependency read. Fewer means the enumeration lost sight of routes that still exist; more means a GET was added, and it must either answer 401 bare or earn a PUBLIC_READS entry, and this number moves with it in the same change`,
+    ).toBe(40)
 
     const failures: string[] = []
     for (const { method, path } of routes) {
