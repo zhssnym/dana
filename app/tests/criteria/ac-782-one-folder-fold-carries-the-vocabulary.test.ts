@@ -48,11 +48,14 @@ too: a name declared twice (AC-780) and a key no folder declares (AC-548), both
 
 **The two refusals are two mechanisms, and only one of them is a schema
 rule.** The undeclared key is `canonicalWorkflowBody`'s, where the file's own
-values are compared to each other. The repeated *name* is
-`labels_folder_name_idx`'s: there is one fold in this product and it is
-`lower(name)`, so the collision is found by the INSERT and
-`createWorkflowFolderLabels` maps its 23505 into the same 422 with the same
-field path. That matters to this file because the folded folder has to reach
+values are compared to each other. The repeated *name* is the database's:
+there is one fold in this product and it is `lower(name)`, the same fold
+`labels_folder_name_idx` is built on, and `createWorkflowFolderLabels` runs it
+over the file's own rows one statement ahead of the INSERT and answers the same
+422 with the same field path. **It was the INSERT's own 23505, caught and
+mapped, until issue #279 made that write one multi-row statement** — which
+raises one SQLSTATE for 250 rows and so cannot name the row — and the fold
+moved one statement earlier without changing sessions, collation or answer. That matters to this file because the folded folder has to reach
 **both** — a fold that put the vocabulary where the importer could not create
 it would fail differently from one that put it where the schema could not read
 it, and this case would not tell them apart if it only asserted "not 201".

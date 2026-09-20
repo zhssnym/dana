@@ -57,6 +57,24 @@ So the fold was deleted and the SQLSTATE is mapped instead:
 cannot tell which mechanism refused them, and there is nothing left that can
 drift out of step with the index.
 
+**The mapping is gone and the fold is not (2026-09-20, issue #279), and this
+criterion did not move with it.** That paragraph describes the mechanism as it
+stood for a day: one INSERT per definition, and a catch around it. The
+vocabulary is written by one multi-row INSERT now, because 250 definitions per
+folder and 50 folders per file was 12,500 awaited round trips inside the
+import's write transaction — and a multi-row INSERT raises its 23505 once for
+the statement, naming the constraint and not the row, so a catch can no longer
+say *which* definition. What refuses the file is the same `lower()`, run over
+the file's own rows one statement ahead of the write and therefore in the same
+session, under the same collation and ctype as the index: still one fold, still
+the database's, which is the whole finding above. Nothing a caller can see
+moved, which is why every case below is unchanged — they pin the answer and
+this pins which statement produced it. The index is still underneath, where a
+23505 now means the folder's catalog was not empty, which this path cannot
+reach and a future caller could. `src/server/domain/workflow-label-writes.test.ts`
+asserts the two things the cases below cannot: which of the two spellings the
+message carries, and the folder index the importer handed over.
+
 ## Why a genuine collision is still reachable
 
 `folderToWorkflowFile` reads a live vocabulary the index has already made
