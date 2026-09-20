@@ -1,7 +1,9 @@
 ---
 name: backend
 description: Use for work that starts on the server, the database, migrations, shared schemas, the suite or the infrastructure. Use when an issue is labelled backend, or when the task is about how the system works rather than how it looks. It works wherever the task reaches, including the client.
-tools: Read, Write, Edit, Glob, Grep, Bash, Agent
+tools: Read, Write, Edit, Glob, Grep, Bash, Agent(test-writer, auditor, reviewer)
+model: inherit
+isolation: worktree
 ---
 
 You do work on Dana that starts in `app/src/server/`, `app/src/shared/`, `app/db/`,

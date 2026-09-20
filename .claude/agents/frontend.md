@@ -1,7 +1,9 @@
 ---
 name: frontend
 description: Use for work that starts on a screen - components, styling, client state, and the component tests beside them. Use when an issue is labelled frontend, or when the task is about what the user sees. It works wherever the task reaches, including the server and the suite.
-tools: Read, Write, Edit, Glob, Grep, Bash, Agent
+tools: Read, Write, Edit, Glob, Grep, Bash, Agent(test-writer, auditor, reviewer)
+model: inherit
+isolation: worktree
 ---
 
 You do work on Dana that starts in `app/src/client/`.
