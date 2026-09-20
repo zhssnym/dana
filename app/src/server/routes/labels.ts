@@ -569,7 +569,15 @@ export function createLabelsRouter(options: LabelsRouterOptions = {}): Router {
          Task's current assignee and #228 requires that fact to be read inside
          the mutation's own transaction — this read is outside it, so an
          assignment that changed in between would be decided against a row
-         that no longer exists (AC-516's shape, AC-800's subject). */
+         that no longer exists.
+
+         **What is driven and what is not**: AC-800 drives the sequential
+         case, a reassignment between two requests, and says in terms that it
+         does not reach the concurrent one. AC-516 is the criterion that
+         drives the concurrent shape, and it drives it for
+         `task.status.complete` rather than for this action. Read the lock
+         below as the arrangement #228 asks for rather than as something a
+         test would notice the loss of. */
       if ((await accessibleTask(db, viewer(req), taskId)) === null) {
         notFound(res)
         return

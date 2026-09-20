@@ -21,9 +21,17 @@ that asked for neither. The table was honest and the bars were not enforced.
 This is the other half, on the AC-512 to AC-521 pattern: real people at real
 presets driving real requests. **A gate that always returns true passes every
 test that only checks the allowed side**, which is why every case below
-asserts a refusal beside its success, and why the refusals were proved by
-making `mayPerform` answer `{ allowed: true }` unconditionally and watching
-them go red.
+asserts a refusal beside its success.
+
+**Proved by mutation, four ways, on 2026-09-20 at nine cases.** The route
+gate in `routes/labels.ts` made always-true takes 2 of the 9; the domain gate
+in `domain/labels.ts` made always-true takes 4; between them 5 of the 9, the
+other four being the allowed side, the Personal arm and the ordering. Gating
+the Personal arm as though it were shared — `label.apply` for both scopes,
+the over-reaching direction — takes a sixth. Moving the 403 behind the
+archived 409 takes the seventh. **The two that no mutation of this gate can
+take are the two that exist to fail in the other direction**, which is the
+point of writing them.
 
 ## Reading the rows rather than the response
 
@@ -60,7 +68,12 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 import { startAuthTestApp } from '../support/auth-harness.js'
 import type { AuthTestApp } from '../support/auth-harness.js'
 import { sharedFolder, taskIn } from '../support/folder-access-harness.js'
-import { Cast, expectStatus } from '../support/folders-harness.js'
+import {
+  Cast,
+  addMemberOk,
+  createFolder,
+  expectStatus,
+} from '../support/folders-harness.js'
 import type { Actor } from '../support/folders-harness.js'
 import {
   archiveFolderLabel,
@@ -435,6 +448,118 @@ describe('AC-800 applying a Folder Label is Can edit’s, or your own work’s',
     expect(
       await countAssignments(app.db, 'task_folder_labels', label.id),
       'and that removal reached the row as well',
+    ).toBe(0)
+  })
+
+  test('AC-800: a reassignment out from under a contributor takes their Label authority with it', async () => {
+    const fx = await stage()
+    const contributor = fx.at.can_contribute
+    const held = await taskIn(
+      fx.owner,
+      fx.folderId,
+      'ac800 reassigned out from under them',
+      contributor.id,
+    )
+    const label = await createFolderLabel(fx.owner, fx.folderId, {
+      name: 'ac800 Applied while it was theirs',
+    })
+    const second = await createFolderLabel(fx.owner, fx.folderId, {
+      name: 'ac800 Attempted after it was not',
+    })
+
+    expectStatus(
+      await putTaskLabel(contributor, held, label.id),
+      200,
+      'while the Task is theirs, R8’s assignment arm admits them',
+    )
+
+    /* #228's Assigned-work rule, **the sequential half only**, which is the
+       half AC-516 calls "the one a person meets": they loaded a screen, the
+       Task was reassigned, and the authority went with it. What this proves
+       is that the gate reads the Task's current assignee from the row rather
+       than trusting anything the caller last saw.
+
+       **It does not prove the transactional requirement**, and saying so is
+       the point of this paragraph. A gate reading the assignee in a statement
+       of its own, outside the transaction, passes this case: sequentially,
+       any read after the reassignment sees it. What the row lock buys is the
+       concurrent case — a reassign and an apply in flight at once — and
+       AC-516 drives that shape for `task.status.complete` and for no other
+       action. `domain/labels.ts` takes the lock and reads the assignee off
+       it, which is the arrangement #228 asks for; **nothing in this suite
+       would go red if that were unpicked into two statements**, and a reader
+       who needs that guarantee should extend AC-516's concurrent case rather
+       than read this one as covering it. */
+    expectStatus(
+      await fx.owner.browser.json(`/tasks/${held}`, 'PATCH', {
+        assignee_id: fx.at.can_edit.id,
+      }),
+      200,
+      'the owner hands the Task to somebody else',
+    )
+
+    expectStatus(
+      await putTaskLabel(contributor, held, second.id),
+      403,
+      '#228: a stale "assigned to me" must never authorize after a reassignment',
+    )
+    expectStatus(
+      await deleteTaskLabel(contributor, held, label.id),
+      403,
+      'and the removal goes with it, R8 naming both in one clause — the Label they applied an hour ago is no longer theirs to take off',
+    )
+    expect(
+      [
+        await countAssignments(app.db, 'task_folder_labels', label.id),
+        await countAssignments(app.db, 'task_folder_labels', second.id),
+      ],
+      'the first assignment stands and the second was never written',
+    ).toEqual([1, 0])
+  })
+
+  test('AC-800: scope decides before standing, and standing decides before state', async () => {
+    const fx = await stage()
+    const viewer = fx.at.can_view
+
+    /* The order 7.26 states — not-found, then wrong-target, then the 403,
+       then the 409 — driven end to end rather than left to the reading of a
+       switch statement. Both halves matter and they fail in opposite
+       directions: an implementation that asked the resolver first would
+       answer 403 to the wrong-target case, and one that checked the archive
+       state first would answer 409 to somebody who may not classify this work
+       at all. */
+    const elsewhere = await createFolder(fx.owner, 'ac800 the other folder')
+    await addMemberOk(fx.owner, elsewhere, viewer.id, 'can_view')
+    const theirs = await createFolderLabel(fx.owner, elsewhere, {
+      name: 'ac800 Belongs to the other folder',
+    })
+    expectStatus(
+      await putTaskLabel(viewer, fx.looseTaskId, theirs.id),
+      422,
+      'wrong-target before the 403: scope is what decides which act this is, and a Folder-B Label could never classify a Folder-A Task whoever asked',
+    )
+
+    const retired = await createFolderLabel(fx.owner, fx.folderId, {
+      name: 'ac800 Retired and out of reach',
+    })
+    expectStatus(
+      await archiveFolderLabel(fx.owner, fx.folderId, retired.id),
+      200,
+      'the owner archives it',
+    )
+    expectStatus(
+      await putTaskLabel(viewer, fx.looseTaskId, retired.id),
+      403,
+      'the 403 before the 409: telling somebody who may not classify this work that the Label is archived answers a question they are not owed',
+    )
+    expectStatus(
+      await putTaskLabel(fx.at.can_edit, fx.looseTaskId, retired.id),
+      409,
+      'and the 409 is still there for somebody who may — the two refusals are two facts and neither swallows the other (AC-475)',
+    )
+    expect(
+      await countAssignments(app.db, 'task_folder_labels', retired.id),
+      'and neither of those two wrote anything',
     ).toBe(0)
   })
 

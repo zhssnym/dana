@@ -333,10 +333,19 @@ right. So the whole suite was green over a surface where a Can-view member
 could rename a folder's shared vocabulary and relabel everybody's work.
 **Nothing structural could have found that**, which is the argument for writing
 a criterion after a cut: the sweeps prove a route is gated *somehow*, and only
-an actor at a preset proves which. It was verified by making each of the two
-gates always-true in turn and watching five of its seven cases go red — and by
-a third mutation, gating the Personal arm as though it were shared, which
-turns the sixth red and is the over-reaching direction nothing else watches.
+an actor at a preset proves which. It was verified by four mutations across
+its nine cases: each of the two gates made always-true in turn takes five of
+the nine between them, gating the Personal arm as though it were shared takes
+a sixth — the over-reaching direction, which nothing else watches — and moving
+the 403 behind the archived 409 takes a seventh. The two left standing are the
+allowed-side cases, which exist to fail in the other direction. **Two of the
+nine were added after the reviewer read the branch**, naming the two things it
+said were asserted by prose and not by a test: the refusal ordering end to end,
+and a contributor's authority ending when the Task is reassigned away from
+them. The reviewer's other finding is recorded rather than closed — the
+**concurrent** half of #228's transactional requirement is driven for
+`task.status.complete` by AC-516 and for `label.apply` by nothing, and AC-800's
+own comment says so rather than letting the row lock read as covered.
 
 **Section 12 was not cut with them.** Every criterion it states is still the
 specification of Dana's behaviour; most of them simply have no executable form
