@@ -63,3 +63,69 @@ test('Issue194 duplicate, export and workflow import retain hierarchy and rich c
  expectStatus(await owner.browser.json(`/folders/${folder}/page/actions`,'POST',{action:'document_transaction',mutation_id:randomUUID(),base_revision:current.revision,operations:[{op:'delete_block',id:h1},{op:'set_outline',items:[{kind:'block',id:h2,section_block_id:null},{kind:'block',id:p,section_block_id:h2}]}]}),200,'remove H1 promotes subgroup')
  expect((await read(owner,folder)).blocks.find(b=>b.id===h2)?.section_block_id).toBeNull()
 })
+
+/*
+Issue218 extends the Section hierarchy from two heading levels to three. A
+Section still carries no level of its own: its level is its depth in the
+section_block_id relation, so these cases assert depth and parentage rather
+than any stored heading number. The fourth level is refused before the first
+write, which is why each rejection is followed by a read proving the page did
+not move.
+*/
+test('Issue218 three Section levels round-trip, a fourth is refused before writes, and content follows its Section',async()=>{
+ const [owner]=await cast.of(app) as [Actor,Actor]
+ const folder=await createFolder(owner,'three levels');const url=`/folders/${folder}/page/actions`
+ const h1=randomUUID(),h2a=randomUUID(),h2b=randomUUID(),h3=randomUUID(),h4=randomUUID(),p=randomUUID(),t=randomUUID()
+ const initial=await read(owner,folder)
+ const created=await owner.browser.json(url,'POST',{action:'document_transaction',mutation_id:randomUUID(),base_revision:initial.revision!,operations:[block(h1,'Top','section'),block(h2a,'Sub','section'),block(h3,'Detail','section'),block(p,'Under the detail'),{op:'create_task',id:t,title:'Detail task'},{op:'set_outline',items:[{kind:'block',id:h1,section_block_id:null},{kind:'block',id:h2a,section_block_id:h1},{kind:'block',id:h3,section_block_id:h2a},{kind:'block',id:p,section_block_id:h3},{kind:'task',id:t,section_block_id:h3}]}]})
+ expectStatus(created,200,'H1 to H3 accepted')
+ const three=created.json() as PageView
+ expect(three.blocks.find(b=>b.id===h3)?.section_block_id).toBe(h2a)
+ expect(three.blocks.find(b=>b.id===p)?.section_block_id).toBe(h3)
+ expect(three.task_placements).toEqual([{id:t,section_block_id:h3}])
+ const reloaded=await read(owner,folder)
+ expect(reloaded.items.map(i=>i.id)).toEqual([h1,h2a,h3,p,t])
+ expect(reloaded.blocks.find(b=>b.id===h3)?.section_block_id).toBe(h2a)
+
+ const fourth:DocumentTransaction={action:'document_transaction',mutation_id:randomUUID(),base_revision:reloaded.revision!,operations:[block(h4,'Too deep','section'),{op:'set_outline',items:[{kind:'block',id:h1,section_block_id:null},{kind:'block',id:h2a,section_block_id:h1},{kind:'block',id:h3,section_block_id:h2a},{kind:'block',id:h4,section_block_id:h3},{kind:'block',id:p,section_block_id:h4},{kind:'task',id:t,section_block_id:h3}]}]}
+ expectStatus(await owner.browser.json(url,'POST',fourth),422,'a fourth Section level is refused')
+ const unmoved=await read(owner,folder)
+ expect(unmoved.revision).toBe(reloaded.revision)
+ expect(unmoved.blocks.some(b=>b.id===h4)).toBe(false)
+
+ const moved=await owner.browser.json(url,'POST',{action:'document_transaction',mutation_id:randomUUID(),base_revision:unmoved.revision!,operations:[block(h2b,'Other sub','section'),{op:'set_outline',items:[{kind:'block',id:h1,section_block_id:null},{kind:'block',id:h2a,section_block_id:h1},{kind:'block',id:h2b,section_block_id:h1},{kind:'block',id:h3,section_block_id:h2b},{kind:'block',id:p,section_block_id:h3},{kind:'task',id:t,section_block_id:h3}]}]})
+ expectStatus(moved,200,'H3 moves between H2 groups')
+ const regrouped=await read(owner,folder)
+ expect(regrouped.blocks.find(b=>b.id===h3)?.section_block_id).toBe(h2b)
+ expect(regrouped.blocks.find(b=>b.id===p)?.section_block_id).toBe(h3)
+ expect(regrouped.task_placements).toEqual([{id:t,section_block_id:h3}])
+
+ const promotion:DocumentTransaction={action:'document_transaction',mutation_id:randomUUID(),base_revision:regrouped.revision!,operations:[{op:'set_outline',items:[{kind:'block',id:h1,section_block_id:null},{kind:'block',id:h2a,section_block_id:h1},{kind:'block',id:h2b,section_block_id:h1},{kind:'block',id:h3,section_block_id:null},{kind:'block',id:p,section_block_id:h3},{kind:'task',id:t,section_block_id:h3}]}]}
+ expectStatus(await owner.browser.json(url,'POST',promotion),200,'H3 promotes to the page root')
+ const promoted=await read(owner,folder)
+ expect(promoted.blocks.find(b=>b.id===h3)?.section_block_id).toBeNull()
+ expect(promoted.blocks.find(b=>b.id===p)?.section_block_id).toBe(h3)
+ expect(promoted.task_placements).toEqual([{id:t,section_block_id:h3}])
+ const replay=await owner.browser.json(url,'POST',promotion)
+ expectStatus(replay,200,'a three-level retry still replays')
+ expect((replay.json() as PageView).mutation?.replayed).toBe(true)
+})
+
+test('Issue218 legacy two-level documents are unchanged by the third level',async()=>{
+ const [owner]=await cast.of(app) as [Actor,Actor]
+ const folder=await createFolder(owner,'legacy two levels');const url=`/folders/${folder}/page/actions`
+ const h1=randomUUID(),h2=randomUUID(),p=randomUUID(),root=randomUUID()
+ const initial=await read(owner,folder)
+ const outline=[{kind:'block' as const,id:h1,section_block_id:null},{kind:'block' as const,id:h2,section_block_id:h1},{kind:'block' as const,id:p,section_block_id:h2},{kind:'block' as const,id:root,section_block_id:null}]
+ expectStatus(await owner.browser.json(url,'POST',{action:'document_transaction',mutation_id:randomUUID(),base_revision:initial.revision!,operations:[block(h1,'Top','section'),block(h2,'Sub','section'),block(p,'Owned prose'),block(root,'Root prose'),{op:'set_outline',items:outline}]}),200,'legacy shape accepted')
+ const legacy=await read(owner,folder)
+ expect(legacy.items.map(i=>i.id)).toEqual([h1,h2,p,root])
+ expect(legacy.blocks.find(b=>b.id===h2)?.section_block_id).toBe(h1)
+ expect(legacy.blocks.find(b=>b.id===p)?.section_block_id).toBe(h2)
+ expect(legacy.blocks.find(b=>b.id===root)?.section_block_id).toBeNull()
+ expectStatus(await owner.browser.json(url,'POST',{action:'document_transaction',mutation_id:randomUUID(),base_revision:legacy.revision!,operations:[block(p,'Owned prose, edited'),{op:'set_outline',items:outline}]}),200,'an unchanged two-level outline still saves')
+ const again=await read(owner,folder)
+ expect(again.items.map(i=>i.id)).toEqual([h1,h2,p,root])
+ expect(again.blocks.find(b=>b.id===h2)?.section_block_id).toBe(h1)
+ expect(again.blocks.find(b=>b.id===root)?.section_block_id).toBeNull()
+})

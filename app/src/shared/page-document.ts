@@ -6,6 +6,13 @@ export const richContent = z.object({version:z.literal(1),runs:z.array(richRun).
  if(value.runs.reduce((n,run)=>n+run.text.length,0)>4000 || new TextEncoder().encode(JSON.stringify(value)).length>65536) ctx.addIssue({code:'custom',message:'Rich content exceeds the paragraph limit.'})
 }).transform(({version,runs})=>({version,runs}))
 export type RichContent = z.infer<typeof richContent>
+/**
+ * Sections nest three levels deep: H1 at the page root, H2 under an H1, H3 under
+ * an H2. There is no heading-level column; a Section's level is its depth in the
+ * existing section_block_id relation, and this is the only place the ceiling is
+ * written down. Raising it is a contract change (#218).
+ */
+export const MAX_SECTION_DEPTH = 3
 export const documentOutlineItem = z.object({kind:z.enum(['block','task']),id:z.uuid(),section_block_id:z.uuid().nullable()})
 export type DocumentOutlineItem = z.infer<typeof documentOutlineItem>
 export const documentOperation = z.discriminatedUnion('op',[
