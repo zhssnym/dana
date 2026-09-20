@@ -10,11 +10,12 @@ outline the server refuses being sent.
 check what they send with `refusalOf`, which runs `documentTransaction` — the
 zod layer and nothing else. `applyDocument` states seven further refusals that
 no schema can see, because each reads the outline as a whole, and issue #250's
-review found two of them reachable from this editor with all three criteria
-green: an outline whose list parent comes *after* the item nested under it
+review found the restore emitting two of them with all three criteria green: an
+outline whose list parent comes *after* the item nested under it
 (page-document.ts's "A list parent must precede the items nested under it"),
 and one whose parent is no longer a list item at all ("A list item nests under
-another list item of this page"). Both answered 422. So the API this file
+another list item of this page"). Both answered 422, the first from the drag
+handle menu's Move up and the second from a block retyped as a heading. So the API this file
 doubles is the route's own composition, `actOnFolderPage`, which is what
 `POST /folders/:id/page/actions` calls, against a real database; a refusal
 becomes the throw that a 422 becomes in `mutateApi`. The two gestures are
@@ -189,8 +190,15 @@ describe('AC-580 a restored list parent never makes a page unsaveable', () => {
 
     const container = mountCanvas(page, folder)
     await waitFor(() => { expect(surface.props).not.toBeNull() })
-    // A heading conversion retypes the block in place and keeps its id, which
-    // is what leaves a checklist item naming a `section` as its list parent.
+    // Retyping the block in place — the same id, a new type — which is what
+    // leaves a checklist item naming a `section` as its list parent. **Which
+    // affordance in this build reaches that was not established**: the drag
+    // handle menu has no heading item, and the slash menu's Heading 1 inserted
+    // a new heading rather than converting the block when it was driven here.
+    // So this case pins the shape rather than a route to it. The shape is what
+    // `applyDocument` refuses and what the restore put on the wire, and an
+    // editor that cannot produce it today is one BlockNote version away from
+    // producing it.
     await editAndSave(surface, api, (editor) => { editor.updateBlock(bullet, { type: 'heading', props: { level: 2 } }) })
 
     // The status region is what the person reads, and it is the assertion that
