@@ -42,7 +42,13 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
 import type { DbClient } from '../../db/client.js'
 import { createTestDb, rows } from '../support/helpers.js'
-import { BASE_URL_ENV, databaseNameOf, workerDatabasePattern } from '../support/postgres-leg.js'
+import {
+  BASE_URL_ENV,
+  createDatabaseSql,
+  databaseNameOf,
+  localeProviderFor,
+  workerDatabasePattern,
+} from '../support/postgres-leg.js'
 
 let client: DbClient
 
@@ -148,6 +154,50 @@ describe('the Postgres leg gives each worker its own database (issue #32)', () =
   })
 
   /*
+  The other half of 11.10's sentence, and it is asserted on **both** legs.
+
+  11.10 says the statement fixes how the database "sorts and folds" text.
+  Everything above this is the sorting half. This is the folding half, and it
+  is a different setting: sorting is LC_COLLATE and folding is LC_CTYPE, the
+  one `lower()`, `upper()` and ILIKE read. Nothing asserted it until
+  2026-09-20 and issue #235, when a first draft of the version fallback
+  created its databases with ctype `C` — the same ordering, ASCII-only folding
+  — and every test in this file passed on it.
+
+  What that would have cost is section 7 rather than anything here. Q2's
+  folder order is `ORDER BY lower(name)` and Q8's search is ILIKE, so on a
+  French name the two legs answer different result sequences while both read
+  green. That is the class CLAUDE.md records for `current_date`: a
+  cross-engine disagreement no leg is positioned to see.
+
+  `ÉCOLE` is the probe because it is the cheapest character that separates
+  the two: ASCII-only folding leaves the accented capital alone and answers
+  `École`. The ordering below is the same four names under `lower()`, which is
+  where a reader would actually meet the difference.
+  */
+  test('11.10: the database folds text by the whole Unicode case database', async () => {
+    const folded = await rows(
+      client.db,
+      sql`SELECT lower('ÉCOLE') AS lowered, upper('école') AS uppered,
+                 ('CAFÉ' ILIKE 'café') AS matched`,
+    )
+    expect(folded[0]?.lowered, 'lower() folds an accented capital').toBe('école')
+    expect(folded[0]?.uppered, 'and upper() the other way').toBe('ÉCOLE')
+    expect(folded[0]?.matched, 'Q8 searches with ILIKE, which reads the same setting').toBe(true)
+
+    const ordered = await rows(
+      client.db,
+      sql`SELECT string_agg(v, '|' ORDER BY lower(v)) AS probe FROM (VALUES
+            ('échelle'),('École'),('Épée'),('équipe')) AS s(v)`,
+    )
+    expect(
+      ordered[0]?.probe,
+      "Q2's folder order is ORDER BY lower(name), so the fold decides the sequence " +
+        'section 7 hands two agents, which 11.10 asks to be byte-identical',
+    ).toBe('échelle|École|Épée|équipe')
+  })
+
+  /*
   The provider that ordering came from, asserted as the strongest one this
   server can express.
 
@@ -186,8 +236,11 @@ describe('the Postgres leg gives each worker its own database (issue #32)', () =
             FROM pg_database WHERE datname = current_database()`,
     )
     expect(locale[0]?.provider, 'below 17 the only provider that gives C ordering is libc').toBe('c')
-    expect(locale[0]?.collate).toBe('C')
-    expect(locale[0]?.ctype).toBe('C')
+    expect(locale[0]?.collate, 'byte ordering').toBe('C')
+    /* Not 'C', which orders identically and folds ASCII only; the test above
+       is what that would have broken, and did not until #235 wrote it. This
+       is also what PGlite's own database carries, so the two legs agree. */
+    expect(locale[0]?.ctype, 'whole-Unicode folding').toBe('C.UTF-8')
   })
 
   /*
@@ -217,5 +270,44 @@ describe('the Postgres leg gives each worker its own database (issue #32)', () =
         '(expectRejectedWith in tests/helpers.ts), or a constraint name, which every ' +
         'translation keeps verbatim',
     ).toEqual([])
+  })
+})
+
+/*
+The version floor itself, which is otherwise pinned by nothing but whichever
+server happens to be running. Both tests are pure and run on either leg.
+*/
+describe('the leg picks its CREATE DATABASE clause by server version (issue #235)', () => {
+  test('17 is the floor, and it is a floor rather than a range', () => {
+    expect(localeProviderFor(160013), '16 has no builtin provider').toBe('libc')
+    expect(localeProviderFor(169999), 'and nothing below 17 does').toBe('libc')
+    expect(localeProviderFor(170000), '17.0 is where LOCALE_PROVIDER builtin arrives').toBe(
+      'builtin',
+    )
+    expect(localeProviderFor(180003), 'and the gate machine is above it').toBe('builtin')
+  })
+
+  test('both clauses fix byte ordering, and both fold the whole of Unicode', () => {
+    const builtin = createDatabaseSql('dana_test_r1_w1', 'builtin')
+    const libc = createDatabaseSql('dana_test_r1_w1', 'libc')
+
+    // 11.10's statement, character for character, is what a gate run sends.
+    expect(builtin).toBe(
+      `CREATE DATABASE "dana_test_r1_w1" TEMPLATE template0 ENCODING 'UTF8' ` +
+        `LOCALE_PROVIDER builtin BUILTIN_LOCALE 'C.UTF-8' LC_COLLATE 'C' LC_CTYPE 'C'`,
+    )
+
+    /* The fallback's ctype is the half a first draft got wrong: C orders the
+       same and folds ASCII only, so every other test in this file passed on
+       it while section 7's ORDER BY lower(name) came out in a different
+       sequence. C.UTF-8 is what PGlite carries and what 18's builtin gives. */
+    expect(libc).toContain(`LC_COLLATE 'C' LC_CTYPE 'C.UTF-8'`)
+    expect(libc, 'the clause the older server cannot parse is absent').not.toContain(
+      'LOCALE_PROVIDER',
+    )
+    for (const statement of [builtin, libc]) {
+      expect(statement, 'never inherit the cluster default').toContain('TEMPLATE template0')
+      expect(statement).toContain(`ENCODING 'UTF8'`)
+    }
   })
 })

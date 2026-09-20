@@ -31,9 +31,13 @@ function errorCode(error: unknown): string | undefined {
 }
 
 /*
-Cached because the leg talks to one server for the whole run and this is asked
-once per worker database. It is a number rather than a boolean so that a future
-clause with a different floor reads the same value.
+Which CREATE DATABASE locale clause this server can parse, asked once.
+
+Cached per process rather than per call. In practice that is one call: the only
+caller is ensureDatabase, which prepareLegDatabaseOnce guards, so the cache
+never sees a second hit and is here so that it would stay correct if it did.
+One server per run, and the answer is a property of the server rather than of
+the connection, so a differently-targeted admin client would give the same one.
 */
 let localeProvider: LocaleProvider | undefined
 
@@ -43,14 +47,22 @@ async function providerFor(admin: pg.Client): Promise<LocaleProvider> {
     'SHOW server_version_num',
   )
   const raw = answer.rows[0]?.server_version_num
-  const parsed = Number(raw)
-  if (!Number.isFinite(parsed)) {
+  /*
+  Tested for digits rather than handed to Number, which answers 0 for an empty
+  string and for whitespace. A 0 is finite, so the lenient test would take a
+  server that answered nothing as one below 17 and create its databases with
+  the fallback clause, which on a 17+ server is the weaker of the two and would
+  never be noticed. Refusing is the honest answer: the leg cannot run against a
+  server it cannot identify.
+  */
+  if (typeof raw !== 'string' || !/^[0-9]+$/.test(raw)) {
     throw new Error(
-      `the server answered SHOW server_version_num with ${String(raw)}, which is not a number, ` +
-        'so the Postgres leg cannot tell which CREATE DATABASE locale clause it understands.',
+      `the server answered SHOW server_version_num with ${JSON.stringify(raw)}, which is not ` +
+        'a version number, so the Postgres leg cannot tell which CREATE DATABASE locale ' +
+        'clause it understands.',
     )
   }
-  localeProvider = localeProviderFor(parsed)
+  localeProvider = localeProviderFor(Number(raw))
   return localeProvider
 }
 
