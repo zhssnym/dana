@@ -52,6 +52,7 @@ function card(overrides: Partial<TaskCard> = {}): TaskCard {
     title: 'a card',
     status: 'pending',
     important: false,
+    start_date: null,
     due_date: null,
     due_time: null,
     folder: { id: OTHER_UUID, name: 'Inbox', is_default: true },

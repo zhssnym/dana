@@ -192,6 +192,7 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
       { name: 'tasks_recurrence_requires_date_check', columns: ['due_date', 'recurrence_rule'] },
       { name: 'tasks_recurrence_requires_series_check', columns: ['recurrence_rule', 'series_id'] },
       { name: 'tasks_recurrence_rule_length_check', columns: ['recurrence_rule'] },
+      { name: 'tasks_start_before_due_check', columns: ['due_date', 'start_date'] },
       { name: 'tasks_status_check', columns: ['status'] },
       { name: 'tasks_title_length_check', columns: ['title'] },
     ],

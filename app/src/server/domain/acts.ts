@@ -51,6 +51,9 @@ import { copyCoverFile, readableFileScope } from './files.js'
 import { applyDocument, documentMetadata, DocumentRefusal } from './page-document.js'
 import { upsertReminder } from './tasks.js'
 import { positionAtSectionEnd, seededItems } from './page-order.js'
+/* 4.11 calendar arithmetic rather than a second copy of it here: both ends are
+   UTC midnights, so no DST shift can round the division (issue #215). */
+import { addDays, daysBetween } from '../time/calendar-date.js'
 
 /**
  * Whether the copy can be made without knowing the caller's zone.
@@ -245,6 +248,7 @@ export async function duplicateFolder(
       const tasks = await rowsOf(
         tx,
         sql`SELECT id, title, notes, important,
+                   to_char(start_date, 'YYYY-MM-DD') AS start_date,
                    to_char(due_date, 'YYYY-MM-DD') AS due_date,
                    recurrence_rule, section_block_id, position, page_position
             FROM tasks
@@ -265,11 +269,12 @@ export async function duplicateFolder(
              copy came out in creation order, which is not the order the
              person had arranged. */
           sql`INSERT INTO tasks
-                (folder_id, title, notes, important, due_date, recurrence_rule,
+                (folder_id, title, notes, important, start_date, due_date, recurrence_rule,
                  series_id, assignee_id, created_by, section_block_id, position, page_position)
               VALUES (${copyId}::uuid, ${String(task.title)},
                       ${task.notes === null ? null : String(task.notes)},
                       ${task.important === true},
+                      ${task.start_date === null || task.start_date === undefined ? null : String(task.start_date)}::date,
                       ${task.due_date === null ? null : String(task.due_date)}::date,
                       ${rule},
                       ${rule === null ? sql`NULL` : sql`gen_random_uuid()`},
@@ -311,9 +316,31 @@ export async function duplicateFolder(
             )
       const shift = Number(shifted[0]?.shift ?? 0)
       if (shift > 0) {
+        /*
+        start_date moves with it, corrected 2026-09-20 (issue #215).
+
+        The point of this shift is in the line above it: one delta for the whole
+        folder, so the copy keeps the intervals the person arranged. A start
+        date left where it stood breaks exactly that, and breaks it worst on the
+        task the shift is derived from - a plan starting 1 January and due 10
+        January, duplicated in September, would come out starting in January and
+        due today. The ruling on #215 said duplication copies the field as it
+        stands, and that was written for the single-task act below, where one
+        spent deadline is clamped onto today rather than a folder being moved
+        bodily. Here it was wrong, and this is the correction.
+
+        Both columns take the same delta, so a pair that satisfied
+        tasks_start_before_due_check still does. The WHERE widens because the
+        shift is computed from due dates but is a property of the folder: a
+        start-only task in a folder being moved forward moves with it. NULL + int
+        is NULL, so neither SET has to test the column it writes.
+        */
         await tx.execute(
-          sql`UPDATE tasks SET due_date = due_date + ${shift}::int
-              WHERE folder_id = ${copyId}::uuid AND due_date IS NOT NULL`,
+          sql`UPDATE tasks
+                 SET due_date = due_date + ${shift}::int,
+                     start_date = start_date + ${shift}::int
+               WHERE folder_id = ${copyId}::uuid
+                 AND (due_date IS NOT NULL OR start_date IS NOT NULL)`,
         )
       }
 
@@ -392,6 +419,7 @@ export async function duplicateTask(
       await rowsOf(
         tx,
         sql`SELECT title, notes, important,
+                   to_char(start_date, 'YYYY-MM-DD') AS start_date,
                    to_char(due_date, 'YYYY-MM-DD') AS due_date,
                    recurrence_rule, section_block_id
             FROM tasks WHERE id = ${source.id}::uuid`,
@@ -413,6 +441,36 @@ export async function duplicateTask(
       storedDue !== null && anchor !== null && storedDue < anchor
         ? anchor
         : storedDue
+    /*
+    The start date follows the due date by the same number of days when 9.6
+    re-anchors a spent one, and copies as it stands otherwise (issue #215,
+    corrected the same day it was ruled).
+
+    The first draft of this copied it verbatim and said so in the ruling. That
+    was wrong in the case it is most likely to meet: a task starting 1 January
+    and due 10 January, duplicated in September, came out starting in January
+    and due today - a nine-month Schedule nobody wrote. What a duplicate is for
+    is the shape of the work, and the Schedule is a shape rather than two
+    independent dates.
+
+    Moving them together is not the recurring start-to-due window #215
+    excludes; that exclusion is about generation inventing a window per
+    occurrence, where here the window already exists and is being carried.
+
+    Three arms. No stored start is null whatever happens to the due date. A
+    start with no re-anchor copies as it stands, because there is no delta.
+    And a start under a re-anchor takes the same delta as the due date, so
+    tasks_start_before_due_check holds for the same reason it held before: both
+    ends moved equally.
+    */
+    const storedStart =
+      stored?.start_date === null || stored?.start_date === undefined
+        ? null
+        : String(stored.start_date)
+    const startForCopy =
+      storedStart === null || storedDue === null || dueForCopy === null || dueForCopy === storedDue
+        ? storedStart
+        : addDays(storedStart, daysBetween(storedDue, dueForCopy))
     const row = stored
     const rule =
       row?.recurrence_rule === null || row?.recurrence_rule === undefined
@@ -423,11 +481,12 @@ export async function duplicateTask(
     const inserted = await rowsOf(
       tx,
       sql`INSERT INTO tasks
-            (folder_id, title, notes, important, due_date, recurrence_rule,
+            (folder_id, title, notes, important, start_date, due_date, recurrence_rule,
              series_id, assignee_id, created_by, section_block_id,page_position)
           VALUES (${source.folderId}::uuid, ${title},
                   ${row?.notes === null ? null : String(row?.notes ?? '')},
                   ${row?.important === true},
+                  ${startForCopy}::date,
                   ${dueForCopy}::date,
                   ${rule},
                   ${rule === null ? sql`NULL` : sql`gen_random_uuid()`},

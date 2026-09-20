@@ -26,6 +26,7 @@ function dated(id: string, due: string | null): TaskCard {
     title: id,
     status: 'pending',
     important: false,
+    start_date: null,
     due_date: due,
     due_time: null,
     folder: { id: 'f', name: 'Groceries', is_default: false },

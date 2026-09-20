@@ -89,6 +89,7 @@ OID 1082 into a JS Date, which would serialize as an instant and reintroduce
 the timezone the floating format exists to remove. One SQL cast makes the
 wire identical on both.
 */
+const START_DATE = sql`to_char(t.start_date, 'YYYY-MM-DD')`
 const DUE_DATE = sql`to_char(t.due_date, 'YYYY-MM-DD')`
 const DUE_TIME = sql`to_char(t.due_time, 'HH24:MI')`
 
@@ -112,10 +113,15 @@ export interface TaskAccess {
    * not here: the guard that needs it reads it under its own lock. */
   recurrenceRule: string | null
   sectionBlockId: string | null
+  /* Read for one reason: 4.5's start-before-due CHECK is a relation between
+     two columns, so a PATCH setting one of them has to be checked against
+     whichever the row already holds (issue #215). */
+  startDate: string | null
 }
 
 const TASK_ACCESS_COLUMNS = sql`t.id, t.folder_id, t.title, t.status,
-       t.assignee_id, ${DUE_DATE} AS due_date, ${DUE_TIME} AS due_time,
+       t.assignee_id, ${START_DATE} AS start_date,
+       ${DUE_DATE} AS due_date, ${DUE_TIME} AS due_time,
        t.recurrence_rule, t.section_block_id`
 
 function taskAccessFromRow(row: Record<string, unknown>): TaskAccess {
@@ -129,6 +135,7 @@ function taskAccessFromRow(row: Record<string, unknown>): TaskAccess {
     dueTime: nullableString(row.due_time),
     recurrenceRule: nullableString(row.recurrence_rule),
     sectionBlockId: nullableString(row.section_block_id),
+    startDate: nullableString(row.start_date),
   }
 }
 
@@ -271,6 +278,7 @@ export async function taskView(
   const found = await rowsOf(
     executor,
     sql`SELECT t.id, t.title, t.status, t.important, t.notes,
+               ${START_DATE} AS start_date,
                ${DUE_DATE} AS due_date, ${DUE_TIME} AS due_time,
                t.recurrence_rule, t.series_id,
                t.completed_at, t.completed_by,
@@ -312,6 +320,7 @@ export async function taskView(
     title: String(row.title),
     status: String(row.status) as TaskStatus,
     important: row.important === true,
+    start_date: nullableString(row.start_date),
     due_date: nullableString(row.due_date),
     due_time: nullableString(row.due_time),
     folder: {
@@ -674,12 +683,15 @@ export async function createTaskIn(
     const seriesId = rule === null ? sql`NULL` : sql`gen_random_uuid()`
     const inserted = await rowsOf(
       tx,
-      sql`INSERT INTO tasks (id, folder_id, title, notes, important, due_date,
+      sql`INSERT INTO tasks (id, folder_id, title, notes, important,
+                             start_date, due_date,
                              due_time, recurrence_rule, series_id,
                              assignee_id, created_by, section_block_id,
                              page_position)
           VALUES (${options.id === undefined ? sql`gen_random_uuid()` : sql`${options.id}::uuid`}, ${folderId}::uuid, ${body.title}, ${body.notes ?? null},
-                  ${body.important ?? false}, ${body.due_date ?? null}::date,
+                  ${body.important ?? false},
+                  ${body.start_date ?? null}::date,
+                  ${body.due_date ?? null}::date,
                   ${body.due_time ?? null}::time, ${rule}, ${seriesId},
                   ${assigneeId}::uuid, ${viewerId}::uuid, ${sectionId},
                   ${pagePosition})
@@ -757,6 +769,7 @@ export type PatchTaskResult =
   | { kind: 'unassign_single_member' }
   | { kind: 'time_without_date' }
   | { kind: 'rule_without_date' }
+  | { kind: 'start_after_due'; field: 'start_date' | 'due_date' }
   | { kind: 'section_not_here' }
   | { kind: 'reminder_refused'; refusal: ReminderRefusal }
 
@@ -947,6 +960,39 @@ export async function patchTask(
     }
 
     /*
+    The Schedule's own rule, 4.5's tasks_start_before_due_check, in the
+    direction only the row can answer (issue #215).
+
+    The create body answers this whole because it carries both dates or
+    neither. A PATCH does not: a body setting only start_date has to be read
+    against whatever due_date the row already holds, and a body setting only
+    due_date against the stored start_date. So it is the merged state that is
+    checked, exactly as the two checks above check theirs, and before the
+    first write for the same reason.
+
+    Nothing here is needed for clearing. 8.4's cascade takes due_time and the
+    rule with the date and deliberately leaves start_date alone, so a cleared
+    due_date makes finalDueDate null and the rule vacuous — which is the
+    start-only state, one of the four the issue accepts.
+
+    The 422 names the field the body actually sent, because that is the one
+    the person just moved; where it sent both, it names start_date, which is
+    what the shared schema's refinement on the create body also names.
+    */
+    const finalStartDate =
+      patch.start_date !== undefined ? patch.start_date : current.startDate
+    if (
+      finalStartDate !== null &&
+      finalDueDate !== null &&
+      finalStartDate > finalDueDate
+    ) {
+      return {
+        kind: 'start_after_due',
+        field: patch.start_date !== undefined ? 'start_date' : 'due_date',
+      }
+    }
+
+    /*
     The task's due_time once this body has been applied, which is what both
     the 8.4 cascade and 7.9's mode guard read. 8.4 nulls the column with the
     date, so the clear-date arm decides it before the body's own field does.
@@ -984,6 +1030,16 @@ export async function patchTask(
     }
     if (pagePosition !== undefined) {
       sets.push(sql`page_position = ${pagePosition}`)
+    }
+    /*
+    Outside the clearing branch on purpose (issue #215). 8.4's cascade is
+    scoped to what a due date carries — its time, its rule, its reminder — and
+    a start date is none of those. Clearing due_date on a task that has a
+    start leaves a start-only task, which the issue lists among the four valid
+    states; taking the start with it would make the two dates one field.
+    */
+    if (patch.start_date !== undefined) {
+      sets.push(sql`start_date = ${patch.start_date}::date`)
     }
     if (clearing) {
       sets.push(sql`due_date = NULL`)

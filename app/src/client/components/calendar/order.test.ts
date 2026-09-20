@@ -35,6 +35,7 @@ function card(over: {
     title: over.title ?? `task ${over.id}`,
     status: over.status ?? 'pending',
     important: false,
+    start_date: null,
     due_date: over.due_date ?? DATE,
     due_time: over.due_time ?? null,
     folder: { id: 'folder-1', name: 'Groceries', is_default: false },

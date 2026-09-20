@@ -135,6 +135,7 @@ export const exportTask = z.object({
   notes: z.string().nullable(),
   status: z.string(),
   important: z.boolean(),
+  start_date: z.string().nullable(),
   due_date: z.string().nullable(),
   due_time: z.string().nullable(),
   recurrence_rule: z.string().nullable(),

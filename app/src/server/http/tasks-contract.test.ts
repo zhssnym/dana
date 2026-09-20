@@ -150,6 +150,7 @@ const TASK_CARD_KEYS = [
   'pending_invite_email',
   'pulled',
   'section_block_id',
+  'start_date',
   'status',
   'steps_done',
   'steps_total',
