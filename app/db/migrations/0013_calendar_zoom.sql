@@ -43,7 +43,7 @@
 --
 -- `calendar_zoom` is NOT NULL, so `calendar_zoom IN (...)` is never UNKNOWN
 -- and the two-valued honesty the fifth bullet of
--- docs/workflow/backend/README.md asks for is free here: the nullable-column
+-- docs/workflow/backend.md asks for is free here: the nullable-column
 -- trap it describes needs a possibly-null value inside the expression and
 -- there is none. AC-001 still cannot see what this expression does — it
 -- asserts a constraint's name and the columns it mentions and nothing more —

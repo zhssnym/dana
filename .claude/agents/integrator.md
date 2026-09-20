@@ -25,7 +25,7 @@ diffs: **run the sweep and read the number it reports.** Keep both sides'
 comments coherent rather than dropping one.
 
 There are **five** such counts across those three files — `ac-236` pins two,
-`ac-399` pins two — and `docs/workflow/backend/README.md` names only two of
+`ac-399` pins two — and `docs/workflow/backend.md` names only two of
 them. Issue #240 covers that.
 
 **3. `docs/spec/12-acceptance-criteria/`.** Several branches spend numbers from

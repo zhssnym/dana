@@ -15,7 +15,7 @@ not split by owner.
 
 `app/tests/` holds the acceptance suite and the browser specs. **A criterion your change
 makes wrong moves in the same pull request**, under the rule in
-[`../hard-stops.md`](../hard-stops.md): a criterion changes only when the decision it pins
+[`hard-stops.md`](hard-stops.md): a criterion changes only when the decision it pins
 changes, and the pull request names it. What is never allowed is editing one to make your
 code pass.
 
@@ -23,7 +23,7 @@ code pass.
 
 1. **Never push to `main`.** Push your branch. Hassan merges, and merging deploys.
 2. **Every change starts from a GitHub issue**, and one issue is one fresh chat.
-3. **Read [`../hard-stops.md`](../hard-stops.md) before you start.** Eight things stop
+3. **Read [`hard-stops.md`](hard-stops.md) before you start.** Eight things stop
    everyone. Everything else: decide, do it, and say what you decided.
 4. **Never edit a test to make your code pass.** If a test looks wrong, that is a finding.
    Say so in the pull request and leave it failing.
@@ -54,7 +54,7 @@ A **fresh chat** for each issue. Then:
    Then read the image. Working from the sentence alone means guessing at what someone
    photographed.
 2. Check whether an open pull request is already touching the same files.
-3. Read [`../hard-stops.md`](../hard-stops.md). Before you start, not when you are unsure.
+3. Read [`hard-stops.md`](hard-stops.md). Before you start, not when you are unsure.
 4. `git checkout main && git pull && git checkout -b frontend/<issue>-<short-description>`.
    CI checks that shape: `^(frontend|backend|chore)/[0-9]+-[a-z0-9-]+$`.
 5. Read `CLAUDE.md` at the repository root for the commands and the ways this machine's test
@@ -244,7 +244,7 @@ word — that is part of the same change and lands in the same pull request.
 
 Two ways to do it, and both are ordinary:
 
-- **Do it.** [`../backend/README.md`](../backend/README.md) is the folder map and the five
+- **Do it.** [`backend.md`](backend.md) is the folder map and the five
   things about the server that are not obvious from reading it.
 - **Invoke the `backend` agent** with the exact need, on the same branch, and integrate its
   commit. That is not an escalation and it needs no issue.
@@ -253,7 +253,7 @@ Two ways to do it, and both are ordinary:
 Imran's, a technical one is Hassan's. Use the `Decision needed` template, say what you will
 do in each case, and carry on with whatever does not depend on the answer.
 
-And read [`../hard-stops.md`](../hard-stops.md), which is what actually stops you. A request
+And read [`hard-stops.md`](hard-stops.md), which is what actually stops you. A request
 field on a schema the server does not read is the one that has cost this project most: it is
 accepted, dropped, and answered 200, so the screen looks correct and the feature does
 nothing.
@@ -262,7 +262,7 @@ nothing.
 
 Your issue needs an area label (`frontend`) and a type label (`bug`, `enhancement` or
 `documentation`). Add `blocked` if you stop, `breaking` if it changes something people rely
-on. The full table is in [`../how-we-work.md`](../how-we-work.md); you rarely need the rest
+on. The full table is in [`workflow.md`](workflow.md); you rarely need the rest
 of that file.
 
 ## Opening the pull request

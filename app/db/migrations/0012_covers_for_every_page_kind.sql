@@ -24,7 +24,7 @@
 --
 -- **The one-source CHECK is written as a disjunction of two `IS NULL` tests
 -- and that spelling is load-bearing**, per the fifth bullet of
--- docs/workflow/backend/README.md and the argument written out in 0009. A
+-- docs/workflow/backend.md and the argument written out in 0009. A
 -- CHECK fails only on FALSE, and UNKNOWN is as good as TRUE to it, so a rule
 -- spelled with a comparison against a possibly-null column admits exactly the
 -- row it forbids. `x IS NULL` always yields a real boolean, so

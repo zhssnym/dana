@@ -47,8 +47,8 @@ later, because it is the part nobody can reconstruct from the code.
 
 <!--
 The part that lets both sides build at the same time, and the reason this
-document exists rather than a long issue. `docs/workflow/big-features.md` is the
-process this feeds.
+document exists rather than a long issue. `docs/workflow/workflow.md`, under *A
+feature too big for one pull request*, is the process this feeds.
 
 Settle it here, before anyone writes an implementation:
 
