@@ -2,10 +2,11 @@
 --
 -- Migration number 0024 and journal `when` 1789900000000 were assigned before
 -- this was written, with four branches open at once: 0020 (#226), 0021 (#219)
--- and 0023 (#228) belong to other live branches. CLAUDE.md records why the
--- `when` rather than the filename is the apply gate, and why two branches each
--- taking "the next free one" is a production incident rather than a merge
--- conflict.
+-- and 0023 (#228) were live branches then and have since merged, so on `main`
+-- the journal reads 0021, 0022, 0023, 0024 in ascending `when` order with this
+-- file last. CLAUDE.md records why the `when` rather than the filename is the
+-- apply gate, and why two branches each taking "the next free one" is a
+-- production incident rather than a merge conflict.
 --
 -- ## What this widens, and the one thing it deliberately does not add
 --
