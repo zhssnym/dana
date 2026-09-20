@@ -94,7 +94,13 @@ describe('importWorkflowBody folds the one-folder file (DES-206)', () => {
     for (const file of [
       { dana: 'workflow', version: 1, name: 'nothing at all' },
       { dana: 'shopping-list', version: 1, folders: [{ name: 'x' }] },
-      { dana: 'workflow', version: 2, folders: [{ name: 'x' }] },
+      // Version 3 rather than 2, corrected 2026-09-20. This row read
+      // `version: 2` from the day it was written until c7bd863 (#204, the
+      // folder writing canvas) widened the schema from `z.literal(1)` to
+      // `z.union([z.literal(1), z.literal(2)])` and left the row alone.
+      // Version 2 is an honest arrangement now and the case below pins it;
+      // what this row is for is the unknown version, so it names one.
+      { dana: 'workflow', version: 3, folders: [{ name: 'x' }] },
       'not an object',
       null,
     ]) {
@@ -102,6 +108,14 @@ describe('importWorkflowBody folds the one-folder file (DES-206)', () => {
         false,
       )
     }
+  })
+
+  // The other half of the correction above. #204 made version 2 readable and
+  // added nothing that says so, which is how the row above went from true to
+  // false with no test naming the change. This is that test.
+  test('version 2 is an arrangement, since the folder writing canvas (#204)', () => {
+    const file = { dana: 'workflow', version: 2, folders: [{ name: 'x' }] }
+    expect(importWorkflowBody.safeParse(file).success, JSON.stringify(file)).toBe(true)
   })
 })
 
