@@ -201,7 +201,6 @@ describe('AC-561 Responsibility is optional, and a real one round-trips', () => 
             kind: 'paragraph',
             content: {
               version: 1,
-              // eslint-disable-next-line no-script-url
               runs: [{ text: 'tap', href: 'javascript:alert(1)' }],
             },
           },

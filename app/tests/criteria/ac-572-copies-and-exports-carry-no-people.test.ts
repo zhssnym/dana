@@ -116,7 +116,7 @@ async function exportOf(actor: Actor): Promise<ExportDoc> {
 
 describe('AC-572 copies and exports carry no other people', () => {
   test('AC-572 proof 18: a duplicated Folder has no roster, no Access standing, no Responsibility and no grant from its source', async () => {
-    const { owner, member, folderId } = await stage('AC-572 duplicate')
+    const { owner, folderId } = await stage('AC-572 duplicate')
 
     const duplicated = await owner.browser.json(
       `/folders/${folderId}/duplicate`,

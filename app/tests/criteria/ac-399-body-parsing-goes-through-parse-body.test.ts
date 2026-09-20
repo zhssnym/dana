@@ -401,10 +401,22 @@ describe('AC-399 no route parses a request body except through parseBody', () =>
        up: whoever merges second re-runs this sweep on the merged tree and
        takes the number it reports, which is neither side's and is not
        necessarily their sum. */
+    /* **35 to 37 on 2026-09-21** for issue #230's two body-taking
+       Responsibility routes: the Responsibility commit and the self-edit
+       grant toggle. Both go through the helper; the three Responsibility
+       reads take no body at all and move nothing here. The module count does
+       not move either: both live in `routes/folders.ts`, which is already on
+       the list and is the same module #275's newly visible call sits in.
+       **#230 read 32 on its own tree, which was #228's and held neither
+       #224's one site nor #226's four, and 36 on the tree before this one,
+       which held neither #275's widening; the resolution is the sum a third
+       time, and 37 is what this sweep itself reported on the merged tree
+       rather than what any diff implies.** Same instruction followed as every
+       rise above: the sweep passed on the two new routes first. */
     expect(
       sites.length,
-      `parseBody is called from ${String(sites.length)} places and there were 35 when issue #275 taught this sweep to read the file rather than the line. Fewer means a route stopped using it, and the sweep above is what says whether it went back to req.body; more means a body-taking route was added, and this number moves with it in the same change`,
-    ).toBe(35)
+      `parseBody is called from ${String(sites.length)} places and there were 37 after issue #224 added the task-dependency create, issue #226 added the four body-taking Label routes, issue #275 taught this sweep to read the file rather than the line and issue #230 added the Responsibility commit and the self-edit grant toggle. Fewer means a route stopped using it, and the sweep above is what says whether it went back to req.body; more means a body-taking route was added, and this number moves with it in the same change`,
+    ).toBe(37)
     expect(
       [...modules].sort().length,
       `${String(modules.size)} modules read a request body and there were 11 after issue #226 added routes/labels.ts, unmoved by issue #275 because the call it made visible is in a module that was already counted: ${[...modules].sort().join(', ')}`,

@@ -46,7 +46,6 @@ import {
   readResponsibilityHistory,
   recordOf,
   revisionsOf,
-  standingOf,
 } from '../support/responsibility-harness.js'
 import type { ResponsibilityHistoryEntry } from '../../src/shared/responsibility.js'
 import type { ResponsibilityDocument } from '../../src/shared/responsibility.js'

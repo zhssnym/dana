@@ -66,7 +66,7 @@ import type {
 } from '../../shared/responsibility.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
-import { documentHash } from './page-document.js'
+import { documentHash } from './document-hash.js'
 import { recordEvent } from './events.js'
 import { lockedMembership, mayPerform } from './folder-access.js'
 import type { FolderActorFacts } from './folder-access.js'
@@ -81,7 +81,10 @@ import type { FolderAccessPreset } from '../../shared/folder-access.js'
  *
  * `documentHash` is imported rather than re-implemented so that there is one
  * answer in Dana to "are these two documents the same", and so that the day
- * somebody changes it, both surfaces change together.
+ * somebody changes it, both surfaces change together. It lives in
+ * `document-hash.ts` rather than in `page-document.ts`, where it was declared,
+ * because importing that file from here closes a cycle -- the reasoning is in
+ * the module it moved to.
  */
 export function responsibilityHash(content: ResponsibilityDocument): string {
   return documentHash(content)
