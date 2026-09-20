@@ -351,12 +351,17 @@ export interface CommentAccess {
   folderId: string
   authorId: string
   isAuthor: boolean
-  isFolderOwner: boolean
   body: string | null
   /** The actor's durable Folder facts, from the same membership join that
    * scoped this read (issue #228). Carried here so the two comment gates ask
    * the resolver rather than re-deriving a rule, and so `isAuthor` stops
-   * being an authority of its own. */
+   * being an authority of its own.
+   *
+   * `isFolderOwner` sat beside it until 2026-09-20 (issue #268) and had had
+   * no reader since #228 moved both gates onto `mayPerform`; custody reaches
+   * them as `facts.isOwner` now, where the table decides what it is worth.
+   * Removed rather than kept as documentation, a standing field being an
+   * invitation to gate on it again. */
   facts: FolderActorFacts
 }
 
@@ -390,7 +395,6 @@ export async function accessibleComment(
     folderId: String(row.folder_id),
     authorId: String(row.author_id),
     isAuthor: row.is_author === true,
-    isFolderOwner: row.is_folder_owner === true,
     body: nullableString(row.body),
     facts: {
       folderId: String(row.folder_id),

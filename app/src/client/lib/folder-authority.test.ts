@@ -235,6 +235,66 @@ describe('moderating somebody else’s comment', () => {
   })
 })
 
+describe('the two permanent deletes, which are not one rule', () => {
+  /* AC-790's Trash half, added 2026-09-20 by issue #268. `lib/trash.ts`
+     answered both from `is_owner`, which was item 38's rule and had been
+     superseded by R8A. Transcribed from AC-790. */
+  const TASK: Record<FolderAccessPreset, boolean> = {
+    full_control: true,
+    can_edit: false,
+    can_contribute: false,
+    assigned_work: false,
+    can_comment: false,
+    can_view: false,
+  }
+
+  for (const preset of FOLDER_ACCESS_PRESETS) {
+    test(`${preset} holder who is not the owner destroys a trashed task: ${String(TASK[preset])}`, () => {
+      expect(folderGates(facts(preset)).destroyTask).toBe(TASK[preset])
+    })
+  }
+
+  test('a trashed folder needs both, so nobody below Full control and no non-owner', () => {
+    for (const preset of FOLDER_ACCESS_PRESETS) {
+      expect(
+        folderGates(facts(preset, { isOwner: false })).destroyFolder,
+        `#228 with governing R5: custody is required as well as Full control (${preset})`,
+      ).toBe(false)
+    }
+    expect(folderGates(facts('can_edit', { isOwner: true })).destroyFolder).toBe(false)
+    expect(folderGates(facts('full_control', { isOwner: true })).destroyFolder).toBe(true)
+  })
+
+  test('the defect, first half: a Full-control member who owns nothing destroys a trashed task', () => {
+    expect(folderGates(facts('full_control', { isOwner: false })).destroyTask).toBe(true)
+    /* And still not the folder, which is why one boolean could never have
+       answered both. */
+    expect(folderGates(facts('full_control', { isOwner: false })).destroyFolder).toBe(
+      false,
+    )
+  })
+
+  test('the defect, second half: a demoted owner destroys neither', () => {
+    const demoted = folderGates(facts('can_comment', { isOwner: true }))
+    expect(demoted.destroyTask).toBe(false)
+    expect(demoted.destroyFolder).toBe(false)
+  })
+
+  /* `lib/trash.ts` passes `isDefault: false` because a Trash row does not
+     carry the flag. That is safe only while neither gate reads it, so the
+     safety is asserted here rather than stated in a comment there. */
+  test('neither gate reads isDefault, which is what lets a Trash row omit it', () => {
+    for (const preset of FOLDER_ACCESS_PRESETS) {
+      for (const isOwner of [false, true]) {
+        const off = folderGates(facts(preset, { isOwner, isDefault: false }))
+        const on = folderGates(facts(preset, { isOwner, isDefault: true }))
+        expect(on.destroyTask, `${preset}/${String(isOwner)}`).toBe(off.destroyTask)
+        expect(on.destroyFolder, `${preset}/${String(isOwner)}`).toBe(off.destroyFolder)
+      }
+    }
+  })
+})
+
 describe('the successor picker', () => {
   /* Governing #209 R6 section 2, and the server's own `isEligibleSuccessor`:
      a member who currently holds Full control, and nobody else. */

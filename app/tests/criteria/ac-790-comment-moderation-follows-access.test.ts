@@ -1,6 +1,7 @@
 /*
-AC-790: removing somebody else's comment follows Access and not custody, on
-the screen and on the wire alike.
+AC-790: removing what somebody else made follows Access and not custody, on
+the screen and on the wire alike -- a comment, and the two permanent deletes
+that had the same defect.
 
 Issue #268. Product authority: **#228's Full-control list**, whose stated
 canonical authority is accepted #209 R8A and R10B — "administer members" is
@@ -49,6 +50,30 @@ The server's half is driven as a real request against a real database, and it
 **reads the row back** rather than trusting the status: a 204 over a row still
 present and a 403 over a row already gone are both failures this criterion is
 meant to see.
+
+## The Trash surface, folded in rather than filed (2026-09-20)
+
+`lib/trash.ts` had the same defect on one more surface and it is the same
+issue's to carry. `purgeable` was `is_owner` for both kinds, which was RFC
+0005 change control item 38's rule and had been superseded by R8A. **One
+boolean off one field could not have been right whatever field it read**,
+because the two acts are two rules: `task.destroy` is Full control with
+ownership **ignored**, and `folder.destroy` is Full control **and** the owner
+together (governing R5). So the screen was wrong in three ways at once -- a
+Full-control member who owned nothing was offered no permanent delete on a
+trashed task the server would have destroyed for them, and a demoted owner was
+offered both and refused 403 by each.
+
+`FolderGates` gains `destroyTask` and `destroyFolder`, and 7.13's rows gain
+`my_access` beside `is_owner`, because neither fact answers alone and a
+trashed folder is not in `GET /folders` to read the preset from. The cases
+below drive the same two arms over both, and `screens/trash-screen.tsx` needed
+no change at all: it read `purgeable` before and reads it now.
+
+`lib/trash.ts`'s own row mapping is in `src/client/lib/trash.test.ts`, beside
+the module and for the same compile reason as `lib/thread.ts` above: that file
+reaches the DOM through `api/queries.js` and cannot be imported from this
+directory.
 
 Spec: 7.14 as amended 2026-09-20, 10.2; #228's Full-control list and its
 authorship rule. AC-205 and AC-518 are the neighbours — the first asserts an
@@ -118,6 +143,22 @@ describe('AC-790 what a conversation surface offers', () => {
         `#228: moderation is Full control's and custody is not Access (${preset})`,
       ).toBe(EXPECTED[preset])
     }
+  })
+
+  test('AC-790: the same two rows over the two permanent deletes', () => {
+    const administrator = folderGates(facts('full_control', false))
+    expect(
+      administrator.destroyTask,
+      "#228's Full-control list: destroying a trashed Task is administrative and ownership is ignored",
+    ).toBe(true)
+    expect(
+      administrator.destroyFolder,
+      'governing R5: destroying the whole Folder still needs custody, so the two are not one gate',
+    ).toBe(false)
+
+    const demoted = folderGates(facts('can_comment', true))
+    expect(demoted.destroyTask, 'a demoted owner destroys no trashed task').toBe(false)
+    expect(demoted.destroyFolder, 'nor the folder they still own').toBe(false)
   })
 
   test('AC-790: the two rows the defect was found at, named', () => {

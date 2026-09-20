@@ -189,6 +189,26 @@ export interface FolderGates {
    * where the two are added together, one comment at a time.
    */
   readonly moderate: boolean
+  /**
+   * Destroying a **trashed task** permanently, `DELETE /trash/tasks/:id`.
+   *
+   * #228's Full-control list: an irreversible administrative act. Ownership
+   * is **ignored** by it, which is the surprising half — a Full-control
+   * member who owns nothing destroys, and an owner below Full control does
+   * not (AC-790).
+   */
+  readonly destroyTask: boolean
+  /**
+   * Destroying a **trashed folder** permanently,
+   * `DELETE /trash/folders/:id`.
+   *
+   * The same Full-control bar **and** the owner, both at once: #228 with
+   * governing R5, which keeps permanent destruction of the whole folder with
+   * custody. So this is strictly narrower than `destroyTask`, and the two
+   * cannot be one member — which is exactly what `purgeable` was until
+   * 2026-09-20, one boolean off `is_owner` answering for both (AC-790).
+   */
+  readonly destroyFolder: boolean
 }
 
 export function folderGates(facts: FolderViewerFacts): FolderGates {
@@ -211,6 +231,13 @@ export function folderGates(facts: FolderViewerFacts): FolderGates {
     addMember: mayDraw(facts, 'member.add'),
     administerAccess: mayDraw(facts, 'member.access.change'),
     moderate: mayDraw(facts, 'comment.moderate'),
+    /* Both read the table and neither reads `isDefault`, so a Trash row that
+       does not carry one may pass anything. `folder-authority.test.ts`
+       asserts that rather than this comment asserting it, because a table
+       that started reading it would otherwise make a fixture's `false` into
+       a silent grant. */
+    destroyTask: mayDraw(facts, 'task.destroy'),
+    destroyFolder: mayDraw(facts, 'folder.destroy'),
   }
 }
 

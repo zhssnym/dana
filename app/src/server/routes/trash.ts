@@ -4,10 +4,14 @@ change control item 36 the two permanent deletes. The deletes that fill it
 live on the task and folder surfaces they always did; here is the way back
 and the way out.
 
-The permanent deletes are the folder owner's alone (item 38): a member who
-is not the owner can see the row and is told 403, the one place on this
-surface where 10.2's grammar admits a forbidden rather than a not-found.
-Both answer 204 with nothing, there being nothing left to describe.
+The permanent deletes are **Full control's, and they are not one rule**: a
+task's needs Full control with ownership ignored, a folder's needs Full
+control *and* the owner together (#228's Full-control list with governing R5;
+item 38's owner-alone rule is superseded and the corrected sentence is in
+`domain/trash.ts` beside each gate). Somebody below the bar can see the row
+and is told 403, the one place on this surface where 10.2's grammar admits a
+forbidden rather than a not-found. Both answer 204 with nothing, there being
+nothing left to describe.
 
 Access by folder membership, never by who deleted (7.13), and the 10.2
 grammar throughout: a row that does not exist, is not trashed, or is out of

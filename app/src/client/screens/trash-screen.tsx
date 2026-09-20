@@ -9,10 +9,13 @@ in the body.
    and the em dashes leave under protocol section 7.
 2. **`lib/trash.ts` is the adapter** over 7.13's read, and `usePurge` is the
    prototype's `purge` and `emptyTrash` over the two permanent addresses S28a
-   built (RFC 0005 change control items 36, 38 and 53). The act is the folder
-   owner's, so each row carries `purgeable` and the Delete control, and the
-   header's "Empty trash", are drawn only where the server would answer 204;
-   a refusal is the toast's sentence. Built at S28b; AC-262's last arm and
+   built (RFC 0005 change control items 36, 38 and 53). The act is Full
+   control's and is **not one rule for the two kinds** (issue #268, and
+   `lib/trash.ts`'s header carries it), so each row carries `purgeable` and
+   the Delete control, and the header's "Empty trash", are drawn only where
+   the server would answer 204; a refusal is the toast's sentence. **Nothing
+   in this file moved for #268** -- it read `purgeable` then and reads it
+   now, which is what putting the decision in the adapter bought. Built at S28b; AC-262's last arm and
    AC-284 and AC-285 read it.
 3. **The row's glyph is `markIcon` rather than the prototype's
    `folderGlyph`**, S26's ruling for the icon picker read one level down:
@@ -183,8 +186,9 @@ function TrashRow({
 }: {
   item: TrashItem
   onRestore: () => void
-  /* Absent where the viewer is not the folder's owner: the control is not
-     drawn rather than drawn to be refused. */
+  /* Absent where the viewer may not destroy this row permanently: the
+     control is not drawn rather than drawn to be refused. `lib/trash.ts`
+     answers which, per row and per kind. */
   onPurge: (() => void) | undefined
 }) {
   /* A folder wears its own glyph, from the one resolver every other surface
