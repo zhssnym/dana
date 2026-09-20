@@ -25,11 +25,12 @@ Milestone files never restate `docs/spec/`. Read `../README.md` before writing o
 
 | | Phase | Window | Status |
 | - | - | - | - |
-| [M0](M0.md) — MVP | 1 | to 2026-09-14 | Closed |
+| [M0](M0.md) — MVP | none | to 2026-09-14 | Closed |
 | [M1](M1.md) — Dana Core Work Model | 1 | 2026-09-14 to | Open ([#203](https://github.com/zhssnym/dana/issues/203)) |
 
 M0 is retroactive. It names the work that predates the numbering, so it is the one
-milestone written as a record rather than a wishlist.
+milestone written as a record rather than a wishlist, and it sits in no phase: #202
+puts only M1, M2 and M3 inside Phase 1, and M0 finished before #202 was approved.
 
 ## Phases
 

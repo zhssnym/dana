@@ -71,7 +71,7 @@ and they do different jobs:
 ```bash
 # The index. One row per change-control item: its date, what it decided, and which
 # spec sections took it. Fastest for "what was item 44?" - it is line 289.
-git show f9773f2:docs/rfcs/0005-v2-specification.md
+git show a7886dfe:docs/rfcs/0005-v2-specification.md
 
 # The full originals, 6,763 lines for RFC 0005. Needed for a unit, an S-row, a P-row,
 # or the full text of an item. Item 44's four frozen changes start at line 997.
