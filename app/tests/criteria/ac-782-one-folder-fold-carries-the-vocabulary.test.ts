@@ -41,10 +41,21 @@ arrangement.
 
 ## And the folded vocabulary is a real one, which the fourth case holds
 
-A fold that put the key somewhere the `superRefine` could not see it would
-accept a file contradicting itself. So the two refusals are driven through this
-arrangement too: a name declared twice (AC-780) and a key no folder declares
-(AC-548), both 422 with the folded folder's path.
+A fold that put the key somewhere the rules could not reach would accept a file
+contradicting itself. So the two refusals are driven through this arrangement
+too: a name declared twice (AC-780) and a key no folder declares (AC-548), both
+422 with the folded folder's path.
+
+**The two refusals are two mechanisms, and only one of them is a schema
+rule.** The undeclared key is `canonicalWorkflowBody`'s, where the file's own
+values are compared to each other. The repeated *name* is
+`labels_folder_name_idx`'s: there is one fold in this product and it is
+`lower(name)`, so the collision is found by the INSERT and
+`createWorkflowFolderLabels` maps its 23505 into the same 422 with the same
+field path. That matters to this file because the folded folder has to reach
+**both** — a fold that put the vocabulary where the importer could not create
+it would fail differently from one that put it where the schema could not read
+it, and this case would not tell them apart if it only asserted "not 201".
 
 Spec: 7.16, 10.3. Issue #227 area 4, DES-206.
 */
@@ -177,7 +188,7 @@ describe('AC-782 the one-folder file keeps its vocabulary', () => {
     })
     expect(
       twice.status,
-      'AC-780’s refusal reaches the folded folder: a fold that put the key somewhere the file-level rules could not see would accept a file the database then refuses with a 500 (spec 7.16, 10.3)',
+      'AC-780’s refusal reaches the folded folder: the vocabulary is folded into a folder the importer really creates, so the index sees both names and its 23505 comes back as this 422 — before that mapping existed the same file answered 500 (spec 7.16, 10.3)',
     ).toBe(422)
     expect(
       String(

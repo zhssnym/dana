@@ -299,17 +299,30 @@ describe('importWorkflowBody reads a Label vocabulary at version 3, and nowhere 
     ).toBe(true)
   })
 
-  /* The name half of the same rule, added 2026-09-20 with AC-780. Until it
-     existed a file naming one folder's Label twice parsed clean, reached
-     `createWorkflowFolderLabels`' raw INSERT, met 0022's
-     `labels_folder_name_idx` and answered 500. The unit half is here for the
-     reason every case in this block is: the whole suite was green while the
-     rule was absent. */
-  test('a name is declared once per folder too, and case is not a difference', () => {
+  /* The name half of the same rule is **not** in this schema, and this case
+     is what stops it coming back.
+
+     It was here for a day: a `superRefine` folding with JavaScript
+     `toLowerCase()`, standing in front of `labels_folder_name_idx`'s
+     `lower(name)`. Two folds, and they disagree — nine BMP code points and
+     Greek final sigma, measured. A single-string fold has no safe direction,
+     `toLowerCase` being idempotent: for any name the two disagree about, the
+     pair `(x, x.toLowerCase())` is one name here and two at the index, which
+     is a **false 422** for a file the database would have taken. `ΦΩΣ` and
+     `φως` are exactly that pair, they are two live Labels in one folder, and
+     `folderToWorkflowFile` writes both into one file — so the check refused
+     Dana's own export.
+
+     What is asserted here is the half no database is needed for: this schema
+     does not fold a name at all. AC-780 drives the other half through the
+     endpoint, where the index decides and `createWorkflowFolderLabels` maps
+     its 23505 to the same 422 with the same field path. */
+  test('a name is not folded here, because the only fold is the database’s', () => {
     for (const [what, second] of [
-      ['the same name twice', 'Work'],
-      ['the same name in another case', 'wORK'],
-      ['the same name with space around it', '  Work  '],
+      ['two identical names, which the index refuses', 'Work'],
+      ['two names differing only in case, which it also refuses', 'wORK'],
+      ['two names one space apart, which labelName has already trimmed', '  Work  '],
+      ['two names the two folds disagree about, which it accepts', 'ΦΩΣ'],
     ] as const) {
       expect(
         importWorkflowBody.safeParse(
@@ -320,8 +333,8 @@ describe('importWorkflowBody reads a Label vocabulary at version 3, and nowhere 
             ],
           }),
         ).success,
-        `${what}: labels_folder_name_idx is on (folder_id, lower(name)) and labelName trims, so this pair is one row to the database and 422 here rather than 500 there`,
-      ).toBe(false)
+        `${what}: the schema says nothing about either, because a second implementation of Unicode lowercasing that disagrees with the first turns one of these four into a 422 the database would never have raised`,
+      ).toBe(true)
     }
     expect(
       importWorkflowBody.safeParse({
@@ -332,7 +345,7 @@ describe('importWorkflowBody reads a Label vocabulary at version 3, and nowhere 
           { name: 'B', labels: [{ key: 'l0', name: 'Work', color: '#654321' }] },
         ],
       }).success,
-      'and two folders may each hold a "Work", scope being part of identity exactly as it is for the key',
+      'and two folders may each hold a "Work", scope being part of identity exactly as it is for the key — which the index agrees with, being on (folder_id, lower(name))',
     ).toBe(true)
   })
 

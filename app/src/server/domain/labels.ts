@@ -358,36 +358,50 @@ export type ArchiveLabelResult =
   | { kind: 'not_found' }
 
 /**
- * Whether a rejection is one of migration 0022's two case-insensitive name
- * indexes, read off the driver's structured fields rather than off its
+ * The unique index a rejection came from, or null where the rejection is not a
+ * 23505 at all — read off the driver's structured fields rather than off its
  * message.
+ *
+ * **This is the one reader of that error in this module**, and both callers
+ * below go through it: the live create path, which turns two of 0022's indexes
+ * into a 409, and the workflow import, which turns one of them into a 422. A
+ * second hand-rolled walk of `error.cause` would be a second thing to keep in
+ * step with the driver.
+ *
+ * The constraint name is compared rather than the server's prose, because the
+ * created databases of the Postgres leg answer in this cluster's language and
+ * `tests/guards/guard-postgres-leg-isolation.test.ts` fails a test that reads
+ * prose.
+ */
+function uniqueViolationConstraint(error: unknown): string | null {
+  let current: unknown = error
+  for (let depth = 0; depth < 10 && current instanceof Error; depth += 1) {
+    const candidate = current as Error & { code?: unknown; constraint?: unknown }
+    if (candidate.code === '23505') return String(candidate.constraint ?? '')
+    current = current.cause
+  }
+  return null
+}
+
+/**
+ * Whether a rejection is one of migration 0022's two case-insensitive name
+ * indexes.
  *
  * The name collision is resolved by the index and not by a SELECT before the
  * INSERT, which would be a check that is not tied to its write: two creates of
  * "Research" arriving together both find nothing and both insert. The index
  * decides, and this turns its 23505 into the 409 the route answers.
  *
- * The constraint name is compared rather than the server's prose, because the
- * created databases of the Postgres leg answer in this cluster's language and
- * `tests/guards/guard-postgres-leg-isolation.test.ts` fails a test that reads
- * prose. A unique violation from any *other* index is not swallowed: it is
- * rethrown, because a duplicate this code did not predict is a defect and a
- * 409 would hide it.
+ * A unique violation from any *other* index is not swallowed: it is rethrown,
+ * because a duplicate this code did not predict is a defect and a 409 would
+ * hide it.
  */
 function isDuplicateName(error: unknown): boolean {
-  let current: unknown = error
-  for (let depth = 0; depth < 10 && current instanceof Error; depth += 1) {
-    const candidate = current as Error & { code?: unknown; constraint?: unknown }
-    if (candidate.code === '23505') {
-      const constraint = String(candidate.constraint ?? '')
-      return (
-        constraint === 'labels_personal_name_idx' ||
-        constraint === 'labels_folder_name_idx'
-      )
-    }
-    current = current.cause
-  }
-  return false
+  const constraint = uniqueViolationConstraint(error)
+  return (
+    constraint === 'labels_personal_name_idx' ||
+    constraint === 'labels_folder_name_idx'
+  )
 }
 
 async function insertLabel(
@@ -1077,6 +1091,41 @@ export async function copyFolderLabelAssignments(
 }
 
 /**
+ * A workflow file that declares two Folder Labels whose names `lower()` makes
+ * one, carried out of the import transaction with enough of the file's own
+ * shape to say where.
+ *
+ * **The field path is the point of the class.** By the time the driver rejects
+ * the INSERT, all that is left is a SQLSTATE and an index name; the folder this
+ * vocabulary came from and the name that collided are known only inside the
+ * loop, and a route that had to guess would answer a sentence about a file
+ * without saying which part of it. `field` is the same path
+ * `canonicalWorkflowBody`'s own refusals use, so a reader of the message cannot
+ * tell which of the two mechanisms refused their file — which is the whole
+ * intent.
+ *
+ * The message is the sentence itself, so `sendFieldValidationError` composes
+ * `<field>: <message>.` exactly as it does for a schema issue.
+ */
+export class WorkflowLabelNameConflict extends Error {
+  constructor(
+    readonly folderIndex: number,
+    readonly labelName: string,
+  ) {
+    super(
+      `labels: the name ${JSON.stringify(labelName)} is declared twice in ` +
+        'one folder, and names are compared without regard to case',
+    )
+    this.name = 'WorkflowLabelNameConflict'
+  }
+
+  /** Where in the file the two definitions are, addressed from its root. */
+  get field(): string {
+    return `folders.${String(this.folderIndex)}.labels`
+  }
+}
+
+/**
  * The Folder Labels an imported workflow file asks for, created inside the
  * Folder the import has just made, answered as a map from the file's own
  * portable key to the id each one was given (7.16, #227 area 4).
@@ -1091,6 +1140,31 @@ export async function copyFolderLabelAssignments(
  * than leaving to the reader: "do not merge against unrelated existing Labels
  * by name" is satisfied structurally here, and would stop being satisfied the
  * day an import learned to add to a Folder that already exists.
+ *
+ * **A file naming one Folder's Label twice is refused here and nowhere
+ * else** (2026-09-20). `labels_folder_name_idx` is on
+ * `(folder_id, lower(name))`, so the second INSERT of a colliding pair raises
+ * 23505 and this maps it the way `insertLabel` above maps the live create's.
+ * Two things are worth saying about that, because the obvious alternative was
+ * tried on this branch and reverted.
+ *
+ * **It is the only fold.** A check in `canonicalWorkflowBody` folding with
+ * JavaScript `toLowerCase()` stood here for a day and had to go: two
+ * implementations of Unicode lowercasing disagree on nine BMP code points and
+ * on Greek final sigma, and every disagreement is a *false 422* for whichever
+ * of the two partners the file happens to carry. The measurement and the
+ * export Dana could not re-import are in `shared/workflows.ts` beside the
+ * rules that remain.
+ *
+ * **And it answers 422 rather than the live create's 409.** The two answer
+ * different questions: a 409 is a collision with a catalog the caller can go
+ * and look at, and this is one file disagreeing with itself, which is exactly
+ * what an undeclared key is — 422 there already. It matters at the screen as
+ * well as in the taxonomy: `mutationFailureMessage` in
+ * `client/api/queryClient.ts` surfaces the server's own sentence only for a
+ * 422 on a mutation carrying `VALIDATION_ERROR_TOAST_META`, which
+ * `useImportWorkflowFile` does, so a 409 would throw this sentence away and
+ * show a generic toast.
  */
 export async function createWorkflowFolderLabels(
   tx: Executor,
@@ -1101,6 +1175,11 @@ export async function createWorkflowFolderLabels(
     color: string
     description?: string | null | undefined
   }[],
+  /** Which folder of the file this vocabulary belongs to, so that a collision
+   * only the database can see is named where the file's owner can find it.
+   * The importer knows it; nothing downstream of the INSERT could recover
+   * it. */
+  folderIndex: number,
 ): Promise<Map<string, string>> {
   const byKey = new Map<string, string>()
   for (const definition of definitions) {
@@ -1110,7 +1189,12 @@ export async function createWorkflowFolderLabels(
           VALUES ('folder', ${folderId}::uuid, ${definition.name},
                   ${definition.color}, ${definition.description ?? null})
           RETURNING id`,
-    )
+    ).catch((error: unknown) => {
+      if (uniqueViolationConstraint(error) === 'labels_folder_name_idx') {
+        throw new WorkflowLabelNameConflict(folderIndex, definition.name)
+      }
+      throw error
+    })
     const id = made[0]?.id
     if (id !== undefined) byKey.set(definition.key, String(id))
   }

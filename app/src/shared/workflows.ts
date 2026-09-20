@@ -228,65 +228,16 @@ const canonicalWorkflowBody = z
       })
     }
     /*
-    The three things a folder's vocabulary must satisfy that no per-field rule
-    can see.
+    The two things a folder's vocabulary must satisfy that no per-field rule
+    can see — and the third that used to be here, which belongs to the
+    database and to nothing else.
 
     **Keys are unique within their folder**, because a repeated one makes the
-    join ambiguous and there is no honest way to resolve it — the importer
-    would have to pick a Label, and picking is what "never merge by name"
-    forbids one step later.
-
-    **And names are unique within their folder too, compared without regard to
-    case.** 0022's `labels_folder_name_idx` is on `(folder_id, lower(name))`
-    and the live create path turns its 23505 into the 409 a person typing a
-    second "Urgent" meets; `createWorkflowFolderLabels` has no such handling,
-    so until this check existed a file naming one folder's Label twice reached
-    a raw INSERT and answered **500** with a stack in the log. The transaction
-    rolls back, so nothing is corrupted — what is wrong is that a file
-    contradicting itself is told "Something went wrong" instead of what is
-    wrong with it.
-
-    **Refused here rather than mapped from the SQLSTATE**, for the reason every
-    other rule in this block is here: 7.16's own sentence is that an import
-    "validates name, colour and description by the same rules a live create
-    uses", and refusing before the first write is what makes that a sentence
-    its owner can act on rather than a code. The status is the 422 of the two
-    rules either side of it and not the live create's 409, because those two
-    answer different questions — a 409 is a collision with a catalog that was
-    already there, and this is one file disagreeing with itself, which is
-    exactly what an undeclared key is.
-
-    Dana's own writer cannot emit one: `folderToWorkflowFile` reads a live
-    vocabulary the index has already made unique. This arrives from the cases
-    the writer's own comment names — two files merged by hand, one folder
-    renamed after the other was written — and from any hand-edited or
-    third-party version 3 file.
-
-    **The fold is JavaScript's and the index's is Postgres's, and they are two
-    implementations of Unicode lowercasing rather than one. Measured rather
-    than assumed**, 2026-09-20, against a database built with the test leg's
-    own clause (`LC_COLLATE 'C' LC_CTYPE 'C.UTF-8'`, libc, the #235 fallback a
-    server below 17 gets): of eight sample names, six fold identically and two
-    do not. `İstanbul` — Postgres drops the combining dot, JavaScript keeps it.
-    And a Greek word ending in Σ — Postgres writes a medial sigma, JavaScript
-    the final one.
-
-    **Both disagreements are in the safe direction, and the direction is the
-    whole of what matters here.** In each, this fold is the *looser* of the
-    two: the pair passes here, reaches the index, and the index refuses it. So
-    the residue is the original 500 on a pair of exotic names, never a
-    duplicate row. The opposite direction is possible in principle — a fold
-    this check makes and the index does not, which would be a 422 for a file
-    the database would have taken — and it is the common case for any
-    non-ASCII name on a database whose ctype is plain `C`, which folds ASCII
-    only. **No database this application runs on is built that way**: 11.10's
-    statement and the #235 fallback beside it both fix a Unicode-aware ctype,
-    and `postgres-leg.ts` records why the fallback could not use `C`.
-
-    Closing the residue needs `createWorkflowFolderLabels` to map the 23505 the
-    way `insertLabel` already does. That is a second change with a second
-    decision in it — what a *file* should be told when the collision is one
-    only the database can see — and it is deliberately not made here.
+    join ambiguous and there is no honest way to resolve it: the importer would
+    have to pick a Label, and picking is what "never merge by name" forbids one
+    step later. This rule compares the file's own values to each other, by
+    equality, and no other implementation of it exists anywhere in this
+    system — which is exactly what makes it safe to state here.
 
     **And every key a task names is declared by its own folder.** An undeclared
     key is refused rather than dropped, which is the one place this file parts
@@ -294,26 +245,73 @@ const canonicalWorkflowBody = z
     parts company deliberately: a dropped page item loses a paragraph, while a
     dropped Label key loses classification *silently* and leaves a file that
     looks imported and is not. The normaliser's rule is about arrangements
-    older serialisers wrote; this is a file contradicting itself.
+    older serialisers wrote; this is a file contradicting itself. It is the
+    same kind of rule as the one above — file-local values compared to
+    file-local values.
 
-    **All three rules only ever see a version 3 file, and that is what makes
-    the sentence above true rather than merely stated.** `readsLabels` strips every
-    `labels` key from a file of any other version before this runs, so what is
-    left here is a file that declared a vocabulary — which is the only kind of
-    file that *can* contradict itself about one. A version 1 file carrying a
-    foreign tag list reaches this loop with nothing to check, which is why it
-    imports rather than meeting a 422 about a vocabulary it never claimed to
-    have. There is deliberately no `version === 3` test in this function: one
-    mechanism, in the place whose job is folding arrangements, and AC-548
-    drives both sides of the line through the endpoint.
+    ## Names are unique per folder too, and this is not where that is decided
+
+    **There is one fold and it is the database's.** 0022's
+    `labels_folder_name_idx` is on `(folder_id, lower(name))`, and
+    `createWorkflowFolderLabels` maps its 23505 into a 422 carrying this
+    block's own field path — `folders.<n>.labels` — and a sentence in the same
+    voice as the two rules above. So a file naming one folder's Label twice is
+    still told what is wrong with it rather than "Something went wrong"; what
+    has gone is the *second* fold that used to stand in front of the index and
+    answer first.
+
+    **Deleted on 2026-09-20, because two folds that disagree is worse than one
+    fold that is occasionally surprising**, and these two disagree. A previous
+    pass folded with JavaScript `toLowerCase()` here and argued that every
+    disagreement ran in the safe direction, this fold being the looser of the
+    two. **A single-string fold has no direction.** `toLowerCase` is
+    idempotent, so for any `x` whose two folds disagree, the pair
+    `(x, x.toLowerCase())` is one name to JavaScript and two to Postgres — a
+    false 422 built out of the very character offered as proof of the opposite.
+
+    **Measured rather than argued**, 2026-09-20, and re-measured for this
+    commit rather than carried over. Swept across all 63487 non-surrogate BMP
+    code points against a database built with the test leg's own clause
+    (`LC_COLLATE 'C' LC_CTYPE 'C.UTF-8'`, libc, the #235 fallback a server
+    below 17 gets), **nine code points fold differently** — U+0130, U+1C89,
+    U+A7CB, U+A7CC, U+A7CE, U+A7D2, U+A7D4, U+A7DA, U+A7DC — plus Greek final
+    sigma, which is context-sensitive rather than per-character and is the one
+    an ordinary file meets. Ten pairs in all, one per code point and one for
+    the sigma, and **every single one of them is stricter here than at the
+    index**; not one runs the other way.
+
+    **And it cost the product its own export, which is the whole argument in
+    one sentence.** `folderToWorkflowFile` reads a live vocabulary the index
+    has already made unique — under *Postgres's* fold, which is not the same
+    set as unique under JavaScript's. Two Folder Labels `ΦΩΣ` and `φως` are
+    both accepted live and sit side by side in one folder, `lower()` giving
+    `φωσ` and `φως`; exported and re-imported, they met `422
+    folders.0.labels: labels: the name "ΦΩΣ" is declared twice in one folder`.
+    Dana could not import its own export, which is the defect this branch's own
+    commit 593b22e is named for. AC-780 now drives that pair through the
+    endpoint and expects 201.
+
+    ## Both rules only ever see a version 3 file
+
+    That is what makes the sentences above true rather than merely stated.
+    `readsLabels` strips every `labels` key from a file of any other version
+    before this runs, so what is left here is a file that declared a
+    vocabulary — which is the only kind of file that *can* contradict itself
+    about one. A version 1 file carrying a foreign tag list reaches this loop
+    with nothing to check, which is why it imports rather than meeting a 422
+    about a vocabulary it never claimed to have. There is deliberately no
+    `version === 3` test in this function: one mechanism, in the place whose
+    job is folding arrangements, and AC-548 drives both sides of the line
+    through the endpoint.
 
     Scoped per folder rather than across the file, because scope is part of
     identity: two folders in one file may each declare `l1` and they are two
-    different Labels, exactly as two folders may each hold a "Research".
+    different Labels, exactly as two folders may each hold a "Research". The
+    index agrees, being on `(folder_id, lower(name))` rather than on the name
+    alone.
     */
     file.folders.forEach((folder, index) => {
       const declared = new Set<string>()
-      const named = new Set<string>()
       for (const label of folder.labels ?? []) {
         if (declared.has(label.key)) {
           ctx.addIssue({
@@ -323,19 +321,6 @@ const canonicalWorkflowBody = z
           })
         }
         declared.add(label.key)
-        /* `labelName` has already trimmed, so the value compared here is the
-           value the INSERT would carry and a file spelling one of the two
-           with spaces around it is the same collision rather than a new
-           hole. */
-        const folded = label.name.toLowerCase()
-        if (named.has(folded)) {
-          ctx.addIssue({
-            code: 'custom',
-            path: ['folders', index, 'labels'],
-            message: `labels: the name ${JSON.stringify(label.name)} is declared twice in one folder, and names are compared without regard to case`,
-          })
-        }
-        named.add(folded)
       }
       ;(folder.tasks ?? []).forEach((task, taskIndex) => {
         for (const key of task.labels ?? []) {

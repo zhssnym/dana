@@ -156,13 +156,51 @@ shapes, **all three found by reading `shared/workflows.ts` against migration
 keeping: the fifteen above were proved by mutation and the mutation pass could
 not have found any of these, because a mutation pass asks whether a line has a
 watcher and every one of these is a line that was never written. AC-780 is a
-500 the schema now refuses at 422; AC-781 is the file `folderToWorkflowFile`
-actually writes for a real folder — a canvas **and** a vocabulary — which
-AC-547 misses by passing `undefined` for the page; AC-782 is the one-folder
-arrangement dropping the vocabulary before validation saw it. Each was proved
-by breaking the line it watches and watching it go red, and AC-781 by two
-mutations rather than one, it being the only one of the three that was green
-on arrival.
+500 now answered at 422; AC-781 is the file `folderToWorkflowFile` actually
+writes for a real folder — a canvas **and** a vocabulary — which AC-547 misses
+by passing `undefined` for the page; AC-782 is the one-folder arrangement
+dropping the vocabulary before validation saw it. Each was proved by breaking
+the line it watches and watching it go red, and AC-781 by two mutations rather
+than one, it being the only one of the three that was green on arrival.
+
+**AC-780 was then rewritten, and this is the part worth reading.** Its first
+fix refused the file in `canonicalWorkflowBody.superRefine`, folding with
+JavaScript `toLowerCase()` in front of `labels_folder_name_idx`'s
+`lower(name)`, and argued the two folds' disagreements were all in the safe
+direction. A single-string fold has no direction — `toLowerCase` is
+idempotent, so for any name the folds disagree about, the pair
+`(x, x.toLowerCase())` is one name to JavaScript and two to Postgres, which is
+a **false 422**. Nine BMP code points disagree plus Greek final sigma — ten
+pairs, every one of them stricter in JavaScript, none looser — and the product
+met it: `ΦΩΣ` and `φως` are two live Labels in one folder,
+`folderToWorkflowFile` writes both, and re-importing that file was 422.
+**Dana could not import its own export.** The fold is gone,
+`createWorkflowFolderLabels` maps the SQLSTATE instead, and AC-780's fourth
+case drives that pair through the endpoint and expects 201.
+
+**Two mutation records here were wrong, and both were wrong in the same
+direction — naming one watcher where there were two, or the wrong one.** They
+are corrected rather than deleted, because a mutation record that overstates
+how *precisely* a criterion fires is how a later session mis-attributes a red.
+
+- The `.toLowerCase()` mutation was recorded as taking "only the case-only
+  one" red. Re-measured on the Postgres leg: **two** cases, AC-780's second
+  and **AC-782's fourth**, both at 500 — AC-782 reaches AC-780's refusal
+  through the folded folder and is therefore a watcher of the same line.
+- AC-781's own header said an importer applying `folder.blocks` beside the
+  document "would answer four blocks here rather than two". It does not get
+  that far: the mutation dies **at the import call** with `422 The outline must
+  retain every Task and undeleted block.`, because `applyDocument`'s outline
+  names only the document's blocks. The criterion discriminates either way;
+  the sentence naming *how* did not.
+
+The mutations that prove the rewrite, measured 2026-09-20 on the Postgres leg,
+one at a time from a clean tree: **removing the 23505 mapping** takes four
+cases red at **500** — AC-780's first three and AC-782's fourth, the original
+defect exactly — and **re-adding a JavaScript name fold** takes two red,
+`src/shared/workflows.test.ts`'s name case and AC-780's fourth, the latter
+answering `422 folders.0.labels: … the name "φως" is declared twice in one
+folder`, which is the false 422 end to end.
 
 **Every one of the fifteen was proved by breaking the code it watches**, one
 mutation at a time against the real Postgres leg, and two of them were green

@@ -650,7 +650,11 @@ export async function importWorkflow(
     }
 
     const created: Array<{ id: string; name: string }> = []
-    for (const folder of file.folders) {
+    /* Indexed, because `createWorkflowFolderLabels` needs to be able to say
+       *which* folder of the file the database refused a vocabulary for, and
+       the path it answers with — `folders.<n>.labels` — is the one
+       `canonicalWorkflowBody`'s own refusals already use. */
+    for (const [folderIndex, folder] of file.folders.entries()) {
       const made = await rowsOf(
         tx,
         sql`INSERT INTO folders (owner_id, name)
@@ -682,11 +686,20 @@ export async function importWorkflow(
       statements ago and its catalog is empty, so there is nothing to merge
       with. The file's own keys are the only join, and the schema has already
       refused a file that names a key it does not declare.
+
+      **A file whose vocabulary contradicts itself by *name* is refused here
+      rather than by the schema**, and that is deliberate: the fold is
+      `labels_folder_name_idx`'s `lower(name)` and a second one in JavaScript
+      disagrees with it. The throw leaves this transaction on its way to the
+      route, which turns it into the same 422 the schema's own refusals
+      answer, so nothing half-made survives — the folder three statements ago
+      included.
       */
       const labelIdOf = await createWorkflowFolderLabels(
         tx,
         folderId,
         folder.labels ?? [],
+        folderIndex,
       )
       for (const [index, block] of (folder.document === undefined ? folder.blocks ?? [] : []).entries()) {
         await tx.execute(

@@ -31,9 +31,21 @@ from the same endpoints, so what is driven is the file a person actually
 downloads rather than a fixture assembled to suit the assertion.
 
 **The flat `blocks` key is in that file too**, because the writer emits both,
-and the importer must apply the document and ignore it. A regression that
-applied both would double every block, which is why the block count is
-asserted rather than only the text.
+and the importer must apply the document and ignore it.
+
+**What that regression actually does is worth stating, because the sentence
+here used to get it wrong.** It said an importer applying both "would answer
+four blocks here rather than two", which reads as though the block count below
+is the assertion that catches it. It is not. Measured 2026-09-20 by making
+`importWorkflow` read `folder.blocks` beside the document: the mutation dies
+**at the import call**, with
+`422 The outline must retain every Task and undeleted block.` — `applyDocument`
+runs after the flat blocks are already rows, and the file's `set_outline` names
+only the document's, so the page loses the ones the outline does not mention
+and the invariant refuses the whole transaction. The criterion discriminates
+either way, which is what it is for; the count below is still asserted rather
+than only the text, because it is the assertion that would catch a *quieter*
+double — one the outline happened to cover.
 
 Spec: 7.16. Issue #227 area 4, #204, #219.
 */

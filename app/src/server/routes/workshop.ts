@@ -33,6 +33,7 @@ import {
 import { accessOf, isEligibleSuccessor } from '../domain/folders.js'
 import { mayPerform } from '../domain/folder-access.js'
 import type { FolderAction } from '../domain/folder-access.js'
+import { WorkflowLabelNameConflict } from '../domain/labels.js'
 import { today } from '../time/today.js'
 import { DocumentRefusal } from '../domain/page-document.js'
 import { actOnFolderPage, pageView, putPage } from '../domain/pages.js'
@@ -722,6 +723,17 @@ export function createWorkshopRouter(
       let outcome
       try { outcome = await importWorkflow(db, viewer(req), parsed, anchor, store) }
       catch(error:unknown){
+        /* The one rule about a file that only the database can state: two
+           Folder Label names `lower()` makes one. It reaches here as a throw
+           out of a rolled-back transaction rather than as a parse failure,
+           and is answered with the same 422 and the same field path a schema
+           refusal of the same file would have carried, because a caller
+           should not be able to tell which of the two refused them (#227
+           area 4; 7.16, 10.3). */
+        if(error instanceof WorkflowLabelNameConflict){
+          sendFieldValidationError(res,[{field:error.field,message:error.message}])
+          return
+        }
         if(error instanceof DocumentRefusal){sendError(res,422,'validation_failed',error.message);return}
         throw error
       }
