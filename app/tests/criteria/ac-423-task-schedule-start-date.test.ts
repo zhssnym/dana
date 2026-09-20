@@ -43,11 +43,14 @@ Spec: 4.5 (the column and tasks_start_before_due_check), 7.0 (TaskCard),
 what it is scoped to), 8.5 (generation). The technical ruling that released
 frozen 4 and 7 is on issue #215, 2026-09-20.
 */
+import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
+
+import { daysBetween } from '../../src/server/time/calendar-date.js'
 
 import { startAuthTestApp } from '../support/auth-harness.js'
 import type { AuthTestApp } from '../support/auth-harness.js'
-import { Cast, expectStatus } from '../support/folders-harness.js'
+import { Cast, createFolder, expectStatus } from '../support/folders-harness.js'
 import type { Actor } from '../support/folders-harness.js'
 import {
   createTask,
@@ -301,5 +304,155 @@ describe('AC-423: the Schedule is two dates, and both arrive', () => {
       successor.due_date,
       'while the due date moves, which is the whole of what generation does',
     ).not.toBeNull()
+  })
+
+  /* ---------------------------------------------------------------- *
+   * Duplication, which is where the ruling was corrected
+   * ---------------------------------------------------------------- */
+
+  /*
+  These two exist because the review found the decision pinned by nothing.
+  `startForCopy` and the folder shift are new code implementing a rule the
+  ruling states, and if either returned null on every path the whole suite was
+  green. That is hard stop 3's failure mode one layer out from where the cases
+  above are watching: not a field the server never reads, but a field it reads
+  on the two doors a criterion happens to knock on and drops everywhere else.
+
+  They are also where the ruling changed. It first said duplication copies the
+  start date as it stands. That is right where nothing moves, and wrong the
+  moment the due date does: a task starting 1 January and due 10 January,
+  duplicated in September, came out starting in January and due today, which is
+  a nine-month Schedule nobody wrote. The Schedule is a shape, and what a
+  duplicate is for is the shape. So both dates move together, and these two
+  cases are the difference between the two rulings.
+  */
+  test('AC-423: a duplicated task carries its Schedule, moving both ends together', async () => {
+    const actor = await author()
+
+    /* A spent Schedule: 9.6 re-anchors the due date onto the caller's today,
+       so this is the arm where the start has to follow. The interval is ten
+       days and the assertion is that it survives, rather than that the copy
+       lands on a date this test computes from its own clock. */
+    const spent = await createTaskOk(
+      actor,
+      { title: 'ac423 spent schedule', start_date: '2020-01-01', due_date: '2020-01-11' },
+      'a task whose whole Schedule is behind us',
+    )
+    const copied = await actor.browser.json(
+      `/tasks/${spent.id}/duplicate?tz=UTC`,
+      'POST',
+    )
+    expectStatus(copied, 201, '7.16 duplicates a task the caller can read')
+    const copy = await requireTaskRow(
+      app.db,
+      String((copied.json() as { id?: unknown }).id),
+    )
+
+    expect(
+      copy.due_date,
+      "9.6 re-anchors a spent due date onto the caller's day, which is what this arm is for",
+    ).not.toBe('2020-01-11')
+    expect(
+      copy.start_date,
+      'and the start is not left behind in 2020. A copy whose start precedes its due date ' +
+        'by five years is not the Schedule anybody duplicated',
+    ).not.toBe('2020-01-01')
+    expect(
+      daysBetween(String(copy.start_date), String(copy.due_date)),
+      'both ends moved by the same number of days, so the shape survives and 4.5 s ' +
+        'start-before-due CHECK holds for the reason it held before',
+    ).toBe(10)
+
+    /* The other arm, and it is the one that proves the first is a rule rather
+       than an unconditional shift: a Schedule still ahead of the caller is not
+       re-anchored at all, so neither date moves. */
+    const future = await createTaskOk(
+      actor,
+      { title: 'ac423 future schedule', start_date: '2099-01-01', due_date: '2099-01-11' },
+      'a task whose Schedule is still ahead',
+    )
+    const untouched = await actor.browser.json(
+      `/tasks/${future.id}/duplicate?tz=UTC`,
+      'POST',
+    )
+    expectStatus(untouched, 201, '7.16 again')
+    const ahead = await requireTaskRow(
+      app.db,
+      String((untouched.json() as { id?: unknown }).id),
+    )
+    expect(ahead.due_date, 'a future due date copies as it stands (9.6)').toBe('2099-01-11')
+    expect(
+      ahead.start_date,
+      'and so does its start, because there is no delta to apply',
+    ).toBe('2099-01-01')
+  })
+
+  test('AC-423: a duplicated folder moves every Schedule by one delta', async () => {
+    const actor = await author()
+    const folderId = await createFolder(actor, 'ac423 folder schedule')
+
+    /* Two tasks a fortnight apart, both spent. The folder act computes one
+       delta from the earliest due date and applies it to the whole folder,
+       which is what keeps the arrangement rather than flattening it onto
+       today. Both intervals must survive: the ten days inside the first task,
+       and the fourteen between the two tasks. */
+    await createTaskOk(
+      actor,
+      {
+        title: 'ac423 folder first',
+        folder_id: folderId,
+        start_date: '2020-01-01',
+        due_date: '2020-01-11',
+      },
+      'the earlier of two spent tasks',
+    )
+    await createTaskOk(
+      actor,
+      {
+        title: 'ac423 folder second',
+        folder_id: folderId,
+        start_date: '2020-01-15',
+        due_date: '2020-01-25',
+      },
+      'and the later one',
+    )
+
+    const copied = await actor.browser.json(
+      `/folders/${folderId}/duplicate?tz=UTC`,
+      'POST',
+    )
+    expectStatus(copied, 201, '7.16 duplicates a folder the caller owns')
+    const copyId = String((copied.json() as { id?: unknown }).id)
+
+    const rows = (await app.db.execute(
+      sql`SELECT title,
+                 to_char(start_date, 'YYYY-MM-DD') AS start_date,
+                 to_char(due_date, 'YYYY-MM-DD') AS due_date
+            FROM tasks WHERE folder_id = ${copyId}::uuid
+           ORDER BY due_date ASC`,
+    )) as unknown as { rows: Record<string, unknown>[] }
+    const copies = rows.rows
+    expect(copies, 'the folder copy carries both tasks').toHaveLength(2)
+
+    const [first, second] = copies
+    expect(
+      first?.start_date,
+      'the shift is applied to start_date and not only to due_date. The line that computes ' +
+        'it says its point is keeping the intervals, and a start left where it stood is the ' +
+        'one field for which that would be false',
+    ).not.toBe('2020-01-01')
+    expect(
+      daysBetween(String(first?.start_date), String(first?.due_date)),
+      'the first task keeps its ten-day Schedule',
+    ).toBe(10)
+    expect(
+      daysBetween(String(second?.start_date), String(second?.due_date)),
+      'and so does the second',
+    ).toBe(10)
+    expect(
+      daysBetween(String(first?.due_date), String(second?.due_date)),
+      'and the fortnight between the two tasks survives, which is the arrangement the one ' +
+        'delta exists to preserve',
+    ).toBe(14)
   })
 })
