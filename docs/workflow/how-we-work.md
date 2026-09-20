@@ -43,7 +43,7 @@ How much the issue says depends on the size of the work:
 | - | - |
 | A colour, a spacing, an alignment, a bug | One sentence. The issue is the documentation. |
 | A normal feature | A few paragraphs in the issue. No separate document. |
-| Weeks of work on both sides | Discussion first, then Hassan writes an RFC. It becomes a milestone, and the work becomes issues inside it. See [`big-features.md`](big-features.md). |
+| Weeks of work on both sides | Discussion first, then several issues, merged as several pull requests with the screen last. No RFC and no milestone — this repository has never used either. See [`big-features.md`](big-features.md). |
 
 Writing long documents for small changes wasted a great deal of time in version 1. Do not
 repeat it.
@@ -400,7 +400,7 @@ build. A one-line change can be a major break. A week of refactoring can be invi
 - **Patch** (`2.2.1`): bug fixes and polish.
 - **Minor** (`2.3.0`): new features, visible changes.
 - **Major** (`3.0.0`): the product changed enough that someone has to relearn it. A joint
-  decision, not a consequence of having written an RFC.
+  decision, not a consequence of how much was built.
 
 The bump follows what is in the release, read from the squashed commit titles: any breaking
 change makes it major, any `feat:` makes it minor, otherwise patch.

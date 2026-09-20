@@ -30,8 +30,9 @@ body:
     attributes:
       label: How big is this
       description: >
-        A guess, and it is fine to be wrong. Only the last option changes the
-        process: a big feature gets an RFC before work starts.
+        A guess, and it is fine to be wrong. Only the last option changes
+        anything: a big feature becomes several issues and merges as several
+        pull requests, with the screen last.
       options:
         - Small, a few hours
         - A normal feature

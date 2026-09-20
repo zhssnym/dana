@@ -51,7 +51,7 @@ rules 2, 8 and 9 exist.
 | Starting on a screen | [`frontend/README.md`](frontend/README.md). A starting point, not a fence |
 | Starting on the server, the database or the suite | [`backend/README.md`](backend/README.md). The same |
 | About to do something irreversible or unwatched | [`hard-stops.md`](hard-stops.md). Read it before you start, not when you are unsure |
-| Starting a feature that needs weeks on both sides | [`big-features.md`](big-features.md). Rare. |
+| Starting a feature too big for one pull request | [`big-features.md`](big-features.md). A note, not a process: there is no separate one, and two things worth keeping. |
 
 **The two starting points are where work usually begins, not where it has to stay.** Each is
 the folder map and the non-obvious facts of one half of this codebase, and a task that begins
