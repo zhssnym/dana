@@ -11,7 +11,7 @@ derived from.
 This pull request should not exist yet unless `npm run gate` printed GATE: green
 on the head commit and the reviewer agent has run. Green, not "incomplete": a
 record missing one of the six steps has not answered for the six. Never a
-draft: docs/workflow/how-we-work.md section 8 says why.
+draft: docs/workflow/workflow.md, under "The gate, and the pull request", says why.
 -->
 
 ## What and why

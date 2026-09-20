@@ -17,13 +17,13 @@ Everything except `app/src/client/`. In practice:
 
 **A starting point and not a fence.** The same task may end in a component, and a screen
 change may end in a migration; change what the issue needs and change all of it.
-[`../frontend/README.md`](../frontend/README.md) is the map of the other half.
+[`frontend.md`](frontend.md) is the map of the other half.
 
 ## The rules that are never broken
 
 1. **Every change starts from a GitHub issue**, and one issue is one fresh chat. This
    includes your own work.
-2. **Read [`../hard-stops.md`](../hard-stops.md) before you start.** Most of the eight live
+2. **Read [`hard-stops.md`](hard-stops.md) before you start.** Most of the eight live
    on this side. Everything else: decide, do it, and say what you decided.
 3. **Never edit a test to make your code pass.** If a test looks wrong, that is a finding.
    A criterion changes only when the decision it pins changes, and the pull request names it.
@@ -42,7 +42,7 @@ change may end in a migration; change what the issue needs and change all of it.
 A fresh chat per issue. Read the issue, check for open pull requests on the same files,
 branch from `main` as `backend/<issue>-<short-description>` — CI checks that shape,
 `^(frontend|backend|chore)/[0-9]+-[a-z0-9-]+$` — read
-[`../hard-stops.md`](../hard-stops.md), and read `CLAUDE.md` for the commands and this
+[`hard-stops.md`](hard-stops.md), and read `CLAUDE.md` for the commands and this
 machine's failure modes.
 
 ## The server, folder by folder
@@ -309,7 +309,7 @@ is not.
 
 Two ways to make the change, and both are ordinary:
 
-- **Do it.** [`../frontend/README.md`](../frontend/README.md) is the folder map and the
+- **Do it.** [`frontend.md`](frontend.md) is the folder map and the
   things that bite.
 - **Invoke the `frontend` agent** with the exact need, on the same branch, and integrate its
   commit. That is not an escalation and it needs no issue.
@@ -317,13 +317,13 @@ Two ways to make the change, and both are ordinary:
 Two files in there are hard stops because no criterion sees them —
 `app/src/client/styles/tokens.css` and `app/src/client/parts/presenters.ts` — and a renamed
 `localStorage` key is the one genuinely irreversible thing in the client.
-[`../hard-stops.md`](../hard-stops.md) carries all three.
+[`hard-stops.md`](hard-stops.md) carries all three.
 
 ## Labels, in one line
 
 Your issue needs an area label (`backend`) and a type label (`bug`, `enhancement` or
 `documentation`). Add `blocked` if you stop, `breaking` if it changes something people rely
-on. The full table is in [`../how-we-work.md`](../how-we-work.md); you rarely need the rest
+on. The full table is in [`workflow.md`](workflow.md); you rarely need the rest
 of that file.
 
 ## Opening the pull request

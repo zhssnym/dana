@@ -614,7 +614,7 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
       /* #219's two new CHECKs. A checklist item is the only kind that carries a
          tick, and it always carries one; every other kind carries none, which
          is one equality rather than two nullable comparisons (the nullable
-         CHECK trap in docs/workflow/backend/README.md). A list parent belongs
+         CHECK trap in docs/workflow/backend.md). A list parent belongs
          only to a list item on a folder page, and never to itself. */
       { name: 'page_blocks_checked_kind_check', columns: ['checked', 'kind'] },
       {
