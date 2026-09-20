@@ -57,6 +57,35 @@ repository: `docs/team/`, `docs/design/`, `docs/learn/`, `docs/operator/`, `docs
 Where one appears in a dated record inside the specification or in `docs/milestones/M0.md`, it is history
 and accurate as history. Where one appears anywhere else, it is a mistake worth fixing.
 
+### Resolving an `RFC 000N` citation
+
+**About 480 comments across 256 files cite decisions by number, and the documents they
+name no longer exist in the tree.** `docs/rfcs/` was deleted on 2026-09-20 with the
+milestone restructure. The citations were deliberately left alone: roughly 90 of them
+name unit, S-row and P-row numbers that no index has ever covered, so a rewrite could
+not have resolved them, and doing it by hand meant editing 165 files under `app/src`.
+
+They are not broken links. Nothing in a citation is a path. Two commands resolve them,
+and they do different jobs:
+
+```bash
+# The index. One row per change-control item: its date, what it decided, and which
+# spec sections took it. Fastest for "what was item 44?" - it is line 289.
+git show f9773f2:docs/rfcs/0005-v2-specification.md
+
+# The full originals, 6,763 lines for RFC 0005. Needed for a unit, an S-row, a P-row,
+# or the full text of an item. Item 44's four frozen changes start at line 997.
+git show v2.2.0:docs/rfcs/0005-v2-specification.md
+```
+
+**The release tags are load-bearing and must not be deleted.** A clone fetched without
+tags resolves none of this; `git fetch origin --tags` first. `docs/milestones/M0.md`
+carries the same pointer and the reasoning.
+
+**What the citation is evidence of is a ruling, not current behaviour.** The spec is the
+authority on every one of these decisions and has moved past them. Read the citation to
+learn why something is the way it is, never to learn what it does.
+
 ## Commands and this machine
 
 Everything runs from `app/`, never from the repository root, where there is no
