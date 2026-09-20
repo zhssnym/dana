@@ -17,7 +17,11 @@ Three fragments live here for a sharper reason than reuse.
   depends on Q2, Q3 and Q5 sharing the scope textually, and AC-070 is the
   property test that pins it. A copy per query is a copy that can drift, so
   OPEN_SCOPE below is the sentence and the three queries add their own
-  conjunct to it.
+  conjunct to it. Since issue #216 the two conjuncts are written here as
+  well, SCHEDULED and ANYTIME, the second as the negation of the first: what
+  Scheduled means stopped being a single column's nullness that a reader can
+  check by eye, so the proof is carried by a NOT rather than by two sentences
+  agreeing.
 - **The membership join is the 10.2 chokepoint**, and it is part of the FROM
   clause every query in this package builds on, so no query can be written
   here that forgets it.
@@ -110,6 +114,61 @@ export const STATUS_RANK = statusRank(sql`t.status`)
  * identical". They are one sentence here, so they cannot stop being.
  */
 export const OPEN_SCOPE = sql`t.status IN ('pending', 'abandoned')`
+
+/* ------------------------------------------------------------------ *
+ * The Schedule, as the three sentences section 6 reads it by
+ * ------------------------------------------------------------------ */
+
+/**
+ * Scheduled membership since issue #216: "a Task belongs to Scheduled when it
+ * has either a Start Date or a Due Date."
+ *
+ * It was `t.due_date IS NOT NULL` until 2026-09-20, which is what Scheduled
+ * meant while a due date was the only date a task had.
+ */
+export const SCHEDULED = sql`(t.start_date IS NOT NULL OR t.due_date IS NOT NULL)`
+
+/**
+ * Anytime: "only when it has neither."
+ *
+ * Written as the negation of the sentence above rather than as
+ * `start_date IS NULL AND due_date IS NULL`, and that is the whole point of
+ * it. 6.1's proof of the partition used to rest on two conjuncts being read
+ * as exact complements of one another by a person; here it rests on one
+ * sentence and a NOT, so the two cannot drift apart. `IS NOT NULL` yields a
+ * real boolean for every row, never UNKNOWN, so the negation is total and
+ * this is not the three-valued trap the backend README records about CHECKs
+ * over nullable columns.
+ */
+export const ANYTIME = sql`NOT ${SCHEDULED}`
+
+/**
+ * Where a Scheduled row is placed: "if Due Date exists, place/group/order the
+ * Task by Due Date; otherwise, for a Start-only Task, place/group/order it by
+ * Start Date" (issue #216).
+ *
+ * `SCHEDULE_DATE IS NULL` is exactly ANYTIME, which is what lets Q4 split its
+ * two blocks on this one expression instead of on a second spelling of the
+ * membership sentence.
+ *
+ * Under `tasks_start_before_due_check` this is `greatest(start_date,
+ * due_date)`, that function ignoring nulls; it is spelled as the coalesce
+ * because the coalesce is section 6's own sentence and the equality is a
+ * consequence of a constraint rather than the rule (11.5).
+ */
+export const SCHEDULE_DATE = sql`coalesce(t.due_date, t.start_date)`
+
+/**
+ * When a Schedule begins: the Start Date where there is one, and the Due Date
+ * otherwise (issue #217).
+ *
+ * The opposite coalesce from SCHEDULE_DATE, and deliberately: a Schedule is a
+ * span with two ends, Today asks when it opened and the Scheduled list asks
+ * when it closes. Under the same CHECK this is `least(start_date, due_date)`,
+ * so for a task carrying both the two expressions are the two ends of its own
+ * span and neither is ever outside it.
+ */
+export const ACTIVATION_DATE = sql`coalesce(t.start_date, t.due_date)`
 
 /* ------------------------------------------------------------------ *
  * The row

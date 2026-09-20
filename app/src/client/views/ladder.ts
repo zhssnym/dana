@@ -23,8 +23,18 @@ a range has no day to write, so those columns capture nothing for the same
 reason Overdue does not.
 
 **Nothing here re-sorts.** Section 6's preamble forbids it and the ladder does
-not need it: Q3 orders by due date ascending, so walking the rows once and
-starting a new rung whenever the bucket changes preserves that order exactly.
+not need it: Q3 orders by the schedule date ascending, so walking the rows
+once and starting a new rung whenever the bucket changes preserves that order
+exactly.
+
+**Which date a row is bucketed by is Q3's and not this file's**, and since
+issue #216 that is the schedule date: the due date where a task has one, the
+start date where it has only that. The rungs have to read the same date the
+server sorted by or they stop being buckets over a sorted stream - the walk
+would reopen a rung it had already closed, and rows of one day would be drawn
+under two headings. `rungFor` still takes one date and knows nothing about
+this; `ladderRungs` is where the choice is made, and `grouping.ts`'s date
+axis deliberately makes the other one.
 */
 import { addDays, monthLabelOf, weekStart, weekdayNameOf } from '../parts/format-dates.js'
 import type { TaskCard } from '../../shared/tasks.js'
@@ -84,7 +94,7 @@ export function ladderRungs(
   const order: string[] = []
   const buckets = new Map<string, { bucket: Bucket; rows: TaskCard[] }>()
   for (const task of rows) {
-    const bucket = rungFor(task.due_date, today)
+    const bucket = rungFor(task.due_date ?? task.start_date, today)
     const existing = buckets.get(bucket.key)
     if (existing === undefined) {
       order.push(bucket.key)

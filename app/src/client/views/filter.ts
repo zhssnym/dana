@@ -43,6 +43,19 @@ export const UNASSIGNED = 'unassigned'
 /**
  * The due axis. "Due presence and ranges" is two questions in one control,
  * and DES-156 keeps both: whether a task has a date at all, and which days.
+ *
+ * **It means the Due Date and only the Due Date, and since issue #216 that is
+ * a decision rather than the only reading available.** A task now carries a
+ * Schedule of two optional dates, so "with a date" could mean either end of
+ * it; #216 asks that the distinction be explicit enough that a Start Date
+ * cannot corrupt a saved view's stored meaning, and the way to be explicit is
+ * to keep this axis on one column. So `with` is a deadline and `without` is
+ * its absence, `overdue` is 8.1's relation to that deadline and can never
+ * be true of a Start-only task, and a range narrows due dates. A view saved
+ * before start dates existed therefore matches exactly the rows it always
+ * did. An axis that sometimes meant one date and sometimes the other would
+ * be the ambiguous generic-date behaviour that issue names, and if Start
+ * Date ever wants a filter it wants one of its own.
  */
 export type DueAxis =
   | 'any'

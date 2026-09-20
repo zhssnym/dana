@@ -118,10 +118,20 @@ function realEvent(task: TaskCard, folders: readonly Folder[]): CellEvent {
     kind: 'real',
     taskId: task.id,
     title: task.title,
-    // Q3C selects real rows by `due_date BETWEEN start AND end`, so a card in
-    // this response has one; the fallback keeps the shape total rather than
-    // asserting it, and a row with no date lands in no cell.
-    date: task.due_date ?? '',
+    /* Q3C selects real rows by a Schedule overlapping the range (issue
+       #216), so a card in this response carries at least one of the two
+       dates; the fallback keeps the shape total rather than asserting it, and
+       a row with no date at all lands in no cell.
+
+       A start-only task draws on its start date and a due-only one on its
+       due date, which are two of Q3C's four calendar forms. The other two -
+       a Start+Due pair on one day, and the continuous bar a pair on
+       different days is owed - still draw as a single chip on the due date
+       here. The server now returns the row for every grid its span touches,
+       so the bar is drawable; drawing it is the frontend slice #216 hands
+       over, and until that lands this cell placement is the old one with
+       start-only rows added rather than a bar. */
+    date: task.due_date ?? task.start_date ?? '',
     dueTime: task.due_time,
     statusRank: STATUS_RANK[task.status] ?? 0,
     status: task.status,

@@ -46,6 +46,12 @@ default, so read this list before spending one.
   wrote a bullet below deferring the totals to whichever merge came last, and this is that
   merge. Twenty-one of the twenty-three rows were already right; the one that was not was
   12.23, exactly as the AC-414 bullet said it would be.
+- **AC-450 to AC-452 are spent, by issues #217 and #216 on 2026-09-20.** AC-450 is in
+  12.7 and AC-451 and AC-452 in 12.8. They were taken from the tail rather than from a
+  gap, as this section's rule requires while several branches are open: 423 to 428 and
+  440 to 447 were already spoken for that day, so the next free number was 450 and the
+  three run from there. The per-file totals in the table below are left to whichever of
+  the day's merges lands last, as the branches of 2026-09-04 did.
 - **AC-229 is spent and its text is not here.** It was written into its own test file,
   `app/tests/e2e/ac-229-done-row-drops-the-due-echo.spec.ts`, which is built, named for the
   number and running. The number is taken; do not spend it again.

@@ -145,9 +145,12 @@ export function ScheduledPage(): React.JSX.Element {
               "Spec Q3 keeps completed rows out of the *list*, and this is a
               section under it rather than rows in it, so the ordering rule is
               untouched." The predicate is Q3's spine, having a date, so a
-              finished undated task belongs to another page's foot. */}
+              finished undated task belongs to another page's foot. The
+              spine is Scheduled's membership rather than a column, so it
+              moved with it on issue #216: a start-only task is scheduled
+              work and its completion belongs at this foot. */}
           <CompletedFoot
-            keep={(task) => task.due_date !== null}
+            keep={(task) => task.start_date !== null || task.due_date !== null}
             context={context}
             actions={actions}
             onAsk={confirm.ask}
