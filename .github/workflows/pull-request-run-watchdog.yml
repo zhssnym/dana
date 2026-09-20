@@ -1,0 +1,131 @@
+name: Pull request run watchdog
+
+# A pull request that got no CI run at all, made loud. Issue #248.
+#
+# **The defect this answers.** Pull request #244 was opened at 14:08Z on
+# 2026-09-20 and had no workflow run of any kind - not queued, not cancelled,
+# not failed, absent - and sat looking mergeable for twenty minutes with zero
+# verification. A red check gets looked at; an empty check list reads as
+# "nothing to report". That was the third mechanism in one day with the same
+# consequence, and the only one still not understood. The issue is explicit that
+# a wrong cause written down is worse than none, so nothing here diagnoses. This
+# converts an absence into a presence: a red commit status on the pull request's
+# own head, a comment on it, and a red run here.
+#
+# app/scripts/pull-request-run-watchdog.mjs carries the predicate and the whole
+# of the reasoning. Two things belong here rather than there.
+#
+# **Why this runs on the self-hosted runner.** There are no hosted minutes on
+# this account (CLAUDE.md, 2026-08-11), so there was no other choice - and it
+# turns out to be the right one anyway. The runner is a scheduled task that
+# starts at logon on one Windows machine, so while that machine is off this
+# workflow does not execute, and it therefore cannot report anything about a
+# night it slept through. The check that a pull request has a run is only ever
+# made by a process that is itself proof the runner is awake.
+#
+# That is the second of two independent reasons it does not cry wolf overnight.
+# The first is in the script: a run created while the runner is asleep still
+# exists, as a `queued` record from the instant the event fires, and the
+# predicate reads for the record rather than for a conclusion. Measured against
+# this repository's own history: run 24 was created 2026-09-02T19:44:53Z and
+# started 2026-09-03T07:11:43Z, eleven hours and twenty-seven minutes later.
+#
+# **Why there is a schedule at all, and why it is ten minutes.**
+#
+# The `pull_request` trigger below cannot catch its own pull request when the
+# `pull_request` event is what failed: an event that does not fire does not fire
+# for any workflow, this one included. What it does do is re-check *every* open
+# pull request on any pull request's event, which in a project that opens them
+# in batches is the fastest signal available. The schedule is the part that does
+# not depend on the broken event, and it is the reason this can be trusted at
+# all.
+#
+# Ten minutes rather than thirty, and the number was measured rather than
+# chosen. Replaying the predicate minute by minute over this repository's real
+# history, #244's alarm window - head older than the ten-minute grace, still no
+# run - ran from 14:19Z to 14:29Z, eleven minutes, ending when a human noticed
+# and forced a run by hand. A `*/30` schedule lands at :00 and :30 and would
+# have missed that window entirely, reporting only the after-the-fact warning at
+# 14:30. `*/10` covers an eleven-minute window with certainty.
+#
+# **What it will cost, said ahead of time rather than discovered later: 144 run
+# records a day**, each a job of seconds. That number is arithmetic off the
+# schedule - six ticks an hour, twenty-four hours - and not a measurement; this
+# workflow has never executed, and whoever first reads a week of its history
+# should replace this sentence with what it actually did. Two consequences.
+# `gh run list` will be swamped unless it is given `--workflow ci.yml`, and
+# CLAUDE.md's bullet about reading CI on this machine now says so - along with
+# the other half of that, which is that the same filter hides this workflow's
+# own reds, so its runs have to be read on their own rather than never. And a
+# pile-up after a night with the machine off - one queued tick per ten minutes
+# of sleep - is collapsed by the concurrency group below rather than run one
+# after another ahead of the CI job somebody is waiting for.
+#
+# **What a red here means.** At least one open pull request had nothing check
+# it: either no `ci.yml` run at all for its current head, or `ci.yml` runs from
+# the `pull_request` event that every one of them ended `cancelled`, `skipped`,
+# `action_required` or `stale`. The second is read because it is as quiet as the
+# first - a grey neutral icon GitHub mails nobody about - and because cancelling
+# is something this project does on purpose: CLAUDE.md tells a session to cancel
+# a stuck run to free the runner, and ci.yml carries `cancel-in-progress` for
+# every pull request ref. **A red here still never means a run went red.** A
+# `failure` conclusion is loud, is mailed, and is the `check` job's to report;
+# this workflow reads a conclusion only far enough to tell those two apart.
+# GitHub mails a failed scheduled run to whoever last committed to this file,
+# which is a quirk worth knowing rather than a design - the comment on the pull
+# request is the notification meant to be read.
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  # No types filter: opened, synchronize and reopened are the defaults and are
+  # exactly the three events after which a pull request can be sitting with no
+  # run. No paths filter, and for the same reason ci.yml has none - this has to
+  # see every pull request, including a docs-only one.
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      grace:
+        description: 'Minutes a head must have been the head before its emptiness counts'
+        required: false
+        default: '10'
+
+# One group for the whole workflow rather than one per ref, which is the
+# opposite of ci.yml's and deliberate: every run of this asks the same question
+# about every open pull request, so two of them running at once is pure
+# duplication, and a queue of them after the machine wakes is worse than that -
+# it is the CI job somebody is waiting for, held behind forty stale ticks.
+concurrency:
+  group: pull-request-run-watchdog
+  cancel-in-progress: true
+
+# Narrow on purpose. contents: read for the checkout, actions: read to list
+# runs, and the two writes this exists to make.
+permissions:
+  contents: read
+  actions: read
+  pull-requests: write
+  statuses: write
+
+defaults:
+  run:
+    shell: cmd
+
+jobs:
+  watchdog:
+    runs-on: [self-hosted, windows, x64]
+    # A hang killer, not a budget, on a job that is one HTTP conversation.
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      # No npm ci. The script imports nothing outside node itself, which is the
+      # reason it is .mjs beside gate.mjs rather than TypeScript: this job has to
+      # stay cheap enough to run every ten minutes, and npm ci deletes
+      # node_modules before rebuilding it.
+      - name: Every open pull request has a CI run
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node app/scripts/pull-request-run-watchdog.mjs --write --grace ${{ inputs.grace || '10' }}

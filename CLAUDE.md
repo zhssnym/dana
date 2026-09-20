@@ -599,7 +599,64 @@ protocol points here rather than repeating them.
   by its full path, `"C:\Program Files\GitHub CLI\gh.exe"`, to read CI. The
   repository is private, so the unauthenticated API answers 404 and this is the only
   way to see a run. `gh run list --commit` returns nothing here; list runs with
-  `--json databaseId,headSha` and match the sha yourself.
+  `--json databaseId,headSha` and match the sha yourself. **Pass
+  `--workflow ci.yml` as well, since 2026-09-20**: the watchdog in the bullet below
+  is scheduled every ten minutes, which is 144 records a day by arithmetic off the
+  cron rather than by measurement — it has not run yet — and an unfiltered list will
+  be mostly those. **That filter also hides the watchdog's own runs**, and a red one
+  of those is the thing saying a pull request was never checked at all, so read them
+  on their own — `--workflow pull-request-run-watchdog.yml` — rather than never.
+- **A pull request can get no CI run at all, and nothing used to say so. Issue #248,
+  and the cause is still not known.** Pull request #244 was opened at 14:08Z on
+  2026-09-20 with no workflow run of any kind — not queued, not cancelled, not
+  failed, absent — and sat looking mergeable for twenty minutes. It is the third
+  mechanism in one day with that consequence and the only one not understood, and
+  **the absence of a verdict is worse than a red, because a red gets looked at.**
+  `.github/workflows/pull-request-run-watchdog.yml` now reads every open pull
+  request every ten minutes and on every pull request event, and where a head has
+  no `ci.yml` run it posts a failing `ci/pull-request-has-a-run` commit status,
+  comments once on the pull request, and goes red.
+  Everything in this bullet describes what that workflow is configured to do: as
+  of 2026-09-20 it has never executed, so none of it is a measurement.
+  `app/scripts/pull-request-run-watchdog.mjs` carries the predicate and the
+  reasoning; `node app/scripts/pull-request-run-watchdog.mjs --repo zhssnym/dana
+  --audit` replays it over the whole history from any machine with a token, and
+  **that one runs from the repository root rather than from `app/`**, which is the
+  exception to this section's opening rule — it locates `ci.yml` relative to itself.
+  It writes nothing without `--write`, and **`--audit` with `--write` is refused
+  with exit 2 before any network call**, because audit reads closed and merged pull
+  requests and a comment on a merged one has no undo. Four things to know before
+  you read one of its reds. **It reads a conclusion for one thing only**: a
+  `ci.yml` run from the `pull_request` event that ended `cancelled`, `skipped`,
+  `action_required` or `stale` verified nothing and told nobody, so a head whose
+  runs all ended that way is `inconclusive` and takes the same red as a missing
+  one — which is reachable on purpose, cancelling a stuck run to free the runner
+  being something the bullet above tells you to do. It is still never the thing
+  telling you a run *failed*: that is loud, it is mailed, and it is the `check`
+  job's. **An asleep runner does not trip it**: a run created while the machine is
+  off exists as a `queued` record from the instant the event fires — measured here
+  at eleven hours and twenty-seven minutes of waiting, run 24 — and the job itself
+  runs on the same runner, so it is silent while the machine is. **It cannot catch
+  its own pull request** if the `pull_request` event is what failed, which is what
+  the schedule is for. And **it refuses to run at all if `on.pull_request` in
+  `ci.yml` ever grows a `types`, `paths`, `paths-ignore` or `branches` filter**,
+  because a filter makes a missing run legitimate; a guard test fails that in the
+  gate first. The workaround when it fires is the issue's: `workflow_dispatch`
+  against the branch, which queues immediately and runs all six steps. **That is
+  more testing than a pull request's `check` job runs and strictly less of what
+  `check` is for** — a dispatch run makes no branch-name check, `github.head_ref`
+  being empty on any event but a pull request, and it builds the branch head rather
+  than `refs/pull/N/merge`. Closing and reopening the pull request is what fires
+  the real event again.
+- **Branch protection and rulesets are unavailable on this plan, measured
+  2026-09-20 rather than recalled.** `GET /repos/zhssnym/dana/rulesets` answers 403
+  with "Upgrade to GitHub Pro or make this repository public to enable this
+  feature", and the repository stays private because `app/.env` is committed to it.
+  So **nothing can be a required status check here**, and a pull request with no run
+  is not blocked from merging by anything but a person reading. That is why the
+  watchdog above exists at all, and it is the weaker of the two answers: a required
+  `check` would make a missing run a *pending* check and block the merge, where the
+  watchdog only makes it loud.
 - `DANA_DEV_LOGIN=1` enables `POST /api/v1/auth/dev-login` for sessions without
   Google credentials. It is absent from production builds regardless of environment
   variables.
