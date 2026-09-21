@@ -14,7 +14,7 @@ groups next to it.
 
 ## The next number
 
-**The next number to take from the tail is 791.**
+**The next number to take from the tail is 811.**
 
 **This section is the allocator and `## Numbers` below it is not.** That one is a
 chronological record of what each branch spent and why, written newest-first in places and
@@ -57,6 +57,8 @@ cannot be read from any tree.
 | 700–705 | `backend/263-reclaim-sweep-coverage` | yes — six bullets in 12.9 and six files |
 | 780–782 | `backend/227-label-lifecycle`, second pass | yes, three bullets and three test files |
 | 790 | `backend/268-comment-moderation-on-access` | yes — one bullet in 12.14 and one file |
+| 800 | `backend/274` | no — assigned, not readable from this tree |
+| 810 | `backend/276-reclaim-sweep-leaves-a-trace` | yes — one bullet in 12.9 and one test file |
 
 **780 rather than 681, because the three were assigned rather than scanned for.** On
 2026-09-20 the party holding this branch's review named 780 upward and named what was
@@ -70,6 +72,19 @@ The line above therefore moves to **783**, one past the highest of the three, wh
 clears every number named as taken. **It is still only true of this tree**, which is what
 the guard checks and all it can check: a sibling that spends 800 tomorrow moves it again,
 and the merge that lands last is the one that can see all of them.
+
+**783 moved to 811 on 2026-09-20 by issue #276, which took AC-810 and was handed it rather
+than scanning for it.** The two rows above it were assigned in the same breath and neither
+was readable from any tree when this was written: `backend/268` holds 790 and `backend/274`
+holds 800. **790 has since merged** — #268 landed on `main` at 616f982 and its row above is
+read from this tree rather than taken on trust, which is the only one of the three that
+changed; 800 is still only an assignment. Taking
+783, the number this section offered, would have been legal and useless — a block of one
+wedged under two that are spoken for, leaving the line at 784 and the next branch to
+discover 790 and 800 by collision. **784 to 789, 791 to 799 and 801 to 809 are therefore
+gaps of the ordinary kind** and are not free by default, on the rule stated immediately
+below; whichever of the three merges last is the only one that can see what the other two
+spent.
 
 **The gaps between those blocks are not free by default**, on the rule the AC-377 and
 AC-440 bullets below state: whichever merge lands last is the only one that can see what its

@@ -27,13 +27,20 @@ the sink's count, because the suite's recorder normalizes a message down to
 its template and recipient by design (11.10 fixes only those two), so the
 fields that make an email usable are only visible from here.
 
-**Nothing below asserts a total.** A pass polls every due row in the database,
-which is 8.6's poll and not a thing to scope, and on the postgres:18 leg of
-11.10 every file in the suite shares one database. So each case asserts the
-rows it seeded, by task id, and reads the sink filtered the same way; the
-outcome counts are asserted as floors rather than as equalities. An exact
-count here would be an assertion about what the rest of the suite happened to
-be doing.
+**The delivery cases below assert no total**, and the reason is half stale.
+A pass polls every due row in the database, which is 8.6's poll and not a thing
+to scope, and this paragraph went on to say that "on the postgres:18 leg of
+11.10 every file in the suite shares one database" — **which stopped being true
+on 2026-09-03 with issue #32**: each vitest pool slot now gets a database of
+its own and `postgres-leg-setup.ts` empties it before every file, so the only
+rows a case can meet are this file's. The habit those cases keep is still the
+right one for them and is unchanged: each asserts the rows it seeded, by task
+id, reads the sink filtered the same way, and treats the outcome counts as
+floors. **The purge-cap cases at the foot of this file do assert exact totals**
+(issue #276), which is sound for the reason above and is the only way to stand
+at a boundary of exactly two hundred; they say so where they stand, and they
+scope every read back to their own folder or owner so that a case added between
+them cannot make one of them lie.
 */
 import { randomUUID } from 'node:crypto'
 
@@ -464,5 +471,220 @@ describe('the pass second duty and its liveness signals (11.7, 11.12)', () => {
       emitted.includes('opaque-token'),
       'the heartbeat url is a credential in url form and is never logged',
     ).toBe(false)
+  })
+})
+
+/*
+The cap on the three purge claims this module writes (issue #276), which the
+acceptance range cannot see.
+
+**AC-810 pins the reclaim's cap and nothing else's**, and that is the whole
+reason these two cases exist. The same LIMIT was added to four statements in
+that change: the reclaim's delete arm, the folder Trash purge, the task Trash
+purge and the ninety-day events purge. The reclaim's is proved by AC-810's
+third case; the folder purge is at least driven by every criterion that deletes
+a folder and runs a pass. **The task purge and the events purge were driven by
+nothing at all** — the adversarial review of #276 grepped the suite and found no
+test that ages a task's `deleted_at` or an event's `created_at` and then runs a
+pass — so a LIMIT on either could have named the wrong thing, dropped rows
+rather than deferring them, or interacted badly with the claim's FOR UPDATE
+SKIP LOCKED, and the whole suite would have been green.
+
+**What each case asserts is that the surplus is deferred and not lost**, which
+is the only interesting way a cap goes wrong: the first pass takes exactly the
+cap, the second takes the remainder, and a row inside the window is untouched
+throughout.
+
+The database is this file's own — `postgres-leg-setup.ts` empties it before
+every file — and nothing else here writes a row old enough for either purge to
+claim, so the surplus that survives a pass is this case's own row and not
+somebody else's. Each count is read back scoped to the case's own folder for
+the same reason the file's header gives for asserting by task id.
+*/
+
+/** `SWEEP_BATCH` in `src/server/database.ts` is 200. Stated here rather than
+ * imported, for the reason `tests/support/reclaim-harness.ts` gives about
+ * `RECLAIM_WINDOW_DAYS`: a test that imported the constant would agree with
+ * whatever it became and would pin nothing. If the number is deliberately
+ * changed, this line moves with that decision. */
+const CAP = 200
+const OVER_THE_CAP = CAP + 1
+
+describe('the 11.7 purge claims are capped (issue #276)', () => {
+  test('the ninety-day events purge takes the cap and defers the rest', async () => {
+    const actor = await seedUser()
+    const folderId = await seedFolder(actor.id)
+    const seeded = await rows(
+      db,
+      sql`INSERT INTO events (actor_id, verb, subject_kind, subject_id,
+                              subject_name, folder_id, created_at)
+          SELECT ${actor.id}::uuid, 'created', 'task', ${actor.id}::uuid,
+                 'an aged event', ${folderId}::uuid,
+                 now() - interval '91 days'
+            FROM generate_series(1, ${OVER_THE_CAP}) AS s(n)
+          RETURNING id`,
+    )
+    expect(seeded.length, 'the fixture must seed one more than the cap').toBe(
+      OVER_THE_CAP,
+    )
+    const young = await rows(
+      db,
+      sql`INSERT INTO events (actor_id, verb, subject_kind, subject_id,
+                              subject_name, folder_id, created_at)
+          VALUES (${actor.id}::uuid, 'created', 'task', ${actor.id}::uuid,
+                  'a recent event', ${folderId}::uuid, now() - interval '89 days')
+          RETURNING id`,
+    )
+    const aged = async (): Promise<number> =>
+      (
+        await rows(
+          db,
+          sql`SELECT id FROM events
+               WHERE folder_id = ${folderId}::uuid
+                 AND created_at < now() - interval '90 days'`,
+        )
+      ).length
+
+    const pass = createReminderPass({
+      dbClient: client,
+      logger: capturingLogger(),
+    })
+    const first = await pass()
+    expect(
+      first.purgedEvents,
+      '4.13 purges events past ninety days, and the claim takes at most the cap in one tick',
+    ).toBe(CAP)
+    expect(
+      await aged(),
+      "so exactly one of this case's aged events is still there: a cap that dropped the surplus instead of deferring it would leave none",
+    ).toBe(1)
+
+    const second = await pass()
+    expect(
+      second.purgedEvents,
+      'and the next tick takes the remainder, which is what makes truncating a pass safe (spec 11.7)',
+    ).toBe(1)
+    expect(await aged(), 'nothing aged is left').toBe(0)
+
+    expect(
+      (
+        await rows(
+          db,
+          sql`SELECT id FROM events WHERE id = ${String(young[0]?.id)}::uuid`,
+        )
+      ).length,
+      'an event inside the ninety days is untouched by either pass, the cap being on how many the claim takes and not on what it is allowed to take',
+    ).toBe(1)
+  })
+
+  test('the thirty-day Trash purge takes the cap of tasks and defers the rest', async () => {
+    const owner = await seedUser()
+    const folderId = await seedFolder(owner.id)
+    const seeded = await rows(
+      db,
+      sql`INSERT INTO tasks (folder_id, title, created_by, status, deleted_at)
+          SELECT ${folderId}::uuid, 'an aged trashed task', ${owner.id}::uuid,
+                 'pending', now() - interval '31 days'
+            FROM generate_series(1, ${OVER_THE_CAP}) AS s(n)
+          RETURNING id`,
+    )
+    expect(seeded.length, 'the fixture must seed one more than the cap').toBe(
+      OVER_THE_CAP,
+    )
+    const recent = await seedTask({ folderId, creatorId: owner.id })
+    await db.execute(
+      sql`UPDATE tasks SET deleted_at = now() - interval '29 days'
+           WHERE id = ${recent}::uuid`,
+    )
+    const aged = async (): Promise<number> =>
+      (
+        await rows(
+          db,
+          sql`SELECT id FROM tasks
+               WHERE folder_id = ${folderId}::uuid
+                 AND deleted_at < now() - interval '30 days'`,
+        )
+      ).length
+
+    const pass = createReminderPass({
+      dbClient: client,
+      logger: capturingLogger(),
+    })
+    const first = await pass()
+    expect(
+      first.purgedTrash,
+      '7.13 destroys a trashed row after thirty days, and the claim takes at most the cap of tasks in one tick',
+    ).toBe(CAP)
+    expect(
+      await aged(),
+      'so one of them is still in the Trash rather than gone: the cap defers, it does not drop',
+    ).toBe(1)
+
+    const second = await pass()
+    expect(second.purgedTrash, 'and the next tick takes it').toBe(1)
+    expect(await aged(), 'nothing aged is left').toBe(0)
+
+    expect(
+      (await rows(db, sql`SELECT id FROM tasks WHERE id = ${recent}::uuid`))
+        .length,
+      'a task trashed twenty-nine days ago is untouched, which is the line the cap must not have moved',
+    ).toBe(1)
+  })
+
+  test('the thirty-day Trash purge takes the cap of folders and defers the rest', async () => {
+    const owner = await seedUser()
+    const seeded = await rows(
+      db,
+      sql`INSERT INTO folders (owner_id, name, deleted_at)
+          SELECT ${owner.id}::uuid, 'an aged trashed folder',
+                 now() - interval '31 days'
+            FROM generate_series(1, ${OVER_THE_CAP}) AS s(n)
+          RETURNING id`,
+    )
+    expect(seeded.length, 'the fixture must seed one more than the cap').toBe(
+      OVER_THE_CAP,
+    )
+    const recent = await seedFolder(owner.id)
+    await db.execute(
+      sql`UPDATE folders SET deleted_at = now() - interval '29 days'
+           WHERE id = ${recent}::uuid`,
+    )
+    /* Scoped to this owner because the folder purge is the one duty of the
+       four whose claim this file's other cases also feed — every `seedFolder`
+       here makes a folder — and only the rows this case aged can be claimed
+       by it. */
+    const aged = async (): Promise<number> =>
+      (
+        await rows(
+          db,
+          sql`SELECT id FROM folders
+               WHERE owner_id = ${owner.id}::uuid
+                 AND deleted_at < now() - interval '30 days'`,
+        )
+      ).length
+
+    const pass = createReminderPass({
+      dbClient: client,
+      logger: capturingLogger(),
+    })
+    const first = await pass()
+    expect(
+      first.purgedTrash,
+      "7.13 destroys a trashed folder after thirty days, and the claim takes at most the cap of folders in one tick. This case's folders hold no tasks, so nothing else contributes to the count",
+    ).toBe(CAP)
+    expect(
+      await aged(),
+      'one is left in the Trash rather than gone, the cap deferring rather than dropping. And the bound is on folders rather than on rows: each one cascades an unbounded number away with it, which is why database.ts says so at the constant',
+    ).toBe(1)
+
+    const second = await pass()
+    expect(second.purgedTrash, 'and the next tick takes it').toBe(1)
+    expect(await aged(), 'nothing aged is left').toBe(0)
+
+    expect(
+      (await rows(db, sql`SELECT id FROM folders WHERE id = ${recent}::uuid`))
+        .length,
+      'a folder trashed twenty-nine days ago is untouched, which is the line the cap must not have moved',
+    ).toBe(1)
   })
 })

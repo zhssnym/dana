@@ -1,6 +1,7 @@
 /*
 AC-705: the two clauses that decide what the 11.7 sweep may consider at all —
-`kind IN ('cover', 'image', 'file', 'audio', 'video')` and `folder_id IS NULL`
+`RECLAIMABLE_KINDS`, which is
+`('cover', 'image', 'file', 'audio', 'video')`, and `folder_id IS NULL`
 — read against the rows they exclude **and against the rows they admit**.
 
 The kind list was `('cover', 'image')` until migration 0024 (issue #220) added
@@ -11,6 +12,20 @@ or `video` yet — 7.15's amendment of the same date is what makes them storable
 without a folder — so this sweep is the only thing that will ever remove one,
 and until the second case existed both widened lines could be reverted with
 the whole suite still green.
+
+**The third case is the third arm, added 2026-09-21 with issue #276's rebase.**
+That clause is read by the `cleared` CTE as well as by the mark and the
+delete, and until the third case existed nothing in the suite read it there:
+#276 gave the clear arm a list of two while #220 widened the other two to
+five, neither touched the other's line, git merged both cleanly, and the
+whole leg was green over a sweep that marked five kinds and cleared two. The
+three arms now read one constant, `RECLAIMABLE_KINDS` in
+`app/src/server/domain/files.ts`, so that a fourth copy cannot disagree with
+the other three; the third case is what fails if the clear arm is narrowed
+again. **What a narrow clear arm costs is the window and not a wrongly taken
+file** — the delete arm tests `fileIsUnreferenced()` itself — and the case's
+own comment carries that reasoning, because a case written the other way
+round would assert the wrong thing.
 
 AC-700 to AC-704 cover the five `NOT EXISTS` arms of `fileIsUnreferenced()`,
 one criterion each. They are the whole of the *reference* question and none of
@@ -53,11 +68,12 @@ is marked in the first pass and taken in the second beside them. The spared
 rows differ from it in their kind or their folder and in nothing else.
 
 Spec 4.3, 4.16, 4.17, 7.15, 7.19 as amended 2026-09-04, 10.3, 11.7; migrations
-0014 and 0015; issues #167 and #263.
+0003, 0014, 0015 and 0024; issues #167, #220, #263 and #276.
 */
 import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
+import { makeComment } from '../support/authorization-harness.js'
 import { Cast, createFolder } from '../support/folders-harness.js'
 import type { Actor } from '../support/folders-harness.js'
 import { rows } from '../support/helpers.js'
@@ -438,6 +454,118 @@ describe('AC-705 what the reclaim sweep may consider: the kind list and the fold
         control,
         `and the folder-less cover of the same age is taken too, which is what ${String(RECLAIM_WINDOW_DAYS)} days means for the two kinds that were already in the list`,
       )
+    },
+    120_000,
+  )
+
+  /*
+  The third arm, added 2026-09-21 when issue #276 was rebased onto #220.
+
+  **The clear arm carries the kind clause too, and until this case existed
+  nothing in the suite read it.** #276 gave that arm a `kind` clause of
+  `('cover', 'image')` — true of the other two arms on the tree it was written
+  against — and #220 widened the other two to five. Neither touched the other's
+  line, so git merged them cleanly and the sweep came out marking five kinds
+  and clearing two, with the whole leg green: measured on that rebase, this
+  file's two cases above and AC-810's three all passed against it.
+
+  **What a narrow clear arm costs is the window, not a wrongly taken file**,
+  and getting that the wrong way round is how the case gets written to assert
+  the wrong thing. The delete arm tests `fileIsUnreferenced()` itself, so a
+  referenced row is safe from it whatever mark it carries. What goes is the
+  thirty days: a `file`, `audio` or `video` referenced again after a mark keeps
+  that mark for ever, so the window is counted from the first time it went
+  unreferenced rather than from the last, and the pass after it next comes off
+  a block takes it on that same tick. That is the whole of what migration 0014
+  and 7.19 bought — AC-703 states it for a `cover` as "a cover picker setting
+  the same picture back inside the window being the ordinary act the window
+  exists for" — withdrawn from three of the five kinds by a clause that reads
+  like a narrowing of what is scanned.
+
+  So the assertion is over `unreferenced_since` rather than over the row: the
+  mark must be gone by the end of the pass that saw the reference, and the
+  `cover` beside it says the same pass clears what it has always cleared.
+
+  **The reference is written in SQL, for AC-700's reason and not for
+  convenience.** No route in section 7 can put a folder-less `video` behind a
+  `page_blocks.file_id` yet — 7.15 as amended 2026-09-20 records exactly that —
+  and `comment_files` scopes an attachment to the comment's own folder in both
+  halves of the comment contract. The sweep's arms are the schema's foreign
+  keys and not the routes above them, which is the premise
+  `guard-reclaim-reference-arms.test.ts` is built on, so the state this case
+  needs is written where the sweep reads it.
+  */
+  test(
+    'a marked folder-less video that something references again is unmarked by the next pass',
+    async () => {
+      const [owner] = (await cast.of(fixture.app)) as [Actor]
+      const db = fixture.app.db
+      const folderId = await createFolder(owner, 'ac705 clear arm')
+      const commentId = await makeComment(owner, folderId, 'ac705 holds a video')
+
+      const video = await uploadKindOk(owner, 'video', null, {
+        name: 'ac705-clear-video.mp4',
+        type: 'video/mp4',
+        bytes: MP4_BYTES,
+      })
+      /* The control differs from it in kind and in nothing else: it is the
+         one kind this arm has cleared since migration 0014, so if the pass
+         fails to clear *it* the case is measuring a broken pass rather than a
+         narrowed clause. */
+      const control = await folderlessPicture(
+        owner,
+        'cover',
+        'ac705-clear-control.png',
+      )
+
+      /* Pass one marks both — nothing references either yet. */
+      await runPass(fixture.app)
+      for (const [what, id] of [
+        ['the video', video],
+        ['the control cover', control],
+      ] as const) {
+        const seen = await expectSpared(
+          fixture,
+          id,
+          `${what} must survive the pass that first finds it unreferenced`,
+        )
+        expect(
+          seen.markIsFresh,
+          `${what} must carry a mark from that pass, or the clear arm below has nothing to clear and the case is vacuous`,
+        ).toBe(true)
+      }
+
+      /* Both regain a reference, inside the window, which is the ordinary act
+         the window exists for. */
+      for (const id of [video, control]) {
+        await rows(
+          db,
+          sql`INSERT INTO comment_files (comment_id, file_id)
+              VALUES (${commentId}::uuid, ${id}::uuid)`,
+        )
+      }
+
+      await runPass(fixture.app)
+
+      const clearedVideo = await expectSpared(
+        fixture,
+        video,
+        'a folder-less video something references again must survive, which the delete arm secures on its own',
+      )
+      expect(
+        clearedVideo.marked,
+        "and its mark must be gone. With the `cleared` CTE's kind clause back at ('cover', 'image') the mark survives the reference for ever, so the thirty days are counted from the first time this file went unreferenced rather than from the last, and the pass after it next comes off a block takes it on that same tick with no window at all (domain/files.ts, `RECLAIMABLE_KINDS` and the `cleared` CTE)",
+      ).toBe(false)
+
+      const clearedControl = await expectSpared(
+        fixture,
+        control,
+        'and the cover beside it survives too',
+      )
+      expect(
+        clearedControl.marked,
+        'with its mark cleared, which the clear arm has done for a cover since migration 0014 — if this fails, the pass itself is broken rather than its kind clause',
+      ).toBe(false)
     },
     120_000,
   )

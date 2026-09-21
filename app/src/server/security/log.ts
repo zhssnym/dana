@@ -89,6 +89,57 @@ export interface UnknownRequestFieldsLogFields {
   fields: readonly string[]
 }
 
+/**
+ * One picture the 11.7 tick destroyed on a clock (issue #276, 10.5 amended
+ * 2026-09-20).
+ *
+ * **Five fields, and the reason each is here is that there is nothing else
+ * left to read.** `reclaimUnwornPictures` is the only path in Dana that
+ * deletes a person's data with nobody having asked, and two of the five
+ * columns that can name a file cascade — `comment_files.file_id` and
+ * `user_page_covers.file_id` — so the row that recorded the reference goes
+ * with the file. Once the pass has run there is no row, no object and no
+ * event anywhere saying the picture ever existed. This line is the whole of
+ * the record, which is why it carries the owner (whose 10.3 gigabyte just
+ * got smaller) and the byte count (the only measure of what they lost)
+ * rather than a count of deletions.
+ *
+ * **`files.name` is not here and must never be**: it is a filename somebody
+ * typed, which is user content of exactly the sort 10.5's never-log list is
+ * about, and this interface is the only parameter through which it could
+ * have arrived. `mime` is absent for a weaker reason — `kind` already says
+ * what the sweep thought it was taking, and the mime adds nothing an
+ * operator would act on.
+ *
+ * **Which of the five reference arms last held it is not here because
+ * nothing knows.** The mark is written by the pass that first finds the file
+ * unreferenced, by which time every arm is already false, and no column
+ * anywhere records which one was true last. It would be a schema change and
+ * a migration rather than a cheaper query, so the line carries what the row
+ * carries.
+ */
+export interface FileReclaimedLogFields {
+  fileId: string
+  ownerId: string
+  /** 4.16's `files.kind`, which for a reclaimed row is one of the five in
+   * `RECLAIMABLE_KINDS` (`domain/files.ts`): `cover`, `image`, `file`,
+   * `audio` or `video`. It was the first two until #220 widened the sweep,
+   * and this line is why the kind is on it at all — an operator reading
+   * `file_reclaimed` cannot tell a composer asset from a cover otherwise. */
+  kind: string
+  /** 4.16's `files.bytes`, the size of what left the store. */
+  bytes: number
+  /**
+   * `files.unreferenced_since` as an instant, rendered by the database
+   * rather than by this process: it is what the thirty days were counted
+   * from, and it is the field that answers "when did Dana decide nothing was
+   * using this". Null cannot happen on this path — the delete arm compares
+   * it — and is admitted rather than coerced so that a future caller with no
+   * mark writes an honest absence.
+   */
+  unreferencedSince: string | null
+}
+
 export interface RequestErrorLogFields {
   method: string
   path: string
@@ -105,6 +156,24 @@ export interface OperationLogFields {
   database?: string
   port?: number
   missing?: string
+  /*
+  The 11.7 tick's four sweep duties, one field each, and how long the pass
+  took (issue #276). They ride on `operation` rather than on a method of
+  their own because `reminder_pass_overlapped` and `reminder_pass_failed`
+  already do: the three lines are one operator's view of one loop, and
+  splitting the success path onto a different surface would mean grepping
+  two shapes for one question.
+
+  **The delivery counts are deliberately not here.** A send, a skip and a
+  refusal each already write a line of their own through `reminderEvent`, so
+  the reminder duty has a trace and the other four had none, which is the
+  whole of what issue #276 is about.
+  */
+  reclaimedPictures?: number
+  purgedTrash?: number
+  purgedEvents?: number
+  prunedSessions?: number
+  durationMs?: number
   /**
    * A whole sentence, for the one class of line where the event name is not
    * enough: a condition an operator has to understand at three in the morning
@@ -137,6 +206,10 @@ export type OperationLogEvent =
   | 'scheduler_heartbeat_unreachable'
   | 'reminder_pass_overlapped'
   | 'reminder_pass_failed'
+  /** A pass that did something, or that took long enough to be worth saying
+   * so (issue #276). A quiet tick writes nothing: at 60 seconds an
+   * unconditional line is 1,440 a day saying "nothing happened". */
+  | 'reminder_pass_completed'
   | 'migrations_applied'
   /** Production is running on the embedded database (issue #80). Its own
    * event name so alerting can key on it rather than on a substring of
@@ -167,6 +240,7 @@ export interface SecurityLogger {
     fields: { taskId: string; reason?: string },
   ): void
   exportEvent(fields: ExportLogFields): void
+  fileReclaimed(fields: FileReclaimedLogFields): void
   cspViolation(fields: CspViolationLogFields): void
   unknownRequestFields(fields: UnknownRequestFieldsLogFields): void
   requestError(fields: RequestErrorLogFields): void
@@ -321,6 +395,20 @@ function safeFieldName(value: string): string {
  * caller this line exists to notice. Count the raw names, redact the list. */
 const UNKNOWN_FIELD_LIMIT = 20
 
+/**
+ * One instant, `YYYY-MM-DDTHH:MM:SSZ` and nothing else (issue #276).
+ *
+ * The value comes from the database's own rendering of a `timestamptz`, so
+ * it is already this shape; the whitelist runs anyway for the reason
+ * `safeCspViolation` gives for its own — 10.5's promise is that the logger
+ * has no parameter user content can reach, not that every caller is careful.
+ * A value outside the shape becomes `other`, which is a mangled field rather
+ * than a leak.
+ */
+function safeInstant(value: string): string {
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(value) ? value : 'other'
+}
+
 function safeMissing(value: string): string {
   const names = value.split(',').map((name) => name.trim())
   return names.length > 0 && names.every((name) => /^[A-Z][A-Z0-9_]{0,63}$/.test(name))
@@ -427,6 +515,22 @@ export function createSecurityLogger(sink: LogSink = pino()): SecurityLogger {
         'data export',
       )
     },
+    fileReclaimed(fields) {
+      sink.info(
+        {
+          event: 'file_reclaimed',
+          file_id: fields.fileId,
+          owner_id: fields.ownerId,
+          kind: safeLabel(fields.kind),
+          bytes: fields.bytes,
+          unreferenced_since:
+            fields.unreferencedSince === null
+              ? null
+              : safeInstant(fields.unreferencedSince),
+        },
+        'file reclaimed',
+      )
+    },
     cspViolation(fields) {
       const safe = safeCspViolation(fields)
       sink.warn(
@@ -487,6 +591,21 @@ export function createSecurityLogger(sink: LogSink = pino()): SecurityLogger {
             ? {}
             : { database: safeLabel(fields.database) }),
           ...(fields.port === undefined ? {} : { port: fields.port }),
+          ...(fields.reclaimedPictures === undefined
+            ? {}
+            : { reclaimed_pictures: fields.reclaimedPictures }),
+          ...(fields.purgedTrash === undefined
+            ? {}
+            : { purged_trash: fields.purgedTrash }),
+          ...(fields.purgedEvents === undefined
+            ? {}
+            : { purged_events: fields.purgedEvents }),
+          ...(fields.prunedSessions === undefined
+            ? {}
+            : { pruned_sessions: fields.prunedSessions }),
+          ...(fields.durationMs === undefined
+            ? {}
+            : { duration_ms: fields.durationMs }),
           ...(fields.note === undefined ? {} : { note: safeNote(fields.note) }),
           ...(fields.missing === undefined
             ? {}

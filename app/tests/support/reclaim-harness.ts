@@ -64,6 +64,18 @@ export const INSIDE_THE_WINDOW = RECLAIM_WINDOW_DAYS - 1
 /** One day outside it: the sweep must take this one, row and bytes. */
 export const OUTSIDE_THE_WINDOW = RECLAIM_WINDOW_DAYS + 1
 
+/**
+ * How many rows one pass of the sweep may take (issue #276), written here
+ * and never imported from `SWEEP_BATCH` in `src/server/database.ts`.
+ *
+ * Same rule as `RECLAIM_WINDOW_DAYS` above and the same reason: a criterion
+ * that imported the implementation's constant would move with any edit to it
+ * and pin nothing at all. What AC-810 asserts is that *some* number bounds
+ * the tick and that it is this one; if the number is deliberately changed,
+ * this line moves with the decision and the pull request says so.
+ */
+export const RECLAIM_BATCH = 200
+
 export interface ReclaimApp {
   /** The application, its database and its 11.10 sink. */
   app: AuthTestApp
@@ -86,8 +98,16 @@ export async function startReclaimApp(): Promise<ReclaimApp> {
 export const AVATAR_PATH = '/api/v1/files/'
 
 /**
- * A picture with no folder, owned by this person: the only shape the sweep
- * considers at all (`kind IN ('cover','image') AND folder_id IS NULL`).
+ * A picture with no folder, owned by this person: one of the shapes the sweep
+ * considers (`kindIsReclaimable() AND folder_id IS NULL`, `domain/files.ts`).
+ *
+ * **It is not the whole of that scope and stopped being it at #220**, which
+ * widened `RECLAIMABLE_KINDS` from `cover` and `image` to those two plus
+ * `file`, `audio` and `video`. This helper stays at the two picture kinds
+ * because AC-700 to AC-704 are about the five *reference* arms and want one
+ * unchanging subject; the three kinds it cannot make are reached through
+ * `uploadKindOk` in `uploads-harness.ts`, which is what AC-705 uses to read
+ * the kind clause itself.
  *
  * Sent with no `folder_id` part rather than an empty one, which is the wire
  * shape 7.15 admits as amended by issues #20, #100 and #167.
@@ -187,6 +207,72 @@ export async function ageTheMark(
     moved.length,
     `ageTheMark must move exactly one files row; ${fileId} matched ${String(moved.length)}`,
   ).toBe(1)
+}
+
+/**
+ * Many folder-less `cover` rows, already marked and already aged, seeded in
+ * SQL and put into the store by hand (issue #276).
+ *
+ * **Why not `folderlessPicture` two hundred and one times.** AC-810's cap
+ * case needs one more row than the sweep may take in a pass, and 201 uploads
+ * is 201 multipart requests each running sharp over a PNG, which is minutes
+ * rather than seconds and buys nothing: the cap is a clause in one statement
+ * and does not care how the rows arrived. The five criteria that are about
+ * *how a reference is made* go through the write path and should; this one is
+ * about arithmetic over rows.
+ *
+ * The mark is written here rather than by a first pass, so one pass is enough
+ * to reach the delete arm — which is the arm the cap is on. `ageTheMark`'s
+ * own header records that handing the delete arm a mark the mark arm would
+ * not have written is the only way to stand in front of it.
+ *
+ * The object goes into the store beside the row, because a cap that deleted
+ * two hundred rows and removed no bytes would satisfy any assertion counting
+ * rows alone.
+ */
+export async function seedAgedPictures(
+  fixture: ReclaimApp,
+  ownerId: string,
+  count: number,
+  days: number,
+): Promise<string[]> {
+  const seeded = await rows(
+    fixture.app.db,
+    sql`INSERT INTO files (owner_id, folder_id, kind, name, mime, bytes,
+                           unreferenced_since)
+        SELECT ${ownerId}::uuid, NULL, 'cover',
+               'ac810-' || s.n || '.png', 'image/png',
+               ${ONE_PIXEL_PNG.byteLength},
+               now() - ${days}::int * interval '1 day'
+          FROM generate_series(1, ${count}) AS s(n)
+        RETURNING id`,
+  )
+  expect(
+    seeded.length,
+    `seedAgedPictures must insert exactly ${String(count)} files rows`,
+  ).toBe(count)
+  const ids = seeded.map((row) => String(row.id))
+  for (const id of ids) await fixture.store.put(id, ONE_PIXEL_PNG)
+  return ids
+}
+
+/** How many of these ids still have a `files` row, and how many still have
+ * their bytes. Both, always, for `expectSpared`'s reason: they fail apart. */
+export async function survivorsOf(
+  fixture: ReclaimApp,
+  ids: readonly string[],
+): Promise<{ rows: string[]; bytes: string[] }> {
+  const live = await rows(
+    fixture.app.db,
+    sql`SELECT f.id FROM files f
+          JOIN jsonb_array_elements_text(${JSON.stringify(ids)}::jsonb) AS w(id)
+            ON f.id = w.id::uuid`,
+  )
+  const bytes: string[] = []
+  for (const id of ids) {
+    if ((await fixture.store.get(id)) !== null) bytes.push(id)
+  }
+  return { rows: live.map((row) => String(row.id)).sort(), bytes: bytes.sort() }
 }
 
 /** The two drivers of 11.10 render a boolean differently often enough that

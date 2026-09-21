@@ -23,6 +23,18 @@ an unhandled rejection, which ends the process on Node 24's default. Every
 pass is caught and logged here, and a failed cycle pings no heartbeat, so
 repeated failure surfaces as heartbeat silence rather than as a quiet process
 that stopped delivering (11.12).
+
+**The failure path is logged here and the success path is not, which is a
+decision and not the hole issue #276 found.** Until that issue this file
+discarded the outcome entirely: `void pass().catch(…)` wrote a line for a
+throw and nothing whatever for a pass that deleted somebody's picture. The
+`reminder_pass_completed` line that answers it lives in `./pass.js`, at the
+end of the callable, for two reasons that both say the same thing — 11.7
+contemplates this timer being replaced by an external per-minute trigger, and
+a record that lives in the driver goes when the driver does; and the callable
+is the acceptance suite's only way in, so a line written here is a line
+nothing can test. A throw cannot reach that line, which is why this catch
+stays.
 */
 import { pino } from 'pino'
 

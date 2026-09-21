@@ -13,6 +13,40 @@ export interface Executor {
   execute(statement: SQL): Promise<unknown>
 }
 
+/**
+ * How many rows one duty of the 11.7 tick may claim in one pass (issue
+ * #276).
+ *
+ * **The tick is sixty seconds and a pass that outruns it costs the next
+ * one.** `scheduler/interval.ts` logs `reminder_pass_overlapped` and
+ * *skips* rather than queueing, so an unbounded sweep does not merely run
+ * long: it eats ticks for as long as it takes. Until this constant every
+ * background DELETE in the pass was unbounded, and the reclaim was the one
+ * that mattered, because it is the only one that follows its statement with
+ * a **serial, awaited `store.remove(id)` per row** — work outside the
+ * database that no plan bounds.
+ *
+ * **Why 200 and not a rounder number.** The cost that decides this is the
+ * object store, not the SQL. On the disk store an unlink is well under a
+ * millisecond and 200 is free; on the S3-compatible store section 13 holds
+ * open for S-inf it is a network round trip, 50 to 100 ms, so 200 rows is
+ * 10 to 20 seconds — a third of the tick, which leaves the delivery
+ * transaction and the other three duties their minute. A thousand rows at
+ * the same rate is 100 seconds and the tick is already lost. The other
+ * direction is cheap to check: 200 a minute is 288,000 a day, so no
+ * plausible backlog takes even a day to drain, and a row that waits one
+ * extra tick has by then waited thirty days.
+ *
+ * It is one number for all four duties because they have one deadline. The
+ * claims differ — `destroyFolders` caps *folders* and each one cascades an
+ * unbounded number of rows away with it — so this bounds the claim rather
+ * than the work, which is the honest statement of what a `LIMIT` on a
+ * `FOR UPDATE SKIP LOCKED` claim can buy. Every duty is idempotent and a
+ * repeat finds the rest, which is what makes truncating a pass safe at all
+ * (11.7).
+ */
+export const SWEEP_BATCH = 200
+
 interface Transactional {
   transaction<T>(run: (tx: Executor) => Promise<T>): Promise<T>
 }
