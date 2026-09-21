@@ -101,7 +101,19 @@ export const EXPORT_FORMAT = 'dana-export'
  * spent rather than deleted, because the reasoning above is why the number is
  * 5 and a reader meeting a gap would otherwise re-derive it from nothing.
  */
-export const EXPORT_VERSION = 5
+/*
+**5 to 6 on 2026-09-21, for Ruling 7 of the #210 addendum**, https://github.com/zhssnym/dana/issues/210#issuecomment-5757696835.
+The document gains a `facets` collection: a private facet is content only its
+owner can reach, and an export that left it out would hand somebody a copy of
+their own data with their own writing missing. A version-5 reader's schema does
+not declare `facets`, so it would drop them in silence -- which is the whole of
+why this number moves rather than the shape arriving quietly.
+
+The paragraph above is still the rule for taking the next one: read it off the
+branches that are open rather than off this file. This branch is the only one
+open with an export change on it, checked at the time of writing.
+*/
+export const EXPORT_VERSION = 6
 
 /**
  * 10.3's "List responses capped at 1000 rows with truncated flag", applied
@@ -134,6 +146,8 @@ export const EXPORT_COLLECTIONS = [
   'views',
   'files',
   'personal_labels',
+  'facets',
+  'facets.blocks',
 ] as const
 export type ExportCollection = (typeof EXPORT_COLLECTIONS)[number]
 
@@ -305,6 +319,48 @@ export const exportFolder = z.object({
   personal_label_ids: z.array(z.uuid()),
 })
 export type ExportFolder = z.infer<typeof exportFolder>
+
+/**
+ * One Folder facet of the exporting person's own, with its document
+ * (Ruling 7 of the #210 addendum, https://github.com/zhssnym/dana/issues/210#issuecomment-5757696835).
+ *
+ * **It is a top-level collection rather than a field on `exportFolder`**, and
+ * that follows from what it carries: `folders` holds the folders this person
+ * **owns**, and a private facet can sit in any folder they are merely a member
+ * of. Nesting it would have silently dropped exactly the facets most worth
+ * keeping. `folder_id` is here instead, naming a folder that may or may not
+ * appear in `folders` above.
+ *
+ * **Which facets are in it, and the rule 7.22 states in words.** Every facet
+ * whose `owner_id` is the exporting person, in every folder they are currently
+ * in -- that is the private ones, all of them, because no other kind has an
+ * owner. **Shared facets follow the folder page they sit beside**: the page is
+ * carried under `folders.blocks` for a folder this person owns and not
+ * otherwise, so a shared facet is carried on the same terms. A facet in Trash
+ * is carried with `trashed: true`, as a trashed folder is.
+ *
+ * `name` is resolved exactly as 7.27 resolves it, including a Work facet's
+ * from its H1, so the document reads as the tabs read. A Work facet carries no
+ * blocks of its own: it is a view of the folder page, which is already here.
+ */
+export const exportFacet = z.object({
+  id: z.uuid(),
+  folder_id: z.uuid(),
+  kind: z.string(),
+  /** Server-resolved, never a stored column (7.27). */
+  name: z.string(),
+  display_name: z.string().nullable(),
+  hidden: z.boolean(),
+  private: z.boolean(),
+  position: z.string(),
+  h1_block_id: z.uuid().nullable(),
+  created_at: z.string(),
+  updated_at: z.string(),
+  trashed: z.boolean(),
+  /** 4.17's storage format, the same shape `folders.blocks` uses. */
+  blocks: z.array(exportBlock),
+})
+export type ExportFacet = z.infer<typeof exportFacet>
 
 /**
  * A task in somebody else's folder that is still the person's own work:
@@ -533,6 +589,10 @@ export const exportDocument = z.object({
    * entry anywhere in this document resolves here, and no other account's
    * Personal Label appears in this document at all (#227 area 5). */
   personal_labels: z.array(exportLabel),
+  /** Ruling 7 of the #210 addendum: the exporting person's own Folder facets
+   * with their documents, top-level because a private facet can sit in a
+   * folder they do not own. `exportFacet` carries the rule. */
+  facets: z.array(exportFacet),
   /** The collections 10.3's cap cut, by the names in `EXPORT_COLLECTIONS`.
    * Empty on every export that fit, which is every ordinary one. */
   truncated: z.array(z.enum(EXPORT_COLLECTIONS)),

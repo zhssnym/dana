@@ -360,7 +360,29 @@ async function blockingColumnsOnUsers(db: Db): Promise<BlockingColumn[]> {
  * (4.13) precisely so that its acts survive it, and nothing hard-deletes a
  * user outside this suite.
  */
-const ACTS_RATHER_THAN_MENTIONS = new Set(['folder_access_history.actor_id'])
+/*
+`folder_facets.owner_id` joined it on 2026-09-21 (issue #210), on the same
+argument in a different shape. Null there does not mean "this row is somebody
+else's"; it means **the facet is shared with the whole Folder**, and
+`folder_facets_owner_kind_check` refuses the pair that nulling would produce --
+a `private_blank` row with no owner. So the database refuses it, exactly as it
+refuses the history one, and for the same reason: the column is not a mention.
+
+The row goes with its owner. A private facet is one person's own writing,
+nobody else can read it (`facet.read` admits no preset at all), and converting
+it into a shared facet of the Folder on the way out would publish it -- which
+is the one thing #210's privacy rule exists to prevent, and the worst possible
+thing for an `afterAll` helper to do on nobody's authority.
+
+**This cannot arise in the product either**: 8.10 scrubs the `users` row rather
+than deleting it, which is why both of `folder_facets`' keys are RESTRICT
+(4.30, on 4.28's precedent), so a departing account's private facet keeps
+pointing at a scrubbed row and is read by nobody.
+*/
+const ACTS_RATHER_THAN_MENTIONS = new Set([
+  'folder_access_history.actor_id',
+  'folder_facets.owner_id',
+])
 
 const key = (reference: BlockingColumn): string =>
   `${reference.table_name}.${reference.column_name}`

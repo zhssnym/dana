@@ -315,10 +315,23 @@ describe('AC-236 every mutating route is behind the whole chain', () => {
     // #224's two nor #226's twelve; the resolution is the sum a third time,
     // and 86 is what this sweep itself reported on the rebased tree rather
     // than what either diff implies.**
+    //
+    // **86 to 95 on 2026-09-21 for the nine facet mutations** (issue #210,
+    // M1-F): `POST /folders/:id/facets`, `PATCH` and `DELETE
+    // /folders/:id/facets/:facetId`, `PUT /folders/:id/facets/order`, `PUT
+    // /folders/:id/facets/my-order`, `POST
+    // /folders/:id/facets/:facetId/share`, `POST
+    // /folders/:id/facets/:facetId/page/actions`, `POST
+    // /facets/:id/restore` and `DELETE /trash/facets/:id`. The same way round
+    // as every rise above — the sweep passed on all nine before this number
+    // was touched, 401 bare and 403 without CSRF — and the two facet reads the
+    // same change adds move the count below rather than this one. #210 read 86
+    // on its own tree, which is `main` at 46dbabd, so 95 is the sum and is
+    // this sweep's own answer rather than an arithmetic on a diff.
     expect(
       routes.length,
-      `the walker found ${String(routes.length)} mutating routes and there were 86 after issue #224 added the two task-dependency mutations, issue #226 added the twelve mutating routes of the Label surface, issue #228 added the two Access-administration mutations and issue #230 added the two Responsibility mutations. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means a route was added, and this number moves with it in the same change`,
-    ).toBe(86)
+      `the walker found ${String(routes.length)} mutating routes and there were 95 after issue #224 added the two task-dependency mutations, issue #226 added the twelve mutating routes of the Label surface, issue #228 added the two Access-administration mutations, issue #230 added the two Responsibility mutations and issue #210 added the nine facet mutations. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means a route was added, and this number moves with it in the same change`,
+    ).toBe(95)
 
     const failures: string[] = []
     const jsonBody = {
@@ -428,10 +441,18 @@ describe('AC-236 every mutating route is behind the whole chain', () => {
     // the sweep below established before this number moved. **#230 read 45 on
     // its own tree, which was #228's and held none of the four above it, so
     // 46 is the sum and is this sweep's own answer on the rebased tree.**
+    //
+    // 46 to 48 on 2026-09-21 for the two facet reads (issue #210):
+    // `GET /folders/:id/facets`, the facet listing, and
+    // `GET /folders/:id/facets/:facetId/page`, a blank facet's document.
+    // Neither earns a PUBLIC_READS entry and neither needs one: both answer
+    // 401 bare, which the sweep below established before this number moved.
+    // #210 read 46 on its own tree, which is `main` at 46dbabd, so 48 is this
+    // sweep's own answer on that tree.
     expect(
       routes.length,
-      `the walker found ${String(routes.length)} reading routes and there were 46 after issue #223 added the two Dana Link reads, issue #224 added the task-dependency read, issue #226 added the Label definition listing, issue #228 added the two Access-history reads and issue #230 added the three Responsibility reads. Fewer means the enumeration lost sight of routes that still exist; more means a GET was added, and it must either answer 401 bare or earn a PUBLIC_READS entry, and this number moves with it in the same change`,
-    ).toBe(46)
+      `the walker found ${String(routes.length)} reading routes and there were 48 after issue #223 added the two Dana Link reads, issue #224 added the task-dependency read, issue #226 added the Label definition listing, issue #228 added the two Access-history reads, issue #230 added the three Responsibility reads and issue #210 added the two facet reads. Fewer means the enumeration lost sight of routes that still exist; more means a GET was added, and it must either answer 401 bare or earn a PUBLIC_READS entry, and this number moves with it in the same change`,
+    ).toBe(48)
 
     const failures: string[] = []
     for (const { method, path } of routes) {

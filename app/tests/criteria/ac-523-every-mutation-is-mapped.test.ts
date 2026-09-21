@@ -260,6 +260,57 @@ const GOVERNED: Record<string, FolderAction> = {
   'POST /api/v1/invites': 'invite.create',
   'POST /api/v1/invites/:id/cancel': 'invite.administer',
   'POST /api/v1/invites/:id/resend': 'invite.administer',
+  /* ---------------------------------------------------------------- *
+   * #210's facet surface (M1-F), on Hassan's ruling of 2026-09-21
+   * ---------------------------------------------------------------- *
+
+   Nine mutations, eight of them governed here and one classified below.
+
+   Three of the eight name an act whose bar `whenOwnPrivateFacet` moves for
+   one row and one person -- create, rename and delete -- and the row names
+   the act rather than the escape, which is this table's rule everywhere: the
+   assignment rows above name `task.edit` and not "Can contribute over their
+   own". Whether the escape is narrow is **AC-523 proof 26**'s subject and
+   **AC-838**'s, not this mapping's.
+
+   Two of them need reading against their route.
+   `PATCH /folders/:id/facets/:facetId` carries two fields that are two
+   different acts -- `display_name` is `facet.rename` and `hidden` is
+   `facet.hide` -- and the route asks each only when its field arrived, so a
+   patch carrying both must satisfy both. It is mapped to `facet.rename` here
+   on the header's rule for a route that performs more than one act: name the
+   one a reader must not miss, and `facet.rename` is the one carrying the
+   private-facet escape.
+   `POST /folders/:id/facets/:facetId/page/actions` is mapped to
+   `folder.page.edit` because that is what a **shared** blank facet's document
+   is -- ordinary shared Work, #228's Can-edit list, the same bar the Folder
+   page itself asks. A **private** facet's document is `facet.read`, which no
+   preset satisfies; the route asks whichever of the two the facet's
+   `owner_id` selects, under the row's lock. One row cannot say both, and the
+   stricter of the two is the one nobody can reach by preset, so naming it
+   here would read as "this route refuses everyone".
+
+   `POST /api/v1/facets/:id/restore` is `facet.delete` rather than an eighth
+   action, which is a decision rather than an omission: the ruling names seven
+   actions and no `facet.restore`, and #228's own Can-edit list carries
+   restore beside trash for Tasks (`task.restore` is `can_edit`, as
+   `task.trash` is). Restoring what you were allowed to trash is the same
+   authority, and a private facet's owner keeps it through the same escape.
+   Said out loud here because it is the one row on this block that is a
+   reading rather than a transcription. */
+  'POST /api/v1/folders/:id/facets': 'facet.create',
+  'PATCH /api/v1/folders/:id/facets/:facetId': 'facet.rename',
+  'DELETE /api/v1/folders/:id/facets/:facetId': 'facet.delete',
+  'PUT /api/v1/folders/:id/facets/order': 'facet.reorder',
+  'POST /api/v1/folders/:id/facets/:facetId/share': 'facet.convert_to_shared',
+  'POST /api/v1/folders/:id/facets/:facetId/page/actions': 'folder.page.edit',
+  'POST /api/v1/facets/:id/restore': 'facet.delete',
+  /* The permanent delete is `task.destroy` and not a facet action, and that
+     is the ruling's own sentence: "Full control with ownership ignored, the
+     Task rule of 7.13's 2026-09-20 correction". Naming the Task action rather
+     than minting an eighth one keeps the two permanent deletes provably the
+     same rule instead of two rules that happen to agree today. */
+  'DELETE /api/v1/trash/facets/:id': 'task.destroy',
 }
 
 /**
@@ -331,6 +382,25 @@ const OUTSIDE_FOLDER_ACCESS: Record<string, string> = {
   'POST /api/v1/labels/personal/:labelId/restore': "the person's own Label",
   'POST /api/csp-report/':
     "the browser's own report of a policy refusal (issue #99). No session, no database, no folder",
+  /* #210's private facet order, and it is the one route of that surface that
+     is **not** Folder Access's. Hassan's ruling of 2026-09-21 says so in
+     terms: "no eighth action for the private order write: that is the existing
+     `personal.view_preferences`, #228's personal-actions rule putting a
+     member's own arrangement of rows only they can see outside Folder Access
+     entirely."
+
+     It is not ungoverned. `routes/facets.ts` resolves the folder through
+     `accessOf` first, so a non-member is 404, and then asks
+     `personal.view_preferences`, which is `atLeast: 'can_view'` and
+     `personal: true` -- membership and nothing more. Every row it writes is
+     one the caller owns: the statement carries
+     `owner_id = <viewer>`, and a placement naming anybody else's facet is
+     answered 404 before it. That is the same shape as
+     `PATCH /folders/:id/my-membership` in GOVERNED above, which is listed
+     there because it does name a Folder action; this one names none, which is
+     why it is here. */
+  'PUT /api/v1/folders/:id/facets/my-order':
+    "the caller's own arrangement of the private facets only they can read (#210, ruling of 2026-09-21 section 2). Membership-gated through `personal.view_preferences`, and every row it writes carries `owner_id = <viewer>`",
 }
 
 describe('AC-523 every mutation is mapped to an action or classified outside', () => {
@@ -500,6 +570,86 @@ describe('AC-523 every mutation is mapped to an action or classified outside', (
       expect(
         mayPerform(facts(preset), 'label.vocabulary.manage').allowed,
         `#228: nor the vocabulary`,
+      ).toBe(false)
+    }
+  })
+
+  test('AC-523 proof 26: the facet-ownership clause never admits a preset on a facet that is not theirs', () => {
+    /*
+    Issue #210's `whenOwnPrivateFacet`, held to exactly the bargain proof 24
+    holds `whenAssignedToActor` to, and added here rather than in a file of
+    its own because the flag is a second escape from the same bar and the two
+    would otherwise be watched by one sentence and one loop.
+
+    The escape is a **boundary rather than a grant**: it may let any preset
+    act on a private facet that is *theirs*, and it must never let a preset
+    act on a facet that is not. Three shapes are asked of every rule carrying
+    the flag, and the third is the one that would go quiet first -- a null
+    `facetOwnerId` is every facet that is not a private blank, which
+    `folder_facets_owner_kind_check` makes a database fact, so a clause that
+    treated null as "no owner, therefore mine" would hand every member of the
+    folder every shared facet at every preset.
+
+    An absent `facetOwnerId` is asked too, because that is what a caller who
+    forgot to read the facet row hands over, and the answer must be the bar's
+    own rather than a grant.
+    */
+    const somebodyElse = '00000000-0000-0000-0000-00000000210e'
+    const me = '00000000-0000-0000-0000-000000000002'
+    const facts = (access: FolderAccessPreset) => ({
+      folderId: '00000000-0000-0000-0000-000000000001',
+      actorId: me,
+      access,
+      isOwner: false,
+      isDefault: false,
+      name: 'ac523',
+    })
+    const carriers = FOLDER_ACTIONS.filter(
+      (action) => ruleFor(action).whenOwnPrivateFacet === true,
+    )
+    expect(
+      carriers.length,
+      "issue #210's ruling gives the flag to six of the seven facet actions -- read, create, rename, reorder, delete and convert -- and withholds it from `facet.hide`, because hiding a native changes what every member sees",
+    ).toBe(6)
+
+    for (const action of carriers) {
+      const rule = ruleFor(action)
+      for (const preset of FOLDER_ACCESS_PRESETS) {
+        const bar = rule.atLeast
+        const byBar = bar !== null && atLeast(preset, bar)
+        expect(
+          mayPerform(facts(preset), action, { facetOwnerId: me }).allowed,
+          `${action} must admit ${preset} on a private facet that is theirs`,
+        ).toBe(true)
+        expect(
+          mayPerform(facts(preset), action, { facetOwnerId: somebodyElse })
+            .allowed,
+          `${action} must refuse ${preset} on another member's private facet unless the bar already admitted them`,
+        ).toBe(byBar)
+        expect(
+          mayPerform(facts(preset), action, { facetOwnerId: null }).allowed,
+          `${action} must refuse ${preset} on a facet with no owner -- every kind but a private blank -- unless the bar already admitted them`,
+        ).toBe(byBar)
+        expect(
+          mayPerform(facts(preset), action, {}).allowed,
+          `${action} must refuse ${preset} when the caller named no facet at all, unless the bar already admitted them`,
+        ).toBe(byBar)
+      }
+    }
+
+    /* `facet.read` is the one with no bar at all, so the loop above proves it
+       refuses every preset on somebody else's facet without ever proving that
+       "every preset" includes the two that would be assumed to be exempt.
+       Said explicitly, because it is the ruling's own sentence and it is the
+       whole of invariant 9. */
+    for (const preset of ['full_control', 'can_edit'] as const) {
+      expect(
+        mayPerform(
+          { ...facts(preset), isOwner: true },
+          'facet.read',
+          { facetOwnerId: somebodyElse },
+        ).allowed,
+        `#210 and #209: the structural owner holding ${preset} reads no member's private facet`,
       ).toBe(false)
     }
   })

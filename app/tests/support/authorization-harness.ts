@@ -406,6 +406,49 @@ export async function writePage(
   expectStatus(put, 200, `PUT /${home}/:id/page must write the page (spec 7.16)`)
 }
 
+/**
+ * A shared blank facet of a folder (7.27, issue #210).
+ *
+ * Shared rather than private, deliberately: a private facet is invisible to
+ * every other member, so a fixture built as one would make the `member` rows
+ * of `ac-397` answer 404 for the privacy rule rather than 403 for the preset,
+ * and the sweep would be measuring the wrong refusal.
+ */
+export async function makeFacet(
+  owner: Actor,
+  folderId: string,
+  name: string,
+): Promise<string> {
+  const made = await owner.browser.json(`/folders/${folderId}/facets`, 'POST', {
+    kind: 'shared_blank',
+    display_name: name,
+  })
+  expectStatus(
+    made,
+    201,
+    'POST /folders/:id/facets must create a shared blank facet (spec 7.27)',
+  )
+  return String((made.json() as { id: string }).id)
+}
+
+/** A facet in the Trash, addressed afterwards by the restore and the
+ * permanent-delete routes. */
+export async function trashFacet(
+  owner: Actor,
+  folderId: string,
+  facetId: string,
+): Promise<void> {
+  const deleted = await owner.browser.json(
+    `/folders/${folderId}/facets/${facetId}`,
+    'DELETE',
+  )
+  expectStatus(
+    deleted,
+    204,
+    'DELETE /folders/:id/facets/:facetId must trash the facet (spec 7.27, 7.13)',
+  )
+}
+
 /** A task in the Trash: 7.13's delete is the ordinary one, and the row is
  * then addressed by the permanent-delete route. */
 export async function trashTask(owner: Actor, taskId: string): Promise<void> {

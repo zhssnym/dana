@@ -73,7 +73,10 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
 import type { DbClient } from '../../db/client.js'
 import { constraintCatalog } from '../../db/constraint-catalog.js'
-import { USER_CASCADE_DISPOSALS } from '../../src/server/domain/account-deletion.js'
+import {
+  USER_CASCADE_DISPOSALS,
+  USER_RESTRICT_DISPOSALS,
+} from '../../src/server/domain/account-deletion.js'
 import { createTestDb, rows } from '../support/helpers.js'
 
 /*
@@ -100,10 +103,43 @@ const deletionModule = path.join(
 /**
  * The clauses that promise to change a row when the referenced user goes, and
  * therefore the ones whose silence costs something. `restrict` and
- * `no action` are deliberately absent: they promise to *refuse* a delete that
- * never happens, which leaves nothing in a wrong state.
+ * `no action` are absent **from this list** and are enumerated separately
+ * below: they promise to *refuse* a delete that never happens, which leaves
+ * nothing in a wrong state, and that was the whole of the reasoning until
+ * 2026-09-21.
+ *
+ * **Ruling 6 of issue #210 is why it was not enough.** "Leaves nothing in a
+ * wrong state" is true of a row that is meant to outlive the account and false
+ * of one that is not, and the two are indistinguishable from the clause. A
+ * private facet under `folder_facets.owner_id` is the second kind: writing no
+ * other member may read, in a folder the account is leaving, which nothing was
+ * ever going to clear and nobody would ever have been able to read or remove
+ * again. `USER_RESTRICT_DISPOSALS` makes each of the eighteen say which kind
+ * it is, and the pair of tests below hold that list to the schema in both
+ * directions.
  */
 const SILENTLY_INERT: readonly string[] = ['cascade', 'set null']
+
+/** The clauses that refuse rather than change, enumerated since Ruling 6. */
+const REFUSES_RATHER_THAN_CHANGES: readonly string[] = ['restrict', 'no action']
+
+/** The refusing keys on `users(id)` that section 4's catalog describes. */
+function catalogRestrictKeys(): string[] {
+  const found: string[] = []
+  for (const table of Object.values(constraintCatalog)) {
+    for (const key of table.foreignKeys) {
+      if (
+        REFUSES_RATHER_THAN_CHANGES.includes(key.onDelete) &&
+        key.references.table === 'users' &&
+        key.references.columns.length === 1 &&
+        key.references.columns[0] === 'id'
+      ) {
+        found.push(key.name)
+      }
+    }
+  }
+  return found.sort()
+}
 
 /** The inert keys on `users(id)` that section 4's catalog describes. */
 function catalogCascadeKeys(): string[] {
@@ -201,6 +237,88 @@ describe('account deletion sweeps every inert cascade on users(id)', () => {
       live,
       'the migrated schema and USER_CASCADE_DISPOSALS must name the same keys, over both the clauses that fire on a delete that never comes. This is the half the catalog walk cannot do: sessions_user_id_fkey is one of these and db/constraint-catalog.ts has never carried it, so a table added outside section 4 the same way would be invisible to a guard that read the catalog alone (spec 10.1, AC-001; issues #253, #230).',
     ).toEqual(USER_CASCADE_DISPOSALS.map((entry) => entry.fk).sort())
+  })
+
+  test('every refusing key on users(id) says whether its rows are swept or outlive', async () => {
+    /* Ruling 6 of issue #210, and it is the half this guard was blind to. The
+       catalog and the live schema are both read, because the cascade half
+       above records that `sessions_user_id_fkey` is outside section 4 and a
+       table added the same way would be invisible to a catalog walk alone. */
+    const declared = USER_RESTRICT_DISPOSALS.map((entry) => entry.fk).sort()
+    expect(
+      declared,
+      'every ON DELETE RESTRICT or NO ACTION key on users(id) needs an entry in USER_RESTRICT_DISPOSALS saying whether a statement sweeps its rows or whether they deliberately outlive the account. "It only refuses a delete that never comes" is true of a row meant to outlive and false of one that is not, and the clause cannot tell you which -- which is how a departed member\'s private facet survived, readable by nobody and removable by nobody (Ruling 6, issue #210).',
+    ).toEqual(catalogRestrictKeys())
+
+    const live = await rows(
+      client.db,
+      sql`SELECT c.conname AS name
+            FROM pg_constraint c
+            JOIN pg_class child ON child.oid = c.conrelid
+            JOIN pg_class parent ON parent.oid = c.confrelid
+            JOIN pg_namespace n ON n.oid = child.relnamespace
+           WHERE c.contype = 'f'
+             AND c.confdeltype IN ('r', 'a')
+             AND parent.relname = 'users'
+             AND n.nspname = 'public'`,
+    )
+    expect(
+      live.map((row) => String(row.name)).sort(),
+      'and the migrated schema names the same keys, so a nineteenth is a decision somebody writes down rather than a silence',
+    ).toEqual(declared)
+  })
+
+  test('every swept refusing key names a statement that exists', () => {
+    const swept = USER_RESTRICT_DISPOSALS.filter(
+      (entry) => entry.disposition === 'swept',
+    )
+    expect(
+      swept.map((entry) => entry.fk).sort(),
+      "three keys are swept rather than left to outlive: the account's own folders, its own uploads, and -- since Ruling 6 of issue #210 -- its private facets in folders it is leaving. A fourth appearing is a decision to read",
+    ).toEqual([
+      'files_owner_id_fkey',
+      'folder_facets_owner_id_fkey',
+      'folders_owner_id_fkey',
+    ])
+    for (const entry of USER_RESTRICT_DISPOSALS) {
+      expect(
+        entry.why.length,
+        `${entry.fk} must carry an argument rather than a label, on the same rule the cascade list keeps`,
+      ).toBeGreaterThan(80)
+      /* Both directions, and the second is the one that was missing. An
+         entry that says its rows are **swept** must name the statement; an
+         entry that says they **outlive** must name none, because a `where`
+         on one of those is a sentence claiming a sweep that is not happening
+         -- which is exactly the shape of wrongness this whole list exists to
+         refuse. The line that stood here was `expect(X).toBe(X)` over the
+         same ternary twice and could never fail; found by the verification
+         of 743a6ac. */
+      if (entry.disposition === 'swept') {
+        expect(
+          entry.where.length,
+          `${entry.fk} says its rows are swept and names no statement`,
+        ).toBeGreaterThan(0)
+      } else {
+        expect(
+          entry.where,
+          `${entry.fk} says its rows outlive the account and names a statement anyway. One of the two is wrong, and a "where" nobody runs is the more dangerous half: it reads as a sweep that is happening`,
+        ).toBe('')
+      }
+    }
+
+    /* The one that is not in `account-deletion.ts` at all, and the reason is
+       worth an assertion rather than a sentence: R-CLEAN is where a leave, a
+       removal and 8.10 step 4 all meet, so the facet sweep is written once
+       there and a hook on the deletion module would have missed two of the
+       three paths. */
+    const folders = readFileSync(
+      path.join(here, '..', '..', 'src', 'server', 'domain', 'folders.ts'),
+      'utf8',
+    )
+    expect(
+      folders.includes('deletePrivateFacetsOf(tx, folderId, leaverId)'),
+      "Ruling 6 puts the private-facet sweep inside runRClean, which is the one place member removal, leaving and 8.10 step 4 all pass through. A hook on removeMembership would cover the first two and silently miss every account deletion, which is the mistake endResponsibilityStanding's own comment records having avoided.",
+    ).toBe(true)
   })
 
   test('the one retention is deliberate and is the only one', () => {

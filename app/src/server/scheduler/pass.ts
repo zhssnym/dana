@@ -66,6 +66,7 @@ import type { DbClient } from '../../../db/client.js'
 import type { ObjectStore } from '../files/store.js'
 import { pruneExpiredSessions } from '../auth/index.js'
 import { reclaimUnwornPictures } from '../domain/files.js'
+import { destroyFacets } from '../domain/facets.js'
 import { destroyFolders, destroyTasks, removeObjects } from '../domain/trash.js'
 import { SWEEP_BATCH, inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
@@ -148,8 +149,9 @@ export interface ReminderPassOutcome {
   failed: number
   /** Expired session rows the second duty removed (11.6, 11.7). */
   prunedSessions: number
-  /** Trash rows past 30 days the third duty purged: folders and tasks,
-   * their cascades uncounted (RFC 0005, 11.7). */
+  /** Trash rows past 30 days the third duty purged: folders, tasks and, since
+   * issue #210, custom Folder facets, their cascades uncounted (RFC 0005,
+   * 11.7). */
   purgedTrash: number
   /** Events past 90 days the fourth duty purged (4.13). */
   purgedEvents: number
@@ -437,8 +439,31 @@ export function createReminderPass(deps: ReminderPassDeps): ReminderPass {
            FOR UPDATE SKIP LOCKED`,
     )
     await removeObjects(deps.fileStore, taskPurge.fileIds)
+    /*
+    The third Trash kind (issue #210, 2026-09-21): a custom Folder facet, on
+    7.13's same thirty-day window and through `domain/facets.ts`'s own 11.7
+    collection rather than a delete written beside it, which is item 36's
+    requirement on every caller of that collection.
+
+    It collects no files and needs no `removeObjects` after it: a `files` row
+    is scoped to a folder (4.16) and the folder survives its facet, so what
+    the cascade drops is `page_blocks` rows, and the pictures they named are
+    then reclaimed by the fifth duty below on 7.19's own window.
+
+    Capped like the two above it, and for the same reason `database.ts` gives
+    at the constant: the claim is bounded, the cascade under it is not.
+    */
+    const facetPurge = await destroyFacets(
+      db,
+      sql`SELECT id FROM folder_facets
+           WHERE deleted_at < now() - interval '30 days'
+           LIMIT ${SWEEP_BATCH}
+           FOR UPDATE SKIP LOCKED`,
+    )
     const purgedTrash =
-      folderPurge.folderIds.length + taskPurge.taskIds.length
+      folderPurge.folderIds.length +
+      taskPurge.taskIds.length +
+      facetPurge.length
     const purgedEvents = (
       await rowsOf(
         db,
