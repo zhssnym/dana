@@ -255,7 +255,9 @@ describe('AC-563 the self-edit grant is off by default and narrow when on', () =
     action may answer differently.
 
     Asking it of the pure resolver rather than through HTTP is deliberate: it
-    is the only way to cover all fifty actions, and the resolver is where a
+    is the only way to cover every action in the vocabulary -- fifty when this
+    was written and fifty-seven since issue #210 added the facet family -- and
+    the resolver is where a
     widening would be written. The route half is the three cases above.
     */
     const me = '00000000-0000-0000-0000-00000000ac56'

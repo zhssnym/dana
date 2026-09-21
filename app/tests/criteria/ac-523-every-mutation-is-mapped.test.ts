@@ -503,4 +503,84 @@ describe('AC-523 every mutation is mapped to an action or classified outside', (
       ).toBe(false)
     }
   })
+
+  test('AC-523 proof 26: the facet-ownership clause never admits a preset on a facet that is not theirs', () => {
+    /*
+    Issue #210's `whenOwnPrivateFacet`, held to exactly the bargain proof 24
+    holds `whenAssignedToActor` to, and added here rather than in a file of
+    its own because the flag is a second escape from the same bar and the two
+    would otherwise be watched by one sentence and one loop.
+
+    The escape is a **boundary rather than a grant**: it may let any preset
+    act on a private facet that is *theirs*, and it must never let a preset
+    act on a facet that is not. Three shapes are asked of every rule carrying
+    the flag, and the third is the one that would go quiet first -- a null
+    `facetOwnerId` is every facet that is not a private blank, which
+    `folder_facets_owner_kind_check` makes a database fact, so a clause that
+    treated null as "no owner, therefore mine" would hand every member of the
+    folder every shared facet at every preset.
+
+    An absent `facetOwnerId` is asked too, because that is what a caller who
+    forgot to read the facet row hands over, and the answer must be the bar's
+    own rather than a grant.
+    */
+    const somebodyElse = '00000000-0000-0000-0000-00000000210e'
+    const me = '00000000-0000-0000-0000-000000000002'
+    const facts = (access: FolderAccessPreset) => ({
+      folderId: '00000000-0000-0000-0000-000000000001',
+      actorId: me,
+      access,
+      isOwner: false,
+      isDefault: false,
+      name: 'ac523',
+    })
+    const carriers = FOLDER_ACTIONS.filter(
+      (action) => ruleFor(action).whenOwnPrivateFacet === true,
+    )
+    expect(
+      carriers.length,
+      "issue #210's ruling gives the flag to six of the seven facet actions -- read, create, rename, reorder, delete and convert -- and withholds it from `facet.hide`, because hiding a native changes what every member sees",
+    ).toBe(6)
+
+    for (const action of carriers) {
+      const rule = ruleFor(action)
+      for (const preset of FOLDER_ACCESS_PRESETS) {
+        const bar = rule.atLeast
+        const byBar = bar !== null && atLeast(preset, bar)
+        expect(
+          mayPerform(facts(preset), action, { facetOwnerId: me }).allowed,
+          `${action} must admit ${preset} on a private facet that is theirs`,
+        ).toBe(true)
+        expect(
+          mayPerform(facts(preset), action, { facetOwnerId: somebodyElse })
+            .allowed,
+          `${action} must refuse ${preset} on another member's private facet unless the bar already admitted them`,
+        ).toBe(byBar)
+        expect(
+          mayPerform(facts(preset), action, { facetOwnerId: null }).allowed,
+          `${action} must refuse ${preset} on a facet with no owner -- every kind but a private blank -- unless the bar already admitted them`,
+        ).toBe(byBar)
+        expect(
+          mayPerform(facts(preset), action, {}).allowed,
+          `${action} must refuse ${preset} when the caller named no facet at all, unless the bar already admitted them`,
+        ).toBe(byBar)
+      }
+    }
+
+    /* `facet.read` is the one with no bar at all, so the loop above proves it
+       refuses every preset on somebody else's facet without ever proving that
+       "every preset" includes the two that would be assumed to be exempt.
+       Said explicitly, because it is the ruling's own sentence and it is the
+       whole of invariant 9. */
+    for (const preset of ['full_control', 'can_edit'] as const) {
+      expect(
+        mayPerform(
+          { ...facts(preset), isOwner: true },
+          'facet.read',
+          { facetOwnerId: somebodyElse },
+        ).allowed,
+        `#210 and #209: the structural owner holding ${preset} reads no member's private facet`,
+      ).toBe(false)
+    }
+  })
 })
