@@ -355,47 +355,62 @@ function savedAsWorkflow(
   pageView: PageView | undefined,
   vocabulary: readonly LabelDefinition[] = [],
 ): unknown {
-  const file = folderToWorkflowFile(
+  const saved = folderToWorkflowFile(
     'Launch',
     [detail(vocabulary.length > 0 ? ASSIGNED : [])],
     pageView?.blocks ?? [],
     pageView,
     vocabulary,
   )
-  return JSON.parse(JSON.stringify(file))
+  return JSON.parse(JSON.stringify(saved.file))
 }
 
 function versionOf(file: unknown): unknown {
   return (file as { version: unknown }).version
 }
 
+/*
+**These four cases moved with the writer, and the last one is why they could
+not quietly stop covering anything.** They read "a folder with no page writes
+version 1", "with a page writes 2", "with a vocabulary writes 3", and then a
+fourth case asserting that those three *were* every version the writer emits —
+whose own comment said "if the writer ever emits a fourth, one of these rows
+stops standing for a version and this fails rather than quietly covering less".
+#185 is that fourth, and the case did exactly what it was written to do.
+
+What the block pins has not changed: **the picker reads every file "Save as
+workflow" writes**, which is the defect #260 was opened about — a picker with a
+hand-written version literal refusing Dana's own exports. What has changed is
+that the writer now emits one version for every folder, because format 4's page
+is in every file it writes. So the three rows become one row driven over the
+three folders, and the fourth becomes the same guard stated for one version:
+whatever the writer emits, over every shape of folder, is inside the contract's
+own list.
+*/
 describe('the picker reads every file "Save as workflow" writes', () => {
-  test('a folder with no page writes version 1, and the picker reads it', () => {
-    const file = savedAsWorkflow(undefined)
-    expect(versionOf(file)).toBe(1)
-    expect(importWorkflowBody.safeParse(file).success).toBe(true)
-    expect(prepareWorkflowImport(file, names)).not.toBeNull()
+  const shapes: [string, PageView | undefined, readonly LabelDefinition[]][] = [
+    ['a folder with no page', undefined, []],
+    ['a folder with a page', PAGE, []],
+    ['a folder with a page and a vocabulary', PAGE, VOCABULARY],
+  ]
+
+  test('every shape of folder writes version 4, and the picker reads it', () => {
+    for (const [what, page, vocabulary] of shapes) {
+      const file = savedAsWorkflow(page, vocabulary)
+      expect(versionOf(file), `${what}: the writer emits one version (#185)`).toBe(4)
+      expect(
+        importWorkflowBody.safeParse(file).success,
+        `${what}: the contract reads it`,
+      ).toBe(true)
+      expect(prepareWorkflowImport(file, names), `${what}: the picker reads it`).not.toBeNull()
+    }
   })
 
-  test('a folder with a page writes version 2, and the picker reads it', () => {
-    const file = savedAsWorkflow(PAGE)
-    expect(versionOf(file)).toBe(2)
-    expect(importWorkflowBody.safeParse(file).success).toBe(true)
-    expect(prepareWorkflowImport(file, names)).not.toBeNull()
-  })
-
-  /* #227 area 4, added on this branch's rebase. A vocabulary outranks the
-     page: the writer picks 3 whenever it has one, whether or not there is a
-     document, so this is the same folder as the case above plus one Label. */
-  test('a folder with a label vocabulary writes version 3, and the picker reads it', () => {
-    const file = savedAsWorkflow(PAGE, VOCABULARY)
-    expect(versionOf(file)).toBe(3)
-    expect(importWorkflowBody.safeParse(file).success).toBe(true)
-    const prepared = prepareWorkflowImport(file, names)
+  /* #227 area 4. The point of carrying a vocabulary through the picker rather
+     than having it stripped as foreign: nothing is reported as left behind. */
+  test('a vocabulary reaches the request rather than being stripped', () => {
+    const prepared = prepareWorkflowImport(savedAsWorkflow(PAGE, VOCABULARY), names)
     expect(prepared).not.toBeNull()
-    /* The point of the version, and not incidental: a version 3 file carries
-       its vocabulary through the picker rather than having it stripped as
-       foreign, so nothing is reported as left behind. */
     expect(
       (prepared?.body.folders as Array<{ labels?: unknown[] }>)[0]?.labels,
       'the vocabulary reaches the request',
@@ -403,17 +418,23 @@ describe('the picker reads every file "Save as workflow" writes', () => {
     expect(prepared?.skippedContent, 'and nothing is reported as dropped').toBe(false)
   })
 
-  test('the versions the writer emits are every version it can emit', () => {
-    // Guards the rows above against becoming a subset: if the writer ever
-    // emits a fourth, one of these rows stops standing for a version and this
-    // fails rather than quietly covering less.
-    expect(
-      new Set([
-        versionOf(savedAsWorkflow(undefined)),
-        versionOf(savedAsWorkflow(PAGE)),
-        versionOf(savedAsWorkflow(PAGE, VOCABULARY)),
-      ]),
-    ).toEqual(new Set(WORKFLOW_FILE_VERSIONS))
+  /* And the work reaches the toast, which is the count `prepareWorkflowImport`
+     answers. A format 4 Task is a block of the page, so a count that read only
+     `folder.tasks` would tell every person importing a current file that their
+     folder arrived empty (#185). */
+  test('the Tasks on the page are the Tasks the toast counts', () => {
+    expect(prepareWorkflowImport(savedAsWorkflow(PAGE), names)?.taskCount).toBe(1)
+  })
+
+  test('every version the writer emits is one the contract lists', () => {
+    // The guard the fourth case above was: whatever the writer emits, over
+    // every shape of folder, is inside WORKFLOW_FILE_VERSIONS. It fails if the
+    // writer starts emitting a number nobody added to the list.
+    const emitted = new Set(
+      shapes.map(([, page, vocabulary]) => versionOf(savedAsWorkflow(page, vocabulary))),
+    )
+    expect([...emitted].filter((version) => !(WORKFLOW_FILE_VERSIONS as readonly unknown[]).includes(version))).toEqual([])
+    expect(emitted.size, 'and it is one version, not a menu').toBe(1)
   })
 })
 
