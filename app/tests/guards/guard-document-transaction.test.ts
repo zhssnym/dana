@@ -63,7 +63,9 @@ test('Issue194 duplicate, export and workflow import retain hierarchy and rich c
     model, and EXPORT_VERSION is the mechanism by which a reader that knows
     the old shape refuses rather than guesses. The decision this line pins is
     "which version the document declares", and it moved in the same change as
-    the key it is about.
+    the key it is about. That note is #226's and is kept; the one below is
+    #230's, and this is the resolution #230 asked for -- both notes and the
+    higher number.
 
     **3 to 4 at issue #227**, on exactly the same rule and in the same shape:
     the document gained the viewer's Personal Label catalog, each owned
@@ -73,8 +75,20 @@ test('Issue194 duplicate, export and workflow import retain hierarchy and rich c
     than hand back a document quietly missing a person's classification.
     AC-550 asserts the number against `EXPORT_VERSION` and the shape beside
     it; this line stays because it is the one that notices a *shape* change
-    that forgot its bump, which is the direction a green suite cannot see. */
- expect(data.version).toBe(4);expect(data.folders.find(f=>f.id===folder)?.blocks.find(b=>b.id===p)?.section_block_id).toBe(h2)
+    that forgot its bump, which is the direction a green suite cannot see.
+
+    **4 to 5 at issue #230**, which adds a `responsibilities` collection. It is
+    5 rather than 4 because 3 and 4 are both already spoken for, by #226 and by
+    #227 above -- **both now merged, which is what settles it**: this branch
+    reserved 5 while #227 was still open holding 4, and that reservation turned
+    out to be exactly right rather than merely cautious. Two branches each
+    bumping to one number merge cleanly and leave one version covering two
+    different documents, which is worse than either change alone.
+    `shared/export.ts` carries the chain. This assertion is incidental to what
+    the case is about -- hierarchy and rich content surviving a duplicate, an
+    import and an export -- and it moves with the document's shape rather than
+    with anything this case asserts. */
+ expect(data.version).toBe(5);expect(data.folders.find(f=>f.id===folder)?.blocks.find(b=>b.id===p)?.section_block_id).toBe(h2)
  const current=await read(owner,folder)
  expectStatus(await owner.browser.json(`/folders/${folder}/page/actions`,'POST',{action:'document_transaction',mutation_id:randomUUID(),base_revision:current.revision,operations:[{op:'delete_block',id:h1},{op:'set_outline',items:[{kind:'block',id:h2,section_block_id:null,list_parent_block_id:null},{kind:'block',id:p,section_block_id:h2,list_parent_block_id:null}]}]}),200,'remove H1 promotes subgroup')
  expect((await read(owner,folder)).blocks.find(b=>b.id===h2)?.section_block_id).toBeNull()

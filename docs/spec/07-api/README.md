@@ -132,6 +132,36 @@ and that an inaccessible target must be indistinguishable from a nonexistent one
 adds no table: a Dana Link's durable form is the href a rich-content block already
 holds, and 7.24 resolves it live.
 
+**Tenth, and it amends two existing subsections rather than adding one: issue #230, on the
+accepted technical ruling** https://github.com/zhssnym/dana/issues/230#issuecomment-5751322947
+**(Ruling 2, section 7), 2026-09-21.** 7.4 gains the five Responsibility routes — the
+member-details projection, the document read and commit, the history read and the self-edit
+grant toggle — and the sentence saying that `POST /folders/:id/members` and `POST /invites`
+may carry an optional initial `responsibility`. 7.22 goes to version **5** for the
+`responsibilities` collection. **Every one of those is additive**: no existing status, body
+or field changes, no key is removed, and a caller that sends nothing new sees nothing new.
+The export's version number moving is the mechanism by which an older *reader* is told to
+refuse rather than strip, which 7.22's own table records for all five numbers.
+
+**One thing inside this amendment is a decision rather than an addition, and it is recorded
+here because it changes an answer nobody had seen yet.** The Responsibility history read
+answers **newest first**, takes **10.3's cap of 1000 rows** rather than one of its own, and
+carries `truncated`, which is a second ruling on the same issue,
+https://github.com/zhssnym/dana/issues/230#issuecomment-5754627068 **(Ruling 3,
+2026-09-21)** — taken after this change's second adversarial review found the first
+implementation serving the *oldest* two hundred entries of a capped record and saying
+nothing about the rest. It moves no shipped contract — the route is new in this same change
+— and it is 10.3's list-response rule applied where it was missing, which is why 10.3 is
+not amended. A record holding exactly the cap answers whole with `truncated: false`.
+
+**7.22's collection list is corrected to match the code in the same change, and it is four
+names rather than this branch's two** (Ruling 4, same comment). `EXPORT_COLLECTIONS` on
+`main` has carried `personal_labels` and `folders.labels` since issue #227 and 7.22 never
+listed them; this change adds those two beside its own `responsibilities` and
+`responsibilities.revisions`, so the section now names all seventeen collections in both
+directions. The two older names are a **transcription correction** — the code shipped and
+the section was not updated with it — and not a contract change.
+
 | | File | Covers |
 | - | - | - |
 | 7.0 | [`07.0-conventions.md`](07.0-conventions.md) | 7.0 Conventions |

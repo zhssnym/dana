@@ -155,6 +155,15 @@ const GOVERNED: Record<string, FolderAction> = {
   'POST /api/v1/folders/:id/members': 'member.add',
   'PATCH /api/v1/folders/:id/members/:userId': 'member.access.change',
   'DELETE /api/v1/folders/:id/members/:userId': 'member.remove',
+  /* Issue #230. The commit is the body-switched case this table's header
+     describes: it performs `responsibility.manage` or, through R7 section O's
+     explicit narrow grant, `responsibility.edit.own`, and it names the
+     stricter of the two. AC-563 is where the narrow one is proved to widen
+     nothing. */
+  'PUT /api/v1/folders/:id/members/:userId/responsibility':
+    'responsibility.manage',
+  'PUT /api/v1/folders/:id/members/:userId/self-edit-grant':
+    'responsibility.self_edit_grant.manage',
   'DELETE /api/v1/folders/:id/my-membership': 'member.leave',
   'PUT /api/v1/folders/:id/page': 'folder.page.edit',
   'POST /api/v1/folders/:id/page/actions': 'folder.section.manage',

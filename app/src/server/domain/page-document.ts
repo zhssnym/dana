@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto'
 import { sql } from 'drizzle-orm'
 import type { Executor } from '../database.js'
 import { rowsOf } from '../database.js'
@@ -10,7 +9,13 @@ import { positionedItems } from './page-order.js'
 import { recordEvent } from './events.js'
 
 type BlockOp = Extract<DocumentOperation,{op:'put_block'}>
-export const documentHash = (value:unknown):string => createHash('sha256').update(JSON.stringify(value)).digest('hex')
+/* `documentHash` moved to `document-hash.ts` with issue #230 and is re-exported
+   here unchanged, because the Responsibility document is its second consumer
+   and importing this file from `domain/responsibility.ts` closed a cycle
+   through `tasks.ts` and `folders.ts`. That file carries the reasoning; nothing
+   about the function moved with it. */
+export { documentHash } from './document-hash.js'
+import { documentHash } from './document-hash.js'
 export class DocumentRefusal extends Error { constructor(readonly kind:'stale'|'not_convertible'|'file_not_here'|'file_kind_mismatch'|'not_found',message:string){super(message)} }
 export async function documentMetadata(tx:Executor,folderId:string|null) {
  if(folderId===null)return {revision:documentHash(null),task_placements:[]}

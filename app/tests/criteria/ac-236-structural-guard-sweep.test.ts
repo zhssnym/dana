@@ -302,10 +302,23 @@ describe('AC-236 every mutating route is behind the whole chain', () => {
     // its own tree, which held neither #224's two nor #226's twelve; the
     // resolution is again the sum, and 84 is what this sweep itself reported
     // on the rebased tree rather than what either diff implies.
+    //
+    // **84 to 86 on 2026-09-20 for the two Responsibility mutations** (issue
+    // #230): `PUT /folders/:id/members/:userId/responsibility`, which commits
+    // a Responsibility document state, and
+    // `PUT /folders/:id/members/:userId/self-edit-grant`, which turns R7
+    // section O's explicit narrow grant on or off. The same way round as
+    // every rise above — the sweep passed on both before this number was
+    // touched, 401 bare and 403 without CSRF — and the three Responsibility
+    // reads the same change adds move the count below rather than this one.
+    // **#230 read 74 on its own tree, which was #228's and held neither
+    // #224's two nor #226's twelve; the resolution is the sum a third time,
+    // and 86 is what this sweep itself reported on the rebased tree rather
+    // than what either diff implies.**
     expect(
       routes.length,
-      `the walker found ${String(routes.length)} mutating routes and there were 84 after issue #224 added the two task-dependency mutations, issue #226 added the twelve mutating routes of the Label surface and issue #228 added the two Access-administration mutations. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means a route was added, and this number moves with it in the same change`,
-    ).toBe(84)
+      `the walker found ${String(routes.length)} mutating routes and there were 86 after issue #224 added the two task-dependency mutations, issue #226 added the twelve mutating routes of the Label surface, issue #228 added the two Access-administration mutations and issue #230 added the two Responsibility mutations. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means a route was added, and this number moves with it in the same change`,
+    ).toBe(86)
 
     const failures: string[] = []
     const jsonBody = {
@@ -406,10 +419,19 @@ describe('AC-236 every mutating route is behind the whole chain', () => {
     // the sweep below established before this number moved. #228 read 42 on
     // its own tree, which held none of the four above it, so 43 is this
     // sweep's own answer on the rebased tree and not either diff's.
+    //
+    // 43 to 46 on 2026-09-20 for the three Responsibility reads (issue #230):
+    // `GET /folders/:id/members/:userId`, the member-details projection,
+    // `GET /folders/:id/members/:userId/responsibility` and
+    // `GET /folders/:id/members/:userId/responsibility/history`. None earns a
+    // PUBLIC_READS entry and none needs one: all three answer 401 bare, which
+    // the sweep below established before this number moved. **#230 read 45 on
+    // its own tree, which was #228's and held none of the four above it, so
+    // 46 is the sum and is this sweep's own answer on the rebased tree.**
     expect(
       routes.length,
-      `the walker found ${String(routes.length)} reading routes and there were 43 after issue #223 added the two Dana Link reads, issue #224 added the task-dependency read, issue #226 added the Label definition listing and issue #228 added the two Access-history reads. Fewer means the enumeration lost sight of routes that still exist; more means a GET was added, and it must either answer 401 bare or earn a PUBLIC_READS entry, and this number moves with it in the same change`,
-    ).toBe(43)
+      `the walker found ${String(routes.length)} reading routes and there were 46 after issue #223 added the two Dana Link reads, issue #224 added the task-dependency read, issue #226 added the Label definition listing, issue #228 added the two Access-history reads and issue #230 added the three Responsibility reads. Fewer means the enumeration lost sight of routes that still exist; more means a GET was added, and it must either answer 401 bare or earn a PUBLIC_READS entry, and this number moves with it in the same change`,
+    ).toBe(46)
 
     const failures: string[] = []
     for (const { method, path } of routes) {

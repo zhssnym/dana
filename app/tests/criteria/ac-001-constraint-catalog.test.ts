@@ -108,6 +108,14 @@ const SECTION_4_TABLES = [
   'folder_access_history',
   'folder_members',
   'folder_personal_labels',
+  // Migration 0025, issue #230: the current Responsibility document and its
+  // append-only record. **The ruling landed** --
+  // https://github.com/zhssnym/dana/issues/230#issuecomment-5751322947,
+  // Ruling 1 -- so section 4 carries both as 4.28 and 4.29 and this list is
+  // transcribed from them rather than standing in for them, which is the
+  // 4.24-to-4.27 seam above closed rather than repeated.
+  'folder_responsibilities',
+  'folder_responsibility_history',
   'folders',
   'invites',
   'labels',

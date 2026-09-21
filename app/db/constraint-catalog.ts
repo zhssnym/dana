@@ -269,6 +269,147 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
       },
     ],
   },
+  /* Migration 0025, issue #230: the current Responsibility document, one row
+     per membership generation (#209 R5, R10).
+
+     The uniqueness that matters is the partial index rather than a
+     constraint: one *active* document per (folder, member), active meaning
+     ended_at IS NULL. That single index carries the leave/rejoin rule. Ending
+     a membership stamps ended_at, which both stops the row being the current
+     document and frees the pair, so a rejoin starts from nothing and no old
+     content silently reactivates; the ended row and its revisions stay where
+     they are, which is the other half of the same rule.
+
+     There is no `ended_by` beside `ended_at`: who ended a standing is on the
+     `responsibility_ended` entry, which is the record and therefore the
+     authority, and a copy here could only ever drift from it. folder_id
+     cascades because a permanent Folder purge takes the Responsibility with
+     it under the Folder's own retention lifecycle; the two user references
+     are RESTRICT on folder_access_history's precedent, 8.10 scrubbing an
+     account rather than deleting its row, and because SET NULL would forge a
+     different historical actor onto a document a person wrote. */
+  folder_responsibilities: {
+    primaryKey: { name: 'folder_responsibilities_pkey', columns: ['id'] },
+    uniques: [],
+    checks: [
+      {
+        name: 'folder_responsibilities_current_revision_no_check',
+        columns: ['current_revision_no'],
+      },
+    ],
+    foreignKeys: [
+      {
+        name: 'folder_responsibilities_folder_id_fkey',
+        columns: ['folder_id'],
+        references: { table: 'folders', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+      {
+        name: 'folder_responsibilities_member_id_fkey',
+        columns: ['member_id'],
+        references: { table: 'users', columns: ['id'] },
+        onDelete: 'restrict',
+      },
+      {
+        name: 'folder_responsibilities_updated_by_fkey',
+        columns: ['updated_by'],
+        references: { table: 'users', columns: ['id'] },
+        onDelete: 'restrict',
+      },
+    ],
+    indexes: [
+      {
+        name: 'folder_responsibilities_folder_id_member_id_active_idx',
+        unique: true,
+        columns: ['folder_id', 'member_id'],
+        partial: true,
+      },
+      {
+        name: 'folder_responsibilities_member_id_idx',
+        unique: false,
+        columns: ['member_id'],
+        partial: false,
+      },
+    ],
+  },
+  /* Migration 0025, issue #230: the append-only Responsibility record. Its
+     content-bearing rows are R10's immutable revisions; the other two kinds
+     record the standing changes #230 requires to be history-visible.
+
+     The revision CHECK is the one worth reading. Every clause is IS NULL, IS
+     NOT NULL or an IN over a NOT NULL column, so none of them can yield
+     UNKNOWN, which a CHECK would pass (issue #27). AC-001 asserts this
+     constraint by name and by the columns it mentions and can see nothing of
+     what it does, so the behavioural case that tries the bad row is AC-560.
+
+     The partial unique index over (responsibility_id, revision_no) is what
+     makes "one revision per number per document" a database fact rather than
+     an application convention, and it is what the current-document row's
+     current_revision_no points into. */
+  folder_responsibility_history: {
+    primaryKey: { name: 'folder_responsibility_history_pkey', columns: ['id'] },
+    uniques: [],
+    checks: [
+      {
+        name: 'folder_responsibility_history_document_check',
+        columns: ['responsibility_id', 'transition'],
+      },
+      {
+        name: 'folder_responsibility_history_revision_check',
+        columns: ['content', 'content_hash', 'revision_no', 'transition'],
+      },
+      {
+        name: 'folder_responsibility_history_transition_check',
+        columns: ['transition'],
+      },
+    ],
+    foreignKeys: [
+      {
+        name: 'folder_responsibility_history_actor_id_fkey',
+        columns: ['actor_id'],
+        references: { table: 'users', columns: ['id'] },
+        onDelete: 'restrict',
+      },
+      {
+        name: 'folder_responsibility_history_folder_id_fkey',
+        columns: ['folder_id'],
+        references: { table: 'folders', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+      {
+        name: 'folder_responsibility_history_member_id_fkey',
+        columns: ['member_id'],
+        references: { table: 'users', columns: ['id'] },
+        onDelete: 'restrict',
+      },
+      {
+        name: 'folder_responsibility_history_responsibility_id_fkey',
+        columns: ['responsibility_id'],
+        references: { table: 'folder_responsibilities', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+    ],
+    indexes: [
+      {
+        name: 'folder_responsibility_history_folder_id_effective_at_idx',
+        unique: false,
+        columns: ['folder_id', 'effective_at'],
+        partial: false,
+      },
+      {
+        name: 'folder_responsibility_history_member_id_effective_at_idx',
+        unique: false,
+        columns: ['member_id', 'effective_at'],
+        partial: false,
+      },
+      {
+        name: 'folder_responsibility_history_revision_no_idx',
+        unique: true,
+        columns: ['responsibility_id', 'revision_no'],
+        partial: true,
+      },
+    ],
+  },
   tasks: {
     primaryKey: { name: 'tasks_pkey', columns: ['id'] },
     uniques: [{ name: 'tasks_folder_id_id_key', columns: ['folder_id', 'id'] }],
@@ -438,6 +579,11 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
       { name: 'invites_access_check', columns: ['access'] },
       { name: 'invites_access_requires_folder_check', columns: ['access', 'folder_id'] },
       { name: 'invites_email_length_check', columns: ['email'] },
+      /* Migration 0025, issue #230: the optional initial Responsibility
+         content an authorized inviter may attach. Tied to a folder invite for
+         the same reason `access` is -- a folderless roster invite creates no
+         Folder standing for a Responsibility to belong to. */
+      { name: 'invites_responsibility_requires_folder_check', columns: ['folder_id', 'responsibility'] },
       { name: 'invites_email_lower_check', columns: ['email'] },
       { name: 'invites_status_check', columns: ['status'] },
       { name: 'invites_task_requires_folder_check', columns: ['folder_id', 'task_id'] },
