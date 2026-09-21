@@ -48,7 +48,7 @@ import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
 import { recordAccessTransition } from './folder-access.js'
-import { copyCoverFile, readableFileScope } from './files.js'
+import { copyCoverFile, copyPageFile, readableFileScope } from './files.js'
 import { applyDocument, documentMetadata, DocumentRefusal } from './page-document.js'
 import {
   applyWorkflowTaskLabels,
@@ -109,6 +109,20 @@ export type DuplicateFolderResult =
  * request rather than a fact the server holds, which is the same seam
  * `importWorkflow` takes below.
  */
+/**
+ * 10.3's gigabyte, refused from inside a transaction that has already written.
+ *
+ * It is an error rather than a returned outcome for one reason, and the reason
+ * is measured: a `return` out of an `inTransaction` callback resolves it and
+ * drizzle commits, so a refusal raised after the folder row exists leaves that
+ * folder behind. Issue #128 found that for the folder cover and answered it by
+ * copying before the INSERT; a page asset's scope is the new folder's id, so it
+ * cannot be copied first and has to leave by the path that rolls back instead.
+ * Never caught anywhere but at the bottom of `duplicateFolder`, which turns it
+ * back into the ordinary `quota_exceeded` answer 10.3 specifies.
+ */
+class QuotaRefusal extends Error {}
+
 export async function duplicateFolder(
   db: Db,
   store: ObjectStore,
@@ -247,6 +261,26 @@ export async function duplicateFolder(
       // Copy explicit membership and mixed placement; never infer parents from proximity.
       const blocks = await rowsOf(tx,sql`SELECT * FROM page_blocks WHERE folder_id=${sourceFolderId}::uuid ORDER BY position,id`)
       const sectionMap = new Map(blocks.map(block=>[String(block.id),randomUUID()]))
+      /*
+      Every page asset is copied into the new folder as an independent file,
+      and **the copy keeps the source's own kind** (#220).
+
+      This used to be `copyCoverFile` followed by `UPDATE files SET
+      kind = 'image'`, which was exactly right while a page block could only
+      hold a picture and is exactly wrong now that it may be a File, an Audio
+      or a Video. Those two statements would have made a duplicated MP4 declare
+      itself an image and a duplicated generic File — untrusted bytes, served
+      as an attachment — declare itself previewable media, which is the
+      insertion mode the person chose being destroyed by the copy. `copyPageFile`
+      is the primitive both call sites wanted: same bytes, same kind, same
+      metadata, new row, new scope. Nothing rewrites the kind afterwards.
+
+      One copy per source file rather than one per block, so a picture placed
+      twice on a page is one new row read twice and not two rows free to
+      diverge. Quota refusal returns out of the transaction before any folder
+      row exists, and `copiedObjects` carries what has been written so the
+      catch can remove the bytes: no half-created folder and no orphan.
+      */
       const copiedFiles = new Map<string,string>()
       for(const block of blocks){
         let fileId:string|null=null
@@ -254,11 +288,25 @@ export async function duplicateFolder(
           const originalFile=String(block.file_id)
           fileId=copiedFiles.get(originalFile)??null
           if(fileId===null){
-            const held=await copyCoverFile(tx,store,viewerId,originalFile,copyId)
-            if(held.kind==='quota_exceeded')return {kind:'quota_exceeded'} as const
+            const held=await copyPageFile(tx,store,viewerId,originalFile,copyId)
+            /* **Thrown rather than returned, and that is a fix rather than a
+               style (#220, proof 16).** A `return` out of an `inTransaction`
+               callback *resolves* it, so drizzle commits — which is the exact
+               fault issue #128 found and fixed for the folder cover by moving
+               that copy ahead of the INSERT. The page assets cannot move ahead
+               of it, because their scope is the new folder's id. So the other
+               half of #128's lesson applies instead: a refusal that must undo
+               a write has to leave by the path that rolls back. Measured on
+               this branch before the change — a caller at 10.3's gigabyte got
+               413 and kept a "(copy)" folder with a membership row, a partial
+               page and the file rows copied before the refusal.
+
+               The catch at the bottom recognises it, removes the bytes the
+               rollback cannot reach, and answers `quota_exceeded` exactly as
+               the return did. Nothing above this sees an exception. */
+            if(held.kind==='quota_exceeded')throw new QuotaRefusal()
             if(held.kind==='copied'){
               fileId=held.id;copiedObjects.push(fileId);copiedFiles.set(originalFile,fileId)
-              await tx.execute(sql`UPDATE files SET kind='image' WHERE id=${fileId}::uuid`)
             }
           }
         }
@@ -458,6 +506,7 @@ export async function duplicateFolder(
         // Unreachable bytes; they must not replace the real error below.
       }
     }
+    if (error instanceof QuotaRefusal) return { kind: 'quota_exceeded' } as const
     throw error
   }
 }
@@ -775,16 +824,30 @@ export async function importWorkflow(
         for(const op of document.blocks){
           if(op.op!=='put_block')throw new DocumentRefusal('not_convertible','Workflow blocks must be typed content.')
           let fileId=op.file_id
+          /*
+          A workflow file names a `file_id`, and **that id is account-specific
+          rather than portable**. #185 owns the portable asset bundle and #220
+          must not pretend to have built one, so the rule here is unchanged and
+          is the truthful one: the importer must be able to read the row the
+          file names, or the import is refused outright. It is never silently
+          dropped and the block is never imported pointing at nothing, because
+          either would be a workflow claiming to carry an asset it does not.
+
+          What #220 changes is only the copy, for the reason the duplication
+          path above gives: `copyPageFile` preserves the kind, where
+          `copyCoverFile` plus a rewrite to `image` would have relabelled a
+          File, an Audio or a Video on the way in. The wording widens with it —
+          these are not all images any more.
+          */
           if(fileId!==null){
             const permitted=await rowsOf(tx,sql`SELECT f.id FROM files f WHERE f.id=${fileId}::uuid AND ${readableFileScope(viewerId)}`)
-            if(permitted.length===0||store===undefined)throw new DocumentRefusal('file_not_here','The workflow image is not accessible.')
+            if(permitted.length===0||store===undefined)throw new DocumentRefusal('file_not_here','A file this workflow refers to is not accessible to you.')
             const existing=imageMap.get(fileId)
             if(existing!==undefined)fileId=existing
             else {
-              const held=await copyCoverFile(tx,store,viewerId,fileId,folderId)
-              if(held.kind!=='copied')throw new DocumentRefusal('file_not_here','The workflow image could not be copied.')
+              const held=await copyPageFile(tx,store,viewerId,fileId,folderId)
+              if(held.kind!=='copied')throw new DocumentRefusal('file_not_here','A file this workflow refers to could not be copied.')
               copiedObjects.push(held.id);imageMap.set(fileId,held.id);fileId=held.id
-              await tx.execute(sql`UPDATE files SET kind='image' WHERE id=${fileId}::uuid`)
             }
           }
           operations.push({...op,id:blockMap.get(op.id)!,file_id:fileId})

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { taskTitle } from './tasks.js'
+import type { FileKind } from './files.js'
 
 const richRun = z.object({text:z.string().max(4000),bold:z.boolean().optional(),italic:z.boolean().optional(),href:z.string().max(2048).refine(value => /^(https?:\/\/|mailto:|\/[^/])/i.test(value) && !Array.from(value).some(char=>char.charCodeAt(0)<=32), 'Use a safe web, mail or internal link.').optional()}).catchall(z.never()).transform(({text,bold,italic,href}) => ({text,...(bold===undefined?{}:{bold}),...(italic===undefined?{}:{italic}),...(href===undefined?{}:{href})}))
 export const richContent = z.object({version:z.literal(1),runs:z.array(richRun).max(4000)}).catchall(z.never()).superRefine((value,ctx)=>{
@@ -27,8 +28,82 @@ export const MAX_SECTION_DEPTH = 3
 export const LIST_BLOCK_KINDS = ['bullet','numbered','checklist'] as const
 export type ListBlockKind = (typeof LIST_BLOCK_KINDS)[number]
 export const STRUCTURED_BLOCK_KINDS = [...LIST_BLOCK_KINDS,'quote','callout','code'] as const
-export const DOCUMENT_BLOCK_KINDS = ['section','paragraph','image','folder_ref',...STRUCTURED_BLOCK_KINDS] as const
+/**
+ * #220's media vocabulary. Four kinds, one stored file each, named by `file_id`
+ * and by nothing else: a media block copies no filename, no MIME and no byte
+ * size, because the `files` row is the one authority on all three and two
+ * copies of a fact are two facts free to disagree.
+ *
+ * **`file` is not a fallback for the other three and the four are not ordered.**
+ * Which one a block is was decided when the file was uploaded, by how the
+ * person inserted it — dropped as media, or chosen through the File command —
+ * and `BLOCK_FILE_KINDS` below is what makes the server keep that decision
+ * rather than re-derive it from an extension it must never trust.
+ */
+export const MEDIA_BLOCK_KINDS = ['image','file','audio','video'] as const
+export type MediaBlockKind = (typeof MEDIA_BLOCK_KINDS)[number]
+export const isMediaKind = (kind:string):kind is MediaBlockKind => (MEDIA_BLOCK_KINDS as readonly string[]).includes(kind)
+export const DOCUMENT_BLOCK_KINDS = ['section','paragraph','image','folder_ref',...STRUCTURED_BLOCK_KINDS,'file','audio','video'] as const
 export type DocumentBlockKind = (typeof DOCUMENT_BLOCK_KINDS)[number]
+/**
+ * The kinds that persist a dragged width (4.17's `width_pct`, 25 to 100).
+ *
+ * #220 R1 extends the restrained centred width from image to previewable
+ * **video** and stops there: audio uses its natural compact player width, and
+ * a generic file block does not resize in M1. Migration 0024's
+ * `page_blocks_width_pct_kind_check` says the same thing in the database.
+ * Player state — position, volume, speed — is never persisted at all.
+ */
+export const WIDTH_BLOCK_KINDS = ['image','video'] as const
+/**
+ * Which stored file kinds each media block kind may name — the whole of
+ * "insertion mode is preserved, not re-derived".
+ *
+ * The same JPG is an Image block when it was dropped as media and a File block
+ * when it was inserted through the File command. Both are legitimate, they are
+ * different, and the difference is a decision the person made that the server
+ * validated at upload time. Reading it back off the filename would throw that
+ * decision away and would trust an extension, which is presentation and never
+ * security truth. So the rule is a table, and it is checked before the first
+ * write in `applyDocument`.
+ *
+ * **It fails closed in the direction that matters.** A `file` row holds
+ * untrusted bytes of any type and is served as an attachment; an `image`,
+ * `audio` or `video` row passed a validation at upload and is served inline. A
+ * `file` row may therefore never be dressed as previewable media, which is the
+ * mismatch that would matter, and an `image`, `audio` or `video` row may never
+ * be quietly demoted into a File block either — a File block is a File block
+ * because its bytes were uploaded as one.
+ *
+ * `cover` is admitted for `image` alone and only because it was already
+ * reachable: a cover is a raster that went through the same decode and
+ * re-encode as an `image`, folder duplication has produced `cover` copies of
+ * page pictures since issue #128, and refusing them here would make documents
+ * that save today stop saving. It is a widening of nothing: no other kind gains
+ * a second home.
+ */
+export const BLOCK_FILE_KINDS:Readonly<Record<MediaBlockKind,readonly FileKind[]>> = {
+ image:['image','cover'],
+ file:['file'],
+ audio:['audio'],
+ video:['video'],
+}
+/**
+ * R2's frontend-safe rule for **Open** against Download-only, and it reads the
+ * block kind rather than the filename, the extension or the MIME.
+ *
+ * A generic File block is served `Content-Disposition: attachment` with
+ * `X-Content-Type-Options: nosniff`, unconditionally and for every type, so an
+ * "Open" on one could not open anything even if it were safe to: the browser
+ * downloads it. Download is therefore the only honest action on a File block,
+ * whatever its extension says it is, and an executable, an unknown binary and a
+ * file with no extension at all are covered by the same sentence rather than by
+ * a list somebody has to keep. The three previewable kinds are served inline
+ * after a server-side validation, and those are the ones Dana may open.
+ *
+ * Download is always available wherever the viewer may read the file.
+ */
+export const blockMayOpen = (kind:string):boolean => kind==='image'||kind==='audio'||kind==='video'
 export const RICH_TEXT_BLOCK_KINDS = ['section','paragraph',...LIST_BLOCK_KINDS,'quote','callout'] as const
 /** The one test for "may this take part in list nesting", written once. */
 export const isListKind = (kind:string):kind is ListBlockKind => (LIST_BLOCK_KINDS as readonly string[]).includes(kind)
@@ -54,7 +129,9 @@ export const documentOperation = z.discriminatedUnion('op',[
  z.object({op:z.literal('put_block'),id:z.uuid(),block_kind:z.enum(DOCUMENT_BLOCK_KINDS),text:z.string().max(4000).nullable(),rich_content:richContent.nullable(),file_id:z.uuid().nullable(),ref_folder_id:z.uuid().nullable(),width_pct:z.number().int().min(25).max(100).nullable(),checked:z.boolean().nullable().default(null)}).superRefine((b,ctx)=>{
   if(b.block_kind==='section' && (b.text?.length??0)>120)ctx.addIssue({code:'custom',path:['text'],message:'A heading has at most 120 characters.'})
   if(b.rich_content!==null && (!(RICH_TEXT_BLOCK_KINDS as readonly string[]).includes(b.block_kind)||b.rich_content.runs.map(r=>r.text).join('')!==b.text))ctx.addIssue({code:'custom',path:['rich_content'],message:'Rich content must match its text projection.'})
-  if(b.width_pct!==null && b.block_kind!=='image')ctx.addIssue({code:'custom',path:['width_pct'],message:'Width belongs to an image.'})
+  // 4.17's width, as #220 leaves it: an image and a previewable video persist
+  // one, and nothing else does (WIDTH_BLOCK_KINDS above).
+  if(b.width_pct!==null && !(WIDTH_BLOCK_KINDS as readonly string[]).includes(b.block_kind))ctx.addIssue({code:'custom',path:['width_pct'],message:'Width belongs to an image or a video.'})
   // A tick is authored content and it belongs to a checklist item alone: it is
   // not a Task's status and completes nothing (R1 decision 3). Omitting it on a
   // checklist item means unchecked; the server stores false rather than null.
@@ -62,6 +139,37 @@ export const documentOperation = z.discriminatedUnion('op',[
   // The six structured kinds are writing, so they carry neither a picture nor a
   // folder reference. Widening that is another issue's to make.
   if((b.file_id!==null||b.ref_folder_id!==null)&&(STRUCTURED_BLOCK_KINDS as readonly string[]).includes(b.block_kind))ctx.addIssue({code:'custom',path:['file_id'],message:'A structured text block carries no file and no folder reference.'})
+  // #220: a media block names one stored file and nothing else. It carries no
+  // folder reference (that is `folder_ref`'s whole job), and it carries no text
+  // and no rich content — a caption is a paragraph, and the filename the block
+  // shows is read from the `files` row rather than copied onto the block.
+  if(isMediaKind(b.block_kind)&&b.ref_folder_id!==null)ctx.addIssue({code:'custom',path:['ref_folder_id'],message:'A media block carries no folder reference.'})
+  if((b.block_kind==='file'||b.block_kind==='audio'||b.block_kind==='video')&&((b.text!==null&&b.text!=='')||b.rich_content!==null))ctx.addIssue({code:'custom',path:['text'],message:'A file, audio or video block carries no text of its own.'})
+  /*
+  4.17: a media block **references one stored file by `file_id`**. Until this
+  landed, a `file`, an `audio` or a `video` block naming nothing was accepted
+  here, accepted by `applyDocument` and accepted by the database, all three
+  answering 200 — a player with no track under it. The rule is stated here
+  rather than as a CHECK for the reason migration 0024 gives about the
+  constraint it deliberately does not write, and it is stated in the *schema*
+  rather than in `applyDocument` so that it is scoped to the operations this
+  transaction carries and to nothing else. That is not a detail. A null
+  `file_id` on a media row is routine: `page_blocks_file_id_fkey` is ON DELETE
+  SET NULL, so 7.19's ordinary reclaim produces one, and `update_block`
+  reaches the column directly and takes a null besides. Read over the merged
+  document the rule would turn deleting a picture into a page that can never be
+  saved again, which is the trap AC-600 closes for the pairing gate.
+
+  **`image` is exempt, and it is a decision rather than an omission.** Every
+  picture in the composer begins as an empty image block — BlockNote's own
+  image block is inserted with no URL and a file-picker panel, and the canvas
+  adapter projects a fileless one straight back to `file_id: null` — so the
+  editor saves one on the keystroke after a person inserts a picture, and has
+  since long before #220. The three kinds #220 added have no such placeholder
+  state: each is inserted from a file that already exists. AC-602 pins both
+  halves.
+  */
+  if((b.block_kind==='file'||b.block_kind==='audio'||b.block_kind==='video')&&b.file_id===null)ctx.addIssue({code:'custom',path:['file_id'],message:'A file, audio or video block names one stored file.'})
  }),
  z.object({op:z.literal('delete_block'),id:z.uuid()}),
  z.object({op:z.literal('create_task'),id:z.uuid(),title:taskTitle}),

@@ -314,6 +314,18 @@ export function createWorkshopRouter(
         }])
         return
       }
+      if (outcome.kind === 'file_kind_mismatch') {
+        /* #220: a block whose kind and whose file's kind disagree. It is a
+           separate answer from the one above rather than folded into it,
+           because the two say different things and only one of them is a
+           scope failure. `file_not_here` must tell a caller nothing about a
+           row they cannot reach; here they can reach it, the server has
+           already said so, and what is wrong is the treatment they declared —
+           so the sentence names the block kind and the kind the bytes were
+           actually uploaded as, which is the only pair a caller can act on. */
+        sendError(res, 422, 'validation_failed', outcome.message)
+        return
+      }
       if (outcome.kind === 'not_convertible') {
         sendError(res, 422, 'validation_failed', 'This page block cannot be changed that way.')
         return

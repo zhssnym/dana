@@ -40,6 +40,7 @@ import type {
   PageBlockWrite,
   PageView,
 } from '../../shared/pages.js'
+import { WIDTH_BLOCK_KINDS } from '../../shared/pages.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
@@ -540,6 +541,11 @@ export type PageActionResult =
   | { kind: 'bad_anchor'; field: 'after' | 'before' }
   | { kind: 'section_not_here' }
   | { kind: 'file_not_here' }
+  /** #220: the file is here and it was uploaded as a different kind from the
+   * one this block declares. Distinct from `file_not_here` on purpose — that
+   * one must disclose nothing about a row the caller cannot reach, and this
+   * one is about a row they demonstrably can. */
+  | { kind: 'file_kind_mismatch'; message: string }
   | { kind: 'not_convertible' }
   | { kind: 'forbidden'; reason: string }
 
@@ -754,7 +760,20 @@ export async function actOnFolderPage(
           )
           if (file.length === 0) return { kind: 'file_not_here' }
         }
-        if (body.width_pct != null && String(block.kind) !== 'image') {
+        /* 4.17's width, read off the shared constant rather than repeated as a
+           literal. This said `!== 'image'` until #220's adversarial review:
+           migration 0024 widened `page_blocks_width_pct_kind_check` to image
+           **and** video and `WIDTH_BLOCK_KINDS` says the same for the document
+           contract, so a width dragged onto a video through the incremental
+           path was refused by a server whose database, whose shared constant
+           and whose `document_transaction` all admitted it. It failed closed,
+           which made it a gap rather than a hazard, and it existed because the
+           rule was written down in three places and this was a fourth spelling
+           of it. AC-603 asserts the admitted set in both directions. */
+        if (
+          body.width_pct != null &&
+          !(WIDTH_BLOCK_KINDS as readonly string[]).includes(String(block.kind))
+        ) {
           return { kind: 'not_convertible' }
         }
         if (String(block.kind) === 'section' && body.text !== undefined) {
@@ -791,7 +810,14 @@ export async function actOnFolderPage(
       page: await pageViewIn(tx, viewerId, { folderId, shelfId: null }),
     }
   }).catch((error: unknown) => {
-    if (error instanceof DocumentRefusal) return error.kind === 'stale' ? {kind:'stale' as const,blockId:folderId} : {kind:error.kind} as const
+    if (error instanceof DocumentRefusal) {
+      if (error.kind === 'stale') return {kind:'stale' as const,blockId:folderId}
+      // #220's mismatch carries its own sentence, which names the block kind
+      // and the kind the file was actually uploaded as; a generic 422 here
+      // would leave the caller guessing which of the two to change.
+      if (error.kind === 'file_kind_mismatch') return {kind:'file_kind_mismatch' as const,message:error.message}
+      return {kind:error.kind} as const
+    }
     throw error
   })
 }
