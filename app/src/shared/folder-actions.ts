@@ -213,6 +213,23 @@ export const FOLDER_ACTIONS = [
   'personal.reminder_snooze',
   'personal.label',
   'personal.view_preferences',
+  /* The M1-F facet framework (issue #210), on Hassan's technical ruling of
+     2026-09-21,
+     https://github.com/zhssnym/dana/issues/210#issuecomment-5756722756,
+     section 2. Seven rows and one new per-rule flag; the ladder and
+     `mayPerform`'s shape are unchanged.
+
+     There is deliberately **no eighth action for the private order write**.
+     Arranging the private facets only you can see is the existing
+     `personal.view_preferences`, which is #228's personal-actions rule
+     putting a member's own arrangement outside Folder Access entirely. */
+  'facet.read',
+  'facet.create',
+  'facet.rename',
+  'facet.hide',
+  'facet.reorder',
+  'facet.delete',
+  'facet.convert_to_shared',
 ] as const
 
 export type FolderAction = (typeof FOLDER_ACTIONS)[number]
@@ -246,9 +263,31 @@ interface ActionRule {
    * section O says what it is not: "not a sixth Access level ... this
    * permission is explicit and narrow; it must not silently widen any other
    * Work permission". Exactly one action carries it, and AC-563 enumerates
-   * the other forty-nine to prove the grant moves none of them.
+   * every other action in the vocabulary to prove the grant moves none of
+   * them -- forty-nine of them when #230 wrote it, fifty-six since #210 added
+   * the facet family, and the loop counts them rather than naming a number.
    */
   whenSelfEditGranted?: true
+  /**
+   * Issue #210's facet grant, and it behaves exactly as
+   * `whenSelfEditGranted` above does: the action is admitted at *any* preset
+   * when `target.facetOwnerId` is the actor themselves.
+   *
+   * It is a per-action flag rather than a preset for the same reason that
+   * one is. #209's rule that ownership is custody and never authority is
+   * preserved exactly: this moves **one action, for one row, for one
+   * person**, and widens nothing else. A private facet is a document nobody
+   * but its owner can read, so the alternative -- a preset bar -- would have
+   * meant either that Full control reads a member's private facet, which is
+   * the one place custody-is-not-authority actually bites, or that its owner
+   * cannot rename their own.
+   *
+   * Read under the facet row's lock **in the transaction that writes**,
+   * which is the transactional requirement `assigneeId` and `memberId` carry
+   * and is not weakened here: a projection saying "this facet is mine",
+   * however fresh, must never authorize after a conversion to shared.
+   */
+  whenOwnPrivateFacet?: true
   owner?: OwnerRule
   /** The actor must also be the author of the target (a comment). Authorship
    * is provenance and never standing authority, so this is an *extra*
@@ -511,6 +550,50 @@ const RULES: Record<FolderAction, ActionRule> = {
     personal: true,
     why: "#228's personal-actions rule: saved Views and view preferences are account state",
   },
+  /* ---------------------------------------------------------------- *
+   * The facet framework (issue #210, ruling of 2026-09-21 section 2)
+   * ---------------------------------------------------------------- */
+  'facet.read': {
+    atLeast: null,
+    whenOwnPrivateFacet: true,
+    why: "#210 and #209: a private facet is visible only to its owner, and no preset qualifies -- Full control and the structural owner read no member's private facet, which is custody-is-not-authority applied to the one place it bites",
+  },
+  'facet.create': {
+    atLeast: 'can_edit',
+    whenOwnPrivateFacet: true,
+    why: "#228 denies Can contribute the creation of Folder Sections, and a Work or shared blank facet is the same order of structure; a private facet of your own is yours to make",
+  },
+  'facet.rename': {
+    atLeast: 'can_edit',
+    whenOwnPrivateFacet: true,
+    why: "#210 and #228's Can-edit list: naming Purpose and Results is shared Work, and a private facet's name is not",
+  },
+  'facet.hide': {
+    atLeast: 'can_edit',
+    why: "#210: hiding a native facet changes what every member sees, which makes it ordinary shared Work at #228's Can-edit bar",
+  },
+  'facet.reorder': {
+    atLeast: 'can_edit',
+    whenOwnPrivateFacet: true,
+    why: "#210: the shared facet sequence is Folder data and is Can edit's to change for everyone; a private facet's place is its owner's",
+  },
+  'facet.delete': {
+    atLeast: 'can_edit',
+    whenOwnPrivateFacet: true,
+    why: "#228's Can-contribute list: they may not trash shared work, their own included; a private facet of your own is yours to delete",
+  },
+  'facet.convert_to_shared': {
+    atLeast: 'can_edit',
+    whenOwnPrivateFacet: true,
+    /* **The route requires the actor to be the owner as well**, and the two
+       conditions are not interchangeable. Exposing content to the Folder
+       creates shared Work, so it takes Can edit; and it is somebody's
+       private writing, so it takes their consent. Neither alone is enough,
+       and the second half cannot be expressed here because this table
+       answers "may this preset do this" rather than "is this the right
+       person". `routes/facets.ts` asks both, in that order. */
+    why: '#210: converting a private facet to shared creates shared Work and exposes writing that was somebody\'s own, so it takes Can edit and the facet\'s owner together',
+  },
 }
 
 /** The rule behind an action, for the audit criterion and for a refusal that
@@ -561,6 +644,24 @@ export interface FolderActionTarget {
    */
   memberId?: string | null
   selfEditGranted?: boolean
+  /**
+   * The `owner_id` of the facet the action targets (issue #210), which is
+   * non-null for a `private_blank` facet and null for every other kind --
+   * `folder_facets_owner_kind_check` makes that a database fact.
+   *
+   * It lives here rather than on `FolderActorFacts` for the reason
+   * `assigneeId` and `memberId` do, and the reason is the same sentence
+   * about transactions: it must be read in the *same* transaction and
+   * snapshot as the write it authorizes, under the row lock that write
+   * takes, so that a facet converted to shared a moment ago cannot
+   * authorize through a projection that is merely fresh. `lockedFacet` in
+   * `server/domain/facets.ts` is where a caller reads it.
+   *
+   * **On `facet.create` there is no row yet**, and the caller passes the
+   * actor's own id exactly when the requested kind is `private_blank` and
+   * the requested owner is the actor. Nothing else may pass it.
+   */
+  facetOwnerId?: string | null
 }
 
 export type FolderActionDecision =
@@ -624,7 +725,26 @@ export function mayPerform(
     target.memberId !== null &&
     target.memberId === facts.actorId
 
-  const qualified = byPreset || byAssignment || bySelfEditGrant
+  /* Issue #210, and it is `bySelfEditGrant` above with one condition
+     instead of two: only an action whose rule opts in, and only when the
+     facet the caller read under the write's own lock is owned by the actor.
+     A `facetOwnerId` of null -- which is every facet that is not a private
+     blank, by `folder_facets_owner_kind_check` -- authorizes nothing, and so
+     does an absent one, so a caller who forgets to say whose facet this is
+     gets a refusal rather than a write on somebody else's.
+
+     There is no `memberId`-style second binding to lose here, because the
+     comparison *is* the binding: the value compared is the facet's own
+     owner and the value it is compared against is the actor. */
+  const byOwnPrivateFacet =
+    !byPreset &&
+    rule.whenOwnPrivateFacet === true &&
+    target.facetOwnerId !== undefined &&
+    target.facetOwnerId !== null &&
+    target.facetOwnerId === facts.actorId
+
+  const qualified =
+    byPreset || byAssignment || bySelfEditGrant || byOwnPrivateFacet
   const owner = rule.owner ?? 'ignored'
 
   const allowed =

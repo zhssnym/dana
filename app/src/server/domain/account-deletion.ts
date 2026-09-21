@@ -73,6 +73,174 @@ export interface UserCascadeDisposal {
  * here goes red, and an entry naming a key the schema no longer has goes red
  * too.
  */
+/**
+ * What becomes of one foreign key that points at `users(id)` with
+ * `ON DELETE RESTRICT` or `NO ACTION`.
+ *
+ * **Added 2026-09-21 by Ruling 6 of issue #210**,
+ * https://github.com/zhssnym/dana/issues/210#issuecomment-5757696835, and the
+ * list above is where to read first: that one enumerates the clauses that
+ * promise to change a row and cannot, because 8.10 step 7 scrubs the `users`
+ * row rather than deleting it. **These promise to *refuse* a delete that never
+ * comes**, which is why the guard left them alone -- a clause that refuses
+ * nothing leaves nothing in a wrong state.
+ *
+ * That reasoning is right for seventeen of the eighteen and was wrong for one.
+ * `folder_facets.owner_id` names a **private facet**: writing that no other
+ * member may read, in a folder the account is leaving. Nothing was ever going
+ * to clear it, and nobody would ever have been able to read it or remove it
+ * again. So the enumeration is widened rather than the clause changed: every
+ * key here says whether its rows are **swept** by a statement this codebase
+ * runs, or **outlive** the account deliberately, and the guard asserts the
+ * list against the live schema in both directions. A nineteenth key is then a
+ * decision somebody has to write down rather than a silence.
+ *
+ * `outlives` is the ordinary answer and is not an apology. 4.13 makes an act
+ * survive its actor on purpose, which is the whole reason step 7 scrubs
+ * instead of deleting, and provenance that vanished would rewrite the record
+ * of work other people did.
+ */
+export interface UserRestrictDisposal {
+  /** The constraint name, as `db/constraint-catalog.ts` spells it. */
+  fk: string
+  table: string
+  disposition: 'swept' | 'outlives'
+  /** Which statement removes the rows, or empty when they outlive. */
+  where: string
+  why: string
+}
+
+/** Every `ON DELETE RESTRICT` or `NO ACTION` foreign key referencing
+ * `users(id)`, and what becomes of its rows when the account goes. */
+export const USER_RESTRICT_DISPOSALS: readonly UserRestrictDisposal[] = [
+  {
+    fk: 'folder_facets_owner_id_fkey',
+    table: 'folder_facets',
+    disposition: 'swept',
+    where: "runRClean, in domain/folders.ts, via deletePrivateFacetsOf",
+    why: "Ruling 6 of #210: a private facet is the owner's own writing that no other member may ever read, so it goes permanently with the membership -- by every path, because R-CLEAN is where all three of them meet. Left standing it is unreadable by its owner, who has left, unreadable by everybody else, `facet.read` admitting no preset, and unrestorable by either.",
+  },
+  {
+    fk: 'folder_facets_created_by_fkey',
+    table: 'folder_facets',
+    disposition: 'outlives',
+    where: '',
+    why: "Provenance and never authority (#228's authorship rule): nothing reads it to decide anything, and a facet the folder still has must keep saying who made it.",
+  },
+  {
+    fk: 'folders_owner_id_fkey',
+    table: 'folders',
+    disposition: 'swept',
+    where: 'steps 2 and 3, in this file',
+    why: '8.9 and 8.10: a folder with other members is transferred and one without is deleted outright, so no folder is left owned by a scrubbed account.',
+  },
+  {
+    fk: 'folder_access_history_actor_id_fkey',
+    table: 'folder_access_history',
+    disposition: 'outlives',
+    where: '',
+    why: 'R9 section 13: the record of who changed whose Access survives the people in it, which is what makes it a record.',
+  },
+  {
+    fk: 'folder_access_history_member_id_fkey',
+    table: 'folder_access_history',
+    disposition: 'outlives',
+    where: '',
+    why: 'As the actor key: the history of a membership outlives the membership, and 4.30 and 4.28 keep the same rule for their own tables.',
+  },
+  {
+    fk: 'folder_responsibilities_member_id_fkey',
+    table: 'folder_responsibilities',
+    disposition: 'outlives',
+    where: '',
+    why: "R10: history survives the membership it describes. The standing is *closed* by runRClean rather than deleted, which is 4.28's own sentence and AC-570's last case.",
+  },
+  {
+    fk: 'folder_responsibilities_updated_by_fkey',
+    table: 'folder_responsibilities',
+    disposition: 'outlives',
+    where: '',
+    why: 'Provenance on a document the folder keeps; #230 forbids scrubbing from fabricating a different historical actor.',
+  },
+  {
+    fk: 'folder_responsibility_history_actor_id_fkey',
+    table: 'folder_responsibility_history',
+    disposition: 'outlives',
+    where: '',
+    why: 'R10, as above: the append-only record is the authority on who did what and may not lose its actors.',
+  },
+  {
+    fk: 'folder_responsibility_history_member_id_fkey',
+    table: 'folder_responsibility_history',
+    disposition: 'outlives',
+    where: '',
+    why: 'The same record, its other reference: a revision about a person who has left still describes work the folder did.',
+  },
+  {
+    fk: 'tasks_created_by_fkey',
+    table: 'tasks',
+    disposition: 'outlives',
+    where: '',
+    why: "4.13: a Task in somebody else's folder survives its author, and deleting it would take that folder's work with the account.",
+  },
+  {
+    fk: 'tasks_completed_by_fkey',
+    table: 'tasks',
+    disposition: 'outlives',
+    where: '',
+    why: "`tasks_completed_by_check` ties this column to the status, so it cannot be nulled without reopening somebody else's finished Task.",
+  },
+  {
+    fk: 'reminders_created_by_fkey',
+    table: 'reminders',
+    disposition: 'outlives',
+    where: '',
+    why: 'A reminder rides its Task, which survives; 8.6 delivers to the assignee, and a scrubbed author changes nothing about that.',
+  },
+  {
+    fk: 'invites_inviter_id_fkey',
+    table: 'invites',
+    disposition: 'outlives',
+    where: '',
+    why: "Pending invitations are invalidated at step 1 rather than deleted, so the record of who invited whom stays readable to the folder's administrators.",
+  },
+  {
+    fk: 'invites_accepted_by_fkey',
+    table: 'invites',
+    disposition: 'outlives',
+    where: '',
+    why: 'The same row, its other reference: an accepted invitation is history of how a membership began.',
+  },
+  {
+    fk: 'events_actor_id_fkey',
+    table: 'events',
+    disposition: 'outlives',
+    where: '',
+    why: "4.13 in one line: an event is what somebody did, it is purged at ninety days by 11.7, and it is not the account's to take with them.",
+  },
+  {
+    fk: 'comments_author_id_fkey',
+    table: 'comments',
+    disposition: 'outlives',
+    where: '',
+    why: "#228's authorship rule: a departed member keeps their old words, which is the same sentence that says authorship confers no standing authority.",
+  },
+  {
+    fk: 'files_owner_id_fkey',
+    table: 'files',
+    disposition: 'swept',
+    where: 'step 6a, in this file',
+    why: '7.15: the account\'s own uploads are deleted with it and their objects removed after the commit, which is why this key never refuses the scrub.',
+  },
+  {
+    fk: 'task_dependencies_created_by_fkey',
+    table: 'task_dependencies',
+    disposition: 'outlives',
+    where: '',
+    why: "7.25: a dependency is a fact about two Tasks in somebody's folder, and who wrote it down is provenance the folder keeps.",
+  },
+]
+
 export const USER_CASCADE_DISPOSALS: readonly UserCascadeDisposal[] = [
   {
     fk: 'connections_user_a_id_fkey',

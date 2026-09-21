@@ -26,13 +26,17 @@ bodies and interfaces and no read schemas, which is a real gap in the
 contract rather than a client convenience, because a response nothing
 validates is a response whose shape drifts silently.
 
-Trash holds two kinds and never one list. 9.11 lists "every deleted task and
-folder the viewer can still reach", and the two carry different facts (a task
-names the folder it lived in, a folder names how many tasks it holds), so
-they are two arrays and the page interleaves them by their deletion time.
+Trash holds separate kinds and never one list. 9.11 lists "every deleted task
+and folder the viewer can still reach", and they carry different facts (a task
+names the folder it lived in, a folder names how many tasks it holds), so they
+are separate arrays and the page interleaves them by their deletion time.
+**It said "two kinds" until 2026-09-21, and issue #210 made it three**: a
+custom Folder facet is the third, and its own block below says what it carries
+and why.
 */
 import { z } from 'zod'
 
+import { FACET_KINDS } from './facets.js'
 import { folderAccessPreset } from './folder-access.js'
 
 /*
@@ -96,8 +100,48 @@ export const trashedFolder = z.object({
 })
 export type TrashedFolder = z.infer<typeof trashedFolder>
 
+/*
+**The third kind, added 2026-09-21 by issue #210** on Hassan's technical
+ruling, https://github.com/zhssnym/dana/issues/210#issuecomment-5756722756,
+section 3. A custom Folder facet -- a Work facet, a shared blank or a private
+blank -- goes to Trash like anything else, and it carries `is_owner` and
+`my_access` exactly as the two rows above do and for the same reason: the
+permanent delete is not one rule across the three kinds, so one fact cannot
+answer for all of them.
+
+**A facet's permanent delete is the Task's rule and not the Folder's**: Full
+control with ownership **ignored** (7.13's 2026-09-20 correction). `is_owner`
+is here anyway, because it is the Folder's custody and a Trash page draws all
+three kinds from one response.
+
+**A native facet is never here.** It is hidden and restored rather than
+deleted, which `folder_facets_hidden_kind_check` and the 409 on
+`DELETE /folders/:id/facets/:facetId` both say; `kind` carries all seven names
+because the *column* does, and a row with a native kind in it would be a
+defect this schema should not quietly accept the shape of.
+
+`name` is resolved exactly as `GET /folders/:id/facets` resolves it, so a
+Trash row says what the tab said -- including a Work facet's, which is its H1
+block's text read at this moment and not a copy taken when it was trashed.
+*/
+export const trashedFacet = z.object({
+  id: z.uuid(),
+  name: z.string(),
+  kind: z.enum(FACET_KINDS),
+  folder_id: z.uuid(),
+  /** Where it lived, as a trashed task names its folder. */
+  folder_name: z.string(),
+  deleted_at: z.string(),
+  /** Whether the viewer owns the Folder this facet belongs to. */
+  is_owner: z.boolean(),
+  /** The viewer's own Access preset for that Folder. */
+  my_access: folderAccessPreset,
+})
+export type TrashedFacet = z.infer<typeof trashedFacet>
+
 export const getTrashResponse = z.object({
   tasks: z.array(trashedTask),
   folders: z.array(trashedFolder),
+  facets: z.array(trashedFacet),
 })
 export type GetTrashResponse = z.infer<typeof getTrashResponse>

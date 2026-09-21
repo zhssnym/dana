@@ -38,6 +38,7 @@ import type { SampleCounts, SampleStatus } from '../../shared/sample.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from '../domain/events.js'
+import { createNativeFacets } from '../domain/facets.js'
 import { recordAccessTransition } from '../domain/folder-access.js'
 import { upsertReminder } from '../domain/tasks.js'
 import { destroyFolders, destroyTasks } from '../domain/trash.js'
@@ -212,6 +213,13 @@ async function writeFolder(
     actorId: userId,
     transition: 'created_owner',
   })
+
+  /* The four native facets, in this same transaction (issue #210, 4.30:
+   "natives are created with the Folder and never lazily"). Every path
+   that inserts a `folders` row owes this call, and
+   `tests/guards/guard-native-facets-on-every-folder.test.ts` fails the
+   day one does not. */
+  await createNativeFacets(tx, folderId, userId)
 
   const sections = new Map<string, string>()
   for (const [index, block] of (folder.blocks ?? []).entries()) {

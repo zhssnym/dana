@@ -51,6 +51,7 @@ import type { ObjectStore } from '../files/store.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
+import { createNativeFacets } from './facets.js'
 import { recordAccessTransition } from './folder-access.js'
 import { copyCoverFile, copyPageFile, readableFileScope } from './files.js'
 import { applyDocument, documentMetadata, DocumentRefusal } from './page-document.js'
@@ -254,6 +255,15 @@ export async function duplicateFolder(
         actorId: viewerId,
         transition: 'created_owner',
       })
+      /* The four native facets, in this same transaction (issue #210, 4.30:
+         "natives are created with the Folder and never lazily"). **The
+         source's facets do not travel and the file carries none**: a
+         duplicate and an import are new Folders whose only member is the
+         person who made them, which is R10B's rule for member standing read
+         one table over, and #210's out-of-scope list leaves the copy of a
+         facet's content to a later slice. `guard-native-facets-on-every-folder`
+         fails the day a `folders` insert has no call like this beside it. */
+      await createNativeFacets(tx, copyId, viewerId)
       if (coverFileId !== null) {
         // The scope, now that there is a folder to name (4.16, 7.15).
         await tx.execute(
@@ -731,6 +741,15 @@ export async function importWorkflow(
         actorId: viewerId,
         transition: 'created_owner',
       })
+      /* The four native facets, in this same transaction (issue #210, 4.30:
+         "natives are created with the Folder and never lazily"). **The
+         source's facets do not travel and the file carries none**: a
+         duplicate and an import are new Folders whose only member is the
+         person who made them, which is R10B's rule for member standing read
+         one table over, and #210's out-of-scope list leaves the copy of a
+         facet's content to a later slice. `guard-native-facets-on-every-folder`
+         fails the day a `folders` insert has no call like this beside it. */
+      await createNativeFacets(tx, folderId, viewerId)
       const taskMap = new Map<string,string>()
       /*
       The Folder's reusable vocabulary, before the work that points at it

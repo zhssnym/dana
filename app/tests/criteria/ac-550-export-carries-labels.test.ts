@@ -26,6 +26,13 @@ disagree with itself. So this file resolves the ids and asserts they land.
 
 ## The version
 
+**The written-out literal below moved 5 → 6 on 2026-09-21, under hard stop 7**, and the
+decision that moved is Ruling 7 of the #210 addendum, https://github.com/zhssnym/dana/issues/210#issuecomment-5757696835:
+the export gains a `facets` collection, so the number a version-5 reader would refuse is a
+different number from the one it knows. This criterion's subject -- the person's whole
+classification -- is untouched, and every other assertion in the file is unchanged; what
+moved is one number that describes the document's shape rather than anything about Labels.
+
 `EXPORT_VERSION` moved 3 → 4 here. A version-3 reader's schema does not declare
 any of these keys, so it would strip them and hand back a document with a
 person's classification silently missing; the number is the mechanism by which
@@ -156,8 +163,8 @@ describe('AC-550 the export carries the person’s whole classification', () => 
     ).toBe(EXPORT_VERSION)
     expect(
       EXPORT_VERSION,
-      'and the number is 5: 4 is what #227 took for the Label keys below, and issue #230 moved it again for the `responsibilities` collection. The literal is written out rather than compared against the constant, which would agree with it whatever it said, so it moves in the same change the constant does (#230)',
-    ).toBe(5)
+      'and the number is 6: 4 is what #227 took for the Label keys below, #230 moved it to 5 for the `responsibilities` collection, and issue #210 moved it to 6 for the `facets` one. The literal is written out rather than compared against the constant, which would agree with it whatever it said, so it moves in the same change the constant does (#230, #210)',
+    ).toBe(6)
 
     const personal = document.personal_labels
     expect(

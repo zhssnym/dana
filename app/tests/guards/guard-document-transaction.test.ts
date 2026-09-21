@@ -84,11 +84,17 @@ test('Issue194 duplicate, export and workflow import retain hierarchy and rich c
     out to be exactly right rather than merely cautious. Two branches each
     bumping to one number merge cleanly and leave one version covering two
     different documents, which is worse than either change alone.
+    **5 to 6 on 2026-09-21 at issue #210**, which adds a `facets` collection:
+    Ruling 7 of the addendum, https://github.com/zhssnym/dana/issues/210#issuecomment-5757696835.
+    Moved under hard stop 7, and the decision that moved is that one -- a
+    private facet is content only its owner can reach, so an export without it
+    hands somebody a copy of their own data with their own writing missing.
+
     `shared/export.ts` carries the chain. This assertion is incidental to what
     the case is about -- hierarchy and rich content surviving a duplicate, an
     import and an export -- and it moves with the document's shape rather than
     with anything this case asserts. */
- expect(data.version).toBe(5);expect(data.folders.find(f=>f.id===folder)?.blocks.find(b=>b.id===p)?.section_block_id).toBe(h2)
+ expect(data.version).toBe(6);expect(data.folders.find(f=>f.id===folder)?.blocks.find(b=>b.id===p)?.section_block_id).toBe(h2)
  const current=await read(owner,folder)
  expectStatus(await owner.browser.json(`/folders/${folder}/page/actions`,'POST',{action:'document_transaction',mutation_id:randomUUID(),base_revision:current.revision,operations:[{op:'delete_block',id:h1},{op:'set_outline',items:[{kind:'block',id:h2,section_block_id:null,list_parent_block_id:null},{kind:'block',id:p,section_block_id:h2,list_parent_block_id:null}]}]}),200,'remove H1 promotes subgroup')
  expect((await read(owner,folder)).blocks.find(b=>b.id===h2)?.section_block_id).toBeNull()

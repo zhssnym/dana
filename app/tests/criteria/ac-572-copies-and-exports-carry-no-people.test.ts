@@ -217,10 +217,20 @@ describe('AC-572 copies and exports carry no other people', () => {
     const { owner, member, folderId } = await stage('AC-572 export')
 
     const ownersFile = await exportOf(owner)
+    /* **Moved 5 to 6 on 2026-09-21 under hard stop 7**, and the decision that
+       moved is Ruling 7 of the #210 addendum,
+       https://github.com/zhssnym/dana/issues/210#issuecomment-5757696835: the
+       export gains a `facets` collection. This criterion's subject -- that
+       copies and exports carry no other people -- is untouched, and AC-551's
+       new case is where the facet half of that boundary is driven. **This is
+       the third written-out literal of this number in the suite**, beside
+       AC-550's and `guard-document-transaction`'s; the ruling named two, and
+       the third is recorded here so the next person moving it finds all
+       three. */
     expect(
       ownersFile.version,
-      "the document says which shape it is, so a reader refuses a version it does not know rather than guessing. The literal is written out rather than compared against `EXPORT_VERSION`, which would agree with the constant whatever the constant said. 5 and not 4 because 3 is #226's and 4 is #227's; `shared/export.ts` carries the chain",
-    ).toBe(5)
+      "the document says which shape it is, so a reader refuses a version it does not know rather than guessing. The literal is written out rather than compared against `EXPORT_VERSION`, which would agree with the constant whatever the constant said. 6 and not 5 because 3 is #226's, 4 is #227's and 5 is #230's; `shared/export.ts` carries the chain",
+    ).toBe(6)
     const ownersEntries = ownersFile.responsibilities.filter(
       (entry) => entry.folder.id === folderId,
     )

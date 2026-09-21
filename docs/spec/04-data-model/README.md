@@ -137,6 +137,45 @@ the SQL are legible against each other by one reader. AC-479 is what asserts the
 one membership column left, and the old name refused by the server rather than merely
 unwritten.
 
+**Ninth, and it is purely additive again: 4.30 `folder_facets` is a new subsection and 4.17
+gains a third home, dated 2026-09-21** (issue #210, M1-F, on Hassan's technical ruling
+https://github.com/zhssnym/dana/issues/210#issuecomment-5756722756, section 1). The migration
+is 0027.
+
+4.30 is one row per **facet** of a Folder: the four natives, and the custom Work and blank
+facets #210 adds. 4.17 gains `page_blocks.facet_id` with its own foreign key and index, so a
+blank facet's document is 4.17's table rather than a store of its own, and
+`page_blocks_one_home_check` is **dropped and re-added under the same name** over
+`num_nonnulls(folder_id, shelf_id, facet_id) = 1`.
+
+**That one re-added CHECK is the only statement in this entry that is not an addition, and it
+is not the Eighth entry's kind of change.** The admitted set is *strictly larger*: every
+existing row has exactly one of the two old homes and a null `facet_id`, so every one passes
+by construction, no backfill runs, and nothing that was stored before stops being storable.
+The constraint is dropped and re-added rather than renamed so that the migration and
+`db/constraint-catalog.ts` stay legible against each other by one reader, which is the rule
+the Eighth entry states for a dropped constraint. **No column is dropped and none is
+renamed.** The migration also backfills the four native facets for every Folder that already
+exists, trashed ones included, which is a data statement and is described in the file for the
+reason 0010's is.
+
+The freeze holds the way it has held eight times before: the owner ruled the change before it
+was written, the ruling is cited in both files and in the migration, and every constraint and
+index is named.
+
+**Tenth, and it is a rule added to 4.30 before it has ever merged: Ruling 6 of the #210
+addendum, dated 2026-09-21** (https://github.com/zhssnym/dana/issues/210#issuecomment-5757696835). A private facet does not outlive its owner's
+membership: when one ends by any path, the departing person's private facets in that folder
+and their `page_blocks` are permanently deleted in the same transaction. **No column, no
+constraint, no index and no default moves** — the diff is a dated subsection in 4.30 — and
+`folder_facets.owner_id` stays `ON DELETE RESTRICT`, the sweep being a statement for the
+same reason 4.28's standing is closed by one: 8.10 scrubs the `users` row rather than
+deleting it, so no clause on a `users` key ever fires. 8.8 and 8.10 take the matching
+amendment. It is here because the freeze asks that a change to this section be visible from
+its front door, and because it was taken **after** the Ninth entry's ruling, from an
+adversarial review that found a private facet outliving the person it belonged to, readable
+and removable by nobody.
+
 | | File | Covers |
 | - | - | - |
 | 4.1 | [`04.1-users.md`](04.1-users.md) | 4.1 users |
@@ -168,3 +207,4 @@ unwritten.
 | 4.27 | [`04.27-task-folder-labels.md`](04.27-task-folder-labels.md) | 4.27 task_folder_labels |
 | 4.28 | [`04.28-folder-responsibilities.md`](04.28-folder-responsibilities.md) | 4.28 folder_responsibilities |
 | 4.29 | [`04.29-folder-responsibility-history.md`](04.29-folder-responsibility-history.md) | 4.29 folder_responsibility_history |
+| 4.30 | [`04.30-folder-facets.md`](04.30-folder-facets.md) | 4.30 folder_facets |

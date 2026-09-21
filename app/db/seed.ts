@@ -243,6 +243,24 @@ export async function seed(): Promise<void> {
       (${seedIds.nadiaDesk}, ${seedIds.nadia}, 'Desk', true),
       (${seedIds.nadiaStudio}, ${seedIds.nadia}, 'Studio', false)
   `)
+  /* The four native facets of every seeded folder (issue #210, 4.30:
+     "natives are created with the Folder and never lazily"). Written here as
+     SQL rather than through `createNativeFacets`, because this file is the
+     seed and imports nothing from `src/server`; the positions are the same
+     four keys `initialKeys(4)` produces and migration 0027 backfilled, and
+     AC-830 is what holds the two spellings together. */
+  await db.execute(sql`
+    INSERT INTO folder_facets (folder_id, kind, position, created_by)
+    SELECT f.id, k.kind, k.pos, f.owner_id
+      FROM folders f
+      CROSS JOIN (VALUES ('main', 'a0'),
+                         ('purpose', 'a1'),
+                         ('consultation', 'a2'),
+                         ('results', 'a3')) AS k(kind, pos)
+     WHERE f.id IN (${seedIds.hassanDesk}, ${seedIds.imranDesk},
+                    ${seedIds.groceries}, ${seedIds.nadiaDesk},
+                    ${seedIds.nadiaStudio})
+  `)
   /* Access is written explicitly (issue #228) and the values are migration
      0023's own rule read forward: the folder's owner is Full control and
      every other member is Can edit. Imran is the one non-owner here, in
