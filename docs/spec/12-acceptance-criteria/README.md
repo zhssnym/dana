@@ -706,9 +706,13 @@ what that sentence is for.
   commit.** One number for one criterion, in 12.24. **The block was assigned rather than
   read from this section**, which is the rule while several branches are open: 700 upward
   was already `backend/263`'s that day, and four of the rows in the table above name
-  branches whose extent cannot be read from any tree, so 680 was not a number to take. The
-  allocator line moved to 760 in this commit, past the whole block rather than to the next
-  integer, and the reason is in that table.
+  branches whose extent cannot be read from any tree, so 680 was not a number to take. **750
+  came from below the allocator line rather than from the tail, so this commit does not move
+  that line at all**: the line is the maximum anything has spent, it read 811 on the tree
+  this bullet was first written against and reads 826 on the tree this branch now sits on,
+  and a number taken out of the assigned middle leaves the tail exactly where it was. The
+  paragraph on 750 in `## The next number` above carries the same thing, and the table there
+  is where the assignment is recorded.
 
   **AC-481 is marked retired rather than removed, and its text is kept verbatim in 12.24**,
   on this list's own append-only rule and on the AC-122 and AC-123 precedent above.

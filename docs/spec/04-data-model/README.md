@@ -83,10 +83,12 @@ was already written above them. It is recorded here because the freeze asks that
 this section be visible from its front door, and a reader who is told only that nothing
 changed cannot check that for themselves.
 
-**Seventh, two amendments landed on 2026-09-21 under issue #247, release A, on the same
-technical ruling recorded at #226.** 4.4's `label` row and its annotation now say what is
-true of this release — the column is written by nothing and is dropped by #247's *second*
-release rather than by this one — and 4.18's opening sentence names
+**Seventh, two amendments under issue #247, release A, on the same technical ruling
+recorded at #226: dated 2026-09-20, which is the date the two files themselves carry and the
+date 12.24 and `app/tests/README.md` carry for the same ruling, and written into this entry
+on 2026-09-21.** 4.4's `label` row and its annotation now say what is true of this release —
+the column is written by nothing and is dropped by #247's *second* release rather than by
+this one — and 4.18's opening sentence names
 `folder_members.shelf_name`, which is the column it has described since #226 renamed it and
 the one thing in that file that was left saying `label`. **No column, no constraint, no
 default and no bound moves in either file**, and nothing under `app/db/` moves with them:
