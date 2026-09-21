@@ -36,6 +36,7 @@ import type { ObjectStore } from '../files/store.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
+import { trashedFacets } from './facets.js'
 import { mayPerform, presetOf } from './folder-access.js'
 import type { FolderActorFacts } from './folder-access.js'
 import type { FolderAccessPreset } from '../../shared/folder-access.js'
@@ -97,7 +98,14 @@ export async function trashView(
         WHERE f.deleted_at IS NOT NULL
         ORDER BY f.deleted_at DESC, f.id DESC`,
   )
+  /* The third kind (issue #210, ruling of 2026-09-21 section 3). It is read by
+     `domain/facets.ts` rather than by a third query here, because the facet
+     read carries the name-resolution rule -- a Work facet's name is its H1's
+     text at read time -- and that rule must have exactly one implementation or
+     a Trash row will one day say a different word from the tab it came from. */
+  const facets = await trashedFacets(db, viewerId)
   return {
+    facets,
     tasks: tasks.map((row): TrashedTask => ({
       id: String(row.id),
       title: String(row.title),

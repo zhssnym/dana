@@ -413,14 +413,23 @@ describe('AC-399 no route parses a request body except through parseBody', () =>
        time, and 37 is what this sweep itself reported on the merged tree
        rather than what any diff implies.** Same instruction followed as every
        rise above: the sweep passed on the two new routes first. */
+    /* **37 to 43, and 11 to 12, on 2026-09-21** (issue #210, M1-F). Six new
+       call sites, all in one new module, `routes/facets.ts`: the facet
+       create, the patch, the two order writes, the share confirmation and the
+       facet document transaction. The other four facet routes -- the listing,
+       the page read, the delete and the two Trash acts -- take no body at all
+       and move nothing here. #210 read 37 and 11 on its own tree, which is
+       `main` at 46dbabd, so 43 and 12 are this sweep's own answers on that
+       tree. Same instruction followed as every rise above: the sweep passed
+       on all six new routes first. */
     expect(
       sites.length,
-      `parseBody is called from ${String(sites.length)} places and there were 37 after issue #224 added the task-dependency create, issue #226 added the four body-taking Label routes, issue #275 taught this sweep to read the file rather than the line and issue #230 added the Responsibility commit and the self-edit grant toggle. Fewer means a route stopped using it, and the sweep above is what says whether it went back to req.body; more means a body-taking route was added, and this number moves with it in the same change`,
-    ).toBe(37)
+      `parseBody is called from ${String(sites.length)} places and there were 43 after issue #224 added the task-dependency create, issue #226 added the four body-taking Label routes, issue #275 taught this sweep to read the file rather than the line, issue #230 added the Responsibility commit and the self-edit grant toggle and issue #210 added the six body-taking facet routes. Fewer means a route stopped using it, and the sweep above is what says whether it went back to req.body; more means a body-taking route was added, and this number moves with it in the same change`,
+    ).toBe(43)
     expect(
       [...modules].sort().length,
-      `${String(modules.size)} modules read a request body and there were 11 after issue #226 added routes/labels.ts, unmoved by issue #275 because the call it made visible is in a module that was already counted: ${[...modules].sort().join(', ')}`,
-    ).toBe(11)
+      `${String(modules.size)} modules read a request body and there were 12 after issue #226 added routes/labels.ts and issue #210 added routes/facets.ts, unmoved by issue #275 because the call it made visible is in a module that was already counted: ${[...modules].sort().join(', ')}`,
+    ).toBe(12)
   })
 })
 

@@ -21,6 +21,7 @@ import type { ResponsibilityDocument } from '../../shared/responsibility.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
+import { createNativeFacets } from './facets.js'
 import {
   folderActorFacts,
   lockedMembership,
@@ -294,6 +295,15 @@ export async function createFolder(
       actorId: viewerId,
       transition: 'created_owner',
     })
+    /* The four native facets, **in this transaction and never lazily**
+       (issue #210, ruling of 2026-09-21 section 1). #210's "stable internal
+       identity" is a fact of the folder rather than of whoever looked first,
+       and lazy creation would mean a GET writes, two members race
+       `folder_facets_folder_native_kind_idx`, and a Can-view member's read
+       either creates rows or answers differently from a Can-edit member's.
+       Migration 0027 did the same for every folder that already existed,
+       trashed ones included. */
+    await createNativeFacets(tx, id, viewerId)
     await recordEvent(tx, {
       actorId: viewerId,
       verb: 'created',

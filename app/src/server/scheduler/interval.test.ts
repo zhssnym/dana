@@ -128,15 +128,23 @@ describe('the in-flight guard (spec 11.7)', () => {
 
     stub.release()
     await vi.advanceTimersByTimeAsync(0)
-    // Five statements follow the delivery transaction: the session prune and
-    // the four purge DELETEs (Trash folders, Trash tasks, events, and the
-    // cover reclaim of issue #116), each a single statement needing no
-    // wrapper. It was four from S3 until 2026-09-04, and the number moves
-    // with the pass's duties in the same change — like AC-236's route count,
-    // this is a fixture over the implementation rather than a rule about it,
-    // and what it asserts is unchanged: the held pass ran all the way
-    // through rather than stopping where it was released.
-    expect(stub.finished(), 'the held pass ran to completion').toBe(5)
+    // Six statements follow the delivery transaction: the session prune and
+    // the five purge DELETEs (Trash folders, Trash tasks, **Trash facets**,
+    // events, and the cover reclaim of issue #116), each a single statement
+    // needing no wrapper. It was four from S3 until 2026-09-04, five until
+    // 2026-09-21, and the number moves with the pass's duties in the same
+    // change — like AC-236's route count, this is a fixture over the
+    // implementation rather than a rule about it, and what it asserts is
+    // unchanged: the held pass ran all the way through rather than stopping
+    // where it was released.
+    //
+    // **Moved by issue #210**, which added the facet arm of the thirty-day
+    // Trash purge: `destroyFacets` in `domain/facets.ts`, one statement in
+    // the shape `destroyFolders` and `destroyTasks` next to it keep. The
+    // enumeration above is kept in step deliberately — `docs/workflow/backend.md`
+    // says so of this line in particular — because it is the only thing that
+    // lets the next reader tell a legitimate move from a lost duty.
+    expect(stub.finished(), 'the held pass ran to completion').toBe(6)
 
     await vi.advanceTimersByTimeAsync(1_000)
     expect(

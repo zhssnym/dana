@@ -260,6 +260,57 @@ const GOVERNED: Record<string, FolderAction> = {
   'POST /api/v1/invites': 'invite.create',
   'POST /api/v1/invites/:id/cancel': 'invite.administer',
   'POST /api/v1/invites/:id/resend': 'invite.administer',
+  /* ---------------------------------------------------------------- *
+   * #210's facet surface (M1-F), on Hassan's ruling of 2026-09-21
+   * ---------------------------------------------------------------- *
+
+   Nine mutations, eight of them governed here and one classified below.
+
+   Three of the eight name an act whose bar `whenOwnPrivateFacet` moves for
+   one row and one person -- create, rename and delete -- and the row names
+   the act rather than the escape, which is this table's rule everywhere: the
+   assignment rows above name `task.edit` and not "Can contribute over their
+   own". Whether the escape is narrow is **AC-523 proof 26**'s subject and
+   **AC-838**'s, not this mapping's.
+
+   Two of them need reading against their route.
+   `PATCH /folders/:id/facets/:facetId` carries two fields that are two
+   different acts -- `display_name` is `facet.rename` and `hidden` is
+   `facet.hide` -- and the route asks each only when its field arrived, so a
+   patch carrying both must satisfy both. It is mapped to `facet.rename` here
+   on the header's rule for a route that performs more than one act: name the
+   one a reader must not miss, and `facet.rename` is the one carrying the
+   private-facet escape.
+   `POST /folders/:id/facets/:facetId/page/actions` is mapped to
+   `folder.page.edit` because that is what a **shared** blank facet's document
+   is -- ordinary shared Work, #228's Can-edit list, the same bar the Folder
+   page itself asks. A **private** facet's document is `facet.read`, which no
+   preset satisfies; the route asks whichever of the two the facet's
+   `owner_id` selects, under the row's lock. One row cannot say both, and the
+   stricter of the two is the one nobody can reach by preset, so naming it
+   here would read as "this route refuses everyone".
+
+   `POST /api/v1/facets/:id/restore` is `facet.delete` rather than an eighth
+   action, which is a decision rather than an omission: the ruling names seven
+   actions and no `facet.restore`, and #228's own Can-edit list carries
+   restore beside trash for Tasks (`task.restore` is `can_edit`, as
+   `task.trash` is). Restoring what you were allowed to trash is the same
+   authority, and a private facet's owner keeps it through the same escape.
+   Said out loud here because it is the one row on this block that is a
+   reading rather than a transcription. */
+  'POST /api/v1/folders/:id/facets': 'facet.create',
+  'PATCH /api/v1/folders/:id/facets/:facetId': 'facet.rename',
+  'DELETE /api/v1/folders/:id/facets/:facetId': 'facet.delete',
+  'PUT /api/v1/folders/:id/facets/order': 'facet.reorder',
+  'POST /api/v1/folders/:id/facets/:facetId/share': 'facet.convert_to_shared',
+  'POST /api/v1/folders/:id/facets/:facetId/page/actions': 'folder.page.edit',
+  'POST /api/v1/facets/:id/restore': 'facet.delete',
+  /* The permanent delete is `task.destroy` and not a facet action, and that
+     is the ruling's own sentence: "Full control with ownership ignored, the
+     Task rule of 7.13's 2026-09-20 correction". Naming the Task action rather
+     than minting an eighth one keeps the two permanent deletes provably the
+     same rule instead of two rules that happen to agree today. */
+  'DELETE /api/v1/trash/facets/:id': 'task.destroy',
 }
 
 /**
@@ -331,6 +382,25 @@ const OUTSIDE_FOLDER_ACCESS: Record<string, string> = {
   'POST /api/v1/labels/personal/:labelId/restore': "the person's own Label",
   'POST /api/csp-report/':
     "the browser's own report of a policy refusal (issue #99). No session, no database, no folder",
+  /* #210's private facet order, and it is the one route of that surface that
+     is **not** Folder Access's. Hassan's ruling of 2026-09-21 says so in
+     terms: "no eighth action for the private order write: that is the existing
+     `personal.view_preferences`, #228's personal-actions rule putting a
+     member's own arrangement of rows only they can see outside Folder Access
+     entirely."
+
+     It is not ungoverned. `routes/facets.ts` resolves the folder through
+     `accessOf` first, so a non-member is 404, and then asks
+     `personal.view_preferences`, which is `atLeast: 'can_view'` and
+     `personal: true` -- membership and nothing more. Every row it writes is
+     one the caller owns: the statement carries
+     `owner_id = <viewer>`, and a placement naming anybody else's facet is
+     answered 404 before it. That is the same shape as
+     `PATCH /folders/:id/my-membership` in GOVERNED above, which is listed
+     there because it does name a Folder action; this one names none, which is
+     why it is here. */
+  'PUT /api/v1/folders/:id/facets/my-order':
+    "the caller's own arrangement of the private facets only they can read (#210, ruling of 2026-09-21 section 2). Membership-gated through `personal.view_preferences`, and every row it writes carries `owner_id = <viewer>`",
 }
 
 describe('AC-523 every mutation is mapped to an action or classified outside', () => {

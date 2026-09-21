@@ -108,6 +108,7 @@ import {
   STUB_PHOTO_ID,
   makeComment,
   makeDependency,
+  makeFacet,
   makeFile,
   makeInvite,
   makeFolderLabel,
@@ -121,6 +122,7 @@ import {
   makeTask,
   memoryFileStore,
   startUpstreamStub,
+  trashFacet,
   trashFolder,
   trashTask,
   writePage,
@@ -298,6 +300,14 @@ type ResourceId =
   | 'personalLabelId'
   | 'strangerPersonalLabelId'
   | 'folderLabelId'
+  /* Issue #210's two, and both are **shared** blank facets rather than
+     private ones. A private facet is invisible to every other member, Full
+     control and the folder's owner included, so a private fixture would make
+     the `member` rows below answer 404 for the privacy rule instead of 403
+     for the preset -- a green row measuring the wrong refusal, which is the
+     failure this file's two controls exist to catch. */
+  | 'facetId'
+  | 'trashedFacetId'
 
 interface Fixtures extends Record<ResourceId, string> {
   owner: Actor
@@ -375,6 +385,10 @@ async function fixturesOf(): Promise<Fixtures> {
      the run demonstrates. See PLACE, and the last test in this file. */
   await makePlaceCover(owner, PLACE, fileId)
 
+  const facetId = await makeFacet(owner, folderId, 'ac397 the facet')
+  const trashedFacetId = await makeFacet(owner, folderId, 'ac397 doomed facet')
+  await trashFacet(owner, folderId, trashedFacetId)
+
   const trashedTaskId = await makeTask(owner, folderId, 'ac397 the doomed task')
   await trashTask(owner, trashedTaskId)
   const trashedFolderId = await makeSharedFolder(
@@ -405,6 +419,8 @@ async function fixturesOf(): Promise<Fixtures> {
     personalLabelId,
     strangerPersonalLabelId,
     folderLabelId,
+    facetId,
+    trashedFacetId,
   }
   return fixtures
 }
@@ -1552,6 +1568,190 @@ const TABLE = new Map<string, Row>([
       },
     },
   ],
+
+  /* -------------------------------------------------------------- *
+   * Folder facets (7.27, issue #210)
+   * -------------------------------------------------------------- */
+
+  /*
+  Eleven rows, and every one of the eleven answers a stranger **404**, which is
+  the same sentence the folder rows at the top of this table carry: 10.2
+  forbids a 403 here because it would confirm that the Folder exists. The gate
+  is `foundFolder` in `routes/facets.ts`, which resolves membership through
+  `accessOf` before it looks at the body — that ordering is 7.27's refusal
+  order and it is the reason a stranger's otherwise-valid body is still
+  answered 404 rather than anything about the body.
+
+  **Two of them carry a `member` variant and nine do not, and the split is the
+  decision rather than an oversight.** `fx.member` holds Can edit, and issue
+  #210's ruling puts create, rename, hide, reorder and delete at exactly that
+  bar — so there is no act on those routes this actor is refused, and a member
+  row would assert a rule nobody made. The two that do refuse them are
+  `DELETE /api/v1/trash/facets/:id`, which is Full control with ownership
+  ignored (7.13's 2026-09-20 correction, the Task rule rather than the
+  Folder's), and `POST /api/v1/folders/:id/facets/:facetId/share`, which needs
+  the facet's **owner** as well as the preset and so refuses a Can-edit member
+  who does not own it.
+
+  **What no row here can reach is the private-facet rule**, and that is worth
+  saying because it is the most important thing #210's ruling decided. A
+  private facet is invisible to Full control and to the structural owner, and
+  this sweep drives a stranger and a Can-edit member — neither of whom is
+  either. AC-838 is where that is driven, at every preset and at the owner, and
+  it is the criterion to read before changing the fixtures here from shared to
+  private.
+  */
+  [
+    'GET /api/v1/folders/:id/facets',
+    {
+      attempt: (fx) => ({ path: `/folders/${fx.folderId}/facets` }),
+      stranger: {
+        expected: 404,
+        rule: "7.27 and 10.2: the facet listing is `folder.read`'s, and a non-member sees nothing of the Folder, so the answer must not distinguish an empty list from a Folder they may not see",
+      },
+    },
+  ],
+  [
+    'POST /api/v1/folders/:id/facets',
+    {
+      /* A valid body, so the sweep measures the authorization answer rather
+         than the schema's. 7.27 resolves the Folder before it parses, so a
+         stranger is 404 either way; carrying a valid body means a green row
+         here cannot be green because of a 422 that never reached a gate. */
+      attempt: (fx) => ({
+        path: `/folders/${fx.folderId}/facets`,
+        body: { kind: 'shared_blank', display_name: 'ac397 attempt' },
+      }),
+      stranger: {
+        expected: 404,
+        rule: "7.27 and 10.2: a non-member sees nothing, so creating a facet in somebody else's Folder is 404 and never 403",
+      },
+    },
+  ],
+  [
+    'PATCH /api/v1/folders/:id/facets/:facetId',
+    {
+      attempt: (fx) => ({
+        path: `/folders/${fx.folderId}/facets/${fx.facetId}`,
+        body: { display_name: 'ac397 renamed' },
+      }),
+      stranger: { expected: 404, rule: '7.27 and 10.2: a non-member sees nothing' },
+    },
+  ],
+  [
+    'DELETE /api/v1/folders/:id/facets/:facetId',
+    {
+      attempt: (fx) => ({
+        path: `/folders/${fx.folderId}/facets/${fx.facetId}`,
+      }),
+      stranger: { expected: 404, rule: '7.27 and 10.2: a non-member sees nothing' },
+    },
+  ],
+  [
+    'PUT /api/v1/folders/:id/facets/order',
+    {
+      attempt: (fx) => ({
+        path: `/folders/${fx.folderId}/facets/order`,
+        body: { order: [fx.facetId] },
+      }),
+      stranger: {
+        expected: 404,
+        rule: "7.27: the shared sequence is Folder data and a non-member sees no Folder. The body is a one-element list, which is not a valid whole order — and it is answered 404 before that is looked at, which is the refusal order the route's header sets out",
+      },
+    },
+  ],
+  [
+    'PUT /api/v1/folders/:id/facets/my-order',
+    {
+      attempt: (fx) => ({
+        path: `/folders/${fx.folderId}/facets/my-order`,
+        body: { placements: [{ facet_id: fx.facetId, after_facet_id: null }] },
+      }),
+      stranger: {
+        expected: 404,
+        rule: '7.27: arranging your own private facets is `personal.view_preferences`, which is membership and nothing else — so a non-member has no membership to arrange anything under, and 10.2 makes that 404',
+      },
+    },
+  ],
+  [
+    'POST /api/v1/folders/:id/facets/:facetId/share',
+    {
+      attempt: (fx) => ({
+        path: `/folders/${fx.folderId}/facets/${fx.facetId}/share`,
+        body: { confirm: true },
+      }),
+      stranger: { expected: 404, rule: '7.27 and 10.2: a non-member sees nothing' },
+      /* **No member variant, and its absence is the decision**, on the same
+         reading `PATCH /api/v1/folders/:id` above records for itself.
+         Converting needs Can edit **and** the facet's owner, and `fx.member`
+         holds Can edit — so the only thing that could refuse them is the
+         owner half, and the owner half can never produce a 403 through HTTP:
+         the only facet with an owner is a private one, and a private facet is
+         **invisible** to every member but its owner, so a non-owner is
+         answered 404 by the visibility scope before the ownership question is
+         asked. The 403 arm in `domain/facets.ts` is kept anyway, on issue
+         #35's rule that the domain refuses a caller it was handed rather than
+         trusting one, and it says so at the line.
+
+         What a Can-edit member actually gets on this shared fixture is 409,
+         "already shared", which is state rather than authority and belongs to
+         AC-839 rather than to this sweep. */
+    },
+  ],
+  [
+    'GET /api/v1/folders/:id/facets/:facetId/page',
+    {
+      attempt: (fx) => ({
+        path: `/folders/${fx.folderId}/facets/${fx.facetId}/page`,
+      }),
+      stranger: {
+        expected: 404,
+        rule: "7.27 and 7.16: a blank facet's document is read by the Folder's members, so a non-member is 404 exactly as they are on `/folders/:id/page`",
+      },
+    },
+  ],
+  [
+    'POST /api/v1/folders/:id/facets/:facetId/page/actions',
+    {
+      attempt: (fx) => ({
+        path: `/folders/${fx.folderId}/facets/${fx.facetId}/page/actions`,
+        body: {
+          action: 'document_transaction',
+          mutation_id: '00000000-0000-4000-8000-000000000397',
+          base_revision: 'ac397',
+          operations: [{ op: 'set_outline', items: [] }],
+        },
+      }),
+      stranger: {
+        expected: 404,
+        rule: "7.27 and 7.16: the document transaction over a facet, refused before the body is read because the Folder is not the caller's to see",
+      },
+    },
+  ],
+  [
+    'POST /api/v1/facets/:id/restore',
+    {
+      attempt: (fx) => ({ path: `/facets/${fx.trashedFacetId}/restore` }),
+      stranger: {
+        expected: 404,
+        rule: '7.13 and 7.27: access to a trashed row is by membership at read time and never by who deleted, so a non-member is 404 — the same answer `POST /folders/:id/restore` gives them',
+      },
+    },
+  ],
+  [
+    'DELETE /api/v1/trash/facets/:id',
+    {
+      attempt: (fx) => ({ path: `/trash/facets/${fx.trashedFacetId}` }),
+      stranger: {
+        expected: 404,
+        rule: '7.13 and 7.27: a non-member sees nothing in Trash either',
+      },
+      member: {
+        expected: 403,
+        rule: "7.13's 2026-09-20 correction, applied to the third kind by #210's ruling: permanently deleting a facet is **Full control with ownership ignored**, which is the Task rule rather than the Folder's custody-and-Full-control pair, and `fx.member` holds Can edit",
+      },
+    },
+  ],
 ])
 
 /**
@@ -1698,10 +1898,22 @@ describe('AC-397 every id-bearing route refuses a stranger', () => {
     same lesson a fifth time** — 85 is what this sweep reported on the rebased
     tree, not what either diff implies.
     */
+    /*
+    **85 to 96 on 2026-09-21** (issue #210, M1-F): the eleven routes of 7.27,
+    every one of which carries a path parameter — the facet listing, the
+    create, the patch, the delete, the two order writes, the share, the two
+    page routes, the restore and the permanent delete. Each has its row above
+    and each row says what a stranger gets. **#210 read 85 on its own tree,
+    which is `main` at 46dbabd with nothing else in flight, so 96 is this
+    sweep's own answer rather than an arithmetic on a diff** — which is the
+    lesson the five paragraphs above this one record five times over, and it
+    holds even when there is only one branch open, because the number to write
+    down is always the one the sweep reported.
+    */
     expect(
       routes.length,
-      `the walker found ${String(routes.length)} routes carrying a path parameter and there were 85 after issue #223 added the Dana Link resolver, issue #224 added the three task-dependency routes, issue #226 added the eleven id-bearing routes of the Label surface, issue #228 added the two Access-administration mutations and the two Access-history reads and issue #230 added the member-details projection, the two Responsibility reads, the Responsibility commit and the self-edit grant toggle. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means an id-bearing route was added, and it owes this table a row saying what a stranger gets when they ask for somebody else's`,
-    ).toBe(85)
+      `the walker found ${String(routes.length)} routes carrying a path parameter and there were 96 after issue #223 added the Dana Link resolver, issue #224 added the three task-dependency routes, issue #226 added the eleven id-bearing routes of the Label surface, issue #228 added the two Access-administration mutations and the two Access-history reads, issue #230 added the member-details projection, the two Responsibility reads, the Responsibility commit and the self-edit grant toggle, and issue #210 added the eleven routes of the facet surface. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means an id-bearing route was added, and it owes this table a row saying what a stranger gets when they ask for somebody else's`,
+    ).toBe(96)
 
     const missing = routes.filter((route) => !TABLE.has(route))
     expect(
@@ -1865,6 +2077,16 @@ describe('AC-397 every id-bearing route refuses a stranger', () => {
       what: 'the folder label',
       path: '/labels?scope=all',
       holds: fx.folderLabelId,
+    }),
+    facetId: (fx) => ({
+      what: 'the facet, on its folder\'s facet listing',
+      path: `/folders/${fx.folderId}/facets`,
+      holds: fx.facetId,
+    }),
+    trashedFacetId: (fx) => ({
+      what: 'the trashed facet',
+      path: '/trash',
+      holds: fx.trashedFacetId,
     }),
   }
 
