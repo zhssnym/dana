@@ -28,17 +28,29 @@ licence over somebody else's document, it is **not** transferable between
 folders, and it is **revocable**, with the revocation taking effect on the next
 write rather than on the next session.
 
+**A fourth, added 2026-09-21 out of this branch's adversarial review, and it is
+the dangerous direction of the first.** The grant the write reads is the
+*target member's*, read under the write's own lock, so the only thing between a
+granted member's document and anybody else's keyboard is
+`target.memberId === facts.actorId` in `shared/folder-actions.ts`. Deleting that
+one clause left every file of this branch green while letting a Can-view member
+rewrite a colleague's Responsibility, which is the exact shape R7 section O
+exists to forbid. The case below drives it at every preset under the bar and
+asserts the document, its revision and the record are untouched afterwards; the
+clause was removed to watch it go red before it was written down.
+
 Spec: 7.4, 10.2; #209 R7 section O, R8A.
 */
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
 import { startAuthTestApp } from '../support/auth-harness.js'
 import type { AuthTestApp } from '../support/auth-harness.js'
-import { sharedFolder } from '../support/folder-access-harness.js'
+import { forcePreset, sharedFolder } from '../support/folder-access-harness.js'
 import { Cast, expectStatus } from '../support/folders-harness.js'
 import type { Actor } from '../support/folders-harness.js'
 import {
   commitOk,
+  expectDocumentsEqual,
   paragraph,
   putResponsibility,
   recordOf,
@@ -174,6 +186,64 @@ describe('AC-563 the self-edit grant is off by default and narrow when on', () =
       403,
       'the grant belongs to one membership in one folder and does not follow the person into another',
     )
+  })
+
+  test("AC-563 proof 5: nobody rides somebody else's grant, at any preset below the bar", async () => {
+    /* The grant is a column on the *target's* membership row and the write
+       reads it from there, which is right -- it is the target's permission to
+       give -- and is why the actor binding beside it is load-bearing rather
+       than defensive. Without it the answer to "may this actor write this
+       document" would depend only on facts about the *subject*, so a grant
+       would widen the document to the whole folder instead of to its own
+       member. Every preset under Full control is driven rather than one,
+       because a hole at a single preset is what a sampled version of this
+       case would miss. */
+    const { owner, viewer, colleague, folderId } = await stage(
+      'AC-563 not transferable to a bystander',
+    )
+    await setSelfEditGrantOk(owner, folderId, viewer.id, true)
+    const held = paragraph('Holds the release rota and the gate log')
+    const written = await commitOk(owner, folderId, viewer.id, held)
+    const base = written.responsibility.revision
+    const recordBefore = await recordOf(app.db, folderId, viewer.id)
+
+    const below = FOLDER_ACCESS_PRESETS.filter(
+      (preset) => preset !== 'full_control',
+    )
+    for (const preset of below) {
+      await forcePreset(app.db, folderId, colleague.id, preset)
+      expectStatus(
+        await putResponsibility(
+          colleague,
+          folderId,
+          viewer.id,
+          paragraph(`Rewritten by a ${preset} bystander`),
+          base,
+        ),
+        403,
+        `#230 proof 5, R7 section O: the grant belongs to the member it names, so a ${preset} member is refused another member's Responsibility whether or not that member holds one`,
+      )
+
+      const after = await standingOf(owner, folderId, viewer.id)
+      expect(
+        after.revision,
+        `the refusal wrote nothing: the document is still at the revision the grant holder's administrator committed, after the ${preset} attempt`,
+      ).toBe(base)
+      expectDocumentsEqual(
+        after.content,
+        held,
+        `and it still holds the text that was committed rather than the ${preset} member's`,
+      )
+    }
+
+    expect(
+      (await recordOf(app.db, folderId, viewer.id)).length,
+      'and the record carries nothing at all from the five refusals: a refused write is not an event',
+    ).toBe(recordBefore.length)
+    expect(
+      await storedGrant(app.db, folderId, colleague.id),
+      'nor did any of them acquire a grant of their own along the way',
+    ).toBe(false)
   })
 
   test('AC-563 proof 5: the grant changes exactly one answer in the whole action vocabulary', async () => {

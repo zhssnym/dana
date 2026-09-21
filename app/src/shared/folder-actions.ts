@@ -607,7 +607,15 @@ export function mayPerform(
      member is the actor themselves, and only when the grant that was read
      under the write's own lock is set. A grant with no `memberId` beside it
      authorizes nothing, so a caller who forgets to say whose Responsibility
-     this is gets a refusal rather than a self-edit of somebody else's. */
+     this is gets a refusal rather than a self-edit of somebody else's.
+
+     **`target.memberId === facts.actorId` is the whole of the actor binding
+     and it is the dangerous one to lose.** The grant read here is the
+     *target's*, which is right -- it is theirs to give -- so without this
+     comparison the answer would depend only on facts about the subject, and
+     a granted member's document would be writable by the whole folder.
+     AC-563 drives that at every preset below the bar; deleting this line was
+     measured on 2026-09-21 to leave every other file of #230 green. */
   const bySelfEditGrant =
     !byPreset &&
     rule.whenSelfEditGranted === true &&
