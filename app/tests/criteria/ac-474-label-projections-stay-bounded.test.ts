@@ -339,6 +339,16 @@ describe('AC-479 the Shelf rename moved the word and nothing else', () => {
       return row as { shelf_name: string | null }
     }
 
+    /* The baseline, before any write path has run. Without it every
+       assertion below is consistent with a shelf that was already there, and
+       the case would no longer prove the PATCH is what wrote it. It read
+       `{ shelf_name: null, label: null }` while both columns stood; migration
+       0026 narrowed it to the surviving column rather than retiring it. */
+    expect(
+      await membership(),
+      'the membership a new folder creates leaves the shelf unset, so each write below is the write path under test and not a value that was already in the row',
+    ).toEqual({ shelf_name: null })
+
     // Path one: the membership write of 7.4.
     expectStatus(
       await actor.browser.json(`/folders/${folderId}/my-membership`, 'PATCH', {

@@ -188,6 +188,7 @@ describe('the sample workspace writes the memberships it claims to', () => {
       db,
       sql`SELECT column_name FROM information_schema.columns
            WHERE table_name = 'folder_members'
+             AND table_schema = 'public'
            ORDER BY column_name`,
     )) as unknown as { column_name: string }[]
     expect(
