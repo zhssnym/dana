@@ -63,6 +63,19 @@ folder. The migration is 0025. The freeze holds the way it has held four times b
 owner ruled the change before it was written, the ruling is cited in each file, and every
 statement is an addition.
 
+**Sixth, and it is the smallest kind of move this section can take: 4.17 and 4.20 each
+gained a dated *Rationale* note on 2026-09-21 and nothing else** (issue #280, on Hassan's
+technical ruling there,
+https://github.com/zhssnym/dana/issues/280#issuecomment-5754491849). RFC 0005 carried a
+section of reasoning that was never folded when `docs/rfcs/` was deleted; the two notes are
+the part of it that explains a rule in this section — why `page_blocks.width_pct` is a
+percentage, why its bounds sit in the CHECK, and why `user_page_covers` is a table with a
+shape-checked preset rather than a list of names. **No column, no constraint, no default and
+no rule moves**, in either file: the diff is added paragraphs, and every rule they explain
+was already written above them. It is recorded here because the freeze asks that a change to
+this section be visible from its front door, and a reader who is told only that nothing
+changed cannot check that for themselves.
+
 **The four numbers step over 4.23, and that gap is now closed.** `main` at 59161e9 holds
 `04.23-task-dependencies.md` from issue #224, merged while this work was in progress; this
 branch was behind it and took the next four rather than the next one, on the same rule the
