@@ -57,8 +57,51 @@ export const EXPORT_FORMAT = 'dana-export'
  * strip every one of those keys and hand back a document with a person's
  * whole classification silently missing, which is what the number exists to
  * prevent.
+ *
+ * **Version 5, issue #230**, adds `responsibilities`: the exporting person's
+ * **own** current Responsibility document in each folder they are currently a
+ * member of, with that document's own revisions. #230 asks for a deliberate
+ * shape rather than an accreted one, and the deliberate part is what it
+ * excludes, which is stated where the collection is declared below.
+ *
+ * ## Why it is 5, and what 3 and 4 were
+ *
+ * A reader meeting version 5 will want to know what it skipped, because this
+ * file only ever carries the current shape. Three branches were open at once
+ * on 2026-09-20 and each adds a collection the versions below it do not
+ * declare:
+ *
+ * - **3 — `backend/226-label-core-domain`**, the `my_label` to `my_shelf`
+ *   rename inside `folders[]`.
+ * - **4 — `backend/227-label-lifecycle`**, the viewer's `personal_labels`
+ *   catalog, each owned folder's Folder Label vocabulary, and the id arrays
+ *   that connect both to the Work.
+ * - **5 — this**, `responsibilities`.
+ *
+ * **Each number describes exactly one shape, and that is the whole point of
+ * not taking 4.** The collision is the same shape as two branches picking one
+ * migration prefix: two branches each bumping to the same number merge
+ * cleanly and leave **one version covering two different documents**, which is
+ * worse than either change alone. A reader that knows version 4 would then be
+ * right about one of them and wrong about the other, with nothing in the file
+ * to tell it which — and a version number exists precisely so that a reader
+ * can refuse what it does not know rather than hand back a document quietly
+ * missing somebody's data.
+ *
+ * So **read the number off the branches that are open rather than off this
+ * file**, exactly as the backend README says for migration prefixes. This
+ * branch took 4 first, having seen #226 and not #227 — which finished after
+ * it started — and was corrected. Seeing one collision is not evidence that
+ * you have seen them all.
+ *
+ * **Both predecessors have since landed on `main`, which settles it**: #226 is
+ * version 3 and #227 is version 4, so 5 is this document's number and the
+ * reservation held. The conditional this paragraph used to carry — 5 coming
+ * down to 4 or 3 if one or both of them went — is spent, and is recorded as
+ * spent rather than deleted, because the reasoning above is why the number is
+ * 5 and a reader meeting a gap would otherwise re-derive it from nothing.
  */
-export const EXPORT_VERSION = 4
+export const EXPORT_VERSION = 5
 
 /**
  * 10.3's "List responses capped at 1000 rows with truncated flag", applied
@@ -76,6 +119,8 @@ export const EXPORT_ROW_CAP = 1000
 export const EXPORT_COLLECTIONS = [
   'folders',
   'folders.members',
+  'responsibilities',
+  'responsibilities.revisions',
   'folders.tasks',
   'folders.tasks.steps',
   'folders.blocks',
@@ -421,6 +466,52 @@ export type ExportSettings = z.infer<typeof exportSettings>
  * - **file bytes**, which version 1 names and does not embed; `files[].url`
  *   is how a session fetches them.
  */
+/**
+ * One folder's Responsibility standing, **the exporting person's own**
+ * (issue #230, #209 R10 "Export / duplication / workflows").
+ *
+ * R10 admits exactly this much: "account export preserves the exporting
+ * user's current/historical Responsibility and Access information only within
+ * the existing privacy/access boundary". So the four exclusions are the shape
+ * rather than omissions from it, and each one is a thing a careless version of
+ * this collection would have carried:
+ *
+ * - **no other member's Responsibility.** The document is Folder-visible, so
+ *   the exporter may *read* their colleagues' in the application; an export
+ *   is a file that leaves Dana, and #230 forbids "confidential personnel
+ *   information" and "another user's private future Member records" in one
+ *   breath. Their own is the boundary that needs no argument.
+ * - **no folder they have left.** The revisions survive with the folder (R10)
+ *   and are reachable by nobody outside it; #230 names this exactly --
+ *   "inaccessible former-Folder data merely because a historical row exists".
+ * - **no self-edit grant and no member roster**, which are member
+ *   administration rather than the exporter's own data.
+ * - **no actor identities beyond a display name**, the rule the whole
+ *   document already keeps.
+ */
+export const exportResponsibilityRevision = z.object({
+  revision_no: z.number().int(),
+  content: z.unknown(),
+  committed_at: z.string(),
+  /** The display name of whoever committed it, which may be the exporter or
+   * the administrator who wrote it for them. Names and never addresses, the
+   * rule `folders[].members` already keeps. */
+  committed_by: z.string().nullable(),
+})
+export type ExportResponsibilityRevision = z.infer<
+  typeof exportResponsibilityRevision
+>
+
+export const exportResponsibility = z.object({
+  folder: z.object({ id: z.uuid(), name: z.string() }),
+  content: z.unknown(),
+  revision_no: z.number().int(),
+  updated_at: z.string(),
+  updated_by: z.string().nullable(),
+  revisions: z.array(exportResponsibilityRevision),
+})
+export type ExportResponsibility = z.infer<typeof exportResponsibility>
+
 export const exportDocument = z.object({
   format: z.literal(EXPORT_FORMAT),
   version: z.literal(EXPORT_VERSION),
@@ -429,6 +520,9 @@ export const exportDocument = z.object({
   settings: exportSettings,
   folders: z.array(exportFolder),
   tasks_elsewhere: z.array(exportForeignTask),
+  /** Issue #230, version 5. The exporting person's own current Responsibility
+   * in each folder they are currently in, and nobody else's anywhere. */
+  responsibilities: z.array(exportResponsibility),
   comments: z.array(exportComment),
   shelves: z.array(exportShelf),
   views: z.array(exportView),

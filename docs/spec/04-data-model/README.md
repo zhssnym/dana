@@ -52,6 +52,17 @@ pair is deliberately an **expand-and-contract** split rather than a rename, and 
 the argument; **issue #247 is the contract half and must not merge until migration 0022 is
 live in production.**
 
+**Fifth, three amendments landed on 2026-09-21 under issue #230, on the accepted technical
+ruling** https://github.com/zhssnym/dana/issues/230#issuecomment-5751322947 **(Ruling 1,
+section 4).** Two are new subsections and are purely additive: 4.28
+`folder_responsibilities` and 4.29 `folder_responsibility_history`. The third appends
+`can_edit_own_responsibilities` to 4.4 and **drops and renames nothing**; 4.9 gains
+`responsibility`, the optional initial document an invitation or an instant share may
+carry, under the same ruling and with a CHECK that refuses it on an invitation naming no
+folder. The migration is 0025. The freeze holds the way it has held four times before: the
+owner ruled the change before it was written, the ruling is cited in each file, and every
+statement is an addition.
+
 **The four numbers step over 4.23, and that gap is now closed.** `main` at 59161e9 holds
 `04.23-task-dependencies.md` from issue #224, merged while this work was in progress; this
 branch was behind it and took the next four rather than the next one, on the same rule the
@@ -88,3 +99,5 @@ contiguous from 4.1 to 4.27 and nothing is missing from it.
 | 4.25 | [`04.25-task-personal-labels.md`](04.25-task-personal-labels.md) | 4.25 task_personal_labels |
 | 4.26 | [`04.26-folder-personal-labels.md`](04.26-folder-personal-labels.md) | 4.26 folder_personal_labels |
 | 4.27 | [`04.27-task-folder-labels.md`](04.27-task-folder-labels.md) | 4.27 task_folder_labels |
+| 4.28 | [`04.28-folder-responsibilities.md`](04.28-folder-responsibilities.md) | 4.28 folder_responsibilities |
+| 4.29 | [`04.29-folder-responsibility-history.md`](04.29-folder-responsibility-history.md) | 4.29 folder_responsibility_history |

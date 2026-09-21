@@ -627,6 +627,98 @@ const TABLE = new Map<string, Row>([
       },
     },
   ],
+  /*
+  The five routes issue #230 added, each with the row hard-stops.md asks for.
+
+  Three are reads that carry the folder's own visibility: #209 R5 makes the
+  Responsibility document Folder-visible in M1 and R10 gives prior revisions
+  ordinary Folder visibility, so a current member reads them and somebody
+  outside the folder is told nothing at all. That last half is proof 15 of
+  #230 as well as 10.2: **a former member is refused their own history**, and
+  the refusal is 404 because they are no longer in the folder rather than
+  because anything hides the subject from themselves.
+
+  Two are mutations. The grant toggle is member administration, so a plain
+  member who demonstrably sees the folder is told why it is refused. The
+  commit is the one row on this surface whose *member* variant deliberately
+  has no `expected: 403`: the refusal is issued from inside the write's own
+  transaction, after the target's grant has been read under the same lock,
+  which is where that decision has to be made and is not something a
+  path-shaped sweep can see. AC-562 and AC-563 drive it with real actors.
+  */
+  [
+    'GET /api/v1/folders/:id/members/:userId',
+    {
+      attempt: (fx) => ({
+        path: `/folders/${fx.folderId}/members/${fx.member.id}`,
+      }),
+      stranger: {
+        expected: 404,
+        rule: '#230: the member-details projection composes facts the roster already shows to members, and 10.2 refuses to confirm the folder exists to somebody outside it',
+      },
+    },
+  ],
+  [
+    'GET /api/v1/folders/:id/members/:userId/responsibility',
+    {
+      attempt: (fx) => ({
+        path: `/folders/${fx.folderId}/members/${fx.member.id}/responsibility`,
+      }),
+      stranger: {
+        expected: 404,
+        rule: '#209 R5: the Responsibility document is Folder-visible in M1, which means visible to the Folder and to nobody else',
+      },
+    },
+  ],
+  [
+    'GET /api/v1/folders/:id/members/:userId/responsibility/history',
+    {
+      attempt: (fx) => ({
+        path: `/folders/${fx.folderId}/members/${fx.member.id}/responsibility/history`,
+      }),
+      stranger: {
+        expected: 404,
+        rule: '#209 R10 "Prior versions": prior revisions carry ordinary Folder visibility, so being the subject of one is not a way into a folder (#230 proof 15)',
+      },
+    },
+  ],
+  [
+    'PUT /api/v1/folders/:id/members/:userId/responsibility',
+    {
+      attempt: (fx) => ({
+        path: `/folders/${fx.folderId}/members/${fx.member.id}/responsibility`,
+        body: {
+          content: { version: 1, blocks: [] },
+          base_revision: 'ac397-not-the-current-revision',
+        },
+      }),
+      stranger: {
+        expected: 404,
+        rule: "#209 R7 section O: writing a member's Responsibility needs Full control or that member's explicit self-edit grant, and 10.2 tells somebody outside the folder nothing at all",
+      },
+    },
+  ],
+  [
+    'PUT /api/v1/folders/:id/members/:userId/self-edit-grant',
+    {
+      attempt: (fx) => ({
+        path: `/folders/${fx.folderId}/members/${fx.member.id}/self-edit-grant`,
+        body: { enabled: true },
+      }),
+      stranger: {
+        expected: 404,
+        rule: '#230: toggling the self-edit grant is member administration, and 10.2 refuses to confirm the folder exists to somebody outside it',
+      },
+      member: {
+        expected: 403,
+        rule: "#209 R7 section L: only Full control administers the grant, and a member who could turn their own on would be granting themselves the thing the grant exists to withhold; the member demonstrably sees the folder, so the refusal may say why",
+        attempt: (fx) => ({
+          path: `/folders/${fx.folderId}/members/${fx.member.id}/self-edit-grant`,
+          body: { enabled: true },
+        }),
+      },
+    },
+  ],
   [
     'POST /api/v1/folders/:id/transfer-ownership',
     {
@@ -1587,11 +1679,18 @@ describe('AC-397 every id-bearing route refuses a stranger', () => {
     read 69 on its own tree, which held none of the fourteen above it, so this
     is the same lesson a fourth time — 80 is what this sweep reported on the
     rebased tree, not what either diff implies.
+
+    **80 to 85 on 2026-09-20** (issue #230): the member-details projection,
+    the two Responsibility reads, the Responsibility commit and the self-edit
+    grant toggle, each with its row above. **#230 read 74 on its own tree,
+    which was #228's and held none of the fourteen above it, so this is the
+    same lesson a fifth time** — 85 is what this sweep reported on the rebased
+    tree, not what either diff implies.
     */
     expect(
       routes.length,
-      `the walker found ${String(routes.length)} routes carrying a path parameter and there were 80 after issue #223 added the Dana Link resolver, issue #224 added the three task-dependency routes, issue #226 added the eleven id-bearing routes of the Label surface and issue #228 added the two Access-administration mutations and the two Access-history reads. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means an id-bearing route was added, and it owes this table a row saying what a stranger gets when they ask for somebody else's`,
-    ).toBe(80)
+      `the walker found ${String(routes.length)} routes carrying a path parameter and there were 85 after issue #223 added the Dana Link resolver, issue #224 added the three task-dependency routes, issue #226 added the eleven id-bearing routes of the Label surface, issue #228 added the two Access-administration mutations and the two Access-history reads and issue #230 added the member-details projection, the two Responsibility reads, the Responsibility commit and the self-edit grant toggle. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means an id-bearing route was added, and it owes this table a row saying what a stranger gets when they ask for somebody else's`,
+    ).toBe(85)
 
     const missing = routes.filter((route) => !TABLE.has(route))
     expect(

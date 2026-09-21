@@ -335,6 +335,27 @@ default, so read this list before spending one.
   bullet below sets for its own block: the count at the top of this file and 12.4's row in
   the table belong to whichever merge comes last rather than to one of several branches
   open at once.
+- **AC-560 to AC-573 were taken on 2026-09-20** (issue #230, the Responsibility document,
+  its revisions and the member-details read contract), **from 560 rather than from the tail
+  this list names**, and the number was assigned by the session that opened the branches
+  rather than chosen — which is the backend README's rule for parallel branches and is the
+  only way a tail is collision-proof while several parties are spending it. Six branches
+  were open at that moment: `backend/217` at 450 to 452, `backend/250` at 464 to 466,
+  `backend/226` at 470 to 481, `backend/220` at 490 to 507, `backend/228` at 510 to 523 and
+  `backend/227` at 540 to 554. The fourteen are 12.4's, beside #228's, because a
+  Responsibility belongs to a member's membership in one folder and exists for no other
+  reason.
+
+  **Three ranges below them are deliberately not claimed and are not added to the free list
+  above.** 494 to 509 is #228's renumber gap, recorded in its own bullet. **524 to 539 and
+  555 to 559 are a second renumber's**: `backend/227-label-lifecycle` wrote its block as
+  520 to 534 and was moved to 540 to 554 when that collided with #228's renumbered 510 to
+  523, and the two gaps either side of it are what make that move readable to whoever
+  reconciles these branches. Filling either would turn a record of what happened into an
+  ordinary-looking allocation, which is the thing the AC-413 and AC-423 bullets each record
+  for their own gap. **No total moves with this block**, on the AC-410 and AC-411
+  precedent: the count at the top and 12.4's row in the table below belong to whichever
+  merge comes last rather than to one of six branches open at once.
 - **AC-510 to AC-523 were taken on 2026-09-20** (issue #228, the Folder Access model), and
   they were **renumbered** rather than allocated: the branch wrote them as AC-480 to AC-493
   and was then found to overlap two siblings that were already pushed —

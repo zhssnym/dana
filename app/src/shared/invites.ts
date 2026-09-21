@@ -28,6 +28,7 @@ it.
 import { z } from 'zod'
 
 import { folderAccessPreset } from './folder-access.js'
+import { responsibilityDocument } from './responsibility.js'
 
 import { folder, folderMember, folderName } from './folders.js'
 
@@ -109,6 +110,22 @@ export const postInvitesBody = z
     folder_id: uuid.optional(),
     task_id: uuid.optional(),
     access: folderAccessPreset.optional(),
+    /*
+    Issue #230's optional initial Responsibility content (#230 "Invite /
+    member activation"). Optional in the ordinary sense -- absent means the
+    member arrives with no document, because R10 forbids fabricating one --
+    and refused without a folder for `access`'s reason: a bare roster invite
+    creates no Folder standing for a Responsibility to belong to, and the
+    table's own CHECK says the same thing a second time.
+
+    The server reads it in `createInvite`, which stores it on the invite row,
+    and in `acceptInvite`, which turns it into the first revision **attributed
+    to the inviter** at the moment membership becomes active. R9 section 5's
+    sentence about Access governs it word for word: do not represent the
+    recipient as having authored the content merely because they accepted.
+    AC-569 drives both halves.
+    */
+    responsibility: responsibilityDocument.optional(),
   })
   .refine(
     (body) => body.task_id === undefined || body.folder_id !== undefined,
@@ -118,6 +135,10 @@ export const postInvitesBody = z
     error: 'is required with a folder_id, and is not accepted without one',
     path: ['access'],
   })
+  .refine(
+    (body) => body.responsibility === undefined || body.folder_id !== undefined,
+    { error: 'is not accepted without a folder_id', path: ['responsibility'] },
+  )
 export type PostInvitesBody = z.infer<typeof postInvitesBody>
 
 /*
