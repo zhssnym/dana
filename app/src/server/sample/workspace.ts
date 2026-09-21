@@ -192,10 +192,10 @@ async function writeFolder(
   const folderId = String(inserted[0]?.id)
   await register(tx, userId, 'folder', folderId)
   // 4.18: a folder is on a shelf by the viewer's own membership, held in step
-  // with the shelf's name. One column written since issue #247 contracted
-  // migration 0022's expand half; `folder_members.label` is still in the
-  // table until #247's second release drops it, and this INSERT leaves it
-  // null, which its CHECK admits.
+  // with the shelf's name. One column since issue #247 contracted migration
+  // 0022's expand half: this INSERT stopped naming `folder_members.label` one
+  // release, and migration 0026 dropped that column the next, which is 11.5's
+  // order and not an unfinished rename.
   /* The sample workspace is the new account's own, so its folders are theirs
      to own and to administer: owner plus Full control, with the baseline
      transition beside it (issue #228). */
