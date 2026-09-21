@@ -38,12 +38,14 @@ import type { Actor } from '../support/folders-harness.js'
 import {
   createFacetOk,
   deleteFacet,
+  destroyFacet,
   facetRow,
   facetsOf,
   forcePreset,
   getFacetPage,
   patchFacet,
   postFacetPageAction,
+  restoreFacet,
   shareFacet,
   sharedFolder,
   trashFacetsOf,
@@ -153,6 +155,29 @@ describe("AC-838 a private facet is its owner's alone", () => {
     const blockId = crypto.randomUUID()
     await writeFacetParagraph(author, folderId, facet.id, blockId, 'mine')
 
+    /*
+    A second private facet, **trashed**, so that the two Trash routes can be
+    driven at something whose `deleted_at` is set.
+
+    Without it those two routes answer 404 for the wrong reason -- the row is
+    not in Trash -- and the criterion would be green with the visibility clause
+    deleted. The adversarial review of 16ce81b measured exactly that: removing
+    `visibleTo` from `destroyFacet` and `restoreFacet` left AC-830 to AC-844,
+    `ac-397` and `ac-523` all green, because nothing drove a member at
+    somebody else's *trashed* private facet. `ac-397` cannot: its trashed
+    fixture is deliberately a **shared** facet, so that its `member` row
+    measures the preset rather than the privacy scope.
+    */
+    const trashed = await createFacetOk(author, folderId, {
+      kind: 'private_blank',
+      display_name: 'Mine, and in Trash',
+    })
+    expectStatus(
+      await deleteFacet(author, folderId, trashed.id),
+      204,
+      'its owner deletes their own private facet',
+    )
+
     /* **Driven at all six**, because `facet.read` is the one rule in the table
        with no bar: there is no preset that admits it, so "a higher preset"
        must not be the answer anywhere on the ladder. `forcePreset` is the
@@ -199,14 +224,69 @@ describe("AC-838 a private facet is its owner's alone", () => {
         facet.id,
         `at ${preset}, publishing it to the Folder is refused -- which is the worst of these to get wrong`,
       )
+
+      /* **The two Trash routes, and they are the pair no other criterion
+         reached.** Both resolve the folder through `trashedFacetFacts`, which
+         joins `folder_members` and so admits every member of the folder; the
+         only thing between this actor and another member's private facet is
+         `visibleTo`. `DELETE /trash/facets/:id` is the one with teeth: it is
+         `task.destroy`, which **Full control satisfies**, so with the
+         visibility clause gone a Full-control administrator would permanently
+         destroy writing they were never allowed to read. */
+      refusesWithoutNaming(
+        await destroyFacet(administrator, trashed.id),
+        trashed.id,
+        `at ${preset}, destroying another member's trashed private facet permanently is refused`,
+      )
+      refusesWithoutNaming(
+        await restoreFacet(administrator, trashed.id),
+        trashed.id,
+        `at ${preset}, restoring another member's trashed private facet is refused`,
+      )
     }
+
+    /* And the structural owner, who is not on the ladder at all: ownership is
+       custody and never authority (#209), and it buys no sight of this row
+       either. */
+    refusesWithoutNaming(
+      await restoreFacet(owner, trashed.id),
+      trashed.id,
+      "the Folder's structural owner restores no member's private facet",
+    )
+    refusesWithoutNaming(
+      await destroyFacet(owner, trashed.id),
+      trashed.id,
+      "nor destroys one",
+    )
+
+    /*
+    **Both halves, and the first is the one a status assertion cannot give
+    you.** With `visibleTo` removed from those two routes the *status* is still
+    404 on the restore -- `readOne` re-reads through the privacy-scoped select
+    and finds nothing to answer with -- while the UPDATE has already run. So
+    the refusal looks right and the write happened. The row is therefore read
+    from the table: it must still exist, and it must still be in Trash.
+    */
+    const stillThere = await facetRow(app.db, trashed.id)
+    expect(
+      stillThere,
+      "the trashed private facet still exists: `DELETE /trash/facets/:id` is `task.destroy`, which Full control satisfies, so the visibility clause is the only thing standing between an administrator and permanently destroying writing they may not read",
+    ).toBeDefined()
+    expect(
+      stillThere?.deleted_at,
+      'and it is still in Trash rather than restored -- a 404 answered after the UPDATE ran would be a refusal that refused nothing',
+    ).not.toBeNull()
+    expect(
+      (await trashFacetsOf(author)).map((each) => each.id),
+      'still waiting for the one person who may see it',
+    ).toContain(trashed.id)
 
     /* Nothing survived any of that: the facet is still private, still the
        author's, and still holds exactly what they wrote. */
     const after = await facetRow(app.db, facet.id)
     expect(
       [String(after?.kind), String(after?.owner_id), after?.deleted_at],
-      'thirty refusals later the row is untouched',
+      'forty-four refusals later the live row is untouched',
     ).toEqual(['private_blank', author.id, null])
   })
 
