@@ -272,6 +272,107 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
       },
     ],
   },
+  /* Migration 0027, issue #210: the Folder facet framework, spec 4.30, on
+     Hassan's technical ruling of 2026-09-21,
+     https://github.com/zhssnym/dana/issues/210#issuecomment-5756722756.
+
+     **This entry and `SECTION_4_TABLES` in `ac-001` move ahead of the fold
+     of 4.30 into the frozen section, and that is not a breach of hard stop
+     2.** Both are *transcriptions* of section 4 and they are exact in both
+     directions, so a tree carrying the migration without them cannot be
+     green at all. The ruling exists and is cited above; the section-4 file
+     lands in the same pull request, and if the fold comes back in a
+     different shape the transcription follows it rather than the other way
+     round. `docs/workflow/hard-stops.md`'s transcription paragraph is the
+     rule and #224 is the worked example.
+
+     Four of the seven CHECKs pair a nullable column with `kind`. AC-001
+     asserts them by name and by the columns they mention and can see nothing
+     of what the expressions do -- a CHECK fails only on FALSE, and UNKNOWN
+     is as good as TRUE to it -- so the behavioural cases that try the bad
+     rows are AC-831, AC-833 and AC-835.
+
+     The two `users` keys are RESTRICT on 4.28's precedent: 8.10 scrubs an
+     account rather than deleting its row, so a CASCADE would fire never
+     while looking like the cleanup. `h1_block_id` is CASCADE, which is the
+     ruling's one reading past #210's words and is stated in the migration.
+
+     Two of the three indexes are UNIQUE and partial, and the difference
+     between their predicates is the whole design: the native one is partial
+     on `kind` and **not** on `deleted_at`, because a native is hidden rather
+     than deleted; the H1 one is partial on `deleted_at IS NULL` for 4.28's
+     leave-and-rejoin reason. */
+  folder_facets: {
+    primaryKey: { name: 'folder_facets_pkey', columns: ['id'] },
+    uniques: [],
+    checks: [
+      {
+        name: 'folder_facets_display_name_kind_check',
+        columns: ['display_name', 'kind'],
+      },
+      {
+        name: 'folder_facets_display_name_length_check',
+        columns: ['display_name'],
+      },
+      { name: 'folder_facets_h1_kind_check', columns: ['h1_block_id', 'kind'] },
+      { name: 'folder_facets_hidden_kind_check', columns: ['hidden', 'kind'] },
+      { name: 'folder_facets_kind_check', columns: ['kind'] },
+      { name: 'folder_facets_owner_kind_check', columns: ['kind', 'owner_id'] },
+      { name: 'folder_facets_position_format_check', columns: ['position'] },
+    ],
+    foreignKeys: [
+      {
+        name: 'folder_facets_created_by_fkey',
+        columns: ['created_by'],
+        references: { table: 'users', columns: ['id'] },
+        onDelete: 'restrict',
+      },
+      {
+        name: 'folder_facets_folder_id_fkey',
+        columns: ['folder_id'],
+        references: { table: 'folders', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+      {
+        name: 'folder_facets_h1_block_id_fkey',
+        columns: ['h1_block_id'],
+        references: { table: 'page_blocks', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+      {
+        name: 'folder_facets_owner_id_fkey',
+        columns: ['owner_id'],
+        references: { table: 'users', columns: ['id'] },
+        onDelete: 'restrict',
+      },
+    ],
+    indexes: [
+      {
+        name: 'folder_facets_folder_id_position_idx',
+        unique: false,
+        columns: ['folder_id', 'position', 'id'],
+        partial: true,
+      },
+      {
+        name: 'folder_facets_folder_native_kind_idx',
+        unique: true,
+        columns: ['folder_id', 'kind'],
+        partial: true,
+      },
+      {
+        name: 'folder_facets_h1_block_id_idx',
+        unique: true,
+        columns: ['h1_block_id'],
+        partial: true,
+      },
+      {
+        name: 'folder_facets_owner_id_idx',
+        unique: false,
+        columns: ['owner_id'],
+        partial: true,
+      },
+    ],
+  },
   /* Migration 0025, issue #230: the current Responsibility document, one row
      per membership generation (#209 R5, R10).
 
@@ -875,7 +976,17 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
         name: 'page_blocks_list_parent_kind_check',
         columns: ['folder_id', 'id', 'kind', 'list_parent_block_id'],
       },
-      { name: 'page_blocks_one_home_check', columns: ['folder_id', 'shelf_id'] },
+      /* Migration 0027 (#210) dropped and re-added this under the same name
+         over `num_nonnulls(folder_id, shelf_id, facet_id) = 1`, so the
+         column list gains `facet_id` and the name does not move. A strictly
+         larger admitted set: every existing row has exactly one of the two
+         old homes and a null `facet_id`, so no backfill was needed. AC-836
+         is the behavioural case -- a facet's blocks carry `facet_id` and
+         never `folder_id`, and no Task row ever belongs to a facet. */
+      {
+        name: 'page_blocks_one_home_check',
+        columns: ['facet_id', 'folder_id', 'shelf_id'],
+      },
       { name: 'page_blocks_page_position_format_check', columns: ['page_position'] },
       {
         name: 'page_blocks_section_membership_check',
@@ -892,6 +1003,15 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
       { name: 'page_blocks_width_pct_range_check', columns: ['width_pct'] },
     ],
     foreignKeys: [
+      /* Migration 0027 (#210): the third home. CASCADE because a facet's
+         document is the facet's -- deleting the facet row permanently takes
+         its blocks with it, exactly as a folder's does. */
+      {
+        name: 'page_blocks_facet_id_fkey',
+        columns: ['facet_id'],
+        references: { table: 'folder_facets', columns: ['id'] },
+        onDelete: 'cascade',
+      },
       {
         name: 'page_blocks_file_id_fkey',
         columns: ['file_id'],
@@ -976,6 +1096,14 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
         partial: true,
       },
       { name: 'page_blocks_file_id_idx', unique: false, columns: ['file_id'], partial: true },
+      /* Migration 0027 (#210), mirroring `page_blocks_folder_page_position_idx`
+         above for the third home: one facet document in page order. */
+      {
+        name: 'page_blocks_facet_page_position_idx',
+        unique: false,
+        columns: ['facet_id', 'page_position', 'id'],
+        partial: true,
+      },
     ],
   },
   shelves: {

@@ -106,6 +106,17 @@ const SECTION_4_TABLES = [
   'events',
   'files',
   'folder_access_history',
+  // Migration 0027, issue #210: the Folder facet framework. **This line moves
+  // ahead of the fold of 4.30 into the frozen section**, on the transcription
+  // paragraph of `docs/workflow/hard-stops.md`: this list is an exact
+  // transcription of section 4's table list in both directions, so a tree
+  // carrying the migration without it cannot be green at all, and the stop
+  // says the ruling comes before the code. The ruling exists and is Hassan's,
+  // https://github.com/zhssnym/dana/issues/210#issuecomment-5756722756, and
+  // `docs/spec/04-data-model/04.30-folder-facets.md` lands in the same pull
+  // request as the authoritative restatement. If the fold comes back in a
+  // different shape, this line follows it.
+  'folder_facets',
   'folder_members',
   'folder_personal_labels',
   // Migration 0025, issue #230: the current Responsibility document and its
