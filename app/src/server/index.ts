@@ -755,7 +755,7 @@ export function createApp(options: AppOptions = {}): express.Express {
   )
 
   /*
-  7.27's Folder facets (issue #210). Ten routes: seven under
+  7.27's Folder facets (issue #210). **Eleven** routes: nine under
   `/folders/:id/facets`, and `POST /facets/:id/restore` and
   `DELETE /trash/facets/:id`, which are 7.13's shape for the Trash pair.
 

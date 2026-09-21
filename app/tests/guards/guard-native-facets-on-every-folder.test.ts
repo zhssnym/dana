@@ -10,11 +10,18 @@ ruling gives three reasons: a lazy read would write, two members would race
 either create rows or answer differently from a Can-edit member's. That makes
 "the four exist" an invariant of the table rather than a step in one handler.
 
-**There is no one place to enforce it.** `INSERT INTO folders` appears in
-seven modules -- `POST /folders`, sign-in provisioning, the sample workspace,
-Folder duplication, workflow import, the seed and the query-plan corpus -- and
-no foreign key, CHECK or trigger can say "and four rows in another table came
-with you". It was measured rather than assumed: the first run of AC-830's
+**There is no one place to enforce it.** `INSERT INTO folders` appears at
+**seven sites in six modules** -- `POST /folders`, sign-in provisioning, the
+sample workspace, **`domain/acts.ts` twice** for Folder duplication and
+workflow import, the seed and the query-plan corpus -- and no foreign key,
+CHECK or trigger can say "and four rows in another table came with you".
+
+(The count said "seven modules" until 2026-09-21, conflating the sites with
+the files. Corrected by the addendum ruling,
+https://github.com/zhssnym/dana/issues/210#issuecomment-5757696835, which is a small
+thing to have got wrong and exactly the kind of wrong number a list asserted
+in both directions stops mattering: the *names* below are what this guard
+checks, and there have always been six of them.) It was measured rather than assumed: the first run of AC-830's
 whole-database case, written before this guard, found **two** Folders with no
 facets, and both were sign-in's default Desk. The handler `#210` was actually
 about had the call and the six other paths did not.
@@ -74,8 +81,8 @@ const INSERTS_A_FOLDER = /INSERT INTO folders\b/
 const CREATES_THE_NATIVES = /createNativeFacets\(|INSERT INTO folder_facets\b/
 
 /**
- * The seven modules that may write a `folders` row, each with the reason it
- * does. A module not on this list that starts inserting Folders is red here,
+ * The six modules that may write a `folders` row, each with the reason it
+ * does. Seven sites: `domain/acts.ts` carries two. A module not on this list that starts inserting Folders is red here,
  * and so is a name on this list that stops inserting them.
  */
 const EXPECTED = new Map<string, string>([
