@@ -45,9 +45,26 @@ would fail the setup rather than the assertion.
    would still be reachable through the clear path alone.
 3. **The surviving spelling still writes**, name and clear. Removing a field
    beside another field is exactly the change that breaks the other field.
-4. **No producer of the Folder object answers `my_label`.** All three: the
-   PATCH response, `GET /folders` and `GET /folders/:id`. `my_shelf` carries
-   the value, so the key is absent rather than the object being empty.
+4. **No producer of the Folder object answers `my_label`.** All five of
+   them: the `POST /folders` 201 body, the PATCH response, `GET /folders`,
+   `GET /folders/:id`, and the `folder` an invite acceptance answers. Each is
+   shown carrying its `my_shelf` first, so the key is absent rather than the
+   object being empty.
+
+   **The two that were added by the adversarial review of #247 are the two
+   that a type error would not have caught.** The three producers this arm
+   drove first all read their object out of one SQL projection in
+   `folders.ts`, so a `my_label` put back there is one edit that three
+   assertions see. The other two are separate code: `createFolder` returns a
+   **hand-built object literal** (`app/src/server/domain/folders.ts`), which
+   is the one place in this path TypeScript does not excess-property-check,
+   so a key reintroduced there compiles and ships; and the invite acceptance
+   answers `folder` from its own route (`routes/invites.ts`), which is a
+   second call site of the projection and the one a reader is least likely to
+   think of as a Folder producer at all. Both were unasserted until this arm
+   drove them. Their memberships are fresh, so `my_shelf` is null on both and
+   the non-vacuity check is the *presence* of that key rather than its value:
+   an empty object, a 500 body or an error envelope fails it.
 
 The column half is AC-479's, in
 `ac-474-label-projections-stay-bounded.test.ts`. **It is not "one column"
@@ -65,15 +82,29 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
 import { startAuthTestApp } from '../support/auth-harness.js'
 import type { AuthTestApp } from '../support/auth-harness.js'
-import { Cast, createFolder, expectStatus } from '../support/folders-harness.js'
+import {
+  Cast,
+  createFolder,
+  expectStatus,
+  postFolder,
+  seedInvite,
+} from '../support/folders-harness.js'
 import type { Actor } from '../support/folders-harness.js'
 
 let app: AuthTestApp
-const cast = new Cast(['owner'], 'ac750')
+const cast = new Cast(['owner', 'invitee'], 'ac750')
 
 async function owner(): Promise<Actor> {
   const [actor] = await cast.of(app)
   if (actor === undefined) throw new Error('the cast must produce one actor')
+  return actor
+}
+
+/** The second actor, who is invited into a folder and accepts. Only the last
+ * arm needs one, and `Cast` signs both in on first use. */
+async function invitee(): Promise<Actor> {
+  const [, actor] = await cast.of(app)
+  if (actor === undefined) throw new Error('the cast must produce two actors')
   return actor
 }
 
@@ -278,6 +309,83 @@ describe('AC-750 the Shelf wire pair is contracted', () => {
       expect(
         Object.keys(card),
         `${where} still answers the retired key. 7.0 fixes this object key-exact, and a producer that kept \`my_label\` would keep a second name for one column alive past the deploy window it was added for`,
+      ).not.toContain('my_label')
+    }
+  })
+
+  /*
+  The two producers the loop above cannot reach, and the reason they are a
+  separate case rather than two more entries in it.
+
+  Every card above belongs to a membership this test put on a shelf, which is
+  what makes `my_shelf` the non-vacuity check there. These two answer a
+  membership that has just been created -- by `POST /folders` for its creator,
+  and by an acceptance for the person accepting -- so `my_shelf` is null on
+  both by construction and asserting a value is not available. The check that
+  replaces it is the *key*: 7.0 fixes this object key-exact, so a Folder
+  object always carries `my_shelf`, and an error envelope, an empty object or
+  a body that is not a Folder at all carries no such key. The folder's own id
+  is asserted beside it, so the object is this folder's rather than any
+  Folder-shaped thing.
+
+  `createFolder` is the one that pays for this. It does not read its answer
+  back through the projection the three above share: it returns a hand-built
+  object literal, and TypeScript's excess-property check does not reach it, so
+  `my_label: null` put back in that literal compiles, type-checks, ships, and
+  was asserted by nothing in the suite until this case.
+  */
+  test('AC-750: nor does a freshly created or freshly accepted membership', async () => {
+    const actor = await owner()
+
+    /* 1. `POST /folders`, read raw rather than through `createFolder`, which
+          answers only the id. */
+    const created = await postFolder(actor, 'ac750 fresh create')
+    expectStatus(created, 201, 'POST /folders answers 201 with the Folder object (7.4)')
+    const createdCard = created.json() as Record<string, unknown>
+    const createdId = String(createdCard.id)
+
+    /* 2. The invite acceptance's `folder`, which 7.5 says is what a fresh
+          `GET /folders` entry would give the acceptor. */
+    const guest = await invitee()
+    const sharedId = await createFolder(actor, 'ac750 fresh accept')
+    const inviteId = await seedInvite(app.db, {
+      inviterId: actor.id,
+      email: guest.email.toLowerCase(),
+      folderId: sharedId,
+      access: 'can_edit',
+    })
+    const accepted = await guest.browser.json(
+      `/invites/${inviteId}/accept`,
+      'POST',
+      {},
+    )
+    expectStatus(accepted, 200, 'the invited person accepts (7.5, 8.7)')
+    const acceptedBody = accepted.json() as { folder?: unknown }
+    expect(
+      acceptedBody.folder,
+      'the acceptance must answer the Folder object it granted, or there is no producer here to assert anything about',
+    ).not.toBeNull()
+    const acceptedCard = acceptedBody.folder as Record<string, unknown>
+
+    for (const [where, card, expectedId] of [
+      ['the POST /folders 201 body', createdCard, createdId],
+      ["the invite acceptance's `folder`", acceptedCard, sharedId],
+    ] as const) {
+      expect(
+        card.id,
+        `${where} must be this folder's object, or everything below is an assertion about something else`,
+      ).toBe(expectedId)
+      expect(
+        Object.keys(card),
+        `${where} must carry \`my_shelf\` -- a fresh membership sits on no shelf, so the key rather than its value is what says this is the Folder object 7.0 fixes rather than an error envelope or an empty object`,
+      ).toContain('my_shelf')
+      expect(
+        card.my_shelf,
+        `${where} answers a membership that was just created, which is on no shelf`,
+      ).toBeNull()
+      expect(
+        Object.keys(card),
+        `${where} still answers the retired key. This is the producer the type checker does not cover -- \`createFolder\` builds its Folder as an object literal and an extra key there compiles -- so nothing but this assertion stands between a reintroduced \`my_label\` and production`,
       ).not.toContain('my_label')
     }
   })
