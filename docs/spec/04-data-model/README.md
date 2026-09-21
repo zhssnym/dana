@@ -52,6 +52,13 @@ pair is deliberately an **expand-and-contract** split rather than a rename, and 
 the argument; **issue #247 is the contract half and must not merge until migration 0022 is
 live in production.**
 
+**The four numbers step over 4.23, and that gap is now closed.** `main` at 59161e9 holds
+`04.23-task-dependencies.md` from issue #224, merged while this work was in progress; this
+branch was behind it and took the next four rather than the next one, on the same rule the
+acceptance-criteria registry states for its own numbers. 4.23's row sits beside these four
+in the table below, added when this branch was rebased onto that `main`, so the table is
+contiguous from 4.1 to 4.27 and nothing is missing from it.
+
 **Fifth, three amendments landed on 2026-09-21 under issue #230, on the accepted technical
 ruling** https://github.com/zhssnym/dana/issues/230#issuecomment-5751322947 **(Ruling 1,
 section 4).** Two are new subsections and are purely additive: 4.28
@@ -62,13 +69,6 @@ carry, under the same ruling and with a CHECK that refuses it on an invitation n
 folder. The migration is 0025. The freeze holds the way it has held four times before: the
 owner ruled the change before it was written, the ruling is cited in each file, and every
 statement is an addition.
-
-**The four numbers step over 4.23, and that gap is now closed.** `main` at 59161e9 holds
-`04.23-task-dependencies.md` from issue #224, merged while this work was in progress; this
-branch was behind it and took the next four rather than the next one, on the same rule the
-acceptance-criteria registry states for its own numbers. 4.23's row sits beside these four
-in the table below, added when this branch was rebased onto that `main`, so the table is
-contiguous from 4.1 to 4.27 and nothing is missing from it.
 
 **Sixth, and it is the smallest kind of move this section can take: 4.17 and 4.20 each
 gained a dated *Rationale* note on 2026-09-21 and nothing else** (issue #280, on Hassan's
@@ -82,6 +82,18 @@ no rule moves**, in either file: the diff is added paragraphs, and every rule th
 was already written above them. It is recorded here because the freeze asks that a change to
 this section be visible from its front door, and a reader who is told only that nothing
 changed cannot check that for themselves.
+
+**Seventh, two amendments landed on 2026-09-21 under issue #247, release A, on the same
+technical ruling recorded at #226.** 4.4's `label` row and its annotation now say what is
+true of this release — the column is written by nothing and is dropped by #247's *second*
+release rather than by this one — and 4.18's opening sentence names
+`folder_members.shelf_name`, which is the column it has described since #226 renamed it and
+the one thing in that file that was left saying `label`. **No column, no constraint, no
+default and no bound moves in either file**, and nothing under `app/db/` moves with them:
+this release is the code half, and the drop is 11.5's second release for the reason the
+Fourth entry above gives about the first. The freeze holds the way it has held five times
+before: the owner ruled the change before it was written, the ruling is cited, and every
+statement here is a correction of a sentence about a column rather than a change to one.
 
 | | File | Covers |
 | - | - | - |
