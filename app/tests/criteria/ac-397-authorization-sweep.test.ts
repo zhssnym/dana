@@ -1390,14 +1390,25 @@ const TABLE = new Map<string, Row>([
    * Labels (issue #226, parent #208)
    *
    * Eleven rows, one per id-bearing route of the Label surface, and every one
-   * of them 404. There is no `member` variant anywhere in this block and that
-   * is the model rather than an omission: #208's accepted R5A rule is that
-   * **all current Folder members have equal rights** to create, rename,
-   * recolor, describe, archive, restore, apply and remove Folder Labels, so
-   * there is no act here that 5.4 grants a member sight of and withholds. When
-   * #209 introduces explicit Responsibilities and Authorities, that is the
-   * change that would put `member` variants in this block, and the sweep will
-   * ask for them by failing.
+   * of them 404. There is no `member` variant anywhere in this block, and the
+   * reason changed in issue #274 while the rows did not.
+   *
+   * It used to be the model: #208's accepted R5A gave **all current Folder
+   * members equal rights** to create, rename, recolor, describe, archive,
+   * restore, apply and remove Folder Labels, so there was no act here that 5.4
+   * granted a member sight of and withheld. That sentence also predicted that
+   * #209's explicit Responsibilities and Authorities would put `member`
+   * variants in this block "and the sweep will ask for them by failing".
+   *
+   * **#209 arrived as #228 and #274, R8 superseded R5A, and the sweep did not
+   * ask** — which is worth reading rather than correcting away. A `member`
+   * variant asserts what a member is *refused*, and `fx.member` holds **Can
+   * edit**, which is exactly the bar `label.vocabulary.manage` and
+   * `label.apply` sit at; there is still no act on these routes this actor is
+   * refused. A member **below** the bar now gets 403 from six of them, and
+   * that is AC-800's subject, driven with one actor per preset. The same
+   * correction is on `PATCH /api/v1/folders/:id` above, for the same reason
+   * and on the same day.
    *
    * `GET /api/v1/labels` is deliberately absent, and it is the standing
    * example this file's header warns about: it takes `folder_id` from the

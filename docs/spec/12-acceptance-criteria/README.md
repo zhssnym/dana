@@ -57,7 +57,7 @@ cannot be read from any tree.
 | 700–705 | `backend/263-reclaim-sweep-coverage` | yes — six bullets in 12.9 and six files |
 | 780–782 | `backend/227-label-lifecycle`, second pass | yes, three bullets and three test files |
 | 790 | `backend/268-comment-moderation-on-access` | yes — one bullet in 12.14 and one file |
-| 800 | `backend/274` | no — assigned, not readable from this tree |
+| 800 | `backend/274-label-routes-on-access` | yes — one bullet in 12.24 and one file |
 | 810 | `backend/276-reclaim-sweep-leaves-a-trace` | yes — one bullet in 12.9 and one test file |
 
 **780 rather than 681, because the three were assigned rather than scanned for.** On
@@ -78,8 +78,10 @@ than scanning for it.** The two rows above it were assigned in the same breath a
 was readable from any tree when this was written: `backend/268` holds 790 and `backend/274`
 holds 800. **790 has since merged** — #268 landed on `main` at 616f982 and its row above is
 read from this tree rather than taken on trust, which is the only one of the three that
-changed; 800 is still only an assignment. Taking
-783, the number this section offered, would have been legal and useless — a block of one
+changed; **800 was an assignment when this paragraph was written and is readable from this
+tree since #274** — one bullet in 12.24 and
+`app/tests/criteria/ac-800-label-routes-resolve-through-access.test.ts`. Taking 783, the
+number this section offered, would have been legal and useless — a block of one
 wedged under two that are spoken for, leaving the line at 784 and the next branch to
 discover 790 and 800 by collision. **784 to 789, 791 to 799 and 801 to 809 are therefore
 gaps of the ordinary kind** and are not free by default, on the rule stated immediately
@@ -118,15 +120,28 @@ of it is wrong: `backend/220` holds bullets for AC-490 through AC-507, so only 5
 are empty there. This is the sort of thing the table above is verified against branches for,
 and the sort of thing a chat message about blocks cannot be.)*
 
+**`backend/274-label-routes-on-access` took 800 rather than 783, and the gap between them is
+not free** (written on that branch, 2026-09-20). It was **assigned** rather than read off
+this line, for the reason the paragraph below gives about 790:
+`backend/268-comment-moderation-on-access` is open and holds 790, and a branch reading "the
+next number is 783" while a sibling spends 790 is the collision this section exists to
+prevent. 800 rather than 791 so that the two do not have to be merged in a particular order —
+the two branches touch one line of this file and nothing else of each other's. **One number
+is spent, 800, and the line above is 811.** It read 801 on this branch until the rebase of
+2026-09-21: #276 took 810 and merged first, so the line was already at 811 when this branch
+was replayed onto it, and this branch moves it no further — it spends 800 and nothing else.
+The resolution when this branch meets #268, or either of #247 and #263, is **the max of the
+two lines and every row**, which is the rule the #247 and #263 paragraph above states, and
+it is what that rebase applied.
+
 **`backend/268-comment-moderation-on-access` took 790 rather than 706, and the gap between
-them is not free** (written on that branch, 2026-09-20). It was **assigned** rather than read
-off this line: branches open at the same time hold ranges up to 782, and
-`backend/227-label-lifecycle` moves this same line to 783 on its own branch, so taking the
-706 written here would have collided with work that has not merged and cannot be read from
-any tree — the exact failure `guard-criterion-registry` exists to catch one merge too late.
-One number is spent, 790, and the line above is 791. **The resolution when this branch meets
-any of those is the max of the two lines and every row**, which is the rule the #247 and #263
-paragraph above states; nothing else in this diff touches this file.
+them is not free** (written on that branch, 2026-09-20; its row is in the table above,
+carried here by #274 so that whichever of the two merges first leaves the other's record
+standing). It was **assigned** rather than read off this line: branches open at the same time
+hold ranges up to 782, and `backend/227-label-lifecycle` moves this same line to 783 on its
+own branch, so taking the 706 written there would have collided with work that has not merged
+and cannot be read from any tree — the exact failure `guard-criterion-registry` exists to
+catch one merge too late. One number is spent, 790.
 
 ## Numbers
 
@@ -165,6 +180,16 @@ default, so read this list before spending one.
   wrote a bullet below deferring the totals to whichever merge came last, and this is that
   merge. Twenty-one of the twenty-three rows were already right; the one that was not was
   12.23, exactly as the AC-414 bullet said it would be.
+- **AC-800 is spent, by issue #274 on 2026-09-20**, and it is 12.24's: the twelve Label
+  mutation routes driven with one real actor at each of R8A's six presets, against both
+  `label.vocabulary.manage` and `label.apply`, asserting refusals beside successes and
+  reading the rows rather than the statuses. It was **assigned** rather than taken off the
+  allocator line, which read 783 while `backend/268` held 790; the paragraph above the
+  `## Numbers` heading carries that and the resolution when the two branches meet. **No
+  total moves with it**, on the AC-410 and AC-411 precedent: the count at the top of this
+  file and 12.24's row in the table below belong to whichever of the day's merges lands
+  last. **783 to 799 are not free by default**, on the AC-377 bullet's rule — a sibling may
+  hold any of them and only the last merge can say.
 - **AC-660 to AC-665 are spent, by issue #255 on 2026-09-20**, and all six are 12.9's:
   a `folder_ref` block on a folder page survives being typed in, an unrelated edit still
   writes nothing to it, and the relation is still there for an export and a duplicate to

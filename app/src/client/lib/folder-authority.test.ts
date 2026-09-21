@@ -387,6 +387,47 @@ describe('the two permanent deletes, which are not one rule', () => {
   })
 })
 
+describe('the folder’s shared Label vocabulary and its application', () => {
+  /* Issue #274, which put the twelve Label routes behind the resolver and
+     superseded #208's R5A "any member" rule. Transcribed from AC-800 and
+     AC-480 as they read after that change, not re-derived from the rules
+     table — the header of this file says why. */
+  const EXPECTED: Record<FolderAccessPreset, boolean> = {
+    full_control: true,
+    can_edit: true,
+    can_contribute: false,
+    assigned_work: false,
+    can_comment: false,
+    can_view: false,
+  }
+
+  for (const preset of FOLDER_ACCESS_PRESETS) {
+    test(`${preset} manages the vocabulary: ${String(EXPECTED[preset])}`, () => {
+      expect(folderGates(facts(preset)).labels).toBe(EXPECTED[preset])
+    })
+  }
+
+  test('an owner held at Can view manages no vocabulary: custody is not authority over shared Work', () => {
+    expect(folderGates(facts('can_view', { isOwner: true })).labels).toBe(false)
+  })
+
+  test('a Full-control member who does not own the folder manages it', () => {
+    expect(folderGates(facts('full_control', { isOwner: false })).labels).toBe(true)
+  })
+
+  /* `applyLabel` is the folder-wide half of `label.apply` and is deliberately
+     false for Can contribute, whose authority is bounded by the Task
+     currently assigned to them. A surface drawing a control **per Task** must
+     ask with the assignee in hand rather than reading this; the interface
+     member carries that warning and this case is what would notice if the
+     gate quietly started answering the per-Task question instead. */
+  test('applying folder-wide follows the same bar, and Can contribute is not folder-wide', () => {
+    for (const preset of FOLDER_ACCESS_PRESETS) {
+      expect(folderGates(facts(preset)).applyLabel).toBe(EXPECTED[preset])
+    }
+  })
+})
+
 describe('the successor picker', () => {
   /* Governing #209 R6 section 2, and the server's own `isEligibleSuccessor`:
      a member who currently holds Full control, and nobody else. */

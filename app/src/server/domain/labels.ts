@@ -9,7 +9,7 @@ without being scoped to the viewer or to a target the caller has already
 resolved access on. Results are discriminated unions rather than thrown
 statuses, so the route layer owns the mapping onto 7.0's taxonomy.
 
-## Four things worth reading before changing anything here
+## Five things worth reading before changing anything here
 
 **Scope is part of identity and the database knows it.** Migration 0022's two
 composite foreign keys are the load-bearing part of this feature, not the
@@ -34,6 +34,22 @@ answer with a Map. `readCards` calls the first once per list endpoint, so a
 thousand-row view costs one extra statement rather than a thousand; AC-474
 drives a list endpoint through a recording executor and fails if the count
 moves with the number of rows.
+
+**Applying a Folder Label is authorized in this file and not in the route
+(issue #274).** Every other Label gate is the route's, because every other
+Label act resolves from the Folder preset alone and a route can read that
+beside its own `accessOf`. The two Task-assignment endpoints cannot:
+`label.apply` carries `whenAssignedToActor: ['can_contribute']`, so the answer
+depends on the Task's **current assignee**, and #228's Assigned-work rule
+requires that fact be read in the same transaction and snapshot as the
+mutation it authorizes. So `attachTaskLabel` and `detachTaskLabel` take the
+Task's row lock, read the assignee off it, resolve the actor's Folder facts
+against the same snapshot, and ask `mayPerform`. Nothing below states a bar;
+`shared/folder-actions.ts` holds every one of them, and this file carries the
+target facts to it. The scope decides *which* action is being performed — a
+Folder Label is `label.apply` and a Personal one is `personal.label`, which
+#228's personal-actions rule puts outside Folder Access at membership — so the
+Label has to be resolved before its actor can be judged.
 
 **The access-loss rule is an absence rather than a mechanism.** #208 says a
 Personal assignment may remain stored while its owner temporarily loses access
@@ -65,6 +81,8 @@ import type {
 } from '../../shared/labels.js'
 import { idSet, inTransaction, pairSet, rowsOf } from '../database.js'
 import type { Executor, IdPair } from '../database.js'
+import { folderActorFacts, mayPerform } from './folder-access.js'
+import type { FolderAction } from './folder-access.js'
 
 /* ------------------------------------------------------------------ *
  * Serialization
@@ -507,9 +525,18 @@ export async function createFolderLabel(
  * It is a WHERE clause on `labels` rather than a lookup followed by a check,
  * so a Label the viewer may not manage is not found rather than found and
  * refused — which is what makes a foreign id a 404 with no existence leak
- * (10.2). For the Folder scope it is membership of the Folder in the path,
- * and #208's interim rule is that every member may manage: there is
- * deliberately no owner test here, and #209 is where that changes.
+ * (10.2). For the Folder scope it is **membership** of the Folder in the path,
+ * and membership only: there is deliberately no owner test, and there is
+ * deliberately no Access test either.
+ *
+ * **The bar is the route's, and this predicate is visibility (issue #274).**
+ * The two answer different questions and must not be folded together: a Label
+ * of a Folder the viewer is not in must be 404, and a Label of a Folder they
+ * are in that they may not manage must be **403** carrying the rule's
+ * sentence. Putting the preset in this WHERE clause would turn the second
+ * into the first and tell a member that their own Folder's Label does not
+ * exist. `routes/labels.ts`'s `gate` asks `label.vocabulary.manage` before
+ * any of this runs.
  */
 function writableLabel(
   viewerId: string,
@@ -637,8 +664,16 @@ export type AttachResult =
   /** #208: an archived Label cannot be newly applied. */
   | { kind: 'archived' }
   | { kind: 'assignment_cap' }
+  /** Issue #274: the caller sees the target and the Label and may not modify
+   * the Folder's shared classification of this work. 403 carrying the rule's
+   * own sentence, never 404 — 10.2 forbids a 403 only where it would confirm
+   * something the caller cannot already see, and a member can see both. */
+  | { kind: 'forbidden'; reason: string }
 
-export type DetachResult = { kind: 'detached' } | { kind: 'not_found' }
+export type DetachResult =
+  | { kind: 'detached' }
+  | { kind: 'not_found' }
+  | { kind: 'forbidden'; reason: string }
 
 /** What a Label looks like to a viewer deciding whether it may be applied. */
 interface VisibleLabel {
@@ -691,8 +726,50 @@ async function visibleLabel(
 }
 
 /**
- * PUT /tasks/:taskId/labels/:labelId. The caller has resolved Task access and
- * hands over the Task's Folder.
+ * Whether this actor may classify this Task with a Label of this scope, or
+ * the refusal to answer with (issue #274).
+ *
+ * Null means "carry on", which is the shape the two callers want: every other
+ * branch of theirs is a refusal too, and an authorization answer that read
+ * `allowed: true` would be the one value in the function that had to be
+ * unwrapped before it could be ignored.
+ *
+ * **Every argument is read inside the caller's transaction, under the Task
+ * row lock it has already taken**, which is #228's Assigned-work requirement
+ * and the reason this is not two lines in `routes/labels.ts`: a reassignment
+ * that commits first must be seen, and a projection saying "assigned to me"
+ * must never authorize.
+ *
+ * It states no bar. `shared/folder-actions.ts` holds them, and the only
+ * decision here is which of the two actions the Label's scope names.
+ */
+async function classificationRefusal(
+  tx: Executor,
+  viewerId: string,
+  folderId: string,
+  scope: LabelScope,
+  assigneeId: string | null,
+): Promise<
+  { kind: 'not_found' } | { kind: 'forbidden'; reason: string } | null
+> {
+  const facts = await folderActorFacts(tx, viewerId, folderId)
+  /* Membership read again inside the transaction rather than trusted from the
+     route's own read. A removal that commits in between is the same class of
+     race as a reassignment, and 10.2's answer for somebody who is no longer a
+     member is 404 rather than 403. */
+  if (facts === null) return { kind: 'not_found' }
+  const action: FolderAction =
+    scope === 'folder' ? 'label.apply' : 'personal.label'
+  const decision = mayPerform(facts, action, { assigneeId })
+  return decision.allowed
+    ? null
+    : { kind: 'forbidden', reason: decision.reason }
+}
+
+/**
+ * PUT /tasks/:taskId/labels/:labelId. The caller has resolved Task access;
+ * the Task's Folder, its assignee and the actor's standing are all read here,
+ * under the lock, because the gate below depends on all three.
  *
  * The order of the three refusals is decided here and pinned by AC-476.
  * Wrong-target is checked before archived, because scope is a fact about
@@ -714,23 +791,44 @@ export async function attachTaskLabel(
   db: Db,
   viewerId: string,
   taskId: string,
-  taskFolderId: string,
   labelId: string,
 ): Promise<AttachResult> {
   return inTransaction(db, async (tx) => {
-    // The lock is the first statement of the transaction, which is what
-    // cap-guards.test.ts asserts of every guard in this directory: the count
-    // below has to be read after the lock is held, or the second caller reads
-    // the same number the first one did and both insert.
-    await tx.execute(
-      sql`SELECT 1 FROM tasks WHERE id = ${taskId}::uuid FOR UPDATE`,
+    /* The lock is the first statement of the transaction, which is what
+       cap-guards.test.ts asserts of every guard in this directory: the count
+       below has to be read after the lock is held, or the second caller reads
+       the same number the first one did and both insert.
+
+       It carries the two facts the gate needs besides — the Task's Folder and
+       its current assignee — so that both are the row's own under the lock
+       rather than a caller's argument that was true a moment ago (#274). */
+    const locked = await rowsOf(
+      tx,
+      sql`SELECT folder_id, assignee_id FROM tasks
+          WHERE id = ${taskId}::uuid FOR UPDATE`,
     )
+    const task = locked[0]
+    if (task === undefined) return { kind: 'not_found' }
+    const taskFolderId = String(task.folder_id)
 
     const label = await visibleLabel(tx, viewerId, labelId)
     if (label === null) return { kind: 'not_found' }
     if (label.scope === 'folder' && label.folderId !== taskFolderId) {
       return { kind: 'wrong_target' }
     }
+    /* Authority before state, and after scope. Scope is what decides which
+       action this is, so it has to be settled first; the archive check below
+       is a fact about the Label's state, and telling somebody who may not
+       classify this work that the Label they named is archived would answer a
+       question they are not entitled to ask. */
+    const refusal = await classificationRefusal(
+      tx,
+      viewerId,
+      taskFolderId,
+      label.scope,
+      nullableString(task.assignee_id),
+    )
+    if (refusal !== null) return refusal
     if (label.archived) return { kind: 'archived' }
 
     if (label.scope === 'personal') {
@@ -781,6 +879,12 @@ export async function attachTaskLabel(
  * to a DELETE: the scope is what stops the statement from ever being able to
  * remove another member's private classification, and the key is what makes it
  * one row.
+ *
+ * **It became a transaction in #274 and was three statements outside one
+ * before.** `label.apply` governs removal exactly as it governs application —
+ * R8 names both in one clause — so the assignee that authorizes it has to be
+ * read under the lock the DELETE runs behind, for the reason the attach one
+ * over records.
  */
 export async function detachTaskLabel(
   db: Db,
@@ -788,21 +892,40 @@ export async function detachTaskLabel(
   taskId: string,
   labelId: string,
 ): Promise<DetachResult> {
-  const label = await visibleLabel(db, viewerId, labelId)
-  if (label === null) return { kind: 'not_found' }
-  if (label.scope === 'personal') {
-    await db.execute(
-      sql`DELETE FROM task_personal_labels
-          WHERE task_id = ${taskId} AND label_id = ${labelId}
-            AND owner_user_id = ${viewerId}`,
+  return inTransaction(db, async (tx) => {
+    const locked = await rowsOf(
+      tx,
+      sql`SELECT folder_id, assignee_id FROM tasks
+          WHERE id = ${taskId}::uuid FOR UPDATE`,
     )
-  } else {
-    await db.execute(
-      sql`DELETE FROM task_folder_labels
-          WHERE task_id = ${taskId} AND label_id = ${labelId}`,
+    const task = locked[0]
+    if (task === undefined) return { kind: 'not_found' }
+
+    const label = await visibleLabel(tx, viewerId, labelId)
+    if (label === null) return { kind: 'not_found' }
+    const refusal = await classificationRefusal(
+      tx,
+      viewerId,
+      String(task.folder_id),
+      label.scope,
+      nullableString(task.assignee_id),
     )
-  }
-  return { kind: 'detached' }
+    if (refusal !== null) return refusal
+
+    if (label.scope === 'personal') {
+      await tx.execute(
+        sql`DELETE FROM task_personal_labels
+            WHERE task_id = ${taskId} AND label_id = ${labelId}
+              AND owner_user_id = ${viewerId}`,
+      )
+    } else {
+      await tx.execute(
+        sql`DELETE FROM task_folder_labels
+            WHERE task_id = ${taskId} AND label_id = ${labelId}`,
+      )
+    }
+    return { kind: 'detached' }
+  })
 }
 
 /**

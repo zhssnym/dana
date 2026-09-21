@@ -18,10 +18,23 @@ management authority, driven over the wire (issue #226, parent #208).
   controlled 409 or a field-addressed 422, choose one convention and pin it
   with tests" — and `routes/labels.ts` chooses 409. This is the pin, and it
   asserts all four doors: create and rename, Personal and Folder.
-- **AC-480, authority.** Every current Folder member has equal rights over a
-  Folder's Labels until #209, with no owner exception, which is #208's
-  accepted R5A. Asserted from the *member*'s side rather than the owner's,
-  because an owner-only implementation passes every case driven by an owner.
+- **AC-480, authority.** A Folder's Labels are managed by a **member** and not
+  by its owner: ownership is custody and says nothing about shared Work.
+  Asserted from the member's side rather than the owner's, because an
+  owner-only implementation passes every case driven by an owner.
+
+  **The bar under that sentence moved in issue #274 and the no-owner-exception
+  half did not.** This read "every current Folder member has equal rights over
+  a Folder's Labels until #209, which is #208's accepted R5A"; #209 arrived as
+  #228 and supplied the ladder R5A said it was waiting for, so "any member" is
+  replaced by Can edit and above (`label.vocabulary.manage`) and by Can
+  contribute over work they hold (`label.apply`). Hard stop 7 is declared in
+  #274, and the decision that moved is stated there: **#208 predates graded
+  Access, #228 introduced it, and "any member" is replaced by the ladder.**
+  Every actor this file drives holds Can edit — `addMemberOk`'s default — so
+  not one assertion below changed; what changed is what the sentence claims.
+  **AC-800 is where the bar itself is driven**, one actor per preset against
+  both actions, refusals included.
 
 ## Why the projections are read twice, everywhere
 
@@ -67,12 +80,17 @@ import {
 } from '../support/labels-harness.js'
 
 let app: AuthTestApp
-const cast = new Cast(['owner', 'member', 'stranger'], 'ac470')
+const cast = new Cast(['owner', 'member', 'stranger', 'onlooker'], 'ac470')
 
 interface Stage {
   owner: Actor
   member: Actor
   stranger: Actor
+  /** A member of `shared` held at Can view, added in issue #274 so that the
+   * privacy cases have a member the Label bars refuse beside the member they
+   * admit. Every other case in this file drives `member`, who is at Can edit
+   * because `addMemberOk` defaults there. */
+  onlooker: Actor
   /** A folder the owner and the member share. */
   shared: string
   /** A second shared folder, for the same-name-across-folders case. */
@@ -85,14 +103,17 @@ let staged: Stage | undefined
 
 async function stage(): Promise<Stage> {
   if (staged !== undefined) return staged
-  const [owner, member, stranger] = (await cast.of(app)) as [
+  const [owner, member, stranger, onlooker] = (await cast.of(app)) as [
+    Actor,
     Actor,
     Actor,
     Actor,
   ]
   await connect(app.db, owner.id, member.id)
+  await connect(app.db, owner.id, onlooker.id)
   const shared = await createFolder(owner, 'ac470 shared')
   await addMemberOk(owner, shared, member.id)
+  await addMemberOk(owner, shared, onlooker.id, 'can_view')
   const other = await createFolder(owner, 'ac470 other')
   await addMemberOk(owner, other, member.id)
   const taskId = await seedTask(app.db, {
@@ -100,7 +121,7 @@ async function stage(): Promise<Stage> {
     createdBy: owner.id,
     title: 'ac470 the labelled task',
   })
-  staged = { owner, member, stranger, shared, other, taskId }
+  staged = { owner, member, stranger, onlooker, shared, other, taskId }
   return staged
 }
 
@@ -199,11 +220,40 @@ describe('AC-470 a Personal Label is private and a Folder Label is the Folder\'s
       200,
       'the member applies theirs to the same task',
     )
+    /*
+    **This case moved in issue #274 and the sentence it used to carry was
+    "#208 R5A: any member may apply an existing Folder Label".** Hard stop 7,
+    declared there: the decision that moved is that **#208 predates graded
+    Access, #228 introduced it, and "any member" is replaced by the ladder**.
+    R5A called itself interim in its own words because when it was written
+    membership was the only distinction a Folder had, so "any member" was the
+    only bar available rather than a lax one. Against R8A's six presets it
+    admits Can view, and a read-only member relabelling everybody else's work
+    is the shape the whole Access model exists to refuse.
+
+    It is replaced rather than deleted, which is the other half of that stop:
+    the new rule is pinned here and not merely the old one removed. `fx.member`
+    holds Can edit — `addMemberOk`'s default — so the 200 below is the
+    at-or-above arm, and the arm under it is a member of the same folder held
+    below the bar. AC-800 drives all six presets against both Label actions;
+    what this case owes is that the privacy assertions underneath it are made
+    over a Folder Label that a **member** put there.
+    */
     expectStatus(
       await putTaskLabel(fx.member, fx.taskId, shared.id),
       200,
-      '#208 R5A: any member may apply an existing Folder Label',
+      'R8 and #274: a member at Can edit applies an existing Folder Label, ownership being custody and not authority over shared Work',
     )
+    const refused = await putTaskLabel(fx.onlooker, fx.taskId, shared.id)
+    expectStatus(
+      refused,
+      403,
+      'R8 and #274: a member below the bar is refused — 403 rather than 404, because they can see the folder and the Label already (10.2)',
+    )
+    expect(
+      (refused.json() as { error?: { message?: string } }).error?.message,
+      'and the refusal carries the rule’s own sentence, so the person is told what refused them',
+    ).toContain('Folder Labels')
 
     /* Both producers, for the reason in the header: a leak in the list query
        and a leak in the single read are different defects. */
@@ -517,7 +567,7 @@ describe('AC-472 a name collision is 409, on every door', () => {
  * AC-480
  * ------------------------------------------------------------------ */
 
-describe('AC-480 every Folder member manages that Folder\'s Labels', () => {
+describe('AC-480 a member at Can edit manages that Folder\'s Labels', () => {
   test('AC-480: a member who does not own the folder does all six acts', async () => {
     const fx = await stage()
     const folderId = await createFolder(fx.owner, 'ac480 equal rights')
@@ -528,12 +578,16 @@ describe('AC-480 every Folder member manages that Folder\'s Labels', () => {
       title: 'ac480 the task',
     })
 
-    /* Create, by the member. #208's accepted R5A says in terms: "all current
-       Folder members have equal authority to create, rename, recolor,
-       describe, archive, restore, apply and remove Folder Labels in M1. Do
-       not special-case Folder ownership for Label management." An
-       owner-only implementation passes every case driven by an owner, which
-       is why this whole block is driven by the member. */
+    /* Create, by the member, who holds Can edit. #208's accepted R5A said in
+       terms: "all current Folder members have equal authority to create,
+       rename, recolor, describe, archive, restore, apply and remove Folder
+       Labels in M1. Do not special-case Folder ownership for Label
+       management." **Issue #274 supersedes the first clause and keeps the
+       second**, which is exactly what this case drives: the acts are Can
+       edit's now rather than any member's, and ownership is still no part of
+       the answer. An owner-only implementation passes every case driven by an
+       owner, which is why this whole block is driven by the member; the
+       presets below the bar are AC-800's. */
     const made = await createFolderLabel(fx.member, folderId, {
       name: 'ac480 Member made',
       color: '#5566CC',

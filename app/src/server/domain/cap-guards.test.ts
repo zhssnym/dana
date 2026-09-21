@@ -533,11 +533,15 @@ describe('the 10.3 caps decide under a lock, not beside one', () => {
     if (made.kind !== 'created') throw new Error('the fixture label must exist')
 
     const log: string[] = []
+    /* The Folder argument this call used to carry went in #274: the lock
+       statement reads the Task's own `folder_id` and `assignee_id`, so the
+       facts the gate resolves over are the locked row's rather than a
+       caller's. What this case asserts is untouched — lock, then count, then
+       insert — and `folderId` above is still what the fixture task is in. */
     const result = await attachTaskLabel(
       recording(db, log),
       ownerId,
       taskId,
-      folderId,
       made.label.id,
     )
     expect(result.kind, 'the attach still succeeds below the cap').toBe('attached')
