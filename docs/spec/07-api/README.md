@@ -177,6 +177,31 @@ already written above them. `07.23`'s `## The fields` table, which
 recorded here because the freeze asks that a change to this section be visible from its front
 door, and a reader who is told only that nothing changed cannot check that for themselves.
 
+**Twelfth, and it is a whole new subsection rather than an annotation: 7.27 is the Folder
+facet surface, dated 2026-09-21** (issue #210, M1-F, on Hassan's technical ruling
+https://github.com/zhssnym/dana/issues/210#issuecomment-5756722756, section 3; product
+authority #210 as written plus its Frontend → Backend Handoff of the same day).
+
+Eleven routes under `/folders/:id/facets`, plus `POST /facets/:id/restore` and
+`DELETE /trash/facets/:id`, which are 7.13's shape for the Trash pair. **It is purely
+additive**: no existing endpoint, response shape, status or refusal moves, and nothing that
+parsed before stops parsing.
+
+**Two existing contracts are read differently and neither is amended, which is worth naming
+from the front door.** `GET /api/v1/trash` gains a third array, `facets`, beside `tasks` and
+`folders`; 7.13's own text is unchanged and the addition is described in 7.27 rather than
+written into it, because the rule it follows — `is_owner` and `my_access` on every Trash row,
+and Full control with ownership ignored for the permanent delete — is 7.13's own 2026-09-20
+correction applied to a third kind. And 7.16's `document_transaction` is reused verbatim for a
+blank facet's document, with **four refusals** that are 7.27's rather than 7.16's; 7.16 is not
+touched.
+
+**7.27 fixes a refusal order for itself and says so at the top: 404, then 422, then 403, then
+409.** That is not a change to 7.0, which fixes the taxonomy rather than the sequence, and it
+is not the order every other surface happens to use. The reason is in the file: an authority
+refusal has to be able to name what it refused, and this surface has a gate whose answer
+depends on which kind of facet the body asked for, so it literally cannot be asked first.
+
 | | File | Covers |
 | - | - | - |
 | 7.0 | [`07.0-conventions.md`](07.0-conventions.md) | 7.0 Conventions |
@@ -206,3 +231,4 @@ door, and a reader who is told only that nothing changed cannot check that for t
 | 7.24 | [`07.24-dana-link-references.md`](07.24-dana-link-references.md) | 7.24 Dana Link references |
 | 7.25 | [`07.25-task-dependencies.md`](07.25-task-dependencies.md) | 7.25 Task dependencies |
 | 7.26 | [`07.26-labels.md`](07.26-labels.md) | 7.26 Labels |
+| 7.27 | [`07.27-folder-facets.md`](07.27-folder-facets.md) | 7.27 Folder facets |
