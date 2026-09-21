@@ -154,9 +154,13 @@ this line, for the reason the paragraph below gives about 790:
 next number is 783" while a sibling spends 790 is the collision this section exists to
 prevent. 800 rather than 791 so that the two do not have to be merged in a particular order —
 the two branches touch one line of this file and nothing else of each other's. **One number
-is spent, 800, and the line above is 811.** It read 801 on this branch until the rebase of
-2026-09-21: #276 took 810 and merged first, so the line was already at 811 when this branch
-was replayed onto it, and this branch moves it no further — it spends 800 and nothing else.
+is spent, 800, and this branch moves the allocator line no further — it spends 800 and
+nothing else.** That line read 801 on this branch until the rebase of 2026-09-21, when this
+paragraph was written saying "the line above is 811": #276 took 810 and merged first, so
+811 was where the line already stood when this branch was replayed onto it. **It reads 826
+now**, #185 having spent 820 to 825 since, and `## The next number` at the top of this file
+is the live answer rather than any sentence here — which is what that section says about
+every sentence of this shape below it.
 The resolution when this branch meets #268, or either of #247 and #263, is **the max of the
 two lines and every row**, which is the rule the #247 and #263 paragraph above states, and
 it is what that rebase applied.
@@ -176,24 +180,44 @@ catch one merge too late. One number is spent, 790.
 marked rather than removed. A gap in the run is ordinary, and it is not a free number by
 default, so read this list before spending one.
 
-- **391 criteria carry their text in the files below, and 389 of them are live.** Every
-  number from AC-001 to AC-422 not named below is one of them. Re-derived on 2026-09-09 by
-  issue #192, after #184's compose-first merge, by **counting the
-  `- AC-` bullets across the files** rather than by adding up what three branches each
-  believed: 391, with no number appearing twice. Two independent checks agree, which is why
-  the number is stated rather than hedged: the per-file rows in the table below **sum to
-  exactly 391**, which they cannot do if one number is written twice, and the arithmetic
-  gives the same — 422 numbers in the run, less AC-229 and the thirty free ones named below,
-  is 391. The wave-3 sentence this replaces read 381 for its own night and was then moved to
-  382 by issue #167; both were right when written, and neither was re-derived, which is what
-  this bullet exists to do.
+- **523 criteria carry their text in the files below, and 520 of them are live.** Every
+  number from AC-001 to AC-825 not named below is one of them. Re-derived on 2026-09-21 by
+  issue #247, as the last merge of the day, by **counting the `- AC-` bullets across the
+  files** — this section's own rule, written out in the AC-470 bullet below: the row is
+  re-derived by `grep -c "^- AC-"` over the file rather than by adding to the previous
+  number. Every merge of 2026-09-20 and 2026-09-21 deferred this count and
+  the per-file rows to whichever of them landed last, and none of them re-derived it, so
+  what was re-derived is every number rather than the ones the day's diffs touched. 523,
+  with no number appearing twice. Two independent readings agree, which is why the number is
+  stated rather than hedged: `grep -c '^- AC-'` over the twenty-four `12.N-*.md` files gives
+  the twenty-four rows in the table below, which **sum to exactly 523**; and
+  `sectionTwelveBullets()` in `app/tests/support/criterion-registry.ts` — the parser the two
+  registry guards read this directory with, a different expression over the same files —
+  gives the same twenty-four numbers and 523 distinct numbers across them, which they cannot
+  be if one number is written twice.
 
-  **The two retired ones are inside that 391 and that is this section's own rule, not an
-  oversight.** AC-122 and AC-123 were retired by issue #113 and are *marked* rather than
-  removed, as the sentence above this list requires, so each still carries its text as a
-  `- AC-` bullet and the count that counts bullets counts them. The number of criteria a
-  build must satisfy is therefore 389, and the two numbers are given separately because they
-  answer different questions: 391 is what is written down, 389 is what is asserted.
+  **Ten of the twenty-four rows moved with it**: 12.3 27 to 30, 12.4 20 to 49, 12.6 39 to
+  48, 12.7 10 to 11, 12.8 33 to 40, 12.9 31 to 66, 12.14 11 to 12, 12.15 15 to 24, 12.16 11
+  to 17, and 12.24 30 to 32. The fourteen others were already right. The last two
+  paragraphs of this bullet are #192's and the wave-4 merge's records of doing exactly this,
+  kept as written; the table they describe had twenty-three rows rather than twenty-four,
+  12.24 being #208's and later.
+
+  **It read 391 and 389 until this re-derivation**, both true of the tree #192 counted on
+  2026-09-09 and neither re-derived since; the table under it had meanwhile been carried
+  forward row by row until it summed to 421 against a headline of 391, which is the state a
+  deferred count reaches when every merge defers it and the run keeps growing. The two
+  sentences of checking that #192 wrote are kept above in the same form for the same reason
+  it wrote them.
+
+  **The three retired ones are inside that 523 and that is this section's own rule, not an
+  oversight.** AC-122 and AC-123 were retired by issue #113 and AC-481 by issue #247, and
+  all three are *marked* rather than removed, as the sentence above this list requires, so
+  each still carries its text as a `- AC-` bullet and the count that counts bullets counts
+  them. The number of criteria a build must satisfy is therefore 520, and the two numbers
+  are given separately because they answer different questions: 523 is what is written down,
+  520 is what is asserted. (It said **two** retired and 391 against 389 until 2026-09-21;
+  AC-481 was retired on 2026-09-20 by #247, which replaced it with AC-750.)
 
   **Six per-file rows moved with it and that is the point of counting rather than adding.**
   12.3 gained AC-404 and AC-409, 12.8 gained AC-405, 12.9 gained AC-406, AC-408 and AC-411,
@@ -826,20 +850,20 @@ what that sentence is for.
 | - | - | - |
 | 12.1 | [`12.1-schema-and-migrations.md`](12.1-schema-and-migrations.md) | 12.1 Schema and migrations, 8 criteria |
 | 12.2 | [`12.2-sign-in-and-sessions.md`](12.2-sign-in-and-sessions.md) | 12.2 Sign-in and sessions, 18 criteria |
-| 12.3 | [`12.3-the-account.md`](12.3-the-account.md) | 12.3 The account: profile, settings, deletion, 27 criteria |
-| 12.4 | [`12.4-folders-and-membership.md`](12.4-folders-and-membership.md) | 12.4 Folders and membership, 20 criteria |
+| 12.3 | [`12.3-the-account.md`](12.3-the-account.md) | 12.3 The account: profile, settings, deletion, 30 criteria |
+| 12.4 | [`12.4-folders-and-membership.md`](12.4-folders-and-membership.md) | 12.4 Folders and membership, 49 criteria |
 | 12.5 | [`12.5-sharing-roster-and-people.md`](12.5-sharing-roster-and-people.md) | 12.5 Sharing, the roster and people, 18 criteria |
-| 12.6 | [`12.6-tasks-steps-and-the-task-surface.md`](12.6-tasks-steps-and-the-task-surface.md) | 12.6 Tasks, steps and the task surface, 39 criteria |
-| 12.7 | [`12.7-today.md`](12.7-today.md) | 12.7 Today, 10 criteria |
-| 12.8 | [`12.8-views-filters-and-search.md`](12.8-views-filters-and-search.md) | 12.8 Views, filters and search, 33 criteria |
-| 12.9 | [`12.9-pages-blocks-and-covers.md`](12.9-pages-blocks-and-covers.md) | 12.9 Pages, blocks and covers, 31 criteria |
+| 12.6 | [`12.6-tasks-steps-and-the-task-surface.md`](12.6-tasks-steps-and-the-task-surface.md) | 12.6 Tasks, steps and the task surface, 48 criteria |
+| 12.7 | [`12.7-today.md`](12.7-today.md) | 12.7 Today, 11 criteria |
+| 12.8 | [`12.8-views-filters-and-search.md`](12.8-views-filters-and-search.md) | 12.8 Views, filters and search, 40 criteria |
+| 12.9 | [`12.9-pages-blocks-and-covers.md`](12.9-pages-blocks-and-covers.md) | 12.9 Pages, blocks and covers, 66 criteria |
 | 12.10 | [`12.10-shelves-and-the-library.md`](12.10-shelves-and-the-library.md) | 12.10 Shelves and the Library, 13 criteria |
 | 12.11 | [`12.11-recurrence.md`](12.11-recurrence.md) | 12.11 Recurrence, 15 criteria |
 | 12.12 | [`12.12-reminders.md`](12.12-reminders.md) | 12.12 Reminders, 24 criteria |
 | 12.13 | [`12.13-events-history-and-notifications.md`](12.13-events-history-and-notifications.md) | 12.13 Events, history and notifications, 9 criteria |
-| 12.14 | [`12.14-comments-and-likes.md`](12.14-comments-and-likes.md) | 12.14 Comments and likes, 11 criteria |
-| 12.15 | [`12.15-files-images-and-avatars.md`](12.15-files-images-and-avatars.md) | 12.15 Files, images and avatars, 15 criteria |
-| 12.16 | [`12.16-duplicating-and-importing.md`](12.16-duplicating-and-importing.md) | 12.16 Duplicating, importing and workflow files, 11 criteria |
+| 12.14 | [`12.14-comments-and-likes.md`](12.14-comments-and-likes.md) | 12.14 Comments and likes, 12 criteria |
+| 12.15 | [`12.15-files-images-and-avatars.md`](12.15-files-images-and-avatars.md) | 12.15 Files, images and avatars, 24 criteria |
+| 12.16 | [`12.16-duplicating-and-importing.md`](12.16-duplicating-and-importing.md) | 12.16 Duplicating, importing and workflow files, 17 criteria |
 | 12.17 | [`12.17-first-run-and-the-sample-workspace.md`](12.17-first-run-and-the-sample-workspace.md) | 12.17 First run and the sample workspace, 9 criteria |
 | 12.18 | [`12.18-the-application-shell.md`](12.18-the-application-shell.md) | 12.18 The application shell, 16 criteria |
 | 12.19 | [`12.19-drag-drop-selection-and-undo.md`](12.19-drag-drop-selection-and-undo.md) | 12.19 Drag, drop, selection and undo, 13 criteria |
@@ -847,4 +871,4 @@ what that sentence is for.
 | 12.21 | [`12.21-transactional-email.md`](12.21-transactional-email.md) | 12.21 Transactional email, 6 criteria |
 | 12.22 | [`12.22-the-public-surface.md`](12.22-the-public-surface.md) | 12.22 The public surface: landing, legal, install, offline, 7 criteria |
 | 12.23 | [`12.23-security-limits-and-rate-limits.md`](12.23-security-limits-and-rate-limits.md) | 12.23 Security, limits and rate limits, 21 criteria |
-| 12.24 | [`12.24-labels.md`](12.24-labels.md) | 12.24 Labels, 30 criteria |
+| 12.24 | [`12.24-labels.md`](12.24-labels.md) | 12.24 Labels, 32 criteria |
