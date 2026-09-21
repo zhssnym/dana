@@ -176,6 +176,13 @@
       "when": 1790000000000,
       "tag": "0025_responsibility_document",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1790100000000,
+      "tag": "0026_contract_membership_label",
+      "breakpoints": true
     }
   ]
 }

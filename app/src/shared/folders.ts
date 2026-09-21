@@ -181,13 +181,13 @@ export const patchFolderMyMembershipBody = z.object({
      no shipped bundle sends it. AC-750 is what pins that, against the stored
      row rather than against the 200.
 
-     **The `folder_members.label` column is not dropped in this release and
-     that is the rule rather than an oversight.** 11.5 splits a destructive
-     change expand-and-contract across two releases because the old code runs
-     against the new schema for the length of a deploy, and the old code here
-     is the instance that still writes `label` on all five of its write
-     paths. So this release takes the wire keys and stops the writes; the
-     release after it drops the column, once this one is live and drained. */
+     **The `folder_members.label` column went one release later than these
+     keys did, and that is the rule rather than an oversight.** 11.5 splits a
+     destructive change expand-and-contract across two releases because the
+     old code runs against the new schema for the length of a deploy, and the
+     old code there was the instance still writing `label` on all five of its
+     write paths. So one release took the wire keys and stopped the writes,
+     and migration 0026 dropped the column once that was live and drained. */
   shelf: shelfName.nullable().optional(),
   color: hexColor.nullable().optional(),
 })
@@ -261,8 +261,8 @@ half**, and it drops `my_label` and the request body's `label` once migration
 0022 is live. 7.0 fixes this object's key set and the contract tests assert it
 exactly, so the key leaving those arrays is what records that the window
 closed; AC-750 asserts that no producer answers the old key. The
-`folder_members.label` column goes in the release after this one, for the
-reason the request body's block above gives.
+`folder_members.label` column went one release later, dropped by migration
+0026, for the reason the request body's block above gives.
 
 `my_access` joined them on 2026-09-20 under Hassan's Ruling 4 on issue #228
 (https://github.com/zhssnym/dana/issues/228#issuecomment-5751449643), a dated

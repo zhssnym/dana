@@ -97,6 +97,46 @@ Fourth entry above gives about the first. The freeze holds the way it has held f
 before: the owner ruled the change before it was written, the ruling is cited, and every
 statement here is a correction of a sentence about a column rather than a change to one.
 
+**Eighth, and it is the first change this section has ever made that cannot be undone:
+migration 0026 drops `folder_members.label` and its named constraint
+`folder_members_label_length_check`, dated 2026-09-21** (issue #247, release B, on the same
+technical ruling recorded at #226,
+https://github.com/zhssnym/dana/issues/226#issuecomment-5750483786). 4.4 loses the `label`
+row and says the column is gone; 4.18 says the same in one sentence. **Every one of the
+seven entries above this one added, renamed a sentence, or explained something. This one
+removes a column**, and the front door should say so plainly rather than let a reader infer
+it from a table that is one row shorter than it was.
+
+**The order the three steps went in is the whole of why this was allowed, and it is 11.5's
+rather than this section's.** Migration 0022 was the *expand* half: it added `shelf_name`
+beside `label` and backfilled it, because `label` never meant classification — it is the
+viewer's own Shelf membership, held in step with `shelves.name` by 4.18 — and #208's Label
+model needed the word back. A single `ALTER ... RENAME COLUMN` was the first draft and was
+refused: Render brings the new instance up and passes its health checks before draining the
+old one, so a rename would have left the old instance selecting a column that no longer
+existed for the length of a deploy. #247 then contracted in **two** releases rather than
+one. Release A stopped every write to `label` — `setMyMembership`, the shelf rename, the
+shelf delete, the sample workspace and the seed — and left the column standing. Release B,
+this one, drops it, and was safe only because A was live and drained first: shipped beside
+the code, the instance Render had not drained yet would still have been running those five
+writes, and every shelf write would have answered 500 with SQLSTATE 42703 across the same
+window. The same hazard, the same window, the other direction.
+
+**What "irreversible" does and does not mean here, because the difference matters to
+anyone reading this entry after something has gone wrong.** There is no down migration in
+this project by design, so recovery from any of these is a fix-forward migration or a
+restore. What is new is that this one destroys data rather than schema shape: the values in
+`label` are gone. They were a copy of `shelf_name` and nothing else, 0022 having backfilled
+them and A having stopped diverging them, so what was actually lost is a duplicate — but
+that is a fact about this column rather than a property of the freeze, and the next drop
+proposed under it does not inherit it. The freeze held the way it has held seven times
+before in the one respect that is the rule: **the owner ruled the change before it was
+written, the ruling is cited in both files and in the migration, and the constraint dropped
+is named** rather than left to fall with its column, so that `db/constraint-catalog.ts` and
+the SQL are legible against each other by one reader. AC-479 is what asserts the result —
+one membership column left, and the old name refused by the server rather than merely
+unwritten.
+
 | | File | Covers |
 | - | - | - |
 | 4.1 | [`04.1-users.md`](04.1-users.md) | 4.1 users |

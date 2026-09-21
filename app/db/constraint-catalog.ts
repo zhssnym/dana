@@ -164,27 +164,30 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
       { name: 'folder_members_access_check', columns: ['access'] },
       { name: 'folder_members_color_format_check', columns: ['color'] },
       /*
-      **Two membership columns and two CHECKs for one release, deliberately.**
+      **One membership column and one CHECK, since issue #247 closed the pair.**
 
-      `label` has always held the viewer's own Shelf membership (4.4, held in
-      step with `shelves.name` by 4.18) and never a classification Label, and
-      #208's Label model needed the word back. Migration 0022 is the **expand**
-      half of that move: `shelf_name` is added beside `label` and backfilled,
-      `label` and its CHECK stay exactly as they were, and the application
-      reads the new column and writes both.
+      `label` always held the viewer's own Shelf membership (4.4, held in step
+      with `shelves.name` by 4.18) and never a classification Label, and #208's
+      Label model needed the word back. That move shipped as expand and
+      contract rather than as a rename, under hard stop 1: Render waits for the
+      new instance to pass health checks before draining the old one, so a
+      rename would have left the old instance selecting a column that no longer
+      exists — `GET /folders`, the sidebar and every folder page, for the length
+      of a deploy. Migration 0022 added `shelf_name` beside `label` and
+      backfilled it.
 
-      A single RENAME was the first draft and was refused under hard stop 1.
-      Render waits for the new instance to pass health checks before draining
-      the old one, so between the ALTER committing and traffic switching the
-      old instance is still serving and every one of its folder reads selects a
-      column that no longer exists — `GET /folders`, the sidebar and every
-      folder page, for the length of a deploy.
-
-      **Issue #247 is the contract half** and deletes the `label` row below,
-      after 0022 is live in production. Until then a catalog carrying only one
-      of the two would be a transcription of a schema that does not exist.
+      **The contract was two releases, and this row moved with the second of
+      them rather than with the code.** #247's first release stopped every
+      write to `label` and left the column standing, because 11.5 has the drop
+      wait until the code that stopped writing it is live and drained — the
+      same overlap window, in the other direction. Its second is **migration
+      0026, which dropped `label` and `folder_members_label_length_check`**,
+      and this row goes in that commit and no earlier: a catalog is a
+      transcription of the schema that exists, and one carrying only the
+      surviving CHECK while the column was still there would have been a
+      transcription of a schema nothing had yet. AC-479 asserts that one
+      column is left and that nothing answers to the old name.
       */
-      { name: 'folder_members_label_length_check', columns: ['label'] },
       { name: 'folder_members_shelf_name_length_check', columns: ['shelf_name'] },
       { name: 'folder_members_role_check', columns: ['role'] },
     ],
