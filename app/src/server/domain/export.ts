@@ -836,10 +836,27 @@ export async function exportForViewer(
                 b.ref_folder_id, b.width_pct, b.updated_at, b.rich_content,
                 b.section_block_id, b.list_parent_block_id, b.checked,
                 b.page_position`,
+            /* **The scope, restated in this statement's own FROM clause.**
+               `facets` above was already gathered under exactly this
+               predicate, so the `IN` list alone would be correct -- and that
+               is true of `folderBlockRows` and `shelfBlockRows` too, and both
+               of them join their parent and check the owner anyway. This is
+               the house rule rather than a doubt about the line above it:
+               10.2's membership check belongs inside the `FROM`, so that a
+               statement which loses its `IN` list, or is handed one somebody
+               else built, returns nothing rather than another person's
+               writing. Found by the verification of 743a6ac, where this was
+               the only one of the three block reads without it. */
             sql`FROM page_blocks b
+                JOIN folder_facets ff ON ff.id = b.facet_id
+                JOIN folders fo ON fo.id = ff.folder_id
+                JOIN folder_members m
+                  ON m.folder_id = ff.folder_id AND m.user_id = ${viewerId}
                 WHERE b.facet_id IN ${idSet(
                   facets.map((row) => String(row.id)),
-                )}`,
+                )}
+                  AND (ff.owner_id = ${viewerId}
+                       OR (ff.owner_id IS NULL AND fo.owner_id = ${viewerId}))`,
             sql`b.facet_id`,
             sql`b.page_position ASC NULLS LAST, b.position ASC, b.id ASC`,
           ),

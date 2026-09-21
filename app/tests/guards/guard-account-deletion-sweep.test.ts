@@ -285,15 +285,24 @@ describe('account deletion sweeps every inert cascade on users(id)', () => {
         entry.why.length,
         `${entry.fk} must carry an argument rather than a label, on the same rule the cascade list keeps`,
       ).toBeGreaterThan(80)
-      expect(
-        entry.disposition === 'swept' ? entry.where.length : 0,
-        `${entry.fk} says its rows are swept, so it must name the statement that sweeps them`,
-      ).toBe(entry.disposition === 'swept' ? entry.where.length : 0)
+      /* Both directions, and the second is the one that was missing. An
+         entry that says its rows are **swept** must name the statement; an
+         entry that says they **outlive** must name none, because a `where`
+         on one of those is a sentence claiming a sweep that is not happening
+         -- which is exactly the shape of wrongness this whole list exists to
+         refuse. The line that stood here was `expect(X).toBe(X)` over the
+         same ternary twice and could never fail; found by the verification
+         of 743a6ac. */
       if (entry.disposition === 'swept') {
         expect(
           entry.where.length,
           `${entry.fk} says its rows are swept and names no statement`,
         ).toBeGreaterThan(0)
+      } else {
+        expect(
+          entry.where,
+          `${entry.fk} says its rows outlive the account and names a statement anyway. One of the two is wrong, and a "where" nobody runs is the more dangerous half: it reads as a sweep that is happening`,
+        ).toBe('')
       }
     }
 

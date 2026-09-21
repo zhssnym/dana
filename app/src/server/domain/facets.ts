@@ -1605,11 +1605,21 @@ export async function applyFacetDocument(
                    checked = EXCLUDED.checked, updated_at = now()`,
       )
     }
+    /* **`AND facet_id` here is the same belt-and-braces the DELETE two loops
+       above carries, and it is unreachable today for the same reason.** Every
+       id in `outline` was checked against `blocks` a hundred lines up, and
+       `blocks` is seeded from this facet's own rows and can only have grown by
+       ids the scope check cleared -- so an `item.id` that is not this facet's
+       cannot exist by the time this loop runs. The clause is written anyway,
+       because that argument is an invariant of a long merge and this is a
+       clause on the statement that would do the damage. The same sentence, in
+       the same words, as the delete's: the adversarial review of 16ce81b found
+       the merge wrong once. */
     const keys = initialKeys(outline.length)
     for (const [index, item] of outline.entries()) {
       await tx.execute(
         sql`UPDATE page_blocks SET page_position = ${keys[index] as string}, position = ${index}
-             WHERE id = ${item.id}::uuid`,
+             WHERE id = ${item.id}::uuid AND facet_id = ${facetId}::uuid`,
       )
     }
 
