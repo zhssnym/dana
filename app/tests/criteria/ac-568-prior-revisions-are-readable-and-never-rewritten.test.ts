@@ -112,19 +112,31 @@ describe('AC-568 prior revisions are readable and never rewritten', () => {
       200,
       'R10 "Prior versions": an authorized current member inspects prior revisions under ordinary Folder visibility -- Can view is a current member',
     )
-    const body = response.json() as { entries: ResponsibilityHistoryEntry[] }
+    const body = response.json() as {
+      entries: ResponsibilityHistoryEntry[]
+      truncated: boolean
+    }
     const revisions = body.entries.filter(
       (entry) => entry.revision_no !== null,
     )
+    /* **Newest first**, ruled on #230 on 2026-09-21 after the adversarial
+       review found the opposite order serving the oldest page of a capped
+       record and saying nothing. This assertion is the order's pin at the
+       route; AC-573 drives the cap and the flag. */
     expect(
       revisions.map((entry) => entry.revision_no),
-      'three commits, three revisions, oldest first',
-    ).toEqual([1, 2, 3])
+      'three commits, three revisions, newest first',
+    ).toEqual([3, 2, 1])
+    expect(
+      body.truncated,
+      'and nothing was cut, so the reader is told it has the record whole (10.3)',
+    ).toBe(false)
     for (const [index, revision] of revisions.entries()) {
+      const expected = snapshots[snapshots.length - 1 - index]
       expect(
         revision.content,
-        `#230 proof 11: revision ${String(index + 1)} reconstructs the document exactly as it stood when it was committed`,
-      ).toEqual(snapshots[index])
+        `#230 proof 11: revision ${String(revisions.length - index)} reconstructs the document exactly as it stood when it was committed`,
+      ).toEqual(expected)
     }
     expect(
       revisions.every((entry) => entry.actor.id === owner.id),

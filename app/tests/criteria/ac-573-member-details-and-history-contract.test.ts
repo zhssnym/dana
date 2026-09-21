@@ -7,6 +7,16 @@ structurally, so nothing has to read a sentence to know what happened.
 Issue #230 required proofs 22 and 23. Product authority: #230 "Member-details
 backend contract" and "History presentation contract", #209 R9A.
 
+## And the history route's own contract, added 2026-09-21
+
+The read is **newest first**, capped, and says `truncated` when the cap cut.
+That was ruled on #230 after this branch's adversarial review found the
+opposite: `effective_at ASC` with a silent `LIMIT 200` served a busy folder
+the *oldest* two hundred entries forever and told nobody there were more, so a
+panel asking "what changed lately" rendered the record's first fortnight and
+looked right doing it. Nothing in the suite could see it, because no case had
+more entries than the cap. The case below makes some.
+
 ## Proof 22 is about a number, so it counts
 
 "Without N+1 behavior" is not something a response shape can demonstrate: a
@@ -58,7 +68,9 @@ import {
   paragraph,
   putResponsibility,
   readMemberDetails,
+  readResponsibilityHistory,
   recordOf,
+  seedGrantEntries,
   setSelfEditGrantOk,
   standingOf,
 } from '../support/responsibility-harness.js'
@@ -291,6 +303,65 @@ describe('AC-573 the member-details projection and the history contract', () => 
       generic.length,
       'the ordinary Folder History carries an entry for each consequential change, for navigation',
     ).toBeGreaterThanOrEqual(3)
+  })
+
+  test('AC-573: the history read answers newest first and says when the cap cut', async () => {
+    const [owner, deputy, subject] = (await cast.of(app)) as Actor[] as [
+      Actor,
+      Actor,
+      Actor,
+    ]
+    const folderId = await sharedFolder(app, owner, 'AC-573 history cap', [
+      [deputy, 'full_control'],
+      [subject, 'can_view'],
+    ])
+    await commitOk(deputy, folderId, subject.id, paragraph('Their scope'))
+
+    const uncut = await readResponsibilityHistory(deputy, folderId, subject.id)
+    expectStatus(uncut, 200, 'the history read answers a current member')
+    const short = uncut.json() as {
+      entries: { transition: string; effective_at: string }[]
+      truncated: boolean
+    }
+    expect(
+      short.truncated,
+      '10.3: a list that fit says so, so `truncated` is a fact about this answer rather than a field that is always true',
+    ).toBe(false)
+
+    /* Past the cap. 205 rather than 201 so that the assertion is about the
+       limit rather than about an off-by-one at it. */
+    await seedGrantEntries(app.db, folderId, subject.id, deputy.id, 205)
+
+    const response = await readResponsibilityHistory(
+      deputy,
+      folderId,
+      subject.id,
+    )
+    expectStatus(response, 200, 'and still answers when the record is long')
+    const body = response.json() as {
+      entries: { transition: string; effective_at: string }[]
+      truncated: boolean
+    }
+    expect(
+      body.entries.length,
+      "the cap is 200 and it holds: a folder's record is not an unbounded response (10.3)",
+    ).toBe(200)
+    expect(
+      body.truncated,
+      '**and the answer says it was cut**, which is the half the first version of this route did not have: a short list is never silently short',
+    ).toBe(true)
+
+    const times = body.entries.map((entry) => entry.effective_at)
+    expect(
+      [...times].sort().reverse(),
+      'newest first: the page served is the most recent 200 rather than the oldest, which is what every surface reading this wants and is what the cap makes a decision rather than an accident',
+    ).toEqual(times)
+    expect(
+      body.entries.some(
+        (entry) => entry.transition === 'responsibility_created',
+      ),
+      'and the creation, which is the oldest entry of this record, is the one the cut dropped rather than the one it kept',
+    ).toBe(false)
   })
 
   test('AC-573 proof 23: the viewer-dependent flags track the viewer and authorize nothing', async () => {

@@ -991,10 +991,12 @@ export function createFoldersRouter(
          404 here because they are no longer in the folder, not because
          anything hides their own entries from them. Being the subject of a
          record is not a route back into a folder. */
+      const page = await responsibilityHistoryOf(db, ids.folderId, {
+        memberId: ids.memberId,
+      })
       const body: GetResponsibilityHistoryResponse = {
-        entries: await responsibilityHistoryOf(db, ids.folderId, {
-          memberId: ids.memberId,
-        }),
+        entries: page.entries,
+        truncated: page.truncated,
       }
       res.status(200).json(body)
     },

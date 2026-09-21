@@ -339,8 +339,16 @@ export type PutResponsibilityResponse = z.infer<
   typeof putResponsibilityResponse
 >
 
+/**
+ * **Newest first, capped, and `truncated` when the cap cut** (ruled on issue
+ * #230, 2026-09-21). The entries are ordered `effective_at` descending, which
+ * is what every surface that reads them wants; `truncated` is 10.3's
+ * list-response rule, so a client that needs the rest knows there is a rest
+ * rather than believing it has the record whole. 7.4 carries the contract.
+ */
 export const getResponsibilityHistoryResponse = z.object({
   entries: z.array(responsibilityHistoryEntry),
+  truncated: z.boolean(),
 })
 export type GetResponsibilityHistoryResponse = z.infer<
   typeof getResponsibilityHistoryResponse

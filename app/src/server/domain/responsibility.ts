@@ -305,8 +305,17 @@ async function recordResponsibilityTransition(
 }
 
 /**
- * The Folder's Responsibility record, or one member's slice of it, oldest
- * first.
+ * The Folder's Responsibility record, or one member's slice of it, **newest
+ * first**, capped, and saying so when the cap cut.
+ *
+ * **Newest first and the flag are one decision, taken 2026-09-21 out of this
+ * branch's adversarial review** and ruled on issue #230. Oldest-first with a
+ * silent cap is the worst of both: a member with more entries than the limit
+ * was served the *oldest* 200 and told nothing, so the panel that wants "what
+ * changed lately" rendered the first fortnight of a folder's life forever and
+ * looked correct doing it. Newest first makes the truncated tail the part
+ * nobody asked for, and `truncated` is 10.3's list-response rule applied here
+ * rather than an invention: a short list is never silently short.
  *
  * R9A's boundary applies here exactly as it does to Access history: #230 owns
  * the truth of these records and makes them renderable by Folder History and
@@ -318,16 +327,24 @@ async function recordResponsibilityTransition(
  * left is the point rather than an edge case (proof 14), and the *reader's*
  * membership is what the route's gate settles (proof 15).
  */
+export interface ResponsibilityHistoryPage {
+  entries: ResponsibilityHistoryEntry[]
+  truncated: boolean
+}
+
 export async function responsibilityHistoryOf(
   executor: Executor,
   folderId: string,
   options: { memberId?: string; limit?: number } = {},
-): Promise<ResponsibilityHistoryEntry[]> {
+): Promise<ResponsibilityHistoryPage> {
   const member =
     options.memberId === undefined
       ? sql``
       : sql` AND h.member_id = ${options.memberId}`
   const limit = Math.min(Math.max(options.limit ?? 200, 1), 500)
+  /* One row past the cap, which is how `truncated` is answered without a
+     second COUNT over the same predicate: if the extra row came back the cap
+     cut, and it is dropped before anyone sees it. */
   const found = await rowsOf(
     executor,
     sql`SELECT h.id, h.folder_id, h.member_id, h.responsibility_id,
@@ -337,10 +354,12 @@ export async function responsibilityHistoryOf(
           FROM folder_responsibility_history h
           JOIN users u ON u.id = h.actor_id
          WHERE h.folder_id = ${folderId}::uuid${member}
-         ORDER BY h.effective_at ASC, h.id ASC
-         LIMIT ${limit}`,
+         ORDER BY h.effective_at DESC, h.id DESC
+         LIMIT ${limit + 1}`,
   )
-  return found.map((row) => {
+  const truncated = found.length > limit
+  const page = truncated ? found.slice(0, limit) : found
+  const entries = page.map((row) => {
     const actor = personFrom(
       row.actor_id,
       row.actor_display_name,
@@ -375,6 +394,7 @@ export async function responsibilityHistoryOf(
       effective_at: toIso(row.effective_at),
     }
   })
+  return { entries, truncated }
 }
 
 /* ------------------------------------------------------------------ *

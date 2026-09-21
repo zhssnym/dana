@@ -285,6 +285,38 @@ export function transitionsOf(
   return entries.map((entry) => entry.transition)
 }
 
+/**
+ * Writes `count` grant-toggle entries straight into the record, stamped one
+ * second apart into the future so that they are unambiguously the newest.
+ *
+ * **A fixture rather than an act, and the one thing in this file that writes
+ * the record without going through a route.** The cap on the history read is
+ * 200, and a case that drives it through the API would be 200 HTTP round
+ * trips to prove an ordering; the toggles carry no content and no revision
+ * number, so nothing about a document's own immutability is being faked here.
+ * The entry each one imitates is the one the grant route really writes.
+ */
+export async function seedGrantEntries(
+  db: Db,
+  folderId: string,
+  memberId: string,
+  actorId: string,
+  count: number,
+): Promise<void> {
+  for (let index = 0; index < count; index += 1) {
+    const transition =
+      index % 2 === 0 ? 'self_edit_granted' : 'self_edit_revoked'
+    await db.execute(
+      sql`INSERT INTO folder_responsibility_history
+            (folder_id, member_id, responsibility_id, transition, actor_id,
+             effective_at)
+          VALUES (${folderId}::uuid, ${memberId}::uuid, NULL, ${transition},
+                  ${actorId}::uuid,
+                  now() + (${String(index + 1)} || ' seconds')::interval)`,
+    )
+  }
+}
+
 /** The current document row, read from the table. */
 export interface DocumentRow {
   id: string
