@@ -193,6 +193,64 @@ describe('prepareWorkflowImport reports partial normalisation', () => {
      version and still reported. A test rather than a sentence, because the
      two modules now read one key from two shapes and nothing else would
      notice them disagreeing. */
+  /*
+  A `page` an older file carried and the parser dropped, which is the `labels`
+  rule one version later and was the half of it nobody had written.
+
+  7.16's 2026-09-21 ruling says a `page` below version 4 is dropped "as
+  `labels` below 3 is **and the picker reports the drop**". Only the dropping
+  was true: `pageItems` above reads `blocks` and `items` and has never read
+  `page`, so a version 1 file carrying a whole composed page — every heading,
+  every paragraph, every Task on it — imported with `skippedContent` false and
+  the person told nothing, while the same file carrying one stray tag name was
+  reported. The largest loss this module can report was the one it was silent
+  about.
+  */
+  test('reports a page an older file carried and the parser dropped', () => {
+    const prepared = prepareWorkflowImport(
+      {
+        dana: 'workflow',
+        version: 1,
+        name: 'Launch',
+        folders: [
+          {
+            name: 'Launch',
+            page: {
+              blocks: [
+                { kind: 'section', text: 'Before the day' },
+                { kind: 'paragraph', text: 'Read this first' },
+              ],
+            },
+            tasks: [{ title: 'Book room' }],
+          },
+        ],
+      },
+      names,
+    )
+    expect(prepared, 'the file still imports').not.toBeNull()
+    expect(
+      (prepared?.body.folders as Array<Record<string, unknown>>)[0]?.page,
+      'with the page gone, the version gating the key exactly as it gates a vocabulary',
+    ).toBeUndefined()
+    expect(prepared?.skippedContent, 'and the loss reported').toBe(true)
+  })
+
+  /* And a null is absence rather than loss here too, on the same reading
+     `dropFolderNulls` gives `labels`: a serialiser spelling "this folder has
+     no page" lost nothing and must not make the toast claim it did. */
+  test('a null page is a serialiser spelling “none” and is not a loss', () => {
+    const prepared = prepareWorkflowImport(
+      {
+        dana: 'workflow',
+        version: 1,
+        name: 'Launch',
+        folders: [{ name: 'Launch', page: null, tasks: [{ title: 'Book room' }] }],
+      },
+      names,
+    )
+    expect(prepared?.skippedContent).toBe(false)
+  })
+
   test('a top-level vocabulary in the one-folder arrangement is reported like any other', () => {
     const prepared = prepareWorkflowImport(
       {
@@ -346,6 +404,39 @@ const PAGE: PageView = {
   task_placements: [{ id: TASK_ID, section_block_id: null }],
 }
 
+/** The same page with a picture on it, which `folderToWorkflowFile` writes as
+ * an `omitted` placeholder: the bytes name a `files` row of the exporting
+ * account and cannot travel, so the file records the gap (#185). */
+const PICTURE_ID = '00000000-0000-4000-8000-0000000000b2'
+const PAGE_WITH_PICTURE: PageView = {
+  ...PAGE,
+  blocks: [
+    ...PAGE.blocks,
+    {
+      id: PICTURE_ID,
+      kind: 'image',
+      position: 1,
+      page_position: 'a1',
+      section_block_id: null,
+      list_parent_block_id: null,
+      checked: null,
+      rich_content: null,
+      text: 'The big room',
+      file_id: '00000000-0000-4000-8000-0000000000e1',
+      file_width: 800,
+      file_height: 600,
+      ref_folder_id: null,
+      width_pct: null,
+      updated_at: '2026-09-17T09:00:00.000Z',
+    },
+  ],
+  items: [
+    { kind: 'block', id: BLOCK_ID },
+    { kind: 'block', id: PICTURE_ID },
+    { kind: 'task', id: TASK_ID },
+  ],
+}
+
 /** What the picker is actually handed: the bytes `FolderPage.tsx` puts in
  * the download, read back as JSON. The arguments mirror that call site
  * exactly (`page.data?.blocks ?? []`, then `page.data`, then the vocabulary
@@ -424,6 +515,41 @@ describe('the picker reads every file "Save as workflow" writes', () => {
      folder arrived empty (#185). */
   test('the Tasks on the page are the Tasks the toast counts', () => {
     expect(prepareWorkflowImport(savedAsWorkflow(PAGE), names)?.taskCount).toBe(1)
+  })
+
+  /*
+  What the file recorded as left behind, read back and reported (#185, and the
+  adversarial review of it).
+
+  **The placeholder was written to be read and nobody was reading it.** The
+  export toast tells the person who saved the file that their pictures did not
+  travel; the file records the same thing in its bytes precisely so that it can
+  be said again on the way in, to a person who is usually somebody else and who
+  was told nothing. Until this case `prepareWorkflowImport` walked straight past
+  every `omitted` block and answered `skippedContent: false`, which is true and
+  is not the whole answer — nothing *this* import lost, and three things the
+  export had.
+
+  Driven through the real writer rather than from a hand-written file, so that
+  the count the picker reports is the count the writer actually wrote, by the
+  same route a download takes.
+  */
+  test('the placeholders the file recorded are counted and reported', () => {
+    const file = savedAsWorkflow(PAGE_WITH_PICTURE)
+    const prepared = prepareWorkflowImport(file, names)
+    expect(prepared, 'the file imports; a placeholder creates nothing').not.toBeNull()
+    expect(
+      prepared?.omittedCount,
+      'and the picker says how many the exporting side left out',
+    ).toBe(1)
+    expect(
+      prepared?.skippedContent,
+      'which is a different question from what this import could not read, and stays so',
+    ).toBe(false)
+    expect(
+      prepareWorkflowImport(savedAsWorkflow(PAGE), names)?.omittedCount,
+      'a page with nothing omitted counts none',
+    ).toBe(0)
   })
 
   test('every version the writer emits is one the contract lists', () => {

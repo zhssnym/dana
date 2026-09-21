@@ -408,4 +408,80 @@ describe('POST /workflows/import reads the file DES-206 writes', () => {
       'with its repeat, anchored on the import day in the zone the request named',
     ).toBe('FREQ=WEEKLY;BYDAY=MO')
   })
+
+  /*
+  A page the schema reads and `applyDocument` refuses, and where the caller is
+  told it came from (#185, and the adversarial review of it).
+
+  **Two validators answer this endpoint and only one of them used to name a
+  field.** `readWorkflowPage` does the index arithmetic and reports through zod,
+  so its refusals arrive addressed from the root — `folders.0.page.blocks.1.kind`
+  — which is what AC-824 asserts. The structural rules are the document
+  transaction's, deliberately: contiguous Sections, three heading levels, a
+  nested list item in its list parent's Section. Those are the rules a person's
+  own save is refused by and there is one implementation of them, which is the
+  whole argument of this branch. But `applyDocument` works in minted ids and
+  knows nothing about a file, so its refusal reached the caller as a rule with
+  no address, and a file with two folders in it was answered "A nested list item
+  belongs to its list parent's Section." with no way to tell which page.
+
+  The importer now attaches `folders.<n>.page` on the way out and the route
+  sends it through the one field formatter, so a structural refusal reads like a
+  schema one. **Two folders on purpose**, with the fault in the second: an index
+  that is always zero would pass a one-folder case and say nothing.
+
+  Kept here rather than in AC-824 because the criterion pins "a version 4 page
+  cannot claim what the import discards" and this refusal is not one of its
+  claims — the file is arithmetically sound and structurally impossible. What is
+  proven here is the wire shape, which is this file's subject.
+  */
+  test('a page the document transaction refuses is answered with the folder it came from', async () => {
+    const [importer] = (await cast.of(app)) as [Actor, Actor]
+
+    const bullet = 'wfimport open the cupboard'
+    const refused = await importer.browser.json('/workflows/import', 'POST', {
+      dana: 'workflow',
+      version: 4,
+      name: 'wfimport two folders',
+      folders: [
+        {
+          name: 'wfimport the sound one',
+          page: { blocks: [{ kind: 'paragraph', text: 'wfimport read this first' }] },
+        },
+        {
+          name: 'wfimport the impossible one',
+          page: {
+            blocks: [
+              /* A list at the page root, a heading after it, and an item under
+                 the first that the heading has swallowed. Every index resolves,
+                 so the schema is content; the list is in two Sections at once,
+                 which #219 refuses and nothing in the file can see. */
+              { kind: 'bullet', text: bullet },
+              { kind: 'section', text: 'wfimport the room' },
+              { kind: 'bullet', text: 'wfimport unlock it', list_parent: 0 },
+            ],
+          },
+        },
+      ],
+    })
+    expectStatus(
+      refused,
+      422,
+      'the structural rules are applyDocument’s and it refuses this page (#219, 7.16)',
+    )
+    expect(
+      refused.body,
+      'and the caller is told which folder’s page, addressed from the root like every other field of this body (7.0)',
+    ).toContain('folders.1.page')
+
+    const folders = await importer.browser.json('/folders', 'GET')
+    expectStatus(folders, 200, 'the folder list reads (7.4)')
+    /* 7.4 answers a bare array, no wrapper. */
+    expect(
+      (folders.json() as { name?: unknown }[]).filter((folder) =>
+        String(folder.name).startsWith('wfimport the '),
+      ),
+      'and neither folder was created — the refusal leaves by the path that rolls back',
+    ).toEqual([])
+  })
 })

@@ -816,8 +816,23 @@ export function FolderPage({
       saved.omitted === 0
         ? ''
         : ` ${String(saved.omitted)} ${saved.omitted === 1 ? 'picture, file or folder link is' : 'pictures, files and folder links are'} not included.`
+    /* And the finished work, which left the file in silence until 2026-09-21.
+
+       The line above this function filters the page's Tasks to the pending
+       ones, and that decision stands: 7.16 carries no state and a template of
+       finished work is not a template. What did not stand is saying nothing —
+       a person who has just ticked off half a project and saved it as a
+       template is owed the sentence rather than the discovery. The count is
+       the writer's own `withheldTasks` rather than `[...scheduled,
+       ...unscheduled].length - pending.length`, so it cannot disagree with
+       what the file actually holds; 7.16 says why these are a count and not
+       `omitted` placeholders. */
+    const finished =
+      saved.withheldTasks === 0
+        ? ''
+        : ` ${String(saved.withheldTasks)} completed ${saved.withheldTasks === 1 ? 'task is' : 'tasks are'} not included.`
     showToast(
-      `"${detail?.name ?? 'Folder'}" saved as a workflow file. Import it from the sidebar.${missing}`,
+      `"${detail?.name ?? 'Folder'}" saved as a workflow file. Import it from the sidebar.${missing}${finished}`,
     )
   }
 

@@ -471,7 +471,7 @@ export function readWorkflowPage(
       if (level > open.length + 1) {
         issues.push({
           path: [index, 'level'],
-          message: `A level ${String(level)} heading needs a level ${String(level - 1)} heading above it.`,
+          message: `A level ${String(level)} heading needs a level ${String(level - 1)} heading above it`,
         })
         return
       }
@@ -483,7 +483,7 @@ export function readWorkflowPage(
         issues.push({
           path: [index, 'section'],
           message:
-            'A block names the Section it is in by the position of a heading that is still open above it.',
+            'A block names the Section it is in by the position of a heading that is still open above it',
         })
         return
       }
@@ -502,7 +502,7 @@ export function readWorkflowPage(
         issues.push({
           path: [index, 'list_parent'],
           message:
-            'A list item nests under a bullet, numbered or checklist item written above it.',
+            'A list item nests under a bullet, numbered or checklist item written above it',
         })
         return
       }
@@ -530,6 +530,39 @@ const importFolder = z.object({
   /** Format 4's one ordered page (#185). Gated on the version by
    * `readsPage` below, exactly as `labels` is gated on 3. */
   page: workflowPage.optional(),
+  /*
+  DES-206's own name for `blocks`, declared for one reason: to refuse it
+  **beside a page**, which is the same contradiction the rule below refuses for
+  `tasks`, `blocks` and `document`.
+
+  **Nothing legitimate reaches this line.** `normalizeFolder` folds `items` into
+  `blocks` for a folder with no page and *deletes the key as it folds*, so an
+  `items` that survives normalisation is one the normaliser deliberately left
+  alone — and it leaves it alone in exactly one case, a folder that also carries
+  a page, because folding it there would invent the contradiction rather than
+  report it. So `z.never()` here is precise rather than blunt: a version 1 file
+  full of `items` still imports, and a version 4 folder with `items` and no page
+  is still read from the older keys.
+
+  It is this spelling and not a line in the refinement below because the key has
+  to *survive* to be seen at all, and a key an object schema does not declare is
+  stripped before any refinement runs — which is exactly how this shipped
+  broken: a version 4 folder carrying a page and an `items` imported **201**
+  with the `items` gone and nothing said, the one behaviour format 4 exists to
+  end, reached by spelling the key the way the older serialiser did. 11.14 names
+  `z.never({ error })` as the house answer for a field an endpoint means to
+  refuse, and `shelves.ts` already uses it.
+
+  The message is worded as the refinement's is, and the path zod gives it is
+  `folders.<n>.items`, so a caller cannot tell which of the two refused them.
+  AC-824 is the criterion that proves the value arrives.
+  */
+  items: z
+    .never({
+      error:
+        'items: a folder that carries a page carries its work and its writing in that page, and nowhere else',
+    })
+    .optional(),
   /** The Folder's reusable vocabulary. Capped at 10.3's per-Folder definition
    * limit for the reason every other cap here is the live one. */
   labels: z
@@ -730,11 +763,20 @@ const canonicalWorkflowBody = z
 
     **A page and a collection in one folder is a file claiming structure the
     importer discards**, which is #185's acceptance in as many words. A format 4
-    folder says everything in `page`, so a `tasks`, `blocks` or `document` key
-    beside it is work the import would not create, sitting in a file that looks
-    complete. It is refused rather than dropped for the reason an undeclared
-    Label key is: dropping loses the thing silently and leaves a file that looks
-    imported and is not. A version 4 folder with **no** page is still read from
+    folder says everything in `page`, so a `tasks`, `blocks`, `document` or
+    `items` key beside it is work the import would not create, sitting in a file
+    that looks complete. It is refused rather than dropped for the reason an
+    undeclared Label key is: dropping loses the thing silently and leaves a file
+    that looks imported and is not.
+
+    **`items` is the fourth key and it is refused one layer up**, by
+    `z.never({ error })` on the folder schema above, because an undeclared key
+    is stripped before this loop can see it and a declared-then-stripped one
+    would still have to be erased from the parsed body by hand. The message and
+    the field path are the same shape as these three on purpose; the reason it
+    can be a flat refusal rather than a conditional one is that the normaliser
+    deletes `items` wherever it folds it, so the only `items` that survives to
+    be refused is one sitting beside a page. A version 4 folder with **no** page is still read from
     the older keys, so a hand-written file that says 4 and arranges itself the
     old way imports rather than being told it is wrong about itself.
 
@@ -959,6 +1001,21 @@ function normalizeFolder(
       .map(normalizeBlock)
       .filter((block): block is NormalBlock => block !== null)
   }
+  /*
+  **Every path that reaches this line is a folder with no format 4 page**, the
+  one that has one having returned above — so `items` has either become
+  `blocks` or is a key of a shape no arrangement reads, and either way the
+  folder is done with it.
+
+  It used to be left sitting here, harmlessly, because the schema declared no
+  `items` and stripped it. The schema declares one now, to refuse an `items`
+  **beside a page**, and that declaration is a flat `z.never()` rather than a
+  conditional rule precisely because of this line: after normalisation the only
+  surviving `items` in the world is the one the early return above kept. Leave
+  it here and a version 1 file would be refused for a key the fold had already
+  honoured.
+  */
+  delete next.items
   if (Array.isArray(next.tasks)) {
     next.tasks = next.tasks.map((task) => normalizeTask(task, labels))
   }
@@ -1136,6 +1193,23 @@ export interface WorkflowExport {
   /** Pictures, files, audio, video and folder references written as
    * placeholders. Zero for a page that held none. */
   omitted: number
+  /**
+   * Tasks the page carried that the caller handed over no detail for, and so
+   * that are not in the file at all (#185, and the adversarial review of it).
+   *
+   * **In the product these are the completed ones**, because `FolderPage.tsx`
+   * hands this function the folder's *pending* work: 7.16 carries no state and
+   * a template of finished work is not a template. That is a decision and it
+   * stands; what was wrong is that it happened in silence, which is the one
+   * thing this format exists to end. It is counted rather than written as a
+   * placeholder because a placeholder says "a block of this page could not
+   * travel", and a finished Task is content the format excludes by rule at
+   * every version, exactly as a due date and an assignee are.
+   *
+   * Zero for the flat call, which has no page and therefore no Task on it that
+   * the caller did not also hand over.
+   */
+  withheldTasks: number
 }
 
 /*
@@ -1259,6 +1333,12 @@ export function folderToWorkflowFile(
   of finished work is not a template. It is skipped rather than placed empty,
   and skipping changes nothing about anybody's Section, because a Task is never
   a parent of anything.
+
+  **It is skipped and counted, since 2026-09-21.** The decision above is
+  unchanged; what changed is that it used to happen with nothing said, which is
+  #185's own defect wearing a different coat. `withheldTasks` is that count and
+  the export surface says it. Why it is a count rather than an `omitted`
+  placeholder is on `WorkflowExport` above and in 7.16.
   */
   interface Entry {
     /** Null for a placeholder, which nothing can refer to. */
@@ -1274,6 +1354,7 @@ export function folderToWorkflowFile(
     list_parent?: number
   }
   const entries: Entry[] = []
+  let withheldTasks = 0
   const omittedKind = (kind: string): kind is WorkflowOmittedBlockKind =>
     (WORKFLOW_OMITTED_BLOCK_KINDS as readonly string[]).includes(kind)
   const carriedKind = (kind: string): kind is WorkflowPageBlockKind =>
@@ -1377,7 +1458,13 @@ export function folderToWorkflowFile(
         continue
       }
       const task = detailOf.get(item.id)
-      if (task === undefined) continue
+      /* A Task on the page the caller handed no detail for — in the product,
+         a completed one. Counted so that the export surface can say it rather
+         than the person finding out on the other side. */
+      if (task === undefined) {
+        withheldTasks += 1
+        continue
+      }
       entries.push(
         taskEntry(
           task,
@@ -1426,11 +1513,21 @@ export function folderToWorkflowFile(
   return {
     file: {
       dana: 'workflow',
-      /* One version out. The exporter writes #185's ordered page and nothing
-         else, because a second output format is a second thing to keep right:
-         every file this product hands a person now says the same thing about
-         its own structure, and a reader that understands 4 understands every
-         file Dana writes. 1, 2 and 3 are still read. */
+      /* One version out of *this* function. It writes #185's ordered page and
+         nothing else, because a second output format is a second thing to keep
+         right: every file `folderToWorkflowFile` hands a person says the same
+         thing about its own structure. 1, 2 and 3 are still read.
+
+         **Scoped to this writer, corrected 2026-09-21.** The sentence here
+         read "every file this product hands a person", which is false and was
+         false when it was written: `client/pages/ShelfPage.tsx` writes a
+         version 1 file of folder names for "Save shelf as workflow", and
+         `client/onboarding/starters.ts` carries three version 1 starters. Both
+         are right to — neither has a page to serialise, a shelf export being a
+         list of folder names and a starter being a hand-written template — and
+         both are read by the endpoint unchanged, which is the point of formats
+         1 to 3 staying readable. What is true is the claim this function can
+         make about itself. */
       version: 4,
       name: folderName,
       folders: [
@@ -1442,5 +1539,6 @@ export function folderToWorkflowFile(
       ],
     },
     omitted: pageBlocks.filter((block) => block.kind === 'omitted').length,
+    withheldTasks,
   }
 }

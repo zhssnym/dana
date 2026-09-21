@@ -175,8 +175,16 @@ explicit escape, Tasks as blocks, media as placeholders — and the six criteria
 drive a composed page through the writer the folder page calls, the endpoint
 over the wire, and the `page_blocks` and `tasks` rows on the other side.
 `support/workflow-page-harness.ts` is theirs. Every one was proved red by
-mutation: **thirteen mutations across the six**, each named in the commit that
-added the case it fired. **One is worth knowing about
+mutation: **sixteen mutations across the six**, each named in the commit that
+added the case it fired — thirteen when the block was written and three more
+from the adversarial review of 2026-09-21, which added an `items` arm and an
+ordering arm to AC-824 and a withheld-work assertion to AC-820. **One of that
+review's findings is the reason to read this number rather than trust it**: the
+commit that first wrote AC-824 claimed it went red "when the index bounds go",
+and it did not — a `list_parent` out of range is refused for naming a block that
+is not there, whether or not the ordering test exists. The arm that observes the
+bound is the one naming a real bullet written *later*, and it was added to make
+the claim true. **One other is worth knowing about
 before you reach for the same technique.** AC-825 asserts byte equality across
 export, import and export again, which is as strong as it sounds about any
 *asymmetry* between the two halves and is **blind to a loss they agree about**:

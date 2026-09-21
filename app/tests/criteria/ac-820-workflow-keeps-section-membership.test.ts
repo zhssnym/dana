@@ -205,6 +205,19 @@ describe('AC-820 a Task travels under the Section it was under', () => {
       ),
       'the finished Task is not in the file at all: 7.16 carries no state, and a template of work already done is not a template',
     ).toEqual(['section', 'ac820 still to do'])
+    /*
+    **And it is counted, since 2026-09-21.** The decision above stands and is
+    7.16's; what did not stand is that it happened with nothing said, which is
+    #185's own defect — a file that quietly holds less than the page it was made
+    from — in the one place the format could not fix it, since a finished Task is
+    excluded by rule at every version and has no placeholder to be written as.
+    The count is the writer's own answer, so the export toast cannot drift out of
+    step with what the file actually holds; 7.16 carries the reasoning.
+    */
+    expect(
+      saved.withheldTasks,
+      'and the writer says how much finished work it was not given, so the person saving is told rather than finding out',
+    ).toBe(1)
 
     const madeId = await importWorkflowOk(reader, asFile(saved))
     expect(

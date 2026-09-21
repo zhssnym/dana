@@ -34,6 +34,23 @@ export interface PreparedWorkflowImport {
   readonly body: Record<string, unknown>
   readonly skippedContent: boolean
   readonly taskCount: number
+  /**
+   * How many `omitted` placeholders the file carried (#185, and the
+   * adversarial review of it).
+   *
+   * **This is not `skippedContent` and must not be folded into it.** That flag
+   * is about what *this import* lost on the way in — a foreign reminder, a
+   * vocabulary the version does not declare, a page an older file had no
+   * business carrying. A placeholder is a loss the **exporting** side already
+   * made and wrote down on purpose: the person who saved the file was told,
+   * and the person importing it is a different person who was told nothing.
+   * The file records the gap precisely so that it can be reported here, and
+   * reading it and saying nothing would waste the only thing the placeholder
+   * is for.
+   *
+   * Zero for every file below version 4, which has no page to carry one.
+   */
+  readonly omittedCount: number
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -49,6 +66,13 @@ function pageItems(folder: Record<string, unknown>): unknown[] | null {
   if (Array.isArray(folder.blocks)) return folder.blocks
   if (Array.isArray(folder.items)) return folder.items
   return null
+}
+
+/** The blocks of a format 4 page, wherever this function is handed one — a
+ * file's own folder or the body this module is about to send. */
+function pageBlocks(folder: Record<string, unknown>): unknown[] {
+  if (!isRecord(folder.page) || !Array.isArray(folder.page.blocks)) return []
+  return folder.page.blocks
 }
 
 /**
@@ -85,6 +109,29 @@ function skippedByNormalization(
 
     const beforePage = pageItems(beforeFolder)
     if (beforePage !== null && beforePage.length > (afterFolder.blocks?.length ?? 0)) {
+      return true
+    }
+
+    /*
+    A `page` key the parser dropped for being below version 4, and it is the
+    same decision as the `labels` one below reached one version later.
+
+    7.16's 2026-09-21 ruling says a `page` below 4 "is dropped as `labels`
+    below 3 is **and the picker reports the drop**", and until this line only
+    half of that was true: `pageItems` above reads `blocks` and `items` and has
+    never read `page`, so a version 1 file carrying a whole composed page
+    imported with `skippedContent` false and nothing said. A dropped page is
+    the largest single loss this module can be asked to report — every
+    paragraph, every heading and every Task on it — and it was the one loss it
+    was silent about.
+
+    A null is absence rather than loss, exactly as it is for `labels`.
+    */
+    if (
+      beforeFolder.page !== undefined &&
+      beforeFolder.page !== null &&
+      afterFolder.page === undefined
+    ) {
       return true
     }
 
@@ -155,12 +202,32 @@ function taskCount(folders: unknown[]): number {
   return folders.reduce<number>((sum, folder) => {
     if (!isRecord(folder)) return sum
     const listed = Array.isArray(folder.tasks) ? folder.tasks.length : 0
-    const page = isRecord(folder.page) && Array.isArray(folder.page.blocks)
-      ? folder.page.blocks.filter(
-          (block) => isRecord(block) && block.kind === 'task',
-        ).length
-      : 0
+    const page = pageBlocks(folder).filter(
+      (block) => isRecord(block) && block.kind === 'task',
+    ).length
     return sum + listed + page
+  }, 0)
+}
+
+/**
+ * How many placeholders the file recorded, which is what the toast says about
+ * the exporting side's own losses (#185).
+ *
+ * Counted off the body this module is about to send rather than off the raw
+ * file, for the reason every other count here is: what a person is told must
+ * describe the request that was made. The two are the same array — the
+ * normaliser touches a format 4 page not at all — and reading the body is what
+ * keeps that true if it ever stops being.
+ */
+function omittedCount(folders: unknown[]): number {
+  return folders.reduce<number>((sum, folder) => {
+    if (!isRecord(folder)) return sum
+    return (
+      sum +
+      pageBlocks(folder).filter(
+        (block) => isRecord(block) && block.kind === 'omitted',
+      ).length
+    )
   }, 0)
 }
 
@@ -200,5 +267,6 @@ export function prepareWorkflowImport(
     skippedContent:
       canonical.success && skippedByNormalization(value, canonical.data),
     taskCount: taskCount(folders ?? []),
+    omittedCount: omittedCount(folders ?? []),
   }
 }

@@ -15,7 +15,7 @@ understands this page, so a kind it does not define is the file contradicting
 itself, and dropping it would leave a person holding a file that looked
 imported and was not.
 
-## Five shapes, and each one is a different way to claim too much
+## Seven shapes, and each one is a different way to claim too much
 
 - **A kind nobody carries.** An `image` block written into a version 4 page is
   the one a hand-edited or third-party file is most likely to carry, since it
@@ -25,8 +25,21 @@ imported and was not.
   other side and is what stops the discriminator being widened by accident.
 - **A page beside a collection.** A version 4 folder says everything in its
   page, so a `tasks` key next to one is work the import would not create.
+- **A page beside a collection under its older name.** DES-206 calls that
+  collection `items`, and a key nothing declares is *stripped* before any rule
+  can see it — so this one imported 201 with the `items` silently gone, which is
+  the behaviour the case above it exists to refuse, reached by spelling the key
+  the way the older serialiser did. `items` is declared on the folder schema for
+  this rule and for nothing else.
 - **An index that resolves to nothing.** `list_parent: 9` in a two-block page is
   a nesting the file asserts and the import cannot build.
+- **An index that resolves to something, in the wrong direction.** A page's
+  ancestry is determined by what precedes a block, so a `list_parent` naming a
+  bullet written *later* is a page no order can produce. It is the case that
+  observes the bound: the out-of-range index above is refused by the same walk
+  whether or not the ordering check is there, since a missing block is refused
+  for being missing, and a forward reference is refused by the ordering check
+  alone.
 - **A Task nested under a list item**, which #219 says is not a thing. This one
   is the reason `pageTaskBlock` declares `list_parent` at all: an undeclared key
   is *stripped*, so without the declaration the file would import with the
@@ -89,7 +102,7 @@ async function ownedFolders(importerId: string): Promise<number> {
 }
 
 describe('AC-824 a version 4 page cannot claim what the import discards', () => {
-  test('five claims, five 422s naming the field, and nothing written', async () => {
+  test('seven claims, seven 422s naming the field, and nothing written', async () => {
     const [importer] = (await cast.of(app)) as [Actor]
 
     const cases: [string, unknown, string][] = [
@@ -125,6 +138,23 @@ describe('AC-824 a version 4 page cannot claim what the import discards', () => 
         }),
         'folders.0.tasks',
       ],
+      /*
+      The same claim as the case above it, spelled the way DES-206's serialiser
+      spelled the key. Until 2026-09-21 this file imported **201** with the
+      `items` dropped in silence: `items` was undeclared on the folder schema,
+      `z.object` strips an undeclared key before any refinement sees it, and the
+      normaliser deliberately leaves `items` alone beside a page rather than
+      folding it into `blocks` and inventing the contradiction. The fix is a
+      declaration whose entire purpose is to be refused here.
+      */
+      [
+        'work written twice, the second time under DES-206’s name for it',
+        fileWith({
+          page: { blocks: [{ kind: 'task', title: 'ac824 book the room' }] },
+          items: [{ kind: 'paragraph', paragraph: { text: 'ac824 read this first' } }],
+        }),
+        'folders.0.items',
+      ],
       [
         'a list parent that is not in the file',
         fileWith({
@@ -136,6 +166,36 @@ describe('AC-824 a version 4 page cannot claim what the import discards', () => 
           },
         }),
         'folders.0.page.blocks.1.list_parent',
+      ],
+      /*
+      A list parent the file does carry, named in the direction a page cannot
+      be read in. This is the case that **observes** the ordering bound, and it
+      is here because the case above it does not: take the `list_parent >= index`
+      test out of `readWorkflowPage` and a `list_parent: 9` in a two-block page
+      is still refused, for naming a block that is not there. A forward
+      reference names a real bullet, of a kind that can be a parent, and is
+      wrong only about the order — so that one test is the whole of what
+      refuses it, and removing it lets the file through the schema and into
+      `applyDocument`, which answers a rule about a page rather than this
+      field.
+
+      **The commit that wrote this criterion claimed the opposite and was
+      wrong.** `7420056` said AC-824 went "red when the index bounds go"; it
+      did not, and could not, for the reason above. Corrected here by making
+      the claim true rather than by restating it.
+      */
+      [
+        'a list parent written after the item that nests under it',
+        fileWith({
+          page: {
+            blocks: [
+              { kind: 'bullet', text: 'ac824 unlock the cupboard', list_parent: 2 },
+              { kind: 'paragraph', text: 'ac824 read this first' },
+              { kind: 'bullet', text: 'ac824 open the room' },
+            ],
+          },
+        }),
+        'folders.0.page.blocks.0.list_parent',
       ],
       /*
       A Task nested under a bullet, which #219 says is not a thing. It is the

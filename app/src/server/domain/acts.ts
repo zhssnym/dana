@@ -866,14 +866,23 @@ export async function importWorkflow(
            same reading and answers 422 naming the block. Asserted rather than
            assumed because the alternative is a `Map.get` returning undefined
            three lines down and a half-built page. */
-        if(reading.issues.length>0)throw new DocumentRefusal('not_convertible','The workflow page names content it does not carry.')
+        /* Where in the body this page came from, carried on every refusal this
+           arm can raise. `readWorkflowPage`'s own issues reach a caller as a
+           zod path down to the block; `applyDocument`'s reach them as a rule
+           about a page, and a file with two folders in it deserves to be told
+           which page (7.16's 2026-09-21 amendment). The folder index is the
+           least this can say and is said always; nothing here pretends to
+           locate a structural refusal at a block, because `applyDocument`
+           works in minted ids and has no way back to a file position. */
+        const pageField=`folders.${String(folderIndex)}.page`
+        if(reading.issues.length>0)throw new DocumentRefusal('not_convertible','The workflow page names content it does not carry.',pageField)
         const idOf=new Map<number,string>()
         let placed=0
         for(const item of reading.items){
           if(item.kind==='task'){
             const made=madeTaskIds[placed]
             placed+=1
-            if(made===undefined)throw new DocumentRefusal('not_convertible','The workflow page names more Tasks than it carries.')
+            if(made===undefined)throw new DocumentRefusal('not_convertible','The workflow page names more Tasks than it carries.',pageField)
             idOf.set(item.index,made)
           } else idOf.set(item.index,randomUUID())
         }
@@ -903,7 +912,16 @@ export async function importWorkflow(
           list_parent_block_id:item.listParentIndex===null?null:(idOf.get(item.listParentIndex) as string),
         }))})
         const base=await documentMetadata(tx,folderId)
-        await applyDocument(tx,viewerId,folderId,{action:'document_transaction',mutation_id:randomUUID(),base_revision:base.revision,operations})
+        /* The structural rules are `applyDocument`'s and stay there; what this
+           adds is the address. A refusal that already names a field keeps it,
+           and anything that is not a `DocumentRefusal` passes through
+           untouched — a 500 is not made into a 422 by being caught here. */
+        try{
+          await applyDocument(tx,viewerId,folderId,{action:'document_transaction',mutation_id:randomUUID(),base_revision:base.revision,operations})
+        }catch(error:unknown){
+          if(error instanceof DocumentRefusal && error.field===undefined)throw new DocumentRefusal(error.kind,error.message,pageField)
+          throw error
+        }
       }
       if(folder.document!==undefined){
         const document=folder.document
