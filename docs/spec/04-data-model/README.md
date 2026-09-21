@@ -163,6 +163,19 @@ The freeze holds the way it has held eight times before: the owner ruled the cha
 was written, the ruling is cited in both files and in the migration, and every constraint and
 index is named.
 
+**Tenth, and it is a rule added to 4.30 before it has ever merged: Ruling 6 of the #210
+addendum, dated 2026-09-21** (https://github.com/zhssnym/dana/issues/210#issuecomment-5757696835). A private facet does not outlive its owner's
+membership: when one ends by any path, the departing person's private facets in that folder
+and their `page_blocks` are permanently deleted in the same transaction. **No column, no
+constraint, no index and no default moves** — the diff is a dated subsection in 4.30 — and
+`folder_facets.owner_id` stays `ON DELETE RESTRICT`, the sweep being a statement for the
+same reason 4.28's standing is closed by one: 8.10 scrubs the `users` row rather than
+deleting it, so no clause on a `users` key ever fires. 8.8 and 8.10 take the matching
+amendment. It is here because the freeze asks that a change to this section be visible from
+its front door, and because it was taken **after** the Ninth entry's ruling, from an
+adversarial review that found a private facet outliving the person it belonged to, readable
+and removable by nobody.
+
 | | File | Covers |
 | - | - | - |
 | 4.1 | [`04.1-users.md`](04.1-users.md) | 4.1 users |

@@ -202,6 +202,16 @@ is not the order every other surface happens to use. The reason is in the file: 
 refusal has to be able to name what it refused, and this surface has a gate whose answer
 depends on which kind of facet the body asked for, so it literally cannot be asked first.
 
+**Thirteenth, and it is one paragraph added to 7.27 before it has ever merged: Ruling 6 of
+the #210 addendum, dated 2026-09-21** (https://github.com/zhssnym/dana/issues/210#issuecomment-5757696835). **No route, body, status or refusal
+moves.** What the paragraph says is that no route on that surface performs it: when a
+membership ends — through `DELETE /folders/:id/members/:userId`,
+`DELETE /folders/:id/my-membership` or `DELETE /me` — the departing person's private facets
+go with it, permanently, in the transaction that ends the membership, and shared facets
+survive. It is written into 7.27 rather than inferred because a client that drew a private
+facet for somebody who has just left is drawing a row that no longer exists rather than one
+it may not read, and those are different bugs.
+
 | | File | Covers |
 | - | - | - |
 | 7.0 | [`07.0-conventions.md`](07.0-conventions.md) | 7.0 Conventions |

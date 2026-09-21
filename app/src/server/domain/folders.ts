@@ -21,7 +21,7 @@ import type { ResponsibilityDocument } from '../../shared/responsibility.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
-import { createNativeFacets } from './facets.js'
+import { createNativeFacets, deletePrivateFacetsOf } from './facets.js'
 import {
   folderActorFacts,
   lockedMembership,
@@ -1011,6 +1011,30 @@ export async function runRClean(
     leaverId,
     options.actorId ?? leaverId,
   )
+  /*
+  Ruling 6 of 2026-09-21 (issue #210),
+  https://github.com/zhssnym/dana/issues/210#issuecomment-5757696835: the
+  departing person's **private** facets in this folder, and their blocks, are
+  permanently deleted in this same transaction.
+
+  It is here rather than in `removeMembership` for the reason the paragraph
+  above gives about `endResponsibilityStanding`, and it is the reason that
+  paragraph is worth reading twice: **8.10 does not call `removeMembership` at
+  all**, it calls this function once per surviving membership, so a hook on the
+  caller would have covered a leave and a removal and silently missed every
+  account deletion.
+
+  Deleted rather than trashed, which is the ruling's word. A trashed row here
+  is unreadable by its owner, who is no longer a member, and unreadable by
+  everybody else, because `facet.read` admits no preset -- and unrestorable by
+  either. `folder_facets.owner_id` is RESTRICT, so nothing about a scrubbed
+  `users` row would ever have cleared it: this statement is the whole of the
+  cleanup, which is #253's class stated for one more table.
+
+  **Shared facets are Folder data and are untouched**, exactly as the Tasks
+  below are unassigned rather than deleted.
+  */
+  await deletePrivateFacetsOf(tx, folderId, leaverId)
   await tx.execute(
     sql`UPDATE tasks SET assignee_id = NULL, updated_at = now()
         WHERE folder_id = ${folderId} AND assignee_id = ${leaverId}`,

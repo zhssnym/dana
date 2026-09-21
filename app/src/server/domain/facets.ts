@@ -208,6 +208,46 @@ export async function createNativeFacets(
   )
 }
 
+/**
+ * Every private facet one person holds in one folder, deleted permanently
+ * with its blocks.
+ *
+ * **Ruling 6 of 2026-09-21**,
+ * https://github.com/zhssnym/dana/issues/210#issuecomment-5757696835: a
+ * private facet is the owner's own writing that no other member may ever
+ * read, so nothing in the folder has a claim on it once the owner is gone.
+ * When a membership ends by any path it goes with them.
+ *
+ * **Deleted and not trashed**, which is the ruling's word and is the whole
+ * point. A `deleted_at` here would leave a row nobody may read -- the former
+ * member is no longer in the folder, so `trashedFacets` cannot see it, and
+ * every other member is refused by `facet.read`, which admits no preset -- and
+ * nobody may restore, because restoring needs a membership that has ended.
+ * That is an orphan with a thirty-day clock on it, and the adversarial review
+ * of 16ce81b found it one step earlier: the row simply survived.
+ *
+ * `page_blocks_facet_id_fkey` is `ON DELETE CASCADE`, so the document goes in
+ * the same statement. `files` rows are the folder's and survive, to be
+ * reclaimed by 7.19's own sweep if nothing else wears them.
+ *
+ * **Shared facets are untouched.** They are Folder data, and a person leaving
+ * takes none of it -- the same rule `tasks` keeps two statements away in
+ * R-CLEAN, where a leaver's assignments are unassigned rather than deleted.
+ */
+export async function deletePrivateFacetsOf(
+  tx: Executor,
+  folderId: string,
+  memberId: string,
+): Promise<string[]> {
+  const removed = await rowsOf(
+    tx,
+    sql`DELETE FROM folder_facets
+         WHERE folder_id = ${folderId}::uuid AND owner_id = ${memberId}::uuid
+         RETURNING id`,
+  )
+  return removed.map((row) => String(row.id))
+}
+
 /* ------------------------------------------------------------------ *
  * The locked read every write begins with
  * ------------------------------------------------------------------ */

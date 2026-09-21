@@ -14,7 +14,7 @@ groups next to it.
 
 ## The next number
 
-**The next number to take from the tail is 846.**
+**The next number to take from the tail is 847.**
 
 **This section is the allocator and `## Numbers` below it is not.** That one is a
 chronological record of what each branch spent and why, written newest-first in places and
@@ -28,6 +28,11 @@ the number it names, and **move the line above in the same commit that spends it
 this section and fails when anything in the tree has spent that number or anything over it,
 which is what makes a stale allocator a red rather than a trap. It reads this section and no
 other part of this file, so keep the sentence's wording; everything else here is prose.
+
+**846 moved to 847 on 2026-09-21, for AC-846.** Ruling 6 of the #210 addendum,
+https://github.com/zhssnym/dana/issues/210#issuecomment-5757696835, made a private facet
+die with its owner's membership; that is a new behaviour on three paths and it owed a
+criterion of its own rather than a case inside one about something else.
 
 **845 moved to 846 on 2026-09-21, by the same issue an hour later.** The adversarial
 review of `backend/210-folder-facets` at 16ce81b found a defect that had no criterion --
@@ -73,7 +78,7 @@ cannot be read from any tree.
 | 750 | `backend/247-contract-label-spellings` | yes — AC-750, one bullet and one file |
 | 780–782 | `backend/227-label-lifecycle`, second pass | yes, three bullets and three test files |
 | 790 | `backend/268-comment-moderation-on-access` | yes — one bullet in 12.14 and one file |
-| 830–845 | `backend/210-folder-facets` | yes — sixteen bullets in 12.4 and sixteen test files; 845 added after the adversarial review |
+| 830–846 | `backend/210-folder-facets` | yes — seventeen bullets in 12.4 and seventeen test files; 845 and 846 added after the adversarial review and its addendum ruling |
 | 800 | `backend/274-label-routes-on-access` | yes — one bullet in 12.24 and one file |
 | 810 | `backend/276-reclaim-sweep-leaves-a-trace` | yes — one bullet in 12.9 and one test file |
 | 820–825 | `backend/185-workflow-round-trips-the-page` | yes, six bullets in 12.16 and six test files |
