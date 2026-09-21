@@ -121,25 +121,65 @@ export function viewerFacts(
   }
 }
 
+/**
+ * The stand-in id this file gives the viewer.
+ *
+ * `mayPerform` compares `facts.actorId` against a target's author or assignee,
+ * and a projection has no real id to offer — the page knows who the viewer is
+ * but the answer being computed here is "what does this *preset* allow",
+ * never "is this particular row mine". So the one way this value is ever
+ * used is deliberate and is right below: an action whose rule sets
+ * `requiresAuthor` is asked with this same id as the author, which makes the
+ * table answer the **standing** half of the question and leave the
+ * per-row half to the caller. Nothing else may pass it.
+ */
+const PROJECTED_ACTOR_ID = 'the-viewer'
+
 /* The two fields `mayPerform` wants that no drawing decision reads. Named
    rather than spelled at each call so that the next field added to
    `FolderActorFacts` for the server's benefit lands in one place here. */
-const NOT_READ_BY_A_PROJECTION = { folderId: '', actorId: '', name: '' } as const
+const NOT_READ_BY_A_PROJECTION = {
+  folderId: '',
+  actorId: PROJECTED_ACTOR_ID,
+  name: '',
+} as const
 
 /**
  * The table's answer for one action, on this viewer's facts.
  *
  * The one function in this file that talks to `shared/folder-actions.ts`, and
  * the reason every bar below is a citation rather than a number.
+ *
+ * `target` exists for the one rule shape a projection can honestly satisfy:
+ * `requiresAuthor`. See `mutateOwnComment` below.
+ *
+ * **It is narrower than `FolderActionTarget` on purpose, and the narrowing is
+ * the guard rather than the comment above it.** That type also carries
+ * `assigneeId`, and while this parameter was typed as the whole of it
+ * `mayDraw(facts, 'task.edit', { assigneeId: PROJECTED_ACTOR_ID })` compiled
+ * and answered `true` for Can contribute — measured rather than reasoned:
+ * `mayPerform` on those facts answers `true` at Can contribute with that id
+ * as the assignee and `false` without it — a projection granting an
+ * assignment-scoped act, which is precisely what #228 forbids: assignment
+ * authority is resolvable only under the row lock of the transaction that
+ * writes, and a client's idea of an assignee is a projection by definition.
+ * Nothing did that, and a sentence saying "must not" was all that stood
+ * between here and somebody doing it. Now it does not compile, and the
+ * typecheck is the proof (found by the review of #268, 2026-09-20).
  */
-export function mayDraw(facts: FolderViewerFacts, action: FolderAction): boolean {
+export function mayDraw(
+  facts: FolderViewerFacts,
+  action: FolderAction,
+  /* Deliberately not `FolderActionTarget`. See above. */
+  target: { readonly authorId?: string } = {},
+): boolean {
   const actorFacts: FolderActorFacts = {
     ...NOT_READ_BY_A_PROJECTION,
     access: facts.access,
     isOwner: facts.isOwner,
     isDefault: facts.isDefault,
   }
-  return mayPerform(actorFacts, action).allowed
+  return mayPerform(actorFacts, action, target).allowed
 }
 
 /**
@@ -173,6 +213,80 @@ export interface FolderGates {
   /** Changing somebody else's Access: administering Access, R8A's other half
    * of the same sentence (AC-512). */
   readonly administerAccess: boolean
+  /**
+   * Removing **somebody else's** comment.
+   *
+   * #228's Full-control list makes moderating another member's words member
+   * administration, and `DELETE /comments/:id` has resolved it that way since
+   * R8A landed. This member of the interface is the half that did not move:
+   * both conversation surfaces went on offering Delete on `is_owner`, so a
+   * Full-control administrator who owns nothing was offered nothing and a
+   * demoted owner was offered a control the route answers 403 (AC-790).
+   *
+   * **It is not the whole of what a surface draws.** A comment's own author
+   * deletes their own words under `comment.mutate.own`, which is authorship
+   * and therefore per comment rather than per folder; `lib/thread.ts` is
+   * where the two are added together, one comment at a time.
+   */
+  readonly moderate: boolean
+  /**
+   * Destroying a **trashed task** permanently, `DELETE /trash/tasks/:id`.
+   *
+   * #228's Full-control list: an irreversible administrative act. Ownership
+   * is **ignored** by it, which is the surprising half — a Full-control
+   * member who owns nothing destroys, and an owner below Full control does
+   * not (AC-790).
+   */
+  readonly destroyTask: boolean
+  /**
+   * Destroying a **trashed folder** permanently,
+   * `DELETE /trash/folders/:id`.
+   *
+   * The same Full-control bar **and** the owner, both at once: #228 with
+   * governing R5, which keeps permanent destruction of the whole folder with
+   * custody. So this is strictly narrower than `destroyTask`, and the two
+   * cannot be one member — which is exactly what `purgeable` was until
+   * 2026-09-20, one boolean off `is_owner` answering for both (AC-790).
+   */
+  readonly destroyFolder: boolean
+  /**
+   * Changing or removing **one's own** comment: the standing half only.
+   *
+   * `comment.mutate.own` is two conditions — the actor is the author, *and*
+   * they currently hold Can comment or better — and #228's authorship rule is
+   * that the first is provenance rather than authority. Authorship is per
+   * comment and this member cannot know it, so what is answered here is the
+   * second condition alone, and `lib/thread.ts` multiplies it by `mine`.
+   *
+   * **The surfaces offered Edit and Delete on `mine` alone until 2026-09-20**
+   * (issue #268), so a member reduced to Can view was offered both on every
+   * comment they had ever left and answered 403 by the route, which AC-518
+   * pins from the other side. The owner's ruling carrying this half is
+   * https://github.com/zhssnym/dana/issues/268#issuecomment-5753495877
+   * (AC-790).
+   */
+  readonly mutateOwnComment: boolean
+  /**
+   * Liking and unliking, `comment.like`: #228's Can-comment list carries the
+   * pair, and Can view reads a thread and leaves no mark on it. Per folder
+   * and not per comment, a like being nobody's property (AC-790).
+   */
+  readonly likeComment: boolean
+  /**
+   * Writing into the conversation at all: `comment.create`, which accepted
+   * R8A gives to Can comment as the preset that names participation, and
+   * which Can view does not have — it reads the thread and does not write to
+   * it, the whole of the distinction between R8A's two lowest rungs.
+   *
+   * Reply is the same act as a first comment and is gated on this too. The
+   * composer is **not hidden** on it: it is disabled and says what standing
+   * commenting needs, because it carries a fact a Can-view member may read —
+   * that this conversation takes comments — and hiding it would hide the
+   * fact with the act (the owner's ruling of 2026-09-20 on #268,
+   * https://github.com/zhssnym/dana/issues/268#issuecomment-5753983138;
+   * AC-790).
+   */
+  readonly createComment: boolean
 }
 
 export function folderGates(facts: FolderViewerFacts): FolderGates {
@@ -194,6 +308,23 @@ export function folderGates(facts: FolderViewerFacts): FolderGates {
       mayDraw(facts, 'folder.ownership.transfer') && !facts.isDefault,
     addMember: mayDraw(facts, 'member.add'),
     administerAccess: mayDraw(facts, 'member.access.change'),
+    moderate: mayDraw(facts, 'comment.moderate'),
+    /* Both read the table and neither reads `isDefault`, so a Trash row that
+       does not carry one may pass anything. `folder-authority.test.ts`
+       asserts that rather than this comment asserting it, because a table
+       that started reading it would otherwise make a fixture's `false` into
+       a silent grant. */
+    destroyTask: mayDraw(facts, 'task.destroy'),
+    destroyFolder: mayDraw(facts, 'folder.destroy'),
+    /* The one `requiresAuthor` rule a projection may ask about, and the
+       stand-in id above is how: "if this comment were mine, could I change
+       it". Asking without the target would answer false at every preset,
+       which is the shape of wrong that reads as a working gate. */
+    mutateOwnComment: mayDraw(facts, 'comment.mutate.own', {
+      authorId: PROJECTED_ACTOR_ID,
+    }),
+    likeComment: mayDraw(facts, 'comment.like'),
+    createComment: mayDraw(facts, 'comment.create'),
   }
 }
 

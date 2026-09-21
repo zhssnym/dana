@@ -27,22 +27,41 @@ its task count, the shelf a folder sat on not being a fact 7.13 answers.
 control item 35(b) is the escalation with its recommendation; the field is
 optional here and the screen draws the line without it, at a named seam.
 
-**The permanent delete is the folder owner's, and `purgeable` says so per
-row.** The prototype's `purge` and `emptyTrash` are the acts RFC 0005 change
-control item 36 ruled back into Trash; S28a built `DELETE /trash/tasks/:id`
-and `DELETE /trash/folders/:id`, the owner's alone (item 38, read onto tasks
-at item 53(b)), and 7.13's read carries `is_owner` so the screen can draw the
-control only where the server would answer 204. `usePurge` is the two
-mutations behind one act: a row goes to the address its kind names, and
-"Empty trash" walks the purgeable rows one by one, there being no bulk
-address and the list being short by construction. A non-owner who reaches
-the address anyway is answered 403 with the server's sentence, which the
-toast carries (`writeFailureMessage`), never a crash.
+**The permanent delete is Full control's, and `purgeable` says so per row.**
+The prototype's `purge` and `emptyTrash` are the acts RFC 0005 change control
+item 36 ruled back into Trash; S28a built `DELETE /trash/tasks/:id` and
+`DELETE /trash/folders/:id`. `usePurge` is the two mutations behind one act: a
+row goes to the address its kind names, and "Empty trash" walks the purgeable
+rows one by one, there being no bulk address and the list being short by
+construction. Somebody who reaches the address anyway is answered 403 with
+the server's sentence, which the toast carries (`writeFailureMessage`), never
+a crash.
+
+**That rule is not item 38's any more, and `purgeable` read `is_owner` until
+2026-09-20 (issue #268).** Item 38 gave both permanent deletes to the folder
+owner alone and this module transcribed it; #228's R8A replaced it and only
+the routes moved. The two acts are no longer one rule, which is why one
+boolean off one field could not have been right whatever field it read:
+
+- a **task**'s permanent destruction is `task.destroy`, Full control with
+  ownership **ignored** — so a Full-control member who owns nothing was
+  offered nothing the server would have done for them;
+- a **folder**'s is `folder.destroy`, Full control **and** the owner together
+  (governing R5 keeps custody in it) — so an owner whose Access had been
+  lowered was offered a control answered 403.
+
+`purgeable` is now `folderGates(...).destroyTask` or `.destroyFolder` by the
+row's own kind, off `my_access` and `is_owner`, which 7.13 carries since the
+same issue. It stays one boolean on `TrashItem` because the screen draws one
+list and asks each row one question; what moved is that the answer is the
+table's rather than this module's.
 */
 import { useMemo } from 'react'
 
 import { useDestroyTrashedFolder, useDestroyTrashedTask } from '../api/mutations.js'
 import { useTrash as useTrashRead } from '../api/queries.js'
+import { folderGates } from './folder-authority.js'
+import type { FolderAccessPreset } from '../../shared/folder-access.js'
 
 export type TrashKind = 'task' | 'folder' | 'shelf'
 
@@ -57,8 +76,9 @@ export interface TrashItem {
   /* Where it was, in a person's words. Restoring puts it back there, and
      the list says where each thing will land. */
   from?: string
-  /* Whether the viewer may delete this permanently: the folder owner's act,
-     for a task as for a folder. */
+  /* Whether the viewer may delete this permanently. **Not one rule for the
+     two kinds**, which is why it is computed per row rather than read off a
+     field: see the header. */
   purgeable: boolean
 }
 
@@ -78,6 +98,44 @@ function plural(count: number, one: string, many: string): string {
 
 const EMPTY: TrashItem[] = []
 
+/**
+ * Whether this viewer may permanently destroy one Trash row, from the table
+ * the two routes resolve against (`shared/folder-actions.ts`, by way of
+ * `folder-authority.ts`). Never a ladder written here (AC-790).
+ *
+ * `isDefault: false` is the one fact a Trash row does not carry, and it is
+ * **wrong for some rows rather than merely unread**: INV-2 refuses to trash
+ * the *default folder*, so a trashed folder is genuinely never the default
+ * one — but it says nothing about a **task**, and a task trashed out of the
+ * viewer's own Desk is an ordinary Trash row whose folder is the default one.
+ * So this passes a false fact, knowingly, and the reason it is safe is that
+ * neither gate reads it: `folder.destroy` and `task.destroy` are preset and
+ * custody and nothing else.
+ *
+ * That safety is asserted rather than stated. `folder-authority.test.ts`
+ * drives both gates over all six presets and both owner values with
+ * `isDefault` true and false and requires the same answer, so a table that
+ * started reading it fails there instead of granting quietly here. The
+ * honest alternative — putting `is_default` on the 7.13 rows — was not taken
+ * because it would be a second frozen-response field for a fact nothing
+ * consumes.
+ *
+ * Exported so that `trash.test.ts` beside this file can drive it as the pure
+ * function it is; `useTrash` is a `useMemo` around it and a case that mounted
+ * one would be testing TanStack Query.
+ */
+export function mayPurge(
+  row: { readonly my_access: FolderAccessPreset; readonly is_owner: boolean },
+  kind: 'task' | 'folder',
+): boolean {
+  const gates = folderGates({
+    access: row.my_access,
+    isOwner: row.is_owner,
+    isDefault: false,
+  })
+  return kind === 'task' ? gates.destroyTask : gates.destroyFolder
+}
+
 export function useTrash(): TrashItem[] {
   const read = useTrashRead()
   const data = read.data
@@ -92,7 +150,7 @@ export function useTrash(): TrashItem[] {
           name: task.title,
           at: Date.parse(task.deleted_at),
           from: task.folder_name,
-          purgeable: task.is_owner,
+          purgeable: mayPurge(task, 'task'),
         }),
       ),
       ...data.folders.map(
@@ -103,7 +161,7 @@ export function useTrash(): TrashItem[] {
           name: folder.name,
           at: Date.parse(folder.deleted_at),
           from: plural(folder.task_count, 'task', 'tasks'),
-          purgeable: folder.is_owner,
+          purgeable: mayPurge(folder, 'folder'),
         }),
       ),
     ]

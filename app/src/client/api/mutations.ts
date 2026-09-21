@@ -775,7 +775,10 @@ export function usePatchComment(): UseMutationResult<
   })
 }
 
-/** Author or folder owner (7.14); the menu offers it to exactly them. */
+/** The author, or a member who may moderate — `comment.moderate`, which is
+ * Full control's rather than custody's (7.14 as amended 2026-09-20, issue
+ * #228). The menu offers it to exactly them, through
+ * `folderGates(...).moderate` and `lib/thread.ts` (AC-790). */
 export function useDeleteComment(): UseMutationResult<void, Error, string> {
   return useMutation({
     mutationFn: (id: string) =>
@@ -813,11 +816,16 @@ export function useLeaveFolder(): UseMutationResult<void, Error, string> {
 
 /**
  * DELETE /trash/tasks/:id and DELETE /trash/folders/:id, 7.13's permanent
- * delete as amended by RFC 0005 change control items 36, 38 and 53. 204; the
- * folder owner's alone, a non-owner member answered 403 with the server's own
- * sentence, which `writeFailureMessage` carries; the cache invalidation that
- * follows every mutation refetches Trash and everything the cascade touched.
- * Built at S28b over the routes S28a landed.
+ * delete as amended by RFC 0005 change control items 36, 38 and 53 and by
+ * 7.13's dated amendment of 2026-09-20. 204; **Full control's, and not one
+ * rule for the two** — a task's ignores ownership, a folder's requires the
+ * owner beside Full control (#228) — so the menu offers each through
+ * `folderGates(...).destroyTask` and `.destroyFolder`, by way of
+ * `lib/trash.ts`'s `purgeable` (AC-790). Anybody below the bar is answered
+ * 403 with the server's own sentence, which `writeFailureMessage` carries;
+ * the cache invalidation that follows every mutation refetches Trash and
+ * everything the cascade touched. Built at S28b over the routes S28a
+ * landed.
  */
 export function useDestroyTrashedTask(): UseMutationResult<void, Error, string> {
   return useMutation({

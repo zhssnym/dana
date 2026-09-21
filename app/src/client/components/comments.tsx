@@ -36,13 +36,37 @@ say about a file somebody else attached; the read now carries 4.16's columns
 name and the meta line from them, and the composer offers any file 10.3
 admits. The picture-only branch below stays for a file that arrives nameless.
 
-**Five. A folder's owner deletes, which is 4.15 and not the prototype.** The
-lab has no permission system, so it offers Edit and Delete on `mine` alone;
-4.15 gives a comment's deletion to its author **or** the folder's owner, and
-`domain/comments.ts` resolves exactly those two. The answer rides the comment itself
-rather than the thread, so the card mount and the folder page cannot disagree,
-which is what L-201 asks of one surface drawn twice. Editing stays the author's,
-which the prototype and 4.15 agree on.
+**Five. Somebody other than the author deletes, which is 7.14 and not the
+prototype.** The lab has no permission system, so it offers Edit and Delete on
+`mine` alone; 7.14 gives a comment's deletion to its author **or** to a member
+who may moderate the folder, and `routes/conversation.ts` resolves exactly
+those two. The answer rides the comment itself rather than the thread, so the
+card mount and the folder page cannot disagree, which is what L-201 asks of one
+surface drawn twice. Editing stays the author's, which the prototype and 7.14
+agree on.
+
+**The second half was "the folder's owner" until 2026-09-20 (issue #268)**, and
+had been false since #228's R8A landed: moderating another member's words is
+`comment.moderate`, which is Full control's, and ownership is custody. That
+correction is in `lib/thread.ts` and in the two surfaces that feed it, and
+this file only reads `deletable`.
+
+**The *author's* half was wrong here, and this file did move for it.** Edit
+was drawn on `comment.mine` and Like on everybody, which are the lab's rules
+and not 7.14's: `comment.mutate.own` is authorship **and** currently holding
+Can comment or better, and `comment.like` is Can comment's, so a member
+reduced to Can view was offered the pencil on every comment they had ever
+left and the thumb on every comment in the folder, each answered 403. They
+now read `editable` and `likeable`, answered per comment by `lib/thread.ts`
+in the same place and for the same reason as `deletable`, and each falls back
+to the lab's answer when a surface supplies none (AC-518, AC-790).
+
+**An existing reaction pill is disabled rather than hidden**, unlike the three
+hover controls. It carries a count somebody below the bar may still read, and
+9.x's rule for a thread is that Can view reads everything and changes
+nothing; removing the pill would hide the fact as well as the act (the owner's
+ruling of 2026-09-20 on #268,
+https://github.com/zhssnym/dana/issues/268#issuecomment-5753983138).
 */
 /*
 One conversation surface, wherever a conversation happens.
@@ -358,6 +382,27 @@ function CommentFiles({ files }: { files: NonNullable<ConceptComment["files"]> }
 
 /* ---------------------------------------------------------- the composer -- */
 
+/*
+What the composer says to somebody who may read this conversation and not
+write in it (the owner's ruling of 2026-09-20 on #268,
+https://github.com/zhssnym/dana/issues/268#issuecomment-5753983138,
+which is the one that hides Reply below Can comment, disables this composer
+rather than hiding it, and disables an existing reaction pill; the ruling
+beside it,
+https://github.com/zhssnym/dana/issues/268#issuecomment-5753495877,
+carries the `my_access` field and the authorship half).
+
+**The composer is disabled rather than hidden**, which is the ruling and is
+the same reasoning as the reaction pill above: it carries a fact a Can-view
+member may read — that this conversation takes comments, and what standing
+that needs — and hiding it would hide the fact with the act. The sentence
+stands in for the placeholder rather than sitting beside it, so the composer
+stays the one quiet line its own header argues for and says the one thing
+there is to say.
+*/
+const COMMENTING_NEEDS_STANDING =
+  "You can read this conversation. Commenting needs Can comment."
+
 function readableSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
@@ -390,6 +435,7 @@ function Composer({
   onCancel,
   voice = false,
   maxFiles = 1,
+  disabled = false,
 }: {
   placeholder: string
   autoFocus?: boolean
@@ -400,6 +446,13 @@ function Composer({
   voice?: boolean
   /* Seam four: 7.14 carries one `file_id` per comment. */
   maxFiles?: number
+  /* Seam six (issue #268): the viewer reads this conversation and may not
+     write in it. The field is disabled and says so, the attach menu and the
+     trailing control are not drawn, and `submitText` refuses — three answers
+     rather than one, because a disabled textarea still takes a programmatic
+     Enter and the composer's own keydown handler is the thing that posts.
+     Nothing about the enabled composer moves. */
+  disabled?: boolean
 }) {
   const me = useViewerPerson()
   const [text, setText] = useState("")
@@ -432,6 +485,7 @@ function Composer({
   }, [])
 
   function submitText() {
+    if (disabled) return
     const body = text.trim()
     if (!body && files.length === 0) return
     onSubmit({ body: body || undefined, files: files.length ? files : undefined })
@@ -583,7 +637,8 @@ function Composer({
             ref={fieldRef}
             value={text}
             rows={1}
-            autoFocus={autoFocus}
+            autoFocus={autoFocus && !disabled}
+            disabled={disabled}
             placeholder={placeholder}
             aria-label={placeholder}
             onChange={(event) => setText(event.target.value)}
@@ -632,6 +687,7 @@ function Composer({
           a link (DES-161 made those real), a person to mention, which is the
           division the reference draws too.
           */}
+          {disabled ? null : (
           <InputGroupAddon align="inline-start">
             <DropdownMenu>
               <DropdownMenuTrigger
@@ -666,8 +722,9 @@ function Composer({
               </DropdownMenuContent>
             </DropdownMenu>
           </InputGroupAddon>
+          )}
           <InputGroupAddon align="inline-end">
-            {hasSomethingToSend ? (
+            {disabled ? null : hasSomethingToSend ? (
               <InputGroupButton
                 size="icon-sm"
                 variant="commit"
@@ -969,6 +1026,7 @@ function CommentRow({
                     variant={mine ? "outline" : reaction.mine ? "secondary" : "outline"}
                     size="xs"
                     aria-pressed={reaction.mine || undefined}
+                    disabled={(comment.likeable ?? true) === false}
                     onClick={() => onUpdate(toggleReaction(comment, reaction.emoji))}
                     className={cn(
                       "rounded-full tabular-nums",
@@ -989,13 +1047,24 @@ function CommentRow({
                 T_FAST,
               )}
             >
-              <IconAction dense
-                icon={ThumbsUp}
-                label={comment.reactions?.some((r) => r.mine) ? "Remove like" : "Like"}
-                onClick={() => onUpdate(toggleReaction(comment))}
-              />
-              {onReply ? <IconAction dense icon={ReplyIcon} label="Reply" onClick={onReply} /> : null}
-              {comment.mine ? (
+              {(comment.likeable ?? true) ? (
+                <IconAction dense
+                  icon={ThumbsUp}
+                  label={comment.reactions?.some((r) => r.mine) ? "Remove like" : "Like"}
+                  onClick={() => onUpdate(toggleReaction(comment))}
+                />
+              ) : null}
+              {/* Replying is `comment.create`, the same act as a first
+                  comment, and it is hidden rather than disabled because it is
+                  one of this row's own controls: the composer below carries
+                  the fact that the conversation takes comments, so a second
+                  greyed control per row would say it four more times (owner's
+                  ruling of 2026-09-20 on #268,
+                  https://github.com/zhssnym/dana/issues/268#issuecomment-5753983138). */}
+              {onReply && (comment.replyable ?? true) ? (
+                <IconAction dense icon={ReplyIcon} label="Reply" onClick={onReply} />
+              ) : null}
+              {(comment.editable ?? comment.mine) ? (
                 <IconAction dense
                   icon={Pencil}
                   label="Edit comment"
@@ -1005,11 +1074,11 @@ function CommentRow({
                   }}
                 />
               ) : null}
-              {/* Seam five: 4.15 gives a deletion to the author or the
-                  folder's owner, and the lab has neither concept. The answer
-                  rides the comment rather than the thread, so that the card's
-                  mount and the folder page's cannot disagree, which is what
-                  L-201 asks of one surface drawn twice. */}
+              {/* Seam five: 7.14 gives a deletion to the author or to a
+                  member who may moderate, and the lab has neither concept. The
+                  answer rides the comment rather than the thread, so that the
+                  card's mount and the folder page's cannot disagree, which is
+                  what L-201 asks of one surface drawn twice. */}
               {(comment.deletable ?? comment.mine) ? (
                 <IconAction dense icon={Trash2} label="Delete comment" tone="danger" onClick={onDelete} />
               ) : null}
@@ -1037,10 +1106,21 @@ export function CommentsThread({
   placeholder = "Write a comment",
   emptyWord = "comment",
   layout = "block",
+  canComment = true,
 }: {
   comments: ConceptComment[]
   onChange: (next: ConceptComment[]) => void
   placeholder?: string
+  /* Whether this viewer may write into the conversation at all
+     (`comment.create`, Can comment's; issue #268).
+
+     **A prop rather than a field on a comment, and that is not an
+     inconsistency.** Reply is per comment and rides `replyable`; the composer
+     belongs to the thread and exists when the thread holds nothing at all, so
+     there is no comment to carry an answer for it. It defaults to true, which
+     is the lab's answer and what every surface that has not worked out the
+     viewer's Access gets. */
+  canComment?: boolean
   /* "comment" in a card, "message" in a chat panel, the only wording that
      differs between the surfaces. */
   emptyWord?: string
@@ -1157,7 +1237,14 @@ export function CommentsThread({
 
   const composer = (
     <Composer
-      placeholder={comments.length === 0 ? `Write the first ${emptyWord}` : placeholder}
+      disabled={!canComment}
+      placeholder={
+        canComment
+          ? comments.length === 0
+            ? `Write the first ${emptyWord}`
+            : placeholder
+          : COMMENTING_NEEDS_STANDING
+      }
       onSubmit={(partial) => onChange([...comments, newComment(partial)])}
     />
   )

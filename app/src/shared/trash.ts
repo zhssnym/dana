@@ -33,6 +33,30 @@ they are two arrays and the page interleaves them by their deletion time.
 */
 import { z } from 'zod'
 
+import { folderAccessPreset } from './folder-access.js'
+
+/*
+**`my_access` joined both rows on 2026-09-20 (issue #268), and `is_owner` is
+kept beside it.** 7.13's permanent delete is not one rule: `task.destroy` is
+Full control with ownership **ignored**, and `folder.destroy` is Full control
+**and** the owner together, which is #228's Full-control list read against
+governing R5. So one fact cannot answer both, and `is_owner` alone — which is
+all these rows carried — answered neither: a Full-control member who owns
+nothing was offered no permanent delete on a trashed task the server would
+have destroyed for them, and an owner whose Access had been lowered was
+offered both and refused 403 by each.
+
+It is the **viewer's own** preset for the folder the row belongs to, taken
+from the `folder_members` join that already scopes both queries in
+`server/domain/trash.ts`, exactly as `my_access` on the 7.4 Folder object is
+(Hassan's Ruling 4 of 2026-09-20). Never nullable: a Trash row only exists for
+somebody in the folder, which is what that join means, and migration 0023 put
+a preset on every membership row there is.
+
+A trashed folder's row is **not** in `GET /folders`, which is why this could
+not be read from the library the client already holds and had to join the
+wire here.
+*/
 export const trashedTask = z.object({
   id: z.uuid(),
   title: z.string(),
@@ -44,8 +68,15 @@ export const trashedTask = z.object({
    * 7.13's permanent delete turns on (RFC 0005 change control items 38 and
    * 53(b)); the same word the 7.0 Folder object already carries. Added
    * additively at S28b so the Trash page draws the control only where the
-   * server would answer 204. */
+   * server would answer 204.
+   *
+   * **It is no longer that one fact**, and the sentence above is left where
+   * it stands because it is the one the block at the top of this file
+   * answers: `task.destroy` ignores ownership outright, so this field is
+   * custody and nothing more. */
   is_owner: z.boolean(),
+  /** The viewer's own Access preset for the folder this task lived in. */
+  my_access: folderAccessPreset,
 })
 export type TrashedTask = z.infer<typeof trashedTask>
 
@@ -55,8 +86,13 @@ export const trashedFolder = z.object({
   /** What comes back with it, so a restore is not a surprise. */
   task_count: z.number().int().nonnegative(),
   deleted_at: z.string(),
-  /** As on a task: the viewer owns this folder. */
+  /** As on a task: the viewer owns this folder. Unlike a task's, this one is
+   * still load-bearing — `folder.destroy` requires the owner *and* Full
+   * control, so it is one of the two facts the gate reads rather than an
+   * answer on its own. */
   is_owner: z.boolean(),
+  /** As on a task: the viewer's own Access preset for this folder. */
+  my_access: folderAccessPreset,
 })
 export type TrashedFolder = z.infer<typeof trashedFolder>
 

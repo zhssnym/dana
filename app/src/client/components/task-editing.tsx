@@ -31,6 +31,7 @@ import {
 } from '../api/mutations.js'
 import { useConnections, useFolders, useMe, useTask, useThread } from '../api/queries.js'
 import { uploadFile } from '../api/http.js'
+import { folderGates } from '../lib/folder-authority.js'
 import { applyThreadChange, commentFileKind, threadAttachments, toConceptComments } from '../lib/thread.js'
 import { useTimeFormat } from '../lib/time-format.js'
 import { presenterToday } from '../parts/presenters.js'
@@ -150,6 +151,34 @@ export function useTaskEditing(editing: string | null): TaskEditing {
     return people
   }, [connections.data, me.data?.user])
 
+  /* The thread's own folder row, which `GET /folders` already answered for
+     every page in this client, read through the same gate the sidebar's
+     folder row and the folder page use. Everything false while the library
+     is loading or the folder is not in it, which offers nothing rather than
+     guessing — the direction every other gate in this client takes. */
+  const threadFolder = folders.data?.find((row) => row.id === threadFolderId)
+  const mayConverse = useMemo(() => {
+    if (threadFolder === undefined) {
+      return {
+        moderate: false,
+        mutateOwnComment: false,
+        likeComment: false,
+        createComment: false,
+      }
+    }
+    const gates = folderGates({
+      access: threadFolder.my_access,
+      isOwner: threadFolder.is_owner,
+      isDefault: threadFolder.is_default,
+    })
+    return {
+      moderate: gates.moderate,
+      mutateOwnComment: gates.mutateOwnComment,
+      likeComment: gates.likeComment,
+      createComment: gates.createComment,
+    }
+  }, [threadFolder])
+
   const conversation = useMemo(
     () =>
       toConceptComments(
@@ -157,10 +186,22 @@ export function useTaskEditing(editing: string | null): TaskEditing {
         me.data?.user.id ?? null,
         (authorId) => authorPeople.get(authorId) ?? { name: 'Someone' },
         Date.now(),
-        /* 4.15's other half, off the library row every page already holds. */
-        folders.data?.find((row) => row.id === threadFolderId)?.is_owner ?? false,
+        /*
+        What this viewer's Access lets the thread offer.
+
+        **It was one boolean off `is_owner` on the same library row until
+        2026-09-20 (issue #268)**, and that had been false since #228's R8A
+        landed — moderation is `comment.moderate`, Full control's, which
+        custody neither confers nor implies, and an author's own edit and
+        delete are `comment.mutate.own`, which authorship alone does not
+        confer either. `my_access` rides the same row (Hassan's Ruling 4 of
+        2026-09-20), so the correct gates cost the same lookup and go through
+        `lib/folder-authority.ts`, the table the routes themselves resolve
+        against, rather than through a second ladder here (AC-790).
+        */
+        mayConverse,
       ),
-    [thread.data?.comments, me.data?.user.id, authorPeople, folders.data, threadFolderId],
+    [thread.data?.comments, me.data?.user.id, authorPeople, mayConverse],
   )
 
   const rows = folders.data
@@ -172,6 +213,10 @@ export function useTaskEditing(editing: string | null): TaskEditing {
         {
           ...toConceptTask(task.data, { today: presenterToday(), folders: rows, clock }),
           comments: conversation,
+          /* The composer's half of `comment.create`, which no comment can
+             carry (issue #268). The rest of this viewer's conversation
+             standing is already inside `conversation`. */
+          canComment: mayConverse.createComment,
           /* Item 58 (D): the Attachments block is the conversation's files,
              which is the only place 4.16 lets a task's file live. */
           attachments: threadAttachments(conversation),

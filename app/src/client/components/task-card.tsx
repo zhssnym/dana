@@ -2274,6 +2274,10 @@ export function TaskCard({
       >
         <CommentsThread
           comments={task.comments ?? []}
+          /* The composer's half of `comment.create`, which rides the task
+             because a thread with nothing in it still has a composer (issue
+             #268). Absent is the lab's answer, as everywhere else here. */
+          canComment={task.canComment ?? true}
           onChange={(next) => patch(task.id, { comments: next })}
         />
       </Disclosure>

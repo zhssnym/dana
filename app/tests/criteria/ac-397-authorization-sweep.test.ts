@@ -1219,7 +1219,7 @@ const TABLE = new Map<string, Row>([
       },
       member: {
         expected: 403,
-        rule: 'RFC 0005 change control item 38: the permanent delete is the folder owner\'s alone, and a member can see the row, so 10.2\'s grammar admits a forbidden here',
+        rule: "#228's Full-control list: the permanent delete is Full control's, and this member holds Can edit, so they can see the row and 10.2's grammar admits a forbidden here. The expected status is unchanged; the sentence said \"RFC 0005 change control item 38: the folder owner's alone\" until 2026-09-20, which R8A had superseded (issue #268). Ownership is *ignored* by `task.destroy` and required beside Full control by `folder.destroy`, so the two rows below are one status and two rules",
       },
     },
   ],
@@ -1230,7 +1230,7 @@ const TABLE = new Map<string, Row>([
       stranger: { expected: 404, rule: '7.13, as the task above' },
       member: {
         expected: 403,
-        rule: 'RFC 0005 change control item 38, as the task above',
+        rule: "#228 with governing R5, as the task above and one step narrower: a folder's permanent destruction needs the owner *and* Full control together, so this member is refused twice over",
       },
     },
   ],

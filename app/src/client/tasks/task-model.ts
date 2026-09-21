@@ -250,14 +250,40 @@ export interface ConceptComment {
   **The second widening this file makes, added at S26 and a named seam.**
 
   The lab has no permission system, so the prototype offers Edit and Delete
-  on `mine` alone. 4.15 gives a comment's deletion to its author **or** the
-  folder's owner, and `domain/comments.ts` resolves exactly those two. This
-  carries that answer per comment rather than per thread, so that the card
-  mount and the folder page cannot disagree about the same comment, which is
-  what ledger L-201 asks of one surface drawn twice. Absent falls back to
-  `mine`, so a surface that has no role in hand behaves as the lab does.
+  on `mine` alone. 7.14 gives a comment's deletion to its author **or** to a
+  member who may moderate the folder, and `routes/conversation.ts` resolves
+  exactly those two. This carries that answer per comment rather than per
+  thread, so that the card mount and the folder page cannot disagree about the
+  same comment, which is what ledger L-201 asks of one surface drawn twice.
+  Absent falls back to `mine`, so a surface that has no standing in hand
+  behaves as the lab does.
+
+  **The second half read "the folder's owner" until 2026-09-20 (issue #268)**,
+  which had been false since #228's R8A landed: moderation is
+  `comment.moderate`, Full control's, and ownership is custody (AC-790).
   */
   deletable?: boolean
+  /**
+   * Whether this viewer may edit **this** comment, which the lab drew on
+   * `mine` alone. Added 2026-09-20 (issue #268): `comment.mutate.own` is
+   * authorship **and** currently holding Can comment or better, so a member
+   * downgraded to Can view keeps their words and loses the pencil. Absent
+   * falls back to `mine`, the lab's answer (AC-790).
+   */
+  editable?: boolean
+  /**
+   * Whether this viewer may like or unlike at all. #228's Can-comment list
+   * carries the pair and Can view leaves no mark on a thread; the lab has no
+   * such concept and offered it to everyone. Absent falls back to true
+   * (AC-790).
+   */
+  likeable?: boolean
+  /**
+   * Whether this viewer may reply to this comment. `comment.create`, Can
+   * comment's, the same act as a first comment; the lab offers Reply to
+   * everybody. Absent falls back to true (AC-790).
+   */
+  replyable?: boolean
   replies?: ConceptComment[]
 }
 
@@ -324,6 +350,19 @@ export interface ConceptTask {
   /* The conversation about the task, pinned after the content blocks and
      outside their order: commentary is not content. DES-129. */
   comments?: ConceptComment[]
+  /**
+   * Whether this viewer may write into that conversation at all
+   * (`comment.create`, Can comment's).
+   *
+   * It rides the task rather than a comment because **a thread with nothing
+   * in it still has a composer**, and no per-comment field can answer for
+   * one. The card hands it straight to `CommentsThread`, which renders the
+   * composer disabled rather than hiding it. Absent falls back to true, the
+   * lab's answer (the owner's ruling of 2026-09-20 on #268,
+   * https://github.com/zhssnym/dana/issues/268#issuecomment-5753983138;
+   * AC-790).
+   */
+  canComment?: boolean
 }
 
 export function stepCount(task: ConceptTask): { done: number; total: number } | null {
