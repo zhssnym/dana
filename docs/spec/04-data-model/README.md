@@ -63,6 +63,13 @@ folder. The migration is 0025. The freeze holds the way it has held four times b
 owner ruled the change before it was written, the ruling is cited in each file, and every
 statement is an addition.
 
+**The four numbers step over 4.23, and that gap is now closed.** `main` at 59161e9 holds
+`04.23-task-dependencies.md` from issue #224, merged while this work was in progress; this
+branch was behind it and took the next four rather than the next one, on the same rule the
+acceptance-criteria registry states for its own numbers. 4.23's row sits beside these four
+in the table below, added when this branch was rebased onto that `main`, so the table is
+contiguous from 4.1 to 4.27 and nothing is missing from it.
+
 **Sixth, and it is the smallest kind of move this section can take: 4.17 and 4.20 each
 gained a dated *Rationale* note on 2026-09-21 and nothing else** (issue #280, on Hassan's
 technical ruling there,
@@ -75,13 +82,6 @@ no rule moves**, in either file: the diff is added paragraphs, and every rule th
 was already written above them. It is recorded here because the freeze asks that a change to
 this section be visible from its front door, and a reader who is told only that nothing
 changed cannot check that for themselves.
-
-**The four numbers step over 4.23, and that gap is now closed.** `main` at 59161e9 holds
-`04.23-task-dependencies.md` from issue #224, merged while this work was in progress; this
-branch was behind it and took the next four rather than the next one, on the same rule the
-acceptance-criteria registry states for its own numbers. 4.23's row sits beside these four
-in the table below, added when this branch was rebased onto that `main`, so the table is
-contiguous from 4.1 to 4.27 and nothing is missing from it.
 
 | | File | Covers |
 | - | - | - |
