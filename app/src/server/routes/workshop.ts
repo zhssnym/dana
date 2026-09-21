@@ -746,7 +746,18 @@ export function createWorkshopRouter(
           sendFieldValidationError(res,[{field:error.field,message:error.message}])
           return
         }
-        if(error instanceof DocumentRefusal){sendError(res,422,'validation_failed',error.message);return}
+        /* A refusal out of the document transaction. Where the importer knew
+           which folder's page it was building — format 4 always does — it
+           carries `folders.<n>.page`, and it goes through the one field
+           formatter so that a structural refusal reads like a schema one and a
+           caller cannot tell which of the two answered (7.0, 7.16's 2026-09-21
+           amendment). A version 2 `document` still answers with the rule alone:
+           its outline is in the file's own uuids and a refusal from it is about
+           the file rather than about a position in it. */
+        if(error instanceof DocumentRefusal){
+          if(error.field!==undefined){sendFieldValidationError(res,[{field:error.field,message:error.message}]);return}
+          sendError(res,422,'validation_failed',error.message);return
+        }
         throw error
       }
       if (outcome.kind === 'folder_cap') {

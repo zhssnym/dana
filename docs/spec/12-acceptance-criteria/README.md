@@ -14,7 +14,7 @@ groups next to it.
 
 ## The next number
 
-**The next number to take from the tail is 811.**
+**The next number to take from the tail is 826.**
 
 **This section is the allocator and `## Numbers` below it is not.** That one is a
 chronological record of what each branch spent and why, written newest-first in places and
@@ -59,6 +59,7 @@ cannot be read from any tree.
 | 790 | `backend/268-comment-moderation-on-access` | yes — one bullet in 12.14 and one file |
 | 800 | `backend/274-label-routes-on-access` | yes — one bullet in 12.24 and one file |
 | 810 | `backend/276-reclaim-sweep-leaves-a-trace` | yes — one bullet in 12.9 and one test file |
+| 820–825 | `backend/185-workflow-round-trips-the-page` | yes, six bullets in 12.16 and six test files |
 
 **780 rather than 681, because the three were assigned rather than scanned for.** On
 2026-09-20 the party holding this branch's review named 780 upward and named what was
@@ -87,6 +88,18 @@ discover 790 and 800 by collision. **784 to 789, 791 to 799 and 801 to 809 are t
 gaps of the ordinary kind** and are not free by default, on the rule stated immediately
 below; whichever of the three merges last is the only one that can see what the other two
 spent.
+
+**811 moved to 826 on 2026-09-20 by issue #185, which took AC-820 to AC-825 and was handed
+that block rather than scanning for it.** The line read 783 when the block was written, and
+826 is unchanged by the rebase that put this paragraph under the one above: 790, 800 and 810
+were held by #268, #274 and #276 on branches that tree could not read, so #185 was assigned
+820 clear of all three, and 826 is one past the highest it spent. **All three have since
+merged** — #268 at 616f982, then #276, then #274 — so every row above is read from this tree
+rather than taken on trust, and the rebase of 2026-09-21 dropped the row this branch carried
+for 800 and 810 in favour of theirs. **Do not read 783 to 819 as free**: 783 to 789, 791 to
+799, 801 to 809 and 811 to 819 are gaps of exactly the kind the paragraph below refuses to
+call free by default, #185 spent none of them, and only the last merge of the day can say
+what is in them.
 
 **The gaps between those blocks are not free by default**, on the rule the AC-377 and
 AC-440 bullets below state: whichever merge lands last is the only one that can see what its

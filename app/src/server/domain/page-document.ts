@@ -16,7 +16,23 @@ type BlockOp = Extract<DocumentOperation,{op:'put_block'}>
    about the function moved with it. */
 export { documentHash } from './document-hash.js'
 import { documentHash } from './document-hash.js'
-export class DocumentRefusal extends Error { constructor(readonly kind:'stale'|'not_convertible'|'file_not_here'|'file_kind_mismatch'|'not_found',message:string){super(message)} }
+/*
+`field` is the one thing this class carries that the document transaction
+itself never sets, and it is deliberately optional.
+
+7.16 answers a page action with a rule and no field, because the body *is* the
+page and there is nothing to address. A **workflow file** is a different body:
+its page sits at `folders.<n>.page`, and a file with two folders in it answered
+with "A nested list item belongs to its list parent's Section" and nothing else
+tells a caller a rule and not which folder broke it. So a caller that knows
+where the page it handed over came from re-throws with that path, and the route
+sends the same 422 through `sendFieldValidationError` — the one formatter, so
+that a refusal from here reads like a refusal from the schema (7.0).
+
+Nothing in this module sets it. It is set by `importWorkflow`, which is the
+only caller that has a path to give.
+*/
+export class DocumentRefusal extends Error { constructor(readonly kind:'stale'|'not_convertible'|'file_not_here'|'file_kind_mismatch'|'not_found',message:string,readonly field?:string){super(message)} }
 export async function documentMetadata(tx:Executor,folderId:string|null) {
  if(folderId===null)return {revision:documentHash(null),task_placements:[]}
  const blocks=await rowsOf(tx,sql`SELECT id,kind,text,rich_content,file_id,ref_folder_id,width_pct,section_block_id,list_parent_block_id,checked,page_position,position FROM page_blocks WHERE folder_id=${folderId}::uuid ORDER BY id`)
