@@ -171,12 +171,58 @@ initials that arrive separately are two facts that can disagree.
 export type PersonResolver = (authorId: string) => { name: string; image?: string }
 
 /** One wire comment as the lifted thread reads one, replies excepted. */
+/**
+ * What this viewer's Access lets a conversation offer, per folder.
+ *
+ * Three answers rather than one, because the three controls a comment row
+ * draws have three different rules (issue #268; #228's Full-control and
+ * Can-comment lists and its authorship rule). Every one is
+ * `folderGates(...)`'s, which is `shared/folder-actions.ts`'s, which is the
+ * table the four 7.14 routes resolve against.
+ *
+ * **All three are per folder. The per-comment half is `mine`**, and the two
+ * are multiplied below rather than anywhere a surface could forget one.
+ */
+export interface ThreadAuthority {
+  /** `comment.moderate`: removing somebody **else's** comment. */
+  readonly moderate: boolean
+  /** `comment.mutate.own`'s standing half: editing and removing one's own. */
+  readonly mutateOwnComment: boolean
+  /** `comment.like`. */
+  readonly likeComment: boolean
+  /**
+   * `comment.create`: writing into this conversation at all.
+   *
+   * Two surfaces read it and they read it differently, on the owner's ruling
+   * of 2026-09-20. **Reply is hidden**, being a per-comment control like the
+   * three above, so it rides `replyable` on each comment. **The composer is
+   * rendered and disabled**, saying what standing commenting needs, which is
+   * why `components/comments.tsx` also takes it as a prop of its own: a
+   * thread with no comments in it still has a composer, and no per-comment
+   * field can carry an answer for it.
+   */
+  readonly createComment: boolean
+}
+
+/**
+ * The lab's own answers, for a surface that has not worked out the viewer's
+ * Access: Edit and Delete on authorship alone and Like always, which is what
+ * `prototype-v2` does and what `components/comments.tsx`'s `?? mine`
+ * fallbacks already say. Both real callers pass a real one.
+ */
+const AUTHORSHIP_ALONE: ThreadAuthority = {
+  moderate: false,
+  mutateOwnComment: true,
+  likeComment: true,
+  createComment: true,
+}
+
 function conceptOf(
   line: CommentLine,
   viewerId: string | null,
   personOf: PersonResolver,
   now: number,
-  ownerDeletes: boolean,
+  may: ThreadAuthority,
 ): ConceptComment {
   const mine = line.author_id === viewerId
   const author = personOf(line.author_id)
@@ -195,9 +241,40 @@ function conceptOf(
       : { reactions: [{ emoji: 'like', count: line.likes, mine: line.liked }] }),
     ...(line.files.length === 0 ? {} : { files: line.files.map(attachmentOf) }),
     mine,
-    /* 4.15: the author or the folder's owner. Answered here so that both
-       mounts of the one thread agree. */
-    deletable: mine || ownerDeletes,
+    /*
+    The three controls a comment row draws, and the three different rules
+    behind them. Answered here, per comment, so that both mounts of the one
+    thread agree (L-201) and so that the per-comment fact and the per-folder
+    bar are multiplied in one place rather than at every surface.
+
+    **`deletable` was `mine || ownerDeletes` until 2026-09-20 (issue #268)
+    and both halves of that were wrong.** 7.14's "(author or folder owner)"
+    has been false since #228's R8A landed. `routes/conversation.ts` resolves
+    the delete as `comment.mutate.own` **or** `comment.moderate`:
+
+    - moderation is Full control's, which custody neither confers nor
+      implies, so the second half is not `is_owner` — that is the rename this
+      parameter carries;
+    - and the **author's** own half is not `mine` either. #228's authorship
+      rule makes authorship provenance rather than standing authority, so a
+      member reduced to Can view keeps their words and loses the power to
+      change them. `mine` alone offered Edit and Delete on every comment they
+      had ever left, each answered 403. AC-518 pins those refusals from the
+      server's side; this is the screen agreeing with them.
+
+    `editable` and `likeable` are new fields for the same reason: the lab
+    draws Edit on `mine` and Like on everyone, and neither is 7.14's rule.
+    */
+    deletable: (mine && may.mutateOwnComment) || may.moderate,
+    editable: mine && may.mutateOwnComment,
+    likeable: may.likeComment,
+    /* Replying is `comment.create`, the same act as a first comment, so a
+       member below Can comment is offered no Reply anywhere in the thread.
+       Per comment because the control is (the owner's ruling of 2026-09-20
+       on #268,
+       https://github.com/zhssnym/dana/issues/268#issuecomment-5753983138);
+       the composer's own half is a prop on the lifted component. */
+    replyable: may.createComment,
   }
 }
 
@@ -215,14 +292,17 @@ export function toConceptComments(
   viewerId: string | null,
   personOf: PersonResolver,
   now: number,
-  /** Whether this viewer owns the folder the thread belongs to (4.15). */
-  ownerDeletes = false,
+  /** What this viewer's Access lets this folder's conversation offer, from
+   * `folderGates(...)` (7.14 as amended 2026-09-20, issue #228; AC-790).
+   * Defaults to the lab's answers, so a surface that has not worked out the
+   * viewer's Access behaves as `prototype-v2` does. */
+  may: ThreadAuthority = AUTHORSHIP_ALONE,
 ): ConceptComment[] {
   const tops: ConceptComment[] = []
   const byId = new Map<string, ConceptComment>()
   for (const line of lines) {
     if (line.parent_id !== null) continue
-    const comment = conceptOf(line, viewerId, personOf, now, ownerDeletes)
+    const comment = conceptOf(line, viewerId, personOf, now, may)
     byId.set(line.id, comment)
     tops.push(comment)
   }
@@ -231,7 +311,7 @@ export function toConceptComments(
     const parent = byId.get(line.parent_id)
     if (parent === undefined) continue
     const replies = parent.replies ?? []
-    replies.push(conceptOf(line, viewerId, personOf, now, ownerDeletes))
+    replies.push(conceptOf(line, viewerId, personOf, now, may))
     parent.replies = replies
   }
   return tops
@@ -247,7 +327,9 @@ export interface ThreadWriters {
   }) => void
   /** PATCH /comments/:id, the author's own edit. */
   readonly edit: (commentId: string, body: string) => void
-  /** DELETE /comments/:id, the author's or the folder owner's (4.15). */
+  /** DELETE /comments/:id, the author's who still holds Can comment, or a
+   * moderator's (7.14 as amended 2026-09-20; moderation is Full control's and
+   * authorship is not standing authority, issue #228). */
   readonly remove: (commentId: string) => void
   /** PUT and DELETE /comments/:id/like, one bit per person. */
   readonly like: (commentId: string, liked: boolean) => void
@@ -342,10 +424,10 @@ export function useConceptThread(
   lines: readonly CommentLine[] | undefined,
   viewerId: string | null,
   personOf: PersonResolver,
-  ownerDeletes = false,
+  may: ThreadAuthority = AUTHORSHIP_ALONE,
 ): ConceptComment[] {
   return useMemo(
-    () => toConceptComments(lines ?? [], viewerId, personOf, Date.now(), ownerDeletes),
-    [lines, viewerId, personOf, ownerDeletes],
+    () => toConceptComments(lines ?? [], viewerId, personOf, Date.now(), may),
+    [lines, viewerId, personOf, may],
   )
 }

@@ -944,11 +944,37 @@ export function FolderPage({
     (authorId: string) => authorPeople.get(authorId) ?? { name: 'Someone' },
     [authorPeople],
   )
+  /* What this folder's conversation may offer. It was one boolean, `isOwner`,
+     until 2026-09-20 (issue #268), and every part of that was wrong: the
+     route resolves moderation as `comment.moderate` (Full control's, which
+     custody does not confer) and the author's own edit and delete as
+     `comment.mutate.own` (Can comment or better, which authorship does not
+     confer). Same table, same call as every other gate on this page (AC-790).
+
+     Memoised because it is the identity `useConceptThread` keys its own
+     memo on; `gates` is rebuilt every render, so an inline object would
+     remap the whole thread each time. Null gates means the roster has not
+     landed, and the honest answer then is to offer nothing rather than to
+     guess — the same direction every other gate on this page takes. */
+  const mayConverse = useMemo(
+    () => ({
+      moderate: gates?.moderate === true,
+      mutateOwnComment: gates?.mutateOwnComment === true,
+      likeComment: gates?.likeComment === true,
+      createComment: gates?.createComment === true,
+    }),
+    [
+      gates?.moderate,
+      gates?.mutateOwnComment,
+      gates?.likeComment,
+      gates?.createComment,
+    ],
+  )
   const conversation = useConceptThread(
     thread.data?.comments,
     basis.viewerId,
     personOf,
-    isOwner,
+    mayConverse,
   )
 
   /*
@@ -965,6 +991,11 @@ export function FolderPage({
       <div className="flex justify-end pb-1">{conversationSwitch}</div>
       <CommentsThread
         comments={conversation}
+        /* The composer's own half of `comment.create`; Reply's half rides
+           each comment. Disabled rather than hidden, and its sentence says
+           what standing commenting needs (owner's ruling of 2026-09-20 on
+           issue #268; AC-790). */
+        canComment={mayConverse.createComment}
         emptyWord={conversationHome === 'panel' ? 'message' : 'comment'}
         layout={conversationHome === 'panel' ? 'pinned' : 'block'}
         onChange={(next) => {

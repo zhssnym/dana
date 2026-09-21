@@ -351,12 +351,17 @@ export interface CommentAccess {
   folderId: string
   authorId: string
   isAuthor: boolean
-  isFolderOwner: boolean
   body: string | null
   /** The actor's durable Folder facts, from the same membership join that
    * scoped this read (issue #228). Carried here so the two comment gates ask
    * the resolver rather than re-deriving a rule, and so `isAuthor` stops
-   * being an authority of its own. */
+   * being an authority of its own.
+   *
+   * `isFolderOwner` sat beside it until 2026-09-20 (issue #268) and had had
+   * no reader since #228 moved both gates onto `mayPerform`; custody reaches
+   * them as `facts.isOwner` now, where the table decides what it is worth.
+   * Removed rather than kept as documentation, a standing field being an
+   * invitation to gate on it again. */
   facts: FolderActorFacts
 }
 
@@ -390,7 +395,6 @@ export async function accessibleComment(
     folderId: String(row.folder_id),
     authorId: String(row.author_id),
     isAuthor: row.is_author === true,
-    isFolderOwner: row.is_folder_owner === true,
     body: nullableString(row.body),
     facts: {
       folderId: String(row.folder_id),
@@ -410,7 +414,17 @@ export type EditCommentResult =
   | { kind: 'gone' }
 
 /*
-The author's own edit (4.15); the caller has resolved authorship.
+The author's own edit (7.14); the caller has resolved it.
+
+**Checked against the delete half on 2026-09-20 (issue #268) and found not to
+have the same defect.** The two gates were asked whether either still resolved
+on `folders.owner_id`: the delete half did, in the client, and does not here;
+this half never did. `PATCH /comments/:id` resolves `comment.mutate.own`,
+which is authorship **and** currently holding Can comment or better, and no
+preset and no custody has ever let one member edit another's words. So there
+is nothing to widen here and nothing to narrow — moderation removes a comment
+and does not rewrite it, which is #228's Full-control list read exactly as it
+is written.
 
 **The attachments moved here on 2026-09-04 (issue #94), on Imran's ruling that
 a person may add or remove them without deleting the comment and posting it
@@ -437,8 +451,10 @@ that would leave neither words nor attachments is refused here rather than
 being allowed to produce a row the create path could never have written.
 
 **Only whoever could already edit the words may do this**, which is the route's
-`access.isAuthor` gate unchanged: attachment editing is a second thing the same
-person may do to their own comment, not a reason to widen who may touch it.
+`comment.mutate.own` gate unchanged: attachment editing is a second thing the
+same person may do to their own comment, not a reason to widen who may touch
+it. (This named `access.isAuthor` until 2026-09-20; #228 replaced that gate
+with the resolver's and the sentence was left behind.)
 */
 export async function editComment(
   db: Db,
@@ -451,8 +467,11 @@ export async function editComment(
     Is the comment still there, decided before anything is written and under a
     row lock (review of #94).
 
-    The route resolves `access` before this transaction opens, and 4.15 lets a
-    folder owner delete another author's comment, so the row can go in between.
+    The route resolves `access` before this transaction opens, and a member
+    who moderates may delete another author's comment, so the row can go in
+    between. (It read "4.15 lets a folder owner" until 2026-09-20, issue #268:
+    the race is the same, the actor is not. Moderation is `comment.moderate`,
+    which is Full control's.)
     That used to be caught only by the UPDATE below returning nothing — after
     the attachment rewrite had already run, which meant a non-empty `file_ids`
     hit `comment_files_comment_id_fkey` first and the caller was answered 500
@@ -537,9 +556,20 @@ export async function editComment(
   })
 }
 
-/** Author or folder owner (4.15); the caller has resolved the role. The
- * replies cascade with the row (4.15's FK), their words going with the
- * thread they answered. */
+/**
+ * The author, or a member who moderates; the caller has resolved which.
+ *
+ * **This said "Author or folder owner (4.15)" until 2026-09-20 (issue #268),
+ * and had been false since #228's R8A landed.** `routes/conversation.ts`
+ * resolves `comment.mutate.own` or `comment.moderate`, and moderation is Full
+ * control's: an owner whose Access was lowered does not moderate, and a
+ * Full-control member who owns nothing does. 4.15 is the table and says
+ * nothing about who may delete; 7.14 is where the rule lives, and its dated
+ * amendment of 2026-09-20 carries the correction (AC-790).
+ *
+ * The replies cascade with the row (4.15's FK), their words going with the
+ * thread they answered.
+ */
 export async function deleteComment(
   db: Db,
   viewerId: string,

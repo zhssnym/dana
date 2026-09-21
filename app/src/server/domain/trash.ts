@@ -38,6 +38,7 @@ import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
 import { mayPerform, presetOf } from './folder-access.js'
 import type { FolderActorFacts } from './folder-access.js'
+import type { FolderAccessPreset } from '../../shared/folder-access.js'
 
 function toIso(value: unknown): string {
   return value instanceof Date
@@ -75,6 +76,7 @@ export async function trashView(
   const tasks = await rowsOf(
     db,
     sql`SELECT t.id, t.title, t.folder_id, f.name AS folder_name, t.deleted_at,
+               m.access,
                (f.owner_id = ${viewerId}) AS is_owner
         FROM tasks t
         JOIN folder_members m
@@ -85,7 +87,7 @@ export async function trashView(
   )
   const folders = await rowsOf(
     db,
-    sql`SELECT f.id, f.name, f.deleted_at,
+    sql`SELECT f.id, f.name, f.deleted_at, m.access,
                (f.owner_id = ${viewerId}) AS is_owner,
                (SELECT count(*)::int FROM tasks t
                  WHERE t.folder_id = f.id) AS task_count
@@ -103,6 +105,7 @@ export async function trashView(
       folder_name: String(row.folder_name),
       deleted_at: toIso(row.deleted_at),
       is_owner: Boolean(row.is_owner),
+      my_access: accessOfRow(row, viewerId, String(row.folder_id)),
     })),
     folders: folders.map((row): TrashedFolder => ({
       id: String(row.id),
@@ -110,8 +113,33 @@ export async function trashView(
       task_count: Number(row.task_count),
       deleted_at: toIso(row.deleted_at),
       is_owner: Boolean(row.is_owner),
+      my_access: accessOfRow(row, viewerId, String(row.id)),
     })),
   }
+}
+
+/**
+ * The viewer's own preset off a row this view's `folder_members` join already
+ * scoped (issue #268).
+ *
+ * **Refused rather than defaulted**, which is the rule every other reader of
+ * this column keeps: each default here would be a guess about authority, and
+ * the safe-looking guess is the one that decides what a screen offers. The
+ * join makes the column non-null for every row this view returns, so a throw
+ * here is a broken invariant and not a case to handle.
+ */
+function accessOfRow(
+  row: Record<string, unknown>,
+  viewerId: string,
+  folderId: string,
+): FolderAccessPreset {
+  const access = presetOf(row.access)
+  if (access === null) {
+    throw new Error(
+      `folder_members.access holds an unknown preset for ${viewerId} in ${folderId}`,
+    )
+  }
+  return access
 }
 
 /** Clears the mark and records the return; 'not_found' covers the row that
@@ -423,7 +451,7 @@ export type DestroyOutcome =
   | { kind: 'not_found' }
 
 /**
- * DELETE /trash/tasks/:id. The folder owner destroys a trashed task and
+ * DELETE /trash/tasks/:id. A Full-control member destroys a trashed task and
  * everything that hung on it, the way the purge would have at thirty days.
  * Only a trashed row qualifies: the live delete is 7.6's soft one, and a
  * permanent delete that skipped Trash would be a second, shorter road to the
@@ -478,7 +506,8 @@ export async function destroyTask(
 }
 
 /**
- * DELETE /trash/folders/:id. The owner destroys a trashed folder: its
+ * DELETE /trash/folders/:id. The owner, holding Full control, destroys a
+ * trashed folder: its
  * tasks and their conversations, its page, its files rows and (after the
  * commit, by the caller) their bytes, its memberships and its events all go
  * by the named cascades, exactly as the purge takes them. No event records
