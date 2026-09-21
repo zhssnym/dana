@@ -1073,7 +1073,7 @@ export function FolderPage({
             <Button
               variant="ghost"
               size="icon"
-              aria-label="Conversation"
+              aria-label="Consultation"
               className="size-7 rounded-md text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-900)]"
               onClick={() => {
                 setPanelOpen(true)
@@ -1564,7 +1564,7 @@ export function FolderPage({
               foot (9.6). Its other home is the side panel below. */}
           {conversationHome === 'foot' ? (
             <CollapsibleSection
-              name="Conversation"
+              name="Consultation"
               defaultOpen={false}
               onOpenChange={setFootThreadOpen}
             >
@@ -1614,10 +1614,10 @@ export function FolderPage({
       >
         <SheetContent side="right" className="w-[380px]" overlayClassName="hidden">
           <SheetHeader>
-            <SheetTitle>Conversation</SheetTitle>
+            <SheetTitle>Consultation</SheetTitle>
             <SheetDescription>{detail?.name}</SheetDescription>
           </SheetHeader>
-          <PageSection name="Conversation">
+          <PageSection name="Consultation">
             <div className="overflow-y-auto px-4 pb-4">{threadSurface}</div>
           </PageSection>
         </SheetContent>
