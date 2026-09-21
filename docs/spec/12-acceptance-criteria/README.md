@@ -78,8 +78,10 @@ than scanning for it.** The two rows above it were assigned in the same breath a
 was readable from any tree when this was written: `backend/268` holds 790 and `backend/274`
 holds 800. **790 has since merged** — #268 landed on `main` at 616f982 and its row above is
 read from this tree rather than taken on trust, which is the only one of the three that
-changed; 800 is still only an assignment. Taking
-783, the number this section offered, would have been legal and useless — a block of one
+changed; **800 was an assignment when this paragraph was written and is readable from this
+tree since #274** — one bullet in 12.24 and
+`app/tests/criteria/ac-800-label-routes-resolve-through-access.test.ts`. Taking 783, the
+number this section offered, would have been legal and useless — a block of one
 wedged under two that are spoken for, leaving the line at 784 and the next branch to
 discover 790 and 800 by collision. **784 to 789, 791 to 799 and 801 to 809 are therefore
 gaps of the ordinary kind** and are not free by default, on the rule stated immediately
@@ -125,9 +127,12 @@ this line, for the reason the paragraph below gives about 790:
 next number is 783" while a sibling spends 790 is the collision this section exists to
 prevent. 800 rather than 791 so that the two do not have to be merged in a particular order —
 the two branches touch one line of this file and nothing else of each other's. **One number
-is spent, 800, and the line above is 801.** The resolution when this branch meets #268, or
-either of #247 and #263, is **the max of the two lines and every row**, which is the rule the
-#247 and #263 paragraph above states.
+is spent, 800, and the line above is 811.** It read 801 on this branch until the rebase of
+2026-09-21: #276 took 810 and merged first, so the line was already at 811 when this branch
+was replayed onto it, and this branch moves it no further — it spends 800 and nothing else.
+The resolution when this branch meets #268, or either of #247 and #263, is **the max of the
+two lines and every row**, which is the rule the #247 and #263 paragraph above states, and
+it is what that rebase applied.
 
 **`backend/268-comment-moderation-on-access` took 790 rather than 706, and the gap between
 them is not free** (written on that branch, 2026-09-20; its row is in the table above,
