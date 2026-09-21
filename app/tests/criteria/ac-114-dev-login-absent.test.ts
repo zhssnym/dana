@@ -14,7 +14,9 @@ It is compiled the way the build script compiles it, tsconfig.build.json, and
 the output goes under dist/, which is gitignored, and inside app/ so that the
 compiled modules still resolve node_modules. TypeScript is invoked through
 process.execPath rather than npx: npx would risk a network fetch, and spawning
-a .cmd shim throws EINVAL on current Node.
+a .cmd shim throws EINVAL on current Node. It is invoked with `--noCheck` since
+2026-09-20, which emits the same bytes without checking the types a second
+time; compileProductionBuild below carries the measurement and the reason.
 
 The route is then called twice, once with DANA_DEV_LOGIN set and NODE_ENV
 production, and once with DANA_DEV_LOGIN set and NODE_ENV development, which
@@ -96,6 +98,43 @@ async function serve(app: unknown): Promise<RunningApp> {
   return { origin: `http://127.0.0.1:${String(port)}`, server }
 }
 
+/*
+Emit, and deliberately not a second type-check (issue #273, 2026-09-20).
+
+**What was wrong.** This hook ran the whole production type-check inside the
+test leg, and on a loaded machine it was the first thing to fall: the 300 second
+cap was hit in CI runs 209, 210, 214 and 217 — four of the last five `main`
+runs, and 217 was otherwise 1762 of 1762 green. A leg that goes red on its own
+weight teaches everyone to re-run rather than to read, which is the actual cost.
+
+**Why `--noCheck` is the right size of change.** What AC-114 needs is the
+*emitted* server code, so that it can be booted and asked whether the route is
+there. It does not need the types checked a second time — `npm run typecheck`
+owns that, over `tsconfig.server.json`, whose file set is a superset of the one
+`tsconfig.build.json` narrows, so nothing goes unchecked as a result of this.
+`--noCheck` arrived in TypeScript 5.6 and this repository is on 5.9.3.
+
+Measured on a Linux container, idle, at the change: **12.3 and 13.0 seconds
+against 4.1 and 3.9**, and 11.7 seconds of CPU against 4.7. The two outputs
+were compared file by file and are **byte-identical**, 258 files either way.
+
+**Why not esbuild, which is installed and would take 0.4 seconds.** Measured, so
+the number is real, and rejected on what it would cost the third case below.
+A per-file transpile emits exactly the files it is handed, while tsc emits a
+tsconfig-*excluded* file whenever a resolvable import names it — which is the
+11.15 hazard that case exists to catch. Under esbuild, an implementation that
+imported `./dev-login.js` with a literal dynamic import would emit no such file,
+the loader would treat the failed load as a 404, and all three cases would pass
+over a build whose source imports the development login module. That is a check
+that cannot fail, and it is the shape of fault this whole branch was about.
+A bundle is worse again: it would inline the module and leave no file to find.
+
+So the mechanism changes and nothing else does. Every assertion below is
+untouched, and both halves were re-proved by mutation at the change: mounting
+the route unconditionally in `src/server/index.ts` turned the two behavioural
+cases red, and adding a literal `import './auth/dev-login.js'` to the same file
+made `tsc --noCheck` emit the module and turned the structural case red.
+*/
 async function compileProductionBuild(): Promise<void> {
   await rm(outDir, { recursive: true, force: true })
   const tsc = path.join(appDir, 'node_modules', 'typescript', 'bin', 'tsc')
@@ -104,7 +143,7 @@ async function compileProductionBuild(): Promise<void> {
     (resolve, reject) => {
       const child = spawn(
         process.execPath,
-        [tsc, '-p', 'tsconfig.build.json', '--outDir', outDir],
+        [tsc, '-p', 'tsconfig.build.json', '--outDir', outDir, '--noCheck'],
         { cwd: appDir },
       )
       let output = ''

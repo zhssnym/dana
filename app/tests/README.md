@@ -94,7 +94,12 @@ rather than their kind.
   section 12, or when the registry's allocator line names a number this tree has
   already spent; `guard-criterion-citations` (issue #257) fails when a sentence
   in `docs/spec/**` or `app/src/**` says a criterion **pins, asserts or proves**
-  something and nothing under `app/` runs that criterion. They are not criteria
+  something and nothing under `app/` runs that criterion; and `guard-gate-host`
+  (issue #273) fails if the gate record goes back to naming an engine version
+  nobody measured, or if the browser leg stops refusing a checkout whose path
+  carries a dot segment — it measures the Express behaviour that refusal exists
+  for, so the refusal can be deleted on evidence the day it stops being true.
+  They are not criteria
   and must never be renamed into the `ac-` family, which would claim section 12
   numbers that do not exist.
 

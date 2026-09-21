@@ -4,8 +4,12 @@ name: CI
 # 11.11 carries the amendment.
 #
 # The six steps and their order are normative: spec 11.11 fixes them as npm ci,
-# lint, typecheck, test on a real Postgres 18, build, Playwright. The PGlite leg
-# was the fourth until 11.11 was amended on 2026-09-20 and is gone.
+# lint, typecheck, test on a real Postgres, build, Playwright. The PGlite leg
+# was the fourth until 11.11 was amended on 2026-09-20 and is gone. That step
+# named "Postgres 18" until 11.11's 2026-09-20 amendment for issue #273: #235
+# made a sub-18 server able to run the leg, so the major version became job
+# configuration like the service container, and the gate record names the
+# version it measured rather than one written down in advance.
 # Changing the set or the order is an amendment there, not an edit here. Where
 # the job runs, where the postgres leg's database comes from, and which
 # interpreter a step's script is handed to are job configuration: they move
@@ -297,7 +301,7 @@ jobs:
       # echoed, and never named here. Unset and empty are one case because that
       # is exactly the seam's own fallback condition, so the two agree by
       # construction rather than by being kept in step.
-      - name: Test on a real Postgres 18
+      - name: Test on a real Postgres
         shell: cmd
         run: |
           if "%TEST_DATABASE_URL%"=="" (

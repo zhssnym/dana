@@ -68,6 +68,24 @@ CREATE TABLE labels (
   -- A person's Personal Labels go with their account (8.10), and a Folder's
   -- Labels go with the Folder when it is purged. Soft-deleting a Folder sets
   -- deleted_at and touches no row here, which is the rule #208 states.
+  --
+  -- **Corrected 2026-09-20 (issue #271): the first half of that sentence was
+  -- false the day it was written, and the sentence is kept above rather than
+  -- deleted so that a reader who has seen it elsewhere finds out here.** The
+  -- cascade below is real and correctly spelled. It has never fired. 8.10 step
+  -- 7 **scrubs** the users row rather than deleting it, deliberately, so that
+  -- authorship keeps resolving — and a row that is never deleted fires no
+  -- ON DELETE clause of any kind. So Personal Labels survived account deletion
+  -- from the day this file was applied until #253 swept them explicitly, and
+  -- every other CASCADE onto users(id) in this schema is inert in the same way:
+  -- nine of fifteen were keeping a departed account's rows when that was
+  -- measured. Nothing depends on this comment being right — 08.10,
+  -- tests/guards/guard-account-deletion-sweep.test.ts and AC-620 carry the
+  -- rule, and that guard is what makes it impossible for a sixteenth table to
+  -- acquire the same assumption unnoticed. **No SQL moved with this
+  -- correction**, the migrator gating on the journal timestamp and never on a
+  -- file's contents (drizzle-orm/pg-core/dialect.js; the hash it records is
+  -- written and never read back).
   CONSTRAINT labels_owner_user_id_fkey FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE,
   CONSTRAINT labels_folder_id_fkey FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE CASCADE
 );

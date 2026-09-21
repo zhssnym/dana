@@ -13,6 +13,14 @@ write the feature and you do not merge it.
 Fetch first, and rebase onto the head you actually read — `main` moves several
 times an hour when slices are landing.
 
+**Continue with `git -c core.commentChar=';' rebase --continue`, and diff every
+message you continued through against the original.** Under `GIT_EDITOR=true` the
+plain form applies git's default `cleanup=strip` and deletes every line of the
+message beginning with `#` — 15 lines from one commit, measured; our messages are
+markdown with `##` headings and cite issues at the start of a line. Only the
+*conflicted* commit is damaged, nothing reports it, and `git log --oneline` looks
+fine, so the diff is the only check. `CLAUDE.md` carries the mechanism (issue #277).
+
 **1. `app/db/migrations/meta/_journal.json`.** Both sides append after the last
 entry. Keep **both**, in **ascending** order, and renumber neither. Array order
 is apply order on a fresh database.
@@ -25,8 +33,9 @@ diffs: **run the sweep and read the number it reports.** Keep both sides'
 comments coherent rather than dropping one.
 
 There are **five** such counts across those three files — `ac-236` pins two,
-`ac-399` pins two — and `docs/workflow/backend.md` names only two of
-them. Issue #240 covers that.
+`ac-399` pins two — and `docs/workflow/backend.md` now names all seven movable
+counts in the suite, those five among them (issue #240; #263 added the seventh).
+The sentence here that said it named only two was true until #240 landed.
 
 **3. `docs/spec/12-acceptance-criteria/`.** Several branches spend numbers from
 the tail at once. Keep every side's bullets. The per-file totals are the last
