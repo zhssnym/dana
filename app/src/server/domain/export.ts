@@ -74,6 +74,7 @@ import type {
   ExportCollection,
   ExportComment,
   ExportDocument,
+  ExportFacet,
   ExportFile,
   ExportFolder,
   ExportForeignTask,
@@ -83,8 +84,10 @@ import type {
   ExportStep,
   ExportTask,
 } from '../../shared/export.js'
+import type { FacetKind } from '../../shared/facets.js'
 import { idSet, rowsOf } from '../database.js'
 import { listViews, readBundle } from './bundle.js'
+import { resolveFacetName } from './facets.js'
 import { listPlaceCovers } from './covers.js'
 import { listPlaceDescriptions } from './place-descriptions.js'
 
@@ -787,6 +790,62 @@ export async function exportForViewer(
   )
   const blocksByShelf = groupBy(shelfBlockRows, 'shelf_id')
 
+  /*
+  Ruling 7 of the #210 addendum, https://github.com/zhssnym/dana/issues/210#issuecomment-5757696835:
+  the person's own Folder facets and their documents.
+
+  **The membership join is the scope and it is inside the FROM clause**, as
+  every other statement here has it. Two conditions, and the second is the one
+  that matters: `ff.owner_id = viewer` takes the private facets -- all of them,
+  in every folder this person is currently in, owned or not -- and
+  `fo.owner_id = viewer` takes the shared ones only where the folder page
+  beside them is already being carried under `folders.blocks`. That second
+  clause is the "shared facets follow the folder page" rule the ruling asks
+  7.22 to state in words, written as SQL.
+
+  Trashed facets come too, with `trashed` set, as a trashed folder does; the
+  export is what the person has, and a thirty-day window has not closed yet.
+  `h1.text` is joined for the same reason 7.27 joins it: a Work facet's name is
+  its heading's at read time, and an export that stored a different word would
+  read back tabs nobody recognises.
+  */
+  const facetRows = await rowsOf(
+    db,
+    sql`SELECT ff.id, ff.folder_id, ff.kind, ff.owner_id, ff.display_name,
+               ff.hidden, ff.position, ff.h1_block_id, ff.created_at,
+               ff.updated_at, ff.deleted_at, h1.text AS h1_text
+          FROM folder_facets ff
+          JOIN folders fo ON fo.id = ff.folder_id
+          JOIN folder_members m
+            ON m.folder_id = ff.folder_id AND m.user_id = ${viewerId}
+          LEFT JOIN page_blocks h1 ON h1.id = ff.h1_block_id
+         WHERE ff.owner_id = ${viewerId}
+            OR (ff.owner_id IS NULL AND fo.owner_id = ${viewerId})
+         ORDER BY ff.folder_id ASC, ff.position ASC, ff.id ASC
+         LIMIT ${FETCH}`,
+  )
+  const facets = truncation.apply('facets', facetRows)
+
+  const facetBlockRows =
+    facets.length === 0
+      ? []
+      : await rowsOf(
+          db,
+          cappedPerParent(
+            sql`b.id, b.facet_id, b.kind, b.position, b.text, b.file_id,
+                b.ref_folder_id, b.width_pct, b.updated_at, b.rich_content,
+                b.section_block_id, b.list_parent_block_id, b.checked,
+                b.page_position`,
+            sql`FROM page_blocks b
+                WHERE b.facet_id IN ${idSet(
+                  facets.map((row) => String(row.id)),
+                )}`,
+            sql`b.facet_id`,
+            sql`b.page_position ASC NULLS LAST, b.position ASC, b.id ASC`,
+          ),
+        )
+  const blocksByFacet = groupBy(facetBlockRows, 'facet_id')
+
   const fileRows = await rowsOf(
     db,
     sql`SELECT id, kind, name, mime, bytes, width, height, duration_ms,
@@ -899,6 +958,29 @@ export async function exportForViewer(
     }
   })
 
+  const exportedFacets: ExportFacet[] = facets.map((row) => {
+    const id = String(row.id)
+    const kind = String(row.kind) as FacetKind
+    const displayName = nullableString(row.display_name)
+    return {
+      id,
+      folder_id: String(row.folder_id),
+      kind,
+      name: resolveFacetName(kind, displayName, nullableString(row.h1_text)),
+      display_name: displayName,
+      hidden: row.hidden === true,
+      private: row.owner_id !== null && row.owner_id !== undefined,
+      position: String(row.position),
+      h1_block_id: nullableString(row.h1_block_id),
+      created_at: toIso(row.created_at),
+      updated_at: toIso(row.updated_at),
+      trashed: row.deleted_at !== null && row.deleted_at !== undefined,
+      blocks: truncation
+        .apply('facets.blocks', blocksByFacet.get(id) ?? [])
+        .map(blockFrom),
+    }
+  })
+
   return {
     format: EXPORT_FORMAT,
     version: EXPORT_VERSION,
@@ -928,6 +1010,7 @@ export async function exportForViewer(
       })),
     },
     folders: exportedFolders,
+    facets: exportedFacets,
     tasks_elsewhere: exportedForeign,
     responsibilities: responsibilityCurrent.map((row) => {
       const id = String(row.id)

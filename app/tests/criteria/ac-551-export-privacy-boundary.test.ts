@@ -29,7 +29,18 @@ becoming "tasks" — and no definition is added for a Label the viewer cannot
 read, because that would be the disclosure the paragraph above is about. The
 fixture names an inaccessible Label id in a saved View and asserts both.
 
-Spec: 7.22, 4.19, 10.2, 10.9. Issue #227 areas 5 and 6, #208 R4.
+## And the facets, added 2026-09-21 by Ruling 7 of the #210 addendum
+
+https://github.com/zhssnym/dana/issues/210#issuecomment-5757696835. The `facets` collection is
+the one place the export carries content from a Folder the person does **not** own, beside
+`tasks_elsewhere`, so it is the one place the same question has to be asked again. The
+answer the ruling gives: every facet whose `owner_id` is the exporting person, wherever it
+is, and shared facets only where the folder page beside them is already carried. The third
+case drives both halves and the negative one -- another member's private facet is absent
+from the document by id and by its writing, which is the disclosure the whole privacy rule
+exists to refuse.
+
+Spec: 7.22, 4.19, 7.27, 10.2, 10.9. Issue #227 areas 5 and 6, #208 R4, #210 Ruling 7.
 */
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
@@ -51,6 +62,10 @@ import {
   putTaskLabel,
 } from '../support/labels-harness.js'
 import { createTaskOk } from '../support/tasks-harness.js'
+import {
+  createFacetOk,
+  writeFacetParagraph,
+} from '../support/facets-harness.js'
 
 let app: AuthTestApp
 const cast = new Cast(['host', 'guest'], 'ac531')
@@ -210,6 +225,101 @@ describe('AC-551 an export is the viewer’s data and stops there', () => {
     expect(
       document.folders.some((row) => row.id === hostFolder),
       'nor the folder it lives in',
+    ).toBe(false)
+  })
+
+  test('a private facet is in its owner’s export and in nobody else’s', async () => {
+    const [host, guest] = (await cast.of(app)) as [Actor, Actor]
+    await connect(app.db, host.id, guest.id)
+
+    const hostFolder = await createFolder(host, 'ac551 the host’s folder')
+    await addMemberOk(host, hostFolder, guest.id)
+
+    /* Three facets in one Folder the **host** owns: the guest's own private
+       one, the host's own private one, and a shared one. The guest's export
+       must carry the first and neither of the other two. */
+    const guestPrivate = await createFacetOk(guest, hostFolder, {
+      kind: 'private_blank',
+      display_name: 'ac551 the guest’s own',
+    })
+    expectStatus(
+      await writeFacetParagraph(
+        guest,
+        hostFolder,
+        guestPrivate.id,
+        crypto.randomUUID(),
+        'ac551 the guest wrote this',
+      ),
+      200,
+      'the guest writes their own private facet',
+    )
+
+    const hostPrivate = await createFacetOk(host, hostFolder, {
+      kind: 'private_blank',
+      display_name: 'ac551 the host’s own',
+    })
+    expectStatus(
+      await writeFacetParagraph(
+        host,
+        hostFolder,
+        hostPrivate.id,
+        crypto.randomUUID(),
+        'ac551 the host wrote this',
+      ),
+      200,
+      'and the host theirs',
+    )
+
+    const shared = await createFacetOk(host, hostFolder, {
+      kind: 'shared_blank',
+      display_name: 'ac551 the Folder’s',
+    })
+
+    const guestDocument = await exportOf(guest)
+    const guestFacets = guestDocument.facets
+
+    expect(
+      guestFacets.map((facet) => facet.id),
+      "the guest's own private facet is in their export, although the Folder it sits in is somebody else's: it is content only they can reach, which is what the export is for (Ruling 7)",
+    ).toContain(guestPrivate.id)
+    expect(
+      guestFacets.find((facet) => facet.id === guestPrivate.id)?.blocks.map(
+        (block) => block.text,
+      ),
+      'with its document, in 4.17’s storage format',
+    ).toEqual(['ac551 the guest wrote this'])
+
+    expect(
+      JSON.stringify(guestDocument).includes(hostPrivate.id),
+      "and the host's private facet is absent from the guest's document entirely, by id",
+    ).toBe(false)
+    expect(
+      JSON.stringify(guestDocument).includes('ac551 the host wrote this'),
+      'and by its writing, which is the disclosure the whole rule is about',
+    ).toBe(false)
+    expect(
+      guestFacets.map((facet) => facet.id),
+      "nor the shared facet: a shared facet follows the folder page it sits beside, and this Folder's page is not in the guest's export because they do not own it",
+    ).not.toContain(shared.id)
+
+    /* The other direction, which is what makes the three assertions above a
+       boundary rather than an empty collection: the host's export carries
+       their own private facet and the shared one, because they own the
+       Folder -- and still not the guest's. */
+    const hostDocument = await exportOf(host)
+    const hostFacets = hostDocument.facets.map((facet) => facet.id)
+    expect(hostFacets, "the host's own private facet").toContain(hostPrivate.id)
+    expect(
+      hostFacets,
+      'and the shared one, because the folder page beside it is carried too',
+    ).toContain(shared.id)
+    expect(
+      JSON.stringify(hostDocument).includes(guestPrivate.id),
+      "and not the guest's, although the host owns the Folder it is in: ownership is custody and never authority, and `facet.read` admits no preset",
+    ).toBe(false)
+    expect(
+      JSON.stringify(hostDocument).includes('ac551 the guest wrote this'),
+      'nor its writing',
     ).toBe(false)
   })
 })

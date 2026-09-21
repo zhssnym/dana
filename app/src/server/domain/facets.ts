@@ -19,7 +19,7 @@ existed. Lazy creation would mean a GET writes, two members race
 creates rows or answers differently from a Can-edit member's. #210's "stable
 internal identity" is a fact of the folder rather than of whoever looked first.
 
-**A facet's name is resolved on the read and stored nowhere.** `resolveName`
+**A facet's name is resolved on the read and stored nowhere.** `resolveFacetName`
 is the one function that knows the rule, and a Work facet's name is its H1
 block's `text` **at this moment** -- so renaming the heading renames the facet,
 and there is deliberately no rename path that could disagree with it.
@@ -92,7 +92,10 @@ function nullableInt(value: unknown): number | null {
 }
 
 /**
- * The name rule, and the only place it is written.
+ * The name rule, and the only place it is written. Exported since Ruling 7
+ * of the #210 addendum, because 7.22's export resolves a facet's name exactly
+ * as 7.27 does -- a second copy of this rule is how an export comes to read
+ * back tabs nobody recognises.
  *
  * Main and Consultation are fixed. Purpose and Results are their override or
  * their default, and **NULL is the default rather than an absence**, which is
@@ -101,7 +104,11 @@ function nullableInt(value: unknown): number | null {
  * text is empty answers the empty string, because that is what the heading
  * says and inventing a name for it would be a second source.
  */
-function resolveName(kind: FacetKind, displayName: string | null, h1Text: string | null): string {
+export function resolveFacetName(
+  kind: FacetKind,
+  displayName: string | null,
+  h1Text: string | null,
+): string {
   if (kind === 'work') return h1Text ?? ''
   if (isBlankFacetKind(kind)) return displayName ?? ''
   if (isRenameableFacetKind(kind)) {
@@ -117,7 +124,7 @@ function facetFromRow(row: Record<string, unknown>): Facet {
   return {
     id: String(row.id),
     kind,
-    name: resolveName(kind, displayName, nullableString(row.h1_text)),
+    name: resolveFacetName(kind, displayName, nullableString(row.h1_text)),
     display_name: displayName,
     hidden: row.hidden === true,
     /* A projection of `owner_id`, and they cannot disagree:
@@ -1021,7 +1028,11 @@ export async function trashedFacets(
     const kind = String(row.kind) as FacetKind
     return {
       id: String(row.id),
-      name: resolveName(kind, nullableString(row.display_name), nullableString(row.h1_text)),
+      name: resolveFacetName(
+        kind,
+        nullableString(row.display_name),
+        nullableString(row.h1_text),
+      ),
       kind,
       folder_id: String(row.folder_id),
       folder_name: String(row.folder_name),

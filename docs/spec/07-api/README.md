@@ -212,6 +212,17 @@ survive. It is written into 7.27 rather than inferred because a client that drew
 facet for somebody who has just left is drawing a row that no longer exists rather than one
 it may not read, and those are different bugs.
 
+**Fourteenth, and it is the addendum's other half: 7.22 takes a dated amendment for
+Ruling 7, 2026-09-21** (https://github.com/zhssnym/dana/issues/210#issuecomment-5757696835). `EXPORT_VERSION` goes **5 → 6** and the document
+gains a top-level `facets` collection — the exporting person's own facets in every Folder
+they are in, with their documents, and shared facets on the same terms as the Folder page
+they sit beside, which 7.22 now says in words. **No endpoint, status or refusal moves**,
+and the shape is purely additive: what moves is the version number, which moves precisely
+so that a reader of the old one refuses rather than quietly strips a collection it does
+not know. It is here because an export that omitted a private facet would hand somebody a
+copy of their own data with their own writing missing, and that is a change to what this
+section promises.
+
 | | File | Covers |
 | - | - | - |
 | 7.0 | [`07.0-conventions.md`](07.0-conventions.md) | 7.0 Conventions |
