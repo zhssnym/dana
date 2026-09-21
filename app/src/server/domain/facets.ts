@@ -1293,7 +1293,18 @@ export async function applyFacetDocument(
     const blocks = new Set(original)
 
     const writes = new Map<string, Extract<DocumentOperation, { op: 'put_block' }>>()
-    const deletes = new Set<string>()
+    /**
+     * Every id the operations **name**, whether or not it survives the merge.
+     *
+     * This set exists because the merged set does not answer the question.
+     * `blocks` is what the document will hold when the transaction is done, so
+     * an id that a `put_block` added and a `delete_block` took away again is
+     * absent from it -- and that pair is exactly what the adversarial review
+     * of 16ce81b used to reach somebody else's rows. The scope check below
+     * reads this instead, so an id is audited because it was *mentioned*, not
+     * because it happened to still be in the document afterwards.
+     */
+    const named = new Set<string>()
     let outline: { id: string; kind: 'block' | 'task'; listParent: string | null }[] = []
 
     for (const op of body.operations) {
@@ -1321,13 +1332,21 @@ export async function applyFacetDocument(
         }
         writes.set(op.id, op)
         blocks.add(op.id)
+        named.add(op.id)
         continue
       }
       if (op.op === 'delete_block') {
         if (!blocks.delete(op.id)) {
+          /* **404 and not the 422 below, on 10.2.** With no `put_block` beside
+             it the caller has named a block this document does not hold and
+             has asked for nothing to be written; "Block not found" says
+             nothing about whether the id exists somewhere else, which is the
+             answer a prober must get. The 422 below fires only where the
+             caller also tried to *write* the id, which 7.16's own folder-page
+             applier already answers with a refusal naming the clash. */
           throw new FacetDocumentRefusal('not_found', 'Block not found.')
         }
-        deletes.add(op.id)
+        named.add(op.id)
         continue
       }
       outline = op.items.map((item) => ({
@@ -1388,26 +1407,70 @@ export async function applyFacetDocument(
       }
     }
 
-    const fresh = [...blocks].filter((id) => !original.has(id))
-    if (fresh.length > 0) {
-      const collisions = await rowsOf(
-        tx,
-        sql`SELECT id FROM page_blocks
-             WHERE id IN (${sql.join(fresh.map((id) => sql`${id}::uuid`), sql`, `)})
-               AND (facet_id IS NULL OR facet_id <> ${facetId}::uuid)`,
+    /*
+    **The scope check, and it is the one this function got wrong.** Found by
+    the adversarial review of 16ce81b: `[put_block(victimId),
+    delete_block(victimId), set_outline(...)]` made the id vanish from the
+    merged set before the collision check read it, and the write pass then
+    issued `DELETE FROM page_blocks WHERE id = $1` with no `facet_id` clause.
+    **Any block in Dana could be deleted by anyone holding its id**, through a
+    private facet in their own Desk, with no membership of the folder it lived
+    in. AC-845 drives the review's two probes.
+
+    Three things close it, and each is load-bearing on its own:
+
+    1. **This check reads `named` rather than the merged set**, so an id is
+       audited because the operations mentioned it. `original` holds every
+       block this facet has, so an id outside it that exists anywhere at all --
+       another facet, a folder page, a shelf page, or a Task -- is not this
+       facet's to write.
+    2. **Deletions are derived rather than accumulated**, below: `original`
+       minus the final set, which is `page-document.ts`'s own shape and cannot
+       name a row the facet did not already hold.
+    3. **The statement carries `AND facet_id = $facetId`.** Redundant given (2)
+       and written anyway, because (2) is an invariant of twenty lines of
+       merging while this is a clause on the statement that does the damage.
+
+    `tasks` is in the union for the reason 7.16's applier puts it there: ids
+    are one space across the two tables, and a block minted over a Task's id
+    would make one identity name two things.
+    */
+    const foreign = [...named].filter((id) => !original.has(id))
+    if (foreign.length > 0) {
+      const ids = sql.join(
+        foreign.map((id) => sql`${id}::uuid`),
+        sql`, `,
       )
-      if (collisions.length > 0) {
+      const clashes = await rowsOf(
+        tx,
+        sql`SELECT id FROM page_blocks WHERE id IN (${ids})
+            UNION ALL
+            SELECT id FROM tasks WHERE id IN (${ids})`,
+      )
+      if (clashes.length > 0) {
         throw new FacetDocumentRefusal(
           'invalid',
-          'An inserted identity already exists.',
+          "names a block this facet does not hold; an identity that already exists elsewhere is not this facet's to write",
           'operations',
         )
       }
     }
 
-    // Every refusal precedes the first write.
-    for (const id of deletes) {
-      await tx.execute(sql`DELETE FROM page_blocks WHERE id = ${id}::uuid`)
+    /* Every refusal precedes the first write, and the deletions are whatever
+       is left of this facet's **own** blocks after the merge -- never a set the
+       operations built. */
+    const removed = [...original].filter((id) => !blocks.has(id))
+    for (const id of [...writes.keys()]) {
+      /* A block put and then deleted in one transaction is written by neither
+         pass. Without this it would be inserted after being "removed", which
+         is the merged set's own semantics said out loud. */
+      if (!blocks.has(id)) writes.delete(id)
+    }
+    for (const id of removed) {
+      await tx.execute(
+        sql`DELETE FROM page_blocks
+             WHERE id = ${id}::uuid AND facet_id = ${facetId}::uuid`,
+      )
     }
     for (const write of writes.values()) {
       await tx.execute(
