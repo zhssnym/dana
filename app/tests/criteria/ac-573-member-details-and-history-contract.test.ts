@@ -7,15 +7,25 @@ structurally, so nothing has to read a sentence to know what happened.
 Issue #230 required proofs 22 and 23. Product authority: #230 "Member-details
 backend contract" and "History presentation contract", #209 R9A.
 
-## And the history route's own contract, added 2026-09-21
+## And the history route's own contract
 
-The read is **newest first**, capped, and says `truncated` when the cap cut.
-That was ruled on #230 after this branch's adversarial review found the
-opposite: `effective_at ASC` with a silent `LIMIT 200` served a busy folder
-the *oldest* two hundred entries forever and told nobody there were more, so a
-panel asking "what changed lately" rendered the record's first fortnight and
-looked right doing it. Nothing in the suite could see it, because no case had
-more entries than the cap. The case below makes some.
+The read is **newest first**, capped at **10.3's 1000 rows**, and says
+`truncated` when the cap cut. That was ruled on #230 —
+https://github.com/zhssnym/dana/issues/230#issuecomment-5754627068, Ruling 3,
+2026-09-21 — after this branch's adversarial reviews found the opposite:
+`effective_at ASC` with a silent `LIMIT 200` served a busy folder the *oldest*
+two hundred entries forever and told nobody there were more, so a panel asking
+"what changed lately" rendered the record's first fortnight and looked right
+doing it. Nothing in the suite could see it, because no case had more entries
+than the cap. The cases below make some.
+
+**Two cases rather than one, and the second is the one that reads the
+comparison.** Past the cap, 1005 entries, proves the cut and the order. At
+exactly the cap, 1000 entries, proves that `truncated` is `found.length >
+limit` and not `>=`: a record that fits exactly is whole and says so, which is
+the boundary the ruling states in terms. Mutating the `>` in
+`responsibilityHistoryOf` to `>=` leaves the past-the-cap case green and fails
+only this one.
 
 ## Proof 22 is about a number, so it counts
 
@@ -328,9 +338,10 @@ describe('AC-573 the member-details projection and the history contract', () => 
       '10.3: a list that fit says so, so `truncated` is a fact about this answer rather than a field that is always true',
     ).toBe(false)
 
-    /* Past the cap. 205 rather than 201 so that the assertion is about the
-       limit rather than about an off-by-one at it. */
-    await seedGrantEntries(app.db, folderId, subject.id, deputy.id, 205)
+    /* Past the cap. 1005 rather than 1001 so that the assertion is about the
+       limit rather than about an off-by-one at it; the case below is the one
+       that is about the boundary itself. */
+    await seedGrantEntries(app.db, folderId, subject.id, deputy.id, 1005)
 
     const response = await readResponsibilityHistory(
       deputy,
@@ -344,8 +355,8 @@ describe('AC-573 the member-details projection and the history contract', () => 
     }
     expect(
       body.entries.length,
-      "the cap is 200 and it holds: a folder's record is not an unbounded response (10.3)",
-    ).toBe(200)
+      "the cap is 10.3's 1000 and it holds: a folder's record is not an unbounded response",
+    ).toBe(1000)
     expect(
       body.truncated,
       '**and the answer says it was cut**, which is the half the first version of this route did not have: a short list is never silently short',
@@ -354,7 +365,7 @@ describe('AC-573 the member-details projection and the history contract', () => 
     const times = body.entries.map((entry) => entry.effective_at)
     expect(
       [...times].sort().reverse(),
-      'newest first: the page served is the most recent 200 rather than the oldest, which is what every surface reading this wants and is what the cap makes a decision rather than an accident',
+      'newest first: the page served is the most recent 1000 rather than the oldest, which is what every surface reading this wants and is what the cap makes a decision rather than an accident',
     ).toEqual(times)
     expect(
       body.entries.some(
@@ -362,6 +373,66 @@ describe('AC-573 the member-details projection and the history contract', () => 
       ),
       'and the creation, which is the oldest entry of this record, is the one the cut dropped rather than the one it kept',
     ).toBe(false)
+  })
+
+  test('AC-573: a record holding exactly the cap comes back whole and says it was not cut', async () => {
+    const [owner, deputy, subject] = (await cast.of(app)) as Actor[] as [
+      Actor,
+      Actor,
+      Actor,
+    ]
+    const folderId = await sharedFolder(app, owner, 'AC-573 at the cap', [
+      [deputy, 'full_control'],
+      [subject, 'can_view'],
+    ])
+    await commitOk(deputy, folderId, subject.id, paragraph('Their scope'))
+
+    /* The arithmetic is written out rather than assumed: the commit above is
+       the record's one entry, and the seed makes it up to exactly the cap. */
+    const opening = (
+      await readResponsibilityHistory(deputy, folderId, subject.id)
+    ).json() as { entries: { transition: string }[]; truncated: boolean }
+    expect(
+      opening.entries.length,
+      'the commit wrote one entry, the document creation',
+    ).toBe(1)
+    await seedGrantEntries(
+      app.db,
+      folderId,
+      subject.id,
+      deputy.id,
+      1000 - opening.entries.length,
+    )
+
+    const response = await readResponsibilityHistory(
+      deputy,
+      folderId,
+      subject.id,
+    )
+    expectStatus(response, 200, 'the history read answers a current member')
+    const body = response.json() as {
+      entries: { transition: string }[]
+      truncated: boolean
+    }
+    expect(
+      body.entries.length,
+      'a record of exactly 1000 entries comes back whole: the query asks for cap + 1 rows and the extra one is the only evidence of a cut, so nothing is dropped when there is no extra one',
+    ).toBe(1000)
+    /* **This is the assertion that tells `>` from `>=`.** `truncated` is
+       `found.length > limit`; written `>=` it would report a cut here, where
+       nothing was cut, and the past-the-cap case above would stay green. The
+       ruling states this boundary in terms: a record holding exactly the cap
+       answers whole with `truncated: false`. */
+    expect(
+      body.truncated,
+      'and it says so: 10.3 makes `truncated` a fact about whether a row was dropped, not about whether the cap was reached',
+    ).toBe(false)
+    expect(
+      body.entries.some(
+        (entry) => entry.transition === 'responsibility_created',
+      ),
+      'the oldest entry of the record is still in the answer, which is what "whole" means here',
+    ).toBe(true)
   })
 
   test('AC-573 proof 23: the viewer-dependent flags track the viewer and authorize nothing', async () => {

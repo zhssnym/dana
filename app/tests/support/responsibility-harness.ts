@@ -291,10 +291,23 @@ export function transitionsOf(
  *
  * **A fixture rather than an act, and the one thing in this file that writes
  * the record without going through a route.** The cap on the history read is
- * 200, and a case that drives it through the API would be 200 HTTP round
- * trips to prove an ordering; the toggles carry no content and no revision
- * number, so nothing about a document's own immutability is being faked here.
- * The entry each one imitates is the one the grant route really writes.
+ * 10.3's 1000 rows, and a case that drives it through the API would be a
+ * thousand HTTP round trips to prove an ordering. One multi-row INSERT
+ * rather than `count` statements for the same reason: at the cap the loop
+ * this replaced was a thousand round trips of its own.
+ *
+ * **Two ways it is not what the grant route writes, neither of which touches
+ * what AC-573 asserts.** It writes `responsibility_id` NULL where the real
+ * route writes the active document's id — the column is nullable because a
+ * grant toggle can precede any document, and the history read projects the
+ * column rather than joining through it, so a NULL changes no ordering, no
+ * count and no flag. And it stamps `effective_at` into the future, one second
+ * per row, where the real route takes transaction time; that is what makes
+ * these rows unambiguously the newest and gives the ordering assertion
+ * something to be wrong about, and no assertion here compares an
+ * `effective_at` against a clock. What the toggles genuinely share with the
+ * real entry is the part under test: no content, no revision number, so
+ * nothing about a document's own immutability is being faked.
  */
 export async function seedGrantEntries(
   db: Db,
@@ -303,18 +316,20 @@ export async function seedGrantEntries(
   actorId: string,
   count: number,
 ): Promise<void> {
-  for (let index = 0; index < count; index += 1) {
+  if (count === 0) return
+  const values = Array.from({ length: count }, (_unused, index) => {
     const transition =
       index % 2 === 0 ? 'self_edit_granted' : 'self_edit_revoked'
-    await db.execute(
-      sql`INSERT INTO folder_responsibility_history
-            (folder_id, member_id, responsibility_id, transition, actor_id,
-             effective_at)
-          VALUES (${folderId}::uuid, ${memberId}::uuid, NULL, ${transition},
-                  ${actorId}::uuid,
-                  now() + (${String(index + 1)} || ' seconds')::interval)`,
-    )
-  }
+    return sql`(${folderId}::uuid, ${memberId}::uuid, NULL, ${transition},
+                ${actorId}::uuid,
+                now() + (${String(index + 1)} || ' seconds')::interval)`
+  })
+  await db.execute(
+    sql`INSERT INTO folder_responsibility_history
+          (folder_id, member_id, responsibility_id, transition, actor_id,
+           effective_at)
+        VALUES ${sql.join(values, sql`, `)}`,
+  )
 }
 
 /** The current document row, read from the table. */

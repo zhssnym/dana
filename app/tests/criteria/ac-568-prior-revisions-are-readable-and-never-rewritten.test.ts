@@ -119,10 +119,12 @@ describe('AC-568 prior revisions are readable and never rewritten', () => {
     const revisions = body.entries.filter(
       (entry) => entry.revision_no !== null,
     )
-    /* **Newest first**, ruled on #230 on 2026-09-21 after the adversarial
-       review found the opposite order serving the oldest page of a capped
-       record and saying nothing. This assertion is the order's pin at the
-       route; AC-573 drives the cap and the flag. */
+    /* **Newest first**, ruled on #230 —
+       https://github.com/zhssnym/dana/issues/230#issuecomment-5754627068,
+       Ruling 3, 2026-09-21 — after the adversarial review found the opposite
+       order serving the oldest page of a capped record and saying nothing.
+       This assertion is the order's pin at the route; AC-573 drives 10.3's
+       cap and the flag, including the boundary at exactly the cap. */
     expect(
       revisions.map((entry) => entry.revision_no),
       'three commits, three revisions, newest first',

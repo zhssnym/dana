@@ -145,11 +145,22 @@ refuse rather than strip, which 7.22's own table records for all five numbers.
 
 **One thing inside this amendment is a decision rather than an addition, and it is recorded
 here because it changes an answer nobody had seen yet.** The Responsibility history read
-answers **newest first** and carries `truncated`, ruled on the same issue on 2026-09-21
-after the branch's adversarial review found the first implementation serving the *oldest*
-two hundred entries of a capped record and saying nothing about the rest. It moves no
-shipped contract — the route is new in this same change — and it is 10.3's list-response
-rule applied where it was missing.
+answers **newest first**, takes **10.3's cap of 1000 rows** rather than one of its own, and
+carries `truncated`, which is a second ruling on the same issue,
+https://github.com/zhssnym/dana/issues/230#issuecomment-5754627068 **(Ruling 3,
+2026-09-21)** — taken after this change's second adversarial review found the first
+implementation serving the *oldest* two hundred entries of a capped record and saying
+nothing about the rest. It moves no shipped contract — the route is new in this same change
+— and it is 10.3's list-response rule applied where it was missing, which is why 10.3 is
+not amended. A record holding exactly the cap answers whole with `truncated: false`.
+
+**7.22's collection list is corrected to match the code in the same change, and it is four
+names rather than this branch's two** (Ruling 4, same comment). `EXPORT_COLLECTIONS` on
+`main` has carried `personal_labels` and `folders.labels` since issue #227 and 7.22 never
+listed them; this change adds those two beside its own `responsibilities` and
+`responsibilities.revisions`, so the section now names all seventeen collections in both
+directions. The two older names are a **transcription correction** — the code shipped and
+the section was not updated with it — and not a contract change.
 
 | | File | Covers |
 | - | - | - |

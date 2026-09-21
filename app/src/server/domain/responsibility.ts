@@ -64,6 +64,7 @@ import type {
   ResponsibilityStanding,
   ResponsibilityTransition,
 } from '../../shared/responsibility.js'
+import { LIST_ROW_CAP } from '../../shared/list-cap.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { documentHash } from './document-hash.js'
@@ -308,14 +309,29 @@ async function recordResponsibilityTransition(
  * The Folder's Responsibility record, or one member's slice of it, **newest
  * first**, capped, and saying so when the cap cut.
  *
- * **Newest first and the flag are one decision, taken 2026-09-21 out of this
- * branch's adversarial review** and ruled on issue #230. Oldest-first with a
- * silent cap is the worst of both: a member with more entries than the limit
- * was served the *oldest* 200 and told nothing, so the panel that wants "what
- * changed lately" rendered the first fortnight of a folder's life forever and
- * looked correct doing it. Newest first makes the truncated tail the part
- * nobody asked for, and `truncated` is 10.3's list-response rule applied here
- * rather than an invention: a short list is never silently short.
+ * **Newest first and the flag are one decision, taken out of this branch's
+ * second adversarial review and ruled on issue #230**
+ * https://github.com/zhssnym/dana/issues/230#issuecomment-5754627068
+ * **(Ruling 3, 2026-09-21).** Oldest-first with a silent cap is the worst of
+ * both: a member with more entries than the limit was served the *oldest*
+ * page and told nothing, so the panel that wants "what changed lately"
+ * rendered the first fortnight of a folder's life forever and looked correct
+ * doing it. Newest first makes the truncated tail the part nobody asked for,
+ * and `truncated` is 10.3's list-response rule applied here rather than an
+ * invention: a short list is never silently short.
+ *
+ * **The cap is 10.3's own and not a number of this route's**, which is the
+ * rest of that ruling: `LIST_ROW_CAP` is imported rather than restated,
+ * because 10.3's first row is a rule about list responses — `GET /labels`
+ * took it on 2026-09-20 for that reason — and a second cap here would be the
+ * contract decision 10.3 says its table has not taken. `truncated` is
+ * strictly `>`: a record holding exactly the cap is complete and says so.
+ *
+ * **What the cap does not make this is a paged read.** The worst case of this
+ * answer is a thousand entries each carrying a document snapshot, bounded by
+ * the 256 KiB content cap and by nothing else. A paged read, or a list shape
+ * without `content` beside a per-revision body route, is the real answer and
+ * is a contract decision for a later issue (same ruling).
  *
  * R9A's boundary applies here exactly as it does to Access history: #230 owns
  * the truth of these records and makes them renderable by Folder History and
@@ -341,10 +357,28 @@ export async function responsibilityHistoryOf(
     options.memberId === undefined
       ? sql``
       : sql` AND h.member_id = ${options.memberId}`
-  const limit = Math.min(Math.max(options.limit ?? 200, 1), 500)
+  const limit = Math.min(
+    Math.max(options.limit ?? LIST_ROW_CAP, 1),
+    LIST_ROW_CAP,
+  )
   /* One row past the cap, which is how `truncated` is answered without a
      second COUNT over the same predicate: if the extra row came back the cap
      cut, and it is dropped before anyone sees it. */
+  /* **`ORDER BY h.effective_at DESC, h.id DESC` has no monotonic tie-break,
+     and that is deliberate rather than overlooked** (Ruling 5,
+     https://github.com/zhssnym/dana/issues/230#issuecomment-5754627068).
+     `id` is a random uuid and carries no order, and `effective_at` defaults
+     to transaction time, which is identical for every row one transaction
+     writes — so two entries appended by one transaction for one member would
+     tie, and `id DESC` would break that tie arbitrarily rather than by age.
+     The tie is unreachable today because every writer appends exactly one
+     entry per transaction per (folder, member): `setSelfEditGrant`,
+     `writeRevision` and `endResponsibilityStanding` are the three, and each
+     records one transition for the member it names. **The first writer to
+     append two entries for one member in one transaction owes this query a
+     monotonic tie-break** — a sequence, or a per-member ordinal — and adding
+     one is that change's job, not a later reader's guess at what the order
+     was meant to be. */
   const found = await rowsOf(
     executor,
     sql`SELECT h.id, h.folder_id, h.member_id, h.responsibility_id,
