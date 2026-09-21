@@ -96,7 +96,7 @@ paragraphs in the file.
 | - | - |
 | `spec/` | The contract, by numbered section. Sections **4** and **7** are frozen and change only by a ruling on the issue, before the code (`workflow/hard-stops.md`). Section **12** is the acceptance criterion number allocator |
 | `workflow/` | How work runs. Start at `workflow/workflow.md`, then your side's file |
-| `rfcs/` | History. RFCs 0001 to 0005 describe finished builds. **The RFC process itself is not being followed** — milestone M1, the entire current programme, has no RFC — so read these as a record, not as instructions |
+| `milestones/` | What Dana is building and why, one brief file per milestone. A wishlist: never a progress tracker, never a second copy of the spec. Replaced `rfcs/` on 2026-09-20 |
 
 **One file here is read by a test.** `spec/07-api/07.23-settings-bundle.md` is
 parsed byte-for-byte by `app/src/server/http/bundle-contract.test.ts`, which

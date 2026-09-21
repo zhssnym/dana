@@ -2,7 +2,7 @@
 
 The single source of truth for what Dana is and what it must do: architecture, data model,
 behavior, and conventions. It is the accumulated definition of the system, updated
-whenever an implemented RFC changes it. Its history lives in git, not in this file.
+as each milestone's work lands (`../milestones/`). Its history lives in git, not in this file.
 
 Conventions: 24-hour clock; ISO 8601 dates; ranges written with "to". SQL fragments are
 Postgres dialect and are reference, not normative; the prose rule wins if they ever

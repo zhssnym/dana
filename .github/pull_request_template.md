@@ -1,6 +1,6 @@
 <!--
 The title becomes the commit on main, because merges here are squashed. So write
-it as a Conventional Commit: it is what the version bump and the changelog are
+it as a Conventional Commit: it is what the version bump is
 derived from.
 
   feat: assignee avatar in the task row

@@ -188,7 +188,7 @@ jobs:
       - uses: actions/checkout@v4
       # The branch name, which nothing else in this project checks. The shape is
       # <area>/<issue-number>-<short-description>, and the number is the thread
-      # tying the branch to its issue, its pull request and the changelog: a
+      # tying the branch to its issue and its pull request: a
       # branch named after a tool or a mood breaks that thread six weeks later
       # when someone is trying to find out why a line exists. Two overnight runs
       # produced one of each (#180).

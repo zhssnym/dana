@@ -64,7 +64,7 @@ are not your fault.
 
 **Discussions are for thinking. Issues are for work.** A discussion that reaches a conclusion
 becomes an issue. The issue number is the thread that ties everything together: the branch is
-named after it, the pull request closes it, and the changelog traces back to it. How much the
+named after it, and the pull request closes it. How much the
 issue says depends on the size of the work, and writing long documents for small changes
 wasted a great deal of time in version 1:
 
@@ -72,7 +72,7 @@ wasted a great deal of time in version 1:
 | - | - |
 | A colour, a spacing, an alignment, a bug | One sentence. The issue is the documentation. |
 | A normal feature | A few paragraphs in the issue. No separate document. |
-| Weeks of work on both sides | Discussion first, then several issues, merged as several pull requests with the screen last. No RFC and no milestone — this repository has never used either. |
+| Weeks of work on both sides | Discussion first, then several issues, merged as several pull requests with the screen last. No RFC: that process is retired. It may belong to a milestone, which names direction and never tracks progress (`../milestones/`). |
 
 ### What an agent may open, and it is five things
 
@@ -108,7 +108,6 @@ Every issue gets an **area** and a **type**.
 | `documentation` | Docs and process |
 | `breaking` | Changes something people already rely on |
 | `blocked` | Cannot proceed until something else lands. Say what, in a comment |
-| `rfc` | This work has an RFC |
 | `open-question` | A decision nobody has made yet. Always assigned to whoever decides it |
 
 An issue that needs both sides gets **both** `frontend` and `backend`. **The area label says
@@ -250,7 +249,7 @@ nothing" is a verdict and a good one; a reviewer that always finds something tea
 to skim it.
 
 Then Hassan merges, and only Hassan. Squash merge, so a pull request becomes one commit on
-`main`, and that is what the version number and the changelog are read from.
+`main`, and that is what the version number is read from.
 
 ## Versions
 
@@ -267,13 +266,4 @@ change makes it major, any `feat:` makes it minor, otherwise patch.
 
 **Versions are marked, not scheduled.** Merges ship continuously. A tag is a point you chose
 to name. Do not hold work back to line up with one. At release time: bump `app/package.json`,
-tag `v2.3.0` to match, and write the changelog entry.
-
-## Changelog
-
-`CHANGELOG.md` at the repository root. **One short paragraph per version, written when the
-tag is cut.** Nothing is written per merge, and nothing is written per issue.
-
-Generate the raw list from the commit titles between the last tag and this one, then edit it
-into prose a person would want to read. Git already holds the detail; the changelog exists to
-say what changed in a way the detail cannot.
+and tag `v2.3.0` to match.

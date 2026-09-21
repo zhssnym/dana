@@ -17,7 +17,8 @@ process is restated in this file.
 
 That workflow replaced an earlier one built for a fleet of thirteen agent personas working
 package by package. The former rulebook at `docs/team/_shared-protocol.md` is deleted along
-with the personas, and three agents in `.claude/agents/` replace them. The restructure that
+with the personas, and three agents in `.claude/agents/` replaced them; that directory
+holds seven as of 2026-09-20, #246 having added four more. The restructure that
 did it ran on 2026-08-31 and 2026-09-01; its reasoning is in git, and what it left undone is
 in the GitHub issues.
 
@@ -46,16 +47,44 @@ handling, and PGlite's single connection.
 | - | - |
 | `docs/README.md` | **What belongs in `docs/` at all, added 2026-09-20.** One rule: if an agent could answer it by reading the code or running something in under a minute, it does not go there; if an agent could not answer it at all, it goes there and nowhere else. Read it before writing any document, and before defending one against deletion |
 | `docs/spec/` | The single source of truth, one contract split by numbered section. `README.md` maps the numbers; **section N is the directory beginning with N, section N.M is the file inside it beginning with N.M**. Sections 4 and 7 are frozen |
-| `docs/rfcs/` | History. RFCs 0001 to 0005 describe builds that are finished, and are history rather than instructions. **The process that produced them is not being followed and nothing new goes here** — measured 2026-09-20 at issue #249: this repository has never had a milestone, the `rfc` label has never been applied to an issue, and M1 has no RFC |
+| `docs/milestones/` | **What Dana is building and why, one brief file per milestone.** Added 2026-09-20, replacing `docs/rfcs/`. A milestone file is a wishlist and never a progress tracker: status lives in the coordinating issue, contracts in `docs/spec/`. `M0.md` is the retroactive name for everything before the numbering started, and is the one written as a record |
 | `AGREEMENT.md` | The working agreement between the two people building Dana. A human document, not a specification. **No rule for an agent is derived from it** |
-| `CHANGELOG.md` | What changed per release. Its `[1.0.0]` block is a decision log of the v1 build and is being cut back |
 | `app/` | The application |
 
 Deleted, and mentioned here only because references to them survive elsewhere in the
 repository: `docs/team/`, `docs/design/`, `docs/learn/`, `docs/operator/`, `docs/ux/`,
 `docs/parity/`, `docs/security/`, `dana-reports/`, `AGENTS.md`, `SESSION-LOG.md`.
-Where one appears in an RFC or in a dated record inside the specification, it is history
+Where one appears in a dated record inside the specification or in `docs/milestones/M0.md`, it is history
 and accurate as history. Where one appears anywhere else, it is a mistake worth fixing.
+
+### Resolving an `RFC 000N` citation
+
+**About 480 comments across 256 files cite decisions by number, and the documents they
+name no longer exist in the tree.** `docs/rfcs/` was deleted on 2026-09-20 with the
+milestone restructure. The citations were deliberately left alone: roughly 90 of them
+name unit, S-row and P-row numbers that no index has ever covered, so a rewrite could
+not have resolved them, and doing it by hand meant editing 165 files under `app/src`.
+
+They are not broken links. Nothing in a citation is a path. Two commands resolve them,
+and they do different jobs:
+
+```bash
+# The index. One row per change-control item: its date, what it decided, and which
+# spec sections took it. Fastest for "what was item 44?" - it is line 289.
+git show a7886dfe:docs/rfcs/0005-v2-specification.md
+
+# The full originals, 6,763 lines for RFC 0005. Needed for a unit, an S-row, a P-row,
+# or the full text of an item. Item 44's four frozen changes start at line 997.
+git show v2.2.0:docs/rfcs/0005-v2-specification.md
+```
+
+**The release tags are load-bearing and must not be deleted.** A clone fetched without
+tags resolves none of this; `git fetch origin --tags` first. `docs/milestones/M0.md`
+carries the same pointer and the reasoning.
+
+**What the citation is evidence of is a ruling, not current behaviour.** The spec is the
+authority on every one of these decisions and has moved past them. Read the citation to
+learn why something is the way it is, never to learn what it does.
 
 ## Commands and this machine
 
