@@ -162,6 +162,19 @@ listed them; this change adds those two beside its own `responsibilities` and
 directions. The two older names are a **transcription correction** — the code shipped and
 the section was not updated with it — and not a contract change.
 
+**Eleventh, and it is the smallest kind of move this section can take: 7.16 gained a dated
+*Rationale* note on 2026-09-21 and nothing else** (issue #280, on Hassan's technical ruling
+there, https://github.com/zhssnym/dana/issues/280#issuecomment-5754491849). RFC 0005 carried
+a section of reasoning that was never folded when `docs/rfcs/` was deleted; the note is the
+part of it that explains a rule in this section — why the workflow file refuses what it
+refuses, and why anchoring an imported repeat or reminder on the import day is a *reading*
+of the ruling rather than a ruling of its own. **No endpoint, status, body, field or refusal
+moves**: the diff is added paragraphs beside the import rule, and everything they explain was
+already written above them. `07.23`'s `## The fields` table, which
+`app/src/server/http/bundle-contract.test.ts` parses byte-for-byte, is untouched. It is
+recorded here because the freeze asks that a change to this section be visible from its front
+door, and a reader who is told only that nothing changed cannot check that for themselves.
+
 | | File | Covers |
 | - | - | - |
 | 7.0 | [`07.0-conventions.md`](07.0-conventions.md) | 7.0 Conventions |
