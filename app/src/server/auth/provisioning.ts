@@ -29,6 +29,7 @@ import { sql } from 'drizzle-orm'
 import type { Db } from '../../../db/client.js'
 import type { Executor } from '../database.js'
 import { inTransaction, rowsOf } from '../database.js'
+import { createNativeFacets } from '../domain/facets.js'
 import { recordAccessTransition } from '../domain/folder-access.js'
 import { createSampleWorkspace } from '../sample/workspace.js'
 import { sameZone, writeTimezone } from './timezone-sync.js'
@@ -282,6 +283,13 @@ export async function provisionUser(
       actorId: userId,
       transition: 'created_owner',
     })
+    /* The four native facets, in this same transaction (issue #210, 4.30:
+       "natives are created with the Folder and never lazily"). Every path
+       that inserts a `folders` row owes this call, and
+       `tests/guards/guard-native-facets-on-every-folder.test.ts` fails the
+       day one does not. */
+    await createNativeFacets(tx, folderId, userId)
+
     await tx.execute(sql`INSERT INTO user_settings (user_id) VALUES (${userId})`)
 
     // Item 60: the sample workspace, in this same transaction, so the first
