@@ -269,7 +269,7 @@ function CanvasSession({ page, initialPage, folderId, facetId, workRootId, tasks
       })()
     }}>Retry interrupted save</Button><Button variant="ghost" onClick={() => { sessionStorage.removeItem(draftKey); setRecovery(false) }}>Dismiss</Button></div> : null}
     <CanvasTaskProvider tasks={tasks} context={context} actions={actions} onAsk={onAsk}>
-      <CanvasSurface editor={editor} onChange={changed} onCreateTask={facetId === undefined ? askTask : undefined} allowHeadings={facetId === undefined} editable={arrangeable && !creating && !pendingTask} />
+      <CanvasSurface editor={editor} onChange={changed} onCreateTask={facetId === undefined ? askTask : undefined} folderRefs={folderRefs} allowHeadings={facetId === undefined} editable={arrangeable && !creating && !pendingTask} />
     </CanvasTaskProvider>
     <div role="status" aria-live="polite" className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
       {feedback || (writer.state === 'saving' ? 'Saving…' : writer.state === 'changed' ? 'Unsaved writing' : 'Saved')}
