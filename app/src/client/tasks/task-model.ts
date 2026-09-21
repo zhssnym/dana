@@ -358,7 +358,9 @@ export interface ConceptTask {
    * in it still has a composer**, and no per-comment field can answer for
    * one. The card hands it straight to `CommentsThread`, which renders the
    * composer disabled rather than hiding it. Absent falls back to true, the
-   * lab's answer (owner's ruling of 2026-09-20 on #268; AC-790).
+   * lab's answer (the owner's ruling of 2026-09-20 on #268,
+   * https://github.com/zhssnym/dana/issues/268#issuecomment-5753983138;
+   * AC-790).
    */
   canComment?: boolean
 }

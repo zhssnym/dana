@@ -270,8 +270,10 @@ function conceptOf(
     likeable: may.likeComment,
     /* Replying is `comment.create`, the same act as a first comment, so a
        member below Can comment is offered no Reply anywhere in the thread.
-       Per comment because the control is (owner's ruling of 2026-09-20 on
-       #268); the composer's own half is a prop on the lifted component. */
+       Per comment because the control is (the owner's ruling of 2026-09-20
+       on #268,
+       https://github.com/zhssnym/dana/issues/268#issuecomment-5753983138);
+       the composer's own half is a prop on the lifted component. */
     replyable: may.createComment,
   }
 }

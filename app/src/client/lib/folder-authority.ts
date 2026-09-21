@@ -60,11 +60,7 @@ nobody can follow is worse than none, and CLAUDE.md's first rule for this
 repository is that a comment is a claim to be checked rather than a fact.)
 */
 import { mayPerform } from '../../shared/folder-actions.js'
-import type {
-  FolderAction,
-  FolderActionTarget,
-  FolderActorFacts,
-} from '../../shared/folder-actions.js'
+import type { FolderAction, FolderActorFacts } from '../../shared/folder-actions.js'
 import type { FolderAccessPreset } from '../../shared/folder-access.js'
 import type { FolderMember } from '../../shared/folders.js'
 
@@ -155,16 +151,27 @@ const NOT_READ_BY_A_PROJECTION = {
  * the reason every bar below is a citation rather than a number.
  *
  * `target` exists for the one rule shape a projection can honestly satisfy:
- * `requiresAuthor`. See `mutateOwnComment` below. A target's **assignee** is
- * never supplied here and must not be — #228 makes assignment authority
- * resolvable only under the row lock of the transaction that writes, so a
- * projection that answered on it would be the one thing this file's header
- * says it never does.
+ * `requiresAuthor`. See `mutateOwnComment` below.
+ *
+ * **It is narrower than `FolderActionTarget` on purpose, and the narrowing is
+ * the guard rather than the comment above it.** That type also carries
+ * `assigneeId`, and while this parameter was typed as the whole of it
+ * `mayDraw(facts, 'task.edit', { assigneeId: PROJECTED_ACTOR_ID })` compiled
+ * and answered `true` for Can contribute — measured rather than reasoned:
+ * `mayPerform` on those facts answers `true` at Can contribute with that id
+ * as the assignee and `false` without it — a projection granting an
+ * assignment-scoped act, which is precisely what #228 forbids: assignment
+ * authority is resolvable only under the row lock of the transaction that
+ * writes, and a client's idea of an assignee is a projection by definition.
+ * Nothing did that, and a sentence saying "must not" was all that stood
+ * between here and somebody doing it. Now it does not compile, and the
+ * typecheck is the proof (found by the review of #268, 2026-09-20).
  */
 export function mayDraw(
   facts: FolderViewerFacts,
   action: FolderAction,
-  target: FolderActionTarget = {},
+  /* Deliberately not `FolderActionTarget`. See above. */
+  target: { readonly authorId?: string } = {},
 ): boolean {
   const actorFacts: FolderActorFacts = {
     ...NOT_READ_BY_A_PROJECTION,
@@ -254,7 +261,9 @@ export interface FolderGates {
    * **The surfaces offered Edit and Delete on `mine` alone until 2026-09-20**
    * (issue #268), so a member reduced to Can view was offered both on every
    * comment they had ever left and answered 403 by the route, which AC-518
-   * pins from the other side (AC-790).
+   * pins from the other side. The owner's ruling carrying this half is
+   * https://github.com/zhssnym/dana/issues/268#issuecomment-5753495877
+   * (AC-790).
    */
   readonly mutateOwnComment: boolean
   /**
@@ -273,7 +282,9 @@ export interface FolderGates {
    * composer is **not hidden** on it: it is disabled and says what standing
    * commenting needs, because it carries a fact a Can-view member may read —
    * that this conversation takes comments — and hiding it would hide the
-   * fact with the act (owner's ruling of 2026-09-20 on #268; AC-790).
+   * fact with the act (the owner's ruling of 2026-09-20 on #268,
+   * https://github.com/zhssnym/dana/issues/268#issuecomment-5753983138;
+   * AC-790).
    */
   readonly createComment: boolean
 }

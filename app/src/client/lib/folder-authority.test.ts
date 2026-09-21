@@ -25,6 +25,7 @@ has been lowered.
 import { describe, expect, test } from 'vitest'
 
 import { FOLDER_ACCESS_PRESETS } from '../../shared/folder-access.js'
+import { FOLDER_ACTIONS, ruleFor } from '../../shared/folder-actions.js'
 import type { FolderAccessPreset } from '../../shared/folder-access.js'
 import type { FolderMember } from '../../shared/folders.js'
 import {
@@ -278,7 +279,8 @@ describe('one’s own comment, and the like', () => {
   test('writing into the thread at all is Can comment’s: R8A’s two lowest rungs', () => {
     /* `comment.create`. Reply is the same act as a first comment, so this is
        the one gate behind both; the surfaces hide Reply and disable the
-       composer on it (owner's ruling of 2026-09-20 on #268). */
+       composer on it (the owner's ruling of 2026-09-20 on #268,
+       https://github.com/zhssnym/dana/issues/268#issuecomment-5753983138). */
     for (const preset of FOLDER_ACCESS_PRESETS) {
       expect(folderGates(facts(preset)).createComment, preset).toBe(
         preset !== 'can_view',
@@ -288,6 +290,27 @@ describe('one’s own comment, and the like', () => {
       folderGates(facts('can_view', { isOwner: true })).createComment,
       'and owning the folder does not make a reader a participant',
     ).toBe(false)
+  })
+
+  /*
+  The projection rests on one property of the table, so the table is asserted
+  rather than assumed (review of #268, 2026-09-20).
+
+  `folderGates` answers `mutateOwnComment` by asking `mayDraw` with a
+  stand-in author, which is honest for exactly one rule shape. **A second
+  action carrying `requiresAuthor` would not break this line; it would break
+  the one that forgot to pass the target** -- `mayPerform` refuses before it
+  reads the preset, so such a gate answers false at every preset and reads as
+  a working gate that simply never offers anything. Nothing else in the suite
+  would notice. So: if this goes red, the new rule needs its own decision
+  about whether a projection may answer it at all, and not a stand-in id
+  copied from here.
+  */
+  test('`comment.mutate.own` is the only rule in the table requiring an author', () => {
+    const requiringAuthor = FOLDER_ACTIONS.filter(
+      (action) => ruleFor(action).requiresAuthor === true,
+    )
+    expect(requiringAuthor).toEqual(['comment.mutate.own'])
   })
 
   test('the standing half is all this answers: it never asks whose comment it is', () => {

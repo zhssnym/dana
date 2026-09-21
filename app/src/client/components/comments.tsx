@@ -64,7 +64,9 @@ to the lab's answer when a surface supplies none (AC-518, AC-790).
 **An existing reaction pill is disabled rather than hidden**, unlike the three
 hover controls. It carries a count somebody below the bar may still read, and
 9.x's rule for a thread is that Can view reads everything and changes
-nothing; removing the pill would hide the fact as well as the act.
+nothing; removing the pill would hide the fact as well as the act (the owner's
+ruling of 2026-09-20 on #268,
+https://github.com/zhssnym/dana/issues/268#issuecomment-5753983138).
 */
 /*
 One conversation surface, wherever a conversation happens.
@@ -382,7 +384,13 @@ function CommentFiles({ files }: { files: NonNullable<ConceptComment["files"]> }
 
 /*
 What the composer says to somebody who may read this conversation and not
-write in it (the owner's ruling of 2026-09-20 on issue #268).
+write in it (the owner's ruling of 2026-09-20 on #268,
+https://github.com/zhssnym/dana/issues/268#issuecomment-5753983138,
+which is the one that hides Reply below Can comment, disables this composer
+rather than hiding it, and disables an existing reaction pill; the ruling
+beside it,
+https://github.com/zhssnym/dana/issues/268#issuecomment-5753495877,
+carries the `my_access` field and the authorship half).
 
 **The composer is disabled rather than hidden**, which is the ruling and is
 the same reasoning as the reaction pill above: it carries a fact a Can-view
@@ -1051,7 +1059,8 @@ function CommentRow({
                   one of this row's own controls: the composer below carries
                   the fact that the conversation takes comments, so a second
                   greyed control per row would say it four more times (owner's
-                  ruling of 2026-09-20 on #268). */}
+                  ruling of 2026-09-20 on #268,
+                  https://github.com/zhssnym/dana/issues/268#issuecomment-5753983138). */}
               {onReply && (comment.replyable ?? true) ? (
                 <IconAction dense icon={ReplyIcon} label="Reply" onClick={onReply} />
               ) : null}

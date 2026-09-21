@@ -11,6 +11,14 @@ extends Hassan's rulings of the same date on #228
 (https://github.com/zhssnym/dana/issues/228#issuecomment-5751449643 and
 https://github.com/zhssnym/dana/issues/228#issuecomment-5750892771).
 
+#268's own ruling is two comments, and each half of this criterion cites the
+one it rests on.
+https://github.com/zhssnym/dana/issues/268#issuecomment-5753495877
+carries the `my_access` field 7.13 gained and the authorship half below;
+https://github.com/zhssnym/dana/issues/268#issuecomment-5753983138
+rules that Reply is hidden below Can comment, that the composer is disabled
+rather than hidden, and that an existing reaction pill is disabled too.
+
 ## Why this criterion exists, and why it drives both sides
 
 The route has resolved this correctly since R8A landed: `DELETE /comments/:id`
