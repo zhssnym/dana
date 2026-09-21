@@ -27,6 +27,10 @@ import {
   setAvatar,
 } from '../domain/files.js'
 import type { CreateFileResult, FileKind } from '../domain/files.js'
+import {
+  FOLDERLESS_UPLOAD_KINDS,
+  UPLOAD_FILE_KINDS,
+} from '../../shared/files.js'
 import type {
   PostAvatarResponse,
   PostFilesResponse,
@@ -62,33 +66,42 @@ reports. A folder-less image belongs to the uploader, is served to them alone
 (`readableFileScope`), and can be named only by a block on a page that reaches
 it (`putPage`, issue #107).
 
-**`file` and `voice` still require one** and the refusal is 422 naming the
-field, not the 404 a folder the caller cannot see would get: an absent
-`folder_id` on an attachment is a malformed request rather than a scope
-failure, and it was 422 before either change.
+**`file`, `audio` and `video` joined them on 2026-09-20 (issue #220), which
+leaves `voice` as the only kind that still requires one.** A composer File,
+Audio or Video block is the shelf page's image one object over: not every kind
+of page is a folder, so a composer asset has to be able to take its page's
+scope, and a folder-less one is its uploader's alone. A recorded voice note
+still hangs on a comment thread and a thread still lives in a folder.
+
+**The refusal for `voice` stays 422 naming the field**, not the 404 a folder
+the caller cannot see would get: an absent `folder_id` on a voice note is a
+malformed request rather than a scope failure, and it was 422 before any of
+these changes.
+
+**A generic `file` may now be uploaded with no folder and then not attached to
+a comment**, because `createComment` resolves its attachments inside a folder
+and always has. That is a 422 at attach time rather than anything worse, and
+the file is reclaimed by 7.19's sweep once nothing references it.
 
 `superRefine` rather than a check in the handler so the rule is stated once,
 in the shape the message comes from, and so `createFile`'s own restatement of
 it (migration 0015's files_folderless_kind_check) is a second line of defence
 rather than the only one.
 */
-const FOLDERLESS_UPLOAD_KINDS = new Set(['cover', 'image'])
+const FOLDERLESS_KINDS = new Set<string>(FOLDERLESS_UPLOAD_KINDS)
 
 const uploadFields = z
   .object({
-    kind: z.enum(['image', 'file', 'voice', 'cover']),
+    kind: z.enum(UPLOAD_FILE_KINDS),
     folder_id: z.uuid().optional(),
     duration_ms: z.coerce.number().int().positive().optional(),
   })
   .superRefine((fields, ctx) => {
-    if (
-      fields.folder_id === undefined &&
-      !FOLDERLESS_UPLOAD_KINDS.has(fields.kind)
-    ) {
+    if (fields.folder_id === undefined && !FOLDERLESS_KINDS.has(fields.kind)) {
       ctx.addIssue({
         code: 'custom',
         path: ['folder_id'],
-        message: 'is required for a file or a voice note',
+        message: 'is required for a voice note',
       })
     }
   })
@@ -161,6 +174,19 @@ export function createFilesRouter(options: FilesRouterOptions = {}): Router {
           'file: must be a decodable image for this kind.',
         )
         return
+      case 'not_supported_media':
+        /* #220: the declared type is on the audio or video allowlist and the
+           bytes are not that container. The sentence names the way forward
+           R1 guarantees rather than only the refusal, because the caller has
+           a legitimate one: upload the same bytes as a generic file and Dana
+           will offer them for download instead of claiming a player. */
+        sendError(
+          res,
+          422,
+          'validation_failed',
+          'file: must be a supported audio or video file for this kind; upload it as kind=file instead.',
+        )
+        return
       case 'too_large':
         sendError(
           res,
@@ -213,7 +239,7 @@ export function createFilesRouter(options: FilesRouterOptions = {}): Router {
             res,
             422,
             'validation_failed',
-            'kind: must be image, file, voice or cover; folder_id must be a uuid, and is required for a file or a voice note.',
+            'kind: must be image, file, voice, cover, audio or video; folder_id must be a uuid, and is required for a voice note.',
           )
         },
       })
@@ -275,7 +301,31 @@ export function createFilesRouter(options: FilesRouterOptions = {}): Router {
         return
       }
       res.setHeader('X-Content-Type-Options', 'nosniff')
-      const inline = served.kind !== 'file'
+      /* **An allowlist since #220, where it used to be `kind !== 'file'`.**
+         The behaviour for every kind that existed before is identical; what
+         changed is the direction it fails in. A denylist hands a kind added
+         later an inline disposition by default, on this application's own
+         origin, which is the one mistake this header exists to stop. Six
+         kinds are validated on the way in — the three image kinds through
+         sharp's decode and re-encode, #220's `audio` and `video` through the
+         MIME allowlist and a container-signature read, and `voice` through its
+         own `audio/*` rule, which is deliberately neither of those: its bytes
+         come from the browser's own recorder rather than from a file picker,
+         and narrowing it to the allowlist would refuse recordings that work
+         today (`mimeMatchesKind` in `domain/files.ts` is the whole of it) —
+         and those six are served
+         inline. `file` is untrusted bytes of any type whatever and is served
+         as an attachment, always, which with nosniff beside it is what makes
+         "Dana never executes an uploaded file" true rather than hoped for. */
+      const INLINE_KINDS: ReadonlySet<FileKind> = new Set([
+        'image',
+        'cover',
+        'avatar',
+        'voice',
+        'audio',
+        'video',
+      ])
+      const inline = INLINE_KINDS.has(served.kind)
       // Control characters and quotes leave the filename (the S4 security
       // review's second condition): a name is data and a header is not.
       const safeName = [...served.name]

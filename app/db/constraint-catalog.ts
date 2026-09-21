@@ -670,6 +670,14 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
       // Issues #20 and #100, migration 0012: which kinds may stand outside a
       // folder. The expression names folder_id and kind, so both are listed
       // and the header's rule sorts them.
+      //
+      // Both of the next two were widened in place by migration 0024 (#220):
+      // `files_kind_check` gained `audio` and `video`, and the folder-less one
+      // gained `file`, `audio` and `video`, leaving `voice` as the only kind
+      // that still requires a folder. **Neither name nor either column list
+      // moved, so neither row here changes** — which is the class of change
+      // docs/workflow/backend.md warns this catalog cannot see. AC-490
+      // to AC-507 are the behavioural cases that can.
       { name: 'files_folderless_kind_check', columns: ['folder_id', 'kind'] },
       { name: 'files_kind_check', columns: ['kind'] },
       { name: 'files_name_length_check', columns: ['name'] },
@@ -725,6 +733,12 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
         columns: ['folder_id', 'section_block_id'],
       },
       { name: 'page_blocks_text_length_check', columns: ['kind', 'text'] },
+      /* Migration 0024 (#220) widened both of these in place and moved
+         neither: `page_blocks_kind_check` above gained `file`, `audio` and
+         `video`, and the width check below gained `video` beside `image`,
+         because R1 extends the restrained centred width to previewable video
+         and to nothing else. Same names, same columns, so this catalog is
+         unchanged and only a behavioural case can see the difference. */
       { name: 'page_blocks_width_pct_kind_check', columns: ['kind', 'width_pct'] },
       { name: 'page_blocks_width_pct_range_check', columns: ['width_pct'] },
     ],

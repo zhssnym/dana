@@ -1,7 +1,16 @@
 /*
 AC-705: the two clauses that decide what the 11.7 sweep may consider at all —
-`kind IN ('cover', 'image')` and `folder_id IS NULL` — read against the rows
-they exclude.
+`kind IN ('cover', 'image', 'file', 'audio', 'video')` and `folder_id IS NULL`
+— read against the rows they exclude **and against the rows they admit**.
+
+The kind list was `('cover', 'image')` until migration 0024 (issue #220) added
+the last three, and this file holds both halves of that clause: the kinds it
+must never reach, below, and the kinds it must reach, in the second case. The
+second half is not decoration. No page can name a folder-less `file`, `audio`
+or `video` yet — 7.15's amendment of the same date is what makes them storable
+without a folder — so this sweep is the only thing that will ever remove one,
+and until the second case existed both widened lines could be reverted with
+the whole suite still green.
 
 AC-700 to AC-704 cover the five `NOT EXISTS` arms of `fileIsUnreferenced()`,
 one criterion each. They are the whole of the *reference* question and none of
@@ -16,9 +25,11 @@ column, so no key into `files(id)` exists for an avatar and
 `fileIsUnreferenced()` is **true of every avatar row that has ever existed**.
 `createFile` forces `folder_id` null for one. Both of the sweep's other
 conditions are therefore already satisfied by every profile picture in the
-product, and the string `'cover', 'image'` is the only thing standing between
-the background timer and all of them — in both arms, the mark and the delete.
-Widen it to `('cover', 'image', 'avatar')` and the whole suite stays green
+product, and that kind list is the only thing standing between the background
+timer and all of them — in both arms, the mark and the delete. **The list is
+widened by naming kinds, one at a time and never by restating it as a
+`NOT IN`**, and `avatar` has stayed out of it through every widening.
+Add `'avatar'` to it and the whole suite stays green
 while pass one marks every avatar, pass two thirty-one days later deletes the
 row and the bytes, and `users.avatar_url` points at a dead id forever with no
 act by anybody behind it and no down migration.
@@ -52,6 +63,7 @@ import type { Actor } from '../support/folders-harness.js'
 import { rows } from '../support/helpers.js'
 import {
   AVATAR_PATH,
+  INSIDE_THE_WINDOW,
   OUTSIDE_THE_WINDOW,
   RECLAIM_WINDOW_DAYS,
   ageTheMark,
@@ -63,7 +75,14 @@ import {
 } from '../support/reclaim-harness.js'
 import type { ReclaimApp } from '../support/reclaim-harness.js'
 import { runPass } from '../support/reminders-harness.js'
-import { uploadCoverOk, uploadImageOk } from '../support/uploads-harness.js'
+import {
+  MP3_BYTES,
+  MP4_BYTES,
+  ZIP_BYTES,
+  uploadCoverOk,
+  uploadImageOk,
+  uploadKindOk,
+} from '../support/uploads-harness.js'
 
 let fixture: ReclaimApp
 const cast = new Cast(['owner'], 'ac705')
@@ -78,7 +97,7 @@ afterAll(async () => {
   await fixture.app.close()
 })
 
-describe('AC-705 the reclaim sweep considers only folder-less covers and images', () => {
+describe('AC-705 what the reclaim sweep may consider: the kind list and the folder clause', () => {
   test(
     `an avatar and a folder's own pictures survive a pass and a mark ${String(OUTSIDE_THE_WINDOW)} days old, while an unreferenced folder-less cover does not`,
     async () => {
@@ -173,7 +192,7 @@ describe('AC-705 the reclaim sweep considers only folder-less covers and images'
       )
       expect(
         markedAvatar.marked,
-        "the mark arm must never write on an avatar: nothing references it by key, so a mark is the first of the two steps to deleting every profile picture in the product (domain/files.ts, the `marked` CTE's `kind IN ('cover', 'image')`)",
+        "the mark arm must never write on an avatar: nothing references it by key, so a mark is the first of the two steps to deleting every profile picture in the product (domain/files.ts, the `marked` CTE's `kind IN ('cover', 'image', 'file', 'audio', 'video')`, which has never admitted an avatar through any widening)",
       ).toBe(false)
 
       for (const [id, what] of [
@@ -248,6 +267,177 @@ describe('AC-705 the reclaim sweep considers only folder-less covers and images'
         after[0]?.file_id ?? null,
         'and that column still resolves to a live files row. A text reference cannot be set null by a foreign key, so a sweep that took the row would leave every avatar_url in the table pointing at nothing, permanently and with nothing to notice',
       ).toBe(avatar)
+    },
+    120_000,
+  )
+  /*
+  The other half of the same clause, added 2026-09-20 with issue #220.
+
+  **The case above holds the kinds the list must never admit; this one holds
+  the three it must.** Migration 0024 widened `kind IN ('cover', 'image')` to
+  `('cover', 'image', 'file', 'audio', 'video')` in both arms, and until this
+  case existed **both widened lines could be reverted with the whole suite
+  still green** — 241 files and 1856 tests, measured. That is the shape of gap
+  the reclaim criteria exist to close: the sweep is the one path in Dana that
+  destroys data on a clock rather than on a request, so a clause nothing
+  exercises is a clause nobody will notice losing.
+
+  **Why it is this sweep or nothing.** 7.15 as amended the same date makes a
+  `file`, an `audio` and a `video` storable with no folder, and no page can
+  name a folder-less one yet — the composer's picker is the frontend phase's.
+  So a folder-less asset of these three kinds is reachable by no surface and
+  no route the moment the block that named it is gone, and there is no other
+  code path anywhere that will ever remove it. Left out of the list it would
+  spend its owner's 10.3 gigabyte for ever.
+
+  The shape is AC-700 to AC-704's: one day either side of the line, an
+  identically-aged twin so that only the day separates them, and a folder-less
+  `cover` of the same age as the control that proves the pass both marked and
+  deleted. Both arms are measured, because the clause is written twice — pass
+  one is the `marked` CTE's copy, pass two the delete's — and reverting either
+  line alone takes this case red on its own.
+  */
+  test(
+    `a folder-less file, audio and video are marked, then taken at ${String(OUTSIDE_THE_WINDOW)} days and kept at ${String(INSIDE_THE_WINDOW)}`,
+    async () => {
+      const [owner] = (await cast.of(fixture.app)) as [Actor]
+      const db = fixture.app.db
+
+      /* One upload per kind per side of the line, and the (kind, MIME, bytes)
+         triples are the ones 7.15's allowlists admit — a `file` is untrusted
+         bytes, an `audio` and a `video` went through the container check. */
+      const made = {
+        file: {
+          inside: await uploadKindOk(owner, 'file', null, {
+            name: 'ac705-file-inside.q4data',
+            type: 'application/octet-stream',
+            bytes: ZIP_BYTES,
+          }),
+          outside: await uploadKindOk(owner, 'file', null, {
+            name: 'ac705-file-outside.q4data',
+            type: 'application/octet-stream',
+            bytes: ZIP_BYTES,
+          }),
+        },
+        audio: {
+          inside: await uploadKindOk(owner, 'audio', null, {
+            name: 'ac705-audio-inside.mp3',
+            type: 'audio/mpeg',
+            bytes: MP3_BYTES,
+          }),
+          outside: await uploadKindOk(owner, 'audio', null, {
+            name: 'ac705-audio-outside.mp3',
+            type: 'audio/mpeg',
+            bytes: MP3_BYTES,
+          }),
+        },
+        video: {
+          inside: await uploadKindOk(owner, 'video', null, {
+            name: 'ac705-video-inside.mp4',
+            type: 'video/mp4',
+            bytes: MP4_BYTES,
+          }),
+          outside: await uploadKindOk(owner, 'video', null, {
+            name: 'ac705-video-outside.mp4',
+            type: 'video/mp4',
+            bytes: MP4_BYTES,
+          }),
+        },
+      } as const
+      /* The control, and it is the one row in this case whose treatment did
+         not change in 0024: if the pass stops taking *this*, the case is
+         measuring a broken pass rather than a narrowed clause. */
+      const control = await folderlessPicture(owner, 'cover', 'ac705-control.png')
+
+      const everyNewKind = [
+        ['file', made.file.inside, made.file.outside],
+        ['audio', made.audio.inside, made.audio.outside],
+        ['video', made.video.inside, made.video.outside],
+      ] as const
+
+      /* The premise, read from the database rather than asserted from the
+         source: each row is exactly the shape the sweep's two scope clauses
+         describe. If 0024's `files_folderless_kind_check` ever stopped
+         admitting these without a folder, this case would be measuring rows
+         that could not exist. */
+      for (const [kind, inside, outside] of everyNewKind) {
+        for (const id of [inside, outside]) {
+          const shape = await rows(
+            db,
+            sql`SELECT kind, folder_id FROM files WHERE id = ${id}::uuid`,
+          )
+          expect(
+            { kind: String(shape[0]?.kind), folderless: (shape[0]?.folder_id ?? null) === null },
+            `a folder-less ${kind} must store as that kind with no folder (spec 7.15 as amended 2026-09-20, migration 0024's files_folderless_kind_check)`,
+          ).toEqual({ kind, folderless: true })
+        }
+      }
+
+      /* Pass one: the `marked` CTE's copy of the kind clause. Nothing
+         references any of these seven rows, so every one of them must come
+         out of this pass carrying a mark written by it. */
+      await runPass(fixture.app)
+
+      for (const [kind, inside, outside] of everyNewKind) {
+        for (const id of [inside, outside]) {
+          const seen = await expectSpared(
+            fixture,
+            id,
+            `the pass that first finds a folder-less ${kind} unreferenced must mark it rather than take it`,
+          )
+          expect(
+            seen.markIsFresh,
+            `a folder-less ${kind} nothing references must be marked by the mark arm: migration 0024 added its kind to that arm's list, and with the list back at ('cover', 'image') this row is never marked, never reclaimed, and spends its owner's 10.3 gigabyte for ever with no route able to delete it (domain/files.ts, the \`marked\` CTE)`,
+          ).toBe(true)
+        }
+      }
+      const markedControl = await expectSpared(
+        fixture,
+        control,
+        'and the control is marked on the same pass',
+      )
+      expect(
+        markedControl.markIsFresh,
+        'or the pass did not run and every assertion above it is vacuous',
+      ).toBe(true)
+
+      /* Pass two: the delete arm's own copy of the same clause, reached by
+         standing the six rows one day either side of the line. */
+      for (const [, inside, outside] of everyNewKind) {
+        await ageTheMark(db, inside, INSIDE_THE_WINDOW)
+        await ageTheMark(db, outside, OUTSIDE_THE_WINDOW)
+      }
+      await ageTheMark(db, control, OUTSIDE_THE_WINDOW)
+
+      await runPass(fixture.app)
+
+      for (const [kind, inside, outside] of everyNewKind) {
+        const young = await expectSpared(
+          fixture,
+          inside,
+          `a folder-less ${kind} marked ${String(INSIDE_THE_WINDOW)} days ago is still its owner's to use again and must survive`,
+        )
+        expect(
+          young.marked,
+          `and its mark must be left exactly as it was, or the ${String(RECLAIM_WINDOW_DAYS)} days restart every tick and nothing is ever reclaimed`,
+        ).toBe(true)
+        expect(
+          young.markIsFresh,
+          'which means it must not have been rewritten to now()',
+        ).toBe(false)
+
+        await expectReclaimed(
+          fixture,
+          outside,
+          `a folder-less ${kind} nothing references, marked ${String(OUTSIDE_THE_WINDOW)} days ago, must be taken — row and bytes. Its twin one day inside the line survives, so the day is the only thing separating them, and the delete arm carries its own copy of the kind list (domain/files.ts)`,
+        )
+      }
+
+      await expectReclaimed(
+        fixture,
+        control,
+        `and the folder-less cover of the same age is taken too, which is what ${String(RECLAIM_WINDOW_DAYS)} days means for the two kinds that were already in the list`,
+      )
     },
     120_000,
   )
