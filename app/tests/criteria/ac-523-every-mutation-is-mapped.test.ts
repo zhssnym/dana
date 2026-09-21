@@ -48,12 +48,16 @@ moment #226's twelve routes arrived without a decision beside each.
 **It did, on the rebase onto #226, and the decision is now beside each**: eight
 rows in `GOVERNED` and four in `OUTSIDE_FOLDER_ACCESS`, with the block comment
 above them carrying the part that matters. Read that comment rather than this
-paragraph, because it says the thing a list cannot: **six of the twelve name a
-bar their route does not yet ask for**, the routes still gating on membership
-alone, and **issue #274** is where they are rewritten to resolve through
-`mayPerform`. A row here answers which Folder action a route is an instance of.
-Whether the bar is enforced is AC-512 to AC-521's subject, and this criterion
-has never claimed otherwise.
+paragraph.
+
+**Six of the twelve named a bar their route did not ask for, and issue #274
+closed that.** The routes gated on membership alone between #226 and #274, and
+they now resolve every one of these actions through `mayPerform`. Nothing
+about what this criterion proves moved with them: a row here answers which
+Folder action a route is an instance of, and whether the bar is *enforced* is
+AC-512 to AC-521's subject and now **AC-800**'s, which drives one actor per
+preset against both Label actions. This criterion has never claimed otherwise
+and does not start now.
 
 Spec: 10.2; accepted #209 R8A; #228's personal-actions rule and its
 authorization-resolver section.
@@ -197,41 +201,46 @@ const GOVERNED: Record<string, FolderAction> = {
   'DELETE /api/v1/tasks/:id/my-day': 'personal.my_day',
   'PATCH /api/v1/folders/:id/my-membership': 'personal.membership_label',
   /* ---------------------------------------------------------------- *
-   * #226's Label surface, mapped on the #228 rebase (issue #274)
+   * #226's Label surface, mapped on the #228 rebase and gated by #274
    * ---------------------------------------------------------------- *
 
-   **Six of these eight rows name a bar the route does not yet ask for, and
-   that gap is the point of this comment rather than an oversight.** Read it
-   before trusting any of them.
+   **These eight rows named bars their routes did not ask for until issue
+   #274, and that gap is closed.** The sentence that stood here said so, named
+   #274 as where the difference would be closed, and is kept in the past tense
+   below because a stale "not yet enforced" note is worse than none and
+   because the shape it describes recurs: this table records which act a route
+   is an instance of, and a row is not evidence that the act is enforced.
 
-   What is true today: every shared-Label route below gates on **membership
-   alone** -- `routes/labels.ts`'s `folderAccess` helper answers 404 when
-   `accessOf(db, viewer, folderId)` is null and admits every preset otherwise,
-   which is #226's interim "all Folder members may manage Folder Labels" rule.
-   A `can_view` member can currently create, rename, archive and restore a
-   shared Folder Label and apply one to a Task.
+   What was true between #226 and #274: every shared-Label route below gated
+   on **membership alone** -- `routes/labels.ts` answered 404 when
+   `accessOf(db, viewer, folderId)` was null and admitted every preset
+   otherwise, which is #226's interim "all Folder members may manage Folder
+   Labels" rule -- while `label.vocabulary.manage` and `label.apply` were both
+   `atLeast: 'can_edit'` in `shared/folder-actions.ts`. A `can_view` member
+   could create, rename, archive and restore a shared Folder Label and apply
+   one to a Task.
 
-   What is not yet true: `label.vocabulary.manage` and `label.apply` are both
-   `atLeast: 'can_edit'` in `shared/folder-actions.ts`, and #228's own
-   per-preset list says "Assigned work / Can comment / Can view may not modify
-   shared Folder Labels". **The routes have not been rewritten to ask for those
-   bars.** Until they are, the six shared-Label rows record which action each
-   route is an instance of, which is what this table asks: a row names the act,
-   and whether the bar is *enforced* is AC-512 to AC-521's subject, driven
-   against real actors. "What this is and what it is not" above says so.
+   What is true now: each route below resolves the action this row names
+   through `mayPerform`. The four vocabulary writes and the two
+   `personal.label` assignment routes ask in `routes/labels.ts`'s own `gate`,
+   beside its `accessOf`; the two `label.apply` routes ask inside
+   `domain/labels.ts`, under the Task's row lock, because that action's
+   `whenAssignedToActor` arm reads the Task's current assignee and #228
+   requires that fact in the mutation's own snapshot.
 
-   Where the difference gets closed: **issue #274**, which rewrites
-   `routes/labels.ts` to resolve through `mayPerform` like every other Folder
-   mutation. #274 also carries the ruling that makes it legitimate -- **R8
-   supersedes #208's R5A** ("any member may apply an existing Folder Label"),
-   written before Folders had graded Access, and still asserted by
-   `ac-470-label-scope-privacy-and-identity.test.ts:205`. That criterion is
-   accurate about the routes as they stand and is deliberately **not** touched
-   here; it moves in #274 with hard stop 7 declared there.
+   **This criterion still does not check that any of it is right**, which is
+   the header's point and does not weaken because the gates landed: a row here
+   is a mapping. **AC-800** is the criterion that drives one actor per preset
+   at both actions, asserting refusals beside successes; #274 carries the
+   ruling that made the change legitimate -- **R8 supersedes #208's R5A**
+   ("any member may apply an existing Folder Label"), written before Folders
+   had graded Access -- and `ac-470-label-scope-privacy-and-identity.test.ts`
+   moved with hard stop 7 declared there.
 
-   The two `personal.label` rows are different and carry **no** gap: that action
-   is `atLeast: 'can_view'` and `personal: true`, which is exactly what
-   membership already enforces, so both are true today in both senses. */
+   The two `personal.label` rows never carried the gap: that action is
+   `atLeast: 'can_view'` and `personal: true`, which is exactly what membership
+   already enforced, so both were true before #274 in both senses and the gate
+   they now go through refuses nobody it did not refuse before. */
   'POST /api/v1/folders/:folderId/labels': 'label.vocabulary.manage',
   'PATCH /api/v1/folders/:folderId/labels/:labelId': 'label.vocabulary.manage',
   'POST /api/v1/folders/:folderId/labels/:labelId/archive': 'label.vocabulary.manage',
@@ -434,13 +443,15 @@ describe('AC-523 every mutation is mapped to an action or classified outside', (
     }
   })
 
-  test('AC-523 proof 25: the Label actions exist at R8A\'s bars, ahead of #226\'s routes', () => {
+  test('AC-523 proof 25: the Label actions exist at R8A\'s bars', () => {
     /*
     #228 supersedes #208/#226's interim "all Folder members may manage Folder
-    Labels" rule, and #226 is a branch in flight: its twelve routes are not on
-    this one. What can be proved today is the contract they will call, and
-    the enumeration above is what will refuse them if they arrive without a
-    decision.
+    Labels" rule. This was written while #226 was a branch in flight, when the
+    contract these routes would call was the only part that could be proved;
+    the routes arrived on the rebase, the enumeration above took their
+    decisions, and issue #274 made them ask. What is proved here is still the
+    resolver's own table, which is the contract, and AC-800 is where the
+    routes are driven at it.
 
     R8A, as #228 restates it:
       - Full control and Can edit manage the vocabulary and apply broadly;

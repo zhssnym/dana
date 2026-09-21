@@ -32,6 +32,24 @@ the transaction that writes, and a client that draws a control it should not
 have is refused there. That is why these are pure functions over data the page
 already holds rather than anything that asks the server a question.
 
+## The two Label gates answer nothing on any screen today, and say so
+
+`labels` and `applyLabel` arrived with issue #274, which put the twelve Label
+mutation routes behind `mayPerform`. **No surface consumes them**, because no
+surface offers a Label control: measured 2026-09-20, `grep -rn "/labels"
+app/src/client` finds one read — the folder page fetching the vocabulary to
+write a workflow file — and not one mutation. So #274's fourth point, "if any
+screen offers a label control on the strength of membership, it now offers an
+action that 403s", found nothing to fix.
+
+They are here rather than left for the first Label control to invent, and that
+is the whole argument for two gates with no caller: the defect this file
+exists for is a screen deciding authority for itself, and the shortest path to
+committing it again is a control built where nothing offers the table's
+answer. Anything that draws a Label control reads these, and if the first one
+needs a shape these do not have — the per-Task answer in `applyLabel`'s note
+below is the known case — it changes them rather than writing a second ladder.
+
 ## The two things the table does not answer
 
 `mayPerform` reads the preset and the owner fact. Two refusals a person meets
@@ -287,6 +305,40 @@ export interface FolderGates {
    * AC-790).
    */
   readonly createComment: boolean
+  /** Managing the folder's shared Label vocabulary — create, rename, recolour,
+   * describe, archive, restore. Can edit and above, and custody is no part of
+   * it (`label.vocabulary.manage`; AC-480, AC-800). */
+  readonly labels: boolean
+  /**
+   * Putting one of the folder's Labels on a Task, or taking it off.
+   *
+   * **This is the folder-wide floor, and it is deliberately not the whole of
+   * `label.apply`.** It answers `label.apply` at Can edit — "may they do this
+   * to anything here" — which is what a folder-level control such as a bulk
+   * action or a picker in the folder header needs, and it **ignores the
+   * action's `whenAssignedToActor: ['can_contribute']` arm**. So it is false
+   * for Can contribute, who may in fact classify the Task **currently
+   * assigned to them**.
+   *
+   * **That per-Task grant is the server's to make and cannot be made here.**
+   * The route reads the Task's current assignee under the mutation's own row
+   * lock, in the same transaction and snapshot as the write, and answers 403
+   * or 200; anything the client believes about an assignee is a projection of
+   * a value that may already have changed. A surface that wants to offer the
+   * control to a contributor therefore has two honest choices, and no third:
+   * **accept the over-refusal at Can contribute and hide it**, or **draw it
+   * and let the server refuse**, reporting what comes back.
+   *
+   * **What it must never do is pass an assignee into `mayDraw`.** #268
+   * narrowed that parameter to `{ authorId?: string }` for exactly this
+   * reason, and the typecheck is the guard: widening it back to reach this
+   * case would hand a client the assignment-scoped grant #228 places under
+   * the row lock. See `mayDraw` above, which carries the measurement.
+   *
+   * (AC-800 drives both halves — the folder-wide bar and the contributor's
+   * own assigned Task — against the server.)
+   */
+  readonly applyLabel: boolean
 }
 
 export function folderGates(facts: FolderViewerFacts): FolderGates {
@@ -325,6 +377,8 @@ export function folderGates(facts: FolderViewerFacts): FolderGates {
     }),
     likeComment: mayDraw(facts, 'comment.like'),
     createComment: mayDraw(facts, 'comment.create'),
+    labels: mayDraw(facts, 'label.vocabulary.manage'),
+    applyLabel: mayDraw(facts, 'label.apply'),
   }
 }
 

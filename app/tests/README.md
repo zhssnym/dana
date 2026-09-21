@@ -324,6 +324,29 @@ id and nobody adds the arm to match — a new table or a second column on a tabl
 it already lists, the second of those having been a hole in it until that same
 review.
 
+**And one for issue #274, the Label routes on Access** (AC-800, spec 12.24), on
+the same reading again and worth one sentence for what it is evidence *of*.
+The twelve Label mutation routes gated on membership alone while
+`shared/folder-actions.ts` declared two bars for them, and AC-523 recorded the
+mapping while saying in its own header that it does not check the mapping is
+right. So the whole suite was green over a surface where a Can-view member
+could rename a folder's shared vocabulary and relabel everybody's work.
+**Nothing structural could have found that**, which is the argument for writing
+a criterion after a cut: the sweeps prove a route is gated *somehow*, and only
+an actor at a preset proves which. It was verified by four mutations across
+its nine cases: each of the two gates made always-true in turn takes five of
+the nine between them, gating the Personal arm as though it were shared takes
+a sixth — the over-reaching direction, which nothing else watches — and moving
+the 403 behind the archived 409 takes a seventh. The two left standing are the
+allowed-side cases, which exist to fail in the other direction. **Two of the
+nine were added after the reviewer read the branch**, naming the two things it
+said were asserted by prose and not by a test: the refusal ordering end to end,
+and a contributor's authority ending when the Task is reassigned away from
+them. The reviewer's other finding is recorded rather than closed — the
+**concurrent** half of #228's transactional requirement is driven for
+`task.status.complete` by AC-516 and for `label.apply` by nothing, and AC-800's
+own comment says so rather than letting the row lock read as covered.
+
 **Section 12 was not cut with them.** Every criterion it states is still the
 specification of Dana's behaviour; most of them simply have no executable form
 in this directory any more. A criterion number that resolves to no file here is
