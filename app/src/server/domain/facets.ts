@@ -245,11 +245,23 @@ async function lockedFacet(
   folderId: string,
   facetId: string,
   /**
-   * `false` for a pure read. Every write path takes the lock, because that is
-   * what makes the `owner_id` a gate reads the one the write will see; a GET
-   * has no write to serialise against, and taking `FOR UPDATE` there would
-   * make two members reading one facet's document queue behind each other for
-   * no reason at all.
+   * `false` for a pure read, and read the sentence under it before passing
+   * `true` anywhere new.
+   *
+   * **A lock is only worth taking in the transaction that writes.** Commit 16ce81b
+   * added this argument and its commit message claimed the lock "is what makes
+   * the `owner_id` a gate reads the one the write will see"; that claim was
+   * **false as the code then stood**, and the adversarial review of that commit
+   * said so. `facetPageGate` opened a transaction of its own, took
+   * `FOR UPDATE`, and **committed** -- releasing the lock -- before
+   * `applyFacetDocument` opened a second transaction to do the writing. A
+   * conversion landing between the two was authorized by a row the write never
+   * saw, which is precisely the window the lock exists to close.
+   *
+   * It is true now because the gate and the write are one transaction:
+   * `facetPageGateIn` is called *inside* `applyFacetDocument`'s own
+   * `inTransaction`, and `facetPageGate` below is the read-only wrapper the
+   * GET uses, which locks nothing.
    */
   lock = true,
 ): Promise<LockedFacet | null> {
@@ -1207,7 +1219,10 @@ export async function facetPageView(
  */
 export class FacetDocumentRefusal extends Error {
   constructor(
-    readonly outcome: 'stale' | 'not_found' | 'invalid',
+    /** `forbidden` joined the three on 2026-09-21: the page gate now runs
+     * inside this function's own transaction, so its 403 has to leave by the
+     * same door its 404 does. */
+    readonly outcome: 'stale' | 'not_found' | 'invalid' | 'forbidden',
     message: string,
     readonly field?: string,
   ) {
@@ -1244,12 +1259,41 @@ export class FacetDocumentRefusal extends Error {
  */
 export async function applyFacetDocument(
   db: Db,
-  viewerId: string,
-  folderId: string,
+  facts: FolderActorFacts,
   facetId: string,
   body: DocumentTransaction,
 ): Promise<PageView> {
+  const viewerId = facts.actorId
+  const folderId = facts.folderId
   return inTransaction(db, async (tx) => {
+    /*
+    **The gate runs here, inside the transaction that writes**, and that is a
+    correction rather than a tidy-up (adversarial review of 16ce81b). It used
+    to run in `facetPageGate`, which opened a transaction of its own and
+    committed before this one started: the `FOR UPDATE` it took was released
+    before the first statement of the write, so a conversion landing in that
+    window was authorized by a row this function never saw. #228's
+    Assigned-work rule -- the fact a gate reads must be the fact the mutation
+    sees, in one snapshot under one lock -- is what `whenOwnPrivateFacet`
+    inherits, and it was not being kept.
+
+    Everything below therefore runs against a facet row this transaction holds
+    a lock on until it commits.
+    */
+    const gated = await facetPageGateIn(tx, facts, facetId, true)
+    if (gated.kind === 'not_found') {
+      throw new FacetDocumentRefusal('not_found', 'Not found.')
+    }
+    if (gated.kind === 'forbidden') {
+      throw new FacetDocumentRefusal('forbidden', gated.reason)
+    }
+    /* `facetPageGateIn` answers only those three and `ok`, so this arm is
+       unreachable; it exists because a discriminated union with an unhandled
+       member is a defect waiting for the day somebody adds one. */
+    if (gated.kind !== 'ok') {
+      throw new FacetDocumentRefusal('invalid', gated.message, 'operations')
+    }
+
     const hash = documentHash({ facet: facetId, body })
     const receipts = await rowsOf(
       tx,
@@ -1551,30 +1595,46 @@ async function facetPageViewIn(tx: Executor, facetId: string): Promise<PageView>
  * document, because an empty document would be a second place to write that
  * nothing ever reads back.
  */
+async function facetPageGateIn(
+  tx: Executor,
+  facts: FolderActorFacts,
+  facetId: string,
+  writing: boolean,
+): Promise<FacetOutcome<LockedFacet>> {
+  const facet = await lockedFacet(tx, facts.folderId, facetId, writing)
+  if (
+    facet === null ||
+    !visibleTo(facet, facts.actorId) ||
+    facet.deletedAt !== null ||
+    !isBlankFacetKind(facet.kind)
+  ) {
+    return notFound
+  }
+  const action = facet.ownerId === null ? 'folder.page.edit' : 'facet.read'
+  /* A shared facet's *read* is any member's, which is `folder.read`; only
+     the write takes `folder.page.edit`. A private facet's read and write are
+     the same question, because the only person who may read it is the only
+     person who may write it. */
+  const asked = facet.ownerId === null && !writing ? 'folder.read' : action
+  const decision = mayPerform(facts, asked, { facetOwnerId: facet.ownerId })
+  if (!decision.allowed) {
+    return { kind: 'forbidden', reason: decision.reason } as const
+  }
+  return { kind: 'ok', value: facet } as const
+}
+
+/** The **read** gate, for `GET /folders/:id/facets/:facetId/page` and nothing
+ * else. It locks nothing, because a read has no write to serialise against;
+ * the write path reaches the same rule through `facetPageGateIn` inside its
+ * own transaction, which is what keeps the answer and the write together. */
 export async function facetPageGate(
   db: Db,
   facts: FolderActorFacts,
   facetId: string,
-  writing: boolean,
 ): Promise<FacetOutcome<{ facetId: string }>> {
   return inTransaction(db, async (tx) => {
-    const facet = await lockedFacet(tx, facts.folderId, facetId, writing)
-    if (
-      facet === null ||
-      !visibleTo(facet, facts.actorId) ||
-      facet.deletedAt !== null ||
-      !isBlankFacetKind(facet.kind)
-    ) {
-      return notFound
-    }
-    const action = facet.ownerId === null ? 'folder.page.edit' : 'facet.read'
-    /* A shared facet's *read* is any member's, which is `folder.read`; only
-       the write takes `folder.page.edit`. A private facet's read and write are
-       the same question, because the only person who may read it is the only
-       person who may write it. */
-    const asked = facet.ownerId === null && !writing ? 'folder.read' : action
-    const decision = mayPerform(facts, asked, { facetOwnerId: facet.ownerId })
-    if (!decision.allowed) return { kind: 'forbidden', reason: decision.reason } as const
-    return { kind: 'ok', value: { facetId: facet.id } } as const
+    const gated = await facetPageGateIn(tx, facts, facetId, false)
+    if (gated.kind !== 'ok') return gated
+    return { kind: 'ok', value: { facetId: gated.value.id } } as const
   })
 }

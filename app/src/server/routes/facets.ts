@@ -308,7 +308,7 @@ export function createFacetsRouter(options: FacetsRouterOptions = {}): Router {
       if (facetId === null) return
       const facts = await foundFolder(req, res, folderId)
       if (facts === null) return
-      const gated = await facetPageGate(db, facts, facetId, false)
+      const gated = await facetPageGate(db, facts, facetId)
       if (refused(res, gated)) return
       res.status(200).json(await facetPageView(db, facetId))
     },
@@ -336,16 +336,27 @@ export function createFacetsRouter(options: FacetsRouterOptions = {}): Router {
          at all. */
       const parsed = parseBody(documentTransaction, req, res, securityLog)
       if (parsed === null) return
-      const gated = await facetPageGate(db, facts, facetId, true)
-      if (refused(res, gated)) return
+      /* **No gate call here, and its absence is the fix rather than an
+         omission.** `applyFacetDocument` resolves the facet and asks
+         `mayPerform` inside its own transaction, under the row lock that
+         transaction holds until it commits. Gating out here would open a
+         second transaction, take a lock and release it before the write
+         started -- which is what 16ce81b did, and what the adversarial review
+         of it found: a conversion landing in that window was authorized by a
+         row the write never saw. The refusals leave through
+         `FacetDocumentRefusal` so that one door carries all four. */
       try {
-        res
-          .status(200)
-          .json(await applyFacetDocument(db, viewer(req), folderId, facetId, parsed))
+        res.status(200).json(await applyFacetDocument(db, facts, facetId, parsed))
       } catch (error) {
         if (!(error instanceof FacetDocumentRefusal)) throw error
         if (error.outcome === 'not_found') {
           sendError(res, 404, 'not_found', 'Not found.')
+          return
+        }
+        if (error.outcome === 'forbidden') {
+          // The resolver's own sentence, as every other refusal on this
+          // surface carries it.
+          sendError(res, 403, 'forbidden', error.message)
           return
         }
         if (error.outcome === 'invalid') {
