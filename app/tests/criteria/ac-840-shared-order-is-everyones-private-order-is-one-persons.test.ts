@@ -254,6 +254,64 @@ describe('AC-840 the shared order is everybody\'s and the private order is one p
     ).toEqual(reordered)
   })
 
+  test("the shared order tells nobody that another member's private facet exists", async () => {
+    /*
+    **A 10.2 oracle, found by the adversarial review of 16ce81b.** The
+    shared-order write answers a helpful "a private facet's place is its
+    owner's and is written through my-order" for a private id, and that is
+    worth having -- for the caller's **own** private facet, where it names a
+    thing they already know about. It used to be asked of every private row of
+    the Folder, so sending another member's id came back with a different
+    sentence from sending a uuid that names nothing, and a prober learned that
+    a private facet was there. That is the one fact `facet.read` admits no
+    preset in order to withhold.
+
+    The assertion is that the two answers are **byte-identical**, not merely
+    that both are 422: a status comparison would have been green on the
+    defect.
+    */
+    const [owner, member] = (await cast.of(app)) as [Actor, Actor]
+    const folderId = await sharedFolder(app, owner, 'AC-840 oracle', [
+      [member, 'can_edit'],
+    ])
+    const theirs = (
+      await createFacetOk(member, folderId, {
+        kind: 'private_blank',
+        display_name: 'Theirs',
+      })
+    ).id
+    const order = await sharedOrder(owner, folderId)
+
+    const aboutTheirs = await putFacetOrder(owner, folderId, [...order, theirs])
+    const aboutNothing = await putFacetOrder(owner, folderId, [
+      ...order,
+      '00000000-0000-4000-8000-000000000840',
+    ])
+    expectStatus(aboutTheirs, 422, "another member's private id is refused")
+    expectStatus(aboutNothing, 422, 'and so is a uuid that names nothing')
+    expect(
+      aboutTheirs.body,
+      "and the two refusals are the same words: the Folder's owner learns nothing from the difference, because there is none",
+    ).toBe(aboutNothing.body)
+
+    /* The other half, which is what makes the sentence above a scoping rather
+       than a deletion: the caller's **own** private id still gets the helpful
+       answer, and it is a different one. */
+    const mine = (
+      await createFacetOk(owner, folderId, {
+        kind: 'private_blank',
+        display_name: 'Mine',
+      })
+    ).id
+    const aboutMine = await putFacetOrder(owner, folderId, [...order, mine])
+    expectStatus(aboutMine, 422, "the caller's own private id is refused too")
+    expect(
+      aboutMine.body,
+      'but with the sentence that says which route to use instead, which discloses nothing they did not already know',
+    ).not.toBe(aboutNothing.body)
+    expect(aboutMine.body).toContain('my-order')
+  })
+
   test("another member's private facet cannot be placed by anybody", async () => {
     const [owner, member] = (await cast.of(app)) as [Actor, Actor]
     const folderId = await sharedFolder(app, owner, 'AC-840 not yours', [

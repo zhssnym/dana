@@ -646,6 +646,34 @@ export async function setFacetOrder(
     )
     const shared = rows.filter((row) => row.owner_id === null)
     const sharedIds = new Set(shared.map((row) => String(row.id)))
+    /*
+    **The caller's own private facets, and only the caller's** (adversarial
+    review of 16ce81b). The helpful "use my-order instead" refusal below fires
+    for one of these and for nothing else.
+
+    It used to be asked of every private row of the Folder, which made the two
+    refusals a **10.2 oracle**: send a uuid, and a different sentence came back
+    depending on whether it was somebody else's private facet or nothing at
+    all. That is the existence disclosure the whole privacy rule is about, and
+    `facet.read` admits no preset precisely so that nobody learns a private
+    facet is there. The comment that stood here claimed the opposite -- that
+    another member's private id "is unknown to this list either way" -- and was
+    wrong about its own code: the lookup read `rows`, which holds both halves,
+    rather than `shared`.
+
+    A caller naming their own private facet has told this route nothing it did
+    not already know, so pointing them at the right one costs nothing. Every
+    other id -- another member's private facet, a facet of another Folder, a
+    uuid that names nothing -- answers the same sentence.
+    */
+    const ownPrivate = new Set(
+      rows
+        .filter(
+          (row) =>
+            row.owner_id !== null && String(row.owner_id) === facts.actorId,
+        )
+        .map((row) => String(row.id)),
+    )
     const requested = new Set(order)
 
     if (requested.size !== order.length) {
@@ -653,13 +681,7 @@ export async function setFacetOrder(
     }
     for (const id of order) {
       if (sharedIds.has(id)) continue
-      /* A private id is refused by name rather than as "unknown", because it
-         is the mistake a client will actually make and the answer tells it
-         which route to use instead. Somebody else's private id is unknown to
-         this list either way -- it is not in `rows`' shared half -- so nothing
-         here discloses that a private facet exists. */
-      const known = rows.find((row) => String(row.id) === id)
-      if (known !== undefined && known.owner_id !== null) {
+      if (ownPrivate.has(id)) {
         return invalid(
           'order',
           "a private facet's place is its owner's and is written through my-order",
