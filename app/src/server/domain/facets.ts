@@ -244,6 +244,14 @@ async function lockedFacet(
   tx: Executor,
   folderId: string,
   facetId: string,
+  /**
+   * `false` for a pure read. Every write path takes the lock, because that is
+   * what makes the `owner_id` a gate reads the one the write will see; a GET
+   * has no write to serialise against, and taking `FOR UPDATE` there would
+   * make two members reading one facet's document queue behind each other for
+   * no reason at all.
+   */
+  lock = true,
 ): Promise<LockedFacet | null> {
   const found = await rowsOf(
     tx,
@@ -251,7 +259,7 @@ async function lockedFacet(
                h1_block_id, updated_at, deleted_at
           FROM folder_facets
          WHERE id = ${facetId}::uuid AND folder_id = ${folderId}::uuid
-         FOR UPDATE`,
+         ${lock ? sql`FOR UPDATE` : sql``}`,
   )
   const row = found[0]
   if (row === undefined) return null
@@ -1487,7 +1495,7 @@ export async function facetPageGate(
   writing: boolean,
 ): Promise<FacetOutcome<{ facetId: string }>> {
   return inTransaction(db, async (tx) => {
-    const facet = await lockedFacet(tx, facts.folderId, facetId)
+    const facet = await lockedFacet(tx, facts.folderId, facetId, writing)
     if (
       facet === null ||
       !visibleTo(facet, facts.actorId) ||
