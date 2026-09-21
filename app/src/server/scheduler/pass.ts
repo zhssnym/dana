@@ -46,6 +46,18 @@ kept up. It runs after the reminder work, on the
 handle rather than inside the delivery transaction, because it is hygiene and
 never revocation (11.6): its failure must not roll back a delivery that
 already happened.
+
+**Four of the five duties destroyed rows and said nothing, until issue
+#276.** The reminder duty writes a line per row and always has; the session
+prune, the two Trash purges, the events purge and the reclaim wrote their
+counts into the outcome below and `interval.ts` threw the outcome away. The
+reclaim is the one that made it urgent — it is the only path in Dana that
+deletes a person's uploaded bytes with nobody having asked — so it now writes
+one `file_reclaimed` line per file in `domain/files.ts`, and this callable
+writes one `reminder_pass_completed` line per pass that had anything to
+report. The same issue capped all four claims at `SWEEP_BATCH`, an
+unbounded sweep being what makes a tick long enough for the overlap guard to
+start skipping ticks.
 */
 import { sql } from 'drizzle-orm'
 import { pino } from 'pino'
@@ -55,7 +67,7 @@ import type { ObjectStore } from '../files/store.js'
 import { pruneExpiredSessions } from '../auth/index.js'
 import { reclaimUnwornPictures } from '../domain/files.js'
 import { destroyFolders, destroyTasks, removeObjects } from '../domain/trash.js'
-import { inTransaction, rowsOf } from '../database.js'
+import { SWEEP_BATCH, inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { createNotifier } from '../notify/index.js'
 import type { NotificationSink, Notifier, OutboundMessage } from '../notify/index.js'
@@ -117,6 +129,14 @@ export interface ReminderPassDeps {
    * store, and a pass without one still purges rows exactly as before.
    */
   fileStore?: ObjectStore
+  /**
+   * How long a pass may take before it says so even though it did nothing
+   * (issue #276). Defaulted to `SLOW_PASS_MS` and overridable for one
+   * reason: the arm it controls is otherwise unprovable without a test that
+   * takes half a minute, and an untested threshold is how this whole class
+   * of silence got here. Nothing in production passes it.
+   */
+  slowPassMs?: number
 }
 
 export interface ReminderPassOutcome {
@@ -144,6 +164,23 @@ export type ReminderPass = () => Promise<ReminderPassOutcome>
 /** 8.6: skipped when now() minus fire_at exceeds this. Written once, in the
  * statement below, rather than compared here. */
 const STALE_WINDOW = '6 hours'
+
+/**
+ * A pass this long says so even with nothing to report (issue #276).
+ *
+ * **Half of 11.7's sixty seconds, and the half is the whole point.** The
+ * existing `reminder_pass_overlapped` line is emitted when a pass is still
+ * running as the next tick arrives — that is, at a full interval — and by
+ * then a tick has already been lost. A pass at half an interval is the
+ * warning before that one, and the pair read together says whether the loop
+ * is drifting toward skipping or has arrived.
+ *
+ * Written here rather than imported from `./interval.js`'s
+ * `REMINDER_TICK_MS`, which would be the cycle `interval.ts` already imports
+ * this module. The sixty seconds are 11.7's and are stated in both places;
+ * if one moves, this comment is where the other is found.
+ */
+const SLOW_PASS_MS = 30_000
 
 /*
 Q11, plus everything classifying the row needs, in one statement.
@@ -301,7 +338,10 @@ export function createReminderPass(deps: ReminderPassDeps): ReminderPass {
   })
   const db = deps.dbClient.db
 
+  const slowPassMs = deps.slowPassMs ?? SLOW_PASS_MS
+
   return async function runPass(): Promise<ReminderPassOutcome> {
+    const startedAt = Date.now()
     let sent = 0
     let skipped = 0
     let failed = 0
@@ -368,11 +408,24 @@ export function createReminderPass(deps: ReminderPassDeps): ReminderPass {
     to call the collection the purge does rather than write a delete beside
     it; the pass hands over its age predicate and its SKIP LOCKED claim and
     is otherwise unchanged.
+
+    **All three claims are capped at SWEEP_BATCH since issue #276, and they
+    do share the shape.** Each is a `SELECT ... FOR UPDATE SKIP LOCKED` this
+    module writes and hands over, so a `LIMIT` is one clause in the claim
+    rather than a change to what any of them means. What the cap buys is not
+    the same in all three, which is worth saying rather than implying: the
+    events purge is capped at 200 rows and is genuinely bounded, while the
+    two Trash purges are capped at 200 *folders* and 200 *tasks* and each of
+    those cascades an unbounded number of rows away with it. The bound is on
+    the claim; `database.ts` says so at the constant. The permanent-delete
+    endpoint's own call into destroyFolders is untouched, that one being a
+    request about named rows rather than a sweep over a clock.
     */
     const folderPurge = await destroyFolders(
       db,
       sql`SELECT id FROM folders
            WHERE deleted_at < now() - interval '30 days'
+           LIMIT ${SWEEP_BATCH}
            FOR UPDATE SKIP LOCKED`,
     )
     await removeObjects(deps.fileStore, folderPurge.fileIds)
@@ -380,6 +433,7 @@ export function createReminderPass(deps: ReminderPassDeps): ReminderPass {
       db,
       sql`SELECT id FROM tasks
            WHERE deleted_at < now() - interval '30 days'
+           LIMIT ${SWEEP_BATCH}
            FOR UPDATE SKIP LOCKED`,
     )
     await removeObjects(deps.fileStore, taskPurge.fileIds)
@@ -391,6 +445,7 @@ export function createReminderPass(deps: ReminderPassDeps): ReminderPass {
         sql`DELETE FROM events WHERE id IN (
               SELECT id FROM events
                WHERE created_at < now() - interval '90 days'
+               LIMIT ${SWEEP_BATCH}
                FOR UPDATE SKIP LOCKED)
             RETURNING id`,
       )
@@ -420,7 +475,7 @@ export function createReminderPass(deps: ReminderPassDeps): ReminderPass {
     column that can name a file, are in `domain/files.ts`.
     */
     const reclaimedPictures = (
-      await reclaimUnwornPictures(db, deps.fileStore)
+      await reclaimUnwornPictures(db, deps.fileStore, logger)
     ).length
 
     // Both liveness signals, after the work and only on a cycle that
@@ -429,6 +484,44 @@ export function createReminderPass(deps: ReminderPassDeps): ReminderPass {
     recordSchedulerPass()
     if (deps.heartbeatUrl !== undefined && deps.heartbeatUrl !== '') {
       await pingHeartbeat(deps.heartbeatUrl, logger)
+    }
+
+    /*
+    The success path says what it did (issue #276).
+
+    **Here and not in `interval.ts`, which is where the issue found the
+    hole.** The outcome was discarded by the timer's `void pass().catch(…)`,
+    so only a throw was ever written down; the obvious repair is two lines
+    there. It is refused because the timer is one driver of this callable and
+    11.7 contemplates another — "an external per-minute trigger hitting an
+    authenticated endpoint that runs one pass" — and a trace that lives in
+    the driver is lost the day the driver changes. It also puts the line
+    where the acceptance suite can reach it: 11.7 makes this callable the
+    suite's only way in, and a record nothing can test is the same class of
+    thing as no record. The failure path stays in `interval.ts`, a throw
+    never reaching this line.
+
+    **Silent when there is nothing to say**, because at sixty seconds an
+    unconditional line is 1,440 a day of zeroes and the one that mattered
+    would be lost in them. Two ways to have something to say: one of the
+    four sweep duties touched a row, or the pass ran longer than
+    `SLOW_PASS_MS`, which is the warning before `reminder_pass_overlapped`
+    rather than a second copy of it. The delivery counts are not among the
+    four on purpose — every send, skip and refusal already writes its own
+    line through `reminderEvent`, and it was the four sweeps that had
+    nothing.
+    */
+    const durationMs = Date.now() - startedAt
+    const swept =
+      prunedSessions + purgedTrash + purgedEvents + reclaimedPictures
+    if (swept > 0 || durationMs >= slowPassMs) {
+      logger.operation('info', 'reminder_pass_completed', {
+        reclaimedPictures,
+        purgedTrash,
+        purgedEvents,
+        prunedSessions,
+        durationMs,
+      })
     }
 
     return {
