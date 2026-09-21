@@ -236,11 +236,15 @@ describe('AC-548 the older versions are files, not history', () => {
     ).toBe(422)
   })
 
+  /* 5 rather than 4 since #185, which spent 4 on the ordered page. The
+     decision this case pins is unchanged — an unknown version is refused —
+     and only which number is unknown has moved, exactly as it moved from 3 to
+     4 when #227 spent 3. */
   test('a version nobody writes is still refused', async () => {
     const [importer] = (await cast.of(app)) as [Actor]
     const refused = await importWorkflow(importer, {
       ...VERSION_TWO,
-      version: 4,
+      version: 5,
       name: 'ac528 from the future',
       folders: [{ name: 'ac528 from the future', tasks: [{ title: 'x' }] }],
     })

@@ -94,14 +94,15 @@ describe('importWorkflowBody folds the one-folder file (DES-206)', () => {
     for (const file of [
       { dana: 'workflow', version: 1, name: 'nothing at all' },
       { dana: 'shopping-list', version: 1, folders: [{ name: 'x' }] },
-      // Version 4 rather than 3, moved 2026-09-20 by issue #227, which added
-      // version 3 for the Folder Label vocabulary. The decision this row pins
-      // has not moved — **an unknown version is refused rather than read
-      // hopefully** — only which number is unknown has, which is the same
-      // move the note below this records for #204 and version 2. The row read
+      // Version 5 rather than 4, moved 2026-09-20 by issue #185, which added
+      // version 4 for the ordered page; 4 rather than 3 before that, by #227,
+      // which added version 3 for the Folder Label vocabulary. The decision
+      // this row pins has not moved — **an unknown version is refused rather
+      // than read hopefully** — only which number is unknown has, which is the
+      // same move the notes below record for #204, #227 and #185. The row read
       // `version: 2` until c7bd863 widened the schema and left it alone, and
       // the pair of cases added then is why this one could not go quiet again.
-      { dana: 'workflow', version: 4, folders: [{ name: 'x' }] },
+      { dana: 'workflow', version: 5, folders: [{ name: 'x' }] },
       'not an object',
       null,
     ]) {
@@ -124,6 +125,15 @@ describe('importWorkflowBody folds the one-folder file (DES-206)', () => {
   // two cases rather than one of them.
   test('version 3 is an arrangement, since the Folder Labels (#227)', () => {
     const file = { dana: 'workflow', version: 3, folders: [{ name: 'x' }] }
+    expect(importWorkflowBody.safeParse(file).success, JSON.stringify(file)).toBe(true)
+  })
+
+  // And version 4, added by #185 for the ordered page. A version 4 folder that
+  // carries no page at all is still a folder: the key is optional, and the
+  // older arrangements are still read beside it, which is what lets a
+  // hand-written file say 4 and arrange its work the way it always did.
+  test('version 4 is an arrangement, since the ordered page (#185)', () => {
+    const file = { dana: 'workflow', version: 4, folders: [{ name: 'x' }] }
     expect(importWorkflowBody.safeParse(file).success, JSON.stringify(file)).toBe(true)
   })
 })
@@ -498,6 +508,17 @@ function detail(over: Partial<TaskDetail>): TaskDetail {
   } as TaskDetail
 }
 
+/*
+**This block moved with the format, and rule 3 is not what happened here.**
+`docs/workflow/backend.md` forbids editing a test to make code pass, and the
+decision these cases pin is "what the writer writes and the reader reads back".
+Issue #185 moved that decision — the exporter now writes format 4's one ordered
+page and no `tasks` or `blocks` collection at all — so the assertions follow it
+in the same change, and the substance of every one of them is unchanged: the
+same keep-set, the same order, the same absences, the same round trip. What is
+*added* is the thing the old format could not say, which is where each of them
+sits on the page.
+*/
 describe('folderToWorkflowFile writes what the import reads', () => {
   const task = detail({
     notes: 'Ask for the big one.',
@@ -511,29 +532,46 @@ describe('folderToWorkflowFile writes what the import reads', () => {
     assignee: null,
   })
 
-  const file = folderToWorkflowFile('Launch', [task], [
+  const saved = folderToWorkflowFile('Launch', [task], [
     { kind: 'section', text: 'Before the day' },
     { kind: 'paragraph', text: 'Read this first.' },
     { kind: 'image', text: null },
     { kind: 'paragraph', text: '   ' },
   ])
+  const file = saved.file
+  const page = file.folders[0]?.page?.blocks ?? []
 
-  test('the keep-set travels', () => {
-    expect(file.folders[0]?.tasks?.[0]).toEqual({
+  test('the keep-set travels, as a block of the page at its own position', () => {
+    expect(page.at(-1)).toEqual({
+      kind: 'task',
       title: 'Book the room',
       notes: 'Ask for the big one.',
       important: true,
       recurrence_rule: 'FREQ=WEEKLY;BYDAY=MO',
       reminder: { time_of_day: '08:30' },
       steps: [{ title: 'Check the calendar' }, { title: 'Send the invite' }],
+      /* No `section` key, and that is the positional default doing its work
+         rather than a gap. The paragraph before it said `section: null`, which
+         closes the Section for everything after it, so the Task's default is
+         already the page root and saying so again would be noise. The
+         placeholder between them changes nothing: a block the file does not
+         carry cannot close a Section it never entered. */
     })
   })
 
-  test('sections and paragraphs travel and an image does not', () => {
-    expect(file.folders[0]?.blocks).toEqual([
+  test('writing travels in order and a picture travels as a placeholder', () => {
+    expect(page.slice(0, 3)).toEqual([
       { kind: 'section', text: 'Before the day' },
-      { kind: 'paragraph', text: 'Read this first.' },
+      { kind: 'paragraph', text: 'Read this first.', section: null },
+      { kind: 'omitted', was: 'image' },
     ])
+    expect(saved.omitted, 'and the writer says how many it left behind').toBe(1)
+  })
+
+  test('the version says what a reader must understand, and it is 4', () => {
+    expect(file.version).toBe(4)
+    expect(file.folders[0]?.tasks, 'no collection beside the page').toBeUndefined()
+    expect(file.folders[0]?.blocks, 'nor a second block list').toBeUndefined()
   })
 
   test('no id, no person, no date, no state and no tick is written at all', () => {
@@ -557,7 +595,7 @@ describe('folderToWorkflowFile writes what the import reads', () => {
   })
 
   test('a folder with no name still writes a file the import accepts', () => {
-    const unnamed = folderToWorkflowFile('   ', [detail({})])
+    const unnamed = folderToWorkflowFile('   ', [detail({})]).file
     expect(unnamed.folders[0]?.name).toBe('Imported workflow')
     expect(importWorkflowBody.safeParse(unnamed).success).toBe(true)
   })

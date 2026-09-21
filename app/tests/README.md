@@ -168,6 +168,30 @@ dropping the vocabulary before validation saw it. Each was proved by breaking
 the line it watches and watching it go red, and AC-781 by two mutations rather
 than one, it being the only one of the three that was green on arrival.
 
+**AC-820 to AC-825 on 2026-09-20 and 21, issue #185, and they are the round
+trip itself.** The workflow file now serializes the folder page directly — one
+ordered array, Sections nesting by `level`, membership positional with an
+explicit escape, Tasks as blocks, media as placeholders — and the six criteria
+drive a composed page through the writer the folder page calls, the endpoint
+over the wire, and the `page_blocks` and `tasks` rows on the other side.
+`support/workflow-page-harness.ts` is theirs. Every one was proved red by
+mutation: **sixteen mutations across the six**, each named in the commit that
+added the case it fired — thirteen when the block was written and three more
+from the adversarial review of 2026-09-21, which added an `items` arm and an
+ordering arm to AC-824 and a withheld-work assertion to AC-820. **One of that
+review's findings is the reason to read this number rather than trust it**: the
+commit that first wrote AC-824 claimed it went red "when the index bounds go",
+and it did not — a `list_parent` out of range is refused for naming a block that
+is not there, whether or not the ordering test exists. The arm that observes the
+bound is the one naming a real bullet written *later*, and it was added to make
+the claim true. **One other is worth knowing about
+before you reach for the same technique.** AC-825 asserts byte equality across
+export, import and export again, which is as strong as it sounds about any
+*asymmetry* between the two halves and is **blind to a loss they agree about**:
+stopping the writer from emitting `rich_content` left the product losing every
+bold run and left that criterion green. It now reads the imported rows against
+the source's as well, and its header says what the technique cannot see.
+
 **AC-780 was then rewritten, and this is the part worth reading.** Its first
 fix refused the file in `canonicalWorkflowBody.superRefine`, folding with
 JavaScript `toLowerCase()` in front of `labels_folder_name_idx`'s
@@ -372,13 +396,28 @@ list, so the cut turned their red into silence rather than into green:
   tasks, and following blocks backfill in that order".
 
 The third, `src/shared/workflows.test.ts`'s "a file that is neither arrangement
-is still refused" (DES-206), is a colocated unit test and survives, so it is
+is still refused" (DES-206), is a colocated unit test and survives, so it was
 still red and still visible.
 
-**Both defects are unfixed and now unwatched.** They are plausibly the same
-area as the open workflow round-trip issue. Whoever picks that up should start
-from the deleted files in git rather than assume the behaviour is sound because
-nothing is failing.
+**That third one is green and has been since #227; corrected 2026-09-20 on
+`backend/185`.** It was never a product defect: the case drives the version
+nobody writes, and #227 spent the number it was driving. Its own comment records
+the move and #185 moved it again, 4 to 5. **The sentence above was stale rather
+than wrong when written**, and it is left standing with this correction under it
+because the distinction it drew — a colocated unit test survives a cut of
+`tests/criteria/` — is the thing worth keeping.
+
+**Both of the other defects are unfixed and now unwatched.** This paragraph used
+to guess that they were "plausibly the same area as the open workflow round-trip
+issue". **They are not, checked 2026-09-20 by the session that closed that issue
+(#185) against both deleted files in git**: `ac-390` asserts 7.22's account
+export top-level keys, and the account export embeds no workflow file at all;
+`ac-415` stages rows against a PGlite database with migration 0016 withheld and
+asserts that 0016's *backfill* orders them as the old client drew them, which is
+a migration written long before any of this. Neither touches
+`shared/workflows.ts`, `importWorkflow` or `folderToWorkflowFile`. So the advice
+stands and the guess does not: start from the deleted files in git, and do not
+expect the workflow work to have swept either of them up.
 
 ### What was kept, and on what rule
 

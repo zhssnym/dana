@@ -71,12 +71,19 @@ is stated there: refusing would make honest exports from older versions
 unimportable.
 
 **A page image does not travel**, and that is 7.16 rather than an oversight:
-it admits sections and paragraphs, and an image block is a `file_id` into
-the exporting account, which is a row the importing account cannot read
-(10.2) rather than a picture. Carrying the bytes instead would be 7.15's
-upload path inside an import, which is a widening of a frozen section and is
-escalated rather than decided here. So an image item is dropped, and the
-sections and paragraphs around it keep their order.
+an image block is a `file_id` into the exporting account, which is a row the
+importing account cannot read (10.2) rather than a picture. Carrying the
+bytes instead would be 7.15's upload path inside an import, which is a
+widening of a frozen section and is escalated rather than decided here. So an
+image item creates nothing, and the writing around it keeps its order.
+
+**What changed at #185 is that the file now says so.** This paragraph used to
+end "an image item is dropped", and dropped is exactly what it was: the page
+had a picture, the file had a gap, and nobody was told at either end. At
+version 4 the gap is an explicit `{ kind: 'omitted', was }` placeholder and
+the writer answers a count of them, so the loss is recorded in the bytes and
+said at the export surface. Versions 1 to 3 still drop, because a file of
+those versions has no way to say anything else.
 */
 import { z } from 'zod'
 import {
@@ -87,8 +94,15 @@ import {
   labelName,
 } from './labels.js'
 import type { LabelDefinition } from './labels.js'
-import { documentOperation, documentOutlineItem } from './page-document.js'
-import type { PageView } from './pages.js'
+import {
+  MAX_SECTION_DEPTH,
+  RICH_TEXT_BLOCK_KINDS,
+  documentOperation,
+  documentOutlineItem,
+  isListKind,
+  richContent,
+} from './page-document.js'
+import type { PageView, PageBlock } from './pages.js'
 
 import { recurrenceRule } from './tasks.js'
 import type { TaskDetail } from './tasks.js'
@@ -162,16 +176,393 @@ const importTask = z.object({
     .optional(),
 })
 
+/** One Task's portable keys, wherever the file writes it: a member of a
+ * folder's `tasks` at versions 1 to 3, a block of its `page` at 4. */
+export type ImportWorkflowTask = z.infer<typeof importTask>
+
 const importBlock = z.object({
   kind: z.enum(['section', 'paragraph']),
   text: z.string().min(1).max(4000),
 })
+
+/* ------------------------------------------------------------------ *
+ * Format 4: the page, as the page (issue #185)
+ * ------------------------------------------------------------------ */
+
+/*
+**One ordered page, and it is the model the folder actually persists.**
+
+Formats 1 to 3 carry a folder as two collections — `blocks` for its writing and
+`tasks` for its work — plus, since #204, a `document` whose every identity is a
+`uuid` of the exporting account. Both are lossy in the way issue #185 reports:
+the collections cannot say that a Task sits *under* a Section, and the document
+says it with ids an importing account has no business resolving. Format 4 has
+one array, in page order, and says everything positionally.
+
+- **A Section's nesting is its `level`**, 1 to `MAX_SECTION_DEPTH`, exactly as a
+  heading level reads in prose. The parent of a level-2 heading is the open
+  level-1 heading above it, which is what 4.17's `section_block_id` holds and
+  what 7.16's contiguity rule already guarantees can be read off the order.
+- **Everything else belongs to the innermost Section still open**, which is the
+  ruling's "a task block after a `section` block is under it". That covers every
+  page the composer draws.
+- **`section` is the escape and it is written only where the default is wrong.**
+  7.16 admits content at the page root *after* a Section, and a purely
+  positional file could not say so — it would claim a Section the page does not
+  have, which is the very class of silent wrongness #185 is about. So a block
+  may name the open Section it belongs to by index, or `null` for the page root,
+  and `folderToWorkflowFile` emits the key only when it has to. A Section block
+  never carries one: its `level` already says which Section it is under.
+- **`list_parent` is #219's second parent**, by index into this same array, and
+  it is independent of the first exactly as the column is.
+- **A Task is a block of `kind: 'task'`** carrying the portable fields 7.16 has
+  always allowed it — title, notes, star, repeat, reminder, step titles and its
+  Folder Label keys — inline, at its position.
+- **Files and media do not travel, and the file says which ones did not.** An
+  `image`, `file`, `audio`, `video` or `folder_ref` block names a row of the
+  exporting account (a `files` id, a `folders` id) rather than a portable thing,
+  and carrying the bytes would be 7.15's upload path inside an import. So each
+  one is written as `{ kind: 'omitted', was, name? }`, which imports as nothing.
+  The placeholder is the point: the file **records what it dropped** instead of
+  quietly claiming structure the importer discards, and `folderToWorkflowFile`
+  answers a count of them so the export surface can say so before anybody saves.
+
+**No index is a database id and there is nothing in a format 4 file to remap.**
+That is the property #185 asks for in as many words: "the implementation does
+not need to copy private account ids".
+*/
+
+/** The kinds a format 4 file carries whole. Every one is text and structure. */
+export const WORKFLOW_PAGE_BLOCK_KINDS = [
+  'section',
+  'paragraph',
+  'bullet',
+  'numbered',
+  'checklist',
+  'quote',
+  'callout',
+  'code',
+] as const
+export type WorkflowPageBlockKind = (typeof WORKFLOW_PAGE_BLOCK_KINDS)[number]
+
+/*
+The kinds a format 4 file records as dropped rather than carries.
+
+**`file`, `audio` and `video` are named here before this tree has them**, and
+that is deliberate rather than speculative: #220 adds them to
+`DOCUMENT_BLOCK_KINDS` on a branch open beside this one, they are media by the
+same argument `image` is, and a list written to be completed later is a list
+that is silently incomplete on the day the other branch merges.
+`tests/guards/guard-workflow-page-covers-every-block-kind.test.ts` is what makes
+that claim checkable in either direction: every kind a page may hold is either
+carried above or omitted here, and a kind that is neither fails by name.
+*/
+export const WORKFLOW_OMITTED_BLOCK_KINDS = [
+  'image',
+  'file',
+  'audio',
+  'video',
+  'folder_ref',
+] as const
+export type WorkflowOmittedBlockKind = (typeof WORKFLOW_OMITTED_BLOCK_KINDS)[number]
+
+/** 7.16's own ceiling on one outline, which is what this array becomes. */
+const WORKFLOW_PAGE_ITEM_CAP = 1500
+
+/** A reference to another block of the same page, by its position in this
+ * array. Never a database id; see the header above. */
+const pageBlockIndex = z.number().int().min(0).max(WORKFLOW_PAGE_ITEM_CAP - 1)
+
+/*
+The text rules, restated over the constants `page-document.ts` owns rather than
+over literals of this file's own.
+
+**Why restated at all, when `applyDocument` is the validator this import
+reuses.** `applyDocument` judges *structure* — the outline, the nesting, the
+caps, the identities — and it judges it after the block payloads have already
+been parsed by `documentOperation`. A format 4 block is not a `put_block`: it
+carries no id, no `file_id` and no `width_pct`, and it is turned into one only
+after this schema has accepted it. So the three rules that are properties of a
+block's own payload are stated here, each reading the same exported constant the
+document schema reads, and the guard beside this file drives a format 4 block
+and the `put_block` it becomes through both to prove the two never disagree.
+*/
+const pageContentBlock = z
+  .object({
+    kind: z.enum(WORKFLOW_PAGE_BLOCK_KINDS),
+    /** 4.17's plain-text projection. Nullable because the column is, and
+     * absent means null: an empty heading is a heading 4.17 admits. */
+    text: z.string().max(4000).nullable().optional(),
+    rich_content: richContent.nullable().optional(),
+    /** #219's tick, and authored content rather than any Task's status. */
+    checked: z.boolean().optional(),
+    /** A Section's heading level, and the whole of how Sections nest here. */
+    level: z.number().int().min(1).max(MAX_SECTION_DEPTH).optional(),
+    list_parent: pageBlockIndex.optional(),
+    section: pageBlockIndex.nullable().optional(),
+  })
+  .superRefine((block, ctx) => {
+    if (block.kind === 'section' && (block.text?.length ?? 0) > 120) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['text'],
+        message: 'A heading has at most 120 characters.',
+      })
+    }
+    if (
+      block.rich_content !== null &&
+      block.rich_content !== undefined &&
+      (!(RICH_TEXT_BLOCK_KINDS as readonly string[]).includes(block.kind) ||
+        block.rich_content.runs.map((run) => run.text).join('') !== (block.text ?? null))
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['rich_content'],
+        message: 'Rich content must match its text projection.',
+      })
+    }
+    if (block.checked !== undefined && block.kind !== 'checklist') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['checked'],
+        message: 'Only a checklist item is checked or unchecked.',
+      })
+    }
+    if (block.level !== undefined && block.kind !== 'section') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['level'],
+        message: 'Only a heading carries a level.',
+      })
+    }
+    if (block.section !== undefined && block.kind === 'section') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['section'],
+        message: "A heading's Section is its level, so it names none.",
+      })
+    }
+    if (block.list_parent !== undefined && !isListKind(block.kind)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['list_parent'],
+        message: 'Only a bullet, numbered or checklist item is a nested list item.',
+      })
+    }
+  })
+
+/**
+ * A Task at its place on the page: 7.16's portable keys, inline.
+ *
+ * **`list_parent` is declared in order to be refused**, which is 11.14's house
+ * spelling (`shelves.ts` carries the same idiom) and is here for #185's own
+ * rule rather than for tidiness. #219 says a Task is never a nested list item,
+ * and an undeclared key is *stripped*: a file nesting a Task under a bullet
+ * would import with the nesting silently gone, which is the one thing this
+ * format is not allowed to do. The content block above refuses the same thing
+ * for the kinds that cannot nest; this is the Task's half of it, and AC-824
+ * drives it.
+ */
+const pageTaskBlock = importTask.extend({
+  kind: z.literal('task'),
+  section: pageBlockIndex.nullable().optional(),
+  list_parent: z
+    .never({ error: 'A Task is never a nested list item.' })
+    .optional(),
+})
+
+/*
+What the page held that the file does not.
+
+**It imports as nothing, and that is the whole of its contract.** It exists so
+that a person reading the JSON, and the export surface that wrote it, can both
+say what was left behind. `name` is whatever the exporter knew to call the
+thing — a picture's caption where the block carried one — and it is read by
+nobody: the block creates no row, so there is no field for it to arrive in.
+*/
+const pageOmittedBlock = z.object({
+  kind: z.literal('omitted'),
+  was: z.enum(WORKFLOW_OMITTED_BLOCK_KINDS),
+  name: z.string().max(300).optional(),
+})
+
+export const workflowPageBlock = z.discriminatedUnion('kind', [
+  pageContentBlock,
+  pageTaskBlock,
+  pageOmittedBlock,
+])
+export type WorkflowPageBlock = z.infer<typeof workflowPageBlock>
+export type WorkflowTaskBlock = z.infer<typeof pageTaskBlock>
+
+const workflowPage = z.object({
+  blocks: z
+    .array(workflowPageBlock)
+    .max(
+      WORKFLOW_PAGE_ITEM_CAP,
+      `page: a page carries at most ${String(WORKFLOW_PAGE_ITEM_CAP)} items`,
+    ),
+})
+
+/*
+The one reading of a format 4 page, used by the schema and by the import.
+
+**Two readers of one positional format would be two formats.** The schema has
+to refuse a file whose indices do not resolve, and the import has to build an
+outline out of the same indices; if each worked it out for itself, a file could
+be accepted by one reading and written by the other. So there is one walk, it
+answers both questions at once, and `importWorkflow` asserts that the issues it
+returns are empty rather than re-deriving them.
+
+The walk keeps the stack of Sections open at this point in the page, which is
+`applyDocument`'s own `active` under another name: a parent must precede its
+content and content forms a contiguous run, so the ancestry of the next item is
+entirely determined by the items before it. `folderToWorkflowFile` runs the
+**same** stack while it writes, which is what makes the default right by
+construction and the `section` escape necessary only where the truth differs
+from it.
+
+What is deliberately *not* checked here: that a nested list item shares its list
+parent's Section, that a heading is not four deep once the escapes are applied,
+that nothing is repeated. Those are structure rather than index arithmetic,
+`applyDocument` already refuses every one of them, and a second implementation
+of a rule is the thing this module exists to avoid.
+*/
+export interface WorkflowPageItem {
+  /** Where this item sits in the file's own `page.blocks`. */
+  index: number
+  kind: 'block' | 'task'
+  /** The `page.blocks` index of the Section it belongs to, or null for the
+   * page root. */
+  sectionIndex: number | null
+  /** The `page.blocks` index of the list item it is nested under, or null. */
+  listParentIndex: number | null
+}
+
+export interface WorkflowPageIssue {
+  path: (string | number)[]
+  message: string
+}
+
+export interface WorkflowPageReading {
+  /** Every block that becomes a row, in page order. Placeholders are absent. */
+  items: WorkflowPageItem[]
+  /** How many placeholders the file carried. */
+  omitted: number
+  /** Empty when the page reads; otherwise what is wrong and where. */
+  issues: WorkflowPageIssue[]
+}
+
+export function readWorkflowPage(
+  blocks: readonly WorkflowPageBlock[],
+): WorkflowPageReading {
+  const items: WorkflowPageItem[] = []
+  const issues: WorkflowPageIssue[] = []
+  let omitted = 0
+  /** The Sections open at this point, outermost first. */
+  const open: number[] = []
+  blocks.forEach((block, index) => {
+    if (block.kind === 'omitted') {
+      omitted += 1
+      return
+    }
+    let parent: number | null = null
+    if (block.kind === 'section') {
+      const level = block.level ?? 1
+      if (level > open.length + 1) {
+        issues.push({
+          path: [index, 'level'],
+          message: `A level ${String(level)} heading needs a level ${String(level - 1)} heading above it`,
+        })
+        return
+      }
+      parent = level === 1 ? null : (open[level - 2] ?? null)
+    } else if (block.section === undefined) {
+      parent = open.length === 0 ? null : (open[open.length - 1] ?? null)
+    } else if (block.section !== null) {
+      if (!open.includes(block.section)) {
+        issues.push({
+          path: [index, 'section'],
+          message:
+            'A block names the Section it is in by the position of a heading that is still open above it',
+        })
+        return
+      }
+      parent = block.section
+    }
+    let listParent: number | null = null
+    if (block.kind !== 'task' && block.list_parent !== undefined) {
+      const target = blocks[block.list_parent]
+      if (
+        block.list_parent >= index ||
+        target === undefined ||
+        target.kind === 'task' ||
+        target.kind === 'omitted' ||
+        !isListKind(target.kind)
+      ) {
+        issues.push({
+          path: [index, 'list_parent'],
+          message:
+            'A list item nests under a bullet, numbered or checklist item written above it',
+        })
+        return
+      }
+      listParent = block.list_parent
+    }
+    /* The stack, moved to this item's ancestry: leaving a Section closes it and
+       every Section inside it, which is 7.16's contiguity read forwards. */
+    open.length = parent === null ? 0 : open.indexOf(parent) + 1
+    if (block.kind === 'section') open.push(index)
+    items.push({
+      index,
+      kind: block.kind === 'task' ? 'task' : 'block',
+      sectionIndex: parent,
+      listParentIndex: listParent,
+    })
+  })
+  return { items, omitted, issues }
+}
 
 const importFolder = z.object({
   document: z.object({blocks:z.array(documentOperation).max(500),outline:z.array(documentOutlineItem).max(1500),task_ids:z.array(z.uuid()).max(1000)}).optional(),
   name: z.string().min(1).max(100),
   tasks: z.array(importTask).optional(),
   blocks: z.array(importBlock).optional(),
+  /** Format 4's one ordered page (#185). Gated on the version by
+   * `readsPage` below, exactly as `labels` is gated on 3. */
+  page: workflowPage.optional(),
+  /*
+  DES-206's own name for `blocks`, declared for one reason: to refuse it
+  **beside a page**, which is the same contradiction the rule below refuses for
+  `tasks`, `blocks` and `document`.
+
+  **Nothing legitimate reaches this line.** `normalizeFolder` folds `items` into
+  `blocks` for a folder with no page and *deletes the key as it folds*, so an
+  `items` that survives normalisation is one the normaliser deliberately left
+  alone — and it leaves it alone in exactly one case, a folder that also carries
+  a page, because folding it there would invent the contradiction rather than
+  report it. So `z.never()` here is precise rather than blunt: a version 1 file
+  full of `items` still imports, and a version 4 folder with `items` and no page
+  is still read from the older keys.
+
+  It is this spelling and not a line in the refinement below because the key has
+  to *survive* to be seen at all, and a key an object schema does not declare is
+  stripped before any refinement runs — which is exactly how this shipped
+  broken: a version 4 folder carrying a page and an `items` imported **201**
+  with the `items` gone and nothing said, the one behaviour format 4 exists to
+  end, reached by spelling the key the way the older serialiser did. 11.14 names
+  `z.never({ error })` as the house answer for a field an endpoint means to
+  refuse, and `shelves.ts` already uses it.
+
+  The message is worded as the refinement's is, and the path zod gives it is
+  `folders.<n>.items`, so a caller cannot tell which of the two refused them.
+  AC-824 is the criterion that proves the value arrives.
+  */
+  items: z
+    .never({
+      error:
+        'items: a folder that carries a page carries its work and its writing in that page, and nowhere else',
+    })
+    .optional(),
   /** The Folder's reusable vocabulary. Capped at 10.3's per-Folder definition
    * limit for the reason every other cap here is the live one. */
   labels: z
@@ -185,7 +576,7 @@ const importFolder = z.object({
 
 /*
 **Every version of the file format this contract reads, and the only place
-any of them is written down.** #260.
+any of them is written down.** #260, extended to 4 by #185.
 
 There were two places. The endpoint's schema widened from `z.literal(1)` to
 both at #204 on 2026-09-17, and the client's file picker
@@ -204,8 +595,14 @@ the picker is derived from the list rather than repeating it. **Adding a
 version is this array and nothing else**; anything that needs to know which
 versions are readable imports one of these two rather than writing a
 literal.
+
+**4 joined it the same way, and it is the claim's first repayment.** #185's
+ordered page is what `folderToWorkflowFile` now writes, and the whole of what
+that cost the picker was this array — one line, in one file, exactly as the
+paragraph above promised. 1, 2 and 3 are read as they always were, so a file
+written before that change imports with the same rows it always made.
 */
-export const WORKFLOW_FILE_VERSIONS = [1, 2, 3] as const
+export const WORKFLOW_FILE_VERSIONS = [1, 2, 3, 4] as const
 
 /** The array as the body schema reads it. A union of literals rather than
  * `z.literal([...])` so the issue a bad version produces keeps the shape it
@@ -218,17 +615,17 @@ const canonicalWorkflowBody = z
   .object({
     dana: z.literal('workflow'),
     /*
-    **1, 2 and now 3, and every one of them still imports.** The numbers
+    **1, 2, 3 and now 4, and every one of them still imports.** The numbers
     themselves are `WORKFLOW_FILE_VERSIONS` above and this field is derived
     from it (#260); what follows is what the number *means*. It says what a
     *reader* must understand, so it goes up when the writer starts
     emitting something an older reader would silently lose — which is exactly
     what a Folder Label vocabulary is to a version-2 reader, whose schema does
     not declare `labels` and would therefore strip it and import a folder with
-    its classification quietly gone. 3 is #227's Folder Labels (area 4), 2 was
-    the typed page document, 1 was the original. Older files are not
-    deprecated: `folderToWorkflowFile` still writes 1 for a file with neither,
-    and #227's own requirement is that they keep importing.
+    its classification quietly gone. 4 is #185's ordered page, 3 is #227's
+    Folder Labels (area 4), 2 was the typed page document, 1 was the original.
+    Older files are not deprecated and #227's own requirement is that they keep
+    importing; what changed at 4 is only what the *writer* emits.
     */
     version: workflowFileVersion,
     name: z.string().max(100).optional(),
@@ -238,8 +635,25 @@ const canonicalWorkflowBody = z
       .max(50, 'folders: a workflow file carries at most 50'),
   })
   .superRefine((file, ctx) => {
+    /*
+    Format 4's page is counted against the same two ceilings 10.3 has always
+    carried, and it is counted by what each entry *becomes*: a content block is
+    a block, a task block is a task, and an omitted placeholder is neither,
+    because it creates nothing. The array's own cap above bounds a file made
+    entirely of placeholders.
+    */
+    const pageBlocks = (folder: z.infer<typeof importFolder>): number =>
+      (folder.page?.blocks ?? []).filter(
+        (block) => block.kind !== 'task' && block.kind !== 'omitted',
+      ).length
+    const pageTasks = (folder: z.infer<typeof importFolder>): number =>
+      (folder.page?.blocks ?? []).filter((block) => block.kind === 'task').length
     const blocks = file.folders.reduce(
-      (sum, folder) => sum + (folder.document?.blocks.length ?? folder.blocks?.length ?? 0),
+      (sum, folder) =>
+        sum +
+        (folder.page !== undefined
+          ? pageBlocks(folder)
+          : (folder.document?.blocks.length ?? folder.blocks?.length ?? 0)),
       0,
     )
     if (blocks > 500) {
@@ -250,7 +664,7 @@ const canonicalWorkflowBody = z
       })
     }
     const tasks = file.folders.reduce(
-      (sum, folder) => sum + (folder.tasks?.length ?? 0),
+      (sum, folder) => sum + (folder.tasks?.length ?? 0) + pageTasks(folder),
       0,
     )
     if (tasks > 1000) {
@@ -343,6 +757,50 @@ const canonicalWorkflowBody = z
     index agrees, being on `(folder_id, lower(name))` rather than on the name
     alone.
     */
+    /*
+    Format 4's two file-local rules, and they are the same kind of rule as the
+    Label ones below: a file's own values compared to a file's own values.
+
+    **A page and a collection in one folder is a file claiming structure the
+    importer discards**, which is #185's acceptance in as many words. A format 4
+    folder says everything in `page`, so a `tasks`, `blocks`, `document` or
+    `items` key beside it is work the import would not create, sitting in a file
+    that looks complete. It is refused rather than dropped for the reason an
+    undeclared Label key is: dropping loses the thing silently and leaves a file
+    that looks imported and is not.
+
+    **`items` is the fourth key and it is refused one layer up**, by
+    `z.never({ error })` on the folder schema above, because an undeclared key
+    is stripped before this loop can see it and a declared-then-stripped one
+    would still have to be erased from the parsed body by hand. The message and
+    the field path are the same shape as these three on purpose; the reason it
+    can be a flat refusal rather than a conditional one is that the normaliser
+    deletes `items` wherever it folds it, so the only `items` that survives to
+    be refused is one sitting beside a page. A version 4 folder with **no** page is still read from
+    the older keys, so a hand-written file that says 4 and arranges itself the
+    old way imports rather than being told it is wrong about itself.
+
+    **And the page's own indices have to resolve**, which is `readWorkflowPage`
+    above and nothing this loop knows itself.
+    */
+    file.folders.forEach((folder, index) => {
+      if (folder.page === undefined) return
+      for (const key of ['tasks', 'blocks', 'document'] as const) {
+        if (folder[key] === undefined) continue
+        ctx.addIssue({
+          code: 'custom',
+          path: ['folders', index, key],
+          message: `${key}: a folder that carries a page carries its work and its writing in that page, and nowhere else`,
+        })
+      }
+      for (const issue of readWorkflowPage(folder.page.blocks).issues) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['folders', index, 'page', 'blocks', ...issue.path],
+          message: issue.message,
+        })
+      }
+    })
     file.folders.forEach((folder, index) => {
       const declared = new Set<string>()
       for (const label of folder.labels ?? []) {
@@ -355,16 +813,35 @@ const canonicalWorkflowBody = z
         }
         declared.add(label.key)
       }
-      ;(folder.tasks ?? []).forEach((task, taskIndex) => {
+      /* Wherever the Task is written. A format 4 Task is a block of the page
+         and carries the same `labels` key in the same vocabulary, so the rule
+         that an undeclared key is refused rather than dropped has to reach it
+         — the alternative is the one loss #227 exists to stop, a file that
+         looks imported with its classification quietly gone. */
+      const tasksOf: [(string | number)[], { labels?: string[] }][] = [
+        ...(folder.tasks ?? []).map(
+          (task, taskIndex): [(string | number)[], { labels?: string[] }] => [
+            ['tasks', taskIndex, 'labels'],
+            task,
+          ],
+        ),
+        ...(folder.page?.blocks ?? []).flatMap(
+          (block, blockIndex): [(string | number)[], { labels?: string[] }][] =>
+            block.kind === 'task'
+              ? [[['page', 'blocks', blockIndex, 'labels'], block]]
+              : [],
+        ),
+      ]
+      for (const [path, task] of tasksOf) {
         for (const key of task.labels ?? []) {
           if (declared.has(key)) continue
           ctx.addIssue({
             code: 'custom',
-            path: ['folders', index, 'tasks', taskIndex, 'labels'],
+            path: ['folders', index, ...path],
             message: `labels: the key ${JSON.stringify(key)} is not one of this folder's labels`,
           })
         }
-      })
+      }
     })
   })
 
@@ -428,7 +905,7 @@ function dropNulls(task: Record<string, unknown>): void {
  * key `importFolder` names is here, because "null means absent" is a property
  * of the format rather than of any one key. */
 function dropFolderNulls(folder: Record<string, unknown>): void {
-  for (const key of ['tasks', 'blocks', 'document', 'labels']) {
+  for (const key of ['tasks', 'blocks', 'document', 'labels', 'page']) {
     if (folder[key] === null) delete folder[key]
   }
 }
@@ -457,7 +934,22 @@ product decision #227 did not take, and this file's rule everywhere else is
 that an arrangement it cannot read is dropped rather than guessed at.
 */
 function readsLabels(file: Record<string, unknown>): boolean {
-  return file.version === 3
+  return file.version === 3 || file.version === 4
+}
+
+/*
+A `page` key belongs to version 4, on exactly the rule above.
+
+**It is the stricter half of the same line and that is why it is gated.** A
+version 4 page is *refused* where it cannot be read — an unknown block kind is a
+422 rather than a dropped item — because a file that says 4 has said its reader
+understands this page, so a kind it does not define is the file contradicting
+itself. A version 1 file has said no such thing, and `page` there is a foreign
+arrangement like any other: dropped, reported by the client's own reporter, and
+never measured against rules it never claimed to satisfy.
+*/
+function readsPage(file: Record<string, unknown>): boolean {
+  return file.version === 4
 }
 
 function normalizeTask(task: unknown, labels: boolean): unknown {
@@ -481,7 +973,11 @@ function normalizeTask(task: unknown, labels: boolean): unknown {
   return next
 }
 
-function normalizeFolder(folder: unknown, labels: boolean): unknown {
+function normalizeFolder(
+  folder: unknown,
+  labels: boolean,
+  carriesPage: boolean,
+): unknown {
   /* A folder given as its name alone, which is what a file listing the
      folders of an arrangement writes. */
   if (typeof folder === 'string') return { name: folder }
@@ -489,6 +985,12 @@ function normalizeFolder(folder: unknown, labels: boolean): unknown {
   const next: Record<string, unknown> = { ...folder }
   dropFolderNulls(next)
   if (!labels) delete next.labels
+  if (!carriesPage) delete next.page
+  /* A format 4 folder says everything in its page, so the older arrangements
+     are left exactly as the file wrote them: a `blocks` key beside a page is
+     the contradiction the body refuses, and folding `items` into one here
+     would invent that contradiction out of a key the file merely carried. */
+  if (carriesPage && isRecord(next.page)) return next
   const page = Array.isArray(next.blocks)
     ? next.blocks
     : Array.isArray(next.items)
@@ -499,6 +1001,21 @@ function normalizeFolder(folder: unknown, labels: boolean): unknown {
       .map(normalizeBlock)
       .filter((block): block is NormalBlock => block !== null)
   }
+  /*
+  **Every path that reaches this line is a folder with no format 4 page**, the
+  one that has one having returned above — so `items` has either become
+  `blocks` or is a key of a shape no arrangement reads, and either way the
+  folder is done with it.
+
+  It used to be left sitting here, harmlessly, because the schema declared no
+  `items` and stripped it. The schema declares one now, to refuse an `items`
+  **beside a page**, and that declaration is a flat `z.never()` rather than a
+  conditional rule precisely because of this line: after normalisation the only
+  surviving `items` in the world is the one the early return above kept. Leave
+  it here and a version 1 file would be refused for a key the fold had already
+  honoured.
+  */
+  delete next.items
   if (Array.isArray(next.tasks)) {
     next.tasks = next.tasks.map((task) => normalizeTask(task, labels))
   }
@@ -550,19 +1067,33 @@ export function normalizeWorkflowFile(value: unknown): unknown {
        than argued with. The version still gates it — `normalizeFolder` drops
        the key from a file below 3 exactly as it does a per-folder one — so a
        foreign top-level tag list is dropped and reported, not validated. */
-    if (!Array.isArray(file.tasks) && !Array.isArray(file.items)) return file
+    if (
+      !Array.isArray(file.tasks) &&
+      !Array.isArray(file.items) &&
+      !isRecord(file.page)
+    ) {
+      return file
+    }
     const named = typeof file.name === 'string' && file.name.trim() !== ''
     folders = [
       {
         name: named ? file.name : UNNAMED_IMPORT,
         ...(Array.isArray(file.labels) ? { labels: file.labels } : {}),
+        /* Format 4's page folds like every other top-level key this
+           arrangement writes, and for the same reason: `folderToWorkflowFile`
+           always writes a `folders` array, so only a hand-written or
+           hand-merged file arrives this way, and one that carried a page at
+           the top level would otherwise meet "folders: expected array" about
+           a file it got right in every other respect. */
+        ...(isRecord(file.page) ? { page: file.page } : {}),
         ...(Array.isArray(file.tasks) ? { tasks: file.tasks } : {}),
         ...(Array.isArray(file.items) ? { items: file.items } : {}),
       },
     ]
   }
   const labels = readsLabels(file)
-  file.folders = folders.map((folder) => normalizeFolder(folder, labels))
+  const page = readsPage(file)
+  file.folders = folders.map((folder) => normalizeFolder(folder, labels, page))
   return file
 }
 
@@ -594,10 +1125,18 @@ export type ImportWorkflowResponse = z.infer<typeof importWorkflowResponse>
  * parameter behind: a repeat needs 4.5's anchor and a reminder needs 8.6's,
  * and a file carrying neither evaluates nothing and needs no zone. */
 export function needsImportAnchor(file: ImportWorkflowBody): boolean {
-  return file.folders.some((folder) =>
-    (folder.tasks ?? []).some(
-      (task) => task.recurrence_rule !== undefined || task.reminder !== undefined,
-    ),
+  const dated = (task: {
+    recurrence_rule?: string
+    reminder?: { time_of_day: string }
+  }): boolean => task.recurrence_rule !== undefined || task.reminder !== undefined
+  return file.folders.some(
+    (folder) =>
+      (folder.tasks ?? []).some(dated) ||
+      /* Wherever the Task is written: a format 4 Task carries the same repeat
+         and the same reminder, and 4.5 and 8.6 admit neither without a date. */
+      (folder.page?.blocks ?? []).some(
+        (block) => block.kind === 'task' && dated(block),
+      ),
   )
 }
 
@@ -638,6 +1177,41 @@ function labelKeysOf(
   return keys
 }
 
+/**
+ * What "Save as workflow" produces: the file, and a count of what the page held
+ * that a file does not.
+ *
+ * **The count is a return value rather than a comment in this module**, because
+ * the only place it can honestly be said is the screen the person is standing
+ * in front of when they press the control. #185's acceptance asks for exactly
+ * that — "if images are intentionally excluded, the UI/export action clearly
+ * communicates that limitation" — and a number nobody has to compute is a
+ * number that cannot drift out of step with what the writer actually dropped.
+ */
+export interface WorkflowExport {
+  file: ImportWorkflowBody
+  /** Pictures, files, audio, video and folder references written as
+   * placeholders. Zero for a page that held none. */
+  omitted: number
+  /**
+   * Tasks the page carried that the caller handed over no detail for, and so
+   * that are not in the file at all (#185, and the adversarial review of it).
+   *
+   * **In the product these are the completed ones**, because `FolderPage.tsx`
+   * hands this function the folder's *pending* work: 7.16 carries no state and
+   * a template of finished work is not a template. That is a decision and it
+   * stands; what was wrong is that it happened in silence, which is the one
+   * thing this format exists to end. It is counted rather than written as a
+   * placeholder because a placeholder says "a block of this page could not
+   * travel", and a finished Task is content the format excludes by rule at
+   * every version, exactly as a due date and an assignee are.
+   *
+   * Zero for the flat call, which has no page and therefore no Task on it that
+   * the caller did not also hand over.
+   */
+  withheldTasks: number
+}
+
 /*
 "Save as workflow", as the same contract that reads one.
 
@@ -653,11 +1227,18 @@ format is added once.
 
 **What it writes is item 44's B3 list and nothing beside it.** The title,
 the notes, the star, the repeat, the reminder in its date-only mode, and the
-step titles; and of the page, its sections and its paragraphs in order. A
+step titles; and of the page, every block of writing it holds, in order, each
+Task among them at its own position. A
 tick, a state, a due date, an assignee, a comment and an id are absent
 because 7.16 excludes them, and they are absent from the file rather than
 stripped on the way back in, so a file a person opens in an editor shows
 them nothing about anybody.
+
+**It writes format 4 and nothing else (#185).** The `blocks` and `tasks`
+collections, and #204's `document` with its account-local uuids, are still
+*read*; none of them is written any more, because two output formats are two
+things to keep in step and the whole defect #185 reports is a file that cannot
+say what the page says.
 */
 export function folderToWorkflowFile(
   name: string,
@@ -679,7 +1260,7 @@ export function folderToWorkflowFile(
   caller may hand over whatever the endpoint answered.
   */
   folderLabels: readonly LabelDefinition[] = [],
-): ImportWorkflowBody {
+): WorkflowExport {
   /* 10.3 caps a folder name at 100 and admits no empty one, and this is the
      one place the name is not already a row that satisfied both. */
   const folderName = name.trim() === '' ? UNNAMED_IMPORT : name.slice(0, 100)
@@ -707,10 +1288,7 @@ export function folderToWorkflowFile(
       ? { description: label.description }
       : {}),
   }))
-  const page = blocks
-    .map((block) => normalizeBlock(block))
-    .filter((block): block is NormalBlock => block !== null)
-  const work = tasks.map((task) => {
+  const portable = (task: TaskDetail): Omit<WorkflowTaskBlock, 'kind'> => {
   const labelKeys = labelKeysOf(task, keyOf)
   return {
     title: task.title,
@@ -734,31 +1312,233 @@ export function folderToWorkflowFile(
        been filtered out of the vocabulary above, and drops out here. */
     ...(labelKeys.length > 0 ? { labels: labelKeys } : {}),
   }
+  }
+  /*
+  The page, in three passes, and the middle one is the whole of the positional
+  format.
+
+  1. **What is written**, in page order, each entry remembering the ids its
+     structure is expressed in.
+  2. **What each entry has to say about its structure**, computed by walking the
+     same stack of open Sections `readWorkflowPage` walks. That is what makes
+     the positional default right by construction: the encoder asks the decoder's
+     own question at every position and writes a key only where the answer
+     differs from the truth.
+  3. **The objects**, in one fixed key order, so that a file exported twice from
+     the same page is the same bytes.
+
+  **A Task with no detail is not written at all.** The folder page hands over
+  the *pending* work, so a completed Task is absent from `tasks` while its
+  reference is still in `items`; 7.16 has never carried a state and a template
+  of finished work is not a template. It is skipped rather than placed empty,
+  and skipping changes nothing about anybody's Section, because a Task is never
+  a parent of anything.
+
+  **It is skipped and counted, since 2026-09-21.** The decision above is
+  unchanged; what changed is that it used to happen with nothing said, which is
+  #185's own defect wearing a different coat. `withheldTasks` is that count and
+  the export surface says it. Why it is a count rather than an `omitted`
+  placeholder is on `WorkflowExport` above and in 7.16.
+  */
+  interface Entry {
+    /** Null for a placeholder, which nothing can refer to. */
+    id: string | null
+    section: string | null
+    listParent: string | null
+    isSection: boolean
+    write: (structure: PageStructure) => WorkflowPageBlock
+  }
+  interface PageStructure {
+    level?: number
+    section?: number | null
+    list_parent?: number
+  }
+  const entries: Entry[] = []
+  let withheldTasks = 0
+  const omittedKind = (kind: string): kind is WorkflowOmittedBlockKind =>
+    (WORKFLOW_OMITTED_BLOCK_KINDS as readonly string[]).includes(kind)
+  const carriedKind = (kind: string): kind is WorkflowPageBlockKind =>
+    (WORKFLOW_PAGE_BLOCK_KINDS as readonly string[]).includes(kind)
+  const placeholder = (kind: WorkflowOmittedBlockKind, text: string | null): Entry => ({
+    id: null,
+    section: null,
+    listParent: null,
+    isSection: false,
+    write: () => ({
+      kind: 'omitted' as const,
+      was: kind,
+      /* Whatever the exporter knew to call it. A picture's caption is the only
+         thing a page read carries about the file it names — 7.16's block read
+         has a `file_id`, dimensions and a width, and no filename — so the
+         caption is what a person opening the JSON is given. */
+      ...(text !== null && text.trim() !== '' ? { name: text.slice(0, 300) } : {}),
+    }),
+  })
+  const contentEntry = (block: PageBlock, kind: WorkflowPageBlockKind): Entry => ({
+    id: block.id,
+    section: block.section_block_id,
+    listParent: block.list_parent_block_id,
+    isSection: kind === 'section',
+    write: (structure) => ({
+      kind,
+      ...(structure.level === undefined ? {} : { level: structure.level }),
+      ...(block.text === null ? {} : { text: block.text }),
+      ...(block.rich_content === null || block.rich_content === undefined
+        ? {}
+        : { rich_content: block.rich_content }),
+      /* A tick is written only when it is one. 7.16 stores `false` for every
+         checklist item that is not ticked, and an omitted key means exactly
+         that on the way back in, so writing it would be noise that round trips
+         to the same row. */
+      ...(kind === 'checklist' && block.checked === true ? { checked: true } : {}),
+      ...(structure.section === undefined ? {} : { section: structure.section }),
+      ...(structure.list_parent === undefined
+        ? {}
+        : { list_parent: structure.list_parent }),
+    }),
+  })
+  const taskEntry = (task: TaskDetail, section: string | null): Entry => ({
+    id: task.id,
+    section,
+    listParent: null,
+    isSection: false,
+    write: (structure) => ({
+      kind: 'task' as const,
+      ...portable(task),
+      ...(structure.section === undefined ? {} : { section: structure.section }),
+    }),
+  })
+  if (pageView === undefined) {
+    /*
+    The flat call, which is what a caller with no page read hands over:
+    `ExportableBlock` carries a kind and a text and no membership at all, and
+    the import it was written for created every block at the page root. So the
+    truth here is "everything is at the page root", and the pass below writes
+    the `section: null` that says so wherever the positional default would have
+    claimed otherwise. A blank section or paragraph is dropped exactly as
+    `normalizeBlock` dropped it, this being the arrangement that rule was
+    written for.
+    */
+    for (const block of blocks) {
+      if (omittedKind(block.kind)) {
+        entries.push(placeholder(block.kind, block.text))
+      } else if (carriedKind(block.kind) && (block.text ?? '').trim() !== '') {
+        entries.push(
+          contentEntry(
+            {
+              id: '',
+              kind: block.kind,
+              text: block.text,
+              rich_content: null,
+              checked: null,
+              section_block_id: null,
+              list_parent_block_id: null,
+            } as unknown as PageBlock,
+            block.kind,
+          ),
+        )
+      }
+    }
+    for (const task of tasks) entries.push(taskEntry(task, null))
+  } else {
+    const detailOf = new Map(tasks.map((task) => [task.id, task]))
+    const blockOf = new Map(pageView.blocks.map((block) => [block.id, block]))
+    const placedAt = new Map(
+      (pageView.task_placements ?? []).map((place) => [place.id, place.section_block_id]),
+    )
+    for (const item of pageView.items) {
+      if (item.kind === 'block') {
+        const block = blockOf.get(item.id)
+        if (block === undefined) continue
+        if (omittedKind(block.kind)) {
+          entries.push(placeholder(block.kind, block.text))
+        } else if (carriedKind(block.kind)) {
+          entries.push(contentEntry(block, block.kind))
+        }
+        continue
+      }
+      const task = detailOf.get(item.id)
+      /* A Task on the page the caller handed no detail for — in the product,
+         a completed one. Counted so that the export surface can say it rather
+         than the person finding out on the other side. */
+      if (task === undefined) {
+        withheldTasks += 1
+        continue
+      }
+      entries.push(
+        taskEntry(
+          task,
+          placedAt.has(task.id)
+            ? (placedAt.get(task.id) ?? null)
+            : task.section_block_id,
+        ),
+      )
+    }
+  }
+  const indexOf = new Map<string, number>()
+  entries.forEach((entry, index) => {
+    if (entry.id !== null && entry.id !== '') indexOf.set(entry.id, index)
+  })
+  /** The Sections open at this point, exactly as `readWorkflowPage` keeps them. */
+  const open: number[] = []
+  const pageBlocks = entries.map((entry, index) => {
+    if (entry.id === null) return entry.write({})
+    const named = entry.section === null ? null : (indexOf.get(entry.section) ?? null)
+    /*
+    A Section that is not open here cannot be named: 7.16 makes a page's
+    Sections contiguous, so there is no position at which a closed one can be
+    re-entered, and `readWorkflowPage` refuses an index that names one. The
+    page this could come from is one the document contract cannot produce; the
+    entry is written at the page root, which is the nearest legal placement and
+    is said out loud rather than smuggled into whichever Section happens to be
+    open.
+    */
+    const parent = named !== null && !open.includes(named) ? null : named
+    const structure: PageStructure = {}
+    if (entry.isSection) {
+      const level = parent === null ? 1 : open.indexOf(parent) + 2
+      if (level > 1) structure.level = level
+    } else {
+      const positional = open.length === 0 ? null : (open[open.length - 1] ?? null)
+      if (parent !== positional) structure.section = parent
+    }
+    if (entry.listParent !== null) {
+      const at = indexOf.get(entry.listParent)
+      if (at !== undefined && at < index) structure.list_parent = at
+    }
+    open.length = parent === null ? 0 : open.indexOf(parent) + 1
+    if (entry.isSection) open.push(index)
+    return entry.write(structure)
   })
   return {
-    dana: 'workflow',
-    /* What a reader must understand to read this file, and no more: 3 once it
-       carries a Label vocabulary, 2 for the typed page document, 1 for
-       neither. A folder with no Folder Labels writes exactly the file it wrote
-       before #227, which is what keeps every older reader honest about the
-       files it can still read. */
-    version: exportedLabels.length > 0 ? 3 : pageView === undefined ? 1 : 2,
-    name: folderName,
-    folders: [
-      {
-        name: folderName,
-        ...(exportedLabels.length > 0 ? { labels: exportedLabels } : {}),
-        ...(pageView===undefined?{}:{document:{
-          blocks:pageView.blocks.map(b=>({op:'put_block' as const,id:b.id,block_kind:b.kind,text:b.text,rich_content:b.rich_content??null,file_id:b.file_id,ref_folder_id:b.ref_folder_id,width_pct:b.width_pct,checked:b.checked})),
-          task_ids:tasks.map(t=>t.id),
-          /* Both parents travel, and only a block can carry the second one
-             (#219). A version 2 file written before #219 simply omits it and
-             imports as a flat list, which is what the field's default is for. */
-          outline:pageView.items.map(item=>({...item,section_block_id:item.kind==='block'?(pageView.blocks.find(b=>b.id===item.id)?.section_block_id??null):(pageView.task_placements?.find(t=>t.id===item.id)?.section_block_id??null),list_parent_block_id:item.kind==='block'?(pageView.blocks.find(b=>b.id===item.id)?.list_parent_block_id??null):null})),
-        }}),
-        ...(work.length > 0 ? { tasks: work } : {}),
-        ...(page.length > 0 ? { blocks: page } : {}),
-      },
-    ],
+    file: {
+      dana: 'workflow',
+      /* One version out of *this* function. It writes #185's ordered page and
+         nothing else, because a second output format is a second thing to keep
+         right: every file `folderToWorkflowFile` hands a person says the same
+         thing about its own structure. 1, 2 and 3 are still read.
+
+         **Scoped to this writer, corrected 2026-09-21.** The sentence here
+         read "every file this product hands a person", which is false and was
+         false when it was written: `client/pages/ShelfPage.tsx` writes a
+         version 1 file of folder names for "Save shelf as workflow", and
+         `client/onboarding/starters.ts` carries three version 1 starters. Both
+         are right to — neither has a page to serialise, a shelf export being a
+         list of folder names and a starter being a hand-written template — and
+         both are read by the endpoint unchanged, which is the point of formats
+         1 to 3 staying readable. What is true is the claim this function can
+         make about itself. */
+      version: 4,
+      name: folderName,
+      folders: [
+        {
+          name: folderName,
+          ...(exportedLabels.length > 0 ? { labels: exportedLabels } : {}),
+          page: { blocks: pageBlocks },
+        },
+      ],
+    },
+    omitted: pageBlocks.filter((block) => block.kind === 'omitted').length,
+    withheldTasks,
   }
 }

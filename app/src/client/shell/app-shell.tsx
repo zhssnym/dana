@@ -542,10 +542,30 @@ export function AppShell(): React.JSX.Element {
               made.folders.length === 1 && first !== undefined
                 ? `Imported "${first.name}" with ${String(prepared.taskCount)} task${prepared.taskCount === 1 ? '' : 's'}`
                 : `Imported ${String(made.folders.length)} folders with ${String(prepared.taskCount)} task${prepared.taskCount === 1 ? '' : 's'}`
+            /*
+            What the file itself recorded as left behind (#185).
+
+            **This is a different sentence from the one above it and is not
+            folded into it.** "Some unsupported content was skipped" is about
+            what *this* import could not read. A placeholder is a loss the
+            export already made deliberately and wrote down: the person who
+            saved the file was told at the time, and the person importing it is
+            usually somebody else who was told nothing. Reading the placeholders
+            and saying nothing would waste the only thing they are for.
+
+            The wording is the export toast's, one word wider than #185's
+            ruling wrote it and for the same reason: a `folder_ref` is in this
+            count because it names a `folders` row of the account that wrote the
+            file, exactly as a picture names a `files` row.
+            */
+            const left =
+              prepared.omittedCount === 0
+                ? ''
+                : ` ${String(prepared.omittedCount)} ${prepared.omittedCount === 1 ? 'picture, file or folder link was' : 'pictures, files or folder links were'} not included in this file.`
             showToast(
               prepared.skippedContent
-                ? `${success}. Some unsupported content was skipped.`
-                : success,
+                ? `${success}. Some unsupported content was skipped.${left}`
+                : `${success}${left === '' ? '' : `.${left}`}`,
             )
             if (first !== undefined) void navigate(paths.folder(first.id))
           },

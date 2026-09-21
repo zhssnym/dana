@@ -117,7 +117,7 @@ describe('AC-549 no private classification reaches a file that is handed to othe
       [],
       undefined,
       vocabulary,
-    )
+    ).file
     const bytes = JSON.stringify(file)
 
     expect(
