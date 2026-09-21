@@ -4,13 +4,25 @@
 -- named because AC-001 asserts the catalog by name.
 --
 -- The number 0025 and the journal "when" 1790000000000 were assigned by the
--- coordinator before this file was written, four branches being open at once:
--- 0021 is merged on main, 0022 is #226's, 0023 is #228's and 0024 is #220's.
+-- coordinator before this file was written, four branches being open at once.
+-- That sibling list is re-read here rather than left as it was written,
+-- because every entry on it has moved: 0021 to 0024 are all on main now, and
+-- 0024 is #291's files, audio and video blocks at "when" 1789900000000, which
+-- this file sits directly above. The one unmerged sibling is
+-- 0026_contract_membership_label on `backend/247-drop-membership-label`,
+-- assigned 1790100000000, which this file sits directly below. So the whole
+-- of the ordering this migration depends on is 0024 < 0025 < 0026, and the
+-- half of it that is not yet a fact is that **0025 merges before 0026**. It
+-- will: #247-B is last in the queue, and its journal is re-rebased to carry
+-- 0023, 0024, 0025 and 0026 in that order before it lands.
+--
 -- Taking a free-looking prefix instead is how a sibling migration silently
 -- stops being applied -- the drizzle migrator applies a file only when its
 -- journal "when" exceeds the last applied one, so a higher sibling deploying
 -- first skips this file with no error and no tables, and every read that
--- wanted them then throws in production.
+-- wanted them then throws in production. That is the whole reason this
+-- paragraph names the number above and the number below rather than saying
+-- the prefix is free.
 --
 -- Four things land here.
 --
