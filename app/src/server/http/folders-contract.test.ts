@@ -134,25 +134,28 @@ function jsonInit(method: string, body: unknown): RawRequestOptions {
   }
 }
 
-/** The seventeen keys of the 7.0 Folder object, and no others; the 4.3
- * identity four joined with RFC 0005, item 58's cover pair, and `my_access`
- * with issue #228.
+/** The keys of the 7.0 Folder object, and no others; the 4.3 identity four
+ * joined with RFC 0005, and item 58's cover pair.
  *
- * **`my_label` and `my_shelf` are both listed and that is deliberate.** Issue
- * #226 renamed the key and #247 removes the old one; for the release between
- * the two, the card carries both, the same value from the same column, so
- * that a browser tab holding an old bundle across a deploy still reads a
- * shelf. This list being asserted key-exact is what documents the pair —
- * the assertion is the record, not an obstacle to be loosened — and when #247
- * lands, removing `my_label` from this array is how the contract half is
- * proved. `personal_labels` is the Label projection that arrived with the
- * rename, the viewer's own Personal Labels on this folder. */
+ * **No count is written beside this list on purpose.** A numeral in the
+ * sentence and an array under it are two records of one fact, and the one a
+ * rebase moves is the array: `invites-contract.test.ts` carried "twelve"
+ * over a list of fourteen. The array is the record, and the assertion below
+ * derives everything from it.
+ *
+ * **`my_label` was here beside `my_shelf` for one release and has gone.**
+ * Issue #226 renamed the key and carried both for the deploy window, the same
+ * value from the same column, so that a browser tab holding an old bundle
+ * still read a shelf; issue #247 is the contract half, and the key leaving
+ * this array is how that half is recorded. `personal_labels` is the Label
+ * projection that arrived with the rename, the viewer's own Personal Labels
+ * on this folder. */
 /* `my_access` is the viewer's own Access preset, added by 7.4's dated
    amendment of 2026-09-20 (Hassan's Ruling 4,
    https://github.com/zhssnym/dana/issues/228#issuecomment-5751449643). This
    list is the reason to read that amendment rather than guess: it is asserted
-   exactly, so an eighteenth key appearing on the wire fails here whether or
-   not anybody wrote it down. */
+   exactly, so a key appearing on the wire that is not in the array below fails
+   here whether or not anybody wrote it down. */
 const FOLDER_KEYS = [
   'color',
   'counts',
@@ -167,7 +170,6 @@ const FOLDER_KEYS = [
   'member_count',
   'my_access',
   'my_color',
-  'my_label',
   'my_shelf',
   'name',
   'personal_labels',

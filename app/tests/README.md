@@ -134,11 +134,22 @@ ruling about coverage of work that already existed, not a rule that new work
 arrives without criteria. A feature landing after it still owes the criteria
 that pin its decisions, and #226's land in four files rather than twelve
 because several of its twelve numbers are clauses of one behaviour. The fourth
-file is `ac-481-shelf-wire-expand-and-contract.test.ts`, added when the owner's
+file was `ac-481-shelf-wire-expand-and-contract.test.ts`, added when the owner's
 ruling of 2026-09-20 extended the Shelf expand-and-contract from the column to
-the wire; it is its own file because it pins a different decision from AC-479
-beside it — that decision being whether the rename can be deployed without
+the wire; it was its own file because it pinned a different decision from AC-479
+beside it — that decision being whether the rename could be deployed without
 losing somebody's edit, rather than whether it changed Shelf semantics.
+
+**Issue #247 replaced that fourth file the same day, and the replacement is what
+the pattern looks like when an expand-and-contract closes.** AC-481's decision
+was "the wire carries both Shelf spellings for one deploy window", and the
+window closed when migration 0022 reached production. The criterion is retired
+under hard stop 7 and marked in 12.24 rather than deleted, and
+`ac-750-shelf-wire-contracted.test.ts` stands where it stood, asserting the
+inverse: that the retired spellings are inert. **A contraction with no test is
+indistinguishable from a contraction somebody forgot** — both leave a green
+suite with nothing in it mentioning the old name — which is why the count here
+stays at four files rather than dropping to three.
 
 **51 to 66 the same day, for issue #227's Label lifecycle** (AC-540 to AC-554,
 spec 12.24's second half — **and AC-520 to AC-534 for about an hour before

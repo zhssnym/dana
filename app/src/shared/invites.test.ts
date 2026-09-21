@@ -43,7 +43,6 @@ const FOLDER = {
   member_count: 2,
   counts: { pending: 1, completed: 0 },
   my_shelf: null,
-  my_label: null,
   my_color: null,
   personal_labels: [],
   // Issue #228: the accepting member's own preset, which the invite granted.

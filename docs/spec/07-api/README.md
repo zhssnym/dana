@@ -114,12 +114,14 @@ stranger's id.
 row sits beside this one in the table below, added when this branch was rebased onto that
 `main`, so the table is contiguous from 7.0 to 7.26 and nothing is missing from it.
 
-**The same amendment gives 7.4's my-membership body and 7.0's Folder object a second
+**The same amendment gave 7.4's my-membership body and 7.0's Folder object a second
 spelling each for one release** — `shelf` beside `label`, `my_shelf` beside `my_label` — as
 the wire half of the `folder_members` expand-and-contract in 4.4. Each of those two files
-carries the argument. **Issue #247 is the contract half** and drops all three old spellings
-together, after migration 0022 is live in production; nothing about that half may merge
-before it is.
+carries the argument. **Issue #247 is the contract half, and it ships in two releases**: the
+first takes both wire spellings and stops every write to `folder_members.label`, and the
+second drops that column, which 11.5 has wait until the first is live and drained. So the
+request key is `shelf`, the Folder key is `my_shelf`, and the column the application writes
+is `shelf_name`; 4.4 carries the order the two releases go in.
 
 **Seventh, 7.24 is a new subsection added 2026-09-20 (issue #223), and it is purely
 additive.** It is the Dana Link foundation: a way to resolve a supported internal Dana
