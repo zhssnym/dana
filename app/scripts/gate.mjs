@@ -2,7 +2,7 @@
 The gate, run where the code was written.
 
 **Why this file exists.** Spec 11.11 fixes six steps and their order: npm ci,
-lint, typecheck, one real Postgres 18 leg, build, Playwright. It fixed seven
+lint, typecheck, one real Postgres leg, build, Playwright. It fixed seven
 until 2026-09-20, when the owner ruled the duplicate PGlite leg out: the same
 files ran twice for a cross-engine disagreement that nearly none of them could
 produce, and the leg dropped was both the slower one and the one production
@@ -38,6 +38,32 @@ a step of the six did not run, or the test leg ran somewhere other than Postgres
 Incomplete is not red, because there is no defect to point at, and it is not
 green, because 11.11 fixes six steps and names the engine one of them runs on.
 
+**It reads its host rather than describing the host it was written on**, added
+2026-09-20 by issue #273. The engine line said `Postgres 18` as a string
+literal, and until #235 that literal could only ever be right: 11.10's CREATE
+DATABASE carries `LOCALE_PROVIDER builtin`, which arrived in Postgres 17, so a
+16 server failed in global setup before one file ran. #235 gave that statement
+a libc fallback and made a sub-18 server a supported gate host, which turned a
+literal that could not be wrong into one that could — and it was, on the
+container that produced the first records from a machine other than the
+author's, every one of them naming 18 over a leg that ran on 16.13. A line in
+the record that states a fact nobody measured is the thing CLAUDE.md opens by
+warning about, in the one document whose whole job is to be true. So the
+version is asked of the server it is about to run against, the fallback line
+names the PGlite actually installed, and a version that cannot be read says
+that rather than being guessed at. The verdict is unaffected either way: the
+leg turns on the engine family, and that part was always right.
+
+**Two preconditions refuse the browser leg, and neither is a postmortem.** A
+second leg on one port seeds and truncates the first one's database underneath
+its browser, and a leg run from a path carrying a dot segment answers every
+client route 404 — both look from the report like a broken application rather
+than like a broken run, which is what makes a precondition worth more than a
+diagnosis. **Both fail closed**: the port check refuses when it cannot see the
+port rather than reporting it clear, because a check that answers "fine" when
+it cannot answer at all is worse than no check — that is exactly how the
+documented netstat loop passed on a host with no netstat.
+
 **Read a red through CLAUDE.md before believing it.** Four flake classes are
 enumerated there and only two are answered by re-running. Nothing here tries to
 tell them apart, on purpose: a gate that decides which of its own failures to
@@ -47,7 +73,7 @@ import { spawn } from 'node:child_process'
 import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
-import { rm } from 'node:fs/promises'
+import { readFile, rm } from 'node:fs/promises'
 import process from 'node:process'
 import { URL, fileURLToPath } from 'node:url'
 import { gatePort } from './gate-port.mjs'
@@ -117,14 +143,55 @@ function read(command, args) {
 }
 
 /**
- * Whether anything answers on the port, asked by connecting rather than by
+ * Whether anything *answers* on the port, asked by connecting rather than by
  * parsing netstat. CLAUDE.md records what a second browser leg on one port
  * looks like from the report — crashed pages, assertions timing out at two
  * minutes that pass in three seconds alone — and that it does not announce
  * itself as a port collision. So the gate refuses to start one rather than
  * producing a record nobody can trust.
+ *
+ * **What it cannot see, which is why it is no longer the whole check**
+ * (issue #273). It asks loopback, so a listener bound to another address is
+ * invisible to it while still making the leg's own `listen` fail with
+ * EADDRINUSE — the leg binds the wildcard, and a wildcard bind collides with a
+ * specific-address listener, measured. `listeningSockets` below is the second
+ * reading, and it is the one that decides the free case: `browserLegRefusal`
+ * refuses when **either** reading says the port is taken, or when the socket
+ * table could not be read at all.
+ *
+ * @param {number} port
+ * @returns {Promise<boolean>}
  */
 export function occupied(port) {
+  return probeConnect(port).then((answer) => answer === 'occupied')
+}
+
+/**
+ * The same probe, undegraded: `occupied`, `free`, or `unknown` when the
+ * connection neither completed nor was refused.
+ *
+ * A free port on loopback answers ECONNREFUSED at once, so a timeout there is
+ * not a quiet way of saying nothing is home — it is the probe failing to
+ * answer, and a probe that cannot answer must not be recorded as one that said
+ * "free".
+ *
+ * **What the third state does and does not do, said plainly because an earlier
+ * version of this comment claimed more than the code does.** It is kept
+ * distinct so that nothing downstream can read a timeout as an all-clear, and
+ * it is what `occupied()` is narrowed from. It does **not** refuse the leg on
+ * its own: if the host's socket table has been read and holds no listener for
+ * this port, that is the better of the two readings and the leg starts.
+ * Refusing there would mean refusing a demonstrably free port because one
+ * loopback connect was slow, which is a check firing with no cause — and the
+ * case where nothing could read the table is already a refusal in its own
+ * right. So `unknown` and `free` reach the same outcome today, and the
+ * distinction earns its place by being impossible to launder rather than by
+ * changing a verdict.
+ *
+ * @param {number} port
+ * @returns {Promise<'occupied' | 'free' | 'unknown'>}
+ */
+export function probeConnect(port) {
   const probe = (host) =>
     new Promise((resolve) => {
       const socket = net.connect({ host, port })
@@ -133,18 +200,173 @@ export function occupied(port) {
         resolve(answer)
       }
       socket.setTimeout(1500)
-      socket.on('connect', () => settle(true))
-      socket.on('timeout', () => settle(false))
-      socket.on('error', () => settle(false))
+      socket.on('connect', () => settle('occupied'))
+      socket.on('timeout', () => settle('unknown'))
+      socket.on('error', () => settle('free'))
     })
 
-  return Promise.all([probe('127.0.0.1'), probe('::1')]).then((answers) => answers.includes(true))
+  return Promise.all([probe('127.0.0.1'), probe('::1')]).then((answers) => {
+    if (answers.includes('occupied')) return 'occupied'
+    if (answers.includes('unknown')) return 'unknown'
+    return 'free'
+  })
 }
 
 /**
- * The browser leg's precondition: `null` when the port is free, and the two
- * texts a refusal is written in when it is not — the short one the record
- * carries and the long one the console gets.
+ * The commands that can be asked which process holds a listening socket, in
+ * the order they are tried, with the reading of each one's output.
+ *
+ * **Three of them because there are three hosts.** `lsof` is what the Linux
+ * container has, `netstat` is what Windows has, and `ss` is what a stripped
+ * Linux image tends to have when it has neither; the container that found
+ * issue #273 had no `netstat` and no `ss`, which is how the documented loop
+ * came to report every port clear. Each entry reports the lines it matched
+ * rather than a boolean, so a refusal can name the process a reader has to go
+ * and stop.
+ *
+ * The port is interpolated into an argument, which is safe here and is worth
+ * saying once: these are spawned with `shell: false`, unlike `run` above, and
+ * the number has already been through `gatePort`, which refuses anything that
+ * is not a whole number in range.
+ *
+ * **`accepts` is why a tool that runs is not automatically a tool that
+ * answered**, added by the adversarial review of this branch. Being missing is
+ * not the only way a command fails to read the socket table: a BusyBox
+ * `netstat` has no `-o`, so it writes a usage message to stderr and exits
+ * non-zero, and the first draft of this ladder read that empty stdout as an
+ * empty socket table — the fail-open it was written to remove, arriving
+ * through a command that was present. So each entry says which exits are an
+ * answer. `lsof` is the only one with two, because it exits 1 to mean "nothing
+ * matched", which is a real reading of an empty table; it must have said
+ * nothing on stderr for that reading to be taken, which is what separates a
+ * clean no-match from a refusal to run.
+ *
+ * @type {{name: string, args: (port: number) => string[], accepts: (code: number | null, stderr: string) => boolean, match: (line: string, port: number) => boolean}[]}
+ */
+export const PORT_INSPECTORS = [
+  {
+    name: 'lsof',
+    args: (port) => ['-nP', `-iTCP:${port}`, '-sTCP:LISTEN'],
+    accepts: (code, stderr) => code === 0 || (code === 1 && stderr.trim() === ''),
+    // lsof has already filtered; every line but its header is a listener.
+    match: (line) => !line.startsWith('COMMAND'),
+  },
+  {
+    name: 'ss',
+    args: () => ['-lnt'],
+    accepts: (code, stderr) => code === 0 && stderr.trim() === '',
+    match: (line, port) => hasLocalPort(line, port) && !line.startsWith('State'),
+  },
+  {
+    name: 'netstat',
+    // -ano on Windows, where this is the only one of the three that exists.
+    // The same flags on a Linux netstat print the same three columns this
+    // reads, so nothing here is spelled twice for the two platforms.
+    args: () => ['-ano'],
+    accepts: (code, stderr) => code === 0 && stderr.trim() === '',
+    match: (line, port) => /\bLISTEN(ING)?\b/.test(line) && hasLocalPort(line, port),
+  },
+]
+
+/**
+ * Whether one line of a socket table names this port as a local address.
+ *
+ * The address column, not the line: a line mentioning the number as a remote
+ * port or as a process id would otherwise read as a listener, and the refusal
+ * it produced would send its reader to kill something innocent. The IPv6 and
+ * wildcard forms (`[::]:<port>`, `*:<port>`) end the same way, which is why
+ * this is a suffix test over whitespace-separated fields rather than a parse
+ * of the address. The port literal itself is deliberately not written here:
+ * `guard-gate-port.test.ts` fails this file for carrying one, on the ground
+ * that a second copy of the number is the drift that module exists to stop.
+ *
+ * @param {string} line
+ * @param {number} port
+ */
+function hasLocalPort(line, port) {
+  const fields = line.trim().split(/\s+/)
+  // The last field of ss and netstat alike is the remote address or the pid;
+  // the local address is the one before it on netstat and the fourth on ss, so
+  // both are covered by reading every field but the last.
+  return fields.slice(0, -1).some((field) => field.endsWith(`:${String(port)}`))
+}
+
+/**
+ * Who holds a listening socket on the port, according to the host's own
+ * socket table.
+ *
+ * **`listening: null` means nobody could be asked**, and that is a distinct
+ * answer rather than a polite `false`. Issue #273 is exactly this distinction:
+ * the loop CLAUDE.md documented greps `netstat`, a missing command writes
+ * nothing, nothing greps to nothing, and the check reports the port clear for
+ * every port on the machine — an unconditional all-clear wearing the clothes
+ * of a check. So the tools are tried in turn, a tool that cannot be spawned is
+ * passed over, and running out of tools is reported as running out of tools.
+ *
+ * @param {number} port
+ * @param {typeof PORT_INSPECTORS} inspectors
+ * @returns {Promise<{tool: string | null, listening: boolean | null, lines: string[]}>}
+ */
+export async function listeningSockets(port, inspectors = PORT_INSPECTORS) {
+  for (const inspector of inspectors) {
+    const answer = await inspect(inspector.name, inspector.args(port))
+    // Two ways not to be an answer, and they used to be one. The command is
+    // not on this host; or it ran and would not do what it was asked, which
+    // reads as an empty socket table and is not one. Either way the next tool,
+    // and if there is no next tool the caller is told that rather than "clear".
+    if (!answer.ran || !inspector.accepts(answer.code, answer.stderr)) continue
+    const lines = answer.stdout
+      .split(/\r?\n/)
+      .map((line) => line.trimEnd())
+      .filter((line) => line !== '' && inspector.match(line, port))
+    return { tool: inspector.name, listening: lines.length > 0, lines }
+  }
+  return { tool: null, listening: null, lines: [] }
+}
+
+/**
+ * One socket-table command, `shell: false` so that a missing binary arrives as
+ * an ENOENT on the error event rather than as a shell's exit 127 with a
+ * message in whatever language the host speaks.
+ *
+ * `ran` is whether the command executed at all; the exit code and stderr go
+ * back with it because whether a run that exited non-zero is an answer is the
+ * caller's question and differs by tool. Nothing is interpreted here.
+ *
+ * @param {string} command
+ * @param {string[]} args
+ * @returns {Promise<{ran: boolean, code: number | null, stdout: string, stderr: string}>}
+ */
+function inspect(command, args) {
+  return new Promise((resolve) => {
+    let child
+    try {
+      child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+    } catch {
+      resolve({ ran: false, code: null, stdout: '', stderr: '' })
+      return
+    }
+    let out = ''
+    let err = ''
+    child.stdout?.setEncoding('utf8')
+    child.stdout?.on('data', (chunk) => {
+      out += chunk
+    })
+    child.stderr?.setEncoding('utf8')
+    child.stderr?.on('data', (chunk) => {
+      err += chunk
+    })
+    // The error event arrives before the close event when the binary is not
+    // there, and a promise settles once, so the missing-tool answer wins.
+    child.on('error', () => resolve({ ran: false, code: null, stdout: '', stderr: '' }))
+    child.on('close', (code) => resolve({ ran: true, code, stdout: out, stderr: err }))
+  })
+}
+
+/**
+ * The browser leg's port precondition: `null` when the port is provably free,
+ * and the two texts a refusal is written in otherwise — the short one the
+ * record carries and the long one the console gets.
  *
  * **A function rather than two string literals inside main(), so that the
  * refusal can be driven against a real socket by a test.** It is the
@@ -157,22 +379,260 @@ export function occupied(port) {
  * probing a variable would send its reader to stop processes on a port that
  * nothing was wrong with.
  *
+ * **Three refusals rather than one, and the third is the point of issue
+ * #273.** Something answered; something holds the socket without answering;
+ * and *nothing here could tell*. The third is a refusal because the
+ * alternative is the failure #273 was opened about — a check whose missing
+ * tool makes it report every port clear, in front of a collision CLAUDE.md
+ * describes as looking like one criterion red twice for what seems a
+ * reproducible reason. A gate that cannot see the port does not get to say it
+ * is free; it says it could not look, and the run stops on the cheap side of
+ * an hour of misread reds.
+ *
  * @param {number} port
+ * @param {typeof PORT_INSPECTORS} inspectors
  * @returns {Promise<{note: string, advice: string} | null>}
  */
-export async function browserLegRefusal(port) {
-  if (!(await occupied(port))) return null
+export async function browserLegRefusal(port, inspectors = PORT_INSPECTORS) {
+  const answered = await probeConnect(port)
+  const held = await listeningSockets(port, inspectors)
+
+  if (answered === 'occupied') {
+    return {
+      note: `something is listening on ${port}; the browser leg was not started`,
+      advice:
+        `Something is already listening on ${port}. playwright.config.ts serves the\n` +
+        'browser leg there and never reuses a server, so this run would seed and\n' +
+        "truncate another run's database underneath its browser. Either stop every\n" +
+        'node process whose command line matches playwright or e2e:app and wait for\n' +
+        'the port to go quiet, or give this run a port of its own by setting\n' +
+        'DANA_GATE_PORT to a free one. CLAUDE.md carries the whole story.\n',
+    }
+  }
+
+  if (held.listening === true) {
+    return {
+      note: `${held.tool} reports a listening socket on ${port} that did not answer a connection; the browser leg was not started`,
+      advice:
+        `Nothing answered a connection on ${port}, but ${held.tool} says a process\n` +
+        'holds a listening socket there. A socket bound to an address this probe\n' +
+        'does not ask, or one whose process has stopped accepting, still takes the\n' +
+        "port from this run's own server, which would then fail to bind. Stop it, or\n" +
+        'give this run a port of its own by setting DANA_GATE_PORT to a free one.\n\n' +
+        `${held.lines.join('\n')}\n`,
+    }
+  }
+
+  if (held.listening === null) {
+    return {
+      note: `no port-inspection tool on this host, so ${port} could not be checked; the browser leg was not started`,
+      advice:
+        `This host has none of ${PORT_INSPECTORS.map((one) => one.name).join(', ')}, so nothing\n` +
+        `here can read the socket table and say who holds ${port}. Nothing answered a\n` +
+        'connection on it, which is not the same fact: a listener bound to another\n' +
+        'address answers no connection here and still takes the port. This refuses\n' +
+        'rather than reporting the port clear, because a check that says fine when it\n' +
+        'cannot look is how issue #273 was found. Install one of those commands, or\n' +
+        'run the browser leg by hand on a port you have checked yourself.\n',
+    }
+  }
+
+  return null
+}
+
+/**
+ * The browser leg's other precondition: the checkout's own path.
+ *
+ * **A dot segment anywhere above the build makes every spec fail on a missing
+ * sidebar.** The SPA fallback answers client routes with `res.sendFile()` on an
+ * absolute path, and Express refuses any path carrying a dot segment, so
+ * `GET /app` returns 404 while `GET /` still succeeds through
+ * `express.static` — the application looks broken and is not. Measured again
+ * on 2026-09-20 against the installed Express 5.2.1 on Linux rather than
+ * recalled from the 2026-08-16 Windows measurement CLAUDE.md carries: one file
+ * served from two paths differing only in a `.work` directory, 200 and 200 and
+ * 200 against 200, 200 and 404.
+ *
+ * **Why it is worth a precondition now** (issue #273). It used to be a fact
+ * about one session's old worktree. `.claude/worktrees/` is where an agent's
+ * worktree is created by default, and #235 made the browser leg runnable on the
+ * containers those agents run in, so it is now the default path on a newly
+ * capable host — a trap walked into rather than a footnote. The two agents who
+ * met it avoided it only by building in a dot-free scratchpad deliberately.
+ *
+ * **Asked at the top of `main()`, before lint**, and `--quick` is exempt. The
+ * reasoning is beside the call rather than here, because it is about the order
+ * of the run rather than about this refusal.
+ *
+ * @param {string} appPath
+ * @returns {{note: string, advice: string} | null}
+ */
+export function browserLegPathRefusal(appPath) {
+  const segment = dotSegmentIn(appPath)
+  if (segment === null) return null
 
   return {
-    note: `something is listening on ${port}; the browser leg was not started`,
+    note: `the checkout path carries the dot segment ${segment}; the browser leg was not started`,
     advice:
-      `Something is already listening on ${port}. playwright.config.ts serves the\n` +
-      'browser leg there and never reuses a server, so this run would seed and\n' +
-      "truncate another run's database underneath its browser. Either stop every\n" +
-      'node process whose command line matches playwright or e2e:app and wait for\n' +
-      'the port to go quiet, or give this run a port of its own by setting\n' +
-      'DANA_GATE_PORT to a free one. CLAUDE.md carries the whole story.\n',
+      `This checkout is at ${appPath}, and ${segment} is a dot segment.\n` +
+      'The SPA fallback serves client routes with res.sendFile() on an absolute\n' +
+      'path, Express refuses any path carrying a dot segment, and so GET /app\n' +
+      'answers 404 while GET / still succeeds through express.static. Every spec\n' +
+      'then fails on a missing sidebar, which reads as a broken application and is\n' +
+      'not one. Copy or clone the tree to a path with no dot directory and run the\n' +
+      'leg there; the default agent worktree under .claude/worktrees is not one.\n' +
+      'Nothing else about this checkout is wrong: npm run gate -- --quick runs lint,\n' +
+      'typecheck and build here and never starts a browser leg.\n',
   }
+}
+
+/**
+ * The first segment of a path that begins with a dot, or `null`.
+ *
+ * Both separators, because the hazard is the same on Windows and the path this
+ * is asked about comes from `import.meta.url` rather than from a person.
+ *
+ * @param {string} absolutePath
+ * @returns {string | null}
+ */
+export function dotSegmentIn(absolutePath) {
+  for (const segment of absolutePath.split(/[\\/]+/)) {
+    if (segment !== '' && segment.startsWith('.')) return segment
+  }
+  return null
+}
+
+/**
+ * What engine the Postgres leg is about to run on, asked of the server.
+ *
+ * `SHOW server_version_num` is the same reading `postgres-leg.ts` selects the
+ * CREATE DATABASE locale clause on, so the record and the leg cannot disagree
+ * about what they met; `SHOW server_version` is asked beside it because it is
+ * the one a person recognises. Both, because either alone has a way of being
+ * unhelpful: the prose carries a distribution's own suffix, and the number is
+ * a number.
+ *
+ * `pg` is imported here rather than at the top of the file so that a checkout
+ * with no `node_modules` still reaches the install step instead of dying on a
+ * module it was about to install.
+ *
+ * **It is bounded, and the first draft was not** (adversarial review of this
+ * branch, 2026-09-20). A `TEST_DATABASE_URL` pointing at an unroutable address,
+ * or at a socket that accepts and then never speaks the protocol, left this
+ * waiting on the operating system's own connect timeout — measured at over 25
+ * seconds, and the caller could not print its record in the meantime. Five
+ * seconds is far longer than a real answer takes and far shorter than any of
+ * those. `query_timeout` is set beside it because the two hangs are different:
+ * a server that completes the handshake and then never answers `SHOW` is past
+ * the connection timeout and would otherwise wait forever.
+ *
+ * Neither timeout is a verdict about the database. It is about to be met
+ * properly by the leg itself, which will fail with a message about the real
+ * problem; all this owes the record is a version or an honest absence.
+ *
+ * @param {string} url
+ * @returns {Promise<string | null>}
+ */
+export async function postgresVersion(url) {
+  try {
+    const { default: pg } = await import('pg')
+    const client = new pg.Client({
+      connectionString: url,
+      connectionTimeoutMillis: 5000,
+      query_timeout: 5000,
+    })
+    // The same hazard issue #174 measured on the pool in db/client.ts: a
+    // connected client emits 'error' on itself when its socket dies, and an
+    // EventEmitter 'error' with no listener throws. This one lives for two
+    // queries, but a gate that died reading a version rather than running a
+    // leg would be an absurd way to lose a run.
+    client.on('error', () => {})
+    try {
+      await client.connect()
+      const num = await client.query('SHOW server_version_num')
+      const text = await client.query('SHOW server_version')
+      return versionText(text.rows[0]?.server_version, num.rows[0]?.server_version_num)
+    } finally {
+      await client.end()
+    }
+  } catch {
+    // Unreachable, unauthorised, or no pg: none of those is this function's to
+    // report. The leg itself is about to meet the same server and fail with a
+    // message about the real problem, and a version nobody could read is
+    // written into the record as exactly that.
+    return null
+  }
+}
+
+/**
+ * The version a record prints, from what the server said.
+ *
+ * The prose first, because `16.13 (Ubuntu 16.13-0ubuntu0.24.04.1)` is a fact
+ * about this host that `160013` is not; its leading version token, because the
+ * rest of it is a packager's. The number is the fallback and not the other way
+ * round, and an unreadable pair is `null` rather than a guess — the whole of
+ * issue #273 is that a version nobody measured must not appear in the record,
+ * and inventing one from an empty answer would be that fault committed by the
+ * fix.
+ *
+ * @param {unknown} serverVersion
+ * @param {unknown} serverVersionNum
+ * @returns {string | null}
+ */
+export function versionText(serverVersion, serverVersionNum) {
+  if (typeof serverVersion === 'string') {
+    const leading = /^[0-9]+(\.[0-9]+)*/.exec(serverVersion.trim())
+    if (leading !== null) return leading[0]
+  }
+  if (typeof serverVersionNum === 'string' && /^[0-9]+$/.test(serverVersionNum)) {
+    const num = Number(serverVersionNum)
+    // The scheme since Postgres 10: major * 10000 + minor. Below that the
+    // number means something else, and no server that old can run this schema,
+    // so it is left unread rather than mistranslated.
+    if (num >= 100000) return `${String(Math.floor(num / 10000))}.${String(num % 10000)}`
+  }
+  return null
+}
+
+/**
+ * Which PGlite is installed, read from the package rather than from the range
+ * in package.json — `^0.5.4` is a range, and the fallback leg runs whatever
+ * `npm ci` resolved it to.
+ *
+ * @returns {Promise<string | null>}
+ */
+export async function pgliteVersion() {
+  try {
+    const manifest = await readFile(
+      new URL('../node_modules/@electric-sql/pglite/package.json', import.meta.url),
+      'utf8',
+    )
+    const version = JSON.parse(manifest).version
+    return typeof version === 'string' && version !== '' ? version : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The name of the test step, which is a reading and not a claim.
+ *
+ * Until issue #273 this was the literal `test (Postgres 18)`, and #235 is what
+ * made it able to be false. An unread version says so: `test (Postgres,
+ * version unread)` is a worse-looking record and a true one, and the step it
+ * names is about to fail anyway if the server is the reason.
+ *
+ * @param {'postgres' | 'pglite'} engine
+ * @param {string | null} version
+ * @returns {string}
+ */
+export function testStepName(engine, version) {
+  if (engine === 'postgres') {
+    return version === null ? 'test (Postgres, version unread)' : `test (Postgres ${version})`
+  }
+  return version === null
+    ? 'test (PGlite fallback, version unread)'
+    : `test (PGlite ${version} fallback)`
 }
 
 /**
@@ -260,6 +720,30 @@ async function main() {
 
   const record = (name, state, note, took) => rows.push({ name, state, note, took })
 
+  /*
+  The path precondition, asked before anything runs.
+
+  **First, not last, corrected by the adversarial review of this branch.** It
+  was asked where the browser leg starts, which meant a checkout under a dot
+  directory paid for lint, typecheck, a whole test leg and a build — minutes —
+  before being told it was never going to get a verdict. CLAUDE.md's own bullet
+  says this refusal exists so that the trap "costs one line rather than twenty
+  reds"; asked last it cost the whole gate first. It is free to ask and cannot
+  change while the run goes, so there is no reason for it to be anywhere else.
+
+  **`--quick` is exempt on purpose.** Lint, typecheck and build are unaffected
+  by the path and start no server, so they remain available from a worktree
+  that cannot run a browser leg — which is the worktree most agents are in.
+  Refusing those too would turn a precondition on one step into a blockade on
+  the only three a dot-path checkout can legitimately run.
+  */
+  const pathRefusal = quick ? null : browserLegPathRefusal(APP)
+  if (pathRefusal !== null) {
+    failedAt = 'playwright'
+    record('playwright', 'REFUSED', pathRefusal.note, '-')
+    process.stdout.write(`\n${pathRefusal.advice}`)
+  }
+
   const step = async (name, command, args, env, tally) => {
     if (failedAt !== null) return
     process.stdout.write(`\n=== gate: ${name} ===\n`)
@@ -341,12 +825,41 @@ async function main() {
     missing-Postgres row used: the gate's job is to answer for the engine that
     serves users, and a leg that did not touch it has not answered.
     */
+    /*
+    The engine is asked before the leg runs rather than written down here.
+    #235 made a sub-18 server a supported host and the literal that used to sit
+    in this line went on saying 18 over a leg running on 16.13 (issue #273).
+
+    **Asked only while the run is still alive**, which the first draft got
+    wrong and an adversarial review caught. `step()` returns immediately once
+    something has failed — but a step's *name* is an argument, and arguments
+    are evaluated before the call. So a run already red at lint still opened a
+    connection to whatever `TEST_DATABASE_URL` named, and against an unroutable
+    address it sat there while the record it had already earned went unprinted.
+    A gate that cannot print its own verdict because it was busy reading a
+    version it no longer needs is the tail wagging the dog.
+    */
+    const version =
+      failedAt !== null ? null : havePostgres ? await postgresVersion(postgres) : await pgliteVersion()
+
     if (havePostgres) {
-      await step('test (Postgres 18)', 'npm', ['test'], { TEST_DATABASE_URL: postgres }, vitestTally)
+      await step(
+        testStepName('postgres', version),
+        'npm',
+        ['test'],
+        { TEST_DATABASE_URL: postgres },
+        vitestTally,
+      )
     } else {
       // Empty rather than absent, which is the condition app/db/client.ts tests
       // and the same spelling ci.yml uses on this step.
-      await step('test (PGlite fallback)', 'npm', ['test'], { TEST_DATABASE_URL: '' }, vitestTally)
+      await step(
+        testStepName('pglite', version),
+        'npm',
+        ['test'],
+        { TEST_DATABASE_URL: '' },
+        vitestTally,
+      )
 
       if (failedAt === null) {
         missing.push('ran on PGlite; TEST_DATABASE_URL is unset, so no leg touched Postgres')
@@ -357,10 +870,21 @@ async function main() {
   await step('build', 'npm', ['run', 'build'])
 
   if (!quick && failedAt === null) {
+    // The path was asked at the top of this function and a dot segment has
+    // already stopped the run, so what is left to ask is the port — which,
+    // unlike the path, can only be asked now, a leg that finished a minute ago
+    // still holding it.
+    //
+    // REFUSED rather than RED, and the distinction is worth the word: nothing
+    // failed. The gate declined to measure, because the measurement would have
+    // been worthless and would have read like a broken application. The
+    // verdict line above stays inside the three this repository documents, so
+    // this is still `red at playwright` there, and only `green` has ever
+    // opened a pull request.
     const refusal = await browserLegRefusal(PLAYWRIGHT_PORT)
     if (refusal !== null) {
       failedAt = 'playwright'
-      record('playwright', 'RED', refusal.note, '-')
+      record('playwright', 'REFUSED', refusal.note, '-')
       process.stdout.write(`\n${refusal.advice}`)
     } else {
       // Deleted rather than merged into: artifacts from a run that is already

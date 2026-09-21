@@ -203,6 +203,38 @@ protocol points here rather than repeating them.
   `git fetch origin <branch>:refs/remotes/origin/<branch>` updates the local ref
   so `git merge --ff-only origin/<branch>` is then safe. Read the remote before
   believing anything about what is or is not published.
+- **`git rebase --continue` deletes every `#`-line from a conflicted commit's
+  message here, and nothing reports it.** Measured 2026-09-20 on
+  `backend/227-label-lifecycle` (issue #277): **15 lines eaten** from one commit —
+  seven `##` headings, their blank lines, and a body line beginning
+  `#226 and #228)`. The mechanism is two defaults meeting. `git rebase --continue`
+  opens an editor for the message of a commit that had a conflict; under
+  `GIT_EDITOR=true`, which is how an agent drives a non-interactive rebase, the
+  editor "succeeds" instantly, and git then applies its own default
+  `cleanup=strip`, which removes every line beginning with `#`. Two of this
+  repository's conventions are exactly that: commit messages are long markdown with
+  `##` headings, and issue references routinely begin a line. **Only the conflicted
+  commit is touched** — a clean replay step opens no editor and neither does
+  `git cherry-pick` — so a rebase with one conflict damages exactly one message and
+  leaves the rest intact, which is what makes it easy to miss. It is invisible in
+  `git log --oneline`. Pass `git -c core.commentChar=';' rebase --continue`, or
+  `--cleanup=verbatim`, and **diff the message afterwards**, which is the only
+  thing that actually catches it: write `git log -1 --format=%B` of the original
+  and of the rebased sha to two files and `diff` them. Why this costs more here
+  than in most repositories: `docs/workflow/workflow.md` makes the message
+  load-bearing — the hard stops declared, the criteria named with the decision
+  behind each, the gate record quoted — so the failure is **a commit that no longer
+  declares what it declared**, with no error and a log that looks fine. This
+  project's whole defence against an undeclared hard stop is that somebody wrote it
+  down, and this deletes the writing down.
+- **Prettier is not this repository's formatter and must not be run here.** Same
+  issue, same reading. It is absent from `app/package.json` entirely — `"lint":
+  "eslint ."` is the whole toolchain and there is no `.prettierrc` — so
+  `npx prettier --write` does not fail for want of a config: `npx` fetches a
+  transient copy and applies stock defaults. An agent on #228 ran it on one
+  criterion file and **rewrote all 459 lines to double quotes**. Reverted
+  immediately, and it is recorded because it is the same class as the trap above: a
+  tool that looks like it belongs here and does not. What exists is `npm run lint`.
 - Two Vitest 4 flags fail in ways that read as a broken suite and are not. Positional
   arguments are substring filters, not regular expressions, so `"ac-(059|06[0-9])"`
   matches nothing and exits 1 with "No test files found". And `--reporter=basic` was
@@ -236,15 +268,24 @@ protocol points here rather than repeating them.
   (`env -u TEST_DATABASE_URL npm test`, `$env:TEST_DATABASE_URL=''` in
   PowerShell). CI runs both as separate named steps and is the authority.
 - **The browser leg cannot pass from a checkout whose path contains a directory
-  beginning with a dot, and this worktree's `.work` is one.** The SPA fallback
+  beginning with a dot, and the worktree an agent gets by default is one.**
+  `.claude/worktrees/` begins with a dot, as the older `.work` did, so what used to
+  be a fact about one session's scratch checkout is now the default path on every
+  host — and #235 made the browser leg runnable on the containers agents run in, so
+  it is reachable from there rather than theoretical. **Run the browser leg from a
+  dot-free path, and know that your worktree is probably not one.** Since 2026-09-20
+  and issue #273 `npm run gate` refuses to start the leg from such a path and says
+  why, rather than producing twenty reds that look like a broken application. The SPA fallback
   answers client routes with `res.sendFile()` on an absolute path, and Express
   refuses any path carrying a dot segment, so `GET /app` returns 404 with a
   `bad_request` body while `GET /` still succeeds through `express.static`.
   Every spec then fails on a missing sidebar, which reads as a broken
   application and is not one. Verified 2026-08-16 by serving one file from two
-  paths differing only in a dot directory: 404 against 200. CI's workspace and
-  Render's `/opt/render/project/src` carry no dot segment, so both are green and
-  only a local run under `.work` is red. To run this leg locally, copy or clone
+  paths differing only in a dot directory: 404 against 200, and again 2026-09-20
+  on Express 5.2.1 on Linux, which is what `tests/guards/guard-gate-host.test.ts`
+  now measures on every run so that the refusal outlives nobody's memory. CI's
+  workspace and Render's `/opt/render/project/src` carry no dot segment, so both
+  are green and only a run from a dot path is red. To run this leg locally, copy or clone
   the tree to a path with no dot directory; otherwise read CI's Playwright step
   as the verdict.
 - **The browser leg needed that variable unset for the whole run, and no longer
@@ -311,7 +352,23 @@ protocol points here rather than repeating them.
   counts for about an hour before finding two `playwright test` processes
   alive at once. **Kill by command line rather than by port**, every `node.exe`
   whose command line matches `playwright` or `e2e:app`, then poll until
-  no listener is left on the port, `until ! netstat -ano | grep LISTENING | grep -q ":<port>"`.
+  no listener is left on the port. **Two forms, because there are two hosts, and
+  running the wrong one is the whole hazard (corrected 2026-09-20, issue #273).**
+  On this machine, which has `netstat` and no `lsof`:
+  `until ! netstat -ano | findstr LISTENING | findstr ":<port>"` — or with `grep`
+  in place of `findstr` under Git Bash, which is where that line was born. On a
+  Linux container, which has `lsof` and often neither `netstat` nor `ss`:
+  `until ! lsof -nP -iTCP:<port> -sTCP:LISTEN >/dev/null; do sleep 1; done`.
+  **Check the command exists before trusting its silence**, `command -v lsof` or
+  `where netstat`: a missing command writes nothing, nothing greps to nothing,
+  and the loop then reports **every port on the machine clear**. That is not a
+  weak check, it is an unconditional all-clear from the one check whose whole job
+  is to refuse, and it is what a container found when this bullet carried only
+  the `netstat` form. `until !` cannot save you either — a missing command exits
+  non-zero, which it reads as "the port is quiet". `npm run gate` no longer
+  depends on any of this: it reads the socket table itself with whichever of
+  `lsof`, `ss` and `netstat` the host has, and **refuses the browser leg outright
+  on a host where none of them can read one**.
   Poll for LISTENING only, corrected 2026-09-04 (issue #141): a finished leg
   leaves dozens of client sockets in TIME_WAIT for minutes (85 measured on one
   port with no listener), so a bare grep on the port never clears, and it is the
@@ -481,13 +538,28 @@ protocol points here rather than repeating them.
   green one layer up. It **refuses to start the browser leg when anything answers on the
   port it is about to serve on**, which is the port collision two bullets below written as
   a precondition rather than as a postmortem, and it deletes `test-results/` first.
+  **Two more refusals since 2026-09-20 and issue #273, and an agent will meet the second
+  of them.** The port check reads the host's own socket table with `lsof`, `ss` or
+  `netstat` as well as connecting, because a listener bound to an address the connect
+  probe does not ask still takes the port; **a host where none of the three exists is
+  refused rather than reported clear.** And the leg is refused outright from a checkout
+  whose path carries a dot segment, which `.claude/worktrees/` is — the reason is the
+  `res.sendFile()` bullet below, and the refusal exists so that it costs one line rather
+  than twenty reds. **That one is asked before lint**, so a worktree that can never get a
+  verdict is told in a second rather than after the whole gate, and **`npm run gate --
+  --quick` is exempt and still runs there**: lint, typecheck and build do not care about
+  the path and start no browser. **The engine line in the record is a reading now** rather than the
+  literal `Postgres 18` it was: the gate asks the server its version before the leg, and
+  names the installed PGlite on the fallback path.
   **That port is `DANA_GATE_PORT` since 2026-09-20 and issue #254, and unset it is 3100**,
   so nothing about an existing invocation moved; setting it is how two gates run on one
   machine at once, and the record names the port it used so that two records taken in
   parallel can be told apart afterwards. `app/scripts/gate-port.mjs` is the one place the
   number is resolved, for gate.mjs and `playwright.config.ts` alike, and
   `app/tests/guards/guard-gate-port.test.ts` fails if those two ever disagree or if the
-  precondition stops biting. It reaches the vitest legs
+  precondition stops biting, and `guard-gate-host.test.ts` beside it fails if the version
+  goes back to being written down, if the dot-segment refusal is not asked, or if Express
+  ever stops refusing a dot segment — which is the day that refusal can be deleted. It reaches the vitest legs
   through `npm test`, so `run-suite.mjs`'s false-green guard is in the path and the record
   prints the file count that guard checks. And it runs **`npm ci` only when
   `package-lock.json` moved since `git merge-base HEAD origin/main`**, since that command
