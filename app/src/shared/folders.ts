@@ -139,8 +139,8 @@ export type PatchFolderBody = z.infer<typeof patchFolderBody>
 PATCH /folders/:id/my-membership. Body { shelf, color }, either nullable
 (7.4); null clears the field, which 4.4 stores as null. The first key was
 `label` until issue #226 gave the word back to #208's Label model; it is the
-same field writing the same column, and for this release **both spellings are
-accepted**, which the schema below explains and AC-481 asserts.
+same field writing the same column, and **`shelf` is now the only spelling the
+body carries**, which the schema below explains and AC-750 asserts.
 
 Presence follows the PATCH convention that holds everywhere else in the
 frozen surface (7.2 "any subset", 7.6 "only present fields change", 7.7
@@ -150,52 +150,47 @@ full-body PATCH. The route convention (validate, then delegate) also
 requires it: AC-023 probes a label-only body against an inaccessible folder
 and must reach the 404, so the schema cannot refuse the absent color first.
 */
-export const patchFolderMyMembershipBody = z
-  .object({
-    /* **`shelf` is the surviving spelling and `label` is the compatibility
-       one.** The field was `label` until issue #226, and it was renamed with
-       the column it writes: this has always been the viewer's Shelf
-       membership rather than a classification Label, and the Label model of
-       #208 needed the word back.
+export const patchFolderMyMembershipBody = z.object({
+  /* **`shelf` is the only spelling, since issue #247 closed the pair.** The
+     field was `label` until issue #226, and it was renamed with the column it
+     writes: this has always been the viewer's Shelf membership rather than a
+     classification Label, and the Label model of #208 needed the word back.
 
-       **Both are declared for this release, and that is expand-and-contract
-       applied to the wire rather than tolerance for an old client.** The
-       column rename underneath is already expand-and-contract (migration
-       0022), for the reason hard stop 1 gives: Render brings the new instance
-       up and waits for its health checks before draining the old one. The
-       same hazard reaches one layer up and its failure mode is worse. One
-       deployable serves the SPA and the API together, but a browser tab open
-       across a deploy keeps its old bundle and goes on calling the new API,
-       and a tab outlives a deploy by as long as somebody leaves it open. The
-       read half self-heals on reload. The write half does not: this is a
-       `z.object`, so a stale tab's `label` would be **stripped** (7.0
-       tolerates unknown keys, 11.14 rules that no schema here becomes
-       strict), `shelf` would then be absent, `setMyMembership` would read
-       that as "not provided", and the request would answer **200 having
-       stored nothing** — a person renames their shelf, sees it accepted, and
-       loses the edit. That is hard stop 3's failure mode exactly.
+     **Both were declared for one release, and that was expand-and-contract
+     applied to the wire rather than tolerance for an old client.** The column
+     rename underneath went the same way (migration 0022), for the reason hard
+     stop 1 gives: Render brings the new instance up and waits for its health
+     checks before draining the old one. The same hazard reaches one layer up
+     and its failure mode is worse. One deployable serves the SPA and the API
+     together, but a browser tab open across a deploy keeps its old bundle and
+     goes on calling the new API, and a tab outlives a deploy by as long as
+     somebody leaves it open. This is a `z.object`, so at the moment of the
+     rename a tab still holding the old bundle would have had its `label`
+     **stripped** (7.0 tolerates unknown keys, 11.14 rules that no schema here
+     becomes strict), `shelf` would then have been absent, `setMyMembership`
+     would have read that as "not provided", and the request would have
+     answered **200 having stored nothing** — a person renames their shelf,
+     sees it accepted, and loses the edit. That is hard stop 3's failure mode
+     exactly, and declaring `label` for one release is what carried the
+     shipped bundles across the gap.
 
-       **Issue #247 is the contract half** and drops `label` here together
-       with `my_label` below and the `folder_members.label` column, in one
-       change, after 0022 is live in production. */
-    shelf: shelfName.nullable().optional(),
-    label: shelfName.nullable().optional(),
-    color: hexColor.nullable().optional(),
-  })
-  /* The collapse, and it lives here rather than in the route so that there is
-     exactly one place the two spellings can be read and no way for a handler
-     to forget the second. `shelf` wins when both are present, which is the
-     ruling: a client sending both is a new bundle, and the new name is what a
-     new bundle means. Absent stays absent — the 7.4 PATCH convention is that
-     an absent field is left alone and a null clears it, so the two cannot be
-     collapsed into one another here. */
-  .transform((body) => {
-    const patch: { shelf?: string | null; color?: string | null } = {}
-    if (body.shelf !== undefined) patch.shelf = body.shelf
-    else if (body.label !== undefined) patch.shelf = body.label
-    if (body.color !== undefined) patch.color = body.color
-    return patch
-  })
+     **That is what issue #247 contracts**, migration 0022 being live: `label`
+     goes from here and `my_label` from the Folder object below. A body
+     sending `label` now gets the ordinary unknown-key treatment — stripped,
+     logged by `parse-body.ts`, and changing nothing — which is correct once
+     no shipped bundle sends it. AC-750 is what pins that, against the stored
+     row rather than against the 200.
+
+     **The `folder_members.label` column is not dropped in this release and
+     that is the rule rather than an oversight.** 11.5 splits a destructive
+     change expand-and-contract across two releases because the old code runs
+     against the new schema for the length of a deploy, and the old code here
+     is the instance that still writes `label` on all five of its write
+     paths. So this release takes the wire keys and stops the writes; the
+     release after it drops the column, once this one is live and drained. */
+  shelf: shelfName.nullable().optional(),
+  color: hexColor.nullable().optional(),
+})
 export type PatchFolderMyMembershipBody = z.infer<
   typeof patchFolderMyMembershipBody
 >
@@ -254,18 +249,20 @@ my_color are null for a member who set none (4.4).
 `my_shelf` was `my_label` until issue #226. It is the same field carrying the
 same value from the same column: the rename is the Shelf half of removing the
 collision with #208's Label model, and `personal_labels` below is the Label
-half arriving beside it. Anything reading `my_label` is reading the Shelf.
+half arriving beside it.
 
-**Both keys are on the card for this release, and the key-exact assertion is
-what documents the pair.** 7.0 fixes this object's key set and the contract
-tests assert it exactly, so listing both is how the release says "two names,
-one value" in the one place a reader cannot miss it. The reason is the read
-half of the expand-and-contract the request body carries: a browser tab open
-across a deploy keeps its old bundle and reads `my_label`, and a card carrying
-only `my_shelf` would draw every shelf as unset until the person reloaded.
-That is cosmetic and self-healing where the write half is neither, but it
-costs one key to not do it at all. **Issue #247 drops `my_label`, the request
-body's `label`, and the `folder_members.label` column in one contract.**
+**Both keys were on the card for one release and only one is now.** That pair
+was the read half of the expand-and-contract the request body carried: a
+browser tab open across a deploy keeps its old bundle and read `my_label`, and
+a card carrying only `my_shelf` would have drawn every shelf as unset until
+the person reloaded — cosmetic and self-healing where the write half was
+neither, and it cost one key to not do it at all. **Issue #247 is the contract
+half**, and it drops `my_label` and the request body's `label` once migration
+0022 is live. 7.0 fixes this object's key set and the contract tests assert it
+exactly, so the key leaving those arrays is what records that the window
+closed; AC-750 asserts that no producer answers the old key. The
+`folder_members.label` column goes in the release after this one, for the
+reason the request body's block above gives.
 
 `my_access` joined them on 2026-09-20 under Hassan's Ruling 4 on issue #228
 (https://github.com/zhssnym/dana/issues/228#issuecomment-5751449643), a dated
@@ -288,9 +285,6 @@ export const folder = z.object({
     completed: z.int().nonnegative(),
   }),
   my_shelf: shelfName.nullable(),
-  /* The same value from the same column as `my_shelf`, for the deploy window
-     the block above describes. Never a second fact; #247 removes it. */
-  my_label: shelfName.nullable(),
   my_color: hexColor.nullable(),
   /* The viewer's own Access preset (issue #228, Hassan's Ruling 4 of
      2026-09-20). It sits with the other two `my_` fields because it is the

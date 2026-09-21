@@ -167,6 +167,39 @@ describe('patchFolderMyMembershipBody (7.4: { shelf, color }, either nullable)',
       expect(result.data).toEqual({ shelf: 'ok' })
     }
   })
+
+  /* The contraction of issue #247, read at the schema. `label` was declared
+     beside `shelf` for one release so that a tab holding a pre-#226 bundle
+     across a deploy still wrote; migration 0022 is live, the window has
+     closed, and the old key is now an ordinary unknown one. AC-750 is the
+     same fact asserted against the stored row rather than against the parse,
+     which is the half that matters: a body whose only shelf key is stripped
+     leaves `shelf` absent, and absent means "left alone" here. */
+  test('the retired `label` spelling is an unknown key now (issue #247)', () => {
+    const alone = patchFolderMyMembershipBody.safeParse({ label: 'Attic' })
+    expect(alone.success, '7.0 tolerates it rather than refusing it').toBe(true)
+    if (alone.success) {
+      expect(
+        alone.data,
+        'nothing survives the parse, so the patch is empty and setMyMembership is a no-op',
+      ).toEqual({})
+      expect('shelf' in alone.data, 'absent, which 7.4 reads as "leave it alone"').toBe(
+        false,
+      )
+    }
+
+    const beside = patchFolderMyMembershipBody.safeParse({
+      shelf: 'Bench',
+      label: 'Attic',
+    })
+    expect(beside.success).toBe(true)
+    if (beside.success) {
+      expect(
+        beside.data,
+        'and beside the surviving key it changes nothing: there is no collapse left to get the precedence wrong',
+      ).toEqual({ shelf: 'Bench' })
+    }
+  })
 })
 
 describe('postFolderMembersBody (7.4: { user_id, access })', () => {
@@ -243,9 +276,6 @@ describe('folder (7.0: the shared Folder object)', () => {
     member_count: 2,
     counts: { pending: 3, completed: 0 },
     my_shelf: null,
-    /* One column under two keys for one release (issue #226); #247 drops
-       this one with `folder_members.label`. */
-    my_label: null,
     my_color: null,
     personal_labels: [],
     /* Issue #228, Hassan's Ruling 4 of 2026-09-20: the *viewer's own* preset,
@@ -358,9 +388,6 @@ describe('the 7.4 response shapes (settled at the P2 shape review)', () => {
     member_count: 1,
     counts: { pending: 0, completed: 0 },
     my_shelf: null,
-    /* One column under two keys for one release (issue #226); #247 drops
-       this one with `folder_members.label`. */
-    my_label: null,
     my_color: null,
     personal_labels: [],
     my_access: 'full_control',

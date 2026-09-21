@@ -315,14 +315,14 @@ export async function patchShelf(
       // 4.18: membership and shelf name held in step, one transaction. The
       // memberships are the viewer's own; nobody else's arrangement moves.
       //
-      // Both columns are written and the predicate reads the new one, which
-      // is migration 0022's expand half: `label` is still there so that the
-      // instance Render has not drained yet sees current data, and issue #247
-      // drops it along with the second assignment here.
+      // One column written, since issue #247 contracted migration 0022's
+      // expand half: `label` was written beside `shelf_name` only for as long
+      // as an instance Render had not drained yet was reading it. The column
+      // is still in the table and stops being written here; the migration
+      // that drops it is #247's second release, which is 11.5's rule.
       if (renaming) {
         await tx.execute(
-          sql`UPDATE folder_members
-                 SET shelf_name = ${patch.name}, label = ${patch.name}
+          sql`UPDATE folder_members SET shelf_name = ${patch.name}
               WHERE user_id = ${viewerId} AND shelf_name = ${oldName}`,
         )
       }
@@ -371,7 +371,7 @@ export async function deleteShelf(
     const row = removed[0]
     if (row === undefined) return 'not_found' as const
     await tx.execute(
-      sql`UPDATE folder_members SET shelf_name = NULL, label = NULL
+      sql`UPDATE folder_members SET shelf_name = NULL
           WHERE user_id = ${viewerId} AND shelf_name = ${String(row.name)}`,
     )
     await recordEvent(tx, {

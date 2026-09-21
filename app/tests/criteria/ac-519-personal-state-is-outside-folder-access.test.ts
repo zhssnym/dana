@@ -114,15 +114,21 @@ describe('AC-519 personal state is the member\'s, whatever their preset', () => 
     const labelled = await viewer.browser.json(
       `/folders/${folderId}/my-membership`,
       'PATCH',
-      { label: 'ac489 Audits', color: '#33AA55' },
+      /* `shelf` and `my_shelf`, not `label` and `my_label`: issue #247 retired
+         the old pair from the request body and the Folder object, and this
+         case asserts the value came back rather than the status, so under the
+         retired spellings it would read undefined against a 200. The decision
+         AC-519 pins is which actions Folder Access governs, and that is
+         untouched -- only the name of the field the personal act writes. */
+      { shelf: 'ac489 Audits', color: '#33AA55' },
     )
     expectStatus(
       labelled,
       200,
       "#228's personal-actions rule: a member's own shelf placement and arrangement of a folder are personal, so Can view sets them",
     )
-    const body = labelled.json() as { my_label?: string; my_color?: string }
-    expect(body.my_label, 'and the label is theirs').toBe('ac489 Audits')
+    const body = labelled.json() as { my_shelf?: string; my_color?: string }
+    expect(body.my_shelf, 'and the shelf is theirs').toBe('ac489 Audits')
     expect(body.my_color, 'and so is the colour').toBe('#33AA55')
   })
 

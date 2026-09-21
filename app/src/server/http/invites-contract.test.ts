@@ -168,14 +168,14 @@ const INVITE_KEYS = [
   'task_id',
 ]
 
-/** The seventeen keys of the 7.0 Folder object, folders-contract.test.ts's
- * list; the 4.3 identity four joined with RFC 0005, `my_shelf` plus
- * `personal_labels` with issue #226, and `my_access` with issue #228.
- * `my_label` is `my_shelf` under its previous name, carried beside it for one
- * release so that a browser tab holding an old bundle across a deploy still
- * reads a shelf; #247 drops it with the column. That file's list carries the
- * argument in full. (The count in this sentence read "twelve" while the list
- * held fourteen; both halves are now derived from the list beside them.) */
+/** The keys of the 7.0 Folder object, folders-contract.test.ts's list; the
+ * 4.3 identity four joined with RFC 0005, `my_shelf` plus `personal_labels`
+ * with issue #226, and `my_access` with issue #228. `my_label` was `my_shelf`
+ * under its previous name, carried beside it for one release so that a
+ * browser tab holding an old bundle across a deploy still read a shelf; #247
+ * retired it, and it is gone from here for that reason and no other. That
+ * file's list carries the argument in full, including why neither list writes
+ * its own length in prose. */
 const FOLDER_KEYS = [
   'color',
   'counts',
@@ -190,7 +190,6 @@ const FOLDER_KEYS = [
   'member_count',
   'my_access',
   'my_color',
-  'my_label',
   'my_shelf',
   'name',
   'personal_labels',
