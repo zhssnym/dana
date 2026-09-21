@@ -168,14 +168,15 @@ dropping the vocabulary before validation saw it. Each was proved by breaking
 the line it watches and watching it go red, and AC-781 by two mutations rather
 than one, it being the only one of the three that was green on arrival.
 
-**AC-820 to AC-825 on 2026-09-20, issue #185, and they are the round trip
-itself.** The workflow file now serializes the folder page directly — one
+**AC-820 to AC-825 on 2026-09-20 and 21, issue #185, and they are the round
+trip itself.** The workflow file now serializes the folder page directly — one
 ordered array, Sections nesting by `level`, membership positional with an
 explicit escape, Tasks as blocks, media as placeholders — and the six criteria
 drive a composed page through the writer the folder page calls, the endpoint
 over the wire, and the `page_blocks` and `tasks` rows on the other side.
 `support/workflow-page-harness.ts` is theirs. Every one was proved red by
-mutation: nine of them, listed in that commit. **One is worth knowing about
+mutation: **thirteen mutations across the six**, each named in the commit that
+added the case it fired. **One is worth knowing about
 before you reach for the same technique.** AC-825 asserts byte equality across
 export, import and export again, which is as strong as it sounds about any
 *asymmetry* between the two halves and is **blind to a loss they agree about**:
