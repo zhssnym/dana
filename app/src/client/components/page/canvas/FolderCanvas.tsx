@@ -11,6 +11,7 @@ import { queryKeys } from '../../../api/keys.js'
 import { Button } from '../../ui/button.js'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog.js'
 import { Input } from '../../ui/input.js'
+import { CanvasErrorBoundary } from './CanvasErrorBoundary.js'
 import { CanvasTaskProvider } from './CanvasTask.js'
 import { CanvasSurface } from './CanvasSurface.js'
 import { canvasSchema } from './schema.js'
@@ -31,7 +32,9 @@ interface Props extends Pick<Rows, 'tasks' | 'context' | 'actions' | 'onAsk'> {
 /** Reset history only at identity-changing checkpoints or explicit server reconciliation. */
 export default function FolderCanvas(props: Props): React.JSX.Element {
   const [checkpoint, setCheckpoint] = useState<{ page: PageView; epoch: number }>({ page: props.page, epoch: 0 })
-  return <PersistedCanvas key={`${props.folderId}:${checkpoint.epoch}`} {...props} initialPage={checkpoint.page} onCheckpoint={(page) => setCheckpoint((old) => ({ page, epoch: old.epoch + 1 }))} />
+  return <CanvasErrorBoundary>
+    <PersistedCanvas key={`${props.folderId}:${checkpoint.epoch}`} {...props} initialPage={checkpoint.page} onCheckpoint={(page) => setCheckpoint((old) => ({ page, epoch: old.epoch + 1 }))} />
+  </CanvasErrorBoundary>
 }
 
 function PersistedCanvas({ page, initialPage, folderId, tasks, context, actions, onAsk, arrangeable, onCheckpoint }: Props & {

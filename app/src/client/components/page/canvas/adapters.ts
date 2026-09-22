@@ -18,6 +18,11 @@ export interface CanvasRecord {
 export interface CanvasPlacement { kind: 'block' | 'task'; id: string; section_block_id: string | null; list_parent_block_id: string | null }
 export interface CanvasDocument { blocks: CanvasRecord[]; items: CanvasPlacement[] }
 
+/** A stored page that the canvas cannot safely turn into editable content. */
+export class CanvasHydrationError extends Error {
+  override readonly name = 'CanvasHydrationError'
+}
+
 function contentOf(text: string | null, rich?: { version: 1; runs: RichRun[] } | null): CanvasInput['content'] {
   if (!rich) return text ?? ''
   return rich.runs.map((run) => {
@@ -46,7 +51,7 @@ export function hydrateCanvas(page: PageView, columnWidth: number): CanvasInput[
       continue
     }
     const block = records.get(item.id)
-    if (!block) throw new Error('The page contains an unavailable block. Reload before editing.')
+    if (!block) throw new CanvasHydrationError('The page contains an unavailable block. Reload before editing.')
     parents.set(block.id, block.section_block_id)
     if (block.kind === 'section') {
       const level = Math.min(block.section_block_id === null ? 1 : (levels.get(block.section_block_id) ?? 0) + 1, MAX_SECTION_DEPTH)
@@ -63,7 +68,7 @@ export function hydrateCanvas(page: PageView, columnWidth: number): CanvasInput[
     if (parentId === null) root.push(node)
     else {
       const parent = nodes.get(parentId)
-      if (parent?.type !== 'heading') throw new Error('The page has an invalid group. Its content has been preserved; reload before editing.')
+      if (parent?.type !== 'heading') throw new CanvasHydrationError('The page has an invalid group. Its content has been preserved; reload before editing.')
       parent.children!.push(node)
     }
   }
