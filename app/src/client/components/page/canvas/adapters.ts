@@ -58,7 +58,7 @@ export function hydrateCanvas(page: PageView, columnWidth: number): CanvasInput[
       levels.set(block.id, level)
       nodes.set(block.id, { id: block.id, type: 'heading', props: { level, isToggleable: true }, content: contentOf(block.text, block.rich_content), children: [] })
     } else if (block.kind === 'image') nodes.set(block.id, { id: block.id, type: 'image', props: { url: block.file_id ? `/api/v1/files/${block.file_id}` : '', caption: block.text ?? '', previewWidth: columnWidth * (block.width_pct ?? 100) / 100 }, children: [] })
-    else if (block.kind === 'folder_ref') nodes.set(block.id, { id: block.id, type: 'paragraph', content: [{ type: 'link', href: `/app/folders/${block.ref_folder_id}`, content: block.text ?? 'Open folder' }], children: [] })
+    else if (block.kind === 'folder_ref') nodes.set(block.id, { id: block.id, type: 'paragraph', content: [{ type: 'link', href: `/app/folders/${block.ref_folder_id ?? ''}`, content: block.text ?? 'Open folder' }], children: [] })
     else nodes.set(block.id, { id: block.id, type: 'paragraph', content: contentOf(block.text, block.rich_content), children: [] })
   }
   const root: CanvasInput[] = []
