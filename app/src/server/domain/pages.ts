@@ -33,6 +33,7 @@ import { sql } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
 import type {
+  DocumentTransaction,
   PageBlock,
   PageActionBody,
   PageItemRef,
@@ -47,6 +48,7 @@ import { readableFileScope } from './files.js'
 import { mayPerform } from './folder-access.js'
 import { accessOf } from './folders.js'
 import { shelfView } from './shelves.js'
+import { applyShelfDocument, shelfDocumentMetadata, ShelfDocumentRefusal } from './shelf-document.js'
 import { initialKeys } from './fractional-index.js'
 import {
   placementKey,
@@ -354,6 +356,16 @@ export async function putPage(
 
     if (home.folderId !== null) {
       const modern = await rowsOf(tx,sql`SELECT id FROM page_blocks WHERE folder_id=${home.folderId}::uuid AND (rich_content IS NOT NULL OR (kind='section' AND section_block_id IS NOT NULL) OR kind NOT IN ('section','paragraph','image','folder_ref') OR EXISTS (SELECT 1 FROM page_document_receipts r WHERE r.folder_id=page_blocks.folder_id)) LIMIT 1`)
+      if(modern.length) return {kind:'stale',blockId:String(modern[0]?.id)} as const
+    }
+    /* #221, the Shelf half of the same rule. Once a Shelf has been written
+       through the document transaction, or holds a block the legacy editor
+       cannot draw, the legacy whole-page writer is refused: it would read
+       only the four kinds it knows and write the rest back as deletions. A
+       Shelf the composer has never touched keeps the legacy PUT exactly. */
+    if (home.folderId === null && home.shelfId !== null) {
+      await tx.execute(sql`SELECT 1 FROM shelves WHERE id = ${home.shelfId}::uuid FOR UPDATE`)
+      const modern = await rowsOf(tx,sql`SELECT id FROM page_blocks WHERE shelf_id=${home.shelfId}::uuid AND (rich_content IS NOT NULL OR kind NOT IN ('section','paragraph','image','folder_ref')) UNION ALL SELECT shelf_id AS id FROM shelf_document_receipts WHERE shelf_id=${home.shelfId}::uuid LIMIT 1`)
       if(modern.length) return {kind:'stale',blockId:String(modern[0]?.id)} as const
     }
     const current = await rowsOf(
@@ -820,6 +832,43 @@ export async function actOnFolderPage(
     throw error
   })
 }
+/**
+ * #221: a Shelf's `document_transaction`. The Shelf is resolved and locked in
+ * the transaction that writes, so the owner check and the write read one
+ * snapshot. Refusals leave as `ShelfDocumentRefusal`; a Shelf that is not the
+ * viewer's is `not_found`, never 403 (4.18, 10.2).
+ */
+export async function actOnShelfPage(
+  db: Db,
+  viewerId: string,
+  shelfId: string,
+  body: DocumentTransaction,
+): Promise<PageView> {
+  return inTransaction(db, async (tx) => {
+    const shelves = await rowsOf(
+      tx,
+      sql`SELECT name FROM shelves
+           WHERE id = ${shelfId}::uuid AND user_id = ${viewerId}::uuid FOR UPDATE`,
+    )
+    const shelf = shelves[0]
+    if (shelf === undefined) throw new ShelfDocumentRefusal('not_found', 'Not found.')
+    const name = String(shelf.name)
+    const mutation = await applyShelfDocument(tx, viewerId, shelfId, name, body)
+    if (!mutation.replayed) {
+      await recordEvent(tx, {
+        actorId: viewerId,
+        verb: 'edited',
+        subjectKind: 'shelf',
+        subjectId: shelfId,
+        subjectName: name,
+        folderId: null,
+        detail: 'edited the page',
+      })
+    }
+    return { ...(await pageViewIn(tx, viewerId, { folderId: null, shelfId })), mutation }
+  })
+}
+
 /** The read again, on the transaction's own snapshot, so the response can
  * never describe blocks the write did not leave. */
 async function pageViewIn(
@@ -840,7 +889,11 @@ async function pageViewIn(
         ORDER BY b.page_position ASC NULLS LAST, b.position ASC, b.id ASC`,
   )
   return {
-    ...await documentMetadata(tx, home.folderId),
+    /* #221: a Shelf reads its own revision now, where it used to read the
+       empty document's constant. Old clients never read it on a Shelf. */
+    ...(home.folderId === null && home.shelfId !== null
+      ? await shelfDocumentMetadata(tx, home.shelfId)
+      : await documentMetadata(tx, home.folderId)),
     blocks: rows.map(blockFromRow),
     items: await pageItemsIn(tx, viewerId, home),
   }

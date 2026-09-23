@@ -1121,6 +1121,24 @@ const TABLE = new Map<string, Row>([
     },
   ],
   [
+    'POST /api/v1/shelves/:id/page/actions',
+    {
+      attempt: (fx) => ({
+        path: `/shelves/${fx.shelfId}/page/actions`,
+        body: {
+          action: 'document_transaction',
+          mutation_id: '00000000-0000-4000-8000-000000000890',
+          base_revision: 'ac397',
+          operations: [{ op: 'set_outline', items: [] }],
+        },
+      }),
+      stranger: {
+        expected: 404,
+        rule: "#221 and 4.18: a Shelf's document transaction, refused before the body is read because the Shelf is not the caller's",
+      },
+    },
+  ],
+  [
     'GET /api/v1/views/:id',
     {
       attempt: (fx) => ({ path: `/views/${fx.viewId}` }),
