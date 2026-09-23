@@ -14,8 +14,8 @@ cannot even learn that it is a thing. That is 10.2's rule and 7.0's status
 grammar, and it has a second half this feature adds: **the two doors must
 agree**. A person who pastes an exact URL and a person who types a word must
 be told the same story about the same row, or the picker becomes the oracle
-the resolver refuses to be. So both doors below are built from the same three
-gates and neither has a read of its own:
+the resolver refuses to be. So both doors below are built from the same four
+gates and neither has an ungated read of its own:
 
 - a task through `accessibleTask`, whose membership join is the scope;
 - a folder through `accessOf`, the same;
@@ -24,8 +24,8 @@ gates and neither has a read of its own:
 - a Purpose facet through a membership join on its Folder (#211), hidden state
   deliberately irrelevant because hide is presentation rather than access.
 
-`resolveReference` calls those three functions. The search queries below
-repeat their `FROM` clauses rather than calling them per row, which is the one
+`resolveReference` applies those four gates. The search queries below
+repeat their access predicates rather than resolving them per row, which is the one
 place the two doors are written twice; each query carries the same membership
 join in the same position. **AC-429 was named here as the criterion that would check
 that agreement behaviourally, and no such criterion was ever written**: issue #223
