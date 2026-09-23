@@ -39,11 +39,11 @@ import { searchQ } from './views.js'
 /** M1's three, in the issue's own order. A kind belongs here only once it has
  * a stable id and a stable client route; adding one is this constant, its
  * segment below, and a branch in the server's resolver. */
-export const REFERENCE_KINDS = ['task', 'folder', 'shelf'] as const
+export const REFERENCE_KINDS = ['task', 'folder', 'shelf', 'facet'] as const
 export type ReferenceKind = (typeof REFERENCE_KINDS)[number]
 
 export const referenceKind = z.enum(REFERENCE_KINDS, {
-  error: 'must be one of task, folder or shelf',
+  error: 'must be one of task, folder, shelf or facet',
 })
 
 /** The client route segment each kind is addressed by, which is the plural
@@ -53,6 +53,7 @@ const KIND_SEGMENT: Record<ReferenceKind, string> = {
   task: 'tasks',
   folder: 'folders',
   shelf: 'shelves',
+  facet: 'facets',
 }
 
 const KIND_OF_SEGMENT = new Map<string, ReferenceKind>(
@@ -69,7 +70,9 @@ export interface ReferenceTarget {
 }
 
 /** The canonical internal path of a target: what a chip links to, and the
- * `path` of every summary the server answers. One direction of the round
+ * `path` of every summary the server answers. Purpose facets use
+ * `/app/facets/:id`; #211 deliberately makes no individual Purpose block a
+ * target. One direction of the round
  * trip `parseDanaLink` is the other half of. */
 export function referencePath(kind: ReferenceKind, id: string): string {
   return `/${APP_SEGMENT}/${KIND_SEGMENT[kind]}/${id}`
