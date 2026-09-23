@@ -39,7 +39,10 @@ import type { Db } from '../../../db/client.js'
 import type { DocumentOperation } from '../../shared/pages.js'
 import { parseDanaLink, referencePath } from '../../shared/references.js'
 import type { ReferenceKind } from '../../shared/references.js'
-import { readWorkflowPage } from '../../shared/workflows.js'
+import {
+  readWorkflowPage,
+  workflowDependencyEdges,
+} from '../../shared/workflows.js'
 import type {
   ImportWorkflowBody,
   ImportWorkflowTask,
@@ -840,6 +843,9 @@ export async function importWorkflow(
     }
 
     const created: Array<{ id: string; name: string }> = []
+    /** The file's task keys (#207) onto the ids this import minted, across
+     * every folder of the file, because a dependency may cross Folders. */
+    const taskIdOfKey = new Map<string, string>()
     /* Indexed, because `createWorkflowFolderLabels` needs to be able to say
        *which* folder of the file the database refused a vocabulary for, and
        the path it answers with — `folders.<n>.labels` — is the one
@@ -956,6 +962,7 @@ export async function importWorkflow(
         )
         const taskId = String(madeTask[0]?.id)
         madeTaskIds.push(taskId)
+        if (task.key !== undefined) taskIdOfKey.set(task.key, taskId)
         const sourceTaskId=folder.document?.task_ids[taskIndex]
         if(sourceTaskId!==undefined)taskMap.set(sourceTaskId,taskId)
         for (const [index, step] of (task.steps ?? []).entries()) {
@@ -1209,6 +1216,26 @@ export async function importWorkflow(
         detail: 'imported from a workflow file',
       })
       created.push({ id: folderId, name: folder.name })
+    }
+    /*
+    The file's internal dependencies, after every Task of every folder exists
+    (#207), in this same transaction so that work whose ordering did not arrive
+    is never a half-made import. `workflowDependencyEdges` keeps only edges
+    whose both ends the file declares, and the schema has already refused a
+    duplicated key, a self-dependency and a cycle, so every edge here is one
+    the live endpoint would admit. No other edge can reach a Task minted three
+    statements ago, which is why the file's own graph is the whole graph.
+    */
+    for (const [dependentKey, blockerKey] of workflowDependencyEdges(file.folders)) {
+      const dependent = taskIdOfKey.get(dependentKey)
+      const blocker = taskIdOfKey.get(blockerKey)
+      if (dependent === undefined || blocker === undefined) continue
+      await tx.execute(
+        sql`INSERT INTO task_dependencies
+              (dependent_task_id, blocking_task_id, created_by)
+            VALUES (${dependent}::uuid, ${blocker}::uuid, ${viewerId}::uuid)
+            ON CONFLICT ON CONSTRAINT task_dependencies_pair_key DO NOTHING`,
+      )
     }
     return { kind: 'imported', folders: created } as const
   }).catch(async(error:unknown)=>{
