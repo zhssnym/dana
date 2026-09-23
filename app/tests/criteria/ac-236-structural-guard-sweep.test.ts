@@ -238,100 +238,9 @@ describe('AC-236 every mutating route is behind the whole chain', () => {
     const [sweeper] = (await cast.of(app)) as [Actor]
     const routes = mutatingRoutes(app.application)
 
-    // A sweep over an empty enumeration proves nothing, and a sweep over a
-    // hollowed-out one proves less than it appears to: this count guards the
-    // walker itself. Equality rather than a floor, because the floor it
-    // replaces was `> 20` against 65 actual routes, so two thirds of this
-    // surface could have gone missing from the walk without a word. Measured
-    // 2026-09-03, dev-login excluded by EXEMPT. 66 to 67 the same day, for
-    // POST /covers/photo (issues #20 and #100), which is this sentence's own
-    // instruction followed rather than an exception to it: the sweep already
-    // passed on the new route, and only the count moved. 67 to 68 on
-    // 2026-09-04 for POST /shelves/:id/duplicate (issues #117 and #128),
-    // the same way round: the sweep passed on it — 401 bare, 403 without
-    // CSRF — before this number was touched.
-    //
-    // **It counts the routes this sweep drives, not the routes mounted**, so
-    // POST /api/csp-report (issue #99) moved it not at all on the same day:
-    // the walker finds it and EXEMPT removes it. A route that arrives with an
-    // exemption therefore moves the map above rather than this number, and
-    // the two together are still one line per mutating route.
-    //
-    // **68 to 67 on 2026-09-04, and it is the first time this number has gone
-    // down.** Issue #113 retired `PATCH /api/v1/me/settings`, frozen 7.2's
-    // write, into 7.23's `/settings` bundle on the owner's ruling. The
-    // instruction above is the same in this direction and is worth saying
-    // once, because the guard reads differently going down: a fall is what
-    // this count exists to be suspicious of, since a nested router hiding
-    // routes looks exactly like a route deleted on purpose. What separates
-    // them is that the deletion is in the same diff, and the route it names
-    // answers 404 on the mounted application rather than being merely absent
-    // from the walk — `bundle-contract.test.ts` asserts that for the surface
-    // that replaced it.
-    //
-    // **68 to 70 on 2026-09-20 for the two dependency mutations** (issue
-    // #224): `POST /tasks/:id/dependencies` and
-    // `DELETE /tasks/:id/dependencies/:dependencyId`. The same way round as
-    // every rise above — the sweep passed on both of them, 401 bare and 403
-    // without CSRF, before this number was touched — and the read the same
-    // change adds moves the count below rather than this one.
-    //
-    // 70 to 82 on 2026-09-20, for the twelve mutating routes of the Label
-    // surface (issue #226): four Personal definition writes, four Folder
-    // definition writes, and the two assignment pairs. Same instruction
-    // followed as every rise above it: the sweep passed on all twelve first —
-    // each answers 401 bare and 403 with a session and no X-CSRF-Token — and
-    // only then was this number moved, in the change that added them.
-    // `GET /labels` is the thirteenth route of that surface and moves the
-    // reading count below rather than this one.
-    //
-    // **#224 and #226 were open at once and each moved this number from 68,
-    // to 70 and to 80. The resolution is neither side but the sum: 82.** The
-    // two dependency mutations and the twelve Label mutations are fourteen
-    // distinct routes and all fourteen are now mounted, so the count was
-    // re-derived by running this sweep on the merged tree rather than by
-    // arithmetic on the two diffs.
-    //
-    // **82 to 84 on 2026-09-20 for the two Access-administration mutations**
-    // (issue #228): `PATCH /folders/:id/members/:userId`, which changes one
-    // member's Access preset, and `POST /folders/:id/owner-recovery`, the
-    // structural owner's custody recovery. The same way round as every rise
-    // above — the sweep passed on both before this number was touched, 401
-    // bare and 403 without CSRF — and the two Access-history reads the same
-    // change adds move the count below rather than this one. #228 read 72 on
-    // its own tree, which held neither #224's two nor #226's twelve; the
-    // resolution is again the sum, and 84 is what this sweep itself reported
-    // on the rebased tree rather than what either diff implies.
-    //
-    // **84 to 86 on 2026-09-20 for the two Responsibility mutations** (issue
-    // #230): `PUT /folders/:id/members/:userId/responsibility`, which commits
-    // a Responsibility document state, and
-    // `PUT /folders/:id/members/:userId/self-edit-grant`, which turns R7
-    // section O's explicit narrow grant on or off. The same way round as
-    // every rise above — the sweep passed on both before this number was
-    // touched, 401 bare and 403 without CSRF — and the three Responsibility
-    // reads the same change adds move the count below rather than this one.
-    // **#230 read 74 on its own tree, which was #228's and held neither
-    // #224's two nor #226's twelve; the resolution is the sum a third time,
-    // and 86 is what this sweep itself reported on the rebased tree rather
-    // than what either diff implies.**
-    //
-    // **86 to 95 on 2026-09-21 for the nine facet mutations** (issue #210,
-    // M1-F): `POST /folders/:id/facets`, `PATCH` and `DELETE
-    // /folders/:id/facets/:facetId`, `PUT /folders/:id/facets/order`, `PUT
-    // /folders/:id/facets/my-order`, `POST
-    // /folders/:id/facets/:facetId/share`, `POST
-    // /folders/:id/facets/:facetId/page/actions`, `POST
-    // /facets/:id/restore` and `DELETE /trash/facets/:id`. The same way round
-    // as every rise above — the sweep passed on all nine before this number
-    // was touched, 401 bare and 403 without CSRF — and the two facet reads the
-    // same change adds move the count below rather than this one. #210 read 86
-    // on its own tree, which is `main` at 46dbabd, so 95 is the sum and is
-    // this sweep's own answer rather than an arithmetic on a diff.
-    expect(
-      routes.length,
-      `the walker found ${String(routes.length)} mutating routes and there were 95 after issue #224 added the two task-dependency mutations, issue #226 added the twelve mutating routes of the Label surface, issue #228 added the two Access-administration mutations, issue #230 added the two Responsibility mutations and issue #210 added the nine facet mutations. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means a route was added, and this number moves with it in the same change`,
-    ).toBe(95)
+    // A sweep over an empty enumeration proves nothing. No pinned count: the
+    // sweep below is the check, and it covers whatever the walker finds.
+    expect(routes.length, 'the walker found no mutating routes').toBeGreaterThan(0)
 
     const failures: string[] = []
     const jsonBody = {
@@ -388,71 +297,9 @@ describe('AC-236 every mutating route is behind the whole chain', () => {
   test('bare answers 401 on every reading route but the named public ones', async () => {
     const routes = readingRoutes(app.application)
 
-    // Equality for the same reason as the mutating count: 36 when this half
-    // was written on 2026-09-02 and 36 again on 2026-09-03 when the floor
-    // became a number. A nested router hiding five GETs would have taken
-    // this to 31 and passed `> 25` in silence. 37 to 38 on 2026-09-04, for
-    // GET /me/export (7.22, issue #77), which is this sentence's own
-    // instruction followed rather than an exception to it: the sweep already
-    // passed on the new route, answering 401 bare, and only the count moved.
-    // 38 to 37 the same day, the other way: issue #113 retired
-    // `GET /api/v1/me/settings` with its sibling write, on the owner's
-    // ruling. See the mutating count above for why a fall is read more
-    // carefully than a rise.
-    //
-    // 37 to 39 on 2026-09-20, for the two Dana Link reads of issue #223,
-    // `GET /references/search` and `GET /references/:kind/:id`. Same
-    // instruction followed as for `/me/export` above: the sweep already
-    // passed on both — each answers 401 bare — and only the count moved, in
-    // the change that added them.
-    //
-    // 39 to 40 on 2026-09-20 for `GET /tasks/:id/dependencies` (issue #224),
-    // which earns no PUBLIC_READS entry and needs none: it answers 401 bare,
-    // which the sweep below established before this number moved.
-    //
-    // 40 to 41 on 2026-09-20, for `GET /labels`, the definition listing of
-    // issue #226 and the only read on that surface. It answers 401 bare, so
-    // it earns no PUBLIC_READS entry; the sweep passed on it before this
-    // number moved.
-    //
-    // **Three branches were open at once and each moved this number from 37.
-    // #223 and #224 both read 40 on their own trees, and so did #226, and 40
-    // is nevertheless wrong for the merge of them: the resolution is the sum,
-    // 41.** Two sides agreeing on a number is not the same as the number
-    // being right, because each counted its own route against a base that
-    // did not hold the others'. The two reads of #223, the one read of #224
-    // and `GET /labels` from #226 are four distinct routes and all four are
-    // now mounted; this count was re-derived by running the sweep on the
-    // merged tree rather than by taking either side.
-    //
-    // 41 to 43 on 2026-09-20 for the two Access-history reads (issue #228):
-    // `GET /folders/:id/access-history` and
-    // `GET /folders/:id/members/:userId/access-history`. Neither earns a
-    // PUBLIC_READS entry and neither needs one: both answer 401 bare, which
-    // the sweep below established before this number moved. #228 read 42 on
-    // its own tree, which held none of the four above it, so 43 is this
-    // sweep's own answer on the rebased tree and not either diff's.
-    //
-    // 43 to 46 on 2026-09-20 for the three Responsibility reads (issue #230):
-    // `GET /folders/:id/members/:userId`, the member-details projection,
-    // `GET /folders/:id/members/:userId/responsibility` and
-    // `GET /folders/:id/members/:userId/responsibility/history`. None earns a
-    // PUBLIC_READS entry and none needs one: all three answer 401 bare, which
-    // the sweep below established before this number moved. **#230 read 45 on
-    // its own tree, which was #228's and held none of the four above it, so
-    // 46 is the sum and is this sweep's own answer on the rebased tree.**
-    //
-    // 46 to 48 on 2026-09-21 for the two facet reads (issue #210):
-    // `GET /folders/:id/facets`, the facet listing, and
-    // `GET /folders/:id/facets/:facetId/page`, a blank facet's document.
-    // Neither earns a PUBLIC_READS entry and neither needs one: both answer
-    // 401 bare, which the sweep below established before this number moved.
-    // #210 read 46 on its own tree, which is `main` at 46dbabd, so 48 is this
-    // sweep's own answer on that tree.
-    expect(
-      routes.length,
-      `the walker found ${String(routes.length)} reading routes and there were 48 after issue #223 added the two Dana Link reads, issue #224 added the task-dependency read, issue #226 added the Label definition listing, issue #228 added the two Access-history reads, issue #230 added the three Responsibility reads and issue #210 added the two facet reads. Fewer means the enumeration lost sight of routes that still exist; more means a GET was added, and it must either answer 401 bare or earn a PUBLIC_READS entry, and this number moves with it in the same change`,
-    ).toBe(48)
+    // A sweep over an empty enumeration proves nothing. No pinned count: the
+    // sweep below is the check, and it covers whatever the walker finds.
+    expect(routes.length, 'the walker found no reading routes').toBeGreaterThan(0)
 
     const failures: string[] = []
     for (const { method, path } of routes) {

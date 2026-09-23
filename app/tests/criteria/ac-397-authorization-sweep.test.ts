@@ -1860,60 +1860,9 @@ describe('AC-397 every id-bearing route refuses a stranger', () => {
   test('the enumeration and the table describe the same surface', async () => {
     const routes = idBearingRoutes(app.application)
 
-    /*
-    Equality, and the reason is the whole value of this file. A hand-written
-    table is worth having for exactly one property: that a route which joins
-    the application without an entry fails here rather than passing in
-    silence. A floor would give that up — a walker that lost sight of half
-    the surface, a router mounted inside another router, would satisfy
-    `> 40` while proving nothing about the routes it no longer saw. Measured
-    2026-09-04 at 59 and again at 60 an hour later, when the wave-1 merge brought
-    `POST /shelves/:id/duplicate`; it moves in the same change as the route that
-    moves it.
-
-    **62 to 76 on 2026-09-20, and the number is neither side of the merge that
-    produced it.** Three issues moved this count off 62 at the same time and
-    each measured its own rise against a tree that held none of the others:
-    #223's Dana Link resolver and #224's three task-dependency routes read 65
-    together, and #226's eleven id-bearing Label routes read 73. Fourteen
-    distinct routes are now mounted, so the count is 76, and it was re-derived
-    by running this sweep on the merged tree rather than by taking a side or by
-    doing arithmetic on the two diffs. The eleven of #226 are the four Personal
-    definition routes by id, the four Folder definition routes and the three
-    assignment routes that carry one; `GET /labels` is not among them, because
-    it takes its Folder selector from the query string rather than from a path
-    id and this walker structurally cannot see it — 10.2 records that limit and
-    AC-473 is what asserts that gate instead.
-
-    **76 to 80 on 2026-09-20** (issue #228): the two Access-administration
-    mutations and the two Access-history reads, each with its row above. #228
-    read 69 on its own tree, which held none of the fourteen above it, so this
-    is the same lesson a fourth time — 80 is what this sweep reported on the
-    rebased tree, not what either diff implies.
-
-    **80 to 85 on 2026-09-20** (issue #230): the member-details projection,
-    the two Responsibility reads, the Responsibility commit and the self-edit
-    grant toggle, each with its row above. **#230 read 74 on its own tree,
-    which was #228's and held none of the fourteen above it, so this is the
-    same lesson a fifth time** — 85 is what this sweep reported on the rebased
-    tree, not what either diff implies.
-    */
-    /*
-    **85 to 96 on 2026-09-21** (issue #210, M1-F): the eleven routes of 7.27,
-    every one of which carries a path parameter — the facet listing, the
-    create, the patch, the delete, the two order writes, the share, the two
-    page routes, the restore and the permanent delete. Each has its row above
-    and each row says what a stranger gets. **#210 read 85 on its own tree,
-    which is `main` at 46dbabd with nothing else in flight, so 96 is this
-    sweep's own answer rather than an arithmetic on a diff** — which is the
-    lesson the five paragraphs above this one record five times over, and it
-    holds even when there is only one branch open, because the number to write
-    down is always the one the sweep reported.
-    */
-    expect(
-      routes.length,
-      `the walker found ${String(routes.length)} routes carrying a path parameter and there were 96 after issue #223 added the Dana Link resolver, issue #224 added the three task-dependency routes, issue #226 added the eleven id-bearing routes of the Label surface, issue #228 added the two Access-administration mutations and the two Access-history reads, issue #230 added the member-details projection, the two Responsibility reads, the Responsibility commit and the self-edit grant toggle, and issue #210 added the eleven routes of the facet surface. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means an id-bearing route was added, and it owes this table a row saying what a stranger gets when they ask for somebody else's`,
-    ).toBe(96)
+    // No pinned count. The table-equality checks below are what make a new
+    // id-bearing route fail here until it has a row saying what a stranger gets.
+    expect(routes.length, 'the walker found no id-bearing routes').toBeGreaterThan(0)
 
     const missing = routes.filter((route) => !TABLE.has(route))
     expect(

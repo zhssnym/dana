@@ -12,6 +12,9 @@ question nothing has ruled on; extend or replace it, and say so where you do.
 A convention stated as law that was really a guess is worse than one marked
 provisional.
 
+"Section 13 item N" below cites a retired open-questions item; spec section 13
+is gone from the tree (git history has it), and open questions are GitHub issues.
+
 ## Where things live
 
 | Path | What it is | Whose |

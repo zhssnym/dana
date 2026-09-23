@@ -6,7 +6,7 @@ It had grown to 57 items, most of them long since decided, in a file nobody revi
 question parked in a document notifies no one, has no owner, and nothing marks it answered,
 so it cannot be told apart at a glance from one that still matters. That is why open
 questions are now GitHub issues, labelled `open-question` and assigned to whoever decides
-them: `docs/workflow/workflow.md` carries the rule.
+them: `AGENTS.md` carries the rule.
 
 **Nothing is added here.** A new open question is an issue.
 

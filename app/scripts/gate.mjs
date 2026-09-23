@@ -406,7 +406,7 @@ export async function browserLegRefusal(port, inspectors = PORT_INSPECTORS) {
         "truncate another run's database underneath its browser. Either stop every\n" +
         'node process whose command line matches playwright or e2e:app and wait for\n' +
         'the port to go quiet, or give this run a port of its own by setting\n' +
-        'DANA_GATE_PORT to a free one. CLAUDE.md carries the whole story.\n',
+        'DANA_GATE_PORT to a free one. docs/troubleshooting.md carries the whole story.\n',
     }
   }
 
