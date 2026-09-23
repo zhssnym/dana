@@ -113,9 +113,37 @@ export const trashedFacet = z.object({
 })
 export type TrashedFacet = z.infer<typeof trashedFacet>
 
+/*
+**The fourth kind (issue #320): a Discussion of a Folder's Consultation.**
+It carries `is_owner` and `my_access` for the same reason the three above do.
+Its permanent delete is `discussion.purge`, Full control with ownership
+ignored -- the Task rule, as a facet's is -- because the Folder survives it.
+`title` is the Discussion's own. Restore is `discussion.restore` (Can edit),
+or the creator's own-unshared path while nobody else has contributed.
+
+`.default([])` so that a server without this kind still parses: the array is
+additive and a client must never refuse a Trash page over it.
+*/
+export const trashedDiscussion = z.object({
+  id: z.uuid(),
+  title: z.string(),
+  folder_id: z.uuid(),
+  /** Where it lived, as a trashed task names its folder. */
+  folder_name: z.string(),
+  deleted_at: z.string(),
+  /** The Discussion's creator; the own-unshared restore is theirs. */
+  created_by: z.uuid(),
+  /** Whether the viewer owns the Folder this Discussion belongs to. */
+  is_owner: z.boolean(),
+  /** The viewer's own Access preset for that Folder. */
+  my_access: folderAccessPreset,
+})
+export type TrashedDiscussion = z.infer<typeof trashedDiscussion>
+
 export const getTrashResponse = z.object({
   tasks: z.array(trashedTask),
   folders: z.array(trashedFolder),
   facets: z.array(trashedFacet),
+  discussions: z.array(trashedDiscussion).default([]),
 })
 export type GetTrashResponse = z.infer<typeof getTrashResponse>

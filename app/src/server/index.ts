@@ -34,6 +34,7 @@ import {
 } from './routes/csp-report.js'
 import { createEventsRouter } from './routes/events.js'
 import { createExportRouter } from './routes/export.js'
+import { createConsultationRouter } from './routes/consultation.js'
 import { createFacetsRouter } from './routes/facets.js'
 import { createFilesRouter } from './routes/files.js'
 import { createFoldersRouter } from './routes/folders.js'
@@ -751,6 +752,26 @@ export function createApp(options: AppOptions = {}): express.Express {
   app.use(
     '/api/v1',
     createFacetsRouter({ dbClient: options.dbClient, rateLimits, securityLog }),
+  )
+
+  /*
+  7.28's Consultation (issue #320): `/folders/:id/discussions` (list, create),
+  `/discussions/:id` (read, edit, trash) with `/resolve`, `/reopen`,
+  `/outcomes` and `/restore`, `/outcomes/:id`, and `DELETE
+  /trash/discussions/:id`. Order-independent: `/folders/:id/discussions` is a
+  literal no earlier router claims, `/trash/discussions/:id` differs from the
+  other Trash deletes in its literal segment, and the `/discussions` and
+  `/outcomes` prefixes meet nothing. Comment routes inside a Discussion are
+  the conversation router's, not this one's.
+  */
+  app.use(
+    '/api/v1',
+    createConsultationRouter({
+      dbClient: options.dbClient,
+      rateLimits,
+      securityLog,
+      fileStore,
+    }),
   )
 
   app.use('/api', (_req: Request, res: Response) => {
