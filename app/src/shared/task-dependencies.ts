@@ -103,3 +103,33 @@ export interface TaskDependencies {
   depends_on: TaskDependencyEdge[]
   blocks: TaskDependencyEdge[]
 }
+
+/*
+`GET /folders/:id/dependencies` (#207 follow-up): every edge whose **both**
+ends are live Tasks of one Folder, as bare endpoint pairs.
+
+It exists so "Save as workflow" reads a Folder's internal ordering in one
+request rather than one per Task. The endpoint ids are safe on the wire here,
+unlike in `TaskDependencies`, because the read is gated on membership of the
+Folder and both ends are live Tasks of that Folder, each of which the member
+can already read. An edge with either end in another Folder is never returned,
+since its far end is exactly the id `TaskDependencies` withholds.
+
+A zod schema rather than an interface because the client parses the response
+through `getPlain`, and the server's answer is typed against the same schema,
+so the two halves cannot drift.
+*/
+export const folderDependencyEdge = z.object({
+  id: z.string(),
+  dependent_task_id: z.string(),
+  blocking_task_id: z.string(),
+})
+
+export const getFolderDependenciesResponse = z.object({
+  dependencies: z.array(folderDependencyEdge),
+})
+
+export type FolderDependencyEdge = z.infer<typeof folderDependencyEdge>
+export type GetFolderDependenciesResponse = z.infer<
+  typeof getFolderDependenciesResponse
+>

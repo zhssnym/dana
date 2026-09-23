@@ -936,6 +936,16 @@ const TABLE = new Map<string, Row>([
     },
   ],
   [
+    'GET /api/v1/folders/:id/dependencies',
+    {
+      attempt: (fx) => ({ path: `/folders/${fx.folderId}/dependencies` }),
+      stranger: {
+        expected: 404,
+        rule: '10.2 and 7.25: a Folder\'s internal relations are read by exactly its members, and a non-member is told what an id naming nothing is told — 404, never 403, with no edge looked at',
+      },
+    },
+  ],
+  [
     'POST /api/v1/tasks/:id/dependencies',
     {
       attempt: (fx) => ({

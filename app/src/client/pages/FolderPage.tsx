@@ -197,12 +197,9 @@ import { getLabelsResponse } from '../../shared/labels.js'
 import type { LabelDefinition } from '../../shared/labels.js'
 import { getTaskResponse } from '../../shared/tasks.js'
 import type { TaskDetail } from '../../shared/tasks.js'
-import {
-  folderToWorkflowFile,
-  workflowDependencyEdgesOf,
-  workflowDependencyRead,
-} from '../../shared/workflows.js'
+import { folderToWorkflowFile } from '../../shared/workflows.js'
 import type { WorkflowDependencyEdge } from '../../shared/workflows.js'
+import { getFolderDependenciesResponse } from '../../shared/task-dependencies.js'
 import type { Facet } from '../../shared/facets.js'
 import type { PageView } from '../../shared/pages.js'
 import { workPageOf } from '../components/page/canvas/adapters.js'
@@ -836,8 +833,12 @@ export function FolderPage({
     let labels: readonly LabelDefinition[]
     let dependencies: WorkflowDependencyEdge[]
     try {
-      /* #207: each pending Task's dependencies, read beside its detail, so
-         the file keeps the ordering between the work it carries. */
+      /* #207: the Folder's internal dependencies, read once beside the
+         details, so the file keeps the ordering between the work it carries.
+         One request for the Folder rather than one per Task; the writer
+         keeps only edges whose two ends it writes. Read fresh rather than
+         through the cache, because no dependency write invalidates a
+         folder-level key and a stale graph would write a wrong file. */
       const [details, vocabulary, waits] = await Promise.all([
         Promise.all(
           pending.map((task) =>
@@ -855,21 +856,14 @@ export function FolderPage({
               `/labels?scope=folder&folder_id=${encodeURIComponent(id)}`,
             ),
         }),
-        Promise.all(
-          pending.map(async (task) =>
-            workflowDependencyEdgesOf(
-              task.id,
-              await getPlain(
-                workflowDependencyRead,
-                `/tasks/${task.id}/dependencies`,
-              ),
-            ),
-          ),
+        getPlain(
+          getFolderDependenciesResponse,
+          `/folders/${encodeURIComponent(id)}/dependencies`,
         ),
       ])
       tasks = details
       labels = labelRowsOf(vocabulary)
-      dependencies = waits.flat()
+      dependencies = waits.dependencies
     } catch {
       showToast('Could not read this folder’s tasks, so nothing was saved.')
       return

@@ -1411,30 +1411,13 @@ function labelKeysOf(
 }
 
 /** One dependency edge as the exporter reads it: the dependent waits on the
- * blocker. Structural, so the caller may hand over whatever it assembled from
- * `GET /tasks/:id/dependencies`. */
+ * blocker. Structural, so the caller hands over the `dependencies` of
+ * `GET /folders/:id/dependencies` (`getFolderDependenciesResponse` in
+ * `shared/task-dependencies.ts`) as they arrive — one read for the whole
+ * Folder, never one per Task. */
 export interface WorkflowDependencyEdge {
   dependent_task_id: string
   blocking_task_id: string
-}
-
-/** The part of `GET /tasks/:id/dependencies` the exporter reads: which Tasks
- * this one waits on. A null far end is a Task the viewer cannot read, which is
- * never one of the Folder's own and so never written. */
-export const workflowDependencyRead = z.object({
-  depends_on: z.array(z.object({ task: z.object({ id: z.string() }).nullable() })),
-})
-
-/** One Task's `depends_on` read as the edges the exporter takes. */
-export function workflowDependencyEdgesOf(
-  taskId: string,
-  read: z.infer<typeof workflowDependencyRead>,
-): WorkflowDependencyEdge[] {
-  return read.depends_on.flatMap((edge) =>
-    edge.task === null
-      ? []
-      : [{ dependent_task_id: taskId, blocking_task_id: edge.task.id }],
-  )
 }
 
 /**
