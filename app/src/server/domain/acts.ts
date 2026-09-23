@@ -446,6 +446,9 @@ export async function duplicateFolder(
       that identity rather than minting another facet. Blocks and files are
       independent copies, while Dana Links are remapped only for targets this
       duplicate already has an identity map for.
+      #213: Results is deliberately not copied. It records the source
+      Folder's actual outcomes, not reusable intent, so the copy's native
+      Results stays empty under its default name (7.16).
       */
       const purposeRows = await rowsOf(
         tx,

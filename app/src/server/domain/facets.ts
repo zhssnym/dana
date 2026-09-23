@@ -29,7 +29,7 @@ owner_id = <viewer>)` clause written **inside the FROM clause** of every read,
 so a query that forgot the gate would return nothing rather than somebody
 else's writing.
 
-**A document-bearing facet uses 4.17's `page_blocks` scoped by `facet_id`.** #210 began with blank facets; #211 adds native Purpose.
+**A document-bearing facet uses 4.17's `page_blocks` scoped by `facet_id`.** #210 began with blank facets; #211 adds native Purpose; #213 adds native Results on the same terms.
 `applyFacetDocument` below is a facet-scoped sibling of
 `domain/page-document.ts`'s `applyDocument` rather than a parameterization of
 it, and that is a decision worth stating. The folder page's applier carries
@@ -49,6 +49,7 @@ import type { Db } from '../../../db/client.js'
 import {
   DEFAULT_FACET_NAMES,
   isBlankFacetKind,
+  isDocumentNativeFacetKind,
   isHideableFacetKind,
   isNativeFacetKind,
   isRenameableFacetKind,
@@ -1700,7 +1701,7 @@ async function facetPageGateIn(
     facet === null ||
     !visibleTo(facet, facts.actorId) ||
     facet.deletedAt !== null ||
-    !(isBlankFacetKind(facet.kind) || facet.kind === 'purpose')
+    !(isBlankFacetKind(facet.kind) || isDocumentNativeFacetKind(facet.kind))
   ) {
     return notFound
   }

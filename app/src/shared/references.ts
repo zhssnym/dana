@@ -37,7 +37,7 @@ import { searchQ } from './views.js'
 
 /** The closed reference set. #223's first three are followed by #211's
  * generic facet route; the server currently resolves that fourth kind only for
- * native Purpose. A kind belongs here only once it has stable identity and a
+ * native Purpose and, since #213, native Results. A kind belongs here only once it has stable identity and a
  * stable client route. */
 export const REFERENCE_KINDS = ['task', 'folder', 'shelf', 'facet'] as const
 export type ReferenceKind = (typeof REFERENCE_KINDS)[number]
