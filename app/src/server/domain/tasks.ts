@@ -70,6 +70,15 @@ import { accessOf } from './folders.js'
 import { dropFolderLabelsOnMove, taskLabelsOf } from './labels.js'
 import { taskDependencyCountsOf } from './task-dependency-counts.js'
 import { positionAtSectionEnd, seededItems } from './page-order.js'
+import {
+  TaskDocumentRefusal,
+  applyTaskDocumentLocked,
+  legacyNotesWrite,
+  materializeNotesLocked,
+  needsMaterializing,
+  taskDocumentViewIn,
+} from './task-document.js'
+import type { DocumentTransaction, PageView } from '../../shared/pages.js'
 
 /* ------------------------------------------------------------------ *
  * Serialization
@@ -1173,7 +1182,12 @@ export async function patchTask(
 
     const sets: SQL[] = []
     if (patch.title !== undefined) sets.push(sql`title = ${patch.title}`)
-    if (patch.notes !== undefined) sets.push(sql`notes = ${patch.notes}`)
+    /* #221: a legacy `notes` write keeps the Task's document in step, under
+       the Task row lock `lockedTask` took above; it answers the value the
+       column is to hold (`domain/task-document.ts` has the rule). */
+    if (patch.notes !== undefined) {
+      sets.push(sql`notes = ${await legacyNotesWrite(tx, taskId, patch.notes)}`)
+    }
     if (patch.important !== undefined) {
       sets.push(sql`important = ${patch.important}`)
     }
@@ -2180,5 +2194,67 @@ export async function deleteTaskReminder(
       })
     }
     return 'deleted'
+  })
+}
+
+/* ------------------------------------------------------------------ *
+ * The Task document (issue #221)
+ * ------------------------------------------------------------------ */
+
+/**
+ * `GET /tasks/:id/document`: any member who can see the Task reads it (the
+ * `taskView` scope), and a non-member is 404 (10.2). A Task that has notes and
+ * no document yet is given one here, under the Task row's lock.
+ */
+export async function taskDocument(
+  db: Db,
+  viewerId: string,
+  taskId: string,
+): Promise<PageView | null> {
+  return inTransaction(db, async (tx) => {
+    const access = await accessibleTask(tx, viewerId, taskId)
+    if (access === null) return null
+    if (await needsMaterializing(tx, taskId)) {
+      await tx.execute(sql`SELECT 1 FROM tasks WHERE id = ${taskId}::uuid FOR UPDATE`)
+      await materializeNotesLocked(tx, taskId)
+    }
+    return taskDocumentViewIn(tx, taskId)
+  })
+}
+
+/**
+ * `PUT /tasks/:id/document`: 7.16's document transaction over the Task's
+ * blocks, gated on `task.edit` exactly as a `notes` PATCH is, and in the same
+ * lock order (folder, then the Task row) so the gate reads the row the write
+ * touches. Refusals leave as `TaskDocumentRefusal`.
+ */
+export async function writeTaskDocument(
+  db: Db,
+  viewerId: string,
+  taskId: string,
+  body: DocumentTransaction,
+): Promise<PageView> {
+  return inTransaction(db, async (tx) => {
+    const preview = await accessibleTask(tx, viewerId, taskId)
+    if (preview === null) throw new TaskDocumentRefusal('not_found', 'Not found.')
+    await tx.execute(sql`SELECT 1 FROM folders WHERE id = ${preview.folderId}::uuid FOR UPDATE`)
+    const current = await lockedTask(tx, viewerId, taskId)
+    if (current === null || current.folderId !== preview.folderId) {
+      throw new TaskDocumentRefusal('not_found', 'Not found.')
+    }
+    const decision = mayActOnTask(current, 'task.edit')
+    if (!decision.allowed) throw new TaskDocumentRefusal('forbidden', decision.reason)
+    const result = await applyTaskDocumentLocked(tx, viewerId, current.folderId, taskId, body)
+    if (result.changed) {
+      await recordEvent(tx, {
+        actorId: viewerId,
+        verb: 'edited',
+        subjectKind: 'task',
+        subjectId: taskId,
+        subjectName: current.title,
+        folderId: current.folderId,
+      })
+    }
+    return result.view
   })
 }

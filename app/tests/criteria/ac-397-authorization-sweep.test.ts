@@ -853,6 +853,34 @@ const TABLE = new Map<string, Row>([
     },
   ],
   [
+    'GET /api/v1/tasks/:id/document',
+    {
+      attempt: (fx) => ({ path: `/tasks/${fx.taskId}/document` }),
+      stranger: {
+        expected: 404,
+        rule: "#221 (AC-882): a Task's document is read by whoever can see the Task, so a non-member is 404 exactly as on `GET /tasks/:id`",
+      },
+    },
+  ],
+  [
+    'PUT /api/v1/tasks/:id/document',
+    {
+      attempt: (fx) => ({
+        path: `/tasks/${fx.taskId}/document`,
+        body: {
+          action: 'document_transaction',
+          mutation_id: '00000000-0000-4000-8000-000000000397',
+          base_revision: 'ac397',
+          operations: [{ op: 'set_outline', items: [] }],
+        },
+      }),
+      stranger: {
+        expected: 404,
+        rule: "#221 (AC-882): the document transaction over a Task, refused as 404 because the Task's folder is not the caller's to see",
+      },
+    },
+  ],
+  [
     'PATCH /api/v1/tasks/:id',
     {
       attempt: (fx) => ({
