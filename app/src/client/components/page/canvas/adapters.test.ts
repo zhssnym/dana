@@ -3,12 +3,41 @@ import { BlockNoteEditor } from '@blocknote/core'
 import { describe, expect, test } from 'vitest'
 import type { PageBlock, PageView } from '../../../../shared/pages.js'
 import { canvasSchema } from './schema.js'
-import { canvasOperations, dehydrateCanvas, folderRefsOf, hydrateCanvas } from './adapters.js'
+import { canvasOperations, dehydrateCanvas, folderRefsOf, hydrateCanvas, mergeWorkDocument, workPageOf } from './adapters.js'
 
 function block(id: string, kind: PageBlock['kind'], parent: string | null = null): PageBlock {
   return { id, kind, section_block_id: parent, list_parent_block_id: null, checked: null, position: 0, page_position: null, text: id, file_id: null, file_width: null, file_height: null, width_pct: null, ref_folder_id: null, updated_at: '2026-09-13T00:00:00Z' }
 }
 describe('page and editor adapters', () => {
+  test('a Work facet edits one H1 subtree without replacing Main siblings', () => {
+    const page: PageView = {
+      revision: 'r1',
+      blocks: [
+        block('h1-a', 'section'),
+        block('a-copy', 'paragraph', 'h1-a'),
+        block('h1-b', 'section'),
+        block('b-copy', 'paragraph', 'h1-b'),
+      ],
+      items: ['h1-a', 'a-copy', 'h1-b', 'b-copy'].map((id) => ({ kind: 'block', id })),
+      task_placements: [],
+    }
+    const focused = workPageOf(page, 'h1-a')
+    expect(focused.items.map((item) => item.id)).toEqual(['a-copy'])
+    expect(focused.blocks[0]?.section_block_id).toBeNull()
+
+    const edited = {
+      blocks: [{
+        id: 'a-copy', block_kind: 'paragraph' as const, text: 'Changed',
+        rich_content: { version: 1 as const, runs: [{ text: 'Changed' }] },
+        file_id: null, ref_folder_id: null, width_pct: null, checked: null,
+      }],
+      items: [{ kind: 'block' as const, id: 'a-copy', section_block_id: null, list_parent_block_id: null }],
+    }
+    const merged = mergeWorkDocument(page, 'h1-a', edited)
+    expect(merged.items.map((item) => item.id)).toEqual(['h1-a', 'a-copy', 'h1-b', 'b-copy'])
+    expect(merged.items.find((item) => item.id === 'a-copy')?.section_block_id).toBe('h1-a')
+    expect(merged.blocks.find((item) => item.id === 'b-copy')?.text).toBe('b-copy')
+  })
   test('round-trips explicit ancestry, root prose, rich labels and durable image width', () => {
     const page: PageView = { blocks: [block('h1', 'section'), block('h2', 'section', 'h1'), { ...block('prose', 'paragraph', 'h2'), text: 'Read this', rich_content: { version: 1, runs: [{ text: 'Read ', bold: true }, { text: 'this', italic: true, href: 'https://example.com' }] } }, block('root', 'paragraph'), { ...block('image', 'image', 'h1'), file_id: '00000000-0000-4000-8000-000000000001', width_pct: 50 }], items: ['h1', 'h2', 'prose', 'task', 'image', 'root'].map((id) => ({ kind: id === 'task' ? 'task' : 'block', id })), task_placements: [{ id: 'task', section_block_id: 'h2' }] }
     const input = hydrateCanvas(page, 600)

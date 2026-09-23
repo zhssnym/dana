@@ -46,7 +46,7 @@ import {
 } from "../components/ui/dialog.js"
 import { markIcon } from "../components/page/icon-manifest.js"
 import { PageMark } from "../components/page-head.js"
-import { CheckCircle2, Trash2 } from "../lib/icons.js"
+import { CheckCircle2, Layers3, Trash2 } from "../lib/icons.js"
 import {
   TRASH_DAYS,
   type TrashItem,
@@ -132,7 +132,7 @@ export function TrashScreen({
             Nothing deleted
           </p>
           <p className="max-w-[42ch] text-[13px] leading-5 text-[var(--color-graphite-500)]">
-            Tasks and folders you delete land here first, so a wrong press costs
+            Tasks, folders and facets you delete land here first, so a wrong press costs
             a click rather than the thing itself.
           </p>
         </div>
@@ -193,7 +193,7 @@ function TrashRow({
 }) {
   /* A folder wears its own glyph, from the one resolver every other surface
      asks (DES-155); a task wears the check it would wear anywhere. Seam 3. */
-  const Glyph = item.kind === "task" ? CheckCircle2 : markIcon(null)
+  const Glyph = item.kind === "task" ? CheckCircle2 : item.kind === "facet" ? Layers3 : markIcon(null)
   const left = daysLeft(item)
 
   return (
