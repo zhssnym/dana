@@ -33,3 +33,4 @@ spelling. The client and tests address these strings literally; section 9 names 
 | 7.25 | [`07.25-task-dependencies.md`](07.25-task-dependencies.md) | 7.25 Task dependencies |
 | 7.26 | [`07.26-labels.md`](07.26-labels.md) | 7.26 Labels |
 | 7.27 | [`07.27-folder-facets.md`](07.27-folder-facets.md) | 7.27 Folder facets |
+| 7.29 | [`07.29-consultation-input-rounds.md`](07.29-consultation-input-rounds.md) | 7.29 Consultation input rounds |

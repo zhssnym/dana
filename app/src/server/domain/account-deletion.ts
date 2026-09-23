@@ -245,6 +245,27 @@ export const USER_RESTRICT_DISPOSALS: readonly UserRestrictDisposal[] = [
     why: '#320: an Outcome is an immutable, addressable record other people link to; its actor is provenance and deleting it would rewrite what the Folder concluded.',
   },
   {
+    fk: 'discussion_input_rounds_created_by_fkey',
+    table: 'discussion_input_rounds',
+    disposition: 'outlives',
+    where: '',
+    why: "#321: an input round is part of its Discussion's history, and who asked for input is provenance that confers no standing authority once the member is gone.",
+  },
+  {
+    fk: 'discussion_input_rounds_closed_by_fkey',
+    table: 'discussion_input_rounds',
+    disposition: 'outlives',
+    where: '',
+    why: '#321: who closed a round is part of the record of how the Folder decided, like who resolved its Discussion.',
+  },
+  {
+    fk: 'discussion_input_responses_user_id_fkey',
+    table: 'discussion_input_responses',
+    disposition: 'outlives',
+    where: '',
+    why: "#321 \"responses freeze when the round closes\" and \"do not silently rewrite closed response history\": a departed member's response stays what the Folder heard, as their comments do (#228).",
+  },
+  {
     fk: 'files_owner_id_fkey',
     table: 'files',
     disposition: 'swept',

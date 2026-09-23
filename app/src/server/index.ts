@@ -26,6 +26,7 @@ import { createDiskStore } from './files/store.js'
 import type { ObjectStore } from './files/store.js'
 import { createBundleRouter } from './routes/bundle.js'
 import { createConnectionsRouter } from './routes/connections.js'
+import { createConsultationInputRouter } from './routes/consultation-input.js'
 import { createCoverPhotosRouter } from './routes/cover-photos.js'
 import { createConversationRouter } from './routes/conversation.js'
 import {
@@ -751,6 +752,14 @@ export function createApp(options: AppOptions = {}): express.Express {
   app.use(
     '/api/v1',
     createFacetsRouter({ dbClient: options.dbClient, rateLimits, securityLog }),
+  )
+
+  // Consultation input rounds (issue #321): `/discussions/:id/input-rounds`
+  // and `/input-rounds/:id...`. The literal `input-rounds` segment meets
+  // nothing any other router claims, so this mount is order-independent.
+  app.use(
+    '/api/v1',
+    createConsultationInputRouter({ dbClient: options.dbClient, rateLimits, securityLog }),
   )
 
   app.use('/api', (_req: Request, res: Response) => {

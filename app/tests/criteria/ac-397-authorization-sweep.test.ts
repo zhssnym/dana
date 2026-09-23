@@ -307,10 +307,11 @@ type ResourceId =
      failure this file's two controls exist to catch. */
   | 'facetId'
   | 'trashedFacetId'
-  /* #320's two Dana Link targets, seeded as rows: an open Discussion and one
-     (superseded) Outcome of it. */
+  /* #320/#321: one Discussion seeded as a row, serving as a Dana Link target
+     and as the home of an open input round; plus one (superseded) Outcome. */
   | 'discussionId'
   | 'outcomeId'
+  | 'inputRoundId'
   /* Issue #320: the General discussion the owner's legacy Folder-thread
      comment was filed under, read back from that comment rather than made
      through a Discussion route, so the comment routes' rows stand on their
@@ -395,6 +396,25 @@ async function fixturesOf(): Promise<Fixtures> {
   const trashedFacetId = await makeFacet(owner, folderId, 'ac397 doomed facet')
   await trashFacet(owner, folderId, trashedFacetId)
 
+  /* A Discussion written straight to the table: the input-round routes are
+     what this sweep measures, and they need only the row. The round is
+     opened through its own route, as its owner. */
+  const discussionRows = await app.db.execute(
+    sql`INSERT INTO discussions (folder_id, title, created_by)
+        VALUES (${folderId}::uuid, 'ac397 the discussion', ${owner.id}::uuid)
+        RETURNING id`,
+  )
+  const discussionId = String(
+    (discussionRows as unknown as { rows: { id: string }[] }).rows[0]?.id,
+  )
+  const openedRound = await owner.browser.json(
+    `/discussions/${discussionId}/input-rounds`,
+    'POST',
+    { mode: 'choose', prompt: 'ac397 the round', options: ['one', 'two'] },
+  )
+  expect(openedRound.status, 'the owner opens an input round (#321)').toBe(201)
+  const inputRoundId = String((openedRound.json() as { id: string }).id)
+
   const trashedTaskId = await makeTask(owner, folderId, 'ac397 the doomed task')
   await trashTask(owner, trashedTaskId)
   const trashedFolderId = await makeSharedFolder(
@@ -405,11 +425,6 @@ async function fixturesOf(): Promise<Fixtures> {
   )
   await trashFolder(owner, trashedFolderId)
 
-  const discussionId = randomUUID()
-  await app.db.execute(sql`
-    INSERT INTO discussions (id, folder_id, title, created_by)
-    VALUES (${discussionId}::uuid, ${folderId}::uuid, 'ac397 the discussion',
-            ${owner.id}::uuid)`)
   const outcomeId = randomUUID()
   await app.db.execute(sql`
     INSERT INTO discussion_outcomes (id, discussion_id, statement, actor_id)
@@ -441,6 +456,7 @@ async function fixturesOf(): Promise<Fixtures> {
     discussionId,
     outcomeId,
     generalDiscussionId,
+    inputRoundId,
   }
   return fixtures
 }
@@ -1917,6 +1933,80 @@ const TABLE = new Map<string, Row>([
       },
     },
   ],
+  /* -------------------------------------------------------------- *
+   * Consultation input rounds (issue #321)
+   *
+   * Every route resolves the Discussion's Folder membership first, inside
+   * the transaction that writes, so a non-member is 404 whatever the body.
+   * No member variant: `fx.member` holds Can edit, which may open, close and
+   * respond, so nothing on these routes refuses them for authority.
+   * -------------------------------------------------------------- */
+  [
+    'GET /api/v1/discussions/:id/input-rounds',
+    {
+      attempt: (fx) => ({ path: `/discussions/${fx.discussionId}/input-rounds` }),
+      stranger: {
+        expected: 404,
+        rule: "#321 and 10.2: input rounds are read with `discussion.read`, the Folder's own visibility, so a non-member learns nothing, not even that the Discussion exists",
+      },
+    },
+  ],
+  [
+    'POST /api/v1/discussions/:id/input-rounds',
+    {
+      /* A valid body, so a green row cannot be a 422 that never reached the
+         gate. The fixture's round is still open, so a member would be 409;
+         the stranger is refused before that is looked at. */
+      attempt: (fx) => ({
+        path: `/discussions/${fx.discussionId}/input-rounds`,
+        body: { mode: 'advice', prompt: 'ac397 attempt' },
+      }),
+      stranger: {
+        expected: 404,
+        rule: "#321 and 10.2: asking for input in somebody else's Discussion is 404 and never 403",
+      },
+    },
+  ],
+  [
+    'GET /api/v1/input-rounds/:id',
+    {
+      attempt: (fx) => ({ path: `/input-rounds/${fx.inputRoundId}` }),
+      stranger: {
+        expected: 404,
+        rule: "#321 and 10.2: a round carries its Discussion's Folder visibility",
+      },
+    },
+  ],
+  [
+    'POST /api/v1/input-rounds/:id/close',
+    {
+      attempt: (fx) => ({ path: `/input-rounds/${fx.inputRoundId}/close`, body: {} }),
+      stranger: { expected: 404, rule: '#321 and 10.2: a non-member sees nothing' },
+    },
+  ],
+  [
+    'PUT /api/v1/input-rounds/:id/response',
+    {
+      attempt: (fx) => ({
+        path: `/input-rounds/${fx.inputRoundId}/response`,
+        body: { option_id: fx.inputRoundId },
+      }),
+      stranger: {
+        expected: 404,
+        rule: '#321 and 10.2: responding needs Can comment in the Folder; a non-member is refused before the body is checked against the round, so the answer says nothing about its options',
+      },
+    },
+  ],
+  [
+    'DELETE /api/v1/input-rounds/:id/response',
+    {
+      attempt: (fx) => ({ path: `/input-rounds/${fx.inputRoundId}/response` }),
+      stranger: {
+        expected: 404,
+        rule: '#321 and 10.2: withdrawing is scoped to the caller, and a non-member has no response and no Folder to withdraw it from',
+      },
+    },
+  ],
 ])
 
 /**
@@ -2215,6 +2305,11 @@ describe('AC-397 every id-bearing route refuses a stranger', () => {
       what: 'the outcome, as a Dana Link',
       path: `/references/outcome/${fx.outcomeId}`,
       holds: fx.outcomeId,
+    }),
+    inputRoundId: (fx) => ({
+      what: 'the input round, through its discussion',
+      path: `/discussions/${fx.discussionId}/input-rounds`,
+      holds: fx.inputRoundId,
     }),
   }
 
