@@ -82,6 +82,8 @@ import {
   responsibilityHistoryOf,
   setSelfEditGrant,
 } from '../domain/responsibility.js'
+import { readFolderDependencies } from '../domain/task-dependencies.js'
+import type { GetFolderDependenciesResponse } from '../../shared/task-dependencies.js'
 import { routerWithPreamble } from './preamble.js'
 
 export interface FoldersRouterOptions {
@@ -1082,6 +1084,34 @@ export function createFoldersRouter(
           responsibility_path: `/folders/${ids.folderId}/members/${ids.memberId}/responsibility/history`,
           access_path: `/folders/${ids.folderId}/members/${ids.memberId}/access-history`,
         },
+      }
+      res.status(200).json(body)
+    },
+  )
+
+  /* ---------------------------------------------------------------- *
+   * Internal Task dependencies (7.25, #207)
+   * ---------------------------------------------------------------- */
+
+  /*
+  One read of every edge whose two ends are both live Tasks of this Folder,
+  so "Save as workflow" asks once rather than once per Task. `folder.read`
+  is every member's, so this is the membership gate: 404 to anybody outside
+  the Folder before any edge is looked at, and the query joins both ends to
+  the Folder, so an edge reaching a Task elsewhere never leaves the server.
+  */
+  router.get(
+    '/folders/:id/dependencies',
+    requireSession,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const folderId = parsedId(res, req.params.id)
+      if (folderId === null) return
+      const access = await gate(req, res, folderId, 'folder.read')
+      if (access === null) return
+      const body: GetFolderDependenciesResponse = {
+        dependencies: await readFolderDependencies(db, folderId),
       }
       res.status(200).json(body)
     },

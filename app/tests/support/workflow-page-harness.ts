@@ -25,15 +25,9 @@ import { sql } from 'drizzle-orm'
 import { expect } from 'vitest'
 
 import type { Db } from '../../db/client.js'
-import {
-  folderToWorkflowFile,
-  workflowDependencyEdgesOf,
-  workflowDependencyRead,
-} from '../../src/shared/workflows.js'
-import type {
-  WorkflowDependencyEdge,
-  WorkflowExport,
-} from '../../src/shared/workflows.js'
+import { folderToWorkflowFile } from '../../src/shared/workflows.js'
+import type { WorkflowExport } from '../../src/shared/workflows.js'
+import { getFolderDependenciesResponse } from '../../src/shared/task-dependencies.js'
 import type {
   DocumentBlockKind,
   DocumentOperation,
@@ -152,17 +146,14 @@ export async function savedWorkflow(
     (card) => card.status === 'pending',
   )
   const details: TaskDetail[] = []
-  const dependencies: WorkflowDependencyEdge[] = []
   for (const card of pending) {
     const read = await actor.browser.json(`/tasks/${card.id}`, 'GET')
     expectStatus(read, 200, 'GET /tasks/:id must answer the detail (7.6)')
     details.push(read.json() as TaskDetail)
-    const waits = await actor.browser.json(`/tasks/${card.id}/dependencies`, 'GET')
-    expectStatus(waits, 200, 'GET /tasks/:id/dependencies must answer (#224)')
-    dependencies.push(
-      ...workflowDependencyEdgesOf(card.id, workflowDependencyRead.parse(waits.json())),
-    )
   }
+  const waits = await actor.browser.json(`/folders/${folderId}/dependencies`, 'GET')
+  expectStatus(waits, 200, 'GET /folders/:id/dependencies must answer (7.25)')
+  const { dependencies } = getFolderDependenciesResponse.parse(waits.json())
   const labels = await listLabels(actor, { scope: 'folder', folder_id: folderId })
   return folderToWorkflowFile(
     name,
