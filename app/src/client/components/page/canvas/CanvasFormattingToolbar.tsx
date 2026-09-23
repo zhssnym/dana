@@ -37,7 +37,7 @@ function ImageCaptionButton(): React.JSX.Element | null {
         current.getTextCursorPosition().block,
       ]).some((block) => block.type === 'image'),
   })
-  return imageSelected ? <ImageCaptionButton /> : null
+  return imageSelected ? <FileCaptionButton /> : null
 }
 
 /** Compose supported upstream controls; BlockNote owns selection and popover behavior. */
@@ -48,7 +48,7 @@ export function CanvasFormattingToolbar(): React.JSX.Element {
       <BasicTextStyleButton basicTextStyle="italic" />
       <CreateLinkButton />
       <ClearFormattingButton />
-      <FileCaptionButton />
+      <ImageCaptionButton />
       <FileReplaceButton />
     </FormattingToolbar>
   )
