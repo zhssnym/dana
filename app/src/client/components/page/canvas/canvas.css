@@ -17,7 +17,9 @@
 }
 .dana-writing-canvas .bn-editor { padding: 0; background: transparent; }
 .dana-writing-canvas .bn-editor { font-family: var(--font-family-sans); font-size: var(--text-body-size); line-height: var(--text-body-line); }
-.dana-writing-canvas .bn-block-group .bn-block-group { margin-inline-start: 0; }
+.dana-writing-canvas .bn-block:has(> .bn-block-content[data-content-type='heading']) > .bn-block-group {
+  margin-inline-start: 0;
+}
 .dana-writing-canvas [data-content-type='heading'] .bn-inline-content {
   font-family: var(--font-family-sans);
   font-weight: var(--font-weight-semibold);
@@ -54,6 +56,18 @@
   position: absolute;
   right: calc(100% + var(--spacing) * 2);
   color: var(--muted-foreground);
+}
+.dana-writing-canvas .dana-callout {
+  display: flex;
+  min-height: var(--control-height);
+  align-items: flex-start;
+  border-left: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--muted);
+  padding: calc(var(--spacing) * 2) calc(var(--spacing) * 3);
+}
+.dana-writing-canvas [data-content-type='codeBlock'] {
+  font-size: var(--text-sm);
 }
 .dana-writing-canvas [data-content-type='danaTask'] > div,
 .dana-writing-canvas [data-canvas-task-id] { width: 100%; min-width: 0; }
