@@ -221,9 +221,10 @@ run, and a record from a dirty tree describes something that isn't the commit.
 
 ## 6. Server
 
-- **Six page endpoints started answering as views.** Route mount order in
-  `app/src/server/routes/bundle.ts` is load-bearing: `/views/:id` would shadow them if the
-  mounts were reordered. Don't reorder mounts casually.
+- **Page endpoints like `/views/my-day` suddenly answer 404.** Route mount order in
+  `app/src/server/index.ts` is load-bearing: the views router must be mounted before the
+  bundle router, or the bundle router's `/views/:id` shadows the page endpoints. Don't
+  reorder mounts casually.
 - **`Cannot read properties of undefined (reading 'optional')`, or `X is not a function` in
   exactly one file, while the symbol looks fine.** That's an import cycle, usually in
   `app/src/shared/` or `app/src/server/domain/`, which are webs rather than trees. The error

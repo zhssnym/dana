@@ -8,15 +8,16 @@
   },
   "include": ["src/server/**/*", "src/shared/**/*", "db/**/*"],
   // The development login module lives at src/server/auth/dev-login* and
-  // must be absent from compiled output (spec 11.6); AC-114 asserts the
-  // absence structurally. The exclusion holds only while no resolvable
-  // import names the module: tsc emits excluded files reachable that way,
-  // literal dynamic import() included, so the loader must use a computed
-  // specifier (spec 11.15). tsconfig.server.json carries no exclusion, so
-  // the module still typechecks.
+  // must be absent from compiled output (spec 11.6). No test checks the
+  // output, so after touching this line or that module, build and look. The
+  // exclusion holds only while no resolvable import names the module: tsc
+  // emits excluded files reachable that way, literal dynamic import()
+  // included, so the loader must use a computed specifier (spec 11.15).
+  // tsconfig.server.json carries no exclusion, so the module still
+  // typechecks.
   //
-  // src/server/views/explain.ts is the EXPLAIN recorder, run
-  // by hand against a scratch database to regenerate EXPLAIN.md beside it. It
+  // src/server/views/explain.ts is the EXPLAIN recorder, run by hand
+  // against a scratch database to generate EXPLAIN.md beside it. It
   // is a diagnostic tool rather than part of the running server, and shipping
   // it would put a module that seeds fixtures and writes files into production
   // output for no reason. Excluded on the same terms as dev-login, and the

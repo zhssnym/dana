@@ -303,9 +303,9 @@ export function createBundleRouter(options: BundleRouterOptions = {}): Router {
      same set, so it is shared rather than copied.
 
      **The session check on the read is written here because nothing else
-     writes it.** AC-236 sweeps mutating routes only, so a GET that forgot
-     `requireSession` would answer every caller with the empty viewer's rows
-     and pass the whole suite. */
+     writes it.** AC-236 also sweeps GETs for a session, but a GET that forgot
+     `requireSession` here would answer every caller with the empty viewer's
+     rows, so the check stays explicit. */
   router.get(
     '/place-descriptions',
     requireSession,

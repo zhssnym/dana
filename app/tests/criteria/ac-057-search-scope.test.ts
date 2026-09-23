@@ -283,7 +283,7 @@ describe('AC-057: search is scoped to accessible folders and ordered by status',
     const { expected } = await stage()
     expect(
       await q8OrderOf(app.db, expected),
-      'the sequence every case above measures the response against is written by hand from seven rows\' statuses and minute offsets, and it was wrong: notesOnly at 50 minutes and mixedCase at 60 stood in each other\'s places, which no assertion could catch while the route answered 404. This asks the database to order the same rows by Q8\'s keys and compares. It touches no response, so it cannot make an implementation pass; it can only catch an expected array that disagrees with the rows it was written from',
+      'the sequence every case above measures the response against is written by hand from seven rows\' statuses and minute offsets, so this asks the database to order the same rows by Q8\'s keys and compares. It touches no response, so it cannot make an implementation pass; it can only catch an expected array that disagrees with the rows it was written from',
     ).toEqual(expected)
   })
 

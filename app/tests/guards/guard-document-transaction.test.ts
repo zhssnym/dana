@@ -11,7 +11,7 @@ beforeAll(async()=>{app=await startAuthTestApp()},60000)
 afterAll(async()=>{if(app){await cast.cleanup(app.db);await app.close()}})
 const block=(id:string,text:string,kind:'paragraph'|'section'='paragraph'):DocumentOperation=>({op:'put_block',id,block_kind:kind,text,rich_content:{version:1,runs:[{text,bold:true}]},file_id:null,ref_folder_id:null,width_pct:null,checked:null})
 async function read(owner:Actor,id:string){const r=await owner.browser.json(`/folders/${id}/page`,'GET');expectStatus(r,200,'page');return r.json() as PageView}
-test('Issue194 bounded rich hierarchy and real Task commit once, conflict atomically, preserve fields and refuse legacy loss',async()=>{
+test('bounded rich hierarchy and real Task commit once, conflict atomically, preserve fields and refuse legacy loss',async()=>{
  const [owner,stranger]=await cast.of(app) as [Actor,Actor]
  const folder=await createFolder(owner,'document contract');const initial=await read(owner,folder)
  const h1=randomUUID(),h2=randomUUID(),p=randomUUID(),t=randomUUID()
@@ -37,7 +37,7 @@ test('Issue194 bounded rich hierarchy and real Task commit once, conflict atomic
 
 
 
-test('Issue194 duplicate, export and workflow import retain hierarchy and rich content with fresh identities',async()=>{
+test('duplicate, export and workflow import retain hierarchy and rich content with fresh identities',async()=>{
  const [owner]=await cast.of(app) as [Actor,Actor]
  const folder=await createFolder(owner,'document transfer');const initial=await read(owner,folder)
  const h1=randomUUID(),h2=randomUUID(),p=randomUUID()
@@ -97,14 +97,13 @@ test('Issue194 duplicate, export and workflow import retain hierarchy and rich c
 })
 
 /*
-Issue218 extends the Section hierarchy from two heading levels to three. A
-Section still carries no level of its own: its level is its depth in the
-section_block_id relation, so these cases assert depth and parentage rather
-than any stored heading number. The fourth level is refused before the first
-write, which is why each rejection is followed by a read proving the page did
-not move.
+The Section hierarchy has three heading levels. A Section carries no level of
+its own: its level is its depth in the section_block_id relation, so these
+cases assert depth and parentage rather than any stored heading number. The
+fourth level is refused before the first write, which is why each rejection
+is followed by a read proving the page did not move.
 */
-test('Issue218 three Section levels round-trip, a fourth is refused before writes, and content follows its Section',async()=>{
+test('three Section levels round-trip, a fourth is refused before writes, and content follows its Section',async()=>{
  const [owner]=await cast.of(app) as [Actor,Actor]
  const folder=await createFolder(owner,'three levels');const url=`/folders/${folder}/page/actions`
  const h1=randomUUID(),h2a=randomUUID(),h2b=randomUUID(),h3=randomUUID(),h4=randomUUID(),p=randomUUID(),t=randomUUID()
@@ -143,7 +142,7 @@ test('Issue218 three Section levels round-trip, a fourth is refused before write
  expect((replay.json() as PageView).mutation?.replayed).toBe(true)
 })
 
-test('Issue218 legacy two-level documents are unchanged by the third level',async()=>{
+test('legacy two-level documents are unchanged by the third level',async()=>{
  const [owner]=await cast.of(app) as [Actor,Actor]
  const folder=await createFolder(owner,'legacy two levels');const url=`/folders/${folder}/page/actions`
  const h1=randomUUID(),h2=randomUUID(),p=randomUUID(),root=randomUUID()

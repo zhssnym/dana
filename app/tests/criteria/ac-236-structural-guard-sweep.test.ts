@@ -5,81 +5,47 @@ reading route answers 401 with no session unless it is one of three named
 public reads, all enumerated over the router rather than sampled.
 
 A one-off route review decays the moment a router is added; a structural
-criterion, one that interrogates the artifact rather than sampling it, is the
-form that keeps being true. This walks the mounted Express router, collects every POST,
-PATCH, PUT and DELETE, and drives each one twice: bare, expecting 401
-(requireSession precedes requireCsrf, so an unauthenticated caller is never
-told a token was all they lacked), and signed in without the header,
-expecting 403 with no side effects.
+criterion, one that interrogates the artifact rather than sampling it, keeps
+being true. This walks the mounted Express router, collects every POST, PATCH,
+PUT and DELETE, and drives each one twice: bare, expecting 401 (requireSession
+precedes requireCsrf, so an unauthenticated caller is never told a token was
+all they lacked), and signed in without the header, expecting 403 with no side
+effects.
 
-Two exemptions on that half, each filtered by name and each carrying its
-reason in the map below, the same shape the public reads use. The
+Two exemptions on that half, each carrying its reason in the map below. The
 development login precedes any session by design and is absent from
-production builds (11.6, AC-114); in this harness it is not mounted at all.
-`POST /api/csp-report` is the browser's own report of a policy refusal
-(issue #99), and the browser posts it from its own networking stack with no
-cookie and no header this application could ask it to add.
+production builds (11.6); in this harness it is not mounted at all.
+`POST /api/csp-report` is the browser's own report of a policy refusal, posted
+from its networking stack with no cookie and no header this application could
+ask it to add.
 
-**The mutating exemptions are asserted in one of the two directions
-PUBLIC_READS is asserted in, and the missing one is named rather than
-forgotten.** An exemption whose route this application actually mounts must
-answer something other than 401 bare, so an entry written for a route that
-turns out to be gated fails here instead of quietly excusing nothing. The
-converse — that an exemption must name a mounted route — cannot be asserted
-on this half, because the development login is deliberately absent from this
-harness and has been since this file was written. What covers that gap is
-the count below, which moves in the same change as any route, and the reason
-string, which a reviewer reads.
+The mutating exemptions are asserted in one direction only: an exemption for a
+route this application mounts must answer something other than a bare 401, so
+an entry written for a gated route fails here. The converse (an exemption must
+name a mounted route) cannot be asserted, because the development login is
+absent from this harness. The reason strings are what a reviewer reads.
 
-**GET is swept too, added for issue #33.** It was left out when this file was
-written, and 10.2 said so plainly: a GET route added with no requireSession
-passed the entire suite. The sweep was extended before the exemptions were
-written, so that what the enumeration reported decided them rather than the
-other way round: on 2026-09-02 the walk found 36 GET routes, 33 answered 401
-bare with no change to any of them, and the three that did not are the three
-below. **No route was excused to make this pass**, which is the only reading
-under which an allowlist is a guard rather than a way of recording a hole.
-
-The public reads are a Map rather than a Set because each one owes a reason,
-and both directions are asserted. A GET absent from the map must answer 401.
-A GET named in the map must exist in the enumeration and must *not* answer
-401, so an entry that outlives the route it excuses, or one written for a
-route that is in fact gated, fails here instead of quietly widening the
-exemption. What the guard cannot do is stop someone adding a route and an
-entry in the same change; that is a reviewer's job, and the reason string is
-what the reviewer reads.
+GET is swept too. The public reads are a Map because each one owes a reason,
+and both directions are asserted: a GET absent from the map must answer 401,
+and a GET named in the map must exist and must not answer 401, so an entry
+that outlives its route, or one written for a gated route, fails here. No
+guard stops someone adding a route and an entry in the same change; that is a
+reviewer's job.
 
 CSRF is asserted on the mutating half only. 10.4's token defends unsafe
-methods; a GET that changed state would be a defect in the route rather than
-a missing header, and this file cannot see one.
+methods; a GET that changed state would be a defect in the route, not a
+missing header.
 
-Two surfaces sit outside the walk and neither is a data route. express.static
+Two surfaces sit outside the walk and neither is a data route: express.static
 and the SPA fallback in index.ts are mounted only when clientDist is present,
-which a test application never sets, and they serve the built client rather
-than anything from the database. The landing page is the same static bundle.
+which a test application never sets.
 
-**Both counts below are pinned to equality, and the walk is one level deep.**
-It reads layer.route at the top of the application's stack and nested.route
-one stack down, so a router mounted inside another router contributes nothing
-and says nothing about it: its routes are absent from the enumeration and
-every assertion here then passes over a smaller surface than it claims.
-Verified 2026-09-03 at 15, at 16 on 2026-09-04 with 7.22's export router, and
-at 17 the same day when the wave-1 merges brought issue #99's alongside it:
-every Router() instance in src/server is mounted directly on the application
-in index.ts, and every router.use() call inside one attaches middleware rather
-than a router, so the walk does see the whole surface today. The sixteenth is
-the export router (issue #77), one GET at a literal path; the seventeenth is
-the CSP report router, which builds its own rather than taking the preamble's
-because it takes no session and so wants none of it.
-**Grepping `Router()` does not find seventeen and that is not
-a change to this fact**: since issue #36 the fourteen routers under
-src/server/routes that take a session are constructed by routes/preamble.ts,
-which also registers that session middleware, so the literal call sites are
-four — that one, auth/router.ts, routes/health.ts and routes/csp-report.ts —
-for all seventeen instances. It was fifteen and three before those two issues.
-The counts are the only thing that would notice the day that
-stops being true, which is why they are exact numbers carrying a date rather
-than floors.
+**The walk is one level deep.** It reads layer.route at the top of the
+application's stack and nested.route one stack down, so a router mounted
+inside another router contributes nothing: its routes are silently absent and
+every assertion here passes over a smaller surface than it claims. Every
+router in src/server is mounted directly on the application in index.ts; keep
+it that way (see app/src/server/routes/README.md).
 
 Spec: 10.1, 10.2, 10.4, 11.6.
 */
@@ -132,7 +98,7 @@ const EXEMPT = new Map<string, string>([
   ],
   [
     'POST /api/csp-report/',
-    "the browser's own report of a Content-Security-Policy refusal (issue #99). The browser posts it from its own networking stack, with no session cookie and no X-CSRF-Token, and nothing this application can do would put either there: requiring one would mean receiving no reports at all, which is the silence the endpoint exists to end. It is safe to leave open because it reads nothing and writes nothing — no dbClient reaches it — and the whole of its effect is one whitelisted log line and one Sentry message, bounded by a 16 KB body cap and by 10.4's own limiter row. It answers 204 for a report it keeps and 204 for one it drops, so it is not an oracle either",
+    "the browser's own report of a Content-Security-Policy refusal (10.8). The browser posts it from its own networking stack, with no session cookie and no X-CSRF-Token, and nothing this application can do would put either there: requiring one would mean receiving no reports at all, which is the silence the endpoint exists to end. It is safe to leave open because it reads nothing and writes nothing — no dbClient reaches it — and the whole of its effect is one whitelisted log line and one Sentry message, bounded by a 16 KB body cap and by 10.4's own limiter row. It answers 204 for a report it keeps and 204 for one it drops, so it is not an oracle either",
   ],
 ])
 
@@ -190,8 +156,8 @@ function routesWith(
   // One level, deliberately and not by omission: a top-level route, or a
   // route on a router mounted on the application. A router mounted on a
   // router is not descended into, and nothing here reports that it was
-  // skipped, so the counts in the two tests below are what stand between a
-  // hidden mount and a sweep that quietly proves less. See the header.
+  // skipped: a hidden mount makes this sweep quietly prove less. Mount every
+  // router directly on the application. See the header.
   for (const layer of stack as LayerShape[]) {
     if (layer.route !== undefined) {
       collect(layer.route, '')
