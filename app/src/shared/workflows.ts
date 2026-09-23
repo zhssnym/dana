@@ -1377,6 +1377,10 @@ export function folderToWorkflowFile(
   caller may hand over whatever the endpoint answered.
   */
   folderLabels: readonly LabelDefinition[] = [],
+  /** #211: when supplied, the writer emits workflow format 5 and carries the
+   * native Purpose facet. Existing callers that have not loaded Purpose keep
+   * emitting format 4 until the frontend handoff wires this parameter. */
+  purpose?: { display_name: string | null; page: PageView },
 ): WorkflowExport {
   /* 10.3 caps a folder name at 100 and admits no empty one, and this is the
      one place the name is not already a row that satisfied both. */
@@ -1627,6 +1631,58 @@ export function folderToWorkflowFile(
     if (entry.isSection) open.push(index)
     return entry.write(structure)
   })
+  let purposeDocument: WorkflowPurpose | undefined
+  let purposeOmitted = 0
+  if (purpose !== undefined) {
+    const blockOf = new Map(purpose.page.blocks.map((block) => [block.id, block]))
+    const ordered = purpose.page.items.flatMap((item) => {
+      if (item.kind !== 'block') return []
+      const block = blockOf.get(item.id)
+      return block === undefined ? [] : [block]
+    })
+    const indexOfPurpose = new Map(
+      ordered.map((block, index) => [block.id, index]),
+    )
+    const purposeCarriedKind = (
+      kind: string,
+    ): kind is WorkflowPurposeBlockKind =>
+      (WORKFLOW_PURPOSE_BLOCK_KINDS as readonly string[]).includes(kind)
+    const purposeBlocks: WorkflowPurposeBlock[] = []
+    for (const block of ordered) {
+      if (omittedKind(block.kind)) {
+        purposeOmitted += 1
+        purposeBlocks.push({
+          kind: 'omitted',
+          was: block.kind,
+          ...(block.text !== null && block.text.trim() !== ''
+            ? { name: block.text.slice(0, 300) }
+            : {}),
+        })
+        continue
+      }
+      if (!purposeCarriedKind(block.kind)) continue
+      const parent =
+        block.list_parent_block_id === null
+          ? undefined
+          : indexOfPurpose.get(block.list_parent_block_id)
+      purposeBlocks.push({
+        kind: block.kind,
+        ...(block.text === null ? {} : { text: block.text }),
+        ...(block.rich_content === null || block.rich_content === undefined
+          ? {}
+          : { rich_content: block.rich_content }),
+        ...(block.kind === 'checklist' && block.checked === true
+          ? { checked: true }
+          : {}),
+        ...(parent === undefined ? {} : { list_parent: parent }),
+      })
+    }
+    purposeDocument = {
+      display_name: purpose.display_name,
+      blocks: purposeBlocks,
+    }
+  }
+
   return {
     file: {
       dana: 'workflow',
@@ -1645,17 +1701,20 @@ export function folderToWorkflowFile(
          both are read by the endpoint unchanged, which is the point of formats
          1 to 3 staying readable. What is true is the claim this function can
          make about itself. */
-      version: 4,
+      version: purposeDocument === undefined ? 4 : 5,
       name: folderName,
       folders: [
         {
           name: folderName,
           ...(exportedLabels.length > 0 ? { labels: exportedLabels } : {}),
           page: { blocks: pageBlocks },
+          ...(purposeDocument === undefined ? {} : { purpose: purposeDocument }),
         },
       ],
     },
-    omitted: pageBlocks.filter((block) => block.kind === 'omitted').length,
+    omitted:
+      pageBlocks.filter((block) => block.kind === 'omitted').length +
+      purposeOmitted,
     withheldTasks,
   }
 }
