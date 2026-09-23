@@ -2,16 +2,17 @@
 import { BlockNoteEditor } from '@blocknote/core'
 import { afterEach, describe, expect, test } from 'vitest'
 
+import type { CanvasInput } from './adapters.js'
+import { normalizeCanvasPaste } from './paste.js'
 import { canvasSchema } from './schema.js'
 import type { CanvasEditor } from './schema.js'
-import { normalizeCanvasPaste } from './paste.js'
 
 const editors: CanvasEditor[] = []
 afterEach(() => {
   for (const editor of editors.splice(0)) editor.unmount()
 })
 
-function create(blocks: Parameters<CanvasEditor['replaceBlocks']>[1]): CanvasEditor {
+function create(blocks: CanvasInput[]): CanvasEditor {
   const editor = BlockNoteEditor.create({ schema: canvasSchema })
   editors.push(editor)
   editor.replaceBlocks(editor.document, blocks)
