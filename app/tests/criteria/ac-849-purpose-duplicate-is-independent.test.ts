@@ -21,6 +21,7 @@ import {
 } from '../support/facets-harness.js'
 import { duplicateFolderOk } from '../support/label-lifecycle-harness.js'
 import { createTaskOk } from '../support/tasks-harness.js'
+import { uploadImageOk } from '../support/uploads-harness.js'
 import { rows } from '../support/helpers.js'
 
 let app: AuthTestApp
@@ -53,6 +54,11 @@ describe('AC-849 duplicate carries Purpose as independent authored context', () 
     )
     const outside = await folderWithFacets(app, owner, 'AC-849 outside')
     const outsidePurpose = outside.facets.find((facet) => facet.kind === 'purpose')!
+    const sourceImageId = await uploadImageOk(
+      owner,
+      folderId,
+      'ac-849-purpose.png',
+    )
 
     const page = await facetPageOf(owner, folderId, purpose.id)
     const parent = crypto.randomUUID()
@@ -111,7 +117,15 @@ describe('AC-849 duplicate carries Purpose as independent authored context', () 
 
     /* Write the complete document after the deliberate refusal above. */
     const fresh = await facetPageOf(owner, folderId, purpose.id)
-    const ids: string[] = [parent, child, linked, crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID()]
+    const ids: string[] = [
+      parent,
+      child,
+      linked,
+      crypto.randomUUID(),
+      crypto.randomUUID(),
+      crypto.randomUUID(),
+      crypto.randomUUID(),
+    ]
     const ops = [
       put(ids[0]!, 'bullet', 'parent'),
       put(ids[1]!, 'numbered', 'child'),
@@ -119,6 +133,17 @@ describe('AC-849 duplicate carries Purpose as independent authored context', () 
       put(ids[3]!, 'paragraph', 'purpose', `/app/facets/${purpose.id}`),
       put(ids[4]!, 'paragraph', 'task', `/app/tasks/${task.id}`),
       put(ids[5]!, 'paragraph', 'outside', `/app/facets/${outsidePurpose.id}`),
+      {
+        op: 'put_block' as const,
+        id: ids[6]!,
+        block_kind: 'image',
+        text: null,
+        rich_content: null,
+        file_id: sourceImageId,
+        ref_folder_id: null,
+        width_pct: 75,
+        checked: null,
+      },
     ]
     expectStatus(
       await postFacetPageAction(owner, folderId, purpose.id, {
@@ -161,12 +186,12 @@ describe('AC-849 duplicate carries Purpose as independent authored context', () 
     const copiedTaskId = String(copiedTask[0]?.id)
     const copiedBlocks = await rows(
       app.db,
-      sql`SELECT id, kind, rich_content, list_parent_block_id
+      sql`SELECT id, kind, rich_content, file_id, list_parent_block_id
             FROM page_blocks
             WHERE facet_id=${copiedPurposeId}::uuid
             ORDER BY position ASC`,
     )
-    expect(copiedBlocks).toHaveLength(6)
+    expect(copiedBlocks).toHaveLength(7)
     expect(
       copiedBlocks.every((row) => !ids.includes(String(row.id))),
       'every Purpose block identity is fresh',
@@ -189,12 +214,28 @@ describe('AC-849 duplicate carries Purpose as independent authored context', () 
       'a target that did not travel remains the authored external-to-copy reference',
     ).toContain(`/app/facets/${outsidePurpose.id}`)
 
+    const copiedImage = copiedBlocks.find((row) => String(row.kind) === 'image')
+    expect(copiedImage, 'the Purpose image travelled with the authored document').toBeDefined()
+    const copiedImageId = String(copiedImage?.file_id)
+    expect(
+      copiedImageId,
+      'the copied Purpose never points back at the source Folder\'s file row',
+    ).not.toBe(sourceImageId)
+    const copiedFile = await rows(
+      app.db,
+      sql`SELECT folder_id, kind FROM files WHERE id=${copiedImageId}::uuid`,
+    )
+    expect(
+      [String(copiedFile[0]?.folder_id), String(copiedFile[0]?.kind)],
+      'the independent copied bytes are scoped to the destination Folder and keep their kind',
+    ).toEqual([copyId, 'image'])
+
     expect(
       await rows(
         app.db,
         sql`SELECT count(*)::int AS n FROM page_blocks WHERE facet_id=${purpose.id}::uuid`,
       ).then((found) => Number(found[0]?.n ?? 0)),
       'the source Purpose is still independently editable and still owns its rows',
-    ).toBe(6)
+    ).toBe(7)
   })
 })
