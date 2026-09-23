@@ -62,6 +62,7 @@ import type {
 } from '../../shared/pages.js'
 import type { TrashedFacet } from '../../shared/trash.js'
 import { isListKind } from '../../shared/page-document.js'
+import { fileReclaimedAt } from './pages.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { documentHash } from './document-hash.js'
@@ -1228,6 +1229,7 @@ function facetBlockFromRow(row: Record<string, unknown>): PageBlock {
     file_id: nullableString(row.file_id),
     file_width: nullableInt(row.file_width),
     file_height: nullableInt(row.file_height),
+    file_reclaimed_at: fileReclaimedAt(row),
     ref_folder_id: null,
     width_pct: row.width_pct === null || row.width_pct === undefined ? null : Number(row.width_pct),
     updated_at: toIso(row.updated_at),
@@ -1262,7 +1264,7 @@ export async function facetPageView(
     const blocks = await rowsOf(
       tx,
       sql`SELECT b.id, b.kind, b.position, b.page_position, b.checked,
-                 b.list_parent_block_id, b.rich_content, b.text, b.file_id, b.width_pct, b.updated_at,
+                 b.list_parent_block_id, b.rich_content, b.text, b.file_id, b.width_pct, b.updated_at, b.file_reclaimed_at,
                  f.width AS file_width, f.height AS file_height
             FROM page_blocks b
             LEFT JOIN files f ON f.id = b.file_id
@@ -1611,7 +1613,11 @@ export async function applyFacetDocument(
                SET kind = EXCLUDED.kind, text = EXCLUDED.text,
                    rich_content = EXCLUDED.rich_content,
                    file_id = EXCLUDED.file_id, width_pct = EXCLUDED.width_pct,
-                   checked = EXCLUDED.checked, updated_at = now()`,
+                   checked = EXCLUDED.checked,
+                   file_reclaimed_at = CASE
+                     WHEN EXCLUDED.file_id IS NULL AND EXCLUDED.kind = page_blocks.kind
+                     THEN page_blocks.file_reclaimed_at END,
+                   updated_at = now()`,
       )
     }
     /* **`AND facet_id` here is the same belt-and-braces the DELETE two loops
@@ -1659,7 +1665,7 @@ async function facetPageViewIn(tx: Executor, facetId: string): Promise<PageView>
   const blocks = await rowsOf(
     tx,
     sql`SELECT b.id, b.kind, b.position, b.page_position, b.checked,
-               b.list_parent_block_id, b.rich_content, b.text, b.file_id, b.width_pct, b.updated_at,
+               b.list_parent_block_id, b.rich_content, b.text, b.file_id, b.width_pct, b.updated_at, b.file_reclaimed_at,
                f.width AS file_width, f.height AS file_height
           FROM page_blocks b
           LEFT JOIN files f ON f.id = b.file_id

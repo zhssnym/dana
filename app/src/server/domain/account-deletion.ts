@@ -43,6 +43,7 @@ import { sql } from 'drizzle-orm'
 
 import { deleteFolderRow, runRClean, transferOwnership } from './folders.js'
 import { rowsOf } from '../database.js'
+import { blocksNamingFiles, markBlocksReclaimed } from './files.js'
 import type { Executor } from '../database.js'
 
 /**
@@ -462,10 +463,18 @@ export async function deleteAccountData(
   // caller, who removes every collected id from the store only after the
   // commit, the order 7.15's delete uses, so a rollback cannot have already
   // destroyed bytes whose rows survived.
+  // Issue #267: a page block in a surviving folder that wore one of these
+  // files keeps its row and loses its reference (ON DELETE SET NULL); read
+  // them first so it reads as reclaimed rather than as a never-filled block.
+  const wearers = await blocksNamingFiles(
+    tx,
+    sql`SELECT id FROM files WHERE owner_id = ${userId}`,
+  )
   const ownedFiles = await rowsOf(
     tx,
     sql`DELETE FROM files WHERE owner_id = ${userId} RETURNING id`,
   )
+  await markBlocksReclaimed(tx, wearers)
   const fileIds = new Set<string>()
   for (const row of cascadeFiles) fileIds.add(String(row.id))
   for (const row of ownedFiles) fileIds.add(String(row.id))

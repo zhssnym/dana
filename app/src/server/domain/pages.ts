@@ -40,6 +40,7 @@ import type {
   PageView,
 } from '../../shared/pages.js'
 import { WIDTH_BLOCK_KINDS } from '../../shared/pages.js'
+import { isMediaKind } from '../../shared/page-document.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
@@ -74,6 +75,17 @@ function nullableInt(value: unknown): number | null {
   return value === null || value === undefined ? null : Number(value)
 }
 
+/** Issue #267: when the server took this media block's file, or null. Only a
+ * media block that still names no file reports it; a block given a new file,
+ * or turned into another kind, has nothing missing to report. Exported for
+ * every page reader so the rule lives once. */
+export function fileReclaimedAt(row: Record<string, unknown>): string | null {
+  if (row.file_id !== null && row.file_id !== undefined) return null
+  if (!isMediaKind(String(row.kind))) return null
+  if (row.file_reclaimed_at === null || row.file_reclaimed_at === undefined) return null
+  return toIso(row.file_reclaimed_at)
+}
+
 function blockFromRow(row: Record<string, unknown>): PageBlock {
   return {
     id: String(row.id),
@@ -88,6 +100,7 @@ function blockFromRow(row: Record<string, unknown>): PageBlock {
     file_id: nullableString(row.file_id),
     file_width: nullableInt(row.file_width),
     file_height: nullableInt(row.file_height),
+    file_reclaimed_at: fileReclaimedAt(row),
     ref_folder_id: nullableString(row.ref_folder_id),
     width_pct: row.width_pct === null || row.width_pct === undefined ? null : Number(row.width_pct),
     updated_at: toIso(row.updated_at),
@@ -404,6 +417,9 @@ export async function putPage(
                   file_id = ${block.file_id ?? null},
                   ref_folder_id = ${block.ref_folder_id ?? null},
                   width_pct = ${block.width_pct ?? null},
+                  file_reclaimed_at = CASE
+                    WHEN ${block.file_id ?? null}::uuid IS NULL AND kind = ${block.kind}
+                    THEN file_reclaimed_at END,
                   updated_at = now()
               WHERE id = ${block.id}::uuid`,
         )
@@ -783,6 +799,8 @@ export async function actOnFolderPage(
         const sets: ReturnType<typeof sql>[] = []
         if (body.text !== undefined) sets.push(sql`text = ${body.text}`)
         if (body.file_id !== undefined) sets.push(sql`file_id = ${body.file_id}`)
+        // Issue #267: a block given a file again has nothing missing to report.
+        if (body.file_id != null) sets.push(sql`file_reclaimed_at = NULL`)
         if (body.width_pct !== undefined) sets.push(sql`width_pct = ${body.width_pct}`)
         sets.push(sql`updated_at = now()`)
         await tx.execute(
@@ -832,7 +850,7 @@ async function pageViewIn(
     sql`SELECT b.id, b.kind, b.position, b.page_position,
                b.section_block_id, b.list_parent_block_id, b.checked,
                b.text, b.rich_content, b.file_id, b.ref_folder_id,
-               b.width_pct, b.updated_at,
+               b.width_pct, b.updated_at, b.file_reclaimed_at,
                f.width AS file_width, f.height AS file_height
         FROM page_blocks b
         LEFT JOIN files f ON f.id = b.file_id
