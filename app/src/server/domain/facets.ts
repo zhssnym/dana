@@ -65,6 +65,7 @@ import type {
   PageView,
 } from '../../shared/pages.js'
 import type { TrashedFacet } from '../../shared/trash.js'
+import { isListKind } from '../../shared/page-document.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { documentHash } from './document-hash.js'
@@ -1228,7 +1229,7 @@ function facetBlockFromRow(row: Record<string, unknown>): PageBlock {
     position: Number(row.position),
     page_position: nullableString(row.page_position),
     section_block_id: null,
-    list_parent_block_id: null,
+    list_parent_block_id: nullableString(row.list_parent_block_id),
     checked: row.checked === null || row.checked === undefined ? null : Boolean(row.checked),
     rich_content: (row.rich_content ?? null) as PageBlock['rich_content'],
     text: nullableString(row.text),
@@ -1247,7 +1248,8 @@ async function facetDocumentMetadata(
 ): Promise<{ revision: string }> {
   const blocks = await rowsOf(
     tx,
-    sql`SELECT id, kind, text, rich_content, file_id, width_pct, checked, page_position, position
+    sql`SELECT id, kind, text, rich_content, file_id, width_pct, checked,
+               list_parent_block_id, page_position, position
           FROM page_blocks WHERE facet_id = ${facetId}::uuid ORDER BY id`,
   )
   /* The facet id is inside the hash, and that is load-bearing rather than
@@ -1268,7 +1270,7 @@ export async function facetPageView(
     const blocks = await rowsOf(
       tx,
       sql`SELECT b.id, b.kind, b.position, b.page_position, b.checked,
-                 b.rich_content, b.text, b.file_id, b.width_pct, b.updated_at,
+                 b.list_parent_block_id, b.rich_content, b.text, b.file_id, b.width_pct, b.updated_at,
                  f.width AS file_width, f.height AS file_height
             FROM page_blocks b
             LEFT JOIN files f ON f.id = b.file_id
@@ -1404,12 +1406,15 @@ export async function applyFacetDocument(
 
     const stored = await rowsOf(
       tx,
-      sql`SELECT id FROM page_blocks WHERE facet_id = ${facetId}::uuid FOR UPDATE`,
+      sql`SELECT id, kind, list_parent_block_id FROM page_blocks WHERE facet_id = ${facetId}::uuid FOR UPDATE`,
     )
     const original = new Set(stored.map((row) => String(row.id)))
     const blocks = new Set(original)
 
     const writes = new Map<string, Extract<DocumentOperation, { op: 'put_block' }>>()
+    const storedKinds = new Map(
+      stored.map((row) => [String(row.id), String(row.kind)]),
+    )
     /**
      * Every id the operations **name**, whether or not it survives the merge.
      *
@@ -1488,11 +1493,28 @@ export async function applyFacetDocument(
       }
       seen.add(item.id)
       if (item.listParent !== null) {
-        throw new FacetDocumentRefusal(
-          'invalid',
-          'a facet document does not nest list items; page_blocks_list_parent_kind_check admits a list parent only on a Folder page',
-          'list_parent_block_id',
-        )
+        const itemKind = writes.get(item.id)?.block_kind ?? storedKinds.get(item.id)
+        const parentKind =
+          writes.get(item.listParent)?.block_kind ?? storedKinds.get(item.listParent)
+        if (itemKind === undefined || !isListKind(itemKind)) {
+          throw new FacetDocumentRefusal(
+            'invalid',
+            'only a bullet, numbered or checklist item is a nested list item',
+            'list_parent_block_id',
+          )
+        }
+        if (
+          !blocks.has(item.listParent) ||
+          !seen.has(item.listParent) ||
+          parentKind === undefined ||
+          !isListKind(parentKind)
+        ) {
+          throw new FacetDocumentRefusal(
+            'invalid',
+            'a list item nests under an earlier list item of this facet document',
+            'list_parent_block_id',
+          )
+        }
       }
     }
     if (seen.size !== blocks.size) {
@@ -1618,7 +1640,9 @@ export async function applyFacetDocument(
     const keys = initialKeys(outline.length)
     for (const [index, item] of outline.entries()) {
       await tx.execute(
-        sql`UPDATE page_blocks SET page_position = ${keys[index] as string}, position = ${index}
+        sql`UPDATE page_blocks
+               SET page_position = ${keys[index] as string}, position = ${index},
+                   list_parent_block_id = ${item.listParent}::uuid
              WHERE id = ${item.id}::uuid AND facet_id = ${facetId}::uuid`,
       )
     }
@@ -1648,7 +1672,7 @@ async function facetPageViewIn(tx: Executor, facetId: string): Promise<PageView>
   const blocks = await rowsOf(
     tx,
     sql`SELECT b.id, b.kind, b.position, b.page_position, b.checked,
-               b.rich_content, b.text, b.file_id, b.width_pct, b.updated_at,
+               b.list_parent_block_id, b.rich_content, b.text, b.file_id, b.width_pct, b.updated_at,
                f.width AS file_width, f.height AS file_height
           FROM page_blocks b
           LEFT JOIN files f ON f.id = b.file_id
@@ -1689,7 +1713,7 @@ async function facetPageGateIn(
     facet === null ||
     !visibleTo(facet, facts.actorId) ||
     facet.deletedAt !== null ||
-    !isBlankFacetKind(facet.kind)
+    !(isBlankFacetKind(facet.kind) || facet.kind === 'purpose')
   ) {
     return notFound
   }
