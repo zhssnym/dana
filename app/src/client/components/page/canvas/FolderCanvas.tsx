@@ -41,7 +41,7 @@ export default function FolderCanvas(props: Props): React.JSX.Element {
   </CanvasErrorBoundary>
 }
 
-function PersistedCanvas({ page, initialPage, folderId, facetId, workRootId, tasks, context, actions, onAsk, arrangeable, onCheckpoint }: Props & {
+function PersistedCanvas({ page, initialPage, folderId, facetId, presentationHeadings, workRootId, tasks, context, actions, onAsk, arrangeable, onCheckpoint }: Props & {
   readonly initialPage: PageView
   readonly onCheckpoint: (page: PageView) => void
 }): React.JSX.Element {
@@ -49,12 +49,12 @@ function PersistedCanvas({ page, initialPage, folderId, facetId, workRootId, tas
   const host = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState<number | null>(null)
   useEffect(() => { setWidth(host.current?.clientWidth || 600) }, [])
-  return <div ref={host} className="min-w-0">{width === null ? <p role="status">Loading writing…</p> : <CanvasSession {...{ page, initialPage, folderId, facetId, workRootId, tasks, context, actions, onAsk, arrangeable, onCheckpoint }} width={width} onSaved={(next) => {
+  return <div ref={host} className="min-w-0">{width === null ? <p role="status">Loading writing…</p> : <CanvasSession {...{ page, initialPage, folderId, facetId, presentationHeadings, workRootId, tasks, context, actions, onAsk, arrangeable, onCheckpoint }} width={width} onSaved={(next) => {
     queryClient.setQueryData(facetId === undefined ? queryKeys.folderPage(folderId) : queryKeys.facetPage(folderId, facetId), next)
   }} />}</div>
 }
 
-function CanvasSession({ page, initialPage, folderId, facetId, workRootId, tasks, context, actions, onAsk, arrangeable, onCheckpoint, width, onSaved }: Props & {
+function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadings, workRootId, tasks, context, actions, onAsk, arrangeable, onCheckpoint, width, onSaved }: Props & {
   readonly initialPage: PageView
   readonly onCheckpoint: (page: PageView) => void
   readonly width: number
@@ -269,7 +269,7 @@ function CanvasSession({ page, initialPage, folderId, facetId, workRootId, tasks
       })()
     }}>Retry interrupted save</Button><Button variant="ghost" onClick={() => { sessionStorage.removeItem(draftKey); setRecovery(false) }}>Dismiss</Button></div> : null}
     <CanvasTaskProvider tasks={tasks} context={context} actions={actions} onAsk={onAsk}>
-      <CanvasSurface editor={editor} onChange={changed} onCreateTask={facetId === undefined ? askTask : undefined} allowHeadings={facetId === undefined} editable={arrangeable && !creating && !pendingTask} />
+      <CanvasSurface editor={editor} onChange={changed} onCreateTask={facetId === undefined ? askTask : undefined} headingMode={facetId === undefined ? 'section' : presentationHeadings === true ? 'document' : 'none'} editable={arrangeable && !creating && !pendingTask} />
     </CanvasTaskProvider>
     <div role="status" aria-live="polite" className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
       {feedback || (writer.state === 'saving' ? 'Saving…' : writer.state === 'changed' ? 'Unsaved writing' : 'Saved')}
