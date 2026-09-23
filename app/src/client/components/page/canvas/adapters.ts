@@ -1,3 +1,4 @@
+import { plainContentToString } from '@blocknote/core'
 import type { PartialBlock } from '@blocknote/core'
 import type { PageBlockKind, PageView } from '../../../../shared/pages.js'
 import { MAX_SECTION_DEPTH, RICH_TEXT_BLOCK_KINDS, STRUCTURED_BLOCK_KINDS, isListKind, isPresentationHeadingKind } from '../../../../shared/page-document.js'
@@ -42,38 +43,196 @@ function contentOf(text: string | null, rich?: { version: 1; runs: RichRun[] } |
  */
 export function hydrateCanvas(page: PageView, columnWidth: number): CanvasInput[] {
   const records = new Map(page.blocks.map((block) => [block.id, block]))
-  const parents = new Map(page.task_placements?.map((task) => [task.id, task.section_block_id]) ?? [])
+  const sectionParents = new Map(
+    page.task_placements?.map((task) => [task.id, task.section_block_id]) ?? [],
+  )
+  const listParents = new Map(
+    page.blocks.map((block) => [block.id, block.list_parent_block_id]),
+  )
   const levels = new Map<string, number>()
   const nodes = new Map<string, CanvasInput>()
+
+  const mediaProps = (
+    block: PageView['blocks'][number],
+  ): Record<string, string | number | boolean | undefined> => ({
+    url: block.file_id ? `/api/v1/files/${block.file_id}` : '',
+    name: block.kind === 'file' ? 'File' : '',
+    caption: '',
+    showPreview: true,
+    ...(block.kind === 'video'
+      ? {
+          previewWidth:
+            columnWidth * (block.width_pct ?? 100) / 100,
+        }
+      : {}),
+  })
+
   for (const item of page.items) {
     if (item.kind === 'task') {
-      nodes.set(item.id, { id: item.id, type: 'danaTask', props: { taskId: item.id }, children: [] })
+      nodes.set(item.id, {
+        id: item.id,
+        type: 'danaTask',
+        props: { taskId: item.id },
+        children: [],
+      })
       continue
     }
     const block = records.get(item.id)
-    if (!block) throw new CanvasHydrationError('The page contains an unavailable block. Reload before editing.')
-    parents.set(block.id, block.section_block_id)
+    if (!block) {
+      throw new CanvasHydrationError(
+        'The page contains an unavailable block. Reload before editing.',
+      )
+    }
+    sectionParents.set(block.id, block.section_block_id)
+    let node: CanvasInput
     if (block.kind === 'section') {
-      const level = Math.min(block.section_block_id === null ? 1 : (levels.get(block.section_block_id) ?? 0) + 1, MAX_SECTION_DEPTH)
+      const level = Math.min(
+        block.section_block_id === null
+          ? 1
+          : (levels.get(block.section_block_id) ?? 0) + 1,
+        MAX_SECTION_DEPTH,
+      )
       levels.set(block.id, level)
-      nodes.set(block.id, { id: block.id, type: 'heading', props: { level, isToggleable: true }, content: contentOf(block.text, block.rich_content), children: [] })
+      node = {
+        id: block.id,
+        type: 'heading',
+        props: { level, isToggleable: true },
+        content: contentOf(block.text, block.rich_content),
+        children: [],
+      }
     } else if (isPresentationHeadingKind(block.kind)) {
       const level = Number(block.kind.slice(-1)) as 1 | 2 | 3
-      nodes.set(block.id, { id: block.id, type: 'heading', props: { level, isToggleable: false }, content: contentOf(block.text, block.rich_content), children: [] })
-    } else if (block.kind === 'image') nodes.set(block.id, { id: block.id, type: 'image', props: { url: block.file_id ? `/api/v1/files/${block.file_id}` : '', caption: block.text ?? '', previewWidth: columnWidth * (block.width_pct ?? 100) / 100 }, children: [] })
-    else if (block.kind === 'folder_ref') nodes.set(block.id, { id: block.id, type: 'paragraph', content: [{ type: 'link', href: `/app/folders/${block.ref_folder_id}`, content: block.text ?? 'Open folder' }], children: [] })
-    else nodes.set(block.id, { id: block.id, type: 'paragraph', content: contentOf(block.text, block.rich_content), children: [] })
+      node = {
+        id: block.id,
+        type: 'heading',
+        props: { level, isToggleable: false },
+        content: contentOf(block.text, block.rich_content),
+        children: [],
+      }
+    } else if (block.kind === 'bullet') {
+      node = {
+        id: block.id,
+        type: 'bulletListItem',
+        content: contentOf(block.text, block.rich_content),
+        children: [],
+      }
+    } else if (block.kind === 'numbered') {
+      node = {
+        id: block.id,
+        type: 'numberedListItem',
+        content: contentOf(block.text, block.rich_content),
+        children: [],
+      }
+    } else if (block.kind === 'checklist') {
+      node = {
+        id: block.id,
+        type: 'checkListItem',
+        props: { checked: block.checked ?? false },
+        content: contentOf(block.text, block.rich_content),
+        children: [],
+      }
+    } else if (block.kind === 'quote') {
+      node = {
+        id: block.id,
+        type: 'quote',
+        content: contentOf(block.text, block.rich_content),
+        children: [],
+      }
+    } else if (block.kind === 'callout') {
+      node = {
+        id: block.id,
+        type: 'callout',
+        content: contentOf(block.text, block.rich_content),
+        children: [],
+      }
+    } else if (block.kind === 'code') {
+      node = {
+        id: block.id,
+        type: 'codeBlock',
+        content: block.text ?? '',
+        children: [],
+      }
+    } else if (block.kind === 'image') {
+      node = {
+        id: block.id,
+        type: 'image',
+        props: {
+          url: block.file_id ? `/api/v1/files/${block.file_id}` : '',
+          caption: block.text ?? '',
+          previewWidth:
+            columnWidth * (block.width_pct ?? 100) / 100,
+        },
+        children: [],
+      }
+    } else if (
+      block.kind === 'file' ||
+      block.kind === 'audio' ||
+      block.kind === 'video'
+    ) {
+      node = {
+        id: block.id,
+        type: block.kind,
+        props: mediaProps(block),
+        children: [],
+      } as CanvasInput
+    } else if (block.kind === 'folder_ref') {
+      node = {
+        id: block.id,
+        type: 'paragraph',
+        content: [
+          {
+            type: 'link',
+            href: `/app/folders/${block.ref_folder_id}`,
+            content: block.text ?? 'Open folder',
+          },
+        ],
+        children: [],
+      }
+    } else {
+      node = {
+        id: block.id,
+        type: 'paragraph',
+        content: contentOf(block.text, block.rich_content),
+        children: [],
+      }
+    }
+    nodes.set(block.id, node)
   }
+
   const root: CanvasInput[] = []
   for (const item of page.items) {
     const node = nodes.get(item.id)!
-    const parentId = parents.get(item.id) ?? null
-    if (parentId === null) root.push(node)
-    else {
-      const parent = nodes.get(parentId)
-      if (parent?.type !== 'heading') throw new CanvasHydrationError('The page has an invalid group. Its content has been preserved; reload before editing.')
-      parent.children!.push(node)
+    const listParentId = listParents.get(item.id) ?? null
+    if (listParentId !== null) {
+      const listParent = nodes.get(listParentId)
+      if (
+        listParent?.type !== 'bulletListItem' &&
+        listParent?.type !== 'numberedListItem' &&
+        listParent?.type !== 'checkListItem'
+      ) {
+        throw new CanvasHydrationError(
+          'The page has an invalid list. Its content has been preserved; reload before editing.',
+        )
+      }
+      listParent.children!.push(node)
+      continue
     }
+
+    const sectionParentId = sectionParents.get(item.id) ?? null
+    if (sectionParentId === null) {
+      root.push(node)
+      continue
+    }
+    const sectionParent = nodes.get(sectionParentId)
+    if (
+      sectionParent?.type !== 'heading' ||
+      sectionParent.props.isToggleable === false
+    ) {
+      throw new CanvasHydrationError(
+        'The page has an invalid group. Its content has been preserved; reload before editing.',
+      )
+    }
+    sectionParent.children!.push(node)
   }
   return root
 }
