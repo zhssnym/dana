@@ -755,8 +755,9 @@ export function createApp(options: AppOptions = {}): express.Express {
   )
 
   /*
-  7.27's Folder facets (issue #210). **Eleven** routes: nine under
-  `/folders/:id/facets`, and `POST /facets/:id/restore` and
+  7.27's Folder facets (issue #210, extended by #211). **Twelve** routes:
+  nine under `/folders/:id/facets`, the Purpose navigation read
+  `GET /facets/:id/location`, and `POST /facets/:id/restore` plus
   `DELETE /trash/facets/:id`, which are 7.13's shape for the Trash pair.
 
   **Position is deliberate and is not load-bearing**, which is worth
