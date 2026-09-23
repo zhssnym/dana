@@ -52,6 +52,9 @@ import { rows } from './helpers.js'
  */
 export const TASK_CARD_KEYS = [
   'assignee',
+  /* Issue #225's row-level dependency counts, sent by every producer. */
+  'blocked_by_count',
+  'blocks_count',
   'created_at',
   'created_by',
   'due_date',
@@ -215,6 +218,12 @@ export function expectTaskCardShape(value: unknown, source: string): void {
     Number.isInteger(card.steps_total),
     `${source}.steps_total must be an integer; got ${JSON.stringify(card.steps_total)}`,
   ).toBe(true)
+  for (const key of ['blocked_by_count', 'blocks_count'] as const) {
+    expect(
+      Number.isInteger(card[key]) && (card[key] as number) >= 0,
+      `${source}.${key} must be a non-negative integer; got ${JSON.stringify(card[key])}`,
+    ).toBe(true)
+  }
   expect(typeof card.pulled, `${source}.pulled must be a boolean`).toBe('boolean')
   // The value is pinned by AC-139 in its own file, which creates the
   // invites this derivation reads; a shape judge cannot know which email a

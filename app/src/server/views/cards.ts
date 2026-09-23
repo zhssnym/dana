@@ -38,6 +38,8 @@ import { LIST_ROW_CAP } from '../../shared/views.js'
 import { rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { taskLabelsFor } from '../domain/labels.js'
+import { taskDependencyCountsFor } from '../domain/task-dependency-counts.js'
+import type { TaskDependencyCounts } from '../domain/task-dependency-counts.js'
 
 /* ------------------------------------------------------------------ *
  * Serialization
@@ -270,6 +272,7 @@ export function cardSource(viewerId: string): SQL {
 function cardFromRow(
   row: Record<string, unknown>,
   labels: TaskLabels,
+  counts: TaskDependencyCounts,
 ): TaskCard {
   return {
     id: String(row.id),
@@ -307,6 +310,8 @@ function cardFromRow(
             avatar_url: nullableString(row.creator_avatar_url),
           },
     labels,
+    blocked_by_count: counts.blocked_by_count,
+    blocks_count: counts.blocks_count,
     created_at: toIso(row.created_at),
     updated_at: toIso(row.updated_at),
   }
@@ -339,7 +344,8 @@ export interface CardQuery {
  * One statement, one shape: every list endpoint of 7.10 reads its rows
  * through here, so the projection cannot vary between them.
  *
- * **Two statements since issue #226, and never more than two.** The Label
+ * **Two statements since issue #226, three since issue #225, and the count
+ * never moves with the row count.** The Label
  * projection cannot ride the card query: a Task carries many Labels of two
  * kinds, so joining them in would multiply the rows the LIMIT above is
  * counting, and the cap would then truncate a page by how many Labels its
@@ -365,13 +371,17 @@ export async function readCards(
         WHERE ${query.where}
         ORDER BY ${query.order}${limit}`,
   )
-  const labels = await taskLabelsFor(
-    executor,
-    query.viewerId,
-    found.map((row) => String(row.id)),
-  )
+  const ids = found.map((row) => String(row.id))
+  const labels = await taskLabelsFor(executor, query.viewerId, ids)
+  /* Issue #225's row counts, the third statement and the same seam: one
+     batch keyed by the page's ids, attached in memory. */
+  const counts = await taskDependencyCountsFor(executor, query.viewerId, ids)
   return found.map((row) => ({
-    card: cardFromRow(row, labels.get(String(row.id)) ?? EMPTY_LABELS),
+    card: cardFromRow(
+      row,
+      labels.get(String(row.id)) ?? EMPTY_LABELS,
+      counts.get(String(row.id)) ?? NO_DEPENDENCIES,
+    ),
     raw: row,
   }))
 }
@@ -391,6 +401,10 @@ export async function readCards(
  * appearing on unrelated cards.
  */
 const noLabels = (): LabelRef[] => Object.freeze([] as LabelRef[]) as LabelRef[]
+const NO_DEPENDENCIES: TaskDependencyCounts = Object.freeze({
+  blocked_by_count: 0,
+  blocks_count: 0,
+})
 const EMPTY_LABELS: TaskLabels = Object.freeze({
   personal: noLabels(),
   folder: noLabels(),
