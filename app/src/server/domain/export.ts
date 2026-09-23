@@ -670,7 +670,8 @@ export async function exportForViewer(
 
   const commentRows = await rowsOf(
     db,
-    sql`SELECT c.id, c.folder_id, c.task_id, c.parent_id, c.body,
+    sql`SELECT c.id, c.folder_id, c.task_id, c.discussion_id, c.parent_id,
+               c.body,
                c.created_at, c.edited_at
         FROM comments c
         WHERE c.author_id = ${viewerId}
@@ -946,6 +947,7 @@ export async function exportForViewer(
       id,
       folder_id: String(row.folder_id),
       task_id: nullableString(row.task_id),
+      discussion_id: nullableString(row.discussion_id),
       parent_id: nullableString(row.parent_id),
       body: nullableString(row.body),
       created_at: toIso(row.created_at),

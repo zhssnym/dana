@@ -297,6 +297,11 @@ type ResourceId =
      failure this file's two controls exist to catch. */
   | 'facetId'
   | 'trashedFacetId'
+  /* Issue #320: the General discussion the owner's legacy Folder-thread
+     comment was filed under, read back from that comment rather than made
+     through a Discussion route, so the comment routes' rows stand on their
+     own. */
+  | 'generalDiscussionId'
 
 interface Fixtures extends Record<ResourceId, string> {
   owner: Actor
@@ -325,6 +330,7 @@ async function fixturesOf(): Promise<Fixtures> {
   const dependencyId = await makeDependency(owner, taskId, blockingTaskId)
   const fileId = await makeFile(owner, folderId, 'ac397.png')
   const commentId = await makeComment(owner, folderId, 'ac397 the comment')
+  const generalDiscussionId = await discussionOfComment(owner, folderId, commentId)
   const shelfId = await makeShelf(owner, 'ac397 the shelf')
   const viewId = await makeSavedView(owner, 'ac397 the view')
   const inviteId = await makeInvite(
@@ -407,8 +413,26 @@ async function fixturesOf(): Promise<Fixtures> {
     folderLabelId,
     facetId,
     trashedFacetId,
+    generalDiscussionId,
   }
   return fixtures
+}
+
+/** The Discussion a Folder-thread comment was filed under (issue #320). */
+async function discussionOfComment(
+  owner: Actor,
+  folderId: string,
+  commentId: string,
+): Promise<string> {
+  const thread = await owner.browser.json(`/folders/${folderId}/comments`, 'GET')
+  expect(thread.status).toBe(200)
+  const line = (
+    thread.json() as { comments: { id: string; discussion_id?: string | null }[] }
+  ).comments.find((comment) => comment.id === commentId)
+  expect(line?.discussion_id, 'the Folder-thread comment names its Discussion').toEqual(
+    expect.any(String),
+  )
+  return String(line?.discussion_id)
 }
 
 /* ------------------------------------------------------------------ *
@@ -835,6 +859,32 @@ const TABLE = new Map<string, Row>([
       stranger: {
         expected: 404,
         rule: '7.14: writing to a thread needs membership of its folder',
+      },
+    },
+  ],
+
+  [
+    'GET /api/v1/discussions/:id/comments',
+    {
+      attempt: (fx) => ({
+        path: `/discussions/${fx.generalDiscussionId}/comments`,
+      }),
+      stranger: {
+        expected: 404,
+        rule: '#320 and 7.14: a Discussion is its Folder\'s, so its conversation is member-only and a Discussion outside the viewer\'s membership is 404, never 403',
+      },
+    },
+  ],
+  [
+    'POST /api/v1/discussions/:id/comments',
+    {
+      attempt: (fx) => ({
+        path: `/discussions/${fx.generalDiscussionId}/comments`,
+        body: { body: 'ac397 from a stranger' },
+      }),
+      stranger: {
+        expected: 404,
+        rule: '#320 and 7.14: writing to a Discussion needs membership of its Folder',
       },
     },
   ],
@@ -1997,6 +2047,11 @@ describe('AC-397 every id-bearing route refuses a stranger', () => {
     commentId: (fx) => ({
       what: 'the comment, on its thread',
       path: `/folders/${fx.folderId}/comments`,
+      holds: fx.commentId,
+    }),
+    generalDiscussionId: (fx) => ({
+      what: 'the General discussion, by its conversation',
+      path: `/discussions/${fx.generalDiscussionId}/comments`,
       holds: fx.commentId,
     }),
     notificationId: (fx) => ({

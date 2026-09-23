@@ -391,6 +391,9 @@ export const exportComment = z.object({
   id: z.uuid(),
   folder_id: z.uuid(),
   task_id: z.uuid().nullable(),
+  /** The Discussion a Folder-level comment belongs to (issue #320, 4.31);
+   * null on a Task comment. */
+  discussion_id: z.uuid().nullable(),
   parent_id: z.uuid().nullable(),
   body: z.string().nullable(),
   created_at: z.string(),
