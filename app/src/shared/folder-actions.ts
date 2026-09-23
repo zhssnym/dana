@@ -213,6 +213,19 @@ export const FOLDER_ACTIONS = [
   'facet.reorder',
   'facet.delete',
   'facet.convert_to_shared',
+  /* Consultation (issue #320): Discussions and their Outcomes. Commenting
+     inside a Discussion stays on the `comment.*` rows above; these govern
+     the Discussion itself. Outcomes have no action of their own because an
+     Outcome is only ever created by resolving and is never edited. */
+  'discussion.read',
+  'discussion.create',
+  'discussion.edit',
+  'discussion.resolve',
+  'discussion.reopen',
+  'discussion.trash',
+  'discussion.restore',
+  'discussion.trash.own_unshared',
+  'discussion.purge',
 ] as const
 
 export type FolderAction = (typeof FOLDER_ACTIONS)[number]
@@ -271,6 +284,15 @@ interface ActionRule {
    * however fresh, must never authorize after a conversion to shared.
    */
   whenOwnPrivateFacet?: true
+  /**
+   * Issue #320's creator stewardship: the action is also admitted when
+   * `target.creatorId` is the actor **and** the actor's preset is at least
+   * this one. Both halves are load-bearing: authorship is provenance and
+   * never standing authority (#228), so a creator lowered below the bar
+   * loses the power at once. Read `creatorId` under the Discussion row's
+   * lock in the writing transaction, as `facetOwnerId` is.
+   */
+  whenCreatorAtLeast?: FolderAccessPreset
   owner?: OwnerRule
   /** The actor must also be the author of the target (a comment). Authorship
    * is provenance and never standing authority, so this is an *extra*
@@ -577,6 +599,57 @@ const RULES: Record<FolderAction, ActionRule> = {
        person". `routes/facets.ts` asks both, in that order. */
     why: '#210: converting a private facet to shared creates shared Work and exposes writing that was somebody\'s own, so it takes Can edit and the facet\'s owner together',
   },
+  /* ---------------------------------------------------------------- *
+   * Consultation (issue #320). "While open" and "no shared activity"
+   * are facts about the row, not about the actor, and the route checks
+   * them under the Discussion's lock; this table answers who.
+   * ---------------------------------------------------------------- */
+  'discussion.read': {
+    atLeast: 'can_view',
+    why: '#320: Can view reads Discussions, Outcomes and their conversation',
+  },
+  'discussion.create': {
+    atLeast: 'can_comment',
+    why: '#320 and R8A: Can comment participates in Consultation, which includes opening a Discussion',
+  },
+  'discussion.edit': {
+    atLeast: 'can_edit',
+    whenCreatorAtLeast: 'can_comment',
+    why: "#320: a Discussion's title and context are edited by its creator while they still have Can comment, or by Can edit, and only while it is open",
+  },
+  'discussion.resolve': {
+    atLeast: 'can_edit',
+    whenCreatorAtLeast: 'can_comment',
+    why: '#320: a Discussion is resolved, with its Outcome, by its creator while they still have Can comment, or by Can edit',
+  },
+  'discussion.reopen': {
+    atLeast: 'can_edit',
+    whenCreatorAtLeast: 'can_comment',
+    why: '#320: a Discussion is reopened by its creator while they still have Can comment, or by Can edit',
+  },
+  'discussion.trash': {
+    atLeast: 'can_edit',
+    why: '#320: removing a Discussion other people have contributed to is governed shared Work, Can edit and above, and it goes to Trash rather than away',
+  },
+  'discussion.restore': {
+    atLeast: 'can_edit',
+    why: '#320: restoring a trashed Discussion is the same governed lifecycle as trashing it',
+  },
+  'discussion.trash.own_unshared': {
+    atLeast: null,
+    whenCreatorAtLeast: 'can_comment',
+    /* The route admits this only while the Discussion has no comment from
+       anyone but its creator, no structured-input response and no Outcome
+       (#320's accidental-Discussion boundary), and uses it for restore as
+       well as trash: a Discussion trashed on this path cannot have gained
+       activity while in Trash. Can edit+ never needs it -- the route asks
+       `discussion.trash` first. */
+    why: '#320: a creator with Can comment may remove their own Discussion only while nobody else has contributed to it and it has no Outcome',
+  },
+  'discussion.purge': {
+    atLeast: 'full_control',
+    why: '#320: permanently deleting a Discussion destroys shared history and may break links to it, so it is Full control\'s, like every permanent delete',
+  },
 }
 
 /** The rule behind an action, for the audit criterion and for a refusal that
@@ -645,6 +718,14 @@ export interface FolderActionTarget {
    * the requested owner is the actor. Nothing else may pass it.
    */
   facetOwnerId?: string | null
+  /**
+   * `discussions.created_by` of the Discussion the action targets (issue
+   * #320), read under that row's lock in the transaction that writes, for
+   * the `authorId` reason. It authorizes only through a rule's
+   * `whenCreatorAtLeast`, and only at that preset or above, so a creator
+   * downgraded below Can comment loses every creator power at once.
+   */
+  creatorId?: string | null
 }
 
 export type FolderActionDecision =
@@ -726,8 +807,23 @@ export function mayPerform(
     target.facetOwnerId !== null &&
     target.facetOwnerId === facts.actorId
 
+  /* Issue #320. The creator binding and the preset floor together: a
+     creator below `whenCreatorAtLeast` is refused, which is "a downgrade
+     below Can comment removes creator mutation powers". */
+  const byCreator =
+    !byPreset &&
+    rule.whenCreatorAtLeast !== undefined &&
+    target.creatorId !== undefined &&
+    target.creatorId !== null &&
+    target.creatorId === facts.actorId &&
+    atLeast(facts.access, rule.whenCreatorAtLeast)
+
   const qualified =
-    byPreset || byAssignment || bySelfEditGrant || byOwnPrivateFacet
+    byPreset ||
+    byAssignment ||
+    bySelfEditGrant ||
+    byOwnPrivateFacet ||
+    byCreator
   const owner = rule.owner ?? 'ignored'
 
   const allowed =
