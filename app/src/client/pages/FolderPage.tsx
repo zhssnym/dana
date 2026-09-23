@@ -963,7 +963,7 @@ export function FolderPage({
       labels = labelRowsOf(vocabulary)
       purposePage = purposeDocument
     } catch {
-      showToast('Could not read this folder’s tasks, so nothing was saved.')
+      showToast('Could not read this folder’s reusable content, so nothing was saved.')
       return
     }
     const saved = folderToWorkflowFile(
