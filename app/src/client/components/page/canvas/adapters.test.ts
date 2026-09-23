@@ -127,6 +127,41 @@ describe('page and editor adapters', () => {
     expect(removed.map((op) => op.op)).toEqual(['delete_block', 'set_outline'])
     expect(removed.at(-1)).toEqual({ op: 'set_outline', items: [{ kind: 'block', id: 'tick', section_block_id: null, list_parent_block_id: null }] })
   })
+  test('presentation headings round-trip as flat document headings rather than Work Sections', () => {
+    const page: PageView = {
+      blocks: [
+        { ...block('purpose-h1', 'heading1'), text: 'Why this exists' },
+        { ...block('purpose-copy', 'paragraph'), text: 'Keep the intent visible.' },
+      ],
+      items: [
+        { kind: 'block', id: 'purpose-h1' },
+        { kind: 'block', id: 'purpose-copy' },
+      ],
+      task_placements: [],
+    }
+    const input = hydrateCanvas(page, 600)
+    expect(input.map((item) => item.id)).toEqual(['purpose-h1', 'purpose-copy'])
+    expect(input[0]?.type).toBe('heading')
+    expect((input[0]?.props as { level?: number; isToggleable?: boolean } | undefined)).toMatchObject({
+      level: 1,
+      isToggleable: false,
+    })
+
+    const editor = BlockNoteEditor.create({ schema: canvasSchema, initialContent: input })
+    const unchanged = dehydrateCanvas(editor.document, 600, folderRefsOf(page))
+    expect(unchanged.blocks.find((item) => item.id === 'purpose-h1')?.block_kind).toBe('heading1')
+    expect(unchanged.items).toEqual([
+      { kind: 'block', id: 'purpose-h1', section_block_id: null, list_parent_block_id: null },
+      { kind: 'block', id: 'purpose-copy', section_block_id: null, list_parent_block_id: null },
+    ])
+
+    editor.updateBlock('purpose-h1', { props: { level: 3, isToggleable: false } })
+    const changed = dehydrateCanvas(editor.document, 600, folderRefsOf(page))
+    expect(changed.blocks.find((item) => item.id === 'purpose-h1')?.block_kind).toBe('heading3')
+    expect(changed.items.find((item) => item.id === 'purpose-copy')?.section_block_id).toBeNull()
+    editor.unmount()
+  })
+
   test('one multi-block edit emits only changed records and one complete outline', () => {
     const before = { blocks: [], items: [] }
     const editor = BlockNoteEditor.create({ schema: canvasSchema, initialContent: [{ id: 'p1', type: 'paragraph', content: 'One' }, { id: 'p2', type: 'paragraph', content: 'Two' }] })
