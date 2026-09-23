@@ -110,8 +110,7 @@ export function useTaskOpenPreference(): StoredMode {
 }
 
 /**
- * 9.7's "where a task opens" control, at S27, and section 13 item 48's
- * question answered by delegation (RFC 0005 change control item 55).
+ * 9.7's "where a task opens" control.
  *
  * The mirror updates immediately for a responsive choice, while the account
  * write makes the same choice follow the person to another browser.

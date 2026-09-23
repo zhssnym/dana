@@ -2,11 +2,9 @@
 9.3's "Invite by email", kept alive across the form's retirement.
 
 The section's assignee row: the choices are "the target folder's members plus
-'Invite by email', and, new in v2, closing section 13 item 28, 'Unassigned',
-offered last after a separator". The v1 form carried all three, the prototype
-carries none of them: its own entry reads "Invite and assign…" against a
-handler that does nothing, because its fixtures model no membership and it has
-nobody to invite.
+'Invite by email', and, new in v2, 'Unassigned',
+offered last after a separator". The v1 form carried all three; the lifted
+card carries none of them.
 
 **Why this is a module rather than a few lines in the card.** 7.5's invite is
 a folder act, and the folder is the task's, so the write needs the id and the

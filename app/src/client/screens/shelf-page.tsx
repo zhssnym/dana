@@ -1,56 +1,39 @@
 /*
-`docs/design/prototype-v2/src/screens/shelf-page.tsx`, lifted whole at RFC
-0004's S27 and bound through the adapter seam. That prototype is deleted
-(`a7886df`, 2026-09-01); read it in git history before that commit. It diffs
-empty against its original except at the seams named here, each marked `Seam`
-in the body.
+The shelf page, bound through the adapter seam. What is worth knowing:
 
-1. **The `@/` specifiers become this client's relative ESM paths** (11.4),
-   and the em dashes leave under protocol section 7.
-2. **A shelf and its folders are keyed by id, never by name** (11.15's v2
-   hazard, and the S12 port's own rule): the screen takes `id` beside
-   `name`, `ShelfFolder` carries an id and an icon key, and a folder block
-   stores `folder.id`. `shelfKey` is `lib/shelf-acts.ts`'s `shelf:<id>`.
-3. **The arrangement is 4.17's rather than the browser's.** `readFolderLayout`
-   becomes the `initialItems` prop and the save effect becomes
-   `onLayoutChange`, which answers the items rebuilt from the response so the
-   state adopts the ids the server chose; `lib/shelf-layout.ts` is the
-   translation and says why. The effect skips its mount run, so opening a
-   page is not a write.
-4. **The identity is `lib/page-identity.ts`'s shelf half**, its two exported
-   names aliased back to the prototype's on import, and the picker is this
-   client's `IconPicker` for the reason S26 recorded on the folder page: 4.3
-   and 4.18 store a key and `icon-manifest.ts` is the one place a key
-   becomes a glyph, so `folderPageMark` is `markIcon` here.
-5. **The Add cover control is the prototype's, drawn since issue #118.** It
-   stood empty until then, with a comment saying `coverTiersFor` answered
-   nothing for a shelf because 7.15's upload needed a `folder_id` — true when
-   written, false since issues #20 and #100 made that part optional for a
-   cover and gave 4.18 the preset and crop columns. A shelf now offers the
-   folder page's own Gallery, Upload and Photos, which is Imran's ruling on
-   #118, and the seam is unchanged: `lib/page-identity.ts` answers the tiers.
-6. **A folder row is a link**, 9.1's roles table naming each folder and shelf
-   row one and AC-223 addressing it so, where the prototype draws a button;
-   the page hands it an `href` beside `onOpenFolder`.
-7. **The activity line reads the shelf's own events** through
-   `lib/history.ts`; the prototype also folds in every member folder's,
-   which is a read per folder over 7.12 and is left to the History sheet.
-8. **The image insert is not offered and an image block takes no folder**,
-   `page-image.tsx`'s upload seam needing one (7.15) and a shelf having none;
-   a stored image block still draws. `InsertLine` is this client's, which
-   has no `dense` strip, the folder page's blocks having none either.
-   **This is still true after #118 and the reason is narrower than it was.**
-   7.15 made `folder_id` optional for `kind: cover` and for nothing else, so
-   a page image — `kind: image` — still needs a folder this page has not got,
-   and the empty string passed below is refused 422 rather than stored. The
-   one gesture that can reach it is "Replace…" on a block that already holds a
-   picture, which fails silently and leaves the old one; a page-image upload
-   with no folder is a section 7 question and not this file's to decide.
-9. **`InlineInput`'s rename commits on Enter as well as blur**, 9.10's inline
-   rename being what AC-203 and the sidebar dialog both expect of a field.
+- **A shelf and its folders are keyed by id, never by name** (11.15): the screen
+  takes `id` beside `name`, `ShelfFolder` carries an id and an icon key, and a
+  folder block stores `folder.id`. `shelfKey` is `lib/shelf-acts.ts`'s
+  `shelf:<id>`.
+- **The arrangement is 4.17's rather than the browser's.** `initialItems` comes
+  in as a prop and `onLayoutChange` answers the items rebuilt from the response
+  so the state adopts the ids the server chose; `lib/shelf-layout.ts` is the
+  translation and says why. The effect skips its mount run, so opening a page is
+  not a write.
+- **The identity is `lib/page-identity.ts`'s shelf half**, and the picker is
+  this client's `IconPicker`: 4.3 and 4.18 store a key and `icon-manifest.ts` is
+  the one place a key becomes a glyph, so `folderPageMark` is `markIcon` here.
+- **The Add cover control** offers the folder page's own Gallery, Upload and
+  Photos (issue #118); `lib/page-identity.ts` answers the tiers.
+- **A folder row is a link**, 9.1's roles table naming each folder and shelf row
+  one and AC-223 addressing it so; the page hands it an `href` beside
+  `onOpenFolder`.
+- **The activity line reads the shelf's own events** through `lib/history.ts`;
+  every member folder's would be a read per folder over 7.12, and is left to the
+  History sheet.
+- **The image insert is not offered and an image block takes no folder.** 7.15
+  makes `folder_id` optional for `kind: cover` and for nothing else, so a page
+  image — `kind: image` — needs a folder this page has not got, and the empty
+  string passed below is refused 422 rather than stored. A stored image block
+  still draws. The one gesture that can reach the upload is "Replace…" on a
+  block that already holds a picture, which fails silently and leaves the old
+  one; a page-image upload with no folder is an API question and not this file's
+  to decide. `InsertLine` here has no `dense` strip.
+- **`InlineInput`'s rename commits on Enter as well as blur**, 9.10's inline
+  rename being what AC-203 and the sidebar dialog both expect of a field.
 
-Nothing else moves. The empty state's third clause, "or drag it here in the
-sidebar", is the prototype's and stands: DES-171's sidebar drag is S24's.
+The empty state's third clause, "or drag it here in the sidebar", stands: the
+sidebar drag files a folder onto a shelf.
 */
 
 import { useEffect, useMemo, useRef, useState } from "react"
@@ -87,12 +70,12 @@ import { cn } from "../components/ui/utils.js"
 import { MORE_ACTIONS } from "../components/ui/copy.js"
 
 /*
-The blocks a page holds, on a shelf too (DES-210, DES-219).
+The blocks a page holds, on a shelf too.
 
-Sections, prose and pictures behave exactly as they do on a folder page: a
-block under a heading folds with it, position decides belonging. The folder
-row is the fourth kind and the one that makes this a *shelf* page: its
-presence is the membership's, its position is yours. See the header note.
+Sections, prose and pictures behave exactly as they do on a folder page: a block
+under a heading folds with it, position decides belonging. The folder row is the
+fourth kind and the one that makes this a *shelf* page: its presence is the
+membership's, its position is yours. See the header note.
 */
 export type ShelfItem =
   | { kind: "section"; section: { id: string; name: string } }
@@ -127,8 +110,8 @@ function reconcileItems(stored: ShelfItem[], folders: ShelfFolder[]): ShelfItem[
   const missing = folders
     .filter((folder) => !placed.has(folder.id))
     .map((folder): ShelfItem => ({ kind: "folder", folder: { id: folder.id } }))
-  /* polish: shelves F2. Unchanged is the same array: a fresh copy of the same
-     items read as a change, and the save effect wrote it. */
+  /* Unchanged is the same array: a fresh copy of the same items would read as a
+     change, and the save effect would write it. */
   if (!missing.length) return kept.length === stored.length ? stored : kept
   let lastFolderAt = -1
   kept.forEach((item, index) => {
@@ -172,7 +155,7 @@ export function ShelfPage({
   onCreateFolder?: () => void
   onRename?: (next: string) => void
   /* The acts the shell can perform on this shelf. Absent ones simply do not
-     draw, which is the contract's own safety property (DES-197). */
+     draw, which is the contract's own safety property. */
   onCopyLink?: () => void
   onDuplicate?: () => void
   onSaveWorkflow?: () => void
@@ -194,8 +177,8 @@ export function ShelfPage({
   useEffect(() => {
     setItems((current) => reconcileItems(current, folders))
   }, [memberNames])
-  /* polish: shelves F11. The section just made is the one whose field opens
-     empty and focused, with "New section" as its placeholder. */
+  /* The section just made is the one whose field opens empty and focused, with
+     "New section" as its placeholder. */
   const [freshId, setFreshId] = useState<string | null>(null)
   /* Seam 3: the save effect, over 7.16's PUT. The first run is the mount and
      is not a change; a run that adopted the server's ids is not one either. */
@@ -213,11 +196,10 @@ export function ShelfPage({
     void onLayoutChange(items).then((saved) => {
       if (saved === null) return
       adopting.current = true
-      /* polish: shelves F11. The write hands back the server's own block ids,
-         so the section just made arrives under a new one and the field that
-         was to open empty and focused would close on the adoption. It is
-         found again as the one section the write names that this page did not
-         have a moment ago. */
+      /* The write hands back the server's own block ids, so the section just
+         made arrives under a new one and the field that was to open empty and
+         focused would close on the adoption. It is found again as the one
+         section the write names that this page did not have a moment ago. */
       if (freshId !== null) {
         const before = new Set(
           items.flatMap((item) => (item.kind === "section" ? [item.section.id] : [])),
@@ -283,10 +265,10 @@ export function ShelfPage({
   const renameRef = useRef<HTMLInputElement>(null)
 
   /*
-  The folder page has an add-task row; a shelf has an add-folder row (DES-219).
-  Choosing an existing folder moves it onto this shelf; New folder makes one
-  that lands here. It sits after the last folder row, wherever the arrangement
-  has put that.
+  The folder page has an add-task row; a shelf has an add-folder row. Choosing
+  an existing folder moves it onto this shelf; New folder makes one that lands
+  here. It sits after the last folder row, wherever the arrangement has put
+  that.
   */
   const addFolderRow =
     onAddFolder || onCreateFolder ? (
@@ -344,24 +326,21 @@ export function ShelfPage({
     <div className="flex min-h-full flex-col">
       <PageCover storageName={key} />
 
-      {/* polish: pagehead F5. The shell already insets the page; a second
-          measure here indented the shelf's title past every other page's. */}
+      {/* The shell already insets the page; a second measure here would indent
+          the shelf's title past every other page's. */}
       <div className="w-full pt-2">
         {/*
-        The control row lives in the window bar, exactly where the folder
-        page's is (DES-219). It sat inside the page body for one revision,
-        which put the same two controls in two places depending on what kind
-        of page you were reading, the fault DES-139 moved the folder's
-        controls up to avoid.
+        The control row lives in the window bar, exactly where the folder page's
+        is, so the same controls are not in two places depending on what kind of
+        page you are reading.
 
-        It carries what a shelf actually has: what happened to it, and the
-        acts the contract declares for its kind. It does **not** carry the
-        folder page's view strip or its filters, and that is the page being
-        honest rather than incomplete: a view switches how a list of *tasks*
-        is drawn and a shelf holds folders; a filter narrows a list somebody
-        built, and a shelf's list is its label, so narrowing it would be
-        editing it.
-        */}
+        It carries what a shelf actually has: what happened to it, and the acts
+        the contract declares for its kind. It does **not** carry the folder
+        page's view strip or its filters, and that is the page being honest
+        rather than incomplete: a view switches how a list of *tasks* is drawn
+        and a shelf holds folders; a filter narrows a list somebody built, and a
+        shelf's list is its label, so narrowing it would be editing it.
+         */}
         <WindowBarActions order={2}>
           <WindowActivity events={activity} />
           <ObjectMenu
@@ -380,9 +359,8 @@ export function ShelfPage({
               <Button
                 variant="ghost"
                 size="icon"
-                /* seam: 9.1 names every overflow menu, a shelf's included,
-                   "More actions", where the prototype writes "More actions for
-                   {name}"; item 44's A2, transcribed at item 57 (A2). */
+                /* 9.1 names every overflow menu, a shelf's included, "More
+                   actions". */
                 aria-label={MORE_ACTIONS}
                 className="size-7 rounded-md text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-900)]"
               >
@@ -400,7 +378,7 @@ export function ShelfPage({
         />
 
         {/* The mark opens the picker, which is the one control for a glyph and
-            a colour on every page that has one (DES-130). */}
+            a colour on every page that has one. */}
         <Popover>
           <PopoverTrigger
             render={
@@ -434,11 +412,9 @@ export function ShelfPage({
           </PopoverContent>
         </Popover>
 
-        {/* Seam 5: the prototype's `AddCoverAction`, in the prototype's own
-            place — a shelf is a place, so it wears a cover (DES-141,
-            DES-219), and since #118 every tier can reach one. The wrapper is
-            the folder page's `mt-1` verbatim so the control sits at the same
-            distance under the mark on both pages. */}
+        {/* Add cover: a shelf is a place, so it wears a cover, and every tier
+            can reach one. The wrapper is the folder page's `mt-1` verbatim so
+            the control sits at the same distance under the mark on both pages. */}
         <div className="mt-1">
           <AddCoverAction storageName={key} />
         </div>
@@ -451,13 +427,13 @@ export function ShelfPage({
           onBlur={(event) => {
             const next = event.target.value.trim()
             /* The name is the membership label, so the rename is the shell's
-               act: it rewrites the label on every member and moves the
-               page's stores (DES-218). This page only reports it. */
+               act: it rewrites the label on every member and moves the page's
+               stores. This page only reports it. */
             if (next && next !== name) onRename?.(next)
           }}
-          /* Seam 9. polish: shelves F9: Escape puts the saved name back and
-             leaves, rather than leaving the typing behind for the next blur
-             to save. */
+          /* Enter commits as well as blur. Escape puts the saved name back and
+             leaves, rather than leaving the typing behind for the next blur to
+             save. */
           onKeyDown={(event) => {
             if (event.key === "Enter") event.currentTarget.blur()
             if (event.key === "Escape") {
@@ -471,12 +447,12 @@ export function ShelfPage({
         {/*
         The description is where the explanation lives.
 
-        DES-195 refused a permanent hover hint, "a name that needs a tooltip
-        every time has failed", and put the explaining here, which is the
-        pattern the native pages already use. It is a placeholder rather than
-        fixed copy, because on your own shelf you should be able to say what it
-        is for in your own words.
-        */}
+        A name that needs a tooltip every time has failed, so there is no
+        permanent hover hint and the explaining is here, which is the pattern
+        the native pages already use. It is a placeholder rather than fixed
+        copy, because on your own shelf you should be able to say what it is for
+        in your own words.
+         */}
         <InlineTextarea
           key={identity.description ?? ""}
           defaultValue={identity.description ?? ""}
@@ -493,15 +469,14 @@ export function ShelfPage({
 
         {/*
         The page's blocks, folder rows among them, on the folder page's own
-        grammar (DES-219): the same grip, the same insert line with the same
-        distances (DES-193's dense rule included), the same collapse-by-
-        position. One page you have to learn, at two levels.
-        */}
+        grammar: the same grip, the same insert line with the same distances,
+        the same collapse-by-position. One page you have to learn, at two
+        levels.
+         */}
         <section className="pt-6">
           {folders.length === 0 ? (
-            /* Says what a shelf is *for* rather than that it is empty, the
-               same judgement the Trash page's empty state makes, and the place
-               DES-195 sent the explanation. */
+            /* Says what a shelf is *for* rather than that it is empty, the same
+               judgement the Trash page's empty state makes. */
             <p className="mb-1 rounded-lg border border-dashed border-[var(--color-graphite-200)] px-4 py-8 text-center text-[13px] leading-5 text-[var(--color-graphite-500)]">
               Nothing on this shelf yet. Add a folder below, move one here from
               its own menu, or drag it here in the sidebar.
@@ -514,7 +489,7 @@ export function ShelfPage({
           />
           {items.map((item, index) => {
             /* A block under a heading folds with it: position decides
-               belonging, never a second record (DES-209). */
+               belonging, never a second record. */
             const owner = items
               .slice(0, index)
               .reverse()
@@ -584,10 +559,9 @@ export function ShelfPage({
                       /* Seam 6: an anchor, 9.1's role for a folder row. */
                       <a
                         href={folderHref(item.folder.id)}
-                        /* Opens as its own tab and lands you on it: a shelf
-                           is where a workflow is presented, so a folder
-                           opened from it stays open beside it (Imran,
-                           2026-08-24). */
+                        /* Opens as its own tab and lands you on it: a shelf is
+                           where a workflow is presented, so a folder opened
+                           from it stays open beside it. */
                         onClick={(event) => {
                           event.preventDefault()
                           onOpenFolder(item.folder.id)

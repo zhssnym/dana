@@ -1,6 +1,6 @@
 /*
-The acts a shelf supports, performed: `prototype-v2`'s `lib/shelf-acts.ts`
-over this client's addresses (RFC 0004's S27).
+The acts a shelf supports, performed: the prototype's `lib/shelf-acts.ts`
+over this client's addresses.
 
 The prototype keys a shelf's page by `shelf:<name>` because its fixtures have
 no ids, and its own header says the prefix exists so "a shelf called Personal

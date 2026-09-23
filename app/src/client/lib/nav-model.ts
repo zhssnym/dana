@@ -1,6 +1,6 @@
 /*
-The page block as the lifted surfaces read it: `prototype-v2`'s
-`lib/nav-model.ts`, rewritten over `routes.ts` (RFC 0004's S27).
+The page block as the lifted surfaces read it: the prototype's
+`lib/nav-model.ts`, rewritten over `routes.ts`.
 
 **The one table stays `routes.ts`'s and this is a view of it.** The prototype
 keys every page by its display name and declares `NAV_PAGES` with `name`,

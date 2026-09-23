@@ -66,9 +66,7 @@ export function grip(base: {
 }
 
 /*
-`swallowNextClick` used to live here and now lives beside the engine, which is
-where a consequence of the engine's own choice not to capture the pointer
-belongs. The tab strip needed it too when it came onto the engine at S11, and
-two surfaces reaching for one function is how it would otherwise have been
-written twice. Import it from `lib/use-sortable-list.js`.
+`swallowNextClick` lives beside the engine, which is where a consequence of
+the engine's own choice not to capture the pointer belongs, and the tab strip
+needs it too. Import it from `lib/use-sortable-list.js`.
 */

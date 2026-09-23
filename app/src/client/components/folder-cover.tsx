@@ -1,68 +1,41 @@
 /*
-Covers for a folder page, rebuilt 2026-08-18 to Imran's direction against
-the Notion picker: a gallery in sections, upload, link, and a free photo
-source, with reposition on the cover itself.
+Covers for a page: a gallery in sections, upload, link, and a free photo source,
+with reposition on the cover itself.
 
 Four tiers, each honest about what it is:
 
 - **Colour & gradient**, nine gradients built exclusively from the token
-  palette's own hexes. No colour enters the product here that the tokens do
-  not already own, which is what makes them brand rather than decoration.
-- **The mark**, six covers drawn from Dana's own ribbon geometry (DES-126's
-  drawing), oversized and bled off the band's edges in folder-tint gradients.
-  This is the cover tier no other product can have.
-- **Photos**, Lorem Picsum, a free image source, loaded over the network in
-  the dev prototype and honestly absent in the flattened share build (which
-  refuses all external requests). The tab says so instead of pretending.
-- **Upload**, a real file into an object URL, alive for the session, gone on
-  reload, said so in the tab.
+  palette's own hexes. No colour enters the product here that the tokens do not
+  already own, which is what makes them brand rather than decoration.
+- **The mark**, six covers drawn from Dana's own ribbon geometry, oversized and
+  bled off the band's edges in folder-tint gradients. This is the cover tier no
+  other product can have.
+- **Photos**, from Openverse, through this origin (see below).
+- **Upload**, stored through 7.15 where the caller supplies `onUpload`, and a
+  session-only object URL otherwise, which the tab says in words.
 
-Repositioning stores a vertical position per folder for photographic covers;
-gradients have no crop to move. Lane 2 throughout: no cover column, no image
-storage (DES-105), excluded from the port by DES-130.
+Repositioning stores a vertical position for photographic covers; gradients have
+no crop to move.
 */
 
 /*
-Lifted at S25 (RFC 0004's places row, RFC 0005 change control item 44's B1),
-which answers the Lane 2 sentence above: 4.20's `user_page_covers` is the
-cover column a place page never had, and 7.19 is its wire. Three seams, each
-named here rather than left to be found, and nothing else in this file moves.
+**The picker is its props.** `value`, `onPick` and `onRemove` are the interface;
+the store is the call site's, which is `page-cover.tsx` over 4.20's
+`user_page_covers` and 7.19.
 
-**The seam is the picker's own props, and they were already props.** `value`,
-`onPick` and `onRemove` were the prototype's interface before this row, so
-the store this file used to sit over was never inside it; the store was the
-call site's, which is `page-cover.tsx`. That is the whole reason this file
-crosses as nearly as it does.
+**`onUpload` is the second half of `tiers`.** Where a caller has 7.15 and a
+cover file column, the bytes are stored and the cover survives a reload. The
+prop is optional, and without it the Upload tab makes a session-only object URL
+and says so.
 
-**`onUpload` is new at S26, and it is the second half of `tiers`.** The
-prototype's Upload tab makes an object URL that lives for the session, which
-its own tab says in words; a folder page has 7.15 and 4.3's `cover_file_id`,
-so the bytes are stored and the cover survives a reload. The prop is optional
-and its absence is the prototype's behaviour unchanged, which is what keeps
-every other call site as it was.
-
-**`tiers` is a measurement rather than a preference, and what it measures has
-moved.** The rule is DES-144's and does not move: a tier a surface cannot
+**`tiers` is a measurement rather than a preference.** A tier a surface cannot
 honestly draw is a tier it does not draw, never a disabled one, because a
-control that is drawn and does nothing is the false green protocol section 4
-forbids. What was measured against it in this header was that 4.20 holds a
-cover as a `preset` or a `file_id`, that a file needed a folder — "`POST
-/api/v1/files` requires `folder_id` as a uuid (`server/routes/files.ts:48-52`)"
-— and that a place page is not a folder, so Upload, Link and Photos had nothing
-behind them on any page but a folder's. **That was true when it was written and
-is false since issues #20, #100 and #118**: `folder_id` is optional for
-`kind: cover`, `POST /api/v1/covers/photo` stores a photograph for a page that
-has no folder, and a shelf carries the same three cover columns a folder does.
-The cited line numbers are stale too, and now point at the `superRefine` that
-says the opposite. So `lib/page-identity.ts`'s `coverTiersFor` answers Gallery,
-Upload and Photos for all three kinds of page. **Link alone is still unlisted**,
+control that is drawn and does nothing is a false green.
+`lib/page-identity.ts`'s `coverTiersFor` answers Gallery, Upload and Photos for
+all three kinds of page (issues #20, #100, #118). **Link alone is unlisted**,
 and its reason is 10.8's `img-src` rather than storage; issue #115 holds it. The
-tab list stays a prop defaulting to all four, so a caller with no seam — the
-lab build — is unchanged.
-
-**The photo tier is Openverse and not Lorem Picsum.** Recorded because B8 is
-written against "the prototype's photo tier" and would otherwise build the
-wrong one.
+tab list stays a prop defaulting to all four, so a caller with no seam — the lab
+build — is unchanged.
 */
 
 import { Input } from "./ui/input.js"
@@ -94,9 +67,9 @@ const GRADIENTS: { key: string; name: string; css: string }[] = [
 
 /* --------------------------------------------------------- the mark tier -- */
 
-/* The ribbon path from `public/dana-mark.svg`, verbatim, the same geometry
-   DES-126 measured for the logo reveal. Kept in one constant so the day the
-   mark changes, the covers change with it. */
+/* The ribbon path from `public/dana-mark.svg`, verbatim, the same geometry as
+   the logo reveal. Kept in one constant so the day the mark changes, the covers
+   change with it. */
 const RIBBON =
   "M362.11 184.85l360.91 0c279.18,0 505.5,228.54 505.5,510.45 0,217.22 -129.71,395.33 -319.74,475.43 -77.93,32.3 -192.36,53.42 -283.66,51.11 8.52,0.21 17.23,0.22 26.09,0.03 -61.62,1.04 -112.19,-14.79 -112.93,-35.33 -0.61,-16.81 32.29,-31.59 78.01,-36.98 54.23,-4.85 80.75,-6.8 142.61,-25.46 66.58,-20.78 108.83,-38.15 166.54,-76.61l-5.49 3.66c117,-72.02 195.99,-202.71 198.6,-352.58l0.07 -0.8 0 -6.87c0,-208.9 -148.39,-382.13 -342.59,-414.16l-13.79 -1.97 -33.31 -3.33 -285.25 0 -47.76 0 -0.06 0 -0 0c-26.78,0.02 -50.7,12.85 -65.96,32.66 -10.84,14.06 -17.3,31.65 -17.3,50.67l0 39.91 0 516.19c0,45.83 37.5,83.33 83.33,83.33 83.46,0 161.45,4.93 243.07,-9.99 164.24,-30.02 311.58,-191.34 277.74,-352.91 -41.17,-196.59 -331.59,-230.04 -420.88,-46 -49.75,102.55 -6.17,224.4 98.17,275.41 24.52,11.72 42.81,19.19 42,32.33 -2.41,39.05 -150.81,9.1 -197.48,-82.02 -24.09,-42.52 -38.18,-90.93 -40.5,-140.68 6.15,-174.41 143.51,-313.83 312.07,-313.83 266.87,0 443.26,341.93 188.38,580.76 -60.23,55.69 -129.3,95.76 -207.33,120.21 -47.7,19.54 -116.29,30.64 -205.37,33.31l-123.67 0c-84.03,0 -152.78,-68.75 -152.78,-152.78l0 -68.63 0 -463.14 0 -68.63c0,-84.03 68.75,-152.78 152.78,-152.78z"
 
@@ -196,11 +169,11 @@ const openverseSearch = z.object({
 })
 
 async function searchOpenverse(query: string): Promise<OpenverseResult[]> {
-  /* Through this origin since the polish round of 2026-08-30: 10.8's CSP
-     (connect-src 'self') refuses a direct call to api.openverse.org, so the
-     server proxies the search and serves each thumbnail itself — see
-     `routes/cover-photos.ts` for the whole reasoning. The lab build, which
-     has no server, gets the tab's offline copy instead of a broken grid. */
+  /* Through this origin: 10.8's CSP (connect-src 'self') refuses a direct call
+     to api.openverse.org, so the server proxies the search and serves each
+     thumbnail itself — see `routes/cover-photos.ts` for the whole reasoning.
+     The lab build, which has no server, gets the tab's offline copy instead of
+     a broken grid. */
   const data = await getPlain(openverseSearch, "/covers/photos", { q: query })
   return (data.results ?? [])
     .filter((item) => item.thumb)
@@ -342,11 +315,10 @@ export function FolderCoverPicker({
   onPick: (key: string) => void
   onRemove: () => void
   tiers?: readonly CoverTier[]
-  /* The S26 seam: where the caller can store the bytes, it takes them. */
+  /* Where the caller can store the bytes, it takes them. */
   onUpload?: (file: File) => void
-  /* The photo tier's same seam (polish round, 2026-08-30): where the caller
-     can turn a chosen photograph into a stored file, the pick goes there;
-     the lab, which cannot, keeps the legacy link key. */
+  /* Where the caller can turn a chosen photograph into a stored file, the pick
+     goes there; the lab, which cannot, keeps the legacy link key. */
   onPickPhoto?: (photoId: string) => void
 }) {
   const [tab, setTab] = useState<CoverTier>(tiers[0] ?? "gallery")
@@ -380,8 +352,8 @@ export function FolderCoverPicker({
   function takeFile(list: FileList | null) {
     const file = list?.[0]
     if (!file || !file.type.startsWith("image/")) return
-    /* The S26 seam. Without one this is the prototype's session-only URL,
-       which is what the tab below still says where that is the truth. */
+    /* Without an uploader this is a session-only URL, which is what the tab
+       below says where that is the truth. */
     if (onUpload) {
       onUpload(file)
       return
@@ -392,8 +364,8 @@ export function FolderCoverPicker({
 
   return (
     /* The popover hugs this width rather than imposing its own: the base
-       PopoverContent is w-80, so a 440px picker used to overflow its panel
-       and put Remove outside the white (Imran caught it). */
+       PopoverContent is w-80, so a 440px picker would overflow its panel and
+       put Remove outside the white. */
     <div className="w-[440px] max-w-full" onClick={(e) => e.stopPropagation()}>
       {/* The tab row, with Remove at its far end, the Notion arrangement,
           in Dana's chrome: a hairline under the row, the active tab marked
@@ -506,8 +478,7 @@ export function FolderCoverPicker({
               Choose an image
             </button>
             <p className="text-[11px] leading-4 text-[var(--color-graphite-400)]">
-              {/* The tab says what is true of this caller, which is the whole
-                  of the S26 seam reaching the copy. */}
+              {/* The tab says what is true of this caller. */}
               {onUpload ? "or drop one here" : "or drop one here · kept for this session only"}
             </p>
           </div>

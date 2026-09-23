@@ -3,9 +3,7 @@
 immediately; the star's two names are 9.1's."
 
 **This file is wiring and the markup is `screens/important-screen.tsx`**,
-which is RFC 0005 change control item 45's proof screen, produced here after
-item 47(l) measured that it still owed the head. Item 45's deeper finding is
-why the split reads the way it does: "the prototype's screens are
+and the split reads the way it does because "the prototype's screens are
 presentational and its wiring is in its shell", which is the same architecture
 this client has. So the screen takes rows and callbacks and touches nothing
 else, and this supplies both. The screen's own header names its seven seams.
@@ -189,8 +187,7 @@ export function ImportantPage(): React.JSX.Element {
         </>
       )}
 
-      {/* The owner's ruling of 2026-08-22: every page that lists tasks ends
-          the same way. The predicate is Q4's, this page's own spine, so the
+      {/* Every page that lists tasks ends the same way. The predicate is Q4's, this page's own spine, so the
           foot is this page's work finished rather than every finished thing.
           Outside both branches, because it is the page's close and not the
           list's, and because it reads Q6 rather than Q4's own query. */}

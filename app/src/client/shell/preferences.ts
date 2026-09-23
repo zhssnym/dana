@@ -1,21 +1,10 @@
 /*
 9.1's sidebar view preferences, and the only place this client stores one.
 
-The section's own sentence, added by RFC 0002: "the sidebar's width and
-whether it is collapsed to an icon rail are the viewer's, persisted
-client-side, and change nothing about what the sidebar holds. This section
-fixes the contents and their order; it fixes no width, and a persisted width
-is a preference rather than a layout." AC-182 reads both across a full
-document load.
-
-**RFC 0005 rewrote 9.1 and that sentence did not survive it**, which is worth
-saying here rather than leaving a quotation of something the contract no
-longer carries. What is unchanged is everything this file does: both
-preferences are still the viewer's, still persisted client-side, and AC-182
-still reads both across a reload. What went with the sentence is its second
-clause, the claim that the rail holds exactly what the open sidebar holds,
-and `app-sidebar.tsx`'s rail paragraph records what stands in its place and
-which criterion is escalated over it.
+The sidebar's width and whether it is collapsed to an icon rail are the
+viewer's, persisted client-side, and AC-182 reads both across a full document
+load. What the rail holds relative to the open sidebar is
+`app-sidebar.tsx`'s rail paragraph.
 
 **localStorage rather than a cookie, and the choice is not a style.** The
 designer's prototype keeps the width in localStorage and the shadcn primitive
@@ -25,7 +14,7 @@ before it paints. We have no such host: 11.1 gives the server a landing page
 and the built client, and nothing on the server has ever read a preference.
 What a cookie would buy here is nothing, and what it costs is real. It rides
 every request the document makes, including every call to the section 7 API,
-which puts a view preference on the wire that the frozen contract does not
+which puts a view preference on the wire that the section 7 contract does not
 give any endpoint. And 11.6's double-submit leaves exactly one readable
 cookie in the browser, the CSRF token, which is a property the acceptance
 suite reads directly when it picks that token out by being the only one; a

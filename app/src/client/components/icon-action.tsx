@@ -1,18 +1,6 @@
 /*
 An icon that does one thing, with the name of that thing on hover.
 
-Lifted from `docs/design/prototype-v2/src/components/icon-action.tsx` at S23,
-read on `v2-build` at `b316785`. That prototype is deleted (`a7886df`,
-2026-09-01); read it in git history before that commit. The lift discipline
-of RFC 0004's prototype-lift section applies: this file diffs empty against
-that original except at the seams named at the foot of this header. The
-designer's own reasoning below is kept intact, being the design record for
-what this does.
-
-**The seams are the two mechanical ones every lifted file takes and no
-other**: the `@/` specifiers become this client's relative ESM paths (11.4),
-and the em dashes leave under protocol section 7's writing convention.
-
 The same story as `person-face.tsx`: this existed twice, as `IconAction` in
 `task-card.tsx` and as `ThreadAction` in `comments.tsx`, differing only in
 size, 28px in the card's footer, 24px in a message's action row, which is

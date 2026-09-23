@@ -21,12 +21,9 @@ export const queryKeys = {
   /** One task in full (7.6's GET), which the 9.3 form reads in edit mode. */
   task: (id: string) => ['tasks', id] as const,
 
-  /* The v2 surfaces (RFC 0005). `bundle` is the 4.19 person's bundle at
-     /settings, and since issue #150 it is the only settings read this client
-     makes: a `settings` key over frozen 7.2's /me/settings sat above `folders`
-     until then, named by the boot prefetch and by a hook no component called.
-     Deleted with them, because a key here is a claim that something in the
-     cache answers to it. */
+  /* The v2 surfaces. `bundle` is the 4.19 person's bundle at /settings, and
+     it is the only settings read this client makes (issue #150): a key here
+     is a claim that something in the cache answers to it. */
   bundle: () => ['settings', 'bundle'] as const,
   savedViews: () => ['settings', 'views'] as const,
   shelves: () => ['shelves'] as const,
@@ -34,7 +31,7 @@ export const queryKeys = {
   /** 4.13's `kind:id` reference, so two subjects never share a key. */
   events: (subject: string) => ['events', subject] as const,
 
-  /* The S12 surfaces: one shelf, the two page reads, the viewer's
+  /* One shelf, the two page reads, the viewer's
      notifications, and a thread. A thread's key carries the task id or
      'folder' so the folder's own thread and a task's never collide. */
   shelf: (id: string) => ['shelves', id] as const,
@@ -47,7 +44,7 @@ export const queryKeys = {
   thread: (folderId: string, taskId: string | null) =>
     ['folders', folderId, 'thread', taskId ?? 'folder'] as const,
 
-  /* 7.19's place covers (RFC 0005 change control item 44, B1). One key for
+  /* 7.19's place covers. One key for
      the whole set rather than one per place: 4.20's only read is "one
      viewer's covers", and eight keys would be eight requests for a response
      every place page already holds whole. */

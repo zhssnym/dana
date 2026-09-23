@@ -1,95 +1,64 @@
 /*
-Lifted whole at S26 (RFC 0004's conversation row) from
-`prototype-v2/src/components/comments.tsx`, over the seam in
-`lib/thread.ts`. That module's header carries the argument; this list is the
-seams themselves, so a reader diffing the two files finds every difference
-named.
+The conversation component, over the seam in `lib/thread.ts`. That module's
+header carries the argument; this list is what a reader needs to know here.
 
-**One. The writer is still the array.** `onChange(next)` is untouched at every
-one of its call sites, and the page hands it `applyThreadChange`, which turns
-the array into 7.14's four routes. This is the whole reason the file crosses:
-the prototype threads `onChange` through the row, the reply composer and
-`toggleReaction`, so a version taking four callbacks would have to be rewritten
-at each.
+**The writer is the array.** `onChange(next)` is called at every one of its
+sites, and the page hands it `applyThreadChange`, which turns the array into
+7.14's four routes. `onChange` is threaded through the row, the reply composer
+and `toggleReaction`, so a version taking four callbacks would have to be
+rewritten at each.
 
-**Two. `ME` is the session rather than `PEOPLE[0]`.** RFC 0004's close forbids
-a fixture crossing in any form, and the composer's own face and a comment made
-in this session both need a person. `useViewerPerson()` is that person, read
-from the cache every page already holds.
+**`ME` is the session.** The composer's own face and a comment made in this
+session both need a person. `useViewerPerson()` is that person, read from the
+cache every page already holds.
 
-**Three. Voice is behind a prop that defaults to off, and nothing is
-deleted.** RFC 0005 change control item 44's B5 defers voice notes and records
-what is already true underneath, that `files.kind` admits `'voice'` at
-`0003_v2_expand.sql:68`; what is owed is a duration, a player and a decision
-about transcription. So the microphone is not drawn (DES-144: a dead control is
-worse than an absent one) and `MediaRecorder`, `VoiceNote` and the recording
-bar stay here unreferenced-by-default, so that B5's package flips one default
-rather than restoring a hundred lines.
+**Voice is behind a prop that defaults to off.** `files.kind` admits `'voice'`,
+but what is owed is a duration, a player and a decision about transcription. So
+the microphone is not drawn (a dead control is worse than an absent one) and
+`MediaRecorder`, `VoiceNote` and the recording bar stay here unreferenced by
+default, so that turning voice on flips one default.
 
-**Four. One file per comment, of any kind.** Frozen 7.14 takes a single
-`file_id` on a comment, so a second attachment has no route and the composer
-takes one. Until RFC 0005 change control item 57 (B5) the read answered a bare
-uuid, so a file's name, type and size were not on the wire and the composer
-offered images alone, the bytes being the one thing this client could honestly
-say about a file somebody else attached; the read now carries 4.16's columns
-(`files: { id, name, mime, bytes }[]`), `lib/thread.ts` draws the tile, the
-name and the meta line from them, and the composer offers any file 10.3
-admits. The picture-only branch below stays for a file that arrives nameless.
+**One file per comment, of any kind.** 7.14 takes a single `file_id` on a
+comment, so a second attachment has no route and the composer takes one. The
+read carries 4.16's columns (`files: { id, name, mime, bytes }[]`),
+`lib/thread.ts` draws the tile, the name and the meta line from them, and the
+composer offers any file 10.3 admits. The picture-only branch below stays for a
+file that arrives nameless.
 
-**Five. Somebody other than the author deletes, which is 7.14 and not the
-prototype.** The lab has no permission system, so it offers Edit and Delete on
-`mine` alone; 7.14 gives a comment's deletion to its author **or** to a member
-who may moderate the folder, and `routes/conversation.ts` resolves exactly
-those two. The answer rides the comment itself rather than the thread, so the
-card mount and the folder page cannot disagree, which is what L-201 asks of one
-surface drawn twice. Editing stays the author's, which the prototype and 7.14
-agree on.
+**Somebody other than the author may delete.** 7.14 gives a comment's deletion
+to its author **or** to a member who may moderate the folder
+(`comment.moderate`, Full control's; ownership is custody), and
+`routes/conversation.ts` resolves exactly those two. The answer rides the
+comment itself rather than the thread, so the card mount and the folder page
+cannot disagree. This file only reads `deletable`.
 
-**The second half was "the folder's owner" until 2026-09-20 (issue #268)**, and
-had been false since #228's R8A landed: moderating another member's words is
-`comment.moderate`, which is Full control's, and ownership is custody. That
-correction is in `lib/thread.ts` and in the two surfaces that feed it, and
-this file only reads `deletable`.
-
-**The *author's* half was wrong here, and this file did move for it.** Edit
-was drawn on `comment.mine` and Like on everybody, which are the lab's rules
-and not 7.14's: `comment.mutate.own` is authorship **and** currently holding
-Can comment or better, and `comment.like` is Can comment's, so a member
-reduced to Can view was offered the pencil on every comment they had ever
-left and the thumb on every comment in the folder, each answered 403. They
-now read `editable` and `likeable`, answered per comment by `lib/thread.ts`
-in the same place and for the same reason as `deletable`, and each falls back
-to the lab's answer when a surface supplies none (AC-518, AC-790).
+**Edit and Like read `editable` and `likeable`.** `comment.mutate.own` is
+authorship **and** currently holding Can comment or better, and `comment.like`
+is Can comment's, so a member reduced to Can view is not offered the pencil or
+the thumb. Both are answered per comment by `lib/thread.ts` in the same place
+and for the same reason as `deletable`, and each falls back to the lab's answer
+when a surface supplies none (AC-518, AC-790).
 
 **An existing reaction pill is disabled rather than hidden**, unlike the three
 hover controls. It carries a count somebody below the bar may still read, and
-9.x's rule for a thread is that Can view reads everything and changes
-nothing; removing the pill would hide the fact as well as the act (the owner's
-ruling of 2026-09-20 on #268,
-https://github.com/zhssnym/dana/issues/268#issuecomment-5753983138).
+Can view reads everything in a thread and changes nothing; removing the pill
+would hide the fact as well as the act (#268).
 */
 /*
 One conversation surface, wherever a conversation happens.
 
-Drawn for DES-129 (comments on a task) and DES-134 (a folder's conversation),
-and deliberately one component for both, on DES-123's rule: a thread copied
-into a second place is a thread that will one day disagree with itself. The
-card renders it as a block, the folder page renders it as a block or as a side
-panel, and the differences between those are layout, never behaviour.
+Comments on a task and a folder's conversation are deliberately one component: a
+thread copied into a second place is a thread that will one day disagree with
+itself. The card renders it as a block, the folder page renders it as a block or
+as a side panel, and the differences between those are layout, never behaviour.
 
 What a comment can be: words, files riding along, or a voice note. Replies are
-the same shape nested one level, and one level is a decision rather than a
-limit hit, a task's conversation is a short thread between a handful of
-people, and unbounded nesting is how a card grows a forum inside it.
+the same shape nested one level, and one level is a decision rather than a limit
+hit, a task's conversation is a short thread between a handful of people, and
+unbounded nesting is how a card grows a forum inside it.
 
-**Everything here is Lane 2 and none of it may be ported as though it
-worked.** There is no message table, no delivery, no unread state, no audio
-storage and no permission rule behind any of this; DES-129 carries the four
-facts. What the prototype does make real, it makes real honestly, the way the
-attachment picker did (DES-115): a voice note recorded here goes through the
-actual microphone and actually plays back, because judging a voice-message
-design that cannot make a sound is judging a picture of one. A *fixture* voice
-note sweeps its progress silently, which is as far as a drawing can go.
+A voice note recorded here goes through the actual microphone and actually plays
+back. A *fixture* voice note sweeps its progress silently.
 */
 
 import { useEffect, useRef, useState } from "react"
@@ -153,19 +122,10 @@ const FOCUS =
 
 
 /*
-The thread reads at the prose tier, F5, 2026-08-22, and it moved as one
-change because it could not honestly move as three.
-
-Imran called the composer's placeholder oversized and inconsistent with the
-hierarchy. It was: 14px, while DES-148 puts "all prose and row information" at
-12 and the whole thread around it obeyed that everywhere except in the two
-places that carry the words. Fixing only the placeholder would have made the
-composer smaller than the messages it writes, which is worse than the fault ,
-you type into the thing you are going to read, and those two must agree.
-
-So the message body, the composer and the card's Notes field all sit at 12/20
-now. That is the condition the plan recorded against this question: if the
-composer drops, Notes drops with it.
+The thread reads at the prose tier, 12/20: the message body, the composer and
+the card's Notes field all sit there together. The composer must not be smaller
+or larger than the messages it writes: you type into the thing you are going to
+read, and those two must agree.
 */
 
 
@@ -173,8 +133,8 @@ composer drops, Notes drops with it.
 /* ------------------------------------------------------------- the voice -- */
 
 /* A deterministic waveform, so a fixture's bars do not reshuffle on every
-   render and a recording's do not depend on anything the prototype cannot
-   have (a real analysis of the audio). Seeded LCG, heights 4..18. */
+   render and a recording's do not depend on a real analysis of the audio.
+   Seeded LCG, heights 4..18. */
 export function voiceBars(seed: number, count = 26): number[] {
   let state = seed || 1
   return Array.from({ length: count }, () => {
@@ -299,17 +259,15 @@ const FILE_ICON: Record<string, LucideIcon> = {
   video: Video,
   document: FileText,
   file: Paperclip,
-  /* A link on a message wears the link glyph, like a link on a task
-     (DES-161), it was showing a paperclip, which is the mark for the other
-     kind of thing you can attach. */
+  /* A link on a message wears the link glyph, like a link on a task; a
+     paperclip is the mark for the other kind of thing you can attach. */
   link: Link2,
 }
 
-/* A file on a comment renders as the Attachments block already renders a
-   file: a 32px tile, the name, the meta line (F2a, review M6). The markup is
-   restated rather than imported because task-card imports this module ,
-   when comments graduate under DES-124, the file row extracts to a neutral
-   home and both call it. */
+/* A file on a comment renders as the Attachments block already renders a file:
+   a 32px tile, the name, the meta line. The markup is restated rather than
+   imported because task-card imports this module; a shared file row would need
+   a neutral home both call. */
 function CommentFiles({ files }: { files: NonNullable<ConceptComment["files"]> }) {
   return (
     <span className="mt-1 flex flex-col">
@@ -383,22 +341,15 @@ function CommentFiles({ files }: { files: NonNullable<ConceptComment["files"]> }
 /* ---------------------------------------------------------- the composer -- */
 
 /*
-What the composer says to somebody who may read this conversation and not
-write in it (the owner's ruling of 2026-09-20 on #268,
-https://github.com/zhssnym/dana/issues/268#issuecomment-5753983138,
-which is the one that hides Reply below Can comment, disables this composer
-rather than hiding it, and disables an existing reaction pill; the ruling
-beside it,
-https://github.com/zhssnym/dana/issues/268#issuecomment-5753495877,
-carries the `my_access` field and the authorship half).
+What the composer says to somebody who may read this conversation and not write
+in it (#268).
 
-**The composer is disabled rather than hidden**, which is the ruling and is
-the same reasoning as the reaction pill above: it carries a fact a Can-view
-member may read — that this conversation takes comments, and what standing
-that needs — and hiding it would hide the fact with the act. The sentence
-stands in for the placeholder rather than sitting beside it, so the composer
-stays the one quiet line its own header argues for and says the one thing
-there is to say.
+**The composer is disabled rather than hidden**, the same reasoning as the
+reaction pill above: it carries a fact a Can-view member may read — that this
+conversation takes comments, and what standing that needs — and hiding it would
+hide the fact with the act. The sentence stands in for the placeholder rather
+than sitting beside it, so the composer stays one quiet line and says the one
+thing there is to say.
 */
 const COMMENTING_NEEDS_STANDING =
   "You can read this conversation. Commenting needs Can comment."
@@ -565,10 +516,9 @@ function Composer({
   }
 
   if (recording) {
-    /* Graphite, not danger (F2a, review M5): recording is an activity, not a
-       loss, and the palette's guardrails reserve danger for loss. The one
-       red thing is the dot, the universal convention, and the timer
-       carries the state. */
+    /* Graphite, not danger: recording is an activity, not a loss, and the
+       palette's guardrails reserve danger for loss. The one red thing is the
+       dot, the universal convention, and the timer carries the state. */
     return (
       <div className="flex h-9 items-center gap-2 rounded-md border border-[var(--color-graphite-200)] bg-[var(--color-graphite-50)] py-1 pr-1 pl-3">
         <span className="relative flex size-2 shrink-0" aria-hidden="true">
@@ -616,22 +566,15 @@ function Composer({
       <div className="flex items-start gap-2">
         <Face person={me} className="mt-1.5" />
         {/*
-        The composer is an `InputGroup`, Imran, 2026-08-22: the chat "is
-        still not following the shadcn UI code or structure", with the
-        reference showing exactly this assembly.
+        The composer is an `InputGroup`: the primitive owns the border, the
+        focus ring and the packing. **The text is on its own line, the controls
+        on a row underneath** (`align="block-end"`), rather than buttons sharing
+        the line and being shoved sideways as the field grows.
 
-        It was a bordered `<div>` holding a textarea and three buttons, with
-        the border, the focus ring and the packing written out by hand. The
-        primitive owns all three now, and the arrangement follows the
-        reference's: **the text on its own line, the controls on a row
-        underneath** (`align="block-end"`), rather than buttons sharing the
-        line and being shoved sideways as the field grows.
-
-        The two ways of attaching something collapse into one `+` with a menu,
-        which is the reference's shape and also the honest one, "add a file"
-        and "record a voice note" are two answers to one question, and two
-        permanent buttons made them look like two features.
-        */}
+        The two ways of attaching something collapse into one `+` with a menu:
+        "add a file" and "record a voice note" are two answers to one question,
+        and two permanent buttons would make them look like two features.
+         */}
         <InputGroup className="flex-1">
           <InputGroupTextarea
             ref={fieldRef}
@@ -657,8 +600,7 @@ function Composer({
           <input
             ref={fileInput}
             type="file"
-            /* Seam four: one file, of any kind since item 57 (B5). See the
-               header. */
+            /* One file, of any kind. See the header. */
             className="sr-only"
             onChange={(event) => {
               takeFiles(event.target.files)
@@ -667,14 +609,9 @@ function Composer({
           />
           {/*
           One line, and the right-hand control is either the microphone or the
-          send, never both, Imran, 2026-08-22, with a messenger's composer
-          as the reference.
-
-          The first pass put the controls on a row *beneath* the field, which
-          is right for an assistant's prompt box (several persistent controls,
-          a long message) and wrong for a conversation, where the composer is
-          furniture you want to take up one line until you are actually using
-          it.
+          send, never both, like a messenger's composer: in a conversation the
+          composer is furniture you want to take up one line until you are
+          actually using it.
 
           **The swap is the idea.** A microphone and a send button never both
           apply: with nothing written, the useful act is to speak; the moment
@@ -683,10 +620,9 @@ function Composer({
           one. So the trailing slot holds exactly one control and it changes
           with the state of the field.
 
-          The `+` stays on the left and holds what you can *attach*, a file,
-          a link (DES-161 made those real), a person to mention, which is the
-          division the reference draws too.
-          */}
+          The `+` stays on the left and holds what you can *attach*: a file, a
+          link, a person to mention.
+           */}
           {disabled ? null : (
           <InputGroupAddon align="inline-start">
             <DropdownMenu>
@@ -746,10 +682,10 @@ function Composer({
               </InputGroupButton>
             ) : null}
           </InputGroupAddon>
-          {/* A link, taken in the composer rather than in a second place ,
-              the same shape the card's attachment picker uses (DES-161). It
-              is the one thing that gives the composer a second line, and only
-              while somebody is pasting into it. */}
+          {/* A link, taken in the composer rather than in a second place, the
+              same shape the card's attachment picker uses. It is the one thing
+              that gives the composer a second line, and only while somebody is
+              pasting into it. */}
           {showLink ? (
             <InputGroupAddon align="block-end" className="pt-0">
               <InputGroupInput
@@ -837,12 +773,12 @@ function Composer({
 
 /* ------------------------------------------------------------ the thread -- */
 
-/* One reaction, not a set (Imran, 2026-08-18): a like is the whole of what a
-   team needs to say "seen, agreed" without writing. A palette of six asks a
-   person to *choose a feeling* before they can agree, which is more thought
-   than the gesture is worth, and it puts emoji, a vocabulary Dana owns
-   nowhere else, into the middle of the product's typography. The like is
-   drawn with the icon family like everything else. */
+/* One reaction, not a set: a like is the whole of what a team needs to say
+   "seen, agreed" without writing. A palette of six asks a person to *choose a
+   feeling* before they can agree, which is more thought than the gesture is
+   worth, and it puts emoji, a vocabulary Dana owns nowhere else, into the
+   middle of the product's typography. The like is drawn with the icon family
+   like everything else. */
 const LIKE = "like"
 
 function toggleReaction(comment: ConceptComment, emoji: string = LIKE): ConceptComment {
@@ -892,22 +828,19 @@ function CommentRow({
     setEditing(false)
   }
 
-  /* My own messages sit on the right, the way every conversation surface
-     people already use draws them (Imran's direction): the face moves to the
-     right edge, the header and body anchor right, and the hover actions
-     mirror to the message's inner side. Everyone else stays on the left. */
+  /* My own messages sit on the right, the way every conversation surface people
+     already use draws them: the face moves to the right edge, the header and
+     body anchor right, and the hover actions mirror to the message's inner
+     side. Everyone else stays on the left. */
   const mine = Boolean(comment.mine)
 
   return (
     /*
-    The turn, as `Message`, Imran, 2026-08-22, with shadcn's own messaging
-    primitives as the reference.
+    The turn, as `Message`, after shadcn's own messaging primitives.
 
-    The side used to be re-decided in six places, each with its own
-    `mine && "flex-row-reverse"`, so alignment was a rule six spans had to
-    remember rather than a property of the turn. `Message` owns it once as a
-    data attribute and every part reads it from there, which is the same
-    move DES-154 keeps making, applied inside one component.
+    `Message` owns which side a turn sits on, once, as a data attribute, and
+    every part reads it from there, so alignment is a property of the turn
+    rather than a rule every span has to remember.
     */
     <Message align={mine ? "end" : "start"} className="group/comment px-1 py-1.5">
       <MessageAvatar>
@@ -928,30 +861,27 @@ function CommentRow({
           </span>
         </MessageHeader>
         {/*
-        What this replies to, quoted, Imran, 2026-08-22: a reply "incorrectly
-        showing as a regular message instead of showing as it is replied to a
-        message."
+        What this replies to, quoted, so a reply shows as a reply rather than as
+        a regular message.
 
-        The indent was supposed to carry that, and it cannot: a reply of my
-        own is right-aligned by DES-143's rule that mine sits on the right, and
-        right-alignment cancels a left indent exactly. Two mechanisms were
-        fighting and the alignment won, so my reply to Sara looked like a new
-        remark addressed to nobody.
+        An indent cannot carry that: a reply of my own is right-aligned, because
+        mine sits on the right, and right-alignment cancels a left indent
+        exactly, so my reply to Sara would look like a new remark addressed to
+        nobody.
 
-        A quoted stub is independent of both. It states the thing the indent
-        was only implying, it survives either alignment and either tone, and
-        it is the treatment every conversation surface people already use has
-        settled on. One line, clipped, quiet: enough to know what is being
-        answered without re-reading it.
-        */}
+        A quoted stub is independent of both. It states the thing the indent was
+        only implying, it survives either alignment and either tone, and it is
+        the treatment every conversation surface people already use has settled
+        on. One line, clipped, quiet: enough to know what is being answered
+        without re-reading it.
+         */}
         {replyTo ? (
           <span
             className={cn(
               /* Capped, because a quote wider than the thing it introduces
                  reads as the message and pushes the reply into a footnote. */
               "mt-1 flex max-w-[min(22rem,80%)] items-center gap-1.5 border-[var(--color-graphite-300)] text-[12px] leading-4 text-[var(--color-graphite-500)]",
-              /* polish: folderpage F13: author, then what they said, on
-                 either side. */
+              /* Author, then what they said, on either side. */
               mine ? "border-r-2 pr-2" : "border-l-2 pl-2",
             )}
           >
@@ -993,22 +923,21 @@ function CommentRow({
             className="mt-0.5 block rounded-[14px] bg-card px-3 py-1.5 leading-5 ring-2 ring-[var(--color-dana-accent-600)]"
           />
         ) : comment.body ? (
-          /* The actions sit level with the message, on its outer side. They
-             used to ride the name-and-time line, which left them floating
-             above the thing they act on (Imran, 2026-08-18). */
+          /* The actions sit level with the message, on its outer side, rather
+             than on the name-and-time line, where they would float above the
+             thing they act on. */
           <span className={cn("flex max-w-full items-center gap-1", mine && "flex-row-reverse")}>
-          {/* Whose message this is, said in tone rather than in colour
-             (Imran, 2026-08-18): mine sits on graphite-900 with light text,
-             everyone else's on the graphite-50 wash. No hue enters the
-             thread, cobalt stays the interaction colour it has been since
-             DES-016, and a message is not an interaction.
+          {/* Whose message this is, said in tone rather than in colour: mine
+             sits on graphite-900 with light text, everyone else's on the
+             graphite-50 wash. No hue enters the thread, cobalt stays the
+             interaction colour, and a message is not an interaction.
 
-             The corner nearest its own author tightens to 4px. It is the
-             one detail that makes a container read as *spoken by* somebody
-             rather than as a box, and it costs a single class. */}
-          {/* Tone, never hue (DES-143), which is exactly the split
-              `Bubble`'s two variants carry, so the rule now lives in the
-              primitive instead of in a ternary here. */}
+             The corner nearest its own author tightens to 4px. It is the one
+             detail that makes a container read as *spoken by* somebody rather
+             than as a box, and it costs a single class. */}
+          {/* Tone, never hue, which is exactly the split `Bubble`'s two
+              variants carry, so the rule lives in the primitive instead of in a
+              ternary here. */}
           <Bubble variant={mine ? "default" : "muted"} className="mt-0.5">
             <BubbleContent>{comment.body}</BubbleContent>
             {comment.reactions?.length ? (
@@ -1054,13 +983,11 @@ function CommentRow({
                   onClick={() => onUpdate(toggleReaction(comment))}
                 />
               ) : null}
-              {/* Replying is `comment.create`, the same act as a first
-                  comment, and it is hidden rather than disabled because it is
-                  one of this row's own controls: the composer below carries
-                  the fact that the conversation takes comments, so a second
-                  greyed control per row would say it four more times (owner's
-                  ruling of 2026-09-20 on #268,
-                  https://github.com/zhssnym/dana/issues/268#issuecomment-5753983138). */}
+              {/* Replying is `comment.create`, the same act as a first comment,
+                  and it is hidden rather than disabled because it is one of
+                  this row's own controls: the composer below carries the fact
+                  that the conversation takes comments, so a second greyed
+                  control per row would say it four more times (#268). */}
               {onReply && (comment.replyable ?? true) ? (
                 <IconAction dense icon={ReplyIcon} label="Reply" onClick={onReply} />
               ) : null}
@@ -1074,11 +1001,10 @@ function CommentRow({
                   }}
                 />
               ) : null}
-              {/* Seam five: 7.14 gives a deletion to the author or to a
-                  member who may moderate, and the lab has neither concept. The
-                  answer rides the comment rather than the thread, so that the
-                  card's mount and the folder page's cannot disagree, which is
-                  what L-201 asks of one surface drawn twice. */}
+              {/* 7.14 gives a deletion to the author or to a member who may
+                  moderate. The answer rides the comment rather than the thread,
+                  so that the card's mount and the folder page's cannot
+                  disagree. */}
               {(comment.deletable ?? comment.mine) ? (
                 <IconAction dense icon={Trash2} label="Delete comment" tone="danger" onClick={onDelete} />
               ) : null}
@@ -1181,9 +1107,8 @@ export function CommentsThread({
             onUpdate={updateComment}
           />
           {(comment.replies?.length || replyingTo === comment.id) ? (
-            /* Indent and the dense face say "belongs to", DES-099's own
-               mechanism. The rail this replaces was a rule inside the card,
-               which DES-099 exists to forbid (F2a, review M4). */
+            /* Indent and the dense face say "belongs to"; a rail would be a
+               rule inside the card, and the card has no rules inside it. */
             <div className="mt-0.5 ml-8 flex flex-col gap-0.5">
               {comment.replies?.map((reply) => (
                 <CommentRow

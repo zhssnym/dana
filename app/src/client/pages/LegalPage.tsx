@@ -1,71 +1,38 @@
 /*
-Privacy and Terms, the two public pages the landing footer has always linked
-and production has never had (DES-032, AC-240).
+Privacy and Terms, the two public pages the landing footer links (AC-240).
 
-Ported from `docs/design/prototype-v2/src/screens/public-legal-screen.tsx`,
-which 11.13 makes the source this is built from rather than a reference it is
-compared against; that prototype is deleted (`a7886df`, 2026-09-01) and is in
-git history before that commit. The layout, the section order and the copy are
-that file's; three things are this client's and each is named here, because a
-port that changes something silently is the defect item 20 exists to stop.
+**The addresses** are `/`, `/privacy` and `/terms`, which is what the landing
+footer links and what Google's OAuth consent configuration and 8.10's deletion
+text both need to resolve. They are not rows of 9.1's route table: that table is
+the application's, and these pages sit outside `/app` and outside AC-239's
+redirect, like `saved-views.ts`'s route that table does not name.
 
-**The addresses.** The prototype is one application addressed by `?view=`, so
-its brand link points at `?view=landing` and its footer at `?view=privacy`.
-Dana's are `/`, `/privacy` and `/terms`, which is what the landing footer has
-claimed since S13 and what Google's OAuth consent configuration and 8.10's
-deletion text both need to resolve. They are not rows of 9.1's route table:
-that table is the application's, these pages sit outside `/app` and outside
-AC-239's redirect, and RFC 0005's change control carries the reading, on the
-`saved-views.ts` precedent for a route that table does not name.
+**The facts stated here are the shipping product's, and must be re-verified
+whenever the product moves**: the default folder is Desk, Google sign-in only
+(11.6), folder sharing (5.3), Resend email (11.8), sanitized Sentry errors and
+30-day Axiom logs (11.12, 10.5), and hard deletion behind a typed DELETE (8.10,
+9.7).
 
-**One word of the approved copy moved, and it moved because the product
-did.** Terms said "you get an account, an Inbox, and these terms". RFC 0005
-renamed the default folder to Desk and S2 migrated the data; the prototype
-file's own header requires exactly this, that "facts stated here were taken
-from the shipping product ... and must be re-verified at the port if any of
-that moves". The other facts it lists were re-verified and none of them has:
-Google sign-in only (11.6), folder sharing (5.3), Resend email (11.8),
-sanitized Sentry errors and 30-day Axiom logs (11.12, 10.5), and hard
-deletion behind a typed DELETE (8.10, 9.7).
+**"Taking your data with you"** (issue #162) sits immediately before "Deleting
+your data" because the two are one pair in the order a person does them, take it
+and then remove it, and because 10.9 records that the Google APIs Terms of
+Service clause this satisfies is about portability rather than about erasure.
+Its sentence names Settings, which is where the control is, rather than the
+endpoint, which is not a thing to hand a person.
 
-**Approval, because DES-032's row and the prototype disagree and a session
-may not pick.** The design contract's table read "DES-032 | Privacy and terms
-destinations | OPEN | Before Session 7", which is the v1 row.
-`docs/design/v2-decisions.md` recorded the answer in the same register's own
-words: DES-032 is "**closed in v2**: pages drafted and approved 2026-08-17,
-still to be routed in production", and this file's source carries Imran's
-approval of the copy with its date and his sentence. Both documents are
-deleted (`a7886df`, 2026-09-01) and are in git history before that commit, and
-11.13 records that the DES key space has no successor, so the quotations above
-are the whole of the record. So what was open is the routing, and the routing
-is this package. Nothing here is invented.
-
-**A fourth departure, and it is an addition rather than a move: the section
-"Taking your data with you" (issue #162, 2026-09-04).** The prototype has no
-such section, because when it was drawn Dana had no export. 7.22 gives it one
-and 9.7 now carries the control, so the page that tells a person what Dana
-holds about them can tell them how to take it. It sits immediately before
-"Deleting your data" because the two are one pair in the order a person does
-them, take it and then remove it, and because 10.9 records that the Google
-APIs Terms of Service clause this satisfies is about portability rather than
-about erasure. Its sentence names Settings, which is where the control is,
-rather than the endpoint, which is not a thing to hand a person.
-
-9.2's no-capability-claim rule applies to every public page and is met, but
-no longer by construction, and the difference is worth stating rather than
-leaving for a reader to notice. Every other sentence below states what Dana
-stores, uses, or does not do, and claims no feature. The export sentence
-claims one. It is admissible because that rule forbids copy that "promises,
-implies or previews a capability Dana does not ship", and this one ships:
-`GET /api/v1/me/export` is 7.22 and the Settings row reaching it lands in the
-same change as this sentence. **A page carrying that sentence with no control
-behind it would break the rule**, so the two are never separated.
+9.2's no-capability-claim rule applies to every public page. Every sentence
+below states what Dana stores, uses, or does not do, and claims no feature,
+except the export sentence, which is admissible because that rule forbids copy
+that "promises, implies or previews a capability Dana does not ship", and this
+one ships: `GET /api/v1/me/export` is 7.22 and the Settings row reaches it. **A
+page carrying that sentence with no control behind it would break the rule**, so
+the two are never separated.
 */
 import { Link } from 'react-router'
 
 import { DanaIdentity } from './dana-identity.js'
 
-/** DES-032's approved copy, section by section, in its own order. */
+/** The approved copy, section by section, in its own order. */
 const PAGE_COPY = {
   privacy: {
     title: 'Privacy',
@@ -202,10 +169,10 @@ export function LegalPage({ page }: { readonly page: LegalPageName }): React.JSX
           </div>
         </main>
 
-        {/* The prototype's own footer, which is how a reader of one page
-            reaches the other without going back through the landing. Its
-            year is computed here rather than written, which is the landing
-            footer's own note: the line must not go stale on 1 January. */}
+        {/* The footer, which is how a reader of one page reaches the other
+            without going back through the landing. Its year is computed here
+            rather than written, which is the landing footer's own note: the
+            line must not go stale on 1 January. */}
         <footer className="mt-16 flex items-center gap-5 border-t border-[var(--color-graphite-200)] pt-6 text-xs text-[var(--color-graphite-500)]">
           <span>© {String(new Date().getFullYear())} Dana</span>
           <Link

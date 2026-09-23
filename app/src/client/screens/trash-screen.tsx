@@ -1,35 +1,22 @@
 /*
-`docs/design/prototype-v2/src/screens/trash-screen.tsx`, lifted whole at
-RFC 0004's S27 and bound through `lib/trash.ts`. That prototype is deleted
-(`a7886df`, 2026-09-01); read it in git history before that commit. It diffs
-empty against its original except at the seams named here, each marked `Seam`
-in the body.
+The Trash screen, bound through `lib/trash.ts`. What is worth knowing:
 
-1. **The `@/` specifiers become this client's relative ESM paths** (11.4),
-   and the em dashes leave under protocol section 7.
-2. **`lib/trash.ts` is the adapter** over 7.13's read, and `usePurge` is the
-   prototype's `purge` and `emptyTrash` over the two permanent addresses S28a
-   built (RFC 0005 change control items 36, 38 and 53). The act is Full
-   control's and is **not one rule for the two kinds** (issue #268, and
-   `lib/trash.ts`'s header carries it), so each row carries `purgeable` and
-   the Delete control, and the header's "Empty trash", are drawn only where
-   the server would answer 204; a refusal is the toast's sentence. **Nothing
-   in this file moved for #268** -- it read `purgeable` then and reads it
-   now, which is what putting the decision in the adapter bought. Built at S28b; AC-262's last arm and
-   AC-284 and AC-285 read it.
-3. **The row's glyph is `markIcon` rather than the prototype's
-   `folderGlyph`**, S26's ruling for the icon picker read one level down:
-   4.3's icon is a stored key and `icon-manifest.ts` is the one place this
-   client maps one to a glyph. 7.13 carries no icon for a trashed folder, so
-   the folder glyph is the default.
-4. **"by {actor}" is not drawn**, 7.13 carrying no actor (RFC 0005 change
-   control item 35(b)); the line ends at when.
-5. **The read's two other states are drawn**, loading and failed, which the
-   lab never has, in `components/state-patterns.tsx`'s own shapes.
+- **`lib/trash.ts` is the adapter** over 7.13's read, and `usePurge` performs
+  the permanent deletes over the two addresses. The act is Full control's and is
+  **not one rule for the two kinds** (issue #268; `lib/trash.ts`'s header
+  carries it), so each row carries `purgeable` and the Delete control, and the
+  header's "Empty trash", are drawn only where the server would answer 204; a
+  refusal is the toast's sentence. The decision lives in the adapter, so this
+  file only reads `purgeable`. AC-262, AC-284 and AC-285 read it.
+- **The row's glyph is `markIcon`**: 4.3's icon is a stored key and
+  `icon-manifest.ts` is the one place this client maps one to a glyph. 7.13
+  carries no icon for a trashed folder, so the folder glyph is the default.
+- **"by {actor}" is not drawn**, 7.13 carrying no actor; the line ends at when.
+- **The read's two other states are drawn**, loading and failed, in
+  `components/state-patterns.tsx`'s own shapes.
 
-The copy is the prototype's: the two subtitle sentences and the empty state.
-9.11 is amended toward them at RFC 0005 change control item 55, on item 37's
-standing direction, and AC-224 and AC-262 read the new sentences.
+The two subtitle sentences and the empty state are 9.11's, and AC-224 and AC-262
+read them.
 */
 
 import { useState } from "react"
@@ -72,9 +59,9 @@ export function TrashScreen({
   const [confirming, setConfirming] = useState<TrashItem | "all" | null>(null)
 
   return (
-    /* polish: pagehead F5. The shell already insets every page; a second
-       inset here put Trash's left edge somewhere no other page's is. The
-       mark above the title is every other page's, from `page-head.tsx`. */
+    /* The shell already insets every page; a second inset here would put
+       Trash's left edge somewhere no other page's is. The mark above the title
+       is every other page's, from `page-head.tsx`. */
     <div className="w-full pt-2 pb-16">
       <PageMark icon={Trash2} hasCover={false} />
       <header className="flex items-baseline justify-between gap-4 pt-1.5 pb-6">
@@ -82,8 +69,8 @@ export function TrashScreen({
           <h1 className="text-2xl leading-8 font-semibold text-[var(--color-graphite-900)]">
             Trash
           </h1>
-          {/* polish: places F12. One sentence for the rule, whether or not
-              the page holds anything; 9.11 is amended to it. */}
+          {/* One sentence for the rule, whether or not the page holds anything
+              (9.11). */}
           <p className="pt-1 text-[13px] leading-5 text-[var(--color-graphite-500)]">
             {`Deleted items are kept for ${TRASH_DAYS} days, then removed.`}
           </p>
@@ -192,7 +179,7 @@ function TrashRow({
   onPurge: (() => void) | undefined
 }) {
   /* A folder wears its own glyph, from the one resolver every other surface
-     asks (DES-155); a task wears the check it would wear anywhere. Seam 3. */
+     asks; a task wears the check it would wear anywhere. */
   const Glyph = item.kind === "task" ? CheckCircle2 : item.kind === "facet" ? Layers3 : markIcon(null)
   const left = daysLeft(item)
 
@@ -221,8 +208,8 @@ function TrashRow({
       >
         {left}d left
       </span>
-      {/* polish: places F10. Restore and Delete are visible at rest; a row
-          whose only controls appear on hover is a row with nothing to press. */}
+      {/* Restore and Delete are visible at rest; a row whose only controls
+          appear on hover is a row with nothing to press. */}
       <span className="flex shrink-0 items-center gap-1 opacity-80 transition-opacity duration-[var(--duration-fast)] group-hover/row:opacity-100 focus-within:opacity-100">
         <Button variant="ghost" size="sm" onClick={onRestore}>
           Restore

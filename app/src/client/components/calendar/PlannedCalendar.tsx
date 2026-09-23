@@ -1,65 +1,47 @@
 /*
 9.5's calendar mode for Planned, over Q3C.
 
-The designer's `src/screens/planned-screen.tsx`, the `PlannedCalendar` and
-`CalendarEvent` halves of it, ported at P8R session R9. His layout, his
-spacing and his class strings are his; what changed is named here and nowhere
-else, because RFC 0002 makes his prototype the source this client is built
-from, so a silent difference between the two files is a defect in the port
-rather than a decision.
+**The grid is Dana's own** (11.4): "a fixed six-week month of day cells with
+week and day zooms". What is given up with a calendar library is its
+accessibility and keyboard handling in the grid, which is ours to hold.
 
-**FullCalendar is gone, and this file is what replaces it.** 11.4's delta:
-"the grid is Dana's own, a fixed six-week month of day cells with week and day
-zooms, built from the designer's prototype." The library's own reasoning for
-going is in that bullet and the RFC's alternatives section, and the part that
-lands here is the last sentence of it: what is given up is the library's
-accessibility and keyboard handling in the grid, which is now ours to hold.
+**The grid roles are required.** 9.1's roles table fixes a calendar day as "a
+grid cell within a grid", on the ground that 9.5's month zoom is a fixed
+six-week grid of days, and AC-177 asserts the grid, the forty-two cells and the
+seven column headers. AC-093, AC-098 and AC-158 each reach for a cell. The row
+elements carry the layout: each week is its own seven-column CSS grid rather
+than the whole month being one, because `display: contents` on a row is the
+other way to get the same picture and it has a history of dropping the element
+out of the accessibility tree, which is the one thing this markup exists to put
+in.
 
-**The grid roles are this port's own correction, and the prototype needs
-them.** Measured against the running prototype on 2026-08-13, which is what
-running it was for: zero `role="grid"`, zero `gridcell`, zero `row` and zero
-`columnheader` in his month grid, which is composed of plain elements. 9.1's
-roles table fixes a calendar day as "a grid cell within a grid", on the ground
-that 9.5's month zoom is a fixed six-week grid of days, and AC-177 asserts the
-grid, the forty-two cells and the seven column headers. AC-093's calendar row,
-AC-098 and AC-158 each reach for a cell and would each fail without them. So
-the roles are added rather than inherited, and the row elements carry the
-layout: each week is its own seven-column CSS grid rather than the whole month
-being one, because `display: contents` on a row is the other way to get the
-same picture and it has a history of dropping the element out of the
-accessibility tree, which is the one thing this markup exists to put in.
+**Previous, next and today are named for what they do and not for what they are
+showing.** 9.5 names three controls and 9.1's addressing sentence reaches a
+control by its role and its name, so a control announcing itself as "Next month"
+would be a control whose name changes with the zoom. They are "Previous" and
+"Next", which is what AC-098 and AC-177 ask for by name.
 
-**Previous, next and today are named for what they do and not for what they
-are showing.** 9.5 names three controls and 9.1's addressing sentence reaches
-a control by its role and its name, so a control announcing itself as "Next
-month" would be a control whose name changes with the zoom. His prototype
-labels them "Previous period" and "Next period"; they are "Previous" and
-"Next" here, which is what AC-098 and AC-177 ask for by name and what the
-FullCalendar implementation this replaces already carried.
+**A month cell draws a fixed number of lines and reveals the rest.** 9.5: "A day
+cell showing fewer rows than the day holds carries a control reading '+N more'
+for the remainder, which reveals them; the grid's constant height is what makes
+the control necessary, a cell that grew to fit its contents being the thing that
+height forbids." The number and how it was arrived at are at `MONTH_CELL_LINES`
+below, because it is a measurement rather than a taste.
 
-**A month cell draws seven lines and reveals the rest.** 9.5: "A day cell
-showing fewer rows than the day holds carries a control reading '+N more' for
-the remainder, which reveals them; the grid's constant height is what makes
-the control necessary, a cell that grew to fit its contents being the thing
-that height forbids." The number and how it was arrived at are at
-`MONTH_CELL_LINES` below, because it is a measurement rather than a taste.
+**Revealing is the day zoom.** Pressing the control moves the anchor to that day
+and switches the zoom to it, where the cap does not apply and every row the day
+holds is drawn. A popover over the cell would hide the grid behind it and answer
+"what else is on this day" with a second surface rather than with the one the
+calendar already has.
 
-**Revealing is the day zoom, which is his own mechanism.** Pressing the
-control moves the anchor to that day and switches the zoom to it, where the
-cap does not apply and every row the day holds is drawn. The alternative, a
-popover over the cell, hides the grid behind it and answers "what else is on
-this day" with a second surface rather than with the one the calendar already
-has.
-
-**A ghost is a projection and is drawn as one.** 9.5 requires ghost styling
-for virtual instances, and his treatment is a dashed outline, a transparent
-fill, the quieter text colour and the repeat glyph in place of the folder dot.
-AC-098 (no test since the 2026-09-20 cut) reads the computed style off the title of a
-ghost and off the title of a real row and looks for a difference, which is what "ghost styling" has to mean
-if it is to mean anything a reader can check. Clicking one opens the series'
-current occurrence with 9.5's banner, and clicking a real row opens it
-without: the banner rides the ghost path alone because the opened row shows a
-date the person did not click.
+**A ghost is a projection and is drawn as one.** 9.5 requires ghost styling for
+virtual instances: a dashed outline, a transparent fill, the quieter text colour
+and the repeat glyph in place of the folder dot. AC-098 reads the computed style
+off the title of a ghost and off the title of a real row and looks for a
+difference, which is what "ghost styling" has to mean if it is to mean anything
+a reader can check. Clicking one opens the series' current occurrence with 9.5's
+banner, and clicking a real row opens it without: the banner rides the ghost
+path alone because the opened row shows a date the person did not click.
 */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
@@ -111,31 +93,23 @@ import {
 How many lines a month cell draws, and it is measured rather than chosen.
 
 A cell renders exactly this many lines whether it overflows or not: seven rows
-when the day holds seven or fewer, and six rows plus the "+N more" control
-when it holds more. That is what makes the height constant, which is what 9.5
-asks the layout for and the reason the control exists at all.
+when the day holds seven or fewer, and six rows plus the "+N more" control when
+it holds more. That is what makes the height constant, which is what 9.5 asks
+the layout for and the reason the control exists at all.
 
-**Six rather than the designer's two, and the number came from measurement
-rather than from taste.** His prototype slices a month cell at two, which his
-fixtures never exceed. Ours draws a ghost per pending series per day, so what
-fills a cell is the number of live repeats rather than the number of tasks
-anybody filed on that date. Measured on 2026-08-13, on the seeded database the
-browser leg runs against, at the moment AC-177 opens the month: forty-two
-cells holding 3, 4, 5, 6 and 16 rows, thirty-three of them holding four, and
-the six sixes being the Mondays that carry a weekly series on top of the daily
-ones. Only one of those days was crowded on purpose and AC-177 asserts exactly
-one overflow control, so any cap below six answers a month nobody crowded with
-overflow controls on every Monday. Six is that measured maximum exactly: the
-polish pass trimmed the seventh line the R9 session had left as headroom,
-because the headroom bought nothing a person can see and cost every month
-twenty-two pixels a week.
+**Why six.** A ghost is drawn per pending series per day, so what fills a cell
+is the number of live repeats rather than the number of tasks anybody filed on
+that date. On the seeded database the browser tests run against, at the moment
+AC-177 opens the month, the cells hold 3, 4, 5, 6 and 16 rows, the sixes being
+the Mondays that carry a weekly series on top of the daily ones. AC-177 asserts
+exactly one overflow control, so any cap below six answers a month nobody
+crowded with overflow controls on every Monday. Six is that maximum exactly;
+headroom above it buys nothing a person can see and costs every month twenty-two
+pixels a week.
 
 The cost that remains is a tall month, about 1030 pixels for six weeks, which
-scrolls on a 720-pixel viewport where the designer's two-row cell did not. It
-is the price of a calendar that shows a week of repeats without an overflow
-control on every weekday, and it is flagged for the human visual review of
-section 13 item 33: the durable fix is fewer projected rows per day, not a
-shorter lid on the same stack.
+scrolls on a 720-pixel viewport. The durable fix is fewer projected rows per
+day, not a shorter lid on the same stack.
 */
 const MONTH_CELL_LINES = 6
 
@@ -151,7 +125,7 @@ const CELL_MIN_HEIGHT: Record<Zoom, string> = {
 const ZOOM_LABEL: Record<Zoom, string> = { day: 'Day', week: 'Week', month: 'Month' }
 
 /**
- * One row inside a day cell: his `CalendarEvent`.
+ * One row inside a day cell: `CalendarEvent`.
  *
  * The glyph reports what the row is before the title is read: the repeat mark
  * for a projection, the check for a completed row and the ban for an abandoned
@@ -171,15 +145,14 @@ function CalendarEvent({
   const ghost = event.kind === 'ghost'
   const completed = event.status === 'completed'
   const abandoned = event.status === 'abandoned'
-  /* polish: places F6. A real, open row can be carried to another day; a
-     ghost is a projection and has no date of its own to move.
+  /* A real, open row can be carried to another day; a ghost is a projection and
+     has no date of its own to move.
 
-     `moves` is the fourth condition and is issue #216's: it names which end
-     of the Schedule a drop writes, and is null for a Start+Due pair, whose
-     whole-range drag Q3C asks for and nothing has built. A pair stayed
-     draggable until 2026-09-20 and a drop wrote its due date alone, which
-     resized a span the person was carrying with nothing saying so. Refusing
-     the drag is the non-destructive reading of an unbuilt feature. */
+     `moves` is the fourth condition (issue #216): it names which end of the
+     Schedule a drop writes, and is null for a Start+Due pair, whose whole-range
+     drag Q3C asks for and nothing has built. Writing the due date alone would
+     resize a span the person was carrying with nothing saying so, so the drag
+     is refused: the non-destructive reading of an unbuilt feature. */
   const movable = !ghost && !completed && !abandoned && event.moves !== null
 
   return (
@@ -257,7 +230,7 @@ function DayCell({
   readonly lastRow: boolean
   readonly events: readonly CellEvent[]
   readonly onReveal: () => void
-  /** polish: places F6. A row dropped here takes this date. */
+  /** A row dropped here takes this date. */
   readonly onDropTask: (taskId: string) => void
 }): React.JSX.Element {
   const [over, setOver] = useState(false)
@@ -384,17 +357,16 @@ function DayCell({
 export function PlannedCalendar(): React.JSX.Element {
   const today = presenterToday()
   /*
-  The zoom is the account's (#140, #142), where it was `useState('month')`
-  until 2026-09-04 and persisted nothing while 9.5 said it persisted.
+  The zoom is the account's (#140, #142), as 9.5 says it persists.
 
-  The anchor beside it stays component state and deliberately so: 9.5 makes
-  the zoom a preference a person sets and expects to hold, and makes previous,
-  next and today a way of moving around inside the period they are looking at.
-  A remembered anchor would open a person on last week rather than on this one.
+  The anchor beside it stays component state and deliberately so: 9.5 makes the
+  zoom a preference a person sets and expects to hold, and makes previous, next
+  and today a way of moving around inside the period they are looking at. A
+  remembered anchor would open a person on last week rather than on this one.
 
-  The "+N more" reveal below is the third case and writes nothing: Imran ruled
-  on the review of #140 that peeking at a crowded day is a look rather than a
-  choice, so it sets a transient zoom that this page drops when it unmounts.
+  The "+N more" reveal below is the third case and writes nothing: peeking at a
+  crowded day is a look rather than a choice, so it sets a transient zoom that
+  this page drops when it unmounts.
   */
   const zoom = useCalendarZoom()
   const [anchor, setAnchor] = useState<string>(today)
@@ -419,9 +391,9 @@ export function PlannedCalendar(): React.JSX.Element {
   const folders = useFolders()
   const update = useUpdateTask()
   /*
-  polish: places F7. The month opened at its first week with today three
-  weeks below the fold on the last day of a month; the grid scrolls today's
-  row into view once, on arrival, and the person takes it from there.
+  The grid scrolls today's row into view once, on arrival, and the person takes
+  it from there; otherwise a month opened on its last day would show today three
+  weeks below the fold.
   */
   const grid = useRef<HTMLDivElement>(null)
   const scrolled = useRef(false)
@@ -434,18 +406,16 @@ export function PlannedCalendar(): React.JSX.Element {
   }, [view.data])
 
   /*
-  polish: places F6: 7.6's PATCH of one end of the Schedule, from a drop.
+  7.6's PATCH of one end of the Schedule, from a drop.
 
-  **Which end is the row's to say, not this function's, since issue #216.**
-  Q3C: "Dragging moves a Due-only task's Due Date, a Start-only task's Start
-  Date, and a Start+Due range whole." This issued `{ due_date: date }` for
-  every row until 2026-09-20, and the same commit that made Start-only rows
-  appear on the grid made them draggable, so dropping one after its start
-  date silently turned a Start-only task into a Start+Due task. `movableEnd`
-  answers the first two forms and refuses the third, whose whole-range drag
-  is unbuilt; the card is not draggable in that case either, so reaching here
-  with a null end is a drop the grid should not have offered and is dropped
-  rather than approximated.
+  **Which end is the row's to say, not this function's** (issue #216). Q3C:
+  "Dragging moves a Due-only task's Due Date, a Start-only task's Start Date,
+  and a Start+Due range whole." Writing `{ due_date: date }` for every row would
+  silently turn a Start-only task dropped after its start date into a Start+Due
+  task. `movableEnd` answers the first two forms and refuses the third, whose
+  whole-range drag is unbuilt; the card is not draggable in that case either, so
+  reaching here with a null end is a drop the grid should not have offered and
+  is dropped rather than approximated.
   */
   function moveTaskTo(taskId: string, date: string): void {
     const row = (view.data?.real ?? []).find((card) => card.id === taskId)
@@ -583,13 +553,10 @@ export function PlannedCalendar(): React.JSX.Element {
                 key={label}
                 role="columnheader"
                 /*
-                The prototype's own correction, taken at S25 with its reason
-                in its words: the weekday heads "read exactly as the date
-                picker's do (`ui/calendar.tsx`): 11px medium in graphite-400,
-                on a 28px row. They were 9px taller, semibold, uppercase and
-                tracked, a second style for the same words, in the same
-                product, two clicks apart." This client was wearing the style
-                that correction replaced.
+                The weekday heads read exactly as the date picker's do
+                (`ui/calendar.tsx`): 11px medium in graphite-400, on a 28px row,
+                rather than a second style for the same words, in the same
+                product, two clicks apart.
                 */
                 className="flex h-7 items-center px-2 text-[11px] leading-4 font-medium text-[var(--color-graphite-400)]"
               >
@@ -617,12 +584,12 @@ export function PlannedCalendar(): React.JSX.Element {
                   lastRow={row === weeks.length - 1}
                   events={cells.get(date) ?? []}
                   onReveal={() => {
-                    // 9.5's reveal: the day zoom draws every row the day
-                    // holds. It changes what is drawn and never the account
-                    // (Imran, on the review of #140): a person looking at one
-                    // crowded day has not chosen a zoom, and a look that
-                    // rewrote the preference would follow them to every device
-                    // they own. `lib/calendar-zoom.ts` carries the ruling.
+                    // 9.5's reveal: the day zoom draws every row the day holds.
+                    // It changes what is drawn and never the account (#140): a
+                    // person looking at one crowded day has not chosen a zoom,
+                    // and a look that rewrote the preference would follow them
+                    // to every device they own. `lib/calendar-zoom.ts` carries
+                    // the rule.
                     setAnchor(date)
                     revealCalendarZoom('day')
                   }}

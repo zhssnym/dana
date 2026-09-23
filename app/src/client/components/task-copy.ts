@@ -25,7 +25,7 @@ export function tooLong(limit: number): string {
   return `Too long: limit ${String(limit)} characters`
 }
 
-/** 9.3's cap notice, spelled at the P8 change control on 2026-08-11. */
+/** 9.3's cap notice. */
 export const STEP_CAP_NOTICE = 'Limit 50 steps'
 
 /** 9.3: the expander seven of the ten fields sit behind. */
@@ -43,14 +43,11 @@ export const INVITE_BY_EMAIL = 'Invite by email'
 /**
  * The ten field names of 9.3's dependency table, first column.
  *
- * Names rather than copy, and they are here because the RFC 0002 change control
- * of 2026-08-13 made them normative: "Each field is announced by its own name,
+ * Names rather than copy, and normative: "Each field is announced by its own name,
  * which is the name in the first column and not a synonym for it... a field
  * labelled 'Task name' is the title field wearing a different word, and the
- * difference is invisible to everyone except a screen reader and a test." The
- * designer's prototype labels the first one "Task name" and renders the third
- * as a button called "Mark important"; both are corrected here, which is what
- * that paragraph was written for. Sentence case is not a rewording, which the
+ * difference is invisible to everyone except a screen reader and a test."
+ * So not "Task name", and not "Mark important". Sentence case is not a rewording, which the
  * suite's own `formField` helper states in as many words.
  */
 export const FIELD_TITLE = 'Title'
@@ -65,12 +62,12 @@ export const FIELD_REPEAT = 'Repeat'
 export const FIELD_STEPS = 'Steps'
 
 /**
- * The three presets his date picker offers beside the calendar, ported at R7.
+ * The three presets the date picker offers beside the calendar.
  *
  * They are affordances rather than copy: 9.3 fixes that the form carries an
  * inline quick-set for the due date and spells no control, so these are the
  * design's and are adopted with it. "Clear" is offered only while a date is
- * set, which is his behaviour, and it runs the same 8.4 warning any other way
+ * set, and it runs the same 8.4 warning any other way
  * of emptying the field runs.
  */
 export const DATE_TODAY = 'Today'
@@ -78,8 +75,7 @@ export const DATE_TOMORROW = 'Tomorrow'
 export const DATE_CLEAR = 'Clear'
 
 /**
- * The form's dismiss control, named "Close" rather than the prototype's
- * "Cancel", and the reason is a collision rather than a preference.
+ * The form's dismiss control, named "Close" rather than "Cancel", and the reason is a collision rather than a preference.
  *
  * 9.1's names table gives every confirmation of 9.3 to 9.9 the two controls
  * "Continue" and "Cancel", and three of this form's own actions are
@@ -96,8 +92,7 @@ export const CLOSE = 'Close'
 export const DELETE_TASK = 'Delete task'
 
 /**
- * The read-only history block of 9.3, added at the RFC 0002 change control on
- * 2026-08-13. Its two line labels and the block's own name are the designer's;
+ * The read-only history block of 9.3. Its two line labels and the block's own name are the designer's;
  * section 9 writes no copy for them, describing the block's contents instead.
  */
 export const TASK_HISTORY = 'Task history'

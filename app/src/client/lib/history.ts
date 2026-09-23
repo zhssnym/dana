@@ -1,52 +1,36 @@
 /*
-A thing's own past, as the lifted surfaces read one.
+A thing's own past, as the surfaces read one.
 
-`docs/design/prototype-v2/src/lib/history.ts`, read at `b316785`, over this
-client's query layer. That prototype is deleted (`a7886df`, 2026-09-01); read
-it in git history before that commit. Its own header states what a history is
-for and the statement survives the port whole: the verbs are "a distinct thing
-that happened to the object, in a person's words rather than the mutation's",
-and "Edited" covers every change to a thing's contents deliberately, because
-"a history that logged every keystroke as its own line would be a diff, and
-nobody reads a diff to find out what happened."
+The verbs are a distinct thing that happened to the object, in a person's words
+rather than the mutation's, and "Edited" covers every change to a thing's
+contents deliberately: a history that logged every keystroke as its own line
+would be a diff, and nobody reads a diff to find out what happened.
 
-**The seam, and it is the whole of the difference.** The prototype writes its
-own log into `localStorage` and reads it back: `record`, `seedHistory`, the
-coalescing window and the 400-entry depth are all machinery for having a
-history at all when there is no server. Dana's history is 4.13's `events`
-table, written server-side inside each mutation's own transaction and served
-by 7.12's `GET /events?subject=kind:id`. So this module reads that endpoint
-through `api/queries.ts` and writes nothing at all. Every writer is gone with
-its store, and that is deliberate: change control item 44's B6 ruled the two
-apart, "undo is a short-lived client affordance about the act just taken, an
-audit log is a permanent server record about what happened to the data", and
-a client-side recorder here would be the coupling that ruling declined.
+**This module reads and writes nothing.** Dana's history is 4.13's `events`
+table, written server-side inside each mutation's own transaction and served by
+7.12's `GET /events?subject=kind:id`, read here through `api/queries.ts`. Undo
+is a short-lived client affordance about the act just taken, and an audit log is
+a permanent server record about what happened to the data; a client-side
+recorder here would couple the two.
 
-**What crosses verbatim is the wording**, `sentenceFor`, `verbFor`, `lineFor`,
-`agoFor` and `whenFor` with their `VERB_LABEL` table, because those turn an
-event into the words a control says and the words are the design's. `verbFor`
-carries its own measured reason: the resting line "names the act that actually
-happened, rather than saying Edited over everything", because a fixed word
-"made the control lie in the common case: tick one thing off a folder and the
-bar said the folder had been edited, while the line one press below it said
-Completed."
+**The wording lives here**, `sentenceFor`, `verbFor`, `lineFor`, `agoFor` and
+`whenFor` with their `VERB_LABEL` table, because those turn an event into the
+words a control says. `verbFor` names the act that actually happened rather than
+saying Edited over everything, because a fixed word would make the control lie
+in the common case: tick one thing off a folder and the bar would say the folder
+had been edited, while the line one press below it said Completed.
 
 **Two field seams, and each is a shape rather than a value.** 4.13 stores an
-`actor_id` where the prototype stores a name, so an actor is resolved against
-the rosters this client can already read, which is what
-`components/task-form/TaskHistory.tsx` has done since AC-178 and for its
-reasons: an id none of them carries renders "Deleted user", which is 4.1's own
-note and is unresolvable by construction because 8.10 removes the memberships
-and 7.3 excludes the account. And `created_at` is an ISO instant where the
-prototype holds an epoch millisecond, so it is parsed once here rather than at
-each of `agoFor`'s and `whenFor`'s call sites.
+`actor_id`, so an actor is resolved against the rosters this client can already
+read (AC-178): an id none of them carries renders "Deleted user", which is 4.1's
+own note and is unresolvable by construction because 8.10 removes the
+memberships and 7.3 excludes the account. And `created_at` is an ISO instant, so
+it is parsed once here rather than at each of `agoFor`'s and `whenFor`'s call
+sites.
 
-**The verb sets are the same twelve and are declared rather than restated.**
-4.13's CHECK constraint and the prototype's `HistoryVerb` union carry the
-identical list, which is not a coincidence: both were written from the same
-object contract. `HistoryVerb` is therefore `EventVerb`, so the two cannot
-drift. What 4.13 has and the prototype does not is the `comment` subject kind,
-which is not a thing a history sheet is opened on.
+**The verb set is declared rather than restated.** `HistoryVerb` is `EventVerb`,
+4.13's CHECK constraint's list, so the two cannot drift. 4.13 also has the
+`comment` subject kind, which is not a thing a history sheet is opened on.
 */
 
 import { useMemo } from 'react'
@@ -58,7 +42,7 @@ import { personDisplay } from '../parts/presenters.js'
 /** The things a history can be about: 4.13's subject kinds a surface opens. */
 export type HistorySubjectKind = 'task' | 'folder' | 'shelf'
 
-/** 4.13's verb set, which is the prototype's `HistoryVerb` exactly. */
+/** 4.13's verb set. */
 export type HistoryVerb = EventVerb
 
 export interface HistoryEvent {
@@ -130,12 +114,10 @@ export function lineFor(event: Pick<HistoryEvent, 'verb' | 'detail'>): string {
 }
 
 /*
-polish: taskcard F4 (2026-08-30). The activity popover read "Edited added a
-step by Hassan", the verb's label and the server's detail each a sentence on
-its own. This is the one sentence with the person first: "Hassan added a
-step 'Plates'", "Hassan completed it", "Hassan renamed it". An edit that
-carries a detail says the detail, which is the act; one that carries none
-says "edited it".
+One sentence with the person first: "Hassan added a step 'Plates'", "Hassan
+completed it", "Hassan renamed it", rather than the verb's label and the
+server's detail each a sentence on its own. An edit that carries a detail says
+the detail, which is the act; one that carries none says "edited it".
 */
 const STORY_VERB: Record<HistoryVerb, string> = {
   created: 'created it',
@@ -158,12 +140,11 @@ export function storyFor(event: Pick<HistoryEvent, 'verb' | 'detail' | 'actor'>)
 }
 
 /*
-polish: pagehead F4, folderpage F3. The history sheet read "Edited edited the
-page", the verb's label and then the server's own predicate, which is not a
-sentence. 4.13 writes `detail` as a lowercase predicate ("edited the page",
-"changed the look", "added Sara", "moved to Trash for 30 days") or as a
-trailing phrase ("from a step of X", "to Work"), and the actor is always
-known, so a sentence is the actor followed by one of those.
+4.13 writes `detail` as a lowercase predicate ("edited the page", "changed the
+look", "added Sara", "moved to Trash for 30 days") or as a trailing phrase
+("from a step of X", "to Work"), and the actor is always known, so a sentence is
+the actor followed by one of those, never the verb's label and then the
+predicate.
 */
 const VERB_PAST: Record<HistoryVerb, string> = {
   created: 'created',
@@ -297,14 +278,11 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 /**
  * One thing's history, newest first, which is the order 7.12 answers in.
  *
- * **`enabled` is not an optimisation and the measurement is why it is here.**
- * The prototype's `useHistory` reads a `localStorage` array, so calling it on
- * every row of a page costs nothing and `components/task-row.tsx` does exactly
- * that: it mounts a `HistorySheet` per row, closed, and the sheet reads its
- * subject at the top of its body. Over this client's seam that is one `GET
- * /events` per row, measured at eleven on a first load of Today, for a panel
- * nobody has opened. So the caller says when it is looking, and the sheet
- * passes its own open state.
+ * **`enabled` is not an optimisation.** `components/task-row.tsx` mounts a
+ * `HistorySheet` per row, closed, and the sheet reads its subject at the top of
+ * its body, so without it every row of a page would cost one `GET /events` for
+ * a panel nobody has opened. So the caller says when it is looking, and the
+ * sheet passes its own open state.
  *
  * Default `true`, because the other caller is the card's footer line, which is
  * drawn only inside an open card and is showing the answer rather than waiting
@@ -314,10 +292,9 @@ export function useHistory(
   kind: HistorySubjectKind,
   subject: string,
   enabled = true,
-  /* polish: folderpage F3. A folder's history is everything that happened in
-     it, tasks added and people invited included, which is 7.12's folder read
-     rather than the subject read; 'subject' is the default every other
-     caller keeps. */
+  /* A folder's history is everything that happened in it, tasks added and
+     people invited included, which is 7.12's folder read rather than the
+     subject read; 'subject' is the default every other caller keeps. */
   scope: 'subject' | 'folder' = 'subject',
 ): HistoryEvent[] {
   const wanted = enabled && UUID.test(subject)

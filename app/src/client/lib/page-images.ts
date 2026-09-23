@@ -1,60 +1,32 @@
 /*
-The adapter seam for a picture on a page: `prototype-v2`'s `lib/page-images.ts`
-rewritten over 7.15 and 4.17, lifted by RFC 0004's S26 for RFC 0005 change
-control item 44's B7 and B11.
+The adapter seam for a picture on a page, over 7.15 and 4.17: `POST
+/api/v1/files` and the `files` row are where the bytes go.
 
-The prototype's module is a `localStorage` store keyed by the block's own id,
-with its own header saying what the ported version would be, "object storage
-plus a row, with an upload endpoint, a size limit, a content-type allowlist".
-That is `POST /api/v1/files` and `files`, which exist, so what changes is where
-the bytes go and nothing about the block.
+**The downscale runs before the upload**: 1600px on the long edge at 0.72, PNG
+kept as PNG because a screenshot of an interface is the commonest thing anybody
+puts on a Dana page and JPEG turns its flat areas to mush. This is not AC-231's
+server re-encode: the server's pass protects the store, this one protects the
+person's connection, and neither replaces the other. 10.3 carries the numbers.
 
-**The downscale is B11 and it is the prototype's own, unchanged.** 1600px on
-the long edge at 0.72, PNG kept as PNG because a screenshot of an interface is
-the commonest thing anybody puts on a Dana page and JPEG turns its flat areas
-to mush. It runs before the upload rather than after, which is the difference
-between B11 and AC-231's server re-encode: the server's pass protects the
-store, this one protects the person's connection, and neither replaces the
-other. 10.3 carries the numbers.
+**The aspect ratio is on the wire** (issues #27, #108). 4.16 has `width` and
+`height`, filled from the sharp pass 7.15 makes, and they describe the
+**stored** object rather than the one that was sent, a 3000x1500 upload being
+stored and reported as 2048x1024. 7.16 hands them to a block read as
+`file_width` and `file_height`, 7.14 hands them to a comment's file as `width`
+and `height`, and `POST /files` answers them on the 201. `reservedRatio` below
+is the one place this client turns them into a number, and every reader of a
+page gets the reservation rather than only whoever chose the picture.
 
-**The aspect ratio was one of two things this module could not answer, and
-issue #108 answered it. The paragraph that stood here was wrong twice over
-and is rewritten rather than amended.**
+**The fallback is not a stopgap.** Null means unknown, no backfill has been run,
+and every file stored before those columns existed reports null indefinitely, so
+16 by 9 has to stay exactly right for those pictures for as long as they exist.
 
-It said `files` carried no dimensions. That stopped being true at migration
-0009 (issue #27): 4.16 has `width` and `height`, filled from the sharp pass
-7.15 was already making, and they describe the **stored** object rather than
-the one that was sent, a 3000x1500 upload being stored and reported as
-2048x1024. 7.16 hands them to a block read as `file_width` and `file_height`,
-7.14 hands them to a comment's file as `width` and `height`, and `POST /files`
-answers them on the 201. So the ratio is on the wire; `reservedRatio` below is
-the one place this client turns it into a number, and every reader of a page
-gets the reservation rather than only whoever chose the picture.
-
-It also said the reservation worked "for the author", and that was false on
-the day it was written, for the surface it was written about.
-`components/page/BlocksEditor.tsx` built its model with a literal `16 / 9`,
-and the ratio `take` measured went back through `onChange` into a block field
-that does not exist, so the author's own next render drew the fallback as
-well. Nobody has ever seen the behaviour that sentence described. It is the
-failure mode `CLAUDE.md` names first, and it is recorded here as one rather
-than quietly deleted.
-
-**What is still true is the fallback, and it is not a stopgap.** Null means
-unknown, no backfill has been run, and every file stored before 0009 reports
-null indefinitely, so 16 by 9 has to stay exactly right for those pictures for
-as long as they exist.
-
-The second thing the prototype's module returns and this one cannot is a
-synchronous answer. The lab writes the bytes and knows at once
-whether the store took them; an upload is a round trip, so `savePageImage`
-returns a promise carrying the file's id, and `components/page-image.tsx`'s
-`take` is the one function in that file this costs. Its own seam comment says
-so.
+**An upload is a round trip**, so `savePageImage` returns a promise carrying the
+file's id, and `components/page-image.tsx`'s `take` awaits it.
 */
 import { mutateApi, uploadFile } from '../api/http.js'
 
-/* The long edge and the quality, the prototype's own, and B11's numbers. */
+/* The long edge and the quality. */
 const MAX_EDGE = 1600
 const QUALITY = 0.72
 
@@ -149,13 +121,12 @@ export function readPageImage(fileId: string): string | undefined {
 /**
  * The bytes, stored, answering the id 4.17's `file_id` then names.
  *
- * `folderId` is null for a page with no folder — a shelf's — which
- * `uploadFile` turns into an upload carrying no `folder_id` part, the shape
- * 7.15 has admitted for `kind: image` since issue #167.
+ * `folderId` is null for a page with no folder — a shelf's — which `uploadFile`
+ * turns into an upload carrying no `folder_id` part, the shape 7.15 admits for
+ * `kind: image` (issue #167).
  *
  * Null where the upload was refused, which the block says in words rather than
- * dropping the picture silently: the prototype's own treatment of a full
- * store, kept because the fault it describes is the same one.
+ * dropping the picture silently.
  */
 export async function savePageImage(
   folderId: string | null,
@@ -187,10 +158,8 @@ export function forgetPageImage(fileId: string): void {
 }
 
 /**
- * A file, downscaled to something a page can keep, and measured.
- *
- * The prototype's function with one change: it returns the blob as well as the
- * data URL, because the bytes have somewhere to go here.
+ * A file, downscaled to something a page can keep, and measured. It returns the
+ * blob as well as the data URL, because the bytes have somewhere to go.
  */
 export function scaleImageFile(file: File): Promise<ScaledImage | null> {
   return new Promise((resolve) => {
@@ -214,7 +183,7 @@ export function scaleImageFile(file: File): Promise<ScaledImage | null> {
         return
       }
       context.drawImage(image, 0, 0, canvas.width, canvas.height)
-      /* PNG for anything with transparency, the prototype's own reason. */
+      /* PNG for anything with transparency. */
       const type = file.type === 'image/png' ? 'image/png' : 'image/jpeg'
       const dataUrl = canvas.toDataURL(type, QUALITY)
       URL.revokeObjectURL(url)

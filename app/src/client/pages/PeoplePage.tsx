@@ -2,20 +2,17 @@
 9.8's People screen: the roster with its removal control, the bare invite by
 email, and the sent bare invites still pending.
 
-The refusal an already-connected address earns is 7.5's 409, entered by owner
-ruling on 2026-08-09, and its message is 9.8's copy character for character on
+The refusal an already-connected address earns is 7.5's 409, and its message is 9.8's copy character for character on
 the server side. So this page raises no message of its own: the mutation
 cache shows a 409's own text verbatim, which is 9.1's rule for conflicts and
 happens to be exactly what 9.8 asks a person to read here.
 
 The removal confirm is 9.8's own sentence and is transcribed.
 
-**This screen carries no incoming invite list**, removed at P8R session R10 on
-the P8R mid-package change control of 2026-08-13: the gate renders at every
+**This screen carries no incoming invite list**: the gate renders at every
 /app path while Q12 is non-empty, so the surface is `pages/InviteGate.tsx`.
-What this page gained at the polish pass is the other direction, the
-prototype's "Pending invitations": the viewer's own bare invites read from
-frozen 7.5's GET /invites/sent, with the same Cancel and Resend the sharing
+What this page carries is the other direction, the prototype's "Pending
+invitations": the viewer's own bare invites read from 7.5's GET /invites/sent, with the same Cancel and Resend the sharing
 panel gives a folder invite, so a sent invite is visible somewhere between
 sending and the day it is answered. Folder-scoped invites stay the sharing
 panel's; the filter below is what keeps one row from appearing on two

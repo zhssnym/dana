@@ -1,29 +1,14 @@
 /*
 The collapsed section of finished work that closes a page listing tasks.
 
-**The owner ruled it on 2026-08-22 and `prototype-v2` carries the ruling in its
-own comments**, which is where a session should read it rather than from a
-brief: `screens/important-screen.tsx` says "every page that lists tasks ends
-the same way (Imran, 2026-08-22): finished work, collapsed, in the grammar a
-folder's Completed section and My Day's recap already use", and
-`screens/planned-screen.tsx` says the same and then answers the objection a
-reader of section 6 will have: "Spec Q3 keeps completed rows out of the *list*,
-and this is a section under it rather than rows in it, so the ordering rule is
-untouched."
+Every page that lists tasks ends the same way: finished work, collapsed, in the
+grammar a folder's Completed section and My Day's recap already use. Q3 keeps
+completed rows out of the *list*, and this is a section under it rather than
+rows in it, so the ordering rule is untouched. 9.5 gives the collapsed foot to
+All in terms and is silent, not contradictory, on Important and Scheduled.
 
-**9.5 is quiet here rather than contradictory, and the difference is why this
-file exists rather than an escalation.** That section gives the collapsed foot
-to All in terms and does not mention one on Important or Scheduled; it also
-does not forbid one, and it enumerates neither page closely enough to make the
-silence a rule. Where the prototype and a numbered section disagree, RFC 0005
-change control item 20 sends the question to a ruling; where the section is
-silent and an owner's ruling and the prototype agree, the package builds it and
-records the reading, which this paragraph is.
-
-**One implementation rather than a third**, which is S17b's whole theme: All
-had one written inline and the folder page has its own, and Important and
-Scheduled were about to acquire a fourth and a fifth. What varies between the
-pages is one predicate, so that is what this takes.
+**One implementation for every page.** What varies between the pages is one
+predicate, so that is what this takes.
 
 **The read waits on the control.** `useDoneView` is fetched only while the
 section is open, the rule `useFolderCompletedTasks` already follows for Q7's
@@ -41,8 +26,8 @@ a page of fifty completed rows holding no starred one contributes nothing to
 Important's foot while starred rows sit further back. `MorePages` reaches them
 and the count says how many are loaded rather than how many exist. A
 spine-scoped completed read is the shape that closes it, and it is a section 7
-read that does not exist; S17b named it in its log row rather than inventing a
-client-side estimate of a total it cannot know.
+read that does not exist, and this does not invent a client-side estimate of a
+total it cannot know.
 */
 import { useState } from 'react'
 
@@ -83,7 +68,7 @@ export function CompletedFoot({
     .filter((day) => day.rows.length > 0)
 
   return (
-    /* polish: places F11: "Done", the page's own word, everywhere the pile is named. */
+    /* "Done", the page's own word, everywhere the pile is named. */
     <CollapsibleSection name="Done" defaultOpen={false} onOpenChange={setOpen}>
       <div className="space-y-6">
         {days.map((day) => (

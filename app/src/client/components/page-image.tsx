@@ -1,59 +1,40 @@
 /*
-Lifted at S26 (RFC 0004's folder page row) from
-`prototype-v2/src/components/page-image.tsx`, over the seam in
-`lib/page-images.ts`, for RFC 0005 change control item 44's B7 and B11 and for
-ledger entries L-193 to L-197. That module's header carries the argument; the
-seams are these three and nothing else moves.
+A picture on a page, over the seam in `lib/page-images.ts`. That module's header
+carries the argument; three things are worth knowing here.
 
-**One. `take` is asynchronous, because an upload is.** The lab writes bytes
-into a browser store and knows at once whether they were taken; here they go to
-7.15 and the block records the id 4.17's `file_id` names. The optimistic draw
-is kept, so the picture is on the page before the round trip exactly as it is
-in the lab, and the "out of room" sentence becomes the refusal's, which is the
-same fault seen from the other side.
+**`take` is asynchronous, because an upload is.** The bytes go to 7.15 and the
+block records the id 4.17's `file_id` names. The draw is optimistic, so the
+picture is on the page before the round trip, and a refusal says so.
 
-**Two. `id` is the file's, not the block's.** The prototype keys its store by
-the block, one picture per block for ever; a file in Dana is its own row, is
+**`id` is the file's, not the block's.** A file in Dana is its own row, is
 reusable, and is what a block points at. An empty string is a block whose
 picture has not been chosen yet, which is the state the dropzone below draws.
 
-**Three. The width is 4.17's `width_pct` and the ratio is the file's.** B7's
-handle writes a column S22a landed; B7's reservation had nothing to read a
-ratio from, which was section 13 item 47, and issue #108 closed it. The ratio
-arrives in the model and what fills the model is 4.16's `file_width` and
-`file_height` off the block read (7.16). This block does not decide it and
-should not: one picture on three pages is one shape reported three times rather
-than three numbers free to disagree, which is why those columns are the file's
-and are absent from `PageBlockWrite`.
-
-**What stood here said the reservation was "exact for whoever chose the
-picture and 16 by 9 for every other reader", and nobody has ever seen the
-first half.** `components/page/BlocksEditor.tsx` passed a literal `16 / 9` and
-dropped the measured ratio on the next render, so the author got the fallback
-too. The sentence described an intention and was read as behaviour, which is
-the failure mode `CLAUDE.md` names first, caught in this file's own header.
+**The width is 4.17's `width_pct` and the ratio is the file's** (issue #108):
+4.16's `file_width` and `file_height` off the block read (7.16). This block does
+not decide it and should not: one picture on three pages is one shape reported
+three times rather than three numbers free to disagree, which is why those
+columns are the file's and are absent from `PageBlockWrite`.
 
 `lib/page-images.ts`'s `reservedRatio` is the one place null becomes 16 by 9,
-and it stays right for every picture stored before migration 0009: they report
-null and always will, no backfill having been run.
+and it stays right for every picture stored before those columns existed: they
+report null and always will, no backfill having been run.
 */
 /*
 A picture on a page.
 
-Imran's brief of 2026-08-23, item 5. The block is deliberately small, and the
-three decisions in it are all about not becoming a photo editor.
+The block is deliberately small, and the decisions in it are all about not
+becoming a photo editor.
 
-**Width, and only width.** Imran, 2026-08-23: "an image can't be resized". The
-first version had none of it and the reason given was that a picture which can
-be half-width and left-aligned drags the text beside it into a layout problem.
-Half of that holds and half of it does not, and separating them is what this
-control is.
+**Width, and only width.** A picture can be resized, but a picture that can be
+half-width and left-aligned drags the text beside it into a layout problem, so
+separating size from alignment is what this control is.
 
 **Alignment is what causes the trouble, not size.** A narrower picture that
-stays in the column changes nothing about the text above and below it, the
-page is still one column of blocks, in order. A *floated* picture is what makes
-the paragraph beside it a layout question. So the handle changes width and the
-block stays centred in the column; there is no left, no right, and no wrap.
+stays in the column changes nothing about the text above and below it, the page
+is still one column of blocks, in order. A *floated* picture is what makes the
+paragraph beside it a layout question. So the handle changes width and the block
+stays centred in the column; there is no left, no right, and no wrap.
 
 **A drag, not a menu of sizes.** Small/Medium/Large is three guesses at what
 somebody wants; a handle is the answer. It clamps at a quarter of the column,
@@ -61,23 +42,19 @@ below which a photograph stops being one, and at full width. The number is a
 **percentage**, so a picture keeps its proportion of the page on any window
 rather than a pixel count that means something different at 1440 than at 1100.
 
-**The caption is prose, on the prose tier.** DES-148 put paragraphs at 12px in
-graphite-600 and gave the folder description the same, because they are the same
-kind of writing. A caption is too, so it takes the tier rather than inventing a
-fourth size, and it is optional, absent rather than a placeholder, because a
-picture that explains itself should not carry an empty line under it.
+**The caption is prose, on the prose tier**: paragraphs and the folder
+description sit at 12px in graphite-600, and a caption is the same kind of
+writing, so it takes the tier rather than inventing a fourth size. It is
+optional, absent rather than a placeholder, because a picture that explains
+itself should not carry an empty line under it.
 
 **The space is reserved before the picture loads.** The page never jumps by the
 height of an image, the single most noticeable thing a page of text can do
-wrong. The brief said the block knew its ratio "from the moment the file is
-chosen", which was the whole of what it could know when this was written and is
-no longer the interesting half: 4.16 measures the stored picture and 7.16
-reports it, so the reservation is right for everyone who opens the page and not
-only for the person holding the file. That asymmetry is what issue #108 was
-about — the jump was invisible to whoever uploaded the picture and visible to
-everybody else, which is how it survived. \`scaleImageFile\` still returns the
-ratio, now for the round trip it saves rather than because it is the only
-reading there is.
+wrong. 4.16 measures the stored picture and 7.16 reports it, so the reservation
+is right for everyone who opens the page and not only for the person holding the
+file (issue #108): a jump invisible to whoever uploaded the picture and visible
+to everybody else survives unnoticed. \`scaleImageFile\` still returns the
+ratio, for the round trip it saves.
 
 Three ways in, because people reach for different ones and all three are one
 line apart: choose a file, drop one, or paste. Paste is the gesture that matters
@@ -152,11 +129,9 @@ export function PageImage({
     if (!file) return
     const scaled = await scaleImageFile(file)
     if (!scaled) return
-    /* Seam one. The optimistic draw first, so the picture is on the page
-       before the round trip the way it is in the lab; then the bytes, then the
-       block naming the file they became. A refusal keeps the picture for this
-       session and says so, which is the prototype's own treatment of a store
-       that would not take them. */
+    /* The optimistic draw first, so the picture is on the page before the round
+       trip; then the bytes, then the block naming the file they became. A
+       refusal keeps the picture for this session and says so. */
     setSrc(scaled.dataUrl)
     const stored = await savePageImage(folderId, scaled)
     if (stored === null) {
@@ -332,9 +307,9 @@ export function PageImage({
           />
         </button>
       </div>
-      {/* The prose tier (DES-148), and no placeholder when it is empty: a
-          picture that explains itself should not carry a blank line. The field
-          is still there to click into, at the height of one line. */}
+      {/* The prose tier, and no placeholder when it is empty: a picture that
+          explains itself should not carry a blank line. The field is still
+          there to click into, at the height of one line. */}
       <figcaption>
         {/* The primitive, not a bare input: the audit is right that a field
             spelling its own border, radius and ring is how six spellings of

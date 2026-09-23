@@ -21,16 +21,13 @@ reasoning, applied to the second place that needs it: a locale-driven
 formatter renders "août" on a French browser beside section 9's English copy,
 and this machine's own tooling answers in French. That file's table is private
 to it and carries abbreviations alone, so the long names below are a second
-table rather than a reuse. The session report asks role 07 to export the
-first, at which point this one is deleted and the two cannot drift; it is
-recorded rather than left as a silent copy.
+table rather than a reuse. Once that file exports its table, this one should
+be deleted so the two cannot drift.
 
 **The format is the design's, which 9.1 says outright:** "the format of a date
-is the design's and this section has never spelled one". The strings below
-reproduce the running prototype's calendar header at each zoom, with one
-change: his week title joins its two dates with an en dash and protocol
-section 7 uses "to" for a range, which is the substitution every other ported
-string in this client already carries.
+is the design's and this section has never spelled one". The week title
+joins its two dates with "to" rather than an en dash, as every other range in
+this client's copy does.
 */
 
 /** 9.5's three zoom levels. Year zoom is cut for v1 by Q3C. */
@@ -39,8 +36,8 @@ export type Zoom = 'day' | 'week' | 'month'
 /**
  * The column headers, starting Monday.
  *
- * 9.5: "weeks begin on Monday", the week start having been left to the
- * designer and answered by him. AC-177 reads the first of these and asserts
+ * 9.5: "weeks begin on Monday", the week start being the design's.
+ * AC-177 reads the first of these and asserts
  * that it begins with M, which among the seven English day names only Monday
  * does.
  */
@@ -190,8 +187,8 @@ function yearOf(date: string): string {
 /**
  * The heading above the grid: which period is on screen.
  *
- * Section 9 spells no string for it, the header being the design's, so these
- * reproduce the prototype's own three forms. It is a heading rather than a
+ * Section 9 spells no string for it, the header being the design's. It is a
+ * heading rather than a
  * control, so nothing addresses it by name and nothing here is normative copy.
  */
 export function periodTitle(zoom: Zoom, anchor: string): string {

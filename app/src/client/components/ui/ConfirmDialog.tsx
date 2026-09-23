@@ -48,7 +48,7 @@ interface ConfirmDialogProps {
   readonly onContinue: () => void
   readonly onCancel: () => void
   /**
-   * polish: taskrow F11 (2026-08-30). A destructive confirm may name what
+   * A destructive confirm may name what
    * the press does ("Delete") and what declining keeps ("Keep it") in place of
    * 9.1's uniform pair, which 9.1 now allows for the task's confirms. Absent,
    * the pair stands.

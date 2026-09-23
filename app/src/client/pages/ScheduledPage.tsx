@@ -2,7 +2,7 @@
 9.5's Scheduled, at /app/scheduled: everything with a date.
 
 The page replaces v1's Planned, and 6 Q3 is unchanged behind it: "Scheduled,
-list mode (v1: Planned)" is the whole of what RFC 0005 did to the query.
+list mode (v1: Planned)" is the whole of the change to the query.
 
 **The list is Q3's order under a ladder of headings**, which is the one thing
 this page gained. `views/ladder.ts` decides the rungs and states their
@@ -141,8 +141,7 @@ export function ScheduledPage(): React.JSX.Element {
             />
           )}
 
-          {/* The owner's ruling of 2026-08-22, and `prototype-v2`'s
-              planned-screen answering the objection to it in its own words:
+          {/* Every page that lists tasks ends with its completed foot:
               "Spec Q3 keeps completed rows out of the *list*, and this is a
               section under it rather than rows in it, so the ordering rule is
               untouched." The predicate is Q3's spine, having a date, so a

@@ -116,11 +116,10 @@ function skippedByNormalization(
     A `page` key the parser dropped for being below version 4, and it is the
     same decision as the `labels` one below reached one version later.
 
-    7.16's 2026-09-21 ruling says a `page` below 4 "is dropped as `labels`
-    below 3 is **and the picker reports the drop**", and until this line only
-    half of that was true: `pageItems` above reads `blocks` and `items` and has
-    never read `page`, so a version 1 file carrying a whole composed page
-    imported with `skippedContent` false and nothing said. A dropped page is
+    7.16 says a `page` below 4 "is dropped as `labels` below 3 is **and the
+    picker reports the drop**": `pageItems` above reads `blocks` and `items`
+    and never `page`, so without this a version 1 file carrying a whole
+    composed page would import with `skippedContent` false and nothing said. A dropped page is
     the largest single loss this module can be asked to report — every
     paragraph, every heading and every Task on it — and it was the one loss it
     was silent about.

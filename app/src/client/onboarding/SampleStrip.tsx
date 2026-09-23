@@ -1,6 +1,5 @@
 /*
-The strip that says the workspace is a sample (RFC 0005 change control item
-60), drawn above Desk and Today while the sample is present and nobody on
+The strip that says the workspace is a sample, drawn above Desk and Today while the sample is present and nobody on
 this device has said "Keep it". Two controls and a sentence: clearly there,
 never in the way. Remove is one confirm and then the undo bar; Keep it is a
 local dismissal, and the Settings row is the way back.

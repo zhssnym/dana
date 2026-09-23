@@ -11,7 +11,7 @@ why it is a comparator rather than a sort key.
 **11.4 no longer asks for a library's comparator, and this file is smaller
 for it.** Under FullCalendar the order had to be expressed to the library
 through its `eventOrder` refiner, with a per-cell ghost overlay named as the
-fallback if the refiner could not express it. RFC 0002 removes the library:
+fallback if the refiner could not express it. The library is gone:
 the grid is ours, so a cell orders its rows by rendering them in order, and
 the fallback disappears with the mechanism. 11.4's own sentence, "the visible
 order is the contract, the mechanism is not", is what makes that a

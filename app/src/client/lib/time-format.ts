@@ -1,27 +1,18 @@
 /*
 Whether a time reads as 17:30 or 5:30 PM, as a preference rather than a guess.
 
-Imran's ruling, 2026-08-18: the format is the person's to choose, and the
-picker offers both regardless of which they chose, the setting decides how a
+The format is the person's to choose, and the picker offers both regardless of which they chose, the setting decides how a
 time is written, never which times can be reached.
 
-12-hour is the default, ruled 2026-08-18. The setting can move it to 24-hour
+12-hour is the default. The setting can move it to 24-hour
 and the picker reaches every hour and minute either way.
 
 The store is deliberately not a React context. Times are written in the row,
 in the card's chips, inside two pickers and in a settings control, and a
 provider would have to wrap all of them; a module store with
 `useSyncExternalStore` reaches every one without anybody threading anything.
-**It follows the person between devices since S17b, and the paragraph this
-replaces is why that is worth a note rather than a silent diff.** It read:
-"Lane 1: it lives in the browser and does not follow a person between devices.
-Syncing it to the account is a separate want and needs a column, an endpoint
-and therefore an RFC, the same conversation DES-113 parked for row density."
-The column is 4.19's `clock`, the endpoint is `GET` and `PATCH /settings`, and
-both have been live since S7: the RFC this file was waiting for had landed
-before the file was written, and nothing pointed the two at each other. 9.7
-names the control, RFC 0005 change control item 30 assigned it to S17b, and
-this is the row that joined them up.
+**It follows the person between devices.** The column is 4.19's `clock`, the
+endpoint is `GET` and `PATCH /settings`, and 9.7 names the control.
 
 **The account is the record and `localStorage` is a cache of it.** That
 ordering is the whole design. `adoptClock` writes the bundle's value into this
@@ -29,9 +20,8 @@ store when the read arrives, which is what makes a fresh browser show the
 person's own choice rather than the default; the local copy exists only so the
 frame before the bundle answers shows the value they last saw rather than a
 flash of 12-hour. The settings control writes the column and nothing else
-writes it, so at no moment are two records authoritative for one reader, which
-is the property change control item 6 required of the pin list and this is the
-same refusal one preference over.
+writes it, so at no moment are two records authoritative for one reader, the
+same property the pin list keeps.
 */
 
 import { useSyncExternalStore } from "react"
@@ -71,7 +61,7 @@ export function setTimeFormat(next: TimeFormat) {
 }
 
 /**
- * Takes the account's value (4.19's `clock`) as the truth, at S17b.
+ * Takes the account's value (4.19's `clock`) as the truth.
  *
  * Called by the shell whenever the bundle settles. It is deliberately the same
  * write as a person pressing the control: the store does not care which of the
@@ -89,7 +79,7 @@ export function adoptClock(clock: "12h" | "24h"): void {
 }
 
 /**
- * The control's write, at S27: 4.19's column first, and the store adopts the
+ * The control's write: 4.19's column first, and the store adopts the
  * answer, which is the same path an arriving bundle takes. Added when
  * `components/settings-page-content.tsx` crossed and 9.7's two extra rows were drawn
  * in its idiom; the settings page's own mutation used to be the writer.

@@ -1,48 +1,40 @@
 /*
-Where 7.0's task and the prototype's task meet, and the only place they do.
+Where 7.0's task and the card's task meet, and the only place they do.
 
-RFC 0004's S22 row names "the mapping between the prototype's task shape and
-the shared TaskCard" as one of the six things the adapter seam is. This is it.
-One direction turns a `TaskCard` or a `TaskDetail` into the `ConceptTask` a
-lifted card and a lifted row read; the other turns the fields a card reports
-back into the frozen 7.6 body that carries them. Every surface arriving at S23
-and after asks this module rather than reading a wire shape, so the two
-vocabularies cannot drift.
+One direction turns a `TaskCard` or a `TaskDetail` into the `ConceptTask` a card
+and a row read; the other turns the fields a card reports back into the 7.6 body
+that carries them. Every surface asks this module rather than reading a wire
+shape, so the two vocabularies cannot drift.
 
 **Nothing here computes a date, an ordering or a label of its own.** The due
-badge is `parts/presenters.ts`'s `dueDisplay`, which owns 4.11's today and
-9.7's clock and is the only thing in this client that reads a calendar; the
-folder's colour is `folderDisplay`'s, resolved against the `/folders` table
-the chrome already holds; the initials are `initialsOf`'s. A second answer to
-any of those questions is the fault DES-154 keeps naming, and it is why this
-file composes rather than computes.
+badge is `parts/presenters.ts`'s `dueDisplay`, which owns 4.11's today and 9.7's
+clock and is the only thing in this client that reads a calendar; the folder's
+colour is `folderDisplay`'s, resolved against the `/folders` table the chrome
+already holds; the initials are `initialsOf`'s. A second answer to any of those
+questions would drift, which is why this file composes rather than computes.
 
-**Three fields are deliberately left undefined, and each names its row.**
+**Three fields are deliberately left undefined.**
 
 - `steps` from a `TaskCard`. 7.0's card carries `steps_done` and `steps_total`
-  and not the items, and the prototype's own header records what happens when
-  a mapper fills the gap by inventing them: "toConceptTask therefore had to
-  invent the steps from it, Step 1, Step 2, which meant a task could
-  round-trip through the shell and come back with its steps renamed." So a
-  card maps to no steps at all and a `TaskDetail` maps to the real ones. The
-  row draws the count through its own `steps` prop, which is a separate prop
+  and not the items, and a mapper that invented them ("Step 1", "Step 2") would
+  let a task round-trip through the shell and come back with its steps renamed.
+  So a card maps to no steps at all and a `TaskDetail` maps to the real ones.
+  The row draws the count through its own `steps` prop, which is a separate prop
   on `TaskRowProps` precisely so the count and the items need not travel
   together.
 - `attachments`. There is no storage, no permission model and no virus story
-  behind one (DES-055), so there is nothing to map. The block is drawn and
-  fed nothing.
-- `comments`. 9.6's conversation is served, at `GET /folders/:id/thread`, and
-  mounting it on a task is S26's row by RFC 0004's table. Filling it here
-  would be a surface nobody can see doing work nobody asked for.
+  behind one, so there is nothing to map. The block is drawn and fed nothing.
+- `comments`. 9.6's conversation is served at `GET /folders/:id/thread`, and is
+  mounted by the surfaces that show it rather than mapped here.
 
 **And four are prose rather than fields.** `reminder`, `repeatEvery`,
 `repeatDays` and `repeatEnds` are the words a chip says, not values a wire
 carries: 4.11 stores an RRULE and 7.0 answers `is_recurring`. Writing those
 words here would be copy no numbered section carries, which
-`parts/presenters.ts` already refuses to do for the row's repeat glyph and
-gives its reasons for at length. `repeatUnit` is the exception and crosses,
-because a frequency is structure rather than wording. The rest belong with
-the pickers that say them, at S23.
+`parts/presenters.ts` already refuses to do for the row's repeat glyph and gives
+its reasons for at length. `repeatUnit` is the exception and crosses, because a
+frequency is structure rather than wording. The rest belong with the pickers
+that say them.
 */
 
 import type { Folder } from '../../shared/folders.js'
@@ -104,9 +96,9 @@ export function toConceptTask(
   9.4's "assignee chip when not the viewer" is a rule about what a *row* draws
   under a heading that has already said who is carrying the work, which is why
   `taskRowDisplay` applies it and this does not. A card shows the task, and who
-  it is assigned to is a fact of the task. The prototype states the same split
-  from the other side, in `TaskRowProps.given`: a row says what its page does
-  not, decided per list and never per row.
+  it is assigned to is a fact of the task. `TaskRowProps.given` states the same
+  split from the other side: a row says what its page does not, decided per list
+  and never per row.
   */
   /* A task nobody is assigned maps to an absent assignee rather than to the
      null of #169: that null is a *patch* saying "clear this", and a whole
@@ -140,26 +132,20 @@ export function toConceptTask(
           steps: detail.steps.map((step) => ({ id: step.id, title: step.title, done: step.done })),
           ...(detail.notes === null ? {} : { notes: detail.notes }),
           /*
-          **Seam, S23: a stored reminder comes back as the words its chip
-          says.**
+          **A stored reminder comes back as the words its chip says.**
 
-          This file left `reminder` out on purpose and said why: the four
-          prose fields "are the words a chip says, not values a wire
-          carries", and "the rest belong with the pickers that say them, at
-          S23". The picker arrived and writes 4.8's `time_of_day` through
-          7.9; what was missing is the way back, so a reload showed "No
-          reminder" on a task that had one. AC-170 reads exactly that and
-          says what the difference is: "a reload shows what was stored
-          rather than what was typed, which is the difference between a
-          value that was written and a value that was held."
+          The picker writes 4.8's `time_of_day` through 7.9, and this is the way
+          back, so a reload shows the stored reminder rather than "No reminder".
+          AC-170: a reload shows what was stored rather than what was typed,
+          which is the difference between a value that was written and a value
+          that was held.
 
           The words are the picker's own, "27 Aug at 09:00", and the clock
-          inside them is re-read for the viewer by `reminderChipValue`, so
-          the format the person set is not the format they are shown. The
-          offset mode is not worded here and that is 9.3's doing rather
-          than an omission: its v2 row is "one picker, a time on that day",
-          so nothing in this client can write one, and a v1 row that still
-          carries one shows its day and no time, which is true.
+          inside them is re-read for the viewer by `reminderChipValue`, so the
+          format the person set is not the format they are shown. The offset
+          mode is not worded here: 9.3's row is "one picker, a time on that
+          day", so nothing in this client can write one, and an older row that
+          still carries one shows its day and no time, which is true.
           */
           ...(detail.reminder === null || detail.reminder.time_of_day === null
             ? {}
@@ -174,22 +160,16 @@ export function toConceptTask(
 }
 
 /**
- * A person, as a lifted surface takes one, from 7.0's person shape.
+ * A person, as a surface takes one, from 7.0's person shape.
  *
  * Exported because the assignee picker and the roster of
  * `lib/people-library.ts` need the same three fields without a task in hand,
  * and a second spelling of "name, initials, face" is how a roster and a chip
- * come to disagree about one person. That is the fault `people-library` was
- * written to fix one axis over: its own header records a lab that said "Sara"
- * with initials SK while the People screen two clicks away said "Sara Khan"
- * with initials HA for her colleague.
+ * come to disagree about one person.
  *
- * **It is `personDisplay` plus the id since the polish round of 2026-08-30**,
- * where it re-derived the initials and re-read `avatar_url` itself. That was
- * the same three fields spelled twice, which is the very thing the paragraph
- * above says not to do, and it was harmless only for as long as the two
- * agreed: `personDisplay` dropped the picture and this one kept it, so a card
- * showed a face and the row for the same task showed a disc. One spelling now.
+ * **It is `personDisplay` plus the id**, so the initials and `avatar_url` are
+ * spelled once: a card and the row for the same task cannot show a face on one
+ * and a disc on the other.
  */
 export function toConceptPerson(person: {
   readonly id: string
@@ -223,21 +203,15 @@ export function conceptPatchToBody(fields: Partial<ConceptTask>): PatchTaskBody 
   if (fields.important !== undefined) body['important'] = fields.important
   if (fields.folder?.id !== undefined) body['folder_id'] = fields.folder.id
   /*
-  A cleared assignee is `null` and not an absent key: 7.6 distinguishes the
-  two, and "unassigned is a member of the set, not the absence of one"
-  (ledger L-094) is the same rule read from the card's side.
+  A cleared assignee is `null` and not an absent key: 7.6 distinguishes the two,
+  and unassigned is a member of the set, not the absence of one (issue #169).
 
-  **That comment was true of the rule and false of the code until issue #169,
-  which is CLAUDE.md's warning about comments exactly.** The line under it
-  could only ever be reached by a *person*, `ConceptTask['assignee']` having
-  carried no null, so the one caller that meant "clear" said `undefined` and
-  was read here as "this field was not touched": the body came out empty, the
-  writer sent nothing at all, and the chip cleared in the browser over a task
-  the server still had assigned. The type now carries the third value
-  (`tasks/task-model.ts` says what each of the three means) and both spellings
-  of an empty assignee land on the same null: an explicit clear, and a person
-  named without an id, who is not an address this client can send (see the
-  paragraph above about `folder`).
+  `ConceptTask['assignee']` carries the null (`tasks/task-model.ts` says what
+  each of the three values means), so a caller that means "clear" can say so
+  rather than `undefined`, which is read here as "this field was not touched".
+  Both spellings of an empty assignee land on the same null: an explicit clear,
+  and a person named without an id, who is not an address this client can send
+  (see the paragraph above about `folder`).
   */
   if (fields.assignee !== undefined) body['assignee_id'] = fields.assignee?.id ?? null
   return body as PatchTaskBody
@@ -246,11 +220,10 @@ export function conceptPatchToBody(fields: Partial<ConceptTask>): PatchTaskBody 
 /**
  * The card fields that have a verb of their own, so nothing sends them twice.
  *
- * The prototype keeps this list for a second reason worth carrying over: its
- * shell logged a completion and an edit in the same millisecond for one press,
- * because the row correctly reports the change *and* correctly tells the
- * screen that a completion happened. "A change already spoken for by a
- * stronger verb is not also an edit."
+ * The row correctly reports the change *and* correctly tells the screen that a
+ * completion happened, so without this list one press would log a completion
+ * and an edit in the same millisecond. A change already spoken for by a
+ * stronger verb is not also an edit.
  */
 export const writtenElsewhere: readonly (keyof ConceptTask)[] = [
   'done',

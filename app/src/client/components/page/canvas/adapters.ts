@@ -172,7 +172,7 @@ export function dehydrateCanvas(blocks: readonly CanvasBlock[], columnWidth: num
            draws the whole remaining string as one link to the folder, so a
            reference typed as "Design notes **urgent**[elsewhere](…)" comes
            back as "Design notes urgentelsewhere" under a single folder link.
-           That is a real loss and it is still the ruling, because the
+           That is a real loss and it is still the rule, because the
            alternative is not a better projection but a 422: the database
            refuses the column on this kind, and a save that will not save is
            worse than a style that will not survive — the same direction the

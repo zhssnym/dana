@@ -1,34 +1,28 @@
 /*
-9.6's "Label and color", ported at P8R session R10 from the designer's
-`src/screens/folder-screen.tsx`, where the same dialog is one of two the folder
-editor opens.
+9.6's "Label and color".
 
 "'Label and color' opens a dialog taking the folder's personal label and its
 colour together, both being the two fields of 7.4's my-membership and neither
 meaning anything without the other." That sentence is the whole design of this
 file: the two fields are one form and one PATCH, because 7.4 takes them in one
 body and a dialog offering one of them writes a null over the other, which is a
-loss nothing on the page reports. AC-181 (no test since the 2026-09-20 cut) names both
-fields and reads both values back through 7.4.
+loss nothing on the page reports.
 
 **The two fields carry the names 9.1's table gives them, "Label" and "Color".**
-That row arrived at the P8R mid-package change control on 2026-08-13 with the
-paragraph beside it: the three dialogs name their fields and not themselves,
+The three dialogs name their fields and not themselves,
 because a dialog is announced by its own title and what a test and a screen
 reader need is the field inside it.
 
-**The colour is one control and not his seven swatches, and the reason is 4.4
-rather than taste.** His picker is a row of seven buttons whose values are the
-design's folder tokens, `var(--color-folder-cobalt)` and its neighbours. Two
-things stop that porting as it stands. A membership colour is stored under
+**The colour is one control and not a row of swatches, and the reason is 4.4
+rather than taste.** Swatches valued with the design's folder tokens,
+`var(--color-folder-cobalt)` and its neighbours, cannot work as they stand. A membership colour is stored under
 4.4's `#RRGGBB` check and sent through 7.4, so a CSS variable is a 422 rather
 than a colour; and resolving those tokens to hexes here would either copy raw
 values into a file that is not `tokens.css`, which 11.4 forbids, or read the
 computed stylesheet at runtime to paint a control. A native colour control
 holds exactly what 4.4 stores and offers the whole free-form range that check
-permits, which is also what 11.4's own ruling calls this value: "data on the
-wire rather than a design value". The swatches are the visible difference from
-his screen and are flagged for the visual review of section 13 item 33.
+permits, which is also what 11.4 calls this value: "data on the
+wire rather than a design value".
 
 **It is uncontrolled and keyed**, which is the smallest way to open on the
 folder's own colour without inventing a default for a folder that has none. A

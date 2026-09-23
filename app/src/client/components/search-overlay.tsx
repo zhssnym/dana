@@ -1,27 +1,20 @@
 /*
-`docs/design/prototype-v2/src/components/search-overlay.tsx`, lifted whole at
-RFC 0004's S27 and bound through `lib/search-items.ts`. That prototype is
-deleted (`a7886df`, 2026-09-01); read it in git history before that commit.
-It diffs empty against its original except at the seams named here, each
-marked `Seam` in the body.
+9.9's search overlay, bound to data through `lib/search-items.ts`. The seams
+are marked `Seam` in the body.
 
-1. **The `@/` specifiers become this client's relative ESM paths** (11.4),
-   and the em dashes leave under protocol section 7.
-2. **The results memo is the adapter's hook.** The prototype filters its
-   `items` prop over fixtures; here `useSearchAnswer` answers the places when
-   nothing is typed and Q8 plus 7.18 otherwise, with the prototype's own
-   title-first rank, and its `pending` and `failed` stand where the lab's
-   `previewState` stood. `items` stays a prop for the places, which the
-   shell supplies from 9.1's page block, so the signature does not move.
+1. **Imports are this client's relative ESM paths** (11.4).
+2. **The results come from `useSearchAnswer`**, which answers the places
+   when nothing is typed and 7.18 otherwise, title matches first, with its
+   own `pending` and `failed` states. `items` stays a prop for the places,
+   which the shell supplies from 9.1's page block.
 3. **`pageGlyph` and `FolderMark` are this client's**, through
-   `lib/nav-model.ts` and `components/folder-mark.tsx`, both already lifted.
+   `lib/nav-model.ts` and `components/folder-mark.tsx`.
 
 What the overlay decides is unchanged and its reasons are in the comments
 below: four kinds, grouped by kind with status deciding the order inside
 Tasks and a badge on each row rather than a heading over each status; the
 places offered before anything is typed; a title match above a body match.
-9.9 is amended toward the first and the second at RFC 0005 change control
-item 55, and AC-156 and AC-258 read the badge and the order.
+AC-156 and AC-258 read the badge and the order.
 */
 import { Input } from "./ui/input.js"
 import { FolderMark } from "./folder-mark.js"
@@ -53,16 +46,9 @@ import { useSearchAnswer } from "../lib/search-items.js"
 export type SearchResultStatus = "pending" | "abandoned" | "completed"
 
 /*
-What search can find (DES-203).
-
-Imran's brief of 2026-08-23, item 7: expand it. It found tasks, by title and
-notes, and nothing else, so a folder you had made was unfindable by name, a
-page you wanted was unreachable by typing it, and the words you had written on a
-folder page were invisible to the one control whose job is finding words.
-
-Four kinds, which is every kind Dana has that you can go to. Shelves were the
-one absent, and only because they had nowhere to land; [[DES-207]] gave them a
-page, so the reason expired and they joined.
+What search can find: four kinds, which is every kind Dana has that you can
+go to. Folders by name, pages by name, and the words written on a folder page
+are all findable, not only tasks.
 */
 export type SearchResultKind = "task" | "folder" | "shelf" | "page"
 
@@ -91,7 +77,7 @@ Grouped by **kind**, and the ordering inside Tasks is by status.
 Grouping by status at the top level was right while tasks were the only thing
 search could return. With three kinds it would have made "Pending", "Abandoned",
 "Completed", "Folders" and "Pages" peers: two classification schemes presented
-as one list, which is precisely the fault [[DES-152]] took out of the sidebar.
+as one list.
 So kind decides the headings, and status decides the order within Tasks, where
 each row wears its own badge anyway.
 */
@@ -211,10 +197,10 @@ export function SearchOverlay({
   The pages are few and fixed, so they cost one glance and turn the control
   into a way of *getting somewhere* as well as a way of finding something.
 
-  The prototype filters `items` here and ranks a title match above a body
-  match, "because somebody typing *venue* means the thing called venue before
-  the thing that mentions it"; `useSearchAnswer` does both over Q8 and 7.18,
-  and the places come from `items` when nothing is typed.
+  A title match ranks above a body match, because somebody typing *venue*
+  means the thing called venue before the thing that mentions it;
+  `useSearchAnswer` does the matching over 7.18, and the places come from
+  `items` when nothing is typed.
   */
   const answer = useSearchAnswer(debouncedQuery, open)
   const results =
@@ -370,7 +356,7 @@ export function SearchOverlay({
                                 own, and a page wears the glyph the sidebar
                                 gives it, all from the one resolver, so a
                                 folder found by searching looks like the same
-                                folder in the sidebar (DES-155). */}
+                                folder in the sidebar. */}
                             {item.kind === "page" || item.kind === "shelf" ? (
                               (() => {
                                 const Glyph =

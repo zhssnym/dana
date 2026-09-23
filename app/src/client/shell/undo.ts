@@ -1,7 +1,7 @@
 /*
 Undo: one bar for the whole window (9.1).
 
-Ported from the prototype's `lib/undo.ts` at S9, whose own closing paragraph
+Ported from the prototype's `lib/undo.ts`, whose own closing paragraph
 says what changes in the port: "a ported undo would post the compensating
 mutation through section 7 exactly as the forward one went, so the shape is
 portable even though this implementation is not." The shape is what arrived;

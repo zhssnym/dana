@@ -1,68 +1,54 @@
 /*
-The designer's `src/components/app-shell.tsx`, ported at P8R session R5 onto
-our router, our reads and our overlays. It is the global chrome of 9.1 and the
+The global chrome of 9.1, on our router, our reads and our overlays, and the
 only place any of it exists.
 
 Everything here is global because section 9 says it is: the sidebar ("the
 application's only chrome"), the offline banner ("global, persistent while
-offline"), the toast region, the floating add button ("on every page except
-Done"), and 10.6's update affordance. A page renders inside the outlet and
-adds none of them.
+offline"), the toast region, the floating add button, and 10.6's update
+affordance. A page renders inside the outlet and adds none of them.
 
-**There is no top bar, and that is the owner's ruling of 2026-08-13
-transcribed into 9.1 rather than a port taking a liberty.** Until that date
-this section opened with a bar carrying the app name, the global search
-control and the avatar menu; the designer's prototype has no bar at all and
-puts the first two in the sidebar header and the third in its footer. The
-ruling was on the merits, 9.1 changed, and `shell/TopBar.tsx` is retired with
-it. AC-174 states the removal as the absence of a banner landmark on every
-page (no test since the 2026-09-20 cut), which is what an application header is; every `header` this shell
-renders sits inside `main` and is a page's own rather than the application's,
-so it is content and not chrome. That placement is a requirement of this file.
+**There is no top bar.** The app name and the global search control sit in the
+sidebar header and the avatar menu in its footer. AC-174 states this as the
+absence of a banner landmark on every page, which is what an application header
+is; every `header` this shell renders sits inside `main` and is a page's own
+rather than the application's, so it is content and not chrome. That placement
+is a requirement of this file.
 
-**The floor his root carries is absent, and this is the third instance of
-it.** Section 13 item 32 forbids a viewport floor; two lived in his
-stylesheets and were stripped at R2, and the third was this component's root
-element. It is not here. Item 32 is decided by grepping the built stylesheet
-rather than the source, because Tailwind's source detection scans prose too
-and a document that spelled the utility would emit it; so this comment
+**There is no viewport floor on the root element.** A minimum viewport width is
+forbidden anywhere in the client, and it is checked by grepping the built
+stylesheet rather than the source, because Tailwind's source detection scans
+prose too and a document that spelled the utility would emit it; so this comment
 describes it and does not write it.
 
-**The chrome reads are made here rather than in the pages.** `/me`,
-`/folders` and 4.19's bundle at `/settings` back the sidebar and the account
-menu on every page, so a page that fetched them would fetch them again on the
-next page for the same answer. `main.tsx` starts `/me` and `/folders` before
-this component mounts; the bundle is read at the `useBundle` call below, whose
-own comment says why it is the bundle rather than frozen 7.2's settings.
-The shell renders before any of them answers, and it has to: 10.6's
-navigation fallback opens every /app path from the cached shell with no
-network at all, and AC-091 and AC-160 read the sidebar's page links there.
+**The chrome reads are made here rather than in the pages.** `/me`, `/folders`
+and 4.19's bundle at `/settings` back the sidebar and the account menu on every
+page, so a page that fetched them would fetch them again on the next page for
+the same answer. `main.tsx` starts `/me` and `/folders` before this component
+mounts; the bundle is read at the `useBundle` call below, whose own comment says
+why it is the bundle rather than 7.2's settings. The account menu reads `/me`.
+The shell renders before any of them answers, and it has to: 10.6's navigation
+fallback opens every /app path from the cached shell with no network at all, and
+AC-091 and AC-160 read the sidebar's page links there.
 
-**This sentence named `/me/settings` as the third read until issue #150, and
-it was stale rather than merely untidy.** The fold at S9 moved the sidebar
-onto the bundle and left the sentence describing the read it had replaced, so
-a boot prefetch nothing consumed had a comment vouching for it. It is gone
-with the prefetch; the account menu reads `/me`.
+**Document order carries two contracts.** The search overlay is first, ahead of
+the sidebar, because the suite addresses its field as the document's first
+textbox and other surfaces carry text inputs of their own; being fixed-position,
+its place in the tree costs nothing. The task form is last, because it opens
+over whatever page is beneath it and a control inside it has to be the
+document's last of its name.
 
-**Document order carries two contracts.** The search overlay is first, ahead
-of the sidebar, because the suite addresses its field as the document's first
-textbox and other surfaces carry text inputs of their own; being
-fixed-position, its place in the tree costs nothing. The task form is last,
-because it opens over whatever page is beneath it and a control inside it has
-to be the document's last of its name.
-
-**The two view preferences of 9.1 are `preferences.ts` and localStorage.**
-That file carries the argument. What is here is the one consequence a reader
-of this file needs: the vendored `SidebarProvider` writes the collapsed state
-into a cookie for a server-rendered host we do not have, and this component
-clears it, because a second readable cookie in this browser is a second
-answer to a question 11.6's double-submit expects one answer to.
+**The two view preferences of 9.1 are `preferences.ts` and localStorage.** That
+file carries the argument. What is here is the one consequence a reader of this
+file needs: the vendored `SidebarProvider` writes the collapsed state into a
+cookie for a server-rendered host we do not have, and this component clears it,
+because a second readable cookie in this browser is a second answer to a
+question 11.6's double-submit expects one answer to.
 */
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router'
-/* The icon module of DES-125, since S8: every icon Dana uses is an export
-   of one file and nothing imports `lucide-react` directly. */
+/* The icon module: every icon Dana uses is an export of one file and nothing
+   imports `lucide-react` directly. */
 import { adoptClock } from '../lib/time-format.js'
 import type { LucideIcon } from '../lib/icons.js'
 import {
@@ -167,7 +153,7 @@ const NO_FOLDERS: readonly Folder[] = []
 /** The same stable-identity trick for the saved views the page block ends on. */
 const NO_SAVED_VIEWS: readonly SavedView[] = []
 
-/** And for the shelves the Library and the strip's menu both read (S17b). */
+/** And for the shelves the Library and the strip's menu both read. */
 const NO_SHELVES: readonly Shelf[] = []
 
 /* What 9.1's Import says when the file is not a workflow at all. Section 9
@@ -181,27 +167,24 @@ const ALL_VIEWS: readonly ViewMode[] = ['list', 'board', 'calendar']
 /**
  * Where the floating button appears, and what it makes there.
  *
- * **The rule inverted at RFC 0005 and this is the inversion.** v1 put the
- * button on every page except Done. 9.1 now puts it only on "the pages with
- * no capture affordance of their own, Today, Important, and Assignments",
- * and never on Done or Abandoned. Every other page has a quick-add row where
- * its own list begins, so a second control floating over it is two ways to do
- * one thing, forty pixels apart.
+ * 9.1 puts it only on "the pages with no capture affordance of their own,
+ * Today, Important, and Assignments", and never on Done or Abandoned. Every
+ * other page has a quick-add row where its own list begins, so a second control
+ * floating over it is two ways to do one thing, forty pixels apart.
  *
- * **And it is absent in board view, which S10 added and DES-182 argued.** "In
- * board view every column captures and the floating button is absent": the
- * button is the capture point that leaves wherever a capture row already
- * exists, and a column says where the task lands better than any row. The
- * mode is read from the same store the strip writes, so the shell and the
- * page cannot disagree about which view is showing.
+ * **And it is absent in board view**: "in board view every column captures and
+ * the floating button is absent". The button is the capture point that leaves
+ * wherever a capture row already exists, and a column says where the task lands
+ * better than any row. The mode is read from the same store the strip writes,
+ * so the shell and the page cannot disagree about which view is showing.
  *
  * **Trash is not in the list and 9.11 is why**: "No capture anywhere on the
- * page." A deleted-things page that offers to make a new thing is offering
- * an act its own subject cannot receive.
+ * page." A deleted-things page that offers to make a new thing is offering an
+ * act its own subject cannot receive.
  *
  * The defaults are 9.3's entry table, and they are `place-pages.ts`'s rather
- * than this file's, because DES-182's fault was three surfaces each deciding
- * them: the button, the quick-add and the board column now read one table.
+ * than this file's, so the button, the quick-add and the board column read one
+ * table.
  */
 function floatingDefaults(pathname: string, mode: ViewMode): TaskFormDefaults | null {
   const spine = placeAt(pathname)
@@ -214,7 +197,7 @@ function floatingDefaults(pathname: string, mode: ViewMode): TaskFormDefaults | 
 /* `isTyping` left with the search shortcut it guarded (see `overlays.ts`);
    the undo shortcut below has its own guard in `undo.ts`. */
 
-/** The glyph the page strip shows, which is the designer's and not 9.1's. */
+/** The glyph the page strip shows, which is the design's and not 9.1's. */
 const pageIcons: Record<string, LucideIcon> = {
   [paths.desk]: LampDesk,
   [paths.today]: SunMedium,
@@ -231,13 +214,12 @@ const pageIcons: Record<string, LucideIcon> = {
 }
 
 /**
- * What the designer's page strip carries for the route that is open.
+ * What the page strip carries for the route that is open.
  *
- * The strip is his static current-page indicator and his `notes.md` is
- * explicit that it is not a tab system: nothing in it is clickable and
- * nothing navigates. A folder's name and colour come from the same `/folders`
- * read the sidebar uses, so an unopened folder or a failed read simply shows
- * nothing rather than a flickering identifier.
+ * The strip is a static current-page indicator and not a tab system: nothing in
+ * it is clickable and nothing navigates. A folder's name and colour come from
+ * the same `/folders` read the sidebar uses, so an unopened folder or a failed
+ * read simply shows nothing rather than a flickering identifier.
  */
 function currentPage(
   pathname: string,
@@ -260,23 +242,22 @@ function currentPage(
   if (pathname === paths.people) {
     return { title: 'People', icon: pageIcons[paths.people], iconColor: undefined }
   }
-  /* polish: places F10. The Trash tab was a blank with an "x". */
+  /* The Trash tab has a title and mark like any other. */
   if (pathname === paths.trash) {
     return { title: 'Trash', icon: pageIcons[paths.trash], iconColor: undefined }
   }
   if (pathname.startsWith(FOLDER_PREFIX)) {
     const id = pathname.slice(FOLDER_PREFIX.length)
     const folder = folders?.find((candidate) => candidate.id === id)
-    /* The folder's own mark since S17a. A tab drew a literal folder in a
-       personal colour until then, which is 9.1's "every tab is the same tab,
-       one anatomy (mark, title, close control)" with the wrong mark: a tab is
-       a face for the thing it opens, so it wears the thing's face. One
-       resolver, `parts/presenters.ts`, answers here and in the Library. */
+    /* The folder's own mark: 9.1's "every tab is the same tab, one anatomy
+       (mark, title, close control)", and a tab is a face for the thing it
+       opens, so it wears the thing's face. One resolver, `parts/presenters.ts`,
+       answers here and in the Library. */
     const mark = folderMark(folder)
     return { title: folder?.name ?? '', icon: mark.icon, iconColor: mark.color }
   }
-  /* A shelf tab wears the shelf's name and its own mark (9.1: every tab is
-     the same tab), from the shelves read the Library shares since S17b. */
+  /* A shelf tab wears the shelf's name and its own mark (9.1: every tab is the
+     same tab), from the shelves read the Library shares. */
   if (pathname.startsWith(SHELF_PREFIX)) {
     const id = pathname.slice(SHELF_PREFIX.length)
     const shelf = shelves?.find((candidate) => candidate.id === id)
@@ -299,11 +280,11 @@ function currentPage(
 What the shell puts in the window bar, as opposed to what a page puts there.
 
 9.1 orders the bar's right end in one sentence: "the view strip, the filter
-control, the Activity line, and the object's overflow menu". The first two are
-a place page's own and portal in at the default order, the last is the folder
-and shelf pages' at order 2, and these two sit between them at order 1. The
-lifted bar's `order` prop exists for exactly this, portals landing in mount
-order otherwise, which is not an arrangement anybody chose.
+control, the Activity line, and the object's overflow menu". The first two are a
+place page's own and portal in at the default order, the last is the folder and
+shelf pages' at order 2, and these two sit between them at order 1. The bar's
+`order` prop exists for exactly this, portals landing in mount order otherwise,
+which is not an arrangement anybody chose.
 
 **The Activity line reads the path rather than taking a subject**, because the
 bar belongs to the window and the window's subject is wherever it is pointed.
@@ -311,10 +292,8 @@ Only a folder and a task have events worth a line; a place page is a view over
 other people's things and has no history of its own, which is why the line is
 absent there rather than empty.
 
-10.6's update affordance is the one thing on the retired v1 page strip that was
-not the page's title, and it stays here rather than moving into the lifted
-component: that component is the prototype's, and the prototype has no service
-worker to offer an update from.
+10.6's update affordance stays here rather than moving into the window bar
+component, which knows nothing of the service worker.
 */
 function shellSubjectOf(pathname: string): { kind: 'folder' | 'task'; id: string } | null {
   const folder = /^\/app\/folders\/([0-9a-f-]{36})$/.exec(pathname)
@@ -328,18 +307,15 @@ function shellSubjectOf(pathname: string): { kind: 'folder' | 'task'; id: string
 const UPDATE_AVAILABLE = 'Update available, reload'
 
 /*
-polish: sidebar F1, tabstrip F1, search F2 (the blocker in six reports).
-
-Below 768px the vendored sidebar is a drawer and nothing opened it: the only
-toggle lived inside the drawer. This bar stands above the tab strip on a
-phone only, carrying the one thing that opens the drawer, the mark as the way
-home, and the two everywhere-controls the sidebar header holds on a laptop,
-Search and the bell. It is a `div` inside `main` rather than a `header`
-outside it, which keeps AC-174's "no banner landmark" true; and it returns
-nothing at all on a laptop rather than hiding, so a desktop page carries one
-"Search" control and one bell, as every criterion that counts them expects.
-The drawer closes on navigation from `app-sidebar.tsx`, on the backdrop and
-on Escape from the sheet itself.
+Below 768px the vendored sidebar is a drawer, and the only toggle lives inside
+the drawer. This bar stands above the tab strip on a phone only, carrying the
+one thing that opens the drawer, the mark as the way home, and the two
+everywhere-controls the sidebar header holds on a laptop, Search and the bell.
+It is a `div` inside `main` rather than a `header` outside it, which keeps
+AC-174's "no banner landmark" true; and it returns nothing at all on a laptop
+rather than hiding, so a desktop page carries one "Search" control and one bell.
+The drawer closes on navigation from `app-sidebar.tsx`, on the backdrop and on
+Escape from the sheet itself.
 */
 function PhoneBar({ onOpenSearch }: { readonly onOpenSearch: () => void }): React.JSX.Element | null {
   const { isMobile, setOpenMobile } = useSidebar()
@@ -422,13 +398,12 @@ export function AppShell(): React.JSX.Element {
   const navigate = useNavigate()
   const me = useMe()
   /*
-  The bundle of 4.19 rather than frozen 7.2's settings, since S9.
+  The bundle of 4.19 rather than 7.2's settings.
 
-  The three v1 page flags still exist and still decide the same entries: with
-  no pins written, the server derives the pin list from them (RFC 0005's
-  change control item 6), so a v1 account's show_done arrives as Done pinned
-  and nothing about 7.2 moved. What changed is that the sidebar now reads one
-  record of that fact instead of two, which is what the fold was for.
+  The three page flags still exist and still decide the same entries: with no
+  pins written, the server derives the pin list from them, so an account's
+  show_done arrives as Done pinned. The sidebar reads one record of that fact
+  instead of two.
   */
   const bundle = useBundle()
   const folders = useFolders()
@@ -465,21 +440,20 @@ export function AppShell(): React.JSX.Element {
      folder onto a shelf is a second write after the create. */
   const relabelFolder = useUpdateMyMembership()
   const update = useUpdateAffordance()
-  /* What an open right-edge panel has reserved (DES-154, DES-186). Zero when
-     nothing is open, which is almost always. */
+  /* What an open right-edge panel has reserved. Zero when nothing is open,
+     which is almost always. */
   const rightEdge = useRightEdge()
-  /* Whether a modal task surface is open over the page. Seam, S23; see the
-     wrapper below. */
+  /* Whether a modal task surface is open over the page. See the wrapper below. */
   const modalOpen = useModalOpen()
   /*
-  9.7's Appearance, applied to the document (RFC 0005 change control item 30).
-  4.19's own defaults stand in while the bundle read is in flight, so the first
-  paint is the light comfortable one a fresh account has rather than an
-  unstyled one that corrects itself a moment later.
+  9.7's Appearance, applied to the document. 4.19's own defaults stand in while
+  the bundle read is in flight, so the first paint is the light comfortable one
+  a fresh account has rather than an unstyled one that corrects itself a moment
+  later.
   */
   useAppearance(
-    /* The mirror stands in while the bundle is in flight (item 43): applying
-       4.19's default here repainted the frame the inline script had already
+    /* The mirror stands in while the bundle is in flight: applying 4.19's
+       default here would repaint the frame the inline script had already
        painted, which is the flash in the other direction. */
     bundle.data?.theme ?? mirroredTheme(),
     bundle.data?.row_density ?? 'comfortable',
@@ -553,10 +527,9 @@ export function AppShell(): React.JSX.Element {
             usually somebody else who was told nothing. Reading the placeholders
             and saying nothing would waste the only thing they are for.
 
-            The wording is the export toast's, one word wider than #185's
-            ruling wrote it and for the same reason: a `folder_ref` is in this
-            count because it names a `folders` row of the account that wrote the
-            file, exactly as a picture names a `files` row.
+            The wording is the export toast's: a `folder_ref` is in this count
+            because it names a `folders` row of the account that wrote the file,
+            exactly as a picture names a `files` row.
             */
             const left =
               prepared.omittedCount === 0
@@ -585,15 +558,14 @@ export function AppShell(): React.JSX.Element {
   /*
   Which shelf a new folder is being made on, if any.
 
-  Null for 9.1's footer act, which is made from no shelf at all, and a label
-  for the prototype's "Add folder to {shelf}" on a shelf heading. One dialog
-  either way: the label is what the folder is filed under once it exists,
-  which is two writes because 4.4 makes the placement a membership fact rather
-  than a column on the folder.
+  Null for 9.1's footer act, which is made from no shelf at all, and a label for
+  "Add folder to {shelf}" on a shelf heading. One dialog either way: the label
+  is what the folder is filed under once it exists, which is two writes because
+  4.4 makes the placement a membership fact rather than a column on the folder.
   */
   const [newFolderIn, setNewFolderIn] = useState<string | null>(null)
-  /* A page asking for the dialog (S27): 9.10's shelf page, whose "New
-     folder..." files what it makes on the shelf. */
+  /* A page asking for the dialog: 9.10's shelf page, whose "New folder..."
+     files what it makes on the shelf. */
   useEffect(
     () =>
       onOpenNewFolder((label) => {
@@ -604,7 +576,7 @@ export function AppShell(): React.JSX.Element {
   )
 
   /*
-  The viewer's arrangement of the Library (DES-171, built at S11).
+  The viewer's arrangement of the Library.
 
   Held here as well as in the bundle, and the reason is what a drag is: the
   column has to be in its new order on the frame the row is released, and a
@@ -616,8 +588,7 @@ export function AppShell(): React.JSX.Element {
 
   Null until the bundle arrives, which is what tells the seeding effect it has
   not run yet: an empty array is a real value here, meaning a viewer who has
-  dragged nothing, and DES-171 makes that the ordinary case rather than an
-  absence.
+  dragged nothing, which is the ordinary case rather than an absence.
   */
   const patchBundle = usePatchBundle()
   const [sidebarOrder, setSidebarOrder] = useState<readonly string[] | null>(null)
@@ -643,51 +614,40 @@ export function AppShell(): React.JSX.Element {
   would be the most alarming thing this feature could do.
   */
   /*
-  Ordinary navigation retargets the active tab, as an address bar does
-  (9.1). One effect on the router's own location covers every way this
-  client can move: a sidebar link, a folder row, a redirect, the back
-  button and a programmatic navigate all land here, so no link in the
-  application has to know that tabs exist. `retarget` is a no-op when the
-  path already matches, which is what stops it looping with the navigations
-  the strip itself asks for.
+  Ordinary navigation retargets the active tab, as an address bar does (9.1).
+  One effect on the router's own location covers every way this client can move:
+  a sidebar link, a folder row, a redirect, the back button and a programmatic
+  navigate all land here, so no link in the application has to know that tabs
+  exist. `retarget` is a no-op when the path already matches, which is what
+  stops it looping with the navigations the strip itself asks for.
 
-  **The dependency is the location and not its pathname, and that is a fix
-  rather than a tidy.** React Router runs a navigation inside a transition,
-  so React is free to leave one uncommitted and to coalesce it with the next.
-  Ask for a folder and then for Desk before the first has committed and React
-  renders once, at Desk, which is the pathname it last committed: with
-  `[location.pathname]` the dependency has not changed, the effect never runs,
-  and the strip is left pointing at a tab for a page the router never went to
-  while the sidebar and the page itself are already on Desk. Nothing about it
-  reads as a race, because the two things a person would check, the address
-  bar and the highlighted sidebar row, are both correct; only the active tab
-  is wrong, and it stays wrong until the next navigation.
-
-  This is what CI run 33820001308 found through AC-312, and the criterion was
-  right. That spec went in the 2026-09-20 cut. The trace shows the mechanism
-  rather than suggesting it: the
-  Groceries folder was never fetched at all, so its route never rendered,
-  while the sidebar's Desk row was highlighted, which only a committed render
-  at Desk can do. A probe that throttles the CPU twenty-fold and asks for the
-  two pages back to back reproduces it on demand, red before this line and
-  green after.
+  **The dependency is the location and not its pathname.** React Router runs a
+  navigation inside a transition, so React is free to leave one uncommitted and
+  to coalesce it with the next. Ask for a folder and then for Desk before the
+  first has committed and React renders once, at Desk, which is the pathname it
+  last committed: with `[location.pathname]` the dependency has not changed, the
+  effect never runs, and the strip is left pointing at a tab for a page the
+  router never went to while the sidebar and the page itself are already on
+  Desk. Nothing about it reads as a race, because the address bar and the
+  highlighted sidebar row are both correct; only the active tab is wrong, and it
+  stays wrong until the next navigation. Throttling the CPU and asking for two
+  pages back to back reproduces it.
 
   The location object is a fresh one per navigation, so the effect still runs
   once per move and not once per render, which is the property that matters:
-  running it on every render would let an unrelated re-render land between a
-  tab click's `selectTab` and the navigation it returns, and retarget the tab
-  that was just chosen back onto the page being left.
+  running it on every render would let an unrelated re-render land between a tab
+  click's `selectTab` and the navigation it returns, and retarget the tab that
+  was just chosen back onto the page being left.
   */
   useEffect(() => {
     retarget(location.pathname)
   }, [location])
 
   /*
-  9.1's Ctrl+Z used to be listened for here and is the lifted bar's own since
-  S24. The prototype's reason is the right one and is quoted in that file: the
-  bar and the keystroke are one feature, the bar being the discoverable half,
-  and a shell that owns one while a component owns the other is how one of them
-  ends up wired and the other forgotten.
+  9.1's Ctrl+Z is the undo bar's own: the bar and the keystroke are one feature,
+  the bar being the discoverable half, and a shell that owns one while a
+  component owns the other is how one of them ends up wired and the other
+  forgotten.
   */
 
   /*
@@ -704,15 +664,14 @@ export function AppShell(): React.JSX.Element {
   }, [railOpen])
 
   /*
-  F-8 (RFC 0005 change control item 18, ed33d2f): an unauthenticated read at
-  any /app route sends the person to / rather than rendering the shell over a
-  wall of refusals. The branch is the refusal alone, an ApiError carrying
-  10.1's 401: a /me that is slow, offline, or failed any other way keeps the
-  shell, because 10.6 opens every /app path from the cached worker with no
-  network at all, and a redirect firing on anything but a refusal would
-  bounce every real session on a bad connection. A full document load rather
-  than a client navigation, for signOut's reason below: whatever the caches
-  hold belongs to nobody the browser can still name.
+  An unauthenticated read at any /app route sends the person to / rather than
+  rendering the shell over a wall of refusals. The branch is the refusal alone,
+  an ApiError carrying 10.1's 401: a /me that is slow, offline, or failed any
+  other way keeps the shell, because 10.6 opens every /app path from the cached
+  worker with no network at all, and a redirect firing on anything but a refusal
+  would bounce every real session on a bad connection. A full document load
+  rather than a client navigation, for signOut's reason below: whatever the
+  caches hold belongs to nobody the browser can still name.
   */
   const signedOut = me.error instanceof ApiError && me.error.status === 401
   useEffect(() => {
@@ -721,7 +680,7 @@ export function AppShell(): React.JSX.Element {
 
   const defaults = floatingDefaults(location.pathname, remembered)
   /* The one write path out of a card. See the provider at this component's
-     root. Seam, S23. */
+     root. */
   const taskPatch = useApiTaskPatch()
   const activeFolderId = location.pathname.startsWith(FOLDER_PREFIX)
     ? location.pathname.slice(FOLDER_PREFIX.length)
@@ -729,24 +688,22 @@ export function AppShell(): React.JSX.Element {
 
 
   /*
-  9.8's invite gate, in place of the application at every /app path while Q12
-  is non-empty.
+  9.8's invite gate, in place of the application at every /app path while Q12 is
+  non-empty.
 
   This component is where it goes because this component is what /app renders,
   so "every /app path" and "in place of the application" are one condition and
-  one return rather than a rule each page has to remember. AC-172 (no test since the 2026-09-20 cut)
-  walks five paths, including a folder page and Settings, and reads on each of them that
-  the sidebar is not on the page.
+  one return rather than a rule each page has to remember.
 
   **The condition is a non-empty answer and never a pending read.** A gate that
-  waited for `/invites/pending` before rendering anything would be a client
-  that shows nothing until the network answers, and 10.6 opens every /app path
-  from the cached shell with no network at all; AC-091 and AC-160 read the
-  sidebar's page links there. So a read in flight, a read that failed and an
-  empty answer all render the application, which is also the only one of the
-  four that a person with no invite can ever observe. The cost is that an
-  account holding an invite sees the shell for as long as that read takes, and
-  `main.tsx` starts it before this component mounts for exactly that reason.
+  waited for `/invites/pending` before rendering anything would be a client that
+  shows nothing until the network answers, and 10.6 opens every /app path from
+  the cached shell with no network at all; AC-091 and AC-160 read the sidebar's
+  page links there. So a read in flight, a read that failed and an empty answer
+  all render the application, which is also the only one of the four that a
+  person with no invite can ever observe. The cost is that an account holding an
+  invite sees the shell for as long as that read takes, and `main.tsx` starts it
+  before this component mounts for exactly that reason.
 
   The returned tree carries no chrome except the two global states; see
   `pages/InviteGate.tsx` for why those two and not the rest.
@@ -770,21 +727,17 @@ export function AppShell(): React.JSX.Element {
 
   return (
     /*
-    **Seam, S23: the one write path out of a card, provided once.**
+    **The one write path out of a card, provided once.**
 
-    `tasks/task-writer.tsx` is that path and its header carries Imran's reason
-    for it: "dialog, sidebar, inline, and maybe more are just views of the same
-    task row, so the data inside them should be the same and updated
-    simultaneously." Every lifted card reaches for it through `useTaskWriter`,
-    and a card that finds nothing there keeps its edits and sends none, which
-    is what a row expanded on a page did until this line: the chevron opened a
-    real card whose every edit went nowhere.
+    `tasks/task-writer.tsx` is that path: dialog, sidebar and inline row are
+    views of the same task, so the data inside them must be the same and updated
+    together. Every card reaches for it through `useTaskWriter`, and a card that
+    finds nothing there keeps its edits and sends none.
 
     Here rather than in a page, because 9.3's inline card is drawn wherever a
-    row is and this component is what every /app path renders. The prototype
-    puts it in its shell for the same reason and says so: "it is not a value
+    row is and this component is what every /app path renders: it is not a value
     read in fifty places, it is one function owned by the one component that
-    already wraps every screen."
+    already wraps every screen.
 
     The surface host provides its own inside this one, and deliberately: a
     capture's edits ride a draft until the task exists, which is a different
@@ -794,36 +747,30 @@ export function AppShell(): React.JSX.Element {
     <>
       {/*
       9.9's overlay, ahead of everything for the reason in this file's header.
-      It belongs to the Complex Interaction engineer; the shell decides where
-      it is mounted, and until R7 and R8 replace both overlays it also has to
-      decide what they are mounted above.
+      The shell decides where it is mounted and what it is mounted above.
 
-      **The stacking wrapper is interim scaffolding and is dated by design.**
-      Both P8 overlays draw themselves with `dialog-scrim` and `dialog-panel`,
-      two names from the class vocabulary that left with the old token file at
-      R2, so neither is positioned any more. That was invisible while the
-      chrome was unpositioned too, and it stops being invisible here: this
-      sidebar is `fixed`, so it paints over anything unpositioned beneath it
-      and takes the pointer events with it. Measured: the task form's "More
-      options" expander sat under the account menu and could not be clicked,
-      which is AC-092 and AC-093 failing on the chrome rather than on the
-      form. `z-50` on a positioned wrapper restores the paint order those
-      criteria were passing under, changes nothing else about either overlay,
-      and comes out the day each arrives as a base-ui portal of its own.
-      */}
+      **The stacking wrapper is interim scaffolding.** Both overlays draw
+      themselves with `dialog-scrim` and `dialog-panel`, two class names that no
+      longer exist, so neither is positioned. This sidebar is `fixed`, so it
+      paints over anything unpositioned beneath it and takes the pointer events
+      with it: the task form's "More options" expander would sit under the
+      account menu and could not be clicked. `z-50` on a positioned wrapper
+      restores the paint order, changes nothing else about either overlay, and
+      comes out the day each arrives as a base-ui portal of its own.
+       */}
       <div className="relative z-50">
         <SearchOverlay />
       </div>
       {/*
-      **Seam, S23: a modal task surface takes the page out of the document.**
+      **A modal task surface takes the page out of the document.**
 
       9.1's roles table makes that surface "a dialog when opened as one", and
-      `components/right-edge.tsx`'s `HoldsTheDocument` carries the whole of
-      the reasoning and the measurement. What lands here is the other half:
-      `aria-hidden` takes this subtree out of the accessible tree, which is
-      what modal means, and `inert` takes it out of the pointer and the tab
-      order, which is what stops a click reaching a control nobody can see.
-      */}
+      `components/right-edge.tsx`'s `HoldsTheDocument` carries the whole of the
+      reasoning. What lands here is the other half: `aria-hidden` takes this
+      subtree out of the accessible tree, which is what modal means, and `inert`
+      takes it out of the pointer and the tab order, which is what stops a click
+      reaching a control nobody can see.
+       */}
       <div
         {...(modalOpen ? { "aria-hidden": true, inert: true } : {})}
         className="flex h-svh flex-col overflow-hidden bg-background"
@@ -902,25 +849,20 @@ export function AppShell(): React.JSX.Element {
           strip below it a page's header rather than the application's banner
           (AC-174).
 
-          **The right edge is a margin on this element** (DES-154, DES-186,
-          S17b). A panel on the right publishes its width to
-          `components/right-edge.tsx` and this reads it back as plain pixels,
-          which is one store since S24 and was two before it: the task
-          surface published into the lifted module while this read the shell's
-          own copy, so a task opened in the panel covered the page. So the
-          page narrows rather than being covered and the number that lays it
-          out is one a person can print.
+          **The right edge is a margin on this element.** A panel on the right
+          publishes its width to `components/right-edge.tsx` and this reads it
+          back as plain pixels, one store for every panel, so the page narrows
+          rather than being covered and the number that lays it out is one a
+          person can print.
 
-          **A margin and not padding, which the first attempt used.** Padding
-          moves the content in and leaves the box where it was, so the `main`
-          landmark still measured the full window with a panel open: the page
-          looked narrower and was not, which is the difference between a
-          layout and an indent. A margin takes the room off the element
-          itself, which is what "the page gets narrower" means and what
-          AC-260 reads. The transition is on the margin alone, because a
-          panel that appears instantly beside a page that jumps reads as two
-          events rather than one.
-          */}
+          **A margin and not padding.** Padding moves the content in and leaves
+          the box where it was, so the `main` landmark would still measure the
+          full window with a panel open: the page would look narrower and not
+          be. A margin takes the room off the element itself, which is what "the
+          page gets narrower" means and what AC-260 reads. The transition is on
+          the margin alone, because a panel that appears instantly beside a page
+          that jumps reads as two events rather than one.
+           */}
           <SidebarInset
             className="min-w-0 overflow-hidden bg-card transition-[margin] duration-[var(--duration-slow)] ease-[var(--ease-enter)]"
             style={{ marginRight: `${String(rightEdge)}px` }}
@@ -928,11 +870,11 @@ export function AppShell(): React.JSX.Element {
             {/*
             The tab strip of 9.1, above the window bar and inside `main`.
 
-            Inside rather than above the inset for AC-174's reason: a
-            `header` outside `main` is the banner landmark that criterion
-            asserts the absence of, and the strip is chrome belonging to the
-            window rather than to the application.
-            */}
+            Inside rather than above the inset for AC-174's reason: a `header`
+            outside `main` is the banner landmark that criterion asserts the
+            absence of, and the strip is chrome belonging to the window rather
+            than to the application.
+             */}
             <PhoneBar onOpenSearch={openSearch} />
             <TabStrip
               face={(path) => currentPage(path, folders.data, shelves.data)}
@@ -947,20 +889,14 @@ export function AppShell(): React.JSX.Element {
               }}
             />
             {/*
-            The window bar of 9.1 and DES-139, replacing the v1 page strip.
+            The window bar of 9.1. It does not repeat the page's title, which
+            9.1 forbids because the tab above says it.
 
-            The strip it replaces repeated the page's title, which 9.1 now
-            forbids in as many words because the tab above says it.
-
-            **This is the lifted bar since S24, and the client had two.** S23
-            brought `components/window-bar.tsx` across because the task surface
-            needs three of its exports, and its own header says "the shell that
-            renders it is S24's". Until this line changed, nothing rendered it:
-            the surface's `WindowBarLead` and `WindowBarActions` portalled into
-            slots no component mounted, so a task opened as a tab drew its
-            folder, its section and its controls into a bar that was not there.
-            The shell's own copy is retired with the store behind it.
-            */}
+            `components/window-bar.tsx` is the one bar: the task surface's
+            `WindowBarLead` and `WindowBarActions` portal into the slots it
+            mounts, so a task opened as a tab draws its folder, its section and
+            its controls here.
+             */}
             <WindowBar />
             <WindowBarChrome
               pathname={location.pathname}
@@ -1004,9 +940,9 @@ export function AppShell(): React.JSX.Element {
                 {
                   /* Filed after it exists rather than in the same call: 7.4
                      creates a folder and 7.4's my-membership places it, and
-                     widening the create to carry a label would be a frozen
-                     section 7 change for a client convenience. polish:
-                     sidebar F8, then the folder opens, ready for tasks. */
+                     widening the create to carry a label would be an API change
+                     for a client convenience. Then the folder opens, ready for
+                     tasks. */
                   onSuccess: (made) => {
                     if (label !== null) {
                       relabelFolder.mutate({ id: made.id, body: { shelf: label } })

@@ -1,17 +1,15 @@
 /*
-What every place-page of 9.4 and 9.5 shares: its head, its window-bar
-controls, its filter, its view, and the capture that its own spine defines.
+What every place-page of 9.4 and 9.5 shares: its head, its window-bar controls,
+its filter, its view, and the capture that its own spine defines.
 
-DES-154 is why this is a hook and a pair of components rather than a shape
-each page repeats: "a settled behaviour belongs to the mechanism, not to each
-screen". Eight pages each wiring their own filter would be eight chances for
-one of them to keep a filter across a navigation, or to hand a board the wrong
-axis, or to capture without the page's defaults, which is the fault DES-182
-found by building the third copy.
+A hook and a pair of components rather than a shape each page repeats, because a
+settled behaviour belongs to the mechanism, not to each screen. Eight pages each
+wiring their own filter would be eight chances for one of them to keep a filter
+across a navigation, or to hand a board the wrong axis, or to capture without
+the page's defaults.
 
 The pages keep exactly what is theirs: which rows they read, and how a list of
-them is arranged when nobody has asked for a grouping. Everything else is
-here.
+them is arranged when nobody has asked for a grouping. Everything else is here.
 */
 import { useEffect, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
@@ -43,20 +41,18 @@ import { modeFromSearch, useViewMode, writeViewMode } from './view-mode.js'
 import type { ViewMode } from './view-mode.js'
 
 /*
-The place page's own option set, which is the half of a view strip that does
-not live in the strip (RFC 0005 change control item 39: "the view types are
-`components/view-strip.tsx` plus each surface's option set").
+The place page's own option set, which is the half of a view strip that does not
+live in the strip: the view types are `components/view-strip.tsx` plus each
+surface's option set.
 
-**Icons and no written labels**, DES-137 and Imran's direction of 2026-08-18.
-The word is the control's accessible name rather than text beside it, so it is
-what a screen reader announces and what a criterion addresses; the tooltip
-shows the same word to a pointer. 9.1's roles table names the shape since S24:
-"a radio within a radiogroup, checked when current".
+**Icons and no written labels.** The word is the control's accessible name
+rather than text beside it, so it is what a screen reader announces and what a
+test addresses; the tooltip shows the same word to a pointer. 9.1's roles table
+names the shape: "a radio within a radiogroup, checked when current".
 
 Which of the three a page offers is `place-pages.ts`'s table and never this
 map's guess, which is why the map is keyed rather than ordered: a page that
-cannot honestly draw a calendar has no calendar option, not a disabled one
-(DES-144).
+cannot honestly draw a calendar has no calendar option, not a disabled one.
 */
 const VIEW_FACES: Record<ViewMode, { label: string; icon: typeof List }> = {
   list: { label: 'List', icon: List },
@@ -103,7 +99,7 @@ export interface Place {
   /**
    * The axis a board draws. A page in list view with no grouping asked for is
    * 'none', and its own arrangement stands; a board always has one, because a
-   * board with no columns is a control that does nothing (DES-182).
+   * board with no columns is a control that does nothing.
    */
   readonly groupBy: GroupBy
   /** The people this page's rows name, for the assignee axis and the chips. */
@@ -127,11 +123,11 @@ function peopleIn(
     if (task.assignee !== null) {
       byId.set(task.assignee.id, task.assignee.display_name ?? DELETED_USER)
     }
-    /* The makers as well as the carriers, since S25: the filter's created-by
-       axis offers this same list, and a page can hold a task somebody made
-       and nobody was given, which would otherwise be a person the axis could
-       not name. 4.5 makes `created_by` NOT NULL, so this adds a person per
-       row rather than sometimes. */
+    /* The makers as well as the carriers: the filter's created-by axis offers
+       this same list, and a page can hold a task somebody made and nobody was
+       given, which would otherwise be a person the axis could not name. 4.5
+       makes `created_by` NOT NULL, so this adds a person per row rather than
+       sometimes. */
     if (task.created_by !== null) {
       byId.set(task.created_by.id, task.created_by.display_name ?? DELETED_USER)
     }
@@ -149,12 +145,12 @@ function peopleIn(
  * all.
  */
 /**
- * What a place-page supplies that its spine cannot carry, added at S17b when
- * the folder page became one.
+ * What a place-page supplies that its spine cannot carry, which is how the
+ * folder page is one.
  *
  * Every field exists because it needs the page's own id, which is the whole of
  * what separates a folder page from the eight in `PLACES`. A page that passes
- * none of them behaves exactly as it did.
+ * none of them behaves as a plain place page.
  */
 export interface PlaceOptions {
   /**
@@ -311,7 +307,6 @@ export function usePlace(
     const defaults = captureDefaults(spine.key, today, column)
     const surface = surfaceDefaults(spine.key, today)
     openTaskForm({
-      /* polish: taskrow F3. */
       ...(title === undefined || title === '' ? {} : { title }),
       due_date: defaults.due_date ?? surface.due_date,
       important: defaults.important ?? surface.important,
@@ -340,17 +335,15 @@ export function usePlace(
 }
 
 /**
- * A place-page's chrome: the chips at the window bar's left end, the view
- * strip and the filter at its right (9.1, DES-150).
+ * A place-page's chrome: the chips at the window bar's left end, the view strip
+ * and the filter at its right (9.1).
  *
- * Rendered by the page rather than by the shell, and the reason is DES-139's:
- * the controls belong to what the tab is showing, so the screen keeps their
- * state and only the placement is the shell's. `WindowBarActions` is the
- * portal that makes that true, and `WindowBarLead` is the bar's other end:
- * one slot for the breadcrumb Dana does not have yet and the filter's chips,
- * which is the lifted bar's arrangement and DES-153's reason for it, both
- * answering "what am I looking at" and reading left to right in the order a
- * person would say it out loud.
+ * Rendered by the page rather than by the shell: the controls belong to what
+ * the tab is showing, so the screen keeps their state and only the placement is
+ * the shell's. `WindowBarActions` is the portal that makes that true, and
+ * `WindowBarLead` is the bar's other end: one slot for the breadcrumb Dana does
+ * not have yet and the filter's chips, both answering "what am I looking at"
+ * and reading left to right in the order a person would say it out loud.
  */
 export function PlaceChrome({ place }: { readonly place: Place }): React.JSX.Element {
   return (
@@ -379,33 +372,31 @@ export function PlaceControls({ place }: { readonly place: Place }): React.JSX.E
   const saveView = useCreateSavedView()
   const savedViews = useSavedViews()
   const navigate = useNavigate()
-  /* polish: pagehead F3. Editing the filter by hand leaves the saved view
-     behind, so its id leaves the address too; otherwise "Clear all" cleared
-     the chips while the sidebar went on saying the view was open. */
+  /* Editing the filter by hand leaves the saved view behind, so its id leaves
+     the address too; otherwise "Clear all" would clear the chips while the
+     sidebar went on saying the view was open. */
   const changeFilter = makeFilterChange(place, navigate)
   /*
-  The views saved on this page, listed at the panel's head, which is the
-  prototype's own arrangement and the third seam `FilterControl` records.
+  The views saved on this page, listed at the panel's head.
 
   Scoped to this page rather than to the account, on 9.1's sentence that a
-  filter belongs to the page: `viewDefinition` writes the spine's key into
-  every definition precisely so a view made on Today opens on Today, and
-  offering Today's saved views inside Done's filter would be the panel
-  proposing a narrowing the page cannot honour.
+  filter belongs to the page: `viewDefinition` writes the spine's key into every
+  definition precisely so a view made on Today opens on Today, and offering
+  Today's saved views inside Done's filter would be the panel proposing a
+  narrowing the page cannot honour.
   */
   const listed = (savedViews.data ?? [])
     .filter((view) => definitionPage(view.definition) === place.spine.key)
     .map((view) => ({ id: view.id, name: view.name }))
   return (
     <>
-        {/* DES-150's arrangement, written down: views, then the filter. */}
+        {/* Views, then the filter. */}
         {/*
-        polish: pagehead F1, folderpage F8, places F5. The strip rested
-        collapsed to the current view from S24 and widened on hover, which hid
-        the board and the calendar from anyone who did not hover one small
-        icon, and from every phone. It rests open now, a segmented control;
-        9.1 is amended in the same words.
-        */}
+        The strip rests open, a segmented control (9.1): a strip collapsed to
+        the current view and widened on hover would hide the board and the
+        calendar from anyone who did not hover one small icon, and from every
+        phone.
+         */}
         <ViewStrip
           ariaLabel="View"
           value={place.mode}
@@ -422,19 +413,10 @@ export function PlaceControls({ place }: { readonly place: Place }): React.JSX.E
           people={place.people}
           savedViews={listed}
           onSaveView={(name) => {
-            /*
-            Pinned on arrival, and it is DES-189 rather than a shortcut: "a
-            setting with no way in is a setting nobody has". DES-153 makes
-            pinning a separate choice from saving, and the surface that choice
-            belongs to is 9.7's pin list, which is still the v1 page of three
-            booleans; until it is rewritten, a view saved unpinned is a view
-            with no address a person can reach. So it lands in the sidebar,
-            where the pin list can take it out again the day that page lands.
-            */
-            /* polish: pagehead F3. Saved unpinned: a view lives in this
-               page's filter panel, and 9.7's pin list is where a person
-               chooses to put one in the sidebar. Pinned on arrival, it read
-               as a page and followed people to other pages. */
+            /* Saved unpinned: a view lives in this page's filter panel, and
+               9.7's pin list is where a person chooses to put one in the
+               sidebar. Pinned on arrival, it would read as a page and follow
+               people to other pages. */
             saveView.mutate({
               name,
               definition: viewDefinition(place.filter, place.spine.key),
@@ -464,18 +446,16 @@ function makeFilterChange(
 }
 
 /**
- * A place-page's head: the lifted `PageHead` of `prototype-v2`, given this
- * page's spine (RFC 0005 change control item 44's B1, S25).
+ * A place-page's head: `PageHead`, given this page's spine.
  *
- * **It is one call here rather than eight in the pages**, which is
- * `PlaceChrome`'s own reason one function up and DES-154's rule: a settled
- * behaviour belongs to the mechanism, and eight pages spelling out the same
- * four props is eight chances for one of them to key its cover by the page's
- * display name instead of by 4.20's place.
+ * **It is one call here rather than eight in the pages**, for `PlaceChrome`'s
+ * reason one function up: a settled behaviour belongs to the mechanism, and
+ * eight pages spelling out the same four props is eight chances for one of them
+ * to key its cover by the page's display name instead of by 4.20's place.
  *
- * The cover band is not here: it is inside `PageHead`, at the seam that file
- * records, because the mark rides up over the band on a negative margin and
- * that only works while the two are adjacent in one flow.
+ * The cover band is not here: it is inside `PageHead`, because the mark rides
+ * up over the band on a negative margin and that only works while the two are
+ * adjacent in one flow.
  *
  * The description starts with Dana's friendly sentence. A person's edit is
  * saved by 7.21, and clearing it brings that friendly sentence back.

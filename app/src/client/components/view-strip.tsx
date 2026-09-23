@@ -1,24 +1,11 @@
 /*
 The view strip: where a surface can live, said in icons.
 
-Lifted from `docs/design/prototype-v2/src/components/view-strip.tsx` at S23,
-read on `v2-build` at `b316785`. That prototype is deleted (`a7886df`,
-2026-09-01); read it in git history before that commit. The lift discipline
-of RFC 0004's prototype-lift section applies: this file diffs empty against
-that original except at the seams named at the foot of this header. The
-designer's own reasoning below is kept intact, being the design record for
-what this does.
-
-**The seams are the two mechanical ones every lifted file takes and no
-other**: the `@/` specifiers become this client's relative ESM paths (11.4),
-and the em dashes leave under protocol section 7's writing convention.
-
-Imran's direction, 2026-08-18: the options for where a thing opens, a
-conversation, a task, are a horizontal row of small icons, never a list of
-written labels; the words appear on hover. One component for every surface
-that offers views (the conversation's four homes, the task's five), because a
-switcher copied into a second place is a switcher that will one day disagree
-with itself, DES-123's rule, applied to chrome.
+The options for where a thing opens, a conversation, a task, are a
+horizontal row of small icons, never a list of written labels; the words
+appear on hover. One component for every surface that offers views (the
+conversation's four homes, the task's five), because a switcher copied into a
+second place is a switcher that will one day disagree with itself.
 
 A radiogroup of icon buttons: the active view sits on the graphite wash, the
 label lives in the tooltip, and the whole strip costs about as much width as
@@ -43,8 +30,7 @@ export interface ViewStripOption<T extends string> {
 }
 
 /*
-`collapse` is the resting behaviour Imran ruled for every switcher, 2026-08-18
-(DES-137, refined): show **only the view you are in**, and widen to the rest on
+`collapse` is the resting behaviour for every switcher: show **only the view you are in**, and widen to the rest on
 hover or focus. A switcher is read far more often than it is used, so at rest
 it should cost the width of what it is showing and nothing more, and its
 border arrives with the expansion rather than boxing one icon all day.

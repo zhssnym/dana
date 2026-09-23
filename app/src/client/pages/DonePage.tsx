@@ -16,27 +16,25 @@ own form for this screen, "Today", "Yesterday", then "August 6, 2026", from
 `parts/format-dates.ts`; the region's name is that rendered text, exactly as
 the rule says.
 
-**The row is `components/task-row.tsx`, as of the S11 reunion, and the
+**The row is `components/task-row.tsx`, and the
 affordance 9.5 names is that row's completion checkbox.** This page used to
 draw its own, on the ground that Q6 gives it a different set of elements; the
 difference turned out to be two things, a due badge 9.5's v2 bullet drops and
 a completion control that runs the probe below, and both are now passed as
 data. 11.15 named the duplicate as a hazard in as many words, "production
 carries two task rows, DoneRow in DonePage.tsx duplicates task-row.tsx line
-for line", and RFC 0004 makes one task-row implementation total S11's
-acceptance. What that buys is not tidiness: every fix the row has taken since
-P8R, the star named by its content, the tooltip that is also a title, the box
+for line". What that buys is not tidiness: every fix the row takes, the star named by its content, the tooltip that is also a title, the box
 that shows what was asked for until the answer differs, existed on one of the
-two copies and had to be noticed to reach the other.
+two copies would have to be noticed to reach the other.
 
 That control was a named button until 2026-08-13, on the reading that a checkbox
 cannot confirm before it acts and that hiding a dialog inside the one control
 every other page uses unconditionally is worse than a named button. The reading
 is closed from both directions and neither of them is this file. 9.1's names
 table gives the string to a task row's completion checkbox in its complete
-state, 9.4 lists that checkbox among a row's elements, 9.3 as RFC 0002 rewrites
-it has the completion control confirm on exactly the G-SERIES branch, and AC-179
-(no test since the 2026-09-20 cut) names it doing so, so confirming is a property of the transition rather than of
+state, 9.4 lists that checkbox among a row's elements, 9.3 has
+the completion control confirm on exactly the G-SERIES branch, and AC-179
+names it doing so, so confirming is a property of the transition rather than of
 a role. And the designer's own Done screen, measured in the running prototype on
 2026-08-13, hands its rows to his `TaskRow` at `status="completed"` and branches
 to the confirm from `onToggleComplete`: it renders `checkbox "Mark as not done"`
@@ -44,8 +42,7 @@ with `aria-checked` true, no second control beside it, and the box stays checked
 while the dialog is open. The checkbox is what the specification and the artifact
 were both already carrying; the button was this file's own.
 
-**A completed row opens its form**, which 9.4 gained at the P8R change control
-on 2026-08-13: a row opens that task's form on every page that draws one and
+**A completed row opens its form**, per 9.4: a row opens that task's form on every page that draws one and
 whatever the task's status. That is how 9.3's history block and its completion
 control are reached, and AC-178 and AC-179 reach them here.
 
@@ -183,7 +180,7 @@ export function DonePage(): React.JSX.Element {
       >
         <div className="space-y-7">
           {place.mode === 'board' ? (
-            /* Item 58 (F), ledger L-049: the shared board, a column per
+            /* The shared board, a column per
                completion day, every card finished. The days are the list's
                own groups, so the two views draw one arrangement. */
             <TaskBoard

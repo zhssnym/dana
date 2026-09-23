@@ -6,20 +6,19 @@ implements:
 
 - **A mutation invalidates nothing itself.** `queryClient.ts` invalidates on
   every success, which is 8.3's "refetch the active view after each own
-  mutation" applied uniformly. A hook here that added its own invalidation
-  would be adding a second strategy to a client 11.4 gives exactly one.
-- **A mutation reports nothing itself.** The mutation cache raises 9.1's
-  toasts off the error type. A hook that caught its own failure would be the
+  mutation" applied uniformly. A hook here that added its own invalidation would
+  be adding a second strategy to a client 11.4 gives exactly one.
+- **A mutation reports nothing itself.** The mutation cache raises 9.1's toasts
+  off the error type. A hook that caught its own failure would be the
   page-specific error treatment the shared states exist to prevent.
 
 So a hook here is a request and a shape, and that is all it should ever grow
 into.
 
-The tz parameters are 7.6's and 7.8's, entered by owner ruling on 2026-08-10
-and 2026-08-08: complete and abandon evaluate a calendar date when they
-generate a successor, and the pull dates its entry in the zone the request
-carries. They are not view endpoints, so `mutateApi` does not add tz for
-them; each call site that needs one asks for it, and the two that do are the
+The tz parameters are 7.6's and 7.8's: complete and abandon evaluate a calendar
+date when they generate a successor, and the pull dates its entry in the zone
+the request carries. They are not view endpoints, so `mutateApi` does not add tz
+for them; each call site that needs one asks for it, and the two that do are the
 ones section 7 names.
 */
 import { useMutation } from '@tanstack/react-query'
@@ -132,22 +131,19 @@ import { VALIDATION_ERROR_TOAST_META } from './queryClient.js'
 /*
 Making a folder is one request, and it has to stay one.
 
-A default description was written here for one revision with a second call,
-`PATCH /folders/:id` sent the moment the POST answered. It cost the criterion
-that watches this act: AC-279 reads every mutation the hold makes between the
-confirm and the API going quiet and expects one `POST /folders` plus one
-`PATCH /tasks/:id` per task moved and nothing else, RFC 0005 change control
-item 44's "the gesture is a composition of two existing endpoints and adds
-none". Every folder made anywhere in the client comes through here, the hold's
-panel included (`pages/task-rows.tsx`'s `onMerge`), so the extra call failed
-that criterion from every door.
+AC-279 reads every mutation the hold makes between the confirm and the API going
+quiet and expects one `POST /folders` plus one `PATCH /tasks/:id` per task moved
+and nothing else: the gesture is a composition of two existing endpoints and
+adds none. Every folder made anywhere in the client comes through here, the
+hold's panel included (`pages/task-rows.tsx`'s `onMerge`), so a second call here
+would fail that from every door.
 
-**The wording rides the POST now** (7.4's dated paragraph of 2026-09-04,
-issues #21 and #70, and AC-377): `postFoldersBody` takes `description`, the
-route reads it and `domain/folders.ts` inserts it, so the sentence a new
-folder opens with costs no second call. The default is written here rather
-than at each door, because here is the one door: a caller that has its own
-wording still wins, the spread reading its key when it carries one.
+**The wording rides the POST** (7.4, issues #21 and #70, and AC-377):
+`postFoldersBody` takes `description`, the route reads it and
+`domain/folders.ts` inserts it, so the sentence a new folder opens with costs no
+second call. The default is written here rather than at each door, because here
+is the one door: a caller that has its own wording still wins, the spread
+reading its key when it carries one.
 */
 export function useCreateFolder(): UseMutationResult<Folder, Error, PostFoldersBody> {
   return useMutation({
@@ -198,9 +194,8 @@ export interface OrderTaskVariables {
 }
 
 /**
- * 7.6's order endpoint (RFC 0005 change control item 44, B4), wired at S23a.
- * The body names the two neighbours and nothing else; the key is the
- * server's arithmetic, and the answer is the placed task as a fresh
+ * 7.6's order endpoint. The body names the two neighbours and nothing else; the
+ * key is the server's arithmetic, and the answer is the placed task as a fresh
  * GET /tasks/:id would give it.
  */
 export function useOrderTask(): UseMutationResult<TaskDetail, Error, OrderTaskVariables> {
@@ -364,8 +359,8 @@ export function useRemoveFolderMember(): UseMutationResult<
  * POST /invites/:id/accept, the Q12 login surface's affirmative.
  *
  * The response carries the full Folder object rather than the group-heading
- * stub (7.5, settled 2026-08-10), which is what lets 9.8's "accepting a
- * folder invite lands inside that folder" navigate without a second read.
+ * stub (7.5), which is what lets 9.8's "accepting a folder invite lands inside
+ * that folder" navigate without a second read.
  */
 export function useAcceptInvite(): UseMutationResult<AcceptInviteResponse, Error, string> {
   return useMutation({
@@ -446,13 +441,13 @@ export interface PutReminderVariables {
 }
 
 /**
- * Frozen 7.9's PUT, the edit path's half of the reminder write.
+ * 7.9's PUT, the edit path's half of the reminder write.
  *
- * It answers the affected TaskDetail, by the owner's ruling of 2026-08-10:
- * 7.0 gives the reminder no object of its own, this section offers no GET for
- * one, and TaskDetail already carries a reminder field, so the parent task is
- * the only object the contract holds that reports what the call did. Parsed
- * against that shape for the same reason every other response here is.
+ * It answers the affected TaskDetail: 7.0 gives the reminder no object of its
+ * own, section 7 offers no GET for one, and TaskDetail already carries a
+ * reminder field, so the parent task is the only object the contract holds that
+ * reports what the call did. Parsed against that shape for the same reason
+ * every other response here is.
  *
  * The body carries exactly one of the two 4.8 columns, which the shared schema
  * refuses to let it get wrong, and which mode is correct is decided by the
@@ -531,18 +526,16 @@ export function useCreateInvite(): UseMutationResult<
 }
 
 /* ------------------------------------------------------------------ *
- * The v2 surfaces (RFC 0005)
+ * Settings and restore
  * ------------------------------------------------------------------ */
 
 /**
- * The 4.19 bundle's write, at the v2 address, and the client's only settings
- * write.
+ * The 4.19 bundle's write, and the client's only settings write.
  *
  * It owns the pin list, the theme, the density, the clock, the task-open
- * surface, the calendar's zoom and the arrangements. A `useUpdateSettings`
- * over frozen 7.2's `/me/settings` stood beside it until issue #150, called
- * by nothing: the three v1 page flags are still the server's and still derive
- * into the pin list, and no surface in this client writes them directly.
+ * surface, the calendar's zoom and the arrangements. The three page flags of
+ * 7.2 are still the server's and still derive into the pin list, and no surface
+ * in this client writes them directly.
  */
 export function usePatchBundle(): UseMutationResult<
   GetSettingsResponse,
@@ -558,11 +551,10 @@ export function usePatchBundle(): UseMutationResult<
 /**
  * 7.13's folder restore.
  *
- * The task restore is not here and that is not an omission: 7.13 and frozen
- * 7.6 share one address, `POST /tasks/:id/restore`, the server forking on the
- * row's state because the two meanings have disjoint domains (S3's own
- * ruling). `useTransitionTask` already sends it, so a trashed task is
- * restored by the transition hook this client has had since P5.
+ * The task restore is not here and that is not an omission: 7.13 and 7.6 share
+ * one address, `POST /tasks/:id/restore`, the server forking on the row's state
+ * because the two meanings have disjoint domains. `useTransitionTask` already
+ * sends it, so a trashed task is restored by the transition hook.
  */
 export function useRestoreFolder(): UseMutationResult<Folder, Error, string> {
   return useMutation({
@@ -572,7 +564,7 @@ export function useRestoreFolder(): UseMutationResult<Folder, Error, string> {
 }
 
 /* ------------------------------------------------------------------ *
- * The S12 writes (RFC 0005): pages, shelves, notifications, comments
+ * Pages, shelves, notifications, comments
  * ------------------------------------------------------------------ */
 
 export interface PutPageVariables {
@@ -584,10 +576,9 @@ export interface PutPageVariables {
  * PUT /folders/:id/page (7.16): the block list whole, LWW per block.
  *
  * A stale write answers 409 carrying 5.1's copy, which the mutation cache
- * already raises as the toast 9.1 names for it; the page that issued the
- * write refetches at its own call site so the winning state replaces the
- * stale one on screen, both halves of "handled visibly" (RFC 0004's S12
- * acceptance) without this hook growing either.
+ * already raises as the toast 9.1 names for it; the page that issued the write
+ * refetches at its own call site so the winning state replaces the stale one on
+ * screen, both halves of "handled visibly", without this hook growing either.
  */
 export function usePutFolderPage(): UseMutationResult<
   GetPageResponse,
@@ -767,22 +758,18 @@ export function useDeleteShelf(): UseMutationResult<void, Error, string> {
 }
 
 /**
- * POST /shelves/:id/duplicate (7.16 as amended 2026-09-04; issues #117, #128).
- * 201 with the whole new Shelf, which the caller navigates to.
+ * POST /shelves/:id/duplicate (7.16; issues #117, #128). 201 with the whole new
+ * Shelf, which the caller navigates to.
  *
- * **It replaces two calls, and the second one is what #117 was about.** The
- * page duplicated a shelf as `POST /shelves` carrying the icon, colour and
- * description read from the original, and there was no third field it could
- * have carried for the cover: `POST /shelves` refuses all three cover fields
- * out loud rather than dropping them (#40's ruling), so the copy came out
- * bare. Two calls also have a gap between them, and a failure in it is the
- * half-duplicated shelf #128 asks not to exist, so the copy is one act on the
- * server. It carries the icon, colour, description, `cover_preset` and
- * `cover_focal_y` verbatim and **a cover file of its own** — the picture is
- * copied rather than shared, because one `cover_file_id` on two shelves is not
- * independence: the foreign key's ON DELETE SET NULL blanks both the moment
- * that file goes. That is Imran's ruling on #117, "changing or removing the
- * cover on either shelf must not change the other".
+ * **One act on the server rather than two calls.** `POST /shelves` refuses all
+ * three cover fields out loud rather than dropping them, so a copy made through
+ * it would come out bare, and two calls have a gap between them in which a
+ * failure leaves a half-duplicated shelf. The copy carries the icon, colour,
+ * description, `cover_preset` and `cover_focal_y` verbatim and **a cover file
+ * of its own** — the picture is copied rather than shared, because one
+ * `cover_file_id` on two shelves is not independence: the foreign key's ON
+ * DELETE SET NULL blanks both the moment that file goes. Changing or removing
+ * the cover on either shelf must not change the other.
  *
  * It does not carry the shelf's page (4.17), which is 7.16's own distinction
  * and not this client's to make.
@@ -791,11 +778,11 @@ export function useDeleteShelf(): UseMutationResult<void, Error, string> {
  * be refused for.** 7.16 answers `name: you already have a shelf with this
  * name.` where "(copy)" and its numbered successors will not fit inside 10.3's
  * forty characters — a real outcome for a shelf named at the cap, and one the
- * person can act on by shortening the name. Without the meta the mutation
- * cache says "Something went wrong. Nothing was saved. Try again.", which is
- * true and useless, and trying again produces the same refusal for ever. The
- * 413 the copy's quota can earn needs no meta: `writeFailureMessage` passes
- * every `quota_exceeded` sentence through, that status having one producer.
+ * person can act on by shortening the name. Without the meta the mutation cache
+ * says "Something went wrong. Nothing was saved. Try again.", which is true and
+ * useless, and trying again produces the same refusal for ever. The 413 the
+ * copy's quota can earn needs no meta: `writeFailureMessage` passes every
+ * `quota_exceeded` sentence through, that status having one producer.
  */
 export function useDuplicateShelf(): UseMutationResult<Shelf, Error, string> {
   return useMutation({
@@ -805,11 +792,12 @@ export function useDuplicateShelf(): UseMutationResult<Shelf, Error, string> {
   })
 }
 
-/** POST /folders/:id/duplicate (7.16): DES-198's copy rules server-side;
- * the answer is the copy's identity, which the caller navigates to. The tz is
- * the day a spent plan re-anchors on, the viewer's rather than the database's
- * (8.1, issue #76); without it the endpoint refuses a copy that would move a
- * date. */
+/**
+ * POST /folders/:id/duplicate (7.16): the copy rules are server-side; the
+ * answer is the copy's identity, which the caller navigates to. The tz is the
+ * day a spent plan re-anchors on, the viewer's rather than the database's (8.1,
+ * issue #76); without it the endpoint refuses a copy that would move a date.
+ */
 export function useDuplicateFolder(): UseMutationResult<
   DuplicateFolderResponse,
   Error,
@@ -857,14 +845,12 @@ export interface PostCommentVariables {
   readonly folderId: string
   readonly body: PostCommentBody
   /*
-  Which task's thread this joins, added at S26 for the mount ledger L-246
-  names.
+  Which task's thread this joins.
 
   It is a query parameter rather than a body field because that is where 7.14
-  puts it: `routes/conversation.ts` parses `threadQuery` off `req.query` on
-  both the read and the write, and `postCommentBody` carries no task at all.
-  The read half has taken one since S5 (`useThread`'s second argument); this
-  is the write half catching up, and nothing about the frozen contract moves.
+  puts it: `routes/conversation.ts` parses `threadQuery` off `req.query` on both
+  the read and the write, and `postCommentBody` carries no task at all. The read
+  half takes one too (`useThread`'s second argument).
   */
   readonly taskId?: string
 }
@@ -903,10 +889,12 @@ export function usePatchComment(): UseMutationResult<
   })
 }
 
-/** The author, or a member who may moderate — `comment.moderate`, which is
- * Full control's rather than custody's (7.14 as amended 2026-09-20, issue
- * #228). The menu offers it to exactly them, through
- * `folderGates(...).moderate` and `lib/thread.ts` (AC-790). */
+/**
+ * The author, or a member who may moderate — `comment.moderate`, which is Full
+ * control's rather than custody's (7.14, issue #228). The menu offers it to
+ * exactly them, through `folderGates(...).moderate` and `lib/thread.ts`
+ * (AC-790).
+ */
 export function useDeleteComment(): UseMutationResult<void, Error, string> {
   return useMutation({
     mutationFn: (id: string) =>
@@ -930,10 +918,9 @@ export function useSetCommentLike(): UseMutationResult<
 }
 
 /**
- * DELETE /folders/:id/my-membership: 5.3's leave with the target fixed to
- * the caller, the address RFC 0005 change control item 5 gave the 9.6 door.
- * 204; the 5.3 rules (default folder, sole owner) answer 409 with their own
- * copy, which the toast carries verbatim.
+ * DELETE /folders/:id/my-membership: 5.3's leave with the target fixed to the
+ * caller, the 9.6 door. 204; the 5.3 rules (default folder, sole owner) answer
+ * 409 with their own copy, which the toast carries verbatim.
  */
 export function useLeaveFolder(): UseMutationResult<void, Error, string> {
   return useMutation({
@@ -944,16 +931,13 @@ export function useLeaveFolder(): UseMutationResult<void, Error, string> {
 
 /**
  * DELETE /trash/tasks/:id and DELETE /trash/folders/:id, 7.13's permanent
- * delete as amended by RFC 0005 change control items 36, 38 and 53 and by
- * 7.13's dated amendment of 2026-09-20. 204; **Full control's, and not one
- * rule for the two** — a task's ignores ownership, a folder's requires the
- * owner beside Full control (#228) — so the menu offers each through
- * `folderGates(...).destroyTask` and `.destroyFolder`, by way of
- * `lib/trash.ts`'s `purgeable` (AC-790). Anybody below the bar is answered
- * 403 with the server's own sentence, which `writeFailureMessage` carries;
- * the cache invalidation that follows every mutation refetches Trash and
- * everything the cascade touched. Built at S28b over the routes S28a
- * landed.
+ * delete. 204; **Full control's, and not one rule for the two** — a task's
+ * ignores ownership, a folder's requires the owner beside Full control (#228) —
+ * so the menu offers each through `folderGates(...).destroyTask` and
+ * `.destroyFolder`, by way of `lib/trash.ts`'s `purgeable` (AC-790). Anybody
+ * below the bar is answered 403 with the server's own sentence, which
+ * `writeFailureMessage` carries; the cache invalidation that follows every
+ * mutation refetches Trash and everything the cascade touched.
  */
 export function useDestroyTrashedTask(): UseMutationResult<void, Error, string> {
   return useMutation({
@@ -976,8 +960,10 @@ export function useDestroyTrashedFacet(): UseMutationResult<void, Error, string>
   })
 }
 
-/** POST /folders/:id/transfer-ownership (7.16): owner-only, member target,
- * the DES-225/8.9 flow behind 9.6's "an owner leaves by transferring first". */
+/**
+ * POST /folders/:id/transfer-ownership (7.16): owner-only, member target, the
+ * 8.9 flow behind 9.6's "an owner leaves by transferring first".
+ */
 export function useTransferOwnership(): UseMutationResult<
   TransferOwnershipResponse,
   Error,
@@ -1000,12 +986,11 @@ export function useImportWorkflow(): UseMutationResult<
 > {
   return useMutation({
     /*
-    tz on frozen 7.6's precedent rather than 7.0's view rule, which is how
-    the route reads it: a file carrying a repeat or a reminder evaluates a
-    date and needs 4.5's anchor, and 7.16 as widened answers 422 naming tz
-    without one. Every file that imported before item 44's B3 still carries
-    none, so the parameter goes only where it is read (RFC 0004's S27, the
-    row's item 44 clause; AC-273 pins the server half).
+    tz on 7.6's precedent rather than 7.0's view rule, which is how the route
+    reads it: a file carrying a repeat or a reminder evaluates a date and needs
+    4.5's anchor, and 7.16 answers 422 naming tz without one. Older files carry
+    none, so the parameter goes only where it is read (AC-273 pins the server
+    half).
     */
     mutationFn: (body: ImportWorkflowBody) =>
       mutateApi(importWorkflowResponse, {
@@ -1060,14 +1045,14 @@ export function useCreateSavedView(): UseMutationResult<
 
 /**
  * PATCH /views/:id, which 9.7's pin list writes when a saved view's switch
- * moves (S16).
+ * moves.
  *
- * A saved view's pin lives on its own row rather than in `pinned_views`,
- * which 4.19 caps at the nine native keys, so the pin list writes two
- * different addresses for two kinds of row and the page is where they meet.
- * The whole body is `PatchViewBody`, not a pin flag, because the endpoint
- * already takes name and definition and a narrower hook here would be a
- * second, smaller idea of what a saved view is.
+ * A saved view's pin lives on its own row rather than in `pinned_views`, which
+ * 4.19 caps at the nine native keys, so the pin list writes two different
+ * addresses for two kinds of row and the page is where they meet. The whole
+ * body is `PatchViewBody`, not a pin flag, because the endpoint already takes
+ * name and definition and a narrower hook here would be a second, smaller idea
+ * of what a saved view is.
  */
 export function usePatchSavedView(): UseMutationResult<
   SavedView,
@@ -1081,7 +1066,7 @@ export function usePatchSavedView(): UseMutationResult<
 }
 
 /* ------------------------------------------------------------------ *
- * The sample workspace (RFC 0005 change control item 60)
+ * The sample workspace (7.20)
  * ------------------------------------------------------------------ */
 
 /**

@@ -14,8 +14,8 @@ from, exactly as `?mode=` seeds the view and `?state=important` seeds Today's
 narrowing. A path of its own would have made a view a seventeenth kind of
 surface rather than the page it is a view of.
 
-Recorded as change control in RFC 0005, because a route not in 9.1's table is
-a deviation whoever reads that table next is owed an explanation of.
+A route not in 9.1's table is a deviation whoever reads that table next is
+owed an explanation of, and this is it.
 */
 import type { SavedView } from '../../shared/bundle.js'
 import { PLACES } from './place-pages.js'

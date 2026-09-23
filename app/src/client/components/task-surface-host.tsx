@@ -1,54 +1,44 @@
 /*
-The one place a task surface is opened, and what replaces the task form.
+The one place a task surface is opened.
 
-9.3's v2 opens "There is no task form. A task is its row, its card, and its
-page." So `components/task-form/**` retires whole at S23 and this is what the
-layout mounts in its place: `components/task-surface.tsx`'s `TaskSurface`,
-over this client's query layer, opened by the same two buses the form was
-opened by.
+9.3: "There is no task form. A task is its row, its card, and its page." This is
+what the layout mounts: `components/task-surface.tsx`'s `TaskSurface`, over this
+client's query layer, opened by two buses.
 
-**The buses do not move, and that is deliberate.** `shell/overlays.ts`'s
-`openTaskForm(defaults)` carries 9.3's entry-point defaults, which are the
-chrome's because that table keys them by where the person clicked, and
-`openTask(id)` carries a task, which a row, a calendar cell and a search
-result all raise. Both are subscribable modules rather than contexts, "so a
-control anywhere in the chrome can raise one without the two being in the same
-tree". Nothing about that changed when the surface behind them did, so the
-callers are untouched by this row: the calendar, the search overlay and every
-page still call what they called.
+**The buses.** `shell/overlays.ts`'s `openTaskForm(defaults)` carries 9.3's
+entry-point defaults, which are the chrome's because that table keys them by
+where the person clicked, and `openTask(id)` carries a task, which a row, a
+calendar cell and a search result all raise. Both are subscribable modules
+rather than contexts, so a control anywhere in the chrome can raise one without
+the two being in the same tree.
 
 **Where a task opens is the person's.** The account's `task_open` value is the
-record for dialog, panel, or tab, while `lib/task-surface-preference.ts` keeps
-a browser mirror for the first read before the account bundle arrives.
+record for dialog, panel, or tab, while `lib/task-surface-preference.ts` keeps a
+browser mirror for the first read before the account bundle arrives.
 
 **The create path holds a draft and the edit path does not, which is not two
 artifacts.** 9.3's "no Save control and no draft state" is about what a person
-does: there is no button, and a task exists the moment it is named. But a
-value cannot be written to a row that does not exist yet, and frozen 7.6
-requires a title of 1 to 300 to make one. So a capture opens over a local
-`ConceptTask` seeded from the entry defaults, every chip answered before the
-title rides the create body, and the first non-empty title commit is the
-`POST`. From that moment the surface is on the created id and every further
-edit goes through `tasks/task-writer.tsx` like any other. This is the
-arrangement the retired chip strip already used and stated: "on a creation
-there is no row to write to, so the value goes into the form's own state and
-rides the create body. Both paths set the same form state, so the strip and
-the fields below it never disagree about what the surface holds."
+does: there is no button, and a task exists the moment it is named. But a value
+cannot be written to a row that does not exist yet, and 7.6 requires a title of
+1 to 300 to make one. So a capture opens over a local `ConceptTask` seeded from
+the entry defaults, every chip answered before the title rides the create body,
+and the first non-empty title commit is the `POST`. From that moment the surface
+is on the created id and every further edit goes through `tasks/task-writer.tsx`
+like any other.
 
-**Nothing renders until the surface can be drawn correctly**, which is the
-retired overlay's rule and its reason survives whole: 9.3's entry-point table
-names the default folder, which is a read, and an edit pre-fills from
-`TaskDetail`, which is another. "A form that rendered first and filled itself
+**Nothing renders until the surface can be drawn correctly.** 9.3's entry-point
+table names the default folder, which is a read, and an edit pre-fills from
+`TaskDetail`, which is another. A surface that rendered first and filled itself
 afterwards would show an empty folder and an empty title for as long as the
-request took, which is a form whose first observable state is wrong; the
-chrome already holds the folder list on every page, so the wait is a cache hit
-in practice."
+request took, which is a first observable state that is wrong; the chrome
+already holds the folder list on every page, so the wait is a cache hit in
+practice.
 
 **9.5's upcoming banner keeps its one path.** A ghost opens the series' current
 occurrence, which shows a date the person did not click, so the banner belongs
-on that path and on no other: "a client showing the banner for every repeating
-task passes AC-098 as written and tells the person something false every time
-they open a repeat from its own day."
+on that path and on no other: a client showing the banner for every repeating
+task tells the person something false every time they open a repeat from its own
+day (AC-098).
 */
 
 import { useEffect, useRef, useState } from 'react'
@@ -87,9 +77,8 @@ interface OpenState {
   readonly upcoming: boolean
 }
 
-/* polish: taskcard F5. The confirm a surface asks before it abandons or
-   deletes the task it is showing, the row's two sentences over the row's two
-   acts. */
+/* The confirm a surface asks before it abandons or deletes the task it is
+   showing, the row's two sentences over the row's two acts. */
 interface PendingAct {
   readonly message: string
   readonly run: () => void
@@ -120,8 +109,8 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
   const acts = useRowActions()
 
   const editing = open?.taskId ?? created
-  /* polish: taskcard F3. The edit path is `useTaskEditing`'s, shared with the
-     task's own page, so the dialog, the panel and the tab edit one way. */
+  /* The edit path is `useTaskEditing`'s, shared with the task's own page, so
+     the dialog, the panel and the tab edit one way. */
   const editingTask = useTaskEditing(editing)
 
   /*
@@ -150,10 +139,10 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
       making.current = false
       setOpen({ seq: seq.current, taskId: null, defaults, upcoming: false })
       /*
-      polish: taskrow F3. "Open full form" from a quick-add carries the words
-      already typed, and a title is all 7.6 needs to make the task, so it is
-      made at once and the surface opens on it: what the person typed is
-      never sitting in one box while an empty one asks for it again.
+      "Open full form" from a quick-add carries the words already typed, and a
+      title is all 7.6 needs to make the task, so it is made at once and the
+      surface opens on it: what the person typed is never sitting in one box
+      while an empty one asks for it again.
       */
       const title = defaults.title?.trim() ?? ''
       if (title === '') return
@@ -186,10 +175,9 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
     })
     const offTask = onOpenTask((taskId, options) => {
       /*
-      polish: taskcard F3. 9.3's third home, honoured: with "Where a task
-      opens" set to Tab, a task opens at its own address, which is the card
-      as a page, rather than in the dialog the setting said it would not use.
-      A ghost's upcoming occurrence keeps the dialog, its banner living there.
+      9.3's third home: with "Where a task opens" set to Tab, a task opens at
+      its own address, which is the card as a page, rather than in the dialog. A
+      ghost's upcoming occurrence keeps the dialog, its banner living there.
       */
       if (taskOpenRef.current === 'tab' && options.upcoming !== true) {
         void navigateRef.current(paths.task(taskId))
@@ -287,10 +275,9 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
     }
     const next: ConceptTask = { ...(draft ?? seed()), ...fields }
     setDraft(next)
-    /* 9.3: the title is required, 1 to 300, and frozen 7.6 refuses a create
-       without one. So an unnamed capture holds its answers and makes nothing,
-       which is also what a person means by opening a capture and changing
-       their mind. */
+    /* 9.3: the title is required, 1 to 300, and 7.6 refuses a create without
+       one. So an unnamed capture holds its answers and makes nothing, which is
+       also what a person means by opening a capture and changing their mind. */
     if (next.title.trim() === '') return
     /* One create per capture, whatever a fast blur does. `create.isPending`
        is not enough on its own: two blurs inside one tick both read false. */
@@ -329,10 +316,10 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
   }
 
   /*
-  polish: taskcard F5. The card's menu carries what the row's carries: the
-  two acts that end a task are the page layer's, with the row's confirms and
-  the row's undo entries, and the surface closes on either because the task
-  it was showing has left the list beneath it.
+  The card's menu carries what the row's carries: the two acts that end a task
+  are the page layer's, with the row's confirms and the row's undo entries, and
+  the surface closes on either because the task it was showing has left the list
+  beneath it.
   */
   const detail = editingTask.detail
   const surface = surfaceTask(id, concept)

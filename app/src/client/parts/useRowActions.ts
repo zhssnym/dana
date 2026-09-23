@@ -167,9 +167,8 @@ export function useRowActions(): RowActions {
     },
     /*
     Delete marks rather than purges since 7.13, so its inverse is the un-trash
-    that shares frozen 7.6's restore address (S3 forked the handler on the
-    row's state). That is what makes this act undoable at all: before Trash
-    there was nothing to put back, and 9.1's own example of the bar's sentence
+    that shares 7.6's restore address (the handler forks on the row's
+    state). That is what makes this act undoable at all, and 9.1's own example of the bar's sentence
     is this one.
     */
     onDelete: (task) => {
@@ -213,7 +212,7 @@ export function useRowActions(): RowActions {
            instead of the due date for a Start-only row (issue #216). Same
            rule as every key above: invert only what the drop wrote. */
         ...(value.start_date === undefined ? {} : { start_date: task.start_date }),
-        /* S26, item 44's B2: where a card came from, so the undo puts it
+        /* Where a card came from, so the undo puts it
            back under the section it was dragged out of. */
         ...(value.section_block_id === undefined
           ? {}

@@ -6,7 +6,7 @@ page because 10.6's fallback opens every /app path from the cached shell, and
 a banner rendered by a page would be missing on exactly the pages a person
 reaches while the connection is down.
 
-Since P8R session R5 the banner itself is the designer's, ported at R3 as
+The banner itself is the designer's, ported as
 `components/state-patterns.tsx`, and what stays here is the one thing that
 component cannot know: whether Dana is offline. That answer is
 `state/connectivity.ts` and never `navigator.onLine`, for the reason the

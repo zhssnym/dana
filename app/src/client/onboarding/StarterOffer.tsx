@@ -9,7 +9,7 @@ account that has already passed the cheap check: a person with folders never
 issues it, which is every person after their first hour.
 
 **The offer lives here and not in the folder page.** 9.13 puts it beneath
-Desk's empty state, and `FolderPage` is S12's file; `DeskPage` is the seam
+Desk's empty state, and `FolderPage` stays a plain folder page; `DeskPage` is the seam
 that already exists between the route and that page, so the offer renders
 after it and reaches across nothing. A fresh Desk has no tasks, so the folder
 page above is showing its own empty state and this sits directly under it,

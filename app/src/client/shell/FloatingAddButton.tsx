@@ -4,8 +4,7 @@ task form with the entry-point defaults of 9.3."
 
 The treatment is the designer's, from the button at the foot of his
 `app-shell.tsx`. Two things about it are section 9's rather than his, and both
-are the same ruling of 2026-08-13 read from its two sides: his design wins on
-structure, section 9 wins on labels.
+follow one rule: his design wins on structure, section 9 wins on labels.
 
 **The name is "Add task".** 9.1's control table assigns it, and its own
 paragraph says why: Q5's empty state calls this "the + button", which is a

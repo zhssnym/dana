@@ -1,59 +1,44 @@
 /*
 The one way an edit gets out of a card, wherever that card is.
 
-`docs/design/prototype-v2/src/lib/task-writer.tsx`, read at `7d2064c`; that
-prototype is deleted (`a7886df`, 2026-09-01) and is in git history before that
-commit. The context and the hook cross verbatim; what is added below them is
-this client's implementation of the one function they carry.
+Dialog, sidebar, inline row and any other presentation are views of the same
+task, so the edits made in one (steps, notes, links, attachments) must be the
+edits every other one shows.
 
-Imran, 2026-08-22: "A sidebar view of a task row does not carry the edits (in
-steps, notes, links, and attachments) which are added in inline view of it...
-dialog, sidebar, inline, and maybe more are just views of the same task row,
-so the data inside them should be the same and updated simultaneously."
-
-**Why a context, when this repository keeps refusing them.** The prototype's
-answer is the right one here too and it is worth carrying whole: "`row-density`
-and `time-format` are module stores precisely because a provider around
-everything that reads them is a provider around the application. This is the
-opposite shape: it is not a value read in fifty places, it is *one function*
-owned by the one component that already wraps every screen. Threading it as a
-prop would mean touching twenty-four list call sites in eleven files and hoping
-the twenty-fifth remembers, which is the fault DES-154 exists to name."
+**Why a context, when this repository keeps refusing them.** `row-density` and
+`time-format` are module stores precisely because a provider around everything
+that reads them is a provider around the application. This is the opposite
+shape: it is not a value read in fifty places, it is *one function* owned by the
+one component that already wraps every screen. Threading it as a prop would mean
+touching every list call site and hoping the next one remembers.
 
 **A row still wins if it is given a handler.** `onPatch` on the row overrides
-this, because a lab or a preview may have its own idea of where an edit goes,
-or none at all.
+this, because a lab or a preview may have its own idea of where an edit goes, or
+none at all.
 
-**The seam, and it is the whole of the difference.** In the prototype the
-patch reaches a `useState` and the shell keeps the copy; here it reaches the
-API and TanStack Query keeps the copy, which is the same architecture one
-level down and is why the ledger's L-073 names this row for the adapter and
-S23 for the surfaces. Two consequences follow and neither is optional.
+**The patch reaches the API and TanStack Query keeps the copy.** Two
+consequences follow and neither is optional.
 
 The first is that **a `Partial<ConceptTask>` is not one endpoint**. The card
 reports a title and a completion and a step through one call; section 7 puts
-those on `PATCH /tasks/:id`, `POST /tasks/:id/complete` and the step routes.
-So this function fans out, and `writtenElsewhere` in `tasks/task-concept.ts` is
-the single list of which field takes which verb, so the mapper and this cannot
+those on `PATCH /tasks/:id`, `POST /tasks/:id/complete` and the step routes. So
+this function fans out, and `writtenElsewhere` in `tasks/task-concept.ts` is the
+single list of which field takes which verb, so the mapper and this cannot
 disagree about it.
 
 The second is that **there is no optimistic copy here and there must not be**.
 8.3 is this client's whole invalidation strategy: refetch on focus and after
-each own mutation, no realtime channel, nothing else. A writer that also held
-a local copy would be the second source of truth the prototype's fault was
-made of, rebuilt on the other side of the port.
+each own mutation, no realtime channel, nothing else. A writer that also held a
+local copy would be a second source of truth.
 
-**What this writer does not send, and why each is somebody else's row.** A
-due date, a reminder and a repeat rule arrive here as the *words a chip says*
-rather than as values, because that is what `ConceptTask` holds; their pickers
-carry the values and their own endpoints (7.6's PATCH, 7.9's PUT), and those
-pickers are `components/task-pickers.tsx`, which lands at S23. The steps are
-7.7's routes and need a diff against the task's current list rather than a
-field copy; that diff is `tasks/task-acts.ts`'s `writeSteps` since the
-loose-ends row (RFC 0005 change control item 58), the card having landed at
-S23 without it. Comments are 9.6's and mount at S26. Each of the rest is
-dropped here rather than half-sent, and `unwritten()` below names what was
-dropped so a caller can assert on it.
+**What this writer does not send.** A due date, a reminder and a repeat rule
+arrive here as the *words a chip says* rather than as values, because that is
+what `ConceptTask` holds; their pickers carry the values and their own endpoints
+(7.6's PATCH, 7.9's PUT), in `components/task-pickers.tsx`. The steps are 7.7's
+routes and need a diff against the task's current list rather than a field copy;
+that diff is `tasks/task-acts.ts`'s `writeSteps`. Comments are 9.6's
+conversation. Each of the rest is dropped here rather than half-sent, and
+`unwritten()` below names what was dropped so a caller can assert on it.
 */
 
 import { createContext, useCallback, useContext, useMemo } from 'react'
@@ -136,11 +121,10 @@ export function useApiTaskPatch(): TaskPatch {
   return useCallback(
     (taskId, fields) => {
       /*
-      Completion first, and separately, because it is 7.7's verb rather than a
-      field. The prototype keeps the same separation for a reason worth
-      carrying: its log wrote two lines for one press, a completion and an
-      edit in the same millisecond, and "a change already spoken for by a
-      stronger verb is not also an edit".
+      Completion first, and separately, because it is its own verb rather than a
+      field: a change already spoken for by a stronger verb is not also an edit,
+      and one press must not log a completion and an edit in the same
+      millisecond.
       */
       if (fields.done !== undefined) {
         transition.mutate({ id: taskId, event: fields.done ? 'complete' : 'uncomplete' })
@@ -151,8 +135,7 @@ export function useApiTaskPatch(): TaskPatch {
       /* 7.8's pull and its DELETE, which 9.4 draws as My Day's own marker. */
       if (fields.pulled === true) pull.mutate(taskId)
       if (fields.pulled === false) unpull.mutate(taskId)
-      /* 7.7's routes, as the diff this file always said they needed
-         (`tasks/task-acts.ts`'s `writeSteps`, item 58). */
+      /* 7.7's routes, as a diff (`tasks/task-acts.ts`'s `writeSteps`). */
       if (fields.steps !== undefined) writeSteps(taskId, fields.steps)
 
       const body = conceptPatchToBody(
@@ -172,11 +155,10 @@ export function useApiTaskPatch(): TaskPatch {
 /**
  * The provider a shell mounts once, around everything that draws a card.
  *
- * Separate from `TaskWriter` above so that the lifted component contract and
- * this client's wiring of it stay two things: a lab, a test or a preview
- * mounts `TaskWriter` with a patch of its own and never reaches the API, which
- * is the prototype's own "a row still wins if it is given a handler" read one
- * level up.
+ * Separate from `TaskWriter` above so that the component contract and this
+ * client's wiring of it stay two things: a lab, a test or a preview mounts
+ * `TaskWriter` with a patch of its own and never reaches the API, which is "a
+ * row still wins if it is given a handler" read one level up.
  */
 export function ApiTaskWriter({ children }: { children: ReactNode }): React.JSX.Element {
   const patch = useApiTaskPatch()

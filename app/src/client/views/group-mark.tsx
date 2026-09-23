@@ -7,8 +7,7 @@ no folders, no components and no colours. This is the other half, and it is
 one function so that Today, Scheduled, Assignments, All, Anytime, Abandoned
 and Done cannot each grow their own.
 
-**The mark is optional in the honest sense.** Imran's constraint of
-2026-08-22, in the designer's transcription: "if a section does not carry an
+**The mark is optional in the honest sense**: "if a section does not carry an
 icon, the section should not feel like it's lacking something." A date rung
 has no mark, this returns `undefined`, and `components/page/PageSection.tsx` renders no
 slot at all, so that heading simply starts its name earlier.
@@ -51,7 +50,7 @@ export function groupHeadingMedia(
             and `grouped-screen.tsx` both draw a section's avatar at
             `size-5 shrink-0 data-[size=sm]:size-5`, one step above the row's
             dense disc, because a heading's mark is read before the rows under
-            it. Taken at S25 with the rest of the row's markup. */}
+            it. */}
         <PersonFace
           name={mark.name}
           initials={initialsOf(mark.name)}

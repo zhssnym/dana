@@ -1,13 +1,12 @@
 /*
-The designer's `src/components/folder-group-dialog.tsx`, ported at P8R session
-R3: creating and renaming a folder group.
+Creating and renaming a folder group.
 
 9.1 makes a group the label of 7.4's my-membership and nothing else, so
 creating one is naming it on a folder and renaming one rewrites that label on
 every folder carrying it. That is why the create mode picks folders and the
 rename mode does not: with no folder selected there is nothing to write the
 label to, and a group that exists nowhere is a group this data model cannot
-hold. AC-180 (no test since the 2026-09-20 cut) names creating, renaming, moving a
+hold. AC-180 names creating, renaming, moving a
 folder between groups and deleting a group.
 
 Deleting a group is not here, and that is deliberate rather than missing.
@@ -59,18 +58,16 @@ export function FolderGroupDialog({
    * The folders already checked when the create dialog opens, which are the
    * folders the act was taken on.
    *
-   * Added at P8R session R10 with the sidebar wiring, because 9.1 makes
-   * creating a group "naming it on a folder": the action is taken from a
+   * 9.1 makes creating a group "naming it on a folder": the action is taken from a
    * folder's own menu, so that folder is the group's first member and a dialog
    * that opened with nothing selected would ask a person to choose the folder
    * they had just pointed at. Rename ignores it and checks the whole group,
    * there being nothing else a rename could mean.
    *
-   * **Two folders arrive here since S11**, from DES-171's hold: resting one
-   * folder on another for a second and a half proposes that the two become a
-   * group, and "the naming panel is the one that already existed", so the hold
+   * **Two folders can arrive here**: resting one folder on another for a
+   * second and a half proposes that the two become a group, and the hold
    * hands its pair to this dialog with both ticked rather than inventing a
-   * surface of its own (DES-154). One folder or two, the act is the same one.
+   * surface of its own. One folder or two, the act is the same one.
    */
   preselected?: readonly string[]
   existingLabels: string[]
@@ -115,7 +112,7 @@ export function FolderGroupDialog({
       return
     }
 
-    /* polish: sidebar F9. An empty shelf is allowed: 4.18 gives it a row of
+    /* An empty shelf is allowed: 4.18 gives it a row of
        its own, so the folders can arrive later by drag or from its page. */
 
     onSubmit(nextName, selectedFolders)
@@ -130,16 +127,13 @@ export function FolderGroupDialog({
             <div className="mb-2 flex size-9 items-center justify-center rounded-lg bg-[var(--color-graphite-100)] text-[var(--color-graphite-700)]">
               <Folders className="size-5" strokeWidth={1.75} aria-hidden="true" />
             </div>
-            {/* polish: sidebar F5. One word, shelf, from the foot button
+            {/* One word, shelf, from the foot button
                 through this dialog to the row's menu. */}
             <DialogTitle>
               {mode === 'rename' ? 'Rename shelf' : 'New shelf'}
             </DialogTitle>
-            {/* polish: sidebar F5 and shelves F1 found this dialog together.
-                The create sentence is the shell fixer's, because sidebar F9
-                made an empty shelf legal and AC-313 names one (no test since the 2026-09-20 cut): a sentence
-                asking for at least one folder would describe a rule this
-                dialog no longer keeps. */}
+            {/* An empty shelf is legal and AC-313 names one, so the create
+                sentence must not ask for at least one folder. */}
             <DialogDescription>
               {mode === 'rename'
                 ? 'Shelves are yours alone: renaming one changes nothing for other members.'
