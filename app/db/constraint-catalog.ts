@@ -797,13 +797,24 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
   comments: {
     primaryKey: { name: 'comments_pkey', columns: ['id'] },
     uniques: [],
-    checks: [{ name: 'comments_body_length_check', columns: ['body'] }],
+    checks: [
+      { name: 'comments_body_length_check', columns: ['body'] },
+      // Migration 0029 (#320): never both Task- and Discussion-scoped.
+      { name: 'comments_one_scope_check', columns: ['discussion_id', 'task_id'] },
+    ],
     foreignKeys: [
       {
         name: 'comments_author_id_fkey',
         columns: ['author_id'],
         references: { table: 'users', columns: ['id'] },
         onDelete: 'restrict',
+      },
+      {
+        // Migration 0029: a comment's Discussion is in the comment's Folder.
+        name: 'comments_discussion_scope_fkey',
+        columns: ['folder_id', 'discussion_id'],
+        references: { table: 'discussions', columns: ['folder_id', 'id'] },
+        onDelete: 'cascade',
       },
       {
         name: 'comments_folder_id_fkey',
@@ -839,6 +850,99 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
         partial: false,
       },
       { name: 'comments_parent_id_idx', unique: false, columns: ['parent_id'], partial: true },
+      {
+        name: 'comments_discussion_thread_idx',
+        unique: false,
+        columns: ['discussion_id', 'created_at'],
+        partial: true,
+      },
+    ],
+  },
+  // Migration 0029 (#320): Consultation Discussions and their Outcomes.
+  discussions: {
+    primaryKey: { name: 'discussions_pkey', columns: ['id'] },
+    uniques: [{ name: 'discussions_folder_id_id_key', columns: ['folder_id', 'id'] }],
+    checks: [
+      { name: 'discussions_context_length_check', columns: ['context'] },
+      {
+        name: 'discussions_resolution_check',
+        columns: ['current_outcome_id', 'resolved_at', 'state'],
+      },
+      { name: 'discussions_state_check', columns: ['state'] },
+      { name: 'discussions_title_length_check', columns: ['title'] },
+    ],
+    foreignKeys: [
+      {
+        name: 'discussions_created_by_fkey',
+        columns: ['created_by'],
+        references: { table: 'users', columns: ['id'] },
+        onDelete: 'restrict',
+      },
+      {
+        // NO ACTION, not RESTRICT: the two tables reference each other and a
+        // folder purge cascades to both inside one statement.
+        name: 'discussions_current_outcome_fkey',
+        columns: ['id', 'current_outcome_id'],
+        references: { table: 'discussion_outcomes', columns: ['discussion_id', 'id'] },
+        onDelete: 'no action',
+      },
+      {
+        name: 'discussions_folder_id_fkey',
+        columns: ['folder_id'],
+        references: { table: 'folders', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+      {
+        name: 'discussions_resolved_by_fkey',
+        columns: ['resolved_by'],
+        references: { table: 'users', columns: ['id'] },
+        onDelete: 'restrict',
+      },
+    ],
+    indexes: [
+      {
+        name: 'discussions_folder_activity_idx',
+        unique: false,
+        columns: ['folder_id', 'last_activity_at', 'id'],
+        partial: true,
+        descColumns: ['last_activity_at', 'id'],
+      },
+    ],
+  },
+  discussion_outcomes: {
+    primaryKey: { name: 'discussion_outcomes_pkey', columns: ['id'] },
+    uniques: [
+      { name: 'discussion_outcomes_discussion_id_id_key', columns: ['discussion_id', 'id'] },
+    ],
+    checks: [{ name: 'discussion_outcomes_statement_length_check', columns: ['statement'] }],
+    foreignKeys: [
+      {
+        name: 'discussion_outcomes_actor_id_fkey',
+        columns: ['actor_id'],
+        references: { table: 'users', columns: ['id'] },
+        onDelete: 'restrict',
+      },
+      {
+        name: 'discussion_outcomes_discussion_id_fkey',
+        columns: ['discussion_id'],
+        references: { table: 'discussions', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+      {
+        // The Outcome is a snapshot; its source comment may go.
+        name: 'discussion_outcomes_source_comment_id_fkey',
+        columns: ['source_comment_id'],
+        references: { table: 'comments', columns: ['id'] },
+        onDelete: 'set null',
+      },
+    ],
+    indexes: [
+      {
+        name: 'discussion_outcomes_source_comment_id_idx',
+        unique: false,
+        columns: ['source_comment_id'],
+        partial: true,
+      },
     ],
   },
   comment_likes: {

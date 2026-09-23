@@ -223,6 +223,27 @@ export const USER_RESTRICT_DISPOSALS: readonly UserRestrictDisposal[] = [
     why: "#228's authorship rule: a departed member keeps their old words, which is the same sentence that says authorship confers no standing authority.",
   },
   {
+    fk: 'discussions_created_by_fkey',
+    table: 'discussions',
+    disposition: 'outlives',
+    where: '',
+    why: "#320 and #228's authorship rule: a Discussion is the Folder's shared history, and who opened it is provenance that confers no standing authority once the member is gone.",
+  },
+  {
+    fk: 'discussions_resolved_by_fkey',
+    table: 'discussions',
+    disposition: 'outlives',
+    where: '',
+    why: '#320: who resolved a Discussion is part of the record of how the Folder decided, and it is not the account\'s to take with them.',
+  },
+  {
+    fk: 'discussion_outcomes_actor_id_fkey',
+    table: 'discussion_outcomes',
+    disposition: 'outlives',
+    where: '',
+    why: '#320: an Outcome is an immutable, addressable record other people link to; its actor is provenance and deleting it would rewrite what the Folder concluded.',
+  },
+  {
     fk: 'files_owner_id_fkey',
     table: 'files',
     disposition: 'swept',
