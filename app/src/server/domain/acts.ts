@@ -60,6 +60,7 @@ import {
   createWorkflowFolderLabels,
 } from './labels.js'
 import { upsertReminder } from './tasks.js'
+import { copyTaskDocument } from './task-document.js'
 import { positionAtSectionEnd, seededItems } from './page-order.js'
 import { initialKeys } from './fractional-index.js'
 import { copyDependenciesWithin } from './task-dependencies.js'
@@ -438,6 +439,19 @@ export async function duplicateFolder(
                         ${Number(step.position)})`,
           )
         }
+        /* #221: the Task's document travels with it. A media block's file is
+           copied into the new folder once, through the same map the page's
+           own assets use, and a quota refusal rolls the whole copy back. */
+        await copyTaskDocument(tx, String(task.id), newTaskId, async (originalFile) => {
+          const known = copiedFiles.get(originalFile)
+          if (known !== undefined) return known
+          const held = await copyPageFile(tx, store, viewerId, originalFile, copyId)
+          if (held.kind === 'quota_exceeded') throw new QuotaRefusal()
+          if (held.kind !== 'copied') return null
+          copiedObjects.push(held.id)
+          copiedFiles.set(originalFile, held.id)
+          return held.id
+        })
       }
 
       /*
@@ -791,6 +805,9 @@ export async function duplicateTask(
     maker and with its conversation left behind, and it arrives wearing the
     same Labels the original wore.
     */
+    /* #221: the Task's document travels with its notes, which is its
+       projection. Same folder, so a media block names the same file. */
+    await copyTaskDocument(tx, source.id, newId)
     await copyTaskLabelsForDuplicate(tx, viewerId, source.id, newId)
     await recordEvent(tx, {
       actorId: viewerId,

@@ -282,6 +282,7 @@ function taskFrom(
   row: Record<string, unknown>,
   steps: ExportStep[],
   labels: { personal: string[]; folder: string[] },
+  document: ExportBlock[],
 ): ExportTask {
   return {
     section_block_id:nullableString(row.section_block_id),
@@ -309,6 +310,7 @@ function taskFrom(
     reminder: present(row.fire_at) ? reminderFrom(row) : null,
     personal_label_ids: labels.personal,
     folder_label_ids: labels.folder,
+    document,
   }
 }
 
@@ -523,6 +525,34 @@ export async function exportForViewer(
     ),
   )
   const stepsByTask = groupBy(stepRows, 'task_id')
+
+  /* #221: each exported Task's document, scoped exactly as its steps are,
+     over the same capped ids. A document holds at most 500 blocks (7.16), so
+     the per-parent cap never cuts one. */
+  const taskBlockRows = await rowsOf(
+    db,
+    cappedPerParent(
+      sql`b.id, b.task_id, b.kind, b.position, b.text, b.file_id,
+          b.ref_folder_id, b.width_pct, b.updated_at, b.rich_content, b.section_block_id,
+          b.list_parent_block_id, b.checked, b.page_position`,
+      sql`FROM page_blocks b
+          JOIN tasks t ON t.id = b.task_id
+          JOIN folders f ON f.id = t.folder_id
+          LEFT JOIN folder_members m
+            ON m.folder_id = t.folder_id AND m.user_id = ${viewerId}
+          WHERE b.task_id IN ${idSet(cappedTaskIds)}
+            AND (f.owner_id = ${viewerId}
+                 OR (m.user_id IS NOT NULL
+                     AND f.deleted_at IS NULL
+                     AND (t.created_by = ${viewerId}
+                          OR t.assignee_id = ${viewerId})))`,
+      sql`b.task_id`,
+      sql`b.page_position ASC NULLS LAST, b.position ASC, b.id ASC`,
+    ),
+  )
+  const documentByTask = groupBy(taskBlockRows, 'task_id')
+  const documentOf = (taskId: string): ExportBlock[] =>
+    (documentByTask.get(taskId) ?? []).map(blockFrom)
 
   /* ---------------------------------------------------------------- *
    * Labels (#208's M1 model, #227 area 5)
@@ -917,6 +947,7 @@ export async function exportForViewer(
           task,
           stepsOf(String(task.id), 'folders.tasks.steps'),
           labelIdsOf(String(task.id)),
+          documentOf(String(task.id)),
         ),
       ),
       blocks: truncation
@@ -934,7 +965,7 @@ export async function exportForViewer(
   const exportedForeign: ExportForeignTask[] = foreignTasks.map((row) => {
     const id = String(row.id)
     return {
-      ...taskFrom(row, stepsOf(id, 'tasks_elsewhere.steps'), labelIdsOf(id)),
+      ...taskFrom(row, stepsOf(id, 'tasks_elsewhere.steps'), labelIdsOf(id), documentOf(id)),
       folder: { id: String(row.folder_id), name: String(row.folder_name) },
       folder_labels: (definitionsOnForeignTask.get(id) ?? []).map(labelFrom),
     }
