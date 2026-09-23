@@ -10,8 +10,8 @@ import { z } from 'zod'
 import { DOCUMENT_BLOCK_KINDS, documentTransaction, richContent } from './page-document.js'
 import type { RichContent } from './page-document.js'
 export type { RichContent, DocumentTransaction, DocumentOperation, DocumentOutlineItem } from './page-document.js'
-export { DOCUMENT_BLOCK_KINDS, LIST_BLOCK_KINDS, STRUCTURED_BLOCK_KINDS, RICH_TEXT_BLOCK_KINDS, MEDIA_BLOCK_KINDS, WIDTH_BLOCK_KINDS, BLOCK_FILE_KINDS, isListKind, isMediaKind, blockMayOpen } from './page-document.js'
-export type { ListBlockKind, DocumentBlockKind, MediaBlockKind } from './page-document.js'
+export { DOCUMENT_BLOCK_KINDS, LIST_BLOCK_KINDS, STRUCTURED_BLOCK_KINDS, PRESENTATION_HEADING_KINDS, RICH_TEXT_BLOCK_KINDS, MEDIA_BLOCK_KINDS, WIDTH_BLOCK_KINDS, BLOCK_FILE_KINDS, isListKind, isPresentationHeadingKind, isMediaKind, blockMayOpen } from './page-document.js'
+export type { ListBlockKind, PresentationHeadingKind, DocumentBlockKind, MediaBlockKind } from './page-document.js'
 import { taskTitle } from './tasks.js'
 
 /**

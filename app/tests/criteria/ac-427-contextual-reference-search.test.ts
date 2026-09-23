@@ -92,8 +92,8 @@ describe('AC-427 the picker search is scoped, prioritised and capped', () => {
     )
     expect(
       [...kinds].sort(),
-      'the picker offers the three M1 kinds; a search that answered tasks alone would send a person to the URL bar for the other two',
-    ).toEqual(['folder', 'shelf', 'task'])
+      'the picker offers every currently supported reference kind that matches: #223\'s Task/Folder/Shelf plus #211\'s Purpose facet',
+    ).toEqual(['facet', 'folder', 'shelf', 'task'])
   })
 
   test('AC-427: nothing the viewer cannot access appears, under either call', async () => {
@@ -107,6 +107,7 @@ describe('AC-427 the picker search is scoped, prioritised and capped', () => {
       for (const hidden of [
         fx.strangerTaskId,
         fx.strangerFolderId,
+        fx.strangerPurposeId,
         fx.strangerShelfId,
       ]) {
         expect(
@@ -129,7 +130,15 @@ describe('AC-427 the picker search is scoped, prioritised and capped', () => {
       ids,
       'the stranger\'s own task is findable, which is what stops the case above from passing against a search that finds nothing at all',
     ).toContain(fx.strangerTaskId)
-    for (const hidden of [fx.contextTaskId, fx.otherTaskId, fx.shelfId]) {
+    expect(ids, 'the stranger can find their own renamed Purpose').toContain(
+      fx.strangerPurposeId,
+    )
+    for (const hidden of [
+      fx.contextTaskId,
+      fx.otherTaskId,
+      fx.contextPurposeId,
+      fx.shelfId,
+    ]) {
       expect(ids).not.toContain(hidden)
     }
   })

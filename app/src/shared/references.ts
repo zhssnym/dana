@@ -16,10 +16,10 @@ be tempted by one of them:
 - a target the viewer cannot reach and a target that does not exist are the
   **same answer** — 404, no label, no folder, no dates, no assignee, nothing
   that separates the two (spec 7.0, 10.2);
-- the grammar is closed. Three kinds, three client routes, and a fourth kind
-  becomes referenceable by joining `REFERENCE_KINDS` and `KIND_SEGMENT`
-  together — which is the extensibility the issue asks for, and is the whole
-  of it.
+- the grammar is closed. #223 began with Task, Folder and Shelf; #211 adds the
+  stable native Purpose facet through the generic `facet` kind. A further kind
+  becomes referenceable by joining `REFERENCE_KINDS`, `KIND_SEGMENT` and the
+  server resolver together — which is the extensibility this grammar provides.
 
 **Why the parser lives here rather than on either side.** The client turns a
 pasted URL into a target before it asks; the server builds the canonical
@@ -36,23 +36,25 @@ import { searchQ } from './views.js'
  * The closed set of referenceable kinds
  * ------------------------------------------------------------------ */
 
-/** M1's three, in the issue's own order. A kind belongs here only once it has
- * a stable id and a stable client route; adding one is this constant, its
- * segment below, and a branch in the server's resolver. */
-export const REFERENCE_KINDS = ['task', 'folder', 'shelf'] as const
+/** The closed reference set. #223's first three are followed by #211's
+ * generic facet route; the server currently resolves that fourth kind only for
+ * native Purpose. A kind belongs here only once it has stable identity and a
+ * stable client route. */
+export const REFERENCE_KINDS = ['task', 'folder', 'shelf', 'facet'] as const
 export type ReferenceKind = (typeof REFERENCE_KINDS)[number]
 
 export const referenceKind = z.enum(REFERENCE_KINDS, {
-  error: 'must be one of task, folder or shelf',
+  error: 'must be one of task, folder, shelf or facet',
 })
 
 /** The client route segment each kind is addressed by, which is the plural
- * the SPA already uses: `/app/tasks/:id`, `/app/folders/:id`,
- * `/app/shelves/:id`. */
+ * the SPA uses: `/app/tasks/:id`, `/app/folders/:id`, `/app/shelves/:id`,
+ * and `/app/facets/:id`. */
 const KIND_SEGMENT: Record<ReferenceKind, string> = {
   task: 'tasks',
   folder: 'folders',
   shelf: 'shelves',
+  facet: 'facets',
 }
 
 const KIND_OF_SEGMENT = new Map<string, ReferenceKind>(
@@ -69,7 +71,9 @@ export interface ReferenceTarget {
 }
 
 /** The canonical internal path of a target: what a chip links to, and the
- * `path` of every summary the server answers. One direction of the round
+ * `path` of every summary the server answers. Purpose facets use
+ * `/app/facets/:id`; #211 deliberately makes no individual Purpose block a
+ * target. One direction of the round
  * trip `parseDanaLink` is the other half of. */
 export function referencePath(kind: ReferenceKind, id: string): string {
   return `/${APP_SEGMENT}/${KIND_SEGMENT[kind]}/${id}`

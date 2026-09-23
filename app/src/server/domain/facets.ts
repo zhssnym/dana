@@ -31,16 +31,14 @@ owner_id = <viewer>)` clause written **inside the FROM clause** of every read,
 so a query that forgot the gate would return nothing rather than somebody
 else's writing.
 
-**A blank facet's document is 4.17's `page_blocks` scoped by `facet_id`.**
+**A document-bearing facet uses 4.17's `page_blocks` scoped by `facet_id`.** #210 began with blank facets; #211 adds native Purpose.
 `applyFacetDocument` below is a facet-scoped sibling of
 `domain/page-document.ts`'s `applyDocument` rather than a parameterization of
 it, and that is a decision worth stating. The folder page's applier carries
-Tasks, Sections, folder references, a `files` scope, list nesting and a
-previous-outline diff, and every one of those is either refused outright in a
-facet (`create_task`, `section`, `folder_ref` -- the ruling's three 422s) or
-refused by the database (`page_blocks_list_parent_kind_check` and
-`page_blocks_section_membership_check` both require `folder_id IS NOT NULL`,
-which a facet block never has). Threading a third home through that function
+Tasks, Sections, folder references, a `files` scope and a previous-outline
+diff. A facet refuses `create_task`, semantic `section` and `folder_ref`; #211
+admits list nesting for a facet-homed list item while keeping Section membership
+folder-only. Threading a third home through that function
 would have put a branch inside every one of those rules; what is here instead
 is the subset a facet actually admits, with the refusals named. The **wire
 contract is 7.16's, unchanged**: the same `document_transaction` body, the
@@ -65,6 +63,7 @@ import type {
   PageView,
 } from '../../shared/pages.js'
 import type { TrashedFacet } from '../../shared/trash.js'
+import { isListKind } from '../../shared/page-document.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { documentHash } from './document-hash.js'
@@ -1228,7 +1227,7 @@ function facetBlockFromRow(row: Record<string, unknown>): PageBlock {
     position: Number(row.position),
     page_position: nullableString(row.page_position),
     section_block_id: null,
-    list_parent_block_id: null,
+    list_parent_block_id: nullableString(row.list_parent_block_id),
     checked: row.checked === null || row.checked === undefined ? null : Boolean(row.checked),
     rich_content: (row.rich_content ?? null) as PageBlock['rich_content'],
     text: nullableString(row.text),
@@ -1247,7 +1246,8 @@ async function facetDocumentMetadata(
 ): Promise<{ revision: string }> {
   const blocks = await rowsOf(
     tx,
-    sql`SELECT id, kind, text, rich_content, file_id, width_pct, checked, page_position, position
+    sql`SELECT id, kind, text, rich_content, file_id, width_pct, checked,
+               list_parent_block_id, page_position, position
           FROM page_blocks WHERE facet_id = ${facetId}::uuid ORDER BY id`,
   )
   /* The facet id is inside the hash, and that is load-bearing rather than
@@ -1268,7 +1268,7 @@ export async function facetPageView(
     const blocks = await rowsOf(
       tx,
       sql`SELECT b.id, b.kind, b.position, b.page_position, b.checked,
-                 b.rich_content, b.text, b.file_id, b.width_pct, b.updated_at,
+                 b.list_parent_block_id, b.rich_content, b.text, b.file_id, b.width_pct, b.updated_at,
                  f.width AS file_width, f.height AS file_height
             FROM page_blocks b
             LEFT JOIN files f ON f.id = b.file_id
@@ -1306,8 +1306,7 @@ export class FacetDocumentRefusal extends Error {
 /**
  * 7.16's document transaction over a facet's own blocks.
  *
- * **Four things are refused here that the folder page admits**, and the first
- * three are the ruling's:
+ * **Three operational things are refused here that the folder page admits**:
  *
  * - `create_task`, because no Task row ever belongs to a facet (#210's core
  *   rule, and the reason no column on `tasks` names one);
@@ -1317,14 +1316,10 @@ export class FacetDocumentRefusal extends Error {
  * - a `folder_ref` block, because a facet is a view of one Folder and a
  *   reference out of it is Main's to carry.
  *
- * The fourth is this file's decision rather than the ruling's, and it is
- * declared in the pull request and in the Backend -> Frontend Handoff:
- * **a nested list item is refused with a 422** naming
- * `list_parent_block_id`. `page_blocks_list_parent_kind_check` (migration
- * 0021) admits a list parent only where `folder_id IS NOT NULL`, the ruling
- * does not amend it, and 0027 does not either -- so the alternative was a
- * write that reaches the CHECK and answers 500, or one that silently drops the
- * nesting, and both are worse than a refusal that says what happened.
+ * #211 supersedes #210's temporary no-nested-list limitation: a nested list
+ * item is admitted only when both ends are list items of this same facet and
+ * the parent occurs earlier in the final outline. Migration 0028 widens the
+ * database CHECK in the same direction.
  *
  * A media block's `file_id` is scoped to the facet's **folder**, which is
  * `domain/pages.ts`'s `fileScopeCondition` for a folder-homed page: a facet
@@ -1404,12 +1399,15 @@ export async function applyFacetDocument(
 
     const stored = await rowsOf(
       tx,
-      sql`SELECT id FROM page_blocks WHERE facet_id = ${facetId}::uuid FOR UPDATE`,
+      sql`SELECT id, kind, list_parent_block_id FROM page_blocks WHERE facet_id = ${facetId}::uuid FOR UPDATE`,
     )
     const original = new Set(stored.map((row) => String(row.id)))
     const blocks = new Set(original)
 
     const writes = new Map<string, Extract<DocumentOperation, { op: 'put_block' }>>()
+    const storedKinds = new Map(
+      stored.map((row) => [String(row.id), String(row.kind)]),
+    )
     /**
      * Every id the operations **name**, whether or not it survives the merge.
      *
@@ -1488,11 +1486,28 @@ export async function applyFacetDocument(
       }
       seen.add(item.id)
       if (item.listParent !== null) {
-        throw new FacetDocumentRefusal(
-          'invalid',
-          'a facet document does not nest list items; page_blocks_list_parent_kind_check admits a list parent only on a Folder page',
-          'list_parent_block_id',
-        )
+        const itemKind = writes.get(item.id)?.block_kind ?? storedKinds.get(item.id)
+        const parentKind =
+          writes.get(item.listParent)?.block_kind ?? storedKinds.get(item.listParent)
+        if (itemKind === undefined || !isListKind(itemKind)) {
+          throw new FacetDocumentRefusal(
+            'invalid',
+            'only a bullet, numbered or checklist item is a nested list item',
+            'list_parent_block_id',
+          )
+        }
+        if (
+          !blocks.has(item.listParent) ||
+          !seen.has(item.listParent) ||
+          parentKind === undefined ||
+          !isListKind(parentKind)
+        ) {
+          throw new FacetDocumentRefusal(
+            'invalid',
+            'a list item nests under an earlier list item of this facet document',
+            'list_parent_block_id',
+          )
+        }
       }
     }
     if (seen.size !== blocks.size) {
@@ -1618,7 +1633,9 @@ export async function applyFacetDocument(
     const keys = initialKeys(outline.length)
     for (const [index, item] of outline.entries()) {
       await tx.execute(
-        sql`UPDATE page_blocks SET page_position = ${keys[index] as string}, position = ${index}
+        sql`UPDATE page_blocks
+               SET page_position = ${keys[index] as string}, position = ${index},
+                   list_parent_block_id = ${item.listParent}::uuid
              WHERE id = ${item.id}::uuid AND facet_id = ${facetId}::uuid`,
       )
     }
@@ -1648,7 +1665,7 @@ async function facetPageViewIn(tx: Executor, facetId: string): Promise<PageView>
   const blocks = await rowsOf(
     tx,
     sql`SELECT b.id, b.kind, b.position, b.page_position, b.checked,
-               b.rich_content, b.text, b.file_id, b.width_pct, b.updated_at,
+               b.list_parent_block_id, b.rich_content, b.text, b.file_id, b.width_pct, b.updated_at,
                f.width AS file_width, f.height AS file_height
           FROM page_blocks b
           LEFT JOIN files f ON f.id = b.file_id
@@ -1689,7 +1706,7 @@ async function facetPageGateIn(
     facet === null ||
     !visibleTo(facet, facts.actorId) ||
     facet.deletedAt !== null ||
-    !isBlankFacetKind(facet.kind)
+    !(isBlankFacetKind(facet.kind) || facet.kind === 'purpose')
   ) {
     return notFound
   }

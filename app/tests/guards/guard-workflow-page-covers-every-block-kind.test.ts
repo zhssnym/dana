@@ -29,6 +29,7 @@ import { describe, expect, test } from 'vitest'
 
 import {
   DOCUMENT_BLOCK_KINDS,
+  PRESENTATION_HEADING_KINDS,
   documentOperation,
 } from '../../src/shared/page-document.js'
 import {
@@ -44,8 +45,12 @@ describe('format 4 has an answer for every block kind a page can hold (#185)', (
       ...WORKFLOW_OMITTED_BLOCK_KINDS,
     ])
     expect(
-      DOCUMENT_BLOCK_KINDS.filter((kind) => !answered.has(kind)),
-      'a folder page can hold these kinds and a workflow file says nothing about them. ' +
+      DOCUMENT_BLOCK_KINDS.filter(
+        (kind) =>
+          !(PRESENTATION_HEADING_KINDS as readonly string[]).includes(kind) &&
+          !answered.has(kind),
+      ),
+      'a Main folder page can hold these kinds and a workflow file says nothing about them. ' +
         'Decide: add the kind to WORKFLOW_PAGE_BLOCK_KINDS if a file can carry it whole, ' +
         'or to WORKFLOW_OMITTED_BLOCK_KINDS if it names a row of the exporting account. ' +
         'Leaving it out is not neutral — the export drops it with no placeholder, which is ' +

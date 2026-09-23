@@ -190,6 +190,13 @@
       "when": 1790200000000,
       "tag": "0027_folder_facets",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1790300000000,
+      "tag": "0028_purpose_document",
+      "breakpoints": true
     }
   ]
 }

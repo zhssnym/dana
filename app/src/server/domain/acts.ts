@@ -42,6 +42,8 @@ import { sql } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
 import type { DocumentOperation } from '../../shared/pages.js'
+import { parseDanaLink, referencePath } from '../../shared/references.js'
+import type { ReferenceKind } from '../../shared/references.js'
 import { readWorkflowPage } from '../../shared/workflows.js'
 import type {
   ImportWorkflowBody,
@@ -64,6 +66,7 @@ import {
 } from './labels.js'
 import { upsertReminder } from './tasks.js'
 import { positionAtSectionEnd, seededItems } from './page-order.js'
+import { initialKeys } from './fractional-index.js'
 import { copyDependenciesWithin } from './task-dependencies.js'
 /* 4.11 calendar arithmetic rather than a second copy of it here: both ends are
    UTC midnights, so no DST shift can round the division (issue #215). */
@@ -127,6 +130,32 @@ export type DuplicateFolderResult =
  * back into the ordinary `quota_exceeded` answer 10.3 specifies.
  */
 class QuotaRefusal extends Error {}
+
+/** Rewrite only Dana Links whose targets this copy has actually remapped.
+ * Everything else remains authored text pointing where the author pointed it. */
+function remapRichContentLinks(
+  value: unknown,
+  remap: (kind: ReferenceKind, id: string) => string | null,
+): unknown {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return value
+  const content = value as { version?: unknown; runs?: unknown }
+  if (!Array.isArray(content.runs)) return value
+  return {
+    ...content,
+    runs: content.runs.map((run) => {
+      if (typeof run !== 'object' || run === null || Array.isArray(run)) return run
+      const record = run as Record<string, unknown>
+      const href = typeof record.href === 'string' ? record.href : null
+      if (href === null) return run
+      const target = parseDanaLink(href)
+      if (target === null) return run
+      const id = remap(target.kind, target.id)
+      return id === null
+        ? run
+        : { ...record, href: referencePath(target.kind, id) }
+    }),
+  }
+}
 
 export async function duplicateFolder(
   db: Db,
@@ -413,6 +442,111 @@ export async function duplicateFolder(
             sql`INSERT INTO steps (task_id, title, position)
                 VALUES (${newTaskId}::uuid, ${String(step.title)},
                         ${Number(step.position)})`,
+          )
+        }
+      }
+
+      /*
+      #211: Purpose is reusable authored Folder context. The destination's
+      native Purpose row already exists (createNativeFacets above); copy into
+      that identity rather than minting another facet. Blocks and files are
+      independent copies, while Dana Links are remapped only for targets this
+      duplicate already has an identity map for.
+      */
+      const purposeRows = await rowsOf(
+        tx,
+        sql`SELECT id, folder_id, display_name
+              FROM folder_facets
+             WHERE kind = 'purpose'
+               AND folder_id IN (${sourceFolderId}::uuid, ${copyId}::uuid)`,
+      )
+      const sourcePurpose = purposeRows.find(
+        (row) => String(row.folder_id) === sourceFolderId,
+      )
+      const copiedPurpose = purposeRows.find(
+        (row) => String(row.folder_id) === copyId,
+      )
+      if (sourcePurpose !== undefined && copiedPurpose !== undefined) {
+        const sourcePurposeId = String(sourcePurpose.id)
+        const copiedPurposeId = String(copiedPurpose.id)
+        await tx.execute(
+          sql`UPDATE folder_facets
+                  SET display_name = ${sourcePurpose.display_name ?? null},
+                      updated_at = now()
+                WHERE id = ${copiedPurposeId}::uuid`,
+        )
+        const purposeBlocks = await rowsOf(
+          tx,
+          sql`SELECT id, kind, position, text, rich_content, file_id, width_pct,
+                     checked, list_parent_block_id, page_position
+                FROM page_blocks
+               WHERE facet_id = ${sourcePurposeId}::uuid
+               ORDER BY page_position ASC NULLS LAST, position ASC, id ASC`,
+        )
+        const purposeIdentity = new Map(
+          purposeBlocks.map((block) => [String(block.id), randomUUID()]),
+        )
+        for (const block of purposeBlocks) {
+          let fileId: string | null = null
+          if (block.file_id !== null && block.file_id !== undefined) {
+            const originalFile = String(block.file_id)
+            fileId = copiedFiles.get(originalFile) ?? null
+            if (fileId === null) {
+              const held = await copyPageFile(
+                tx,
+                store,
+                viewerId,
+                originalFile,
+                copyId,
+              )
+              if (held.kind === 'quota_exceeded') throw new QuotaRefusal()
+              if (held.kind === 'copied') {
+                fileId = held.id
+                copiedObjects.push(fileId)
+                copiedFiles.set(originalFile, fileId)
+              }
+            }
+          }
+          const richContent =
+            block.rich_content === null || block.rich_content === undefined
+              ? null
+              : remapRichContentLinks(block.rich_content, (kind, id) => {
+                  if (kind === 'folder' && id === sourceFolderId) return copyId
+                  if (kind === 'facet' && id === sourcePurposeId) {
+                    return copiedPurposeId
+                  }
+                  if (kind === 'task') return taskIdentity.get(id) ?? null
+                  return null
+                })
+          await tx.execute(
+            sql`INSERT INTO page_blocks
+                  (id, facet_id, kind, position, text, rich_content, file_id,
+                   width_pct, checked, page_position)
+                VALUES (${purposeIdentity.get(String(block.id))}::uuid,
+                        ${copiedPurposeId}::uuid, ${String(block.kind)},
+                        ${Number(block.position)}, ${block.text ?? null},
+                        ${richContent === null ? null : JSON.stringify(richContent)}::jsonb,
+                        ${fileId}::uuid, ${block.width_pct ?? null},
+                        ${block.checked === null || block.checked === undefined ? null : Boolean(block.checked)},
+                        ${block.page_position ?? null})`,
+          )
+        }
+        for (const block of purposeBlocks) {
+          if (block.list_parent_block_id === null || block.list_parent_block_id === undefined) {
+            continue
+          }
+          const child = purposeIdentity.get(String(block.id))
+          const parent = purposeIdentity.get(String(block.list_parent_block_id))
+          if (child === undefined || parent === undefined) {
+            throw new DocumentRefusal(
+              'not_convertible',
+              'Purpose list structure names content the source Purpose does not hold.',
+            )
+          }
+          await tx.execute(
+            sql`UPDATE page_blocks
+                    SET list_parent_block_id = ${parent}::uuid
+                  WHERE id = ${child}::uuid AND facet_id = ${copiedPurposeId}::uuid`,
           )
         }
       }
@@ -995,7 +1129,84 @@ export async function importWorkflow(
         operations.push({op:'set_outline' as const,items:outline})
         const base=await documentMetadata(tx,folderId)
         await applyDocument(tx,viewerId,folderId,{action:'document_transaction',mutation_id:randomUUID(),base_revision:base.revision,operations})
-      }      await recordEvent(tx, {
+      }
+      if (folder.purpose !== undefined) {
+        const purposeFacet = (
+          await rowsOf(
+            tx,
+            sql`SELECT id FROM folder_facets
+                  WHERE folder_id = ${folderId}::uuid
+                    AND kind = 'purpose'
+                    AND deleted_at IS NULL`,
+          )
+        )[0]
+        if (purposeFacet === undefined) {
+          throw new DocumentRefusal(
+            'not_convertible',
+            'The imported Folder has no native Purpose facet.',
+            `folders.${String(folderIndex)}.purpose`,
+          )
+        }
+        const purposeId = String(purposeFacet.id)
+        await tx.execute(
+          sql`UPDATE folder_facets
+                  SET display_name = ${folder.purpose.display_name ?? null},
+                      updated_at = now()
+                WHERE id = ${purposeId}::uuid`,
+        )
+        const idOf = new Map<number, string>()
+        const carried = folder.purpose.blocks
+          .map((block, index) => ({ block, index }))
+          .filter(({ block }) => block.kind !== 'omitted')
+        carried.forEach(({ index }) => idOf.set(index, randomUUID()))
+        const keys = initialKeys(carried.length)
+        for (const [position, entry] of carried.entries()) {
+          const block = entry.block
+          if (block.kind === 'omitted') continue
+          const id = idOf.get(entry.index)
+          if (id === undefined) {
+            throw new DocumentRefusal(
+              'not_convertible',
+              'Purpose block identity could not be reconstructed.',
+              `folders.${String(folderIndex)}.purpose`,
+            )
+          }
+          await tx.execute(
+            sql`INSERT INTO page_blocks
+                  (id, facet_id, kind, position, text, rich_content, file_id,
+                   width_pct, checked, page_position)
+                VALUES (${id}::uuid, ${purposeId}::uuid, ${block.kind},
+                        ${position}, ${block.text ?? null},
+                        ${block.rich_content === null || block.rich_content === undefined
+                          ? null
+                          : JSON.stringify(block.rich_content)}::jsonb,
+                        NULL, NULL,
+                        ${block.kind === 'checklist' ? (block.checked ?? false) : null},
+                        ${keys[position] as string})`,
+          )
+        }
+        for (const entry of carried) {
+          const block = entry.block
+          if (block.kind === 'omitted' || block.list_parent === undefined) {
+            continue
+          }
+          const child = idOf.get(entry.index)
+          const parent = idOf.get(block.list_parent)
+          if (child === undefined || parent === undefined) {
+            throw new DocumentRefusal(
+              'not_convertible',
+              'Purpose list structure names content the file did not carry.',
+              `folders.${String(folderIndex)}.purpose`,
+            )
+          }
+          await tx.execute(
+            sql`UPDATE page_blocks
+                    SET list_parent_block_id = ${parent}::uuid
+                  WHERE id = ${child}::uuid AND facet_id = ${purposeId}::uuid`,
+          )
+        }
+      }
+      await recordEvent(tx, {
         actorId: viewerId,
         verb: 'created',
         subjectKind: 'folder',

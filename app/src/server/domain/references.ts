@@ -14,16 +14,18 @@ cannot even learn that it is a thing. That is 10.2's rule and 7.0's status
 grammar, and it has a second half this feature adds: **the two doors must
 agree**. A person who pastes an exact URL and a person who types a word must
 be told the same story about the same row, or the picker becomes the oracle
-the resolver refuses to be. So both doors below are built from the same three
-gates and neither has a read of its own:
+the resolver refuses to be. So both doors below are built from the same four
+gates and neither has an ungated read of its own:
 
 - a task through `accessibleTask`, whose membership join is the scope;
 - a folder through `accessOf`, the same;
 - a shelf through `shelfView`, which is scoped to its owner because 4.18 makes
-  a shelf private by construction.
+  a shelf private by construction;
+- a Purpose facet through a membership join on its Folder (#211), hidden state
+  deliberately irrelevant because hide is presentation rather than access.
 
-`resolveReference` calls those three functions. The search queries below
-repeat their `FROM` clauses rather than calling them per row, which is the one
+`resolveReference` applies those four gates. The search queries below
+repeat their access predicates rather than resolving them per row, which is the one
 place the two doors are written twice; each query carries the same membership
 join in the same position. **AC-429 was named here as the criterion that would check
 that agreement behaviourally, and no such criterion was ever written**: issue #223
@@ -46,6 +48,7 @@ import { sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 
 import { REFERENCE_SEARCH_LIMIT, referencePath } from '../../shared/references.js'
+import { DEFAULT_FACET_NAMES } from '../../shared/facets.js'
 import type {
   ReferenceKind,
   ReferenceSummary,
@@ -92,6 +95,25 @@ export async function resolveReference(
       const shelf = await shelfView(executor, viewerId, target.id)
       return shelf === null ? null : summary('shelf', shelf.id, shelf.name)
     }
+    case 'facet': {
+      const found = await rowsOf(
+        executor,
+        sql`SELECT ff.id,
+                   COALESCE(ff.display_name, ${DEFAULT_FACET_NAMES.purpose}) AS label
+              FROM folder_facets ff
+              JOIN folders fo
+                ON fo.id = ff.folder_id AND fo.deleted_at IS NULL
+              JOIN folder_members m
+                ON m.folder_id = ff.folder_id AND m.user_id = ${viewerId}
+             WHERE ff.id = ${target.id}::uuid
+               AND ff.kind = 'purpose'
+               AND ff.deleted_at IS NULL`,
+      )
+      const row = found[0]
+      return row === undefined
+        ? null
+        : summary('facet', String(row.id), String(row.label))
+    }
   }
 }
 
@@ -120,6 +142,26 @@ function taskQuery(viewerId: string, pattern: string, scope: SQL): SQL {
     LIMIT ${REFERENCE_SEARCH_LIMIT}`
 }
 
+/** Native Purpose facets only. Hidden is intentionally absent from the
+ * predicate: hiding a facet is presentation state, not revocation (#211). */
+function purposeQuery(viewerId: string, pattern: string, scope: SQL): SQL {
+  return sql`
+    SELECT ff.id,
+           COALESCE(ff.display_name, ${DEFAULT_FACET_NAMES.purpose}) AS label
+    FROM folder_facets ff
+    JOIN folders fo
+      ON fo.id = ff.folder_id AND fo.deleted_at IS NULL
+    JOIN folder_members m
+      ON m.folder_id = ff.folder_id AND m.user_id = ${viewerId}
+    WHERE ff.kind = 'purpose'
+      AND ff.deleted_at IS NULL
+      AND COALESCE(ff.display_name, ${DEFAULT_FACET_NAMES.purpose}) ILIKE ${pattern}
+      ${scope}
+    ORDER BY lower(COALESCE(ff.display_name, ${DEFAULT_FACET_NAMES.purpose})) ASC,
+             ff.id ASC
+    LIMIT ${REFERENCE_SEARCH_LIMIT}`
+}
+
 export async function searchReferences(
   executor: Executor,
   viewerId: string,
@@ -138,12 +180,31 @@ export async function searchReferences(
           executor,
           taskQuery(viewerId, pattern, sql` AND t.folder_id = ${folderId}`),
         )
+  const contextPurposeRows =
+    folderId === undefined
+      ? []
+      : await rowsOf(
+          executor,
+          purposeQuery(
+            viewerId,
+            pattern,
+            sql` AND ff.folder_id = ${folderId}`,
+          ),
+        )
   const otherRows = await rowsOf(
     executor,
     taskQuery(
       viewerId,
       pattern,
       folderId === undefined ? sql`` : sql` AND t.folder_id <> ${folderId}`,
+    ),
+  )
+  const otherPurposeRows = await rowsOf(
+    executor,
+    purposeQuery(
+      viewerId,
+      pattern,
+      folderId === undefined ? sql`` : sql` AND ff.folder_id <> ${folderId}`,
     ),
   )
 
@@ -172,11 +233,17 @@ export async function searchReferences(
     ...contextRows.map((row) =>
       summary('task', String(row.id), String(row.title)),
     ),
+    ...contextPurposeRows.map((row) =>
+      summary('facet', String(row.id), String(row.label)),
+    ),
     ...otherRows.map((row) =>
       summary('task', String(row.id), String(row.title)),
     ),
     ...folderRows.map((row) =>
       summary('folder', String(row.id), String(row.name)),
+    ),
+    ...otherPurposeRows.map((row) =>
+      summary('facet', String(row.id), String(row.label)),
     ),
     ...shelfRows.map((row) =>
       summary('shelf', String(row.id), String(row.name)),

@@ -160,6 +160,17 @@ function skippedByNormalization(
       return true
     }
 
+    /* #211: Purpose belongs to workflow v5. A foreign/older file carrying the
+       key is tolerated by normalization, but the picker must say it was left
+       behind rather than silently implying it travelled. */
+    if (
+      beforeFolder.purpose !== undefined &&
+      beforeFolder.purpose !== null &&
+      afterFolder.purpose === undefined
+    ) {
+      return true
+    }
+
     if (!Array.isArray(beforeFolder.tasks)) continue
     for (const [taskIndex, beforeTask] of beforeFolder.tasks.entries()) {
       if (!isRecord(beforeTask)) continue
@@ -222,9 +233,16 @@ function taskCount(folders: unknown[]): number {
 function omittedCount(folders: unknown[]): number {
   return folders.reduce<number>((sum, folder) => {
     if (!isRecord(folder)) return sum
+    const purpose =
+      isRecord(folder.purpose) && Array.isArray(folder.purpose.blocks)
+        ? folder.purpose.blocks
+        : []
     return (
       sum +
       pageBlocks(folder).filter(
+        (block) => isRecord(block) && block.kind === 'omitted',
+      ).length +
+      purpose.filter(
         (block) => isRecord(block) && block.kind === 'omitted',
       ).length
     )

@@ -31,6 +31,10 @@ export const MAX_SECTION_DEPTH = 3
 export const LIST_BLOCK_KINDS = ['bullet','numbered','checklist'] as const
 export type ListBlockKind = (typeof LIST_BLOCK_KINDS)[number]
 export const STRUCTURED_BLOCK_KINDS = [...LIST_BLOCK_KINDS,'quote','callout','code'] as const
+/** #211: document headings are authored structure, never Main Work Sections. */
+export const PRESENTATION_HEADING_KINDS = ['heading1','heading2','heading3'] as const
+export type PresentationHeadingKind = (typeof PRESENTATION_HEADING_KINDS)[number]
+export const isPresentationHeadingKind = (kind:string):kind is PresentationHeadingKind => (PRESENTATION_HEADING_KINDS as readonly string[]).includes(kind)
 /**
  * #220's media vocabulary. Four kinds, one stored file each, named by `file_id`
  * and by nothing else: a media block copies no filename, no MIME and no byte
@@ -46,7 +50,7 @@ export const STRUCTURED_BLOCK_KINDS = [...LIST_BLOCK_KINDS,'quote','callout','co
 export const MEDIA_BLOCK_KINDS = ['image','file','audio','video'] as const
 export type MediaBlockKind = (typeof MEDIA_BLOCK_KINDS)[number]
 export const isMediaKind = (kind:string):kind is MediaBlockKind => (MEDIA_BLOCK_KINDS as readonly string[]).includes(kind)
-export const DOCUMENT_BLOCK_KINDS = ['section','paragraph','image','folder_ref',...STRUCTURED_BLOCK_KINDS,'file','audio','video'] as const
+export const DOCUMENT_BLOCK_KINDS = ['section','paragraph',...PRESENTATION_HEADING_KINDS,'image','folder_ref',...STRUCTURED_BLOCK_KINDS,'file','audio','video'] as const
 export type DocumentBlockKind = (typeof DOCUMENT_BLOCK_KINDS)[number]
 /**
  * The kinds that persist a dragged width (4.17's `width_pct`, 25 to 100).
@@ -107,7 +111,7 @@ export const BLOCK_FILE_KINDS:Readonly<Record<MediaBlockKind,readonly FileKind[]
  * Download is always available wherever the viewer may read the file.
  */
 export const blockMayOpen = (kind:string):boolean => kind==='image'||kind==='audio'||kind==='video'
-export const RICH_TEXT_BLOCK_KINDS = ['section','paragraph',...LIST_BLOCK_KINDS,'quote','callout'] as const
+export const RICH_TEXT_BLOCK_KINDS = ['section','paragraph',...PRESENTATION_HEADING_KINDS,...LIST_BLOCK_KINDS,'quote','callout'] as const
 /** The one test for "may this take part in list nesting", written once. */
 export const isListKind = (kind:string):kind is ListBlockKind => (LIST_BLOCK_KINDS as readonly string[]).includes(kind)
 /**
@@ -130,7 +134,7 @@ export const documentOutlineItem = z.object({kind:z.enum(['block','task']),id:z.
 export type DocumentOutlineItem = z.infer<typeof documentOutlineItem>
 export const documentOperation = z.discriminatedUnion('op',[
  z.object({op:z.literal('put_block'),id:z.uuid(),block_kind:z.enum(DOCUMENT_BLOCK_KINDS),text:z.string().max(4000).nullable(),rich_content:richContent.nullable(),file_id:z.uuid().nullable(),ref_folder_id:z.uuid().nullable(),width_pct:z.number().int().min(25).max(100).nullable(),checked:z.boolean().nullable().default(null)}).superRefine((b,ctx)=>{
-  if(b.block_kind==='section' && (b.text?.length??0)>120)ctx.addIssue({code:'custom',path:['text'],message:'A heading has at most 120 characters.'})
+  if((b.block_kind==='section'||isPresentationHeadingKind(b.block_kind)) && (b.text?.length??0)>120)ctx.addIssue({code:'custom',path:['text'],message:'A heading has at most 120 characters.'})
   if(b.rich_content!==null && (!(RICH_TEXT_BLOCK_KINDS as readonly string[]).includes(b.block_kind)||b.rich_content.runs.map(r=>r.text).join('')!==b.text))ctx.addIssue({code:'custom',path:['rich_content'],message:'Rich content must match its text projection.'})
   // 4.17's width, as #220 leaves it: an image and a previewable video persist
   // one, and nothing else does (WIDTH_BLOCK_KINDS above).
@@ -141,7 +145,7 @@ export const documentOperation = z.discriminatedUnion('op',[
   if(b.checked!==null && b.block_kind!=='checklist')ctx.addIssue({code:'custom',path:['checked'],message:'Only a checklist item is checked or unchecked.'})
   // The six structured kinds are writing, so they carry neither a picture nor a
   // folder reference. Widening that is another issue's to make.
-  if((b.file_id!==null||b.ref_folder_id!==null)&&(STRUCTURED_BLOCK_KINDS as readonly string[]).includes(b.block_kind))ctx.addIssue({code:'custom',path:['file_id'],message:'A structured text block carries no file and no folder reference.'})
+  if((b.file_id!==null||b.ref_folder_id!==null)&&((STRUCTURED_BLOCK_KINDS as readonly string[]).includes(b.block_kind)||isPresentationHeadingKind(b.block_kind)))ctx.addIssue({code:'custom',path:['file_id'],message:'A structured text block carries no file and no folder reference.'})
   // #220: a media block names one stored file and nothing else. It carries no
   // folder reference (that is `folder_ref`'s whole job), and it carries no text
   // and no rich content — a caption is a paragraph, and the filename the block
