@@ -4,9 +4,10 @@ import { BlockNoteEditor } from '@blocknote/core'
 import { useQueryClient } from '@tanstack/react-query'
 import '@blocknote/shadcn/style.css'
 import type { PageView } from '../../../../shared/pages.js'
+import { AUDIO_MIMES, RASTER_MIMES, VIDEO_MIMES } from '../../../../shared/files.js'
 import { getPageResponse } from '../../../../shared/pages.js'
 import { documentTransaction } from '../../../../shared/page-document.js'
-import { getPlain, mutateApi, uploadFile } from '../../../api/http.js'
+import { getPlain, mutateApi, uploadFile as uploadDanaFile } from '../../../api/http.js'
 import { queryKeys } from '../../../api/keys.js'
 import { Button } from '../../ui/button.js'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog.js'
@@ -14,6 +15,7 @@ import { Input } from '../../ui/input.js'
 import { CanvasErrorBoundary } from './CanvasErrorBoundary.js'
 import { CanvasTaskProvider } from './CanvasTask.js'
 import { CanvasSurface } from './CanvasSurface.js'
+import type { CanvasMediaKind, CanvasUploadedFile } from './CanvasFilePanel.js'
 import { canvasSchema } from './schema.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
 import { baselineOf, dehydrateCanvas, folderRefsOf, hydrateCanvas, mergeWorkDocument, richRuns, workPageOf } from './adapters.js'
@@ -129,18 +131,54 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
      rather than `page`, and it wants a criterion: nothing in the suite makes
      `route.send` throw, so this whole path is unmeasured. */
   const folderRefs = useMemo(() => folderRefsOf(page), [page])
+  async function uploadCanvasFile(
+    kind: CanvasMediaKind,
+    file: File,
+  ): Promise<CanvasUploadedFile> {
+    try {
+      const uploaded = await uploadDanaFile(kind, folderId, file)
+      return {
+        url: `/api/v1/files/${uploaded.id}`,
+        name: file.name,
+      }
+    } catch (failure) {
+      setError(
+        failure instanceof Error
+          ? failure.message
+          : 'The file could not be uploaded. Try again.',
+      )
+      throw failure
+    }
+  }
+
   const editor = useCreateBlockNote({
     schema: canvasSchema,
     initialContent: initial.length ? initial : [{ id: crypto.randomUUID(), type: 'paragraph', content: '' }],
-    pasteHandler: ({ editor: current, event, defaultPasteHandler }) => pasteIntoCanvas(current, event, setError) ?? defaultPasteHandler({ plainTextAsMarkdown: false }),
+    pasteHandler: ({ editor: current, event, defaultPasteHandler }) =>
+      pasteIntoCanvas(
+        current,
+        event,
+        setError,
+        presentationHeadings === true,
+      ) ?? defaultPasteHandler({ plainTextAsMarkdown: false }),
+    /*
+     * BlockNote uses this path for direct drops. The schema's fileBlockAccept
+     * tables use the same shared allowlists, so an unsupported audio/video
+     * MIME falls through to File and this classification stays in lockstep.
+     * Explicit slash insertion/replacement uses CanvasFilePanel instead, where
+     * the selected block kind is known and therefore cannot be reclassified.
+     */
     uploadFile: async (file) => {
-      try {
-        const uploaded = await uploadFile('image', folderId, file)
-        return { url: `/api/v1/files/${uploaded.id}`, name: file.name }
-      } catch (failure) {
-        setError(failure instanceof Error ? failure.message : 'The image could not be uploaded. Try again.')
-        throw failure
-      }
+      const mime = file.type
+      const kind: CanvasMediaKind =
+        (RASTER_MIMES as readonly string[]).includes(mime)
+          ? 'image'
+          : (AUDIO_MIMES as readonly string[]).includes(mime)
+            ? 'audio'
+            : (VIDEO_MIMES as readonly string[]).includes(mime)
+              ? 'video'
+              : 'file'
+      return uploadCanvasFile(kind, file)
     },
   })
   // The baseline is the server's page reconciled with what this editor can draw
@@ -271,7 +309,20 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
       })()
     }}>Retry interrupted save</Button><Button variant="ghost" onClick={() => { sessionStorage.removeItem(draftKey); setRecovery(false) }}>Dismiss</Button></div> : null}
     <CanvasTaskProvider tasks={tasks} context={context} actions={actions} onAsk={onAsk}>
-      <CanvasSurface editor={editor} onChange={changed} onCreateTask={facetId === undefined ? askTask : undefined} headingMode={facetId === undefined ? 'section' : presentationHeadings === true ? 'document' : 'none'} editable={arrangeable && !creating && !pendingTask} />
+      <CanvasSurface
+        editor={editor}
+        onChange={changed}
+        onCreateTask={facetId === undefined ? askTask : undefined}
+        onUploadFile={uploadCanvasFile}
+        headingMode={
+          facetId === undefined
+            ? 'section'
+            : presentationHeadings === true
+              ? 'document'
+              : 'none'
+        }
+        editable={arrangeable && !creating && !pendingTask}
+      />
     </CanvasTaskProvider>
     <div role="status" aria-live="polite" className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
       {feedback || (writer.state === 'saving' ? 'Saving…' : writer.state === 'changed' ? 'Unsaved writing' : 'Saved')}
