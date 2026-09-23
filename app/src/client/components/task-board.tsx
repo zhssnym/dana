@@ -1,23 +1,22 @@
 /*
 The board: a page's grouping, drawn side by side instead of stacked.
 
-**A view is a shape, not a question** (DES-177). The page decides which tasks;
-`Group by` decides what they are grouped by; a view decides only how those
-groups are drawn. So this is not a second way of arranging a page, it is the
-arrangement the page already has, turned ninety degrees. Which is also why
-there is one board rather than one per screen: the folder page's sections and
-Today's folders are the same list of groups, and drawing them twice is the
-fault this repository keeps repairing (DES-154).
+**A view is a shape, not a question.** The page decides which tasks; `Group by`
+decides what they are grouped by; a view decides only how those groups are
+drawn. So this is not a second way of arranging a page, it is the arrangement
+the page already has, turned ninety degrees. Which is also why there is one
+board rather than one per screen: the folder page's sections and Today's folders
+are the same list of groups.
 
-**Geometry here, meaning at the call site.** A card released over a column is
-a question only this component can answer, it owns the columns' rectangles,
-and an act only the page can perform: on a folder that means putting the task
-in a section, on Today it means moving it to another folder, and in the Done
-column it means completing it. So the board hit-tests and reports the column;
-the page decides what landing there means. Same seam as `onDropAt` one level
-down, and the same reason (DES-166).
+**Geometry here, meaning at the call site.** A card released over a column is a
+question only this component can answer, it owns the columns' rectangles, and an
+act only the page can perform: on a folder that means putting the task in a
+section, on Today it means moving it to another folder, and in the Done column
+it means completing it. So the board hit-tests and reports the column; the page
+decides what landing there means. Same seam as `onDropAt` one level down, and
+the same reason.
 
-Two columns per row, because Imran ruled the one-row board too short.
+Two columns per row, because a one-row board is too short.
 */
 
 import { useEffect, useRef, useState, type ReactNode } from "react"
@@ -52,10 +51,10 @@ export interface BoardColumn {
      quieter tone the list's own headings use for them. */
   quiet?: boolean
   /*
-  polish (AC-228): whether a release can land here at all. A column grouping
-  by a relation to today — Overdue — has no value a drop could write, so it
-  must not promise one while a card is over it. Absent means it takes drops,
-  which is every column's answer but that one.
+  Whether a release can land here at all (AC-228). A column grouping by a
+  relation to today — Overdue — has no value a drop could write, so it must not
+  promise one while a card is over it. Absent means it takes drops, which is
+  every column's answer but that one.
   */
   takes?: boolean
 }
@@ -65,14 +64,13 @@ export interface BoardColumn {
 /*
 Capture inside a column: a ghost that becomes a real field.
 
-**Adding here means adding with this column's value**, that is the whole
-reason a board has one per column rather than one button for the page. A task
-typed into the Home column is in Home; one typed into Sara's column is Sara's.
-The column already says where the task will land, which is exactly what W5
-asks a capture point to do and exactly what a floating button cannot (DES-133).
+**Adding here means adding with this column's value**, that is the whole reason
+a board has one per column rather than one button for the page. A task typed
+into the Home column is in Home; one typed into Sara's column is Sara's. The
+column already says where the task will land, which is what a capture point
+should do and what a floating button cannot.
 
-It lived on the folder page and only the folder page had it. Every other board
-had no way in at all, so the board could be looked at and not worked in.
+Every board has it, so a board can be worked in and not only looked at.
 */
 export function BoardQuickAdd({ onAdd }: { onAdd: (title: string) => void }) {
   const [editing, setEditing] = useState(false)
@@ -128,13 +126,12 @@ export function BoardQuickAdd({ onAdd }: { onAdd: (title: string) => void }) {
 /*
 A new column, where a column is a thing you can make.
 
-DES-177 again, one turn further: a column on this board is a *value* of the
-axis it is grouped by, so whether you can add one is not the board's decision,
-it is a fact about the axis. Sections are things a person makes, and so are
-folders, so those boards offer it and say the name of the thing. A person is
-not something you create because you wanted a column for them, and every date
-already exists, so those boards do not offer it at all rather than offering it
-and refusing.
+A column on this board is a *value* of the axis it is grouped by, so whether you
+can add one is not the board's decision, it is a fact about the axis. Sections
+are things a person makes, and so are folders, so those boards offer it and say
+the name of the thing. A person is not something you create because you wanted a
+column for them, and every date already exists, so those boards do not offer it
+at all rather than offering it and refusing.
 */
 export function BoardAddColumn({
   label,
@@ -164,18 +161,14 @@ export function BoardAddColumn({
 /*
 A board card, on the same drag engine as a row.
 
-The cards were drawn by hand and could not be moved at all, so the board could
-do less with a task than the list beside it, while `onDropAt` had already
-answered exactly that question for sections (DES-166). `TaskList` carries them
-now and this keeps only the presentation: a card is the row's kin, not a
-stranger (review S5), completed and starred where it stands, wearing the
-row's own marks.
+`TaskList` carries the cards and this keeps only the presentation, so the board
+can do as much with a task as the list beside it: a card is the row's kin, not a
+stranger, completed and starred where it stands, wearing the row's own marks.
 
 **Opening is registered rather than handled.** A press that stays still opens
-the task and one that travels drags it, and only the engine knows which; a
-plain `onClick` fires after a drag too, on whatever card happened to be under
-the cursor. So the card hands its opener to the list, exactly as `TaskRow`
-does.
+the task and one that travels drags it, and only the engine knows which; a plain
+`onClick` fires after a drag too, on whatever card happened to be under the
+cursor. So the card hands its opener to the list, exactly as `TaskRow` does.
 */
 function BoardCard({
   task,
@@ -189,9 +182,7 @@ function BoardCard({
   task: BoardTask
   done: boolean
   /* What the board and the page have already said, the same contract the row
-     reads (DES-183). It reaches here because a card is the row's kin: the
-     rule was settled for the row and forgotten for the card, which is the
-     fault DES-154 exists to catch. */
+     reads. It reaches here because a card is the row's kin. */
   given?: TaskRowProps["given"]
   wiring: TaskListWiring
   onOpen: () => void
@@ -214,23 +205,18 @@ function BoardCard({
       ref={wiring.itemRef}
       {...wiring.listProps}
       /*
-      Seam, S25, and it is F1 one surface further on.
-
-      The prototype writes `role="button"` here, which is true of the gesture
-      and not of the thing: 9.1's roles table fixes "a board column is a named
-      region; its cards, list items or rows", and the card sits inside
-      `TaskList`'s own `role="list"`, so a `button` there is an item of a list
-      announcing itself as a control. AC-228 addresses exactly this,
-      `regionOf(column).getByRole('listitem')`, and 11.13 settles it without a
-      ruling: the role is the section's, so the lift owes it.
+      A list item, not a button. 9.1's roles table fixes "a board column is a
+      named region; its cards, list items or rows", and the card sits inside
+      `TaskList`'s own `role="list"`, so a `button` there would be an item of a
+      list announcing itself as a control. AC-228 addresses exactly this,
+      `regionOf(column).getByRole('listitem')`.
 
       Nothing operable is given up. The `tabIndex` and the Enter/Space handler
-      below are the prototype's own and stay, so the card is still reached and
-      opened from the keyboard; what changes is the word a screen reader says,
-      and the word 9.1 chose is the one that tells a person how many cards the
-      column holds. The row solved the same problem the same way at S23, on
-      this element rather than an inner one and for the same reason: this is
-      what the list holds and what the drag engine moves.
+      below stay, so the card is still reached and opened from the keyboard;
+      what changes is the word a screen reader says, and the word 9.1 chose is
+      the one that tells a person how many cards the column holds. The row does
+      the same, on this element rather than an inner one and for the same
+      reason: this is what the list holds and what the drag engine moves.
       */
       role="listitem"
       tabIndex={0}
@@ -309,11 +295,8 @@ function BoardCard({
         </span>
         <button
           type="button"
-          /* seam: the names are 9.1's and 9.5's, "Important" when on and
-             "Mark as important" when off, where the prototype writes "Remove
-             from Important" and "Mark as Important". Item 44's A2 ruled the
-             table stands and the row transcribed it at S23; the board's card
-             is the same control and was transcribed at item 57 (A2). */
+          /* The names are 9.1's and 9.5's, "Important" when on and "Mark as
+             important" when off, the same control as the row's star. */
           aria-label={task.important ? "Important" : "Mark as important"}
           aria-pressed={task.important || undefined}
           onClick={(event) => {
@@ -381,16 +364,15 @@ function BoardCard({
         </span>
       ) : null}
       {/*
-      **Seam, S25: what a release would do, said in words.**
+      **What a release would do, said in words.**
 
-      DES-171 makes the rule the same at both ends of a drag, "a container
-      takes the drop and says so", words rather than an outline, and AC-228
-      reads "Into {column}" while the pointer is still down, which is the one
-      moment it exists. The row has drawn this since S23 and the card could
-      not, because nothing handed the list the engine's answer; `TaskList`
-      does now. Same slot and same treatment as the row's, so a card and a row
-      say the same thing the same way.
-      */}
+      The rule is the same at both ends of a drag, "a container takes the drop
+      and says so", words rather than an outline, and AC-228 reads "Into
+      {column}" while the pointer is still down, which is the one moment it
+      exists. `TaskList` hands the card the engine's answer. Same slot and same
+      treatment as the row's, so a card and a row say the same thing the same
+      way.
+       */}
       {wiring.proposal === undefined ? null : (
         <span className="pointer-events-none absolute top-1/2 right-2 z-40 -translate-y-1/2 rounded-full bg-[var(--color-graphite-900)] px-2 py-0.5 text-[0.625rem] font-medium whitespace-nowrap text-[var(--color-graphite-50)]">
           {wiring.proposal}
@@ -459,12 +441,11 @@ export function TaskBoard({
     <div className="grid grid-cols-2 items-start gap-3 pb-4">
       {columns.map((column) => (
         /*
-        Seam, S25, and the card's twin: 9.1's regions rule makes a board
-        column "a named region, named by its value", and AC-221, AC-228 and
-        AC-259 all reach a column through `regionOf(page, name)`. A `section`
-        carrying an accessible name is a region, so the element changes and
-        not one class string of it does; the label is the column's own, which
-        is the value the region is named by.
+        9.1's regions rule makes a board column "a named region, named by its
+        value", and AC-221, AC-228 and AC-259 all reach a column through
+        `regionOf(page, name)`. A `section` carrying an accessible name is a
+        region; the label is the column's own, which is the value the region is
+        named by.
         */
         <section
           key={column.key}
@@ -505,19 +486,18 @@ export function TaskBoard({
               return onDropIn(taskId, landing)
             }}
             /*
-            Seam, S25: the words the carried card wears, from this board's own
-            geometry. It is the same hit test the drop uses, asked one moment
-            earlier, so what the card promises and what the release does
-            cannot come apart. A column the page has nothing to write into is
-            not proposed, which is `onDropIn` answering false for it.
+            The words the carried card wears, from this board's own geometry. It
+            is the same hit test the drop uses, asked one moment earlier, so
+            what the card promises and what the release does cannot come apart.
+            A column the page has nothing to write into is not proposed, which
+            is `onDropIn` answering false for it.
             */
             onOver={(_taskId, point) => {
               const landing = columnAt(point)
               if (landing === null || landing === column.key) return null
               const named = columns.find((entry) => entry.key === landing)
-              /* polish (AC-228): and a column that cannot take the release is
-                 not proposed, so the promise and the act agree. The flag was
-                 what this seam's own sentence above already claimed. */
+              /* And a column that cannot take the release is not proposed, so
+                 the promise and the act agree. */
               if (named === undefined || named.takes === false) return null
               return `Into ${named.label}`
             }}

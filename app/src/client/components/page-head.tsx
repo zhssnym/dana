@@ -1,16 +1,6 @@
 /*
-The head of a place-page: the composition the folder page settled, made
-shareable.
-
-F3, 2026-08-19, at Imran's direction: My Day, Tasks, Planned, Important, All
-and Done still wore the v1 header, a 24px glyph inline with the title, a
-subtitle stacked under it, and the page's own controls parked to the right of
-its name, while the folder page next door had moved on to a cover, a mark at
-identity scale, and a window bar holding everything that is chrome. Two
-compositions, one product, and the pages sit one click apart.
-
-So the folder page's header is extracted rather than copied (DES-124's rule),
-and every place wears it:
+The head of a place-page: the folder page's composition, made shareable, so
+every place wears one head rather than a copy that drifts:
 
     [cover]
     mark
@@ -18,23 +8,18 @@ and every place wears it:
     Title   fact
     description
 
-**A system page's mark is not pickable, and a folder's is.** That difference
-is the honest one and it survives: a folder is the person's own thing, so its
-glyph and colour are theirs to choose (DES-130); My Day's sun is Dana's, and
-offering a picker on it would promise a choice that does not exist. Same
-geometry, same optical position, no popover, so the two read as one family
-without either telling a lie.
+**A system page's mark is not pickable, and a folder's is.** That difference is
+the honest one and it survives: a folder is the person's own thing, so its glyph
+and colour are theirs to choose; My Day's sun is Dana's, and offering a picker
+on it would promise a choice that does not exist. Same geometry, same optical
+position, no popover, so the two read as one family without either telling a
+lie.
 
-**The fact rides the title's line; prose sits under it.** The folder page put
-its completion ratio on the baseline and its description below (DES-130, as
-Imran revised it), and the six pages divide the same way: "Monday, 10 August"
-and "Starred tasks" are prose and take DES-148's 12/20 tier, while a progress
+**The fact rides the title's line; prose sits under it.** "Monday, 10 August"
+and "Starred tasks" are prose and take the 12/20 prose tier, while a progress
 figure, which only My Day and a folder have, is the quiet figure beside the
-name. A page with nothing to count leaves that slot empty rather than
-inventing a number to fill it.
-
-Lane 2 travels with the cover, unchanged: no page has a cover column, and the
-storage question is DES-105's.
+name. A page with nothing to count leaves that slot empty rather than inventing
+a number to fill it.
 */
 
 import { useState, type ComponentPropsWithoutRef, type ReactNode } from "react"
@@ -45,11 +30,8 @@ import { resolveCover } from "./folder-cover.js"
 import { AddCoverAction, PageCover } from "./page-cover.js"
 import { FOCUS, T_FAST } from "./task-row.js"
 import { InlineTextarea } from "./ui/inline-field.js"
-/* The S25 seam, and the whole of it in this file: the prototype read its
-   covers from a browser store keyed by the page's name, and this client
-   reads them from 7.19 keyed by 4.20's place. `lib/page-identity.js` is
-   that module rewritten; the two names are aliased back to the prototype's
-   so that nothing below this line moves. */
+/* Covers are read from 7.19 keyed by 4.20's place, through
+   `lib/page-identity.js`; its two names are aliased on import. */
 import {
   savePageIdentity as savePrototypeFolderIdentity,
   usePageIdentity as useFolderIdentity,
@@ -57,15 +39,13 @@ import {
 import { cn } from "./ui/utils.js"
 
 /*
-Whether this page is currently wearing a cover, the header needs it, because
-a mark stands on a plate only when there is something behind it, and the page
+Whether this page is currently wearing a cover, the header needs it, because a
+mark stands on a plate only when there is something behind it, and the page
 above has no top padding when a band is already there.
 
 It asks the same question `PageCover` asks, and deliberately: a stored key is
-not a drawn cover. An uploaded cover is an object URL alive for the session
-only (DES-130), so after a reload the key is still in the store and resolves
-to nothing, and a header that plated its mark on the key alone would float a
-white tile over blank page.
+not a drawn cover. A header that plated its mark on a key that resolves to
+nothing would float a white tile over blank page.
 */
 export function usePageHasCover(storageName: string) {
   const identity = useFolderIdentity(storageName)
@@ -84,28 +64,22 @@ export function pageBodyClass(className?: string) {
 }
 
 /*
-The mark itself, one definition, F5, 2026-08-22.
+The mark itself, one definition.
 
-F4 took the container off the mark on Imran's word (the rounded white tile
-"does not feel aesthetically strong") and replaced it with ground: a soft
-radial scrim over a cover, nothing at all on a bare page. That fix landed
-here, in the head every system page renders, and the **folder page kept its
-own copy of the mark**, so the one page the whole composition was extracted
-from was the one still wearing the box. DES-154 exactly: the treatment was
-settled for the mark and left in each screen's keeping.
+The mark has no container: a soft radial scrim over a cover, nothing at all on a
+bare page. It is a component so every page draws the same mark, and the two call
+sites differ in the one way they honestly differ: a folder's mark is a control
+that opens the icon picker, a system page's is not a control at all and is
+therefore not a button. Everything else, the geometry included, is written once
+here:
 
-So the mark is a component, and the two call sites differ in the one way they
-honestly differ, a folder's mark is a control that opens the icon picker
-(DES-130), a system page's is not a control at all and is therefore not a
-button. Everything else, the geometry included, is written once here:
-
-- **It grows over a cover rather than shrinking**, 32px bare to 40px plated.
-  A cover is the one place identity has competition and the one place it
-  should be loudest; the old header did the reverse.
-- **The scrim is the plate's replacement.** A dark glyph on a dark photograph
-  is what a container was solving, and the answer is to give the mark ground
-  rather than a fence, the same trick a caption over an image uses. On a bare
-  page there is nothing to separate from and the scrim is simply absent.
+- **It grows over a cover rather than shrinking**, 32px bare to 40px plated. A
+  cover is the one place identity has competition and the one place it should be
+  loudest.
+- **The scrim is the plate's replacement.** A dark glyph on a dark photograph is
+  what a container would solve, and the answer is to give the mark ground rather
+  than a fence, the same trick a caption over an image uses. On a bare page
+  there is nothing to separate from and the scrim is simply absent.
 - **A control says so on hover**, with a disc that reads on both grounds,
   painted over the scrim rather than under it.
 */
@@ -201,7 +175,7 @@ function PageHeadingStructure({
       <PageMark icon={icon} hasCover={hasCover} />
       {coverAction}
 
-      {/* polish: pagehead F6. On a phone the fact wraps under the name. */}
+      {/* On a phone the fact wraps under the name. */}
       <div className="mt-1.5 flex items-baseline justify-between gap-6">
         <div className="flex min-w-0 items-baseline gap-3 max-md:flex-col max-md:items-start max-md:gap-1">
           <h1 className="min-w-0 max-w-full truncate text-2xl leading-8 font-semibold text-foreground max-md:whitespace-normal">
@@ -275,11 +249,10 @@ export function PageHead({
      wording overrides it and clearing that brings it back. */
   description?: string
   /*
-  The second S25 seam. Native pages use 7.21, while folders and shelves keep
-  using their own records. `false` remains available if a stored place
-  genuinely needs fixed wording, while native task pages use the editable
-  default. People does not cross this storage-owning wrapper at all; it uses
-  `PageHeading` above.
+  Native pages use 7.21, while folders and shelves keep using their own records.
+  `false` remains available if a stored place genuinely needs fixed wording,
+  while native task pages use the editable default. People does not cross this
+  storage-owning wrapper at all; it uses `PageHeading` above.
   */
   descriptionEditable?: boolean
   children?: ReactNode
@@ -317,31 +290,24 @@ export function PageHead({
       ) : undefined}
     >
       {/*
-      **Seam, S25: the band is drawn here rather than by the page above.**
+      **The band is drawn here rather than by the page above.**
 
-      The composition this file's own header diagrams opens with `[cover]`,
-      and the prototype nonetheless renders `PageCover` from its shell, for
-      the reason its shell renders everything: it is the thing that knows
-      which page is showing. This client's pages each know their own spine, so
-      the band belongs to the head, and it has to be the head's for a reason
-      that is not tidiness: `PageMark` rides up over the band on a negative
-      margin, which only works while the two are adjacent in one flow, and a
-      page putting them in a `space-y-*` stack would open a gap between them.
+      `PageMark` rides up over the band on a negative margin, which only works
+      while the two are adjacent in one flow, and a page putting them in a
+      `space-y-*` stack would open a gap between them.
 
       The negative inset undoes the shell's own measure and nothing else.
-      `app-shell.tsx` wraps every page in `px-10 py-6`, and a cover is a band
-      across the page rather than a picture inside its column, so the wrapper
-      is drawn only when there is one: an empty box carrying a negative margin
-      would pull every uncovered page's mark up by the shell's own padding.
+      `app-shell.tsx` wraps every page in padding, and a cover is a band across
+      the page rather than a picture inside its column, so the wrapper is drawn
+      only when there is one: an empty box carrying a negative margin would pull
+      every uncovered page's mark up by the shell's own padding.
 
-      **Only the vertical half is here now.** The horizontal `-mx-10` reached
-      the column's padding and never its cap, which is the white space either
-      side the owner reported on 2026-08-30; `page-cover.tsx` draws the band
-      to the window's own edge and states the arithmetic. What is left is the
-      top inset, and it is the shell's two measures rather than one: the
-      column is `py-4` on a phone and `py-6` from `md` up, so a flat `-mt-6`
-      pulled the band 8px past the top of the scroll region on a phone.
-      */}
+      **Only the vertical half is here.** The horizontal half is in
+      `page-cover.tsx`, which draws the band to the window's own edge and states
+      the arithmetic. The top inset is the shell's two measures rather than one:
+      the column is `py-4` on a phone and `py-6` from `md` up, so a flat `-mt-6`
+      would pull the band 8px past the top of the scroll region on a phone.
+       */}
       {children}
     </PageHeadingStructure>
   )
@@ -351,25 +317,18 @@ export function PageHead({
 /*
 A place's description, in its own words or in Dana's.
 
-Imran, 2026-08-22: every native page should carry "a short, memorable, catchy
-and natural sentence" a person can edit later. `nav-model` has documented that
-editing fallback since F4 and nothing built it, the six pages rendered their
-sentence as a paragraph, so the shipped wording was the only wording there
-could ever be, and the note described a feature that did not exist.
-
-It exists now, and it is the folder page's own control rather than a second
-one: that page has had an editable description since DES-130, and the head was
-extracted from it precisely so the places would stop being written twice
-(DES-149). Both call this.
+Every native page carries a short, natural sentence a person can edit later.
+This is the folder page's own control rather than a second one, so the places
+are not written twice.
 
 **Clearing it restores the shipped sentence**, which is what a fallback means
 and is why there is no separate reset. A folder has no shipped sentence, so
 clearing one there leaves it empty and the ghost comes back, the same rule,
 reading differently because the two have different defaults.
 
-The storage seam keeps the UI simple: folders and shelves save through their
-own records, and native pages save through 7.21. The control does not need to
-know which kind of page it is editing.
+The storage seam keeps the UI simple: folders and shelves save through their own
+records, and native pages save through 7.21. The control does not need to know
+which kind of page it is editing.
 */
 export function PageDescription({
   storageName,

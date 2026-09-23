@@ -1,150 +1,22 @@
 name: CI
 
-# TWO JOBS SINCE 2026-09-04, AND ONLY ONE OF THEM IS THE GATE. Issue #180, and
-# 11.11 carries the amendment.
+# One job, the whole suite, on every pull request, every push to main, and on
+# demand. It runs on the self-hosted Windows runner on Hassan's PC.
 #
-# The six steps and their order are normative: spec 11.11 fixes them as npm ci,
-# lint, typecheck, test on a real Postgres, build, Playwright. The PGlite leg
-# was the fourth until 11.11 was amended on 2026-09-20 and is gone. That step
-# named "Postgres 18" until 11.11's 2026-09-20 amendment for issue #273: #235
-# made a sub-18 server able to run the leg, so the major version became job
-# configuration like the service container, and the gate record names the
-# version it measured rather than one written down in advance.
-# Changing the set or the order is an amendment there, not an edit here. Where
-# the job runs, where the postgres leg's database comes from, and which
-# interpreter a step's script is handed to are job configuration: they move
-# without amending 11.11, exactly as the service block they replaced always was.
+# Speed comes from three things. The checkout is not wiped and `git clean`
+# spares node_modules, so dependencies persist between runs; `npm ci` runs only
+# when package-lock.json (or the Node version) differs from the stamp written
+# into node_modules/.lock-sha by the last install. Lint, typecheck, build and
+# the vitest suite run concurrently through scripts/ci-parallel.mjs. Playwright
+# then reuses that build (DANA_GATE_PREBUILT=1) instead of rebuilding.
 #
-# `ci` below still runs all six, on pushes to main. **That is the
-# run that matters**, because it measures what was actually merged, and it is
-# the one 11.11's order is normative for.
+# The test leg is Postgres. TEST_DATABASE_URL comes from the runner's own .env,
+# never from a repository secret; if it is missing the suite would silently
+# fall back to PGlite, so the job refuses to start instead.
 #
-# `check` is what a pull request gets: the branch name, npm ci, lint, typecheck,
-# build. Minutes rather than half an hour. **It is not the gate and is not meant
-# to be.** The gate now runs where the code was written - `npm run gate` in
-# app/, printing a record a pull request carries - and three measured things put
-# it there.
-#
-#   A CI job holds about 7.7 GB of this machine's 15.8, so it cannot share the
-#   machine with the agents doing the work: killing a runner mid-job took free
-#   memory from 2.0 to 9.7 GB in one step, and the jobs that lost that fight
-#   went red with hook timeouts and zero assertion failures. A job this light
-#   can run beside them; the full one cannot.
-#
-#   One runner serves both people. Twenty-five backend issues queued behind it
-#   on 2026-09-03 (#73), which is the whole reason branch grouping had to be
-#   invented. A gate on the author's machine has no queue.
-#
-#   And a verdict that arrives after the pull request is open arrives too late
-#   to change what the pull request is. The author's own run is the one that can.
-#
-# So this file is the safety net: it catches a pull request opened without a
-# gate run, and it measures the merge on main afterwards. What it does not do is
-# tell anyone whether the work was finished. The gate record does that.
-#
-# A pull request is checked, not a branch. `pull_request` builds the merge
-# result, which is the thing that will actually land on main, and a branch that
-# is green alone can still be red merged. push is narrowed to main at the same
-# time and for the same reason it was widened before: with both triggers open,
-# every push to a branch with an open pull request would start two jobs for one
-# change, and there is exactly one runner. A branch with no pull request now
-# gets no verdict, which is correct under a workflow where nothing reaches main
-# except through one.
-#
-# `paths-ignore` keeps the full job off changes no step of it can read.
-# Measured on PR #52: five markdown files started all seven steps, twenty minutes
-# of the one runner, and a docs job holding that runner is a code job not
-# running. The second cost is the one that decided it. Every run is a fresh roll
-# against the flake classes CLAUDE.md enumerates, and the merge of #49 (run
-# 33495895742) went red on `ac-022` with `Hook timed out in 10000ms` having
-# nothing to do with the commit. A prose change that can produce a meaningless
-# red is how a team learns to skim past red.
-#
-# **`docs/**` came off this list on 2026-09-20 (issue #242), because the
-# sentence that put it there was false.** It read: "The list is only paths
-# nothing in app/ opens. Checked rather than assumed: no file under app/tests/,
-# app/src/, app/db/ or app/scripts/ reads a `docs/` path or any `.md`."
-#
-# `app/src/server/http/bundle-contract.test.ts` reads
-# `docs/spec/07-api/07.23-settings-bundle.md` with readFileSync, parses its
-# "## The fields" table, and asserts six things against it (AC-409) - among them
-# that the documented field list equals two zod shapes in both directions, and
-# that each Fresh cell equals what GET /settings actually answers a new account.
-# The parse runs at describe-body evaluation, so a missing file is an ENOENT at
-# collection rather than one red case.
-#
-# That test landed in 98b0d55 and this comment in 79f74ca, **the same day**. So
-# the claim was false within hours of being written, and for the sixteen days
-# after it a docs-only push to main skipped every check: this job by the ignore,
-# and the pull request's `check` job because it runs npm ci, lint, typecheck and
-# build and no tests. Editing that markdown table is an ordinary-looking
-# documentation edit that turns the suite red on somebody else's next push.
-#
-# The paragraph above still describes a real cost and it has not gone away: a
-# prose change that produces a meaningless red is how a team learns to skim past
-# red. It is simply the smaller of the two costs now, and the trade was made on
-# a fact that was not one. `.claude/**`, `.vscode/**` and the issue templates
-# stay ignored; nothing under app/ opens those, and this time that is checked by
-# `grep -rn "docs/" app/src app/tests app/db app/scripts` returning exactly one
-# non-comment hit, the file named above.
-#
-# `*` does not match `/` in these patterns, so `*.md` is the four root files and
-# not app/src/client/components/README.md.
-#
-# **It is on `push` only, and that is a change of 2026-09-04.** It used to be
-# written twice, once per trigger, with a comment saying the two lists had to be
-# kept in step. Both are gone, because the two triggers no longer run the same
-# job. The `pull_request` job checks the branch name, and **a pull request whose
-# branch is misnamed is misnamed whatever files it touches** — filtering that
-# check by path means a docs-only pull request can carry any branch name at all,
-# which is the one thing this job exists to catch and the exact shape of it that
-# happened (a study branch named after a tool, issue #180). The job is `npm ci`,
-# lint, typecheck and build: minutes, not the twenty that decided the filter.
-#
-# The reasoning that kept it on `push` is untouched: that job is the full gate,
-# it is where the twenty minutes and the flake roll live, and a merge of five
-# markdown files has nothing for it to measure.
-#
-# **The gotcha, recorded before it bites, and narrowed with the filter.** A
-# workflow skipped by paths-ignore reports no check at all, not a green one. That
-# is fine while branch protection is unavailable on this plan (the API answers
-# 403, "Upgrade to GitHub Pro"), so nothing waits on a required check. Since the
-# filter is now on `push` only, a pull request always reports, so the case that
-# would have bitten on Pro — a docs-only pull request blocking forever on a check
-# that never ran — no longer exists. A docs-only merge to main still reports
-# nothing, which is a branch protection question about main and not about any
-# pull request.
-#
-# **`on.pull_request` having no filter is now load-bearing for a second reason,
-# and something else reads this file to check it.** Issue #248: pull request
-# #244 had no workflow run at all — not queued, not cancelled, absent — and sat
-# looking mergeable for twenty minutes, because the absence of a verdict is
-# indistinguishable from a passing one. `.github/workflows/pull-request-run-watchdog.yml`
-# answers that by flagging any open pull request whose head has no run of this
-# file, and its whole predicate rests on a missing run being illegitimate. A
-# `paths`, `paths-ignore`, `types` or `branches` filter here would make a missing
-# run legitimate and turn that check into one that cries wolf. So the watchdog
-# refuses to run when it finds one, and
-# `app/tests/guards/guard-pull-request-run-watchdog.test.ts` reads this file in
-# the gate and fails before the branch is pushed. That test is the **second**
-# file under app/ that opens a path outside it, after the bundle contract named
-# above; `.github/workflows/**` is in no ignore list on either trigger, so
-# nothing about the filtering above changes with it.
-#
-# It flags a second state as well, and the `concurrency` block below is half of
-# why: a head whose `pull_request` runs of this file all ended `cancelled`,
-# `skipped`, `action_required` or `stale` had nothing linted, typechecked,
-# built or name-checked either, and said so with a grey icon nobody is mailed
-# about. `cancel-in-progress` here normally cancels a run on a head that is no
-# longer the head, which the watchdog never reads; what it does read is a head
-# left with only cancelled runs, which is what CLAUDE.md's instruction to
-# cancel a stuck run and free the runner produces.
-#
-# What is deliberately NOT done here: choosing which tests to run from which
-# files changed. CLAUDE.md is explicit that a change under app/src/shared/** or
-# app/src/server/domain/** reaches criteria in packages nobody was thinking
-# about, and that the whole run is the only one that sees a cross-package
-# regression. The split worth having is docs against code, not test against test.
+# `pull_request` stays unfiltered so every pull request gets a verdict. The
+# push paths-ignore keeps merges that touch only editor config, templates and
+# root markdown off the runner.
 on:
   push:
     branches: [main]
@@ -155,16 +27,11 @@ on:
       - '.github/pull_request_template.md'
       - '*.md'
       - 'LICENSE'
-  # No paths-ignore, no types, no branches: every pull request gets the
-  # branch-name check, including a docs-only one, and the watchdog reads a
-  # missing run here as a defect. See the header, and #248 before adding one.
   pull_request:
   workflow_dispatch:
 
-# One machine serves every branch, so a second push supersedes the first rather
-# than queueing behind it. main is exempt: its run is the verdict a merge is
-# checked against, and a cancelled verdict is not a verdict. A pull request's
-# ref is refs/pull/N/merge, so each one keeps its own group.
+# A newer push supersedes an older run, except on main, whose runs are the
+# verdict on what was merged.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
@@ -175,187 +42,40 @@ defaults:
     shell: cmd
 
 jobs:
-  # The pull request job. Light on purpose, and each of its four steps is here
-  # because it can fail for a reason the author's gate record cannot show:
-  # a branch name nothing else enforces, and a merge result the author never
-  # built. It is deliberately NOT the full gate.
-  check:
-    if: github.event_name == 'pull_request'
-    runs-on: [self-hosted, windows, x64]
-    # A hang killer, not a budget, on a job measured in minutes.
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-      # The branch name, which nothing else in this project checks. The shape is
-      # <area>/<issue-number>-<short-description>, and the number is the thread
-      # tying the branch to its issue and its pull request: a
-      # branch named after a tool or a mood breaks that thread six weeks later
-      # when someone is trying to find out why a line exists. Two overnight runs
-      # produced one of each (#180).
-      #
-      # powershell rather than the file's cmd default, because cmd has no
-      # regular expressions. -cnotmatch rather than -notmatch: PowerShell's
-      # match operators are case-insensitive by default, so [a-z0-9-] would
-      # happily accept Frontend/42-Fix-The-Thing.
-      #
-      # github.head_ref is the source branch of a pull request and is empty on
-      # any other event, which is why this step lives in the pull-request job
-      # alone.
-      - name: Branch name
-        shell: powershell
-        env:
-          BRANCH: ${{ github.head_ref }}
-        run: |
-          if ($env:BRANCH -cnotmatch '^(frontend|backend|chore)/[0-9]+-[a-z0-9-]+$') {
-            Write-Host "Branch name '$env:BRANCH' does not match the shape this workflow requires:"
-            Write-Host ""
-            Write-Host "    <area>/<issue-number>-<short-description>"
-            Write-Host "    ^(frontend|backend|chore)/[0-9]+-[a-z0-9-]+$"
-            Write-Host ""
-            Write-Host "Area is frontend, backend or chore, and says where the work started rather"
-            Write-Host "than what it may touch. The number is the issue. The description is lower"
-            Write-Host "case with hyphens. Rename the branch, push it, and reopen the pull request."
-            exit 1
-          }
-          Write-Host "Branch name ok: $env:BRANCH"
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-          cache-dependency-path: app/package-lock.json
-      - name: Install
-        run: npm ci
-      - name: Lint
-        run: npm run lint
-      - name: Typecheck
-        run: npm run typecheck
-      - name: Build
-        run: npm run build
-
-  # The six steps of 11.11, on the merge itself. Unchanged by #180 except for
-  # the `if` that keeps it off pull requests.
   ci:
-    if: github.event_name != 'pull_request'
     runs-on: [self-hosted, windows, x64]
-    # A hang killer, not a budget. 20 was P0's number for a hosted job whose
-    # fifth leg had never run, and two independent measurements now say it is
-    # too small. On this machine, 2026-08-11, with every cache warm: npm ci 7s,
-    # lint 4s, typecheck 5s, the PGlite leg 234s, build 5s, so five legs in 255s
-    # with the postgres leg still to add and a cold npm ci still to pay for. On
-    # p8-client, measured on a hosted runner: the four legs ahead of the browser
-    # one cost 13.5 to 14.5 minutes, and three of the four runs before that
-    # branch's workflow commit were killed with Playwright mid-leg. A timeout
-    # that trips produces a cancelled job rather than a red one, which destroys
-    # the evidence of whatever broke, and it lands hardest on the browser leg,
-    # which is both last in order and the only leg any browser criterion runs
-    # in. 40 is p8-client's number, adopted here rather than a different one so
-    # that two branches editing this line converge instead of colliding. It
-    # costs nothing on a healthy run, being a ceiling rather than an allocation.
-    timeout-minutes: 40
+    # A hang killer, not a budget.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          clean: false
+      - name: Clean the tree, keeping node_modules
+        working-directory: .
+        run: git clean -ffdx -e node_modules
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-          cache: npm
-          cache-dependency-path: app/package-lock.json
-      - name: Install
-        run: npm ci
-      - name: Lint
-        run: npm run lint
-      - name: Typecheck
-        run: npm run typecheck
-      # The PGlite leg was removed on 2026-09-20 with 11.11's amendment. It ran
-      # the same files this step runs, on an engine production does not use, and
-      # the pair existed to catch a cross-engine disagreement almost no file in
-      # the suite can produce. The step below is now the only leg, and the guard
-      # on it matters more for that: there is no second leg left to notice that
-      # this one fell back to PGlite.
-      #
-      # TEST_DATABASE_URL arrives from the runner installation's own .env file,
-      # never from a repository secret and never from this file: 11.11's Secrets
-      # bullet rules that a credential for a resource GitHub cannot reach is not
-      # stored at GitHub. The database it names is the one 11.10's CREATE
-      # DATABASE statement fixes to the builtin C.UTF-8 locale.
-      #
-      # Since 2026-09-03 (issue #32) it names the *base* database rather than the
-      # one the tests run in: the suite derives one database per Vitest worker
-      # from it, creates them at the start of the run and drops them at the end,
-      # because all 282 files sharing one database could see each other's rows.
-      # That is job configuration in 11.11's own terms, "where the postgres leg's
-      # database comes from", and it moves without amending 11.11. Nothing about
-      # this step's position, its name, or the guard below changes with it, and
-      # the guard is if anything load-bearing in one more way now: the derivation
-      # happens in a Vitest globalSetup that returns immediately when the variable
-      # is unset or empty, so an empty value would produce a PGlite run *and* no
-      # isolation, and still report green.
-      #
-      # The guard is what stops this step passing without touching Postgres at
-      # all, and since the PGlite leg was removed it is the only thing that can.
-      # Because the string arrives from outside this file, a missing .env, a
-      # misspelled name, or a service started before the file was written all
-      # leave the seam in app/db/client.ts falling back to PGlite, and the step
-      # would report green having never reached the engine that serves users.
-      # It tests
-      # presence and nothing else: the value is never read into a command, never
-      # echoed, and never named here. Unset and empty are one case because that
-      # is exactly the seam's own fallback condition, so the two agree by
-      # construction rather than by being kept in step.
-      - name: Test on a real Postgres
-        shell: cmd
+      - name: Install (only when package-lock.json changed)
+        run: |
+          node -e "const f=require('fs'),h=require('crypto').createHash('sha256').update(process.version).update(f.readFileSync('package-lock.json')).digest('hex');let s='';try{s=f.readFileSync('node_modules/.lock-sha','utf8').trim()}catch{}process.exit(s===h?0:1)" && echo node_modules matches package-lock.json, skipping npm ci && exit /b 0
+          call npm ci || exit /b 1
+          node -e "const f=require('fs'),h=require('crypto').createHash('sha256').update(process.version).update(f.readFileSync('package-lock.json')).digest('hex');f.writeFileSync('node_modules/.lock-sha',h)"
+      - name: Lint, typecheck, build and test (Postgres), in parallel
         run: |
           if "%TEST_DATABASE_URL%"=="" (
-            echo TEST_DATABASE_URL is unset or empty, so this step would silently fall back to PGlite and report a green that never touched Postgres. Set it in the runner installation .env file ^(spec 11.11^) and restart the runner service.
+            echo TEST_DATABASE_URL is unset or empty, so the suite would silently fall back to PGlite and report a green that never touched Postgres. Set it in the runner installation .env file and restart the runner.
             exit /b 1
           )
-          npm test
-      - name: Build
-        run: npm run build
-      # The fifth leg. The condition is P0's design and it guards history:
-      # a commit predating the config has no runner to invoke, and skipping
-      # is the honest answer there.
-      #
-      # A second condition stood beside it until P8, requiring a matching
-      # spec to exist as well, because the P8 kickoff split this seam by file
-      # and between the config's commit and the first spec's commit
-      # playwright test treats finding no spec as an error rather than an
-      # empty pass. That gap has closed: the specs are committed and specs
-      # can only be added, so the condition can no longer be false while the
-      # config is true. It is removed rather than left standing, and the
-      # reason is the one this comment used to give for rejecting the
-      # no-tests-found flag. A skipped step is green, so a condition that can
-      # only ever be true is a live way for this leg to go quiet without
-      # anyone reading a red: it is that flag written in YAML, and this leg
-      # is the only one any browser acceptance criterion runs in.
-      #
-      # The shell is declared for the same reason as the step above. cmd gives
-      # && one stable meaning on the Windows runner and does not depend on the
-      # machine-wide PowerShell execution policy. Leaving the interpreter to
-      # whatever happens to be on PATH would make the gate's behaviour a
-      # function of what is installed rather than of what is written here.
-      #
-      # Two halves of the install command come from different branches and
-      # both are deliberate. chromium is p8-client's, naming the one browser
-      # the config's single project uses, because installing the other two
-      # costs minutes of this job for something nothing runs. The dropped
-      # --with-deps is main's: that flag installs Linux system packages
-      # through apt and does nothing a Windows runner can use.
+          node scripts/ci-parallel.mjs "lint::npm run lint" "typecheck::npm run typecheck" "build::npm run build" "test::npm test"
       - name: Playwright
-        if: hashFiles('app/playwright.config.ts') != ''
-        shell: cmd
-        run: npx playwright install chromium && npx playwright test
-
-      # What a red browser leg leaves behind. Without this a failure is a name
-      # and a stack in the log, and the trace, the screenshot and the video the
-      # config already produces die with the runner. That matters most for the
-      # person who cannot reproduce it: the frontend half of this project is
-      # worked by someone whose machine is not this one, and the difference
-      # between debugging a red check and asking about it is these files.
-      #
-      # failure() rather than always(): a green run's artifacts are noise.
-      # if-no-files-found: ignore because this step also runs when an earlier
-      # leg failed and Playwright never started, and a missing directory is
-      # then the correct outcome rather than a second failure.
+        env:
+          DANA_GATE_PREBUILT: '1'
+        run: |
+          call npx playwright install chromium || exit /b 1
+          npx playwright test
+      # Traces, screenshots and videos from a red browser leg; absent when
+      # Playwright never started, which is not a second failure.
       - name: Failure artifacts
         if: failure()
         uses: actions/upload-artifact@v4

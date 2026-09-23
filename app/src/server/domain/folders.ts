@@ -1,5 +1,5 @@
 /*
-The P2 domain module: folders and membership per spec 7.4, the 5.3 and 5.4
+The domain module for folders and membership per spec 7.4, the 5.3 and 5.4
 tables, R-CLEAN, ownership transfer (8.9), the deletion transaction (8.8),
 and the 8.11 counts. Routes validate and serialize; every decision that
 touches rows is here, behind the 10.2 rule that no query leaves this file
@@ -59,8 +59,8 @@ function nullableString(value: unknown): string | null {
 
 /**
  * What every call site of `accessOf` has always had -- ownership, the default
- * flag and the folder's name, which the share-grant email renders (RFC 0005
- * change control item 32) -- plus, since issue #228, the member's persisted
+ * flag and the folder's name, which the share-grant email renders -- plus,
+ * since issue #228, the member's persisted
  * Access preset and the two ids the resolver needs.
  *
  * It *is* `FolderActorFacts` rather than a shape of its own, so that the
@@ -74,8 +74,8 @@ export type FolderAccess = FolderActorFacts
  * member, which 10.2 makes the same answer: 404, never 403.
  *
  * The executor rather than the handle, so a caller inside a transaction
- * resolves access against the same snapshot it will write in; P3's task
- * moves need exactly that, and every Db is an Executor.
+ * resolves access against the same snapshot it will write in; task moves
+ * need exactly that, and every Db is an Executor.
  *
  * The body moved to `domain/folder-access.ts` at issue #228. The name stays
  * here because twenty-two call sites across twelve files spell it, and
@@ -97,14 +97,12 @@ function folderFromRow(
   row: Record<string, unknown>,
   personalLabels: LabelRef[],
 ): Folder {
-  /* The viewer's own preset (7.4's amendment of 2026-09-20, Hassan's Ruling 4
-     on issue #228). It is read exactly as `membersOf` reads a member's: from
+  /* The viewer's own preset (7.4, issue #228). It is read exactly as `membersOf` reads a member's: from
      the column, through `presetOf`, and refused rather than defaulted when it
      is unreadable, because every default here would be a guess about
      authority. The row it comes from is `m`, which `folderSelect` joins on
      `m.user_id = viewerId` -- the *viewer's* membership and never the
-     owner's, which is the confusion this field invites and AC-674 exists to
-     refuse. */
+     owner's, which is the confusion this field invites. */
   const myAccess = presetOf(row.my_access)
   if (myAccess === null) {
     throw new Error(
@@ -148,8 +146,7 @@ function folderFromRow(
  * preset instead — `is_owner` sits two lines above it and comes from
  * `f.owner_id` — which would answer the same value to everybody in the folder
  * and would be invisible on a folder whose owner happens to hold Full control,
- * which is most of them. AC-674 drives two members at two presets through this
- * query in one folder for exactly that reason. */
+ * which is most of them. */
 function folderSelect(viewerId: string, folderId?: string) {
   const scope =
     folderId === undefined ? sql`` : sql` AND f.id = ${folderId}`
@@ -182,7 +179,7 @@ function folderSelect(viewerId: string, folderId?: string) {
  * be de-duplicated. The ids the first statement produced go to
  * `folderPersonalLabelsFor` in one batch instead, which is the same seam
  * `readCards` uses for tasks: two statements for a list of any length, never
- * one per row (issue #226, AC-474).
+ * one per row (issue #226).
  */
 async function withPersonalLabels(
   db: Db,
@@ -226,16 +223,14 @@ The 10.3 cap counts custom folders only, the default one being INV-2's rather
 than the account's to spend.
 
 The count, the insert and the owner's membership row are one transaction
-behind a lock, for the reason the P3 shape review gave for the other two caps
-in this directory: nothing sits under this number either, so a count that is
+behind a lock, for the same reason as the other two caps in this directory:
+nothing sits under this number either, so a count that is
 not tied to its insert is a suggestion. Two creates arriving together at 199
 both read 199 and both insert.
 
-The description is written by this insert and not by a PATCH behind it (7.4's
-dated paragraph of 2026-09-04, issues #21 and #70): making a folder is one
-request, which AC-279 states on the wire — states rather than checks, its test file
-having gone in the 2026-09-20 cut — and the sentence a new folder opens
-with has to arrive in it. Defaulted to null so the callers that name only a
+The description is written by this insert and not by a PATCH behind it (7.4,
+issues #21 and #70): making a folder is one request, and the sentence a new
+folder opens with has to arrive in it. Defaulted to null so the callers that name only a
 folder keep the NULL every folder made before this carries.
 
 The lock is the owner's user row, because the set being counted is "the
@@ -296,7 +291,7 @@ export async function createFolder(
       transition: 'created_owner',
     })
     /* The four native facets, **in this transaction and never lazily**
-       (issue #210, ruling of 2026-09-21 section 1). #210's "stable internal
+       (issue #210). #210's "stable internal
        identity" is a fact of the folder rather than of whoever looked first,
        and lazy creation would mean a GET writes, two members race
        `folder_facets_folder_native_kind_idx`, and a Can-view member's read
@@ -331,8 +326,7 @@ export async function createFolder(
            everywhere (7.4's amendment of 2026-09-20), and here the creator,
            the owner and the sole member are one person -- which is exactly
            the case in which the owner-versus-viewer confusion is invisible,
-           so nothing about this line is evidence the projection is right.
-           AC-674 asks the question on a shared folder. */
+           so nothing about this line is evidence the projection is right. */
         my_access: 'full_control',
         personal_labels: [],
         icon: null,
@@ -397,7 +391,7 @@ export async function patchFolderProfile(
     if (patch.name !== undefined) sets.push(sql`name = ${patch.name}`)
     if (patch.icon !== undefined) sets.push(sql`icon = ${patch.icon}`)
     if (patch.color !== undefined) sets.push(sql`color = ${patch.color}`)
-    /* One source (4.3 as widened by item 58): a file arriving clears the
+    /* One source (4.3): a file arriving clears the
        preset and a preset arriving clears the file, so the client never has
        to send the null it means. */
     if (patch.coverFileId !== undefined) {
@@ -445,7 +439,7 @@ export interface DeletedCounts {
   tasks_abandoned: number
 }
 
-/** 8.8 as split by RFC 0005 (7.13): count for the confirmation response,
+/** 8.8 as split by 7.13: count for the confirmation response,
  * then mark the folder rather than delete it, one transaction. The named
  * cascades still do the rest, they just fire at the purge (11.7), and the
  * counts and the mark share the transaction so the response can never
@@ -547,7 +541,7 @@ export interface MyMembershipPatch {
  * migration 0011; this is what stops the state being reachable again.
  *
  * Clearing the membership leaves the shelf standing, which is deliberate and
- * is 9.1's model since S17b: "a shelf outlives its folders", the shelf being
+ * is 9.1's model: "a shelf outlives its folders", the shelf being
  * the thing and this column its membership. Taking the last folder off a
  * shelf therefore empties it rather than deleting it, exactly as it already
  * did for a shelf made through 7.16.
@@ -621,8 +615,7 @@ export interface PendingInviteElement {
 }
 
 /** 7.4's members array. The user object is 7.0's person shape (id,
- * display_name, avatar_url), the TaskCard-assignee object, per the shape
- * review's ruling: 7.3's roster email is the contract's explicit
+ * display_name, avatar_url), the TaskCard-assignee object: 7.3's roster email is the contract's explicit
  * exception, and the 9.x sharing panel never renders a member's address.
  * is_owner derives from folders.owner_id, the single ownership source
  * (4.3, 8.9). Ordered by join instant then id, section 6's tie-break
@@ -659,8 +652,7 @@ export async function membersOf(
       /* Issue #228: the member's current Access preset, Folder-visible to
          every member under R9 section 13. `role` stays beside it and stays
          'member': it expressed no authority before this and expresses none
-         now, and removing a column from a frozen response is not this
-         change's to make. */
+         now, and removing a column from a response is a contract change. */
       access,
       joined_at: toIso(row.joined_at),
       is_owner: row.is_owner === true,
@@ -712,13 +704,9 @@ connection with anyone, so it answers through the connection guard, and
 nothing here leaks whether the id names a real account.
 
 The guards and the insert are one transaction behind a lock on the folder
-row, which they were not when this landed at P2. The P3 shape review found
-the 50-step cap counting without one and the Steward routed the same finding
-here, where it is the worse of the two: these statements were not in a
-transaction at all, so nothing tied the count to the insert, and the reason
-P2 went green anyway is that ON CONFLICT answers the only race the suite
-runs. AC-021 races two members adding the same person, and the primary key
-settles that one whatever the count said. Two members adding two different
+row, so the count is tied to the insert. ON CONFLICT answers only the race of
+two members adding the same person, which the primary key settles whatever
+the count said. Two members adding two different
 people to a folder holding 24 both read 24, both pass, and both insert,
 leaving 26 against a number 10.3 calls server-enforced, and no acceptance run
 can show it: PGlite is single-connection (11.15).
@@ -805,7 +793,7 @@ export async function addMember(
        together, and the actor recorded on the first revision is the
        **administrator** who chose the content rather than the person it
        describes. That is R9 section 5's rule about Access read across to
-       Responsibility, and AC-569 reads exactly this row back. */
+       Responsibility. */
     if (initialResponsibility !== undefined) {
       await createInitialResponsibility(
         tx,
@@ -962,11 +950,10 @@ export async function removeMembership(
 
 /*
 R-CLEAN itself, taking the executor so its three callers share one
-implementation: member removal, leave, and 8.10 step 4, which the P5
-amendment records as "not new machinery but 5.3's R-CLEAN, run once per
-remaining membership by the deletion transaction". A second copy inside the
-account deletion module would be the thing AC-136 exists to catch, an
-implementation that revokes memberships without the cleanup, or sweeps My Day
+implementation: member removal, leave, and 8.10 step 4, which is "not new
+machinery but 5.3's R-CLEAN, run once per remaining membership by the
+deletion transaction". A second copy inside the account deletion module
+would risk an implementation that revokes memberships without the cleanup, or sweeps My Day
 entries by user rather than by the folder's tasks.
 */
 export async function runRClean(
@@ -1001,7 +988,7 @@ export async function runRClean(
   returned as an active member Responsibility, still holding the partial
   unique index against anybody who came after. Nothing in this path relies on
   a cascade. It is issue #253's class, and #227 met the same shape with
-  Personal Labels; AC-570's last case is what pins it. The document and its revisions stay exactly where they are, which is
+  Personal Labels. The document and its revisions stay exactly where they are, which is
   R10's other half: history survives the membership it describes, and #230
   forbids scrubbing from fabricating a different historical actor.
   */
@@ -1012,9 +999,7 @@ export async function runRClean(
     options.actorId ?? leaverId,
   )
   /*
-  Ruling 6 of 2026-09-21 (issue #210),
-  https://github.com/zhssnym/dana/issues/210#issuecomment-5757696835: the
-  departing person's **private** facets in this folder, and their blocks, are
+  Issue #210: the departing person's **private** facets in this folder, and their blocks, are
   permanently deleted in this same transaction.
 
   It is here rather than in `removeMembership` for the reason the paragraph
@@ -1024,7 +1009,7 @@ export async function runRClean(
   caller would have covered a leave and a removal and silently missed every
   account deletion.
 
-  Deleted rather than trashed, which is the ruling's word. A trashed row here
+  Deleted rather than trashed. A trashed row here
   is unreadable by its owner, who is no longer a member, and unreadable by
   everybody else, because `facet.read` admits no preset -- and unrestorable by
   either. `folder_facets.owner_id` is RESTRICT, so nothing about a scrubbed

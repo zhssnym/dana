@@ -17,16 +17,6 @@ body:
       placeholder: app/src/client/views/, or "the sidebar on mobile"
     validations:
       required: true
-  - type: dropdown
-    id: area
-    attributes:
-      label: Which side
-      options:
-        - Frontend
-        - Backend
-        - Not sure
-    validations:
-      required: true
   - type: textarea
     id: steps
     attributes:

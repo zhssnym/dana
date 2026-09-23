@@ -1,50 +1,35 @@
 /*
 The acts a task supports, performed.
 
-`docs/design/prototype-v2/src/lib/task-acts.ts`, read at `7d2064c`. That
-prototype is deleted (`a7886df`, 2026-09-01); read it in git history before
-that commit. Its own header gives the reason it exists and the reason survives
-the port whole: "an act belongs to the object, so the moment it lives inside
-one screen the next screen either goes without it or writes a second copy that
-drifts. A task's menu is drawn in a row, in a card, in a dialog, in a tab and
-on a board."
+An act belongs to the object, so the moment it lives inside one screen the next
+screen either goes without it or writes a second copy that drifts. A task's menu
+is drawn in a row, in a card, in a dialog, in a tab and on a board.
 
-The sibling of `lib/object-acts.ts`, which declares *what* a task offers and
-in what order, and this, which performs the ones that are the same act
-wherever they are pressed. That split is `object-acts.ts`'s own: it "owns the
-vocabulary" and "owns no behaviour at all, because only a surface knows how to
-run one". The acts here are the ones whose whole behaviour is the same from a
-row, a card, a tab and a board.
+The sibling of `lib/object-acts.ts`, which declares *what* a task offers and in
+what order, and this, which performs the ones that are the same act wherever
+they are pressed. That split is `object-acts.ts`'s own: it "owns the vocabulary"
+and "owns no behaviour at all, because only a surface knows how to run one". The
+acts here are the ones whose whole behaviour is the same from a row, a card, a
+tab and a board.
 
-**Two seams.**
+**The address** comes from `lib/nav-links.ts`, which builds 9.1's
+`/app/tasks/:id` and is the one place that decides where an object lives.
 
-The address is the first. The prototype's `taskLink` builds `?task=<id>` on
-the current URL; `lib/nav-links.ts` builds 9.1's `/app/tasks/:id` and is the
-one place that decides where an object lives, so this asks it rather than
-assembling a second answer.
+**The notice** is `state/toasts.ts`, which 9.1 distinguishes by kind and
+`ToastRegion` renders, and its inverse is `shell/undo.ts`.
 
-The notice is the second. The prototype's `notice()` writes into its own undo
-bar; this client's system toast is `state/toasts.ts`, which 9.1 distinguishes
-by kind and `ToastRegion` renders, and its inverse is `shell/undo.ts`. Same
-act, this client's channels.
+**Plain functions rather than hooks, `lib/page-identity.ts`'s precedent.** A row
+is drawn in a lab with no query client around it and in the app with one; a
+plain function that reaches `queryClient()` when there is one and `mutateApi`
+either way lets the same row supply the act in both. The cost is that the
+mutation cache's own `onSuccess` never sees these writes, so each invalidates by
+hand, the same filterless call that cache makes.
 
-**Plain functions rather than hooks, `lib/page-identity.ts`'s precedent.**
-A row is drawn in a lab with no query client around it and in the app with
-one; a plain function that reaches `queryClient()` when there is one and
-`mutateApi` either way lets the same row supply the act in both. The cost is
-that the mutation cache's own `onSuccess` never sees these writes, so each
-invalidates by hand, the same filterless call that cache makes.
-
-**Duplicate crossed at the loose-ends row (RFC 0005 change control item 58,
-A).** This file used to record that frozen section 7 had no task duplicate;
-S28a gave it one, `POST /tasks/:id/duplicate` (7.16, item 53(e)), and the
-prototype's shell answers a duplicate by putting the copy beside the original
-with a History line and an undo. Here the copy is the server's, the list
-refetches around it, and the toast and the undo are the prototype's. "Make
-this a folder…" is the same shape over `POST /folders` then `PATCH /tasks/:id`,
-which is S23a's hold with one task in it (ledger L-007), and a step's move out
-of its task is item 58's endpoint, B9's one-way promotion given an address
-(ledger L-159).
+**Duplicate** is `POST /tasks/:id/duplicate` (7.16): the copy is the server's,
+the list refetches around it, and a toast and an undo follow. "Make this a
+folder…" is the same shape over `POST /folders` then `PATCH /tasks/:id`, which
+is the hold with one task in it, and a step's move out of its task is the
+promote endpoint, a one-way promotion given an address.
 */
 
 import { folder as folderSchema } from '../../shared/folders.js'
@@ -61,9 +46,9 @@ import type { ConceptStep } from './task-model.js'
 /**
  * Copy a task's address, and say so.
  *
- * The notice is named, unlike a folder's, and the prototype's reason for that
- * is the right one: "you copy a folder's link from its own page and a task's
- * from a list of twenty. Link copied there does not say which."
+ * The notice is named, unlike a folder's: you copy a folder's link from its own
+ * page and a task's from a list of twenty, and "Link copied" there does not say
+ * which.
  *
  * The clipboard write is fire and forget and its rejection is swallowed. A
  * browser refuses it when the document is not focused, which is a state the
@@ -84,11 +69,9 @@ function settle(): void {
  *
  * The copy lands wherever the list's own order puts it once the refetch has
  * run; the undo bar says it happened because a copy you cannot see is one you
- * assume did not happen, the prototype's own reason for putting it beside the
- * original, and the bar is the notice as it is for every act 9.1 gives an
- * inverse (a toast saying the same sentence would be the act said twice). The
- * undo is 7.6's soft delete of the copy, which is what the prototype's History
- * entry undoes.
+ * assume did not happen, and the bar is the notice as it is for every act 9.1
+ * gives an inverse (a toast saying the same sentence would be the act said
+ * twice). The undo is 7.6's soft delete of the copy.
  */
 export function duplicateTask(taskId: string, title: string): void {
   /* tz because the copy re-anchors a spent due date on today, and today is
@@ -109,21 +92,19 @@ export function duplicateTask(taskId: string, title: string): void {
 }
 
 /**
- * "Make this a folder…": a folder named after the task, and the task moved
- * into it, S23a's hold with one task in it (`pages/task-rows.tsx`'s
- * `onMerge`). The undo moves the task back and leaves the folder, exactly as
- * the hold's does: the folder is a thing the person now has, not a side
- * effect to unwind.
+ * "Make this a folder…": a folder named after the task, and the task moved into
+ * it, the hold with one task in it (`pages/task-rows.tsx`'s `onMerge`). The
+ * undo moves the task back and leaves the folder, exactly as the hold's does:
+ * the folder is a thing the person now has, not a side effect to unwind.
  *
  * The task is read first, for the folder the undo returns it to: a row on a
- * folder page draws no folder chip (DES-183) and so holds no folder id, and
- * one read is cheaper than a prop threaded through every list.
+ * folder page draws no folder chip and so holds no folder id, and one read is
+ * cheaper than a prop threaded through every list.
  *
  * **The folder is made in one request**, for the reason `api/mutations.ts`
- * gives at `useCreateFolder`: this act is the hold with one task in it, and
- * the same composition AC-279 counts on the wire. The default description
- * rides that one POST, 7.4's create body having taken `description` on
- * 2026-09-04 (issues #21 and #70, AC-377).
+ * gives at `useCreateFolder`: this act is the hold with one task in it, and the
+ * same composition AC-279 counts on the wire. The default description rides
+ * that one POST (7.4; issues #21 and #70, AC-377).
  */
 export function makeFolderOfTask(taskId: string, title: string): void {
   const folderName = title.slice(0, 100)
@@ -154,25 +135,24 @@ export function makeFolderOfTask(taskId: string, title: string): void {
     .catch((error: unknown) => showToast(writeFailureMessage(error)))
 }
 
-/** Where the card's step menu can send steps: the prototype's own two. */
+/** Where the card's step menu can send steps. */
 export type StepDestination =
   | { kind: 'new-task' }
   | { kind: 'folder'; name: string; color: string }
 
 /**
- * Steps out of their task, one verb and the destination decides the level
- * (DES-106, the prototype's `moveStepsTo`).
+ * Steps out of their task, one verb and the destination decides the level.
  *
- * Into a folder each step becomes a task of its own: item 58's
- * `POST /tasks/:id/steps/:stepId/promote`, which lands the task in the
- * parent's folder and section, then 7.6's PATCH carries it on when the chosen
- * folder is another. Into a new task they stay steps: 7.6's create takes the
- * titles and 7.7's delete removes the originals. The new task is named "New
- * task" on purpose, the prototype's reason being that every row renames in
- * place, and it starts loose in the parent's folder.
+ * Into a folder each step becomes a task of its own: `POST
+ * /tasks/:id/steps/:stepId/promote`, which lands the task in the parent's
+ * folder and section, then 7.6's PATCH carries it on when the chosen folder is
+ * another. Into a new task they stay steps: 7.6's create takes the titles and
+ * 7.7's delete removes the originals. The new task is named "New task" on
+ * purpose, because every row renames in place, and it starts loose in the
+ * parent's folder.
  *
- * Only steps carrying 7.7's id can move; a step typed into the card and not
- * yet written has none and is skipped rather than invented.
+ * Only steps carrying 7.7's id can move; a step typed into the card and not yet
+ * written has none and is skipped rather than invented.
  */
 export function moveStepsOut(
   taskId: string,
@@ -240,15 +220,13 @@ function plural(count: number, noun: string): string {
 /**
  * The card's step list, written as the 7.7 calls that would produce it.
  *
- * `tasks/task-writer.tsx` has said since S22 that steps "need a diff against
- * the task's current list rather than a field copy, which is the card's own
- * act and lands with the card"; the card landed at S23 and nothing wrote
- * them, so a step ticked in an open card was ticked until the next refetch
- * and never after (found at the loose-ends row, item 58). The current list
- * is read through 7.6's GET rather than off a cache, so a card open for a
- * while diffs against the truth: a step with 7.7's id is patched where its
- * title, box or place changed, one without is added, one the list no longer
- * names is deleted, and the refetch afterwards hands the card the ids.
+ * Steps need a diff against the task's current list rather than a field copy;
+ * without this a step ticked in an open card would stay ticked only until the
+ * next refetch. The current list is read through 7.6's GET rather than off a
+ * cache, so a card open for a while diffs against the truth: a step with 7.7's
+ * id is patched where its title, box or place changed, one without is added,
+ * one the list no longer names is deleted, and the refetch afterwards hands the
+ * card the ids.
  */
 export function writeSteps(taskId: string, next: readonly ConceptStep[]): void {
   void getPlain(taskDetail, `/tasks/${taskId}`)
@@ -256,13 +234,13 @@ export function writeSteps(taskId: string, next: readonly ConceptStep[]): void {
       const before = new Map(current.steps.map((step) => [step.id, step]))
       const kept = new Set(next.map((step) => step.id).filter((id) => id !== undefined))
       /*
-      polish: taskcard F1 and F4. A step the card added and then renamed or
-      ticked before the refetch handed it an id arrives here without one,
-      while the server already holds it. Diffing by id alone deleted the
-      server's copy and posted the renamed one, so a rename read as "removed
-      a step, added a step" in the history and the two writes raced the
-      refetch. An id-less step standing at the same position as a server
-      step nobody kept is that step, so it is patched rather than replaced.
+      A step the card added and then renamed or ticked before the refetch handed
+      it an id arrives here without one, while the server already holds it.
+      Diffing by id alone would delete the server's copy and post the renamed
+      one, so a rename would read as "removed a step, added a step" in the
+      history and the two writes would race the refetch. An id-less step
+      standing at the same position as a server step nobody kept is that step,
+      so it is patched rather than replaced.
       */
       const paired = new Map<number, (typeof current.steps)[number]>()
       current.steps.forEach((step, index) => {

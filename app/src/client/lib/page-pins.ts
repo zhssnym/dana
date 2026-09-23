@@ -1,7 +1,7 @@
 /*
 Which views are pinned to the sidebar, as `settings-page-content.tsx` reads and
-writes them: `prototype-v2`'s `lib/page-pins.ts` rewritten over 4.19's
-`pinned_views` (RFC 0004's S27).
+writes them: the prototype's `lib/page-pins.ts` rewritten over 4.19's
+`pinned_views`.
 
 The prototype keeps a map of name to boolean in `localStorage` and says in its
 own header that this is "the shape the eventual column takes". The column

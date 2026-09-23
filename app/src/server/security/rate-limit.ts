@@ -1,5 +1,5 @@
 /*
-The in-memory P9 limits from spec 10.4. A single set is created per Express
+The in-memory limits from spec 10.4. A single set is created per Express
 application and shared by all of its routers, so the general mutation quota
 is per user across the whole API rather than once per route file.
 
@@ -202,19 +202,15 @@ export function createRateLimits(
     address to its default /56 prefix, so one client cannot walk a subnet to
     reset the count. It keys on whatever it is handed, which here is `req.ip`.
 
-    **The paragraph that stood here said this bucket was per deployment
-    rather than per visitor, and it was right until issue #153 (2026-09-04).**
-    `createApp` now sets `trust proxy` to 1, so `req.ip` is the address
-    Render's edge appended to `X-Forwarded-For` and this limiter buckets per
-    client in production as it always did under test — **on the reading that
-    the edge appends that header, which 11.11 records as near-certain,
-    undocumented, and failing permissively rather than neutrally if it is
-    wrong.** Read that before relying on this bucket. What the old paragraph
-    ruled out is what happened: it said changing `trust proxy` would move
-    every limiter at once and was therefore not a change to make inside this
-    one, and #153 is that change made from outside it, with 10.4 re-read and
-    AC-410 stating the addresses. (That criterion's test file went in
-    the 2026-09-20 cut, so it states them and does not check them.)
+    **This bucket is per client, not per deployment (issue #153).**
+    `createApp` sets `trust proxy` to 1, so `req.ip` is the address Render's
+    edge appended to `X-Forwarded-For` and this limiter buckets per client in
+    production as it does under test — **on the reading that the edge
+    appends that header, which 11.11 records as near-certain, undocumented,
+    and failing permissively rather than neutrally if it is wrong.** Read
+    that before relying on this bucket. Changing `trust proxy` moves every
+    limiter at once, so it is never a change to make inside this one
+    (AC-410 states the addresses; nothing checks them).
 
     **Two things about the library that the fix does not buy, said here
     because they read as safety nets and are not.** Its `trustProxy` and

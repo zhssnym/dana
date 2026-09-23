@@ -1,10 +1,9 @@
 /*
 The designer's `SidebarResizeHandle`, from `src/components/app-sidebar.tsx`,
-ported at P8R session R5 with one change and one name.
+ported with one change and one name.
 
-**The name is 9.1's.** That section's names table took the two resize handles
-at the P8R mid-package change control on 2026-08-13 and gave them "Resize
-sidebar" and "Resize task form"; his prototype already carried the first
+**The name is 9.1's.** That section's names table gives the two resize handles
+"Resize sidebar" and "Resize task form"; his prototype already carried the first
 string, so nothing here is a correction, and it is stated because a reader
 comparing the two files should not have to work out that they agree. AC-182
 addresses the handle by the `separator` role, which is what a control

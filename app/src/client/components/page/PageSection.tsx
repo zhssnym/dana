@@ -1,9 +1,8 @@
 /*
-The named regions of 9.1, added to that section at the P8 change control on
-2026-08-11.
+The named regions of 9.1.
 
 "Every section a page's structure names is a named region, and a control
-inside one is addressed as that control within that region." The ruling exists
+inside one is addressed as that control within that region." The rule exists
 because a page can carry two quick-adds with identical accessible names and
 different specified defaults, and nothing about either input tells them apart.
 A landmark is what tells them apart, so a section here is a landmark and not a
@@ -17,35 +16,27 @@ Two rules this file encodes so no page has to remember them:
   pass the folder or the day they were generated from.
 - **A collapsible section is a region plus a control carrying the same name,
   and the control's expanded state is what open and collapsed mean.** That is
-  the ruling's own sentence, and it is why the control below is a `button`
+  9.1's own sentence, and it is why the control below is a `button`
   with `aria-expanded` rather than anything that merely looks collapsed.
 
 Tasks' Inbox block is the case that fixes the shape: a named region with no
 visible heading. A region's name is announced and addressed, not rendered, so
 `heading` is optional and `name` never is.
 
-**Every section with a heading collapses, since S17a**, and the sentence
-behind that is Imran's of 2026-08-22: "Sections have two types: native
-sections and sections added by users, both should be same, only the native
-sections can't be deleted or renamed. Right now native sections are not
-collapsable which is not good, but they can carry an icon or even a profile
-avatar." The folder page's user-made sections had folded since S12 and every
-computed section in the product, Today's two groups, Scheduled's rungs,
-Assignments' people, All's two halves, was a bare heading that could not. Two
-grammars for one idea, which the designer's `task-section.tsx` fixes at the
-level of behaviour: there is one section and the only differences are
-capabilities. A heading you cannot fold is a heading that cannot get out of
-your way.
+**Every section with a heading collapses**: native sections (Today's two
+groups, Scheduled's rungs, Assignments' people, All's two halves) and
+user-made ones are one section, and the only differences are capabilities
+(native sections cannot be deleted or renamed). A heading you cannot fold is
+a heading that cannot get out of your way.
 
 **A section with no heading still cannot fold, and that is not an exception to
-the ruling.** The control the ruling requires carries the section's name, and
+the rule.** The control the rule requires carries the section's name, and
 a region whose name is a datum rather than a heading has nothing to draw that
 control as. Those regions are announced and never rendered, so there is
 nothing on screen for a person to want out of the way.
 
-**The mark is inline in the heading and leaves no hole when it is absent.**
-Imran's constraint, in the designer's transcription: "if a section does not
-carry an icon, the section should not feel like it's lacking something." So
+**The mark is inline in the heading and leaves no hole when it is absent**: a
+section without an icon should not feel like it is lacking something. So
 `headingMedia` sits between the chevron and the name rather than in a reserved
 slot, and a section without one simply starts its name earlier. The chevron is
 the constant left anchor instead, which is honest, because it is the one thing
@@ -57,11 +48,8 @@ alone.** AC-176's precedent, which this file already carried for
 from "Completed", and 9.1's names table fixes the second. My Day's recap is
 the exception it always was, 9.4 spelling the count inside the heading itself.
 
-**Restyled at P8R session R6 in the designer's vocabulary**, and restyled only:
-the classes below are his group heading and his collapsible trigger, read off
-`my-day-screen.tsx`, and the elements, the roles and the expanded state are
-untouched. The trigger is deliberately still this file's own button rather
-than his `Collapsible` primitive, because AC-058's browser half reads the
+The trigger is deliberately this file's own button rather than the
+`Collapsible` primitive, because AC-058's browser half reads the
 `aria-expanded` on it and a swap of mechanism there buys nothing this section
 asks for.
 */
@@ -205,8 +193,7 @@ export function CollapsibleSection({
       the control, so both of 9.1's halves are true of one thing.
 
       It stays its own component rather than folding into `PageSection`, which
-      now collapses too, and the designer keeps the two apart for a stated
-      reason: the quiet section that *closes* a page "is not a peer of the
+      now collapses too, because the quiet section that *closes* a page "is not a peer of the
       sections that organise it". One is a band, the other is one line.
       */}
       <h2>

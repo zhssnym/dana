@@ -27,13 +27,8 @@ gates and neither has an ungated read of its own:
 `resolveReference` applies those four gates. The search queries below
 repeat their access predicates rather than resolving them per row, which is the one
 place the two doors are written twice; each query carries the same membership
-join in the same position. **AC-429 was named here as the criterion that would check
-that agreement behaviourally, and no such criterion was ever written**: issue #223
-landed AC-424 to AC-428 and the number 429 belongs to no bullet in section 12, no file
-under `app/tests/` and no row in the registry (found by
-`app/tests/guards/guard-criterion-citations.test.ts`, issue #257). What holds the two
-doors together is this paragraph and `ac-428-reference-doors-agree-and-grant-nothing`,
-which reaches the same verdict from both doors without reading these `FROM` clauses.
+join in the same position. Nothing but this paragraph holds the two doors
+together, so a change to one gate's predicate must be made in both.
 
 ## Ordering, and why there is no cursor
 

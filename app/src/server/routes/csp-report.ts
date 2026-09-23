@@ -113,8 +113,8 @@ export function createCspReportRouter(options: CspReportRouterOptions): Router {
   tracker on purpose.** A tracker's job is to capture what it is handed; a
   tracker that quietly dropped some of it would be lying to every other
   caller, and no test injecting one would see the throttle at all. Deciding
-  what is worth an alert is the caller's, so it is decided here, where
-  AC-395 can watch it happen.
+  what is worth an alert is the caller's, so it is decided here, where a
+  test can watch it happen.
   */
   const sentryThrottle = createSendThrottle()
 

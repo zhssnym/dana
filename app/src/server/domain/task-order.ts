@@ -1,6 +1,5 @@
 /*
-POST /tasks/:id/order: the hand order of a folder's unscheduled list
-(RFC 0005 change control item 44, B4).
+POST /tasks/:id/order: the hand order of a folder's unscheduled list.
 
 **What the endpoint is given and what it works out.** The client names the
 two rows the task was dropped between, and this module works out the key.
@@ -12,9 +11,7 @@ the contract living on the wrong side of it.
 arranged, every row's `position` is null, and the order this list reads in —
 `FOLDER_UNSCHEDULED_ORDER` in `../views/lists.ts` — puts **nulls last**, so a
 row nobody has placed sits at the foot where the capture that made it put it.
-(It put nulls first until the polish round of 2026-08-30, on the owner's
-ruling; that file carries the order and the ruling, and this paragraph read
-the older way until 2026-09-21.) So a task dropped at the **bottom** of an
+So a task dropped at the **bottom** of an
 unarranged list would come back holding the only key in it and sort above
 every row it was dropped below, and the gesture would visibly fail. The call
 therefore gives every row in the list a key first, in the order the list
@@ -23,8 +20,8 @@ reader can see, which is what makes it safe to run inside a placement rather
 than as a migration.
 
 **Why nothing's `updated_at` moves, the moved task's included.** 4.5 says
-that column is touched on every mutation, and this is a recorded deviation
-from it (change control item 46(d)): the column's two consumers are the
+that column is touched on every mutation, and this is a deliberate deviation
+from it: the column's two consumers are the
 field-level last-write-wins tiebreak and Q8's search recency key, and a row's
 place in one list is evidence for neither. Touching it would mean that
 rearranging a folder pushed every task in it to the top of that person's
@@ -38,9 +35,8 @@ are for acts that concern a person.
 **Concurrency.** The folder row is locked for the placement, so two first
 drags cannot both seed the list. Two later drags into one gap compute the
 same key, which is a tie, and section 6's preamble ends every order with id,
-so both readers still see one sequence. That is the answer to the question
-item 44 recorded as agreed: "two people dragging one shared list must not
-corrupt each other's order".
+so both readers still see one sequence: two people dragging one shared list
+do not corrupt each other's order.
 */
 import { sql } from 'drizzle-orm'
 

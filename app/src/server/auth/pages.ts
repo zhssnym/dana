@@ -3,7 +3,7 @@ The pages the callback can answer with. A refusal reaches a person in a
 browser, not a client that reads JSON: the callback is a redirect target, so
 the section 7.0 error envelope would arrive as text on a blank screen.
 
-There are two of them since 2026-09-03 (issue #17): the unverified email, and
+There are two of them (issue #17): the unverified email, and
 a verified email that already belongs to another account. Both copies are
 section 9.2, normative and reproduced exactly.
 Every value interpolated into these pages is escaped, even where today's
@@ -19,24 +19,12 @@ written out, which that file's rule permits nowhere in the client and cannot
 reach here, this being a server template with no stylesheet to import. The
 font stack is the token file's fallback run: the self-hosted Inter arrives
 with the client bundle this page deliberately does not load. That duplication
-is 11.4's rule read rather than broken, and the reading is recorded at RFC
-0005 change control item 34 with the `vite.config.ts` precedent it follows.
+is 11.4's rule read rather than broken: the rule governs the client, and this
+page cannot import from it.
 
-**Which gate card, corrected at S19.** It was transcribed from the **v1**
-prototype at ef6f39a, and change control item 20 moved the standard to
-`docs/design/prototype-v2/`, whose counterpart is `public-auth-screen.tsx`'s
-`UnverifiedEmailScreen`. Both prototypes are deleted (`a7886df`, 2026-09-01)
-and are in git history before that commit. Measured against it rather than
-assumed: the two already agreed on the 940 by 520 frame, the 320 pixel dark panel, the 48 pixel
-icon tile at radius 12, the 44 pixel action at 20 pixels of side padding, and
-every colour. Nine values were v1's and are now v2's: the card's radius,
-border and shadow, the dark panel's padding and its closing hairline, the
-mark's size, the tile's border step and shadow, the heading's size, tracking
-and colour, the body's leading, and the action's weight. 9.2's copy did not
-move a character, which is what keeps this inside this role: 9.2 is the
-Frontend Architect's section, and only the presentation moved. `pages.test.ts`
-beside this file pins the nine so a third transcription cannot quietly undo
-them.
+The dimensions are the designer's: a 940 by 520 frame, a 320 pixel dark
+panel, a 48 pixel icon tile at radius 12, and a 44 pixel action at 20 pixels
+of side padding.
 */
 import { SUPPORT_EMAIL } from '../../shared/support.js'
 
@@ -225,10 +213,9 @@ export function unverifiedEmailPage(): string {
 }
 
 /*
-The second page, section 9.2 verbatim, added 2026-09-03 for issue #17.
+The second page, section 9.2 verbatim (issue #17).
 
-**What it says and what it is careful about.** Imran ruled the words: tell the
-person an account already uses this email, ask them to try their original
+**What it says and what it is careful about.** The words tell the person an account already uses this email, ask them to try their original
 Google account, and point them at support. The heading and body below are 9.2
 and are normative there like every other string in section 9.
 

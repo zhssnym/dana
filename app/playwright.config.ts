@@ -6,10 +6,8 @@ import { gatePort } from './scripts/gate-port.mjs'
 The end to end runner of spec 11.10: Playwright drives the browser tests on
 Windows and in CI, against the seed dataset and the development login.
 
-This file is the runner and nothing else. Every spec and every harness it
-collects belongs to the Adversarial Test role under tests/e2e/, by the P8
-kickoff's ruling that split this seam by file. The two collectors are
-disjoint without either config knowing about the other: vitest.config.ts
+This file is the runner and nothing else; the specs and their harnesses live
+under tests/e2e/. The two collectors are disjoint without either config knowing about the other: vitest.config.ts
 includes the .test.ts and .test.tsx files under tests/, this one collects
 .spec.ts under tests/e2e/, so no file is ever run twice or claimed by both.
 
@@ -19,13 +17,11 @@ come from where they do is written at webServer below, because a browser test
 is only as trustworthy as the thing it points at.
 */
 
-// The port is a setting rather than a constant since issue #254, and it is
-// read through the same resolver gate.mjs reads so that the port the gate
-// probes before starting this leg cannot differ from the port this leg serves
-// on. `DANA_GATE_PORT` chooses it; unset, it is the number it has always been,
-// which is what makes every invocation that predates the variable mean exactly
-// what it meant before. scripts/gate-port.mjs carries the default, the reason
-// it is not 3000, and why two gates on one machine needed this at all.
+// The port is read through the same resolver gate.mjs reads (issue #254), so
+// the port the gate probes before starting this leg cannot differ from the
+// port this leg serves on. `DANA_GATE_PORT` chooses it; unset, it is the
+// default. scripts/gate-port.mjs carries the default, the reason it is not
+// 3000, and why two gates on one machine need this.
 const PORT = gatePort()
 const baseURL = `http://localhost:${PORT}`
 
@@ -129,7 +125,7 @@ export default defineConfig({
 
       // This process is the browser suite's temporary application, not a
       // production server. createApp() already gives test processes unlimited
-      // counters so fixture setup cannot consume the user-facing P9 quotas;
+      // counters so fixture setup cannot consume the user-facing 10.4 quotas;
       // the focused rate-limit tests exercise the real limits directly.
       NODE_ENV: 'test',
 

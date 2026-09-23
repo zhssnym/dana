@@ -193,8 +193,7 @@ export function serverErrorFields(error: unknown): ServerErrorFields | undefined
  * Use this where the thing to pin is which column or which class of violation,
  * and expectRejectedBy where it is a constraint or index name, which every
  * translation keeps verbatim. Never assert the message: it is prose in the
- * cluster's language, and tests/guard-postgres-leg-isolation.test.ts fails a file
- * that does.
+ * cluster's language.
  */
 export async function expectRejectedWith(
   attempt: () => Promise<unknown>,
@@ -314,7 +313,7 @@ async function blockingColumnsOnUsers(db: Db): Promise<BlockingColumn[]> {
  *   question nobody asked it.
  *
  * `reminders.created_by` is NOT NULL and so goes with its author even where
- * the task survives, which is the database's own ruling rather than a choice
+ * the task survives, which is the database's own rule rather than a choice
  * made here; a nullable column would have been nulled.
  *
  * **And one case the database refuses both ways, which this raises on rather

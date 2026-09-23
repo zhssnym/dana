@@ -1,5 +1,5 @@
 /*
-Harness for the P1 authentication criteria (AC-005 to AC-010, AC-105 to
+Harness for the authentication criteria (AC-005 to AC-010, AC-105 to
 AC-115). It boots the real Express application in-process against a real
 database and the stub identity provider of oidc-stub.ts, per spec 11.10, and
 drives it over HTTP the way a browser would.
@@ -16,12 +16,11 @@ the session cookie is httpOnly and the CSRF cookie is not; it fixes no names.
 A test that hardcodes a name would fail on a defensible implementation, which
 is a false red, and the only failures worth having here are true ones.
 
-**Every step of the sign-in flow asserts before it dereferences.** These tests
-run before the implementation exists, so every request in the flow currently
-answers 404 with no Location and no Set-Cookie. Without the guards, files would
-die in beforeAll on a TypeError from new URL(null), which proves nothing and
-tells the implementer nothing. With them, each file fails on a sentence naming
-the missing behavior.
+**Every step of the sign-in flow asserts before it dereferences.** A broken
+flow answers 404 with no Location and no Set-Cookie. Without the guards, files
+would die in beforeAll on a TypeError from new URL(null), which proves nothing
+and tells the implementer nothing. With them, each file fails on a sentence
+naming the missing behavior.
 */
 import type { Server } from 'node:http'
 import { createServer } from 'node:http'
@@ -58,14 +57,12 @@ export interface AuthConfig {
 
 /*
 What the notification module (11.8) hands the transport when it would send.
-Spec 11.8 fixes the templates, four of them since the invite split of RFC
-0005 change control item 32, and fixes that in tests the module logs instead
-of sending; it fixes no call shape. The suite
-needs the send observable because AC-024 counts share-grant emails, so the
-harness offers this sink through the same construction seam that carries the
-database handle, and normalizes whatever arrives rather than dictating key
-names. The seam is assumed here exactly as options.dbClient once was, and is
-escalated to the Integration Steward for ratification into 11.10.
+Spec 11.8 fixes the templates, and fixes that in tests the module logs
+instead of sending; it fixes no call shape. The suite needs the send
+observable because AC-024 counts share-grant emails, so the harness offers
+this sink through the same construction seam that carries the database
+handle (11.10), and normalizes whatever arrives rather than dictating key
+names.
 */
 export interface OutboundEmail {
   template: string
@@ -85,7 +82,7 @@ export interface AppOptions {
   dbClient?: DbClient
   auth?: AuthConfig
   notifications?: { send(message: unknown): void | Promise<void> }
-  /** The S4 object store seam, restated structurally for AC-235: a purge
+  /** The object store seam, restated structurally for AC-235: a purge
    * must be observable removing objects, and only an injected store can be
    * read afterwards. */
   fileStore?: {
@@ -93,8 +90,8 @@ export interface AppOptions {
     get(id: string): Promise<Buffer | null>
     remove(id: string): Promise<void>
   }
-  /** RFC 0005 change control item 60: the sample workspace at first
-   * sign-in, off under this suite by its setup file. */
+  /** 7.20's sample workspace at first sign-in, off under this suite by its
+   * setup file. */
   sampleWorkspace?: boolean
   /**
    * The 10.5 logger, so a criterion can read the lines the application wrote
@@ -127,14 +124,12 @@ type AppFactory = (
 ) => ReturnType<typeof createApp> | Promise<ReturnType<typeof createApp>>
 
 /*
-The seam is 11.10's, ratified in full and implemented: options.dbClient and
-options.auth at the P1 rulings, options.notifications at the mid-P2 one.
-Under the default PGlite backend the suite's database is an in-memory handle
+The seam is 11.10's: options.dbClient, options.auth and
+options.notifications. Under the default PGlite backend the suite's database is an in-memory handle
 that cannot arrive as a connection string, which is why the DbClient is
 passed as an object.
 
-The double assertion outlives the ratification for two reasons. AppOptions
-here restates 11.10 rather than importing createApp's own parameter type,
+The double assertion is kept for two reasons. AppOptions here restates 11.10 rather than importing createApp's own parameter type,
 because this suite measures that signature and cannot borrow its definition
 of correct. And the assertion absorbs signature evolution (a parameter
 turning required, the factory turning async; the calls below await the
@@ -156,18 +151,14 @@ export interface AuthTestApp {
   emails: EmailRecorder
   /**
    * The sink object itself, the one createApp was constructed with. Exposed
-   * for P7: the 11.7 reminder pass is a plain callable rather than a route, so
+   * for the reminders harness: the 11.7 reminder pass is a plain callable rather than a route, so
    * it is invoked directly and has to be handed the same sink the application
    * holds, or its sends would land in a recorder nothing reads. Every other
    * consumer wants `emails` and should keep wanting it.
    *
-   * Optional for a boundary reason rather than a design one, the same
-   * boundary tasks-harness.ts records for the pull's tz. Four unit tests under
-   * src/server/routes/ build an AuthTestApp literal of their own and belong to
-   * the Collaboration and Query engineers, so a required field here would fail
-   * files outside this role's paths at the typecheck gate. startAuthTestApp
-   * always sets it, and the P7 harness asserts it is there rather than
-   * defaulting it away.
+   * Optional so an AuthTestApp literal built elsewhere need not supply it.
+   * startAuthTestApp always sets it, and the reminders harness asserts it is
+   * there rather than defaulting it away.
    */
   emailSink?: { send(message: unknown): void | Promise<void> }
   /**
@@ -560,15 +551,14 @@ export async function userForSub(
  * Intl.DateTimeFormat is the oracle, and 11.15 records that it is tolerant
  * beyond the tzdb: it accepts ECMA-402 offset identifiers like +05:30, which
  * are not IANA names and would break the 11.9 zone math. Without the sign
- * guard this predicate accepted them, so an implementation that stored an
- * offset arriving on the 7.1 tz query passed AC-007's INV-14 assertion while
- * violating the invariant it names. Nothing else in the suite discriminated
- * either: AC-007's one offset-shaped value, UTC+5, is refused by bare Intl
- * too, so it never exercised the difference.
+ * guard this predicate would accept them, so an implementation that stored an
+ * offset arriving on the 7.1 tz query would pass AC-007's INV-14 assertion
+ * while violating the invariant it names. (AC-007's one offset-shaped value,
+ * UTC+5, is refused by bare Intl too, so it does not exercise the
+ * difference.)
  *
  * The guard is written here rather than imported from the shared validator
- * (app/src/shared/timezone.ts), by the Steward's ruling: this suite measures
- * that module and cannot borrow its definition of correct, or a wrong
+ * (app/src/shared/timezone.ts) because this suite measures that module and cannot borrow its definition of correct, or a wrong
  * validator would agree with itself. The two were checked once, off to the
  * side, against offsets, aliases, case variants and malformed input, and
  * agreed on every value; that is what makes the independence worth having

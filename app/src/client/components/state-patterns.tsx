@@ -1,5 +1,5 @@
 /*
-The designer's `src/components/state-patterns.tsx`, ported at P8R session R3:
+The designer's `src/components/state-patterns.tsx`, ported:
 the offline banner, the inline failed-read state, the system toasts, the
 loading skeleton and the empty state, which are the page states 9.1 and
 section 6 give every page.
@@ -7,8 +7,7 @@ section 6 give every page.
 **The inline error is the one thing in this file that is rewritten rather
 than relabelled, and it is the reason AC-183 exists.** His `InlineError`
 renders 9.1's global error toast, "Something went wrong. Nothing was saved.
-Try again.", and his own states page annotates the substitution as an open
-copy decision. RFC 0002 closed it on 2026-08-13: it is not open. The two
+Try again.", which is wrong here. The two
 strings answer different questions. The toast reports that a write did not
 land; this line reports that a read did not arrive, so a page showing
 "Nothing was saved" where nothing was being saved tells a person something
@@ -20,8 +19,7 @@ string section 9 fixes and a component renders lives, and AC-183 reads the
 failed-read line as one text run: it is one child of one element, so a client
 that splits it across a title and a description has changed it.
 
-**The other seven strings in this file were already exact and are unchanged**,
-verified character for character against 9.1 and 10.3 on 2026-08-13: the
+**The other strings in this file are exact against 9.1 and 10.3**: the
 offline banner, the offline-write toast, the error toast and the rate-limit
 toast. The empty states are section 6's and arrive as the `copy` prop from
 the page layer, which owns them.
@@ -75,8 +73,7 @@ export function OfflineBanner({ className }: { className?: string }) {
  * "Try again" control of that section's control table.
  *
  * `onRetry` is a callback and this component performs no refetch itself,
- * which is the rule for everything in this directory. AC-171 (no test since the 2026-09-20 cut)
- * presses the control and looks for the read, so a page that renders this state
+ * which is the rule for everything in this directory. A page that renders this state
  * without wiring the callback has rendered a control that does nothing.
  */
 export function InlineError({ onRetry }: { onRetry?: () => void }) {

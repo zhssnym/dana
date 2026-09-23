@@ -5,52 +5,43 @@ The four states section 9 gives every page, defined once.
 populated, empty (copy below), error (copy below), plus the global offline
 banner." The banner is the layout's, because it is global. The other four are
 here, and the rule this file establishes is that **a page renders its rows and
-declares its empty copy, and never writes a loading or an error treatment of
-its own.**
+declares its empty copy, and never writes a loading or an error treatment of its
+own.** A page's own spinner is acquired one page at a time by people each
+solving a real problem.
 
-That rule is the reason this role exists. A page that acquires its own spinner
-is the hazard the persona names, and it is acquired one page at a time by
-people each solving a real problem.
-
-**Ported at P8R session R6 onto the designer's own state patterns.** The
-markup below is now his: `SkeletonList` for the loading rows, `InlineError`
-for the failed read, and `Empty` with its media, header and description for
-the empty state, all from `components/`. Nothing about the rule moved and no
-page changed to get any of it, which is the whole argument for this file. The
-two treatments this file keeps of its own are the two the prototype has no
-component for, the 404 answer and the truncation notice, and both are drawn in
-his vocabulary rather than in a private one.
+The markup is the shared state patterns: `SkeletonList` for the loading rows,
+`InlineError` for the failed read, and `Empty` with its media, header and
+description for the empty state, all from `components/`. The two treatments this
+file keeps of its own, the 404 answer and the truncation notice, are drawn in
+the same vocabulary.
 
 Four things worth reading before extending this.
 
 **The error state is inline and the toast is global.** 9.4 spells it: "global
 toast plus inline retry". The toast is raised by the query cache, once, for
-every failed read in the client; what is left here is the retry, which has to
-be beside the thing that failed. Its copy is 9.1's `READ_FAILED` and never the
-toast's, which is the substitution RFC 0002 closed and AC-183 asserts.
+every failed read in the client; what is left here is the retry, which has to be
+beside the thing that failed. Its copy is 9.1's `READ_FAILED` and never the
+toast's, which AC-183 asserts.
 
 **A 404 is not a failure, it is an answer.** 10.2 makes every inaccessible
 resource read as nonexistent, and the client's half of that is showing the
 person a missing thing rather than a broken application. A folder page that
 rendered a generic error for a 404 would leave them unable to tell the two
-apart, which is what `session-path.spec.ts` measures. So it takes the quiet
-empty treatment and carries no retry: there is nothing to retry.
+apart. So it takes the quiet empty treatment and carries no retry: there is
+nothing to retry.
 
 **Offline reads are not given their own copy here.** 9.1 makes the banner the
 persistent, global statement of that condition, and 10.6's contract is that
 reads need network. Adding a second offline message per page would be two
 answers to one question.
 
-**The icon is a prop rather than a constant** because the design record called
-it contextual: the designer draws a different one per surface, a calendar
-check on My Day, a list on Tasks, a star on Important. That record was
-`docs/design/notes.md`, deleted (`a7886df`, 2026-09-01) and in git history
-before that commit, and **no numbered spec section carries this rule today**,
-so this comment and the callers below are the whole of it. It is optional, so
-a caller with no icon for its surface renders the copy alone rather than
-borrowing somebody else's, and the empty calendar of 9.5 is the note's own
-exception and stays a bare grid, which belongs to the calendar rather than to
-this file.
+**The icon is a prop rather than a constant** because it is contextual: a
+different one per surface, a calendar check on My Day, a list on Tasks, a star
+on Important. No numbered spec section carries this rule, so this comment and
+the callers below are the whole of it. It is optional, so a caller with no icon
+for its surface renders the copy alone rather than borrowing somebody else's,
+and the empty calendar of 9.5 is the exception and stays a bare grid, which
+belongs to the calendar rather than to this file.
 */
 import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
@@ -71,11 +62,9 @@ import {
  * `CalendarCheck2` and never a size, a stroke or a colour. All three are this
  * file's, which is what keeps one empty state from looking like another's.
  *
- * The type is the DES-125 icon module's rather than lucide's own, corrected at
- * S10: every icon Dana draws is an export of `lib/icons.tsx` and its wrapper
- * is not lucide's `ForwardRefExoticComponent`, so a page passing the module's
- * export where this asked for lucide's failed the typecheck. Pointing at the
- * module is the fix in the direction DES-125 already runs.
+ * The type is the icon module's rather than lucide's own: every icon Dana draws
+ * is an export of `lib/icons.tsx` and its wrapper is not lucide's
+ * `ForwardRefExoticComponent`.
  */
 export type StateIcon = LucideIcon
 
@@ -92,9 +81,9 @@ interface PageBodyProps {
   /** The empty copy section 6 gives this page. Normative; never paraphrased. */
   readonly emptyCopy: string
   /**
-   * The one contextual Lucide icon `notes.md` allows above that copy. Optional:
-   * a surface the designer drew no icon for shows the sentence alone rather
-   * than borrowing one from a page it is not.
+   * One contextual icon above that copy. Optional: a surface with no icon of
+   * its own shows the sentence alone rather than borrowing one from a page it
+   * is not.
    */
   readonly emptyIcon?: StateIcon
   /**
@@ -107,9 +96,9 @@ interface PageBodyProps {
 }
 
 /*
-The 404 and the failed read, which are two different things and are drawn as
-two different things: the first is an answer and takes the quiet empty
-treatment, the second is a failure and takes his destructive alert.
+The 404 and the failed read, which are two different things and are drawn as two
+different things: the first is an answer and takes the quiet empty treatment,
+the second is a failure and takes the destructive alert.
 
 The sentence is one child of one element, which AC-183 turns on: a client that
 split it across a title and a description would have changed it.
@@ -127,8 +116,7 @@ function NotFound(): React.JSX.Element {
 }
 
 /**
- * The empty state: the copy section 6 writes, under the one contextual icon
- * `notes.md` allows.
+ * The empty state: the copy section 6 writes, under one contextual icon.
  *
  * The icon is `aria-hidden`, so nothing about what a screen reader hears on an
  * empty page moved, and AC-158 still reads the sentence.
@@ -189,16 +177,15 @@ export function PageBody({
  *
  * "List responses capped at 1000 rows with truncated flag ... the UI shows a
  * notice." Six of the nine bodies of 7.10 carry the flag and every one of them
- * is a capped list rather than a paginated one, so the notice is the only
- * thing that distinguishes a page showing everything from a page showing a
- * thousand of something. Without it the person reads the end of a list that
- * has not ended, which is worse than a slow page.
+ * is a capped list rather than a paginated one, so the notice is the only thing
+ * that distinguishes a page showing everything from a page showing a thousand
+ * of something. Without it the person reads the end of a list that has not
+ * ended, which is worse than a slow page.
  *
- * **The string is 9.1's inline state copy**, adopted there at the change
- * control of 2026-08-11 from this client's first pass. The number is not
- * interpolated, deliberately: the flag says rows were dropped and never how
- * many, and a client that spelled "1000" would be transcribing a limit of 10.3
- * that the response does not report and that a later release may move.
+ * **The string is 9.1's inline state copy.** The number is not interpolated,
+ * deliberately: the flag says rows were dropped and never how many, and a
+ * client that spelled "1000" would be transcribing a limit of 10.3 that the
+ * response does not report and that a later release may move.
  *
  * `role="status"` rather than an alert: it is a fact about the list, not a
  * failure, and 9.1's toasts are what failures use.

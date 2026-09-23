@@ -2,14 +2,12 @@
 /app/tasks/:id, the task's own address (7.17, 9.1).
 
 9.1's roles table: the task surface is "a dialog when opened as one; a page
-when opened as a tab or by its URL". This is the URL arm, added at S12
+when opened as a tab or by its URL". This is the URL arm, which exists
 because 9.12 makes a notification row a pointer to exactly this address, and
-an address that 404s until another package lands is a bell whose rows lie.
+an address that 404s is a bell whose rows lie.
 
-**Since the polish round of 2026-08-30 the page is the editor** (taskcard F3).
-It drew the task's facts as text with an "Open editor" button that popped the
-dialog over it, so 9.3's third home, the tab, was a weaker card than the other
-two and the "Tab" setting had nothing honest to open. The page now renders the
+**The page is the editor**, so 9.3's third home, the tab, is as strong a card
+as the other two and the "Tab" setting has something honest to open. The page renders the
 same composition the dialog and the panel render, `task-surface.tsx`'s
 `TaskPage` in its window presentation, over the same editing hook the host
 uses, `components/task-editing.tsx`. One artifact, three homes (DES-117).

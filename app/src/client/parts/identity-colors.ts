@@ -8,8 +8,8 @@ recorded reasons. The wire stores `#RRGGBB` (4.3's CHECK) and the identity
 is shared, one value read by every member in every theme, so the write must
 be a stable literal and never a `var()` whose meaning flips with the
 viewer's colourway; 11.4 already records that a folder colour is data on
-the wire, not a design token. And the S8 foundation test forbids literal
-colours inside `components/**`, whose own precedent for a colour constant
+the wire, not a design token. And literal colours are forbidden inside
+`components/**`, whose own precedent for a colour constant
 that must be a value is `parts/presenters.ts`'s `DEFAULT_FOLDER_COLOR`, so
 the palette lives beside it. Each row names the token it transcribes; a
 drift between the two is an edit made in the wrong file.

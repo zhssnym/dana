@@ -42,8 +42,7 @@ const UNRECOGNIZED_KEY_MESSAGE = 'is not a field this endpoint accepts'
  * 10.3's 422, with every failing field named in one message.
  *
  * An issue with an empty path is not about a field, and there are three
- * reasons it can be one. P7 separated the first two because the second
- * acquired its first caller there; the third is below and had none.
+ * reasons it can be one.
  *
  * It is usually the body itself being something other than the object the
  * endpoint takes, which is what a request with no JSON content type produces,
@@ -53,8 +52,7 @@ const UNRECOGNIZED_KEY_MESSAGE = 'is not a field this endpoint accepts'
  * mentioned an object.
  *
  * Or it is a rule about the whole body rather than about one of its fields, a
- * schema-level refinement, which frozen 7.9's PUT is the first body in this
- * contract to carry: its two modes are one exclusive-or and neither field is
+ * schema-level refinement, which 7.9's PUT carries: its two modes are one exclusive-or and neither field is
  * the wrong one. That message is the schema author's and is written as a whole
  * sentence for exactly this position, because nothing prefixes it, and it
  * reaches the caller as written. Sending the missing-body sentence for it

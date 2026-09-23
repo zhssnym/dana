@@ -1,35 +1,28 @@
 /*
-Harness for the P3 tasks-core criteria (AC-025 to AC-044), built on the P1
-auth harness and the P2 folder layer: the same booted application, stub
-identity provider, cookie-jar browsers, lazily signed-in casts, and scoped
-invariant sweep, plus what the frozen 7.6, 7.7, and 7.8 surfaces need.
+Harness for the tasks-core criteria (AC-025 to AC-044), built on the auth
+harness and the folder layer: the same booted application, stub identity
+provider, cookie-jar browsers, lazily signed-in casts, and scoped invariant
+sweep, plus what the 7.6, 7.7, and 7.8 surfaces need.
 
 Four decisions worth the words:
 
-**Setup goes through the API wherever the API is in this package.** Tasks
-are created with POST /tasks, steps with POST /tasks/:id/steps, and pulls
-with POST /tasks/:id/my-day, the P2 precedent: a broken create fails every
-file here on one attributable sentence, which is the correct verdict for the
-package. Folders and memberships arrive through P2's endpoints, which are
-merged.
+**Setup goes through the API wherever the API exists.** Tasks are created
+with POST /tasks, steps with POST /tasks/:id/steps, and pulls with POST
+/tasks/:id/my-day: a broken create fails every file here on one attributable
+sentence. Folders and memberships arrive through their own endpoints.
 
-**Only surfaces later packages own are seeded directly.** Recurrence rules
-are P6's and reminders are P7's, and the RFC 0001 P3 row defers both arms of
-7.6's body with the computations they need, so the fixtures AC-028 and
-AC-040 turn on are written to the database rather than requested through a
-body the package does not accept yet. Invite rows are P5's, and AC-042 needs
-one only to watch the 5.1 delete cascade null its task_id.
+**A few fixtures are seeded directly.** The recurrence and reminder fixtures
+AC-028 and AC-040 turn on are written to the database, and so is the invite
+row AC-042 needs only to watch the 5.1 delete cascade null its task_id.
 
 **The 7.0 shapes are restated here, once, and asserted key-exact.** They are
-restated rather than imported from app/src/shared/, by the standing Steward
-ruling that this suite measures that surface and cannot borrow its
-definition of correct. Key-exact because 7.0 enumerates both shapes and 7.0
-is frozen: a missing key breaks the client contract and an extra one is
-drift the contract cannot absorb, the same reading AC-116 applies to the 7.1
-object. Two tolerances are deliberate and recorded at their assertions: the
-reminder object, whose "offset_minutes or time_of_day" is a mode rather than
-a key list, and pending_invite_email, whose derivation from invites.task_id
-belongs to the package that creates those rows.
+restated rather than imported from app/src/shared/, because this suite
+measures that surface and cannot borrow its definition of correct.
+Key-exact because 7.0 enumerates both shapes: a missing key breaks the client
+contract and an extra one is drift the contract cannot absorb, the same
+reading AC-116 applies to the 7.1 object. One tolerance is deliberate and
+recorded at its assertion: pending_invite_email is type-checked only, its
+value depending on invite rows.
 
 **Criterion truth is read from the row, contract shape from the wire.** A
 criterion that names a stored fact (completed_by is the acting user) is
@@ -54,13 +47,8 @@ import { rows } from './helpers.js'
  * ------------------------------------------------------------------ */
 
 /**
- * TaskCard, spec 7.0 as RFC 0005 unit 12a replaces its line, in full.
- *
- * That unit is the only one in the RFC that touches frozen section 7, and it
- * widens this list by two: `section_block_id`, the folder page section the
- * task sits under, and `created_by`, the same person stub `assignee` already
- * carries. Both were TaskDetail's before it, so the two lists here moved
- * together and neither key is spelled twice.
+ * TaskCard, spec 7.0, in full. `section_block_id` and `created_by` are
+ * card keys, not TaskDetail's, so neither key is spelled twice below.
  */
 export const TASK_CARD_KEYS = [
   'assignee',
@@ -72,13 +60,9 @@ export const TASK_CARD_KEYS = [
   'id',
   'important',
   'is_recurring',
-  /* Issue #226's Label projection, and this list has the same standing as
-     `ac-001`'s SECTION_4_TABLES: it is a transcription of frozen 7.0 and it
-     has moved **ahead of the ruling** that authorises the text it
-     transcribes, because `expectExactKeys` is exact in both directions and a
-     tree carrying the projection without this line cannot be green at all.
-     The ruling on issue #226 is the authoritative restatement; if it comes
-     back with a different key or a different shape, this line follows it. */
+  /* Issue #226's Label projection. This list is a transcription of 7.0, and
+     `expectExactKeys` is exact in both directions, so it moves in the same
+     change as the spec and the server. */
   'labels',
   'pending_invite_email',
   'pulled',
@@ -91,8 +75,7 @@ export const TASK_CARD_KEYS = [
   'updated_at',
 ] as const
 
-/** What TaskDetail adds to TaskCard, spec 7.0 as unit 12a leaves it: seven
- * keys, `created_by` and `section_block_id` having moved up onto the card. */
+/** What TaskDetail adds to TaskCard, spec 7.0: seven keys. */
 export const TASK_DETAIL_EXTRA_KEYS = [
   'completed_at',
   'completed_by',
@@ -110,7 +93,7 @@ export const TASK_DETAIL_KEYS = [
 
 export const TASK_STATUSES = ['abandoned', 'completed', 'pending'] as const
 
-/** Exported for the P4 layer, which restates the nine 7.10 envelopes the
+/** Exported for the views harness, which restates the nine 7.10 envelopes the
  * same way this file restates the two 7.0 shapes, and judges them with the
  * same two primitives rather than with a second copy of them. */
 export function asRecord(value: unknown, source: string): Record<string, unknown> {
@@ -146,9 +129,7 @@ function expectDateOrNull(value: unknown, source: string): void {
 4.11 stores due_time as a floating wall-clock time at minute precision, and
 7.0 now says how it rides the wire: HH:MM, never an instant, because an
 instant reintroduces the timezone the floating format exists to remove. The
-seconds Postgres renders TIME with were tolerated here while 7.0 was silent
-on the wire format; the P3 shape review closed that silence, so the
-assertion is the ruled format exactly.
+assertion is that format exactly, with no seconds.
 */
 function expectTimeOrNull(value: unknown, source: string): void {
   if (value === null) return
@@ -245,11 +226,10 @@ export function expectTaskCardShape(value: unknown, source: string): void {
   expect(card.updated_at, `${source}.updated_at must not be null`).not.toBeNull()
 
   /*
-  The two keys unit 12a moves onto the card, judged here rather than in the
-  detail's half because the card is where they live now.
+  created_by and section_block_id, judged here because they are card keys.
 
-  created_by is the person shape assignee carries and never a bare id, the
-  unit making the two agree so a heading that names a person gets what a
+  created_by is the person shape assignee carries and never a bare id, so a
+  heading that names a person gets what a
   card's person label needs. Null has exactly one door, 8.10's scrub of the
   creator's account, which is what "renders as Deleted user" means on the
   wire; AC-250 walks through that door, and this stays a shape judge because
@@ -316,8 +296,7 @@ export interface TaskDetailBody extends Record<string, unknown> {
   title: string
 }
 
-/** The whole of the 7.0 TaskDetail shape: TaskCard plus its seven, unit 12a
- * having moved two of the old eight onto the card. */
+/** The whole of the 7.0 TaskDetail shape: TaskCard plus its seven. */
 export function expectTaskDetailShape(
   value: unknown,
   source: string,
@@ -335,19 +314,15 @@ export function expectTaskDetailShape(
   expectUuidOrNull(detail.series_id, `${source}.series_id`)
   expectInstantOrNull(detail.completed_at, `${source}.completed_at`)
   expectUuidOrNull(detail.completed_by, `${source}.completed_by`)
-  // created_by is judged with the card half above since unit 12a moved it
-  // there, and asserting it twice would be two answers about one key.
+  // created_by is judged with the card half above, and asserting it twice
+  // would be two answers about one key.
 
   /*
-  This was the one tolerated looseness in the shape, and it is not open any
-  more. While 7.0 said only "{offset_minutes or time_of_day} or null", both
-  a one-key object and a two-key object with one null were faithful
-  renderings of a mode, so this admitted either. The P3 shape review settled
-  it and the owner entered it: the reminder carries both 4.8 columns with
-  exactly one of the two non-null, because a stable key set is what lets a
-  client read the mode off the values instead of narrowing a union to learn
-  which keys it holds. So the key set is exact now, like every other object
-  here, and the mode is asserted as 4.8's own exclusive-or.
+  The reminder carries both 4.8 columns with exactly one of the two
+  non-null (7.0), because a stable key set is what lets a client read the
+  mode off the values instead of narrowing a union to learn which keys it
+  holds. So the key set is exact, like every other object here, and the mode
+  is asserted as 4.8's own exclusive-or.
   */
   if (detail.reminder !== null) {
     const reminder = asRecord(detail.reminder, `${source}.reminder`)
@@ -474,10 +449,10 @@ export interface TransitionBody {
 /*
 A transition asserted, which is where 7.6's response envelope is judged:
 exactly { task, generated_task, deleted_successor_id }, the task a
-TaskDetail. Both companions are asserted null here because no task this
-package transitions carries a recurrence rule: generation and G-SERIES are
-P6's, and the one rule-carrying fixture in the suite (AC-028's) is only ever
-PATCHed. A file that transitions a recurring row must judge them itself.
+TaskDetail. Both companions are asserted null here because no task
+transitioned through this helper carries a recurrence rule: the one
+rule-carrying fixture here (AC-028's) is only ever PATCHed. A file that
+transitions a recurring row must judge generation and G-SERIES itself.
 */
 export async function transitionOk(
   actor: Actor,
@@ -525,25 +500,17 @@ export function addStep(
 }
 
 /*
-The ruled 7.7 and 7.8 response bodies are judged here, once each, the way
-patchBundleOk in bundle-harness.ts judges the ruled 7.23 body. That sentence
-named patchSettingsOk in settings-harness.ts until issue #113 retired frozen
-7.2's endpoint on 2026-09-04 and both went with it; the convention is the
-same one and it now has its home on the surviving surface.
+The 7.7 and 7.8 response bodies are judged here, once each.
 
-Both sections were silent on what their mutations answer while these files
-were written, so nothing judged it and the criteria asserted statuses
-alone. The P3 shape review settled it and the owner entered it: a step and
-a My Day entry are not resources this contract shapes, 7.0 gives neither an
-object and section 7 offers no GET for either, while each mutation moves
-more of the task than the row it touches, steps moving steps_done and
-steps_total and a pull moving pulled. So the affected TaskDetail is the
-only object that reports what the call did, and every one of these answers
-it. POST /tasks/:id/steps answers 201 with that task rather than with the
-step it created, and the created step rides in the steps array.
+A step and a My Day entry are not resources this contract shapes: 7.0 gives
+neither an object and section 7 offers no GET for either, while each mutation
+moves more of the task than the row it touches, steps moving steps_done and
+steps_total and a pull moving pulled. So the affected TaskDetail is the only
+object that reports what the call did, and every one of these answers it.
+POST /tasks/:id/steps answers 201 with that task rather than with the step it
+created, and the created step rides in the steps array.
 
-Each success is judged twice over, the fresh-GET convention this contract
-now carries in four places: the body is a whole TaskDetail, and it equals
+Each success is judged twice over, the fresh-GET convention: the body is a whole TaskDetail, and it equals
 what a fresh GET /tasks/:id then answers. Refusals stay on the unjudged
 transports above, because a refusal answers the 7.0 envelope rather than a
 task; DELETE /steps/:id keeps 7.7's 204 and carries no body at all.
@@ -649,29 +616,19 @@ export function deleteStep(actor: Actor, stepId: string): Promise<RawResponse> {
 }
 
 /*
-The pull takes tz, by owner ruling on 2026-08-08: frozen 7.8 reads POST
-/tasks/:id/my-day?tz, and an absent or invalid tz answers 422 naming the
-field. 7.8 states it rather than 7.0's sentence being widened, because that
-one is about view endpoints and this is a mutation. DELETE gains nothing and
-keeps its signature: it evaluates no date.
+The pull takes tz: 7.8 reads POST /tasks/:id/my-day?tz, and an absent or
+invalid tz answers 422 naming the field. DELETE takes none: it evaluates no
+date.
 
-Why this matters beyond a parameter: added_on is today(V), and until the
-ruling the pull read it from users.timezone while the My Day view computed
-today(V) from the request's tz. Those two civil dates differ for a large part
-of every UTC day, so a pulled task landed in Carried instead of Today, and
-that is the non-deterministic failure four sessions carried as open. It was
-never load-dependent or backend-dependent, only clock-dependent.
+Why this matters beyond a parameter: added_on is today(V), and the My Day
+view computes today(V) from the request's tz. Reading the pull's date from
+users.timezone instead would make the two civil dates differ for a large
+part of every UTC day, landing a pulled task in Carried instead of Today — a
+clock-dependent failure that looks non-deterministic.
 
-tz is optional in this signature and never defaulted, which is a boundary
-decision rather than a design one. Required would have been better here,
-because the point of the parameter reaching this file is that every caller
-names the zone it means; but src/server/routes/tasks.test.ts imports this
-transport and belongs to the Collaboration engineer, so a required parameter
-would break a file outside this role's paths at the typecheck gate. Optional
-and never defaulted keeps the boundary and keeps the honesty: an omitted tz
-sends no tz, so it is a 422 once the ruling is implemented rather than a
-silent UTC. Every call site in app/tests/ names a zone; the four in that unit
-test do not yet, and that is routed rather than reached into.
+tz is optional in this signature only so a test can omit it on purpose; it is
+never defaulted, so an omitted tz sends no tz and answers 422 rather than a
+silent UTC. Every call site should name a zone.
 */
 export function pullIntoMyDay(
   actor: Actor,
@@ -700,14 +657,12 @@ export function dropFromMyDay(
 }
 
 /* ------------------------------------------------------------------ *
- * Setup that later packages will own, seeded directly
+ * Setup seeded directly
  * ------------------------------------------------------------------ */
 
 /*
-Recurrence is P6's surface: 4.11 requires the subset revalidated
-server-side, the RFC 0001 P3 row defers the recurrence_rule arm of 7.6's
-body with the validator it needs, and a rule accepted here would be
-unvalidated rather than absent. INV-13 makes series_id mandatory beside the
+A recurrence rule written straight to the row, for fixtures that need one
+without going through 7.6's body. INV-13 makes series_id mandatory beside the
 rule, and 4.5's CHECK makes due_date mandatory beside both, so the caller
 seeds a dated task first.
 */
@@ -727,9 +682,9 @@ export async function seedRecurrence(
 }
 
 /*
-Reminders are P7's surface: 4.8 makes fire_at NOT NULL and 8.6 is the only
-thing that computes it, which is why the RFC 0001 P3 row defers the reminder
-arm of 7.6's body. Offset mode, because 4.8 admits it only beside a
+A reminder written straight to the row: 4.8 makes fire_at NOT NULL and 8.6
+is the only thing that computes it, so a fixture writes any future instant.
+Offset mode, because 4.8 admits it only beside a
 due_time; seedReminder in folders-harness.ts writes the date-only mode for
 tasks without one. fire_at is any future instant: the criteria here turn on
 the row's existence, its mode, and its value, never on when it would fire.
@@ -828,9 +783,8 @@ export interface TaskRow extends Record<string, unknown> {
 
 /*
 Projected explicitly rather than SELECT *, because the point is that every
-temporal column is named and rendered. Section 4 is frozen, so the column
-list is stable, and a column added to tasks without amending it would be a
-change this suite should notice rather than absorb.
+temporal column is named and rendered. A column added to tasks without
+amending this list is a change this suite should notice rather than absorb.
 */
 export async function taskRow(
   db: Db,
@@ -1045,9 +999,9 @@ export function expectSweptTasks(taskIds: readonly string[]): void {
 }
 
 /*
-The task-scoped half of the sweep the persona requires after mutation-heavy
-tests. The folder-scoped half (INV-2, INV-3, INV-4, INV-5, INV-10) is
-P2's expectFolderInvariants, delegated to rather than restated. Deleted
+The task-scoped half of the invariant sweep run after mutation-heavy tests.
+The folder-scoped half (INV-2, INV-3, INV-4, INV-5, INV-10) is
+expectFolderInvariants, delegated to rather than restated. Deleted
 tasks are skipped by name: the deleting test asserts the cascade itself, and
 section 3 speaks of rows that exist.
 */

@@ -1,10 +1,9 @@
 /*
 The 11.3 middleware order, the first two links of it: session resolution, then
-CSRF verification on mutations. Rate limiting follows in P9 and the handler
-last.
+CSRF verification on mutations. Rate limiting follows and the handler last.
 
-The order is not a style preference. AC-111 pins that an unauthenticated
-mutation answers 401 and not 403, because answering 403 would tell a caller
+The order is not a style preference. An unauthenticated mutation answers 401
+and not 403 (AC-111), because answering 403 would tell a caller
 with no session at all that a CSRF token was the only thing they were missing.
 
 Session context rides in a WeakMap rather than on the request object, so no

@@ -367,8 +367,7 @@ function safeRoute(value: string): string {
 /** One JSON key name, in exactly the shape `app/src/shared/` writes them:
  * snake_case, at most 64 characters, no dot and **no dash**.
  *
- * The dash was in this class when it was written and AC-103 refused it, which
- * is the criterion doing its job. A key name is the one field on this line
+ * Why no dash (AC-103): a key name is the one field on this line
  * the caller chooses outright, and `oauth-token-value` and
  * `session-cookie-value` — two of the six strings 10.5 names as never
  * loggable — are valid JSON keys. Nothing stops a client sending a token *as*

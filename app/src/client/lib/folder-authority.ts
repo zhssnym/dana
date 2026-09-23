@@ -1,8 +1,7 @@
 /*
 What a folder's surfaces may offer this viewer, answered from the server's own
-rules rather than from a second copy of them (issue #228; accepted #209 R8A;
-governing R6 section 2; Hassan's ruling of 2026-09-20,
-https://github.com/zhssnym/dana/issues/228#issuecomment-5750892771).
+rules rather than from a second copy of them (issue #228; #209 R8A; R6
+section 2).
 
 ## Why this file exists
 
@@ -68,14 +67,6 @@ control. So the sidebar leaves `otherFullControl` undefined and `folderGates`
 offers Leave, letting the route's 409 be the refusal, which is the honest
 direction — hiding somebody's only way out of a folder on a guess is worse than
 offering an act that may be declined.
-
-(**Corrected 2026-09-20.** This sentence read "Neither is available in the
-sidebar, which is the reason the sidebar's own note names issue #259." Both
-halves were false: INV-2 is available there, `is_default` being on every
-Folder object, and the sidebar's note has never named #259, which is the M1
-Label core domain and has nothing to do with this file. A cross-reference
-nobody can follow is worse than none, and CLAUDE.md's first rule for this
-repository is that a comment is a claim to be checked rather than a fact.)
 */
 import { mayPerform } from '../../shared/folder-actions.js'
 import type { FolderAction, FolderActorFacts } from '../../shared/folder-actions.js'
@@ -214,9 +205,8 @@ export interface FolderGates {
    * R8A makes a folder's identity ordinary shared Folder work, which Can edit
    * and above change and nobody below does (AC-011, AC-012, AC-193). */
   readonly identity: boolean
-  /** Moving the whole folder to Trash. **Hassan's ruling of 2026-09-20 and
-   * not R8A**, which settles it neither way: Full control's, and custody does
-   * not confer it, so an owner below Full control is not offered it (AC-015). */
+  /** Moving the whole folder to Trash. Full control's (R8A settles it neither
+   * way), and custody does not confer it, so an owner below Full control is not offered it (AC-015). */
   readonly trash: boolean
   /** Leaving. Any member may (governing R6), except the owner, who transfers
    * first, and except the last Full-control member, whom the continuity
@@ -276,12 +266,9 @@ export interface FolderGates {
    * comment and this member cannot know it, so what is answered here is the
    * second condition alone, and `lib/thread.ts` multiplies it by `mine`.
    *
-   * **The surfaces offered Edit and Delete on `mine` alone until 2026-09-20**
-   * (issue #268), so a member reduced to Can view was offered both on every
-   * comment they had ever left and answered 403 by the route, which AC-518
-   * pins from the other side. The owner's ruling carrying this half is
-   * https://github.com/zhssnym/dana/issues/268#issuecomment-5753495877
-   * (AC-790).
+   * **Not `mine` alone** (issue #268): a member reduced to Can view would be
+   * offered both on every comment they ever left and answered 403 by the
+   * route, which AC-518 pins from the other side (AC-790).
    */
   readonly mutateOwnComment: boolean
   /**
@@ -300,9 +287,7 @@ export interface FolderGates {
    * composer is **not hidden** on it: it is disabled and says what standing
    * commenting needs, because it carries a fact a Can-view member may read —
    * that this conversation takes comments — and hiding it would hide the
-   * fact with the act (the owner's ruling of 2026-09-20 on #268,
-   * https://github.com/zhssnym/dana/issues/268#issuecomment-5753983138;
-   * AC-790).
+   * fact with the act (#268; AC-790).
    */
   readonly createComment: boolean
   /** Managing the folder's shared Label vocabulary — create, rename, recolour,

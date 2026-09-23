@@ -1,5 +1,5 @@
 /*
-The sample workspace's client half (RFC 0005 change control item 60): one
+The sample workspace's client half: one
 hook the strip and the Settings row both call, so the confirmation, the
 undo and the sentence about kept folders are written once.
 

@@ -2,34 +2,28 @@
 A run of task rows, and the confirmations 9.3 and 9.4 put behind two of the
 overflow menu's three entries.
 
-Ported at P8R session R6. His screens each carry their own copy of this: a
-`role="list"` wrapper, a `TaskRow` per task spread from a fixture, and an
-`AlertDialog` at the bottom of the file holding whichever destructive action
-was just asked for. Six copies of that is six places for one of them to drift,
-and his six already disagree with each other about the abandon confirm's
-wording, which is one of the ten copy faults RFC 0002 measured. So it is one
-component here, and section 9's sentence is written once.
+One component, so section 9's sentence is written once rather than in a copy per
+screen that would drift.
 
-**Nothing in this file computes a date or an ordering.** The rows arrive in
-the order section 6 fixed and are mapped, not sorted, which is that section's
-own sentence: "every view returns rows already ordered; clients never
-re-sort". Every display value comes from `parts/presenters.ts`, which owns the
-due label, the overdue rule and the initials and is the only thing in this
-client that reads today. 7.11 makes a rule that exists only in the client a
-specification violation, and this file is where one would be written if it
-were written anywhere.
+**Nothing in this file computes a date or an ordering.** The rows arrive in the
+order section 6 fixed and are mapped, not sorted, which is that section's own
+sentence: "every view returns rows already ordered; clients never re-sort".
+Every display value comes from `parts/presenters.ts`, which owns the due label,
+the overdue rule and the initials and is the only thing in this client that
+reads today. 7.11 makes a rule that exists only in the client a specification
+violation, and this file is where one would be written if it were written
+anywhere.
 
-**The confirmations are one sentence in one element.** The prototype delivers
-9.4's abandon confirm as an `AlertDialogTitle` plus an `AlertDialogDescription`,
-which reads correctly and is not this copy: a block boundary is where a reader
-stops hearing one sentence. AC-183 asserts the sentence as one text run and
-RFC 0002 restated the rule, so the whole string is the title and there is no
-description. The two controls are 9.1's "Continue" and "Cancel", uniform for
-every confirmation of 9.3 to 9.9 and not a caller's to rename.
+**The confirmations are one sentence in one element.** A title plus a
+description reads correctly and is not this copy: a block boundary is where a
+reader stops hearing one sentence. AC-183 asserts the sentence as one text run,
+so the whole string is the title and there is no description. The two controls
+are 9.1's "Continue" and "Cancel", uniform for every confirmation of 9.3 to 9.9
+and not a caller's to rename.
 
-**An abandoned row's checkbox restores it**, which is his own wiring and 9.5's
-rule read together: an abandoned row draws a "Restore" control in place of the
-box, and his `TaskRow` raises `onToggleComplete(false)` from it.
+**An abandoned row's checkbox restores it** (9.5): an abandoned row draws a
+"Restore" control in place of the box, and `TaskRow` raises
+`onToggleComplete(false)` from it.
 */
 import { useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -98,7 +92,7 @@ interface PendingConfirm {
   /** The normative sentence section 9 writes for this action. */
   readonly message: string
   readonly run: () => void
-  /* polish: taskrow F11. The delete confirms name their controls. */
+  /* The delete confirms name their controls. */
   readonly confirmLabel?: string
   readonly cancelLabel?: string
 }
@@ -158,17 +152,15 @@ export function useConfirm(): {
 
 /**
  * What a list may do beyond drawing its rows, decided by the page that draws
- * it and settled at S23a (RFC 0004's S23a row; RFC 0005 change control item
- * 44's B4 and item 47(k)).
+ * it.
  *
- * `arrangeable` is item 44's own sentence: "in a folder, native or user's,
- * with no filter or sort applied, a task may be arranged by hand", and "in a
- * view, or in a folder with a filter or sort applied, the drag does not
- * persist". The folder page computes it from its own filter; every other page
- * passes nothing and its drag springs back. What it gates is the write and
- * nothing else: the gesture, its feedback, the hold that makes a folder and
- * the selection bar are the same on every list, because none of them needs a
- * persisted order.
+ * `arrangeable`: "in a folder, native or user's, with no filter or sort
+ * applied, a task may be arranged by hand", and "in a view, or in a folder with
+ * a filter or sort applied, the drag does not persist". The folder page
+ * computes it from its own filter; every other page passes nothing and its drag
+ * springs back. What it gates is the write and nothing else: the gesture, its
+ * feedback, the hold that makes a folder and the selection bar are the same on
+ * every list, because none of them needs a persisted order.
  */
 export interface ListArrangement {
   readonly arrangeable: boolean
@@ -211,27 +203,21 @@ export function TaskRows({
   )
   return (
     /*
-    9.7's row density reaching a list, at S17b.
+    9.7's row density reaching a list.
 
-    **This is the narrow half of DES-113, and saying so is the point of the
-    comment.** That decision gives a row two *shapes*, two lines against one,
-    and the row that draws both is the v2 `task-row` S15's log row records as
-    not ported. What 9.7 asks for by name is "row density (comfortable,
-    compact)", which is how close a list stands, and that is what a list can
-    honour today: comfortable keeps the spacing every page has had, compact
-    closes it so more fits on a screen. AC-261 names the preference and
-    deliberately not the row shape (no test since the 2026-09-20 cut).
+    What 9.7 asks for by name is "row density (comfortable, compact)", which is
+    how close a list stands: comfortable keeps the spacing every page has,
+    compact closes it so more fits on a screen. AC-261 names the preference and
+    deliberately not the row shape.
 
     Driven off the document attribute `shell/appearance.ts` sets rather than by
     threading the bundle into every page, for that file's own reason: a
     preference about how the whole document draws belongs on the document.
 
-    **Since S23a the list is the prototype's `TaskList`**, which is where the
-    three behaviours that exist only because rows are a list live: the drag,
-    the 1.5 second hold that makes a folder of two tasks, and press-and-hold
-    selection with its bar. S23 lifted that component with its handlers unwired
-    and this file drew rows without it; the wiring is `useListActs` below, and
-    the list's `role="list"` is the one this element carried before.
+    **The list is `TaskList`**, which is where the three behaviours that exist
+    only because rows are a list live: the drag, the 1.5 second hold that makes
+    a folder of two tasks, and press-and-hold selection with its bar. The wiring
+    is `useListActs` below, and the list carries `role="list"`.
     */
     <TaskList
       className="[[data-density=compact]_&]:gap-0"
@@ -241,9 +227,9 @@ export function TaskRows({
         if (task !== undefined) actions.onOpenTask(task)
       }}
       onReorder={acts.onReorder}
-      /* polish: taskrow F6. A page whose order does not persist does not draw
-         a slot for one: the drag lifts and the hold still makes a folder, and
-         the rows it passes stay where they are. */
+      /* A page whose order does not persist does not draw a slot for one: the
+         drag lifts and the hold still makes a folder, and the rows it passes
+         stay where they are. */
       reorderable={arrangement?.arrangeable ?? false}
       selection={selection}
       selectionChrome={selectionChrome}
@@ -268,38 +254,25 @@ export function TaskRows({
           */
           id={row.id}
           /*
-          **A folder page's rows do not say "Desk", found at S30's
-          walkthrough.** `taskRowDisplay` drops the folder when the context
-          says `showFolder: false`, which every folder page and the
-          folder-grouped All page set, and the lifted row reads a missing
-          folder the way DES-155 tells it to: an unfiled task is in Desk, so
-          say so. Both rules are right and together they wrote "Desk" on
-          every row of every folder. The row's own vocabulary for "the page
-          already says this" is `given`, the word the Important screen and
-          the board's axis pass, so the context's silence is handed to the
+          **A folder page's rows do not say "Desk".** `taskRowDisplay` drops the
+          folder when the context says `showFolder: false`, which every folder
+          page and the folder-grouped All page set, and a row with no folder
+          would otherwise fall back to naming Desk. The row's own vocabulary for
+          "the page already says this" is `given`, the word the Important screen
+          and the board's axis pass, so the context's silence is handed to the
           row in that word rather than by a second display flag.
           */
           given={context.showFolder === false ? { folder: true } : undefined}
           /*
-          polish: taskrow F2. The row is told its folder even where the page
-          has already said it: `given` silences the chip, but the card the
-          chevron opens still names the folder, and a card given none read
-          the DES-155 fallback and said "Desk" on every row of "Apartment
-          move". The resolved name and colour come from the same table the
-          chip reads when it is drawn.
+          The row is told its folder even where the page has already said it:
+          `given` silences the chip, but the card the chevron opens still names
+          the folder, and a card given none would say "Desk". The resolved name
+          and colour come from the same table the chip reads when it is drawn.
           */
           folder={{ id: row.card.folder.id, ...folderDisplay(row.card.folder, context.folders) }}
           /*
-          **S23's drag seam is gone at S25, and it went the way its own
-          comment said it would.** That seam took `RowDrag`, the interface
-          `views/TaskBoard.tsx` published while it was still the v1 board, and
-          translated it into the v2 row's `dragState` by reading a pixel
-          offset back out of a CSS transform string. Its comment said "when
-          that row lands, this function goes with the interface it
-          translates", and the row has landed: the board is the prototype's
-          own now and drags through `TaskList`, which hands each row its state
-          directly. Since S23a every list this file draws drags through the
-          same component, and `wiring` above is what it hands each row.
+          Every list this file draws drags through `TaskList`, which hands each
+          row its state directly; `wiring` above is what it hands each row.
           */
           onOpen={() => {
             actions.onOpenTask(row.card)
@@ -335,11 +308,10 @@ export function TaskRows({
 }
 
 /**
- * The list's three behaviours, performed over endpoints that exist, which is
- * RFC 0005 change control item 44's pricing of them: the drag through 7.6's
- * order endpoint S22a landed, the hold through `POST /folders` then
- * `PATCH /tasks/:id`, and the bar through the same acts a row performs one
- * at a time. Nothing here adds an endpoint.
+ * The list's three behaviours, performed over endpoints that exist: the drag
+ * through 7.6's order endpoint, the hold through `POST /folders` then `PATCH
+ * /tasks/:id`, and the bar through the same acts a row performs one at a time.
+ * Nothing here adds an endpoint.
  */
 function useListActs(
   tasks: readonly TaskCard[],
@@ -365,34 +337,28 @@ function useListActs(
 
   return {
     /*
-    B4's drag. The list has already moved the row; this decides whether the
+    The drag. The list has already moved the row; this decides whether the
     server hears about it, and answers the list once it knows.
 
-    The neighbours are the moved task's nearest undated, unfinished peers in
+    The neighbours are the moved task's nearest unscheduled, unfinished peers in
     the order the list now shows, because 7.6's body names "the two rows the
     task was dropped between in its folder's unscheduled list" and the folder
     page's list is Q7's, Scheduled first then Unscheduled, concatenated. A
     Scheduled row carries no hand order (the endpoint's own 409), so a drag of
-    one is answered `false` here rather than sent to be refused: the refusal
-    is a state the client can read off the row, and a toast for a rule the row
-    already shows would be noise. A Scheduled row a person drags past is
-    skipped for the same reason, so an Anytime task dropped among the
-    scheduled rows is placed first in the unscheduled list, which is where it
-    will draw.
+    one is answered `false` here rather than sent to be refused: the refusal is
+    a state the client can read off the row, and a toast for a rule the row
+    already shows would be noise. A Scheduled row a person drags past is skipped
+    for the same reason, so an Anytime task dropped among the scheduled rows is
+    placed first in the unscheduled list, which is where it will draw.
 
-    **Scheduled here means the Schedule and not the due date, since issue
-    #216.** Both tests read `due_date === null` until 2026-09-20, which is what
-    `placeTaskInOrder` compared until the same day; the server moved to "a
-    start date or a due date" and this did not, so a drag of a Start-only row
-    was sent to an endpoint that now refuses it, and a Start-only peer was
-    counted into a neighbour list `folderUnscheduledIds` no longer returns -
-    which is a position computed against rows that are not in the list the
-    position is for.
+    **Scheduled means a start date or a due date** (issue #216), as the server
+    and `folderUnscheduledIds` read it; a Start-only row is scheduled, so it is
+    neither dragged nor counted as a neighbour.
 
-    On success the views are read back before the list is told, because the
-    list drops its own copy on the answer and must find the server's order
-    already there (AC-266: the drag reads back in Q2's order). The mutation
-    cache invalidates on every success and this awaits the same refetch.
+    On success the views are read back before the list is told, because the list
+    drops its own copy on the answer and must find the server's order already
+    there (AC-266: the drag reads back in Q2's order). The mutation cache
+    invalidates on every success and this awaits the same refetch.
     */
     onReorder: async (from, to, next) => {
       if (!arrangeable) return false
@@ -427,8 +393,8 @@ function useListActs(
         await Promise.all(
           moving.map((task) => update.mutateAsync({ id: task.id, body: { folder_id: folder.id } })),
         )
-        /* polish: taskrow F9. One bar for one act: the undo entry names the
-           folder, so there is no second toast saying the same thing. */
+        /* One bar for one act: the undo entry names the folder, so there is no
+           second toast saying the same thing. */
         pushUndo(`Moved ${plural(moving.length)} to "${folder.name}"`, () => {
           for (const task of moving) {
             update.mutate({ id: task.id, body: { folder_id: task.folder.id } })
@@ -460,9 +426,8 @@ function useListActs(
         })
       }
     },
-    /* The bar's Duplicate, the row's own act repeated (RFC 0005 change
-       control item 58, A): one 7.16 copy per selected task, each with its
-       toast and its inverse, which is how the prototype's bar does it. */
+    /* The bar's Duplicate, the row's own act repeated: one 7.16 copy per
+       selected task, each with its toast and its inverse. */
     onDuplicate: (ids) => {
       for (const task of pick(ids)) duplicateTask(task.id, task.title)
     },
@@ -470,7 +435,7 @@ function useListActs(
     onDelete: (ids) => {
       const going = pick(ids)
       if (going.length === 0) return
-      /* polish: taskrow F1. One act, one undo entry for the whole batch. */
+      /* One act, one undo entry for the whole batch. */
       onAsk(
         going.length === 1 ? DELETE_TASK_CONFIRM : deleteTasksConfirm(going.length),
         () => {

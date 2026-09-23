@@ -1,6 +1,6 @@
 /*
 9.6's sharing panel, the surface the folder header's Share button opens,
-ported at P8R session R8 from the designer's `src/components/sharing-panel.tsx`
+ported from the designer's `src/components/sharing-panel.tsx`
 onto our mutations:
 
   "member list with joined dates and remove controls per the 5.4 matrix;
@@ -28,8 +28,7 @@ one sentence -- removing a member, adding one from the roster, and inviting by
 email -- so a viewer below Full control sees the member list and nothing else
 on this panel. The gate is `lib/folder-authority.ts`'s `mayDraw`, reading the
 same table `POST /folders/:id/members` resolves against; AC-024 carries the
-decision and was rewritten on 2026-09-20 under Hassan's ruling,
-https://github.com/zhssnym/dana/issues/228#issuecomment-5750892771.
+decision.
 
 *(The pending-invite list needs no gate of its own: R9 makes it member
 administration data, and the server answers `[]` below Full control, so there
@@ -56,8 +55,8 @@ are section 9's.
 
 His remove confirm reads "They'll lose access to {folder}. Tasks assigned to
 them in this folder will become unassigned.", split across a dialog title and
-its description. 9.6 writes that sentence itself and restated at the RFC 0002
-change control that design may restyle and not reword, a sentence delivered in
+its description. 9.6 writes that sentence itself, and design may restyle it and
+not reword it, a sentence delivered in
 two pieces being reworded by the reader rather than by the writer. So the whole
 of 9.6's sentence is the title, and the two controls are 9.1's uniform
 "Continue" and "Cancel".
@@ -138,8 +137,7 @@ function resendable(lastSentAt: string): boolean {
 }
 
 /**
- * The confirm before an owner removes a member, 9.6's own sentence, added to
- * that section at the second P8 change control.
+ * The confirm before an owner removes a member, 9.6's own sentence.
  *
  * One sentence in one element: AC-183 asserts it as a single text run, and the
  * name in the middle may sit in its own element while a block boundary may not.
@@ -217,8 +215,7 @@ export function FolderSharingPanel({
         if (!next) onClose()
       }}
       /*
-      Non-modal since S17b, this being the second of DES-154's two right-edge
-      panels.
+      Non-modal, this being the second of DES-154's two right-edge panels.
 
       That decision says a settled behaviour belongs to the mechanism rather
       than to each screen, and these two share one edge, so this panel takes

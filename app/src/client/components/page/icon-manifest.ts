@@ -1,6 +1,5 @@
 /*
-The labelled manifest of 4.3's icon keys, promised at S8 by RFC 0005 change
-control item 5: `FOLDER_ICON_KEYS` in `lib/icons.tsx` is the record of the
+The labelled manifest of 4.3's icon keys: `FOLDER_ICON_KEYS` in `lib/icons.tsx` is the record of the
 set, and this file joins each key to the drawn icon the module exports, for
 the picker and for every mark that renders a stored key. Adding a key there
 without a row here is a type error, which is the point of the satisfies.
@@ -8,20 +7,12 @@ without a row here is a type error, which is the point of the satisfies.
 The fallback for a null icon is the plain folder, which is also what 4.3 means
 by an unset identity.
 
-**One hundred and five keys since 2026-08-30, in fifteen sections, and the
-sections are new here rather than borrowed.** The owner asked for "the larger
-animated Lucide icon library" and for Desk's own lamp to be inside it, so the
-designer's forty-two grew by sixty-three. A flat grid of a hundred and five
-small drawings is a worse picker than a grid of forty-two, not a better one,
-which is why the additions arrive grouped and in sevens: seven columns, whole
-rows per section, and the orphan cell Imran caught still closed.
+**One hundred and five keys in fifteen sections.** A flat grid of a hundred
+and five small drawings is a poor picker, which is why the keys are grouped
+and in sevens: seven columns, whole rows per section, no orphan cell.
 
-**`lamp-desk` is the addition with a reason.** The prototype kept it out of
-its own list deliberately (`folder-icon-picker.tsx`: "a native mark is not a
-choice anyway") and Desk therefore wore a glyph nobody could put back once
-they had changed it. The owner overruled that on 2026-08-30: "the default Desk
-icon is not available in the icon library, so it cannot be restored. Put the
-Desk icon INSIDE the icon library." It is the second key below.
+**`lamp-desk` is in the library** so that Desk's default mark can be restored
+after it has been changed. It is the second key below.
 
 **An emoji is resolved rather than listed.** `markIcon` answers a drawing for
 `emoji-1f331` the way it answers one for `mountain`, and `emoji-mark.tsx`
@@ -401,6 +392,6 @@ export function markIcon(key: string | null): LucideIcon {
   const drawn = (FOLDER_ICONS as Record<string, LucideIcon>)[key]
   if (drawn !== undefined) return drawn
   /* An emoji is a key like any other and resolves here rather than at any
-     call site, so every surface that draws identity draws it (DES-130). */
+     call site, so every surface that draws identity draws it. */
   return emojiMark(key) ?? Folder
 }

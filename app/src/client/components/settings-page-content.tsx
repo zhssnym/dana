@@ -1,60 +1,32 @@
 /*
-Originally lifted from `docs/design/prototype-v2/src/screens/settings-screen.tsx`
-at RFC 0004's S27; that prototype is deleted (`a7886df`, 2026-09-01) and is in
-git history before that commit. Issue #129 moved the presentation into
-`components/` and made the route page own its settings read; the seams below
-remain the reasons this production component differs from the prototype.
+9.7's Settings page. The route page owns the settings read; this is the
+presentation. Where it departs from the plain shape, and why:
 
-1. **The `@/` specifiers become this client's relative ESM paths** (11.4), the
-   mechanical seam every lifted file takes, and the em dashes leave under
-   protocol section 7.
-2. **The four lib modules are adapters**: `lib/nav-model.ts` over `routes.ts`,
-   `lib/page-pins.ts` over 4.19's `pinned_views`, `lib/theme.ts` over the
-   `theme` column and item 43's mirror, `lib/viewer.ts` over `/me` and 7.15.
-   `lib/row-density.ts` gained the setter this file calls. Each header names
-   what it crosses.
-3. **The pin list carries the viewer's saved views after the nine natives**,
-   which is 9.7's "native and saved alike"; the prototype's model has no saved
-   views (its own header: "views a person makes themselves need a table and
-   endpoints and stay NEEDS BACKEND"). The table exists, so the rows are
-   drawn in the same `SettingRow` with a bookmark for a mark, last because
-   9.1 fixes the order of the nine and a person's own views are not in it.
-4. **Two rows 9.7 names that the prototype does not draw, Clock and Where a
-   task opens**, in the same idiom as its two: 9.7 says four, the prototype is
-   short here rather than contradictory, and 11.13 gives structure to the
-   section. Their writers are `lib/time-format.ts` and
-   `lib/task-surface-preference.ts`, and section 13 item 48 is read at the
-   second.
-5. **The account row reads the session**: `imran@example.com` and
-   `America/Edmonton` are the viewer's own email and 7.2's detected timezone.
-   The Remove control on the picture *is* drawn as of the polish round of
-   2026-08-30, and its absence was this seam's one real subtraction: 7.15 set
-   an avatar and cleared none, so the prototype's `setViewerImage(undefined)`
-   had no route behind it (RFC 0005 change control item 55(f)).
-   `DELETE /api/v1/me/avatar` now exists, noted at 7.15 under the owner's
-   waiver of section 7's freeze, and the control crosses with the prototype's
-   own variant, size, class and word over `clearViewerImage`.
-6. **Sign out and Delete account are callbacks**, `onSignOut` and
-   `onDeleteAccount`, the lab having nothing to sign out of. The dialog's
-   confirming control reads "Continue" rather than the prototype's "Delete
-   account", 9.1's names table fixing the two controls of every confirmation
-   and the earlier lift rows (item 44's A2) keeping 9.1's names on addressing.
-7. **The section headed "Deleting your account" is the prototype's own, by
-   Imran's ruling of 2026-08-22 recorded in the file itself**, where 9.7 read
-   "Danger zone"; 9.7 is amended toward it (RFC 0005 change control item 55).
-   The storage line 9.7 names is still absent, section 13 item 35(c) standing.
-8. **The sample workspace's row**, RFC 0005 change control item 60, drawn only
-   once the page above knows whether the sample of 7.20 is present.
-9. **The 560px measure is the whole page's and is centred**, where the
-   prototype caps only the rows and leaves them flush left inside the page
-   measure. Imran, 2026-08-30. The number and its reason are the prototype's,
-   unchanged; what moves is which element carries the cap. 9.7 records it.
-10. **"Download my data" in the Account section**, issue #162 over 7.22, which
-   the prototype has no equivalent of: it is the export 10.9 records as the
-   one Google obligation Dana did not meet, and it is an anchor rather than a
-   call. The reasoning is beside the row.
-
-The cleanup changes no visible behavior.
+- **The four lib modules are adapters**: `lib/nav-model.ts` over `routes.ts`,
+  `lib/page-pins.ts` over 4.19's `pinned_views`, `lib/theme.ts` over the `theme`
+  column and its mirror, `lib/viewer.ts` over `/me` and 7.15.
+  `lib/row-density.ts` has the setter this file calls. Each header names what it
+  crosses.
+- **The pin list carries the viewer's saved views after the nine natives**,
+  which is 9.7's "native and saved alike", drawn in the same `SettingRow` with a
+  bookmark for a mark, last because 9.1 fixes the order of the nine and a
+  person's own views are not in it.
+- **Clock and Where a task opens** are rows 9.7 names, drawn in the same idiom.
+  Their writers are `lib/time-format.ts` and `lib/task-surface-preference.ts`.
+- **The account row reads the session**: the viewer's own email and 7.2's
+  detected timezone. The Remove control on the picture is backed by `DELETE
+  /api/v1/me/avatar` (7.15).
+- **Sign out and Delete account are callbacks**, `onSignOut` and
+  `onDeleteAccount`. The dialog's confirming control reads "Continue", 9.1's
+  names table fixing the two controls of every confirmation.
+- **The section is headed "Deleting your account"** (9.7).
+- **The sample workspace's row** is drawn only once the page above knows whether
+  the sample of 7.20 is present.
+- **The 560px measure is the whole page's and is centred**, rather than capping
+  only the rows and leaving them flush left. 9.7 records it.
+- **"Download my data" in the Account section**, issue #162 over 7.22: the
+  export 10.9 records as a Google obligation, and an anchor rather than a call.
+  The reasoning is beside the row.
 */
 import { useRef, useState, type ReactNode } from "react"
 import {
@@ -113,11 +85,7 @@ export type PageVisibility = {
 }
 
 /*
-The account's own row, and the picture in it (DES-204).
-
-Imran, 2026-08-23: "a profile picture can be uploaded in Settings". The row was
-already here, drawn with initials in a circle; what it lacked was that the
-circle could be pressed.
+The account's own row, and the picture in it.
 
 **The picture is the control.** A separate "Upload photo" button beside an
 avatar is a second thing to look at where there is only one thing to do, and
@@ -165,19 +133,14 @@ function ViewerPictureRow() {
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-foreground">{viewer.name}</p>
         <p className="truncate text-xs text-muted-foreground">
-          {/* Seam 5: the session's address. polish: settings F6: 7.1 has no
-              write for the name, so the line says where it comes from
-              rather than looking like a field that will not open. */}
+          {/* The session's address. 7.1 has no write for the name, so the line
+              says where it comes from rather than looking like a field that
+              will not open. */}
           {viewer.email} · name and address from your Google account
         </p>
       </div>
-      {/* Seam 5, closed in the polish round of 2026-08-30: the prototype's
-          Remove control, drawn as the prototype draws it — its own variant,
-          size, class and word, offered only once there is a picture to take
-          away. It stood undrawn because 7.15 set an avatar and cleared none;
-          `DELETE /api/v1/me/avatar` now exists and `clearViewerImage` is the
-          handler in place of the prototype's `setViewerImage(undefined)`,
-          which is the same act over a store rather than a route. */}
+      {/* The Remove control, offered only once there is a picture to take away,
+          over `DELETE /api/v1/me/avatar` through `clearViewerImage`. */}
       {viewer.image ? (
         <Button
           variant="ghost"
@@ -275,9 +238,8 @@ function SettingsSkeleton() {
   )
 }
 
-/* Seam 4: the prototype's segmented control, as one component, so the two
-   rows 9.7 adds are drawn by the same code as its two rather than by a copy
-   of their class strings. The strings are its own, untouched. */
+/* The segmented control, as one component, so every row that uses one is drawn
+   by the same code rather than by a copy of its class strings. */
 function Segmented<T extends string>({
   label,
   value,
@@ -337,8 +299,8 @@ export function SettingsPageContent({
   /* Seam 6. */
   onSignOut?: () => void
   onDeleteAccount?: () => void
-  /* Seam 8, RFC 0005 change control item 60: the sample workspace's row,
-     drawn only when the page knows whether it is present. */
+  /* The sample workspace's row, drawn only when the page knows whether it is
+     present. */
   sample?: { present: boolean; busy: boolean; tasks: number; folders: number } | null
   onRemoveSample?: () => void
   onRestoreSample?: () => void
@@ -353,18 +315,13 @@ export function SettingsPageContent({
 
   return (
     /*
-    polish: pagehead F5. The shell insets every page; not a second time here.
+    The shell insets every page; not a second time here.
 
-    **Seam 9: the measure moves up here and is centred.** The prototype caps
-    its rows at 560 and leaves that column flush against the left of the
-    page's own 720-to-1040 measure, so the head sits over a band of rows with
-    a third of the window empty beside them. Imran, 2026-08-30: the page "is
-    not centered and leaves too much empty space on the right". The number is
-    still the prototype's, and its reason is still the prototype's, quoted
-    where it used to be applied: a label with a control at its far end is
-    unreadable at the page measure. What changes is that the head travels
-    with the rows it heads, so the two share one edge and the column sits in
-    the middle of the space it is given.
+    **The measure is here and is centred.** A label with a control at its far
+    end is unreadable at the page measure, so the column is capped at 560; the
+    head travels with the rows it heads, so the two share one edge and the
+    column sits in the middle of the space it is given rather than leaving a
+    third of the window empty beside it.
     */
     <div className="mx-auto w-full max-w-[560px]">
       <header className="flex min-h-12 items-start gap-3">
@@ -383,11 +340,11 @@ export function SettingsPageContent({
         </div>
       </header>
 
-      {/* ~560px, not the page measure (review S2): every row here is a label
-          with a control at its far end, and at 820px the switch sat a whole
-          reading-line away from the words that name it. 560 is the same
-          discipline the People screen's form already keeps. The cap itself is
-          on the column above since seam 9; this is the gap under the head. */}
+      {/* ~560px, not the page measure: every row here is a label with a control
+          at its far end, and at 820px the switch would sit a whole reading-line
+          away from the words that name it. 560 is the same discipline the
+          People screen's form keeps. The cap itself is on the column above;
+          this is the gap under the head. */}
       <div className="mt-7">
         {previewState === "loading" ? (
           <SettingsSkeleton />
@@ -401,23 +358,14 @@ export function SettingsPageContent({
               description="Every view Dana has. Pin the ones you want in the sidebar; nothing here changes or deletes a task."
             >
               {/*
-              The pin list: DES-153, and Imran's ask in his own words: an
-              option to hide a page, and "letting the user that you want to
-              unhide or activate this page you can do it from settings".
+              The pin list: an option to hide a page, and the place to unhide
+              it.
 
-              What stood here was three switches named Important, All and
-              Done, and a line saying "My Day, Tasks, and Planned are always
-              shown": v1's page set, still being offered two navigation
-              models later. It could only ever describe the pages it was
-              written against.
-
-              This reads the model instead, so a view added to `NAV_PAGES`
-              appears here without anyone editing this file, and a view a
-              person saves for themselves will too when DES-153's backend
-              half lands. Each row carries the page's own mark and its own
-              sentence, so the list is the same thing the sidebar shows
-              rather than a second description of it.
-              */}
+              This reads the model, so a view added to `NAV_PAGES` appears here
+              without anyone editing this file. Each row carries the page's own
+              mark and its own sentence, so the list is the same thing the
+              sidebar shows rather than a second description of it.
+               */}
               <div className="space-y-0.5">
                 {NAV_PAGES.map((page) => {
                   const pinned = isPagePinned(page.name, pins)
@@ -441,9 +389,8 @@ export function SettingsPageContent({
                     />
                   )
                 })}
-                {/* Seam 3: 9.7's "native and saved alike". DES-153's backend
-                    half has landed, 4.19's `user_views`, so the rows the
-                    prototype's comment above anticipates are drawn here. */}
+                {/* 9.7's "native and saved alike": the viewer's saved views
+                    from 4.19's `user_views`. */}
                 {savedViews.map((view) => (
                   <SettingRow
                     key={view.id}
@@ -471,21 +418,14 @@ export function SettingsPageContent({
             </SettingsSection>
 
             {/*
-            Row height, where DES-113 always said it lived.
+            Row height. The preference is read by the row and by every screen
+            that draws a list; a setting with no way in is a setting nobody has.
 
-            The ruling settled it in Settings and the module store was built
-            expecting a control here, "read by the row, by every screen that
-            draws a list, by the states page and by a settings control", and
-            the control was never written. So the preference existed, was
-            honoured everywhere, and could not be changed by anybody: a
-            setting with no way in is a setting nobody has (Imran,
-            2026-08-22).
-
-            Two options rather than a switch, because neither is the absence
-            of the other. A switch labelled "Compact" makes two lines the
-            *unchecked* state, and DES-113's whole argument is that two lines
-            is the considered default rather than the leftover.
-            */}
+            Two options rather than a switch, because neither is the absence of
+            the other. A switch labelled "Compact" makes two lines the
+            *unchecked* state, and two lines is the considered default rather
+            than the leftover.
+             */}
             <SettingsSection
               id="settings-appearance"
               title="Appearance"
@@ -531,25 +471,22 @@ export function SettingsPageContent({
                 }
               />
               {/*
-              Theme, under Appearance and nowhere else (DES-205).
+              Theme, under Appearance and nowhere else.
 
-              Imran, 2026-08-23, asked where the toggle goes. It goes here, and
-              the two tempting alternatives are both worse for the same reason.
-              **Not the account menu**, which is where a lot of products put it
-              and where it does not belong: that menu is about *you*, your
-              picture, your sign-out, help with the app, and a theme is about
-              how Dana draws, which is what this section already says it is
-              for. **Not the window bar**, because a control in the chrome is a
-              control you press by accident, and nobody changes their theme
-              often enough to pay rent in the bar.
+              **Not the account menu**: that menu is about *you*, your picture,
+              your sign-out, help with the app, and a theme is about how Dana
+              draws, which is what this section already says it is for. **Not
+              the window bar**, because a control in the chrome is a control you
+              press by accident, and nobody changes their theme often enough to
+              pay rent in the bar.
 
               **Three states rather than a switch**, and the third is the one
               people want: a two-way toggle makes you re-choose at sunset and
               leaves Dana disagreeing with every other window for half the day.
 
-              It sits above Row height because it is the larger of the two:
-              one changes every colour, the other changes a list's spacing.
-              */}
+              It sits above Row height because it is the larger of the two: one
+              changes every colour, the other changes a list's spacing.
+               */}
               <SettingRow
                 icon={theme === "dark" ? Moon : theme === "light" ? Sun : Monitor}
                 title="Theme"
@@ -611,15 +548,10 @@ export function SettingsPageContent({
                   />
                 }
               />
-              {/* polish: settings F4 and taskcard F3 are one finding, and the
-                  two fixers answered it two ways: this screen dropped the
-                  "Tab" option as a control that did nothing, and the task
-                  fixer made it do something — `/app/tasks/:id` is the card
-                  itself now, over the same editing hook the dialog uses, and
-                  a row's click goes there. The working option is what
-                  survives the merge: 9.7 names three here, AC-354 names the
-                  page a Tab opens (no test since the 2026-09-20 cut), and this row is where a person chooses
-                  it. */}
+              {/* 9.7 names three places a task opens here, and AC-354 names the
+                  page a Tab opens: `/app/tasks/:id` is the card itself, over
+                  the same editing hook the dialog uses, and a row's click goes
+                  there. */}
               <SettingRow
                 icon={PanelRight}
                 title="Where a task opens"
@@ -660,8 +592,8 @@ export function SettingsPageContent({
                     <Globe className="size-5" strokeWidth={1.75} aria-hidden="true" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    {/* Seam 5: 7.2's detected timezone. polish: settings F6:
-                        7.1's PATCH /me takes a timezone, so it is a choice. */}
+                    {/* 7.2's detected timezone. 7.1's PATCH /me takes a
+                        timezone, so it is a choice. */}
                     <p className="text-sm font-medium text-foreground">Timezone</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       Due dates and reminders are read in this zone
@@ -704,11 +636,9 @@ export function SettingsPageContent({
                     </Button>
                   }
                 />
-                {/* polish: settings F5. "Open People" and a second "Sign out"
-                    stood here beside the sidebar's People link and the
-                    account menu's Sign out; each lives in one place now, and
-                    that place is the sidebar. `onOpenPeople` and `onSignOut`
-                    stay on the props for the shell's wiring. */}
+                {/* People and Sign out each live in one place, the sidebar, not
+                    here as well. `onOpenPeople` and `onSignOut` stay on the
+                    props for the shell's wiring. */}
               </div>
             </SettingsSection>
 
@@ -728,37 +658,27 @@ export function SettingsPageContent({
               />
             </SettingsSection>
 
-            {/* The Install section left at polish round-2 (2026-08-30, the
-                owner's own ruling): the browser already offers the install
-                affordance in its address bar, so a Settings block saying so
-                again was repetition occupying a section. 10.6's manifest and
-                the service worker are untouched — the app installs exactly
-                as before, from where the browser puts it. */}
+            {/* No Install section: the browser already offers the install
+                affordance in its address bar. 10.6's manifest and the service
+                worker are untouched — the app installs from where the browser
+                puts it. */}
 
             {/*
-            "Deleting your account", not "Danger zone": Imran, 2026-08-22.
+            "Deleting your account", not "Danger zone".
 
-            Two faults in two words. **It is a coinage**, GitHub's, and
-            DES-152 settled that Dana uses the common word rather than
-            somebody else's invention, the same rule that left "My Day" and
-            "Assigned to me" to Microsoft. And **it names a feeling instead of
+            **"Danger zone" is a coinage**, and Dana uses the common word rather
+            than somebody else's invention. And **it names a feeling instead of
             its contents**: a person scanning Settings for how to close their
-            account is looking for the word "account", which was the one word
-            the heading did not contain.
+            account is looking for the word "account".
 
-            The section also said its one idea three times, a heading, a row
-            title and a button all reading some form of *delete account*, plus
-            "Review the consequences before continuing", which is a sentence
-            that describes reading rather than telling you anything. The
-            consequence itself is what belongs there, in Dana's own nouns:
-            folders, members, tasks. Each line earns its place now, and the
-            confirmation dialog behind the button is unchanged: it is where
-            the real check happens.
-            */}
-            {/* Seam 8: item 60's sample workspace. One row, one control,
-                which reads Remove while the sample is present and Restore
-                after; Remove confirms once on the page and then offers the
-                undo bar, the same path as the strip on Desk and Today. */}
+            Each line says something once: the consequence itself, in Dana's own
+            nouns, folders, members, tasks. The confirmation dialog behind the
+            button is where the real check happens.
+             */}
+            {/* The sample workspace. One row, one control, which reads Remove
+                while the sample is present and Restore after; Remove confirms
+                once on the page and then offers the undo bar, the same path as
+                the strip on Desk and Today. */}
             {sample ? (
               <SettingsSection
                 id="settings-sample"
@@ -788,13 +708,10 @@ export function SettingsPageContent({
             <SettingsSection
               id="settings-danger"
               title="Deleting your account"
-              /* **Rewritten 2026-09-20** (issue #228, governing #209 R6
-                 sections 2 and 3). It read "Folders you share pass to their
-                 longest-standing member", which was 8.10 step 2's automatic
-                 succession; R6 ended it, and `DELETE /me` now answers 409
-                 naming every owned shared folder until each has been handed
-                 on or deleted. A promise the server refuses to keep is worse
-                 than no sentence, because the person plans around it. */
+              /* There is no automatic succession (issue #228): `DELETE /me`
+                 answers 409 naming every owned shared folder until each has
+                 been handed on or deleted. A promise the server refuses to keep
+                 is worse than no sentence, because the person plans around it. */
               description="Shared folders you own must be handed to another member, or deleted, before your account can go. Private folders and their tasks are deleted with the account."
               danger
             >
@@ -864,11 +781,10 @@ export function SettingsPageContent({
   )
 }
 
-/* Seam 5, reworked at polish (settings F6): the timezone is a choice over
-   7.1's PATCH /me rather than a line. The list is the browser's own; a zone
-   the browser does not list, which 7.2 may still have detected, is offered
-   as the current value so the control never shows a zone the account is not
-   in. */
+/* The timezone is a choice over 7.1's PATCH /me rather than a line. The list is
+   the browser's own; a zone the browser does not list, which 7.2 may still have
+   detected, is offered as the current value so the control never shows a zone
+   the account is not in. */
 function TimezoneSelect() {
   const viewer = useViewer()
   const zones = supportedTimezones()

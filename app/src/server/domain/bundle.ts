@@ -1,18 +1,15 @@
 /*
-The S7 domain module: the settings bundle and the saved views (4.19,
-RFC 0005), keyed by the session's user like everything at 7.2's address.
+The domain module for the settings bundle and the saved views (4.19), keyed by the session's user like everything at 7.2's address.
 
-The pin fold (BUG-8), as S7's change control rules it: pinned_views null
+The pin fold: pinned_views null
 means never chosen, and the pins derive from the three v1 flags, so a v1
 account's show_done arrives as Done pinned with no data migration at all;
 once written, the column is the record and the flags stop mattering to this
 surface.
 
 **The derivation is the whole of what those three columns now do (issue
-#113, 2026-09-04).** Frozen 7.2's /me/settings used to read and write them
-beside this, which is what kept AC-119 to AC-123 as they were then written;
-that endpoint is retired, so nothing writes them any more and this read is
-their only consumer besides the `settings` key of frozen 7.1's GET /me. They
+#113).** Nothing writes them any more, and this read is their only consumer
+besides the `settings` key of 7.1's GET /me. They
 are not dropped: a v1 account that never chose pins still gets the sidebar
 its flags describe, which is exactly what this function is for, and dropping
 the columns is a later contract migration. At no moment are two records
@@ -78,7 +75,7 @@ is retired: the client parses every response through `settingsBundle`, whose
 `calendar_zoom` is that same enum, so a row left carrying a dropped value
 would fail the parse and the person would meet an error on the whole settings
 bundle rather than a calendar drawn at the default. Reading a retired value as
-`DEFAULT_CALENDAR_ZOOM` is Imran's own ask on #140 — "invalid/retired values
+`DEFAULT_CALENDAR_ZOOM` is what #140 asks for — "invalid/retired values
 should fall back safely to the product default" — and it costs one comparison.
 
 This is deliberately not done for `theme`, `clock` and the rest: their values

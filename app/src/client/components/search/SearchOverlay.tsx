@@ -1,16 +1,9 @@
 /*
-9.9's search overlay, at S27 the prototype's own `components/search-overlay.tsx`
-bound to this client; this file is its wiring and nothing else.
-
-What stood here was the P8R port of the same file onto the query layer,
-which drew status headings inside the Tasks group where the prototype draws a
-badge on each row, and offered folders and shelves before a keystroke where
-the prototype offers the pages. Both were the port's own readings of 9.9 and
-both retire with it under RFC 0005 change control item 37; item 55 records
-the two amendments to 9.9 and the criteria that read them.
+9.9's search overlay: this file wires `components/search-overlay.tsx` to the
+shell and the router, and nothing else.
 
 **The overlay is opened by the chrome through `shell/overlays.ts`**, the seam
-S9 built so the sidebar's search control and the two shortcuts of 9.1 could
+that lets the sidebar's search control and the two shortcuts of 9.1 could
 raise a surface they do not import, and the latch there is what makes a
 shortcut pressed before this mounts survive until it does.
 
@@ -21,7 +14,7 @@ the router goes there. The lifted overlay hands back an id and a kind and
 below navigates to the id itself.
 
 **The input gives up focus before the dialog starts closing**, and that is a
-correctness fix carried over from the port rather than tidiness:
+correctness fix rather than tidiness:
 `shell/overlays.ts` refuses the "/" shortcut while the event's target is an
 input, the dialog unmounts on a 200 ms exit transition, and a "/" pressed in
 that window would be swallowed by a control on its way out. The lifted
@@ -31,7 +24,7 @@ focused inside the dialog when it closes.
 **One control on this surface is named and one deliberately is not.** 9.1
 names the global search control "Search" and puts it in the sidebar, which
 is the shell's; AC-174 counts exactly one button of that name inside the
-navigation landmark, so nothing here may answer to it. The prototype's close
+navigation landmark, so nothing here may answer to it. The overlay's close
 control is "Close search", which collides with nothing.
 */
 import { useEffect, useMemo, useState } from 'react'
@@ -53,7 +46,7 @@ export function SearchOverlay(): React.JSX.Element {
   return (
     <LiftedSearchOverlay
       /* Remounted per opening, so the query and the cursor start empty each
-         time, which is what the prototype's `initialQuery` default means and
+         time, which is what the overlay's `initialQuery` default means and
          what a person pressing Ctrl+K expects. */
       key={open ? 'open' : 'closed'}
       open={open}

@@ -32,21 +32,19 @@ import { rungForTask } from './ladder.js'
 import type { ColumnValue } from './place-pages.js'
 
 /*
-What a group's heading draws beside its name, since S17a.
+What a group's heading draws beside its name.
 
-The owner's ruling of 2026-08-22 gives a section a mark, "a folder's glyph or
-even a profile avatar", and it is optional in the honest sense: a date rung
+A section has a mark, "a folder's glyph or even a profile avatar", and it is
+optional in the honest sense: a date rung
 has none and the heading simply starts its name earlier, because the mark is
 inline rather than in a reserved slot. So this says which kind of mark the
 axis produced and never how to draw one, the drawing being a page's.
 */
 export type GroupMark =
   | { readonly kind: 'folder'; readonly folderId: string }
-  /* polish round-2: the person's own picture beside the name the tint is a
-     function of. The ruling above says "even a profile avatar" in as many
-     words, and the card this is read off has carried `avatar_url` since 4.1;
-     the heading drew the disc alone only because this shape had nowhere to
-     put one. Null where the person has no picture, which is the disc. */
+  /* The person's own picture beside the name the tint is a function of,
+     read off the card's `avatar_url` (4.1). Null where the person has no
+     picture, which is the disc. */
   | { readonly kind: 'person'; readonly name: string; readonly image: string | null }
 
 export interface TaskGroup {

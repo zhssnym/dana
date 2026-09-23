@@ -1,11 +1,10 @@
 /*
 The 7.3 surface: the roster and its one removal. Two endpoints, no request
-body, and no business logic here (the API role's route convention): the
+body, and no business logic here: the
 domain module answers both questions and this file maps them onto 7.0's
 statuses.
 
-Mounted under /api/v1 by the boot file, which is the Platform engineer's; the
-wiring request is recorded in README.md beside this file. The router carries
+Mounted under /api/v1 by the boot file. The router carries
 its own session attachment so it composes whichever order routers mount in,
 the folders router's arrangement exactly; that block, and the two helpers
 beside it, are `preamble.ts` since issue #36.

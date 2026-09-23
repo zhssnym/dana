@@ -1,26 +1,12 @@
 /*
-The expanded card: everything a task is, opened inside the row that owns it.
+The expanded card: everything a task is, opened inside the row that owns it. The
+lab and the screens render one card rather than two copies of one.
 
-Extracted from `screens/row-concepts.tsx` on 2026-08-18 with the port of the
-row into the shell, so the lab and the eight screens render one card rather
-than two copies of one.
-
-DES-093 is why it opens in place. DES-099 is its shape: one header strip of
-five chips carrying every single short value, then Steps, Notes and
-Attachments as collapsible blocks, then a shaded footer band. DES-109 is its
-behaviour and the reason it has no Save button, every edit commits as it is
-made, and the footer is a toolbar rather than a form's foot. DES-115 is why an
-empty block draws the control that fills it instead of drawing nothing.
-
-**What is drawn here and may not be ported to `app/`.** The card renders
-several Lane 2 proposals so they can be judged rather than imagined:
-attachments have no storage (DES-055, DES-105), block order has nowhere to
-live (DES-102), and moving steps between levels needs endpoints nobody has
-written (DES-100, DES-112). Each is excluded from `app/` by its entry in
-`docs/design/v2-decisions.md`, not by being invisible here. That register is
-deleted (`a7886df`, 2026-09-01) and is in git history before that commit, and
-11.13 records that the DES key space has no successor. See DES-119 there for
-the list the port must check itself against.
+It opens in place. Its shape: one header strip of five chips carrying every
+single short value, then Steps, Notes and Attachments as collapsible blocks,
+then a shaded footer band. It has no Save button: every edit commits as it is
+made, and the footer is a toolbar rather than a form's foot. An empty block
+draws the control that fills it instead of drawing nothing.
 */
 
 import { Input } from "./ui/input.js"
@@ -121,65 +107,46 @@ const FOCUS =
 /*
 The expanded card, shared by every concept that expands.
 
-Restructured at Imran's direction, 2026-08-17. It used to be seven property
-rows stacked one per line, which is what a form looks like when nobody has
-decided what matters. It now has three parts and they are not the same kind of
-thing:
+It has three parts and they are not the same kind of thing:
 
 - ONE header strip carrying everything that is a single short value: folder,
   assignee, due, reminder, repeat. These are five answers, not five sections,
-  and giving each one a line of its own made the card tall enough to bury the
-  two things people actually came to read.
+  and giving each one a line of its own would make the card tall enough to bury
+  the two things people actually came to read.
 - Steps, and then Notes, as their own blocks. These two are different in kind:
   they hold as much content as the task needs rather than one value, and they
   are the reason a person opens a task at all.
 
 Both blocks collapse, and both start open, because the default should be the
 answer to "what is this task" rather than a tidier card that makes you ask
-again. Collapsing is for the person who has read the notes and wants them out
-of the way, which is a second-visit need, not a first-visit one.
+again. Collapsing is for the person who has read the notes and wants them out of
+the way, which is a second-visit need, not a first-visit one.
 
-REVISED 2026-08-17, third pass, at Imran's direction: no rules anywhere inside
-the card. It had a hairline above the property strip, above Steps, above Notes
-and above the footer, and four lines across a card this small compartmentalise
-it into a database record. Hierarchy is now carried by spacing and type alone,
-a 16px gap between sections against a 2px gap inside one, headings smaller and
-greyer than the content they own, and each section's content indented to sit
-under its heading. The reference is Notion, where a page is a stack of blocks
-that never needs a box drawn round it.
+No rules anywhere inside the card: four lines across a card this small
+compartmentalise it into a database record. Hierarchy is carried by spacing and
+type alone, a 16px gap between sections against a 2px gap inside one, headings
+smaller and greyer than the content they own, and each section's content
+indented to sit under its heading, as in Notion, where a page is a stack of
+blocks that never needs a box drawn round it.
 
-This is the harder version to get right, which is why it is worth saying what
-"right" means: cover the headings and you should still see where one section
-ends. If you cannot, the spacing is wrong, and the fix is more spacing rather
-than a line put back.
+What "right" means: cover the headings and you should still see where one
+section ends. If you cannot, the spacing is wrong, and the fix is more spacing
+rather than a line put back.
 
-FOURTH PASS, 2026-08-17: the body is now an ordered list of blocks. Steps,
-Notes and Attachments can each be moved up or down from the menu on their
-heading, and each keeps its own open state across the move because the blocks
-are keyed rather than positional.
+The body is an ordered list of blocks. Steps, Notes and Attachments can each be
+moved up or down from the menu on their heading, and each keeps its own open
+state across the move because the blocks are keyed rather than positional.
 
-Imran asked whether this could work "like a block in Notion, where the user
-writes it and it appears". The answer, and the reason this is built the way it
-is: **there are two different products behind that question, and this is the
-cheap one.**
+**This is a closed set of typed blocks**, each already knowing how to render and
+edit itself, and not a document of arbitrary blocks created by typing. The
+latter needs a stored document schema, a rich text editor, collaborative editing
+rules for a shared task, and a migration for every note already written as a
+string. The closed set gives almost all of the feeling people mean by
+"Notion-like", the card is a stack you arrange rather than a form somebody laid
+out for you, because the only thing that has to be stored is an order.
 
-The expensive one is Notion's actual model, a document of arbitrary blocks,
-any type, any depth, created by typing. That needs a stored document schema, a
-rich text editor, collaborative editing rules for a shared task, and a
-migration for every note already written as a string. It is DES-055 and
-DES-101, and it has been owed since v1 precisely because it is that large.
-
-The cheap one is what is on screen: a **closed set of typed blocks** that can
-be reordered, each already knowing how to render and edit itself. It gives
-almost all of the feeling people mean by "Notion-like", the card is a stack
-you arrange rather than a form somebody laid out for you, for a fraction of
-the cost, because the only thing that has to be stored is an order.
-
-The honest limit is worth stating rather than discovering: you cannot invent a
-block that Dana does not already have. If somebody wants a table, or three
-separate note blocks, this model says no and the expensive one is the only
-answer. Whether that limit is acceptable is a product question, and it is
-DES-102.
+The limit: you cannot invent a block that Dana does not already have. A table,
+or three separate note blocks, is outside this model.
 */
 
 /*
@@ -199,19 +166,16 @@ each closes with the whole answer written back into the chip.
 
 
 /*
-**Seam, S23: the chip announces its field, F2 of the criteria triage.**
+**The chip announces its field.** A button whose only text is the value would
+answer to "Desk" or a person's name and not say which question it is the answer
+to. 9.3's field table names the five and 9.1 makes every control it names
+reachable by role and by name. The rule and its reasons are written once, over
+`PickerChip` in `components/task-pickers.tsx`, because the two chips are one
+control drawn twice.
 
-This chip "renders a button whose only text is the value", so the folder chip
-answers to "Desk" and the assignee chip to a person's name, and neither says
-which question it is the answer to. 9.3's field table names the five and 9.1
-makes every control it names reachable by role and by name. The seam and its
-reasons are written once, over `PickerChip` in `components/task-pickers.tsx`,
-because the two chips are one control drawn twice and a rule stated twice is a
-rule that will one day disagree with itself.
-
-`field` is required here rather than defaulted, which is the one difference
-from that one: `PickerChip` has a tooltip already carrying the field's name
-and this has nothing to fall back to.
+`field` is required here rather than defaulted, which is the one difference from
+that one: `PickerChip` has a tooltip already carrying the field's name and this
+has nothing to fall back to.
 */
 function PropChip({
   icon: Icon,
@@ -365,8 +329,8 @@ function Disclosure({
             you grab, and it is why the heading does not need a menu. It is a
             button rather than a decorated span so that the block can also be
             moved with the arrow keys. A block with no handle is pinned,
-            Comments sits outside the content order, DES-129, and keeps a
-            spacer so every heading's icon lands on one left edge. */}
+            Comments sits outside the content order, and keeps a spacer so every
+            heading's icon lands on one left edge. */}
         {handle ? (
           <button
             type="button"
@@ -441,72 +405,43 @@ function Disclosure({
 /*
 Steps: draggable, selectable, and one verb for moving them anywhere.
 
-Imran asked for movable steps, multi-select, and options to make a new task
-from the selection or to turn them into separate tasks here or in another
-folder. He also said he had not decided. This is the recommendation, drawn so
-it can be rejected by using it; the alternative is in DES-106.
+Promote step to task, make a new task from these steps, make these steps into
+tasks here, make these steps into tasks elsewhere: five verbs, one idea. So
+there is one verb, **Move to…**, and the destination decides what happens:
 
-The problem is not any one of those commands, it is that they were arriving one
-at a time and the menu was going to end up reading: promote step to task,
-promote task to folder, make new task from these steps, make these steps into
-tasks here, make these steps into tasks elsewhere. Five verbs, one idea. A
-product needing five names for one operation has not found the operation yet.
+a step moved into a FOLDER becomes a task, because folders hold tasks the same
+steps moved into a TASK stay steps, because tasks hold steps
 
-So there is one verb, **Move to…**, and the destination decides what happens:
-
-    a step moved into a FOLDER becomes a task, because folders hold tasks
-    the same steps moved into a TASK stay steps, because tasks hold steps
-
-Level is a consequence of where a thing lands, never a separate command. "Make
-a new task from these" is then just Move to → New task, and "make them separate
-tasks in another folder" is Move to → that folder. Nothing needs a new name,
-and the rule extends without new menu items the day something else can hold
+Level is a consequence of where a thing lands, never a separate command. "Make a
+new task from these" is then just Move to → New task, and "make them separate
+tasks in another folder" is Move to → that folder. Nothing needs a new name, and
+the rule extends without new menu items the day something else can hold
 something else.
 
-Selection is by clicking a step's text; the tick box still only ticks. Those
-are two different intentions and giving them one target is how people
-accidentally complete things they meant to select.
+Selection is by clicking a step's text; the tick box still only ticks. Those are
+two different intentions and giving them one target is how people accidentally
+complete things they meant to select.
 */
 
 /*
 The card's footer, and why there is no Save button on it.
 
-Imran's call, 2026-08-17, and it is the right one for a reason worth writing
-down: **there was nothing for Save to do.** Every edit in this card already
-commits the moment it is made, a rename on Enter or blur, a property on
-choosing it, a step on ticking it. A Save button at the bottom of a card that
-has already saved is a promise the interface cannot keep, and the honest name
-for the thing people press afterwards is Close.
+**There is nothing for Save to do.** Every edit in this card already commits the
+moment it is made, a rename on Enter or blur, a property on choosing it, a step
+on ticking it. A Save button at the bottom of a card that has already saved is a
+promise the interface cannot keep, and the honest name for the thing people
+press afterwards is Close. The safety net Save-and-Cancel used to provide is the
+app-wide undo.
 
-Removing it costs the escape hatch, though, so the footer has to replace it
-rather than just delete it. That is what undo and redo are doing here: they
-are not a nicety, they are the safety net that Save-and-Cancel used to
-provide, and the reason it is safe to have no Cancel.
-
-The rest of the row, and my reasoning on each, since Imran asked:
-
-- **Expand**, recommended, and the most valuable icon here. The card lives
-  inside a list column, and DES-093's strongest objection is width: a form
-  comfortable at 540px has to stack into something much narrower. An expand
-  that opens the same task full-width answers that objection instead of
-  arguing with it, and it costs nothing to offer.
-- **Copy link**, recommended over email as the primary sharing action.
-  Sharing usually means putting a link where a conversation already is, and a
-  link works in every one of those places. Email is one destination; a link is
-  all of them.
-- **Share** and **email**, kept because they were asked for, but both are
-  Lane 2 and neither is small. Dana shares *folders*: membership is a property
-  of a folder and a task has no independent audience, so "share this task"
-  either invites somebody to the whole folder, which is not what the button
-  appears to promise, or it is a new sharing model. That is DES-109.
-- **History**, added. It is the only way to answer "who changed this", it is
-  where an undone change goes to be understood, and `task-form.tsx` already
-  reaches for the same icon.
+- **Expand** is the most valuable icon here. The card lives inside a list
+  column, and a form comfortable at 540px has to stack into something much
+  narrower; an expand that opens the same task full-width answers that.
+- **History** is the only way to answer "who changed this", and it is where an
+  undone change goes to be understood.
 
 What is deliberately NOT here: Delete. The row's overflow menu already carries
-it, and the repository has already been bitten once by two menus both called
-"More actions"; putting a destructive action in a second place is how that
-happens again.
+it, and a destructive action in a second place is how two menus both called
+"More actions" end up disagreeing.
 */
 /* An icon button with its name in a tooltip. Used by the card's footer and by
    both selection bars, so a Delete looks and reads the same wherever it is
@@ -540,52 +475,42 @@ function CardFooter({
 }) {
   return (
     /*
-    The footer is shaded, and that needs squaring with DES-099, which says
-    never fill two regions in the same card. The rule stands; this is not a
-    second one.
+    The footer is shaded, and that needs squaring with the rule that a card
+    never fills two regions. The rule stands; this is not a second one.
 
-    What DES-099 forbids is using fill to group *content*, because two grouped
-    regions turn a card back into the compartments the rules were removed for
-    being. The details strip does that job, and it looks the part: inset from
-    the card's edges, rounded on all four sides, sitting inside the content
-    column.
+    What the rule forbids is using fill to group *content*, because two grouped
+    regions turn a card back into compartments. The details strip does that job,
+    and it looks the part: inset from the card's edges, rounded on all four
+    sides, sitting inside the content column.
 
     This is not content. It is chrome, the card's edge, carrying the actions
-    that belong to the whole thing rather than to any part of it. So it is
-    drawn as an edge instead of as a group: full-bleed to the card's sides,
-    square at the top, following the card's own radius at the bottom. Nothing
-    about it reads as "these items belong together"; it reads as "this is where
-    the card ends", which is the depth Imran was after.
+    that belong to the whole thing rather than to any part of it. So it is drawn
+    as an edge instead of as a group: full-bleed to the card's sides, square at
+    the top, following the card's own radius at the bottom. Nothing about it
+    reads as "these items belong together"; it reads as "this is where the card
+    ends".
 
     The distinction, and it is the portable half: an inset rounded fill groups
     content, a full-bleed edge band is chrome. A card may have one of each and
     still not have two groups.
 
-    No separator line either. A shaded band already has an edge, the point
-    where the shade begins, and drawing a rule along it would be saying the
-    same thing twice, which is the mistake the block icons had.
+    No separator line either. A shaded band already has an edge, the point where
+    the shade begins, and drawing a rule along it would be saying the same thing
+    twice.
     */
     <div className="-mx-3 -mb-3 -ml-7 rounded-b-[7px] bg-[var(--color-graphite-50)]">
       {/*
-      **9.3 puts the provenance in the footer, and until the round of
-      2026-08-30 it was above one.**
+      **9.3 puts the provenance in the footer.**
 
-      That section's card paragraph ends "the footer renders the task's
-      creation and its completion; the rest of its history is the Activity
-      control", and the two lines were a block of their own sitting between
-      the Comments disclosure and this band. Read down the card that is a
-      history section under the conversation, which is what the owner called
-      it at the round, and it is also the one place a reader would look for
-      the rest of the record and not find it: the whole record is the
-      overflow menu's History, one door, since the Activity popover was
-      retired (pagehead F4).
+      That section's card paragraph ends "the footer renders the task's creation
+      and its completion; the rest of its history is the Activity control". A
+      block of its own between the Comments disclosure and this band would read
+      as a history section under the conversation, and the whole record is the
+      overflow menu's History, one door.
 
-      Nothing about what is rendered moves. AC-178 reads the creator and the
-      instant off the surface with nothing pressed, and it reads them off the
-      same two paragraphs, which still carry no control of their own; what
-      changes is that they are now inside the edge the section names rather
-      than above it.
-      */}
+      AC-178 reads the creator and the instant off the surface with nothing
+      pressed, off the two paragraphs, which carry no control of their own.
+       */}
       <TaskHistoryBlock taskId={taskId} />
       {/* `empty:hidden` because this row can now render nothing at all: in a
           surface it holds the Activity line alone, and that line is absent
@@ -593,86 +518,54 @@ function CardFooter({
           the same useless space the Copy link icon was removed for. */}
       <div className="flex items-center justify-between gap-2 px-3 py-2 empty:hidden">
         {/*
-        The edited line is the History control, rather than a caption beside one,
-        F5, 2026-08-22.
-
-        It used to be dead text saying "Edited just now by Imran Wafa · saved"
-        with a History button two centimetres to its right that did nothing, so
-        the same fact was stated twice and neither statement could be opened.
-        The window bar already settled the pattern for exactly this
-        (`WindowActivity`, DES-139): the line's resting job is to *tell* you
-        something and its second job is to open. Same component here, so a
-        task's history and a page's are one control rather than two that will
-        drift.
-        */}
+        The edited line is the History control, rather than a caption beside
+        one, so the same fact is not stated twice with neither statement
+        openable. The window bar settles the pattern for exactly this
+        (`WindowActivity`): the line's resting job is to *tell* you something
+        and its second job is to open. Same component here, so a task's history
+        and a page's are one control rather than two that will drift.
+         */}
         {/*
-        **Seam, S23: 9.3's history is a block on the card, not only a line that
-        opens.** `components/task-history-block.tsx` carries the whole of the
-        reasoning. The Activity line stays beside it, because it is the window
-        bar's own control and DES-139's pattern, "the line's resting job is to
-        *tell* you something and its second job is to open"; what changes is that
-        the telling no longer has to be pressed to be read.
-        */}
+        **9.3's history is a block on the card, not only a line that opens.**
+        `components/task-history-block.tsx` carries the whole of the reasoning.
+        The Activity line stays beside it, because it is the window bar's own
+        control: the line's resting job is to *tell* you something and its
+        second job is to open; the block means the telling does not have to be
+        pressed to be read.
+         */}
         <TaskActivity taskId={taskId} />
         {/*
-        Five controls have left this row now, and each for a stated reason
-        rather than for tidiness.
+        What this row deliberately does not carry.
 
-        **Undo and Redo** were the safety net that replaced Save and Cancel,
-        and they were the right instinct wired to the wrong metaphor: a card
-        footer promises text-editor semantics a to-do app does not have, and
-        both buttons were in fact permanently disabled. The net is real now and
-        app-wide, `lib/undo.ts`, one bar and Ctrl/Cmd+Z, which also covers
-        deleting and abandoning a task, which a card-local undo never could.
+        **Undo and Redo**: a card footer promises text-editor semantics a to-do
+        app does not have. The net is app-wide, `lib/undo.ts`, one bar and
+        Ctrl/Cmd+Z, which also covers deleting and abandoning a task, which a
+        card-local undo never could.
 
-        **Share** and **Email** were fictions about the model, and this file's
-        own note said so before they were removed: Dana shares *folders*, so
-        "share this task" either invites somebody to the whole folder, which
-        is not what the button appears to promise, or it is a new sharing
-        model nobody has specified. Sharing lives on the folder page, where it
-        is true.
+        **Share** and **Email**: Dana shares *folders*, so "share this task"
+        either invites somebody to the whole folder, which is not what the
+        button appears to promise, or it is a new sharing model nobody has
+        specified. Sharing lives on the folder page, where it is true.
 
-        **Copy link went at the round of 2026-08-31, on the owner's call, and
-        it is the one removal here that overrides the prototype rather than
-        following it.** `docs/design/prototype-v2/src/components/task-card.tsx`
-        drew the same `IconAction` in the same band, that prototype being
-        deleted (`a7886df`, 2026-09-01) and in git history before that
-        commit, so this is not a parity fix and must not be read back as
-        drift; his words were that on
-        the open task the share link "is so much big, it's like a whole block
-        ... you can get to that share link either way by going to the three
-        dots, so it's just useless space". In a surface the band's whole
-        trailing cluster was that one icon, `chrome === "surface"` drawing
-        neither the expand nor the close, so a full-bleed row of chrome
-        existed to carry a single act.
-
-        **The act is not lost, which is the only thing that made this safe.**
-        It is `copy-link` in `lib/object-acts.ts`'s task contract, drawn by
-        every "More actions" menu the surface and the row already carry, and
-        supplied from the object's own id (`task-surface.tsx` and
-        `task-row.tsx` both pass `onCopyLink`). Spec 9.3 puts it there and
-        only there: its footer sentence names "the completion control, the
-        star, and 'More actions' (History, Copy link, ...)", so the standalone
-        icon was a second door the section never asked for.
-
-        **And the door that went was the wrong one anyway.** It wrote
-        `${origin}/?task=<id>`, the prototype's address scheme, while
-        `lib/nav-links.ts` is the one place that decides where an object lives
-        and answers 9.1's `/app/tasks/:id`; the menu's act goes through
-        `tasks/task-acts.ts` and therefore through that module. Two doors, two
-        answers, and the one being removed gave the wrong one.
-        */}
+        **Copy link**: it is `copy-link` in `lib/object-acts.ts`'s task
+        contract, drawn by every "More actions" menu the surface and the row
+        already carry, and supplied from the object's own id (`task-surface.tsx`
+        and `task-row.tsx` both pass `onCopyLink`). 9.3 puts it there and only
+        there: its footer sentence names "the completion control, the star, and
+        'More actions' (History, Copy link, ...)". In a surface the band's
+        trailing cluster would otherwise be that one icon. The menu's act goes
+        through `tasks/task-acts.ts` and so through `lib/nav-links.ts`, the one
+        place that decides where an object lives (9.1's `/app/tasks/:id`).
+         */}
         {chrome === "inline" ? (
           <span className="flex shrink-0 items-center gap-0.5">
-            {/* Real since the task surface exists (DES-136): full screen from
-                the card, one press. Inside a surface the chrome above already
-                owns the views and the close, so the footer offers neither,
-                two closes in one card is one too many. In the lab, where no
-                surface host exists, it stays honestly disabled. */}
-            {/* The same "Open in…" the row offers, so both entry points
-                behave alike, the footer used to jump straight to full
-                screen, which made one control a choice and the other a
-                verdict (DES-138). */}
+            {/* Full screen from the card, one press. Inside a surface the
+                chrome above already owns the views and the close, so the footer
+                offers neither: two closes in one card is one too many. In the
+                lab, where no surface host exists, it stays honestly disabled. */}
+            {/* The same "Open in…" the row offers, so both entry points behave
+                alike rather than one control being a choice and the other a
+                verdict. */}
             {openIn ?? (
               <IconAction
                 icon={Maximize2}
@@ -720,37 +613,34 @@ export function newFolderChoice(onPick: () => void) {
 /*
 An empty block is the control that fills it.
 
-"No steps yet" is a status report, and a status report is a strange thing to
-put in a card whose every other line can be edited where it sits. It tells you
-what is not there and leaves you to work out what to do about it, usually by
-looking elsewhere for a button.
+"No steps yet" is a status report, and a status report is a strange thing to put
+in a card whose every other line can be edited where it sits. It tells you what
+is not there and leaves you to work out what to do about it, usually by looking
+elsewhere for a button.
 
-So the empty state is the affordance: it sits where the first item will
-appear, it keeps the target size of the row it will become, and it says the
-action rather than the absence. Phrased as the thing that happens, "Add a
-step", because a control should say what it does.
+So the empty state is the affordance: it sits where the first item will appear,
+it keeps the target size of the row it will become, and it says the action
+rather than the absence. Phrased as the thing that happens, "Add a step",
+because a control should say what it does.
 
-Two corrections from Imran's review, both worth keeping as rules.
+Two rules.
 
-**It is set at the metadata step, not the content step.** It was 14px, the
-size of a real step, while the heading naming the block above it was 12px,
-so an empty block shouted louder than the label telling you what it was, which
-is the hierarchy upside down. A placeholder is not content yet. It is 12/16
-now, so an empty block is quiet all the way through and only grows a voice
-when something real is in it. The 32px target survives the change: type size
-is a typographic decision and touch target is not, and the two should not be
-allowed to argue.
+**It is set at the metadata step, not the content step.** At 14px, the size of a
+real step, under a 12px heading naming the block, an empty block would shout
+louder than the label telling you what it was, which is the hierarchy upside
+down. A placeholder is not content yet. It is 12/16, so an empty block is quiet
+all the way through and only grows a voice when something real is in it. The
+32px target stays: type size is a typographic decision and touch target is not,
+and the two should not be allowed to argue.
 
-**It never repeats its block's icon.** The attachments placeholder used the
-same paperclip as the Attachments heading directly above it, which says the
-same thing twice and leaves the verb unillustrated. The rule instead: the
-heading's icon says what the block *is*, and the placeholder's icon says what
-you are about to *do*, which is always add, so it is always a plus.
+**It never repeats its block's icon.** A paperclip under the Attachments
+heading's paperclip says the same thing twice and leaves the verb unillustrated.
+The heading's icon says what the block *is*, and the placeholder's icon says
+what you are about to *do*, which is always add, so it is always a plus.
 */
-/* The control that fills an empty block, DES-115. It has to actually fill it:
-   until 2026-08-18 all three of these were dead buttons that only stopped the
-   click from reaching the row, so a card with nothing in it stayed that way
-   however many times somebody pressed "Add a step". */
+/* The control that fills an empty block. It has to actually fill it: a button
+   that only stopped the click from reaching the row would leave a card with
+   nothing in it that way however many times somebody pressed "Add a step". */
 export function EmptyAction({
   label,
   onSelect,
@@ -834,15 +724,13 @@ export function DestinationChoice({
 
 /* A step's name: a label until you click it, then a field.
 
-   It was briefly a permanent field, which was wrong twice over. A column of
-   input boxes reads as a form rather than as a checklist, the list stopped
-   looking like a list, and it also broke the one thing a checklist has to do,
-   because the row was keyed by its own title and so remounted on every
-   keystroke, throwing the caret out after one character.
+   A permanent field is wrong twice over. A column of input boxes reads as a
+   form rather than as a checklist, and a row keyed by its own title remounts on
+   every keystroke, throwing the caret out after one character.
 
-   This is the same rename-in-place rule the task title follows (DES-095), for
-   the same reason: the thing itself is the control, but it still looks like
-   the thing until you decide to change it. */
+   This is the same rename-in-place rule the task title follows, for the same
+   reason: the thing itself is the control, but it still looks like the thing
+   until you decide to change it. */
 function StepTitle({
   step,
   onRename,
@@ -938,7 +826,7 @@ function StepList({
   duplicateSteps: (id: string, indices: number[]) => void
   removeSteps: (id: string, indices: number[]) => void
   setStepsDone: (id: string, indices: number[], done: boolean) => void
-  /* Optional for the reason the same prop gives on `TaskCard`: B9, S23. */
+  /* Optional for the reason the same prop gives on `TaskCard`. */
   moveStepsTo?: (
     id: string,
     indices: number[],
@@ -946,8 +834,7 @@ function StepList({
       | { kind: "new-task" }
       | { kind: "folder"; name: string; color: string },
   ) => void
-  /* polish: taskcard F1. A step arrives with its title; the list never
-     writes a placeholder. */
+  /* A step arrives with its title; the list never writes a placeholder. */
   addStep: (id: string, title: string) => void
   renameStep: (id: string, index: number, title: string) => void
   onStepsToNewFolder: (taskId: string, indices: number[]) => void
@@ -1047,9 +934,8 @@ function StepList({
         return (
           <div
             /* Keyed by position, never by title. A key containing the title
-               changes on every keystroke, so React unmounted and remounted the
-               field after each character and the caret was thrown out, which
-               is exactly what typing in a step felt like until 2026-08-18. */
+               changes on every keystroke, so React would unmount and remount
+               the field after each character and throw the caret out. */
             key={i}
             ref={stepDrag.setItemRef(i)}
             /* Press and hold to start selecting, then tap to add. The gesture
@@ -1215,11 +1101,11 @@ function StepList({
             >
               <X className="size-3.5" strokeWidth={2} aria-hidden="true" />
             </button>
-            {/* polish: taskcard F6. A step's own menu, on hover beside the
-                cross, so "Make this a task" is found where a person looks for
-                it rather than only behind a press-and-hold that a mouse turns
-                into a rename. Offered only where the act has somewhere to go:
-                a step with no id yet, or a task with no folder, draws none. */}
+            {/* A step's own menu, on hover beside the cross, so "Make this a
+                task" is found where a person looks for it rather than only
+                behind a press-and-hold that a mouse turns into a rename.
+                Offered only where the act has somewhere to go: a step with no
+                id yet, or a task with no folder, draws none. */}
             {moveStepsTo !== undefined && task.folder !== undefined && step.id !== undefined ? (
               <DropdownMenu>
                 <DropdownMenuTrigger
@@ -1272,28 +1158,26 @@ function StepList({
       })}
 
       {/*
-      **Seam, S23: 10.3's cap, said once the list is at it.**
+      **10.3's cap, said once the list is at it.**
 
-      9.3's steps row ends "cap notice \"Limit 50 steps\"", and AC-161 reads
-      the string rather than a number on the page, "which a step titled 50
-      would also have satisfied". The prototype has no cap at all, 7.7 being
-      what refuses the fifty-first and its fixtures never reaching one.
+      9.3's steps row ends "cap notice \"Limit 50 steps\"", and AC-161 reads the
+      string rather than a number on the page, which a step titled 50 would also
+      satisfy. 7.7 is what refuses the fifty-first.
 
       The control goes with the notice rather than standing beside it disabled,
-      which is 9.3's own "hidden" read the way AC-094 reads it one field over
-      and is DES-144 besides: what a person needs at the cap is the reason,
-      not a button that will refuse them.
-      */}
+      which is 9.3's own "hidden" read the way AC-094 reads it one field over:
+      what a person needs at the cap is the reason, not a button that will
+      refuse them.
+       */}
       {steps.length >= STEP_CAP ? (
         <p className="px-2 py-1 text-[12px] leading-4 text-[var(--color-graphite-500)]">
           {STEP_CAP_NOTICE}
         </p>
       ) : selecting ? null : adding ? (
-        /* polish: taskcard F1. "Add a step" opens an empty, focused field and
-           nothing is written until it holds text: Enter saves and opens the
-           next, blur saves what is there, Escape leaves. It used to write a
-           step called "New step" on the press and hand focus back to the
-           button, so every Enter meant another blank row on the server. */
+        /* "Add a step" opens an empty, focused field and nothing is written
+           until it holds text: Enter saves and opens the next, blur saves what
+           is there, Escape leaves. Writing a placeholder step on the press
+           would put another blank row on the server with every Enter. */
         <div className="flex h-8 items-center gap-2 rounded-md pr-1">
           <span className="flex size-5 shrink-0 items-center justify-center">
             <span className="size-4 rounded-[3px] border border-input bg-background" />
@@ -1469,10 +1353,10 @@ function StepList({
 /*
 Attachments, and what "viewable" means.
 
-Imran asked whether people could attach images, GIFs, video and more or less
-any file, with the viewable ones openable in place. They can, and the design
-question underneath it is the one worth being precise about: **viewable is a
-decision the server makes, not a property of the file's name.**
+People can attach images, GIFs, video and more or less any file, with the
+viewable ones openable in place, and the design question underneath it is the
+one worth being precise about: **viewable is a decision the server makes, not a
+property of the file's name.**
 
 Three tiers, and every file lands in exactly one:
 
@@ -1483,13 +1367,13 @@ Three tiers, and every file lands in exactly one:
 - **Handed over**: everything else. An icon, a name, a size, a download. No
   pretence that Dana can show you a .docx.
 
-The trap, recorded because it is the one that turns an attachment feature into
-a security incident: a file's declared type is supplied by whoever uploaded it,
+The trap, recorded because it is the one that turns an attachment feature into a
+security incident: a file's declared type is supplied by whoever uploaded it,
 and an SVG or an HTML file served inline from Dana's own origin runs as Dana.
 The type has to be decided by sniffing the bytes server-side, SVG has to be
 treated as a document rather than an image unless it is sanitised, and anything
-in the third tier has to be served with Content-Disposition: attachment. This
-is why `kind` above is a small closed set rather than a MIME string.
+in the third tier has to be served with Content-Disposition: attachment. This is
+why `kind` above is a small closed set rather than a MIME string.
 */
 
 /* The three block types the card can hold. A closed set, deliberately: see
@@ -1513,9 +1397,9 @@ const ATTACHMENT_ICON: Record<
 type Attachment = NonNullable<ConceptTask["attachments"]>[number]
 
 /* Which of the four kinds a file is. Deliberately a small closed set rather
-   than a MIME type, for the reason DES-105 gives: a server has to decide this
-   by sniffing the bytes anyway, because a browser will happily run a script a
-   client labelled image/png. The client never sees a type it might trust. */
+   than a MIME type: a server has to decide this by sniffing the bytes anyway,
+   because a browser will happily run a script a client labelled image/png. The
+   client never sees a type it might trust. */
 function kindOf(type: string): Attachment["kind"] {
   if (type.startsWith("image/")) return "image"
   if (type.startsWith("video/")) return "video"
@@ -1529,15 +1413,13 @@ function readableSize(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-/* Adding a file, for real, in the browser. A chosen file becomes an object URL
-   so an image previews exactly as a served thumbnail would; a pasted address
-   is taken at its word, because a prototype cannot fetch one without a server
-   and should not pretend it did.
+/* Adding a file in the browser. A chosen file becomes an object URL so an image
+   previews exactly as a served thumbnail would; a pasted address is taken at
+   its word, because the client cannot fetch one without a server and should not
+   pretend it did.
 
-   None of this is storage. See DES-055 and DES-105: there is no upload path,
-   no quota, no permission rule and no virus story, so this may not be ported
-   as though it worked. What it is for is judging the card with real files in
-   it instead of three fixtures. */
+   None of this is storage: there is no upload path, quota, permission rule or
+   virus story behind it here. */
 function AttachmentPicker({ onAdd }: { onAdd: (files: Attachment[]) => void }) {
   const input = useRef<HTMLInputElement>(null)
   const [url, setUrl] = useState("")
@@ -1581,22 +1463,16 @@ function AttachmentPicker({ onAdd }: { onAdd: (files: Attachment[]) => void }) {
         }}
       />
       {/*
-      Two ways in, dressed as two, F5, 2026-08-22, on Imran's reading that
-      "From a link" looked disconnected from "Add a file".
+      Two ways in, dressed as one control repeated.
 
-      It was, and by five things at once: 24px tall against 32, graphite-500
-      against 400, no glyph against a plus, a graphite-100 hover against a 50,
-      and an auto width beside a `w-full` that pushed it to the far edge like
-      an afterthought. Two peers doing the same job, putting something on this
-      task, written in two hands.
-
-      So they are one control repeated. `EmptyAction` grew the two props that
-      difference actually needs (a glyph other than the plus, and the choice
-      not to be the whole row) rather than the row growing a second button
-      styled to match by hand, which is how the five differences got there.
-      The link keeps the paperclip's cousin, because here the second glyph is
-      naming *which way in*, not repeating the block's own icon.
-      */}
+      "From a link" and "Add a file" are two peers doing the same job, putting
+      something on this task, so they share height, ink, glyph slot, hover and
+      width. `EmptyAction` takes the two props that difference actually needs (a
+      glyph other than the plus, and the choice not to be the whole row) rather
+      than the row growing a second button styled to match by hand. The link
+      keeps the paperclip's cousin, because here the second glyph is naming
+      *which way in*, not repeating the block's own icon.
+       */}
       <div className="flex items-center gap-1">
         <EmptyAction
           label="Add a file"
@@ -1689,19 +1565,13 @@ function AttachmentList({ files }: { files: NonNullable<ConceptTask["attachments
         const viewable = file.kind === "image" || file.kind === "video"
         const isOpen = openName === file.name
         /*
-        A link is an anchor, not a button, Imran, 2026-08-22: pasted links
-        "don't show as openable links, instead they appear as downloadable
-        assets".
-
-        They did, and the row said so in a word: every attachment that was not
-        a previewable image ended in the label "Download", so a link you had
-        just pasted offered to download itself and then did nothing when
-        pressed, because the press only ever opened an image viewer.
+        A link is an anchor, not a button: a pasted link must show as an
+        openable link, not as a downloadable asset.
 
         Being a real `<a>` rather than a button styled like one is what makes
-        middle-click, ⌘-click, "copy link address" and the browser's own
-        status bar work, none of which a button can fake, and all of which
-        people expect from something that says it is a link.
+        middle-click, ⌘-click, "copy link address" and the browser's own status
+        bar work, none of which a button can fake, and all of which people
+        expect from something that says it is a link.
         */
         const Row = file.url ? "a" : "button"
         const rowProps = file.url
@@ -1842,34 +1712,18 @@ export function TaskCard({
   toggleStep: (id: string, index: number) => void
   moveStep: (id: string, from: number, to: number) => void
   /*
-  **Seam, S23: optional, and change control item 44's B9 is why it can be.**
+  **Optional.** A step promotes to a task; a task never demotes to a step.
+  Promotion has one obvious destination, the step's own folder, and the promoted
+  task is editable at once; demotion has none, because nothing says which task
+  should become its parent. The menu this handler draws is already one-way in
+  that sense, both of its destinations being a step becoming or joining a task.
 
-  B9 ruled the asymmetry: "A step promotes to a task; a task never demotes to
-  a step. Promotion has one obvious destination, the step's own folder, and
-  the promoted task is editable at once; demotion has none, because nothing
-  says which task should become its parent." The menu this handler draws is
-  already one-way in that sense, both of its destinations being a step
-  becoming or joining a task, and nothing anywhere offers a task a way down.
-  **So B9 costs this file no markup**, which is worth recording because the
-  ruling reads as though it should.
-
-  What it costs is this handler. It is `() => {}` in `useCardWiring`, in the
-  prototype's own file and deliberately: that file's header says the step
-  machinery "is drawn in the concept lab, which is where it is being judged.
-  Wiring them into screens would make the prototype look as though it had
-  shipped something with no endpoint behind it." Which is the false green
-  change control item 45 measured on `people-screen.tsx` and refused, and
-  Imran reviews this surface at dana.so the day it lands.
-
-  **Supplied since the loose-ends row (RFC 0005 change control item 58, C).**
-  A step into a folder is item 58's `POST /tasks/:id/steps/:stepId/promote`,
-  one transaction per step; steps into a new task are 7.6's create with the
-  titles and 7.7's delete of the originals. `useCardWiring` hands this to
+  A step into a folder is `POST /tasks/:id/steps/:stepId/promote`, one
+  transaction per step; steps into a new task are 7.6's create with the titles
+  and 7.7's delete of the originals. `useCardWiring` hands this to
   `tasks/task-acts.ts`'s `moveStepsOut` where the row has an id and a folder,
-  and leaves it undefined in the lab, where the control is then not drawn:
-  `lib/object-acts.ts`'s "an act with no handler does not appear", and
-  `TaskRowProps.onNewFolder`'s "the chip then simply does not offer it, a dead
-  menu item is the fault DES-144 removed".
+  and leaves it undefined in the lab, where the control is then not drawn: an
+  act with no handler does not appear.
   */
   moveStepsTo?: (
     id: string,
@@ -1893,40 +1747,35 @@ export function TaskCard({
   onClose: () => void
 }) {
   const timeFormat = useTimeFormat()
-  /* Seam, S23: the roster is the folder's members, see the assignee chip
-     below and `components/task-row.tsx`'s own hoist of the same hook. */
+  /* The roster is the folder's members, see the assignee chip below and
+     `components/task-row.tsx`'s own hoist of the same hook. */
   const roster = usePeopleLibrary(task.folder?.id ?? null)
   /* 9.3: reminder and repeat each "requires a due date". See the helper below
      the chip strip. */
   const undated = !task.due
   /*
-  **Seam, S23: INV-5 hides the assignee chip rather than disabling it.**
+  **INV-5 hides the assignee chip rather than disabling it.**
 
-  9.3's field table: the assignee is "hidden in single-member folders
-  (INV-5)", and AC-094 reads the v1 table's own definition of hidden, which v2
-  "does not restate and does not revoke": absent rather than visible and
-  inoperable. Its own words: "a greyed chip is the wrong state, not a softer
-  version of the right one."
+  9.3's field table: the assignee is "hidden in single-member folders (INV-5)",
+  and AC-094 reads hidden as absent rather than visible and inoperable: a greyed
+  chip is the wrong state, not a softer version of the right one.
 
-  The prototype draws the chip always, its fixtures having no membership to
-  hide it by. The set is `useMultiMemberFolderIds`, which the row layer has
-  used for Q3's unassigned chip since P8, so this is one read the chrome has
-  already made rather than a second source.
+  The set is `useMultiMemberFolderIds`, which the row layer uses for Q3's
+  unassigned chip, so this is one read the chrome has already made rather than a
+  second source.
   */
   const shared = useMultiMemberFolderIds()
   const assignable = task.folder?.id !== undefined && shared.has(task.folder.id)
   /*
-  **Seam, S23: 9.3's move warning, which the folder chip has to ask.**
+  **9.3's move warning, which the folder chip has to ask.**
 
   "Moving keeps the unassign warning: 'Moving will unassign Sara; she isn't a
-  member of Home.'" The chip below chose a folder and wrote it straight
-  through; here the choice is held until the destination's membership is
-  known. `components/task-move-guard.tsx` carries the whole of the reasoning
-  and the seam it crosses.
+  member of Home.'" The choice is held until the destination's membership is
+  known. `components/task-move-guard.tsx` carries the whole of the reasoning.
   */
   const [pendingMove, setPendingMove] = useState<PendingMove | null>(null)
   /* 9.3's "Invite by email" on the assignee row, which the menu opens and
-     `components/task-assignee-invite.tsx` performs. Seam, S23. */
+     `components/task-assignee-invite.tsx` performs. */
   const [inviting, setInviting] = useState(false)
   const counts = stepCount(task)
   const [order, setOrder] = useState<BlockKey[]>([
@@ -1966,9 +1815,8 @@ export function TaskCard({
 
   /* The card body is an ordered list of blocks rather than a fixed layout, so
      Notes can sit above Steps if that is how somebody thinks about this task.
-     Order lives in component state here and would need somewhere to live for
-     real: see DES-102. Each block keeps its own open/closed state across a
-     move because it is keyed, not positional. */
+     Order lives in component state here. Each block keeps its own open/closed
+     state across a move because it is keyed, not positional. */
   const blocks: Record<BlockKey, ReactNode> = {
     steps: (
           <Disclosure
@@ -2010,10 +1858,10 @@ export function TaskCard({
             label="Notes"
           >
             {/* A field, always, rather than a paragraph that turns into one.
-                The block is the note; there is nothing to reveal, and DES-115
-                asks an empty block to be the control that fills it. It grows
-                with its content via `field-sizing-content`, so a long note is
-                never a scrollbar inside a card. */}
+                The block is the note; there is nothing to reveal, and an empty
+                block is the control that fills it. It grows with its content
+                via `field-sizing-content`, so a long note is never a scrollbar
+                inside a card. */}
             <InlineTextarea
               value={task.notes ?? ""}
               aria-label="Notes"
@@ -2022,9 +1870,8 @@ export function TaskCard({
               onClick={(event) => event.stopPropagation()}
               onPointerDown={(event) => event.stopPropagation()}
               onChange={(event) => patch(task.id, { notes: event.target.value })}
-              /* polish: taskcard F10. Escape while writing leaves the field
-                 and nothing else; a second Escape, with nothing focused,
-                 closes the card the way it always did. */
+              /* Escape while writing leaves the field and nothing else; a
+                 second Escape, with nothing focused, closes the card. */
               onKeyDown={(event) => {
                 if (event.key === "Escape") {
                   event.preventDefault()
@@ -2051,13 +1898,9 @@ export function TaskCard({
             {task.attachments && task.attachments.length > 0 ? (
               <AttachmentList files={task.attachments} />
             ) : null}
-            {/* The picker is real and runs entirely in the browser: a chosen
-                file is read into an object URL so an image actually previews.
-                That is as far as a prototype can honestly go, there is no
-                storage, no upload path and no virus story behind it, which is
-                DES-055 and DES-105 and why this may not be ported as if it
-                worked. What it does buy is a card that can be judged with real
-                files in it rather than three fixtures. */}
+            {/* The picker runs entirely in the browser: a chosen file is read
+                into an object URL so an image actually previews. There is no
+                storage, upload path or virus story behind it here. */}
             <AttachmentPicker
               onAdd={(added) =>
                 patch(task.id, { attachments: [...(task.attachments ?? []), ...added] })
@@ -2083,7 +1926,7 @@ export function TaskCard({
           value={folderNameOf(task.folder?.name)}
           color={task.folder?.color}
           muted={!task.folder}
-          /* The real library (Imran, 2026-08-22), not the lab constant. */
+          /* The real folder library, not a constant. */
           items={folderLibrary().map((f) => ({
             key: f.name,
             label: (
@@ -2100,27 +1943,18 @@ export function TaskCard({
           })).concat(newFolderChoice(() => onNewFolder([task.id])))}
         />
         {/*
-        **Seam, S23: the roster is `lib/people-library.ts`'s, not `PEOPLE`.**
+        **The roster is `lib/people-library.ts`'s.**
 
-        The prototype's list is three names written for the row lab, and RFC
-        0004's close forbids a fixture crossing in any form. That module's own
-        header records the fault the constant caused: "the lab said Sara and
-        Hassan with initials SK and HN; the People screen, two clicks away,
-        said Sara Khan and Hassan Ali with initials SK and HA."
+        Dana's roster is the *folder's members*, because 4.4 makes assignment a
+        membership fact and 10.2 refuses an assignee who is not one, so offering
+        a connection outside the folder would draw a menu whose entries the
+        server rejects. 9.3 says the same in its field table: "the target
+        folder's members". The names are the People screen's names.
 
-        The set differs in kind and not only in contents. Dana's roster is the
-        *folder's members*, because 4.4 makes assignment a membership fact and
-        10.2 refuses an assignee who is not one, so offering a connection
-        outside the folder would draw a menu whose entries the server rejects.
-        9.3 says the same in its field table: "the target folder's members".
-
-        The two fallbacks go with it. `PEOPLE[0]` was the fixture's viewer, so
-        an unassigned task drew that person's face; there is no such person
-        here and an unassigned task draws no face. `"Imran Wafa"` was the same
-        viewer's name, and 9.3 makes the empty value "Unassigned", which is the
-        word `lib/people-library.ts` records as "a member of the set, not the
-        absence of one" (ledger L-094).
-        */}
+        An unassigned task draws no face, and 9.3 makes the empty value
+        "Unassigned", which `lib/people-library.ts` records as "a member of the
+        set, not the absence of one".
+         */}
         {!assignable ? null : (
         <PropChip
           icon={UserRound}
@@ -2139,25 +1973,21 @@ export function TaskCard({
             onSelect: () => patch(task.id, { assignee: person }),
           })).concat(
             /*
-            **Seam, S23: 9.3's assignee row ends the way the section says.**
+            **9.3's assignee row ends the way the section says.**
 
-            Its v2 row is "the target folder's members plus 'Invite by email',
-            and, new in v2, closing section 13 item 28, 'Unassigned', offered
-            last after a separator". The prototype offers neither: its label
-            is "Invite and assign…" against a handler that does nothing, and
-            there is no way back out at all, which is a closed set in its
-            plainest form and is exactly what item 28 was about.
+            The row is "the target folder's members plus 'Invite by email', and
+            'Unassigned', offered last after a separator". Without Unassigned
+            there would be no way back out at all, a closed set in its plainest
+            form.
 
-            The row's own `ChipMenu` already draws both, with DES-114's
-            reasoning at its side, "the way out of a list belongs at its end".
-            This is that list on the card, so it ends the same way, and AC-220
-            reads the order rather than only the set.
+            The row's own `ChipMenu` draws both: the way out of a list belongs
+            at its end. This is that list on the card, so it ends the same way,
+            and AC-220 reads the order rather than only the set.
 
-            **The invite is offered and not performed here**, and that is not
-            an omission of this row: 7.5's invite is a folder membership act
-            with its own surface at 9.8, and composing one out of a chip would
-            be a second invite path. It routes to the same place the row's
-            does, which is nowhere yet, so it is not drawn.
+            **The invite is offered and not performed here**: 7.5's invite is a
+            folder membership act with its own surface at 9.8, and composing one
+            out of a chip would be a second invite path. It routes to the same
+            place the row's does, which is nowhere yet, so it is not drawn.
             */
             [
               {
@@ -2258,11 +2088,10 @@ export function TaskCard({
       {order.map((key) => blocks[key])}
 
       {/* Comments, pinned after the content blocks and outside their order.
-          Steps, Notes and Attachments are what the task IS and may be
-          arranged; the conversation is what people SAY about it, it reads
+          Steps, Notes and Attachments are what the task IS and may be arranged;
+          the conversation is what people SAY about it, it reads
           bottom-up-most-recent like every thread anywhere, and a conversation
-          filed between two content blocks would read as neither. DES-129;
-          Lane 2, fixtures only. */}
+          filed between two content blocks would read as neither. */}
       <Disclosure
         icon={MessageSquare}
         label="Comments"
@@ -2282,8 +2111,8 @@ export function TaskCard({
         />
       </Disclosure>
 
-      {/* The provenance lines moved into the footer at the round of
-          2026-08-30; `CardFooter` carries the reasoning. */}
+      {/* The provenance lines are in the footer; `CardFooter` carries the
+          reasoning. */}
       <CardFooter taskId={task.id} onClose={onClose} onExpand={onExpand} openIn={openIn} chrome={chrome} />
     </div>
   )
@@ -2303,39 +2132,27 @@ export function TaskCard({
    somewhere neutral rather than be copied. */
 /* The height animation.
 
-   It used to be the 0fr-to-1fr grid trick, chosen because max-height needs a
-   guessed maximum and either clips a long note or spends the tail of its
-   duration animating nothing. The trick measures itself, which is the whole
-   appeal, and it works, right up until the row is somewhere the fraction has
-   nothing to resolve against.
+   Not the 0fr-to-1fr grid trick: it does not survive every layout context, and
+   in the shell a card with 318px of content computed a track of 0px and the row
+   stayed shut. Not max-height either, which needs a guessed maximum and either
+   clips a long note or spends the tail of its duration animating nothing. So
+   the reveal measures.
 
-   That is exactly what the port found on 2026-08-18. In the concept lab the
-   card opened; in My Day the same card, with 318px of content, computed a
-   track of 0px and the row stayed shut. The revert of the first port had
-   already written this down as one of the four things it taught, "0fr-to-1fr
-   does not survive every layout context and the card's reveal has to measure",
-   and this is the second time it has cost a session, so it is now measured
-   for real rather than inferred.
-
-   A ResizeObserver keeps the measurement true while the card is open, which
-   is what the grid version was really buying: ticking a step, adding a note or
-   opening a block changes the height underneath the animation, and a number
-   captured once would clip whatever arrived after it. */
+   A ResizeObserver keeps the measurement true while the card is open: ticking a
+   step, adding a note or opening a block changes the height underneath the
+   animation, and a number captured once would clip whatever arrived after it. */
 export function Reveal({ open, children }: { open: boolean; children: ReactNode }) {
   /* Mount on open, with an entrance rather than a height animation.
 
-     Two clipping mechanisms were tried and both failed in the shell while
-     working in the lab: 0fr-to-1fr resolved its track to zero, and a measured
-     max-height was overridden to zero by something in that layout context
-     even when set !important. The card has 318px of content and the wrapper
-     reported 0 in both. Rather than keep guessing at a clip, there is no clip:
-     the card is in the tree when it is open and absent when it is not, so
-     nothing is left able to collapse it.
+     Two clipping mechanisms fail in the shell while working in the lab:
+     0fr-to-1fr resolves its track to zero, and a measured max-height is
+     overridden to zero by something in that layout context even when set
+     !important. So there is no clip: the card is in the tree when it is open
+     and absent when it is not, so nothing is left able to collapse it.
 
-     What this costs is the collapse animation, closing is immediate, and
-     that is a real loss against DES-097's motion scale, recorded rather than
-     quietly accepted. Reopening the height animation needs the layout context
-     understood first, which is a job with a screenshot in it. */
+     What this costs is the collapse animation: closing is immediate. Reopening
+     the height animation needs the layout context understood first, which is a
+     job with a screenshot in it. */
   if (!open) return null
   return (
     <div

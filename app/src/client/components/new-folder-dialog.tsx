@@ -1,9 +1,7 @@
 /*
-The designer's `src/components/new-folder-dialog.tsx`, ported at P8R session
-R3: what 9.1's "New folder" action opens.
+What 9.1's "New folder" action opens.
 
-AC-181 (no test since the 2026-09-20 cut) names the shape rather than any string,
-because no numbered section
+AC-181 names the shape rather than any string, because no numbered section
 names a control here: the action opens a dialog, the dialog holds exactly one
 text box, and committing it creates the folder. So the dialog's single input
 is the whole of "taking a name", and a second text box added later would

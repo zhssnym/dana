@@ -164,28 +164,15 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
       { name: 'folder_members_access_check', columns: ['access'] },
       { name: 'folder_members_color_format_check', columns: ['color'] },
       /*
-      **One membership column and one CHECK, since issue #247 closed the pair.**
-
-      `label` always held the viewer's own Shelf membership (4.4, held in step
-      with `shelves.name` by 4.18) and never a classification Label, and #208's
-      Label model needed the word back. That move shipped as expand and
-      contract rather than as a rename, under hard stop 1: Render waits for the
-      new instance to pass health checks before draining the old one, so a
-      rename would have left the old instance selecting a column that no longer
-      exists — `GET /folders`, the sidebar and every folder page, for the length
-      of a deploy. Migration 0022 added `shelf_name` beside `label` and
-      backfilled it.
-
-      **The contract was two releases, and this row moved with the second of
-      them rather than with the code.** #247's first release stopped every
-      write to `label` and left the column standing, because 11.5 has the drop
-      wait until the code that stopped writing it is live and drained — the
-      same overlap window, in the other direction. Its second is **migration
-      0026, which dropped `label` and `folder_members_label_length_check`**,
-      and this row goes in that commit and no earlier: a catalog is a
-      transcription of the schema that exists, and one carrying only the
-      surviving CHECK while the column was still there would have been a
-      transcription of a schema nothing had yet. AC-479 asserts that one
+      **One membership column and one CHECK (issue #247).** `shelf_name` holds
+      the viewer's own Shelf membership (4.4, held in step with `shelves.name`
+      by 4.18); it was `label` until #208's Label model needed the word back.
+      The move was expand and contract across two releases rather than a
+      rename (11.5): Render waits for the new instance to pass health checks
+      before draining the old one, so a rename leaves the old instance
+      selecting a column that no longer exists for the length of a deploy.
+      This catalog transcribes the schema that exists, so a row moves in the
+      same commit as the migration that changes it. AC-479 asserts that one
       column is left and that nothing answers to the old name.
       */
       { name: 'folder_members_shelf_name_length_check', columns: ['shelf_name'] },
@@ -272,19 +259,8 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
       },
     ],
   },
-  /* Migration 0027, issue #210: the Folder facet framework, spec 4.30, on
-     Hassan's technical ruling of 2026-09-21,
-     https://github.com/zhssnym/dana/issues/210#issuecomment-5756722756.
-
-     **This entry and `SECTION_4_TABLES` in `ac-001` move ahead of the fold
-     of 4.30 into the frozen section, and that is not a breach of hard stop
-     2.** Both are *transcriptions* of section 4 and they are exact in both
-     directions, so a tree carrying the migration without them cannot be
-     green at all. The ruling exists and is cited above; the section-4 file
-     lands in the same pull request, and if the fold comes back in a
-     different shape the transcription follows it rather than the other way
-     round. `docs/workflow/hard-stops.md`'s transcription paragraph is the
-     rule and #224 is the worked example.
+  /* Migration 0027, issue #210: the Folder facet framework, spec 4.30. This
+     entry and the migration must agree exactly, so they land together.
 
      Four of the seven CHECKs pair a nullable column with `kind`. AC-001
      asserts them by name and by the columns they mention and can see nothing
@@ -294,8 +270,8 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
 
      The two `users` keys are RESTRICT on 4.28's precedent: 8.10 scrubs an
      account rather than deleting its row, so a CASCADE would fire never
-     while looking like the cleanup. `h1_block_id` is CASCADE, which is the
-     ruling's one reading past #210's words and is stated in the migration.
+     while looking like the cleanup. `h1_block_id` is CASCADE, a reading past
+     #210's words that the migration states.
 
      Two of the three indexes are UNIQUE and partial, and the difference
      between their predicates is the whole design: the native one is partial
@@ -925,9 +901,9 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
       // `files_kind_check` gained `audio` and `video`, and the folder-less one
       // gained `file`, `audio` and `video`, leaving `voice` as the only kind
       // that still requires a folder. **Neither name nor either column list
-      // moved, so neither row here changes** — which is the class of change
-      // docs/workflow/backend.md warns this catalog cannot see. AC-490
-      // to AC-507 are the behavioural cases that can.
+      // moved, so neither row here changes** — this catalog sees names and
+      // columns, never what an expression admits. AC-490 to AC-507 are the
+      // behavioural cases that can.
       { name: 'files_folderless_kind_check', columns: ['folder_id', 'kind'] },
       { name: 'files_kind_check', columns: ['kind'] },
       { name: 'files_name_length_check', columns: ['name'] },
@@ -968,8 +944,9 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
       { name: 'page_blocks_kind_check', columns: ['kind'] },
       /* #219's two new CHECKs. A checklist item is the only kind that carries a
          tick, and it always carries one; every other kind carries none, which
-         is one equality rather than two nullable comparisons (the nullable
-         CHECK trap in docs/workflow/backend.md). A list parent belongs
+         is one equality rather than two nullable comparisons (a CHECK passes
+         on UNKNOWN, so a nullable comparison can admit what it meant to
+         refuse). A list parent belongs
          only to a list item on a folder page, and never to itself. */
       { name: 'page_blocks_checked_kind_check', columns: ['checked', 'kind'] },
       {

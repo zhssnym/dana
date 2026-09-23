@@ -2,12 +2,8 @@
 The /me endpoints as code, 7.1's three: the request bodies the server
 validates with, and the response shapes both sides read.
 
-7.2's two were here as well until issue #113 retired them on 2026-09-04, and
-their schemas followed on the merge that brought #150's client half in. The
-three booleans they carried are still a shape this file declares, because
-frozen 7.1's GET /me answers them under its `settings` key; what is gone is
-the request body of an endpoint that no longer exists, and the two response
-aliases that named this object after it.
+The three 7.2 booleans are declared here because 7.1's GET /me answers them
+under its `settings` key.
 
 The server validates requests with these authoritatively; the client may
 import them for convenience, which per 7.11 carries no authority. Convention
@@ -39,35 +35,18 @@ export type DeleteMeBody = z.infer<typeof deleteMeBody>
 The 7.2 settings surface. One primitive serves all three fields on both
 sides, because the three carry one rule: a boolean, and nothing else.
 
-z.boolean refuses every non-boolean without coercing, which was the whole of
-AC-121 before #113 rewrote that criterion against 7.23's bundle. Null is
-among the refusals rather than a clear: 4.10's three columns
-are NOT NULL booleans with defaults, so there is no state to clear back to,
-unlike the shelf and color of 7.4's my-membership, which the frozen text
-itself marks nullable. Section 12 records that reading at the P2S opening;
-this is where it is enforced.
+z.boolean refuses every non-boolean without coercing. Null is among the
+refusals rather than a clear: 4.10's three columns are NOT NULL booleans with
+defaults, so there is no state to clear back to, unlike the shelf and color of
+7.4's my-membership, which 7.4 itself marks nullable.
 */
 export const settingsToggle = z.boolean({ error: 'must be a boolean' })
 
 /*
-The settings object. Since issue #113 exactly one live endpoint answers it,
-the settings key of the GET /me body (7.1), the two that also did having been
-retired. One definition for one object, since copies of a shape are things
-that can disagree, and this role exists to prevent per-endpoint variants of
-the same object.
-
-**Its two aliases went on 2026-09-04, one merge after the endpoints they were
-named for**, exactly as the note that stood here promised. `getMeSettingsResponse`
-and `patchMeSettingsResponse` were this object under 7.2's names, and
-`patchMeSettingsBody` was the request body of `PATCH /me/settings`; all three
-outlived their routes by one merge because the client on `main` still imported
-them, and issue #150 is the branch that stopped. That branch is on this
-integration branch now, nothing imports any of the four, and they are deleted
-here. What is not dead is this object: 7.1 is frozen and untouched by #113, so
-the `settings` key of `GET /me` still carries the three booleans, AC-116 still
-describes that shape — describes rather than holds it, its test file having gone in
-the 2026-09-20 cut — and `domain/bundle.ts` still derives the three columns into
-`pinned_views` per 4.19.
+The settings object, answered under the settings key of the GET /me body
+(7.1). One definition for one object, since copies of a shape are things that
+can disagree. AC-116 describes the shape, and `domain/bundle.ts` derives the
+three columns into `pinned_views` per 4.19.
 */
 export const settings = z.object({
   show_important: settingsToggle,
@@ -83,8 +62,7 @@ pending_invite_count }, its settings key the 7.2 object above rather than a
 copy of it: 7.1 and 7.2 read one row, so they answer one shape.
 
 It lives here rather than beside the handler because a response shape is the
-half of the contract the client reads, and 7.11 plus this role's handoff make
-app/src/shared the one artifact the client, the server, and the tests all
+half of the contract the client reads, and app/src/shared is the one artifact the client, the server, and the tests all
 import. A shape declared next to its handler is a second definition of the
 same promise, and two definitions are two things that can disagree.
 
@@ -95,9 +73,8 @@ account always has one, since /me answers only for rows with deleted_at null
 and provisioning always writes an address.
 
 connections.ts types the same person's email non-nullable from that same fact,
-and the P5 shape review settled the pair as a deliberate asymmetry rather than
-flattening it. The short of it: frozen 7.3 carries an exclusion clause for its
-list and frozen 7.1 carries none for this row, so that schema transcribes a
+a deliberate asymmetry. The short of it: 7.3 carries an exclusion clause for
+its list and 7.1 carries none for this row, so that schema transcribes a
 promise while this one reports a column. The grounds are recorded once, in
 connections.ts, rather than twice here.
 */

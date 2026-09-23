@@ -1,40 +1,36 @@
 /*
-The page's blocks (4.17), drawn and edited: sections, paragraphs, images,
-and folder rows, with the insert affordance between blocks (9.6, 9.10).
-Ported at S12 from the designer's `folder-page-v2.tsx` and `shelf-page.tsx`
-block grammar; one component for both pages so a shelf's blocks behave
-exactly like a folder's rather than nearly like them.
+The page's blocks (4.17), drawn and edited: sections, paragraphs, images, and
+folder rows, with the insert affordance between blocks (9.6, 9.10). One
+component for both pages so a shelf's blocks behave exactly like a folder's
+rather than nearly like them.
 
-**Every edit is one PUT of the whole list** (7.16: the page is read whole
-and written whole). The body is built from the last read: every kept block
-carries the id and `updated_at` it was read with, which is 4.17's evidence,
-edits change their block in place, inserts arrive without an id, and a block
-left out is a deletion. Positions are the array renumbered. The 409 a stale
-write earns is the caller's to surface; this component only builds honest
-bodies.
+**Every edit is one PUT of the whole list** (7.16: the page is read whole and
+written whole). The body is built from the last read: every kept block carries
+the id and `updated_at` it was read with, which is 4.17's evidence, edits change
+their block in place, inserts arrive without an id, and a block left out is a
+deletion. Positions are the array renumbered. The 409 a stale write earns is the
+caller's to surface; this component only builds honest bodies.
 
-**Position decides belonging** (DES-209): the blocks after a section fold
-with it until the next section, so collapse is computed from order rather
-than stored, and moving a section moves its span's meaning with it. The
-collapse set itself is view state and stays here.
+**Position decides belonging**: the blocks after a section fold with it until
+the next section, so collapse is computed from order rather than stored, and
+moving a section moves its span's meaning with it. The collapse set itself is
+view state and stays here.
 
 **And the first of those blocks, if it is prose, is the heading's opening
-paragraph** and draws between the heading and the section's first row
-(DES-145; the rule and the one corner it cannot make honest are written out
-at `openingOf` below). It is the same rule read one step further rather than
-a second one, which is what keeps 4.17 as it is: the prototype gives a
-section an `intro` field and the frozen schema has no column for it.
+paragraph** and draws between the heading and the section's first row (the rule
+and the one corner it cannot make honest are written out at `openingOf` below).
+It is the same rule read one step further rather than a second one, which keeps
+4.17 as it is: the schema has no intro column for a section.
 
-**What the two pages add is theirs.** A folder page hangs tasks and a
-capture under each section (`sectionExtras`); a shelf renders its folder
-rows (`folderRow`) and drops stored rows whose membership is gone. Neither
-concern is this file's: it renders what it is handed at the position the
-block holds.
+**What the two pages add is theirs.** A folder page hangs tasks and a capture
+under each section (`sectionExtras`); a shelf renders its folder rows
+(`folderRow`) and drops stored rows whose membership is gone. Neither concern is
+this file's: it renders what it is handed at the position the block holds.
 
-**Page blocks use Dana's one sortable-list engine.** The handle moves the
-stored page blocks and the next whole-page PUT persists their positions. Task
-rows remain the existing `TaskRows` composition and keep their own spacing,
-gestures, and section assignment.
+**Page blocks use Dana's one sortable-list engine.** The handle moves the stored
+page blocks and the next whole-page PUT persists their positions. Task rows
+remain the existing `TaskRows` composition and keep their own spacing, gestures,
+and section assignment.
 */
 import { useEffect, useRef, useState } from 'react'
 import type { KeyboardEvent, ReactNode } from 'react'
@@ -90,8 +86,8 @@ function carry(block: PageBlock): PageBlockWrite {
     text: block.text,
     file_id: block.file_id,
     ref_folder_id: block.ref_folder_id,
-    /* 4.17's width, S22a's column and item 44's B7. It was dropped here until
-       S26, which is a write that quietly unsets whatever somebody dragged. */
+    /* 4.17's image width. Dropping it here would be a write that quietly unsets
+       whatever somebody dragged. */
     width_pct: block.width_pct,
     updated_at: block.updated_at,
   }
@@ -103,8 +99,8 @@ export function carryAll(blocks: readonly PageBlock[]): PageBlockWrite[] {
 }
 
 /**
- * The quiet line between blocks (9.6: "an insert affordance between
- * blocks"). Invisible until hovered or focused, his design's manner.
+ * The quiet line between blocks (9.6: "an insert affordance between blocks").
+ * Invisible until hovered or focused.
  */
 export function InsertLine({
   onSection,
@@ -127,19 +123,18 @@ export function InsertLine({
   readonly autoFocus?: boolean
   readonly onAutoFocus?: (() => void) | undefined
   /*
-  polish: folderpage F2. The chips were opacity zero until hovered, which
-  is a tool nobody finds and, on a touchscreen, a tool nobody can reach. The
-  line at the page's foot rests visible at reduced opacity, and every line
-  is fully drawn where there is no hover to reveal it.
+  The chips are not opacity zero until hovered, which would be a tool nobody
+  finds and, on a touchscreen, a tool nobody can reach. The line at the page's
+  foot rests visible at reduced opacity, and every line is fully drawn where
+  there is no hover to reveal it.
   */
   readonly resting?: boolean
   /*
-  polish round 2, folderpage: the prototype's `dense`, DES-148. "An affordance
-  may not charge rent for space it is not using": the full strip is the
-  separation between two blocks, and it is wrong under a heading, where 24px
-  of permanent gap made the section and its first row read as two things, and
-  wrong between two sentences that continue one another. 16px with 4 borrowed
-  back by a negative margin, which is the prototype's 12px of net gap.
+  `dense`: an affordance may not charge rent for space it is not using. The full
+  strip is the separation between two blocks, and it is wrong under a heading,
+  where 24px of permanent gap makes the section and its first row read as two
+  things, and wrong between two sentences that continue one another. 16px with 4
+  borrowed back by a negative margin, which is 12px of net gap.
   */
   readonly dense?: boolean
 }): React.JSX.Element {
@@ -309,41 +304,37 @@ export function BlocksEditor({
   readonly onCreateTask?: ((title: string, sectionBlockId: string | null) => Promise<boolean>) | undefined
   /** A folder page's tasks-and-capture under each section, by block id. */
   readonly sectionExtras?: (sectionBlockId: string) => ReactNode
-  /** A shelf page's folder row; null drops the block from the render (a
-      stored row whose membership is gone, DES-219). */
+  /**
+   * A shelf page's folder row; null drops the block from the render (a stored
+   * row whose membership is gone).
+   */
   readonly folderRow?: (block: PageBlock) => ReactNode
   /*
-  Which folder an image on this page is uploaded into (7.15), absent on a
-  shelf page, which has no folder to upload into and therefore draws no image
-  control.
+  Which folder an image on this page is uploaded into (7.15), absent on a shelf
+  page, which has no folder to upload into and therefore draws no image control.
 
-  **It replaced `onInsertImage` at S26 and the change is the block's, not this
-  prop's.** That callback asked the page for a file *before* the block existed,
-  because the block this file drew could only render one that already had a
-  picture: the page opened a hidden file input, uploaded, and inserted a filled
-  block. The lifted `components/page-image.tsx` is the other way round, and it
-  is the way ledger L-197 asks for, "three ways in, because people reach for
-  different ones: choose, drop, or paste". An empty block is inserted and the
-  block itself is the dropzone, so all three gestures land in one place instead
-  of one of them landing on the page and the other two nowhere.
+  `components/page-image.tsx` is inserted empty and the block itself is the
+  dropzone: three ways in, because people reach for different ones — choose,
+  drop, or paste — and all three gestures land in one place.
   */
   readonly folderId?: string | undefined
   /** How a rendered block becomes a write. The default carries id and
       evidence; a shelf overrides it for its render-only folder rows, which
       must arrive as inserts rather than as edits of ids that never were. */
   readonly writeOf?: (block: PageBlock) => PageBlockWrite
-  /** polish: folderpage F5. Asked before a section goes; the page answers
-      with a question and calls `remove` if the person says so. Absent, the
-      section is removed at once. */
+  /**
+   * Asked before a section goes; the page answers with a question and calls
+   * `remove` if the person says so. Absent, the section is removed at once.
+   */
   readonly onDeleteSection?: (block: PageBlock, remove: () => void) => void
 }): React.JSX.Element {
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
   /** The one block being written, if any; everything else reads as prose. */
   const [editing, setEditing] = useState<string | null>(null)
-  /* polish: folderpage F4. A section just made opens as an empty field with
-     "New section" as its placeholder, rather than as a value typing appends
-     to. The stored text is still "New section" (4.17 wants a name), so this
-     remembers which block is the fresh one until it is named or left. */
+  /* A section just made opens as an empty field with "New section" as its
+     placeholder, rather than as a value typing appends to. The stored text is
+     still "New section" (4.17 wants a name), so this remembers which block is
+     the fresh one until it is named or left. */
   const [freshId, setFreshId] = useState<string | null>(null)
   const [focusLineAt, setFocusLineAt] = useState<number | null>(null)
   const [pendingLine, setPendingLine] = useState<{ index: number; count: number } | null>(null)
@@ -468,7 +459,7 @@ export function BlocksEditor({
             ? undefined
             : () => {
                 /* An empty block, which is then its own way in: choose, drop or
-                   paste (L-197). See the `folderId` prop's own note. */
+                   paste. See the `folderId` prop's own note. */
                 insertAt(index, { kind: 'image', position: index })
               }
         }
@@ -477,24 +468,21 @@ export function BlocksEditor({
   }
 
   /*
-  A heading's opening paragraph (DES-145).
+  A heading's opening paragraph.
 
-  Imran, 2026-08-18: the insertion lines lived between page blocks, so there
-  was nowhere to write between a section's heading and the first task under
-  it, which is the one place a section most wants a sentence. The prototype
-  answers with a field of its own on the section, `intro`; 4.17 is frozen and
-  carries no such column, so the same behaviour is read off the order the
-  blocks already hold, which is the rule this file runs on everywhere else:
+  A section most wants a sentence between its heading and the first task under
+  it, and 4.17 carries no intro column, so the behaviour is read off the order
+  the blocks already hold, which is the rule this file runs on everywhere else:
   **the paragraph immediately after a heading is that heading's opening
-  paragraph, and it draws between the heading and the first row.** Every
-  later block in the span keeps drawing after the section's rows, as before,
-  so prose at the end of a section is not lost.
+  paragraph, and it draws between the heading and the first row.** Every later
+  block in the span keeps drawing after the section's rows, so prose at the end
+  of a section is not lost.
 
-  The one corner this cannot make honest is recorded rather than hidden: a
-  section with nothing in its span has a single free position, so a paragraph
-  made from the line at its foot lands under the heading rather than under
-  the control that made it. It is a 40px move over an empty capture row, and
-  the alternative is a menu that changes shape from section to section.
+  The one corner this cannot make honest: a section with nothing in its span has
+  a single free position, so a paragraph made from the line at its foot lands
+  under the heading rather than under the control that made it. It is a 40px
+  move over an empty capture row, and the alternative is a menu that changes
+  shape from section to section.
   */
   const openingOf = (index: number): PageBlock | undefined => {
     const next = blocks[index + 1]
@@ -613,7 +601,7 @@ export function BlocksEditor({
       {inserters(0)}
       {blocks.map((block, index) => {
         /* Position decides belonging: a block folds with the nearest section
-           above it (DES-209). */
+           above it. */
         const owner = blocks
           .slice(0, index)
           .reverse()
@@ -759,28 +747,14 @@ export function BlocksEditor({
               </div>
             ) : block.kind === 'image' ? (
               /*
-              **S26: the prototype's own block** (ledger L-193 to L-197, and
-              item 44's B7 and B11). What this replaces drew a picture, a
-              caption field and a remove control, and had no width handle, no
-              drop, no paste, no ratio reservation and no way to replace the
-              picture; the handle's column landed at S22a with nothing to
-              write it.
+              **The image block**: width handle, drop, paste, ratio reservation
+              and replace.
 
-              **The ratio was the one part that could not be whole, and issue
-              #108 made it whole.** This line read `ratio: 16 / 9` and the
-              comment above it said the fallback was for "a reader who did not
-              choose the picture", which was section 13 item 47 and was also
-              not true of this surface: the literal was every reader's,
-              including the author's, because the ratio `PageImage` measures
-              off the chosen file goes back through `onChange` into no field a
-              block carries and is gone by the next render. So the reservation
-              this block was written to make has never been made here.
-
-              It is made now, from 4.16's `file_width` and `file_height` off
-              the block read (7.16, issue #27). Null stays 16 by 9 for ever:
-              no backfill has been run and every picture stored before
-              migration 0009 reports null, so the fallback is those pages'
-              real behaviour rather than a placeholder for a better one.
+              **The ratio comes from 4.16's `file_width` and `file_height`** off
+              the block read (7.16, issue #27, #108), so the space is reserved
+              before the picture loads. Null stays 16 by 9: pictures stored
+              before those columns existed report null, and no backfill has been
+              run.
               */
               <div className="pt-2">
                 <PageImage
@@ -816,17 +790,17 @@ export function BlocksEditor({
                 />
               </div>
             ) : (
-              /* Committing an empty paragraph removes it, his rule. */
+              /* Committing an empty paragraph removes it. */
               paragraphNode(block)
             )}
             {block.kind === 'section' && !collapsed.has(block.id) ? (
               <>
                 {/* The one gap the page-level lines cannot reach: between a
-                    heading and its first row (DES-145). Paragraph alone, and
-                    dense, so the affordance costs the section 12px rather
-                    than pushing its first row 24px from its own title
-                    (DES-148). Once written, the paragraph itself stands
-                    there and is what a second thought clicks into. */}
+                    heading and its first row. Paragraph alone, and dense, so
+                    the affordance costs the section 12px rather than pushing
+                    its first row 24px from its own title. Once written, the
+                    paragraph itself stands there and is what a second thought
+                    clicks into. */}
                 {opening === undefined
                   ? inserters(index + 1, { dense: true })
                   : paragraphNode(opening)}
@@ -835,9 +809,9 @@ export function BlocksEditor({
             ) : null}
             {inserters(after, {
               /* Two sentences that continue one another are not two blocks:
-                 24px between them is a section break drawn by accident
-                 (Imran, 2026-08-23). Never after a heading, where this line
-                 follows the section's rows rather than its prose. */
+                 24px between them is a section break drawn by accident. Never
+                 after a heading, where this line follows the section's rows
+                 rather than its prose. */
               dense:
                 block.kind === 'paragraph' &&
                 blocks[after]?.kind === 'paragraph',

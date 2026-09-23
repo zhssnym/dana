@@ -1,34 +1,20 @@
 /*
 The task row: the single line that stands for a task in a list, and the card it
-opens.
+opens. The previous row survives in `task-row-baseline.tsx` as the concept lab's
+control.
 
-This file replaced the v1 row on 2026-08-18. That row is not gone, it is
-frozen in `task-row-baseline.tsx` as the concept lab's C0 control, because a
-control you have improved is not a control.
+What the row is:
 
-What the row is, and the entries that decided it:
-
-- **Two densities, one component.** DES-113. Two lines is the default; the
-  preference lives in `lib/row-density.ts`. The rule that keeps this
-  affordable is written there and matters more than anything in this file:
-  *the two densities may differ in height and in where the details sit, and in
-  nothing else.*
-- **It expands in place.** DES-093. The chevron opens `TaskCard` inside the
-  row rather than sending anybody to a sheet, which is why the prototype no
-  longer has a task form at all.
-- **A bare task costs one line, not two.** DES-111.
-- **The details are the controls that change them.** DES-096 and DES-123: the
-  due and repeat chips open the same pickers the card opens, because the
-  pickers are constant to the Dana brand and exist once.
-- **Renaming happens in the row.** DES-095.
-
-**What is deliberately not here.** Dragging to reorder, the 1.5-second hold
-that makes a folder, press-and-hold selection and the bulk bar are Lane 2,
-they need a persisted order and endpoints nobody has written, so they are
-drawn in the concept lab, where they are the thing under review, and are not
-wired into the screens. DES-103, DES-112 and DES-119 carry the reasoning and
-the list. The machinery they use is exported from here so the lab can compose
-it; what the lab passes and the screens do not is the difference.
+- **Two densities, one component.** Two lines is the default; the preference
+  lives in `lib/row-density.ts`. The rule that keeps this affordable is written
+  there and matters more than anything in this file: *the two densities may
+  differ in height and in where the details sit, and in nothing else.*
+- **It expands in place.** The chevron opens `TaskCard` inside the row rather
+  than sending anybody to a sheet.
+- **A bare task costs one line, not two.**
+- **The details are the controls that change them.** The due and repeat chips
+  open the same pickers the card opens, so the pickers exist once.
+- **Renaming happens in the row.**
 */
 
 import { InlineInput } from "./ui/inline-field.js"
@@ -197,10 +183,10 @@ export function useTaskList(initial: ConceptTask[]) {
   /*
   One verb, and the destination decides the result.
 
-  See DES-106. A step moved into a folder becomes a task, because a folder
-  holds tasks. The same steps moved into a task stay steps, because that is
-  what a task holds. Nothing here is a separate "promote" command; level is a
-  consequence of where a thing ends up.
+  A step moved into a folder becomes a task, because a folder holds tasks. The
+  same steps moved into a task stay steps, because that is what a task holds.
+  Nothing here is a separate "promote" command; level is a consequence of where
+  a thing ends up.
   */
   function moveStepsTo(
     id: string,
@@ -353,52 +339,38 @@ export const T_BASE = "duration-[var(--duration-base)] ease-[var(--ease-enter)]"
 /*
 Dragging a row, and the 1.5 second dwell that turns a reorder into a folder.
 
-Imran's idea, 2026-08-17. Both halves need a backend and neither is approved;
-see DES-103. They are drawn because the only way to judge a dwell is to feel
-one, and 1.5s is either exactly right or obviously wrong within two attempts.
-
-The interaction has two meanings and the dwell is what separates them. Move,
-and you are reordering: the row follows the pointer and the rows it passes
-slide out of its way, so where it will land is shown rather than described.
-Stop, and after 1.5s over one row the release changes meaning, the two tasks
-become a folder. A hidden mode is a bad idea unless the mode announces itself,
-so the target row fills a bar over exactly the dwell duration and then says
-what releasing will do. The bar is not decoration; it is the only reason the
-delay is not a mystery.
+The interaction has two meanings and the dwell is what separates them. Move, and
+you are reordering: the row follows the pointer and the rows it passes slide out
+of its way, so where it will land is shown rather than described. Stop, and
+after 1.5s over one row the release changes meaning, the two tasks become a
+folder. A hidden mode is a bad idea unless the mode announces itself, so the
+target row fills a bar over exactly the dwell duration and then says what
+releasing will do. The bar is the only reason the delay is not a mystery.
 
 Arming also relaxes the list back to its resting order, because rows still
 holding a space open for a reorder you are no longer proposing would be lying
 about what happens next.
 
-Rebuilt 2026-08-18. The mechanics moved to `lib/use-sortable-list.ts` and off
-HTML5 drag-and-drop, whose faults were the reason this never felt finished: an
-unstyleable drag image, a `dragleave` that fires on crossing onto a child so
-the target flickers, no auto-scroll, and nothing at all on touch. That module's
-header carries the full reasoning. The same engine now drives the task rows,
-a card's steps and a card's blocks, so the gesture is learned once.
+The mechanics live in `lib/use-sortable-list.ts` rather than HTML5
+drag-and-drop, whose drag image cannot be styled, whose `dragleave` fires on
+crossing onto a child, and which has no auto-scroll and no touch. The same
+engine drives the task rows, a card's steps and a card's blocks, so the gesture
+is learned once.
 
 Nothing is destroyed on drop. Releasing opens a panel that names the folder and
-can be cancelled, because "I dragged one task slightly onto another" and "I
-want a new folder" should not be the same gesture with no way back.
+can be cancelled, because "I dragged one task slightly onto another" and "I want
+a new folder" should not be the same gesture with no way back.
 */
 
 export const DWELL_MS = 1500
 
-/* What a folder-in-progress looks like, rebuilt 2026-08-18 after Imran said
-   the gesture was not easy to understand.
+/* What a folder-in-progress looks like.
 
-   It used to be a three-pixel hairline along the bottom edge of the target row
-   and a pill of words. Two things were wrong with that. The bar was the only
-   thing counting down and it was the least visible element on screen, sitting
-   where a border lives. And nothing anywhere in the gesture was a folder, the
-   one idea the whole interaction is about was carried entirely by the sentence
-   "make a folder", which somebody has to stop and read.
-
-   So the countdown and the folder are now the same object: a ring that closes
-   over exactly the dwell duration around the folder mark it is closing on. You
-   can tell what is about to happen without reading anything, and how long is
-   left without looking anywhere else. When it completes the badge fills, which
-   is a change of state rather than a change of volume. */
+   The countdown and the folder are the same object: a ring that closes over
+   exactly the dwell duration around the folder mark it is closing on. You can
+   tell what is about to happen without reading anything, and how long is left
+   without looking anywhere else. When it completes the badge fills, which is a
+   change of state rather than a change of volume. */
 export function MergeBadge({ armed }: { armed: boolean }) {
   const [grown, setGrown] = useState(false)
 
@@ -485,17 +457,11 @@ export type PendingAction =
 /* The panel both gestures land in. Deliberately not a dialog: the point of
    these two ideas is that you never leave the list.
 
-   Rebuilt 2026-08-18, with the dwell badge, after Imran said the folder
-   treatment was hard to understand and hard to operate. It was a paragraph of
-   prose, an empty field and two buttons, so what was about to happen had to
-   be read, the thing being made had no mark of its own anywhere, and the
-   primary action sat disabled until somebody typed, with nothing saying why.
-
-   Now: the folder is drawn, what goes into it is shown as the things
-   themselves rather than described in a sentence, and there is always a name
-   in the field. The suggestion is a real name, the two titles have a shared
-   word often enough to be worth trying, and it is selected on open, so Enter
-   accepts and typing replaces. Nothing starts disabled. */
+   The folder is drawn, what goes into it is shown as the things themselves
+   rather than described in a sentence, and there is always a name in the field.
+   The suggestion is a real name, the two titles have a shared word often enough
+   to be worth trying, and it is selected on open, so Enter accepts and typing
+   replaces. Nothing starts disabled. */
 export function suggestFolderName(pending: PendingAction) {
   if (pending.kind === "promote") return pending.title
   if (pending.kind !== "merge") return "New folder"
@@ -659,16 +625,16 @@ export function useRowSelection({
   onDuplicate,
   onDelete,
 }: {
-  /* Seam, S23a: the choice carries 7.4's id, which is what a PATCH /tasks/:id
-     body names a folder by; `lib/folder-library.ts` already rides it on every
-     entry the menu below draws, so nothing here changes but the type. */
+  /* The choice carries 7.4's id, which is what a PATCH /tasks/:id body names a
+     folder by; `lib/folder-library.ts` rides it on every entry the menu below
+     draws. */
   onMove: (ids: string[], folder: { id: string; name: string; color: string }) => void
   onNewFolder: (ids: string[]) => void
   onBulk: (ids: string[], fields: Partial<ConceptTask>) => void
-  /* Optional, and the bar draws no Duplicate when it is absent: a control
-     with no act behind it is the one thing the bar must not offer,
+  /* Optional, and the bar draws no Duplicate when it is absent: a control with
+     no act behind it is the one thing the bar must not offer,
      `object-acts.ts`'s own rule for a menu. Every list in the app supplies it
-     since RFC 0005 change control item 58 (A), through `tasks/task-acts.ts`. */
+     through `tasks/task-acts.ts`. */
   onDuplicate?: (ids: string[]) => void
   onDelete: (ids: string[]) => void
 }) {
@@ -792,7 +758,7 @@ export function useRowSelection({
         />
         <IconAction
           icon={SunMedium}
-          /* polish: taskrow F11. The page is called Today everywhere else. */
+          /* The page is called Today everywhere else. */
           label="Add to Today"
           onClick={() => {
             onBulk(selected, { pulled: true })
@@ -801,7 +767,7 @@ export function useRowSelection({
         />
 
         <DropdownMenu>
-          {/* polish: taskrow F11. Named on hover like its five neighbours. */}
+          {/* Named on hover like its five neighbours. */}
           <Tooltip>
             <TooltipTrigger
               render={
@@ -862,7 +828,7 @@ export function useRowSelection({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* Seam, S23a: see `onDuplicate` above. */}
+        {/* See `onDuplicate` above. */}
         {onDuplicate ? (
           <IconAction
             icon={Copy}
@@ -914,15 +880,10 @@ export function Check({
       role="checkbox"
       aria-checked={done}
       /*
-      **Seam, S23: 9.1's names table, which gives this control exactly two.**
-
-      "A task's completion control: 'Complete task' when open, 'Mark as not
-      done' when complete." The prototype writes "Complete {title}" and
-      "Reopen {title}", which names the task rather than the act and which
-      AC-179 refuses in as many words: the table "gives it exactly two names,
-      one per state, so exactly one control answers to them". Change control
-      item 44's A2 ruled the table stands. The strings are
-      `ui/copy.ts`'s, transcribed once for the whole client.
+      9.1's names table gives this control exactly two names: "Complete task"
+      when open, "Mark as not done" when complete. Naming the task instead
+      ("Complete {title}") would name the task rather than the act. The strings
+      are `ui/copy.ts`'s, transcribed once for the whole client.
       */
       aria-label={done ? MARK_AS_NOT_DONE : COMPLETE_TASK}
       onClick={(e) => {
@@ -1011,21 +972,15 @@ export function TaskTitle({
   selecting?: boolean
 }) {
   /*
-  **A row never auto-edits**, and the reason is worth keeping.
-
-  It did, briefly: an untitled task opened its field so the floating button
-  would land you in typing. That reasoning was right and the place was wrong.
-  A row is rendered wherever the task appears, so an untitled task turned
-  *every* list containing it into a list with a stray empty input in it, and
-  because the flag initialises once, the field never recovered even after the
-  name was typed elsewhere. From the outside the task looked like it had
-  vanished (Imran, 2026-08-22: "it does not appear, it's not basically
-  saving"), when it had saved perfectly and was being drawn as a blank box.
+  **A row never auto-edits.** A row is rendered wherever the task appears, so an
+  untitled task that opened its own field would turn *every* list containing it
+  into a list with a stray empty input, and because the flag initialises once,
+  the field would never recover even after the name was typed elsewhere.
 
   Landing in the field is the *surface's* job, because the surface is the one
   thing that opens once, deliberately, at the moment of creation, see
-  `PageTitle` in task-surface.tsx. A row just draws what is there, and draws
-  an untitled task as untitled.
+  `PageTitle` in task-surface.tsx. A row just draws what is there, and draws an
+  untitled task as untitled.
   */
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(task.title)
@@ -1088,46 +1043,26 @@ export function TaskTitle({
   }
 
   /*
-  **The title renames in the row, which reverses S23's exemption.**
+  **The title renames in the row.**
 
-  DES-095, "renaming happens in the row", is the prototype's decision and
-  ledger entry L-152 recorded the client as not carrying it. S23 declined the
-  lift and the item 57 sitting exempted the row on item 47(e): "the row's
-  title is text and renaming is the card's". The owner asked for the
-  prototype's behaviour at the round of 2026-08-30, so the button is back and
-  the exemption is spent. What that reversal costs is written here rather than
-  discovered later, because both costs were measured once already and neither
-  has gone away.
-
-  **9.4's "a click on any row opens that task" now means the row and not its
+  **9.4's "a click on any row opens that task" means the row and not its
   title.** The title is the one part of the row that does something else, the
   way a chip does: the due chip opens the due picker and the folder chip opens
-  the folder menu, and neither of those has ever opened the task either. The
-  gesture that opens a task from its title is a press anywhere else on the
-  row, or the chevron, which is one target away. The mechanism is
-  `use-sortable-list`'s own: `surfaceProps` withholds the row's *tap* from a
-  pointerdown that starts on a `button`, so the row cannot both rename and
-  open — but the title carries `data-drag-through`, so the same press still
-  arms the row's lift. A still press is the title's click and renames; four
-  pixels of travel is the row's drag, exactly as it was when the title was
-  text. The onClick below reads the travel back off the pointer stream and
+  the folder menu, and neither of those opens the task either. The gesture that
+  opens a task from its title is a press anywhere else on the row, or the
+  chevron, which is one target away. The mechanism is `use-sortable-list`'s own:
+  `surfaceProps` withholds the row's *tap* from a pointerdown that starts on a
+  `button`, so the row cannot both rename and open — but the title carries
+  `data-drag-through`, so the same press still arms the row's lift. A still
+  press is the title's click and renames; four pixels of travel is the row's
+  drag. The onClick below reads the travel back off the pointer stream and
   declines the rename after a drag, because a drag released over the button
   still ends in a click.
 
-  **What this breaks is addressing, in two known shapes, and both were read
-  off the criteria rather than guessed at.** Seven browser criteria open a
-  task by pressing its title text, `page.getByText(title)` and then a surface,
-  and each now lands in a rename field instead: AC-092, AC-170, AC-178,
-  AC-179, AC-183, AC-219 and AC-220. Cases that only *read* a title are
-  untouched, which is why AC-095, AC-172, AC-221 and AC-224 are not on that
-  list, and AC-098 presses a calendar event rather than a row. The second
-  shape is one case: a button whose accessible name is the task's own title
-  makes a loose row-scoped locator ambiguous, and AC-097 asks a row for
-  `getByRole('button', { name: 'Restore' })` against a task titled "ac-097
-  restore returns to my day", which Playwright matches as a substring and so
-  resolves to both. Neither shape is this file's to repair, protocol section 8
-  putting a criterion's text with persona 11, and both are raised with the
-  round rather than worked around here.
+  **What this costs is addressing.** A browser test that opens a task by
+  pressing its title text lands in a rename field instead. And a button whose
+  accessible name is the task's own title makes a loose row-scoped locator
+  ambiguous, because Playwright matches a name as a substring.
   */
   /* Text while the list is choosing rows, so the press reaches the row's own
      selection handler and nothing about that mode changes; see `selecting`. */
@@ -1174,35 +1109,21 @@ export function TaskTitle({
         FOCUS,
         T_FAST,
         /*
-        **Seam, S23: the strike is the text's own, and it is a third finding
-        of F1 and F2's class that the criteria triage did not carry.**
+        **The strike is the text's own.** 9.5 renders an abandoned row "faded
+        and struck", and AC-097 reads that off the title's computed
+        `textDecorationLine`. An absolutely positioned span drawn across the
+        button would be a real strike, but would leave `textDecorationLine`
+        reading `none`, so nothing about the row's appearance would tell a
+        reader, a screen reader included, that the text is struck.
 
-        9.5 renders a completed row "faded and checked" and an abandoned one
-        "faded and struck", and AC-097 reads the second from the browser, off
-        the title's computed `textDecorationLine`, with its own note that
-        "any CSS that produces a strike-through satisfies it". The prototype
-        draws the line instead: an absolutely positioned 1px span across the
-        button, scaled from zero so the strike sweeps across as a task is
-        abandoned. It is a real strike and a nicer one, and it leaves
-        `textDecorationLine` reading `none`, so nothing about the row's
-        appearance tells a reader, a screen reader included, that the text is
-        struck. Three cases read it and every abandoned row in the product is
-        drawn by this line.
-
-        **The motion is kept and the mechanism is not**, which is the choice
-        with the least given up. `text-decoration-color` animates, so the
-        line still arrives rather than appearing: transparent at rest, the
-        current colour when struck, over the same duration token the span
-        used. What goes is the *sweep*, left to right, in favour of a fade,
-        and that is a real loss against DES-097's motion scale recorded rather
-        than quietly taken, the same shape `Reveal` records for its own
-        collapse. Two mechanisms for one line was the alternative, and a line
-        drawn to the button's padding beside a line drawn under the text is
-        two strikes of different lengths on one title.
+        `text-decoration-color` animates, so the line still arrives rather than
+        appearing: transparent at rest, the current colour when struck. It fades
+        rather than sweeping left to right; two mechanisms for one line would
+        draw two strikes of different lengths on one title.
 
         The screen reader gains nothing from a decoration either way, which is
         why the Abandoned chip beside it is the non-colour cue section 9 asks
-        for and stays exactly where the prototype put it.
+        for.
         */
         struck
           ? "text-[var(--color-graphite-500)] line-through decoration-current"
@@ -1232,10 +1153,7 @@ export function TaskTitle({
 export function FolderBit({ folder }: { folder: NonNullable<ConceptTask["folder"]> }) {
   return (
     <span className="inline-flex shrink-0 items-center gap-2">
-      {/* The chosen glyph, like every other place a folder is named. This
-          drew the generic mark until F5, the rule was settled and the check
-          written to enforce it had a matcher that could not see a tag whose
-          props wrapped onto the next line. */}
+      {/* The chosen glyph, like every other place a folder is named. */}
       <FolderMark name={folder.name} color={folder.color} />
       <span className="truncate">{folder.name}</span>
     </span>
@@ -1340,18 +1258,17 @@ export function Actions({
   /*
   The star, at rest, on a page the star defines.
 
-  R2: every row on Important wears a filled gold star, so the star
-  distinguishes nothing there, it is decoration on the one page where it
-  could carry no information at all. It keeps its place and its press, because
-  it is also the only way a task leaves that page; what it drops is the fill.
+  Every row on Important wears a filled star, so the star distinguishes nothing
+  there. It keeps its place and its press, because it is also the only way a
+  task leaves that page; what it drops is the fill.
   */
   quietStar?: boolean
   /* 6 Q4's outward tooltip, which replaces the tooltip alone and never the
      accessible name. Supplied by the page layer on Important and nowhere else;
-     see the star below. Seam, S23. */
+     see the star below. */
   importantTooltip?: string
   onOpenIn?: (mode: TaskOpenMode) => void
-  /* polish: taskrow F11. Today membership, one of the pair at a time. */
+  /* Today membership, one of the pair at a time. */
   onPull?: () => void
   onUnpull?: () => void
   onMoveToFolder?: (folder: { name: string; color: string }) => void
@@ -1366,10 +1283,10 @@ export function Actions({
   return (
     <span className="flex shrink-0 items-center justify-end gap-0.5">
       {/* An abandoned task is not a dead one, and the row has to say so.
-          Restore appears on hover in the trailing slot, V3's R3, rather
-          than living only in the overflow, because a person looking at a
-          struck-through row is usually deciding whether to bring it back and
-          should not have to open a menu to find out that they can.
+          Restore appears on hover in the trailing slot rather than living only
+          in the overflow, because a person looking at a struck-through row is
+          usually deciding whether to bring it back and should not have to open
+          a menu to find out that they can.
 
           It is the one action that appears *because* of a state rather than
           being present on every row, which is why it leads the gutter: the
@@ -1385,25 +1302,11 @@ export function Actions({
                   onRestore()
                 }}
                 /*
-                **Seam, S23: 9.5's name, which is the word and not the task.**
+                9.5's name, which is the word and not the task: "Restore", per
+                9.1's names table.
 
-                The prototype names this "Restore {title}", and the client
-                this replaces settled the same point at P8R in the other
-                direction: "the restore control's accessible name is 9.5's
-                Restore, which is the text it already showed; his aria-label
-                of Restore task was overriding that text with a different
-                string, so it is gone rather than reworded." Change control
-                item 44's A2 ruled 9.1's names table stands.
-
-                **Its cost was measured rather than argued.** A row-scoped
-                locator matches a name by substring, so a control carrying
-                the task's own title answers to every word in it. AC-097
-                asked a row for a button named "Restore" and got this one
-                plus a task called "ac-097 restore returns to my day", dying
-                of strict mode; AC-220 asked for one named /assignee|assign/
-                and got this one, the task being called "ac-097 overdue and
-                assigned to the viewer". Two criteria, two different words,
-                one cause, and neither is about restoring anything.
+                A row-scoped locator matches a name by substring, so a control
+                carrying the task's own title would answer to every word in it.
                 */
                 aria-label={RESTORE}
                 className={cn(
@@ -1427,39 +1330,27 @@ export function Actions({
         }}
         aria-pressed={Boolean(task.important)}
         /*
-        **Seam, S23: 9.1's two names, and the tooltip comes apart from them.**
-
-        Three things are wrong here against the sections and each was settled
-        once already, at P8 and P8R, on this client's v1 row.
+        9.1's two names, and the tooltip comes apart from them.
 
         **The names are 9.5's and 9.1's**, "Important" when on and "Mark as
-        important" when off, where the prototype writes "Remove from Important"
-        and "Mark as Important". Change control item 44's A2 ruled the table
-        stands on all seven of the strings the criteria triage's F3 measured,
-        so the lift transcribes them; AC-055's un-star and AC-099 both address
-        this control by 9.1's exact string.
+        important" when off.
 
-        **The name is content and never an `aria-label`.** The whole argument
-        is `ui/StarButton.tsx`'s, closed at P8: a label is a *label*, and the
-        suite's `formField` helper addresses 9.3's fields by label, so a page
-        holding a starred row with the surface open had two elements answering
-        to one name. The accessible name is unchanged either way and the glyph
-        stays `aria-hidden`, so a glyph swap is still never a rename.
+        **The name is content and never an `aria-label`.** A label is a *label*,
+        and the suite addresses 9.3's fields by label, so a page holding a
+        starred row with the surface open would have two elements answering to
+        one name. The glyph stays `aria-hidden`, so a glyph swap is never a
+        rename.
 
         **And the tooltip is a separate string**, which 6 Q4 requires: on
         Important it turns outward, "Also in Scheduled, due 3 Sep", while the
-        name has to keep saying what pressing the control does. The prototype
-        drives no tooltip at all here and leaves `importantTooltip` declared
-        and unread; driving both attributes off one string, which the v1 row
-        did before P8R, renames the control the moment the tooltip points
-        outward. It is a `title` as well as a styled tooltip because "a tooltip
-        that exists only while it is open cannot be read", the harness reading
-        the attribute immediately after a hover.
+        name has to keep saying what pressing the control does. Driving both
+        attributes off one string would rename the control the moment the
+        tooltip points outward. It is a `title` as well as a styled tooltip
+        because a tooltip that exists only while it is open cannot be read.
         */
-        /* Off Important the tooltip is the name, 9.5: "the star's two names
-           are 9.1's", and a control with no tooltip at all is what the
-           prototype leaves here. On Important it turns outward, which is the
-           page layer's decision and arrives as this prop. */
+        /* Off Important the tooltip is the name, 9.5: "the star's two names are
+           9.1's". On Important it turns outward, which is the page layer's
+           decision and arrives as this prop. */
         title={importantTooltip ?? (task.important ? "Important" : "Mark as important")}
         className={cn(
           "flex size-7 items-center justify-center rounded-md transition-[opacity,background-color] hover:bg-[var(--color-graphite-200)] active:scale-90",
@@ -1467,23 +1358,17 @@ export function Actions({
           FOCUS,
           task.important
             ? "opacity-100"
-            : /* polish: taskrow F10. Visible at rest where there is no hover to reveal it. */
+            : /* Visible at rest where there is no hover to reveal it. */
                 "opacity-0 group-hover/row:opacity-70 group-focus-within/row:opacity-100 hover:!opacity-100 max-md:opacity-70 [@media(hover:none)]:opacity-70",
         )}
       >
         {/*
-        Filled or not, and never gold, Imran, 2026-08-22: "the star color are
-        not consistent across the shell, somewhere it's gold and somewhere it's
-        black, so I think only black is good."
-
-        He is right twice over. It *was* inconsistent, because DES-183 took the
-        gold off Important and left it everywhere else. And the colour was
-        carrying nothing the fill was not already saying: important is a
-        binary, a filled star says it, and a second signal on the same fact is
-        one more hue in a product whose whole palette is one accent and
-        graphite (W1). So the star is graphite in both states and the fill is
-        the whole difference.
-        */}
+        Filled or not, and never gold, so the star looks the same across the
+        shell. Important is a binary and a filled star says it; a second signal
+        on the same fact is one more hue in a product whose palette is one
+        accent and graphite. So the star is graphite in both states and the fill
+        is the whole difference.
+         */}
         <span className="sr-only">
           {task.important ? "Important" : "Mark as important"}
         </span>
@@ -1500,20 +1385,16 @@ export function Actions({
         />
       </button>
       {/*
-      The row's menu comes from the contract now (DES-201).
-
-      It was the last hand-written menu of any size, and being hand-written is
-      exactly why a task could not be copied, linked, duplicated or asked about
-      its history while a folder could, the acts existed in `lib/object-acts`
-      and there was nothing here reading them. Six items were written in this
-      file and four more were declared and undrawable.
+      The row's menu comes from the contract, so a task can be copied, linked,
+      duplicated or asked about its history exactly as a folder can; the acts
+      live in `lib/object-acts`.
 
       The trigger keeps its own styling, because hover-reveal is the row's
       business and not the contract's: a gutter of permanent icons would shout
       down the titles, while a page has no row to hover and shows its controls.
       That is what `persistent` decides, and it is why the trigger is passed
       rather than left to `ObjectMenu`'s default.
-      */}
+       */}
       <ObjectMenu
         kind="task"
         name={task.title}
@@ -1531,7 +1412,7 @@ export function Actions({
               FOCUS,
               persistent
                 ? "opacity-100"
-                : /* polish: taskrow F10. Visible at rest where there is no hover to reveal it. */
+                : /* Visible at rest where there is no hover to reveal it. */
                 "opacity-0 group-hover/row:opacity-70 group-focus-within/row:opacity-100 hover:!opacity-100 max-md:opacity-70 [@media(hover:none)]:opacity-70",
             )}
           >
@@ -1559,14 +1440,11 @@ export function Actions({
           move: onMoveToFolder
             ? {
                 /*
-                The person's real folders, not the lab's four, Imran,
-                2026-08-22: this menu "still does not carry an update folder
-                library". `folderLibrary()` is the one answer, and this menu
-                was the third place still reading the hardcoded fixture.
+                The person's real folders: `folderLibrary()` is the one answer.
 
-                **And it ends in New folder**, because "none of these" is a
-                real answer to "where does this go", and a menu that cannot
-                express it sends you elsewhere to do the obvious thing.
+                **And it ends in New folder**, because "none of these" is a real
+                answer to "where does this go", and a menu that cannot express
+                it sends you elsewhere to do the obvious thing.
                 */
                 choose: (
                   <>
@@ -1612,9 +1490,8 @@ export function Actions({
   )
 }
 
-export /* The trailing column keeps a gutter of its own. Without the pr-2 the expand
-   chevron sat hard against the row's right edge while every other side had
-   breathing room (Imran, 2026-08-18). */
+export /* The trailing column keeps a gutter of its own, so the expand chevron does not
+   sit hard against the row's right edge. */
 const ROW =
   "group/row grid h-11 w-full grid-cols-[40px_minmax(0,1fr)_auto] items-center rounded-md pr-2 transition-colors"
 export const ROW_HOVER = "hover:bg-[var(--color-graphite-100)]"
@@ -1651,7 +1528,7 @@ export function ExpandShell({
   card: ReactNode
   drag?: Record<string, unknown>
   itemRef?: (element: HTMLElement | null) => void
-  /* Seam, S23. See the badge at the foot of this component. */
+  /* See the badge at the foot of this component. */
   proposal?: string
   isActive?: boolean
   isDwelling?: boolean
@@ -1671,28 +1548,19 @@ export function ExpandShell({
   return (
     <div
       /*
-      **Seam, S23: the row is a list item, and F1 of the criteria triage is
-      why this one line is the most expensive in the file.**
+      **The row is a list item.** 9.1's roles table fixes "A task row: a list
+      item, or a row", and tests address exactly that,
+      `getByRole('listitem').or(getByRole('row'))` filtered by the title.
 
-      The prototype's row "carries no `listitem` and no `row` role. It is a
-      `<div>`", measured in the triage against this file's own class string.
-      9.1's roles table fixes "A task row: a list item, or a row", and the
-      harness addresses exactly that,
-      `getByRole('listitem').or(getByRole('row'))` filtered by the title. **A
-      verbatim lift turns 49 cases red at once and none of them measures a
-      defect.** 11.13 settles it without a ruling: the role is the section's,
-      so the lift owes it.
+      It goes on this element rather than on either row body inside it, because
+      this is the element a list holds: the one the drag engine measures and
+      moves, the one selection tints, and the one that grows to contain the card
+      when a row expands. A role on the inner body would put the expanded card
+      *outside* the list item that owns it, so a locator for "the row for this
+      task" would stop finding the card the row opened into.
 
-      It goes on this element rather than on either row body inside it,
-      because this is the element a list holds: the one the drag engine
-      measures and moves, the one selection tints, and the one that grows to
-      contain the card when a row expands. A role on the inner body would put
-      the expanded card *outside* the list item that owns it, so a case
-      addressing "the row for this task" would stop finding the card the row
-      opened into, which is DES-093's whole arrangement.
-
-      The list around it is `TaskList`'s own container below, and for every
-      page drawing rows through it, `pages/task-rows.tsx`'s `role="list"`.
+      The list around it is `TaskList`'s own container below, and for every page
+      drawing rows through it, `pages/task-rows.tsx`'s `role="list"`.
       */
       role="listitem"
       ref={itemRef}
@@ -1758,12 +1626,11 @@ export function ExpandShell({
       <Reveal open={open}>{card}</Reveal>
       {/* The badge rides the row being carried, not the row underneath it.
 
-          It was on the target at first and was invisible there, which is what
-          Imran saw: the carried row sits at z-30 directly under the pointer,
-          which is exactly where the target's right edge is, so the countdown
-          was being painted and then covered by the row that caused it. Fixing
-          the stacking would have put a tinted row on top of the one being
-          dragged, which reads as the wrong thing moving.
+          On the target it would be invisible: the carried row sits at z-30
+          directly under the pointer, which is exactly where the target's right
+          edge is, so the countdown would be painted and then covered by the row
+          that caused it. Fixing the stacking would put a tinted row on top of
+          the one being dragged, which reads as the wrong thing moving.
 
           Riding the carried row is better than either: it is already on top,
           and it is already where the eyes are. */}
@@ -1773,22 +1640,19 @@ export function ExpandShell({
         </span>
       ) : null}
       {/*
-      **Seam, S23: what a release would do, said in words.**
+      What a release would do, said in words.
 
-      The prototype's badge above is the merge proposal and the only one it
-      has, because the one thing its lab drags a row onto is another row. This
-      client also drags a row onto a *container*, a board column, and DES-171's
-      rule is the same at both ends: "a container takes the drop and says so",
-      words rather than an outline. AC-228 reads "Into {column}" while the
-      pointer is still down.
+      The badge above is the merge proposal, for a row dragged onto another row.
+      A row can also be dragged onto a *container*, a board column, and the rule
+      is the same at both ends: a container takes the drop and says so, in words
+      rather than an outline. AC-228 reads "Into {column}" while the pointer is
+      still down.
 
-      So the prop is the v1 row's `proposal` unchanged, drawn in the same slot
-      as the merge badge and never at the same time as one: a row being merged
-      is over another row and a row being placed is over a column, and the
-      caller supplies whichever it knows about. It rides the carried row for
-      the reason the comment above gives, which was measured rather than
-      chosen.
-      */}
+      So the prop is drawn in the same slot as the merge badge and never at the
+      same time as one: a row being merged is over another row and a row being
+      placed is over a column, and the caller supplies whichever it knows about.
+      It rides the carried row for the reason the comment above gives.
+       */}
       {proposal === undefined ? null : (
         <span className="pointer-events-none absolute top-1/2 right-2 z-40 -translate-y-1/2 rounded-full bg-[var(--color-graphite-900)] px-2 py-0.5 text-[0.625rem] font-medium whitespace-nowrap text-[var(--color-graphite-50)]">
           {proposal}
@@ -1819,16 +1683,11 @@ export function Chip({
   )
 }
 
-/* The same chip anatomy as ChipMenu, opening a panel instead of a list.
-   Added 2026-08-18 at Imran's direction: the pickers built for the card open
-   from the folded row too.
-
-   The row used to offer four preset labels for a due date while the card two
-   pixels below it offered a calendar, a clock and five presets, two answers
-   to one question, and the row's was the wrong one often enough that changing
-   a date meant opening the card first. One picker now, wherever it is opened
-   from. The trigger is a button, so the row's drag surface ignores a press
-   that lands here and the two gestures never compete. */
+/* The same chip anatomy as ChipMenu, opening a panel instead of a list: the
+   pickers built for the card open from the folded row too, so there is one
+   picker for a date wherever it is opened from. The trigger is a button, so the
+   row's drag surface ignores a press that lands here and the two gestures never
+   compete. */
 export function ChipPicker({
   label,
   children,
@@ -1863,9 +1722,9 @@ export interface ChipMenuItem {
   key: string
   label: ReactNode
   onSelect: () => void
-  /* Puts a hairline above the item: the way *out* of a list, no folder,
-     nobody, is not another member of it, and every menu in Dana that offers
-     one sets it apart the same way (DES-114). */
+  /* Puts a hairline above the item: the way *out* of a list, no folder, nobody,
+     is not another member of it, and every menu in Dana that offers one sets it
+     apart the same way. */
   separated?: boolean
 }
 
@@ -1917,8 +1776,8 @@ export function DetailChip({
   children: ReactNode
   tone?: "neutral" | "danger"
   interactive?: boolean
-  /* What a compressed chip stands for, one hover away, the steps ratio is
-     the case (R6). */
+  /* What a compressed chip stands for, one hover away; the steps ratio is the
+     case. */
   title?: string
 }) {
   return (
@@ -1966,10 +1825,10 @@ export function DetailWord({
   )
 }
 
-/* A folder's detail word, resolving the glyph and colour its owner chose
-   (DES-130) rather than drawing the generic mark. Its own component because
-   `DetailWord` takes an icon as a prop and identity has to be *looked up*,
-   which is a hook, which cannot happen inside a prop expression. */
+/* A folder's detail word, resolving the glyph and colour its owner chose rather
+   than drawing the generic mark. Its own component because `DetailWord` takes
+   an icon as a prop and identity has to be *looked up*, which is a hook, which
+   cannot happen inside a prop expression. */
 function FolderDetailWord({
   name,
   color,
@@ -1990,26 +1849,15 @@ function FolderDetailWord({
 
 /* ------------------------------------------------------ the shipping row, */
 /*
-`TaskRow` is what the eight screens render. It keeps the call shape the v1 row
-had, spread the task's fields, pass the handlers, so porting the design did
-not mean rewriting a single screen's markup. What changed is everything behind
-that call.
+`TaskRow` is what the screens render: spread the task's fields, pass the
+handlers.
 
-**Where its state lives.** The screens own the facts they already modelled:
-title, completion, importance, My Day, folder, due, assignee, step counts.
-Those are read from props every render, so a change made anywhere still flows
-down. Everything the card can edit that the shell never modelled, notes, a
-reminder, the recurrence rule, the step items themselves, is held here as a
-layer of local edits on top. That split is honest about the prototype: it runs
-on fixtures, and fields the shell has no shape for should not pretend to
-persist.
-
-**What it does not do.** No dragging, no dwell-to-folder, no press-and-hold
-selection, no bulk bar. Those are Lane 2, and they are drawn in the concept
-lab, which is where they are being judged. Wiring them into screens would make
-the prototype look as though it had shipped something with no endpoint behind
-it. The machinery is exported from this file so the lab can compose it and the
-screens do not. DES-103, DES-112, DES-119.
+**Where its state lives.** The screens own the facts they model: title,
+completion, importance, My Day, folder, due, assignee, step counts. Those are
+read from props every render, so a change made anywhere still flows down.
+Everything the card can edit that the screen never modelled, notes, a reminder,
+the recurrence rule, the step items themselves, is held here as a layer of local
+edits on top.
 */
 
 export type TaskStatus = "pending" | "completed" | "abandoned"
@@ -2022,25 +1870,21 @@ export type TaskOpenMode = "dialog" | "right" | "tab"
 
 /* The open-in choices, said in icons, labels on hover, the same strip
    grammar the conversation's homes use. */
-/* Three homes, ruled by Imran 2026-08-18. Full screen, the left sidebar and
-   the floating card are gone: full screen is what a tab already gives with a
-   way back, a second sidebar edge is a mirror nobody asked for, and floating
-   is the dialog with worse ergonomics. Three destinations a person can hold
-   in their head beats six they have to read. */
+/* Three homes. Full screen is what a tab already gives with a way back, a
+   second sidebar edge is a mirror nobody asked for, and floating is the dialog
+   with worse ergonomics. Three destinations a person can hold in their head
+   beats six they have to read. */
 /*
 Where a task can open. One array, read by two controls: the row's "Open in…"
 submenu and the surface's own view strip, so the two cannot offer different
 places or name them differently.
 
-**The labels are parallel nouns**, and they were not, F5, 2026-08-22. Two
-were bare ("Dialog", "Sidebar") and one was a sentence ("Open as a tab"), in a
-menu whose own heading already says "Open in…", so the third item read "Open
-in… Open as a tab". Each one completes that sentence now, and each still
-stands alone as the strip's tooltip.
+**The labels are parallel nouns**, each completing the menu heading "Open in…",
+and each still stands alone as the strip's tooltip.
 */
 export const TASK_OPEN_OPTIONS: ViewStripOption<TaskOpenMode>[] = [
   { key: "dialog", label: "Dialog", icon: SquareSquare },
-  /* polish: taskcard F11. "Panel", the word Settings uses for the same home. */
+  /* "Panel", the word Settings uses for the same home. */
   { key: "right", label: "Panel", icon: PanelRight },
   { key: "tab", label: "New tab", icon: ArrowUpRight },
 ]
@@ -2049,16 +1893,11 @@ export interface TaskRowProps {
   id?: string
   title: string
   /*
-  **Seam, S23, and it is `tasks/task-model.ts`'s own widening one type over.**
-
-  The prototype's folder is `{name, color}`, because its store is name-keyed
-  and a name is the only handle it has. Dana addresses a folder by id (7.4),
-  and two things on this surface need one: the assignee menu, whose roster is
-  4.4's members of *that* folder, and every write that moves a task, which
-  sends `folder_id`. So `id` is added and left optional, which is what
-  `ConceptTask.folder` did at S22 for the same reason and with the same words:
-  "a lifted card that sets a name and a colour still typechecks and still
-  behaves, and a picker written against this client sets the id."
+  Dana addresses a folder by id (7.4), and two things on this surface need one:
+  the assignee menu, whose roster is 4.4's members of *that* folder, and every
+  write that moves a task, which sends `folder_id`. So `id` is optional beside
+  the name and colour, as on `ConceptTask.folder`: a card that sets a name and a
+  colour still typechecks and still behaves, and a picker sets the id.
 
   `toConceptTask` below spreads this straight onto the concept task, so the id
   reaches the card without a second mapping.
@@ -2067,38 +1906,27 @@ export interface TaskRowProps {
   /*
   Which section of its folder page this task sits in.
 
-  Imran, 2026-08-22: "A task inside a section should show somewhere ... some
-  type of hierarchy is required." A section is the one part of a task's
-  address the row never said: you could see the folder, and inside the folder
-  the heading told you, but carry that row anywhere else, open it in a
-  dialog, look at it in Completed, and the section vanished.
+  A section is part of a task's address: carry the row anywhere else, open it in
+  a dialog, look at it in Completed, and without this the section vanishes.
 
-  It rides *after* the folder chip and reads as a path, because that is what
-  it is: Travel › Venue & vendors. Absent when there is no section, and
-  absent when the row is already sitting under that section's own heading,
-  which the folder page decides per list rather than per row.
+  It rides *after* the folder chip and reads as a path, because that is what it
+  is: Travel › Venue & vendors. Absent when there is no section, and absent when
+  the row is already sitting under that section's own heading, which the folder
+  page decides per list rather than per row.
   */
   section?: string
   /*
   What the list around this row has already said.
 
-  Four of the review's row findings turned out to be one fault with four
-  faces, and the fault is a row repeating its own context: **Done** shows a
-  due date on work that is finished, under headings that already group by when
-  it was finished; **Important** draws a filled star on every row of a page
-  defined by the star; **Carried over** paints every date red on a block whose
-  membership *is* being late; and the mirror image, an unfiled task showing no
-  folder at all when [[DES-155]] says it is in Desk.
+  **A row says what its page does not.** Done shows no due date under headings
+  that already group by when it was finished; Important draws no filled star on
+  a page defined by the star; Carried over paints no date red on a block whose
+  membership *is* being late. The section chip works the same way, absent when
+  the row sits under that section's own heading.
 
-  So the rule underneath them: **a row says what its page does not.** The
-  section chip has worked this way since DES-166, "absent when the row is
-  already sitting under that section's own heading, which the page decides per
-  list rather than per row", and this is that decision generalised to every
-  fact a heading can carry.
-
-  Decided per list, never per row, for the reason DES-154 keeps giving: a row
-  cannot see the heading above it, and a screen that had to remember this on
-  every row is a screen that will forget on one.
+  Decided per list, never per row: a row cannot see the heading above it, and a
+  screen that had to remember this on every row is a screen that will forget on
+  one.
   */
   given?: {
     /* Grouped by folder, or standing inside one. */
@@ -2121,62 +1949,43 @@ export interface TaskRowProps {
   steps?: { complete: number; total: number }
   recurrence?: string
   notes?: string
-  /* The conversation the card shows, passed through untouched. DES-129;
-     fixtures only, the shell has no message model behind this. */
+  /* The conversation the card shows, passed through untouched. Fixtures only,
+     the screen has no message model behind this. */
   comments?: ConceptComment[]
   /*
-  The parts of a task only its card shows: the steps themselves, the files,
-  and anything the card learns to edit next.
+  The parts of a task only its card shows: the steps themselves, the files, and
+  anything the card learns to edit next.
 
-  Imran, 2026-08-22: a task opened in the sidebar did not carry the steps,
-  notes, links and attachments added to it inline, "dialog, sidebar, inline,
-  and maybe more are just views of the same task row, so the data inside them
-  should be the same and updated simultaneously."
-
-  He is right, and the seam that lost them is here. A row's props carry a step
-  *count*, because a count is all a row draws, and `toConceptTask` therefore
-  had to *invent* the steps from it, "Step 1", "Step 2", which meant a task
-  could round-trip through the shell and come back with its steps renamed.
-  Attachments had no prop at all, so they could not round-trip in any form.
+  Dialog, sidebar and inline row are views of the same task, so the data inside
+  them must be the same. A row's props carry a step *count*, because a count is
+  all a row draws, so without this `toConceptTask` would have to invent steps
+  from it ("Step 1", "Step 2") and a task could round-trip through the shell
+  with its steps renamed. Attachments have no prop at all.
 
   One field rather than one per fact, deliberately: the card gains blocks over
-  time and each new one would otherwise need a prop, a mapping and a line in
-  the shell's patcher, three places to forget. The row spreads this last, so
+  time and each new one would otherwise need a prop, a mapping and a line in the
+  shell's patcher, three places to forget. The row spreads this last, so
   whatever the card knows how to edit survives being closed and reopened
   somewhere else.
   */
   detail?: Partial<ConceptTask>
   /*
-  Five props left this contract at F6: `visualState`, `showSecondaryActions`,
-  `menuOpen`, `unassigned` and `invitePending`.
-
-  They were carried from the v1 row "so the states page keeps compiling", and
-  the new row honoured none of them, it draws its own hover and focus, and
-  had no drawing at all for the other two. So the state sheet showed four
-  identical rows under four different labels and two states that rendered
-  nothing, and every one of those lies was *load-bearing*: the props existed
-  only to keep the page that told them alive.
-
-  A prop that cannot do anything is DES-144's dead control one level down, and
-  the fix is the same one: delete it rather than keep drawing it. The v1 row
-  survives whole at `components/task-row-baseline.tsx` for anyone comparing.
+  `visualState`, `showSecondaryActions` and `menuOpen` are deliberately not
+  props: the row draws its own hover and focus, and a prop that cannot do
+  anything is a dead control one level down. The previous row survives at
+  `components/task-row-baseline.tsx` for anyone comparing.
   */
   /*
-  **Seam, S23: two of those five come back, because here they are not lies.**
-
-  `unassigned` and `invitePending` are driven by real data in this client, Q3's
-  chip and 7.4's pending invite, and section 9 is normative on both. The full
-  reasoning sits beside the two chips they draw, at the foot of `rowChips`;
-  the other three of F6's five stay deleted, having nothing behind them here
-  either.
+  `unassigned` and `invitePending` are props because they are driven by real
+  data, Q3's chip and 7.4's pending invite, and section 9 is normative on both.
+  The reasoning sits beside the two chips they draw, at the foot of `rowChips`.
   */
   unassigned?: boolean
   invitePending?: string
-  /* **Seam, S25: 9.5's from half.** The person who made this task, drawn only
-     where the page asks. See the chip at the foot of `rowChips`. */
+  /* 9.5's from half. The person who made this task, drawn only where the page
+     asks. See the chip at the foot of `rowChips`. */
   createdBy?: string
-  /* What a release would do, drawn on the row being carried. Seam, S23; see
-     `ExpandShell`. */
+  /* What a release would do, drawn on the row being carried. See `ExpandShell`. */
   proposal?: string
   /* Overrides the person's own row height. Only the state sheet passes it,
      and only because showing both is its whole job. */
@@ -2187,10 +1996,9 @@ export interface TaskRowProps {
      and the card's full-screen action both speak through this, naming the
      surface they want. Bare calls mean "full". */
   onOpen?: (mode?: TaskOpenMode) => void
-  /* Makes a folder holding this task, and names it. Supplied by TaskList,
-     which owns the naming panel; absent for a row rendered outside one, and
-     the chip then simply does not offer it, a dead menu item is the fault
-     DES-144 removed. */
+  /* Makes a folder holding this task, and names it. Supplied by TaskList, which
+     owns the naming panel; absent for a row rendered outside one, and the chip
+     then simply does not offer it rather than drawing a dead menu item. */
   onNewFolder?: () => void
   /* The write path out of the card. See `useCardWiring`: without it every
      edit lives and dies with the component, which is why a task opened in a
@@ -2218,9 +2026,8 @@ export interface TaskRowProps {
   }
   isSelected?: boolean
   selecting?: boolean
-  /* The task surface (full screen, sidebar, floating, a tab) renders the row
-     already expanded, the row is the task even there, which is DES-093
-     taken at its word. */
+  /* The task surface (sidebar, dialog, a tab) renders the row already expanded:
+     the row is the task even there. */
   defaultOpen?: boolean
 }
 
@@ -2260,21 +2067,19 @@ function toConceptTask(props: TaskRowProps): ConceptTask {
   }
 }
 
-/* The card's wiring, extracted so the task surface can hold the same task
-   the row holds, one edits layer, one patch, one set of step handlers,
-   whether the card sits under a row or fills a page. This is what keeps
-   DES-117's one-artifact promise checkable: a surface that re-implemented
-   any of this would be a second artifact wearing the first one's clothes. */
+/* The card's wiring, extracted so the task surface can hold the same task the
+   row holds, one edits layer, one patch, one set of step handlers, whether the
+   card sits under a row or fills a page. A surface that re-implemented any of
+   this would be a second artifact wearing the first one's clothes. */
 export function useCardWiring(props: TaskRowProps) {
   const [edits, setEdits] = useState<Partial<ConceptTask>>({})
   /*
-  The server's steps win once they arrive (item 58). Local edits sit over
-  the props for as long as the card is looked at, which is right for a title
-  or a note and wrong for the one field whose server copy carries something
-  the local copy cannot: 7.7's ids, which `writeSteps` diffs by. Keyed on the
-  list's content rather than its identity, because every render hands the
-  card a fresh array and clearing on identity would drop a tick before its
-  write had landed.
+  The server's steps win once they arrive. Local edits sit over the props for as
+  long as the card is looked at, which is right for a title or a note and wrong
+  for the one field whose server copy carries something the local copy cannot:
+  7.7's ids, which `writeSteps` diffs by. Keyed on the list's content rather
+  than its identity, because every render hands the card a fresh array and
+  clearing on identity would drop a tick before its write had landed.
   */
   const serverSteps = JSON.stringify(props.steps ?? null)
   useEffect(() => {
@@ -2294,17 +2099,14 @@ export function useCardWiring(props: TaskRowProps) {
   /*
   **Every edit is reported upward, not just completion.**
 
-  This held its edits in local state and told the screen about `done` alone.
-  Inside an inline row that is invisible, the row stays mounted, so the local
-  copy *is* the task for as long as anyone is looking at it. It stops being
-  invisible the moment the same card is opened in a surface, which mounts per
-  open and unmounts on close: a task created by the floating button kept its
-  empty title for ever, and a rename made in the dialog was discarded the
-  instant it closed. Imran, 2026-08-22: "it's not basically saving."
+  Inside an inline row local state would be invisible, the row stays mounted, so
+  the local copy *is* the task for as long as anyone is looking at it. A surface
+  mounts per open and unmounts on close, so edits held only locally there would
+  be discarded the instant it closed.
 
-  `onPatch` is the one write path out. A screen that supplies it owns the
-  task; one that does not keeps the old local-only behaviour, which is still
-  right for a lab or a preview with nowhere to write to.
+  `onPatch` is the one write path out. A screen that supplies it owns the task;
+  one that does not keeps local-only behaviour, which is right for a lab or a
+  preview with nowhere to write to.
   */
   /*
   Out to whoever owns the task: the handler if there is one, the shell's
@@ -2322,29 +2124,23 @@ export function useCardWiring(props: TaskRowProps) {
   function patch(_id: string, fields: Partial<ConceptTask>) {
     setEdits((current) => ({ ...current, ...fields }))
     /*
-    **Seam, S23: a status the screen owns is told to the screen and not
-    also written from here.**
+    **A status the screen owns is told to the screen and not also written from
+    here.**
 
-    The prototype reports every field and then tells the screen about the
-    completion separately, which costs nothing where both ends are local
-    state. Over this seam both ends are the API: `report` reaches
-    `tasks/task-writer.tsx`, which turns `done` into 7.6's transition, and
-    `onToggleComplete` reaches the page's own action, which does the same.
-    So one press sent two transitions, and the second answered 409.
+    Both ends are the API: `report` reaches `tasks/task-writer.tsx`, which turns
+    `done` into 7.6's transition, and `onToggleComplete` reaches the page's own
+    action, which does the same. Doing both would send two transitions for one
+    press, and the second would answer 409.
 
-    **Worse than the duplicate is which one wins.** 9.5 puts a confirmation
-    in front of un-completing a task that generated a successor, and the
-    page is where that confirmation lives, because the page is what knows
-    it is Done. The writer's transition does not wait for it, so the
-    G-SERIES confirm was being asked after the act it gates. AC-162 reads
-    exactly that: the declined un-complete "left the completed row
-    completed", and it had not.
+    **Worse than the duplicate would be which one wins.** 9.5 puts a
+    confirmation in front of un-completing a task that generated a successor,
+    and the page is where that confirmation lives, because the page is what
+    knows it is Done. The writer's transition does not wait for it, so the
+    confirmation would be asked after the act it gates. AC-162: a declined
+    un-complete leaves the completed row completed.
 
-    So where a screen supplies the handler, the screen owns the act, which
-    is the prototype's own sentence, "completion is the screen's fact
-    rather than the row's", read as a rule about who writes rather than
-    only about who is told. A surface supplies none of these, so the
-    writer carries them there and nothing changes for the card.
+    So where a screen supplies the handler, the screen owns the act. A surface
+    supplies none of these, so the writer carries them there.
     */
     const owned = { ...fields }
     if (props.onToggleComplete !== undefined) delete owned.done
@@ -2379,10 +2175,8 @@ export function useCardWiring(props: TaskRowProps) {
       if (moved) next.splice(to, 0, moved)
       patchSteps(next)
     },
-    /* Supplied since RFC 0005 change control item 58 (C), over the endpoint
-       B9 was waiting for: `tasks/task-acts.ts`'s `moveStepsOut`. Absent
-       without an id or a folder, the lab and the capture, where the control
-       is then not drawn (DES-144). */
+    /* `tasks/task-acts.ts`'s `moveStepsOut`. Absent without an id or a folder,
+       the lab and the capture, where the control is then not drawn. */
     ...(props.id && task.folder?.id
       ? {
           moveStepsTo: (_id: string, indices: number[], destination: StepDestination) =>
@@ -2411,8 +2205,8 @@ export function useCardWiring(props: TaskRowProps) {
 }
 
 /* The row's own view strip: one quiet trigger among the actions, opening the
-   horizontal icon row of the six ways a task can be held. Icons only, labels
-   on hover, Imran's rule for every view switcher. */
+   horizontal icon row of the six ways a task can be held. Icons only, labels on
+   hover, the rule for every view switcher. */
 function OpenInControl({
   onPick,
   placement = "row",
@@ -2469,25 +2263,20 @@ export function TaskRow(props: TaskRowProps) {
   const density = props.density ?? useRowDensity()
   const [open, setOpen] = useState(props.defaultOpen ?? false)
   /*
-  polish: taskcard F8. An expanded row drew "Step 1 … Step 16", because the
-  list's card carries a count and the fallback below invents titles from it.
-  The row reads 7.6's detail while it is open, so the inline card shows the
-  same steps, notes and reminder the dialog shows. A surface hands `detail`
-  in already and reads nothing.
+  The row reads 7.6's detail while it is open, so the inline card shows the same
+  steps, notes and reminder the dialog shows, rather than titles invented from
+  the list card's step count. A surface hands `detail` in already and reads
+  nothing.
   */
   const fetched = useExpandedDetail(props.detail === undefined ? props.id : undefined, open)
   const { task, patch, counts, cardHandlers } = useCardWiring(
     fetched === undefined ? props : { ...props, detail: { ...fetched, ...props.detail } },
   )
   /*
-  **Seam, S23: the assignee menu's roster is the folder's members.**
-
-  The prototype's `peopleLibrary()` takes no argument because its roster is
-  the viewer plus every connection, a connection being the only relationship
-  its fixtures model. Dana's is 4.4's membership, because 10.2 refuses an
-  assignee who is not a member and 9.3's field table says "the target folder's
-  members", so the folder has to reach the call. Hoisted here rather than read
-  at the chip, whose body is a callback a hook cannot sit in.
+  The assignee menu's roster is the folder's members: 4.4's membership, because
+  10.2 refuses an assignee who is not a member and 9.3's field table says "the
+  target folder's members", so the folder has to reach the call. Hoisted here
+  rather than read at the chip, whose body is a callback a hook cannot sit in.
   `lib/people-library.ts` carries the rest of the reasoning.
   */
   const roster = usePeopleLibrary(props.folder?.id ?? null)
@@ -2515,59 +2304,42 @@ export function TaskRow(props: TaskRowProps) {
   /*
   **The chip names the folder the row was told, and invents none.**
 
-  It used to answer an absent folder with `folderNameOf`, which resolves to
-  "Desk" on DES-155's reading that an unfiled task is in Desk. That reading is
-  the prototype's and it does not survive the port, because **Dana has no
-  unfiled task**: 4.5 makes `tasks.folder_id` NOT NULL and 7.0 answers every
-  card a folder stub. So an absent folder here never means "filed nowhere", it
-  means "the surface drawing this row did not pass one", and the two are
-  indistinguishable inside an `undefined`. That is RFC 0005 change control item
-  50(o)'s fault exactly, and item 50(o) fixed one half of it: `given.folder` is
-  how a list says "this page has already named the folder", and
-  `pages/task-rows.tsx` sends it. This is the other half, and it is the one
-  that holds for a call site nobody has written yet.
+  **Dana has no unfiled task**: 4.5 makes `tasks.folder_id` NOT NULL and 7.0
+  answers every card a folder stub. So an absent folder here never means "filed
+  nowhere", it means "the surface drawing this row did not pass one", and the
+  two are indistinguishable inside an `undefined`. `given.folder` is how a list
+  says "this page has already named the folder", and `pages/task-rows.tsx` sends
+  it; this is the other half, and it holds for a call site nobody has written
+  yet.
 
   **Why silence rather than a guess.** The chip is not a label: it is a
   `ChipMenu` whose items move the task, so a chip naming a folder the task is
   not in invites somebody to correct it and moves their work out of the folder
-  they were standing in. A row that says nothing about a folder it was not
-  told costs a fact; a row that says the wrong one costs the task.
+  they were standing in. A row that says nothing about a folder it was not told
+  costs a fact; a row that says the wrong one costs the task.
   */
   const folderName = given.folder ? undefined : task.folder?.name?.trim()
   const showDue = Boolean(task.due) && !given.due
 
   /*
-  The detail strip, as a list rather than as eight branches, W2.
+  The detail strip, as a list rather than as branches.
 
-  The review's second standing constraint asks for the row's **state-chip and
-  assignee slots cut as open sets**, and `docs/design/vision.md` said what
-  they are open *for*: work assigned to "a person, an AI agent, or both", and
-  states like "waiting, working, blocked, ready for review". That document is
-  deleted (`a7886df`, 2026-09-01) and is in git history before that commit;
-  no numbered spec section carries the intent, so the quoted words are the
-  record.
+  The row's state-chip and assignee slots are open sets: work may one day be
+  assigned to "a person, an AI agent, or both", with states like "waiting,
+  working, blocked, ready for review".
 
-  What stood here was eight hardcoded conditionals in one JSX block. Nothing
-  declared what the family was, the order lived in the source sequence where
-  no one could review it, `bare` restated all eight conditions by hand and had
-  already drifted from them, and each suppression from DES-183 had to be
-  remembered separately. A ninth chip meant editing the middle of a hundred
-  lines and hoping it landed in the right place.
+  As a list, each concern is structural: **the order is data**, **suppression is
+  declared** beside the chip it suppresses, **`bare` is derived** from what is
+  actually showing, and adding "blocked" is one entry.
 
-  As a list, each of those is structural instead: **the order is data**, this
-  is the order Imran approved on 2026-08-23, **suppression is declared**
-  beside the chip it suppresses, **`bare` is derived** from what is actually
-  showing, and adding "blocked" is one entry.
-
-  It is deliberately *not* populated with the vision's states. Dana has two,
-  pulled into Today, and abandoned, and drawing "waiting" or "ready for
-  review" now would be inventing product rather than shaping a slot for it
-  (DES-119). W2 asks for the shape.
+  It is deliberately *not* populated with those states. Dana has two, pulled
+  into Today, and abandoned, and drawing "waiting" or "ready for review" now
+  would be inventing product rather than shaping a slot for it.
   */
   interface RowChip {
     key: string
-    /* The `given` fact that silences this chip, when there is one, the page
-       has already said it (DES-183). */
+    /* The `given` fact that silences this chip, when there is one: the page has
+       already said it. */
     given?: keyof NonNullable<TaskRowProps["given"]>
     shown: boolean
     /* Built on demand, so the condition in `shown` is also the one that
@@ -2610,17 +2382,16 @@ export function TaskRow(props: TaskRowProps) {
 
         <ChipMenu
           label="Folder"
-          /* The person's real folders, not the lab's four (Imran,
-             2026-08-22), see lib/folder-library.ts, and "New folder…"
-             last, so the menu can always reach a folder that does not exist
-             yet. DES-114: every folder list ends there. */
+          /* The person's real folders (see lib/folder-library.ts), and "New
+             folder…" last, so the menu can always reach a folder that does not
+             exist yet. Every folder list ends there. */
           items={folderLibrary()
             .map((folder) => ({
               key: folder.name,
               label: (
                 <span className="inline-flex items-center gap-2">
                   {/* The folder's own mark, so the menu you pick from and the
-                      chip you picked show the same thing (DES-130). */}
+                      chip you picked show the same thing. */}
                   <FolderMark
                     name={folder.name}
                     color={folder.color}
@@ -2637,9 +2408,7 @@ export function TaskRow(props: TaskRowProps) {
         >
           <DetailChip>
             {/* The row wears the folder's chosen glyph and colour, not the
-                generic mark, the sidebar has shown them since DES-130 and
-                every row was still drawing a plain folder (Imran,
-                2026-08-22). */}
+                generic mark, as the sidebar does. */}
             <FolderDetailWord name={folderName} color={task.folder?.color} />
           </DetailChip>
         </ChipMenu>
@@ -2675,18 +2444,13 @@ export function TaskRow(props: TaskRowProps) {
         <ChipMenu
           label="Assignee"
           /*
-          The real roster, and a way back out of it, W2.
+          The real roster, and a way back out of it.
 
-          It mapped `PEOPLE`, three names written for the row lab, which is the
-          same fault `folderLibrary` was built to fix one axis over: the list
-          you gave work to said "Sara" and "Hassan" while the People screen two
-          clicks away said "Sara Khan" and "Hassan Ali". And there was no
-          **Unassigned**, so a row could take an assignee and never let one go,
-          a closed set in its plainest form.
+          The names match the People screen, and **Unassigned** is always
+          offered, so a row that takes an assignee can let one go.
 
           Unassigned goes last, after a separator, exactly where "New folder…"
-          sits on the folder menu (DES-114): the way out of a list belongs at
-          its end.
+          sits on the folder menu: the way out of a list belongs at its end.
           */
           items={roster
             .map((person): ChipMenuItem => ({
@@ -2732,9 +2496,9 @@ export function TaskRow(props: TaskRowProps) {
       body: () =>
         !counts ? null : (
 
-        /* R6: the ratio is legible at 12px beside its glyph, and the words it
-           stands for are one hover away rather than spent on width the row
-           does not have. */
+        /* The ratio is legible at 12px beside its glyph, and the words it
+           stands for are one hover away rather than spent on width the row does
+           not have. */
         <DetailChip
           interactive={false}
           title={`${counts.done} of ${counts.total} steps done`}
@@ -2763,23 +2527,18 @@ export function TaskRow(props: TaskRowProps) {
       key: "state:today",
       shown: Boolean(task.pulled),
       /*
-      **Seam, S23: the My Day chip is 9.4's un-pull control where a page
-      supplies one.**
+      **The My Day chip is 9.4's un-pull control where a page supplies one.**
 
       9.4: "a row whose inclusion came from an entry carries the un-pull
       control", named "Remove from Today" by 9.1's table, and its own
       parenthesis says the control is "absent when the row also qualifies
-      automatically", which `parts/presenters.ts` already decides and passes
-      as `pulled`. The prototype draws the chip and nothing else, because
-      `onRemoveFromMyDay` is declared on `TaskRowProps` and read by no
-      control in the file: a prop with nowhere to go, which is F6's own fault
-      seen from the other side.
+      automatically", which `parts/presenters.ts` already decides and passes as
+      `pulled`.
 
       The chip is the right home rather than a second control beside it. It
-      already says the one fact the act is about, and a chip that says "My
-      Day" next to a button that removes from My Day is the same fact twice,
-      which is what DES-154 keeps being about. Where no handler is supplied
-      the chip stays exactly as the prototype drew it, which is
+      already says the one fact the act is about, and a chip that says "My Day"
+      next to a button that removes from My Day is the same fact twice. Where no
+      handler is supplied the chip is just a chip, which is
       `lib/object-acts.ts`'s rule one component down.
       */
       body: () =>
@@ -2815,33 +2574,19 @@ export function TaskRow(props: TaskRowProps) {
       ),
     },
     /*
-    **Seam, S23: two adornments the prototype dropped and section 9 keeps.**
+    **Two adornments section 9 specifies.**
 
-    `unassigned` and `invitePending` left `TaskRowProps` at the prototype's F6
-    review, alongside the three lab-driven props, and that file's own reason is
-    exactly right about its own case: "the new row honoured none of them, it
-    draws its own hover and focus, and had no drawing at all for the other two
-    ... a prop that cannot do anything is DES-144's dead control one level
-    down."
-
-    Here they are not dead. Both are driven by real data and both are
-    specified. 9.8's last sentence is normative on one of them, "rows and the
-    form show 'Invite pending: sara@example.com' while an assignment-invite is
+    9.8's last sentence is normative on one of them, "rows and the form show
+    'Invite pending: sara@example.com' while an assignment-invite is
     outstanding", filled by 7.4's `pending_invite_email`. The other is section
-    6's Q3 chip, a null assignee in a folder holding more than one member,
-    which `parts/presenters.ts` derives from the folder table the chrome
-    already holds. So 11.13 governs and the section wins, which is the ruling
-    F1 and F2 took: the lift owes the adornment at a named seam.
+    6's Q3 chip, a null assignee in a folder holding more than one member, which
+    `parts/presenters.ts` derives from the folder table the chrome already
+    holds.
 
-    **They are chips of this strip rather than badges beside it**, where the
-    v1 row put them, because DES-113's rule for the two densities is that the
-    details may differ in where they sit "and in nothing else", and a badge
-    outside the strip is a detail the one-line row has nowhere to put. The
-    words section 9 writes do not move.
-
-    The triage carried neither, which is a fact about its method rather than a
-    fault in it: it swept the browser harness's locators and no browser case
-    addresses either chip. The session report says so.
+    **They are chips of this strip rather than badges beside it**, because the
+    rule for the two densities is that the details may differ in where they sit
+    "and in nothing else", and a badge outside the strip is a detail the
+    one-line row has nowhere to put. The words section 9 writes do not move.
     */
     {
       key: "invite-pending",
@@ -2867,28 +2612,18 @@ export function TaskRow(props: TaskRowProps) {
       ),
     },
     /*
-    **Seam, S25: Assignments' from half, the third adornment the prototype
-    dropped and section 9 keeps.**
+    **Assignments' from half, a third adornment section 9 specifies.**
 
-    9.5 is normative and in terms: "the 'from' half of a row names the
-    creator, Dana recording no assigner." The prototype's own screen weighs
-    the same fact and lands elsewhere, that "the assignee is this page's spine
-    and creator belongs in the filter", which is a reading of the same honesty
-    problem rather than a contradiction of it. This client does both: the chip
-    is here and the created-by axis landed in `views/filter.ts` beside it.
-    Ledger L-224 and L-254 are this chip, and both read *no* with S25 named.
+    9.5 is normative and in terms: "the 'from' half of a row names the creator,
+    Dana recording no assigner." The created-by axis in `views/filter.ts` is the
+    other way to reach the same fact.
 
-    11.13 governs the difference and the section wins, which is the ruling F1
-    and F2 took and the one the two chips above took at S23: the lift owes the
-    adornment at a named seam.
-
-    **A chip of this strip rather than a badge beside it**, DES-113's rule for
-    the two densities being that the details may differ in where they sit "and
-    in nothing else". **And drawn only where a page asks for it**, because a
-    creator on every row of every page is the row repeating what nobody asked;
+    **A chip of this strip rather than a badge beside it**, for the density rule
+    above. **And drawn only where a page asks for it**, because a creator on
+    every row of every page is the row repeating what nobody asked;
     `parts/presenters.ts` fills it from `context.showCreator`, and Assignments
-    is the one page that passes it, which is the same per-list decision
-    `given` is and for DES-154's reason.
+    is the one page that passes it, which is the same per-list decision `given`
+    is.
     */
     {
       key: "created-by",
@@ -2933,13 +2668,12 @@ export function TaskRow(props: TaskRowProps) {
       onRestore={task.abandoned ? () => patch(task.id, { abandoned: false }) : undefined}
       quietStar={given.important}
       importantTooltip={props.importantTooltip}
-      /* polish: taskrow F8. No "Open in…" in the row menu: the title opens the
-         task where the person last chose, the chevron expands it in place, and
-         the expanded card's footer is where the surface is chosen. */
+      /* No "Open in…" in the row menu: the title opens the task where the
+         person last chose, the chevron expands it in place, and the expanded
+         card's footer is where the surface is chosen. */
       onOpenIn={undefined}
-      /* polish: taskrow F11. The page's own act where it has one (Today's
-         rows, with its undo), the writer's pull otherwise. Absent without an
-         id, the row lab's case. */
+      /* The page's own act where it has one (Today's rows, with its undo), the
+         writer's pull otherwise. Absent without an id, the row lab's case. */
       onPull={props.id ? () => patch(task.id, { pulled: true }) : undefined}
       onUnpull={
         props.id
@@ -2970,20 +2704,17 @@ export function TaskRow(props: TaskRowProps) {
       onHistory={props.id ? () => setHistoryOpen(true) : undefined}
       onCopyLink={props.id ? () => copyTaskLink(props.id!, task.title) : undefined}
       /*
-      **Duplicate and "Make this a folder…" are supplied since the loose-ends
-      row (RFC 0005 change control item 58, A and B).** The seam that stood
-      here recorded that frozen section 7 had no task duplicate; S28a gave it
-      `POST /tasks/:id/duplicate` (item 53(e)), and `tasks/task-acts.ts` performs
-      both acts the way it performs Copy link, from the row's own id, so no
-      screen threads a prop. Both are absent without an id, which is the row
-      lab and the concept screens: no id, no handler, no menu item.
+      **Duplicate and "Make this a folder…"** are performed by
+      `tasks/task-acts.ts` the way it performs Copy link, from the row's own id
+      (`POST /tasks/:id/duplicate`), so no screen threads a prop. Both are
+      absent without an id, which is the row lab and the concept screens: no id,
+      no handler, no menu item.
       */
       onDuplicate={props.id ? () => duplicateTask(props.id!, task.title) : undefined}
       onMakeFolder={props.id ? () => makeFolderOfTask(props.id!, task.title) : undefined}
-      /* No standalone "Open in…" here any more (Imran, 2026-08-18): the
-         card's footer carries it once the row is open, and the overflow
-         carries it while the row is shut. Two routes are enough; a third
-         icon in the row's gutter was paying rent it could not afford. */
+      /* No standalone "Open in…" here: the card's footer carries it once the
+         row is open, and the overflow carries it while the row is shut. Two
+         routes are enough; a third icon in the row's gutter would crowd it. */
       extra={
         <>
           <ExpandButton open={open} onToggle={() => setOpen((value) => !value)} />
@@ -3046,18 +2777,17 @@ export function TaskRow(props: TaskRowProps) {
         ) : (
           <div
             /*
-            The row body opens the task (Imran, 2026-08-22: the chevron was
-            the only way in). Everything inside the row that *does* something
-            is a real control, the checkbox, the title's rename button, every
-            chip, the star, the overflow, the chevron, so the guard is one
-            `closest` rather than a `stopPropagation` on each, which would be
-            a rule every future control has to remember. Whitespace opens; a
-            control does its own job.
+            The row body opens the task. Everything inside the row that *does*
+            something is a real control, the checkbox, the title's rename
+            button, every chip, the star, the overflow, the chevron, so the
+            guard is one `closest` rather than a `stopPropagation` on each,
+            which would be a rule every future control has to remember.
+            Whitespace opens; a control does its own job.
 
             It opens rather than expands, and that is the point: expanding is
-            the chevron's, and the two are different intentions. Where it
-            opens is DES-138's remembered preference, so this respects a
-            choice the person already made instead of imposing the dialog.
+            the chevron's, and the two are different intentions. Where it opens
+            is the remembered preference, so this respects a choice the person
+            already made instead of imposing the dialog.
             */
             onClick={
               /* Only where no drag engine is tracking the row, a board card,
@@ -3080,7 +2810,7 @@ export function TaskRow(props: TaskRowProps) {
             className={cn(
               "group/row grid w-full grid-cols-[40px_minmax(0,1fr)_auto] items-center rounded-md pr-2 transition-[background-color,height]",
               T_BASE,
-              /* A bare task costs one line, not two. DES-111. */
+              /* A bare task costs one line, not two. */
               bare ? "h-11" : "h-16",
               !open && ROW_HOVER,
               props.onOpen && !open && "cursor-pointer",
@@ -3116,11 +2846,9 @@ export interface TaskListWiring {
   How a row hands the list its opener.
 
   The engine resolves tap-versus-drag, because it is the only thing that knows
-  which a press became, so a row cannot simply take an `onClick`. Both of
-  these have been in the object the list builds since F4 and neither was in
-  this type, so a `renderRow` screen reaching for them was told they did not
-  exist. A contract that omits half of what it hands over is a contract that
-  gets rediscovered by whoever needs it next.
+  which a press became, so a row cannot simply take an `onClick`. Both of these
+  are in the object the list builds, and are typed here so a `renderRow` screen
+  can reach them.
   */
   onRegisterOpen: (open: (() => void) | null) => void
   dragState: {
@@ -3131,15 +2859,12 @@ export interface TaskListWiring {
     offset: number
   }
   /*
-  **Seam, S25: what a release would do, for a list that drags into a
-  container.**
+  What a release would do, for a list that drags into a container.
 
-  S23 gave the row the slot and the words, DES-171's "a container takes the
-  drop and says so", and left the list with no way to fill it: the engine's
-  `overKey` was never asked for and never handed on, so the only surface that
-  drags into a container, the board, could not draw one. AC-228 reads "Into
-  {column}" while the pointer is still down, which is the one moment it
-  exists. Undefined on every row that is not the carried one.
+  The engine's `overKey` is handed on so the only surface that drags into a
+  container, the board, can fill the row's proposal slot. AC-228 reads "Into
+  {column}" while the pointer is still down, which is the one moment it exists.
+  Undefined on every row that is not the carried one.
   */
   proposal?: string
   isSelected: boolean
@@ -3148,30 +2873,15 @@ export interface TaskListWiring {
 
 /* ---------------------------------------------------------------- list, */
 /*
-A list of task rows, and the three behaviours that only exist because they are
-a list rather than a row: reordering, the 1.5-second hold that makes a folder
-of two tasks, and selecting several to act on at once.
-
-**Why these were nearly left out, and why that was wrong.** The first port
-excluded them on the grounds that they are Lane 2, they need a persisted
-order and endpoints nobody has written, so they cannot reach `app/`. But this
-is `prototype-v2`, and the register's rule for the prototype is the opposite
-one, written into DES-119 after the same mistake was made and corrected once
-already:
-
-> A Lane 2 idea may still be drawn. The prototype runs on fixtures, so it can
-> render anything, and seeing an idea is usually what settles whether it is
-> worth a backend. What must never happen is a Lane 2 idea reaching `app/`
-> because a session forgot which lane it was in.
-
-Leaving them out made the prototype look finished when it was not. They are
-here, and DES-119's table is what keeps them out of `app/`.
+A list of task rows, and the three behaviours that only exist because they are a
+list rather than a row: reordering, the 1.5-second hold that makes a folder of
+two tasks, and selecting several to act on at once.
 
 **Why it is a component rather than a hook.** The state these behaviours need
-belongs to the list and not to any row in it, which row is being carried,
-which row it is resting on, what is selected, and a screen that had to hold
-that state would be a screen that could get it wrong. A screen renders one of
-these per section and passes tasks; everything else is here.
+belongs to the list and not to any row in it, which row is being carried, which
+row it is resting on, what is selected, and a screen that had to hold that state
+would be a screen that could get it wrong. A screen renders one of these per
+section and passes tasks; everything else is here.
 */
 
 export function TaskList<T extends TaskRowProps & { id: string }>({
@@ -3205,37 +2915,27 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
   /** The composed page draws the shared bar once above all of its islands. */
   selectionChrome?: boolean
   /*
-  **Seam, S23a: the list's arrangement is provisional until the screen says
-  otherwise.** The prototype's `onReorder` is a notification and the list
-  keeps the new order itself, which is right over fixtures and wrong over 7.6:
-  item 44's B4 persists a drag in a folder with no filter or sort applied and
-  springs it back everywhere else, and only the screen knows which list it
-  is. So the callback also receives the ids in their new order and may
-  answer with a promise: `true` once the order endpoint has written and the
-  view has been read back, `false` for a refusal or a list that never
-  persists. Either way the list then drops its own copy and shows the
-  screen's rows, which after a write is the server's order (AC-266's rule
-  that the drag reads back in Q2's order) and after a refusal is the order
-  the sort put there. A screen that returns nothing keeps the prototype's
-  behaviour whole.
+  **The list's arrangement is provisional until the screen says otherwise.** 7.6
+  persists a drag in a folder with no filter or sort applied and springs it back
+  everywhere else, and only the screen knows which list it is. So the callback
+  also receives the ids in their new order and may answer with a promise: `true`
+  once the order endpoint has written and the view has been read back, `false`
+  for a refusal or a list that never persists. Either way the list then drops
+  its own copy and shows the screen's rows, which after a write is the server's
+  order (AC-266: the drag reads back in Q2's order) and after a refusal is the
+  order the sort put there. A screen that returns nothing keeps the list's own
+  order.
   */
   onReorder?: (from: number, to: number, next: string[]) => void | Promise<boolean>
   /*
-  polish: taskrow F6 (2026-08-30). Whether this list keeps an order at all.
+  Whether this list keeps an order at all.
 
-  The seam above answers a drag `false` where item 44's B4 does not persist
-  one, and the list then springs the row back. What the adversarial round
-  found is that the springing back is the second half of a promise the list
-  had already made: on Desk the rows a carried row passed slid open a gap and
-  a slot appeared under it, exactly as in a folder, and on release nothing
-  had moved, before or after a reload. Nothing said the page could not be
-  arranged.
-
-  So a list that cannot keep an order does not offer one. The row still
-  lifts, still follows the pointer, and the 1.5 second dwell still makes a
-  folder, that gesture needing no persisted order; what goes is the
-  displacement of the rows it passes and the reorder itself, so the only
-  thing a drag here offers is the one thing it can do.
+  A list that cannot keep an order does not offer one: otherwise the rows a
+  carried row passes slide open a gap and a slot appears under it, and on
+  release nothing has moved. The row still lifts, still follows the pointer, and
+  the 1.5 second dwell still makes a folder, that gesture needing no persisted
+  order; what goes is the displacement of the rows it passes and the reorder
+  itself, so the only thing a drag here offers is the one thing it can do.
   */
   reorderable?: boolean
   /*
@@ -3247,11 +2947,10 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
   means the page took it and this list should leave its own order alone.
   */
   onDropAt?: (taskId: string, point: { x: number; y: number }) => boolean
-  /* **Seam, S25.** What a release at this point would do, asked while the
-     drag is still in the air, so the carried row can say it. It returns the
-     words rather than a key, because the words are the only thing the row
-     draws and a key would need a second prop to translate. See `proposal` on
-     `TaskListWiring`. */
+  /* What a release at this point would do, asked while the drag is still in the
+     air, so the carried row can say it. It returns the words rather than a key,
+     because the words are the only thing the row draws and a key would need a
+     second prop to translate. See `proposal` on `TaskListWiring`. */
   onOver?: (taskId: string, point: { x: number; y: number }) => string | null
   /* Whether a row in this list is currently being carried. A page with
      sections needs it: the place to drop a task that belongs to none of them
@@ -3261,7 +2960,7 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
   onBulk?: (ids: string[], fields: Partial<ConceptTask>) => void
   onDuplicate?: (ids: string[]) => void
   onDelete?: (ids: string[]) => void
-  /* Seam, S23a: the id rides along; see `useRowSelection`. */
+  /* The id rides along; see `useRowSelection`. */
   onMove?: (ids: string[], folder: { id: string; name: string; color: string }) => void
   /* Per-task callbacks, taking the id, so a screen never has to map rows
      itself just to close over one. */
@@ -3317,11 +3016,11 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
   const cancelPress = useRef<() => void>(() => {})
 
   /*
-  polish: taskrow F6. The carried row still follows the pointer and the dwell
-  still arms on the row under it; what a list with no order to keep does not
-  do is slide the rows it passes out of the way, which is the list drawing a
-  slot it will not fill. One reading, made here rather than in the engine,
-  because whether an order persists is the page's fact and not the gesture's.
+  The carried row still follows the pointer and the dwell still arms on the row
+  under it; what a list with no order to keep does not do is slide the rows it
+  passes out of the way, which is the list drawing a slot it will not fill. Made
+  here rather than in the engine, because whether an order persists is the
+  page's fact and not the gesture's.
   */
   function stateOf(index: number): SortableItemState {
     const state = drag.itemState(index)
@@ -3346,22 +3045,22 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
         }
       : undefined,
     onReorder: (from, to) => {
-      /* polish: taskrow F6. A list with no order to keep never takes one. */
+      /* A list with no order to keep never takes one. */
       if (!reorderable) return
       const next = ordered.map((task) => task.id)
       const [moved] = next.splice(from, 1)
       if (moved) next.splice(to, 0, moved)
       setOrder(next)
-      /* Seam, S23a: see `onReorder` on the props. The list's own copy of
-         the order is held while the screen answers and dropped when it has,
-         whichever way it answered. */
+      /* See `onReorder` on the props. The list's own copy of the order is held
+         while the screen answers and dropped when it has, whichever way it
+         answered. */
       const answer = onReorder?.(from, to, next)
       if (answer !== undefined) {
         void answer.then(() => setOrder(null))
       }
     },
     /* Resting on a row proposes a folder of the two. Nothing is destroyed on
-       release: it opens the naming panel, which can be cancelled. DES-103. */
+       release: it opens the naming panel, which can be cancelled. */
     onDwell: (from, to) => {
       const moved = ordered[from]
       const onto = ordered[to]
@@ -3392,15 +3091,14 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
   const selection = sharedSelection ?? localSelection
   cancelPress.current = selection.clearPress
   /*
-  Seam, S23a: a press that became a selection is not a tap.
+  A press that became a selection is not a tap.
 
-  The engine resolves a still press as a tap on release and asks the row to
-  open (`onTap` in use-sortable-list). In the prototype's lab that press
-  opened nothing, because the lab passed no opener; here every row registers
-  one, so the 400 ms hold that starts selecting would, on release, also open
-  the task it had just selected. The engine's listeners were attached before
-  the hold armed and cannot see it, so the opener the list hands the engine
-  reads the mode at the moment of release rather than at the press.
+  The engine resolves a still press as a tap on release and asks the row to open
+  (`onTap` in use-sortable-list). Every row registers an opener, so the 400 ms
+  hold that starts selecting would, on release, also open the task it had just
+  selected. The engine's listeners were attached before the hold armed and
+  cannot see it, so the opener the list hands the engine reads the mode at the
+  moment of release rather than at the press.
   */
   const selectingNow = useRef(false)
   selectingNow.current = selection.selecting
@@ -3438,9 +3136,9 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
        task had no breathing room in the screens while looking right in the
        lab. A gap belongs to the container and leaves the children's margins
        alone, which is what the card needs. */
-    /* Seam, S23: the container is a list, which is F1's other half. A
-       `listitem` needs a `list` to be an item of, and 9.1's roles table
-       fixes both ends of that. See the seam over `ExpandShell` above. */
+    /* The container is a list: a `listitem` needs a `list` to be an item of,
+       and 9.1's roles table fixes both ends of that. See the comment over
+       `ExpandShell` above. */
     <div role="list" className={cn("flex flex-col gap-0.5", className)}>
       {selectionChrome ? selection.bar : null}
       {pending ? (
@@ -3474,7 +3172,7 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
                    behaviour a property of TaskRow rather than a courtesy each
                    caller extends. */
                 drag.surfaceProps(index, () => {
-                  /* Seam, S23a: see `selectingNow` above. */
+                  /* See `selectingNow` above. */
                   if (selectingNow.current) return
                   openers.current.get(task.id)?.()
                 }),
@@ -3487,9 +3185,9 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
             else openers.current.delete(task.id)
           },
           dragState: stateOf(index),
-          /* Seam, S25: the words only the carried row draws, and only while
-             a container has been proposed. `overKey` is the label because
-             `onOver` returns one; see that prop. */
+          /* The words only the carried row draws, and only while a container
+             has been proposed. `overKey` is the label because `onOver` returns
+             one; see that prop. */
           proposal:
             drag.itemState(index).isActive && drag.overKey !== null
               ? drag.overKey

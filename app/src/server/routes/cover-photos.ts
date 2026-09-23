@@ -1,13 +1,9 @@
 /*
-The photo tier's server half (7.15's cover routes, added at the polish round
-of 2026-08-30 on the owner's word, RFC 0005's frozen-section rule waived by
-him for this round).
+The photo tier's server half (7.15's cover routes).
 
-`lib/page-identity.ts` carries the measurement this answers: the client's
-Photos tab was built at S25 and could never run, because 10.8's CSP sends
-`img-src 'self' data:` and `connect-src 'self'`, so the picker's search
-request never left the page and no thumbnail could paint. No client-side
-workaround exists — the photograph's bytes sit on a host that sends no CORS
+10.8's CSP sends `img-src 'self' data:` and `connect-src 'self'`, so a
+client-side picker's search request could never leave the page and no
+third-party thumbnail could paint. No client-side workaround exists — the photograph's bytes sit on a host that sends no CORS
 header. So the server does the fetching, and the CSP does not move an inch:
 
 - GET  /covers/photos?q=          — proxies the Openverse search, and

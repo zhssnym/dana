@@ -23,10 +23,8 @@ closes.
 **The record that authorises it is accepted #209 R8A**, "Status: ACCEPTED by
 owner": Full control is "administer members, Access, Responsibilities and all
 shared Folder work", and Can edit is "plan/change all shared Folder work;
-**cannot administer people/Access**". Hassan's ruling of 2026-09-20 made the
-change and corrected the authority the branch had cited -- R7, marked
-"(PROPOSED, not accepted)" in #209 and superseded by R8A. The ruling is
-https://github.com/zhssnym/dana/issues/228#issuecomment-5750892771.
+**cannot administer people/Access**". (R7 in #209 is superseded by R8A and
+is no authority.)
 
 **AC-021 is unaffected in substance and reachable differently.** Its raced
 double add still splits 201 and 409, but both racers must now hold Full
@@ -147,8 +145,7 @@ describe('AC-024: a Full-control roster add admits the target and mails them onc
       'the membership row must exist (spec 5.3)',
     ).toContain(target.id)
 
-    // Ruled at the shape review into frozen 7.4: POST members answers the
-    // member element it created, and the person inside is 7.0's shape
+    // 7.4: POST members answers the member element it created, and the person inside is 7.0's shape
     // without email, an address co-members have no claim to.
     const body = response.json() as {
       user?: Record<string, unknown>

@@ -39,7 +39,7 @@ const taskFormListeners = new Set<TaskFormListener>()
 const searchListeners = new Set<SearchListener>()
 
 /*
-The New folder dialog, asked for from a page (S27).
+The New folder dialog, asked for from a page.
 
 9.10's shelf page offers "New folder..." on its Add folder row, and the folder
 it makes lands on that shelf; the dialog that does this is the shell's, mounted

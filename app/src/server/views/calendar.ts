@@ -22,21 +22,17 @@ Q3 puts status_rank above the timed flag; Q3C puts the timed flag above
 status_rank, and puts due_time above status_rank inside the timed run. The
 two orders disagree on any date carrying a mixed cell.
 
-The virtual arm is 8.5's projection over the 4.11 iterator, which 11.9 gives
-to the Scheduling engineer and P6 delivered; this file calls it and fetches
-what it projects from, which is the whole of the seam
-names. The arithmetic below the call is never restated here.
+The virtual arm is 8.5's projection over the 4.11 iterator in
+src/server/time; this file calls it and fetches what it projects from. The arithmetic below the call is never restated here.
 
 **The two fetches are two queries on purpose, and this is the one thing about
 this file worth arguing with before changing it.** Q3C's virtual sentence
 scopes the projection by three things, accessible, pending and rule-carrying,
 and by nothing else; in particular not by the task's own due_date lying inside
 the requested range, which is the real-row predicate and belongs to the real
-rows alone. Projecting off the BETWEEN-bounded result set is one line shorter,
-would have satisfied AC-082 outright, whose current occurrence sits inside its own grid, and
-silently empties every month-ahead view of a series anchored before the range,
-which is the ordinary way a repeating task is looked at. AC-143 exists to fail
-against that implementation, and section 12 records the reading beside it.
+rows alone. Projecting off the BETWEEN-bounded result set is one line shorter
+and silently empties every month-ahead view of a series anchored before the
+range, which is the ordinary way a repeating task is looked at (AC-143).
 
 There is no cap and no truncated flag, which 7.10 shows by giving this body
 neither: the response is bounded by its 62 days instead, and the range check
@@ -173,9 +169,8 @@ function ghostsOf(
  * days its bar begins on, and it has to reach the September one too, or the
  * same bar disappears from one month and reappears in the next.
  *
- * Inclusive at both ends, which AC-126 pins from both sides and which the
- * comparison keeps: overlap of two inclusive spans is "each begins no later
- * than the other ends". ACTIVATION_DATE and SCHEDULE_DATE are the two ends of
+ * Inclusive at both ends (AC-126), which the comparison keeps: overlap of two
+ * inclusive spans is "each begins no later than the other ends". ACTIVATION_DATE and SCHEDULE_DATE are the two ends of
  * the task's own span under `tasks_start_before_due_check`, and neither is
  * null for a row this predicate can admit, since a task with no date has no
  * span to overlap anything.

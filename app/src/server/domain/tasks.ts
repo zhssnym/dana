@@ -1,19 +1,19 @@
 /*
-The P3 domain module: tasks, steps, and My Day membership per spec 7.6, 7.7,
+The domain module for tasks, steps, and My Day membership per spec 7.6, 7.7,
 and 7.8, the 5.1 status machine with 8.3's guarded updates, the 8.4
 clear-date cascade, and the INV-4 and INV-5 assignment rules. Routes validate
 and serialize; every decision that touches rows is here, behind the 10.2 rule
 that no query leaves this file without being scoped to the viewer, which for
 tasks means the membership join every read below carries.
 
-Results are discriminated unions rather than thrown statuses, the P2 module's
-convention, so the route layer owns the mapping onto 7.0's taxonomy and this
+Results are discriminated unions rather than thrown statuses, the folders
+module's convention, so the route layer owns the mapping onto 7.0's taxonomy and this
 file stays testable without HTTP.
 
-Both seams this file opened at P3 are closed now, and both the same way:
+Two seams, both wired the same way:
 
-- **Generation (8.5) and G-SERIES (5.1)** are wired at P6. Neither is
-  implemented here: both are the Scheduling engineer's functions, taken from
+- **Generation (8.5) and G-SERIES (5.1).** Neither is implemented here: both
+  are functions taken from
   src/server/time as transaction-taking black boxes across the transitions
   seam, and what this file owns is where they are called
   from. Generation runs in the winning branch of the complete and abandon
@@ -21,16 +21,15 @@ Both seams this file opened at P3 are closed now, and both the same way:
   under any race (8.3); the guard runs ahead of the uncomplete and restore
   updates, and only on a row still in the status the transition expects,
   because a repeat call on an already-pending row is 5.1's no-op and must
-  write nothing. The two companion fields the 7.6 envelope names, null since
-  P3, are answered from those two calls.
-- **The 8.6 fire instant and its recompute triggers** are wired at P7, on the
-  same terms and by the reminders seam of the same file: planReminder answers
+  write nothing. The two companion fields the 7.6 envelope names are
+  answered from those two calls.
+- **The 8.6 fire instant and its recompute triggers**, on the same terms and by the reminders seam of the same file: planReminder answers
   what a row about to be written must carry, recomputeReminders answers what a
   row that already exists must become, and no arithmetic is restated here.
   Four of 8.6's five triggers fire in this file, three inside patchTask
   (due_date, due_time, assignee_id) and one inside the 7.9 upsert; the fifth
-  is the assignee's own timezone and fires in the auth module, where frozen
-  7.1 puts it. Each call is made after this file's own write and inside the
+  is the assignee's own timezone and fires in the auth module, where 7.1
+  puts it. Each call is made after this file's own write and inside the
   same transaction, which is the one thing a caller of that module can get
   wrong silently: called first, it computes from the state the write replaced.
 */
@@ -76,8 +75,8 @@ import { positionAtSectionEnd, seededItems } from './page-order.js'
  * ------------------------------------------------------------------ */
 
 /** Timestamps leave the drivers as Date on one backend and as a string on
- * the other; the wire format is the ISO instant either way (the P2 module's
- * helper, kept local for the reason db.ts records about its own copies). */
+ * the other; the wire format is the ISO instant either way (the folders
+ * module's helper, kept local for the reason db.ts records about its own copies). */
 function toIso(value: unknown): string {
   return value instanceof Date
     ? value.toISOString()
@@ -116,7 +115,7 @@ export interface TaskAccess {
   /** The rule the row holds, which two decisions read: whether a PATCH is
    * setting a rule or changing one, 7.6 minting a series_id for the first and
    * not the second, and whether a transition is one 8.5 generates from, which
-   * frozen 7.6 makes the condition of its tz rule. The series_id itself is
+   * 7.6 makes the condition of its tz rule. The series_id itself is
    * not here: the guard that needs it reads it under its own lock. */
   recurrenceRule: string | null
   sectionBlockId: string | null
@@ -322,11 +321,10 @@ fields; the assignee is the person shape 7.4's members element carries;
 is_recurring reports the rule the row holds; the two step counts are counts
 of 4.6 rows; pulled is the viewer's own My Day entry, so one row answers it
 differently for two members; pending_invite_email comes from invites.task_id
-(7.0), whose rows P5 writes and this package only reads; the reminder is the
+(7.0), whose rows the invites module writes and this file only reads; the reminder is the
 4.8 row projected as both its columns with exactly one non-null.
 
-The creator arrived as a person shape with RFC 0005 unit 12a and is joined
-rather than rendered from the column: 4.5 makes created_by NOT NULL, so the
+The creator is a person shape and is joined rather than rendered from the column: 4.5 makes created_by NOT NULL, so the
 join is on 4.1's row and its one null is the scrub, which is why the ON
 clause carries deleted_at rather than the projection carrying a case. The
 join is LEFT for that reason alone, never because the column can be null.
@@ -439,10 +437,8 @@ export async function taskView(
 }
 
 /*
-7.0's TaskCard, which is 7.0's TaskDetail less its seven, and the shape frozen
-7.6 gives generated_task. It was eight until RFC 0005 unit 12a moved
-section_block_id and created_by onto the card, and both therefore come off
-this strip list rather than being restated anywhere. It is derived from the detail rather than read by a
+7.0's TaskCard, which is 7.0's TaskDetail less its seven, and the shape 7.6
+gives generated_task. It is derived from the detail rather than read by a
 second query for the reason the detail's own comment gives: one read serves
 every endpoint here, and a card built from its own SELECT is the per-endpoint
 variant the contract exists to prevent. The views module answers cards from
@@ -499,18 +495,17 @@ async function viewOrFail(
 }
 
 /* ------------------------------------------------------------------ *
- * The 4.8 reminder row: frozen 7.9's two endpoints, and the arm both of
+ * The 4.8 reminder row: 7.9's two endpoints, and the arm both of
  * 7.6's write bodies carry
  * ------------------------------------------------------------------ */
 
 /*
-Three write paths reach the one row 4.8 keys by task_id: frozen 7.9's PUT,
+Three write paths reach the one row 4.8 keys by task_id: 7.9's PUT,
 7.6's create body, and 7.6's PATCH body. They are one upsert and one guard
 below rather than three of each, for the reason 4.8 gives itself: the mode
 rule is "cross-table and enforced by the API, restated at every write", and
-restated is exactly where two call sites drift. AC-149's last case measures
-the drift by making the same request through two of the three doors and
-comparing the stored instants.
+restated is exactly where two call sites drift. The same request through any
+two of the three doors must store the same instant.
 */
 
 /** 4.8's exclusive-or as the three write paths hand it over: exactly one of
@@ -535,7 +530,7 @@ export interface ReminderRefusal {
 }
 
 /*
-Frozen 7.9's two 422s, against the task as it will stand after this request's
+7.9's two 422s, against the task as it will stand after this request's
 own writes. Both need a row and neither can be a schema rule: whether a
 reminder is legal at all depends on the task's due_date (INV-6, and 7.9's
 second refusal), and which mode is legal depends on the task's due_time
@@ -548,7 +543,7 @@ half, and every other 10.3 message in this codebase names one field.
 
 The no-date refusal is checked first and covers both modes, not just the
 offset one: with no due_date the offset arm has no due_time INV-6 would
-permit, and the date-only arm has no date to attach its wall time to (AC-147).
+permit, and the date-only arm has no date to attach its wall time to.
 */
 function reminderRefusal(
   dueDate: string | null,
@@ -582,9 +577,8 @@ that instant is already past".
 The instant, the state and fired_at are planReminder's answer and are written
 together on both arms of the conflict. 4.8 makes fire_at NOT NULL, so there
 is no half-row to insert and compute after; and an upsert that carried the
-new instant across while leaving state and fired_at alone is the failure
-AC-148 states — states it rather than holding it, its test file having gone in
-the 2026-09-20 cut — a row holding exactly the value the user asked for that will
+new instant across while leaving state and fired_at alone would leave a row
+holding exactly the value the user asked for that will
 never fire again because it is still terminal from the last time it did.
 
 No recompute follows this call, and that is a decision rather than an
@@ -681,8 +675,7 @@ half-built task behind.
 
 The assignee is the only interesting decision, and it is three rules in
 order. A single-member folder forces the assignee to that member ignoring the
-input, which the mid-P3 change control settles as winning over the
-composite-FK refusal on this endpoint: section 3 names INV-5's enforcement as
+input, which wins over the composite-FK refusal on this endpoint: section 3 names INV-5's enforcement as
 create, move, and the unassign guard, so create repairs where only the
 guard refuses. Otherwise an absent assignee_id takes 7.6's default of V, and
 a present one must be a member, which is the composite FK surfaced as a 422
@@ -690,7 +683,7 @@ rather than left to answer as a constraint error (10.2 keeps constraints as
 the last line and never the first). An explicit null in a multi-member folder
 is an unassigned task, which that folder may hold.
 
-The rule is the P6 arm, and it is two columns rather than one. 7.6 gives a
+The rule is two columns rather than one. 7.6 gives a
 created rule a fresh series_id, and INV-13 is a CHECK, so a rule written
 without one is refused by the database rather than merely wrong. Freshness is
 gen_random_uuid() in the statement itself: a series identity minted in this
@@ -742,7 +735,7 @@ export async function createTaskIn(
       }
     }
 
-    // 4.5 (RFC 0005): a section assignment names a section block of this
+    // 4.5: a section assignment names a section block of this
     // folder's own page, or it names nothing.
     const sectionId = body.section_block_id ?? null
     if (sectionId !== null && !(await sectionInFolder(tx, sectionId, folderId))) {
@@ -782,8 +775,8 @@ export async function createTaskIn(
     const taskId = String(inserted[0]?.id)
 
     /*
-    7.6's reminder arm, deferred at the P3 kickoff with the 8.6 instant that
-    4.8's NOT NULL fire_at demands and delivered here. It is written after the
+    7.6's reminder arm, with the 8.6 instant that 4.8's NOT NULL fire_at
+    demands. It is written after the
     task rather than beside it because the computation reads the row: the zone
     is the assignee's, which the INV-5 forcing above may have chosen rather
     than the body, and the dates are the ones just inserted.
@@ -791,8 +784,7 @@ export async function createTaskIn(
     Both of 7.9's guards are already answered, by the create body itself and
     not by this file. A create states the task's due_date and due_time in the
     same breath as the reminder, so the dependency and the mode are relations
-    between fields of one body, which is where the schema puts them and where
-    AC-149 measures them. Reaching the upsert with a shape 8.6 cannot compute
+    between fields of one body, which is where the schema puts them. Reaching the upsert with a shape 8.6 cannot compute
     would mean that schema had stopped refusing it, and planReminder throws
     rather than inventing an arm, which is the backstop this ordering wants.
     */
@@ -868,7 +860,7 @@ different fields both win.
 Three derived rules ride along:
 
 - **The move.** A folder_id change requires membership of the target, which
-  reads as 404 under the leak rule rather than as the 422 the frozen text
+  reads as 404 under the leak rule rather than as the 422 the spec text
   also admits, because an inaccessible folder is indistinguishable from a
   nonexistent one everywhere else in this surface. The assignee then follows
   the target: dropped when they are not a member of it, forced when the
@@ -895,15 +887,14 @@ Three derived rules ride along:
   and writes nothing else, the date and the reminder staying, because 8.4's
   cascade runs the other way round only.
 
-The reminder is three more, all P7's and all in this one transaction:
+The reminder is three more, all in this one transaction:
 
 - **The mode cascade (8.4, one size down from the clear-date cascade above).**
   Two PATCH edits move due_time across the line 4.8 draws and each leaves a
   pair 4.8 calls illegal, so both delete the row: clearing due_time deletes an
   offset reminder, and setting one on a date-only task deletes a time_of_day
   reminder. A due_time that moves between two non-null values crosses no line,
-  invalidates no mode and deletes nothing; it is the ordinary recompute below,
-  and AC-164's third clause is the control that says so. Both deletes carry
+  invalidates no mode and deletes nothing; it is the ordinary recompute below. Both deletes carry
   the mode in their predicate as well as in the condition that reached them,
   which costs nothing and makes the statement true on its own terms.
 - **The recompute (8.6), once.** Three of 8.6's five triggers are edits this
@@ -939,10 +930,10 @@ export async function patchTask(
     deciding one mixed position.
 
     **The folder lock used to be taken only for a folder or Section move, and
-    that was a lock-order inversion that deadlocked under load.** Found on
-    2026-09-20 by AC-516, which races a reassigning PATCH against a completing
-    transition on one Task and read a 500 on a contended leg; it reproduces on
-    no quiet one, which is what a deadlock does.
+    that was a lock-order inversion that deadlocked under load**: a
+    reassigning PATCH racing a completing transition on one Task read a 500
+    on a contended run and never on a quiet one, which is what a deadlock
+    does.
 
     The mechanism, because it is not obvious and the fix looks like a
     pessimisation without it. `transitionTask` takes the folder row
@@ -1068,7 +1059,7 @@ export async function patchTask(
       assigneeId = onlyMember ?? (survives ? current.assigneeId : null)
     }
 
-    // 4.5 (RFC 0005): a section names a block of the folder the task ends
+    // 4.5: a section names a block of the folder the task ends
     // in; a move that brings no fresh section clears it, because the old
     // page's furniture stays home.
     let sectionId: string | null | undefined
@@ -1262,7 +1253,7 @@ export async function patchTask(
     } else if (patch.due_time !== undefined && finalDueTime !== current.dueTime) {
       // 8.4's smaller sibling, both arms. Only a move across the null
       // boundary invalidates a mode, so a time that moves from one value to
-      // another falls through to the recompute below (AC-164's third clause).
+      // another falls through to the recompute below.
       if (finalDueTime === null) {
         await tx.execute(
           sql`DELETE FROM reminders
@@ -1385,10 +1376,10 @@ function movedTrigger(
 /** 5.1's delete row: the task goes and the database cascades its steps, My
  * Day entries and reminder, while invites.task_id is set null by 4.9 because
  * an invite is a message to a person and outlives the task it carried. A
- * second delete finds nothing accessible and answers 404, the mid-P3 ruling:
+ * second delete finds nothing accessible and answers 404, because
  * 204 for a row that existed beside 404 for one that never did is an
  * existence oracle. */
-/** RFC 0005 (7.13): the delete marks rather than removes, so the row and its
+/** 7.13: the delete marks rather than removes, so the row and its
  * parts wait 30 days for any member's restore; the 11.7 pass is the only
  * thing that ever deletes it. The resolution above already refuses a row
  * that is trashed, which is what makes the second delete 8.3's 404. */
@@ -1452,7 +1443,7 @@ export type TransitionResult =
   | { kind: 'conflict'; message: string }
   | { kind: 'not_found' }
   | { kind: 'forbidden'; reason: string }
-  /** Frozen 7.6 as ruled on 2026-08-10: the transition would run generation
+  /** 7.6: the transition would run generation
    * and the request named no zone. Nothing is written, so the same call
    * retried with one gets the transition it asked for. */
   | { kind: 'tz_required' }
@@ -1468,7 +1459,7 @@ interface TransitionRule {
    * instead. */
   conflict: string
   /** 5.1: complete and abandon run generation (8.5) when the row carries a
-   * rule, which is also the pair frozen 7.6 gives the tz parameter. */
+   * rule, which is also the pair 7.6 gives the tz parameter. */
   generates: boolean
   /** 5.1: uncomplete and restore apply G-SERIES, and they alone. */
   guarded: boolean
@@ -1539,8 +1530,8 @@ zero rows means this caller did not perform the transition, and the row is
 re-read to classify. A no-op writes nothing at all, which is what "200
 without side effects" means for updated_at as much as for the status.
 
-P6 fills the two seams this function was left with, and both are calls into
-the Scheduling engineer's module rather than anything computed here.
+Two seams, both calls into the time module rather than anything computed
+here.
 
 **The resolution takes the row lock now.** It has to, because two of the
 three things this function decides are read before the update rather than
@@ -1559,14 +1550,14 @@ row reaches it. The row is re-read for the response afterwards, because
 generation moves the rule onto the successor and the envelope's task must say
 so.
 
-**The zone, per frozen 7.6 as ruled on 2026-08-10.** It arrives as a
+**The zone, per 7.6.** It arrives as a
 parameter, never from users.timezone, which 8.1 reserves for reminder fire
 instants, and the route validates a present one before this function is
-reached. An absent one is refused here, and only here: the condition is the
-ruling's own, the winning guarded update landing on a pending row that carries
+reached. An absent one is refused here, and only here: the condition is 7.6's
+own, the winning guarded update landing on a pending row that carries
 a rule, which is exactly the call that would evaluate a calendar date. The
 refusal returns before the update, so the transaction changes nothing, which
-is the ruling's second sentence and not an implementation detail.
+7.6 requires and is not an implementation detail.
 
 **G-SERIES (5.1), ahead of the uncomplete and restore updates.** It runs only
 when the row is still in the status the transition expects: a repeat call on
@@ -1704,9 +1695,8 @@ use. Nothing under this function catches a miscount: two adds arriving
 together on a task holding 49 steps would both read 49, both pass the guard,
 and both insert, leaving 51 against a number 10.3 calls server-enforced. The
 lock makes the count and the insert one decision, so the second add reads 50
-and is refused. Found at the P3 shape review, which is also where the
-identical shape at the 25-member cap was found; PGlite is single-connection
-(11.15), so no run of this suite can ever show either.
+and is refused. The 25-member cap has the identical shape; PGlite is
+single-connection (11.15), so no run of this suite can ever show either.
 */
 export async function addStep(
   db: Db,
@@ -1750,7 +1740,7 @@ export async function addStep(
       subjectId: taskId,
       subjectName: current.title,
       folderId: current.folderId,
-      /* polish: taskcard F4 (2026-08-30). The step is named, so the history
+      /* The step is named, so the history
          reads "Hassan added a step 'Plates'" rather than a bare verb. */
       detail: `added a step '${stepWord(body.title)}'`,
     })
@@ -1859,7 +1849,7 @@ export async function patchStep(
         subjectId: step.taskId,
         subjectName: step.taskTitle,
         folderId: step.folderId,
-        /* polish: taskcard F4. The act that happened, named: a rename says
+        /* The act that happened, named: a rename says
            the new name, a tick says it was ticked, a move says it moved. */
         detail:
           patch.title !== undefined
@@ -1911,8 +1901,7 @@ export type PromoteStepResult =
   | { kind: 'forbidden'; reason: string }
 
 /*
-POST /tasks/:id/steps/:stepId/promote (RFC 0005 change control item 58, B9's
-one-way move given its endpoint).
+POST /tasks/:id/steps/:stepId/promote: a step's one-way move to a task.
 
 A step becomes a task of its own in the parent's folder and under the
 parent's section, and the step is gone from the parent in the same
@@ -2001,7 +1990,7 @@ week into today's group. ON CONFLICT DO NOTHING is INV-12's primary key doing
 the work.
 
 added_on is today(V), which 7.8 names outright and which the tz query
-parameter is what supplies, by owner ruling on 2026-08-08.
+parameter supplies.
 
 This statement used to read (now() AT TIME ZONE u.timezone)::date, the
 account's stored zone, because the endpoint carried no tz and that was the
@@ -2081,8 +2070,8 @@ export type PutReminderResult =
   | { kind: 'forbidden'; reason: string }
 
 /**
- * Frozen 7.9's PUT: the whole reminder, upserted, answering the affected
- * TaskDetail by the owner's ruling of 2026-08-10.
+ * 7.9's PUT: the whole reminder, upserted, answering the affected
+ * TaskDetail.
  *
  * The row is locked before it is read, the reason patchTask locks: this
  * decides from the task's due_date and due_time and then writes against them,
@@ -2091,7 +2080,7 @@ export type PutReminderResult =
  *
  * Order is 10.2's and not this endpoint's preference: access first, so a
  * caller outside the folder is answered 404 without learning whether their
- * body would have been valid (AC-147's last case).
+ * body would have been valid.
  */
 export async function putTaskReminder(
   db: Db,
@@ -2136,12 +2125,12 @@ export async function putTaskReminder(
 }
 
 /**
- * Frozen 7.9's DELETE: 204, idempotent, and nothing else touched.
+ * 7.9's DELETE: 204, idempotent, and nothing else touched.
  *
  * Idempotent means the row's absence is not an error, so the resource this
  * URL addresses is the task and the 404 is the task's alone: a second call,
  * and a call against a task that never carried a reminder, both answer 204
- * (AC-146). This is 7.8's DELETE shape rather than 7.6's, where a second
+ * This is 7.8's DELETE shape rather than 7.6's, where a second
  * delete of a task answers 404 because there the row named in the path is the
  * one that went.
  *

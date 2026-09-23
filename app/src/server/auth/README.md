@@ -1,12 +1,5 @@
 # The authentication module (spec 11.6)
 
-`CODEOWNERS` at the repository root asks Hassan to review a change here, and
-since 2026-09-04 that is all it does: there is one team and no area anyone may
-not edit. `docs/workflow/backend.md` is how work on this module flows,
-and `docs/workflow/hard-stops.md` is what stops it. The thirteen persona files
-this line used to name were deleted at the workflow restructure (`a7886df`,
-2026-09-01) and are in git history before that commit.
-
 Implements sections 7.1, 7.2, 10.1, and 11.6 against the acceptance criteria
 AC-005 to AC-010, AC-105 to AC-115, and AC-119 to AC-123.
 
@@ -46,18 +39,10 @@ The module also exports the 11.3 middleware (`attachSession`, `requireSession`,
 routers behind those three, in that order, and that order is a stable
 interface: changing it changes every router mounted behind it.
 
-**Still outstanding: the pruning call.** When the P7 scheduler lands, its pass
-should call the pruning function, which is the second of 11.7's two duties:
-
-```ts
-import { pruneExpiredSessions } from './auth/index.js'
-// inside the 60-second pass, after the reminder work:
-await pruneExpiredSessions(dbClient.db)
-```
-
-Pruning is hygiene, not revocation (11.6): `resolveSession` already refuses an
+**The pruning call.** The scheduler pass (`scheduler/pass.ts`) calls
+`pruneExpiredSessions`, the second of 11.7's duties. Pruning is hygiene, not revocation (11.6): `resolveSession` already refuses an
 expired row the pass has not reached, and logout and account deletion delete
-rows themselves. Nothing breaks while this is unwired; rows merely accumulate.
+rows themselves.
 
 ## What is here
 
@@ -82,15 +67,10 @@ which P9 extended rather than replaced.
 
 ## Open items
 
-**The Steward this heading used to name went with the personas** (`a7886df`,
-2026-09-01). What is open below is Hassan's, and the channel for one is a
-GitHub issue; `docs/workflow/backend.md` is the process.
+The channel for an open item is a GitHub issue.
 
 - **AC-086's third case cannot pass beside AC-154's third case, and the fixture
-  is why.** Raised at the P7 phase 3 session and escalated rather than fixed,
-  under the build-era rule for "an acceptance criterion appears wrong"; the
-  standing rule now is `docs/workflow/workflow.md`'s rule 6, which says the same
-  thing. `AC-086: one login recomputes two due dates either
+  is why.** `AC-086: one login recomputes two due dates either
   side of a transition` builds its two reminders on due dates in 2010, so
   `planReminder` computes an instant sixteen years past and frozen 7.9's own
   qualifier writes them `skipped`, which the probe confirms. 8.6's ruling of
@@ -105,7 +85,8 @@ GitHub issue; `docs/workflow/backend.md` is the process.
   uses for the same reason. With that one line the recompute writes exactly the
   instants the case asserts, `2010-01-15T14:00:00Z` and `2010-07-15T13:00:00Z`,
   and the rows land back in `skipped` afterwards, which the case never reads.
-  The historical dates stay, so section 13 item 25's fixture rule is untouched,
+  The historical dates stay, so the fixture rule of former spec section 13 item
+  25 (retired; see git history) is untouched,
   and the property the case exists for, that each row resolves in the zone as it
   stood on its own due date rather than by one offset delta applied to all,
   survives intact. The two alternatives are worse: future due dates would break
@@ -114,7 +95,7 @@ GitHub issue; `docs/workflow/backend.md` is the process.
   default**, as OIDC Core 3.1.3.7 item 6 permits, which AC-106 forbids.
   `oidc.ts` switches on `enableNonRepudiationChecks`; verified against the
   installed version, a rogue-key token signed in without it. A
-  library-versus-specification difference belongs in spec section 13, and
+  library-versus-specification difference belongs in a GitHub issue, and
   `docs/spec/` is changed through the issue that rules it, rather than from a module README.
 - **An email collision with a different `google_sub` was unruled and is ruled.**
   7.1 makes provisioning idempotent under `google_sub` only; a new subject

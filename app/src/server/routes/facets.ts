@@ -1,7 +1,5 @@
 /*
-The 7.27 surface: Folder facets (issue #210, M1-F), on Hassan's technical
-ruling of 2026-09-21,
-https://github.com/zhssnym/dana/issues/210#issuecomment-5756722756, section 3.
+The 7.27 surface: Folder facets (issue #210, M1-F).
 
 Handlers validate with the shared schemas, resolve access through the domain
 modules, delegate every decision that touches rows, and serialize. Nothing
@@ -34,7 +32,7 @@ is why this file has no `gate` helper of the shape `routes/folders.ts` has.
 
 An `accessOf(...)` gate -- there is no authorization chokepoint, whatever 10.2
 says -- and a row in `app/tests/criteria/ac-397-authorization-sweep.test.ts`
-saying what a stranger gets. Both are in this change; hard stop 5.
+saying what a stranger gets.
 */
 import type { Request, Response, Router } from 'express'
 

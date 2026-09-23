@@ -1,34 +1,27 @@
 /*
 9.10's shelf page, at /app/shelves/:id.
 
-**This file is wiring and the markup is `screens/shelf-page.tsx`**, lifted
-whole from `prototype-v2` at RFC 0004's S27; the screen's header names its
-nine seams. What stood here was the S12 port of the same file, reworked onto
-`BlocksEditor` and `IdentityHead`, and it retires with this row: the lift
-discipline is that the prototype's file crosses, and the rulings sheet's C3
-found 9.10 and the prototype agreeing line for line, so nothing about the
-page's behaviour moves with the markup.
+**This file is wiring and the markup is `screens/shelf-page.tsx`**, whose header
+names what is worth knowing about it.
 
 What the page supplies is what the screen cannot know. **The membership**:
-folders whose personal label is this shelf's name (4.18, frozen since 4.4),
-read off the folder list already in every page's cache, Desk never shelving
-(9.10). **The arrangement**: 4.17's rows through `lib/shelf-layout.ts`, one
-PUT of the whole list per change with the evidence it was read with, the
-response handed back so the screen adopts the server's ids. **The acts**:
-Copy link through `lib/nav-links.ts`, Duplicate as one call to
-`POST /shelves/:id/duplicate` and no folders (9.10: a folder is on one shelf),
-which carries the mark, the colour, the description and a cover picture of the
-copy's own and does not carry the blocks — see the act's own note — Save as
-workflow as 7.16's file, Delete
+folders whose personal label is this shelf's name (4.18, 4.4), read off the
+folder list already in every page's cache, Desk never shelving (9.10). **The
+arrangement**: 4.17's rows through `lib/shelf-layout.ts`, one PUT of the whole
+list per change with the evidence it was read with, the response handed back so
+the screen adopts the server's ids. **The acts**: Copy link through
+`lib/nav-links.ts`, Duplicate as one call to `POST /shelves/:id/duplicate` and
+no folders (9.10: a folder is on one shelf), which carries the mark, the colour,
+the description and a cover picture of the copy's own and does not carry the
+blocks — see the act's own note — Save as workflow as 7.16's file, Delete
 unlabelling its folders and keeping them, and Rename as 7.16's PATCH, whose
-transaction rewrites the member labels (4.18's lockstep). **A folder row
-opens as its own tab beside the shelf's** (9.1, the 2026-08-24 ruling), the
-press appending through the tab store rather than retargeting.
+transaction rewrites the member labels (4.18's lockstep). **A folder row opens
+as its own tab beside the shelf's** (9.1), the press appending through the tab
+store rather than retargeting.
 
-**"New folder..." asks the shell for its dialog** through
-`shell/overlays.ts`, carrying this shelf's name as the label the new folder
-is filed under, which is the same two writes the sidebar's "Add folder to
-{shelf}" performs.
+**"New folder..." asks the shell for its dialog** through `shell/overlays.ts`,
+carrying this shelf's name as the label the new folder is filed under, which is
+the same two writes the sidebar's "Add folder to {shelf}" performs.
 */
 import { useMemo, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router'
@@ -55,7 +48,7 @@ import { PageBody } from '../components/page/PageStates.js'
 import type { Folder } from '../../shared/folders.js'
 import type { PageBlock } from '../../shared/pages.js'
 
-/** The workflow file this shelf exports: its folders, by name (DES-206). */
+/** The workflow file this shelf exports: its folders, by name. */
 function shelfWorkflowFile(name: string, folders: readonly Folder[]): string {
   return JSON.stringify(
     {
@@ -146,18 +139,14 @@ export function ShelfPage(): React.JSX.Element {
   return (
     <PageBody query={shelf} isEmpty={false} emptyCopy="">
       <PageBody query={page} isEmpty={false} emptyCopy="">
-        {/* polish: shelves F2. Mounted only once the folder list is here:
-            mounted before it, the screen read an empty membership, dropped
-            every folder row from its arrangement, wrote that, and then wrote
-            the folders back with evidence the first write had already
-            replaced. Every shelf page opened with a 409 nobody caused and a
-            "Someone else changed this block" toast that reload re-raised;
-            and a section inserted in between landed under the rows the
-            second write re-appended. */}
+        {/* Mounted only once the folder list is here: mounted before it, the
+            screen would read an empty membership, drop every folder row from
+            its arrangement, write that, and then write the folders back with
+            evidence the first write had already replaced, so every shelf page
+            would open with a 409 nobody caused. */}
         {page.data === undefined || folders.data === undefined ? null : (
           <ShelfScreen
-            /* Remounted per shelf, the screen holding its arrangement as
-               state the way the prototype does. */
+            /* Remounted per shelf, the screen holding its arrangement as state. */
             key={id}
             id={id}
             name={name}
@@ -189,30 +178,19 @@ export function ShelfPage(): React.JSX.Element {
             }}
             onDuplicate={() => {
               /*
-              One act on the server (7.16 as amended 2026-09-04; issues #117
-              and #128), and no folders, 9.10's rule that a folder is on one
-              shelf. What stood here was `POST /shelves` carrying the icon,
-              the colour and the description read out of this page, then a
-              second write of the copied blocks — and it could not carry the
-              cover at all, `POST /shelves` refusing all three cover fields
-              out loud rather than dropping them silently (#40's ruling). So
-              a duplicated shelf lost one of the four things that made it
-              look like itself the day #20 gave a shelf a cover to lose.
+              One act on the server (7.16; issues #117 and #128), and no
+              folders, 9.10's rule that a folder is on one shelf. `POST
+              /shelves` refuses all three cover fields, so a client-side copy
+              could not carry the cover; two calls have a gap in them in which a
+              failure leaves a half-duplicated shelf; and a copy that pointed at
+              the same `cover_file_id` would not be independent, the foreign
+              key's ON DELETE SET NULL blanking both shelves the moment that
+              file went. All three are why this is the server's one transaction.
 
-              Two calls also have a gap in them, and a failure landing in it
-              is the half-duplicated shelf #128 asks not to exist; and a copy
-              that pointed at the same `cover_file_id` would not be
-              independent, the foreign key's ON DELETE SET NULL blanking both
-              shelves the moment that file went. Both are why this is the
-              server's one transaction rather than the client's two writes.
-
-              **The copy no longer carries this shelf's blocks**, and that is
-              a real change rather than an oversight here: 7.16's amendment
-              says the duplicate does not carry the page (4.17), on the
-              reading that 9.10's "the page, no folders" distinguishes the
-              shelf from its membership rather than promising its prose. The
-              blocks are named in the annotation on 9.10 so the next reader
-              meets the decision rather than the difference.
+              **The copy does not carry this shelf's blocks**: 7.16 says the
+              duplicate does not carry the page (4.17), 9.10's "the page, no
+              folders" distinguishing the shelf from its membership rather than
+              promising its prose.
               */
               duplicate.mutate(id, {
                 onSuccess: (made) => {

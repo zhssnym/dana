@@ -4,52 +4,28 @@ email, display_name, and avatar_url null with deleted_at set, and surviving
 tasks keep created_by and completed_by pointing at it, readable by remaining
 members with the assignee cleared; an accepted invite keeps its accepted_by.
 
-Numbered by the Integration Steward on 2026-08-09 and now section 12's own
-text. This file proposed it, the AC-125 to AC-130 precedent for a batch
-authored with its tests and numbered additively at a mid-package change
-control. The amendment records one reading with it, that this criterion is
-admitted although it reaches step 7: the scrub half arrives green against
-the P1 stub, and the surviving-reference half is what discriminates.
-Routed by the RFC 0001 P5 row's kickoff decision: 8.10's steps
-1 to 6, outcome by outcome, and this is the outcome the whole ordering
-exists to protect, the survivors: history keeps its author while identity
-is gone, which is what 4.1 stores soft deletion for and what the client
-renders as "Deleted user" (P8's half of that sentence, drawn from the
+This is the outcome 8.10's ordering exists to protect, the survivors:
+history keeps its author while identity is gone, which is what 4.1 stores
+soft deletion for and what the client renders as "Deleted user" (from the
 display_name this criterion pins at null).
 
-The stub already scrubs, so the scrub assertions alone would arrive green;
-what fails today, and what makes this file discriminate, is the survivor
-half: the departed member's assignment must be cleared (step 4's R-CLEAN,
-or equivalently 4.5's composite FK once the membership row goes), while
-created_by and completed_by, both RESTRICT keys precisely so history cannot
-be orphaned, still name the scrubbed row. An implementation that
-hard-deletes the user, or nulls the history columns to make deletion easy,
-fails here on the columns; one that skips R-CLEAN fails on the assignee.
+The scrub assertions alone would pass against a trivial implementation; what
+makes this file discriminate is the survivor half: the departed member's
+assignment must be cleared (step 4's R-CLEAN, or equivalently 4.5's composite
+FK once the membership row goes), while created_by and completed_by, both
+RESTRICT keys precisely so history cannot be orphaned, still name the
+scrubbed row. An implementation that hard-deletes the user, or nulls the
+history columns to make deletion easy, fails here on the columns; one that
+skips R-CLEAN fails on the assignee.
 
-The folder carries three members, and the third exists for a reason worth
-stating because the file was written with two and could not pass. R-CLEAN's
-third clause assigns every unassigned task to the remaining member when the
-count drops to exactly one, which is INV-5, so with two members the
-departed assignment was cleared by the first clause and immediately swept
-to the keeper by the third. The two assertions below that the assignee ends
-null then contradicted this file's own invariant sweep, which asserts INV-5
-over the same folder, and the Collaboration engineer escalated it after the
-package landed rather than editing either side. A third member is the
-repair because it is a fixture change and not a reading change: with two
-members remaining, the first clause clears the assignment and no sweep
-fires, so section 12's "readable by remaining members with the assignee
-cleared" is literally what happens, plural included. The alternative,
-expecting the keeper, would have contradicted that sentence and needed a
-Steward amendment to the criterion itself.
-
-Nothing is given up by the count. What this criterion discriminates is
-untouched by it, an implementation that hard-deletes the user row or nulls
-the history columns failing on the columns either way, and the interaction
-the two-member fixture would have exercised belongs to AC-136, whose
-sentence names the drop-to-one sweep outright and whose own fixture holds a
-folder that drops to one for exactly that purpose. AC-134 keeps two members
-for the same reason. Moving coverage here would have duplicated that file,
-not strengthened this one.
+The folder carries three members, and the third is necessary. R-CLEAN's third
+clause assigns every unassigned task to the remaining member when the count
+drops to exactly one, which is INV-5, so with two members the departed
+assignment would be cleared by the first clause and immediately swept to the
+keeper by the third, contradicting "readable by remaining members with the
+assignee cleared". With two members remaining, the first clause clears the
+assignment and no sweep fires. The drop-to-one interaction belongs to AC-136,
+whose fixture holds a folder that drops to one for exactly that purpose.
 
 Spec: 8.10 step 7 and its surviving-references sentence, 4.1 (soft
 deletion's rationale), 4.5 (created_by RESTRICT, completed_by, the
@@ -224,17 +200,12 @@ describe('AC-138: the account dissolves, its history does not', () => {
   })
 
   /*
-  The wire arm of this criterion moved at S18 and the row arm did not.
-
-  RFC 0005 unit 12a widens frozen 7.0's created_by from a bare id to the
-  person stub assignee carries, null where 8.10 scrubbed the account. So a
-  scrubbed author reads null here where it read the id, and that is the same
-  sentence rather than a weaker one: 8.10's promise is that the row keeps
-  pointing at the scrubbed user, and this test now re-asserts the column
-  beside the wire so the two are read in one breath. An implementation that
-  nulled tasks.created_by to make deletion easy still fails here, on the
-  column, exactly as it did before; what moved is only how the contract
-  renders a creator it may no longer name.
+  7.0's created_by is the person stub assignee carries, null where 8.10
+  scrubbed the account. So a scrubbed author reads null on the wire, while
+  8.10's promise is that the row keeps pointing at the scrubbed user; this
+  test asserts the column beside the wire so the two are read in one breath.
+  An implementation that nulled tasks.created_by to make deletion easy fails
+  here, on the column.
   */
   test('AC-138: the remaining member reads the survivors', async () => {
     const { departing, keeper, createdTaskId } = await stage()

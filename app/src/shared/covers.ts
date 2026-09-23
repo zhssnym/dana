@@ -1,10 +1,9 @@
 /*
-The 7.19 place-cover contract (RFC 0005 change control item 44, B1): the
-cover a person has chosen for one of Dana's own place pages.
+The 7.19 place-cover contract: the cover a person has chosen for one of Dana's own place pages.
 
 **Why this is a contract at all**, since folders and shelves have carried a
 cover since 4.3 and 4.18: a place page has no row anywhere to hang one on,
-which is the sentence item 44 gives as the reason the table exists. It is
+which is why the table exists. It is
 per viewer, so nothing here names anybody: every route reads and writes the
 caller's own and there is no path to another person's.
 
@@ -15,7 +14,7 @@ constraint violation as a 500.
 
 **The preset is checked for shape and not against a list**, here as in the
 column. The built-in covers are the design system's gradients and ribbon
-marks; a value list in a shared schema would be a design vocabulary frozen
+marks; a value list in a shared schema would be a design vocabulary fixed
 in the contract, which 11.13 puts in the design record instead.
 */
 import { z } from 'zod'

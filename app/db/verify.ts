@@ -49,7 +49,7 @@ const tableRows = await rows(sql`
   WHERE n.nspname = 'public' AND t.relkind = 'r'
 `)
 // 10.1 keeps the sessions table out of the section 4 catalog, and AC-001
-// admits it as the one named exception; this diff mirrors that ruling. The
+// admits it as the one named exception; this diff mirrors that. The
 // table's own contract is AC-113's to assert, not this file's.
 const ADMITTED_OUTSIDE_SECTION_4 = ['sessions']
 const actualTables = tableRows
@@ -162,19 +162,13 @@ for (const [table, expected] of Object.entries(constraintCatalog) as [
   Deferrability, over every constraint the catalog names rather than over
   the foreign keys alone. Migration 0007 made comments_task_scope_fkey
   DEFERRABLE INITIALLY IMMEDIATE so 7.6's move can re-scope a conversation
-  inside one transaction, and until this loop existed nothing anywhere
-  observed that: the migration could be reverted, or any other constraint
-  quietly made deferrable, and every check in this file and in AC-001 still
-  passed. A constraint that defers is a constraint a transaction may hold
+  inside one transaction. Without this loop the migration could be reverted,
+  or any other constraint quietly made deferrable, and every other check
+  here would still pass. A constraint that defers is a constraint a transaction may hold
   broken across statements, so the absence of the flag is asserted as
   firmly as its presence.
 
-  The same comparison now runs in tests/criteria/ac-001-constraint-catalog.test.ts,
-  which is the copy CI executes: nothing runs this file, which was issue #75.
-  It is kept here rather than deleted because this file is the data owner's
-  whole-catalog check and a half of it missing would make the two disagree
-  about what they cover; they read the same catalog, so they cannot disagree
-  about the answer.
+  This file runs only by hand (`npm run db:verify`); no suite runs it.
   */
   const expectedDeferral = new Map<string, { deferrable: boolean; deferred: boolean }>(
     expectedNames.map((name) => [name, { deferrable: false, deferred: false }]),
@@ -241,7 +235,7 @@ for (const [table, expected] of Object.entries(constraintCatalog) as [
     }
     // Absent descColumns means all ascending, and that is asserted, not
     // skipped: an accidental DESC anywhere would silently diverge from the
-    // frozen 4.12 otherwise.
+    // 4.12 otherwise.
     const opts = ((row.opts as (number | string)[] | null) ?? []).map(Number)
     const cols = (row.cols as string[] | null) ?? []
     const actualDesc = cols.filter((_, i) => ((opts[i] ?? 0) & 1) === 1)

@@ -1,30 +1,12 @@
 /*
-The 7.13 Trash contract as the client reads it (RFC 0005, 9.11).
-
-**A boundary note.** S3 built the 7.13 routes and typed the view in
-`src/server/domain/trash.ts`, where the client cannot reach it: `src/shared`
-is the contract both sides import, and `api/http.ts` parses every response
-through a zod schema. So the shapes were restated here, which is the same
-split every v1 surface already runs on; the alternative, importing a server
-domain type into the client, is the one thing the directory boundary exists
-to prevent.
-
-**Restating them left them unlinked, and #39 closed that.** From 2026-08-24
-this file and `server/domain/trash.ts` carried the same six-and-five fields
-with nothing between them, so a field added to one alone would have compiled
-on both sides and arrived as a 200 the client could not parse. The server no
-longer declares the shape at all: `trashView` is annotated
-`Promise<GetTrashResponse>` and writes against these schemas directly, which
-is the only direction the boundary allows and the one that makes the
-duplication unnecessary rather than merely watched. **So these are now the
-server's types as well as the client's**, and a change here is a change to
-what the handler must produce.
-
-Recorded with the two additions in `shelves.ts` and `bundle.ts` as one change
-control item in RFC 0005: the three v2 backend packages published write
-bodies and interfaces and no read schemas, which is a real gap in the
-contract rather than a client convenience, because a response nothing
-validates is a response whose shape drifts silently.
+The 7.13 Trash contract (9.11), and the server's types as well as the
+client's: `src/shared` is the contract both sides import, `api/http.ts` parses
+every response through a zod schema, and `server/domain/trash.ts` annotates
+`trashView` as `Promise<GetTrashResponse>` and writes against these schemas
+directly. A change here is a change to what the handler must produce. The
+server must not declare the shape itself: two unlinked copies let a field
+added to one compile on both sides and arrive as a 200 the client cannot
+parse.
 
 Trash holds separate kinds and never one list. 9.11 lists "every deleted task
 and folder the viewer can still reach", and they carry different facts (a task
@@ -68,16 +50,10 @@ export const trashedTask = z.object({
   /** Where it lived, which 9.11 requires every row to name. */
   folder_name: z.string(),
   deleted_at: z.string(),
-  /** Whether the viewer owns the folder it lived in, which is the one fact
-   * 7.13's permanent delete turns on (RFC 0005 change control items 38 and
-   * 53(b)); the same word the 7.0 Folder object already carries. Added
-   * additively at S28b so the Trash page draws the control only where the
-   * server would answer 204.
-   *
-   * **It is no longer that one fact**, and the sentence above is left where
-   * it stands because it is the one the block at the top of this file
-   * answers: `task.destroy` ignores ownership outright, so this field is
-   * custody and nothing more. */
+  /** Whether the viewer owns the folder it lived in; the same word the 7.0
+   * Folder object already carries. It is custody and nothing more:
+   * `task.destroy` ignores ownership outright, so it does not by itself
+   * decide the permanent delete. */
   is_owner: z.boolean(),
   /** The viewer's own Access preset for the folder this task lived in. */
   my_access: folderAccessPreset,
@@ -101,9 +77,7 @@ export const trashedFolder = z.object({
 export type TrashedFolder = z.infer<typeof trashedFolder>
 
 /*
-**The third kind, added 2026-09-21 by issue #210** on Hassan's technical
-ruling, https://github.com/zhssnym/dana/issues/210#issuecomment-5756722756,
-section 3. A custom Folder facet -- a Work facet, a shared blank or a private
+**The third kind (issue #210).** A custom Folder facet -- a Work facet, a shared blank or a private
 blank -- goes to Trash like anything else, and it carries `is_owner` and
 `my_access` exactly as the two rows above do and for the same reason: the
 permanent delete is not one rule across the three kinds, so one fact cannot

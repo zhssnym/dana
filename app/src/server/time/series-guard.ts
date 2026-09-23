@@ -71,7 +71,7 @@ export const SERIES_MOVED_ON =
  * the transition expects: a repeat call on a row that is already pending is
  * 5.1's no-op and must write nothing, so it must not reach this function.
  *
- * Nothing here reads a calendar date or a zone. That is why frozen 7.6 gives
+ * Nothing here reads a calendar date or a zone. That is why 7.6 gives
  * uncomplete and restore no tz parameter while complete and abandon carry
  * one: this guard reads the shape of a series, and only 8.5's generation
  * computes a current date.

@@ -1,6 +1,6 @@
 /*
 The 7.5 invite surface as code: the POST /invites body the server validates
-with, and the response shapes frozen 7.5 enumerates.
+with, and the response shapes 7.5 enumerates or leaves open.
 
 The conventions are me.ts's, unchanged: z.object so unknown fields are
 stripped rather than refused (7.0 tolerates them), a camelCase schema named
@@ -8,22 +8,11 @@ for method and route, its inferred PascalCase type beside it, and per-field
 messages phrased without the field name, because sendValidationError prefixes
 the path when it builds the 422 (10.3).
 
-Complete as of the P5 endpoint shape review, the one RFC 0001's P5 row places
-after this package's routes. Through the schema session this file stopped
-where frozen 7.5 stops: that section enumerates the pending-list element, the
-acceptance response's three outer keys and the 201's wrapper, and enumerated
-nothing inside the created invite, nothing inside the acceptance response's
-folder, nothing at all for the sent list, and one key of the conversion
-answer. Four shapes were therefore written as floors, loose and carrying only
-what every candidate reading shared, so a route had something to build against
-and the review had nothing to undo.
-
-All four are settled below, each against the route that answers rather than
-against a reading of the text alone, and each with its grounds in the block
-introducing the response shapes. The precedent is this file's neighbour:
-folders.ts left the GET /folders wrapper and the detail's invite key open at
-P2, and the shape review settled both with the implemented routes in front of
-it.
+7.5 enumerates the pending-list element, the acceptance response's three
+outer keys and the 201's wrapper, and leaves four shapes open: the created
+invite, the acceptance response's folder, the sent list, and the conversion
+answer. All four are settled below, with the grounds in the block introducing
+the response shapes.
 */
 import { z } from 'zod'
 
@@ -65,7 +54,7 @@ const uuid = z.uuid({ error: 'must be a uuid' })
  * ------------------------------------------------------------------ */
 
 /*
-POST /invites, frozen 7.5's body: { email, folder_id optional, task_id
+POST /invites, 7.5's body: { email, folder_id optional, task_id
 optional }.
 
 Two of V-INV's validations are body facts and the rest are not. The email's
@@ -77,20 +66,18 @@ the constraint's 500 (AC-065).
 Everything else V-INV lists needs rows, and 7.11 lists it as
 server-authoritative there: the inviter's own address, the folder's
 accessibility and its default flag, the task's presence inside that folder,
-the roster conversion with the 25-member cap the P5 kickoff ruling put on it,
-the bare-invite 409 the owner ruled on 2026-08-09, INV-11's dedupe, and
-10.4's rate limits, which are P9's middleware rather than this endpoint's
-body.
+the roster conversion with its 25-member cap, the bare-invite 409, INV-11's
+dedupe, and 10.4's rate limits, which are middleware rather than this
+endpoint's body.
 
 Absent and null are different states, the reading 7.10's parameters already
 take: 7.5 calls the two ids optional, and an explicit null is a value it
 never names, so it answers 422 naming the field rather than being read as the
 bare invite an omitted key asks for. The distinction is not pedantry on this
-endpoint: with the owner's ruling standing, a folder_id the client meant to
-send and nulled by accident is the difference between a conversion and a 409.
+endpoint: a folder_id the client meant to send and nulled by accident is the difference between a conversion and a 409.
 */
 /*
-`access` joined this body with issue #228 (R9 section 5: "A pending Folder
+`access` (issue #228; #209 R9: "A pending Folder
 invite must persist the **intended Access preset**").
 
 It is required exactly when `folder_id` is, and refused when it is not -- a
@@ -143,7 +130,7 @@ export type PostInvitesBody = z.infer<typeof postInvitesBody>
 
 /*
 The five transition endpoints, accept, decline, cancel and resend, take no
-body at all: frozen 7.5 gives each an actor guard and a state guard and names
+body at all: 7.5 gives each an actor guard and a state guard and names
 no field. There is therefore no schema for them, rather than an empty one; a
 z.object({}) would read as a shape this section wrote, and 7.0 already
 tolerates the unknown keys a caller sends anyway.
@@ -170,18 +157,13 @@ export const inviteStatus = z.enum([
 export type InviteStatus = z.infer<typeof inviteStatus>
 
 /*
-The response side of 7.5, settled at this role's P5 shape review with the
-routes mounted and answering. Frozen 7.5 fixes the pending element field for
-field, the acceptance response's three outer keys, and the 201's wrapper; the
-four decisions below are the ones it leaves open. Each is a candidate for a
-one-sentence recording in the frozen text through the Steward, the shape 7.2,
-7.4 and 7.10 each took for the same reason.
+The response side of 7.5. 7.5 fixes the pending element field for field, the
+acceptance response's three outer keys, and the 201's wrapper; the four
+decisions below are the ones it leaves open.
 
 - The object inside 201 { invite } and the GET /invites/sent element are one
-  object, the nine-field invite below. This file already carried that as the
-  strongest candidate, and the routes confirm it rather than merely permitting
-  it: both bodies come from one serializer over one column list in the domain
-  module, so there was no second shape to choose between. What makes it right
+  object, the nine-field invite below: both bodies come from one serializer
+  over one column list in the domain module. What makes it right
   rather than convenient is 7.5's own sentence for the sent list, "V's
   invites, newest first, any status". The rows it lists are the rows POST
   /invites creates, "any status" is only meaningful if status is a field of
@@ -193,19 +175,19 @@ one-sentence recording in the frozen text through the Steward, the shape 7.2,
   every state, and needs all four to say which invite it is showing.
 
 - The conversion answers { converted_to_share: true, membership }, the
-  membership being the 7.4 member element. Frozen 7.5 writes "response 200
+  membership being the 7.4 member element. 7.5 writes "response 200
   { converted_to_share: true, membership created }", and the second half of
   that is prose about an effect; membership is that prose transcribed as the
   key. The element is 7.4's own rather than a new one because the conversion
   is 8.7's grant, the same grant POST /folders/:id/members performs, and
-  7.4's ruled convention is that it answers the member element it created.
+  7.4's convention is that it answers the member element it created.
   One concept, one object.
 
 - The acceptance response's folder is the full 7.0 Folder object, what a fresh
   GET would give. This is the reading 7.4 takes and not the {id, name,
-  is_default} stub the owner ruled for 7.10's grouped views on 2026-08-07, and
-  the two do not conflict because they answer different questions. 7.10's stub
-  is a group heading, and that ruling said outright why: a heading needs what a
+  is_default} stub of 7.10's grouped views, and the two do not conflict
+  because they answer different questions. 7.10's stub is a group heading: a
+  heading needs what a
   card's folder label needs, while Folder's counts, is_owner, member_count,
   my_shelf and my_color are 7.4's business, where a client that wants them
   already goes. An acceptance is not a heading. It is the moment a client
@@ -218,7 +200,7 @@ one-sentence recording in the frozen text through the Steward, the shape 7.2,
   avoid.
 
 - decline, cancel and resend answer { invite }, the same wrapper and the same
-  object the 201 carries. Frozen 7.5 gives each of them "200." and no body, so
+  object the 201 carries. 7.5 gives each of them "200." and no body, so
   the convention decides rather than the text: a mutation answers what a fresh
   GET would, which is 7.1's PATCH /me, 7.2's PATCH /me/settings and 7.4's four
   mutations, and the fresh read of a settled invite is the sent-list element.
@@ -235,7 +217,7 @@ write primitive above, the me.ts and folders.ts precedent for an address on
 the reading side: a stored address passed V-INV on the way in, and a response
 schema that refused one would be failing a truth rather than reporting it.
 folder_id and folder_name are both null for a bare invite and both set for a
-folder one, the name riding along because the pending list frozen 7.5 does
+folder one, the name riding along because the pending list 7.5 does
 enumerate carries a name rather than an id, and the inviter's own list renders
 the same sentence about the same folder; folder_name reuses the 7.4 primitive,
 as pendingInvite below does. task_id is 4.9's optional assignment intent.
@@ -244,8 +226,8 @@ insert and moved by resend, which is what lets a client show the 5.2 window
 rather than discovering it as a 429. responded_at is null for a pending invite
 and set by every terminal transition.
 
-accepted_by is deliberately absent, and this is the one place the settled
-shape withholds a column: it is a bare user id, and this surface offers no
+accepted_by is deliberately absent, and this is the one place the shape
+withholds a column: it is a bare user id, and this surface offers no
 person shape to render it with. A client that needs the acceptor has 7.4's
 members list, where the same person arrives as 7.0's person object.
 */
@@ -288,18 +270,18 @@ export type PostInvitesConversionResponse = z.infer<
 >
 
 /*
-GET /invites/pending, frozen 7.5 field for field: [{id, inviter:
+GET /invites/pending, 7.5 field for field: [{id, inviter:
 {display_name, avatar_url}, folder_name or null, created_at}]. It backs the
 login surface, which Q12 answers by the viewer's lowercased email.
 
-The inviter carries no id, and that is the frozen text's choice rather than
-an omission here: 7.0's person shape has three keys and 7.4's members element
+The inviter carries no id, and that is 7.5's choice rather than an omission
+here: 7.0's person shape has three keys and 7.4's members element
 uses all three, while this element enumerates two. A recipient reading an
 invite has no claim on the inviter's id, which addresses nothing they may
 call.
 
 folder_name is null for a bare invite, which is the discriminator this whole
-surface turns on after the owner's ruling of 2026-08-09, and it reuses the
+surface turns on, and it reuses the
 7.4 name primitive because 4.3's CHECK guarantees a stored folder name
 satisfies it, the reuse folders.ts's own object makes.
 
@@ -323,7 +305,7 @@ export type GetInvitesPendingResponse = z.infer<
 >
 
 /*
-POST /invites/:id/accept, frozen 7.5's three outer keys: 200
+POST /invites/:id/accept, 7.5's three outer keys: 200
 { connection_created, folder or null, assigned_task_id or null }.
 
 connection_created reports whether this acceptance minted the pair: 8.7
@@ -336,10 +318,8 @@ assigned_task_id is null unless the conditional assignment applied, which 8.7
 skips silently when the task moved out of the folder or already has an
 assignee (AC-066).
 
-Which object rides in folder was the one shape 7.5 names without enumerating,
-and it was a real question rather than an obvious one, 7.4 and 7.10 answering
-a folder key two different ways. The review settled it as 7.0's full Folder
-object, for the reasons the settlement block above gives.
+folder is 7.0's full Folder object, for the reasons the response-side block
+above gives: 7.5 names it without enumerating it.
 */
 export const acceptInviteResponse = z.object({
   connection_created: z.boolean(),

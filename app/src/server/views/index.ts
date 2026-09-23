@@ -1,5 +1,5 @@
 /*
-The read paths of frozen 7.10, one entry point.
+The read paths of 7.10, one entry point.
 
 Every function here answers one endpoint's body from one section 6 query, and
 none of them writes: this package has no mutation, no transaction and no

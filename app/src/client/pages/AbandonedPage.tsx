@@ -16,8 +16,7 @@ is AC-096's argument for Done applied to the one other page it fits. `capture:
 'none'` in `place-pages.ts` is what makes the floating button absent, and this
 page draws no quick-add.
 
-The faded, struck treatment and the "Restore" control are the row's, which is
-S11's; this page passes the rows and asks for nothing of its own.
+The faded, struck treatment and the "Restore" control are the row's; this page passes the rows and asks for nothing of its own.
 */
 import { Ban } from '../lib/icons.js'
 

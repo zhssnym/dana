@@ -301,7 +301,7 @@ export async function folderLabelsOf(
  *
  * A response echoing a field proves the handler had the value; only the row
  * proves the write carried it. Both halves are needed because the two ways of
- * losing a declared field look identical on the wire — hard stop 3 — and one
+ * losing a declared field look identical on the wire, and one
  * of them (a handler that answers what it was sent and stores a default)
  * passes a response-only assertion.
  */

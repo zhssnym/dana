@@ -1,7 +1,5 @@
 /*
-The 7.27 Folder facet contract, which both sides import (issue #210, M1-F; on
-Hassan's technical ruling of 2026-09-21,
-https://github.com/zhssnym/dana/issues/210#issuecomment-5756722756, section 3).
+The 7.27 Folder facet contract, which both sides import (issue #210, M1-F).
 
 A facet is one way into a Folder. There are four natives -- Main, Purpose,
 Consultation and Results, exactly one of each, created with the Folder and
@@ -29,10 +27,9 @@ have to know that equivalence, while a client deciding whether to offer the
 share action needs the id to compare against the viewer.
 
 **A request field this file declares and no route reads is dropped with a
-200**, which is the hazard `docs/workflow/hard-stops.md` names and
-`shared/tasks.ts` has already paid for once. Every field below is read by
-`server/routes/facets.ts` in the same change that declared it, and AC-830 to
-AC-844 are what prove the values arrive.
+200**, the silent-drop hazard `shared/tasks.ts` describes for the reminder.
+Every field below is read by `server/routes/facets.ts`; AC-830 to AC-844 in
+7.27 state what must arrive.
 */
 import { z } from 'zod'
 
@@ -146,7 +143,7 @@ export type GetFacetsResponse = z.infer<typeof getFacetsResponse>
  *
  * Every kind is admitted by the schema and the four natives are refused by
  * the route with a 422 naming `kind`, rather than being left out of the enum.
- * The reason is the refusal order the ruling fixes -- 404, then 422, then
+ * The reason is the refusal order 7.27 fixes -- 404, then 422, then
  * 403 -- and the sentence a person reads: "a native facet already exists and
  * is not created" is the true answer, and an enum would answer "expected one
  * of work | shared_blank | private_blank", which is a shape complaint about a

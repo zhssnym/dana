@@ -1,57 +1,46 @@
 /*
-Harness for the P5 sharing criteria (AC-059 to AC-069, plus AC-133 to
-AC-141, numbered by amendment on 2026-08-09), built on the
-P1 auth harness and the P2 and P3 layers: the same booted application, stub
-identity provider, cookie-jar browsers, lazily signed-in casts, and the
-scoped invariant sweeps, plus what frozen 7.5 and 7.3 and the amended 8.7
-flows need.
+Harness for the sharing criteria (AC-059 to AC-069, plus AC-133 to AC-141),
+built on the auth harness and the folder and task layers: the same booted
+application, stub identity provider, cookie-jar browsers, lazily signed-in
+casts, and the scoped invariant sweeps, plus what 7.5, 7.3 and 8.7 need.
 
 Five decisions worth the words.
 
-**Setup goes through the API wherever the API is in this package.** Invites
-are created with POST /invites and moved with the four transition endpoints,
-connections are severed with DELETE /connections/:userId, because those
-surfaces are P5's own: a broken create fails every file here on one
-attributable sentence. Folders, members, and tasks arrive through the merged
-P2 and P3 endpoints. Direct writes are kept for state no endpoint can
+**Setup goes through the API wherever the API exists.** Invites are created
+with POST /invites and moved with the four transition endpoints, connections
+are severed with DELETE /connections/:userId: a broken create fails every
+file here on one attributable sentence. Folders, members, and tasks arrive
+through their own endpoints. Direct writes are kept for state no endpoint can
 produce (a last_sent_at 25 hours old, which is the only way to reach the far
-side of the resend window without waiting a day) and for the 8.10 fixtures
-of AC-133 to AC-138, which need rows this package's surface does not mint
-on demand.
+side of the resend window without waiting a day) and for the 8.10 fixtures of
+AC-133 to AC-138, which need rows no endpoint mints on demand.
 
 **Recipients sign in with chosen identities.** Invite matching is 5.2's rule,
 the lowercased Google email equals invites.email, so the harness must be
 able to produce a session whose email is exactly, or deliberately not
 exactly, the invited address. signInActorWithEmail drives the stub identity
-provider with a named email and hands back the same Actor shape the P2 cast
-produces; callers register the id with Cast.trackUser so cleanup still
+provider with a named email and hands back the same Actor shape the folder
+cast produces; callers register the id with Cast.trackUser so cleanup still
 sweeps it.
 
-**Frozen shapes are restated here, once, and asserted key-exact; three inner
-shapes are deliberately tolerant, and the tolerance is recorded at the
+**Enumerated shapes are restated here, once, and asserted key-exact; three
+inner shapes are deliberately tolerant, and the tolerance is recorded at the
 judge.** 7.5 enumerates the pending-list element and the acceptance
 response's outer keys, and 7.3 enumerates the roster element, so those are
-exact, the house rule for enumerated frozen shapes. What 7.5 does not
-enumerate is the object inside 201 { invite }, the object behind the
-acceptance response's folder key, and the sent-list element; the RFC 0001 P5
-row already routes the conversion response's wire shape to the endpoint
-shape review, and these three ride the same review. Until it rules, each is
-judged only as far as the frozen text reaches.
+exact. What 7.5 does not enumerate is the object inside 201 { invite }, the
+object behind the acceptance response's folder key, and the sent-list
+element; each is judged only as far as 7.5 reaches.
 
-**Outbound email is observed through the ratified options.notifications
-sink.** The mid-P2 ruling makes sends observable to the suite, and the 11.8
-module names its templates invite, share_grant, reminder; the transport logs
-until P7 lands the provider, which changes nothing here because the sink
-replaces the log. Invite emails are matched by word the way the auth harness
-matches share grants: /invite/i admits any defensible spelling and refuses
-the other two templates.
+**Outbound email is observed through the options.notifications sink**, which
+makes sends observable to the suite; the 11.8 module names its templates
+invite, share_grant, reminder, and the sink replaces the transport. Invite
+emails are matched by word the way the auth harness matches share grants:
+/invite/i admits any defensible spelling and refuses the other two templates.
 
-**Rate limits are P9's, and these files stay out of their way.** 10.4 gives
-invites 5 per minute per user, AC-101 asserts it in P9's range, and 11.3
-places the limiter ahead of the handler, so every POST /invites a file
-issues will one day spend budget whatever its status. Each file therefore
-keeps every single actor's POST /invites calls at five or fewer, so the
-package that adds the limiter does not inherit a suite that trips it.
+**These files stay out of the rate limiter's way.** 10.4 gives invites 5 per
+minute per user and 11.3 places the limiter ahead of the handler, so every
+POST /invites a file issues spends budget whatever its status. Each file
+therefore keeps every single actor's POST /invites calls at five or fewer.
 */
 import { randomUUID } from 'node:crypto'
 
@@ -145,10 +134,9 @@ function withDefaultAccess(body: unknown): unknown {
 }
 
 /*
-POST /invites asserted: 201 { invite }. Frozen 7.5 enumerates the outer key
-and nothing inside it, so the envelope is exact and the inner object is
-judged only for the id every transition endpoint needs. The inner shape
-rides the endpoint shape review the RFC 0001 P5 row already carries.
+POST /invites asserted: 201 { invite }. 7.5 enumerates the outer key and
+nothing inside it, so the envelope is exact and the inner object is judged
+only for the id every transition endpoint needs.
 */
 export async function createInviteOk(
   actor: Actor,
@@ -194,8 +182,8 @@ export interface AcceptanceBody extends Record<string, unknown> {
 }
 
 /*
-POST /invites/:id/accept asserted: 200 with exactly the three keys frozen
-7.5 enumerates, { connection_created, folder or null, assigned_task_id or
+POST /invites/:id/accept asserted: 200 with exactly the three keys 7.5
+enumerates, { connection_created, folder or null, assigned_task_id or
 null }. The folder key's inner object is the one shape here 7.5 names
 without enumerating; when non-null it is judged as an object carrying the
 granted folder's id, and the rest rides the shape review.
@@ -229,7 +217,7 @@ export interface PendingInviteElement {
 
 /**
  * GET /invites/pending asserted: the login surface, scoped to the caller's
- * email. Element shape is frozen 7.5's, exact: {id, inviter: {display_name,
+ * email. Element shape is 7.5's, exact: {id, inviter: {display_name,
  * avatar_url}, folder_name or null, created_at}. The inviter person here
  * deliberately carries no id, unlike 7.0's person shape: 7.5 enumerates two
  * keys, and a recipient has no claim to more.
@@ -279,10 +267,10 @@ export async function invitesPending(
 }
 
 /**
- * GET /invites/sent asserted as far as frozen 7.5 reaches: 200, an array,
- * newest first, any status. 7.5 enumerates no element shape for this list,
- * so elements are read as records and callers find theirs by id; the shape
- * rides the endpoint shape review. What is asserted is what the criteria
+ * GET /invites/sent asserted as far as 7.5 reaches: 200, an array, newest
+ * first, any status. 7.5 enumerates no element shape for this list, so
+ * elements are read as records and callers find theirs by id. What is
+ * asserted is what the criteria
  * need: the list exists, and an element names its invite and its status,
  * without which "the inviter sees declined" (AC-067) is not a sentence this
  * surface can satisfy at all.
@@ -323,7 +311,7 @@ export interface RosterElement {
 }
 
 /**
- * GET /connections asserted: frozen 7.3's element, exact: { user: {id,
+ * GET /connections asserted: 7.3's element, exact: { user: {id,
  * display_name, avatar_url, email}, connected_at }. This is the one person
  * shape in the contract that carries an email, and deliberately: a roster
  * entry is someone the viewer exchanged invites with, and the email is what
@@ -380,9 +368,7 @@ export function deleteConnection(
  * Account deletion, the 8.10 surface
  * ------------------------------------------------------------------ */
 
-/** DELETE /me with the literal confirm string of 7.1. The route exists as
- * the P1 stub (steps 7 and 8), which is why AC-133 to AC-138 fail on their
- * outcome assertions rather than on a missing route. */
+/** DELETE /me with the literal confirm string of 7.1. */
 export function deleteAccount(actor: Actor): Promise<RawResponse> {
   return actor.browser.json('/me', 'DELETE', { confirm: 'DELETE' })
 }
@@ -510,9 +496,8 @@ export async function inviteRowsOfInviter(
 /**
  * Moves an invite's last_sent_at into the past, which is the only way to
  * reach the far side of 5.2's 24-hour resend window without waiting there:
- * the column is set by create and resend alone, and both stamp now(). The
- * P1 precedent is setSessionExpiry, which moves expiries for AC-113 the
- * same way.
+ * the column is set by create and resend alone, and both stamp now().
+ * setSessionExpiry moves session expiries the same way.
  */
 export async function backdateLastSent(
   db: Db,

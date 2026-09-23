@@ -8,7 +8,7 @@ as every read, so possession of an id grants nothing. This test stages one
 stored file through the API and reads it from both sides of the membership
 line.
 
-Spec: 4.16, 7.15, 10.2 (RFC 0005).
+Spec: 4.16, 7.15, 10.2.
 */
 import { afterAll, beforeAll, describe, test } from 'vitest'
 

@@ -13,7 +13,7 @@ const pkg = JSON.parse(
 let lastPassAt: number | null = null
 let databaseKind: 'postgres' | 'pglite' | null = null
 
-// Called by the reminder scheduler (P7) after each completed pass; health
+// Called by the reminder scheduler after each completed pass; health
 // reports the age so tick liveness is observable separately from process
 // liveness (spec 11.12).
 export function recordSchedulerPass(): void {

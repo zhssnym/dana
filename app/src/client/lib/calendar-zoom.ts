@@ -7,25 +7,17 @@ at the expected zoom while the settings bundle is still loading. Once that
 bundle arrives it wins and refreshes the mirror, exactly like the theme and
 exactly like where a task opens.
 
-**This is issue #140, and the thing it closes is a gap between the
-specification and the code rather than a defect in either alone.** 9.5 has
-always said "mode and zoom persist client-side"; `PlannedCalendar.tsx` held the
-zoom in `useState('month')` and persisted nothing, so a person who chose week
-got month back on the next visit and on every reload. Imran ruled on that issue
-that the preference should follow the account rather than the browser,
-"consistent with other durable preferences such as density, clock format, and
-task-open surface", and ruled out the browser-only answer by name because it
-would create another split record. Hassan settled the contract on #142: the
-column, migration 0013's named CHECK, the field on the v2 bundle, and AC-378 to
-AC-380 over the wire. This module is the client half, and until it landed the
-column was inert in production.
+**Issue #140.** 9.5 says "mode and zoom persist client-side", so a person who
+chose week must not get month back on the next visit. The preference follows
+the account rather than the browser, "consistent with other durable
+preferences such as density, clock format, and task-open surface", because a
+browser-only answer would create another split record. The contract (#142) is
+the column, migration 0013's named CHECK, the field on the v2 bundle, and AC-378 to
+AC-380 over the wire. This module is the client half.
 
-**Peeking is not choosing, and that is Imran's ruling of 2026-09-04 on the
-review of #140 rather than an implementation nicety.** 9.5's "+N more" control
-switches to the day zoom to show a crowded day whole. The first build of this
-module wrote that to the account, on the reasoning that a calendar at the day
-zoom is a calendar at the day zoom. The ruling is the other way and it is
-right: a person pressing "+N more" is looking at one day, not changing what
+**Peeking is not choosing** (#140). 9.5's "+N more" control switches to the
+day zoom to show a crowded day whole, and that is not written to the account:
+a person pressing "+N more" is looking at one day, not changing what
 their calendar is, and a look that silently rewrites a preference on every
 device they own is a control with a side effect nobody asked for. So the reveal
 sets a **transient** zoom, local to this visit and to this browser: it is not

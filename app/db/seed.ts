@@ -2,53 +2,38 @@
 Seeds the example dataset: two people sharing one folder, and a third who
 shares nothing. Run from app/ with: npx tsx db/seed.ts
 
-The dataset is constraint-conformant by construction. **It used to claim it
-exercised every section 4 table and it wrote ten of the twenty-two**, which
-issue #43 measured: no browser run began with a comment, a file, a page
-block, a shelf, a saved view, an event, a notification, a cover or a sample
-register row. It now writes twenty-one, and the twenty-second is sessions,
-still empty on purpose: Playwright's sessions come from the development login
-endpoint (11.10), and a token_hash here would name a token nobody holds.
+The dataset is constraint-conformant by construction and writes every
+section 4 table but one (issue #43). The exception is sessions, empty on
+purpose: browser sessions come from the development login endpoint (11.10),
+and a token_hash here would name a token nobody holds.
 
-**The eleven new tables are seeded under Nadia, a third person, and that is
-not tidiness.** The browser leg reseeds once and runs its specs in one
-worker against the result, and every spec that signs in signs in as Hassan
-or Imran, so a shelf or a saved view added to either of them changes what a
-hundred specs see: sidebar contents, empty states, notification counts and
-folder lists are all asserted somewhere. Nadia is connected to nobody and
-shares no folder, and every read path is either folder-scoped through
-accessOf or keyed on the viewer, so nothing she owns can appear on Hassan's
-or Imran's screen. The cost of that choice is honest and worth stating: the
-browser leg still does not *start* with a comment or a shelf in front of the
-person it signs in as, so a spec that wants one still creates it. What the
-seed now buys is that every table has a row against which a migration, a
-cascade or a query can be exercised, and that the truncate below is proved
-against a populated database rather than an empty one.
+**Most tables are seeded under Nadia, a third person, and that is not
+tidiness.** The browser leg reseeds once and runs its specs against the
+result, and every spec that signs in signs in as Hassan or Imran, so a shelf
+or a saved view added to either of them changes what the specs see: sidebar
+contents, empty states, notification counts and folder lists. Nadia is
+connected to nobody and shares no folder, and every read path is either
+folder-scoped through accessOf or keyed on the viewer, so nothing she owns can
+appear on Hassan's or Imran's screen. The cost: the browser leg does not
+*start* with a comment or a shelf in front of the person it signs in as, so a
+spec that wants one creates it. What the seed buys is that every table has a
+row against which a migration, a cascade or a query can be exercised, and
+that the truncate below is proved against a populated database.
 
-**The default folders are named Desk, and were named Inbox until 2026-09-04
-(issue #98).** `auth/provisioning.ts` has created them as Desk since RFC 0005
-and this file never followed, so every browser spec signed into a product
-whose one universal folder had the wrong name. That is not a cosmetic
-difference in a file the browser leg runs entirely on: a spec that reads the
-sidebar, the folder chip or the entry-point default was reading v1.
-
-Two decisions came with that rename and are recorded here rather than left to
-be re-derived.
+**The default folders are named Desk**, as `auth/provisioning.ts` creates
+them (issue #98).
 
 **A seeded Desk carries no description, and provisioning's does.** #68 gives a
-brand-new Desk the sentence "Nothing decided about it yet" and says in as many
-words that existing Desks are not backfilled, "because a migration that wrote
-words into a folder somebody had deliberately left blank would be Dana putting
-sentences in a person's mouth". The people in this dataset are established
-accounts: they own folders, tasks, events and history, and an account of that
-age predates #68 exactly as a real one does. So the blank is what #68's own
-ruling produces here, and it is now a decision rather than an oversight.
+brand-new Desk the sentence "Nothing decided about it yet" and does not
+backfill existing Desks, "because a migration that wrote words into a folder
+somebody had deliberately left blank would be Dana putting sentences in a
+person's mouth". The people in this dataset are established accounts, so the
+blank is what #68 produces here.
 
 **`taskSortInbox` keeps its key and its title.** It names a task, not a
 folder, and "Sort inbox" is a thing a person wrote on a list rather than the
-product's name for anything. Eight browser specs address that row by its
-literal title; renaming it would churn them and measure nothing. The folder
-keys moved because they name the folder whose name changed.
+product's name for anything. Browser specs may address that row by its
+literal title.
 
 Identifiers are fixed so end to end tests can reference rows; dates are
 relative to today so the day-scoped pages (My Day, Planned) have content
@@ -164,17 +149,16 @@ function describeTarget(url: string): string {
  * So this seed, invoked with nothing else set, truncates a database a test
  * run may be using right now. The failure it causes is worse than a crash:
  * the reds are counts that climb across successive files, which is
- * indistinguishable by eye from the known shared-database flake (issue #32)
- * and is filed as it. Nothing about that mechanism is new, but package.json
- * now carries db:seed, which is short enough to type by accident.
+ * indistinguishable by eye from a shared-database flake. package.json
+ * carries db:seed, which is short enough to type by accident.
  *
  * Empty means unset, the same convention client.ts uses, which is what keeps
  * the browser leg working: playwright.config.ts pins TEST_DATABASE_URL to ''
  * for its webServer so the seed and the server share one .data directory. A
  * developer running npm run e2e:app by hand with the variable set is the one
  * caller whose behaviour changes, and it changes from silently seeding
- * dana_test while the server serves .data - the drifting-fixture failure
- * CLAUDE.md records - to an error that says so.
+ * dana_test while the server serves .data - fixtures that drift because the
+ * browser reads a database nothing seeded - to an error that says so.
  */
 function refuseTheTestDatabase(explicitUrl: string | undefined): void {
   if (explicitUrl !== undefined) return

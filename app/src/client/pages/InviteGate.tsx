@@ -6,9 +6,7 @@ Wedding' (or 'Hassan invited you to connect') with Accept and Decline; the
 sidebar, the page beneath and the rest of the chrome are not rendered."
 
 The designer's `src/screens/public-auth-screen.tsx` `InviteGateScreen`, ported
-at P8R session R10 onto our invite hooks. What replaced the P8 surface is the
-owner's ruling of 2026-08-13 recording the designer's DES-081, and the ruling's
-own argument is why this is a screen rather than a section: "this section says
+onto our invite hooks. It is a screen rather than a section because "this section says
 the invites render before anything else, and a section at the top of one page
 is before anything else only for a person who happens to be looking at that
 page, while a gate is what that phrase plainly says".
@@ -19,7 +17,7 @@ file carries the reasoning. This component only knows how to draw the screen.
 **His rows are `article` elements and these are list items.** Measured on the
 running prototype on 2026-08-13: `article "Hassan invited you to Wedding"`,
 twice. AC-172 addresses a row as a list item or a table row, which is 9.1's
-roles table read the way it reads a task row, and the ruling's own sentence
+roles table read the way it reads a task row, and 9.8
 says the rows are "addressed the way a task row's controls are addressed, from
 the row's own sentence". An `article` is neither shape, so the list is a list.
 
@@ -75,8 +73,7 @@ export function InviteGate({
             Dana
           </p>
 
-          {/* The watermark, drawn rather than fetched at S21 (ledger L-141,
-              AC-265). Both marks on this panel say `surface="dark"` because
+          {/* The watermark, drawn rather than fetched (AC-265). Both marks on this panel say `surface="dark"` because
               the panel is graphite-950 and the document is not: `surface`
               names what the mark sits on, which is a fact one can check here,
               rather than which colourway it is, which is a thing one has to

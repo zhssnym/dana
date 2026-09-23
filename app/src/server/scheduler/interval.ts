@@ -6,7 +6,7 @@ overlapping inside one process.
 a plain callable, and every criterion that runs one expects a call to run a
 whole cycle: a guard inside the callable would silently turn a second
 concurrent call into a no-op, which is exactly the shape AC-089's third case
-exists to distinguish from the real answer. Two ticks that genuinely overlap
+distinguishes from the real answer. Two ticks that genuinely overlap
 are decided by SELECT ... FOR UPDATE SKIP LOCKED in the pass, which is also
 what decides the case this process cannot guard at all, the deploy overlap
 window running two instances for about ninety seconds. This guard covers the

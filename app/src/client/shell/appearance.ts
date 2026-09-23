@@ -1,12 +1,9 @@
 /*
 9.7's Appearance preferences reaching the pixels they describe.
 
-RFC 0005 change control item 30 recorded the defect this closes and named it
-exactly: 4.19 has carried `theme`, `row_density`, `clock` and `task_open` since
-S7, and no surface offered a control for any of them, so "the client persists
-four preferences a person has no way to set". S17b built the controls, and this
-is the other half of that work, because a control that writes a column and
-changes nothing is the same defect one level down.
+4.19 carries `theme`, `row_density`, `clock` and `task_open`, and 9.7's
+controls write them. This is the other half, because a control that writes a
+column and changes nothing is a defect.
 
 **Two of the four are applied here and two are read where they are used**, and
 which is which follows from what each preference is about.
@@ -14,9 +11,8 @@ which is which follows from what each preference is about.
 - **Theme and row density describe how the whole document draws**, so they land
   on the document element as `data-theme` and `data-density` and every surface
   follows through CSS. `styles/tokens.css` has carried a complete dark colourway
-  under `[data-theme="dark"]` since DES-205, authored as "a first pass for his
-  ruling rather than a settled palette" and reached by nothing: its own comment
-  says "no code adds that class". This is the code that adds it.
+  under `[data-theme="dark"]` (DES-205), and this is the code that adds that
+  attribute.
 - **The clock and where a task opens are read at their call sites**, because
   each is a question asked at one moment by one surface rather than a fact about
   the page. `lib/time-format.ts` is the one place a time becomes words, and the
@@ -92,7 +88,7 @@ export function useAppearance(theme: Theme, density: Density, settled = true): v
       win.document.documentElement.setAttribute('data-theme', resolve(theme, media?.matches ?? false))
     }
     apply()
-    /* RFC 0005 change control item 43: the bundle's value is mirrored into
+    /* The bundle's value is mirrored into
        the browser every time it is applied, so the inline script in
        `index.html` can paint the first frame from it. Only once the bundle
        has landed, or the default standing in for it would overwrite the

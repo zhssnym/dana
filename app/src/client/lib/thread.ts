@@ -1,45 +1,35 @@
 /*
-The adapter seam for a conversation: `prototype-v2`'s `CommentsThread` is a
-controlled component over an array, and Dana's conversation is 7.14's four
-routes. This module is the whole of what stands between them, lifted by RFC
-0004's S26.
+The adapter seam for a conversation: `CommentsThread` is a controlled component
+over an array, and Dana's conversation is 7.14's four routes. This module is the
+whole of what stands between them.
 
 **The seam is the array, not the component**, which is why
-`components/comments.tsx` crosses with no write of its own. The prototype's
-thread announces every change the same way, `onChange(next)` carrying the
-array it wants to exist; here the page hands `applyThreadChange` that array,
-which compares it to the one the query answered and issues the one mutation
-that explains the difference. Four differences are expressible and each is one
-route: an id that appeared is a `POST`, an id that vanished is a `DELETE`, a
-body that moved is a `PATCH`, and a like that flipped is 7.14's like pair. A
-fifth kind of difference cannot be produced by that component, and one that
-somehow were would be dropped rather than guessed at.
+`components/comments.tsx` has no write of its own. The thread announces every
+change the same way, `onChange(next)` carrying the array it wants to exist; here
+the page hands `applyThreadChange` that array, which compares it to the one the
+query answered and issues the one mutation that explains the difference. Four
+differences are expressible and each is one route: an id that appeared is a
+`POST`, an id that vanished is a `DELETE`, a body that moved is a `PATCH`, and a
+like that flipped is 7.14's like pair. A fifth kind of difference cannot be
+produced by that component, and one that somehow were would be dropped rather
+than guessed at.
 
-**Why a diff rather than four callbacks.** Four callbacks is what
-`components/page/ConversationThread.tsx` took, and it is what made that file a
-second conversation surface: the prototype's own `onChange` is threaded through
-`CommentRow`, the reply composer and `toggleReaction`, so a component taking
-callbacks instead has to be rewritten at every one of those points, which is
-the rewriting the lift discipline forbids. Diffing costs this module thirty
-lines and costs the lifted file nothing.
+**Why a diff rather than four callbacks.** The thread's own `onChange` is
+threaded through `CommentRow`, the reply composer and `toggleReaction`, so a
+component taking callbacks instead would have to be rewritten at every one of
+those points. Diffing costs this module thirty lines and costs the component
+nothing.
 
 **What a comment is on the wire and what it is on the page.** 7.14 answers a
 flat list with `parent_id`; the component draws one level of replies, which is
-4.15's own limit, so the read half nests and the write half flattens back.
-Times are `formatAgo`'s, the elapsed phrasing every other surface in this
-client uses, because the prototype's `at` is a written string and a fixture's
-written string is the one thing that must not cross.
+4.15's own limit, so the read half nests and the write half flattens back. Times
+are `formatAgo`'s, the elapsed phrasing every other surface in this client uses.
 
-**Files ride with their name, type and size since RFC 0005 change control
-item 57 (B5).** Until then `CommentLine.file_ids` was an array of bare uuids
-and nothing on the wire carried a file's name, its type or its size, so an
-attachment could only be drawn as the picture and the composer offered images
-alone (section 13 item 54). 7.14 now answers `files: { id, name, mime, bytes }[]`,
-4.16's own columns, so the tile-name-meta row the prototype draws is drawn
-for every file. It answers `width` and `height` beside them since migration
-0009 (issue #27), which is what `attachmentOf` turns into the reservation
-issue #108 asked for. The write half, one file per comment, stands as 7.14
-wrote it and is the half item 54 left with the owner.
+**Files ride with their name, type and size.** 7.14 answers `files: { id, name,
+mime, bytes }[]`, 4.16's own columns, so the tile-name-meta row is drawn for
+every file. It answers `width` and `height` beside them (issue #27), which is
+what `attachmentOf` turns into the reservation issue #108 asked for. The write
+half is one file per comment, as 7.14 writes it.
 */
 import { useMemo } from 'react'
 
@@ -51,7 +41,7 @@ import { initialsOf } from '../parts/presenters.js'
 
 import type { Attachment, ConceptComment } from '../tasks/task-model.js'
 
-/** The prototype's `Person`, which is what a `Face` takes. */
+/** The `Person` shape, which is what a `Face` takes. */
 export interface ThreadPerson {
   readonly initials: string
   readonly name: string
@@ -62,14 +52,9 @@ export interface ThreadPerson {
  * Who is writing, for the composer's own face and for a comment made in this
  * session.
  *
- * The prototype reads `PEOPLE[0]`, three names written for the row lab, and
- * RFC 0004's close forbids a fixture crossing in any form. The session is the
- * honest answer and is already in the cache on every page.
- *
- * **The picture comes with it since the polish round of 2026-08-30.** `/me`
- * has carried `avatar_url` all along and this read took the name off it and
- * left the column, so the one face on the screen that is certainly yours was
- * the one face that could never be your photograph.
+ * The session is the honest answer and is already in the cache on every page.
+ * The picture comes with it, `/me` carrying `avatar_url`, so the one face on
+ * the screen that is certainly yours can be your photograph.
  */
 export function useViewerPerson(): ThreadPerson {
   const me = useMe()
@@ -85,9 +70,8 @@ export function fileSrc(fileId: string): string {
 }
 
 /**
- * An attachment as 7.14 now describes one (RFC 0005 change control item 57
- * B5): the tile, the name and the meta line the prototype draws, from 4.16's
- * columns rather than from a download. The two helpers restate
+ * An attachment as 7.14 describes one: the tile, the name and the meta line,
+ * from 4.16's columns rather than from a download. The two helpers restate
  * `components/comments.tsx`'s own, which that file keeps private.
  */
 function attachmentOf(file: CommentFile): Attachment {
@@ -119,10 +103,9 @@ function attachmentOf(file: CommentFile): Attachment {
 
 /**
  * Every file hung on a task's conversation, as the card's Attachments block
- * draws one (ledger L-257, RFC 0005 change control item 58, D). 4.16 scopes
- * a file to a folder and 4.15 hangs it on a comment, so a task's attachments
- * *are* its thread's files, replies included, in the order they were said;
- * feeding the block anything else would be a second store.
+ * draws one. 4.16 scopes a file to a folder and 4.15 hangs it on a comment, so
+ * a task's attachments *are* its thread's files, replies included, in the order
+ * they were said; feeding the block anything else would be a second store.
  */
 export function threadAttachments(comments: readonly ConceptComment[]): Attachment[] {
   const files: Attachment[] = []
@@ -133,9 +116,11 @@ export function threadAttachments(comments: readonly ConceptComment[]): Attachme
   return files
 }
 
-/** 7.15's declared kind for a file a comment attaches: an image is
- *  `image` and anything else is `file`, the two kinds 4.16 gives a comment
- *  (item 57 B5; `voice` waits on item 44's B5). */
+/**
+ * 7.15's declared kind for a file a comment attaches: an image is `image` and
+ * anything else is `file`, the two kinds 4.16 gives a comment (`voice` is not
+ * yet written).
+ */
 export function commentFileKind(file: File): 'image' | 'file' {
   return file.type.startsWith('image/') ? 'image' : 'file'
 }
@@ -154,19 +139,18 @@ function fileKind(mime: string): 'image' | 'video' | 'document' | 'file' {
 }
 
 /*
-Who wrote a comment, as the lifted thread's `Face` takes them.
+Who wrote a comment, as the thread's `Face` takes them.
 
-**It was `nameOf: (id) => string` until the polish round of 2026-08-30**, and
-the widening is the whole of that round's conversation half: 7.14 carries an
-author's id and nothing else, so the resolver *is* the only route a picture
-has onto this surface, and a resolver that could only answer a name made the
-tinted disc the only face a comment could ever wear. The page resolves the id
-against the members and connections it has already read, both of which carry
-`avatar_url`, so nothing new is fetched to draw a photograph here.
+7.14 carries an author's id and nothing else, so the resolver *is* the only
+route a picture has onto this surface, and a resolver that could only answer a
+name would make the tinted disc the only face a comment could ever wear. The
+page resolves the id against the members and connections it has already read,
+both of which carry `avatar_url`, so nothing new is fetched to draw a photograph
+here.
 
 The initials stay derived from the answered name rather than taken from the
-caller, which is `parts/presenters.ts`'s standing rule: a name and its
-initials that arrive separately are two facts that can disagree.
+caller, which is `parts/presenters.ts`'s standing rule: a name and its initials
+that arrive separately are two facts that can disagree.
 */
 export type PersonResolver = (authorId: string) => { name: string; image?: string }
 
@@ -193,13 +177,13 @@ export interface ThreadAuthority {
   /**
    * `comment.create`: writing into this conversation at all.
    *
-   * Two surfaces read it and they read it differently, on the owner's ruling
-   * of 2026-09-20. **Reply is hidden**, being a per-comment control like the
-   * three above, so it rides `replyable` on each comment. **The composer is
-   * rendered and disabled**, saying what standing commenting needs, which is
-   * why `components/comments.tsx` also takes it as a prop of its own: a
-   * thread with no comments in it still has a composer, and no per-comment
-   * field can carry an answer for it.
+   * Two surfaces read it and they read it differently (#268). **Reply is
+   * hidden**, being a per-comment control like the three above, so it rides
+   * `replyable` on each comment. **The composer is rendered and disabled**,
+   * saying what standing commenting needs, which is why
+   * `components/comments.tsx` also takes it as a prop of its own: a thread with
+   * no comments in it still has a composer, and no per-comment field can carry
+   * an answer for it.
    */
   readonly createComment: boolean
 }
@@ -207,8 +191,8 @@ export interface ThreadAuthority {
 /**
  * The lab's own answers, for a surface that has not worked out the viewer's
  * Access: Edit and Delete on authorship alone and Like always, which is what
- * `prototype-v2` does and what `components/comments.tsx`'s `?? mine`
- * fallbacks already say. Both real callers pass a real one.
+ * `components/comments.tsx`'s `?? mine` fallbacks already say. Both real
+ * callers pass a real one.
  */
 const AUTHORSHIP_ALONE: ThreadAuthority = {
   moderate: false,
@@ -242,38 +226,33 @@ function conceptOf(
     ...(line.files.length === 0 ? {} : { files: line.files.map(attachmentOf) }),
     mine,
     /*
-    The three controls a comment row draws, and the three different rules
-    behind them. Answered here, per comment, so that both mounts of the one
-    thread agree (L-201) and so that the per-comment fact and the per-folder
-    bar are multiplied in one place rather than at every surface.
+    The three controls a comment row draws, and the three different rules behind
+    them. Answered here, per comment, so that both mounts of the one thread
+    agree and so that the per-comment fact and the per-folder bar are multiplied
+    in one place rather than at every surface.
 
-    **`deletable` was `mine || ownerDeletes` until 2026-09-20 (issue #268)
-    and both halves of that were wrong.** 7.14's "(author or folder owner)"
-    has been false since #228's R8A landed. `routes/conversation.ts` resolves
-    the delete as `comment.mutate.own` **or** `comment.moderate`:
+    **`deletable` is `comment.mutate.own` or `comment.moderate`**, as
+    `routes/conversation.ts` resolves it (issue #268):
 
-    - moderation is Full control's, which custody neither confers nor
-      implies, so the second half is not `is_owner` — that is the rename this
-      parameter carries;
-    - and the **author's** own half is not `mine` either. #228's authorship
-      rule makes authorship provenance rather than standing authority, so a
-      member reduced to Can view keeps their words and loses the power to
-      change them. `mine` alone offered Edit and Delete on every comment they
-      had ever left, each answered 403. AC-518 pins those refusals from the
-      server's side; this is the screen agreeing with them.
+    - moderation is Full control's, which custody neither confers nor implies,
+      so the second half is not `is_owner`;
+    - and the **author's** own half is not `mine` either. Authorship is
+      provenance rather than standing authority, so a member reduced to Can view
+      keeps their words and loses the power to change them; `mine` alone would
+      offer Edit and Delete on every comment they had ever left, each answered
+    403. AC-518 pins those refusals from the server's side; this is the screen
+         agreeing with them.
 
-    `editable` and `likeable` are new fields for the same reason: the lab
-    draws Edit on `mine` and Like on everyone, and neither is 7.14's rule.
+    `editable` and `likeable` exist for the same reason: authorship alone and
+    "everyone" are not 7.14's rules.
     */
     deletable: (mine && may.mutateOwnComment) || may.moderate,
     editable: mine && may.mutateOwnComment,
     likeable: may.likeComment,
     /* Replying is `comment.create`, the same act as a first comment, so a
-       member below Can comment is offered no Reply anywhere in the thread.
-       Per comment because the control is (the owner's ruling of 2026-09-20
-       on #268,
-       https://github.com/zhssnym/dana/issues/268#issuecomment-5753983138);
-       the composer's own half is a prop on the lifted component. */
+       member below Can comment is offered no Reply anywhere in the thread. Per
+       comment because the control is (#268); the composer's own half is a prop
+       on the component. */
     replyable: may.createComment,
   }
 }
@@ -292,10 +271,11 @@ export function toConceptComments(
   viewerId: string | null,
   personOf: PersonResolver,
   now: number,
-  /** What this viewer's Access lets this folder's conversation offer, from
-   * `folderGates(...)` (7.14 as amended 2026-09-20, issue #228; AC-790).
-   * Defaults to the lab's answers, so a surface that has not worked out the
-   * viewer's Access behaves as `prototype-v2` does. */
+  /**
+   * What this viewer's Access lets this folder's conversation offer, from
+   * `folderGates(...)` (7.14, issue #228; AC-790). Defaults to the lab's
+   * answers, for a surface that has not worked out the viewer's Access.
+   */
   may: ThreadAuthority = AUTHORSHIP_ALONE,
 ): ConceptComment[] {
   const tops: ConceptComment[] = []
@@ -327,9 +307,11 @@ export interface ThreadWriters {
   }) => void
   /** PATCH /comments/:id, the author's own edit. */
   readonly edit: (commentId: string, body: string) => void
-  /** DELETE /comments/:id, the author's who still holds Can comment, or a
-   * moderator's (7.14 as amended 2026-09-20; moderation is Full control's and
-   * authorship is not standing authority, issue #228). */
+  /**
+   * DELETE /comments/:id, the author's who still holds Can comment, or a
+   * moderator's (7.14; moderation is Full control's and authorship is not
+   * standing authority, issue #228).
+   */
   readonly remove: (commentId: string) => void
   /** PUT and DELETE /comments/:id/like, one bit per person. */
   readonly like: (commentId: string, liked: boolean) => void

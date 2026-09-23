@@ -8,11 +8,11 @@ does not provide: whether two identifiers name the same zone. "US/Eastern" and
 canonical name must not write over it, and a plain string comparison would.
 
 The write is here for a reason worth stating. 8.1 gives users.timezone exactly
-one consumer, reminder fire-instant computation, and frozen 7.1 charges this
+one consumer, reminder fire-instant computation, and 7.1 charges this
 module with the consequence in its own words: a zone that moves recomputes
 fire_at for the scheduled reminders on tasks assigned to that user, which is
 8.6's fifth trigger and the only one outside the task endpoints. Two doors
-reach it, the callback's login sync and PATCH /me, and AC-086 exists because an
+reach it, the callback's login sync and PATCH /me (AC-086), and an
 implementation wiring one and not the other leaves a traveler's reminders wrong
 through the door it missed. One function both doors call is what makes that
 half-wiring impossible rather than merely discouraged, and it is also the only
@@ -68,7 +68,7 @@ export function sameZone(a: string, b: string): boolean {
  *
  * **Only the rows 7.1 names move**, and this function does not arrange that.
  * The engine scopes the trigger to scheduled reminders on tasks assigned to
- * this user, and the ruling of 2026-08-10 in 8.6 leaves sent and skipped rows
+ * this user, and 8.6 leaves sent and skipped rows
  * alone (AC-154): a zone change alters neither the deadline nor the recipient,
  * so reviving a delivered row would send one person the same reminder twice.
  * That is enforced there rather than here, and a caller adding a state filter
@@ -92,7 +92,7 @@ export async function writeTimezone(
     Reported, and this is the whole of what a caller does with it: a log line,
     never a throw and never a status code.
 
-    Frozen 7.1 already declines to fail sign-in over a zone problem, reading an
+    7.1 already declines to fail sign-in over a zone problem, reading an
     unparseable tz as absent rather than answering 422, so a stale zone database
     can never lock anyone out. One reminder row that cannot be computed taking
     down every login for that account would be the same failure through a

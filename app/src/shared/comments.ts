@@ -1,5 +1,5 @@
 /*
-The 7.14 contract (RFC 0005): a comment on a task or on the folder's own
+The 7.14 contract: a comment on a task or on the folder's own
 thread, one level of replies (4.15), likes as one bit per person, files by
 reference to 7.15's rows. The thread read returns whole and ordered; there
 is no pagination, a conversation being read as a conversation.
@@ -34,9 +34,8 @@ is famous for: nothing here is `.strict()`, so a field the server does not
 read is accepted, discarded, and answered 200. The shipping client posts
 `file_id` (`components/task-editing.tsx`), and a change that replaced the
 field rather than widening beside it would have made every existing
-attachment vanish silently into a 201 with no file on it. That is the same
-shape as the reminder field that was dropped for four packages, and it is
-avoidable for the cost of one alias.
+attachment vanish silently into a 201 with no file on it, which is avoidable
+for the cost of one alias.
 
 Sending both is refused rather than merged. Two spellings of the same thing
 in one body have no order between them that the caller can predict, and a
@@ -47,7 +46,7 @@ export const postCommentBody = z
   .object({
     body: z.string().min(1).max(4000).optional(),
     parent_id: z.uuid().optional(),
-    /** The one-file spelling frozen 7.14 names. Equivalent to a `file_ids`
+    /** The one-file spelling 7.14 names. Equivalent to a `file_ids`
      * of one, and never sent beside it. */
     file_id: z.uuid().optional(),
     /** Up to 10.3's cap, in the order they are to be attached. */
@@ -101,20 +100,11 @@ export function attachedFileIds(comment: PostCommentBody): string[] {
 }
 
 /*
-The edit half, and since 2026-09-04 it is the words and the attachments
-(issue #94).
-
-**This comment used to say `file_ids` here was accepted and dropped, and that
-is no longer true.** It was: nothing in this folder is `.strict()`, so the
-field parsed, was discarded, and the caller was answered 200 — the same shape
-as the reminder field `tasks.ts` records, arriving on the very endpoint the
-create half had just been widened for. What was undefined was attachment
-editing itself, and Imran has now ruled it exists: "A person should be able to
-add or remove attachments from an existing comment without having to delete
-the whole comment and post it again." 7.14 carries the ruling as a dated
-annotation and `domain/comments.ts` carries the work; this schema and that
-module changed together, because a declared field with no reader is the very
-loss this paragraph used to describe.
+The edit half: the words and the attachments (issue #94). 7.14 lets a person
+add or remove attachments on an existing comment without deleting and
+reposting it, and `domain/comments.ts` does the work. This schema and that
+module change together, because nothing in this folder is `.strict()`: a
+declared field with no reader parses, is discarded, and answers 200.
 
 **`file_ids` here is the full new set, not an addition.** Omitted means the
 attachments are untouched, `[]` removes every one of them, and any other list
@@ -183,10 +173,8 @@ export const patchCommentBody = z
 export type PatchCommentBody = z.infer<typeof patchCommentBody>
 
 /** A comment's file as the thread answers it, 4.16's own columns and no
- * more (7.14, RFC 0005 change control item 57 B5): enough to draw the tile,
- * the name and the meta line without downloading the bytes. The pair added
- * by issue #27 keeps that sentence true rather than widening it: 4.16 gained
- * two columns and this shape is still all of them. */
+ * more (7.14): enough to draw the tile, the name and the meta line without
+ * downloading the bytes. */
 export interface CommentFile {
   id: string
   name: string
@@ -222,12 +210,9 @@ export interface ThreadView {
 }
 
 /*
-The read half, added by the S12 client arm on 2026-08-25: S6 published
-`CommentLine` and `ThreadView` as interfaces and no zod schema for what the
-thread read answers, and `api/http.ts` parses every response through one.
-Written from `domain/comments.ts`, the discipline `shelves.ts` and
-`events.ts` record at their own read halves; recorded with those additions
-as one change control item. Nothing existing is touched.
+The read half: `api/http.ts` parses every response through a zod schema, and
+`CommentLine` and `ThreadView` above are interfaces only. Written from
+`domain/comments.ts`, as the read halves in `shelves.ts` and `events.ts` are.
 */
 export const commentLine = z.object({
   id: z.uuid(),

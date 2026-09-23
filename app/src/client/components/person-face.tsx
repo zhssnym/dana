@@ -1,21 +1,10 @@
 /*
 A person, as a disc. One of them, for the whole product.
 
-The designer's `components/person-face.tsx`, ported at S17a. His header names
-the fault and predicts its own end: there were two copies of this, `Face` in
-`task-card.tsx` and `CommentFace` in `comments.tsx`, and the second said in a
-comment why it was a copy and added "if a third file ever needs it, it moves
-somewhere neutral."
+Every surface that draws a person uses this one component, because the tint
+only means something if it is the same everywhere.
 
-**In this client there were seven.** `task-row.tsx`, `FolderPage.tsx`,
-`FolderSharingPanel.tsx`, `InviteGate.tsx`, `PeoplePage.tsx`, `SettingsPage.tsx`
-and `shell/app-sidebar.tsx` each built a person out of the same primitive, every
-one of them neutral, every one deciding its own size. Nobody was wrong: the
-primitive is the shared thing and a disc around it looked like nothing worth
-sharing. What made it worth sharing is the tint, which only means something if
-it is the same everywhere.
-
-**Two sizes, both already in the system** (the designer's F2a, review M2):
+**Two sizes, both already in the system**:
 the product's avatar for a comment's author or a section heading, and the
 row's 16px face for a chip or a reply. Nothing introduces a size of its own,
 and that rule is why there are two and not five.
@@ -101,7 +90,7 @@ export function PersonFace({
 }
 
 /*
-The same disc under the name every lifted surface calls it, added at S23.
+The same disc under the name every lifted surface calls it.
 
 `components/task-row.tsx`, `components/task-card.tsx` and
 `components/task-board.tsx` all render `<Face person={...} />`, taking a

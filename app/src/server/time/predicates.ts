@@ -106,10 +106,10 @@ export function myDayGroup(
 }
 
 /** 10.3's calendar range limit, which Q3C states as "end minus start at most
- * 62 days" and AC-125 states it from both sides. **It states it and nothing runs it**:
- * AC-125's test file went in the 2026-09-20 cut, so this boundary is held by the colocated
- * tests beside this file and by nothing at the wire. A span of 62 admits 63 inclusive
- * dates; the arithmetic is the subtraction, not the count. */
+ * 62 days" and AC-125 states from both sides. This boundary is held by the
+ * colocated tests beside this file and by nothing at the wire. A span of 62
+ * admits 63 inclusive dates; the arithmetic is the subtraction, not the
+ * count. */
 export const CALENDAR_RANGE_MAX_DAYS = 62
 
 /** Which of Q3C's two range rules broke, so the route can name the right
@@ -124,10 +124,9 @@ export type CalendarRangeCheck =
  * Q3C's range rules, both of them, in the order the specification fixes.
  *
  * The inversion check runs first and is not redundant with the span check.
- * The P4 mid-package change control of 2026-08-07 ruled that an inverted
- * range answers 422 naming the pair, on the recorded ground that "the 62-day
+ * An inverted range answers 422 naming the pair, because the 62-day
  * arithmetic admits an inverted range by accident, a negative difference
- * being at most 62": start 2026-12-31 with end 2026-01-01 is minus 364 days,
+ * being at most 62: start 2026-12-31 with end 2026-01-01 is minus 364 days,
  * which passes any test written as days <= 62. Refusing it is what keeps a
  * malformed request distinguishable from a legitimately empty month.
  */

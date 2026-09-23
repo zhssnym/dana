@@ -106,8 +106,7 @@ export async function destroyAllSessionsForUser(
 }
 
 /**
- * The opportunistic hygiene of 11.6, called by the Platform engineer's
- * scheduler pass (11.7). It is hygiene and not revocation: every path that
+ * The opportunistic hygiene of 11.6, called by the scheduler pass (11.7). It is hygiene and not revocation: every path that
  * revokes does so by deleting rows itself, and resolveSession already refuses
  * an expired row this has not reached yet.
  */

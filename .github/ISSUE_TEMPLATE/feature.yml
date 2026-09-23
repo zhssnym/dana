@@ -32,10 +32,10 @@ body:
       description: >
         A guess, and it is fine to be wrong. Only the last option changes
         anything: a big feature becomes several issues and merges as several
-        pull requests, with the screen last.
+        pull requests.
       options:
         - Small, a few hours
         - A normal feature
-        - Big. Weeks of work on both sides
+        - Big. Weeks of work
     validations:
       required: true

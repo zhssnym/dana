@@ -3,17 +3,16 @@ The 4.11 iterator: what a rule means on a calendar.
 
 11.9 makes this our own code rather than a runtime library, and gives the
 reason: rrule.js is unmaintained and models its results as reinterpreted UTC
-Dates, which collides with Dana's floating dates. It stays a development-time
-differential oracle, and recurrence-oracle.test.ts is where the two are run
-against each other; where they disagree, RFC 5545 adjudicates, never the
-oracle (section 13 item 4).
+Dates, which collides with Dana's floating dates. It stays a development
+dependency usable as a differential oracle; where the two disagree, RFC 5545
+adjudicates, never the oracle.
 
 **Nothing here touches an instant, and nothing here needs a zone.** Every
 value below is a floating civil date, the kind calendar-date.ts carries: 8.5
 anchors evaluation at DTSTART = the current occurrence's due_date, which 4.11
 stores as SQL DATE with no zone, and asks only for dates back. That is why
 11.15's Luxon hazard does not reach this file at all. It reaches the
-fire-instant module of 8.6, which is P7's, and the zone that generation needs
+fire-instant module of 8.6 (reminder-time.ts), and the zone that generation needs
 enters at the cutoff (generation.ts) rather than here.
 
 **What the subset does and does not have to implement.** The grammar is
@@ -23,8 +22,7 @@ BYMONTHDAY 1 to 28 with monthly only; UNTIL inclusive. COUNT is unsupported,
 so nothing here counts occurrences, which is exactly why 4.11 excluded it:
 counting needs a durable ordinal that row deletion would corrupt.
 
-Two RFC 5545 behaviors the subset does not remove, both implemented and both
-tested against the oracle:
+Two RFC 5545 behaviors the subset does not remove, both implemented:
 
 - **Short months skip.** 4.11 excludes BYMONTHDAY 29 to 31 to avoid RFC skip
   semantics, but the anchor is a due_date rather than a rule part, so a bare
@@ -34,8 +32,7 @@ tested against the oracle:
   spec's exclusion was avoiding having to explain to a user.
 - **29 February is a leap-year rule.** 4.11 states it for FREQ=YEARLY
   anchored there: instances occur only in leap years, which is RFC behavior
-  and falls out of the same existence check. (Written into 4.11 on 2026-09-03
-  by issue #26; before that it lived in retired section 13, item 15.)
+  and falls out of the same existence check.
 
 **Weeks start on Monday.** RFC 5545's WKST defaults to MO, and WKST is not in
 the subset, so it cannot be set. It is visible only through INTERVAL above 1
@@ -105,7 +102,7 @@ function pad(value: number, width: number): string {
 }
 
 /** Whether a month holds the given day, which is the whole of the skip rule
- * and, at 29 February, the whole of section 13 item 15. */
+ * and, at 29 February, the whole of 4.11's leap-year rule. */
 function daysInMonth(year: number, month: number): number {
   const at = new Date(0)
   at.setUTCFullYear(year, month, 0) // day 0 of the next month is this month's last

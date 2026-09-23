@@ -4,9 +4,8 @@ not happened yet.
 
 Pure, and deliberately so. Q3C scopes the projection by three things,
 accessible, pending and rule-carrying, and every one of them is a fact about
-rows that the Query engineer's SQL already establishes; what is left is
-arithmetic over dates, which is this module's across the seam
-names. So this function takes what was fetched and answers where it draws,
+rows that the calendar query's SQL already establishes; what is left is
+arithmetic over dates, which is this module's. So this function takes what was fetched and answers where it draws,
 and the fetch itself stays with the query.
 
 **The two bounds are the whole of it**, and each closes a different way of
@@ -20,18 +19,17 @@ only the window that was asked for.
 
 **The range is not what scopes the series.** A task whose current occurrence
 is due before the requested range still projects into it, which is the
-ordinary case of looking a month ahead at a weekly chore, and AC-143 exists
-because the natural implementation, projecting from the real rows a calendar
+ordinary case of looking a month ahead at a weekly chore (AC-143). The
+natural implementation, projecting from the real rows a calendar
 query already fetched, drops exactly those and fails silently by emptying the
 view. Nothing in this file can enforce that on its own: it is a fact about
 what the caller passes in, and it is written here because this is the module
 the caller reaches for.
 
 **No clock, no zone.** The projection reads stored dates against a requested
-range and computes no today at all, which is why AC-082 could be written at
-literal dates and why two viewers a day apart must see the same ghosts. (That
-criterion's test file went in the 2026-09-20 cut; this module's own tests beside it are
-what is left.)
+range and computes no today at all, which is why AC-082 can be stated at
+literal dates and why two viewers a day apart must see the same ghosts. No
+test exercises this module directly.
 */
 import { addDays, compareDates } from './calendar-date.js'
 import type { CalendarDate } from './calendar-date.js'

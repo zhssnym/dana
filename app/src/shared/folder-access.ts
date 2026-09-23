@@ -17,9 +17,7 @@ nowhere else, so nothing else may reorder it.
 **The labels are the product's words and belong here rather than in a
 component**, for the reason `app/src/shared` exists at all: a label declared
 beside a control is a second definition of a contract the server also states,
-and Dana has already paid for one of those (the reminder field of
-`shared/tasks.ts`, lost for four packages while being declared the whole
-time).
+and two definitions drift.
 */
 import { z } from 'zod'
 

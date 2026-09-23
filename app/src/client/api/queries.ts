@@ -96,7 +96,7 @@ export function useFolders(): UseQueryResult<GetFoldersResponse> {
  * card's label needs and no more. member_count is on the Folder object, which
  * is the folder list the chrome already reads, so the condition is answered
  * from a query that is in the cache on every page rather than from a second
- * request or from a widened frozen shape.
+ * request or from a widened response shape.
  */
 export function useMultiMemberFolderIds(): ReadonlySet<string> {
   const folders = useFolders()
@@ -136,10 +136,10 @@ export function usePendingInvites(): UseQueryResult<GetInvitesPendingResponse> {
 }
 
 /**
- * GET /invites/sent, frozen 7.5: the viewer's own invites, newest first, any
- * status. The People screen shows the pending subset so a bare invite is
- * visible somewhere after it is sent, the way a folder invite is visible in
- * the sharing panel.
+ * GET /invites/sent, 7.5: the viewer's own invites, newest first, any status.
+ * The People screen shows the pending subset so a bare invite is visible
+ * somewhere after it is sent, the way a folder invite is visible in the sharing
+ * panel.
  */
 export function useSentInvites(): UseQueryResult<GetInvitesSentResponse> {
   return useQuery({
@@ -188,11 +188,10 @@ export function useAllView(): UseQueryResult<GetAllResponse> {
  * shape Q7's third section answers, one page at a time.
  *
  * The two hooks below are one function because section 6 says they are one
- * query: "Completed: Q6 predicate, order, and pagination, folder_id = F". 7.10
- * settled the consequence on 2026-08-07, that a cursor's kind names the order
- * it pages rather than the endpoint that issued it, so the same cursor is
- * legal at both endpoints. One hook body for one order is that sentence as
- * code.
+ * query: "Completed: Q6 predicate, order, and pagination, folder_id = F". 7.10:
+ * a cursor's kind names the order it pages rather than the endpoint that issued
+ * it, so the same cursor is legal at both endpoints. One hook body for one
+ * order is that sentence as code.
  */
 type CompletedPage = GetDoneResponse
 
@@ -302,8 +301,8 @@ export function useFolderCompletedTasks(
     initialPageParam: undefined as string | undefined,
     getNextPageParam: nextPageParam,
     // Q7 renders the Completed section collapsed, and a collapsed section that
-    // fetched anyway would make the collapse cosmetic. AC-058's P8 half reads
-    // on the control's expanded state; this is what that state controls.
+    // fetched anyway would make the collapse cosmetic. AC-058 reads the
+    // control's expanded state; this is what that state controls.
     enabled,
   })
 }
@@ -367,18 +366,15 @@ export function useSearch(q: string, enabled: boolean): UseQueryResult<GetSearch
 }
 
 /* ------------------------------------------------------------------ *
- * The v2 surfaces (RFC 0005)
+ * Settings, events
  * ------------------------------------------------------------------ */
 
 /**
- * The person's bundle of 4.19, at the v2 address, and the client's only
- * settings read.
+ * The person's bundle of 4.19, and the client's only settings read.
  *
- * It owns the pin list that frozen 7.2's three v1 page flags derive into when
- * nobody has written pins yet (RFC 0005's change control item 6), so the
- * sidebar reads this one: the pin list is what decides which entries exist.
- * There was a `useSettings` beside it over `/me/settings` until issue #150,
- * consumed by nothing; the flags still exist on the server and still derive,
+ * It owns the pin list that 7.2's three page flags derive into when nobody has
+ * written pins yet, so the sidebar reads this one: the pin list is what decides
+ * which entries exist. The flags still exist on the server and still derive,
  * and this client never asks for them on their own.
  */
 export function useBundle(): UseQueryResult<GetSettingsResponse> {
@@ -434,7 +430,7 @@ export function useTrash(): UseQueryResult<GetTrashResponse> {
 
 /**
  * The recent events of one thing (7.12), which the window bar's Activity line
- * reads and which the history surfaces of S12 will read too.
+ * and the history surfaces read.
  *
  * `subject` is 4.13's `kind:id` reference. Disabled for a null subject rather
  * than called with a placeholder, because a place page has no history of its
@@ -448,8 +444,10 @@ export function useSubjectEvents(subject: string | null): UseQueryResult<GetEven
   })
 }
 
-/** 7.12's other read: everything that happened inside one folder, newest
- * first (polish: folderpage F3, the folder's History sheet). */
+/**
+ * 7.12's other read: everything that happened inside one folder, newest first,
+ * for the folder's History sheet.
+ */
 export function useFolderEvents(folderId: string | null): UseQueryResult<GetEventsResponse> {
   return useQuery({
     queryKey: queryKeys.events(`folder-scope:${folderId ?? ''}`),
@@ -459,7 +457,7 @@ export function useFolderEvents(folderId: string | null): UseQueryResult<GetEven
 }
 
 /* ------------------------------------------------------------------ *
- * The S12 surfaces (RFC 0005): pages, shelves, notifications, threads
+ * Pages, shelves, notifications, threads
  * ------------------------------------------------------------------ */
 
 /** One shelf's identity (7.16), which its page's head renders. */
@@ -515,11 +513,10 @@ export function useShelfPage(id: string): UseQueryResult<GetPageResponse> {
 /**
  * The viewer's notifications (7.12), which the 9.12 bell renders.
  *
- * `poll` is D3's ruling applied to this surface: refetch-on-focus is the
- * client's one global liveness rule, and a polite poll runs only while the
- * surface is open, so an idle Dana in a background tab costs the server
- * nothing. Thirty seconds is polite for a feed whose producer is another
- * person's hand.
+ * `poll`: refetch-on-focus is the client's one global liveness rule, and a
+ * polite poll runs only while the surface is open, so an idle Dana in a
+ * background tab costs the server nothing. Thirty seconds is polite for a feed
+ * whose producer is another person's hand.
  */
 export function useNotifications(poll: boolean): UseQueryResult<GetNotificationsResponse> {
   return useQuery({

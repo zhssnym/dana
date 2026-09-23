@@ -1,46 +1,26 @@
 /*
-Who is looking, and what they look like: `prototype-v2`'s `lib/viewer.ts`
-rewritten over 7.2's session and 7.15's avatar (RFC 0004's S27).
+Who is looking, and what they look like, over 7.2's session and 7.15's avatar.
 
-The prototype's header already names the seam: "the ported version reads the
-session", and "Google's account picture is the more interesting half, sign-in
-already carries one, and the honest ported default is *that*, with an upload
-as the override. Nothing here decides that; the drawing is the same either
-way." So `useViewer` answers `/me`: the display name, the initials
-`parts/presenters.ts` decides everywhere else, and `avatar_url`, which 7.15
-sets from the upload and which sign-in fills from Google where it can.
+`useViewer` answers `/me`: the display name, the initials `parts/presenters.ts`
+decides everywhere else, and `avatar_url`, which 7.15 sets from the upload and
+which sign-in fills from Google where it can.
 
-**`setViewerImage` is 7.15's `POST /me/avatar`.** The prototype crops and
-shrinks to a data URL in the browser and stores that; here the same
-`squareImageFile` runs first, so what goes up is the 256px square the
-prototype would have kept, and then the bytes go to the one route that sets a
-picture. The route answers the new serving path and the `/me` read carries it
-from then on, so the four surfaces that draw the face update the way the
-prototype's store updated them.
+**`setViewerImage` is 7.15's `POST /me/avatar`.** `squareImageFile` runs first,
+so what goes up is a 256px square, and then the bytes go to the one route that
+sets a picture. The route answers the new serving path and the `/me` read
+carries it from then on, so every surface that draws the face updates.
 
-**The request goes through `api/http.ts`'s `uploadAvatar` since the polish
-round of 2026-08-30**, where it was a hand-written `fetch` here. That copy was
-written before this client had a multipart helper and never caught up, so it
-was the one write in the product that skipped the offline check: choosing a
-picture with no connection posted into the dark and reported the generic
-failure rather than 9.1's "Couldn't save. You're offline." Nothing else about
-it changes.
+**The request goes through `api/http.ts`'s `uploadAvatar`**, so it takes the
+same offline check as every other write: choosing a picture with no connection
+reports 9.1's "Couldn't save. You're offline." rather than a generic failure.
 
-**Removal is offered since the polish round of 2026-08-30, and the paragraph
-this replaces is why it took a round.** It read: "7.15 has a route that sets
-an avatar and none that clears one, so `setViewerImage(undefined)` would be a
-promise the API cannot keep; the screen's Remove control is behind this seam
-and is drawn when a clearing route exists" — recorded at RFC 0005 change
-control item 55(f) as one of three controls drawn absent under DES-144 rather
-than dead. The route now exists: `DELETE /api/v1/me/avatar`, added under the
-owner's waiver of section 7's freeze for this round and noted at 7.15. So the
-seam keeps its shape and gains its other half, `clearViewerImage`, and the
-Settings row draws the prototype's Remove control unchanged.
+**`clearViewerImage` is `DELETE /api/v1/me/avatar`** (7.15), behind the Settings
+row's Remove control.
 
-`squareImageFile` crosses verbatim: square because every avatar in the
-product is a circle, centre-cropped to the short edge because "letting a
-portrait photograph in un-cropped means the browser decides what to cut,
-which is usually the top of somebody's head".
+`squareImageFile`: square because every avatar in the product is a circle,
+centre-cropped to the short edge because letting a portrait photograph in
+un-cropped means the browser decides what to cut, which is usually the top of
+somebody's head.
 */
 import { useMe } from '../api/queries.js'
 import { mutateApi, uploadAvatar } from '../api/http.js'
@@ -92,7 +72,7 @@ export function setViewerImage(image: string): void {
     .then((file) => uploadAvatar(file))
     .then(() => {
       void client?.invalidateQueries()
-      /* polish: settings F7: an upload says when it has landed. */
+      /* An upload says when it has landed. */
       showToast('Picture updated')
     })
     .catch((error: unknown) => showToast(writeFailureMessage(error)))
@@ -120,7 +100,7 @@ export function clearViewerImage(): void {
     .catch((error: unknown) => showToast(writeFailureMessage(error)))
 }
 
-/** 7.1's PATCH /me, the one field it takes (polish: settings F6). */
+/** 7.1's PATCH /me, the one field it takes. */
 export function setViewerTimezone(timezone: string): void {
   const client = queryClient()
   void mutateApi(null, { method: 'PATCH', path: '/me', body: { timezone } })

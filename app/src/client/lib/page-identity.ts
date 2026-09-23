@@ -1,69 +1,43 @@
 /*
-The adapter seam for a page's identity: `prototype-v2`'s
-`lib/folder-presentation.ts` rewritten over sections 7.4, 7.16, 7.19 and 7.21
-(RFC 0005 change control item 44's B1, lifted by RFC 0004's S25).
+The adapter seam for a page's identity, over sections 7.4, 7.16, 7.19 and 7.21.
 
-This is the shape S22 built the seam in, and it works here for the reason it
-worked there: the prototype's components take their look from a named lib
-module and touch no storage themselves, so the module is the only thing that
-changes and `page-cover.tsx`, `page-head.tsx` and `folder-cover.tsx` cross
-with their bodies untouched. What that file did with `window.localStorage`,
-this does with the four contracts named above.
+The page-head components take their look from this named module and touch no
+storage themselves, so `page-cover.tsx`, `page-head.tsx` and `folder-cover.tsx`
+stay free of the four contracts named above.
 
-**The two exported names are the prototype's, through an import alias at each
-call site.** `usePageIdentity` and `savePageIdentity` are what they are called
-here, because `savePrototypeFolderIdentity` in a shipped client would name
-neither a prototype nor a folder; the lifted files alias them back on import,
-so the whole seam is one import statement per file and no body moves.
+**The two exported names are `usePageIdentity` and `savePageIdentity`**; the
+component files alias them on import, so the whole seam is one import statement
+per file.
 
 **The cover and description cross through separate contracts.** 7.19 stores a
-place page's cover and 7.21 stores the person's wording. They still meet here
-because the lifted page head expects one identity object. A place page's glyph
-remains Dana's own and is never offered as a personal setting.
+place page's cover and 7.21 stores the person's wording. They meet here because
+the page head expects one identity object. A place page's glyph remains Dana's
+own and is never offered as a personal setting.
 
-**The key alphabet is the one real translation.** The prototype writes
+**The key alphabet is the one real translation.** The picker writes
 `gradient:cobalt` and `mark:ink`; 4.20's `preset` is checked against
-`^[a-z0-9-]{1,40}$` and a colon does not pass it. So a colon crosses as a
-hyphen going out and the first hyphen splits the tier back off coming in,
-which is unambiguous because both tier names are single words and only the
-swatch names carry hyphens of their own (`cobalt-deep`). The alternative,
-widening a frozen section 4 CHECK for a punctuation mark, is not one.
+`^[a-z0-9-]{1,40}$` and a colon does not pass it. So a colon crosses as a hyphen
+going out and the first hyphen splits the tier back off coming in, which is
+unambiguous because both tier names are single words and only the swatch names
+carry hyphens of their own (`cobalt-deep`). Widening a section 4 CHECK for a
+punctuation mark is not an alternative.
 
-**Three kinds of page cross this module, and since issue #118 they are dressed
-alike.** A `storageName` beginning `folder:` names a folder by id and one
+**Three kinds of page cross this module, and they are dressed alike** (issue
+#118). A `storageName` beginning `folder:` names a folder by id and one
 beginning `shelf:` names a shelf by id; anything else is 4.20's own place
 string, and the endpoint is its authority. Each kind keeps its cover in its own
 store — 4.3's three columns through 7.4's PATCH for a folder, 4.18's same three
-through 7.16's for a shelf, 4.20's row through 7.19's PUT and DELETE for a
-place — and `pageOf` below is the one place that difference is written down.
-Everything a person can reach is the same on all three: the same Gallery,
-Upload and Photos tabs, the same reposition, the same words when a write fails.
+through 7.16's for a shelf, 4.20's row through 7.19's PUT and DELETE for a place
+— and `pageOf` below is the one place that difference is written down.
+Everything a person can reach is the same on all three: the same Gallery, Upload
+and Photos tabs, the same reposition, the same words when a write fails. 7.15's
+upload takes an optional `folder_id` for `kind: cover`, and `POST
+/api/v1/covers/photo` serves a page that is not a folder.
 
-**This header said the opposite until 2026-09-04, and that is the point of this
-paragraph rather than an embarrassment to it.** What stood here was a
-measurement, made honestly and recorded with its reasoning: 7.15's upload
-required `folder_id` as a uuid, a shelf and a place page are not folders,
-therefore no file could exist for either to wear, therefore `coverTiersFor`
-answered nothing for a shelf and the gallery alone for a place, and a tier a
-surface cannot honestly draw is a tier it does not draw (DES-144). Every
-sentence of that was true when written and every one is false now: issues #20
-and #100 made `folder_id` optional for `kind: cover`, added
-`POST /api/v1/covers/photo` for a page that is not a folder, gave 4.18 the
-`cover_preset` and `cover_focal_y` columns a folder has had since migration
-0006, and gave 7.16's PATCH the write that had been answering 200 and storing
-nothing. The old text also cited `server/routes/files.ts:48-52` by line number,
-which is the second way a comment rots here: those lines moved with the change
-and now hold a `superRefine` saying the opposite. **CLAUDE.md's opening warning
-is about this file by name**, and the rule it asks for is the one applied here
-— a comment states intent, behaviour is what the code does, and where the two
-argue the comment is rewritten in the same change rather than left to win an
-argument it cannot.
-
-**What is still absent is the link tier, and its reason is unchanged**
-(issue #115). 10.8's `img-src` admits no external host, so a pasted URL draws
-as the flat fallback and the honest fix is a server-side fetch with a real
-SSRF surface. `folder-cover.tsx` draws a tab only where `tiers` names it, and
-nothing here names that one.
+**What is absent is the link tier** (issue #115). 10.8's `img-src` admits no
+external host, so a pasted URL would draw as the flat fallback and the honest
+fix is a server-side fetch with a real SSRF surface. `folder-cover.tsx` draws a
+tab only where `tiers` names it, and nothing here names that one.
 */
 import type { PlaceCover } from '../../shared/covers.js'
 import { DEFAULT_FOCAL_Y } from '../../shared/covers.js'
@@ -95,7 +69,7 @@ answering 404 for anything outside the set, so a wrong string is refused at
 the one place that can refuse it rather than at a type the seam invented.
 */
 
-/** The prototype's `PrototypeFolderIdentity`, narrowed to what 4.20 holds. */
+/** The page identity, narrowed to what 4.20 holds. */
 export interface PageIdentity {
   /** A picker key: `gradient:*`, `mark:*`, or `link:` for a stored file. */
   cover?: string
@@ -103,7 +77,7 @@ export interface PageIdentity {
   coverPos?: number
   /** The saved wording for a place, folder, or shelf. */
   description?: string
-  /** The prototype's name for 4.18's `icon` key, a shelf's only today. */
+  /** The name for 4.18's `icon` key, a shelf's only today. */
   glyph?: string
   /** 4.18's `color`, a shelf's only today. */
   color?: string
@@ -150,68 +124,45 @@ function fileIdOf(key: string): string | null {
 }
 
 /**
- * Which cover tiers this page can honestly supply, which is the seam
- * `components/folder-cover.tsx` gained at S25.
+ * Which cover tiers this page can honestly supply, which is what
+ * `components/folder-cover.tsx` draws tabs from.
  *
- * **All three kinds of page answer the same list since issue #118**, which is
- * Imran's ruling on it — "shelves and place pages should use exactly the same
- * Gallery, Upload, and Photos treatment as folder pages" — resting on the
- * backend half of #20 and #100 that made it true rather than on a preference.
- * A folder, a shelf and a place page each have somewhere to keep a preset with
- * a crop and somewhere to keep a file, and 7.15 now makes a file that belongs
- * to no folder, so every tab this returns has a store behind it.
+ * **All three kinds of page answer the same list** (issue #118): shelves and
+ * place pages use exactly the same Gallery, Upload and Photos treatment as
+ * folder pages. A folder, a shelf and a place page each have somewhere to keep
+ * a preset with a crop and somewhere to keep a file, and 7.15 makes a file that
+ * belongs to no folder, so every tab this returns has a store behind it.
  *
- * **The gap this function closed when it was added was live on eight pages**,
- * and it is worth keeping in view because it is the failure a wrong answer
- * here produces. `page-cover.tsx` rendered the picker with the prop defaulting
- * to all four, so a person on Today could choose Upload, Link or a photograph;
- * the first stored the preset `upload`, whose object URL does not survive a
- * reload, and the other two produced a key `keyToPreset` cannot spell, so the
- * write was dropped without a word. Three tabs that do nothing is DES-144's
- * dead control and protocol section 4's false green. The rule that follows is
- * unchanged by #118 and is why `link` is still missing: a tier is listed here
- * only where every one of `usePageIdentity`, `savePageIdentity`,
- * `coverUploader` and `coverPhotoPicker` below can serve it for this page.
+ * **A wrong answer here is a tab that does nothing.** A tier the page cannot
+ * store would let a person choose it, store something that does not survive a
+ * reload or cannot be spelled, and drop the write without a word. So a tier is
+ * listed here only where every one of `usePageIdentity`, `savePageIdentity`,
+ * `coverUploader` and `coverPhotoPicker` below can serve it for this page,
+ * which is why `link` is missing.
  */
 export function coverTiersFor(_place: string): readonly CoverTier[] {
   return ['gallery', 'upload', 'photos']
 }
 
 /*
-**Why `photos` comes through this origin and `link` is nothing at all,
-measured 2026-08-30 rather than assumed.** Kept from the round that built the
-tier, because it is the reason the tier is shaped this way and the reason the
-fourth one is still absent.
+**Why `photos` comes through this origin and `link` is nothing at all.**
 
-The owner asked for "free stock images" and B8 exempted the tier on 10.6, "a
-third-party network dependency the service worker cannot precache". That is
-true and it is the smaller half. **The larger half is 10.8's response headers,
-and it refuses both halves of the tier outright**: `app/src/server/index.ts`
-sent `img-src 'self' data:` and `connect-src 'self' https://*.sentry.io`, so
-the picker's search request to `api.openverse.org` never left the page and a
-result's thumbnail never painted. Two things follow that are worth the record.
+**10.8's response headers refuse a client-side tier outright**: `img-src 'self'`
+and a `connect-src` that names only this origin and Sentry mean a search request
+to `api.openverse.org` never leaves the page and a result's thumbnail never
+paints. The photo search is Openverse, which needs no key and no account, so
+nothing here waits on a credential.
 
-**No provider key is missing.** B8 was written against Unsplash; the picker
-lifted at S25 searches **Openverse**, which needs no key and no account, and
-`components/folder-cover.tsx`'s own header already says so. Nothing here is
-waiting on a credential.
-
-**And no client-side workaround exists**, which is the finding that decides
-it. The obvious one, download the chosen photograph and put it through 7.15 so
-the stored cover is Dana's own file, dies twice: `connect-src 'self'` refuses
-the download, and a photograph's bytes sit on whichever host the original
-publisher uses, which sends no CORS header to a browser that asked. So the
-tier is not a front-end job pending a flag. It needs the **server** to do the
-fetching, which is a section 7 addition and therefore the owner's: a search
-proxy, and a route that turns a chosen URL into a `files` row. With those,
-`img-src 'self'` is satisfied by construction and 10.6's objection goes with
-it, because the cover a person ends up wearing is a file this origin serves
-rather than a third party's URL.
-
-That server half exists: `routes/cover-photos.ts` proxies the search, streams
-the thumbnails from this origin, and turns a chosen photograph into a `cover`
-file. `coverPhotoPicker` below is the client's half, and since #118 it has two
-arms because 7.15 has two — the folder route and the folder-less one.
+**And no client-side workaround exists.** Downloading the chosen photograph and
+putting it through 7.15 dies twice: `connect-src 'self'` refuses the download,
+and a photograph's bytes sit on whichever host the original publisher uses,
+which sends no CORS header to a browser that asked. So the **server** does the
+fetching: `routes/cover-photos.ts` proxies the search, streams the thumbnails
+from this origin, and turns a chosen photograph into a `cover` file, so `img-src
+'self'` is satisfied by construction and the cover a person ends up wearing is a
+file this origin serves rather than a third party's URL. `coverPhotoPicker`
+below is the client's half, and it has two arms because 7.15 has two — the
+folder route and the folder-less one.
 */
 
 /**
@@ -233,24 +184,17 @@ export function coverStoresPosition(_place: string): boolean {
 const storedCoverSchema = z.object({ id: z.uuid() })
 
 /**
- * One cover failure, reported the way every other write in this client
- * reports one.
+ * One cover failure, reported the way every other write in this client reports
+ * one.
  *
- * **The three page kinds share this deliberately**, which is the whole of "the
- * same loading and error behaviour" in Imran's ruling on #118: a shelf over
- * 10.3's gigabyte and a folder over it are the same event to a person, so they
- * say the same thing. `writeFailureMessage` is this client's one rule for what
- * a failed write says — 9.1's offline sentence where the request never left,
- * the server's own words for a 409, a 403 and 10.3's 413 `quota_exceeded`, and
+ * **The three page kinds share this deliberately** (#118): a shelf over 10.3's
+ * gigabyte and a folder over it are the same event to a person, so they say the
+ * same thing. `writeFailureMessage` is this client's one rule for what a failed
+ * write says — 9.1's offline sentence where the request never left, the
+ * server's own words for a 409, a 403 and 10.3's 413 `quota_exceeded`, and
  * section 9's generic sentence for everything else, which is where a 422 from
- * one of these endpoints lands. That is the folder page's behaviour reused
- * rather than a second treatment invented for the two new pages.
- *
- * **The 413 clause arrived one commit after this one**, with issue #117, whose
- * shelf duplicate can be refused the same way; before it, a person at their
- * gigabyte was told to try again. It is in `writeFailureMessage` rather than
- * here because it is true of every write in the client and not of covers, and
- * this comment is corrected rather than left saying the old thing.
+ * one of these endpoints lands. The 413 clause lives there rather than here
+ * because it is true of every write in the client and not only of covers.
  */
 function reportCoverFailure(error: unknown): void {
   showToast(writeFailureMessage(error))
@@ -266,19 +210,19 @@ function settleWrites(): void {
  *
  * **What ends up on the page is the id the server hands back and never the one
  * that was sent**, and on this endpoint those are two different things: 7.19's
- * rule 1, amended 2026-09-04 for issues #116 and #128, copies a picture that
- * is not already a `cover` in the page's own scope, so a folder's photograph
- * set as a shelf's cover is stored as a fresh folder-less file of the setter's
- * own and the shelf names the copy. Nothing here holds the sent id in client
- * state: the band is drawn from `usePageIdentity`, which reads the query
- * cache, and the invalidation the callers do is what puts the server's answer
- * on the screen. A client that optimistically wrote back what it sent would
- * draw the original for as long as that cache lived and then silently swap it.
+ * rule 1 (issues #116 and #128) copies a picture that is not already a `cover`
+ * in the page's own scope, so a folder's photograph set as a shelf's cover is
+ * stored as a fresh folder-less file of the setter's own and the shelf names
+ * the copy. Nothing here holds the sent id in client state: the band is drawn
+ * from `usePageIdentity`, which reads the query cache, and the invalidation the
+ * callers do is what puts the server's answer on the screen. A client that
+ * optimistically wrote back what it sent would draw the original for as long as
+ * that cache lived and then silently swap it.
  *
  * The crop goes to 4.20's default with the picture, exactly as
  * `savePageIdentity` does for every other cover: without it a page whose last
- * cover had been dragged to its foot showed the new one already repositioned,
- * which reads as an upload that cropped itself.
+ * cover had been dragged to its foot would show the new one already
+ * repositioned, which reads as an upload that cropped itself.
  */
 function setCoverFile(page: PageRef, fileId: string): Promise<unknown> {
   if (page.kind === 'place') {
@@ -462,8 +406,8 @@ function storedCover(place: string): PlaceCover | undefined {
  *
  * Removal clears both sources, because 4.3 and 4.18 admit a row wearing
  * neither; a `link:` key names the file column and a gallery key the preset
- * column, the server clearing the other (RFC 0005 change control item 58). A
- * fresh cover starts at 4.20's default crop, as a place's does.
+ * column, the server clearing the other. A fresh cover starts at 4.20's default
+ * crop, as a place's does.
  */
 function coverColumnsFor(cover: string | undefined): Record<string, unknown> | null {
   if (cover === undefined) return { cover_file_id: null, cover_preset: null }
@@ -477,23 +421,23 @@ function coverColumnsFor(cover: string | undefined): Record<string, unknown> | n
 }
 
 /**
- * The write half, with the prototype's own patch shape: `{ cover }` chooses or
- * removes one, `{ coverPos }` moves the crop.
+ * The write half: `{ cover }` chooses or removes one, `{ coverPos }` moves the
+ * crop.
  *
- * A place patch clearing the cover is 7.19's DELETE, because 4.20 admits no
- * row with neither a file nor a preset: removal is the row's deletion and
- * there is no half-set cover to leave behind. A folder's and a shelf's is the
- * PATCH with both columns null, their rows outliving the cover. A place patch
- * carrying only a position re-sends the cover it is moving, the endpoint being
- * an idempotent PUT of the whole entry rather than a partial update.
+ * A place patch clearing the cover is 7.19's DELETE, because 4.20 admits no row
+ * with neither a file nor a preset: removal is the row's deletion and there is
+ * no half-set cover to leave behind. A folder's and a shelf's is the PATCH with
+ * both columns null, their rows outliving the cover. A place patch carrying
+ * only a position re-sends the cover it is moving, the endpoint being an
+ * idempotent PUT of the whole entry rather than a partial update.
  *
  * It invalidates by hand because it is not a `useMutation`, so the mutation
  * cache's own `onSuccess` of 8.3 never sees it; the filterless
- * `invalidateQueries()` is deliberately the same call that cache makes, so
- * this write refetches exactly what every other write refetches. That refetch
- * is also what makes the screen show the id the **server** chose rather than
- * the one this function sent, which 7.19's rule 1 can make two different
- * things; `setCoverFile` above states it where it matters most.
+ * `invalidateQueries()` is deliberately the same call that cache makes, so this
+ * write refetches exactly what every other write refetches. That refetch is
+ * also what makes the screen show the id the **server** chose rather than the
+ * one this function sent, which 7.19's rule 1 can make two different things;
+ * `setCoverFile` above states it where it matters most.
  */
 export function savePageIdentity(
   place: string,

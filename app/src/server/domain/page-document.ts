@@ -130,8 +130,8 @@ export async function applyDocument(tx:Executor,viewerId:string,folderId:string,
  store; they were never about auditing rows somebody else wrote, and three
  routes write `page_blocks.file_id` and `ref_folder_id` without passing through
  this function at all — `update_block`, `insert_block` and 7.16's legacy
- whole-page `PUT`. Migration 0024 records the ruling that leaves them alone,
- and the same ruling is why no CHECK stands behind them either. So a row this
+ whole-page `PUT`. Migration 0024 leaves them alone, and no CHECK stands
+ behind them either. So a row this
  function would refuse is reachable today, and reading the rules over the
  merged document turned one into a page that reads perfectly and can never be
  saved again: every later transaction was refused for a row it was not

@@ -8,12 +8,8 @@ method and route, its inferred PascalCase type beside it, and per-field
 messages phrased without the field name, because sendValidationError prefixes
 the path when it builds the 422 (10.3).
 
-Deliberately absent: the GET /folders response wrapper and the GET
-/folders/:id composition of members and pending invites. Frozen 7.4 fixes
-the Folder objects and their order but names no wrapper key, a gap the
-tester routed to this role's endpoint shape review session (RFC 0001 P2
-row). The schemas here stop where the frozen text stops, so that session
-decides the open shape once, with the implemented routes in front of it.
+The response side, including the shapes 7.4 leaves open, is settled further
+down with its grounds.
 */
 import { z } from 'zod'
 
@@ -97,24 +93,18 @@ export type PostFoldersBody = z.infer<typeof postFoldersBody>
 // (7.4). The same name rule as the create, declared separately so each
 // endpoint's body carries its route's name; the shared primitives keep the
 // name and the description one rule apiece.
-/** 4.20's preset key shape, shared by a folder's cover since item 58. */
+/** 4.20's preset key shape, shared by a folder's cover. */
 const coverPreset = z
   .string()
   .regex(/^[a-z0-9-]{1,40}$/, 'must be a preset key')
 
 export const patchFolderBody = z.object({
   name: folderName.optional(),
-  // The 4.3 identity, folder-owned since RFC 0005 (D1). **The DES-225 split
-  // this comment used to describe is gone** -- it read "any member writes
-  // these four; the rename above stays the owner's, and the route splits the
-  // two by role rather than this schema", and by issue #228 the route had
-  // stopped doing that while the sentence stayed. The name and the dressing
-  // are one thing now, ordinary shared Folder work that Can edit and above
-  // change and nobody below does; accepted #209 R8A, AC-011, AC-012 and
-  // AC-193. The schema still splits nothing by authority -- that is the
-  // route's single `folder.profile.edit` gate. The icon key is
-  // pattern-validated until S8 exports the set; the server stores it
-  // opaquely either way.
+  // The 4.3 identity, folder-owned. The name and the dressing are one thing,
+  // ordinary shared Folder work that Can edit and above change and nobody
+  // below does (#209 R8A, AC-011, AC-012, AC-193). The schema splits nothing
+  // by authority -- that is the route's single `folder.profile.edit` gate.
+  // The icon key is pattern-validated only; the server stores it opaquely.
   icon: z
     .string()
     .regex(/^[a-z0-9-]{1,40}$/, 'must be an icon key')
@@ -122,8 +112,7 @@ export const patchFolderBody = z.object({
     .optional(),
   color: hexColor.nullable().optional(),
   cover_file_id: z.uuid().nullable().optional(),
-  /* 4.3 as widened by RFC 0005 change control item 58: the preset and the
-     crop 4.20 gives a place page, so a folder can wear every tier a place
+  /* 4.3: the preset and the crop 4.20 gives a place page, so a folder can wear every tier a place
      can. A file and a preset are one source: setting either clears the
      other server-side, and a body naming both is refused. */
   cover_preset: coverPreset.nullable().optional(),
@@ -137,13 +126,10 @@ export type PatchFolderBody = z.infer<typeof patchFolderBody>
 
 /*
 PATCH /folders/:id/my-membership. Body { shelf, color }, either nullable
-(7.4); null clears the field, which 4.4 stores as null. The first key was
-`label` until issue #226 gave the word back to #208's Label model; it is the
-same field writing the same column, and **`shelf` is now the only spelling the
-body carries**, which the schema below explains and AC-750 asserts.
+(7.4); null clears the field, which 4.4 stores as null.
 
-Presence follows the PATCH convention that holds everywhere else in the
-frozen surface (7.2 "any subset", 7.6 "only present fields change", 7.7
+Presence follows the PATCH convention that holds everywhere else in section 7
+(7.2 "any subset", 7.6 "only present fields change", 7.7
 "any subset"): an absent field is left alone, a present one must be valid.
 7.4's terser sentence is read the same way rather than as the surface's one
 full-body PATCH. The route convention (validate, then delegate) also
@@ -151,43 +137,18 @@ requires it: AC-023 probes a label-only body against an inaccessible folder
 and must reach the 404, so the schema cannot refuse the absent color first.
 */
 export const patchFolderMyMembershipBody = z.object({
-  /* **`shelf` is the only spelling, since issue #247 closed the pair.** The
-     field was `label` until issue #226, and it was renamed with the column it
-     writes: this has always been the viewer's Shelf membership rather than a
-     classification Label, and the Label model of #208 needed the word back.
+  /* **`shelf` is the only spelling.** This is the viewer's Shelf
+     membership, not a classification Label (#208). The old key `label` gets
+     the ordinary unknown-key treatment -- stripped, logged by
+     `parse-body.ts`, and changing nothing -- and AC-750 pins that against the
+     stored row rather than against the 200.
 
-     **Both were declared for one release, and that was expand-and-contract
-     applied to the wire rather than tolerance for an old client.** The column
-     rename underneath went the same way (migration 0022), for the reason hard
-     stop 1 gives: Render brings the new instance up and waits for its health
-     checks before draining the old one. The same hazard reaches one layer up
-     and its failure mode is worse. One deployable serves the SPA and the API
-     together, but a browser tab open across a deploy keeps its old bundle and
-     goes on calling the new API, and a tab outlives a deploy by as long as
-     somebody leaves it open. This is a `z.object`, so at the moment of the
-     rename a tab still holding the old bundle would have had its `label`
-     **stripped** (7.0 tolerates unknown keys, 11.14 rules that no schema here
-     becomes strict), `shelf` would then have been absent, `setMyMembership`
-     would have read that as "not provided", and the request would have
-     answered **200 having stored nothing** — a person renames their shelf,
-     sees it accepted, and loses the edit. That is hard stop 3's failure mode
-     exactly, and declaring `label` for one release is what carried the
-     shipped bundles across the gap.
-
-     **That is what issue #247 contracts**, migration 0022 being live: `label`
-     goes from here and `my_label` from the Folder object below. A body
-     sending `label` now gets the ordinary unknown-key treatment — stripped,
-     logged by `parse-body.ts`, and changing nothing — which is correct once
-     no shipped bundle sends it. AC-750 is what pins that, against the stored
-     row rather than against the 200.
-
-     **The `folder_members.label` column went one release later than these
-     keys did, and that is the rule rather than an oversight.** 11.5 splits a
-     destructive change expand-and-contract across two releases because the
-     old code runs against the new schema for the length of a deploy, and the
-     old code there was the instance still writing `label` on all five of its
-     write paths. So one release took the wire keys and stopped the writes,
-     and migration 0026 dropped the column once that was live and drained. */
+     Renaming a wire key is expand-and-contract across two releases, like a
+     column (11.5): a browser tab open across a deploy keeps its old bundle
+     and goes on calling the new API, and because this is a `z.object` a key
+     the new schema no longer declares is stripped, so the request would
+     answer **200 having stored nothing**. Declare both keys for one release,
+     then drop the old one. */
   shelf: shelfName.nullable().optional(),
   color: hexColor.nullable().optional(),
 })
@@ -204,9 +165,7 @@ state, resolved by the domain module against 5.3 row 1.
 `access` is **required**, added with issue #228 (R9 section 6: "Direct member
 add similarly requires an explicit Access preset"). It has deliberately no
 default. A default would be one person's authority chosen by nobody, and the
-value would then be invisible in the request that granted it -- which is the
-exact class `shared/tasks.ts` records losing a reminder field to for four
-packages. The server reads it in `addMember`, which writes it into the
+value would then be invisible in the request that granted it. The server reads it in `addMember`, which writes it into the
 membership row and into the `null -> preset` history transition in one
 transaction, and AC-513 drives the endpoint with each of the six presets and
 reads the stored value back.
@@ -223,7 +182,7 @@ It is read by `addMember`, which writes the first revision in the same
 transaction as the membership row and attributes it to the **administrator**,
 never to the person arriving. AC-569 drives the endpoint with content and
 without it, and reads back both the stored document and the actor on its first
-revision, which is the criterion hard stop 3 asks for.
+revision, which proves the field is read rather than silently dropped.
 */
 export const postFolderMembersBody = z.object({
   user_id: z.uuid({ error: 'must be a uuid' }),
@@ -246,28 +205,11 @@ owner's membership row on every folder that exists; counts are 8.11's
 pending and completed tallies, abandoned rows on neither side; my_shelf and
 my_color are null for a member who set none (4.4).
 
-`my_shelf` was `my_label` until issue #226. It is the same field carrying the
-same value from the same column: the rename is the Shelf half of removing the
-collision with #208's Label model, and `personal_labels` below is the Label
-half arriving beside it.
+`my_shelf` is the Shelf half of keeping clear of #208's Label model;
+`personal_labels` below is the Label half. AC-750 asserts that no producer
+answers the old `my_label` key.
 
-**Both keys were on the card for one release and only one is now.** That pair
-was the read half of the expand-and-contract the request body carried: a
-browser tab open across a deploy keeps its old bundle and read `my_label`, and
-a card carrying only `my_shelf` would have drawn every shelf as unset until
-the person reloaded — cosmetic and self-healing where the write half was
-neither, and it cost one key to not do it at all. **Issue #247 is the contract
-half**, and it drops `my_label` and the request body's `label` once migration
-0022 is live. 7.0 fixes this object's key set and the contract tests assert it
-exactly, so the key leaving those arrays is what records that the window
-closed; AC-750 asserts that no producer answers the old key. The
-`folder_members.label` column went one release later, dropped by migration
-0026, for the reason the request body's block above gives.
-
-`my_access` joined them on 2026-09-20 under Hassan's Ruling 4 on issue #228
-(https://github.com/zhssnym/dana/issues/228#issuecomment-5751449643), a dated
-7.4 amendment in the shape `cover_preset`, `cover_focal_y` and `description`
-got theirs. It is the **viewer's own** membership preset and never anybody
+`my_access` (issue #228, 7.4) is the **viewer's own** membership preset and never anybody
 else's: the same value their own element of `GET /folders/:id`'s `members`
 carries, taken from the row `folderSelect` already joins to scope the query.
 It is not nullable, because a Folder object only exists for somebody who is in
@@ -286,19 +228,16 @@ export const folder = z.object({
   }),
   my_shelf: shelfName.nullable(),
   my_color: hexColor.nullable(),
-  /* The viewer's own Access preset (issue #228, Hassan's Ruling 4 of
-     2026-09-20). It sits with the other two `my_` fields because it is the
+  /* The viewer's own Access preset (issue #228). It sits with the other two `my_` fields because it is the
      same kind of fact — something true of this reader's membership rather
      than of the folder — and **not** beside `is_owner`, which is the folder's
      `owner_id` and is now neither necessary nor sufficient for any act a
      surface draws.
 
      What it is for: the Library row in `shell/app-sidebar.tsx` is built from
-     `GET /folders` and never fetches a detail, so before this field it had
-     nothing but `is_owner` to gate Rename, Leave and Delete on, and both
-     halves of that were measurably wrong — a Full-control non-owner was
-     offered no Rename and a demoted owner was still offered Delete. Both
-     surfaces now gate through `lib/folder-authority.ts`, which answers from
+     `GET /folders` and never fetches a detail, and `is_owner` cannot gate
+     Rename, Leave and Delete -- a Full-control non-owner may rename and a
+     demoted owner may not delete. Both surfaces gate through `lib/folder-authority.ts`, which answers from
      `shared/folder-actions.ts`, so no bar is written twice. */
   my_access: folderAccessPreset,
   /*
@@ -314,7 +253,7 @@ export const folder = z.object({
   different `my_shelf` values.
   */
   personal_labels: z.array(labelRef),
-  // The 4.3 identity (RFC 0005): the folder's own, one look for every
+  // The 4.3 identity: the folder's own, one look for every
   // member, null where never set.
   icon: z.string().nullable(),
   color: hexColor.nullable(),
@@ -326,18 +265,15 @@ export const folder = z.object({
 export type Folder = z.infer<typeof folder>
 
 /*
-The response side of 7.4, settled at this role's P2 shape review. Frozen
-7.4 fixes the Folder object, the members and pending-invites element
-fields, and the DELETE response; the four decisions below are the ones it
-leaves open, each settled here with its grounds, and each a candidate for
-a one-sentence recording in the frozen text through the Steward (the
-PATCH /me precedent from the P1 merge):
+The response side of 7.4. 7.4 fixes the Folder object, the members and
+pending-invites element fields, and the DELETE response; the four decisions
+below are the ones it leaves open, each with its grounds:
 
 - GET /folders answers the bare array. The section's own notation draws
   the line: 7.10's view endpoints write their wrappers out ({ rows,
   truncated }) because those responses carry more than rows, while 7.4
-  and 7.5 write lists. A wrapper here would be a shape the frozen text
-  never wrote, and the acceptance harness reads the bare form as the
+  and 7.5 write lists. A wrapper here would be a shape the spec never
+  wrote, and the acceptance harness reads the bare form as the
   literal one.
 - The detail's invite key is pending_invites. "Pending invites" is prose
   that cannot be a key verbatim; this transcribes it, and stays distinct
@@ -349,7 +285,7 @@ PATCH /me precedent from the P1 merge):
   member's address, and co-members are not necessarily connected, so the
   contract carries no address nothing consumes.
 - Mutations answer what a fresh GET would: PATCH /folders/:id and PATCH
-  .../my-membership answer the Folder object (the ruled PATCH /me
+  .../my-membership answer the Folder object (the PATCH /me
   convention), and POST members answers the member element it created.
 */
 
@@ -365,12 +301,10 @@ export const folderMember = z.object({
   // never this field (8.9).
   role: z.literal('member'),
   /* The member's current Access preset (issue #228, R8A). It sits beside
-     `role` rather than replacing it: `role` expressed no authority before
-     this change and expresses none now, and dropping a field from a frozen
-     response is a separate decision from adding one.
+     `role` rather than replacing it: `role` expresses no authority, and
+     dropping a field from a response is a separate decision from adding one.
 
-     Folder-visible to every member, which is R9 section 13's recommended M1
-     rule: knowing what the people you work with may do is ordinary Work
+     Folder-visible to every member, which is #209 R9's recommended M1 rule: knowing what the people you work with may do is ordinary Work
      awareness. Pending-invite administration is the part that is not, and it
      is withheld separately below. */
   access: folderAccessPreset,
@@ -430,15 +364,12 @@ export type DeleteFolderResponse = z.infer<typeof deleteFolderResponse>
 /*
 POST /folders/:id/duplicate (7.16) answers the copy's identity and nothing
 more: the copy is the duplicator's own private folder, and the client's next
-read of /folders carries it in full. Written from `routes/workshop.ts` by the
-S12 client arm on 2026-08-25, the read-half discipline of the sibling
-modules.
+read of /folders carries it in full. Written from `routes/workshop.ts`.
 */
 export const duplicateFolderResponse = z.object({
   id: z.uuid(),
   name: z.string(),
-  /* How many days the plan moved, 0 where every date kept (7.16 as widened
-     by RFC 0005 change control item 58; ledger L-055's bar reads it). */
+  /* How many days the plan moved, 0 where every date kept (7.16). */
   shifted_days: z.int().nonnegative(),
 })
 export type DuplicateFolderResponse = z.infer<typeof duplicateFolderResponse>
@@ -448,9 +379,7 @@ POST /folders/:id/transfer-ownership (7.16, 8.9's direct form) answers the
 folder's new owner and nothing else; the client refetches the folder for the
 rest.
 
-Written here at #39, where it was a fifth restatement of a server literal: the
-schema lived in `client/api/mutations.ts` and the object in
-`routes/workshop.ts`, with nothing between them. It sits beside the duplicate
+It sits beside the duplicate
 response above because both are 7.16 acts on a folder and this file already
 owns that surface's answers.
 */

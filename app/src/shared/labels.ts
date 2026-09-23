@@ -28,8 +28,7 @@ would be a constant, and a constant that happens to be an account id is a
 discovery surface rather than information. #208 says so directly.
 
 The body-schema conventions are `folders.ts`'s: `z.object` so unknown fields
-are stripped rather than refused (7.0 tolerates them, 11.14 records the
-ruling), a camelCase schema named for method and route, its inferred
+are stripped rather than refused (7.0 tolerates them, 11.14), a camelCase schema named for method and route, its inferred
 PascalCase type beside it, and per-field messages phrased without the field
 name, because `sendValidationError` prefixes the path when it builds the 422.
 */
@@ -137,7 +136,7 @@ export type PostPersonalLabelBody = z.infer<typeof postPersonalLabelBody>
 /**
  * PATCH /labels/personal/:labelId. Any subset of the three.
  *
- * The PATCH convention that holds across the frozen surface (7.2 "any
+ * The PATCH convention that holds across section 7 (7.2 "any
  * subset", 7.6 "only present fields change"): an absent field is left alone
  * and a present one must be valid. Archived state is not here — it moves
  * through the two dedicated endpoints, so that "rename" and "retire" are two

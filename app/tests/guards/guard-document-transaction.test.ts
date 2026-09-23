@@ -77,18 +77,14 @@ test('Issue194 duplicate, export and workflow import retain hierarchy and rich c
     it; this line stays because it is the one that notices a *shape* change
     that forgot its bump, which is the direction a green suite cannot see.
 
-    **4 to 5 at issue #230**, which adds a `responsibilities` collection. It is
-    5 rather than 4 because 3 and 4 are both already spoken for, by #226 and by
-    #227 above -- **both now merged, which is what settles it**: this branch
-    reserved 5 while #227 was still open holding 4, and that reservation turned
-    out to be exactly right rather than merely cautious. Two branches each
-    bumping to one number merge cleanly and leave one version covering two
-    different documents, which is worse than either change alone.
-    **5 to 6 on 2026-09-21 at issue #210**, which adds a `facets` collection:
-    Ruling 7 of the addendum, https://github.com/zhssnym/dana/issues/210#issuecomment-5757696835.
-    Moved under hard stop 7, and the decision that moved is that one -- a
-    private facet is content only its owner can reach, so an export without it
-    hands somebody a copy of their own data with their own writing missing.
+    **4 to 5 at issue #230**, which adds a `responsibilities` collection.
+    Branches that change the export shape in parallel must each take their own
+    number: two branches bumping to one number merge cleanly and leave one
+    version covering two different documents, which is worse than either
+    change alone.
+    **5 to 6 at issue #210**, which adds a `facets` collection: a private facet
+    is content only its owner can reach, so an export without it hands
+    somebody a copy of their own data with their own writing missing.
 
     `shared/export.ts` carries the chain. This assertion is incidental to what
     the case is about -- hierarchy and rich content surviving a duplicate, an

@@ -1,6 +1,6 @@
 /*
-The 7.15 surface: uploads, authenticated serving, deletion, and the avatar
-(RFC 0005). Multipart parsing is multer's, memory storage under 10.3's 25 MB
+The 7.15 surface: uploads, authenticated serving, deletion, and the avatar.
+Multipart parsing is multer's, memory storage under 10.3's 25 MB
 cap so a payload larger than the law never buffers whole; everything after
 the parse is the domain module's.
 
@@ -10,7 +10,7 @@ size cap all 422 naming the field; the storage quota alone answers 413 with
 section 9's copy. Serving sets nosniff and confines kind 'file' to an
 attachment, because bytes a member chose are served on the application's
 own origin and a text/html "document" inline would be a script with a
-session (the S4 security review's condition).
+session.
 */
 import type { Request, Response, Router } from 'express'
 import multer from 'multer'
@@ -54,20 +54,16 @@ export interface FilesRouterOptions {
 /*
 7.15's multipart fields.
 
-**`folder_id` became optional for `cover` alone on 2026-09-03 (issues #20 and
-#100), and for `image` beside it on 2026-09-04 (issue #167).** Imran ruled the
-first: folders, shelves and the built-in pages get the same four cover options,
-and "pictures should belong to the user instead of only a folder"; a shelf and
-a place page are not folders, so a cover has to be storable without one. The
-second is the same sentence about the same page. A shelf page's image block had
-no folder to name either, so the upload behind it answered 422 and a person
-choosing a picture on a shelf saw nothing happen at all — the fault #167
-reports. A folder-less image belongs to the uploader, is served to them alone
+**`folder_id` is optional for `cover` (issues #20 and #100) and for `image`
+(issue #167).** Folders, shelves and the built-in pages get the same four
+cover options, and pictures belong to the user rather than only to a folder;
+a shelf and a place page are not folders, so a cover or a shelf page's image
+has to be storable without one. A folder-less image belongs to the uploader, is served to them alone
 (`readableFileScope`), and can be named only by a block on a page that reaches
 it (`putPage`, issue #107).
 
-**`file`, `audio` and `video` joined them on 2026-09-20 (issue #220), which
-leaves `voice` as the only kind that still requires one.** A composer File,
+**`file`, `audio` and `video` are optional too (issue #220), which leaves
+`voice` as the only kind that requires one.** A composer File,
 Audio or Video block is the shelf page's image one object over: not every kind
 of page is a folder, so a composer asset has to be able to take its page's
 scope, and a folder-less one is its uploader's alone. A recorded voice note
@@ -75,8 +71,7 @@ still hangs on a comment thread and a thread still lives in a folder.
 
 **The refusal for `voice` stays 422 naming the field**, not the 404 a folder
 the caller cannot see would get: an absent `folder_id` on a voice note is a
-malformed request rather than a scope failure, and it was 422 before any of
-these changes.
+malformed request rather than a scope failure.
 
 **A generic `file` may now be uploaded with no folder and then not attached to
 a comment**, because `createComment` resolves its attachments inside a folder
@@ -326,8 +321,8 @@ export function createFilesRouter(options: FilesRouterOptions = {}): Router {
         'video',
       ])
       const inline = INLINE_KINDS.has(served.kind)
-      // Control characters and quotes leave the filename (the S4 security
-      // review's second condition): a name is data and a header is not.
+      // Control characters and quotes leave the filename: a name is data and
+      // a header is not.
       const safeName = [...served.name]
         .filter((c) => {
           const code = c.charCodeAt(0)
@@ -411,8 +406,7 @@ export function createFilesRouter(options: FilesRouterOptions = {}): Router {
   )
 
   /*
-  7.15's removal, added in the polish round of 2026-08-30 under the owner's
-  waiver of section 7's freeze.
+  7.15's removal.
 
   It is not `parsed`: there is no multipart body to read, and running the
   upload parser over a bodiless DELETE would be a middleware looking for a

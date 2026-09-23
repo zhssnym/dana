@@ -1,20 +1,15 @@
 /*
 Help: the shortcuts that exist, and nothing else (AC-242).
 
-Ported from `docs/design/prototype-v2/src/components/help-sheet.tsx`, which
-11.13 makes the source; that prototype is deleted (`a7886df`, 2026-09-01) and
-is in git history before that commit. Its header states the design and it
-survives the port whole: Imran's brief of 2026-08-23 gave Help no content,
-only a place, and the place is 9.1's account menu, with the other things that
-are about the
+Help's place is 9.1's account menu, with the other things that are about the
 application rather than about your work. What that leaves is the harder half,
 because Help is the easiest control in any product to fill with a plausible
 lie: a Getting started that starts nothing, a Contact support with no support
 behind it, a Documentation link to a page nobody has written. So this lists
 shortcuts that are wired today, and every line can be pressed.
 
-**Read off the handlers at the port, which is what the source file asks for
-and what AC-242 measures.** Each line below names the module that binds it:
+**Read off the handlers, which is what AC-242 measures.** Each line below
+names the module that binds it:
 
 - Ctrl+K and "/" open the search overlay, `shell/overlays.ts`, and 9.1 names
   both in its own words.
@@ -22,25 +17,18 @@ and what AC-242 measures.** Each line below names the module that binds it:
   under 9.1's undo bar.
 - Enter opens the focused task row (`components/task-row.tsx`) and commits a
   quick-add (`components/quick-add.tsx`), which is the one line covering two
-  surfaces, exactly as the designer wrote it.
+  surfaces.
 - Escape closes the open thing: a quick-add, a dialog through the primitive,
   and a held drag row through `lib/use-sortable-list.ts`.
 - The arrows move the cursor through the search overlay's results,
   `components/search/SearchOverlay.tsx`.
 
-Nothing on the prototype's list was dropped, because nothing on it turned out
-to be untrue here; a shortcut this client did not bind would have been
-reported rather than shipped.
+A shortcut this client does not bind must not be listed here.
 
-**The one sentence that could not be ported.** The prototype's description
-reads "This is a design prototype of Dana. What you change here is kept in
-this browser and nowhere else", which is a true sentence there and a false one
-here, and a Help sheet is the last surface in the product that may carry a
-false sentence. It is replaced by what this sheet is, and by nothing else: the
-gap a real Help leaves, a search and an index and articles, is content work
-rather than design work and stays named in the source file rather than papered
-over with a link to a page nobody has written. That is DES-144's judgement
-about a control that cannot do anything, applied to a sentence.
+**The description says what this sheet is, and nothing else.** A Help sheet is
+the last surface in the product that may carry a false sentence. The gap a real
+Help leaves, a search and an index and articles, is content work and is not
+papered over with a link to a page nobody has written.
 */
 import { useState } from 'react'
 
@@ -89,7 +77,7 @@ export function HelpSheet({
             The words Dana uses, and its keyboard shortcuts.
           </DialogDescription>
         </DialogHeader>
-        {/* polish: settings F9, F2. The one question the sheet could not
+        {/* The one question the sheet could not
             answer was what a workflow file is. */}
         <div className="flex flex-col gap-2 pt-1 text-[13px] leading-5 text-foreground">
           <p className="text-[12px] leading-4 font-medium text-muted-foreground">Words Dana uses</p>

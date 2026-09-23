@@ -2,9 +2,8 @@
 # only, and an agent working in a git worktree symlinks app/node_modules to the
 # main checkout's copy rather than paying for a second npm ci - so the symlink
 # showed as untracked in every such worktree. Two agents flagged it on one day.
-# Nothing was committed, because hard-stops.md forbids the sweeping add that
-# would have done it, but a rule that relies on nobody typing `git add -A` is
-# one character from not needing to.
+# A rule that relies on nobody typing `git add -A` is one character from not
+# needing to.
 node_modules
 .next/
 .data/
@@ -23,13 +22,13 @@ Thumbs.db
 # constraining an agent nobody can review.
 .claude/settings.local.json
 .claude/worktrees/
+CLAUDE.local.md
 
 # Environment files are ignored by shape, so that a future app/.env.production or
 # .env.local cannot be committed by accident. The two exceptions below are tracked
-# deliberately and the negations must stay: app/.env on the owner's ruling of
-# 2026-08-25 (this repository is private with two collaborators, and one shared
-# working config is worth more than each machine rebuilding one), and
-# app/.env.example as the template that ruling replaced but did not delete.
+# deliberately and the negations must stay: app/.env (this repository is private
+# with two collaborators, and one shared working config is worth more than each
+# machine rebuilding one), and app/.env.example as the template.
 # Note that a rule appearing here does not untrack an already-tracked file, so a
 # mistake in these negations stays invisible until someone next edits the file.
 .env*

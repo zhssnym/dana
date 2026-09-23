@@ -2,20 +2,11 @@
 The gate, run where the code was written.
 
 **Why this file exists.** Spec 11.11 fixes six steps and their order: npm ci,
-lint, typecheck, one real Postgres leg, build, Playwright. It fixed seven
-until 2026-09-20, when the owner ruled the duplicate PGlite leg out: the same
-files ran twice for a cross-engine disagreement that nearly none of them could
-produce, and the leg dropped was both the slower one and the one production
-does not run. PGlite survives as the fallback when no `TEST_DATABASE_URL` is
-present, so a machine without Postgres still runs its tests; that run is
-`incomplete` rather than green.
-
-Until 2026-09-04 the only thing that ran every step was GitHub Actions on one
-self-hosted runner, and CLAUDE.md records what that costs: a CI job holds about
-7.7 GB of this machine's 15.8, so agents and a CI job cannot share it, and
-every branch queues behind every other branch. Issue #180 moved the run to the
-author's machine. This file is that run, and the block it prints at the end is
-the gate record a pull request carries.
+lint, typecheck, one real Postgres leg, build, Playwright. PGlite is the
+fallback when no `TEST_DATABASE_URL` is present, so a machine without Postgres
+still runs its tests; that run is `incomplete` rather than green. The gate runs
+on the author's machine (issue #180), and the block it prints at the end is
+the gate record.
 
 **What it does not do.** It decides nothing. It runs the same commands a person
 would type, in 11.11's order, stops at the first failure, and writes down what
@@ -27,32 +18,24 @@ a claim; a record with them is a measurement.
 **The one number that matters most is the file count.** The vitest legs run
 through `scripts/run-suite.mjs`, which fails a run that exited 0 without
 accounting for every file it collected, and this file prints that accounting
-into the record so that a reader sees 295 files rather than the word "passed".
+into the record so that a reader sees a file count rather than the word
+"passed".
 **A leg that reports no tally at all is red**, not ok: an exit code with no
 summary behind it is the same false green one layer up.
 
-**Three verdicts, and only one of them opens a pull request.** `green` means all
+**Three verdicts, and only one of them is green.** `green` means all
 six ran and all six passed. `red at <step>` means one failed. `incomplete` means
 a step of the six did not run, or the test leg ran somewhere other than Postgres
 — this machine has no `TEST_DATABASE_URL`, or you asked for `--quick`.
 Incomplete is not red, because there is no defect to point at, and it is not
 green, because 11.11 fixes six steps and names the engine one of them runs on.
 
-**It reads its host rather than describing the host it was written on**, added
-2026-09-20 by issue #273. The engine line said `Postgres 18` as a string
-literal, and until #235 that literal could only ever be right: 11.10's CREATE
-DATABASE carries `LOCALE_PROVIDER builtin`, which arrived in Postgres 17, so a
-16 server failed in global setup before one file ran. #235 gave that statement
-a libc fallback and made a sub-18 server a supported gate host, which turned a
-literal that could not be wrong into one that could — and it was, on the
-container that produced the first records from a machine other than the
-author's, every one of them naming 18 over a leg that ran on 16.13. A line in
-the record that states a fact nobody measured is the thing CLAUDE.md opens by
-warning about, in the one document whose whole job is to be true. So the
-version is asked of the server it is about to run against, the fallback line
-names the PGlite actually installed, and a version that cannot be read says
-that rather than being guessed at. The verdict is unaffected either way: the
-leg turns on the engine family, and that part was always right.
+**It reads its host rather than describing the host it was written on**
+(issue #273). The engine line is asked of the server it is about to run
+against, the fallback line names the PGlite actually installed, and a version
+that cannot be read says so rather than being guessed at. A sub-18 server is a
+supported host (11.10's CREATE DATABASE has a libc fallback), so a written-down
+version can be wrong. The verdict turns on the engine family either way.
 
 **Two preconditions refuse the browser leg, and neither is a postmortem.** A
 second leg on one port seeds and truncates the first one's database underneath
@@ -61,11 +44,11 @@ client route 404 — both look from the report like a broken application rather
 than like a broken run, which is what makes a precondition worth more than a
 diagnosis. **Both fail closed**: the port check refuses when it cannot see the
 port rather than reporting it clear, because a check that answers "fine" when
-it cannot answer at all is worse than no check — that is exactly how the
-documented netstat loop passed on a host with no netstat.
+it cannot answer at all is worse than no check — a netstat loop on a host with
+no netstat reports every port clear.
 
-**Read a red through CLAUDE.md before believing it.** Four flake classes are
-enumerated there and only two are answered by re-running. Nothing here tries to
+**Read a red through docs/troubleshooting.md before believing it.** Several
+flake classes are described there and only some are answered by re-running. Nothing here tries to
 tell them apart, on purpose: a gate that decides which of its own failures to
 forgive is not a gate.
 */
@@ -86,9 +69,8 @@ const APP = fileURLToPath(new URL('..', import.meta.url))
  * The port the browser leg will serve on. A setting in both places now, read
  * from `DANA_GATE_PORT` by the one resolver playwright.config.ts also reads,
  * so the port this file probes and names in its record cannot differ from the
- * port Playwright serves on. Unset is the default it has always been, which is
- * what lets this change be invisible to every invocation that predates it.
- * scripts/gate-port.mjs carries why the variable exists at all (issue #254).
+ * port Playwright serves on. scripts/gate-port.mjs carries why the variable
+ * exists at all (issue #254).
  */
 export const PLAYWRIGHT_PORT = gatePort()
 
@@ -144,14 +126,13 @@ function read(command, args) {
 
 /**
  * Whether anything *answers* on the port, asked by connecting rather than by
- * parsing netstat. CLAUDE.md records what a second browser leg on one port
- * looks like from the report — crashed pages, assertions timing out at two
+ * parsing netstat. docs/troubleshooting.md records what a second browser leg
+ * on one port looks like from the report — crashed pages, assertions timing out at two
  * minutes that pass in three seconds alone — and that it does not announce
  * itself as a port collision. So the gate refuses to start one rather than
  * producing a record nobody can trust.
  *
- * **What it cannot see, which is why it is no longer the whole check**
- * (issue #273). It asks loopback, so a listener bound to another address is
+ * **What it cannot see, which is why it is not the whole check** (issue #273). It asks loopback, so a listener bound to another address is
  * invisible to it while still making the leg's own `listen` fail with
  * EADDRINUSE — the leg binds the wildcard, and a wildcard bind collides with a
  * specific-address listener, measured. `listeningSockets` below is the second
@@ -175,8 +156,7 @@ export function occupied(port) {
  * answer, and a probe that cannot answer must not be recorded as one that said
  * "free".
  *
- * **What the third state does and does not do, said plainly because an earlier
- * version of this comment claimed more than the code does.** It is kept
+ * **What the third state does and does not do.** It is kept
  * distinct so that nothing downstream can read a timeout as an all-clear, and
  * it is what `occupied()` is narrowed from. It does **not** refuse the leg on
  * its own: if the host's socket table has been read and holds no listener for
@@ -218,9 +198,8 @@ export function probeConnect(port) {
  *
  * **Three of them because there are three hosts.** `lsof` is what the Linux
  * container has, `netstat` is what Windows has, and `ss` is what a stripped
- * Linux image tends to have when it has neither; the container that found
- * issue #273 had no `netstat` and no `ss`, which is how the documented loop
- * came to report every port clear. Each entry reports the lines it matched
+ * Linux image tends to have when it has neither; a host with none of them
+ * must not be read as having no listeners (issue #273). Each entry reports the lines it matched
  * rather than a boolean, so a refusal can name the process a reader has to go
  * and stop.
  *
@@ -230,12 +209,11 @@ export function probeConnect(port) {
  * is not a whole number in range.
  *
  * **`accepts` is why a tool that runs is not automatically a tool that
- * answered**, added by the adversarial review of this branch. Being missing is
- * not the only way a command fails to read the socket table: a BusyBox
- * `netstat` has no `-o`, so it writes a usage message to stderr and exits
- * non-zero, and the first draft of this ladder read that empty stdout as an
- * empty socket table — the fail-open it was written to remove, arriving
- * through a command that was present. So each entry says which exits are an
+ * answered.** Being missing is not the only way a command fails to read the
+ * socket table: a BusyBox `netstat` has no `-o`, so it writes a usage message
+ * to stderr and exits non-zero, and reading that empty stdout as an empty
+ * socket table would be a fail-open through a command that was present. So
+ * each entry says which exits are an
  * answer. `lsof` is the only one with two, because it exits 1 to mean "nothing
  * matched", which is a real reading of an empty table; it must have said
  * nothing on stderr for that reading to be taken, which is what separates a
@@ -277,8 +255,7 @@ export const PORT_INSPECTORS = [
  * wildcard forms (`[::]:<port>`, `*:<port>`) end the same way, which is why
  * this is a suffix test over whitespace-separated fields rather than a parse
  * of the address. The port literal itself is deliberately not written here:
- * `guard-gate-port.test.ts` fails this file for carrying one, on the ground
- * that a second copy of the number is the drift that module exists to stop.
+ * a second copy of the number is the drift gate-port.mjs exists to stop.
  *
  * @param {string} line
  * @param {number} port
@@ -296,10 +273,9 @@ function hasLocalPort(line, port) {
  * socket table.
  *
  * **`listening: null` means nobody could be asked**, and that is a distinct
- * answer rather than a polite `false`. Issue #273 is exactly this distinction:
- * the loop CLAUDE.md documented greps `netstat`, a missing command writes
- * nothing, nothing greps to nothing, and the check reports the port clear for
- * every port on the machine — an unconditional all-clear wearing the clothes
+ * answer rather than a polite `false` (issue #273): a loop that greps
+ * `netstat` on a host without it writes nothing, nothing greps to nothing, and
+ * the check reports the port clear for every port on the machine — an unconditional all-clear wearing the clothes
  * of a check. So the tools are tried in turn, a tool that cannot be spawned is
  * passed over, and running out of tools is reported as running out of tools.
  *
@@ -369,23 +345,18 @@ function inspect(command, args) {
  * record carries and the long one the console gets.
  *
  * **A function rather than two string literals inside main(), so that the
- * refusal can be driven against a real socket by a test.** It is the
- * postmortem of a real incident written as a precondition, and issue #254
- * aimed it at a chosen port without weakening it; a precondition exercised
+ * refusal can be driven against a real socket.** A precondition exercised
  * only by the incident it prevents is one nobody can show still bites.
  *
- * **Both texts name the port that was actually probed**, which is the half
- * that had to move when the port did. A refusal naming a constant while
+ * **Both texts name the port that was actually probed.** A refusal naming a constant while
  * probing a variable would send its reader to stop processes on a port that
  * nothing was wrong with.
  *
- * **Three refusals rather than one, and the third is the point of issue
- * #273.** Something answered; something holds the socket without answering;
- * and *nothing here could tell*. The third is a refusal because the
- * alternative is the failure #273 was opened about — a check whose missing
- * tool makes it report every port clear, in front of a collision CLAUDE.md
- * describes as looking like one criterion red twice for what seems a
- * reproducible reason. A gate that cannot see the port does not get to say it
+ * **Three refusals rather than one.** Something answered; something holds the
+ * socket without answering; and *nothing here could tell*. The third is a
+ * refusal because the alternative is a check whose missing tool makes it
+ * report every port clear (issue #273), in front of a collision that looks
+ * like one criterion red twice for what seems a reproducible reason. A gate that cannot see the port does not get to say it
  * is free; it says it could not look, and the run stops on the cheap side of
  * an hour of misread reds.
  *
@@ -406,7 +377,7 @@ export async function browserLegRefusal(port, inspectors = PORT_INSPECTORS) {
         "truncate another run's database underneath its browser. Either stop every\n" +
         'node process whose command line matches playwright or e2e:app and wait for\n' +
         'the port to go quiet, or give this run a port of its own by setting\n' +
-        'DANA_GATE_PORT to a free one. CLAUDE.md carries the whole story.\n',
+        'DANA_GATE_PORT to a free one. docs/troubleshooting.md carries the whole story.\n',
     }
   }
 
@@ -447,18 +418,12 @@ export async function browserLegRefusal(port, inspectors = PORT_INSPECTORS) {
  * sidebar.** The SPA fallback answers client routes with `res.sendFile()` on an
  * absolute path, and Express refuses any path carrying a dot segment, so
  * `GET /app` returns 404 while `GET /` still succeeds through
- * `express.static` — the application looks broken and is not. Measured again
- * on 2026-09-20 against the installed Express 5.2.1 on Linux rather than
- * recalled from the 2026-08-16 Windows measurement CLAUDE.md carries: one file
- * served from two paths differing only in a `.work` directory, 200 and 200 and
- * 200 against 200, 200 and 404.
+ * `express.static` — the application looks broken and is not. Measured on
+ * Express 5.2.1: one file served from two paths differing only in a `.work`
+ * directory answers 200 from one and 404 from the other.
  *
- * **Why it is worth a precondition now** (issue #273). It used to be a fact
- * about one session's old worktree. `.claude/worktrees/` is where an agent's
- * worktree is created by default, and #235 made the browser leg runnable on the
- * containers those agents run in, so it is now the default path on a newly
- * capable host — a trap walked into rather than a footnote. The two agents who
- * met it avoided it only by building in a dot-free scratchpad deliberately.
+ * **Why it is a precondition** (issue #273): `.claude/worktrees/`, where an
+ * agent's worktree is created by default, is such a path.
  *
  * **Asked at the top of `main()`, before lint**, and `--quick` is exempt. The
  * reasoning is beside the call rather than here, because it is about the order
@@ -516,11 +481,10 @@ export function dotSegmentIn(absolutePath) {
  * with no `node_modules` still reaches the install step instead of dying on a
  * module it was about to install.
  *
- * **It is bounded, and the first draft was not** (adversarial review of this
- * branch, 2026-09-20). A `TEST_DATABASE_URL` pointing at an unroutable address,
- * or at a socket that accepts and then never speaks the protocol, left this
- * waiting on the operating system's own connect timeout — measured at over 25
- * seconds, and the caller could not print its record in the meantime. Five
+ * **It is bounded.** A `TEST_DATABASE_URL` pointing at an unroutable address,
+ * or at a socket that accepts and then never speaks the protocol, would leave
+ * this waiting on the operating system's own connect timeout — over 25
+ * seconds, with the caller unable to print its record in the meantime. Five
  * seconds is far longer than a real answer takes and far shorter than any of
  * those. `query_timeout` is set beside it because the two hangs are different:
  * a server that completes the handshake and then never answers `SHOW` is past
@@ -570,10 +534,8 @@ export async function postgresVersion(url) {
  * The prose first, because `16.13 (Ubuntu 16.13-0ubuntu0.24.04.1)` is a fact
  * about this host that `160013` is not; its leading version token, because the
  * rest of it is a packager's. The number is the fallback and not the other way
- * round, and an unreadable pair is `null` rather than a guess — the whole of
- * issue #273 is that a version nobody measured must not appear in the record,
- * and inventing one from an empty answer would be that fault committed by the
- * fix.
+ * round, and an unreadable pair is `null` rather than a guess: a version
+ * nobody measured must not appear in the record (issue #273).
  *
  * @param {unknown} serverVersion
  * @param {unknown} serverVersionNum
@@ -615,10 +577,8 @@ export async function pgliteVersion() {
 }
 
 /**
- * The name of the test step, which is a reading and not a claim.
- *
- * Until issue #273 this was the literal `test (Postgres 18)`, and #235 is what
- * made it able to be false. An unread version says so: `test (Postgres,
+ * The name of the test step, which is a reading and not a claim (issue #273).
+ * An unread version says so: `test (Postgres,
  * version unread)` is a worse-looking record and a true one, and the step it
  * names is about to fail anyway if the server is the reason.
  *
@@ -706,8 +666,8 @@ async function main() {
   const porcelain = await read('git', ['status', '--porcelain'])
 
   // The parent environment decides whether the Postgres leg is available at
-  // all. CLAUDE.md is emphatic that this variable is ambient and has changed
-  // more than once, so the record prints what this process actually saw rather
+  // all. This variable is ambient and has changed more than once on the
+  // development machine, so the record prints what this process actually saw rather
   // than what any file says it should be.
   const postgres = process.env.TEST_DATABASE_URL ?? ''
   const havePostgres = postgres !== ''
@@ -723,12 +683,11 @@ async function main() {
   /*
   The path precondition, asked before anything runs.
 
-  **First, not last, corrected by the adversarial review of this branch.** It
-  was asked where the browser leg starts, which meant a checkout under a dot
-  directory paid for lint, typecheck, a whole test leg and a build — minutes —
-  before being told it was never going to get a verdict. CLAUDE.md's own bullet
-  says this refusal exists so that the trap "costs one line rather than twenty
-  reds"; asked last it cost the whole gate first. It is free to ask and cannot
+  **First, not last.** Asked where the browser leg starts, a checkout under a
+  dot directory would pay for lint, typecheck, a whole test leg and a build —
+  minutes — before being told it was never going to get a verdict. The refusal
+  exists so that the trap costs one line rather than twenty reds. It is free to
+  ask and cannot
   change while the run goes, so there is no reason for it to be anywhere else.
 
   **`--quick` is exempt on purpose.** Lint, typecheck and build are unaffected
@@ -805,39 +764,30 @@ async function main() {
     missing.push('the legs and the browser')
   } else {
     /*
-    One leg, and it is Postgres. Amended 2026-09-20 on the owner's ruling.
+    One leg, and it is Postgres (11.11): the engine production runs, and the
+    faster of the two here. Running the same files on PGlite as well would be
+    duplication for every file that touches no engine-specific behaviour.
 
-    Until then this ran the same files twice, once on PGlite and once on
-    Postgres, and the second run was pure duplication for every file that
-    touches no engine-specific behaviour, which is nearly all of them. Postgres
-    is also the faster of the two here and the engine production actually runs,
-    so keeping PGlite as the mandatory leg was paying for the slower and less
-    faithful half.
-
-    What is given up is real and is written down rather than waved at: the
-    cross-engine class CLAUDE.md records — `current_date` reading in the
+    What is given up: the cross-engine class — `current_date` reading in the
     database session's zone, and text ordering under a locale PGlite does not
-    share — is now caught by whichever leg runs rather than by their
-    disagreement. 11.10's two locale checks still run inside the leg.
+    share — is caught by whichever leg runs rather than by two legs
+    disagreeing. 11.10's two locale checks still run inside the leg.
 
     PGlite remains the fallback so that no machine ever runs zero tests. A run
-    that takes it is `incomplete` rather than green, on the same rule the old
-    missing-Postgres row used: the gate's job is to answer for the engine that
-    serves users, and a leg that did not touch it has not answered.
+    that takes it is `incomplete` rather than green: the gate's job is to answer
+    for the engine that serves users, and a leg that did not touch it has not
+    answered.
     */
     /*
-    The engine is asked before the leg runs rather than written down here.
-    #235 made a sub-18 server a supported host and the literal that used to sit
-    in this line went on saying 18 over a leg running on 16.13 (issue #273).
+    The engine is asked before the leg runs rather than written down here
+    (issue #273).
 
-    **Asked only while the run is still alive**, which the first draft got
-    wrong and an adversarial review caught. `step()` returns immediately once
-    something has failed — but a step's *name* is an argument, and arguments
-    are evaluated before the call. So a run already red at lint still opened a
-    connection to whatever `TEST_DATABASE_URL` named, and against an unroutable
-    address it sat there while the record it had already earned went unprinted.
-    A gate that cannot print its own verdict because it was busy reading a
-    version it no longer needs is the tail wagging the dog.
+    **Asked only while the run is still alive.** `step()` returns immediately
+    once something has failed — but a step's *name* is an argument, and
+    arguments are evaluated before the call. Without this check a run already
+    red at lint would open a connection to whatever `TEST_DATABASE_URL` names,
+    and against an unroutable address it would sit there while the record it
+    had already earned went unprinted.
     */
     const version =
       failedAt !== null ? null : havePostgres ? await postgresVersion(postgres) : await pgliteVersion()
@@ -878,9 +828,8 @@ async function main() {
     // REFUSED rather than RED, and the distinction is worth the word: nothing
     // failed. The gate declined to measure, because the measurement would have
     // been worthless and would have read like a broken application. The
-    // verdict line above stays inside the three this repository documents, so
-    // this is still `red at playwright` there, and only `green` has ever
-    // opened a pull request.
+    // verdict line stays inside the three documented outcomes, so this is
+    // still `red at playwright` there.
     const refusal = await browserLegRefusal(PLAYWRIGHT_PORT)
     if (refusal !== null) {
       failedAt = 'playwright'
@@ -888,8 +837,7 @@ async function main() {
       process.stdout.write(`\n${refusal.advice}`)
     } else {
       // Deleted rather than merged into: artifacts from a run that is already
-      // dead sit beside fresh ones with indistinguishable timestamps, and an
-      // hour spent reading the wrong trace is how this was learned.
+      // dead sit beside fresh ones with indistinguishable timestamps.
       await rm(new URL('../test-results/', import.meta.url), { recursive: true, force: true })
       // DANA_GATE_PREBUILT tells playwright.config.ts that the build step
       // above already produced dist/client, so the browser leg's own server
@@ -915,9 +863,8 @@ async function main() {
 
   // Asked twice, at both ends, and the second one is the load-bearing half.
   // A run measures a tree over half an hour, and a tree that was clean when it
-  // started can be edited while it runs; the author of this file did exactly
-  // that, on this branch, the day it was written. One reading at the start
-  // would have called that record clean. So the record says dirty if the tree
+  // started can be edited while it runs. One reading at the start would call
+  // that record clean. So the record says dirty if the tree
   // was dirty at either end, and names which.
   const porcelainAfter = await read('git', ['status', '--porcelain'])
   const shaAfter = await read('git', ['rev-parse', '--short', 'HEAD'])
@@ -934,11 +881,10 @@ async function main() {
   // **Green means all six ran and all six passed, and nothing else does.**
   // A run that skipped one is `incomplete`: not red, because there is no defect
   // to point at, and not green, because 11.11 fixes six steps and this record
-  // is the evidence that they were answered for. `workflow.md` rule 8 and
-  // `hard-stops.md` both say a pull request needs a green gate, so a machine
-  // with no Postgres cannot open one, and spec 11.10 carries the one CREATE
+  // is the evidence that they were answered for. A machine with no Postgres
+  // cannot produce a green record, and spec 11.10 carries the one CREATE
   // DATABASE statement that fixes it. `--quick` is incomplete by construction
-  // and can therefore never be mistaken for a pull request's gate.
+  // and can therefore never be mistaken for a full gate.
   const green = failedAt === null && missing.length === 0
   const verdict =
     failedAt !== null
@@ -949,7 +895,7 @@ async function main() {
 
   // **The verdict line and the exit code answer different questions**, and
   // separating them is deliberate rather than sloppy. The line answers "is this
-  // a pull request's gate", and only `green` is. The code answers "did you get
+  // a full, passing gate", and only `green` is. The code answers "did you get
   // what you asked for": a machine that cannot run a leg you asked for is a
   // failure of the run and exits non-zero, while `--quick` gave you exactly the
   // three steps you asked for and exits 0 so that it can sit in a shell loop.

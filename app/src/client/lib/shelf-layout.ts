@@ -1,7 +1,6 @@
 /*
 A shelf page's arrangement, between the prototype's blocks and 4.17's: the
-seam `screens/shelf-page.tsx` crosses in place of `lib/folder-layout.ts`
-(RFC 0004's S27).
+seam `screens/shelf-page.tsx` crosses in place of `lib/folder-layout.ts`.
 
 The prototype keeps a shelf's blocks as `ShelfItem[]` in the browser under
 the shelf's key, reading them once at mount and saving them in an effect on

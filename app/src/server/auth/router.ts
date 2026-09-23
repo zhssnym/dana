@@ -93,12 +93,11 @@ export interface AuthRouterOptions {
   auth?: AuthConfig
   rateLimits?: RateLimits
   securityLog?: SecurityLogger
-  /** The S4 object store: DELETE /me removes the deleted account's objects
-   * after the 8.10 transaction commits (step 6a, RFC 0005 change control
-   * item 18). Optional for the same reason as dbClient: a route-presence
+  /** The object store: DELETE /me removes the deleted account's objects
+   * after the 8.10 transaction commits (step 6a). Optional for the same reason as dbClient: a route-presence
    * probe constructs the application bare. */
   fileStore?: ObjectStore
-  /** Item 60: whether a brand-new account is written the sample workspace
+  /** 7.20: whether a brand-new account is written the sample workspace
    * at its first sign-in. createApp decides the default. */
   sampleWorkspace?: boolean
 }
@@ -344,11 +343,10 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
       A provisioning fault rolls the whole transaction back (AC-005), and the
       person still needs an answer.
 
-      One case is now ruled and is answered with words rather than with the
-      landing page's bare marker: a google_sub Dana has never seen, carrying a
-      verified email a live account already holds. Imran's ruling on issue #17
-      of 2026-09-03, specified at 10.1, is that Dana refuses and never joins
-      the two accounts, and that the refusal explains itself. `provisionUser`
+      One case is answered with words rather than with the landing page's bare
+      marker: a google_sub Dana has never seen, carrying a verified email a
+      live account already holds. 10.1 (issue #17) is that Dana refuses and
+      never joins the two accounts, and that the refusal explains itself. `provisionUser`
       throws it by name; the second read below catches the same collision when
       two brand-new subjects raced each other to one address, which the first
       read cannot see from inside its own transaction and which arrives here
@@ -510,8 +508,7 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
   )
 
   /* ---------------------------------------------------------------- *
-   * The settings endpoints (7.2) were here, and were retired on
-   * 2026-09-04 by issue #113 on the owner's ruling.
+   * The settings endpoints (7.2) were retired by issue #113.
    *
    * `GET` and `PATCH /me/settings` answered the three v1 page flags and
    * nothing else. 7.23's `/settings` bundle is the settings surface now,
@@ -525,9 +522,8 @@ export function createAuthRouter(options: AuthRouterOptions = {}): Router {
    * They stay stored and `domain/bundle.ts` still derives them into
    * `pinned_views` while that column is null, which is what keeps a v1
    * account's sidebar the sidebar it had. The `settings` key of `GET /me`
-   * still carries them too: 7.1 is frozen, untouched by this, and AC-116
-   * states its shape — states it rather than holding it, that criterion's test file
-   * having gone in the 2026-09-20 cut. What went is the pair of endpoints that *wrote* them,
+   * still carries them too, as 7.1 and AC-116 state. What went is the pair
+   * of endpoints that *wrote* them,
    * so nothing in this application writes those columns any more.
    * ---------------------------------------------------------------- */
 

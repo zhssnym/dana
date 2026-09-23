@@ -452,7 +452,7 @@ export type ExportAccount = z.infer<typeof exportAccount>
 
 /**
  * Everything 4.10 holds for the person — the v2 bundle `GET /settings`
- * answers and the three v1 booleans frozen 7.2 still reads and writes —
+ * answers and the three v1 booleans `GET /me` still answers —
  * together with the two per-person page tables.
  *
  * **The last two are an addition to what #77 enumerated and they are here on

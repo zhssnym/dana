@@ -1,36 +1,30 @@
 /*
-What search can find, as `components/search-overlay.tsx` reads it: the
-prototype's `SearchResultItem[]`, answered by 6 Q8 and 7.18 rather than by a
-filter over fixtures (RFC 0004's S27).
+What search can find, as `components/search-overlay.tsx` reads it:
+`SearchResultItem[]`, answered by 6 Q8 and 7.18.
 
-The prototype's overlay owns the typed query, debounces it, and then filters
-an `items` prop in a `useMemo`, ranking a title match above a body match. On
-this side of the seam the tasks cannot all be in hand, so the overlay's memo
-becomes the hook below: given the debounced query it answers the places when
-nothing is typed, which is the prototype's own decision (DES-203, "an empty
-box offers the places rather than nothing"), and otherwise asks Q8 through
-`useSearch`, which refuses a query under two characters, and shapes the four
-kinds 7.18 returns into the prototype's one item shape.
+The overlay owns the typed query and debounces it. The tasks cannot all be in
+hand, so the hook below does the rest: given the debounced query it answers the
+places when nothing is typed (an empty box offers the places rather than
+nothing), and otherwise asks Q8 through `useSearch`, which refuses a query under
+two characters, and shapes the four kinds 7.18 returns into the one item shape.
 
-**The title-first rank crosses with the overlay**, its reasoning being in the
-prototype's own words: "somebody typing *venue* means the thing called venue
-before the thing that mentions it." Section 6's rule that clients never
-re-sort is about the eleven query orders; what the overlay keeps of Q8's is
-the status order inside Tasks, which the rank sort is stable over, so a
-pending row is still above an abandoned one and the ranked order is inside
-each status. Recorded at RFC 0005 change control item 55.
+**A title match ranks above a body match**: somebody typing *venue* means the
+thing called venue before the thing that mentions it. Section 6's rule that
+clients never re-sort is about the query orders; what the overlay keeps of Q8's
+is the status order inside Tasks, which the rank sort is stable over, so a
+pending row is still above an abandoned one and the ranked order is inside each
+status.
 
-**A page result's id is a route**, because opening one means going there:
-a nav page's is its path, and a 7.18 page hit's is the path of the folder or
-shelf whose page carries the block, with the block's own text as the title
-and the page's name as the hint. `kind: "page"` covers both, as it does in
-the prototype, where a page is anything you go to rather than open.
+**A page result's id is a route**, because opening one means going there: a nav
+page's is its path, and a 7.18 page hit's is the path of the folder or shelf
+whose page carries the block, with the block's own text as the title and the
+page's name as the hint. `kind: "page"` covers both: a page is anything you go
+to rather than open.
 
-**The folder chip on a task result is the sidebar's folder list**, looked up
-by id, which is `parts/presenters.ts`'s `folderDisplay` rule: the card
-carries a stub and the identity rides the Folder object. It is not the
-response's `folders`, which is the folders the query matched, and the parity
-audit's own warning about confusing the two stands.
+**The folder chip on a task result is the sidebar's folder list**, looked up by
+id, which is `parts/presenters.ts`'s `folderDisplay` rule: the card carries a
+stub and the identity rides the Folder object. It is not the response's
+`folders`, which is the folders the query matched; do not confuse the two.
 */
 import { useMemo } from 'react'
 
@@ -49,7 +43,7 @@ export interface SearchAnswer {
   failed: boolean
 }
 
-/** 9.1's page block as rows to go to, DES-203's places. */
+/** 9.1's page block as rows to go to. */
 export function placeItems(): SearchResultItem[] {
   return NAV_PAGES.map((page) => ({
     kind: 'page',
@@ -118,17 +112,17 @@ export function useSearchAnswer(query: string, open: boolean): SearchAnswer {
         hint: home?.name === undefined ? 'Page' : `On ${home.name}`,
       }
     })
-    /* polish: search F5. The places are findable by typing too, not only
-       offered before anything is typed: "sched" should reach Scheduled. A
-       page matches on its name or on the question it answers. */
+    /* The places are findable by typing too, not only offered before anything
+       is typed: "sched" should reach Scheduled. A page matches on its name or
+       on the question it answers. */
     const places = placeItems().filter(
       (place) =>
         place.title.toLocaleLowerCase().includes(normalized) ||
         (place.hint ?? '').toLocaleLowerCase().includes(normalized),
     )
     const all = [...tasks, ...found, ...foundShelves, ...places, ...pages]
-    /* The prototype's rank: a title match beats a body match. Stable, so
-       Q8's status order inside Tasks survives it. */
+    /* A title match beats a body match. Stable, so Q8's status order inside
+       Tasks survives it. */
     return all
       .map((item) => ({
         item,

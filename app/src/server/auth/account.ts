@@ -24,10 +24,8 @@ import { inTransaction, rowsOf } from '../database.js'
 import { sameZone, writeTimezone } from './timezone-sync.js'
 
 /*
-The 7.1 body's shape comes from the contract rather than from a copy of it.
-This was a local interface through P1, carried since that merge review as the
-one-line convergence: src/shared/me.ts is what the client and the acceptance
-suite read, so a second declaration here is a second promise that can drift
+The 7.1 body's shape comes from the contract rather than from a copy of it:
+src/shared/me.ts is what the client and the acceptance suite read, so a second declaration here is a second promise that can drift
 from the first. Its settings key is the same 7.2 object settings.ts answers.
 */
 export async function meBody(db: Db, userId: string): Promise<MeResponse | null> {
@@ -125,8 +123,8 @@ export async function handlePatchMe(
   one request and the instants recomputed against the other's reading of it.
 
   writeTimezone is the login sync's function, called unchanged: 7.1 charges both
-  doors with the same recompute, and AC-086 fails an implementation that wires
-  one of them.
+  doors with the same recompute (AC-086), and wiring only one of them is a
+  defect.
   */
   await inTransaction(db, async (tx) => {
     const current = await rowsOf(
@@ -149,12 +147,11 @@ export async function handlePatchMe(
 }
 
 /*
-DELETE /me runs the section 8.10 transaction, and from P5 it runs all of it.
-Steps 1 to 6c (invalidating sent invites, transferring or deleting owned
-folders, cleaning memberships, clearing connections, sweeping My Day, the
-files, and 6c's nine personal tables) are the Collaboration engineer's
-module, src/server/domain/account-deletion.ts, called below with this
-transaction's executor. The last two are this role's and stay here:
+DELETE /me runs the section 8.10 transaction, all of it. Steps 1 to 6c
+(invalidating sent invites, transferring or deleting owned folders, cleaning
+memberships, clearing connections, sweeping My Day, the files, and 6c's nine
+personal tables) are src/server/domain/account-deletion.ts, called below with
+this transaction's executor. The last two stay here:
 
   7  scrub the user row: google_sub, email, display_name, avatar_url set null,
      deleted_at = now()
@@ -164,9 +161,7 @@ That split is a deliberate module seam, and it is why
 deleteAccountData takes an executor rather than a handle. One transaction, not
 two: 8.10's first words are "One transaction", and eight steps across two of
 them would be two failure modes, one of them a scrubbed account whose folders
-were never handed on. Through P4 only steps 7 and 8 existed here, the RFC 0001
-P1 row having scheduled the rest with the packages that create those rows; the
-call below is what retires that stub.
+were never handed on.
 
 The call goes ahead of the scrub because 8.10 numbers it there, and the order
 within those six steps is the module's own header to explain: it exists so the

@@ -1,5 +1,5 @@
 /*
-The sample workspace's words (RFC 0005 change control item 60). One person's
+The sample workspace's words (7.20). One person's
 life, the way it would look after a few weeks of ordinary use: three shelves,
 a handful of folders under each, and enough tasks between them to reach
 every view and every feature a new account is likely to wonder about.
