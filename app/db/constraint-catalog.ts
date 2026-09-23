@@ -974,7 +974,7 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
       { name: 'page_blocks_checked_kind_check', columns: ['checked', 'kind'] },
       {
         name: 'page_blocks_list_parent_kind_check',
-        columns: ['folder_id', 'id', 'kind', 'list_parent_block_id'],
+        columns: ['facet_id', 'folder_id', 'id', 'kind', 'list_parent_block_id'],
       },
       /* Migration 0027 (#210) dropped and re-added this under the same name
          over `num_nonnulls(folder_id, shelf_id, facet_id) = 1`, so the
