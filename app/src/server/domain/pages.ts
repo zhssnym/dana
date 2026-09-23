@@ -1,12 +1,11 @@
 /*
-The S5 page module: 4.17's block list under 7.16's PUT-whole contract, for
+The page module: 4.17's block list under 7.16's PUT-whole contract, for
 folder pages and shelf pages alike (the two differ only in which column
 holds the page's home, and 4.17's CHECK keeps it exactly one).
 
 The PUT is the page: blocks arriving with an id edit the row they name,
 blocks without one insert, and stored blocks the list no longer carries are
-deleted, which is how a section dies and its tasks survive (4.5's SET NULL,
-AC-199). Concurrency is last-write-wins per block: an edit carries the
+deleted, which is how a section dies and its tasks survive (4.5's SET NULL). Concurrency is last-write-wins per block: an edit carries the
 updated_at it read, and a mismatch answers 409 before anything in the
 request writes, a request being one unit. An edit naming a block that no
 longer exists is the same conflict wearing its endpoint state: someone
@@ -152,7 +151,7 @@ async function homeIsVisible(
 }
 
 /** The composed page read. The item list carries identity and order only;
- * block payloads remain in `blocks`, while task payloads remain the frozen
+ * block payloads remain in `blocks`, while task payloads remain the
  * TaskCards returned by Q7. That keeps one task shape across every view. */
 async function pageItemsIn(
   executor: Executor,
@@ -769,7 +768,7 @@ export async function actOnFolderPage(
            and whose `document_transaction` all admitted it. It failed closed,
            which made it a gap rather than a hazard, and it existed because the
            rule was written down in three places and this was a fourth spelling
-           of it. AC-603 asserts the admitted set in both directions. */
+           of it. */
         if (
           body.width_pct != null &&
           !(WIDTH_BLOCK_KINDS as readonly string[]).includes(String(block.kind))

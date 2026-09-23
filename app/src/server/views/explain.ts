@@ -1,12 +1,11 @@
 /*
-The EXPLAIN record this role's definition of done asks for, as the tool that
-produces it rather than as a paragraph claiming it was produced.
+The EXPLAIN record for section 6's queries, as the tool that produces it
+rather than as a paragraph claiming it was produced.
 
-RFC 0001's P4 row says why it cannot be a test: "at the row counts a test
-database holds, a planner sequentially scans whatever indexes exist, so that
-record is a committed artifact produced against seeded volume or with seqscan
-disabled, never a test assertion, and a green suite is evidence for it in
-neither direction". So this seeds volume, runs every statement the eight
+It cannot be a test: at the row counts a test database holds, a planner
+sequentially scans whatever indexes exist, so the record is a committed
+artifact produced against seeded volume or with seqscan disabled, and a green
+suite is evidence for it in neither direction. So this seeds volume, runs every statement the eight
 queries of section 6 actually issue, and writes EXPLAIN.md beside itself.
 
 Run it with:
@@ -22,7 +21,7 @@ of its own.
 
 Two passes are recorded for every statement. The first is the planner's own
 choice at the seeded volume. The second is the same statement with
-enable_seqscan off, which is the RFC's other option and answers a different
+enable_seqscan off, which answers a different
 question: not what the planner does at this size, but which index it would
 reach for when it has to choose one. Both are useful, and neither is
 evidence about production, where the row counts and the statistics are not
@@ -32,8 +31,7 @@ One wart, named rather than hidden: tsconfig.build.json excludes only tests
 and the dev-login module, so this development tool is compiled into dist
 along with the runtime. It imports nothing the server does not already load
 and runs nothing on import, so the cost is a few unreachable kilobytes. The
-tidy fix is one more entry in that file's exclude list, which belongs to the
-Platform engineer; it is recorded here for the Steward rather than taken.
+tidy fix is one more entry in that file's exclude list.
 */
 import { writeFileSync } from 'node:fs'
 import path from 'node:path'
@@ -172,7 +170,7 @@ async function seed(db: Db): Promise<{ viewer: string; folder: string }> {
   i % 10 = 0 is even and 4.11's CHECK admits no rule without a date, and each
   gets its own series_id because INV-7 allows one pending row per series.
   Q3C's projection fetch would otherwise plan against an empty predicate and
-  the record would say nothing about the statement P6 added.
+  the record would say nothing about the recurrence projection's statement.
   */
   const fill = async (folderId: string, owner: string): Promise<void> => {
     await db.execute(sql`

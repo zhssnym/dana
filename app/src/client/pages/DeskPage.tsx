@@ -14,8 +14,8 @@ folder is the one carrying `is_default`, which 4.3 guarantees exists and
 INV-2 guarantees cannot be deleted.
 
 **Desk keeps its name whatever the folder is called.** 4.3 lets an owner
-rename their default folder and S2's migration renamed the untouched ones
-from Inbox to Desk; the sidebar entry is a fixed string in 9.1's page block
+rename their default folder, and untouched ones were migrated from Inbox to
+Desk; the sidebar entry is a fixed string in 9.1's page block
 either way, so a person who renames it still finds the page where it was.
 The page's own heading is the folder's name, because that is what 9.6 draws
 and the folder is what they renamed.
@@ -36,8 +36,8 @@ import { FolderPage } from './FolderPage.js'
 export function DeskPage(): React.JSX.Element {
   const folders = useFolders()
   /*
-  9.13's offer, beneath the folder page rather than inside it: `FolderPage` is
-  S12's file and this seam already exists. The cheap half of the freshness
+  9.13's offer, beneath the folder page rather than inside it: `FolderPage` stays
+  a plain folder page and this seam already exists. The cheap half of the freshness
   test is run here so that the All view the other half needs is never mounted
   for an account that has folders, which is every account after the first one.
   */

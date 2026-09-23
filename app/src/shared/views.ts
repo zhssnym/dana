@@ -4,17 +4,15 @@ endpoints accept, the nine response bodies they answer, and the cursor the two
 paginated orders page by.
 
 What is deliberately not here is the row. Every row of every body below is the
-7.0 TaskCard that src/shared/tasks.ts already carries, whose own header says
-P4 fills the view endpoints from that definition rather than from a
-per-endpoint variant. This file is everything around the rows. It matters more
-than usual here, because RFC 0001's P4 row names the seam ahead of time:
-taskView in domain/tasks.ts produces a card one task at a time and no list
-endpoint can call it per row, so this package necessarily writes a second
-producer of one frozen shape, and the shared schema is the contract that keeps
-the two producers honest.
+7.0 TaskCard that src/shared/tasks.ts already carries, and the view endpoints
+fill it from that definition rather than from a per-endpoint variant. This
+file is everything around the rows. It matters more than usual here: taskView
+in domain/tasks.ts produces a card one task at a time and no list endpoint can
+call it per row, so the views have a second producer of one shape, and the
+shared schema is the contract that keeps the two producers honest.
 
 Two rules the bodies encode rather than merely describe, both from section 6's
-preamble as the P4 change control ruled it on 2026-08-07:
+preamble:
 
 - The 1000-row cap is per response, not per array. Each capped body therefore
   refuses more than LIST_ROW_CAP rows counted across all of its own sections,
@@ -38,7 +36,7 @@ second home for them:
   reads is the same sentence a schema failure produces. src/shared cannot
   import src/server in any case: tsconfig.client.json compiles this directory
   into the browser bundle, where a server module has no business.
-- Q8's wildcard escaping, ruled at the same change control. searchQuery yields
+- Q8's wildcard escaping. searchQuery yields
   the trimmed literal a user typed; escaping a backslash, percent or
   underscore happens where the ILIKE pattern is built, and doing it here would
   hand the query a value it would escape a second time.
@@ -66,8 +64,8 @@ import { isIanaTimezone } from './timezone.js'
 
 /*
 7.0: "every view endpoint takes tz, an IANA identifier, 422 naming the field
-if it is invalid or absent". The absent half entered the frozen text by owner
-ruling on 2026-08-07 and is why this is a bare required field with no default.
+if it is invalid or absent". The absent half is why this is a bare required
+field with no default.
 
 The one plausible default, UTC, would hand most of the world the wrong day
 with nothing on the wire to say it had been substituted, and 8.1 makes tz an
@@ -110,8 +108,7 @@ export const searchQ = z
   .max(100, { error: 'must be 2 to 100 characters after trimming' })
 
 /*
-7.10's section, whose default entered the frozen text by owner ruling on
-2026-08-07: open when absent, because Q7 renders its completed section
+7.10's section, open when absent, because Q7 renders its completed section
 collapsed and open is the state the page opens in.
 
 Absent and empty are different things here, as they are for tz. .default()
@@ -150,8 +147,8 @@ precision, which the 7.0 wire format (millisecond ISO through toIso) does not,
 so a cursor is built from the row rather than from the card.
 
 **The search cursor carries status, not status_rank.** The rank is an
-expression over 4.5's column, and section 6's preamble has already moved once,
-gaining completed = 2 at the P4 change control. A cursor holding a rank would
+expression over 4.5's column, and section 6's preamble can revise the scale.
+A cursor holding a rank would
 bind clients to a scale the specification revises; a cursor holding the row's
 own status leaves the mapping where the query's ORDER BY already does it once.
 
@@ -167,50 +164,27 @@ sort keys, and every later change to an order becomes a compatibility problem.
 btoa and atob rather than Buffer, because this directory is compiled into the
 browser bundle too (tsconfig.client.json).
 
-Opaqueness was carried to this package's endpoint shape review and settled
-there on 2026-08-07, the P2 and P3 reviews being where an open shape gets
-decided with the implemented routes in front of it. What the review found, and
-the sentence it recommends to the Steward and through them the owner, is
-recorded here because this file is where the property lives; the frozen text
-carries it only if the owner rules it.
-
-Frozen 7.10 writes "?cursor" and next_cursor and says nothing about what a
-cursor is, which leaves opaqueness a property of this file rather than of the
-contract. Three things the review decided the sentence has to say, each because
-leaving it out permits a reading nobody wants:
+7.10 writes "?cursor" and next_cursor and says nothing about what a cursor
+is, so the properties below are this file's:
 
 - **A cursor is opaque, and a client sends back the next_cursor it received
   byte for byte.** Without that, the encoding below is a public shape: a client
-  that decodes it has taken a dependency on Q6's and Q8's sort keys, and
-  section 6 revised one of those orders at this package's own change control
-  when status_rank gained completed = 2. Freezing opaqueness is what keeps the
-  next such revision from being a compatibility problem instead of an edit.
+  that decodes it has taken a dependency on Q6's and Q8's sort keys, and the
+  next revision of either order becomes a compatibility problem instead of an
+  edit.
 - **A null next_cursor is the end of the list**, which is what lets a client
   stop rather than probe.
 - **A cursor an endpoint did not issue is 422 naming cursor, never a silent
-  first page.** Opaque alone does not say what happens to a cursor a client
-  made up, and the alternative reading turns a client bug into wrong data: the
-  caller is handed page one again while the rows it was paging toward never
-  arrive, with a 200 over it. 7.0 already answers a validation failure with 422
-  and the field named, so this adds no status to the frozen surface. It is the
-  same rule the section parameter got on 2026-08-07, absent being a default and
-  a present wrong value not being absent, which is an argument for the owner
-  settling both in one sentence.
+  first page.** The alternative turns a client bug into wrong data: the caller
+  is handed page one again while the rows it was paging toward never arrive,
+  with a 200 over it. It is the same rule the section parameter follows, absent
+  being a default and a present wrong value not being absent.
 
-One accuracy the review insisted on rather than smoothing over. A cursor's kind
-names the *order* it belongs to, not the endpoint that issued it, so a
-completed cursor is portable between GET /views/done and the folder page's
-completed section and nowhere else. That is not an oversight: section 6 makes
-Q7's third section "Q6 predicate, order, and pagination, folder_id = F", one
-order with one page size, and the position is (completed_at, id) in that order.
-A recommendation reading "the endpoint that issued it" would be frozen text
-that disagrees with the code on its first day.
-
-Nothing here is a change to behavior: AC-056 and AC-127 already page Done and
-search by sending a received next_cursor back, AC-127 describing no overlap and
-no gap — and describing rather than checking, its test file having gone in the 2026-09-20 cut
-— and the router's own proof asserts the 422 on a garbage cursor and on
-one issued for the other order. The sentence describes what this branch does.
+A cursor's kind names the *order* it belongs to, not the endpoint that issued
+it, so a completed cursor is portable between GET /views/done and the folder
+page's completed section and nowhere else. Section 6 makes Q7's third section
+"Q6 predicate, order, and pagination, folder_id = F", one order with one page
+size, and the position is (completed_at, id) in that order.
 */
 const CURSOR_VERSION = 1
 
@@ -379,7 +353,7 @@ The folder page takes both, and only one of them is ever used: a cursor
 belongs to the completed section, which is the only one that paginates. A
 cursor sent with section=open is accepted and ignored rather than refused,
 because 7.0 tolerates what an endpoint did not ask for and refusing it would
-invent a rule the frozen text does not carry.
+invent a rule the contract does not carry.
 */
 export const folderTasksQuery = viewQuery.extend({
   section: folderSection.default('open'),
@@ -398,12 +372,10 @@ export type SearchQuery = z.infer<typeof searchQuery>
  * ------------------------------------------------------------------ */
 
 /*
-The number and the allocation moved to `list-cap.ts` on 2026-09-20 with issue
-#226, and are re-exported here so that every call site reads unchanged. They
-moved because `GET /labels` took the same cap and `labels.ts` cannot import
-this file: this one imports `tasks.ts`, which imports `labels.ts`, and the
-loop kills whichever of the three is loaded first. That file carries the
-reasoning; nothing about the cap itself changed.
+The number and the allocation live in `list-cap.ts` and are re-exported here.
+They live there because `GET /labels` takes the same cap and `labels.ts`
+cannot import this file: this one imports `tasks.ts`, which imports
+`labels.ts`, and the loop kills whichever of the three is loaded first.
 */
 export { takeCapped } from './list-cap.js'
 export type { CappedSections } from './list-cap.js'
@@ -432,8 +404,7 @@ function groupRows(
 /*
 The group heading of Q2, which 7.10 writes as groups: [{folder, rows}] on GET
 /views/tasks and as tasks_groups on GET /views/all. Its folder is the
-{id, name, is_default} stub every TaskCard carries, by owner ruling on
-2026-08-07, rather than the 7.0 Folder object: a heading needs exactly what a
+{id, name, is_default} stub every TaskCard carries, rather than the 7.0 Folder object: a heading needs exactly what a
 card's folder label needs, Folder's counts are the 8.11 computation no grouped
 view asks for, and its ownership and personal fields are 7.4's business. The
 two keys spell one thing, so they answer one shape, which is why both bodies
@@ -441,9 +412,8 @@ below use this schema rather than each declaring its own.
 
 z.object strips what it does not declare rather than refusing it, the
 convention every schema in this directory keeps, so a Folder object would
-parse here by losing its extra keys. That half of the ruling is measured on
-the wire instead: views-harness.ts asserts this folder key-exact, which is the
-suite's own reading of the sentence and not one borrowed from this file.
+parse here by losing its extra keys. The key-exact check is on the wire
+instead: views-harness.ts asserts this folder key-exact.
 */
 export const taskCardGroup = z.object({
   folder: taskCardFolder,
@@ -465,41 +435,21 @@ export const completedDay = z.object({
 export type CompletedDay = z.infer<typeof completedDay>
 
 /*
-Q3C's ghosts, the five fields 7.10 enumerates. The array was empty from P4
-until P6: what draws in it is 8.5's projection over the 4.11 iterator that
-11.9 gives to src/server/time and P6 delivered. AC-082 states it in P6's range,
-and states rather than runs it: that criterion's test file went in the 2026-09-20 cut. The shape was declared ahead of that for the reason P3 declared
-recurrence_rule and reminder while their computations were deferred: the key
-is frozen 7.10's, so a client can rely on it, and P6 filled a shape rather
-than inventing one.
+Q3C's ghosts, the five fields 7.10 enumerates, drawn by 8.5's projection over
+the 4.11 iterator in src/server/time.
 
 A ghost is not a TaskCard and 7.10 does not make it one: it carries no status,
 no counts and no assignee, because an instance that does not exist yet has
 none of them. due_time is the parent's and is null for an all-day rule.
+task_id is the current occurrence's own row id, because Q3C says clicking a
+ghost opens that occurrence, so an id minted per instance would name nothing
+this API can answer for.
 
-The P6 shape review measured the filled array against this element on the
-wire, in src/server/http/views-contract.test.ts, which is the first time these
-five keys were anything but a promise: a key list nothing has ever filled
-cannot drift, and the moment it fills is the moment the check is worth
-running. What it confirmed, beyond the keys and their order-free equality, is
-the one value a reader might expect to be synthesized: task_id is the current
-occurrence's own row id, because Q3C says clicking a ghost opens that
-occurrence, so an id minted per instance would name nothing this API can
-answer for.
-
-One property of this body changed in fact at P6 and is disclosed rather than
-fixed, because fixing it would mean changing frozen 7.10. The response is
-bounded by its 62 days and by nothing else: 7.10 gives it neither a cap nor
-the truncated flag every capped body carries, which is the P4 reading recorded
-at the top of this file, and the ghosts multiply that bound by the number of
-accessible pending rule-carrying tasks rather than adding to it. While the
-array answered empty the bound was the real rows alone; it is now up to 62
-elements per series. Nothing in 10.3 is violated, its list cap being the rule
-this body was read as standing outside, and no shape here can report a
-truncation the frozen body has no key for. It is named here so the next reader
-of this file finds the property stated rather than deducing it from an
-unbounded array, and so a decision to bound it is taken as an amendment to
-7.10 rather than as an implementation detail.
+The response is bounded by its 62 days and by nothing else: 7.10 gives it
+neither a cap nor a truncated flag, and the ghosts multiply that bound by the
+number of accessible pending rule-carrying tasks, up to 62 elements per
+series. No shape here can report a truncation the body has no key for, so
+bounding it is an amendment to 7.10 rather than an implementation detail.
 */
 export const virtualInstance = z.object({
   task_id: z.uuid(),
@@ -520,10 +470,7 @@ const nextCursor = z.string().min(1).nullable()
  * ------------------------------------------------------------------ */
 
 /*
-Transcription, endpoint by endpoint, in 7.10's own order. Where a body was
-described rather than enumerated, the enumeration is the owner's ruling of
-2026-08-07 and is now the frozen text's own; nothing below is this session's
-invention.
+Transcription, endpoint by endpoint, in 7.10's own order.
 
 The capped six carry the refinement described at the top of this file. The
 calendar is not among them: it is bounded by its 62 days rather than by a row
@@ -567,7 +514,7 @@ export const getPlannedResponse = z
   .refine((body) => withinCap([body.rows]), { error: OVER_CAP })
 export type GetPlannedResponse = z.infer<typeof getPlannedResponse>
 
-// GET /views/planned/calendar. Q3C's real rows now, its ghosts at P6.
+// GET /views/planned/calendar. Q3C's real rows and its ghosts.
 export const getPlannedCalendarResponse = z.object({
   real: z.array(taskCard),
   virtual: z.array(virtualInstance),
@@ -608,9 +555,7 @@ export const getDoneResponse = z.object({
 export type GetDoneResponse = z.infer<typeof getDoneResponse>
 
 /*
-GET /folders/:id/tasks. The one body frozen 7.10 described in prose without
-naming its keys, enumerated by owner ruling on 2026-08-07 with the key names
-the other eight bodies already use for the same things: scheduled, unscheduled
+GET /folders/:id/tasks, with the key names the other eight bodies already use for the same things: scheduled, unscheduled
 and truncated on section=open, days and next_cursor on section=completed.
 
 Two schemas rather than one union, because the section parameter has already
@@ -638,9 +583,9 @@ GET /search. 7.10 writes the row as "TaskCard with status chip", which is a
 rendering note and not a shape: the chip is drawn off status, a field every
 TaskCard already carries, and Q8's Row line lists what the UI shows rather
 than what the wire adds. A second row shape here would be the per-endpoint
-variant this role exists to refuse.
+variant this file exists to refuse.
 */
-/** 7.18's additive result kinds (RFC 0005). Each entry carries its kind's
+/** 7.18's additive result kinds. Each entry carries its kind's
  * identity and enough to route; a client that ignores the new keys sees
  * exactly the v1 response. */
 export const searchFolderHit = z.object({

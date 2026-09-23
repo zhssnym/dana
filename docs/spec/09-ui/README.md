@@ -1,9 +1,10 @@
 ## 9. UI specification
 
-Structure, states, and behavior only; no colors, typography, or spacing. Every page has
-five possible states unless narrowed: loading (skeleton rows), populated, empty (copy
-below), error (copy below), plus the global offline banner. Exact copy is normative;
-design may restyle, not reword, without a spec change.
+Behaviour rules and interaction contracts only; no colors, typography, or spacing, and no
+inventory of what a screen shows — the component is the truth for that. Every page has
+five possible states unless narrowed: loading (skeleton rows), populated, empty, error,
+plus the global offline banner. Copy is quoted here only where the exact words are the
+decision; everywhere else the component named beside the rule holds the words.
 
 | | File | Covers |
 | - | - | - |

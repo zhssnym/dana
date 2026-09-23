@@ -52,9 +52,8 @@ so of Assignments in terms, and Abandoned is a client-side narrowing of Q5 by
 status. Section 9 writes no copy for either, and a page that arrives empty
 with nothing to say is the state the other eight all have words for.
 
-So these are this package's, written in the register of the eight above (what
-the page holds, then how something gets here), and recorded as change control
-in RFC 0005 rather than slipped in. They are the only copy S10 authored.
+So these two are this client's own, written in the register of the eight above
+(what the page holds, then how something gets here).
 */
 
 /** 9.5's Assignments, which is a composition rather than a query. */

@@ -1,29 +1,27 @@
 /*
-Harness for the P7 reminder criteria (AC-083 to AC-090, and the numbers this
-package's change control appends), built on the P2 to P6 layers: the same
-booted application, stub identity provider, cookie-jar browsers, task
-transports and invariant sweep, plus what 8.6's computation, frozen 7.9's two
-endpoints, and 11.7's delivery loop need.
+Harness for the reminder criteria (AC-083 to AC-090 and their later
+additions), built on the folder and task layers: the same booted application,
+stub identity provider, cookie-jar browsers, task transports and invariant
+sweep, plus what 8.6's computation, 7.9's two endpoints, and 11.7's delivery
+loop need.
 
 Six decisions worth the words.
 
 **Every actor here names its zone.** 8.6 computes a fire instant in the
 assignee's stored users.timezone, or the creator's when the task is
-unassigned, so a P7 actor whose zone was never stated is a fixture whose
+unassigned, so an actor whose zone was never stated is a fixture whose
 expected answer cannot be written down. `ZoneCast` signs each one in through
 7.1's tz parameter, which is the write path 8.1 gives that column and the one
 AC-007 already pins; nothing here writes users.timezone with SQL.
 
 **The computation criteria go through the write path; the delivery criteria
-seed their rows.** This is P6's split (rules seeded, transitions requested)
-applied to the other half of the same problem. AC-083 to AC-086 and the
-recompute numbers are about what a write path computes, so they create their
-reminders through frozen 7.9's PUT or 7.6's create body. AC-087 to AC-090 and
+seed their rows.** AC-083 to AC-086 and the recompute numbers are about what
+a write path computes, so they create their reminders through 7.9's PUT or
+7.6's create body. AC-087 to AC-090 and
 the pass criteria are about the loop, so their rows are seeded with a chosen
 mode, value, fire_at and state, and their failures stay attributable to the
-loop rather than to a PUT that has not been written yet. `setFireAt` reaches a
-timed boundary without waiting at it, which is AC-113's precedent and P5's
-last_sent_at backdater.
+loop rather than to the PUT. `setFireAt` reaches a timed boundary without
+waiting at it, as the session-expiry and last_sent_at backdaters do.
 
 **Expected instants are computed here through Intl, never imported, and the
 two DST policy rules are not computed at all.** The standing rule is the
@@ -31,41 +29,34 @@ suite's: a helper imported from the module under test would agree with itself.
 Intl is admissible for the ordinary case, an unambiguous local time whose
 offset is a lookup, and `instantAtWallTime` guards itself by reading its
 answer back, which catches a gap and, measured rather than assumed, does not
-catch a fold. It is not admissible for the two rules of 8.6, and section 13
-item 25 says why: Intl is Luxon's own engine, so comparing the module against
-it would be circular, and a gap has no correct answer and a fold has two, both
+catch a fold. It is not admissible for the two rules of 8.6: Intl is Luxon's
+own engine, so comparing the module against it would be circular, and a gap has no correct answer and a fold has two, both
 being Dana policy rather than tzdb arithmetic. Those two expected instants are
 therefore written as literal constants derived by hand from the transition,
 beside the instant Luxon's raw behavior would produce, so each case
 discriminates against exactly the answer 11.9 records as wrong.
 
 **Every DST fixture is a historical transition in a zone whose rules have been
-stable for decades, and each one asserts it still is.** Item 25's reason is
-that the Node runtime and the embedded engine of 11.10 carry tzdb copies that
-move independently, so a fixture on a future transition is a flake waiting for
+stable for decades, and each one asserts it still is.** The Node runtime and
+the embedded engine of 11.10 carry tzdb copies that move independently, so a fixture on a future transition is a flake waiting for
 an upstream release. `expectGapFixture` and `expectFoldFixture` read the
 transition off this runtime before anything depends on it, so a tzdb that
 moved fails as "this is no longer a gap" rather than as a wrong fire instant.
 
-**Sends are counted through the ratified 11.10 sink**, the shape AC-024 has
-used since P2, matched by word (/remind/i) the way the share-grant convention
-matches its own template. No verified sending domain is involved anywhere, and
+**Sends are counted through the 11.10 sink**, the shape AC-024 uses, matched
+by word (/remind/i) the way the share-grant convention matches its own
+template. No verified sending domain is involved anywhere, and
 none is needed: 11.8 forbids real sending under test.
 
-**The pass is reached through one seam, ratified into 11.7 and stated once
-here.** 11.7 makes the delivery loop a plain callable rather than a route, and
-frozen section 7 offers no endpoint that runs one pass, so the acceptance
-suite cannot reach it over HTTP the way 11.10 reaches everything else. The
-seam below was this file's proposal and is now that section's own text, taken
-whole at the P7 mid-package change control on 2026-08-10, exactly as
-options.notifications was ratified into 11.10 at P1: the module path and the
-two dependencies are fixed, the tolerance over the export name is kept
-deliberately so the choice stays the implementing session's, and nothing about
-the pass's internals is fixed by any of it. It is loaded through a computed
-specifier so that
-its absence is one named assertion failure rather than a module-load crash
-that would take a whole file's coverage with it, the loader shape 11.15
-records and src/server/auth/router.ts already uses.
+**The pass is reached through one seam, stated in 11.7.** 11.7 makes the
+delivery loop a plain callable rather than a route, and section 7 offers no
+endpoint that runs one pass, so the acceptance suite cannot reach it over
+HTTP the way 11.10 reaches everything else. 11.7 fixes the module path and
+the two dependencies; the tolerance over the export name is deliberate, and
+nothing about the pass's internals is fixed. It is loaded through a computed
+specifier so that its absence is one named assertion failure rather than a
+module-load crash that would take a whole file's coverage with it, the loader
+shape 11.15 records and src/server/auth/router.ts already uses.
 */
 import { randomUUID } from 'node:crypto'
 
@@ -153,12 +144,11 @@ export function offsetAt(zone: string, at: Date): number {
  *
  * That read-back catches a gap, where no instant carries the requested wall
  * clock, and it deliberately does not catch a fold, where two do and both read
- * back correctly: measured in reminders-harness.test.ts rather than claimed,
- * and what this helper reaches there is the later instant, which is the one
+ * back correctly, and what this helper reaches there is the later instant, which is the one
  * 8.6 refuses. So the guard is a guard against one of the two, and the rule
  * for both is the same: neither GAP nor FOLD takes its expected instant from
- * here. They are hand-derived constants below, because section 13 item 25
- * makes Intl a circular oracle for exactly these two cases.
+ * here. They are hand-derived constants below, because Intl is a circular
+ * oracle for exactly these two cases.
  */
 export function instantAtWallTime(
   zone: string,
@@ -421,7 +411,7 @@ export async function storedZone(db: Db, userId: string): Promise<string> {
 }
 
 /* ------------------------------------------------------------------ *
- * The frozen 7.9 surface
+ * The 7.9 surface
  * ------------------------------------------------------------------ */
 
 export function putReminder(
@@ -433,21 +423,16 @@ export function putReminder(
 }
 
 /*
-The ruled 7.9 response body is judged here, once, the way patchBundleOk in
-bundle-harness.ts judges the ruled 7.23 body and expectAffectedTask judges the
-ruled 7.7 and 7.8 ones. It named patchSettingsOk and frozen 7.2 until issue
-#113 retired that endpoint on 2026-09-04, taking settings-harness.ts with it.
-
-Frozen 7.9's bullet named a status and no body; the human owner ruled on
-2026-08-10, escalated at the P7 kickoff, that PUT answers 200 with the
-affected TaskDetail, because 7.0 gives the reminder no object of its own, this
-section offers no GET for one, and TaskDetail already carries a reminder
-field. So the success is judged twice over, the fresh-GET convention: a whole
-TaskDetail, equal to what a fresh GET /tasks/:id then answers.
+The 7.9 response body is judged here, once, the way expectAffectedTask
+judges the 7.7 and 7.8 ones. PUT answers 200 with the affected TaskDetail,
+because 7.0 gives the reminder no object of its own, 7.9 offers no GET for
+one, and TaskDetail already carries a reminder field. So the success is
+judged twice over, the fresh-GET convention: a whole TaskDetail, equal to
+what a fresh GET /tasks/:id then answers.
 
 Refusals stay on the unjudged transport above, because a refusal answers the
 7.0 envelope rather than a task. The DELETE keeps 7.9's own 204 and carries no
-body at all, which is the half of the ruling that did not move.
+body at all.
 */
 export async function putReminderOk(
   actor: Actor,
@@ -557,8 +542,8 @@ export async function seedReminderRow(
 
 /**
  * Moves a reminder's fire instant, which is how a delivery case reaches a
- * timed boundary without waiting at it: AC-113 moves a session's expiry and
- * P5 moves last_sent_at for the same reason. The value written here is never
+ * timed boundary without waiting at it, as setSessionExpiry and
+ * backdateLastSent do. The value written here is never
  * what a criterion asserts; 8.6's arithmetic is asserted where it is computed.
  */
 export async function setFireAt(

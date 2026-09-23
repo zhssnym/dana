@@ -1,7 +1,6 @@
 /*
 The overflow menu for a Dana object, drawn from the contract.
 
-The designer's `components/object-menu.tsx`, ported at S17a.
 `lib/object-acts.ts` says what the acts are, in what order, with what words
 and what glyph. This draws them and nothing else, so the folder menu in the
 Library and the folder menu on that folder's own window bar are now the same
@@ -15,10 +14,8 @@ cannot be smuggled in this way and quietly diverge again. Anything belonging
 to every surface goes in the contract. AC-246 enumerates the four items that
 may come through it and fails a fifth.
 
-**The trigger's name is 9.1's fixed string and never an interpolation.** The
-designer names his `More actions for {name}`, and `components/README.md`
-records the correction against four other controls: a name in that table is a
-fixed string, and what tells four instances apart is 9.1's region rule, this
+**The trigger's name is 9.1's fixed string and never an interpolation.** A name in
+9.1's table is a fixed string, and what tells four instances apart is 9.1's region rule, this
 one being reached inside the row or the bar that names its object. So `name`
 here is not drawn into the label; it is the tooltip's, and the surface's own
 region is what separates one menu from the next.

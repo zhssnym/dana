@@ -1,11 +1,8 @@
 /*
-The designer's `src/components/quick-add.tsx`, ported at P8R session R3.
-
-9.1's inline quick-add, which that section made a disclosure at the RFC 0002
-change control on 2026-08-13: collapsed it is a single control, activating it
-reveals a focused text box, enter saves at the page's entry-point defaults,
-and escape clears the box and returns the control to collapsed. His component
-already had all four; what it did not have was the name.
+9.1's inline quick-add, a disclosure: collapsed it is a single control,
+activating it reveals a focused text box, enter saves at the page's
+entry-point defaults, and escape clears the box and returns the control to
+collapsed.
 
 **One name across two states, and it is 9.1's.** The collapsed control was
 labelled "Add task" and the text box "Task title for Inbox", which is two
@@ -16,14 +13,8 @@ gives the reason the two differ by an article: "Add task" was chosen to
 separate the floating button from the quick-add beneath it on the same page.
 AC-166 addresses both states by that name, exactly.
 
-**The escalation control is "Open full form", and the correction is worth its
-sentence.** This file shipped his description, "Open full task form for
-{folder}", on the ground that 9.1 named the control nowhere and inventing a
-string would be an unrecorded deviation. 9.1 names it now: the P8R
-mid-package change control of 2026-08-13 added it to that section's names
-table, and the owner re-accepted RFC 0002 on that amendment the same day. The
-fault the correction removes is not the wording but the interpolation. A name
-in that table is a fixed string, and what tells two instances of one control
+**The escalation control is "Open full form"**, a fixed string from 9.1's
+names table, never interpolated with the folder. A name in that table is a fixed string, and what tells two instances of one control
 apart is 9.1's region rule, the quick-add on a Tasks group being addressed
 inside the region that group names. A name carrying the folder does that job
 twice and does it where a test cannot know the string before it reads the

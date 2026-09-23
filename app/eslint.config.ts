@@ -16,7 +16,7 @@ export default tseslint.config(
   tseslint.configs.recommended,
   /*
   The boundary between the two halves of the application, enforced rather than
-  agreed. CODEOWNERS asks for a review; this fails the build.
+  agreed: this fails the build.
 
   Every one of these three rules describes what the code already does, checked
   file by file before they were written: no client file imports the server or

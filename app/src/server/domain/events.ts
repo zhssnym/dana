@@ -1,14 +1,14 @@
 /*
-The S3 domain module: the event record and its fan-out (4.13, 4.14), written
+The domain module for the event record and its fan-out (4.13, 4.14), written
 at the 10.2 chokepoint and read by the 7.12 surfaces.
 
 **One mutation, one event, one transaction.** recordEvent is called by the
 mutation that passed the chokepoint, inside the mutation's own transaction,
 so an act and its record commit or vanish together and a retried request can
-never record an act that did not happen. The change control note in RFC 0005
-moves fan-out here from the tick for the same reason: the notification rows
-ride the same transaction, atomic with the event, and AC-187 reads them in
-the same breath as the mutation. The 4.14 uniqueness stands behind this as
+never record an act that did not happen. Fan-out lives here rather than in
+the tick for the same reason: the notification rows ride the same
+transaction, atomic with the event, and are readable in the same breath as
+the mutation. The 4.14 uniqueness stands behind this as
 the constraint-level backstop against any path double-fanning an event.
 
 **Recipients are the caller's to name.** The chokepoint knows who an act
@@ -16,9 +16,8 @@ concerns (the assignee it just wrote, the members it just orphaned); this
 module only enforces the one rule 4.14 states for everyone: an actor is
 never notified of their own act.
 
-**Who wires what.** S3 wires folders and tasks below; S5 and S6 wire shelves,
-pages, duplicates and comments through this same function when their
-mutations land. The verb for an act with no verb of its own (a step toggled,
+**Who wires what.** Folders, tasks, shelves, pages, duplicates and comments
+all record through this same function. The verb for an act with no verb of its own (a step toggled,
 a reminder set, a member added) is 'edited' with the half a verb cannot
 carry in detail, because 4.13's verb list is a CHECK constraint and not a
 suggestion box.
@@ -60,7 +59,7 @@ export interface EventInput {
   subjectId: string
   /** The name at act time, so a line reads after a rename (4.13). */
   subjectName: string
-  /** The visibility scope; null only for acts with no folder (none in S3). */
+  /** The visibility scope; null only for acts with no folder. */
   folderId: string | null
   detail?: string
   /** Who the act concerns (4.14). The actor is filtered here, always. */
@@ -195,7 +194,7 @@ export async function listNotifications(
       id: String(row.notification_id),
       read_at: nullableIso(row.read_at),
       created_at: toIso(row.notified_at),
-      /* polish: search F3. The task a comment sits on, so the bell can land
+      /* The task a comment sits on, so the bell can land
          on the task with its thread open rather than on the folder. Null
          for a folder-level comment and for every other subject. */
       task_id: nullableString(row.comment_task_id),

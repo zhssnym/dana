@@ -14,9 +14,9 @@ that hold only a name, which the task row's assignee chip and the People
 screen's roster both do. A stored colour would need a write path, a default,
 and a rule for two people who picked the same one.
 
-**It lives in `parts/` for `identity-colors.ts`'s recorded reason.** The S8
-foundation test forbids a ramp step being spelled outside `components/ui/` and
-forbids a literal colour anywhere under `components/` or `lib/`, so a palette
+**It lives in `parts/` for `identity-colors.ts`'s recorded reason.** No ramp
+step is spelled outside `components/ui/` and no literal colour appears
+anywhere under `components/` or `lib/`, so a palette
 that must name swatches belongs beside the other one that does. The values are
 token references and never hex: unlike a folder's colour, which is data on the
 wire and must be a stable literal (4.3's CHECK), a person's tint is chosen by
@@ -64,7 +64,7 @@ export function personTint(name: string): string {
  *
  * The mix is computed here rather than in the component for the reason this
  * file exists: the ground names the page's own paper, which is a ramp step,
- * and the S8 foundation test keeps ramp steps out of `components/`.
+ * and ramp steps stay out of `components/`.
  */
 export function personFacePaint(name: string): { ink: string; ground: string } {
   const ink = personTint(name)

@@ -1,14 +1,13 @@
 /*
-The 7.13 surface: the Trash listing, the two restores, and since RFC 0005
-change control item 36 the two permanent deletes. The deletes that fill it
+The 7.13 surface: the Trash listing, the two restores, and the two
+permanent deletes. The deletes that fill it
 live on the task and folder surfaces they always did; here is the way back
 and the way out.
 
 The permanent deletes are **Full control's, and they are not one rule**: a
 task's needs Full control with ownership ignored, a folder's needs Full
 control *and* the owner together (#228's Full-control list with governing R5;
-item 38's owner-alone rule is superseded and the corrected sentence is in
-`domain/trash.ts` beside each gate). Somebody below the bar can see the row
+the sentence is in `domain/trash.ts` beside each gate). Somebody below the bar can see the row
 and is told 403, the one place on this surface where 10.2's grammar admits a
 forbidden rather than a not-found. Both answer 204 with nothing, there being
 nothing left to describe.
@@ -41,7 +40,7 @@ export interface TrashRouterOptions {
   dbClient?: DbClient
   rateLimits?: RateLimits
   /** The store the permanent deletes remove objects from after their
-   * transaction commits (RFC 0005 change control item 36). */
+   * transaction commits. */
   fileStore?: ObjectStore
 }
 
@@ -55,7 +54,7 @@ export function createTrashRouter(options: TrashRouterOptions = {}): Router {
     res.status(200).json(await trashView(db, viewer(req)))
   })
 
-  // POST /tasks/:id/restore is served by the tasks router, where frozen
+  // POST /tasks/:id/restore is served by the tasks router, where
   // 7.6's restore transition already owns the path: the two meanings have
   // disjoint domains (a trashed row is invisible to the transition), so one
   // handler forks on the row's state rather than two routers racing for the

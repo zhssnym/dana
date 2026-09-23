@@ -2,21 +2,17 @@
 The one row projection every 7.10 body is made of, and the fragments the
 eight queries of section 6 share.
 
-RFC 0001's P4 row names the seam this file sits on before anything here was
-written: taskView in domain/tasks.ts produces a card's fields one task at a
-time, and no list endpoint can call it per row, so this package necessarily
-writes a second producer of one frozen shape. That is why the projection is
-here once rather than in each query file: two producers is the cost the plan
-accepted, three would be nobody's decision. The guard against drift is the
-shared taskCard schema and the contract test in views.test.ts beside the
-router, which parses a row of every 7.10 body through it.
+taskView in domain/tasks.ts produces a card's fields one task at a time, and
+no list endpoint can call it per row, so this file is necessarily a second
+producer of one shape. That is why the projection is here once rather than in
+each query file: two producers is an accepted cost, three would be drift. The
+guard against drift is the shared taskCard schema.
 
 Three fragments live here for a sharper reason than reuse.
 
 - **The scope predicate is written once.** 6.1's proof of the partition
-  depends on Q2, Q3 and Q5 sharing the scope textually. **AC-070 was the property test
-  over that dependency and it no longer exists**, having gone in the 2026-09-20 cut; 06.1's
-  own dated correction says so in terms, and this fragment is what stands in for it. A copy per query is a copy that can drift, so
+  depends on Q2, Q3 and Q5 sharing the scope textually, and no test checks
+  it: this fragment is what holds it. A copy per query is a copy that can drift, so
   OPEN_SCOPE below is the sentence and the three queries add their own
   conjunct to it. Since issue #216 the two conjuncts are written here as
   well, SCHEDULED and ANYTIME, the second as the negation of the first: what
@@ -26,9 +22,8 @@ Three fragments live here for a sharper reason than reuse.
 - **The membership join is the 10.2 chokepoint**, and it is part of the FROM
   clause every query in this package builds on, so no query can be written
   here that forgets it.
-- **status_rank is one CASE**, over all three statuses since the P4 change
-  control of 2026-08-07 lifted Q8's completed = 2 into the section 6
-  preamble.
+- **status_rank is one CASE**, over all three statuses, as section 6's
+  preamble defines it.
 
 Everything else about a query, its predicate and its order, belongs to the
 query, because those are the sentences a reviewer compares to section 6 by
@@ -96,9 +91,7 @@ function toIso(value: unknown): string {
  * status_rank, section 6's preamble: pending = 0, abandoned = 1,
  * completed = 2.
  *
- * The third number entered the preamble at the P4 mid-package change control
- * on 2026-08-07, lifted out of Q8 so one definition serves every query.
- * Queries whose predicate admits only the open statuses never reach it, and
+ * One definition serves every query. Queries whose predicate admits only the open statuses never reach it, and
  * this expression is still the one they use, because a second CASE with two
  * arms is a second definition.
  */
@@ -184,9 +177,10 @@ fields, the assignee is the person shape 7.4's members element carries,
 is_recurring reports the rule the row holds, the two step counts are counts
 of 4.6 rows, pulled is the viewer's own My Day entry so one row answers it
 differently for two members, and pending_invite_email comes from
-invites.task_id, whose rows P5 writes and this package only reads.
+invites.task_id, whose rows the invites module writes and this one only
+reads.
 
-The last two arrived with RFC 0005 unit 12a. section_block_id is read
+section_block_id is read
 straight off 4.5's column, which is what makes the field the task's rather
 than the endpoint's: this projection serves the folder read and all eight
 section 6 queries alike, so a task placed under a section names it wherever
@@ -228,8 +222,7 @@ const CARD_COLUMNS = sql`
  * the second query cannot scope itself differently from the first.
  */
 export function accessibleTasks(viewerId: string): SQL {
-  // The folders join is part of the scope since RFC 0005, not merely a name
-  // source: section 6's implicit guard excludes trashed rows from every
+  // The folders join is part of the scope, not merely a name source: section 6's implicit guard excludes trashed rows from every
   // query, and a task in a trashed folder is unreachable while its folder
   // is (4.5). Written here once so no view can scope itself differently.
   return sql`
@@ -244,14 +237,14 @@ export function accessibleTasks(viewerId: string): SQL {
 
 /**
  * The FROM clause of every card query in this package, the chokepoint above
- * plus the four joins a 7.0 card is assembled from, five since RFC 0005 unit 12a.
+ * plus the five joins a 7.0 card is assembled from.
  *
  * The My Day entry is joined rather than probed by EXISTS because two things
  * need it: pulled, which 7.0 makes a field of the card, and added_on, which
  * 8.2 makes half of Q1's qualify_date. One join answers both, and INV-12's
  * primary key makes it at most one row.
  *
- * The creator's join is unit 12a's and is LEFT for one reason only: 4.5 makes
+ * The creator's join is LEFT for one reason only: 4.5 makes
  * created_by NOT NULL, so the row it points at always exists, and the null
  * this join can produce is 8.10's scrub, spelled here as the deleted_at
  * clause rather than as a case in the projection. It is a second join on the
@@ -357,8 +350,7 @@ export interface CardQuery {
  * endpoints, extend the existing batch assembly so all Task lists remain
  * bounded-query operations" — and it is here rather than in each of the eight
  * section 6 queries because this is the one place all of them pass through.
- * AC-474 drives a list endpoint with a recording executor and fails if the
- * statement count moves with the row count.
+ * The statement count must not move with the row count.
  */
 export async function readCards(
   executor: Executor,
@@ -396,8 +388,7 @@ export async function readCards(
  * these arrays empty; a caller that pushed into a card's `labels.folder`
  * would be writing into the default that every other missing row is about to
  * be given. Freezing makes that a TypeError at the write rather than a label
- * appearing on unrelated cards, which is the shape CLAUDE.md's opening note
- * warns about — a confident comment describing intent rather than behaviour.
+ * appearing on unrelated cards.
  */
 const noLabels = (): LabelRef[] => Object.freeze([] as LabelRef[]) as LabelRef[]
 const EMPTY_LABELS: TaskLabels = Object.freeze({

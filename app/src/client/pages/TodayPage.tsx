@@ -1,8 +1,7 @@
 /*
 9.4's Today, at /app/today.
 
-The page S10 redraws, and the v1 My Day it replaces is in git rather than
-beside it. What survives unchanged is the query, which never moved: 6 Q1 keeps
+It replaces v1's My Day. What survives unchanged is the query, which never moved: 6 Q1 keeps
 its logic and its criteria references and gained only a heading, "Today, open
 list (v1: My Day)".
 
@@ -16,8 +15,7 @@ honestly report: what was finished today out of what was on today.
 9.4: "the important-only narrowing is the window bar filter's important
 switch; the page's header carries no control of its own for it, because two
 controls for one variable forty pixels apart is how the two disagree."
-DES-150 records the same move and Imran's ruling that 9.4 was to be edited
-rather than the design bent back to it. `?state=important` seeds the filter,
+DES-150 records the same move. `?state=important` seeds the filter,
 which `usePlace` does for every page.
 
 **Grouping replaces this page's arrangement rather than nesting inside it**

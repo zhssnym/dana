@@ -173,12 +173,11 @@ export function emptyStanding(): ResponsibilityStanding {
  * The current Responsibility standing of every named member of one Folder,
  * in **one statement** however many members are named.
  *
- * The batching is the point rather than an optimization, and it is acceptance
- * proof 22. A projection that read one member at a time would be correct and
+ * The batching is the point rather than an optimization. A projection that read one member at a time would be correct and
  * would make the member list of a twenty-five-person Folder twenty-six
  * queries; the same shape then spreads to the panel, to the export and to
  * whatever reads them next. So the domain function takes a list and the route
- * passes one id, and AC-573 drives it with six members and counts statements.
+ * passes one id.
  *
  * The join to the history table is on the unique `(responsibility_id,
  * revision_no)` index and carries the current revision's own id, so a caller
@@ -309,10 +308,8 @@ async function recordResponsibilityTransition(
  * The Folder's Responsibility record, or one member's slice of it, **newest
  * first**, capped, and saying so when the cap cut.
  *
- * **Newest first and the flag are one decision, taken out of this branch's
- * second adversarial review and ruled on issue #230**
- * https://github.com/zhssnym/dana/issues/230#issuecomment-5754627068
- * **(Ruling 3, 2026-09-21).** Oldest-first with a silent cap is the worst of
+ * **Newest first and the flag are one decision (7.4, issue #230).**
+ * Oldest-first with a silent cap is the worst of
  * both: a member with more entries than the limit was served the *oldest*
  * page and told nothing, so the panel that wants "what changed lately"
  * rendered the first fortnight of a folder's life forever and looked correct
@@ -320,10 +317,9 @@ async function recordResponsibilityTransition(
  * and `truncated` is 10.3's list-response rule applied here rather than an
  * invention: a short list is never silently short.
  *
- * **The cap is 10.3's own and not a number of this route's**, which is the
- * rest of that ruling: `LIST_ROW_CAP` is imported rather than restated,
- * because 10.3's first row is a rule about list responses — `GET /labels`
- * took it on 2026-09-20 for that reason — and a second cap here would be the
+ * **The cap is 10.3's own and not a number of this route's**:
+ * `LIST_ROW_CAP` is imported rather than restated, because 10.3's first row
+ * is a rule about list responses, and a second cap here would be the
  * contract decision 10.3 says its table has not taken. `truncated` is
  * strictly `>`: a record holding exactly the cap is complete and says so.
  *
@@ -331,13 +327,13 @@ async function recordResponsibilityTransition(
  * answer is a thousand entries each carrying a document snapshot, bounded by
  * the 256 KiB content cap and by nothing else. A paged read, or a list shape
  * without `content` beside a per-revision body route, is the real answer and
- * is a contract decision for a later issue (same ruling).
+ * is a contract decision for a later issue.
  *
- * R9A's boundary applies here exactly as it does to Access history: #230 owns
+ * The same boundary applies here as to Access history: #230 owns
  * the truth of these records and makes them renderable by Folder History and
  * by a member-specific recent view. Filtering, search and grouping are the M2
  * History product's and are deliberately absent — inventing a query language
- * here is the duplication R9A warns about by name.
+ * here would duplicate it.
  *
  * This joins nothing to `folder_members`. An entry about somebody who has
  * left is the point rather than an edge case (proof 14), and the *reader's*
@@ -365,8 +361,7 @@ export async function responsibilityHistoryOf(
      second COUNT over the same predicate: if the extra row came back the cap
      cut, and it is dropped before anyone sees it. */
   /* **`ORDER BY h.effective_at DESC, h.id DESC` has no monotonic tie-break,
-     and that is deliberate rather than overlooked** (Ruling 5,
-     https://github.com/zhssnym/dana/issues/230#issuecomment-5754627068).
+     and that is deliberate rather than overlooked** (issue #230).
      `id` is a random uuid and carries no order, and `effective_at` defaults
      to transaction time, which is identical for every row one transaction
      writes — so two entries appended by one transaction for one member would
@@ -844,10 +839,8 @@ export interface MemberDetailsRow {
  * number of statements.
  *
  * Three statements for any number of members: the membership rows, their
- * assigned open Task counts, and `standingOf`'s single batched read. Acceptance
- * proof 22 is that this does not become one query per member, and AC-573
- * asserts it by counting statements through a wrapping executor rather than
- * by reading the code.
+ * assigned open Task counts, and `standingOf`'s single batched read. It must
+ * not become one query per member.
  *
  * It returns domain rows and not the wire shape. The two viewer-dependent
  * flags on the wire — may this viewer change the Access, may they change the

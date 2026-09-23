@@ -11,9 +11,8 @@ and 7.1's `DELETE /me`, whose body carries the literal the person typed and
 after which there is nothing left to navigate a signed-in client to.
 
 **Storage used against 10.3's quota is the one thing 9.7 names that is still
-not here**, and the reason is unchanged since S17b: nothing reports the total,
-and a label with an invented figure under it is worse than an absent label.
-RFC 0005 change control item 35(c) carries the escalation.
+not here**: nothing reports the total, and a label with an invented figure
+under it is worse than an absent label.
 */
 import { useNavigate } from 'react-router'
 

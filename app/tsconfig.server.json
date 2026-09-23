@@ -5,11 +5,11 @@
     "moduleResolution": "nodenext",
     "lib": ["es2023"],
     "types": ["node"],
-    // tests/guards/guard-gate-port.test.ts imports scripts/gate-port.mjs and
+    // Anything under tests/ that imports scripts/gate-port.mjs or
     // scripts/gate.mjs, which are plain JavaScript because node runs them with
-    // no build step. Without this the imports are implicit any and TS7016
-    // fails the typecheck; tsconfig.node.json carries the same line for
-    // playwright.config.ts's half of the same import.
+    // no build step, would otherwise see implicit any and TS7016 would fail
+    // the typecheck; tsconfig.node.json carries the same line for
+    // playwright.config.ts's import of gate-port.mjs.
     //
     // allowJs, not checkJs: those files are read for the types TypeScript can
     // infer from them rather than typechecked, which is what lets the port

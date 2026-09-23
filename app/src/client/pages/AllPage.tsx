@@ -3,12 +3,11 @@
 completed work carried in a collapsed section at the foot. Section labels are
 static."
 
-**The two halves stay and their names change, which is the rename AC-093 was
-waiting for.** 6 Q5 is untouched by RFC 0005 and still says how this page is
-drawn: "two stacked sections in one scroll, 'Planned' rendered exactly as Q3
+**The two halves keep Q5's shape under their current page names.** 6 Q5 says
+how this page is drawn: "two stacked sections in one scroll, 'Planned' rendered exactly as Q3
 orders it, then 'Tasks' rendered exactly as Q2 groups it. No third scheme
-exists." What RFC 0005 moved is the names of the pages those two halves belong
-to, Planned becoming Scheduled and Tasks becoming Anytime, and 9.1's regions
+exists." The pages those two halves belong to are now named Scheduled and
+Anytime, and 9.1's regions
 table says All's halves take "their two halves' regions as their home pages
 define them". So the sections are "Scheduled" and "Anytime", and the region
 holding the undated capture is addressable at last: AC-093's All row is that
@@ -64,9 +63,7 @@ const SPINE = PLACES.all
 /*
 The mark on a folder group's heading.
 
-It drew a literal folder in the folder's colour until S17a, which is the
-parity audit's "only the heading marks are missing" on a surface it otherwise
-scored PORTED. It draws that folder's own glyph now, through the one resolver
+It draws that folder's own glyph, through the one resolver
 every other surface asks (`parts/presenters.ts`), so a folder heading here and
 that folder's Library row and its task chips cannot disagree.
 */
@@ -94,8 +91,7 @@ function FolderGlyph({ folder }: { readonly folder: Folder | undefined }): React
  * quick-add from the folder groups beneath, and it is what lets a test say
  * which of several identically named quick-adds it means.
  *
- * **It carries a quick-add like every group on the page**, closed at the P8
- * change control: 9.1 places the control at the bottom of these groups and Q2
+ * **It carries a quick-add like every group on the page**: 9.1 places the control at the bottom of these groups and Q2
  * calls the first block ungrouped, which had left the one folder every account
  * has as the only one that could not be captured into.
  */
@@ -311,9 +307,7 @@ export function AllPage(): React.JSX.Element {
           {/* 9.5: "with completed work carried in a collapsed section at the
               foot". Q6's rows, not fetched until the section is opened.
 
-              Written inline here until S17b, when Important and Scheduled were
-              about to acquire a fourth and a fifth copy of it and the shared
-              one was extracted instead. This page passes no predicate, which
+              This page passes no predicate, which
               is the case `CompletedFoot` records as the reason the predicate
               is optional at all: Q5's union is the whole account, so All's
               foot is Q6 unnarrowed and a filter here would remove nothing. */}

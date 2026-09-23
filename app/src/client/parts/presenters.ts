@@ -1,41 +1,31 @@
 /*
-The seam between our API shapes and the designer's display props.
+The seam between our API shapes and the components' display props.
 
-RFC 0002 replaces what renders the data and nothing that fetches it, so this
-client now has two halves that were written against different objects. Ours
-answers 7.0: a `TaskCard` carrying `due_date` and `due_time`, a folder stub
-with an id, an assignee with an id, and two step counts. His components take
-what a row paints: a due label with a boolean beside it, a folder as a name
-and a colour with no id, an assignee as initials and a name, and steps as a
-done-and-total pair. This module is the whole of that mapping, and it exists
-as one file rather than as a helper beside each page because the two halves
-meet in exactly one place or they meet in six places that drift.
+Ours answers 7.0: a `TaskCard` carrying `due_date` and `due_time`, a folder stub
+with an id, an assignee with an id, and two step counts. The components take
+what a row paints: a due label with a boolean beside it, a folder as a name and
+a colour, an assignee as initials and a name, and steps as a done-and-total
+pair. This module is the whole of that mapping, and it exists as one file rather
+than as a helper beside each page because the two halves meet in exactly one
+place or they meet in six places that drift.
 
-**No acceptance criterion sees this file.** The criteria address rendered
-roles, names, regions and copy, and every one of them would still pass if a
-label here read the wrong date, because they assert that a due badge exists
-and never what it says. That is why the module is pure and unit-tested here:
-these tests are the only thing that checks it.
+**No acceptance criterion sees this file.** The criteria address rendered roles,
+names, regions and copy, and would still pass if a label here read the wrong
+date, because they assert that a due badge exists and never what it says. That
+is why the module is pure and unit-tested here: these tests are the only thing
+that checks it.
 
 **Nothing here reads a clock.** `api/tz.ts` is the only place this client
 evaluates a date, and its own header says so; `presenterToday()` below is a
-one-line pass-through to it, and every function that needs today takes it as
-an argument. That keeps the module a function of its inputs, which is what
-makes a due label testable at all, and it keeps the answer the same one the
-`tz` parameter on the request that fetched the row was computed against.
+one-line pass-through to it, and every function that needs today takes it as an
+argument. That keeps the module a function of its inputs, which is what makes a
+due label testable at all, and it keeps the answer the same one the `tz`
+parameter on the request that fetched the row was computed against.
 
-**Three orderings that look like they belong here do not.** His prototype
-carries `plannedServerOrder`, `importantServerOrder` and `doneGroups`, because
-his screens run on `fixtures.ts` and have no server. Ours are fixed by section
-6 and arrive already ordered, section 6's own sentence being "every view
-returns rows already ordered; clients never re-sort", and 7.11 makes a rule
-that exists only in the client a specification violation. None of the three is
-ported and none should be.
-
-What this module deliberately does not carry, so that a later session does not
-go looking: the shapes of his `task-form`, `search-overlay`, `sharing-panel`
-and `app-sidebar` are not mapped, because those components arrive at R5 to R9
-and a mapping written against props that do not exist yet is a guess.
+**No orderings live here.** Section 6 fixes every view's order and rows arrive
+already ordered, section 6's own sentence being "every view returns rows already
+ordered; clients never re-sort", and 7.11 makes a rule that exists only in the
+client a specification violation.
 */
 import { todayInBrowserZone } from '../api/tz.js'
 import { markIcon } from '../components/page/icon-manifest.js'
@@ -78,38 +68,29 @@ The wording, derived rather than copied.
 due_date D is due today when D = today(V), overdue when D < today(V), future
 when D > today(V)". So a label has three forms and no more.
 
-**The overdue form is restricted to pending rows, and that restriction is
-Q3C's sentence rather than a nicety:** "Pending renders normal (overdue styled
-on past dates), completed faded and checked, abandoned faded and struck". A
-finished task's date is history and the alert on it would be an alarm about
-something already dealt with; the designer's own state lab agrees, its
-STATE-03 completed row carrying "Due 9 Aug" on a date before its fixture's
-today while STATE-02 carries "Overdue · 6 Aug".
+**The overdue form is restricted to pending rows, and that restriction is Q3C's
+sentence rather than a nicety:** "Pending renders normal (overdue styled on past
+dates), completed faded and checked, abandoned faded and struck". A finished
+task's date is history and the alert on it would be an alarm about something
+already dealt with.
 
-**The format is the design's and this specification says so in as many
-words.** 9.1's sections paragraph: "the format of a date is the design's and
-this section has never spelled one". What the design gives is the literal
-strings its rows show, "Due today", "Due 14 Aug" and "Overdue · 6 Aug", read
-off the running prototype rather than off a formatter, because it has no
-formatter: every due label in `fixtures.ts` and in `shell-page.tsx` is a
-hand-written string. There was therefore nothing to port and the rule below is
-this session's, built to reproduce those strings exactly.
+**The format is the design's.** 9.1's sections paragraph: "the format of a date
+is the design's and this section has never spelled one". The strings are "Due
+today", "Due 14 Aug" and "Overdue · 6 Aug", and the rule below reproduces them
+exactly.
 
-**The time is carried when the row has one, on Q4's sentence:** dated rows
-"show due date and time like a Planned row", to minute precision because that
-is 4.11's. **On the viewer's own clock since S17b**, where this read "24-hour
-notation, per the corpus-wide convention": that convention is this
-repository's for its documents, and 9.7 gives the person the choice for their
+**The time is carried when the row has one, on Q4's sentence:** dated rows "show
+due date and time like a Planned row", to minute precision because that is
+4.11's, **on the viewer's own clock**: 9.7 gives the person the choice for their
 rows. The notation therefore arrives on the context rather than being decided
 here, and a fresh account reads 12-hour, which is `lib/time-format.ts`'s
-default and Imran's ruling of 2026-08-18.
+default.
 
-**The month names are a fixed table and not `Intl`.** A locale-driven
-formatter renders "août" on a French browser beside section 9's English copy,
-and this machine's own tooling answers in French; the design's screens are
-English and section 9's strings are normative English. A table also makes the
-function total: it constructs no `Date`, so it cannot read a clock, cannot
-shift a civil date across a zone, and cannot depend on an ICU version.
+**The month names are a fixed table and not `Intl`.** A locale-driven formatter
+renders "août" on a French browser beside section 9's English copy; section 9's
+strings are normative English. A table also makes the function total: it
+constructs no `Date`, so it cannot read a clock, cannot shift a civil date
+across a zone, and cannot depend on an ICU version.
 */
 
 /** 4.11's YYYY-MM-DD split into its three integers, with no `Date` involved. */
@@ -167,14 +148,10 @@ export function formatDueDate(dueDate: string, today: string): string {
  * The column is rendered by Postgres as HH:MM:SS and read tolerantly by the
  * shared shape, so the seconds are dropped here rather than assumed absent.
  *
- * **It was fixed at 24-hour until S17b, and that was the clock preference's
- * missing half.** `lib/time-format.ts` has been "the one place a time becomes
- * words" since S11 and this was a second place, invisible because the two
- * agreed whenever a person had not chosen: 12-hour is that module's default
- * and this was not it, so a fresh account read 17:30 on its rows and 5:30 PM
- * in its pickers. 9.7 names the control, S17b built it, and a control that
- * changed the picker and left every row alone would be a setting nobody could
- * see, which is the defect item 30 records one level up.
+ * `lib/time-format.ts` is the one place a time becomes words, and this follows
+ * it: a row and a picker must not disagree about 17:30 and 5:30 PM, and a clock
+ * setting that changed the picker and left every row alone would be a setting
+ * nobody could see.
  */
 function formatDueTime(dueTime: string, clock: TimeFormat): string {
   const match = /^(\d{2}):(\d{2})/.exec(dueTime)
@@ -239,12 +216,9 @@ export const DELETED_USER = 'Deleted user'
 /**
  * The initials an avatar shows, from the name beside it.
  *
- * The specification is silent on initials at every section, so this is the
- * design's: brief section 6 gives an assigned row "a small avatar chip with
- * their name", and the running prototype renders "S" beside "Sara" and "IH"
- * for a two-word name. So: the first letter of the first word, plus the first
- * letter of the last word when there is more than one, upper-cased, never more
- * than two.
+ * The specification is silent on initials, so this is the design's: the first
+ * letter of the first word, plus the first letter of the last word when there
+ * is more than one, upper-cased, never more than two ("S" beside "Sara").
  *
  * Taken from the rendered name rather than from the record, so the two can
  * never disagree: a deleted author's chip reads "DU" beside "Deleted user"
@@ -268,16 +242,12 @@ export function initialsOf(name: string): string {
 export type AssigneeDisplay = NonNullable<TaskRowProps['assignee']>
 
 /*
-A person as his components take one, from 7.0's person shape.
+A person as the components take one, from 7.0's person shape.
 
-**The picture is the default and the initials are the fallback, since the
-polish round of 2026-08-30.** This function answered a name and initials and
-dropped `avatar_url` on the floor, which made the tinted disc the *only* thing
-a list row could ever draw: every card on the wire has carried the column
-since 4.1, `components/person-face.tsx` has taken an `image` since S17a, and
-`tasks/task-concept.ts` was passing one — so a person's own photograph appeared
-on a card and on a board and vanished the moment the same person was drawn on
-a row. One seam, one omission, every list view in the product.
+**The picture is the default and the initials are the fallback.** Every card on
+the wire carries `avatar_url`, and `components/person-face.tsx` takes an
+`image`, so a person's own photograph appears on a row exactly as on a card and
+on a board.
 
 `avatar_url` is optional in the parameter rather than required, because two
 callers pass a shape that genuinely has no such column: `lib/history.ts` reads
@@ -307,10 +277,8 @@ export function personDisplay(person: {
  * value is shared data read by every member in every colourway, and this side
  * draws it, where a token is what follows the viewer's theme.
  *
- * **Rewritten at S17a**, where it read "the dot's colour ... a folder's real
- * colour is 7.4's `my_color`". 9.6 retires that column from every v2 surface
- * in terms, so this is the fallback for a null 4.3 identity colour and no
- * longer for a null personal one.
+ * This is the fallback for a null 4.3 identity colour; 7.4's `my_color` is not
+ * read by any surface here (9.6).
  */
 export const DEFAULT_FOLDER_COLOR = 'var(--color-graphite-900)'
 
@@ -320,28 +288,22 @@ export type FolderDisplay = NonNullable<TaskRowProps['folder']>
 /*
 One resolver for a folder's mark, and every surface asks it.
 
-**This is the mechanism S17a exists to fix, and the designer's own header
-warns it will recur.** DES-130 put a folder's identity in 4.3's shared columns
-and only the surfaces written *after* that ruling ever read it, so the folder
-page and the shelf row drew the glyph a person picked while the sidebar drew a
-colour dot, the task row a literal folder and the tab menu a generic icon.
-Imran, 2026-08-22: "This thing needs consistency not only in Assignments page,
-in all task rows wherever they might be." An identity that only some surfaces
-honour is not an identity; it is a decoration on one screen.
+A folder's identity lives in 4.3's shared columns, and an identity that only
+some surfaces honour is not an identity; it is a decoration on one screen. So
+the sidebar, the task row, the tab menu and the folder page all draw the glyph a
+person picked through this one function.
 
-**A folder with no chosen glyph still answers the plain folder**, which is why
-this can replace the literal safely: the default is the thing it is replacing.
-`markIcon` is `components/page/icon-manifest.ts`'s, the manifest that already
-joins 4.3's forty-two keys to their drawings for the picker and for the folder
-page's own mark, so there is one glyph table as well as one resolver.
+**A folder with no chosen glyph answers the plain folder.** `markIcon` is
+`components/page/icon-manifest.ts`'s, the manifest that joins 4.3's forty-two
+keys to their drawings for the picker and for the folder page's own mark, so
+there is one glyph table as well as one resolver.
 
-**It is a value rather than a hook**, and the difference is at the call sites:
-a row's chip takes a component and a colour as props and the shell's tab face
+**It is a value rather than a hook**, and the difference is at the call sites: a
+row's chip takes a component and a colour as props and the shell's tab face
 takes them somewhere else, so a component that could only be rendered whole
-would have forced each of them to be rewritten around it. That is the
-designer's own reason for exporting `useFolderMark` rather than a component.
-Here the store is the `/folders` read the chrome already made, so the lookup is
-by id against a list the caller is holding, and nothing in this module fetches.
+would force each of them to be rewritten around it. Here the store is the
+`/folders` read the chrome already made, so the lookup is by id against a list
+the caller is holding, and nothing in this module fetches.
 */
 export interface FolderMark {
   readonly icon: LucideIcon
@@ -356,17 +318,16 @@ export function folderMark(folder: Folder | undefined): FolderMark {
 }
 
 /**
- * A shelf's mark, through the same resolver, added at S17b when shelves
- * reached the Library.
+ * A shelf's mark, through the same resolver.
  *
- * 4.18 gives a shelf the same two identity columns 4.3 gives a folder, an
- * icon key and a colour, and 9.10 calls the shelf "the folder page one level
- * up" with "a mark (icon and colour)" of its own. So the resolution is the
- * same resolution and this is a second signature rather than a second
+ * 4.18 gives a shelf the same two identity columns 4.3 gives a folder, an icon
+ * key and a colour, and 9.10 calls the shelf "the folder page one level up"
+ * with "a mark (icon and colour)" of its own. So the resolution is the same
+ * resolution and this is a second signature rather than a second
  * implementation: one glyph table, one default, and a shelf that has chosen
  * nothing answering the plain glyph exactly as a folder does. Writing
- * `markIcon(shelf.icon)` at the sidebar's call site would have been shorter
- * and would have been the second resolver DES-130 exists to prevent.
+ * `markIcon(shelf.icon)` at the sidebar's call site would be shorter and would
+ * be a second resolver.
  */
 export function shelfMark(shelf: {
   readonly icon: string | null
@@ -396,24 +357,20 @@ export function folderDisplay(
   const folder = folders.find((candidate) => candidate.id === stub.id)
   const mark = folderMark(folder)
   /*
-  **Seam, S23: the mark leaves this trio and the id joins it.**
+  **The mark is not in this trio; the id is.**
 
-  The v2 row resolves a folder's glyph itself, through
-  `components/folder-mark.tsx`, which is the designer's own arrangement and
-  his own reason for it: "the call sites need the two values separately, the
-  row's chip takes `icon` and `color` as props, the card takes them somewhere
-  else, and a component that could only be rendered whole would have forced
-  each of them to be rewritten around it." A mark passed in here would be a
-  second answer to a question that surface already asks, which is the fault
-  DES-130 names and this module's own header repeats.
+  The row resolves a folder's glyph itself, through
+  `components/folder-mark.tsx`, because the call sites need the two values
+  separately: the row's chip takes `icon` and `color` as props, the card takes
+  them somewhere else. A mark passed in here would be a second answer to a
+  question that surface already asks.
 
-  What the row cannot resolve for itself is the id, because 7.0's folder stub
-  carries one and `TaskRowProps['folder']` did not until this row widened it.
-  Two things on the surface need it: the assignee menu, whose roster is 4.4's
-  members of that folder, and every write that moves a task.
+  What the row cannot resolve for itself is the id, which 7.0's folder stub
+  carries. Two things on the surface need it: the assignee menu, whose roster is
+  4.4's members of that folder, and every write that moves a task.
 
-  `folderMark` stays exported and unchanged. The sidebar, the tab face and the
-  shelf row all still ask it, and none of them is a lifted surface.
+  `folderMark` stays exported. The sidebar, the tab face and the shelf row all
+  ask it.
   */
   return {
     id: stub.id,
@@ -429,14 +386,12 @@ export type FolderRowDisplay = Pick<
 >
 
 /**
- * One folder as his sidebar row takes it.
+ * One folder as the sidebar row takes it.
  *
  * `pending` is 8.11's pending tally, which 7.4 already puts on the Folder
- * object, and `href` is 9.1's routes table read through `routes.ts` rather
- * than spelled again here. AC-175 names the row as a link to this path, and
- * AC-243 its mark as the one that folder's own page draws. Neither has a test
- * file since the 2026-09-20 cut, which is worth knowing in this file above all:
- * `docs/workflow/hard-stops.md` already names it as one no criterion reads.
+ * object, and `href` is 9.1's routes table read through `routes.ts` rather than
+ * spelled again here. AC-175 names the row as a link to this path, and AC-243
+ * its mark as the one that folder's own page draws.
  */
 export function folderRowDisplay(folder: Folder): FolderRowDisplay {
   const mark = folderMark(folder)
@@ -450,27 +405,28 @@ export function folderRowDisplay(folder: Folder): FolderRowDisplay {
 }
 
 /*
-The one place his model is keyed by a name and ours is keyed by an id.
+The one place the components' model is keyed by a name and ours is keyed by an
+id.
 
-9.1 makes a folder group "the label of 7.4's my-membership and nothing else",
-so a group is a string on both sides and needs no bridge. His
-`FolderGroupDialog` is the exception: it takes `folders` as `{name, color,
-label}` and hands back `onSubmit(label, folderNames)`, so the folders a group
-is being written onto come back as display names, while the write is PATCH
-/folders/:id/my-membership and needs ids.
+9.1 makes a folder group "the label of 7.4's my-membership and nothing else", so
+a group is a string on both sides and needs no bridge. `FolderGroupDialog` is
+the exception: it takes `folders` as `{name, color, label}` and hands back
+`onSubmit(label, folderNames)`, so the folders a group is being written onto
+come back as display names, while the write is PATCH /folders/:id/my-membership
+and needs ids.
 
 **Folder names are not unique and 4.3 does not make them so.** Its only unique
-index is one Inbox per account; two folders a person can see may carry the
-same name, one their own and one shared with them. So the resolution below is
-one name to every id that carries it, deliberately, and a caller writing a
-label through it writes it to all of them. That is the honest reading of a
-choice the person made by pointing at a name: the alternative, picking one of
-two identically labelled rows, writes to a folder they did not choose and
-gives them no way to tell which. Recorded in the session report as a real
-limitation of his dialog's shape rather than as a defect in either half.
+index is one Inbox per account; two folders a person can see may carry the same
+name, one their own and one shared with them. So the resolution below is one
+name to every id that carries it, deliberately, and a caller writing a label
+through it writes it to all of them. That is the honest reading of a choice the
+person made by pointing at a name: the alternative, picking one of two
+identically labelled rows, writes to a folder they did not choose and gives them
+no way to tell which. It is a limitation of the dialog's shape rather than a
+defect in either half.
 */
 
-/** Every folder as his group dialog lists one. */
+/** Every folder as the group dialog lists one. */
 export function folderGroupOptions(
   folders: readonly Folder[],
 ): FolderGroupOption[] {
@@ -498,18 +454,18 @@ export function folderIdsForNames(
 
 /**
  * The personal labels in use, ascending, which is 9.1's own order for the
- * sidebar's groups and his `groupLabels` and `existingLabels` props.
+ * sidebar's groups, and the `groupLabels` and `existingLabels` props.
  *
- * `localeCompare` rather than a code-unit sort: 9.1 says "labels ascending"
- * and spells no collation, and a person's own label is free text they wrote.
+ * `localeCompare` rather than a code-unit sort: 9.1 says "labels ascending" and
+ * spells no collation, and a person's own label is free text they wrote.
  *
- * **The shelves join the labels at S17b**, and the two callers are why it is
- * one list rather than two. This feeds the "Move to shelf" submenu, which has
- * to offer a shelf holding nothing or a person can never put the first folder
- * on one; and it feeds the group dialog's duplicate check, which has to refuse
- * a name a shelf already carries or the create below it hits 7.16's own
- * refusal with a message about groups. 4.18 makes them one namespace, a
- * shelf's name being its folders' label, so a union is what that namespace is.
+ * **The shelves join the labels**, and the two callers are why it is one list
+ * rather than two. This feeds the "Move to shelf" submenu, which has to offer a
+ * shelf holding nothing or a person can never put the first folder on one; and
+ * it feeds the group dialog's duplicate check, which has to refuse a name a
+ * shelf already carries or the create below it hits 7.16's own refusal with a
+ * message about groups. 4.18 makes them one namespace, a shelf's name being its
+ * folders' label, so a union is what that namespace is.
  */
 export function folderGroupLabels(
   folders: readonly Folder[],
@@ -573,8 +529,9 @@ export interface InviteRowDisplay {
   readonly inviter: string
   /** The inviter's initials, for the row's avatar. */
   readonly initials: string
-  /** 7.15's picture, which 7.5's element has always carried beside the name
-      and this row drew nothing with until the polish round of 2026-08-30. */
+  /**
+   * 7.15's picture, which 7.5's element carries beside the name.
+   */
   readonly image?: string
   /** Whether this invite grants a folder, which 7.5's null discriminates. */
   readonly isFolder: boolean
@@ -679,15 +636,11 @@ export interface RowContext {
 }
 
 /**
- * The display half of his task row: everything but the callbacks.
+ * The display half of the task row: everything but the callbacks.
  *
- * It used to read "everything but the callbacks and the visual-state props his
- * state lab drives", and the second half went with those props at S11: nothing
- * in this client ever drove them, which is DES-184 one axis over.
- *
- * Written as a `Pick` of his own interface rather than as a fresh shape, so a
- * prop that changes name or type in `task-row.tsx` fails the typecheck here
- * instead of silently going unmapped.
+ * Written as a `Pick` of the row's own interface rather than as a fresh shape,
+ * so a prop that changes name or type in `task-row.tsx` fails the typecheck
+ * here instead of silently going unmapped.
  */
 export type TaskRowDisplay = Pick<
   TaskRowProps,
@@ -708,19 +661,19 @@ export type TaskRowDisplay = Pick<
 
 /*
 Q4's outward tooltip uses the current page names: "Also in Scheduled, due
-2026-07-28" for a dated row and "Also in Anytime, in Work" for an undated one. The date is
-rendered as the card carries it, which is the form Q4's example writes and
-therefore the one place in this file where a date is not the design's format.
+2026-07-28" for a dated row and "Also in Anytime, in Work" for an undated one.
+The date is rendered as the card carries it, which is the form Q4's example
+writes and therefore the one place in this file where a date is not the design's
+format.
 
-**The split is Scheduled's membership and not the due date's presence, since
-issue #216, and it read `due_date === null` until 2026-09-20.** Q4's two
-blocks are Q3's and Q2's membership - its own sentence says the first shows
-rows "like a Scheduled row" and the second "like an Anytime row" - so a
-Start-only row sits in the Scheduled block, and a tooltip that read the due
-date alone told a person their row was "Also in Anytime" while the same page
-was drawing it above the boundary. A Start-only row therefore names the fact
-its home would show, which is its Start Date: Q4's third form, "Also in
-Scheduled, starts 2026-09-28".
+**The split is Scheduled's membership and not the due date's presence** (issue
+#216). Q4's two blocks are Q3's and Q2's membership - its own sentence says the
+first shows rows "like a Scheduled row" and the second "like an Anytime row" -
+so a Start-only row sits in the Scheduled block, and a tooltip that read the due
+date alone would tell a person their row was "Also in Anytime" while the same
+page drew it above the boundary. A Start-only row therefore names the fact its
+home would show, which is its Start Date: Q4's third form, "Also in Scheduled,
+starts 2026-09-28".
 */
 function importantTooltipFor(
   task: Pick<TaskCard, 'important' | 'start_date' | 'due_date' | 'folder'>,
@@ -747,14 +700,10 @@ derives it; today here is the same civil date the request that fetched the row
 carried, so the two agree by construction. The residual is a midnight crossed
 between fetch and render, which the next refetch of 8.3 corrects.
 
-**The date is `coalesce(start_date, due_date)` since issue #217, and this
-function read `due_date` alone until 2026-09-20 while the comment above
-already claimed to mirror Q1's clause.** The clause moved on the server and
-this did not, so a task assigned to the viewer that started three days ago
-and is due next week qualified automatically on the page and not here: the
-un-pull control was drawn on it, and pressing it deleted the entry and left
-the row where it was, which is the exact promise the paragraph above says the
-control must never make.
+**The date is `coalesce(start_date, due_date)`** (issue #217), mirroring Q1's
+clause on the server: a task assigned to the viewer that started three days ago
+and is due next week qualifies automatically, and must not be offered an un-pull
+that would delete the entry and leave the row where it was.
 */
 function qualifiesAutomatically(
   task: Pick<TaskCard, 'assignee' | 'start_date' | 'due_date'>,
@@ -771,11 +720,11 @@ function qualifiesAutomatically(
 }
 
 /**
- * One 7.0 `TaskCard` as his `TaskRow` takes it.
+ * One 7.0 `TaskCard` as `TaskRow` takes it.
  *
  * The only function in this file a page calls per row, and the reason the
- * others are exported anyway is that the folder page, the sharing panel and
- * the task form need the same pieces without a card in hand.
+ * others are exported anyway is that the folder page, the sharing panel and the
+ * task form need the same pieces without a card in hand.
  */
 export function taskRowDisplay(task: TaskCard, context: RowContext): TaskRowDisplay {
   const {
@@ -829,12 +778,11 @@ export function taskRowDisplay(task: TaskCard, context: RowContext): TaskRowDisp
     /*
     9.5's from half, drawn where the page asks for it.
 
-    The name is the creator's own and never a fallback to the viewer: 4.5
-    makes `created_by` NOT NULL, so a card with no creator on the wire is a
-    response older than RFC 0005 unit 12a rather than a task nobody made, and
-    the honest drawing of that is no chip. `DELETED_USER` covers the other
-    case, an account that has since gone, which 7.4 already answers with a
-    stub carrying a null display name.
+    The name is the creator's own and never a fallback to the viewer: 4.5 makes
+    `created_by` NOT NULL, so a card with no creator on the wire is an old
+    response rather than a task nobody made, and the honest drawing of that is
+    no chip. `DELETED_USER` covers the other case, an account that has since
+    gone, which 7.4 already answers with a stub carrying a null display name.
     */
     createdBy:
       showCreator && task.created_by !== null
@@ -846,28 +794,23 @@ export function taskRowDisplay(task: TaskCard, context: RowContext): TaskRowDisp
         ? undefined
         : { complete: task.steps_done, total: task.steps_total },
     /*
-    Never set, and the omission is a request rather than an oversight.
+    Never set, deliberately.
 
-    The brief's state table asks a repeating row for "a small repeat glyph",
-    and his `task-row.tsx` renders that glyph only when `recurrence` carries
-    the rule as prose, announcing it as `Repeats {recurrence}`. Frozen 7.0
-    gives a card `is_recurring: boolean` and puts `recurrence_rule` on
-    TaskDetail alone, so nothing this function receives can fill that string,
-    and the two values that would fill it are both wrong: a rule invented here
-    is copy no numbered section carries, which RFC 0002 names as this
-    package's most likely failure, and a placeholder renders "Repeats" twice
-    over or once ungrammatically.
+    `task-row.tsx` renders the repeat glyph only when `recurrence` carries the
+    rule as prose, announcing it as `Repeats {recurrence}`. 7.0 gives a card
+    `is_recurring: boolean` and puts `recurrence_rule` on TaskDetail alone, so
+    nothing this function receives can fill that string, and the two values that
+    would fill it are both wrong: a rule invented here is copy no numbered
+    section carries, and a placeholder renders "Repeats" twice over or once
+    ungrammatically.
 
     So the glyph is absent until `task-row.tsx` admits the boolean it can
-    actually be given. That file is the Component and Design System
-    engineer's; the request is in the session report with this reasoning, and
-    the visual review of section 13 item 33 is where the missing glyph shows.
+    actually be given.
     */
-    /* polish: places F8. The inline card built from this row said "Does not
-       repeat" over a task the panel beside it called weekly, because this
-       was never set. The card cannot know the rule from a row (7.0 puts it
-       on the detail alone), so the word is the fact the row does carry:
-       that it repeats. */
+    /* The inline card built from this row must not say "Does not repeat" over a
+       weekly task. The card cannot know the rule from a row (7.0 puts it on the
+       detail alone), so the word is the fact the row does carry: that it
+       repeats. */
     recurrence: task.is_recurring ? 'Repeats' : undefined,
   }
 }

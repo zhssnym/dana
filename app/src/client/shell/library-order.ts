@@ -2,83 +2,65 @@
 The Library's one ordered column, and how a person's arrangement of it is
 written down.
 
-DES-171: "an alphabet is a reasonable first arrangement and a poor permanent
-one, because the folders somebody reaches for hourly are not the ones whose
-names begin with A." So 9.1 gives the Library "one ordered list", "the order
-is the viewer's own, seeded alphabetically and rearranged by dragging". Two
-sentences from that decision are what this module implements, and they pull in
-opposite directions until they are written out:
+An alphabet is a reasonable first arrangement and a poor permanent one, because
+the folders somebody reaches for hourly are not the ones whose names begin with
+A. So 9.1 gives the Library "one ordered list", "the order is the viewer's own,
+seeded alphabetically and rearranged by dragging". Two rules follow, and they
+pull in opposite directions until they are written out:
 
 - **The directory is one list, not two.** Groups and loose folders share a
-  column, so a person moving things in that column is arranging one sequence.
-  A model that kept them apart would have to refuse the obvious drag, a loose
+  column, so a person moving things in that column is arranging one sequence. A
+  model that kept them apart would have to refuse the obvious drag, a loose
   folder above a group, for a reason that exists only in the code.
 - **Nothing is stored until somebody drags something.** A sidebar nobody has
-  touched reads exactly as it did, which is what keeps AC-155 green: Inbox
-  pinned first, the labelled folders grouped by label ascending, the unlabelled
-  after them by name ascending. That order is the *seed* of this column and not
-  a separate arrangement, which is the whole reason the two can coexist.
+  touched reads as the seed, which is what AC-155 asserts: Inbox pinned first,
+  the labelled folders grouped by label ascending, the unlabelled after them by
+  name ascending. That order is the *seed* of this column and not a separate
+  arrangement, which is the whole reason the two can coexist.
 
-**The store is a flat sequence of folder ids, and that is a decision worth the
-paragraph.** `patchSettingsBody.sidebar_order` is `z.array(z.uuid()).max(300)`,
-so an entry it can name has to have a uuid, and a group in today's Library is
-`folder_members.shelf_name`: a string, with no id of its own. The designer's
-prototype stores entries and a per-group sequence, which needs both, and
-writing that shape here would need 4.19's column to change, which is S7's file
-and a frozen-adjacent contract this package has no business widening.
+**The store is a flat sequence of ids.** `patchSettingsBody.sidebar_order` is
+`z.array(z.uuid()).max(300)`, so an entry it can name has to have a uuid. A
+group is drawn as a block, so its folders are always adjacent in the column, and
+a column whose groups are contiguous runs is losslessly encoded by the flat
+folder sequence alone: a group's position is the position of its first folder,
+and the folders inside it are the run. So the arrangement round trips through
+the column the settings bundle already has, without widening 4.19.
 
-It does not need to. A group is drawn as a block, so its folders are always
-adjacent in the column, and a column whose groups are contiguous runs is
-losslessly encoded by the flat folder sequence alone: a group's position is
-the position of its first folder, and the folders inside it are the run. So
-the arrangement round trips through the column the settings bundle already
-has, and the finding raised at S11 is that the two models look different
-rather than that either is short.
-
-**A group is a shelf, since S17b, and the sentence this replaces was true when
-it was written and is not now.** It read: "the one thing the encoding cannot
-hold is a group with no folders in it, and no such thing exists, a group being
-the label its folders carry and nothing else (9.1)." 7.16 falsified the second
-half. `POST /shelves` writes a `shelves` row and labels no folder, so a shelf
-holding nothing is now an ordinary thing to have, and the audit's addendum
-demonstrated the consequence live: a shelf created through 7.16 renders its own
-page and **is absent from the Library after a full reload**. 9.1 is what the
-model owed all along, "the Library holds the viewer's shelves and folders as
-one ordered list", and 4.18 is what makes the join possible: a shelf's
-membership *is* `folder_members.shelf_name`, held in step with the shelf's own name
-by the server in one transaction, so a label and a shelf name are two views of
-one string rather than two facts to reconcile.
+**A group is a shelf.** 9.1: "the Library holds the viewer's shelves and folders
+as one ordered list", and 4.18 is what makes the join possible: a shelf's
+membership *is* `folder_members.shelf_name`, held in step with the shelf's own
+name by the server in one transaction, so a label and a shelf name are two views
+of one string rather than two facts to reconcile. A shelf holding nothing is an
+ordinary thing to have (`POST /shelves` labels no folder), and it must still
+appear in the Library.
 
 Three consequences, each a decision rather than a deduction:
 
-- **Every shelf is a group, whether or not a folder carries its label**, so
-  the Library draws the shelves a person has rather than the labels their
-  folders happen to spell. `seedColumn` takes the shelves beside the folders
-  and unions the two.
-- **A label with no shelf row is still a group.** Accounts labelled before
-  7.16 existed carry labels no `shelves` row names, and dropping those rows
-  from the column would empty a person's Library to fix a model. Such a group
-  has no page and no mark; it is a shelf that has not been made yet, and it
-  behaves exactly as it did.
-- **An empty group is no longer filtered out of a move.** `moveFolderTo` used
-  to drop a group its last folder left, on the sentence above. Now a shelf
-  outlives its folders, because the shelf is the thing and the label is its
-  membership, so only a *labelless* group, one no shelf row names, disappears
-  when it empties.
+- **Every shelf is a group, whether or not a folder carries its label**, so the
+  Library draws the shelves a person has rather than the labels their folders
+  happen to spell. `seedColumn` takes the shelves beside the folders and unions
+  the two.
+- **A label with no shelf row is still a group.** Accounts labelled before 7.16
+  existed carry labels no `shelves` row names, and dropping those rows from the
+  column would empty a person's Library to fix a model. Such a group has no page
+  and no mark; it is a shelf that has not been made yet.
+- **A shelf outlives its folders.** `moveFolderTo` keeps a shelf its last folder
+  left, because the shelf is the thing and the label is its membership; only a
+  *labelless* group, one no shelf row names, disappears when it empties.
 
-**The stored sequence still cannot rank an empty shelf and does not need to.**
+**An empty shelf unranked by the sequence keeps its seeded place.**
 `arrangeColumn` ranks a group by the first of its folders the sequence names,
-and a group with no folders has no such rank, so it takes `MAX_SAFE_INTEGER`
-and the stable sort leaves it exactly where the seed put it, which is
-alphabetical among the shelves. That is the right answer rather than a
-fallback: nobody has dragged it, so nothing has said where it goes.
+and a group with no folders has no such rank, so it takes `MAX_SAFE_INTEGER` and
+the stable sort leaves it exactly where the seed put it, which is alphabetical
+among the shelves. That is the right answer rather than a fallback: nobody has
+dragged it, so nothing has said where it goes.
 
 **The rank is applied as a stable sort over the seed, never as a sort of its
 own.** Every entry the stored sequence does not name ranks last, and what
-decides those is the order they were already in, which is AC-155's. A
-comparator that fell back to comparing names would interleave a group's label
-with a folder's name and take that criterion red the moment anybody dragged
-anything, which is a seeded order quietly becoming an arrangement.
+decides those is the order they were already in, which is AC-155's. A comparator
+that fell back to comparing names would interleave a group's label with a
+folder's name and break that order the moment anybody dragged anything, which is
+a seeded order quietly becoming an arrangement.
 */
 
 import type { Folder } from '../../shared/folders.js'
@@ -221,11 +203,11 @@ function stableBy<T>(items: readonly T[], rank: (item: T) => number): T[] {
  * The seeded column rearranged by a stored sequence.
  *
  * A group ranks by the first of its folders the sequence names, which is what
- * makes a run of folder ids stand for the block that draws them. Everything
- * the sequence does not name keeps its seeded place, which is DES-171's
- * "the stored sequence is the authority for the entries it names and the
- * alphabet places the rest": a folder made tomorrow has a defined home
- * without anybody having had to decide where new things go.
+ * makes a run of folder ids stand for the block that draws them. Everything the
+ * sequence does not name keeps its seeded place: the stored sequence is the
+ * authority for the entries it names and the alphabet places the rest, so a
+ * folder made tomorrow has a defined home without anybody having had to decide
+ * where new things go.
  */
 export function arrangeColumn(
   folders: readonly Folder[],
@@ -240,10 +222,10 @@ export function arrangeColumn(
       folders: stableBy(entry.folders, (folder) => rankOf(stored, folder.id)),
     }
   })
-  /* polish: sidebar F6. A shelf ranks by its own id where the sequence
-     names it, so an empty shelf keeps the place it was given rather than
-     sinking below everything the sequence names the moment anything moves;
-     a shelf the sequence does not name still ranks by its first folder. */
+  /* A shelf ranks by its own id where the sequence names it, so an empty shelf
+     keeps the place it was given rather than sinking below everything the
+     sequence names the moment anything moves; a shelf the sequence does not
+     name still ranks by its first folder. */
   return stableBy(arranged, (entry) =>
     entry.kind === 'folder'
       ? rankOf(stored, entry.folder.id)
@@ -259,24 +241,21 @@ export function arrangeColumn(
  * The column with one folder taken out of wherever it is and put somewhere
  * else: into the group `label` names, or out of every group.
  *
- * The membership write is the server's and this is not it. What this is for
- * is the *sequence*, and without it a folder joining a group would keep the
- * rank it had as a loose row, which would make the group it joined take that
- * rank and jump up the column behind it. The person moved one row and two
- * things moved, which is the sort of surprise a drag exists to remove.
+ * The membership write is the server's and this is not it. What this is for is
+ * the *sequence*, and without it a folder joining a group would keep the rank
+ * it had as a loose row, which would make the group it joined take that rank
+ * and jump up the column behind it. The person moved one row and two things
+ * moved, which is the sort of surprise a drag exists to remove.
  *
- * A folder leaving a group lands immediately after the group it left, which
- * is a choice rather than a deduction and is the predictable one: the row
- * appears where the gesture ended and stays put until somebody moves it again.
+ * A folder leaving a group lands immediately after the group it left, which is
+ * a choice rather than a deduction and is the predictable one: the row appears
+ * where the gesture ended and stays put until somebody moves it again.
  *
- * **`at` is where inside the group it lands, and it exists because the
- * Library draws a line saying so (S24).** This used to append, and appending
- * was honest while nothing on screen claimed otherwise. The prototype's
- * directory draws an insert line under the pointer while a folder is carried
- * over an open shelf, and a line promising a slot that the drop does not
- * honour is worse than no line at all, which is the class of fault this
- * repository keeps finding rather than a fine distinction. Omitted, it still
- * appends, so every caller that has no line to keep honest is unchanged.
+ * **`at` is where inside the group it lands**, because the Library draws an
+ * insert line under the pointer while a folder is carried over an open shelf,
+ * and a line promising a slot that the drop does not honour is worse than no
+ * line at all. Omitted, it appends, so every caller that has no line to keep
+ * honest is unchanged.
  */
 export function moveFolderTo(
   entries: readonly DirectoryEntry[],
@@ -340,14 +319,11 @@ export function moveFolderTo(
   /* Emptied last, so that the insertion above could still count against the
      group it left.
 
-     **A shelf outlives its folders and a bare label does not**, which is the
-     one place S17b's model change is visible in this function. This used to
-     drop every emptied group, on the sentence that "a group that holds
-     nothing is not a group". That holds for a label, which is nothing but
-     what its folders spell, and it is false for a shelf, which is a row with
-     a page, a mark and a name of its own that 7.16's delete is the only thing
-     that ends. So a group carrying a shelf stays where it is, empty, and the
-     Library keeps saying the shelf exists. */
+     **A shelf outlives its folders and a bare label does not.** A label is
+     nothing but what its folders spell, so an emptied label group goes; a shelf
+     is a row with a page, a mark and a name of its own that 7.16's delete is
+     the only thing that ends. So a group carrying a shelf stays where it is,
+     empty, and the Library keeps saying the shelf exists. */
   return next.filter(
     (entry) => entry.kind === 'folder' || entry.folders.length > 0 || entry.shelf !== null,
   )
@@ -366,9 +342,8 @@ export function encodeColumn(entries: readonly DirectoryEntry[]): string[] {
   for (const entry of entries) {
     if (entry.kind === 'folder') ids.push(entry.folder.id)
     else {
-      /* The shelf's own id ahead of its folders (polish, sidebar F6), so a
-         shelf with no folders has a rank at all. A bare label has no id and
-         is held by its folders as before. */
+      /* The shelf's own id ahead of its folders, so a shelf with no folders has
+         a rank at all. A bare label has no id and is held by its folders. */
       if (entry.shelf !== null) ids.push(entry.shelf.id)
       for (const folder of entry.folders) ids.push(folder.id)
     }

@@ -23,16 +23,13 @@ not need to: 7.6 defaults `assignee_id` to the caller, and Desk is
 single-member so the forcing lands on them either way.
 
 **"From" names the creator and Dana records no assigner**, which 9.5 states
-and which this page draws since S25. The field it needed arrived with RFC 0005
-unit 12a: `created_by` rides TaskCard and carries the person stub a label
+and this page draws: `created_by` rides TaskCard and carries the person stub a label
 needs, so the half costs no request per row. It is a chip of the row's detail
 strip, `context.showCreator` here and the seam at the foot of `rowChips` in
-`components/task-row.tsx`, and it closes ledger L-224 and L-254. Its other
-half, the created-by filter axis, is `views/filter.ts`'s and closes L-177 and
-L-255 in the same pass.
+`components/task-row.tsx`. Its other half, the created-by filter axis, is
+`views/filter.ts`'s.
 
-**The scope control is this page's spine, promoted onto the window bar**
-(L-046 and L-098, S25). The prototype's `lib/nav-model.ts` states the rule it
+**The scope control is this page's spine, promoted onto the window bar.** The prototype's `lib/nav-model.ts` states the rule it
 was built from, "names never change; scope controls do": a sidebar entry is
 the navigation anchor, and the value it is showing lives in a control on the
 bar. Assignments is the one page in this client whose default arrangement

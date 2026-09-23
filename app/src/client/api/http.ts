@@ -17,8 +17,7 @@ than of any one call site:
 
 A client can satisfy both on the endpoint a criterion happens to read and omit
 them elsewhere, and every criterion still passes. Making them structural is
-what closes that gap, and `tests/e2e/session-path.spec.ts` is what measures it
-from outside.
+what closes that gap.
 
 Responses are parsed with the schemas of `src/shared`, which is 11.4's reuse
 rule read in the read direction: the shared schemas are the contract both

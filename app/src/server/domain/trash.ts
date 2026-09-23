@@ -1,5 +1,5 @@
 /*
-The 7.13 surface: what waits in Trash and how it comes back (RFC 0005).
+The 7.13 surface: what waits in Trash and how it comes back.
 
 Access is by folder membership at read time, never by who deleted (7.13),
 so the membership join is the scope here exactly as it is everywhere else.
@@ -12,11 +12,10 @@ Two asymmetries this module is careful about:
   (11.7); a row the pass has not yet swept is a row a person may still
   save, and racing the broom to refuse them would help nobody.
 
-The permanent delete (RFC 0005 change control items 36 and 38, enacted by
-RFC 0004's S28a) lives at the bottom of this file, and so does the object
-collection the 11.7 purge has always done. Item 36's one requirement on the
-endpoint is that it call the collection the purge already does rather than
-write a delete beside it, so the collection moved here from the pass and
+The permanent delete lives at the bottom of this file, and so does the object
+collection the 11.7 purge does. The endpoint calls the collection the purge
+already does rather than writing a delete beside it, so the collection lives
+here rather than in the pass, and
 both callers hand it a selection: the pass its age predicate, the endpoint
 one id the owner named. A row's files are the only index to the bytes in
 the store, and whichever caller drops the row removes the objects after
@@ -98,7 +97,7 @@ export async function trashView(
         WHERE f.deleted_at IS NOT NULL
         ORDER BY f.deleted_at DESC, f.id DESC`,
   )
-  /* The third kind (issue #210, ruling of 2026-09-21 section 3). It is read by
+  /* The third kind (issue #210). It is read by
      `domain/facets.ts` rather than by a third query here, because the facet
      read carries the name-resolution rule -- a Work facet's name is its H1's
      text at read time -- and that rule must have exactly one implementation or
@@ -331,8 +330,7 @@ export interface DestroyedTasks {
 
 /**
  * Deletes the folders `doomed` selects and collects the files rows the
- * cascade drops, in one statement over one snapshot (11.7, RFC 0005 change
- * control item 18). `doomed` is a query answering folder ids and carries
+ * cascade drops, in one statement over one snapshot (11.7). `doomed` is a query answering folder ids and carries
  * its own lock clause, so the purge's SKIP LOCKED claim and the endpoint's
  * FOR UPDATE both read as the same act: the claim, the collection and the
  * delete are three CTEs of one statement, which is what keeps the purge the
@@ -485,11 +483,9 @@ export async function destroyTask(
     const row = found[0]
     if (row === undefined) return { kind: 'not_found' } as const
     /* #228 gives permanently deleting a Task from Trash to Full control:
-       permanent deletion is an irreversible administrative act. It was the
-       folder owner's (item 38), which
-       is the ownership-as-authority proxy #209 removes; a Full-control
-       administrator who never owned the folder now has it, and an owner who
-       lowered their own Access no longer does. */
+       permanent deletion is an irreversible administrative act. Ownership is
+       not authority (#209): a Full-control administrator who never owned the
+       folder has it, and an owner who lowered their own Access does not. */
     const facts = await trashedTaskFacts(tx, viewerId, taskId)
     if (facts === null) return { kind: 'not_found' } as const
     const decision = mayPerform(facts, 'task.destroy')

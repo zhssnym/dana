@@ -1,63 +1,49 @@
 /*
-The designer's `src/lib/use-sortable-list.ts`, ported at S11.
+The sortable-list engine.
 
-**One drag engine, total.** RFC 0004's S11 row says so in its acceptance
-column, and the reason is 11.15's task-row hazard one axis over: the sidebar's
-arrangement, a list's rows, a board's cards, a card's steps and a page's blocks
-are five surfaces asking one question, and five answers to it drift apart the
-week after they are written. The S9 close moved DES-171's sidebar drag here
-rather than let it build a second engine for this one to replace.
+**One drag engine, total.** The sidebar's arrangement, a list's rows, a board's
+cards, a card's steps, a page's blocks and the tab strip are surfaces asking one
+question, and separate answers to it drift apart the week after they are written
+(11.15's task-row hazard).
 
-What the engine is for, in the designer's own reasoning: HTML5 drag-and-drop
-gives you a drop target, which is the least interesting half of the problem.
-What a person needs to see is where the thing will land, so the row picked up
-follows the pointer exactly, the rows it passes slide out of its way by its own
-height, and on release it settles into the gap they left. Nothing is outlined,
-because the space is the answer.
+HTML5 drag-and-drop gives you a drop target, which is the least interesting half
+of the problem. What a person needs to see is where the thing will land, so the
+row picked up follows the pointer exactly, the rows it passes slide out of its
+way by its own height, and on release it settles into the gap they left. Nothing
+is outlined, because the space is the answer.
 
-Two gestures share the one drag and stillness separates them (DES-103,
-DES-171). Travelling proposes a slot. Resting on a row for `dwellMs` proposes
-that the two become a container, and while that arms the list relaxes back to
-its resting order, because a list still shifting for a reorder nobody is
-proposing is a list lying about what a release will do. Resting inside another
-container proposes that container instead, through `onOver`.
+Two gestures share the one drag and stillness separates them. Travelling
+proposes a slot. Resting on a row for `dwellMs` proposes that the two become a
+container, and while that arms the list relaxes back to its resting order,
+because a list still shifting for a reorder nobody is proposing is a list lying
+about what a release will do. Resting inside another container proposes that
+container instead, through `onOver`.
 
 Keyboard sorting is here too, since a gesture only available to a mouse is not
 finished: the handle is a real button, arrows move the item, and focus follows
 it so the next press keeps working.
 
-**Five differences from his file, and nothing else moves.**
+Things a reader should know:
 
-1. Protocol section 7's prose rules, which are this repository's and not his:
-   no em dashes in a Dana comment, and this repository's quoting and semicolon
-   style. The sentences are otherwise his.
-2. `noUncheckedIndexedAccess`. His file indexes its measurement arrays freely,
-   which is safe there and does not compile here, so every read is guarded and
-   an unmeasured row makes the engine decline to move rather than be read as
+1. `noUncheckedIndexedAccess`: every read of the measurement arrays is guarded,
+   and an unmeasured row makes the engine decline to move rather than be read as
    sitting at zero, where it would capture every proposal in the list.
-3. **The geometry is lifted out of the hook as three pure functions**, exported
-   and unit-tested beside this file. This repository has no component test leg
-   (`tsconfig.client.json` anticipates one and nothing has written it), so a
-   hook's arithmetic is otherwise measured by nothing at all, and the slot
-   arithmetic is the half of this module that is easiest to get wrong.
-   The hook calls them; they hold no state and know nothing about React.
-4. The two escape paths that were written out twice, the Escape key's and the
-   shrinking list's, are one `release` here. His file repeated four lines in
-   both places, which is how the two come to disagree about what abandoning a
-   drag clears.
-5. **An axis.** His lab sorts columns and nothing else, so his file reads
-   `clientY`, `top` and `bottom` throughout. 9.1 has a horizontal list, the tab
-   strip, and a board's columns are the next one; the strip arrived at S9 with
-   a hand-rolled pointer drag of its own, which is precisely the second engine
-   RFC 0004's "one drag engine total" refuses. So the measurement pair is
-   `start` and `end` along whichever axis the list runs on, `offset` is a
-   scalar the caller applies as a `translateX` or a `translateY`, and every
-   piece of arithmetic between them is written once. The default is `y`, so
-   nothing that was a column had to say anything.
+2. **The geometry is lifted out of the hook as three pure functions**, exported
+   and unit-tested beside this file. There is no component test leg, so a hook's
+   arithmetic would otherwise be measured by nothing at all, and the slot
+   arithmetic is the half of this module that is easiest to get wrong. The hook
+   calls them; they hold no state and know nothing about React.
+3. The two escape paths, the Escape key's and the shrinking list's, are one
+   `release`, so the two cannot disagree about what abandoning a drag clears.
+4. **An axis.** The tab strip is a horizontal list and a board's columns are
+   another, so the measurement pair is `start` and `end` along whichever axis
+   the list runs on, `offset` is a scalar the caller applies as a `translateX`
+   or a `translateY`, and every piece of arithmetic between them is written
+   once. The default is `y`.
 
-The seams `onDropAt` and `onOver` are his, and DES-171 names both: a directory
-holds one list per container, so a row on its way into another one has to stop
-being drawn as a slot in the list it is leaving.
+`onDropAt` and `onOver` exist because a directory holds one list per container,
+so a row on its way into another one has to stop being drawn as a slot in the
+list it is leaving.
 */
 
 import {
@@ -78,12 +64,11 @@ const STILL_PX = 6
    how fast it may follow at the very edge. */
 const EDGE_PX = 72
 const MAX_SPEED_PX = 16
-/* How long the dwell holds before it arms. DES-171: making a container is a
-   larger act than using one, so it takes a deliberate hold.
+/* How long the dwell holds before it arms: making a container is a larger act
+   than using one, so it takes a deliberate hold.
 
-   Exported since S24, so the ring that draws the countdown closes when the
-   hold actually fires. The prototype writes 1500 twice, once here and once as
-   a CSS transition, which is one number and two places for it to be wrong. */
+   Exported so the ring that draws the countdown closes when the hold actually
+   fires; one number, not two places for it to be wrong. */
 export const DWELL_MS = 1500
 /* The settle band: how long the carried row is given to travel to the slot the
    list has been holding open, before the array underneath it is rearranged. */
@@ -281,28 +266,23 @@ export interface UseSortableListOptions {
   /**
    * Which way this list runs. Defaults to a column.
    *
-   * Added at S11 for the tab strip, which is 9.1's one horizontal list and
-   * which had a hand-rolled drag of its own until this parameter existed. The
-   * choice was between an engine that knows about two axes and two engines
-   * that each know about one, and RFC 0004's "one drag engine total" settles
-   * it: the second engine is the thing this module exists to prevent, and a
-   * board's columns are the next list to ask the same question.
+   * The tab strip is 9.1's one horizontal list. An engine that knows about two
+   * axes rather than two engines that each know about one: the second engine is
+   * the thing this module exists to prevent.
    */
   axis?: SortAxis
   /**
-   * Follow the pointer on the *other* axis too, for a surface whose
-   * containers are laid out across the one its lists run on.
+   * Follow the pointer on the *other* axis too, for a surface whose containers
+   * are laid out across the one its lists run on.
    *
-   * Added at S11 for the board and default false, so the sidebar and the tab
-   * strip are untouched. A board column is a list of rows running on `y`
-   * inside a strip of columns running on `x`, and a drag that can leave its
-   * list (`onDropAt`) can therefore need a destination the window is not
-   * showing. Without this the edge-follow scrolls the column the card is
-   * already in and never the board, so a release into anything off the right
-   * edge is unreachable: measured at S11 in the whole browser leg, where a
-   * hundred and fifty specs' folders made the board wider than the window and
-   * AC-228 went red having passed focused. The one-axis assumption was right
-   * about a list and wrong about a surface.
+   * For the board, and default false, so the sidebar and the tab strip are
+   * untouched. A board column is a list of rows running on `y` inside a strip
+   * of columns running on `x`, and a drag that can leave its list (`onDropAt`)
+   * can therefore need a destination the window is not showing. Without this
+   * the edge-follow scrolls the column the card is already in and never the
+   * board, so a release into anything off the right edge is unreachable once
+   * the board is wider than the window (AC-228). The one-axis assumption is
+   * right about a list and wrong about a surface.
    */
   crossAxis?: boolean
   /**
@@ -338,10 +318,10 @@ export interface UseSortableListOptions {
    * The same question, asked while the drag is still in the air.
    *
    * `onDropAt` settles what happens on release and says nothing before it, so
-   * a row on its way into another container went on being drawn as a slot in
-   * this one and the list held a gap open for something that was never going
-   * to land there. DES-171: a list that lies about what a release will do is
-   * worse than one that cannot do it at all.
+   * without this a row on its way into another container would go on being
+   * drawn as a slot in this one and the list would hold a gap open for
+   * something that was never going to land there. A list that lies about what a
+   * release will do is worse than one that cannot do it at all.
    *
    * Returning a key means the pointer is inside something: the list stops
    * proposing a slot, the dwell stops arming, and the key comes back as
@@ -868,29 +848,26 @@ export function useSortableList({
       /*
       A cancel is the browser withdrawing the pointer, and it can land in the
       same one-render gap the two handlers above exist for. Left unhandled
-      there, a cancelled lift kept its drag state forever: the carried row
-      stayed carried with no pointer attached to it. Measured at the AC-227
-      probe of 2026-08-25 rather than deduced. The engine's own listener
-      answers a cancel with `finish`, so this does too, and a cancel before
-      the lift is a press that came to nothing: no tap, no commit.
+      there, a cancelled lift would keep its drag state forever: the carried row
+      would stay carried with no pointer attached to it (AC-227). The engine's
+      own listener answers a cancel with `finish`, so this does too, and a
+      cancel before the lift is a press that came to nothing: no tap, no commit.
       */
       function cancelled(): void {
         stop()
         if (lifted) finish()
       }
       /*
-      The browser's own drag-and-drop must not answer this press, and for two
-      of this product's surfaces it otherwise would: a folder row is an anchor
-      (9.1 makes it a link) and anchors are natively draggable, as images are.
-      A few pixels of travel starts the native drag, the browser fires
+      The browser's own drag-and-drop must not answer this press, and for two of
+      this product's surfaces it otherwise would: a folder row is an anchor (9.1
+      makes it a link) and anchors are natively draggable, as images are. A few
+      pixels of travel starts the native drag, the browser fires
       `pointercancel`, and the gesture this engine was tracking dies before
-      `onOver` has said anything. That is not a corner case, it is every
-      pointer drag of every sidebar row; AC-227 measured it red on 2026-08-25
-      while the tab strip, whose tabs are plain divs, stayed green beside it.
-      Cancelling `dragstart` for the gesture's duration is the whole fix, and
-      it lives here rather than as a `draggable={false}` on each surface
-      because the next surface built on this engine would forget the attribute
-      exactly once.
+      `onOver` has said anything. That is every pointer drag of every sidebar
+      row (AC-227). Cancelling `dragstart` for the gesture's duration is the
+      whole fix, and it lives here rather than as a `draggable={false}` on each
+      surface because the next surface built on this engine would forget the
+      attribute exactly once.
       */
       function suppressNativeDrag(event: Event): void {
         event.preventDefault()

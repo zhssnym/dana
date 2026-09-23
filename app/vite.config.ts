@@ -64,23 +64,20 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,png,svg,webmanifest}'],
         /*
-        The application chunk outgrew workbox's 2 MiB default at the S12
-        merge, and the default's failure mode is the wrong one for 10.6.
+        The application chunk is over workbox's 2 MiB default, and the
+        default's failure mode is the wrong one for 10.6.
 
         That section requires a precached application shell, and the
         criteria read it: AC-091 opens /app with the network disabled and
         expects the shell, and AC-160 and AC-100 stand on the same
         precondition. Left at the default, the build either fails or ships a
         worker that precaches everything except the one file the shell is,
-        which is an offline shell that white-screens, the exact hazard the
-        Frontend Architect persona names.
+        which is an offline shell that white-screens.
 
         So the cap is raised to keep the shell precached. It is not a fix
-        for the size: the build has warned about a chunk over 500 kB since
-        S8, S10 and S12 landed a page set each, and the answer is code
-        splitting, which changes what loads when and belongs to a package
-        that can measure it rather than to a merge resolving a conflict.
-        Recorded in section 13 rather than left as a number nobody chose.
+        for the size: the build warns about a chunk over 500 kB, and the
+        answer is code splitting, which changes what loads when and should be
+        done where it can be measured.
         */
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         // Without this no worker controls the page that registered it until a

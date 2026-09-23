@@ -17,9 +17,8 @@ requires it bound to the session; deriving it with an HMAC keyed by the
 session token satisfies that binding without a column the sessions table does
 not have, and the derivation runs one way: the token in the readable cookie
 cannot be turned back into the session identifier in the httpOnly one, which
-is the property AC-110's last assertion is about. A stored binding would need
-a migration in app/db, which is the Data engineer's path and the Steward's to
-schedule; this needs neither.
+is the property AC-110's last clause is about. A stored binding would need
+a migration; this needs none.
 */
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 

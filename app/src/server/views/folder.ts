@@ -7,16 +7,14 @@ narrowed to one folder, and Completed is done.ts entire. Nothing about an
 order or a predicate is written here, because everything about them is
 written once somewhere else.
 
-The body was the one of 7.10's nine that the frozen text described without
-enumerating, and it is enumerated now by owner ruling on 2026-08-07:
-{ scheduled, unscheduled, truncated } on section=open, and
+7.10 enumerates the body: { scheduled, unscheduled, truncated } on section=open, and
 { days, next_cursor } on section=completed. The cap covers the open sections,
 because section 6's list includes folder open sections, and the enumeration
 puts scheduled first.
 
 Access is resolved through domain/folders.ts's accessOf rather than through a
 membership predicate written here: Q7 opens with "member only, else 404", and
-that is the 10.2 chokepoint the P2 package already owns. The route maps the
+that is the 10.2 chokepoint domain/folders.ts owns. The route maps the
 null to the 404 that an inaccessible folder and a nonexistent one both get.
 */
 import type {

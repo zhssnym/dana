@@ -1,7 +1,7 @@
 /*
 Dana's icons.
 
-**The family is `@animateicons/react/lucide`**, ruled by Imran 2026-08-18: the
+**The family is `@animateicons/react/lucide`**: the
 same Lucide drawings the product already used, with a motion/react animation
 per icon that plays on hover. Every icon comes from this module and nothing
 imports `lucide-react` directly, so the family is one decision in one file
@@ -17,7 +17,7 @@ while to separate:
    from nothing. That is right for an icon that is arriving and wrong for one
    already on screen, where hovering makes it vanish and rebuild. Planned drops
    seven of its ten paths to zero scale.
-2. Worse, and the thing Imran described as blinking: a collapsed sidebar shows
+2. Worse, and it reads as blinking: a collapsed sidebar shows
    a tooltip on hover, and opening one remounts its trigger's subtree. A
    remounted animated icon starts from its hidden initial state, so the icon
    under the pointer flashes, and the one you just left flashes too as its own
@@ -194,8 +194,7 @@ function AnimatedIcon({
 
   Visible one at a time because the previous revision painted both, and two
   identical strokes at 16px do not disappear into each other, they read as a
-  doubled, slightly blurred glyph, which is what Imran saw on 2026-08-22 as
-  "one icon on top of the other, in every instance". The overlay does not rest
+  doubled, slightly blurred glyph, "one icon on top of the other". The overlay does not rest
   at zero for most of this family; it rests fully drawn, so "the drawing shows
   through when the animation is idle" was true for a handful of glyphs and
   false for the rest.
@@ -314,8 +313,7 @@ two things (DES-159). A drawing with no animation of its own is drawn plain
 and does not move. That is a smaller loss than a glyph that turns into a
 different object under the pointer.
 
-**Twenty-nine of them were doing exactly that**, Imran, 2026-08-22: some
-icons "having one icon but changes with another when replaced". The filter
+**Twenty-nine of them were doing exactly that.** The filter
 was three lines at rest and a funnel under the pointer; Settings was sliders
 and then a gear; Folders opened, Ban became a crossed flag, the grip became
 an ellipsis. Each one was a near-enough substitute chosen when the animated
@@ -327,14 +325,11 @@ reading names: lucide keeps aliases beside their replacements, so
 `CheckCircle2` and `CircleCheckBig` are the same picture under two names and
 must not be reported.
 
-**Which half gives way is a judgement per icon, and Imran corrected mine.** The
-rule leaves two ways to satisfy it, change the animation or change the
-drawing, and the first pass took the drawing every time, which spent the
-motion on twenty-nine glyphs to keep pictures that were not always the better
-ones. He named the two that mattered: *"I want the icons that are removed
-instead coz they were strong, especially for filter and settings."* The filter
-is a funnel now and Settings is a gear; seven more went with them, and all nine
-animate again.
+**Which half gives way is a judgement per icon.** The rule leaves two ways to
+satisfy it, change the animation or change the drawing, and taking the drawing
+every time would spend motion to keep pictures that are not always the better
+ones. The filter is a funnel and Settings is a gear, because those drawings
+are strong; seven more follow them, and all nine animate.
 
 **Twenty stay drawn plain, each for a reason rather than for tidiness.** In
 every one of these the animated twin would have changed what the glyph means,
@@ -342,8 +337,7 @@ or landed on a name already here:
 
 - `Ban` → a crossed flag. Abandoned is not "unflagged".
 - `CircleAlert` → a triangle. This is the exact morph DES-159 removed, and a
-  triangle carries danger where a circle carries notice. **Imran's to
-  overrule** if he wants the triangle at rest.
+  triangle carries danger where a circle carries notice.
 - `UserRoundPlus` → a square-headed figure, breaking the round-head family
   `UserRound` and `UserRoundCheck` belong to.
 - `FolderInput` → an open folder, losing the arrow that *is* "move into".
@@ -412,7 +406,7 @@ the same lucide glyph, kept side by side because lucide keeps its deprecated
 alias next to the replacement. Nothing in the source showed it, and the two
 names had drifted onto two different meanings, one saying "this request
 failed" in the error state, the other saying "this task is late" on a row.
-One picture, two meanings, which is the fault Imran's rule names from the
+One picture, two meanings, which is the fault the rule above names from the
 other direction.
 
 Worse, both were paired with `TriangleAlertIcon`, because the animated set has
@@ -520,15 +514,14 @@ export const SunMedium = icon(Lu.SunMedium, Anim.SunMediumIcon)
 export const Trash2 = icon(Lu.Trash2, Anim.Trash2Icon)
 export const Undo2 = icon(Lu.Undo2, null)
 /*
-Desk's mark, ruled by Imran 2026-08-22: a desk lamp.
+Desk's mark: a desk lamp.
 
 Desk replaced Inbox because Inbox carries email posture (DES-152), and
 then went on wearing the literal tray, so the page had escaped the word and
 not the picture. A lamp is where you work rather than where things arrive,
 which is the whole distinction the rename was for.
 
-The animated family has no desk lamp, and Imran ruled on 2026-08-23 that it
-**stays still** rather than becoming an animated lightbulb or having one
+The animated family has no desk lamp, and it **stays still** rather than becoming an animated lightbulb or having one
 hand-written. That is DES-187 applied rather than an exception to it: an icon
 with no twin is drawn plain, because the alternative is a glyph that changes
 into a different picture on hover, the exact fault the share icon had.
@@ -541,8 +534,8 @@ export const UserPlus = icon(Lu.UserPlus, Anim.UserPlusIcon)
 /*
 People's own mark.
 
-Imran, on the sidebar: Assignments and People were both round-head person
-glyphs, and at 16px two figures of the same family read as the same row. The
+Assignments and People would both be round-head person glyphs, and at 16px
+two figures of the same family read as the same row. The
 split that fixes it is a real difference rather than a different accessory:
 **Assignments is work that belongs to somebody**, a person carrying a tick,
 while **People is the roster of humans you share with**, which is a card with
@@ -664,8 +657,7 @@ Three rules, and each is the block above's rather than a new one. **Every
 addition is a drawing this family really has**, checked name for name against
 `@animateicons/react/lucide`'s exports before it was written here, so nothing
 below resolves to `undefined` at render; `LampDesk` is the single exception
-and it already sat above with its own paragraph, animated by nothing on
-Imran's 2026-08-23 ruling. **None of them is a control this product draws**,
+and it already sat above with its own paragraph, animated by nothing. **None of them is a control this product draws**,
 so a folder's mark still cannot be mistaken for something to press: the set is
 objects and subjects, never acts, which is why there is no plus, no pencil and
 no chevron in it. **And they arrive in sevens**, sixty-three of them, so the
@@ -736,12 +728,10 @@ export const Wifi = icon(Lu.Wifi, Anim.WifiIcon)
 export const Wind = icon(Lu.Wind, Anim.WindIcon)
 
 /*
-The set the 4.3 icon key validates against, exported here because RFC 0005's
-change control item 5 promised it at S8: the key is pattern-validated until
-S8 exports the set, the server storing it opaquely so the tightening is a
-validation change and never a migration. One record of the set, in the file
-whose family bounded the choice; the picker that arrives with S12 builds its
-labelled manifest from these keys and adds nothing to them.
+The set the 4.3 icon key validates against. The server stores the key
+opaquely, so tightening it is a validation change and never a migration. One
+record of the set, in the file whose family bounded the choice; the picker
+builds its labelled manifest from these keys and adds nothing to them.
 
 **One hundred and five since 2026-08-30, and the two rules that governed
 forty-two still govern it.** The keys were the designer's own forty-two, so
@@ -795,12 +785,12 @@ export const FOLDER_ICON_KEYS = [
 /*
 The `*Icon` spellings the shadcn primitives were generated with.
 
-Three of these are his. `ChevronDownIcon`, `ChevronUpIcon` and `XIcon` were
-added at S8, with `ChevronUp` above them, because `select.tsx` and
+Three of these are his. `ChevronDownIcon`, `ChevronUpIcon` and `XIcon` exist,
+with `ChevronUp` above them, because `select.tsx` and
 `sheet.tsx` were the two primitives still importing `lucide-react`
 directly: the module had no name for what they reached for, so they
 reached past it. DES-125 says in terms that nothing imports `lucide-react`
-directly and RFC 0004 makes that S8's acceptance, so the port completed the
+directly, so the port completed the
 rule his own alias block had started rather than carrying two exceptions
 forward. `ChevronUp` is a real icon rather than an alias because the family
 never had one; the animated set does, and it is the same drawing.

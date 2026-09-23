@@ -3,63 +3,41 @@ The tab strip of 9.1: a row of tabs above the window bar.
 
 **Roles come from 9.1's table**: a tab in the strip is a tab, current when
 active, which means a `tablist` holding `tab`s with `aria-selected`. That is
-what AC-216 addresses and it is not decoration: a strip built from buttons
-tells a screen reader there are six buttons, where this one says there are six
-tabs and which is current.
+what AC-216 addresses and it is not decoration: a strip built from buttons tells
+a screen reader there are six buttons, where this one says there are six tabs
+and which is current.
 
-**The close control is named "Close tab" exactly.** The prototype interpolates
-the title into it, and the correction is the one `components/README.md`
-records against four other controls: a name in 9.1's table is a fixed string,
-and a control that appears once per tab is separated from its siblings by the
-region it sits in, which is the tab its title names, never by folding that
-title into the control's own name. The names table says so in the same words:
-"Close tab", addressed within the tab its title names.
+**The close control is named "Close tab" exactly.** A name in 9.1's table is a
+fixed string, and a control that appears once per tab is separated from its
+siblings by the region it sits in, which is the tab its title names, never by
+folding that title into the control's own name. The names table says so in the
+same words: "Close tab", addressed within the tab its title names.
 
 **The plus is named "New tab"**, also from that table, and it offers what the
 section says it offers: any shelf or folder as a tab, and then the acts of
-making. New folder and New shelf are 9.1's own two and landed at the polish
-round of 2026-08-30, the surfaces that make them having existed since S17b;
-New task joins them at the same round and is recorded in 9.1 with it, and
-Import closes the set later the same day through `overlays.ts`'s seam: the
-strip asks, the sidebar presses the one file input it owns. The menu grows
-those entries rather than the strip growing a second control.
+making: New folder, New shelf, New task (recorded in 9.1), and Import through
+`overlays.ts`'s seam: the strip asks, the sidebar presses the one file input it
+owns. The menu grows those entries rather than the strip growing a second
+control.
 
-**The row's geometry began with the prototype, measured rather than recalled.**
-Serving `docs/design/prototype-v2` and reading the boxes back gave tabs of
-128px flush against one another in a strip of 24px, no gap between them and
-no inset at the sidebar's edge. That prototype is deleted (`a7886df`,
-2026-09-01) and is in git history before that commit, so the numbers here are
-the measurement rather than something to re-take. The port had none of that: `gap-1` on the
-row, `px-2` on the strip and no minimum width at all, so tabs were pills
-sized to their own words, about 80px for "Desk", separated by a gutter. That
-is what "they feel separated from each other" and "too condensed" name. The
-floor fixes both, and the strip is now 28px high after Imran found the shipped
-24px result too thin. The comments at the two class strings carry the arithmetic.
+**The row's geometry**: tabs flush against one another, no gap between them and
+no inset at the sidebar's edge, with a floor and a ceiling on each tab's width,
+in a strip 28px high. Tabs sized to their own words read as separated pills. The
+comments at the two class strings carry the arithmetic.
 
-**The drag runs on the one engine, since S11.** 9.1 says tabs are "reorderable
-by drag", and this file answered that at S9 with a pointer drag of its own:
-about thirty lines holding a press origin, a threshold, and a rule that the
-tab under the pointer at release is where the carried one lands. It worked and
-it was still the wrong shape, because RFC 0004 gives S11 "one drag engine
-total" and 11.15's task-row hazard is what a second implementation of one
-gesture becomes. The S9 close recorded "no drag code in `app/`" and this was
-it; the record was not wrong about the *engine*, which did not exist, and was
-wrong about the strip.
+**The drag runs on the one engine.** 9.1 says tabs are "reorderable by drag",
+and a second implementation of one gesture is what 11.15's task-row hazard warns
+against. So the gesture is `lib/use-sortable-list.ts`, on its `x` axis. The
+strip makes space as a tab travels, because the space is the answer and an
+opacity is only a hint. The exchange happens when the two tabs have half-passed
+each other, the engine proposing by midpoint. And a tab reorders from the
+keyboard, the engine's arrow keys on a focused tab.
 
-So the gesture is `lib/use-sortable-list.ts` now, on its `x` axis, and three
-things a person can see changed with it. The strip makes space as a tab
-travels rather than only fading the carried one, because the space is the
-answer and an opacity is a hint. The exchange happens when the two tabs have
-half-passed each other, the engine proposing by midpoint, where before it
-happened wherever the pointer happened to be at release. And a tab reorders
-from the keyboard, the engine's arrow keys on a focused tab, which a strip
-that only answered a mouse never did.
-
-**Selection stays a click and the drag swallows one.** The engine listens on
-the window rather than capturing the pointer, so a release still delivers a
-click onto whichever tab is under the cursor, which in a strip means selecting
-a tab somebody was only moving. `swallowNextClick` is the sidebar's fix and
-the same one here.
+**Selection stays a click and the drag swallows one.** The engine listens on the
+window rather than capturing the pointer, so a release still delivers a click
+onto whichever tab is under the cursor, which in a strip means selecting a tab
+somebody was only moving. `swallowNextClick` is the sidebar's fix and the same
+one here.
 */
 import {
   DropdownMenu,
@@ -86,19 +64,16 @@ const CLOSE_TAB = 'Close tab'
 /*
 The three acts the menu offers under its list of places.
 
-**Two of them are 9.1's own words**, taken from the footer row of that
-section's names table rather than from the prototype's "New folder…" and
-"New shelf…": the same section rules that an ellipsis in a label is normative
-and enumerates the acts that carry one, and neither of these is among them.
-The footer and this menu are one act reached through two doors, so they are
-one string.
+**Two of them are 9.1's own words**, from the footer row of that section's names
+table, with no ellipsis: the same section rules that an ellipsis in a label is
+normative and enumerates the acts that carry one, and neither of these is among
+them. The footer and this menu are one act reached through two doors, so they
+are one string.
 
-**"New task" is neither the prototype's nor the section's**, and is recorded
-in 9.1 with this round rather than left as a control nobody wrote down. It is
-not one of 9.3's entry points and so carries none of its defaults: the strip
-belongs to the window and not to the page under it, so a task made from here
-is a plain one, which is also what keeps AC-093's entry table addressing the
-same six captures it always did.
+**"New task"** is recorded in 9.1. It is not one of 9.3's entry points and so
+carries none of its defaults: the strip belongs to the window and not to the
+page under it, so a task made from here is a plain one, which is also what keeps
+AC-093's entry table addressing the same six captures.
 */
 const NEW_FOLDER = 'New folder'
 const NEW_SHELF = 'New shelf'
@@ -121,12 +96,9 @@ export function TabStrip({
   readonly face: (path: string) => TabFace
   readonly folders: readonly Folder[]
   /**
-   * The viewer's shelves (7.16), so the menu offers 9.1's whole sentence.
-   *
-   * That section gives the plus "any shelf or folder", and this menu mapped
-   * the folder list alone: half a sentence with no control behind it, which
-   * is the audit's shelf-reachability row. The read reaches the shell
-   * unconditionally since S17b, so this costs no request of its own.
+   * The viewer's shelves (7.16), so the menu offers 9.1's whole sentence, "any
+   * shelf or folder". The read reaches the shell unconditionally, so this costs
+   * no request of its own.
    */
   readonly shelves: readonly Shelf[]
   /**
@@ -157,38 +129,35 @@ export function TabStrip({
     },
   })
 
-  /* polish: tabstrip F9. Middle-click closes, as every strip does; a
-     focused tab closes on Delete or Backspace. Ctrl+W is the browser's own
-     and is not intercepted: a keydown handler cannot stop Chrome closing the
-     window's tab, so wiring it would work only sometimes. */
+  /* Middle-click closes, as every strip does; a focused tab closes on Delete or
+     Backspace. Ctrl+W is the browser's own and is not intercepted: a keydown
+     handler cannot stop Chrome closing the window's tab, so wiring it would
+     work only sometimes. */
   const close = (id: string): void => {
     const to = closeTab(id)
     if (to !== null) onNavigate(to)
   }
 
   return (
-    /* polish: tabstrip F3, F10. The strip's ground is the sidebar's tint, so
-       the active tab's card colour lifts off it; the plus docks after the
-       last tab rather than at the far edge of the window. */
+    /* The strip's ground is the sidebar's tint, so the active tab's card colour
+       lifts off it; the plus docks after the last tab rather than at the far
+       edge of the window. */
     <div className="flex h-[var(--shell-pagebar-height)] shrink-0 items-stretch bg-sidebar">
       {/*
-      polish: tabstrip F13. The row is the prototype's geometry now, measured
-      off it rather than guessed: tabs flush against one another with no gap
-      and no inset from the sidebar's edge, each stretching the strip's full
-      height. The port had given them `gap-1` and the strip `px-2`, which
-      turned a tab strip into a row of separate pills, and pills are what
-      "they feel separated from each other" describes.
+      Tabs flush against one another with no gap and no inset from the sidebar's
+      edge, each stretching the strip's full height; a gap would turn a tab
+      strip into a row of separate pills.
 
-      **The horizontal scrollbar is hidden rather than scrolling being
-      absent.** Tabs stop shrinking at the floor below, so enough of them
-      overflow and the row still scrolls. `overflow-x-auto` otherwise computes
-      the other axis to `auto`; the tab contents are two pixels taller than the
-      strip's client box in Windows Chromium, so that produced a thin vertical
-      scrollbar between the last tab and New tab even with the WebKit track
-      hidden. The explicit hidden y-axis prevents that gutter. The inline
-      standard property is deliberate: the global `*` scrollbar rule comes
-      after Tailwind utilities and otherwise changes `none` back to `thin`.
-      */}
+      **The horizontal scrollbar is hidden rather than scrolling being absent.**
+      Tabs stop shrinking at the floor below, so enough of them overflow and the
+      row still scrolls. `overflow-x-auto` otherwise computes the other axis to
+      `auto`; the tab contents are two pixels taller than the strip's client box
+      in Windows Chromium, so that produced a thin vertical scrollbar between
+      the last tab and New tab even with the WebKit track hidden. The explicit
+      hidden y-axis prevents that gutter. The inline standard property is
+      deliberate: the global `*` scrollbar rule comes after Tailwind utilities
+      and otherwise changes `none` back to `thin`.
+       */}
       <div
         role="tablist"
         aria-label="Open tabs"
@@ -199,9 +168,8 @@ export function TabStrip({
           const { title, icon: Icon, iconColor } = face(tab.path)
           const active = tab.id === activeId
           const state = drag.itemState(index)
-          /* polish: tabstrip F11. The only tab, pointing at Desk, cannot be
-             closed to anything but itself, so the control that would say
-             otherwise is not drawn. */
+          /* The only tab, pointing at Desk, cannot be closed to anything but
+             itself, so the control that would say otherwise is not drawn. */
           const closable = !(tabs.length === 1 && tab.path === paths.desk)
           return (
             <div
@@ -270,35 +238,22 @@ export function TabStrip({
                     }),
               }}
               /*
-              polish: tabstrip F13. The tab's floor and ceiling are the
-              prototype's two numbers, read off it by serving it and
-              measuring: `min-w-32` and `max-w-56`, 128px and 224px, in a
-              strip the tab stretches to fill.
+              The tab's floor and ceiling: `min-w-32` and `max-w-56`, 128px and
+              224px, in a strip the tab stretches to fill.
 
-              **Where a tab starts is the ceiling, not the floor, and that is
-              the one place this leaves the prototype.** There every tab sits
-              at 128px whatever the room, because nothing grows: eight tabs
-              and one tab are drawn identically and a strip with three in it
-              is mostly empty ground. Here the tab's basis is the ceiling and
-              its shrink does the rest, which is the browser's own behaviour
-              and what the round asked for in as many words: one to three
-              tabs are wide, a filling strip narrows all of them evenly
-              toward the floor rather than pushing the last one off the end,
-              and past the floor the row scrolls. The prototype's two numbers
-              are untouched; what changed is that the space between them is
-              now used.
+              **Where a tab starts is the ceiling, not the floor.** The tab's
+              basis is the ceiling and its shrink does the rest, which is the
+              browser's own behaviour: one to three tabs are wide, a filling
+              strip narrows all of them evenly toward the floor rather than
+              pushing the last one off the end, and past the floor the row
+              scrolls. A tab as wide as the words inside it (about 80px for
+              "Desk") reads as a chip rather than as a tab.
 
-              **What it replaces was neither.** The port had `min-w-0
-              shrink-0`, so a tab was as wide as the words inside it, about
-              80px for "Desk": no floor, no ceiling and nothing shared, which
-              is the "too condensed" of the round and reads as a chip rather
-              than as a tab.
-
-              **`pl-3` and `pr-6` are asymmetric on purpose**: the close
-              control is positioned rather than laid out, so the padding
-              holds its room and the title neither slides nor reflows as the
-              control appears. A tab with no close control gets the same
-              padding on both ends, there being nothing to keep clear.
+              **`pl-3` and `pr-6` are asymmetric on purpose**: the close control
+              is positioned rather than laid out, so the padding holds its room
+              and the title neither slides nor reflows as the control appears. A
+              tab with no close control gets the same padding on both ends,
+              there being nothing to keep clear.
               */
               className={`group/tab relative flex w-56 min-w-32 max-w-56 cursor-pointer items-center gap-2 self-stretch rounded-t-lg py-1 pl-3 ${
                 closable ? 'pr-6' : 'pr-3'
@@ -308,9 +263,9 @@ export function TabStrip({
                   : 'hover:bg-[color-mix(in_oklab,var(--color-graphite-0)_60%,var(--color-graphite-50))]'
               } ${state.isActive ? 'opacity-60 shadow-md' : ''}`}
             >
-              {/* The mark fades rather than greys on an inactive tab, the
-                  prototype's own arithmetic: the colour is the thing's
-                  identity and has to survive being out of focus. */}
+              {/* The mark fades rather than greys on an inactive tab: the
+                  colour is the thing's identity and has to survive being out of
+                  focus. */}
               {Icon === undefined ? null : (
                 <span
                   className={`flex size-3.5 shrink-0 items-center justify-center transition-opacity duration-[var(--duration-fast)] ease-[var(--ease-standard)] ${
@@ -336,14 +291,10 @@ export function TabStrip({
               </span>
               {closable ? (
                 /*
-                Drawn at rest, where the prototype reveals it on hover, and
-                the deviation is this round's own ruling rather than a
-                preference: 9.11 settled that "a row whose only controls
-                appear on hover is a row with nothing to press", and the same
-                round's view-strip finding says the identical thing about a
-                touchscreen, which has no hover to give. So the control keeps
-                its position and its reserved room from the prototype and
-                loses only the reveal.
+                Drawn at rest rather than revealed on hover: 9.11 settles that
+                "a row whose only controls appear on hover is a row with nothing
+                to press", and a touchscreen has no hover to give. The control
+                keeps its position and its reserved room.
                 */
                 <button
                   type="button"
@@ -364,11 +315,10 @@ export function TabStrip({
       </div>
 
       <DropdownMenu>
-        {/* The trigger is the prototype's own markup since S24, a plain
-            button rather than the primitive: its resting colour, its
-            open-popup state and the wash it takes on hover are written into
-            the class, and the primitive's own ghost variant was answering for
-            them. The name is still 9.1's "New tab". */}
+        {/* The trigger is a plain button rather than the primitive: its resting
+            colour, its open-popup state and the wash it takes on hover are
+            written into the class, and the primitive's own ghost variant would
+            answer for them. The name is still 9.1's "New tab". */}
         <DropdownMenuTrigger
           render={
             <button
@@ -381,15 +331,13 @@ export function TabStrip({
         >
           <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" />
         </DropdownMenuTrigger>
-        {/* The alignment and the scroll cap are the prototype's: the menu
-            lists every folder and every shelf, so it needs a ceiling and a
-            width, and it hangs from the control's left where the strip
+        {/* The menu lists every folder and every shelf, so it needs a ceiling
+            and a width, and it hangs from the control's left where the strip
             runs. */}
         <DropdownMenuContent align="start" className="max-h-96 w-56 overflow-y-auto">
-          {/* Each entry wears its folder's own mark since S17a (DES-130,
-              AC-243). It drew one literal folder in a personal colour for
-              every entry, so the one control whose job is choosing between
-              folders was the one place they all looked alike. */}
+          {/* Each entry wears its folder's own mark (AC-243), so the one
+              control whose job is choosing between folders is not the one place
+              they all look alike. */}
           {folders.map((folder) => {
             const mark = folderMark(folder)
             return (
@@ -407,12 +355,11 @@ export function TabStrip({
               </DropdownMenuItem>
             )
           })}
-          {/* The other half of 9.1's "any shelf or folder", since S17b. The
-              shelves follow the folders rather than interleaving with them,
-              which is the Library's own arrangement read across: a shelf
-              holds folders, so offering it beside them and not among them is
-              what says which is which. Each wears its own mark through the
-              same resolver, DES-130 applied to the second kind. */}
+          {/* The other half of 9.1's "any shelf or folder". The shelves follow
+              the folders rather than interleaving with them, which is the
+              Library's own arrangement read across: a shelf holds folders, so
+              offering it beside them and not among them is what says which is
+              which. Each wears its own mark through the same resolver. */}
           {shelves.length === 0 ? null : <DropdownMenuSeparator />}
           {shelves.map((shelf) => {
             const mark = shelfMark(shelf)
@@ -432,24 +379,20 @@ export function TabStrip({
             )
           })}
           {/*
-          The other half of 9.1's plus sentence: it "opens any shelf or
-          folder as a tab, **or begins New folder, New shelf, or Import**".
-          Until this round the menu was the first half alone, and the file's
-          own header said the rest would arrive "with the surfaces that make
-          them" and then never came back for them. They exist now, both of
-          them, so the menu grows the entries the section always gave it
-          rather than the strip growing a second control.
+          The other half of 9.1's plus sentence: it "opens any shelf or folder
+          as a tab, **or begins New folder, New shelf, or Import**". The menu
+          grows the entries the section gives it rather than the strip growing a
+          second control.
 
-          A separator, because a list of places you can go and a list of
-          things you can make are two kinds of answer to one press, and the
-          only thing that says which is which is the line between them.
+          A separator, because a list of places you can go and a list of things
+          you can make are two kinds of answer to one press, and the only thing
+          that says which is which is the line between them.
 
-          Import goes through `requestWorkflowImport` rather than an input
-          of its own: the one file input the application has belongs to the
-          sidebar, and a second input in this menu would be a second answer
-          to one selector, which is the fault the prototype's own comment
-          records against exactly this control.
-          */}
+          Import goes through `requestWorkflowImport` rather than an input of
+          its own: the one file input the application has belongs to the
+          sidebar, and a second input in this menu would be a second answer to
+          one selector.
+           */}
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={() => {

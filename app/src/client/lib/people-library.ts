@@ -1,9 +1,8 @@
 /*
 Everyone a task can be given to, in one list.
 
-`docs/design/prototype-v2/src/lib/people-library.ts`, read at `7d2064c`, over
-this client's query layer. That prototype is deleted (`a7886df`, 2026-09-01);
-read it in git history before that commit. Its own header records the fault:
+The designer's prototype `lib/people-library.ts`, over this client's query
+layer. The prototype's header records the fault it answers:
 the assignee menu mapped `PEOPLE` from `task-model.ts`, three names written
 for the row lab, so
 "the lab said Sara and Hassan with initials SK and HN; the People screen, two

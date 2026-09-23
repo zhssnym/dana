@@ -28,8 +28,8 @@ export interface Executor {
  *
  * **Why 200 and not a rounder number.** The cost that decides this is the
  * object store, not the SQL. On the disk store an unlink is well under a
- * millisecond and 200 is free; on the S3-compatible store section 13 holds
- * open for S-inf it is a network round trip, 50 to 100 ms, so 200 rows is
+ * millisecond and 200 is free; on an S3-compatible store it is a network
+ * round trip, 50 to 100 ms, so 200 rows is
  * 10 to 20 seconds — a third of the tick, which leaves the delivery
  * transaction and the other three duties their minute. A thousand rows at
  * the same rate is 100 seconds and the tick is already lost. The other

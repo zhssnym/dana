@@ -1,71 +1,52 @@
 /*
 Dana's mark, drawn rather than fetched, and animated like the icon family.
 
-Lifted from `docs/design/prototype-v2/src/components/dana-mark.tsx` at S21,
-read on `v2-build` at `db6f837`. That prototype is deleted (`a7886df`,
-2026-09-01); read it in git history before that commit. The lift discipline
-of RFC 0004's prototype-lift section applies: this file diffs empty against
-that original except at the seams named at the foot of this header, and the
-header below is the designer's own reasoning kept intact, because it is the
-design record for every decision the drawing makes.
-
-**Why this is a component and not an `<img>`.** Every brand lockup in the
-prototype used `<img src="/dana-mark.svg">`, which is a file the page has to
-ask the network for. Two things follow from that, and both are fixed by
-inlining the drawing:
-
-- **A file cannot be animated.** An `<img>` is opaque to the document, so the
-  inner mark inside it is unreachable: no mask, no stroke, nothing to move.
-- **The share build was shipping nine broken references.** `build:share`
-  flattens the prototype into one self-contained HTML file precisely because
-  the places it gets shared to refuse every external request the page makes,
-  and `/dana-mark.svg` was one such request in each of the nine places the
-  logo appears. Verified 2026-08-18 by grepping `dist-share-shell`: nine
-  literal `/dana-mark.svg` hrefs, every one of them a missing logo for anyone
-  reading a shared copy.
+**Why this is a component and not an `<img>`.** An `<img>` is a file the page
+has to ask the network for, and it is opaque to the document, so the inner mark
+inside it is unreachable: no mask, no stroke, nothing to move. A build flattened
+into one self-contained file for sharing refuses every external request, so an
+`<img>` logo is a missing logo there.
 
 `public/dana-mark.svg` stays where it is; it is still the file a favicon, a
 manifest icon or a real transactional email would point at. The geometry below
 is copied from it verbatim and the two must be changed together.
 
-**The animation, and why the pen is a mask.** DES-125 made the icon family
-animated Lucide, whose vocabulary is drawing, wiggling and popping a 24px
-glyph. The mark is not a glyph: it is a filled spiral, and the two obvious
-translations of "draw it" both fail. Tracing its outline puts a hairline pen
-around a shape whose contour runs inward and back out, invisible at the 28px
-the sidebar renders it. Stroking a centreline means authoring a centreline
-that does not exist in the file.
+**The animation, and why the pen is a mask.** The icon family's animation
+vocabulary is drawing, wiggling and popping a 24px glyph. The mark is not a
+glyph: it is a filled spiral, and the two obvious translations of "draw it" both
+fail. Tracing its outline puts a hairline pen around a shape whose contour runs
+inward and back out, invisible at the 28px the sidebar renders it. Stroking a
+centreline means authoring a centreline that does not exist in the file.
 
-So the pen is the mask. `SWEEP_PATH` is a wide stroke running along the
-ribbon's own centreline, drawn from the tail's inner tip outward, and the mark
-appears wherever that stroke has reached. It reads at 28px because the moving
-edge is as wide as the ribbon it is uncovering, and it holds up at the 520px
-watermark size because it is tracing real geometry rather than an effect laid
-over the top.
+So the pen is the mask. `SWEEP_PATH` is a wide stroke running along the ribbon's
+own centreline, drawn from the tail's inner tip outward, and the mark appears
+wherever that stroke has reached. It reads at 28px because the moving edge is as
+wide as the ribbon it is uncovering, and it holds up at the 520px watermark size
+because it is tracing real geometry rather than an effect laid over the top.
 
 **Where the centreline came from, since it is in no file.** The mark was
 rasterised and sampled along rays from its centre, every two degrees, and the
-white bands on each ray were followed from one to the next: the band nearest
-the last one is the same ribbon, one step on. That walk reports what the
-drawing actually is, a spiral of just under two turns, starting as a sliver at
-r approximately 218 pointing down-and-left, widening to about 105 units, and
-ending as another sliver at r approximately 516 in the same direction, which
-is the D's opening. The 368 measured midpoints were reduced to 80 by
-Douglas-Peucker at a tolerance of 2 units, which is invisible under a stroke
-150 wide.
+white bands on each ray were followed from one to the next: the band nearest the
+last one is the same ribbon, one step on. That walk reports what the drawing
+actually is, a spiral of just under two turns, starting as a sliver at r
+approximately 218 pointing down-and-left, widening to about 105 units, and
+ending as another sliver at r approximately 516 in the same direction, which is
+the D's opening. The 368 measured midpoints were reduced to 80 by
+Douglas-Peucker at a tolerance of 2 units, which is invisible under a stroke 150
+wide.
 
-**Why 150 wide, and butt-capped.** The ribbon is about 105 units across and
-the turns sit about 200 apart, so 150 clears the ribbon at every point while
-leaving about 25 units of gap to the neighbouring turn: the animation must
-never uncover a stretch the pen has not reached yet. A round cap would push
-the leading edge 75 units past the pen; a butt cap keeps the edge square
-across the ribbon, which is what a stroke looks like.
+**Why 150 wide, and butt-capped.** The ribbon is about 105 units across and the
+turns sit about 200 apart, so 150 clears the ribbon at every point while leaving
+about 25 units of gap to the neighbouring turn: the animation must never uncover
+a stretch the pen has not reached yet. A round cap would push the leading edge
+75 units past the pen; a butt cap keeps the edge square across the ribbon, which
+is what a stroke looks like.
 
 **Three details that are load-bearing:**
 
 - **The mask id must be unique per instance.** Two marks on one page, and the
-  landing page has three, sharing an id means the second one silently steals
-  the first one's mask. Hence `useId`.
+  landing page has three, sharing an id means the second one silently steals the
+  first one's mask. Hence `useId`.
 - **The rest state is fully drawn.** `strokeDashoffset` sits at 0 and the
   animation runs 1 to 0, so a mark that never animates, or animates with
   scripting off, is simply the logo.
@@ -76,31 +57,23 @@ across the ribbon, which is what a stroke looks like.
 
 **What plays it.** Hovering the enclosing link, button or menu item, the same
 walk-up `lib/icons.tsx` does and for the same reason, or the mark itself where
-there is no such ancestor, which a 28px logo is a big enough target for in a
-way a 14px icon in a row is not. The decorative watermarks are
-`pointer-events-none` and have no interactive ancestor, so they stay still
-without being told to. It finishes once started rather than snapping back on
-mouse-out: a half-drawn logo vanishing is worse than a whole one arriving
-late. And `prefers-reduced-motion` turns it off entirely.
+there is no such ancestor, which a 28px logo is a big enough target for in a way
+a 14px icon in a row is not. The decorative watermarks are `pointer-events-none`
+and have no interactive ancestor, so they stay still without being told to. It
+finishes once started rather than snapping back on mouse-out: a half-drawn logo
+vanishing is worse than a whole one arriving late. And `prefers-reduced-motion`
+turns it off entirely.
 
-**The seams, which are the whole of this file's difference from the original.**
+**Also worth knowing.**
 
-1. **`cn` comes from `./ui/utils.js` rather than `@/lib/utils`.** The client is
-   ESM with real extensions and keeps that helper beside the primitives, for
-   the reason `ui/utils.ts` records in its own header.
-2. **The root carries `data-dana-mark`.** The prototype needs no way to address
-   a mark because nothing looked for one; AC-265 did (no test since the 2026-09-20 cut),
-   and an `<svg>` addressed
-   by what is inside it is indistinguishable from the several dozen the icon
-   family draws on any page. This is the addressing contract of 9.1 one level
-   down, and it is the seam RFC 0005 change control item 40's finding (c)
-   describes: the accessibility and addressing contract is a seam of the lift
-   like the data modules are.
-3. **The two colours already live in `styles/tokens.css`**, under
-   `--dana-mark-plate` and `--dana-mark-glyph` with the two
-   `[data-dana-mark-surface]` blocks, ported ahead of this file. Nothing here
-   changed for that; it is recorded so a reader does not go looking for the
-   hexes the prototype's own header says were moved out.
+- **`cn` comes from `./ui/utils.js`**, for the reason `ui/utils.ts` records in
+  its own header.
+- **The root carries `data-dana-mark`**, so a test can address a mark (AC-265):
+  an `<svg>` addressed by what is inside it is indistinguishable from the
+  several dozen the icon family draws on any page. This is the addressing
+  contract of 9.1 one level down.
+- **The two colours live in `styles/tokens.css`**, under `--dana-mark-plate` and
+  `--dana-mark-glyph` with the two `[data-dana-mark-surface]` blocks.
 */
 
 import { useEffect, useId, useRef, type SVGProps } from 'react'

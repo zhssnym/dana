@@ -7,9 +7,7 @@ The RASTER_MIMES allowlist and sharp's re-encode are the whole defence
 against a scriptable document on Dana's own origin: SVG decodes like an
 image and serves like a document, and a GIF-then-HTML polyglot is an image
 to the decoder and a page to a sniffing renderer. AC-194 exercises only
-application/pdf, which is not the attack. Proposed by the S14 security
-review, ruled in by RFC 0005 change control item 18, pinning behaviour the
-tree already has.
+application/pdf, which is not the attack.
 
 Spec: 4.16, 7.15, 10.3.
 */

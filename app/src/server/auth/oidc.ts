@@ -21,9 +21,7 @@ takes that permission. AC-106 does not: it requires a token signed with a key
 that is not the provider's to be refused, and it is right to, because the
 signature is the only check that survives a compromised or misconfigured
 transport. Verified against the installed version: without this call a
-rogue-key token established a session; with it the token is refused. Recorded
-for the Steward as a library-versus-specification difference (protocol section
-6, spec section 13).
+rogue-key token established a session; with it the token is refused.
 */
 import {
   ClientSecretPost,

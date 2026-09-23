@@ -48,7 +48,7 @@ to keep safe.
 ## Why the block objects refuse unknown keys
 
 `.catchall(z.never())`, which `richContent` itself uses, in the leaf module
-this file imports it from. 11.14's ruling — no `.strict()` on request bodies — is
+this file imports it from. 11.14's rule — no `.strict()` on request bodies — is
 about request *envelopes*, where an unknown key is a client sending something
 this version does not know about and 7.0 tolerates it. This is different: the
 object is **stored and replayed as the truth of what somebody wrote**, so a

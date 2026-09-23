@@ -12,7 +12,7 @@ when idle as measured), so on that fallback **every spin-down destroys every
 row**: sessions, tasks, folders. What a person reports is "I have to sign in
 again" (#6), which is the mildest thing it could possibly look like.
 
-**This does not refuse the boot, and that was ruled rather than overlooked.**
+**This does not refuse the boot, deliberately.**
 `assertSignInIsPossible` is the precedent and its comment describes this hazard
 almost word for word, but a hard refusal could take production down and force a
 database purchase that has not happened. Breaking the site to prevent a
@@ -57,8 +57,8 @@ export interface DatabaseFallbackReport {
  *
  * A function rather than four lines in `main()` because `main()` binds a port,
  * migrates a database and starts the scheduler, so nothing in it can be
- * asserted without booting the process. This is the whole of the decision and
- * it is unit-tested beside this file.
+ * asserted without booting the process. This is the whole of the decision,
+ * testable on its own.
  *
  * Production only. In development and under test the fallback is the intended
  * configuration, and a boot that shouted about it would train everyone to

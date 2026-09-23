@@ -18,8 +18,8 @@ allocated up front from a count this cannot see.
 connection, so `env -u TEST_DATABASE_URL npm test` is the run it always was.
 
 Spec: 11.10 (the two legs, the locale statement, and what the second leg is an
-authority for) and 11.11 (the CI step and the guard that stops it running PGlite
-twice).
+authority for) and 11.11 (the CI step, which refuses to start rather than fall
+back to PGlite).
 */
 import type pg from 'pg'
 

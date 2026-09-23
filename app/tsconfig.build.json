@@ -15,7 +15,7 @@
   // specifier (spec 11.15). tsconfig.server.json carries no exclusion, so
   // the module still typechecks.
   //
-  // src/server/views/explain.ts is the Query engineer's EXPLAIN recorder, run
+  // src/server/views/explain.ts is the EXPLAIN recorder, run
   // by hand against a scratch database to regenerate EXPLAIN.md beside it. It
   // is a diagnostic tool rather than part of the running server, and shipping
   // it would put a module that seeds fixtures and writes files into production

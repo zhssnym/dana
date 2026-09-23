@@ -46,7 +46,7 @@ holding it is renamed. What refuses it is the state of the catalog, which is
 what 409 means everywhere else on this surface — `Already a member of this
 folder` is the closest existing neighbour and is the same shape of fact. It is
 answered identically by the create and by the rename in both scopes, which is
-the consistency #208 asks for, and AC-472 pins all four.
+the consistency #208 asks for.
 
 The other 409 on this surface is applying an archived Label, which #208 fixes
 directly. Both are state conflicts and both leave the row untouched.
@@ -55,43 +55,29 @@ directly. Both are state conflicts and both leave the row untouched.
 `{ rows, truncated }` rather than a bare array, which is 10.3's standing rule
 for a list response and the shape `getPlannedResponse` already uses. Its worst
 case is 500 Personal definitions plus 250 for every Folder the viewer belongs
-to, so it is one of the lists that rule is about; it shipped uncapped for the
-length of one review, and AC-473 now asserts both sides of the flag.
+to, so it is one of the lists that rule is about.
 
 ## The gates, including the one no sweep can see
 
 Every route below whose **path** carries an id resolves access before it acts,
-and each has a row in `ac-397`'s table saying what a signed-in stranger gets.
+and each has a row in AC-397's table saying what a signed-in stranger gets.
 That sweep is path-only, and this surface has exactly one gate outside its
 reach: **`GET /labels` takes `folder_id` from the query string**, so no
 structural test drives it with a stranger's id. The gate is
-`listLabels`'s own membership probe, it answers 404 rather than 403 for the
-reason above, and AC-473 is the criterion that asserts it, because nothing
-else will.
+`listLabels`'s own membership probe, and it answers 404 rather than 403 for
+the reason above.
 
-## Membership was the whole gate until issue #274, and is not any more
+## Folder Access, not membership, is the gate (issue #274)
 
-Every shared-Label route here used to admit every member of the Folder: the
-gate answered 404 when `accessOf` found nothing and said yes to all six
-presets otherwise. That was #208's accepted R5A, and R5A calls itself interim
-in its own words, because when it was written **membership was the only
-distinction a Folder had** — "any member" was not a lax bar, it was the only
-bar there was.
-
-#228 gave Folders a ladder, and against a ladder "any member" admits Can view.
 Folder Labels are not private annotations: they are shared vocabulary that
 drives everybody's filters and views, so a read-only member relabelling other
-people's work is a write wearing a read's clothes. **R8 supersedes R5A**, the
-ruling is issue #274's, and the decision that moved is stated there in one
-line: #208 predates graded Access, #228 introduced it, and "any member" is
-replaced by the ladder.
+people's work is a write wearing a read's clothes. Membership alone is
+therefore not the bar; the Access ladder is.
 
 So each route below names the action it performs and asks
 `shared/folder-actions.ts` for the answer. **Nothing in this file states a
-bar**, which is the same arrangement `routes/folders.ts` has had since #228;
-AC-523 maps every one of these routes to the action it asks for, and AC-800
-drives one actor per preset at both of them. Three shapes, and the third is
-the interesting one:
+bar**, which is the same arrangement `routes/folders.ts` has. Three shapes,
+and the third is the interesting one:
 
 - the four **vocabulary** writes ask `label.vocabulary.manage`, whose answer is
   the preset alone, so `gate` below resolves it beside its own `accessOf`;
@@ -212,8 +198,8 @@ export function createLabelsRouter(options: LabelsRouterOptions = {}): Router {
     const db = database(res)
     if (db === null) return
     /* The query rather than the body, so this is not one of `parseBody`'s
-       call sites; the unknown-key line AC-400 asserts is about a body and
-       there is none here. What the schema does carry is the two defaults —
+       call sites; the unknown-key rule is about a body and there is none
+       here. What the schema does carry is the two defaults —
        every scope, active only — so that an empty query has one meaning
        rather than one per reader. */
     const parsed = getLabelsQuery.safeParse(req.query)
@@ -229,9 +215,9 @@ export function createLabelsRouter(options: LabelsRouterOptions = {}): Router {
       return
     }
     const outcome = await listLabels(db, viewer(req), parsed.data)
-    /* The gate `ac-397` cannot see: the id is in the query string, so the
+    /* The gate AC-397 cannot see: the id is in the query string, so the
        sweep never drives this route with a stranger's Folder. 404 rather than
-       403, because a 403 would confirm the Folder exists (10.2). AC-473. */
+       403, because a 403 would confirm the Folder exists (10.2). */
     if (outcome.kind === 'folder_not_found') {
       notFound(res)
       return
@@ -278,7 +264,7 @@ export function createLabelsRouter(options: LabelsRouterOptions = {}): Router {
   /* The three routes below carry an id in the path and every one of them is
      gated by `writableLabel`'s `owner_user_id = <viewer>` inside the
      statement, so a Label belonging to somebody else is not found rather than
-     refused. `ac-397` drives all three. */
+     refused. AC-397 drives all three. */
   router.patch(
     '/labels/personal/:labelId',
     requireSession,
@@ -345,9 +331,8 @@ export function createLabelsRouter(options: LabelsRouterOptions = {}): Router {
    * Folder definitions
    *
    * Can edit and above create, rename, recolor, describe, archive and
-   * restore, with no owner exception — accepted R8A gives a Folder's shared
-   * Work to Can edit and makes custody irrelevant to it. #274 is where that
-   * replaced #208's interim all-members rule; the header carries the ruling.
+   * restore, with no owner exception: a Folder's shared vocabulary belongs to
+   * Can edit, and custody is irrelevant to it (#274; see the header).
    * ---------------------------------------------------------------- */
 
   /**
@@ -359,8 +344,8 @@ export function createLabelsRouter(options: LabelsRouterOptions = {}): Router {
    * resolver whether the *action* is permitted, which answers 403 to somebody
    * who demonstrably sees the Folder already.
    *
-   * This is the `accessOf` gate hard stop 5 requires and `ac-397` enumerates,
-   * with the second half #274 added. Nothing here decides anything: the whole
+   * This is the `accessOf` gate AC-397 enumerates, plus the action check.
+   * Nothing here decides anything: the whole
    * answer is `mayPerform`'s.
    */
   const gate = async (
@@ -569,15 +554,8 @@ export function createLabelsRouter(options: LabelsRouterOptions = {}): Router {
          Task's current assignee and #228 requires that fact to be read inside
          the mutation's own transaction — this read is outside it, so an
          assignment that changed in between would be decided against a row
-         that no longer exists.
-
-         **What is driven and what is not**: AC-800 drives the sequential
-         case, a reassignment between two requests, and says in terms that it
-         does not reach the concurrent one. AC-516 is the criterion that
-         drives the concurrent shape, and it drives it for
-         `task.status.complete` rather than for this action. Read the lock
-         below as the arrangement #228 asks for rather than as something a
-         test would notice the loss of. */
+         that no longer exists. No test exercises the concurrent case for
+         this action, so nothing would notice the lock's loss. */
       if ((await accessibleTask(db, viewer(req), taskId)) === null) {
         notFound(res)
         return

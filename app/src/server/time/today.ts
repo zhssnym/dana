@@ -101,9 +101,8 @@ export function localDateOf(instant: Date, tz: string): CalendarDate {
  *
  * The instant is a parameter, defaulted rather than captured, and that is
  * deliberate. 8.1 says only that the server computes today, which admits
- * reading the moment from the process clock or from the database; the P4
- * change control of 2026-08-07 ruled both readings open and declined to
- * settle them on the implementer's behalf. A helper that called new Date()
+ * reading the moment from the process clock or from the database, and both
+ * readings stay open. A helper that called new Date()
  * out of sight would settle it by accident, so the caller supplies the
  * instant whenever it has an opinion about where the clock comes from.
  */

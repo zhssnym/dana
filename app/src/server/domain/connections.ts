@@ -1,5 +1,5 @@
 /*
-The P5 roster module: spec 7.3, backed by Q9's second half. A connection is
+The roster module: spec 7.3, backed by Q9's second half. A connection is
 one row in canonical order (4.2, INV-9), so both directions of every question
 are asked of the same row: whose roster it appears on, and which of the two
 people is calling.
@@ -8,7 +8,7 @@ What this module deliberately does not do is guard anything else. The roster
 is an addressing convenience, never an access control: 5.3 reads it when a
 member is added and 8.7 reads it when an invite is created, and removing a
 pair touches neither the memberships it once sponsored nor the tasks inside
-them (AC-069).
+them.
 */
 import { sql } from 'drizzle-orm'
 

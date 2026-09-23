@@ -70,9 +70,8 @@ const DOMAIN_FILES = path.join(APP_ROOT, 'src', 'server', 'domain', 'files.ts')
  * costs on each. `ON DELETE CASCADE` is the expensive half: the referencing
  * row goes with the picture, so nothing is left to notice.
  *
- * **This list is one of the movable fixtures `docs/workflow/backend.md`
- * enumerates, and it is the strictest of them.** Rule 3 — never edit a test to
- * make your code pass — does not forbid moving it, because it describes the
+ * **This list is a movable fixture, and a strict one.** "Never edit a test to
+ * make your code pass" does not forbid moving it, because it describes the
  * shape of the schema rather than a behaviour anybody asked Dana for. A
  * migration that adds a sixth foreign key fails this file by design, and the
  * order to work in is:

@@ -1,9 +1,5 @@
 /*
-The notifications bell of 9.12, ported at S12 from the designer's
-`notifications-bell.tsx` (DES-226).
-
-His composition and his class strings, on real rows. The differences from
-his file are the ones every port in this client records rather than hides:
+The notifications bell of 9.12.
 
 **The name is the badge said aloud.** 9.1's names table fixes the bell at
 "Notifications", suffixed ", N unread" while any are, and AC-218 reads the
@@ -11,8 +7,7 @@ count out of the accessible name rather than off the visual badge, which is
 the point of putting it there: the badge is aria-hidden and the name is the
 record.
 
-**The sentence is the event's own.** His fixtures carried a hand-written
-sentence per row; the wire carries 4.13's verb and, where the chokepoint
+**The sentence is the event's own.** The wire carries 4.13's verb and, where the chokepoint
 recorded one, a human phrase in `detail` ("assigned to Imran"). The row
 renders the actor emphasised, the act, the thing's name, and `formatAgo`'s
 elapsed time, which is 9.12's anatomy on the columns 7.12 actually answers.
@@ -29,35 +24,19 @@ or a shelf at its page, a comment at the folder that holds its thread. No
 per-row actions, no hand deletion; "Mark all read" is the surface's only
 other verb and renders only while something is unread.
 
-**Unread is told by tone and a dot, never by hue** — DES-143's rule
-generalized, his classes carried whole, the badge on `bg-foreground
-text-background` because roles invert with the theme and values went
-white-on-white in his own first gate run.
+**Unread is told by tone and a dot, never by hue**, the badge on
+`bg-foreground text-background` because roles invert with the theme and fixed
+values go white-on-white.
 
-D3's liveness: the list refetches on focus like every read, and polls only
-while the popover is open (`useNotifications(open)`), which is the polite
-poll the pricing session bought and nothing more.
+Liveness: the list refetches on focus like every read, and polls only
+while the popover is open (`useNotifications(open)`), and nothing more.
 
-**Moved here from `shell/` and given its last missing element at S26**, and
-both halves are the same finding. Measured at this row's opening on item
-48(j)'s method, this file already carried eleven of the prototype's twelve
-class strings, which is a port sitting at a lift's fidelity: S12 transcribed
-his composition rather than approximating it. So there was nothing to lift and
-two things to correct.
+**Each row leads with the actor's face**, so a feed about what people did to
+you shows them as well as naming them. The roster this file already reads for
+the name supplies the initials, so it costs a component and no request.
 
-The twelfth string was **the actor's face**, which the prototype draws at the
-head of every row and this drew nowhere, so a feed about what people did to
-you named them and never showed them. The roster this file already reads for
-the name is the same one that supplies the initials, so it costs a component
-and no request.
-
-And the file was in `shell/`, which is the app frame, while
-`components/**` is the reusable layer and the prototype's
-own path is `components/notifications-bell.tsx`. A component in the wrong
-owner's directory is the fault RFC 0005 change control item 46 names, one
-level below the one it names it at: not a duplicate yet, but the state a
-duplicate is made from, because the next session looking for the bell under
-`components/` finds nothing there.
+It lives in `components/`, the reusable layer, rather than `shell/`, the app
+frame.
 */
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
@@ -118,7 +97,7 @@ function subjectPath(row: NotificationLine): string {
     case 'shelf':
       return paths.shelf(event.subject_id)
     case 'comment':
-      /* polish: search F3. A comment lands on its thread, opened: the task
+      /* A comment lands on its thread, opened: the task
          when it sits on one, the folder page otherwise, each told to expand
          its conversation by the query the page reads. */
       if (row.task_id !== null) return `${paths.task(row.task_id)}?${CONVERSATION_PARAM}=open`
@@ -128,11 +107,11 @@ function subjectPath(row: NotificationLine): string {
   }
 }
 
-/** The query a page reads to open its conversation on arrival (polish, search F3). */
+/** The query a page reads to open its conversation on arrival. */
 export const CONVERSATION_PARAM = 'conversation'
 
 /**
- * The row's sentence (9.12: actor, act, thing), polish search F4.
+ * The row's sentence (9.12: actor, act, thing).
  *
  * Two acts are said for the reader rather than for the record: an assignment
  * reaches only its assignee, so "assigned to X" reads "assigned you"; and a
@@ -172,7 +151,7 @@ export function NotificationsBell({
   const rows = notifications.data?.notifications ?? []
   const unread = rows.filter((row) => row.read_at === null).length
 
-  /* polish round-2: the actor's picture rides with their name. A feed about
+  /* The actor's picture rides with their name. A feed about
      what people did to you is the surface a face helps most, and both reads
      behind this directory — 7.3's connections and 7.1's own profile — have
      carried `avatar_url` since 4.1; only this map dropped it. */
@@ -257,10 +236,8 @@ export function NotificationsBell({
                 }}
                 className="flex w-full items-start gap-2.5 rounded-md px-2 py-2 text-left transition-colors outline-none hover:bg-[var(--color-graphite-50)] focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)]"
               >
-                {/* The face the prototype puts at the head of every row: a
-                    feed about what people did to you says who, and a name
-                    without a face is the one thing this composition was
-                    missing. */}
+                {/* The actor's face at the head of every row: a feed about
+                    what people did to you says who. */}
                 <PersonFace
                   className="mt-0.5 shrink-0"
                   name={actor}

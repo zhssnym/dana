@@ -174,9 +174,9 @@ export function formatRelativeDay(instant: string, today: string): string {
  * `formatRelativeDay` above is the wrong tool for it and says so in its own
  * header: it reads an instant's *UTC* date, which is right for the coarse
  * joined and sent stamps it was written for and wrong here, because the
- * newest event is usually the thing the person did seconds ago. Measured at
- * S9 on a machine six hours behind UTC: a folder edited at 19:04 local read
- * as "25 Aug 2026", tomorrow's date, on a line whose whole job is to say
+ * newest event is usually the thing the person did seconds ago. On a machine
+ * six hours behind UTC, a folder edited at 19:04 local would read as
+ * tomorrow's date, on a line whose whole job is to say
  * "just now".
  *
  * Elapsed time needs no timezone at all, which is the other half of why this
@@ -201,7 +201,7 @@ export function formatAgo(instant: string, now: number): string {
 }
 
 /*
-The civil arithmetic S10's Scheduled ladder needs, and the same discipline as
+The civil arithmetic the Scheduled ladder needs, and the same discipline as
 everything above: no `Date`, so nothing here can read a clock or shift a date
 across a zone, and every function is total.
 

@@ -1,39 +1,32 @@
 /*
 The one filter of 9.1, as a model.
 
-"One control with the same meaning on every place-page: due presence and
-ranges, assignee (multi-value, "Unassigned" included), important, repeating,
-created-by, show-abandoned, group-by, sort, and "Save as view"." That sentence
-is this file's whole specification, and the model lives here rather than in
-the control because three other things read it: the chips in the window bar,
-the board's columns, and a saved view's stored definition.
+"One control with the same meaning on every place-page: due presence and ranges,
+assignee (multi-value, "Unassigned" included), important, repeating, created-by,
+show-abandoned, group-by, sort, and "Save as view"." That sentence is this
+file's whole specification, and the model lives here rather than in the control
+because three other things read it: the chips in the window bar, the board's
+columns, and a saved view's stored definition.
 
-**It narrows rows the client already holds and asks the server for nothing.**
-6 Q1's closing line says it of the important axis, "it changes no query", and
+**It narrows rows the client already holds and asks the server for nothing.** 6
+Q1's closing line says it of the important axis, "it changes no query", and
 AC-167 measures it by counting requests; the other axes follow the same rule
 because section 6 offers no parameter for any of them. So every function here
 takes rows and returns rows.
 
-**Created-by lands at S25, and it is the axis this file spent two rows
-recording the absence of.** It was an escalation rather than an omission: a
-filter runs over `TaskCard`, TaskCard had no `created_by`, and adding it to a
-frozen section 7 was a human decision rather than this file's. Imran approved
-it at RFC 0005 change control item 19 and unit 12a wrote it, so the card has
-carried the creator since S18 and the axis needs no request per row. Ledger
-L-177 and L-255 are that gap, and it is a gap against a numbered section as
-well as against the prototype, 9.1 naming the axis in the filter's own list.
+**Created-by** reads the creator `TaskCard` carries, so the axis needs no
+request per row. 9.1 names it in the filter's own list.
 
-**It is a filter and never a spine**, which is `task-filters.tsx`'s own
-reasoning and the reason Assignments has two halves rather than two pages
-(L-224). Dana records a creator and not an assigner, so "from A" is a fact
-about who made a task and "to B" is a fact about who is carrying it; grouping
-by the first would claim an assignment nobody made.
+**It is a filter and never a spine**, which is also why Assignments has two
+halves rather than two pages. Dana records a creator and not an assigner, so
+"from A" is a fact about who made a task and "to B" is a fact about who is
+carrying it; grouping by the first would claim an assignment nobody made.
 
-**"Manual" is the resting sort and manual means do not touch it** (DES-156).
-Section 6's preamble already says clients never re-sort, and every page
-arrives in an order something decided; a sort that silently overrode it would
-be the filter answering a question nobody asked. The other three orders are a
-person's explicit request, which is the one thing that outranks a default.
+**"Manual" is the resting sort and manual means do not touch it.** Section 6's
+preamble already says clients never re-sort, and every page arrives in an order
+something decided; a sort that silently overrode it would be the filter
+answering a question nobody asked. The other three orders are a person's
+explicit request, which is the one thing that outranks a default.
 */
 import type { TaskCard } from '../../shared/tasks.js'
 
@@ -41,21 +34,17 @@ import type { TaskCard } from '../../shared/tasks.js'
 export const UNASSIGNED = 'unassigned'
 
 /**
- * The due axis. "Due presence and ranges" is two questions in one control,
- * and DES-156 keeps both: whether a task has a date at all, and which days.
+ * The due axis. "Due presence and ranges" is two questions in one control, and
+ * both are kept: whether a task has a date at all, and which days.
  *
- * **It means the Due Date and only the Due Date, and since issue #216 that is
- * a decision rather than the only reading available.** A task now carries a
- * Schedule of two optional dates, so "with a date" could mean either end of
- * it; #216 asks that the distinction be explicit enough that a Start Date
- * cannot corrupt a saved view's stored meaning, and the way to be explicit is
- * to keep this axis on one column. So `with` is a deadline and `without` is
- * its absence, `overdue` is 8.1's relation to that deadline and can never
- * be true of a Start-only task, and a range narrows due dates. A view saved
- * before start dates existed therefore matches exactly the rows it always
- * did. An axis that sometimes meant one date and sometimes the other would
- * be the ambiguous generic-date behaviour that issue names, and if Start
- * Date ever wants a filter it wants one of its own.
+ * **It means the Due Date and only the Due Date** (issue #216). A task carries
+ * a Schedule of two optional dates, so "with a date" could mean either end of
+ * it, and a Start Date must not corrupt a saved view's stored meaning. So
+ * `with` is a deadline and `without` is its absence, `overdue` is 8.1's
+ * relation to that deadline and can never be true of a Start-only task, and a
+ * range narrows due dates. A view saved before start dates existed therefore
+ * matches exactly the rows it always did. If Start Date ever wants a filter it
+ * wants one of its own.
  */
 export type DueAxis =
   | 'any'
@@ -68,16 +57,15 @@ export type DueAxis =
   | 'custom'
 
 /*
-9.1's group-by axes. `section` arrived at S26 with RFC 0005 change control
-item 44's B2: "sections are the first and unfiltered arrangement; the filter is
-fully involved in changing it, and may group by date, by assignee, or by
-another axis", so the date board is one of the filter's values rather than a
-rival reading. 9.1's own regions table already named it, "that column's value,
-whatever its axis, folder, person, day, or section".
+9.1's group-by axes. Sections are the folder page's first and unfiltered
+arrangement, and the filter may group by date, by assignee, or by another axis,
+so the date board is one of the filter's values rather than a rival reading.
+9.1's own regions table names it, "that column's value, whatever its axis,
+folder, person, day, or section".
 
 It is a folder page's axis and no other page's: a section is a block of one
-folder's page (4.17), so grouping Today by section would ask eight pages'
-worth of tasks which of one page's blocks they sit under.
+folder's page (4.17), so grouping Today by section would ask eight pages' worth
+of tasks which of one page's blocks they sit under.
 */
 export type GroupBy = 'none' | 'folder' | 'person' | 'date' | 'section'
 
@@ -93,11 +81,10 @@ export interface PageFilter {
   /**
    * 9.1's created-by axis: the ids of the people whose tasks are kept.
    *
-   * Empty means anyone, the same neutral value the assignee axis uses and for
-   * DES-156's reason. There is no `UNASSIGNED` counterpart and there cannot
-   * be one: 4.5 makes `created_by` NOT NULL, so every task was made by
-   * somebody, and the one degenerate case is 7.4's deleted-user stub, which
-   * still carries an id.
+   * Empty means anyone, the same neutral value the assignee axis uses. There is
+   * no `UNASSIGNED` counterpart and there cannot be one: 4.5 makes `created_by`
+   * NOT NULL, so every task was made by somebody, and the one degenerate case
+   * is 7.4's deleted-user stub, which still carries an id.
    */
   readonly creators: readonly string[]
   readonly important: boolean
@@ -111,9 +98,9 @@ export interface PageFilter {
 /**
  * A filter narrowing nothing, which is what every page opens with.
  *
- * `assignees: []` means anyone rather than nobody, which is DES-156's own
- * rule and the reason the empty array is the neutral value: "adding a person
- * can never silently switch off a filter already set".
+ * `assignees: []` means anyone rather than nobody, and that is the reason the
+ * empty array is the neutral value: adding a person can never silently switch
+ * off a filter already set.
  */
 export const NO_FILTER: PageFilter = {
   due: 'any',
@@ -129,9 +116,9 @@ export const NO_FILTER: PageFilter = {
 }
 
 /**
- * polish: pagehead F2. "Custom range" chosen with no days picked yet is a
- * panel waiting for an answer, not a narrowing: nothing is filtered, no chip
- * is drawn, and a view saved in that state stores no range.
+ * "Custom range" chosen with no days picked yet is a panel waiting for an
+ * answer, not a narrowing: nothing is filtered, no chip is drawn, and a view
+ * saved in that state stores no range.
  */
 export function customRangeOpen(filter: PageFilter): boolean {
   return filter.due === 'custom' && (filter.from === null || filter.to === null)
@@ -196,9 +183,9 @@ function matchesAssignee(task: TaskCard, filter: PageFilter): boolean {
   return filter.assignees.includes(id)
 }
 
-/* 9.1's created-by axis, over the creator TaskCard has carried since S18. A
-   card whose creator is absent is kept only while the axis is neutral: an
-   unknown maker is not a match for a named one. */
+/* 9.1's created-by axis, over the creator TaskCard carries. A card whose
+   creator is absent is kept only while the axis is neutral: an unknown maker is
+   not a match for a named one. */
 function matchesCreator(task: TaskCard, filter: PageFilter): boolean {
   if (filter.creators.length === 0) return true
   const id = task.created_by?.id
@@ -263,10 +250,10 @@ export function applyFilter(
  * The window bar's readout: one chip per axis that narrows, each removable on
  * its own.
  *
- * DES-156 fixes both halves. One per axis rather than one per value, "because
- * the thing a person wants to take off is the narrowing, and picking three
- * chosen people apart again is what the panel is for". And chips rather than
- * a count, which 9.1 says in terms: "never as a count alone".
+ * One per axis rather than one per value, because the thing a person wants to
+ * take off is the narrowing, and picking three chosen people apart again is
+ * what the panel is for. And chips rather than a count, which 9.1 says in
+ * terms: "never as a count alone".
  */
 export interface FilterChip {
   readonly key: string
@@ -356,11 +343,10 @@ export const ABANDONED_HIDDEN = 'Abandoned hidden'
 /**
  * A saved view's stored definition (4.19), and its way back.
  *
- * The filter is already ids and enums, which is 11.15's port note as a
- * property rather than a promise: nothing here holds a display name, so a
- * person renamed or a folder renamed leaves every saved view intact. That is
- * what AC-209 states on the server side (no test since the 2026-09-20 cut), and this
- * is the client half of it.
+ * The filter is already ids and enums, which is 11.15's port note as a property
+ * rather than a promise: nothing here holds a display name, so a person renamed
+ * or a folder renamed leaves every saved view intact. That is what AC-209
+ * states on the server side, and this is the client half of it.
  */
 export function viewDefinition(filter: PageFilter, page: string): Record<string, unknown> {
   const settled = customRangeOpen(filter) ? { ...filter, due: 'any', from: null, to: null } : filter
@@ -390,9 +376,9 @@ export function filterFromDefinition(definition: Record<string, unknown>): PageF
     assignees: Array.isArray(assignees)
       ? assignees.filter((entry): entry is string => typeof entry === 'string')
       : [],
-    /* Absent from every definition written before S25, which is what `tolerant
-       of a definition written by an older client` is for: an older view opens
-       with the axis neutral rather than with nobody's tasks. */
+    /* Absent from older definitions, which is what `tolerant of a definition
+       written by an older client` is for: an older view opens with the axis
+       neutral rather than with nobody's tasks. */
     creators: Array.isArray(creators)
       ? creators.filter((entry): entry is string => typeof entry === 'string')
       : [],

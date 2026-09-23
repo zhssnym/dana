@@ -5,13 +5,8 @@ Same discipline as `ui/copy.ts` and `task-form/copy.ts`: a string section 9
 writes is transcribed character for character, and a string section 9 does
 not write is named here once so that one file decides it.
 
-**The five chip names are 9.3's own field names, and they became so when the
-v1 fields went.** They were deliberately different while the reunion was
-half-built: the fields below the strip were still implemented and their names
-were still normative there, so a chip called "Due date" would have put two
-controls of one name on one surface. S15 retired those fields, so the
-collision is gone and the names are the section's. 9.1's addressing paragraph
-is what makes this the right end state rather than a tidy-up: "every control
+**The five chip names are 9.3's own field names.** 9.1's addressing
+paragraph is why: "every control
 this section names is reachable by its accessible role and by its normative
 name", and a strip whose chips did not say which field they were would be
 five values and no questions.
@@ -56,8 +51,7 @@ export const DUE_TIME_CLEAR = 'Remove the time'
  *
  * 9.3 enumerates the presets and their operands and writes no copy for the
  * labels, the same way it writes none for the date picker's own affordances,
- * so these are the design's and are named once here. They moved from the v1
- * field to the repeat picker at S15 with the rest of the control.
+ * so these are the design's and are named once here.
  */
 export const REPEAT_ON = 'Repeat on'
 export const REPEAT_EVERY = 'Repeat every'
@@ -66,7 +60,7 @@ export const REPEAT_ENDS_ON = 'Ends on'
 
 /**
  * 9.3's v2 assignee row: "Unassigned", offered last after a separator, which
- * is the way out the v1 dropdown never had (DES-194, section 13 item 28).
+ * is the way out the v1 dropdown never had.
  */
 export const UNASSIGNED = 'Unassigned'
 

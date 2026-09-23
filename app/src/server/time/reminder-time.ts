@@ -14,8 +14,7 @@ midnight, and the mechanism is deliberately the same so a reader who has
 understood one has understood both.
 
 **The two rules, and what raw Luxon does instead.** Both are Dana policy
-chosen where the standard is silent (section 13 item 25), so neither has an
-oracle and none was sought.
+chosen where the standard is silent, so neither has an oracle.
 
 - A nonexistent local time, inside a spring-forward gap, resolves to the first
   valid instant after the gap. That instant is the transition itself: the gap
@@ -33,9 +32,8 @@ oracle and none was sought.
   answers 00:30Z while the process clock sits in British Summer Time and
   01:30Z, the instant 8.6 refuses, while it sits in Greenwich Mean Time. The
   raw behavior is therefore not merely unspecified, it changes twice a year
-  under a clock the caller never passed it. reminder-time.test.ts pins both
-  halves of that, which is why its anti-oracle case controls Luxon's clock
-  rather than reading whichever answer today happens to produce.
+  under a clock the caller never passed it. A test of this must control
+  Luxon's clock rather than read whichever answer today happens to produce.
 
 Nothing here reads a database or a process clock. The zone, the dates and the
 mode arrive as arguments, the answer is a function of them alone, and the row
@@ -212,7 +210,7 @@ function resolveWallMillis(wallMillis: number, zone: string): LocalResolution {
  * 8.6's two rules.
  *
  * Exported for its own sake as well as for computeFireAt's: it is the whole of
- * the DST policy, and asserting it directly is what lets the unit tests prove
+ * the DST policy, and asserting it directly is what lets a unit test prove
  * each rule against raw Luxon without a database, a task or a reminder in the
  * way.
  */
@@ -273,11 +271,10 @@ export function resolveFireAt(input: FireAtInput): LocalResolution {
       reminder to an hour the user never chose, and dropping the offset makes
       it fire at the deadline it was meant to precede.
 
-      One route to this state is open and is escalated with this session
-      rather than closed here: PATCH /tasks/:id may clear due_time alone, and
-      no section says what that does to an offset reminder. The endpoint is
-      the Collaboration engineer's and the choice among 422, a cascade delete
-      and a mode conversion is a specification question, not this module's.
+      One route to this state is open: PATCH /tasks/:id may clear due_time
+      alone, and no section says what that does to an offset reminder. The
+      choice among 422, a cascade delete and a mode conversion is a
+      specification question, not this module's.
       */
       throw new TypeError(
         "8.6's offset arm requires the task's due_time, and this task has none (4.8, 7.9)",

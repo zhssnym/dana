@@ -7,9 +7,8 @@ replacement is an external per-minute trigger hitting an authenticated
 endpoint that runs one pass, rather than a rewrite. The 60-second interval and
 its in-flight guard therefore live next door in ./interval.ts, and nothing
 below knows a timer exists. The acceptance suite reaches exactly this
-function, through the module path and the two dependency names 11.7 ratified
-at the P7 mid-package change control; production composes the same callable at
-boot.
+function, through the module path and the two dependency names 11.7 fixes;
+production composes the same callable at boot.
 
 **One transaction, claim then classify then send then mark.** The poll runs
 inside the transaction and claims its rows with SELECT ... FOR UPDATE SKIP
@@ -21,8 +20,8 @@ the send and the mark can duplicate at most one batch, which 8.6 accepts by
 name, and the alternative (mark first, then send) trades a duplicate for a
 silent non-delivery, which it does not.
 
-**Nothing here computes a fire instant.** 8.6's arithmetic is the Scheduling
-engineer's and this role's persona forbids restating it; the pass reads
+**Nothing here computes a fire instant.** 8.6's arithmetic lives in
+src/server/time and is never restated here; the pass reads
 fire_at as stored and compares it to the database's own now(), never to a
 clock in this process. That also settles which clock decides staleness when
 the two disagree.
@@ -110,7 +109,7 @@ export interface ReminderPassDeps {
    * and for its reason: importing the boot file's logger would point a module
    * the boot file composes back at the entrypoint that runs main(). Silence
    * was the alternative and was refused: a pass that delivers mail while
-   * logging nothing is the hazard this role exists to prevent, and 10.5
+   * logging nothing is exactly the silence to prevent, and 10.5
    * requires the lines.
    */
   logger?: SchedulerLogger
@@ -122,10 +121,9 @@ export interface ReminderPassDeps {
    */
   heartbeatUrl?: string
   /**
-   * The S4 object store. The Trash purge collects the files rows its folder
+   * The object store. The Trash purge collects the files rows its folder
    * deletes will cascade away and removes their objects after the delete
-   * commits, those rows being the only index to the bytes (11.7, RFC 0005
-   * change control item 18). Optional beside the two ratified deps for the
+   * commits, those rows being the only index to the bytes (11.7). Optional beside the two ratified deps for the
    * logger's reason; the boot file always passes the application's own
    * store, and a pass without one still purges rows exactly as before.
    */
@@ -150,8 +148,7 @@ export interface ReminderPassOutcome {
   /** Expired session rows the second duty removed (11.6, 11.7). */
   prunedSessions: number
   /** Trash rows past 30 days the third duty purged: folders, tasks and, since
-   * issue #210, custom Folder facets, their cascades uncounted (RFC 0005,
-   * 11.7). */
+   * issue #210, custom Folder facets, their cascades uncounted (11.7). */
   purgedTrash: number
   /** Events past 90 days the fourth duty purged (4.13). */
   purgedEvents: number
@@ -188,8 +185,8 @@ const SLOW_PASS_MS = 30_000
 Q11, plus everything classifying the row needs, in one statement.
 
 The reminder poll is section 6's Q11 ("reminders where state = 'scheduled' and
-fire_at <= now()"), which the RFC's P7 row places here rather than in a query
-session: it has no ordering, no cap and no cursor, and 11.7 rather than
+fire_at <= now()"), which lives here rather than with the view queries: it
+has no ordering, no cap and no cursor, and 11.7 rather than
 section 6 specifies how it claims rows. The 4.8 partial index on (fire_at)
 WHERE state = 'scheduled' is what it reads.
 
@@ -243,7 +240,7 @@ function skipReasonFor(row: Record<string, unknown>): SkipReason | null {
   if (text(row.status) !== 'pending') return 'task_not_pending'
   if (text(row.assignee_id) === null) return 'unassigned'
   if (isTrue(row.stale)) return 'stale'
-  // Not a fourth rule of this role's invention: 4.1 makes users.email
+  // Not a fourth rule invented here: 4.1 makes users.email
   // nullable only for a scrubbed row (8.10 step 7), and R-CLEAN unassigns
   // that user's tasks before the scrub, so this is unreachable in a tree
   // where account deletion ran whole. It is treated as the unassigned skip
@@ -264,8 +261,7 @@ function reminderMessage(row: Record<string, unknown>): OutboundMessage {
       dueDate: String(row.due_date),
       dueTime: text(row.due_time),
       // The claim already joins folders to enforce 8.6's deleted-folder
-      // skip, so the context line item 32 rules for this template costs no
-      // read of its own.
+      // skip, so the template's context line costs no read of its own.
       folderName: String(row.folder_name),
     },
   }
@@ -382,19 +378,18 @@ export function createReminderPass(deps: ReminderPassDeps): ReminderPass {
     const prunedSessions = await pruneExpiredSessions(db)
 
     /*
-    The third and fourth duties (RFC 0005, 11.7): the 30 day Trash purge and
+    The third and fourth duties (11.7): the 30 day Trash purge and
     the 90 day event purge. Each claims its rows the way the reminder duty
     always has, SKIP LOCKED, in a transaction of its own, separate from the
     delivery's for the session prune's reason: a purge that fails can never
     roll back a delivery that already happened. A repeat finds nothing, so
     the missed-tick and overlap properties hold unchanged. Folders go before
     tasks so a task inside a purged folder goes by its folder's cascade
-    rather than being counted twice. The fifth duty the RFC text named,
-    notification fan-out, moved to the 10.2 chokepoint at S3's change
-    control; the tick carries four.
+    rather than being counted twice. Notification fan-out is not the tick's:
+    it happens at the 10.2 chokepoint.
 
     The folder purge collects its files rows in the same statement that
-    deletes (11.7, RFC 0005 change control item 18): the cascade drops
+    deletes (11.7): the cascade drops
     them, they are the only index to the bytes in the store, and read
     afterwards there is nothing left that knows the objects exist. The
     claim, the collection and the delete are three CTEs of one statement
@@ -405,14 +400,13 @@ export function createReminderPass(deps: ReminderPassDeps): ReminderPass {
     destroyed bytes whose rows survived. The task purge collects the files
     that hung on the doomed tasks' conversations alone, the same way.
 
-    Since RFC 0004's S28a the statements live in domain/trash.ts, because
-    RFC 0005 change control item 36 requires the permanent-delete endpoint
-    to call the collection the purge does rather than write a delete beside
-    it; the pass hands over its age predicate and its SKIP LOCKED claim and
-    is otherwise unchanged.
+    The statements live in domain/trash.ts, because the permanent-delete
+    endpoint must call the same collection the purge does rather than write a
+    delete beside it; the pass hands over its age predicate and its SKIP
+    LOCKED claim.
 
-    **All three claims are capped at SWEEP_BATCH since issue #276, and they
-    do share the shape.** Each is a `SELECT ... FOR UPDATE SKIP LOCKED` this
+    **All three claims are capped at SWEEP_BATCH (issue #276), and they do
+    share the shape.** Each is a `SELECT ... FOR UPDATE SKIP LOCKED` this
     module writes and hands over, so a `LIMIT` is one clause in the claim
     rather than a change to what any of them means. What the cap buys is not
     the same in all three, which is worth saying rather than implying: the
@@ -440,10 +434,10 @@ export function createReminderPass(deps: ReminderPassDeps): ReminderPass {
     )
     await removeObjects(deps.fileStore, taskPurge.fileIds)
     /*
-    The third Trash kind (issue #210, 2026-09-21): a custom Folder facet, on
-    7.13's same thirty-day window and through `domain/facets.ts`'s own 11.7
-    collection rather than a delete written beside it, which is item 36's
-    requirement on every caller of that collection.
+    The third Trash kind (issue #210): a custom Folder facet, on 7.13's same
+    thirty-day window and through `domain/facets.ts`'s own 11.7 collection
+    rather than a delete written beside it, as every caller of that
+    collection must.
 
     It collects no files and needs no `removeObjects` after it: a `files` row
     is scoped to a folder (4.16) and the folder survives its facet, so what
@@ -477,17 +471,14 @@ export function createReminderPass(deps: ReminderPassDeps): ReminderPass {
     ).length
 
     /*
-    The fifth duty (issue #116, 2026-09-04): the folder-less pictures nothing
-    uses. Covers when it was written, and folder-less page images with them
-    since issue #167 the same day, that ruling having given a shelf page's
-    image the folder-less life a cover already had.
+    The fifth duty (issues #116, #167): the folder-less pictures nothing
+    uses, covers and shelf page images alike.
 
     **It is here rather than in the act that stops wearing one, and that is
     the design decision rather than a convenience.** A folder-less cover is
-    reachable by no listing and no route, so a replaced one used to spend its
-    owner's 1 GB (10.3) with nothing able to delete it — #116's first half.
-    Deleting it the instant a page stopped naming it was the obvious repair
-    and is wrong: the caller is still holding that id, and setting the same
+    reachable by no listing and no route, so a replaced one would spend its
+    owner's 1 GB (10.3) with nothing able to delete it. Deleting it the
+    instant a page stopped naming it is wrong: the caller is still holding that id, and setting the same
     picture back a moment later is what a cover picker does. So this is a
     sweep over what nothing has referenced for thirty days, Dana's own line
     for destroying anything (7.13, 8.8), measured from the moment the last
@@ -504,7 +495,7 @@ export function createReminderPass(deps: ReminderPassDeps): ReminderPass {
     ).length
 
     // Both liveness signals, after the work and only on a cycle that
-    // completed: /api/health's age since P0 (11.12), and the heartbeat whose
+    // completed: /api/health's pass age (11.12), and the heartbeat whose
     // silence alerts.
     recordSchedulerPass()
     if (deps.heartbeatUrl !== undefined && deps.heartbeatUrl !== '') {

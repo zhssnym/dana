@@ -1,43 +1,37 @@
 /*
-Light, dark, or whatever the machine says: `prototype-v2`'s `lib/theme.ts`
-rewritten over 4.19's `theme` column and the pre-paint mirror RFC 0005 change
-control item 43 ruled (RFC 0004's S27).
+Light, dark, or whatever the machine says, over 4.19's `theme` column and a
+pre-paint mirror.
 
-The prototype's header says the choice "is applied to the document, not passed
-down", one attribute on `<html>` the token file answers, and that it "survives
-a reload without a flash" because the attribute is set from storage before
-React mounts. Its own Lane 2 note anticipated the question this module
-answers: "this is a `user_settings` column, and until it is, `localStorage`
-is the right stand-in". Dana has the column, so the column is the record and
-the browser copy is exactly what item 43 calls it, a cache that exists to
-paint one frame.
+The choice is applied to the document, not passed down: one attribute on
+`<html>` the token file answers. It survives a reload without a flash because
+the attribute is set before React mounts. The column is the record and the
+browser copy is a cache that exists to paint one frame.
 
-**Three constraints from item 43, each a line below.**
+**Three constraints, each a line below.**
 
 - **The column stays the truth and the mirror is a cache.** `useTheme` answers
   the bundle when it has landed and the mirror only until then, so a stale or
-  absent mirror costs one frame and never a wrong preference; the inline
-  script in `index.html` reads the mirror and never writes the column.
+  absent mirror costs one frame and never a wrong preference; the inline script
+  in `index.html` reads the mirror and never writes the column.
 - **Write-through and single-direction.** `mirrorTheme` is called from
   `shell/appearance.ts` whenever the bundle's value is applied and from
-  `setTheme` when a person chooses, and `clearThemeMirror` runs at sign-out so
-  a shared device does not paint the previous person's theme.
+  `setTheme` when a person chooses, and `clearThemeMirror` runs at sign-out so a
+  shared device does not paint the previous person's theme.
 - **`system` mirrors as `system`**, never as what it resolved to, or a person
-  whose choice is to follow their device is silently converted to a fixed
-  theme by the first machine they sign in on. The inline script resolves it
-  the same way `resolvedTheme` does, by asking the media query.
+  whose choice is to follow their device is silently converted to a fixed theme
+  by the first machine they sign in on. The inline script resolves it the same
+  way `resolvedTheme` does, by asking the media query.
 
-**The exported names are the prototype's**, `useTheme`, `setTheme` and
-`resolvedTheme`, so `settings-page-content.tsx` imports what it imported. What the
-prototype called `applyStoredTheme` is the inline script now, because a
-module that runs after the bundle has been parsed is already too late for the
-frame the flash is on; `shell/appearance.ts` keeps following the device while
-the choice is `system`, which is the other half of that function.
+**The exported names are `useTheme`, `setTheme` and `resolvedTheme`**, which
+`settings-page-content.tsx` imports. Applying a stored theme is the inline
+script's job, because a module that runs after the bundle has been parsed is
+already too late for the frame the flash is on; `shell/appearance.ts` keeps
+following the device while the choice is `system`.
 
 **`setTheme` applies before it writes**, so the document changes on the press
 and the column catches up: the same order the pin list takes, and for the same
-reason, a control whose effect waits on a round trip reads as a control that
-did nothing.
+reason, a control whose effect waits on a round trip reads as a control that did
+nothing.
 */
 import { useBundle } from '../api/queries.js'
 import { mutateApi } from '../api/http.js'
@@ -91,10 +85,9 @@ export function resolvedTheme(choice: ThemeChoice): 'light' | 'dark' {
 }
 
 /*
-The attribute is always one of `light` or `dark`, which is the convention of
-`shell/appearance.ts` rather than the prototype's (whose light theme removes
-the attribute): the stylesheet never has to know that `system` exists, and a
-criterion can read one value off the document.
+The attribute is always one of `light` or `dark`, which is
+`shell/appearance.ts`'s convention: the stylesheet never has to know that
+`system` exists, and a test can read one value off the document.
 */
 export function applyTheme(choice: ThemeChoice): void {
   document.documentElement.setAttribute('data-theme', resolvedTheme(choice))

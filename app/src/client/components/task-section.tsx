@@ -1,31 +1,13 @@
 /*
 A section of a task list, one component for every kind there is.
 
-Lifted from `docs/design/prototype-v2/src/components/task-section.tsx` at S23,
-read on `v2-build` at `b316785`. That prototype is deleted (`a7886df`,
-2026-09-01); read it in git history before that commit. The lift discipline
-of RFC 0004's prototype-lift section applies: this file diffs empty against
-that original except at the seams named at the foot of this header. The
-designer's own reasoning below is kept intact, being the design record for
-what this does.
+Sections have two types, native and user-added, and both behave the same
+except that native sections cannot be deleted or renamed. Both collapse, and
+a section can carry an icon or a profile avatar.
 
-**The seams are the two mechanical ones every lifted file takes and no
-other**: the `@/` specifiers become this client's relative ESM paths (11.4),
-and the em dashes leave under protocol section 7's writing convention.
-
-Imran, 2026-08-22: "Sections have two types: native sections and sections
-added by users, both should be same, only the native sections can't be deleted
-or renamed. Right now native sections are not collapsable which is not good,
-but they can carry an icon or even a profile avatar."
-
-He is describing a real split. The folder page's user-made sections were
-collapsible, renameable and deletable; every computed section elsewhere, My
-Day's "Carried over", Scheduled's dates, Assignments' people, All's two
-labels, Tasks' folders, Done's days, was a bare heading that could not be
-collapsed at all. Two grammars for one idea, which is the fault DES-151 fixed
-at the level of *type* and this fixes at the level of *behaviour*.
-
-So there is one section, and the only differences are capabilities:
+Computed sections (My Day's "Carried over", Scheduled's dates, Assignments'
+people, All's two labels, Tasks' folders, Done's days) and a folder's
+user-made sections share one grammar. So there is one section, and the only differences are capabilities:
 
 - **Every section collapses.** Computed or hand-made, a heading you cannot
   fold is a heading that cannot get out of your way.
@@ -34,14 +16,13 @@ So there is one section, and the only differences are capabilities:
 - **Only a section somebody made can be renamed or deleted**, which is the
   whole of what "native" means. It is a capability, not a different component.
 
-**The absent mark leaves no hole.** Imran's constraint: "if a section does not
-carry an icon, the section should not feel like it's lacking something." So
-the mark is *inline in the heading* rather than in a reserved slot, a section
+**The absent mark leaves no hole**: a section without an icon should not feel
+like it lacks something. So the mark is *inline in the heading* rather than in a reserved slot, a section
 without one simply starts its name earlier, and nothing anywhere is waiting to
 be filled. The chevron is the constant left anchor instead, which is honest,
 because the chevron is the one thing every section really does have.
 
-The tier is DES-148's: 16px on the hairline band, the count quiet beside it.
+The tier: 16px on the hairline band, the count quiet beside it.
 */
 
 import { useState, type ReactNode } from "react"
@@ -78,8 +59,7 @@ export function TaskSection({
   shut is presentation state that belongs to the page and outlives any one
   section's mount. Uncontrolled stays the default because every computed
   section on every other page wants exactly that and should not have to say
-  so, the pair is the standard shape, and having it is what let the folder
-  page stop keeping a second copy of this component (DES-165).
+  so, and the pair is the standard shape.
   */
   open: openProp,
   onOpenChange,
@@ -178,10 +158,9 @@ export function TaskSection({
 /*
 The quiet section at the foot of a page: finished work.
 
-Imran, 2026-08-22: every folder, native or user-made, ends in a collapsed
-Completed section. It is deliberately *not* a `TaskSection`, it is one line
-rather than a band, in the grammar DES-142 settled for the conversation and
-Q7 already used for a folder's own Completed, because a section that closes a
+Every folder, native or user-made, ends in a collapsed Completed section. It
+is deliberately *not* a `TaskSection`, it is one line rather than a band,
+because a section that closes a
 page is not a peer of the sections that organise it.
 
 The wording differs in exactly one place and on purpose: My Day's recap is

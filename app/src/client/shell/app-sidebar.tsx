@@ -1,143 +1,85 @@
 /*
-The designer's `src/components/app-sidebar.tsx`, ported at P8R session R5 onto
-our router and our data.
+The sidebar, on our router and our data.
 
-Under RFC 0002 his prototype is the source this client is built from rather
-than a reference it is compared against, so his composition, his class strings
-and his structure arrive unchanged except where a numbered section says
-otherwise. Every such departure is named here, with the sentence that forced
-it, and each was measured against the running prototype on 2026-08-13 rather
-than remembered.
+**It is a navigation landmark.** 9.1's roles table fixes the sidebar as a
+navigation landmark: it is 9.1's only chrome and holds the page set, and a
+landmark is what lets a person skip to it. AC-174 names exactly one. The role
+goes on the vendored `Sidebar`, which spreads unknown props onto the element
+that carries the sidebar's own width, so the landmark and the thing AC-182
+measures are one box.
 
-**It is a navigation landmark, and his sidebar is not one.** Measured: zero
-`nav` elements and zero `role="navigation"` in his whole document. 9.1's roles
-table, added at the RFC 0002 change control, fixes the sidebar as a navigation
-landmark on the section's own ground, that it is 9.1's only chrome and holds
-the page set, and a landmark is what lets a person skip to it. AC-174 names
-exactly one (no test since the 2026-09-20 cut). The role goes on the vendored `Sidebar`, which spreads unknown
-props onto the element that carries the sidebar's own width, so the landmark
-and the thing AC-182 measures are one box.
+**The page entries are links.** The routes table makes every page a URL and a
+page reachable at a URL is navigated to; AC-175 names both the role and the
+`href`. They are React Router `Link`s handed to `SidebarMenuButton`'s `render`,
+which is how that distribution composes with a router, so the anchor is real and
+the navigation is the client's.
 
-**The six page entries are links, and his are buttons.** Measured: six
-`button` elements carrying `aria-current="page"`, the brand being the only
-anchor anywhere in his sidebar. The same roles table fixes them as links,
-because the routes table makes every page a URL and a page reachable at a URL
-is navigated to; AC-175 names both the role and the `href` (no test since the 2026-09-20 cut). They are React
-Router `Link`s handed to `SidebarMenuButton`'s `render`, which is how that
-distribution composes with a router, so the anchor is real and the navigation
-is the client's.
+**Folder rows are links too.** `components/folder-row.tsx` takes an `href` and a
+`render`, and this file supplies the router's element.
 
-**Folder rows are links too and R3 already built them that way.**
-`components/folder-row.tsx` takes an `href` and a `render`, and this file
-supplies the router's element. Nothing about the row is rebuilt here.
+**There is no top bar.** The app name and the global search control sit in this
+header, and the avatar menu sits in this footer. 9.1 requires of the three that
+they exist, that the app name links to My Day, and that each is reachable by its
+role and its name.
 
-**The three relocated controls are here rather than in a bar above.** The
-owner ruled on 2026-08-13 that his design wins on the top bar and 9.1 was
-amended to match: there is no top bar, the app name and the global search
-control sit in this header, and the avatar menu sits in this footer. What that
-section has ever required of the three is that they exist, that the app name
-links to My Day, and that each is reachable by its role and its name.
+**Names are section 9's.**
 
-**Four names are section 9's over his, which is the same ruling read the other
-way: his design wins on structure and section 9 wins on labels.**
+| Control | Name |
+| - | - |
+| Global search | `Search`, 9.1's names table |
+| The avatar menu | `Account`, 9.1's names table |
+| The app name | the word it renders, with no `aria-label` |
+| The rail control | `Collapse sidebar` and `Expand sidebar`, in `ui/sidebar.tsx` |
 
-| Control | His string | Section 9's |
-| - | - | - |
-| Global search | `Search Dana. Keyboard shortcut Control K or slash.` | `Search`, 9.1's names table |
-| The avatar menu | `Open Imran Wafa's account menu` | `Account`, 9.1's names table |
-| The app name | an `aria-label` naming the link and its destination, in a punctuation this repository does not use | the word it renders, the label removed rather than reworded |
-| The rail control | `Toggle Sidebar` from the distribution | `Collapse sidebar` and `Expand sidebar`, corrected in `ui/sidebar.tsx` before this session |
+The general rule: a name in 9.1's table is a fixed string, and what separates
+two instances of one control is the region it sits in. A name built by
+interpolating the object the control acts on also puts fixture data into the one
+namespace a test has to know before it reads the fixture.
 
-The general rule under three of those four: a name in 9.1's table is a fixed
-string, and what separates two instances of one control is the region it sits
-in. A name built by interpolating the object the control acts on also puts
-fixture data into the one namespace a test has to know before it reads the
-fixture, which is 9.1's own argument at the avatar menu.
-
-**The rail holds the folder you are in and the folders you have open, which
-is neither what this file used to do nor what his does.** His folder directory
-carries `group-data-[collapsible=icon]:hidden`, so collapsing to the rail
-drops Inbox, every shelf and every folder. This file dropped that class and
-kept all of them, on a sentence 9.1 carried at the time, "the width and the
-collapsed state change nothing about what the sidebar holds", and on AC-182,
-which has the rail still reach every page and every folder (no test since the 2026-09-20 cut). **That
-sentence is no longer in 9.1**: RFC 0005 rewrote the section and it did not
-survive, so what the rail must hold is no longer stated anywhere except in
-that criterion. The owner ruled on the surface itself on 2026-08-30: a rail
+**The rail holds the folder you are in and the folders you have open.** A rail
 listing one anonymous glyph per folder is a wall rather than a list, and what
-belongs in 56 pixels is the folder in front of you and the ones you already
-have open. `railFolderIds` and `RailLibrary` below are that rule; the page
-block, the footer and every control are untouched, so what the rail loses is
-folder rows and nothing else.
+belongs in 56 pixels is the folder in front of you and the ones you already have
+open. `railFolderIds` and `RailLibrary` below are that rule; the page block, the
+footer and every control are untouched, so what the rail loses is folder rows
+and nothing else. Inbox stays drawn wherever the viewer is standing on Desk.
 
-**AC-182's third case was red on this and was escalated rather than worked
-around, and the escalation now stands against nothing executable**: that browser
-spec went in the 2026-09-20 cut. It opened Desk, collapsed the sidebar and looked for a link for
-Groceries, a folder on a shelf that nothing has opened, which is exactly the
-row this change stops drawing. Its own header argues from the 9.1 sentence
-quoted above, which that section no longer carries, so the criterion is
-recommended for amendment to the Adversarial Test Engineer with the reasoning
-in this session's report; it is not edited here, protocol section 8 giving
-those files one owner and this file is not it. Inbox stays drawn wherever the
-viewer is standing on Desk, so that case's other assertion is unaffected.
+What makes the rail look like a rail otherwise: the primitive's own `size-8!`
+and `overflow-hidden` clip a row's label without removing it from the
+accessibility tree, and the section headings, which name nothing a person can
+reach, are hidden there.
 
-What makes the rail look like a rail otherwise is unchanged: the primitive's
-own `size-8!` and `overflow-hidden` clip a row's label without removing it
-from the accessibility tree, and the section headings, which name nothing a
-person can reach, are hidden there.
-
-**All three of the menus his sidebar carries are here now, and the third
-arrived last, at the polish round of 2026-08-30.** The folder row's own menu
-and the folder group's menu were wired at R10, each to
+**The folder row's menu and the folder group's menu** are each wired to
 `shell/folder-groups.tsx`, which holds 9.1's four operations and the dialogs
-they open; until then they were props that were absent rather than markup that
-had been removed, because a control that opens nothing is worse than one that
-is not there.
+they open. A control that opens nothing is worse than one that is not there.
 
-**The third is his folder-directory menu, and this paragraph used to say it
-was not coming. That reasoning is spent rather than wrong, which is the
-distinction worth keeping.** It read: the menu's two entries are "New folder",
-which would be a second control of that name inside this landmark, and "New
-folder group", which 9.1 makes an action on a folder and which is therefore on
-the folder row's menu instead. Both halves were true of a sidebar whose footer
-carried "New folder" as its one primary action. The owner emptied that footer
-on 2026-08-30 so that the Library could have its room, so there is no second
-control of that name to collide with — this menu is now the only one — and the
-grouping act stays on the folder row exactly as the P8R change control settled
-it. What is drawn here is `LibraryPlusMenu` below: his position and his
-treatment, a "+" rather than his ellipsis, and three entries rather than two.
+**The Library's "+"** is `LibraryPlusMenu` below, the only "New folder" control
+in this landmark. Grouping stays on the folder row's menu, because 9.1 makes it
+an action on a folder.
 
-**Two controls he draws are dropped as unnamed rather than renamed.** `Add
-task to {folder}` on a folder row and `Add folder to {group}` on a group
-heading are affordances no numbered section names, and 9.3's entry-point table
-gives neither of them a row. R3 recorded the rule this follows: a control
-section 9 does not name keeps the designer's own string, and inventing a fixed
-name for it would be the unrecorded deviation. Dropping the control is the
-third option and the one taken here, because the RFC's own alternatives
-section refuses to admit his affordances silently and neither of these two is
-among the ten it ruled on.
+**Unnamed affordances are dropped rather than invented a name.** `Add task to
+{folder}` on a folder row is an affordance no numbered section names, and 9.3's
+entry-point table gives it no row.
 
-Page visibility is a filter over three pages and never over six, which is
-9.7's own note, and `routes.ts` encodes it. A settings read that fails offline
-leaves the permanent three visible rather than emptying the sidebar, which is
-what AC-095's third case is written against, and every page stays at its URL
-either way.
+Page visibility is a filter over three pages and never over six, which is 9.7's
+own note, and `routes.ts` encodes it. A settings read that fails offline leaves
+the permanent three visible rather than emptying the sidebar (AC-095), and every
+page stays at its URL either way.
 
-The folder list is ordered by 9.1 and not by frozen 7.4: Inbox pinned, then
-per-member label groups with labels ascending, then unlabeled folders by name.
-The labels are the viewer's own, from the `my_shelf` of 7.4's membership row,
-so the same folder is inside a group for one member and among the unlabeled
-for another. AC-155 reads all four clauses.
+The folder list is ordered by 9.1 and not by 7.4: Inbox pinned, then per-member
+label groups with labels ascending, then unlabeled folders by name. The labels
+are the viewer's own, from the `my_shelf` of 7.4's membership row, so the same
+folder is inside a group for one member and among the unlabeled for another.
+AC-155 reads all four clauses.
 */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactElement } from 'react'
 import { Link, useNavigate } from 'react-router'
-/* The icon module of DES-125, since S8: one file owns the family and
-   nothing imports `lucide-react` directly. */
+/* The icon module: one file owns the family and nothing imports `lucide-react`
+   directly. */
 import type { LucideIcon } from '../lib/icons.js'
 import {
   ChevronDown,
-  /* Help's glyph, which S8 exported for this menu and named DES-200 for. */
+  /* Help's glyph, exported for this menu. */
   CircleQuestionMark,
   Settings,
   FolderPlus,
@@ -202,8 +144,8 @@ import type { Tab } from './tabs.js'
 import { savedViewPath } from '../views/saved-views.js'
 import type { SavedView } from '../../shared/bundle.js'
 import { SidebarResizeHandle } from './SidebarResizeHandle.js'
-/* The one drag engine of RFC 0004's S11 row, and the Library's answers to the
-   two questions it asks about anything outside the list it is sorting. */
+/* The one drag engine, and the Library's answers to the two questions it asks
+   about anything outside the list it is sorting. */
 import { moved, swallowNextClick, useSortableList } from '../lib/use-sortable-list.js'
 import type { SortableItemState } from '../lib/use-sortable-list.js'
 import { DIRECTORY, grip, useLibraryZones } from './library-drag.js'
@@ -224,11 +166,8 @@ import type { Shelf } from '../../shared/shelves.js'
 /*
 Where a folder arriving from another list would land, drawn as a line.
 
-Lifted from `docs/design/prototype-v2/src/components/folder-directory.tsx` at
-S24 (that prototype is deleted, `a7886df` on 2026-09-01, and is in git history
-before that commit), with the designer's reasoning: absolutely positioned, so
-nothing moves while it is shown. An indicator that shifted the rows would be
-changing the answer it was describing.
+Absolutely positioned, so nothing moves while it is shown. An indicator that
+shifted the rows would be changing the answer it was describing.
 */
 function InsertLine({ top }: { readonly top: number }): React.JSX.Element {
   return (
@@ -244,13 +183,13 @@ function InsertLine({ top }: { readonly top: number }): React.JSX.Element {
  * Which slot in a container the pointer is proposing, and where the line goes
  * to say so.
  *
- * The prototype's `proposalIn`, and it measures live rather than reading a
- * stored geometry, because the rows have been moving: an engine that has been
- * making space has already changed every box this reads.
+ * It measures live rather than reading a stored geometry, because the rows have
+ * been moving: an engine that has been making space has already changed every
+ * box this reads.
  *
  * `at` is what the drop writes and `top` is what the line draws, so the two
- * cannot disagree. A line that promised a slot the drop did not honour would
- * be the worse half of drawing one at all.
+ * cannot disagree. A line that promised a slot the drop did not honour would be
+ * the worse half of drawing one at all.
  */
 function proposalIn(
   zone: HTMLElement | null,
@@ -291,10 +230,10 @@ const NEW_TASK = 'New task'
 /**
  * The glyph on a Library group's heading.
  *
- * A shelf wears its own mark, 4.18's icon and colour through the one resolver
- * S17a built for a folder's (DES-130), so a person who put a suitcase on
- * Travel meets a suitcase in the Library. A label no shelf row names has no
- * identity to draw and keeps the plain Folders glyph the group always had.
+ * A shelf wears its own mark, 4.18's icon and colour through the one resolver a
+ * folder's uses, so a person who put a suitcase on Travel meets a suitcase in
+ * the Library. A label no shelf row names has no identity to draw and keeps the
+ * plain Folders glyph.
  */
 function GroupGlyph({
   shelf,
@@ -331,25 +270,20 @@ import { PersonFace } from '../components/person-face.js'
 const SEARCH = 'Search'
 const ACCOUNT = 'Account'
 /**
- * The Library's "+", named at the polish round of 2026-08-30 on the owner's
- * own ruling and added to 9.1's names table with it.
+ * The Library's "+", named in 9.1's names table.
  *
  * One word, like every other fixed string in that table: what it opens is a
- * menu of the three things a person makes, and a name that listed them would
- * be the menu read aloud twice. The tab strip's own plus is "New tab" and
- * this is not that control: it makes things rather than opening places, which
- * is why the two are named apart.
+ * menu of the three things a person makes, and a name that listed them would be
+ * the menu read aloud twice. The tab strip's own plus is "New tab" and this is
+ * not that control: it makes things rather than opening places, which is why
+ * the two are named apart.
  */
 const LIBRARY_NEW = 'New'
 
 /*
-The map that stood here moved to `routes.ts` at S16, onto the page it draws.
-
-Its own comment asked for it: "keyed by path rather than by name so that a
-rename in 9.1's page set is one edit in `routes.ts` and not two". The second
-reader arrived with 9.7's pin list, which that section requires to carry "the
-page's own mark", and one mark on the page is the only arrangement in which
-the sidebar and the pin list cannot disagree about what a page looks like.
+The page-to-icon map lives in `routes.ts`, on the page it draws, so a rename in
+9.1's page set is one edit, and the sidebar and 9.7's pin list, which must carry
+"the page's own mark", cannot disagree about what a page looks like.
 */
 
 /**
@@ -366,38 +300,30 @@ function routerLink(to: string): ReactElement<Record<string, unknown>> {
 }
 
 /**
- * The same link with 9.1's pending count inside it, which is the one place
- * this file reaches further into a ported component than supplying its
- * anchor, and it is a request against `components/folder-row.tsx` rather than
- * a preference.
+ * The same link with 9.1's pending count inside it, which is the one place this
+ * file reaches further into a component than supplying its anchor.
  *
  * 9.1 says a folder row shows "color dot, name, pending count" and fixes
- * nowhere in the row the count sits. His component renders it as
- * `SidebarMenuBadge`, a sibling of the anchor inside the row, and AC-155 has
- * asserted since P8 that the count is inside the link, which is what makes a
- * screen reader announce "Inbox 1" as one row rather than a name and a loose
- * number beside it. AC-173 reads the count off the row and is satisfied
- * either way. So the count arrives through the element this row already asks
- * the router for, `pending` is passed to the row as zero so there is exactly
- * one of it, and the day that component renders its badge inside the anchor
- * this wrapper is deleted and `pending` goes back to being the real number.
+ * nowhere in the row the count sits. `folder-row.tsx` renders it as
+ * `SidebarMenuBadge`, a sibling of the anchor inside the row, and AC-155
+ * asserts that the count is inside the link, which is what makes a screen
+ * reader announce "Inbox 1" as one row rather than a name and a loose number
+ * beside it. So the count arrives through the element this row already asks the
+ * router for, `pending` is passed to the row as zero so there is exactly one of
+ * it, and the day that component renders its badge inside the anchor this
+ * wrapper is deleted and `pending` goes back to being the real number.
  *
- * The whitespace node is deliberate and P8 measured why: adjacent inline
- * elements concatenate in an accessible name, so without it the row announces
- * "Inbox1". A whitespace-only text node is not laid out as a flex item, so it
- * costs nothing on the screen.
+ * The whitespace node is deliberate: adjacent inline elements concatenate in an
+ * accessible name, so without it the row announces "Inbox1". A whitespace-only
+ * text node is not laid out as a flex item, so it costs nothing on the screen.
  *
- * **The count is positioned rather than laid out, and that is the alignment
- * defect this wrapper introduced.** Moving the badge inside the anchor moved
- * it into the anchor's *content box*, and that box stops 4.75rem short of the
- * row's right edge: `folder-row.tsx` pads the link by that much so the name
- * truncates before it reaches the actions strip. So every count in the
- * Library sat 64px left of where the prototype draws it, in a ragged line
- * that moved with nothing, while the strip that padding was reserving space
- * for is drawn at `right-1`. The prototype's own badge is
- * `SidebarMenuBadge` at `right-3`, absolutely positioned against the row, and
- * this is that geometry expressed from inside the anchor: same offset, same
- * pill, same fade under the hover that brings the actions strip up, same
+ * **The count is positioned rather than laid out.** Inside the anchor it sits
+ * in the anchor's *content box*, and that box stops 4.75rem short of the row's
+ * right edge: `folder-row.tsx` pads the link by that much so the name truncates
+ * before it reaches the actions strip. Laid out, every count would sit 64px
+ * left of the row's edge. So this is `SidebarMenuBadge`'s own geometry,
+ * `right-3` against the row, expressed from inside the anchor: same offset,
+ * same pill, same fade under the hover that brings the actions strip up, same
  * absence in the icon rail. The name keeps its padding and still truncates
  * before the number.
  *
@@ -405,8 +331,7 @@ function routerLink(to: string): ReactElement<Record<string, unknown>> {
  * string sets `[&>*]:relative` on every direct child, to lift the row's
  * contents above the `before:` wash behind them, and Tailwind emits `.absolute`
  * ahead of `.relative` in the same layer, so the two collide at equal
- * specificity and the variant wins on source order. Measured against
- * tailwindcss 4.3.3 rather than assumed.
+ * specificity and the variant wins on source order.
  */
 interface FolderRowLinkProps extends Omit<React.ComponentPropsWithRef<'a'>, 'href'> {
   readonly to: string
@@ -447,14 +372,14 @@ const NAVIGATION_ROW_CLASS =
  * One entry of 9.1's page set, as a link to that surface's path.
  *
  * `aria-current` is set here rather than taken from `NavLink`, because which
- * entry is current is a question about the route table and My Day's `/app` is
- * a prefix of every other path in it; deciding it in one place is what keeps
- * the answer from depending on a prop somebody forgets to pass. AC-175 names
- * the mark on Planned and its absence on My Day in one case (no test since the 2026-09-20 cut).
+ * entry is current is a question about the route table and My Day's `/app` is a
+ * prefix of every other path in it; deciding it in one place is what keeps the
+ * answer from depending on a prop somebody forgets to pass. AC-175 names the
+ * mark on Planned and its absence on My Day.
  */
-/* polish: places F3, shelves F12: two sidebar disclosures remembered per
-   browser, the "More" row and each shelf's fold. Nothing here is a
-   preference 4.19 holds, and losing it costs one click. */
+/* Two sidebar disclosures remembered per browser, the "More" row and each
+   shelf's fold. Nothing here is a preference 4.19 holds, and losing it costs
+   one click. */
 const MORE_OPEN_KEY = 'dana.sidebar.more-open'
 function readMoreOpen(): boolean {
   try {
@@ -516,8 +441,8 @@ function NavigationRow({
           strokeWidth={1.75}
           aria-hidden="true"
         />
-        {/* Not hidden in the icon rail, unlike his: the primitive clips it
-            and AC-182 still reads the entry by this name there. */}
+        {/* Not hidden in the icon rail: the primitive clips it and AC-182 still
+            reads the entry by this name there. */}
         <span>{name}</span>
       </SidebarMenuButton>
     </SidebarMenuItem>
@@ -525,21 +450,20 @@ function NavigationRow({
 }
 
 /**
- * 9.1's folder list order, which is deliberately not frozen 7.4's.
+ * 9.1's folder list order, which is deliberately not 7.4's.
  *
  * That endpoint sorts is_default first then lower(name); this section pins
  * Inbox, then groups by the viewer's own label with labels ascending, then
- * lists the unlabeled by name. A sidebar rendering the response in the order
- * it arrived is wrong in a way that looks right until two folders disagree
- * about it, which is what AC-155's first case creates on purpose.
+ * lists the unlabeled by name. A sidebar rendering the response in the order it
+ * arrived is wrong in a way that looks right until two folders disagree about
+ * it, which is what AC-155's first case creates on purpose.
  *
- * **That order is the seed of one column rather than the shape of the list**,
- * since S11 built DES-171's drag. `shell/library-order.ts` owns both halves:
- * `seedColumn` is exactly the sentence above and `arrangeColumn` lays the
- * viewer's stored sequence over it, so an untouched sidebar still reads as
- * AC-155 asserts. Inbox is not in the column, this section pinning it first
- * and giving it a clause of its own, so it is read off the list here and
- * drawn above.
+ * **That order is the seed of one column rather than the shape of the list.**
+ * `shell/library-order.ts` owns both halves: `seedColumn` is exactly the
+ * sentence above and `arrangeColumn` lays the viewer's stored sequence over it,
+ * so an untouched sidebar still reads as AC-155 asserts. Inbox is not in the
+ * column, this section pinning it first and giving it a clause of its own, so
+ * it is read off the list here and drawn above.
  */
 function inboxOf(folders: readonly Folder[]): Folder | null {
   return folders.find((folder) => folder.is_default) ?? null
@@ -549,24 +473,16 @@ function inboxOf(folders: readonly Folder[]): Folder | null {
 const FOLDER_PATH = paths.folder('')
 
 /**
- * Which folders the icon rail draws.
+ * Which folders the icon rail draws: the folder you are standing in and the
+ * folders you already have open, which is the part of the Library a rail is
+ * narrow enough to be about. A 56px strip holding one anonymous glyph per
+ * folder would be a wall rather than a list.
  *
- * **The rail used to draw every one of them, and that is the defect.** The
- * port kept the whole Library there deliberately, against a sentence 9.1 no
- * longer carries ("the width and the collapsed state change nothing about
- * what the sidebar holds", removed from that section by RFC 0005), and the
- * result is a 56px strip holding one anonymous glyph per folder an account
- * has. The designer's own answer is `group-data-[collapsible=icon]:hidden`
- * on the whole directory: his rail holds no folders at all. What is drawn
- * here sits between the two, on the owner's instruction of 2026-08-30: the
- * rail holds the folder you are standing in and the folders you already have
- * open, which is the part of the Library a rail is narrow enough to be about.
- *
- * **"Open" is the tab strip's own word.** 9.1 makes the strip the set of
- * places the viewer has open and "the place the viewer stands on is the
- * active tab", so a folder is open exactly when a tab points at it. Nothing
- * new is remembered to answer the question, which matters: a second record of
- * what is open would be a second opinion about it.
+ * **"Open" is the tab strip's own word.** 9.1 makes the strip the set of places
+ * the viewer has open and "the place the viewer stands on is the active tab",
+ * so a folder is open exactly when a tab points at it. Nothing new is
+ * remembered to answer the question, which matters: a second record of what is
+ * open would be a second opinion about it.
  *
  * Desk is the default folder's own page (9.1's routes table gives that folder
  * `/app` rather than a folder path), so a tab standing on Desk is that folder
@@ -591,77 +507,50 @@ function railFolderIds(
 }
 
 /*
-The acts a Library row can perform on its folder, since S17a.
+The acts a Library row can perform on its folder.
 
-**Five of the contract's nine are reached by URL rather than rebuilt here**,
-and that is the prototype's own idiom rather than a shortcut. Rename, History,
-Save as workflow, Leave and Delete each need a surface the folder page already
-has, an inline field, a sheet, a serialiser, a confirmation and an undo bar,
-and `lib/object-acts.ts`'s note on the retired "Label and colour" records the
-mechanism the designer used for exactly this case: "The URL that did it
-survives as ?folder-action=appearance, like every other instrument this plan
-reaches by link." So the row opens the folder and asks its page to run the
-act, which is one implementation of each rather than two, and is what DES-201
-is about in the first place.
+**Five of the contract's nine are reached by URL rather than rebuilt here.**
+Rename, History, Save as workflow, Leave and Delete each need a surface the
+folder page already has, an inline field, a sheet, a serialiser, a confirmation
+and an undo bar. So the row opens the folder and asks its page to run the act
+(`?folder-action=…`, like every other instrument reached by link), which is one
+implementation of each rather than two.
 
 The other four are performed in place because they need no surface: opening a
 tab, copying an address, and the duplicate, whose whole behaviour is a server
-call (DES-198).
+call.
 
 **An act with no handler is not drawn**, so the role split of 9.6 needs no
 branch in `folder-row.tsx`: a row is given `delete`, `rename` or `leave` by
 whether `folderGates` allows it. Desk is the standing exception, INV-2 making
 the default folder undeletable and 9.1 giving it a clause of its own above the
-label groups — and that exception is inside `folderGates` too, so this file
-does not spell it a second time.
+label groups — and that exception is inside `folderGates` too, so this file does
+not spell it a second time.
 
-## Those three gates used to read `is_owner`, and the fix was one field
+## The three gates read Access, not ownership
 
-**Issue #228 replaced ownership with Access and this row could not see it.**
-Accepted #209 R8A makes Rename `folder.profile.edit` at Can edit and above,
-Hassan's ruling of 2026-09-20 makes Delete `folder.trash` at Full control, and
-governing R6 refuses a leave to the owner and to the last Full-control member.
-`folder.is_owner` is neither necessary nor sufficient for any of the three, so
-two things were measurably wrong on this surface:
+Rename is `folder.profile.edit` at Can edit and above, Delete is `folder.trash`
+at Full control, and a leave is refused to the owner and to the last
+Full-control member. `folder.is_owner` is neither necessary nor sufficient for
+any of the three: a Full-control member who is not the owner may rename, and an
+owner whose Access was lowered below Full control may not delete.
 
-- a **Full-control member who is not the owner** was offered no Rename, though
-  they may rename;
-- an **owner whose Access was lowered** below Full control was still offered
-  Delete, which the route now answers 403.
+`GET /folders` carries `my_access` on the 7.4 Folder object, the viewer's own
+preset. So the three gates below are `folderGates(...)` — the same call
+`pages/FolderPage.tsx` makes, answering from `shared/folder-actions.ts`, which
+is the table the routes themselves resolve against.
 
-**The folder page's menu was fixed first and this one was not, and the
-difference was the wire and nothing else.** `GET /folders/:id` carries
-`members[].access`, so `pages/FolderPage.tsx` reads the viewer's own preset off
-the roster. `GET /folders`, which this list is built from, carried
-`is_default`, `is_owner`, `member_count`, the counts, `my_shelf` (with
-`my_label` beside it for one release), `my_color`, `personal_labels` and the
-4.3 identity fields — **and no preset for anybody**. There was nothing
-here to gate on.
+Workarounds that do not work: fetching the detail per row is up to 200 requests;
+reading it out of the query cache gives a menu that is right for visited folders
+and wrong for the rest; and `member_count === 1` proves Full control but says
+nothing about *shared* folders.
 
-**Three workarounds were rejected and the reasoning is kept, because each is
-the obvious idea and each is wrong for a reason that is not obvious.**
-Fetching the detail per row is up to 200 requests; reading it out of the query
-cache gives a menu that is right for visited folders and wrong for the rest,
-which is worse than being consistently wrong; and `member_count === 1` does
-prove Full control — the continuity invariant refuses a sole member's
-self-demotion — but says nothing about the *shared* folders where both defects
-lived.
-
-**Ruled, and done: `my_access` on the 7.4 Folder object.** Hassan's Ruling 4 of
-2026-09-20, https://github.com/zhssnym/dana/issues/228#issuecomment-5751449643,
-with 7.4's dated amendment carrying it into frozen section 7. It is one line of
-SQL on a query that already joined the viewer's own membership row, and AC-674
-proves the value is that viewer's row and not the owner's, which is the mistake
-the shape invites. So the three gates below are `folderGates(...)` — the same
-call `pages/FolderPage.tsx` makes, answering from `shared/folder-actions.ts`,
-which is the table the routes themselves resolve against.
-
-**The one thing this surface still cannot know is the roster**, so
-`otherFullControl` is left undefined here: the list carries `member_count` and
-not who holds Full control. `folderGates` reads that as "offer Leave and let
-the server refuse it" rather than hiding a person's only way out of a folder,
-which is the honest direction and is asserted in `folder-authority.test.ts`.
-A leave the continuity invariant refuses comes back as the route's own 409.
+**The one thing this surface cannot know is the roster**, so `otherFullControl`
+is left undefined here: the list carries `member_count` and not who holds Full
+control. `folderGates` reads that as "offer Leave and let the server refuse it"
+rather than hiding a person's only way out of a folder, which is asserted in
+`folder-authority.test.ts`. A leave the continuity invariant refuses comes back
+as the route's own 409.
 */
 export type FolderAction = 'rename' | 'history' | 'workflow' | 'leave' | 'delete'
 
@@ -675,9 +564,9 @@ function folderActionPath(id: string, action: FolderAction): string {
 /**
  * A folder row on our data.
  *
- * `folderRowDisplay` is R4's mapping and the only thing that knows how a 7.4
- * Folder becomes his display props; the route and the active mark are this
- * file's, being the router's.
+ * `folderRowDisplay` is the only thing that knows how a 7.4 Folder becomes the
+ * row's display props; the route and the active mark are this file's, being the
+ * router's.
  */
 function SidebarFolderRow({
   folder,
@@ -714,9 +603,9 @@ function SidebarFolderRow({
      the same call `pages/FolderPage.tsx` makes, so the two menus cannot drift
      (AC-246). `otherFullControl` is deliberately absent: see the block above.
 
-     No `useMemo`. This is three lookups in a frozen table over three fields of
-     a prop, and memoising it would cost a dependency array that has to be kept
-     in step with `FolderViewerFacts`. */
+     No `useMemo`. This is three lookups in a fixed table over three fields of a
+     prop, and memoising it would cost a dependency array that has to be kept in
+     step with `FolderViewerFacts`. */
   const gates = folderGates({
     access: folder.my_access,
     isOwner: folder.is_owner,
@@ -725,8 +614,7 @@ function SidebarFolderRow({
   return (
     <FolderRow
       itemRef={drag?.itemRef}
-      /* `data-drop-row` is what `proposalIn` measures, which is the
-         prototype's own attribute and its own reason: the line's slot has to
+      /* `data-drop-row` is what `proposalIn` measures: the line's slot has to
          be read off the rows as they actually sit, after the engine has moved
          them. */
       rowProps={
@@ -742,28 +630,21 @@ function SidebarFolderRow({
       reading names, and nothing else about it changes.
 
       **The collision this answers is structural and belongs to this row.**
-      9.1's page block opens with a page called Desk at `/app` and 4.3 names
-      the default folder Desk, so every account provisioned since RFC 0005 has
-      two sidebar links of one name. Expanded they differ by the pending badge
-      and in the rail they do not differ at all. Which of the two should move
-      is the product question issue #158 asks, and the answer taken here is
-      the folder row, because the page entry's name is 9.1's own fixed string
-      while a folder's is the person's: theirs is the one that may carry a
-      word about what kind of thing it is without the section having to say so.
+      9.1's page block opens with a page called Desk at `/app` and 4.3 names the
+      default folder Desk, so every account has two sidebar links of one name.
+      Expanded they differ by the pending badge and in the rail they do not
+      differ at all. The folder row is the one that moves, because the page
+      entry's name is 9.1's own fixed string while a folder's is the person's.
 
-      **Only this row, and that is a decision rather than an oversight.**
-      Every other folder row could say "folder" too, and the argument for it
-      is consistency; the arguments against it are that no other row collides
-      with anything, that a screen reader would then hear the word once per
-      folder in a list that is nothing but folders, and that the browser leg
-      addresses folder rows by exact name and by text content in five of
-      Hassan's specs, which a blanket suffix would make false for no
-      accessibility gain. The rule written here is the narrow one: the row of
-      the folder 9.1 also gives a page.
+      **Only this row, and that is a decision rather than an oversight.** No
+      other row collides with anything, a screen reader would otherwise hear the
+      word once per folder in a list that is nothing but folders, and browser
+      tests address folder rows by exact name. The rule written here is the
+      narrow one: the row of the folder 9.1 also gives a page.
 
-      It stays correct if the folder is renamed. `is_default` is what makes
-      the collision certain rather than the word Desk, and "Home folder" reads
-      as well as "Desk folder" for an account that renamed it.
+      It stays correct if the folder is renamed. `is_default` is what makes the
+      collision certain rather than the word Desk, and "Home folder" reads as
+      well as "Desk folder" for an account that renamed it.
       */
       qualifier={folder.is_default ? 'folder' : undefined}
       href={display.href}
@@ -807,14 +688,13 @@ function SidebarFolderRow({
           : undefined
       }
       onCopyLink={() => {
-        /* `lib/nav-links.ts`, so the sidebar row and the folder page copy
-           one address rather than two spellings of it. polish: tabstrip F7,
-           the act says it happened. */
+        /* `lib/nav-links.ts`, so the sidebar row and the folder page copy one
+           address rather than two spellings of it; the act says it happened. */
         void navigator.clipboard.writeText(folderLink(folder.id))
         showToast('Link copied')
       }}
       onDuplicate={() => {
-        /* DES-198 server-side, and the copy is the duplicator's own private
+        /* Duplicated server-side, and the copy is the duplicator's own private
            folder, so the Library goes to it exactly as the page does. */
         duplicate.mutate(folder.id, {
           onSuccess: (made) => {
@@ -850,21 +730,19 @@ function SidebarFolderRow({
  * same name, and its `aria-expanded` is what open and collapsed mean. The
  * control's name is the label alone; a count here would make the accessible
  * name something no table fixes and no test can ask for. AC-155's third case
- * collapses it and asserts the folders inside are gone from the page, which
- * is why the panel unmounts rather than hides.
+ * collapses it and asserts the folders inside are gone from the page, which is
+ * why the panel unmounts rather than hides.
  *
- * **The region is a real one since P8R session R10**, and it is what makes the
- * group's own menu addressable. 9.1's sections table gives the sidebar "one
- * per personal label group, named by that label", and four controls in this
- * application answer to "More actions"; the region that names their object is
- * the whole of what tells them apart, which is that section's own answer at
- * the folder header. So the `section` wraps the heading row and the folders
- * together, and the menu sits inside it. AC-180 reaches this menu that way.
+ * **The region is what makes the group's own menu addressable.** 9.1's sections
+ * table gives the sidebar "one per personal label group, named by that label",
+ * and four controls in this application answer to "More actions"; the region
+ * that names their object is the whole of what tells them apart. So the
+ * `section` wraps the heading row and the folders together, and the menu sits
+ * inside it. AC-180 reaches this menu that way.
  *
- * **The menu's own name is the same "More actions" as the other three.** His
- * prototype interpolates, `Manage {label} folder group`, measured on the
- * running prototype on 2026-08-13; a name in 9.1's table is a fixed string and
- * a fourth name would assert a difference in kind that is not there.
+ * **The menu's own name is the same "More actions" as the other three.** A name
+ * in 9.1's table is a fixed string and a fourth name would assert a difference
+ * in kind that is not there.
  */
 function FolderGroupBlock({
   group,
@@ -891,9 +769,8 @@ function FolderGroupBlock({
      *
      * Two facts and not one because the shelf answers them differently: open
      * and holding folders, it draws the line; closed or empty, it has nowhere
-     * to draw one and says the words instead. That is the prototype's
-     * arrangement and DES-171's reason for it, a closed shelf never being
-     * sprung open by a drag hovering it.
+     * to draw one and says the words instead. A closed shelf is never sprung
+     * open by a drag hovering it.
      */
     readonly isDropTarget: boolean
     readonly dropTop: number | null
@@ -918,10 +795,10 @@ function FolderGroupBlock({
   /*
   The group's own folders, on the same engine as everything else.
 
-  No hold in here, and no option for one: two folders already in a group
-  cannot become a group, Dana nesting one level (DES-171). What this list adds
-  over the directory's is the way out, which needs no target of its own, the
-  space around the containers already meaning unsectioned.
+  No hold in here, and no option for one: two folders already in a group cannot
+  become a group, Dana nesting one level. What this list adds over the
+  directory's is the way out, which needs no target of its own, the space around
+  the containers already meaning unsectioned.
   */
   const inner = useSortableList({
     count: group.folders.length,
@@ -959,11 +836,11 @@ function FolderGroupBlock({
       aria-label={group.label}
       ref={sectionRef}
       /*
-      The prototype's three states, and they say three different things.
-      Picked up: the whole shelf travels, folders and all, because that is what
-      a person moving one means. About to receive: a container says so **as a
-      whole**, because what is proposed is the shelf and not a line in it, and
-      the line inside it says which slot.
+      Three states, and they say three different things. Picked up: the whole
+      shelf travels, folders and all, because that is what a person moving one
+      means. About to receive: a container says so **as a whole**, because what
+      is proposed is the shelf and not a line in it, and the line inside it says
+      which slot.
       */
       className={cn(
         'relative rounded-md',
@@ -1006,37 +883,28 @@ function FolderGroupBlock({
           <CollapsibleTrigger
             data-sidebar-tier="group"
             /*
-            The glyph is the disclosure and the name is the way in (DES-207),
-            which is the designer's own sentence and the whole of what S17b
-            changes about this row.
+            The glyph is the disclosure and the name is the way in.
 
-            The whole row used to toggle, and that was right while a shelf was
-            only a heading over some folders. It has a page now (9.10), so the
-            row behaves like every other row that names something you can
-            open: the label goes there, and the disclosure keeps the corner it
-            already announced, the Folders glyph having swapped to a chevron
-            on hover since the day it was drawn. Both halves are kept because
-            9.1 asks for both, "a shelf is a collapsible group of folder rows
-            headed by its name", and a heading that became a link and stopped
-            folding would trade one defect for another. AC-214's Library still
-            collapses; AC-257 reads both.
+            A shelf has a page (9.10), so the row behaves like every other row
+            that names something you can open: the label goes there, and the
+            disclosure keeps the corner. Both halves are kept because 9.1 asks
+            for both, "a shelf is a collapsible group of folder rows headed by
+            its name", and a heading that became a link and stopped folding
+            would trade one defect for another. AC-257 reads both.
 
-            **The name is a link where the designer draws a button**, and the
-            departure is this client's own consistency rather than a
-            preference: every folder row in this Library is a link, 9.1's
-            roles table makes them one, and a shelf row that navigated on
-            click without being one would be the only row here a middle click
-            could not open in a tab. **Where no shelf row backs the label
-            there is nothing to link to**, so the name stays plain text and
-            the row reads exactly as it did: an account labelled before 7.16
-            existed loses nothing.
+            **The name is a link**, because every folder row in this Library is
+            a link, 9.1's roles table makes them one, and a shelf row that
+            navigated on click without being one would be the only row here a
+            middle click could not open in a tab. **Where no shelf row backs the
+            label there is nothing to link to**, so the name stays plain text:
+            an account labelled before 7.16 existed loses nothing.
             */
             aria-label={`Show the folders on ${group.label}`}
             className="flex h-full shrink-0 items-center rounded-md py-0 pl-3 outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
           >
-            {/* polish: sidebar F6. A shelf's disclosure rests visible at
-                reduced opacity beside its glyph rather than replacing it on
-                hover, so an empty shelf still reads as a container. */}
+            {/* A shelf's disclosure rests visible at reduced opacity beside its
+                glyph rather than replacing it on hover, so an empty shelf still
+                reads as a container. */}
             <span className="flex shrink-0 items-center gap-1" aria-hidden="true">
               <GroupGlyph shelf={group.shelf} className="!size-4 opacity-90" />
               <ChevronDown
@@ -1060,21 +928,12 @@ function FolderGroupBlock({
             </Link>
           )}
           {/*
-          "Add folder to {shelf}", the prototype's own control on a shelf
-          heading, restored at S24.
+          "Add folder to {shelf}".
 
-          It was dropped at P8R on a rule that read correctly at the time: a
-          control no numbered section names is either given the designer's
-          string or dropped, and this took the third option. Change control
-          item 37 overturns the premise rather than the rule, Dana 2.0 being
-          the exact `prototype-v2`, so a control the prototype draws in the
-          shell is part of the shell. Imran restated it at S24: "the shell must
-          be exactly as prototype v2 in Dana 2.0."
-
-          It opens 9.1's New-folder dialog with this shelf already named, so
-          the folder is made and filed in one act rather than made loose and
-          then moved. `data-no-drag` because the whole row is the grip.
-          */}
+          It opens 9.1's New-folder dialog with this shelf already named, so the
+          folder is made and filed in one act rather than made loose and then
+          moved. `data-no-drag` because the whole row is the grip.
+           */}
           <Button
             type="button"
             variant="ghost"
@@ -1087,25 +946,21 @@ function FolderGroupBlock({
             <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" />
           </Button>
           {/*
-          From the contract, like every other object's menu, since S17b
-          (DES-201). This used to be two hand-written items, Rename group and
-          Delete group, and the audit's object-menu row names the gap: "the
-          group menu lacks History, Copy link, Duplicate, Save as workflow".
-          Those are not four features, they are four acts a shelf has and this
-          surface was not offering, which is exactly the shape S17a built
-          `lib/object-acts.ts` to end.
+          From the contract, like every other object's menu
+          (`lib/object-acts.ts`): History, Copy link, Duplicate and Save as
+          workflow are acts a shelf has, so this surface offers them.
 
-          **A group with no shelf row keeps the two items it had**, supplied
-          as the same two acts rather than as a second menu: rename and delete
-          are what a bare label can do, and the contract's own safety property,
-          an act with no handler not drawing, is what expresses that. So the
-          menu narrows for a label and widens for a shelf without either being
-          a special case.
+          **A group with no shelf row keeps two items**, supplied as the same
+          two acts rather than as a second menu: rename and delete are what a
+          bare label can do, and the contract's own safety property, an act with
+          no handler not drawing, is what expresses that. So the menu narrows
+          for a label and widens for a shelf without either being a special
+          case.
 
-          Opacity and never a collapsed box, the rule `folder-row.tsx`
-          records: a control with an empty bounding box is not visible to
-          anything that addresses it by role and name.
-          */}
+          Opacity and never a collapsed box, the rule `folder-row.tsx` records:
+          a control with an empty bounding box is not visible to anything that
+          addresses it by role and name.
+           */}
           <ObjectMenu
             kind="shelf"
             name={group.label}
@@ -1129,9 +984,8 @@ function FolderGroupBlock({
                 type="button"
                 variant="ghost"
                 size="icon"
-                /* The prototype's exactly: no hover text colour on this one,
-                   which is the difference between it and the shelf's other
-                   control one line up. */
+                /* No hover text colour on this one, which is the difference
+                   between it and the shelf's other control one line up. */
                 className="mr-1 size-6 shrink-0 rounded-md text-[var(--color-graphite-600)] opacity-0 hover:bg-[var(--color-graphite-200)] group-hover/folder-group:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100"
                 aria-label={MORE_ACTIONS}
                 // The heading row is the group's grip, so its own controls
@@ -1186,11 +1040,10 @@ function FolderGroupBlock({
       A closed shelf takes drops too and has nowhere inside it to draw a line,
       so it says the words instead. It is deliberately **not** sprung open by
       the drag: opening it would move every row below it after the engine had
-      measured where they sit, which is DES-171's own reason and the same fault
-      that retired the folder page's dashed strip.
+      measured where they sit.
 
       9.1 fixes the sentence, "the drop reads 'Into {shelf}'".
-      */}
+       */}
       {drag.isDropTarget && drag.dropTop !== null && open && group.folders.length > 0 ? (
         <InsertLine top={drag.dropTop} />
       ) : null}
@@ -1207,12 +1060,12 @@ function FolderGroupBlock({
 }
 
 /**
- * The Library's one ordered column, and DES-171's three gestures on it.
+ * The Library's one ordered column, and three gestures on it.
  *
- * "The directory is one list, not two. Groups and loose folders share a
- * column, so a person moving things in that column is arranging one sequence.
- * A model that kept them apart would have to refuse the obvious drag, a loose
- * folder above a group, for a reason that exists only in the code."
+ * The directory is one list, not two. Groups and loose folders share a column,
+ * so a person moving things in that column is arranging one sequence. A model
+ * that kept them apart would have to refuse the obvious drag, a loose folder
+ * above a group, for a reason that exists only in the code.
  *
  * The three gestures are one gesture seen from three angles, and stillness is
  * what separates them:
@@ -1227,12 +1080,11 @@ function FolderGroupBlock({
  *   using one. A group created by every clumsy pass of the pointer would be
  *   worse than no grouping at all.
  *
- * **The hold hands its pair to the panel that already existed**, with both
- * ticked (DES-154, DES-171): everything about making a group, the name, the
- * validation, adding a third folder before committing, stays one surface
- * reached through a second door. A group carried onto another proposes
- * nothing, because Dana nests one level and the honest answer to that drag is
- * that the group moves past.
+ * **The hold hands its pair to the panel that already exists**, with both
+ * ticked: everything about making a group, the name, the validation, adding a
+ * third folder before committing, stays one surface reached through a second
+ * door. A group carried onto another proposes nothing, because Dana nests one
+ * level and the honest answer to that drag is that the group moves past.
  */
 function LibraryColumn({
   folders,
@@ -1243,7 +1095,7 @@ function LibraryColumn({
   groups,
 }: {
   readonly folders: readonly Folder[]
-  /** The viewer's shelves (7.16), which since S17b are what a group is. */
+  /** The viewer's shelves (7.16), which are what a group is. */
   readonly shelves: readonly Shelf[]
   readonly order: readonly string[]
   readonly onOrderChange: (ids: readonly string[]) => void
@@ -1285,7 +1137,7 @@ function LibraryColumn({
       const entry = entries[from]
       /* A group cannot be put inside anything. Dana nests one level, and the
          honest answer to dragging a group onto a group is that it moves past
-         it (DES-171's first deliberate limit). */
+         it. */
       if (entry === undefined || entry.kind === 'group') {
         setDrop(null)
         return null
@@ -1361,9 +1213,8 @@ function LibraryColumn({
           const state = outer.itemState(index)
           const holding = canGroup && state.isDwelling && !state.isArmed
           const armed = canGroup && state.isArmed
-          /* The hold's two states, and nothing about containers: a shelf
-             about to receive says so itself, in the prototype's own two forms.
-             AC-227 reads that sentence once and found it twice. */
+          /* The hold's two states, and nothing about containers: a shelf about
+             to receive says so itself. AC-227 reads that sentence exactly once. */
           const proposal = !state.isActive || outer.overKey !== null
             ? null
             : armed
@@ -1490,44 +1341,27 @@ function RailLibrary({
 /**
  * The Library's "+": one door to the three things a person makes.
  *
- * **This is the whole of what the footer's four acts became** (polish round,
- * 2026-08-30, the owner's own ruling: "leave only New shelf and New folder and
- * New task side by side or just put them into a '+' icon just like Imran said,
- * somewhere around easy to find in the sidebar"). A primary button, a row of
- * two and a hidden input took four rows of the footer for three acts; a menu
- * takes one control on a row that was already there, and every pixel it saves
- * is a pixel the Library's scroll area gets.
+ * One control on a row that is already there, rather than a footer of buttons,
+ * so every pixel it saves is a pixel the Library's scroll area gets.
  *
- * **It sits on the Library's heading because that is where Imran drew it**, at
- * `prototype-v2/src/components/app-sidebar.tsx:624`: a ghost icon button at
- * the right end of the heading row, opening New folder and New shelf. The
- * treatment is his — `size-6`, rounded, the graphite ghost — and the glyph is
- * the `Plus` his shelf headings already carry for "Add folder to {shelf}",
- * which is the same act one level down and now reads as the same affordance
- * two places in one list.
+ * **It sits on the Library's heading**, a ghost icon button at the right end of
+ * the heading row. The glyph is the `Plus` the shelf headings carry for "Add
+ * folder to {shelf}", which is the same act one level down and reads as the
+ * same affordance two places in one list.
  *
- * **Two departures from him, and both are this round's own rulings.** His
- * control is `MoreHorizontal` and rests at `opacity-0` until the heading is
- * hovered; this one is a "+" and rests visible. The owner asked for a "+" and
- * for it to be easy to find, and the round has already settled the general
- * form of the second half twice: 9.11's "a row whose only controls appear on
- * hover is a row with nothing to press", and the tab strip's close control,
- * drawn at rest for the same reason on the same day. A touchscreen has no
- * hover to give, so a revealed control is a control a phone cannot find at
+ * **It rests visible rather than appearing on hover.** 9.11: "a row whose only
+ * controls appear on hover is a row with nothing to press". A touchscreen has
+ * no hover to give, so a revealed control is a control a phone cannot find at
  * all.
  *
- * **New task is the third item and is neither his nor 9.1's**, arriving with
- * the same round that put it on the tab strip's "+"; it is recorded in 9.1
- * with this change. It opens a plain task and carries none of 9.3's entry
- * defaults, for that control's own reason: the sidebar belongs to the window
- * and not to the page under it, so a task made from here is not a task made
- * on a page.
+ * **New task is the third item**, recorded in 9.1. It opens a plain task and
+ * carries none of 9.3's entry defaults: the sidebar belongs to the window and
+ * not to the page under it, so a task made from here is not a task made on a
+ * page.
  *
- * **It survives the icon rail, where the heading does not.** The heading has
- * no room for its word there and is hidden; the row it sits on is not, so the
- * three acts stay reachable at 56px, which is what the footer's New folder
- * button did before it and the only thing about the rail this change keeps
- * from it.
+ * **It survives the icon rail, where the heading does not.** The heading has no
+ * room for its word there and is hidden; the row it sits on is not, so the
+ * three acts stay reachable at 56px.
  */
 function LibraryPlusMenu({
   onNewFolder,
@@ -1598,9 +1432,9 @@ function SidebarBrandHeader({
 }: {
   readonly onOpenSearch: () => void
 }): React.JSX.Element {
-  /* polish: sidebar F12, search F6. The tooltip opens on hover only, never
-     on the focus the closing search overlay hands back to this control, so
-     it cannot park itself over the bell after Escape. */
+  /* The tooltip opens on hover only, never on the focus the closing search
+     overlay hands back to this control, so it cannot park itself over the bell
+     after Escape. */
   const [searchHovered, setSearchHovered] = useState(false)
   return (
     <SidebarHeader className="p-2 pb-1">
@@ -1609,11 +1443,10 @@ function SidebarBrandHeader({
           to={paths.desk}
           className="flex min-w-0 items-center gap-3 rounded-md px-2 outline-none focus-visible:ring-2 focus-visible:ring-ring/30 group-data-[collapsible=icon]:size-[var(--shell-sidebar-row-height)] group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
         >
-          {/* Drawn rather than fetched at S21 (ledger L-141, AC-265), and the
-              same call `app-sidebar.tsx:157` makes in the prototype. This is
-              the one of the five a person sees all day, and it plays on the
-              hover of the link it sits in rather than of itself, which is why
-              the wordmark beside it triggers the same sweep. */}
+          {/* Drawn rather than fetched (AC-265). This is the one mark a person
+              sees all day, and it plays on the hover of the link it sits in
+              rather than of itself, which is why the wordmark beside it
+              triggers the same sweep. */}
           <DanaMark className="size-7 group-data-[collapsible=icon]:size-6" />
           <span className="truncate text-base font-semibold text-[var(--color-graphite-900)] group-data-[collapsible=icon]:hidden">
             Dana
@@ -1641,8 +1474,7 @@ function SidebarBrandHeader({
             <TooltipContent side="right">Search · Ctrl K or /</TooltipContent>
           </Tooltip>
           {/* 9.12's bell, beside Search: awareness is global chrome, and the
-              header is where Dana keeps its one other everywhere-control
-              (DES-226). */}
+              header is where Dana keeps its one other everywhere-control. */}
           <NotificationsBell />
           <SidebarTrigger className="size-[var(--shell-sidebar-item-height)] shrink-0 rounded-md text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-900)] group-data-[collapsible=icon]:order-1 group-data-[collapsible=icon]:size-[var(--shell-sidebar-row-height)] [&_svg]:!size-4" />
         </div>
@@ -1655,43 +1487,27 @@ function SidebarBrandHeader({
  * 9.1's one footer control: the avatar menu, ("Account": Settings, People,
  * Trash, Import, Help, Sign out).
  *
- * Named "Account" by 9.1's names table, which took this control at the P8R
- * mid-package change control on 2026-08-13 and gave its reason: what the
- * control opens is the viewer's account, there is exactly one of it, and a
- * name carrying the display name would be the one string in that table a test
- * cannot know before it reads the fixture. The person's name is still
- * rendered inside the control and still read by anyone looking at it; what
- * changed is what the control answers to.
+ * Named "Account" by 9.1's names table: what the control opens is the viewer's
+ * account, there is exactly one of it, and a name carrying the display name
+ * would be the one string in that table a test cannot know before it reads the
+ * fixture. The person's name is still rendered inside the control; what changes
+ * is only what the control answers to.
  *
- * **Help arrived at S16 and is the third item that section has always named.**
- * The menu shipped with two, and the sheet behind the third existed in the
- * prototype and in no package's row, so nobody built it.
+ * People, Import and Trash live here rather than as footer rows so the footer
+ * is the account row alone and the Library gets the vertical room.
  *
- * **Four more arrived at the polish round of 2026-08-30, and the reason is one
- * sentence of the owner's: "my goal is that there is more space for the
- * Library so people can see a big picture of what's going on in their app."**
- * The footer held seven controls above this one — a New folder button, a row
- * of two, three navigation rows and a hidden input — and every one of them was
- * vertical room the Library did not have. The three acts of making moved to
- * the Library's own "+" (below) and the other three, People, Import and Trash,
- * came in here, which leaves the footer the account row alone.
+ * **The order is the object-menu contract's read onto an account**: reach it,
+ * change it, destroy it, and the door last. So the places this account owns
+ * first (Settings, People, Trash); then the act and the sheet that are about
+ * the application rather than about your work (Import, Help); then Sign out
+ * alone behind its separator, because a door belongs last and because a door
+ * beside a bin is a misclick nobody wanted.
  *
- * **The order is the object-menu contract's read onto an account**, which is
- * the one ordering rule this repository already has: reach it, change it,
- * destroy it, and the door last. So the places this account owns first
- * (Settings, People, Trash — Trash standing with the places is sidebar F10's
- * own ruling from earlier the same day, restated rather than reopened); then
- * the act and the sheet that are about the application rather than about your
- * work (Import, Help); then Sign out alone behind its separator, because a
- * door belongs last and because a door beside a bin is a misclick nobody
- * wanted.
- *
- * **The three that were links are menu items here**, which is a role change
- * and is recorded as one: 9.1's roles table makes the page block links, and
- * these three were never in it. Settings has been a menu item since earlier
- * this round and nothing about it read wrong; what a menu item costs is the
- * middle click that opened a page in a tab, and the tab strip's own "+" opens
- * any place as a tab, so the gesture is not lost, only moved.
+ * **Settings, People and Trash are menu items, not links.** 9.1's roles table
+ * makes the page block links, and these three were never in it. What a menu
+ * item costs is the middle click that opens a page in a tab, and the tab
+ * strip's own "+" opens any place as a tab, so the gesture is not lost, only
+ * moved.
  */
 function AccountMenu({
   displayName,
@@ -1704,7 +1520,7 @@ function AccountMenu({
   onSignOut,
 }: {
   readonly displayName: string | null
-  /** polish: settings F7. 7.15's avatar, drawn here as everywhere else. */
+  /** 7.15's avatar, drawn here as everywhere else. */
   readonly image?: string | null
   readonly onOpenSettings: () => void
   readonly onOpenPeople: () => void
@@ -1735,9 +1551,7 @@ function AccountMenu({
         }
       />
       <DropdownMenuContent side="right" align="end" className="w-48">
-        {/* Settings came back into this menu earlier the same day, sidebar F3
-            having taken it out as a duplicate of the foot link; the foot link
-            is what went in the end, so this is now the one door to it. */}
+        {/* This is the one door to Settings. */}
         <DropdownMenuItem
           className="min-h-[var(--control-height)] text-sm"
           onClick={onOpenSettings}
@@ -1763,10 +1577,9 @@ function AccountMenu({
         {/*
         Import presses the one file input the application has, which lives in
         this sidebar's footer and stays there: a second input here would be a
-        second answer to one selector, which is the fault the prototype's own
-        comment records against exactly this control and the reason the tab
-        strip's "+" asks through `overlays.ts` rather than growing one.
-        */}
+        second answer to one selector, and it is the reason the tab strip's "+"
+        asks through `overlays.ts` rather than growing one.
+         */}
         <DropdownMenuItem
           className="min-h-[var(--control-height)] text-sm"
           onClick={onImport}
@@ -1822,9 +1635,8 @@ export function AppSidebar({
    *
    * Absent while the bundle read is in flight or has failed, and the model
    * falls back to 9.1's defaults rather than to an empty list: a sidebar that
-   * empties on a failed read strands a person wherever they are standing,
-   * which is AC-095's third case generalised to the pin list
-   * (no test since the 2026-09-20 cut).
+   * empties on a failed read strands a person wherever they are standing, which
+   * is AC-095's third case generalised to the pin list.
    */
   readonly pinnedViews: readonly string[] | undefined
   readonly folders: readonly Folder[] | undefined
@@ -1844,17 +1656,17 @@ export function AppSidebar({
    * The viewer's arrangement of the Library, from the 4.19 bundle.
    *
    * A flat folder sequence, for the reason `library-order.ts` records at
-   * length: `sidebar_order` is an array of uuids and a group is a label with
-   * no id, and a column whose groups are drawn as blocks is held whole by the
-   * folder sequence alone. Empty until somebody has dragged something, which
-   * is DES-171's own rule and what keeps AC-155 reading the alphabet.
+   * length: `sidebar_order` is an array of uuids and a group is a label with no
+   * id, and a column whose groups are drawn as blocks is held whole by the
+   * folder sequence alone. Empty until somebody has dragged something, which is
+   * what keeps AC-155 reading the alphabet.
    */
   readonly sidebarOrder: readonly string[]
   readonly onSidebarOrderChange: (ids: readonly string[]) => void
   /** 9.1's four folder-group operations, held by the shell that mounts them. */
   readonly groups: FolderGroupActions
   readonly displayName: string | null
-  /** polish: settings F7: 7.15's avatar for the foot. */
+  /** 7.15's avatar for the foot. */
   readonly avatarUrl?: string | null
   readonly activeFolderId: string | null
   readonly currentPath: string
@@ -1880,9 +1692,9 @@ export function AppSidebar({
   /* For the account menu's Settings item alone; every other navigation in
      this file happens in the row components, which hold their own. */
   const navigate = useNavigate()
-  /* polish: sidebar F1. On a phone the sidebar is a drawer, and a drawer
-     closes on the navigation it was opened to make: the shell's `PhoneBar`
-     opens it, and this effect on the route closes it. */
+  /* On a phone the sidebar is a drawer, and a drawer closes on the navigation
+     it was opened to make: the shell's `PhoneBar` opens it, and this effect on
+     the route closes it. */
   const { isMobile, setOpenMobile, state } = useSidebar()
   useEffect(() => {
     if (isMobile) setOpenMobile(false)
@@ -1896,9 +1708,9 @@ export function AppSidebar({
   /* The file input the Import button presses, hidden because a bare file
      control cannot be given the row's shape and a button that opens one can. */
   const workflowInput = useRef<HTMLInputElement>(null)
-  /* The tab strip's "+" offers Import too (9.1's plus sentence, closed at
-     the polish round of 2026-08-30), and the one file input belongs here; the
-     strip asks through `overlays.ts` and this presses it. */
+  /* The tab strip's "+" offers Import too (9.1's plus sentence), and the one
+     file input belongs here; the strip asks through `overlays.ts` and this
+     presses it. */
   useEffect(
     () =>
       onWorkflowImportRequest(() => {
@@ -1915,10 +1727,9 @@ export function AppSidebar({
   )
   const visiblePages = pinnedNavPages(pinnedViews)
   const pinnedSaved = savedViews.filter((view) => view.pinned)
-  /* polish: places F3. Done, Anytime and Abandoned ship unpinned and had no
-     door but Search. A "More" row under the page block opens onto whatever
-     native pages are not pinned; 9.7's pin list still promotes one to the
-     block itself. Its open state is this browser's. */
+  /* Done, Anytime and Abandoned ship unpinned, so a "More" row under the page
+     block opens onto whatever native pages are not pinned; 9.7's pin list still
+     promotes one to the block itself. Its open state is this browser's. */
   const morePages = navPages.filter((page) => !visiblePages.includes(page))
   const [moreOpen, setMoreOpen] = useState(() => readMoreOpen())
 
@@ -1933,20 +1744,15 @@ export function AppSidebar({
       /*
       `transition-none` overrides the distribution's own
       `transition-[left,right,width] duration-200`, and it is a correction
-      rather than a preference. That transition animates the very property
-      both of 9.1's view preferences set: a drag on the resize handle lags
-      the pointer by a fifth of a second, and the rail arrives at its width
-      long after the click that asked for it. AC-182 reads the width
-      immediately after each, and what it would otherwise read is a frame of
-      an animation rather than the preference. His prototype inherits the
-      same lag, so nothing about his design is being overridden here; what is
-      lost is the slide, which is flagged for the visual review of section 13
-      item 33.
+      rather than a preference. That transition animates the very property both
+      of 9.1's view preferences set: a drag on the resize handle would lag the
+      pointer by a fifth of a second, and the rail would arrive at its width
+      long after the click that asked for it. AC-182 reads the width immediately
+      after each, and what it would otherwise read is a frame of an animation
+      rather than the preference. What is lost is the slide.
       */
-      /* No right border. The prototype's sidebar has none, this client's
-         had one that no comment ever argued for, and a rule drawn down the
-         whole window is not a small difference. S24, against
-         `prototype-v2/src/components/app-sidebar.tsx:576`. */
+      /* No right border: a rule drawn down the whole window is not a small
+         difference. */
       className="h-full shrink-0 bg-sidebar transition-none"
     >
       <SidebarBrandHeader onOpenSearch={onOpenSearch} />
@@ -1965,22 +1771,19 @@ export function AppSidebar({
                 />
               ))}
               {/*
-              9.1's page block ends with "any unpinned view the pin list of
-              9.7 has pinned ... and the viewer's saved views", so a pinned
-              saved view is an entry here like any other. It is last because
-              the six native pages are a fixed order this section states and a
-              person's own views are not in it.
+              9.1's page block ends with "any unpinned view the pin list of 9.7
+              has pinned ... and the viewer's saved views", so a pinned saved
+              view is an entry here like any other. It is last because the six
+              native pages are a fixed order this section states and a person's
+              own views are not in it.
 
-              **Where a saved view leads is this package's ruling, and it is
-              recorded because 9.1's routes table has no row for one.** A
-              saved view is a name over a filter on a place-page (DES-153), so
-              it opens that page carrying its own definition: `?view=<id>`,
-              which `usePlace` reads and seeds the page's filter from. The
-              alternative, a path of its own, would have made a view a
-              seventeenth kind of surface rather than the page it is a view
-              of, and would have needed a route for something the table
-              deliberately leaves out.
-              */}
+              **Where a saved view leads.** 9.1's routes table has no row for
+              one. A saved view is a name over a filter on a place-page, so it
+              opens that page carrying its own definition: `?view=<id>`, which
+              `usePlace` reads and seeds the page's filter from. A path of its
+              own would make a view another kind of surface rather than the page
+              it is a view of.
+               */}
               {pinnedSaved.map((view) => (
                 <NavigationRow
                   key={view.id}
@@ -2039,12 +1842,11 @@ export function AppSidebar({
           className="mx-3 my-2 border-t border-[var(--color-graphite-200)] group-data-[collapsible=icon]:mx-2"
         />
 
-        {/* `mt-2` is the prototype's: the Library stands off the page block
-            above it. Its `group-data-[collapsible=icon]:hidden` is still not
-            taken, because the rail keeps the folders the header's rail
-            paragraph names rather than none of them; what the rail drops it
-            drops by not rendering the row, which is a fact about the list and
-            not about the block around it. */}
+        {/* `mt-2`: the Library stands off the page block above it. It does not
+            take `group-data-[collapsible=icon]:hidden`, because the rail keeps
+            the folders the header's rail paragraph names rather than none of
+            them; what the rail drops it drops by not rendering the row, which
+            is a fact about the list and not about the block around it. */}
         <Collapsible className="mt-2" open={foldersOpen} onOpenChange={setFoldersOpen}>
           <SidebarGroup className="py-0">
             {/*
@@ -2061,14 +1863,12 @@ export function AppSidebar({
             drawn there under the rule the header's rail paragraph records.
             */}
             {/*
-            The heading row is the prototype's own `div` again, with the
-            heading inside it rather than around it (polish round,
-            2026-08-30). It held only the `h2` while the controls were in the
-            footer; the "+" is beside the word now, and an `h2` wrapping both
-            would give the document outline a heading called "Library New".
-            The word is the heading, the control is its neighbour, and the row
-            is what the two share.
-            */}
+            The heading row is a `div` with the heading inside it rather than
+            around it: an `h2` wrapping both the word and the "+" would give the
+            document outline a heading called "Library New". The word is the
+            heading, the control is its neighbour, and the row is what the two
+            share.
+             */}
             <div className="group/folder-directory flex h-8 items-center px-1 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
               <h2 className="flex min-w-0 flex-1 items-center group-data-[collapsible=icon]:hidden">
                 <CollapsibleTrigger
@@ -2083,11 +1883,8 @@ export function AppSidebar({
                   />
                 </CollapsibleTrigger>
               </h2>
-              {/* polish: sidebar F7 said the "Library options" menu that hung
-                  here was a second door to what the foot already offered,
-                  "one door per act", and took it out. The foot no longer
-                  offers them, so this is the one door and the rule holds
-                  rather than being reversed. */}
+              {/* No "Library options" menu here: one door per act, and the "+"
+                  is that door. */}
               <LibraryPlusMenu
                 onNewFolder={onNewFolder}
                 onNewShelf={onNewShelf}
@@ -2098,10 +1895,9 @@ export function AppSidebar({
             </div>
             <CollapsibleContent>
               {/* Inbox above the column and never in it: 9.1 pins it first,
-                  above the label groups and never inside one, so it is the
-                  one folder row no arrangement can move. Its row carries no
-                  group action for the same reason, which `SidebarFolderRow`
-                  has enforced since R10. */}
+                  above the label groups and never inside one, so it is the one
+                  folder row no arrangement can move. Its row carries no group
+                  action for the same reason, which `SidebarFolderRow` enforces. */}
               <SidebarGroupContent>
                 <SidebarMenu>
                   {/* Pinned above the column, and in the rail only when it is
@@ -2147,58 +1943,34 @@ export function AppSidebar({
 
       <SidebarFooter className="gap-0 py-2">
         {/*
-        One control, and that is the whole of this change (polish round,
-        2026-08-30, the owner's own ruling).
+        One control: the person.
 
-        The footer held seven things before it: a primary "New folder"
-        button, a row of two acts, the hidden file input, and Trash, People
-        and Settings as three navigation rows, with the account row under
-        them. Six of the seven have somewhere else to be as of the same day —
-        the three acts of making at the Library's own "+", and People, Import
-        and Trash inside the account menu — and what they cost while they sat
-        here was six rows off the bottom of a column whose whole purpose above
-        them is a list that scrolls. The owner's sentence is the argument: "my
-        goal is that there is more space for the Library so people can see a
-        big picture of what's going on in their app." The footer and
-        `SidebarContent` are the fixed and the flexible halves of one column,
-        so every row the first gives up the second takes.
+        The three acts of making live at the Library's own "+", and People,
+        Import and Trash inside the account menu, so the footer takes as little
+        as possible off the bottom of a column whose whole purpose above it is a
+        list that scrolls. The footer and `SidebarContent` are the fixed and the
+        flexible halves of one column, so every row the first gives up the
+        second takes.
 
-        What is left is the person, which is the one thing in this footer that
-        was never a door to somewhere else, and the file input, which is not
-        drawn at all.
-
-        **What each departing control cost, so that nothing is lost silently.**
-        "New folder" was 9.1's one primary action and the only one of the six
-        that was styled as a button rather than a row; it is the first item of
-        the "+" menu, which is where the eye that wants to make something now
-        goes for all three. The row of two carried DES-216's narrowing
-        asymmetry, which was arithmetic about fitting three words into 224
-        pixels and has no subject left. Trash, People and Settings were links
-        and are menu items, which is the one role this change spends; the note
-        on `AccountMenu` says what that costs and why the tab strip's "+"
-        answers it.
-        */}
+        The file input is here too, but is not drawn at all.
+         */}
         {/*
         The workflow file itself (7.16's POST /workflows/import), read in the
         browser and handed over as parsed structure.
 
         The import is client-side only as far as reading the bytes goes: 10.3
         caps a workflow file's contents and the server is what enforces every
-        one of those caps, so what this does is hand the endpoint a document
-        and let it refuse. A file that is not JSON at all is refused here,
-        because sending a parse failure to the server as a 400 would tell the
-        person less than the sentence the page can write itself.
+        one of those caps, so what this does is hand the endpoint a document and
+        let it refuse. A file that is not JSON at all is refused here, because
+        sending a parse failure to the server as a 400 would tell the person
+        less than the sentence the page can write itself.
 
-        **It stays in this footer although the control that pressed it does
-        not.** There is one file input in the application and two ways to
-        reach it: the account menu's Import below, and the tab strip's "+"
-        through `overlays.ts`. A second input beside either caller would be a
-        second answer to one selector, which is the fault the prototype's own
-        comment records against exactly this control, and which the two
-        browser criteria addressing it as
-        `sidebar(page).locator('input[type="file"]')` would find the moment it
-        happened.
-        */}
+        **It stays in this footer although the control that presses it does
+        not.** There is one file input in the application and two ways to reach
+        it: the account menu's Import below, and the tab strip's "+" through
+        `overlays.ts`. A second input beside either caller would be a second
+        answer to one selector, `input[type="file"]`, in the sidebar.
+         */}
         <input
           ref={workflowInput}
           type="file"

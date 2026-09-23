@@ -1,5 +1,5 @@
 /*
-The 7.16 surface (RFC 0005): pages, shelves, and the object acts. One
+The 7.16 surface: pages, shelves, and the object acts. One
 router because 7.16 is one section: the folder page, the shelf family with
 its own page, duplicate for tasks and folders, the workflow import, and the
 direct ownership transfer. Handlers validate with the shared schemas,
@@ -61,7 +61,7 @@ import { routerWithPreamble } from './preamble.js'
 export interface WorkshopRouterOptions {
   dbClient?: DbClient
   rateLimits?: RateLimits
-  /** The S4 object store, needed since 2026-09-04: a shelf cover and a
+  /** The object store: a shelf cover and a
    * duplicate both copy the picture they carry (issues #116 and #128, spec
    * 7.16). Optional beside the other two for `routes/files.ts`'s reason, and
    * guarded the same way. */
@@ -70,7 +70,7 @@ export interface WorkshopRouterOptions {
 }
 
 /*
-`?tz` for the two duplicates, on frozen 7.6's precedent of 2026-08-10, which
+`?tz` for the two duplicates, on 7.6's precedent, which
 7.16's import already follows a few handlers below (issue #76).
 
 Three states rather than two, which is why this answers a sentinel rather than
@@ -706,13 +706,12 @@ export function createWorkshopRouter(
       const parsed = parseBody(importWorkflowBody, req, res, securityLog)
       if (parsed === null) return
       /*
-      tz on frozen 7.6's own precedent of 2026-08-10 rather than on 7.0's
+      tz on 7.6's own precedent rather than on 7.0's
       view-endpoint rule: a present value that fails IANA validation is 422
       naming tz always, and an absent one is 422 exactly when a date would
-      be evaluated. Since RFC 0005 change control item 44's B3, a file may
-      carry a repeat or a reminder, and 4.5 and 8.6 admit neither without a
-      date, so those are the files that evaluate one. Every file that
-      imported before this widening still needs no zone.
+      be evaluated. A file may carry a repeat or a reminder, and 4.5 and 8.6
+      admit neither without a date, so those are the files that evaluate
+      one. A file with neither needs no zone.
 
       The parsing half moved into `anchorOf` at the top of this file when the
       two duplicates took the same precedent (issue #76); which requests must

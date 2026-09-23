@@ -23,8 +23,8 @@ left to a reader to look up:
 - **class two**, a key nobody declared — this file sees it;
 - **class one**, a key the schema *declares* and the route never reads — this
   file is blind to it, because the key is in the shape. That is the class the
-  reminder incident in `app/src/shared/tasks.ts` was, four packages long, and
-  the only thing that catches it is a criterion, as AC-149 is.
+  reminder incident in `app/src/shared/tasks.ts` was, and only a behavioural
+  test catches it.
 
 Nothing here is a substitute for the second, and a session that reads this
 helper as covering "dropped request fields" will believe the wrong thing.

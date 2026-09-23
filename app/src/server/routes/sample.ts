@@ -1,5 +1,5 @@
 /*
-The sample workspace surface (RFC 0005 change control item 60): GET, DELETE
+The sample workspace surface (7.20): GET, DELETE
 and POST /api/v1/sample, every one the caller's own account and no other.
 The two writes go through the 10.2 chokepoint the way every mutation does,
 CSRF and the general mutation limit; the 204 says what it left standing in

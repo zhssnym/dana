@@ -89,17 +89,17 @@ export interface AppOptions {
    * the only way a send is observable under test: 11.8 forbids real sending
    * there, and 10.5 keeps recipient addresses out of the logs. Absent, 11.8
    * stands unchanged: the module logs in development and tests, and sends
-   * through the Resend transport P7 landed in notify/resend.ts in production.
+   * through the Resend transport in notify/resend.ts in production.
    */
   notifications?: NotificationSink
-  /** Privacy-safe structured log sink, injectable for AC-103. */
+  /** Privacy-safe structured log sink, injectable for tests. */
   securityLog?: SecurityLogger
-  /** Error tracker seam used by AC-104; production resolves Sentry from env. */
+  /** Error tracker seam, injectable for tests; production resolves Sentry from env. */
   errorTracker?: ErrorTracker
   /** Explicit limiter set for focused tests. Production constructs its own. */
   rateLimits?: RateLimits
   /**
-   * The S4 object store (files/store.ts), bytes behind one interface.
+   * The object store (files/store.ts), bytes behind one interface.
    * Absent, a disk store is constructed over DANA_FILES_DIR, or the OS
    * temporary directory when that is unset, which is the test default;
    * construction does no I/O either way (11.10), the directory being made
@@ -116,21 +116,19 @@ export interface AppOptions {
    * This deployment's own origin, APP_ORIGIN. Present, it is the canonical
    * host: every request arriving on any other one is redirected to it
    * (http/canonical-host.ts, issue #6). Absent, nothing redirects, which is
-   * development and every criterion but AC-414.
+   * development and the test default.
    *
    * The boot fills it from the environment and hands it here, rather than
-   * this file reading `process.env.APP_ORIGIN` as it does two lines further
-   * down for the reporting endpoint. The reason is AC-109 and it is written
-   * out in that module: its harness sets APP_ORIGIN to its own ephemeral
-   * origin and then drives the auth endpoints with crafted Host headers, so a
+   * this file reading `process.env.APP_ORIGIN` as it does further down for
+   * the reporting endpoint: a test harness can set APP_ORIGIN to its own
+   * origin and drive the auth endpoints with crafted Host headers, and a
    * redirect that read the environment would answer those requests before an
-   * auth endpoint saw one, and that criterion would go on passing while
-   * measuring this middleware instead of the discipline it was written for.
+   * auth endpoint saw one.
    */
   appOrigin?: string
   /**
    * Whether a brand-new account is written the sample workspace at its
-   * first sign-in (RFC 0005 change control item 60). Defaults to true unless
+   * first sign-in (7.20). Defaults to true unless
    * DANA_SAMPLE_WORKSPACE is 'off', read at createApp() call time; the
    * acceptance suite sets it off in its setup file so a fresh account is the
    * empty one its criteria count on, and the one file that measures the
@@ -161,15 +159,9 @@ function defaultDiskStore(): ObjectStore {
  *
  * It is a literal rather than a digest computed at boot because createApp
  * performs no I/O (11.10) and because the file it would read does not exist
- * in a source checkout that has never built. What keeps it honest is
- * `tests/criteria/ac-238-response-security-headers.test.ts`, which recomputes the
- * digest from the shell document itself, preferring the built
- * `dist/client/index.html` the browser is actually served and falling back
- * to `app/index.html` when nothing has been built, and fails if `script-src`
- * does not name every inline script it finds there: edit the script without
- * editing this line and the suite says so. Its one gap is that CI reaches
- * the vitest legs before the build step, so there the fallback is what runs;
- * issue #96 carries the version that reads a freshly built document.
+ * in a source checkout that has never built. Nothing checks it
+ * automatically: edit the inline script and this digest must be recomputed,
+ * or the policy refuses the script and the theme flashes on cold load.
  *
  * And the digest is stable across checkouts only because `.gitattributes`
  * sets `* text=auto eol=lf`. `core.autocrlf` is true on at least one machine
@@ -207,8 +199,7 @@ export function createApp(options: AppOptions = {}): express.Express {
   a CDN in front of Render would make it 2, and a second one still not `true`.
 
   Locally and under test there is no proxy, no `X-Forwarded-For`, and this
-  setting changes nothing — `req.ip` stays the socket peer. AC-410 drives all
-  three cases against this application rather than trusting the paragraph.
+  setting changes nothing — `req.ip` stays the socket peer.
 
   **This setting moves four request properties and not one, so here is what
   the other three reach, checked rather than assumed.** `req.hostname` reads
@@ -258,7 +249,7 @@ export function createApp(options: AppOptions = {}): express.Express {
   if (canonicalHost !== null) app.use(canonicalHost)
 
   /*
-  10.8's response headers (RFC 0005 unit 13a, change control item 18), ahead
+  10.8's response headers, ahead
   of everything that answers a request so every response carries them,
   refusals and errors included. The one response in front of them is the
   canonical-host redirect above, which is deliberate: a 301 off this
@@ -276,15 +267,9 @@ export function createApp(options: AppOptions = {}): express.Express {
     URIs at build time. A data: image is bytes, not a document.
   - img-src https://*.googleusercontent.com: the account picture 7.2 stores
     at first sign-in, which is Google's `picture` claim and therefore a URL
-    on Google's own user-content CDN. Added at the polish round of
-    2026-08-30 (avatars F3) and it is 10.8's own rule applied rather than
-    relaxed: the policy is "sized to what the client actually loads and no
-    wider", and this is a thing the client has tried to load on every
-    surface that draws a person since 4.1 while the policy silently refused
-    it. What that looked like is the reason it went unnoticed for so long:
-    the disc falls back to the person's initials on an image that will not
-    load, so every account whose picture came from Google looked exactly
-    like an account with no picture, and nothing anywhere said otherwise.
+    on Google's own user-content CDN. This is 10.8's own rule applied
+    rather than relaxed: the client draws that picture on every surface that
+    shows a person, and a refused image silently falls back to initials.
     **This is not the case `routes/cover-photos.ts` refused**, and the
     distinction is worth keeping. That header declines to widen img-src for
     a *search result*: an arbitrary third-party host chosen at runtime,
@@ -301,16 +286,10 @@ export function createApp(options: AppOptions = {}): express.Express {
     when the build carried VITE_SENTRY_DSN; the wildcard covers the
     per-organization ingest hosts.
 
-  The four directives below were added on 2026-09-03 for issues #34 and #13,
-  and they are one finding rather than four: this policy was written against
-  what the client was believed to load and had never been read back from a
-  browser, so every one of them was refusing something the product does.
-  None of them can happen in development, which is why they survived to
-  production: `npm run dev` serves the document from Vite, which sends no
-  policy at all, and proxies only /api to this process, so the header rides
-  on the API responses and never on the page. Each was measured with
-  Chromium against the production build before being written here, and the
-  refusal each answers is quoted from the console.
+  The four directives below (issues #34 and #13) each answer a refusal
+  quoted from the browser console against the production build. None can be
+  seen in development: `npm run dev` serves the document from Vite, which
+  sends no policy, and proxies only /api to this process.
 
   - script-src 'self' <sha256 of the theme script>: `index.html` carries one
     inline script that paints the theme from localStorage before the first
@@ -322,9 +301,7 @@ export function createApp(options: AppOptions = {}): express.Express {
     and over 'unsafe-inline' because widening the one directive that decides
     whether an injected script runs, in order to remove a flash, is not a
     trade worth making. The literal below is the digest of that script's
-    body, and `tests/criteria/ac-238` recomputes it from the shell document rather
-    than importing it, so an edit to the script fails the suite instead of
-    silently restoring the flash.
+    body, and must be recomputed whenever the script changes.
   - img-src blob:: the client turns a chosen File into an object URL and
     loads it into an Image to crop it (`lib/viewer.ts` squareImageFile), and
     draws the same kind of URL as the preview of an attachment that is still
@@ -356,12 +333,9 @@ export function createApp(options: AppOptions = {}): express.Express {
   HSTS is deliberately absent: 10.8 gives it to the edge in front of the
   process, which is the only party that knows TLS is really terminating.
 
-  **The last two directives are the reporting pair, added 2026-09-04 for
-  issue #99, and they are the only reason any of the four amendments above
-  were ever found.** Every one of them was a directive refusing something
-  the product does, and every one was silent for months, because a refusal
-  raises no error the server sees and no error the client can report. So the
-  policy now names an endpoint and the browser posts its own refusals to it.
+  **The last two directives are the reporting pair (issue #99).** A refusal
+  raises no error the server sees and no error the client can report, so the
+  policy names an endpoint and the browser posts its own refusals to it.
 
   Both generations of the mechanism are stated because browsers are split
   across them: `report-uri` is deprecated in Chromium and implemented
@@ -417,8 +391,7 @@ export function createApp(options: AppOptions = {}): express.Express {
               // Issue #168. Every auth criterion signs in repeatedly from
               // one address, and the whole suite shares this machine, so
               // twenty a minute would be measuring 10.4 rather than the
-              // criterion. AC-412 constructs a real limiter of its own, the
-              // way AC-396 does for the CSP row.
+              // criterion. A test of the limiter constructs a real one.
               signInBeginsPerMinute: Number.MAX_SAFE_INTEGER,
               signInCallbacksPerMinute: Number.MAX_SAFE_INTEGER,
             },
@@ -441,8 +414,8 @@ export function createApp(options: AppOptions = {}): express.Express {
   }
 
   // The 11.8 notify module is constructed with the application so the 11.10
-  // sink can replace its log transport. The call sites are the Collaboration
-  // engineer's (7.4 share grant, 7.5 invites) and reach the instance through
+  // sink can replace its log transport. The call sites are the routes'
+  // (7.4 share grant, 7.5 invites) and reach the instance through
   // notifierOf(app); the 11.7 pass is handed the same instance in main()
   // below, so one construction decides what every outbound message does.
   //
@@ -487,7 +460,7 @@ export function createApp(options: AppOptions = {}): express.Express {
     }),
   )
 
-  // 10.3's JSON body row (RFC 0005 change control item 18): 3 MB, sized
+  // 10.3's JSON body row: 3 MB, sized
   // above the largest legal workflow file so every cap in the limits table
   // is reachable. The parser's default 100 kB was refusing legal imports
   // before 10.3's own caps could speak. Over the row, the parser answers
@@ -495,8 +468,7 @@ export function createApp(options: AppOptions = {}): express.Express {
   // records as the body ceiling's honest answer.
   app.use(express.json({ limit: 3 * 1024 * 1024 }))
 
-  // The amended 7.0 bullet, ruled at the P1 merge and held at this
-  // package's gate: a body that parses to something other than an object is
+  // 7.0: a body that parses to something other than an object is
   // malformed, 400, exactly like one that does not parse. The parser's
   // strict mode already refuses the scalar forms; arrays parse, so they are
   // refused here. The predicate still spells the whole rule rather than the
@@ -518,14 +490,12 @@ export function createApp(options: AppOptions = {}): express.Express {
   app.use(HEALTH_PATH, healthRouter)
 
   /*
-  The mount order below is load-bearing in exactly one place, and issue #37
-  is that nothing said so. Everything else here is order-independent, which
+  The mount order below is load-bearing in exactly one place (issue #37).
+  Everything else here is order-independent, which
   is why the one exception is easy to lose: sixteen routers share the
-  `/api/v1` mount (fifteen until 7.22's export joined them on 2026-09-04),
-  Express matches whole paths rather than prefixes, and the
-  wiring ledger in routes/README.md checks path-by-path for each new router
-  that it meets no whole path an earlier one claims. The rule those checks
-  are for:
+  `/api/v1` mount and Express matches whole paths rather than prefixes, so a
+  new router is safe when it meets no whole path an earlier one claims. The
+  one exception:
 
   **`createViewsRouter` must stay ahead of `createBundleRouter`.** The views
   router owns 7.10's six literal pages, `GET /views/my-day`, `/views/tasks`,
@@ -534,26 +504,21 @@ export function createApp(options: AppOptions = {}): express.Express {
   segment after `/views`, so mounted first it swallows all six: `parsedId`
   refuses `my-day` as a uuid and the page answers 404 instead of a view.
 
-  Measured 2026-09-03 rather than reasoned, both halves. Swapping the two
-  mounts turns AC-045 and AC-130 red, 15 cases, every one on a page that no
-  longer answers. And a bare Express 5 application with those seven paths
-  answers `shadow` for the six and `page` for `/views/planned/calendar`,
-  which is the boundary: `/views/:id` is one segment and the calendar is two,
-  so it is the only 7.10 page the swap leaves standing.
+  `/views/planned/calendar` is two segments, so it is the only 7.10 page a
+  swapped order leaves standing.
 
   **AC-236 does not catch this and cannot.** Both routes stay in the
   enumeration and both still answer 401 bare, so the sweep's counts and its
-  statuses are unmoved; only the behavioural criteria go red. The guard
-  against reordering is this comment and the two markers below.
+  statuses are unmoved. The guard against reordering is this comment and the
+  two markers below.
 
   Anything mounted after these two is safe if its paths are literal or claim
   a prefix no earlier router uses. A new router carrying a one-segment
   `:param` under a prefix somebody else spells out is the shape to look for.
   */
 
-  // The frozen /api/v1 surface. The 7.1 auth and account endpoints mount
-  // first, by the request recorded in src/server/auth/README.md; later
-  // packages add their routers here, and every one of them stays ahead of
+  // The /api/v1 surface. The 7.1 auth and account endpoints mount
+  // first; every later router stays ahead of
   // the catch-all below so unknown API paths answer JSON, not the SPA.
   //
   // Both options are handed straight through and both may be absent, which
@@ -580,23 +545,21 @@ export function createApp(options: AppOptions = {}): express.Express {
     }),
   )
 
-  // Item 60's sample workspace: three routes under one path that no earlier
+  // 7.20's sample workspace: three routes under one path that no earlier
   // router claims.
   app.use(
     '/api/v1',
     createSampleRouter({ dbClient: options.dbClient, rateLimits, fileStore }),
   )
 
-  // The P2 folders router, mounted by the request recorded in
-  // src/server/routes/README.md: after the auth router, whose session
-  // attachment then serves both, and ahead of the catch-all.
+  // The folders router: after the auth router, whose session attachment
+  // then serves both, and ahead of the catch-all.
   app.use(
     '/api/v1',
     createFoldersRouter({ dbClient: options.dbClient, rateLimits, securityLog }),
   )
 
-  // The P3 tasks router, by the request beside the folders one in that same
-  // ledger: the 7.6, 7.7 and 7.8 surfaces. Same position and the same reason,
+  // The tasks router: the 7.6, 7.7 and 7.8 surfaces. Same position and the same reason,
   // and its paths (/tasks, /steps) meet nothing the folders router claims, so
   // the pair is order-independent between themselves.
   app.use(
@@ -624,8 +587,7 @@ export function createApp(options: AppOptions = {}): express.Express {
     createLabelsRouter({ dbClient: options.dbClient, rateLimits, securityLog }),
   )
 
-  // The P4 views router, by the third request in that same ledger: the 7.10
-  // read surface. Same position and the same reason. It shares the /folders
+  // The views router: the 7.10 read surface. Same position and the same reason. It shares the /folders
   // prefix with the folders router but no whole path with it, and Express
   // matches on the whole path, so that pair is order-independent too; every
   // endpoint on it is a GET, which 7.0 makes safe, so it takes no CSRF link.
@@ -634,8 +596,7 @@ export function createApp(options: AppOptions = {}): express.Express {
   // block above `/api/v1`.
   app.use('/api/v1', createViewsRouter({ dbClient: options.dbClient, rateLimits }))
 
-  // The P5 invites and connections routers, by the fourth request in that same
-  // ledger: the 7.5 invite surface with its five transitions and two lists, and
+  // The invites and connections routers: the 7.5 invite surface with its five transitions and two lists, and
   // 7.3's roster with its one removal. Same position and the same reason. Their
   // paths (/invites, /invites/:id/..., /connections, /connections/:userId) meet
   // nothing the three routers above claim and nothing each other claims, so all
@@ -651,7 +612,7 @@ export function createApp(options: AppOptions = {}): express.Express {
     createConnectionsRouter({ dbClient: options.dbClient, rateLimits }),
   )
 
-  // The S3 pair (RFC 0005): 7.12's events and notifications, and 7.13's
+  // 7.12's events and notifications, and 7.13's
   // Trash with its two restores. Same position and session attachment as
   // the five above; their paths (/events, /notifications, /trash, and the
   // two /restore tails) meet nothing the earlier routers claim, so the set
@@ -665,8 +626,8 @@ export function createApp(options: AppOptions = {}): express.Express {
     createTrashRouter({ dbClient: options.dbClient, rateLimits, fileStore }),
   )
 
-  // The S4 files surface (7.15): uploads, authenticated serving, the
-  // avatar. Same position as its S3 siblings; its paths meet nothing the
+  // The files surface (7.15): uploads, authenticated serving, the
+  // avatar. Same position as the two above; its paths meet nothing the
   // earlier routers claim.
   app.use(
     '/api/v1',
@@ -678,7 +639,7 @@ export function createApp(options: AppOptions = {}): express.Express {
     }),
   )
 
-  // The photo tier's three routes (7.15, polish round of 2026-08-30): the
+  // The photo tier's three routes (7.15): the
   // Openverse search proxied so the CSP never widens, its thumbnails
   // streamed from this origin, and a chosen photograph landed through the
   // same createFile as an upload. Reasoning in routes/cover-photos.ts.
@@ -692,7 +653,7 @@ export function createApp(options: AppOptions = {}): express.Express {
     }),
   )
 
-  // The S5 workshop (7.16): pages, shelves, and the object acts. Its
+  // The workshop (7.16): pages, shelves, and the object acts. Its
   // /tasks/:id/duplicate and /folders/:id/duplicate tails meet nothing the
   // earlier routers claim, Express matching whole paths.
   app.use(
@@ -705,7 +666,7 @@ export function createApp(options: AppOptions = {}): express.Express {
     }),
   )
 
-  // The S6 conversation (7.14): threads, replies, likes.
+  // The conversation (7.14): threads, replies, likes.
   app.use(
     '/api/v1',
     createConversationRouter({
@@ -715,9 +676,7 @@ export function createApp(options: AppOptions = {}): express.Express {
     }),
   )
 
-  // The S7 bundle (4.19): the /settings surface and the saved views. It sat
-  // beside frozen 7.2's /me/settings until issue #113 retired that pair on
-  // 2026-09-04, and it is the settings surface now (7.23).
+  // The bundle (4.19): the /settings surface (7.23) and the saved views.
   //
   // Load-bearing position: behind the views router. Its `GET /views/:id`
   // matches one segment after `/views` and would shadow that router's six
@@ -808,8 +767,7 @@ check existed it started anyway and answered /api/health with 200, so a deploy
 carrying a typo in an environment variable went green and only the first person
 to try signing in found out.
 
-In production the count of doors is one, and the guard must say so (F-3 of
-the S14 security review, RFC 0005 change control item 18): 11.6 makes the
+In production the count of doors is one, and the guard must say so: 11.6 makes the
 development login absent from the compiled output regardless of environment
 variables, so a production deploy carrying only DANA_DEV_LOGIN=1 used to
 pass this check, boot, go green on its health check, 404 the door the flag

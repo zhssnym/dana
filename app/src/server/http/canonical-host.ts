@@ -60,15 +60,14 @@ thing inert in development and under the browser suite, where APP_ORIGIN is
 the same host.
 
 **The origin arrives as an option, and the environment is deliberately not
-read here.** `createApp` takes it and the boot fills it from APP_ORIGIN. The
-acceptance suite's auth harness sets `process.env.APP_ORIGIN` to its own
-ephemeral origin, and AC-109's entire method is to drive the auth endpoints
-with crafted `Host` and `X-Forwarded-Host` headers; a middleware reading the
-environment would switch on inside that harness and answer every one of those
-requests with a 301 before an auth endpoint saw it. AC-109 would then be
-measuring this file, would keep passing, and would stop measuring the thing it
-exists for — that the authorization request and its `redirect_uri` are built
-from configuration and never from the request. Production is unaffected by the
+read here.** `createApp` takes it and the boot fills it from APP_ORIGIN. A
+test harness can set `process.env.APP_ORIGIN` to its own ephemeral origin and
+drive the auth endpoints with crafted `Host` and `X-Forwarded-Host` headers
+to check AC-109, that the authorization request and its `redirect_uri` are
+built from configuration and never from the request; a middleware reading
+the environment would answer every one of those requests with a 301 before
+an auth endpoint saw it, and the check would measure this file instead.
+Production is unaffected by the
 choice and both rules hold there: this redirect answers first, and the
 endpoints behind it are still forbidden to trust a `Host` they can now only be
 reached with.

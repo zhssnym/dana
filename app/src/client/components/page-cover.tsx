@@ -1,20 +1,16 @@
 /*
 The page cover: a band any page can wear.
 
-Imran's direction, 2026-08-18 (DES-141): a cover is native to every page
-except a task's, My Day, Tasks, Planned, Important, All, Done and every
-folder can carry one, because a cover is how a *place* announces itself and
-those are all places. A task is not; it is a thing inside one.
+A cover is native to every page except a task's: My Day, Tasks, Planned,
+Important, All, Done and every folder can carry one, because a cover is how a
+*place* announces itself and those are all places. A task is not; it is a thing
+inside one.
 
-Extracted from the folder page, which had it first. What travels with it is
-the whole affordance, the picker, the reposition drag, the foot scrim, so
-no page grows a second, slightly different cover.
+The whole affordance travels with it, the picker, the reposition drag, the foot
+scrim, so no page grows a second, slightly different cover.
 
-The controls stay minimal, at Imran's word: a joined Change·Reposition group
-in the band's corner, 28px tall, appearing on hover, never a toolbar.
-
-Lane 2 for the port: no page has a cover column, and the storage question is
-DES-105's. Fixtures only, keyed by page name in the same store folders use.
+The controls stay minimal: a joined Change·Reposition group in the band's
+corner, 28px tall, appearing on hover, never a toolbar.
 */
 
 import { useRef, useState } from "react"
@@ -26,18 +22,15 @@ import {
   resolveCover,
 } from "./folder-cover.js"
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover.js"
-/* The S25 seam, and the whole of it in this file: the prototype read its
-   covers from a browser store keyed by the page's name, and this client
-   reads them from 7.19 keyed by 4.20's place. `lib/page-identity.js` is
-   that module rewritten; the two names are aliased back to the prototype's
-   so that nothing below this line moves. */
+/* Covers are read from 7.19 keyed by 4.20's place, through
+   `lib/page-identity.js`; its two names are aliased on import. */
 import {
   savePageIdentity as savePrototypeFolderIdentity,
   usePageIdentity as useFolderIdentity,
-  /* The S26 seam, and the whole of it in this file: which tiers this page can
-     honestly supply, whether it has anywhere to keep a crop, and where it can
-     store an upload. All three are properties of the table behind the page
-     rather than of the band, so the module that owns the storage owns them. */
+  /* Which tiers this page can honestly supply, whether it has anywhere to keep
+     a crop, and where it can store an upload. All three are properties of the
+     table behind the page rather than of the band, so the module that owns the
+     storage owns them. */
   coverStoresPosition,
   coverTiersFor,
   coverPhotoPicker,
@@ -53,23 +46,20 @@ const FOCUS =
 **The band is full-bleed, and the arithmetic is here rather than at the three
 call sites.**
 
-The owner, 2026-08-30: "cover photos do not extend across the full page width,
-leaving awkward white space on both sides." The prototype has no such fault
-because it draws this component *outside* its own reading measure
-(`screens/shell-page.tsx:2483`, `screens/folder-page-v2.tsx:2101`), while this
-client draws it from the head, inside `app-shell.tsx`'s column, which is
-centred and capped at `--shell-content-max`. The head's `-mx-10` undoes the
-column's padding and cannot undo its cap, so a wide window put the band at the
-reading width with the ground showing either side.
+A cover extends across the full page width. This is drawn from the head, inside
+`app-shell.tsx`'s column, which is centred and capped at `--shell-content-max`;
+a negative margin can undo the column's padding and cannot undo its cap, so a
+wide window would put the band at the reading width with the ground showing
+either side.
 
 `50%` in a margin resolves against the containing block, and `100cqw` is the
 scroll region's own width (`tokens.css` declares it the query container), so
-`calc(50% - 50cqw)` is exactly the distance from this box's edge to the
-window's on each side. It is written once, on the band, because it is true
-whatever the wrapper above it does: an ancestor's own negative margin widens
-the containing block and shrinks the offset by the same amount, so the head,
-the folder page and the shelf page all land on the window's edge without
-agreeing on anything first.
+`calc(50% - 50cqw)` is exactly the distance from this box's edge to the window's
+on each side. It is written once, on the band, because it is true whatever the
+wrapper above it does: an ancestor's own negative margin widens the containing
+block and shrinks the offset by the same amount, so the head, the folder page
+and the shelf page all land on the window's edge without agreeing on anything
+first.
 */
 const FULL_BLEED = { marginInline: "calc(50% - 50cqw)" } as const
 
@@ -114,22 +104,16 @@ export function PageCover({
         repositioning
           ? (event) => {
               /*
-              **A press that lands on a control is not a drag, and until
-              2026-09-04 this line did not know that, which made "Save
-              position" and "Cancel" unreachable.** The band captures the
+              **A press that lands on a control is not a drag**, or "Save
+              position" and "Cancel" would be unreachable. The band captures the
               pointer so a drag that wanders outside it keeps tracking, and
               capture retargets the whole gesture — the mouse events and the
               `click` they compose into — to the capturing element. Both
-              controls are children of the band, so pressing either one
-              bubbled here first, the band took the pointer, and the click
-              was delivered to the band instead of the button: no save, no
-              cancel, no error, and the only way out of repositioning was to
-              leave the page. Measured in Chromium on 2026-09-04 while
-              writing AC-406, on a place page and on a folder page alike.
-              **It is not a regression of issue #118**, which is only what
-              made the state reachable on a place page for the first time: a
-              gradient has no crop to move, so before a place page could
-              wear a picture the Reposition control was never drawn there.
+              controls are children of the band, so a press on either would
+              bubble here first, the band would take the pointer, and the click
+              would be delivered to the band instead of the button: no save, no
+              cancel, no error, and no way out of repositioning but to leave the
+              page (AC-406).
               */
               if ((event.target as HTMLElement).closest('button') !== null) return
               dragStart.current = { y: event.clientY, pos: draftPos }
@@ -247,8 +231,8 @@ export function PageCover({
                 />
               </PopoverContent>
             </Popover>
-            {/* polish: pagehead F7. Remove sits beside Change rather than
-                three presses deep inside the picker. */}
+            {/* Remove sits beside Change rather than three presses deep inside
+                the picker. */}
             <button
               type="button"
               onClick={() => savePrototypeFolderIdentity(storageName, { cover: undefined })}
@@ -289,20 +273,11 @@ export function PageCover({
 /*
 The way in, and it is always there until it has been used.
 
-Imran, 2026-08-22: "Each of the folder page (native and non native) can get a
-cover photo. Home is not getting it." Home was not, and neither was any folder
-somebody had already dressed: this took a `visible` flag, the folder page
-passed it `pristine`, true only while the folder had *no glyph, no cover and
-no description*, and every other page passed it `false` outright. So the
-moment you gave a folder an icon, the only route to a cover dropped to opacity
-zero with nothing to suggest it was still there. Home ships with a house.
-
-The flag was measuring the wrong thing, and once the right thing is measured
-there is nothing left for it to decide: this component already returns null
-when a cover exists (below), so "no cover" is the only state it can be in. A
-control that is the sole way to do something, in the one state where it can be
-done, is not a control to hide. Once there is a cover the band itself is the
-affordance (DES-141) and this is gone.
+Every page, native or a folder, can get a cover, whatever else it has been
+dressed with. This component returns null when a cover exists (below), so "no
+cover" is the only state it can be in, and a control that is the sole way to do
+something, in the one state where it can be done, is not a control to hide. Once
+there is a cover the band itself is the affordance and this is gone.
 */
 export function AddCoverAction({
   storageName,

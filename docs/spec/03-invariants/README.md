@@ -2,8 +2,7 @@
 
 Properties that must hold at all times, phrased as testable assertions. "Constraint" means
 a database constraint enforces it; "transaction" means the owning server transaction
-enforces it; "guard" means an API precondition enforces it. An automated test suite must
-assert each after every mutation-heavy test.
+enforces it; "guard" means an API precondition enforces it.
 
 | ID | Assertion | Enforced by |
 | - | - | - |

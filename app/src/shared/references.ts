@@ -25,8 +25,7 @@ be tempted by one of them:
 pasted URL into a target before it asks; the server builds the canonical
 `path` of every summary it answers. Two copies of one grammar drift, and the
 direction they drift in is a client that believes a string is a Dana Link and
-a server that does not. `references.test.ts` beside this file holds them to a
-round trip.
+a server that does not. Parsing and formatting must round-trip.
 */
 import { z } from 'zod'
 

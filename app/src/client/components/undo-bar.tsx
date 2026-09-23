@@ -1,14 +1,6 @@
 /*
 The undo bar: what happened, and one press to take it back.
 
-Lifted from `docs/design/prototype-v2/src/components/undo-bar.tsx` at S24,
-read on `v2-build` at `102e855`. That prototype is deleted (`a7886df`,
-2026-09-01); read it in git history before that commit. The lift discipline
-of RFC 0004's prototype-lift section applies: this file diffs empty against
-that original except at the seams named at the foot of this header. The
-designer's own reasoning below is kept intact, being the design record for
-what this does.
-
 Rendered once by the shell, never by a screen, see `shell/undo.ts` for why the
 entries come from the mutators rather than from the surfaces.
 
@@ -21,41 +13,23 @@ It expires rather than waiting to be dismissed: a bar that stays until you
 deal with it turns every completed task into a small piece of admin.
 **Expiring hides the bar, it does not clear the stack**: Ctrl/Cmd+Z still
 reaches the act afterwards, so the timer governs the furniture and never the
-capability. That is ledger entry L-083, and S24 verified it against
-`shell/undo.ts` rather than assuming it: the store carries no timer at all, an
-entry's `at` is stamped once and read only here, and nothing in the module
-expires anything. The rule was already true; what this file changes is which
-component draws it.
+capability. `shell/undo.ts` carries no timer at all: an entry's `at` is
+stamped once and read only here, and nothing in that module expires anything.
 
-**Three seams, and the first is the only one that changes behaviour.**
+**The window is 9.1's five seconds**, AC-225 reading the number by name. So
+the constant is `UNDO_WINDOW_MS` from the store rather than a literal here,
+which stops the bar and the criterion drifting apart.
 
-**The window is 9.1's five seconds, not the prototype's eight.** The original
-names eight and gives the genre's reasoning for it; the section fixes "for five
-seconds" and 11.13 makes the section the winner without a ruling, AC-225
-reading the number by name. So the constant is `UNDO_WINDOW_MS` from the store
-rather than a literal here, which also stops the bar and the criterion drifting
-apart the way a second copy of a number always eventually does.
+**Every entry has an inverse, so the Undo control is unconditional.** Acts
+with no way back, like "Link copied", are said with the toast region 9.1
+gives them, so `UndoEntry.undo` is required.
 
-**Every entry has an inverse, so the Undo control is unconditional.** The
-prototype's store carries `notice`, an entry with no way back, for acts like
-"Link copied" that still need saying; this client says those with the toast
-region 9.1 gives it, so `UndoEntry.undo` is required and the original's
-`top.undo ?` guard has nothing to guard. Removing a branch that cannot be taken
-is not a rewrite of the body; adding `notice` to the store would be, and it is
-nobody's row.
-
-**`fixed` where the original says `absolute`, which is a fact about where this
-file is mounted rather than a disagreement about the design.** The prototype's
-bar is a child of a positioned shell root and resolves against it; this
-client's shell renders the bar as a sibling of that box, deliberately, so it is
-not clipped by the shell's own layout and so there is exactly one of it however
-many pages mount. `absolute` there resolves against the initial containing
-block, which is the same rectangle right up until the document scrolls.
-Bottom-left of the window is what 9.1 asks for, and `fixed` is what says it.
-
-**The mechanical two**: the `@/` specifiers become this client's relative ESM
-paths (11.4), and the em dashes leave under protocol section 7's writing
-convention.
+**`fixed`, because of where this file is mounted.** The shell renders the bar
+as a sibling of its positioned root, deliberately, so it is not clipped by the
+shell's own layout and so there is exactly one of it however many pages mount.
+`absolute` there resolves against the initial containing block, which is the
+same rectangle right up until the document scrolls. Bottom-left of the window
+is what 9.1 asks for, and `fixed` is what says it.
 */
 
 import { useEffect, useState } from 'react'

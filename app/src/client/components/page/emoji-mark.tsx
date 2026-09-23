@@ -1,15 +1,11 @@
 /*
-An emoji as a folder's or a shelf's mark, added 2026-08-30 at the owner's word:
-the identity picker was missing "emoji icons", which every product a person
-compares Dana to has offered for a decade.
+An emoji as a folder's or a shelf's mark.
 
 **Nothing about section 4 changes, and that is the whole design of this file.**
 4.3's `icon` and 4.18's are a stored key, checked against `^[a-z0-9-]{1,40}$`
-by `shared/folders.ts` and stored opaquely by the server ("the icon key is
-pattern-validated until S8 exports the set; the server stores it opaquely
-either way"). A codepoint written in lowercase hex fits that alphabet exactly,
+by `shared/folders.ts` and stored opaquely by the server. A codepoint written in lowercase hex fits that alphabet exactly,
 so an emoji mark is `emoji-1f331` and needs no column, no migration and no
-widening of a frozen section. The character itself never crosses the wire; the
+widening of section 4. The character itself never crosses the wire; the
 number does, and this module is the only place that turns one into the other.
 
 **Single codepoints only.** A key is capped at forty characters, and the emoji
@@ -114,8 +110,7 @@ export function emojiMark(key: string): LucideIcon | null {
 
 /*
 The ninety-six the picker offers, in eight columns, sections in multiples of
-eight so no row is left with a hole in it. The rule is the one Imran set for
-the glyph grid and it is worth keeping here: the gap at the right of an
+eight so no row is left with a hole in it. The rule is the glyph grid's: the gap at the right of an
 unfinished row reads as a missing choice rather than as the end of a list.
 */
 export interface EmojiSection {

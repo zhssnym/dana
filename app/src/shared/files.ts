@@ -14,9 +14,8 @@ JSON `/me` surface; these two are 7.15's multipart one, answered by the same
 route module, refused by the same quota, and served from the same store. The
 path is what they share least.
 
-**The client half is not done.** `api/http.ts` is on the frontend's
-do-not-touch list for a backend session, so the two schemas there still exist
-and these are asserted against the server instead. Swapping them is Imran's
+**The client half is not done.** `api/http.ts` still declares its own two
+schemas; these are asserted against the server instead. Swapping them is a
 one-line change per call site, and is additive: these parse strictly what the
 literals there parse today.
 */
@@ -125,7 +124,7 @@ export const FOLDERLESS_UPLOAD_KINDS = [
 /** The raster set the image kinds decode and re-encode through sharp. SVG is
  * absent and must stay absent: it decodes like an image and serves like a
  * document, and a document with scripts on this origin is a session walking
- * out the door (the S4 security review's first condition). */
+ * out the door. */
 export const RASTER_MIMES = [
   'image/png',
   'image/jpeg',

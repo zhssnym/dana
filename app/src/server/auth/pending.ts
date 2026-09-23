@@ -5,8 +5,7 @@ an opaque identifier the browser carries in an httpOnly cookie.
 
 Why memory rather than a table: 11.6 fixes what a pending record holds and
 never where it lives, the records are worthless the moment their authorization
-completes, and a table would need a migration in app/db, which belongs to the
-Data engineer. The cost is that authorizations begun before a restart cannot
+completes, and a table would need a migration for no gain. The cost is that authorizations begun before a restart cannot
 complete, which costs the person one click on a sign-in that had not finished
 anyway. This is the same single-instance assumption 11.1 already records for
 rate limiting and the reminder tick, and it joins that list rather than adding

@@ -1,21 +1,18 @@
 /*
-The person's bundle on the wire (RFC 0005): GET and PATCH /settings, the
-v2 surface that answers 4.19's whole expansion, and the /views family for
-saved views, written up as 7.23 on 2026-09-04 (issue #152).
+The person's bundle on the wire: GET and PATCH /settings, the surface that
+answers 4.19's whole expansion, and the /views family for saved views
+(7.23, issue #152).
 
-Frozen 7.2's /me/settings stood next door until issue #113 retired it the
-same day, so this is the settings surface rather than one of two. The three
+This is the only settings surface (issue #113 retired 7.2's /me/settings).
+The three
 v1 columns it wrote are still stored and are still derived into the pin list
 by domain/bundle.ts; what went is every way of writing them.
 
-7.19's place covers joined this router at S22a rather than taking one of
-their own, and the reason is what they are: a cover on Today is one person's
+7.19's place covers live in this router rather than one of their own, and the reason is what they are: a cover on Today is one person's
 choice about one of Dana's own pages, which is the same kind of thing as a
-saved view and a row of 4.19's settings. A router of its own would have
-needed a line in the boot file, which is another owner's, for a surface with
-no other claim to be separate.
+saved view and a row of 4.19's settings.
 
-7.21's place descriptions joined it on the same reasoning (issue #68): a
+7.21's place descriptions live here on the same reasoning (issue #68): a
 person's own sentence under Today is the same kind of thing as their cover
 on it, and it shares this file's place parser rather than growing a second
 copy of 4.20's eight names.
@@ -62,7 +59,7 @@ import { routerWithPreamble } from './preamble.js'
 export interface BundleRouterOptions {
   dbClient?: DbClient
   rateLimits?: RateLimits
-  /** The S4 object store, needed since 2026-09-04 because a place cover may
+  /** The object store, because a place cover may
    * copy the picture it names (issue #116, spec 7.19). Optional beside the
    * other two for `routes/files.ts`'s reason, and guarded the same way. */
   fileStore?: ObjectStore

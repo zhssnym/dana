@@ -31,9 +31,8 @@ membership join is, applied to a second kind of privacy.
 **The two projection readers are batch readers, and they must stay that way.**
 `taskLabelsFor` and `folderPersonalLabelsFor` each take every id at once and
 answer with a Map. `readCards` calls the first once per list endpoint, so a
-thousand-row view costs one extra statement rather than a thousand; AC-474
-drives a list endpoint through a recording executor and fails if the count
-moves with the number of rows.
+thousand-row view costs one extra statement rather than a thousand, and the
+count must never move with the number of rows.
 
 **Applying a Folder Label is authorized in this file and not in the route
 (issue #274).** Every other Label gate is the route's, because every other
@@ -145,7 +144,7 @@ function definitionFromRow(row: Record<string, unknown>): LabelDefinition {
  * Task's Folder ones, never another member's Personal ones.
  *
  * **One statement whatever the row count**, which is the property #226 asks
- * for by name and AC-474 measures. The two halves are a UNION ALL rather than
+ * for by name. The two halves are a UNION ALL rather than
  * two round trips because they are ordered together and grouped together, and
  * because two statements is the first step toward two per row.
  *
@@ -387,9 +386,7 @@ export type ArchiveLabelResult =
  * step with the driver.
  *
  * The constraint name is compared rather than the server's prose, because the
- * created databases of the Postgres leg answer in this cluster's language and
- * `tests/guards/guard-postgres-leg-isolation.test.ts` fails a test that reads
- * prose.
+ * server's prose is translated into the cluster's language.
  */
 function uniqueViolationConstraint(error: unknown): string | null {
   let current: unknown = error
@@ -771,7 +768,7 @@ async function classificationRefusal(
  * the Task's Folder, its assignee and the actor's standing are all read here,
  * under the lock, because the gate below depends on all three.
  *
- * The order of the three refusals is decided here and pinned by AC-476.
+ * The order of the three refusals is decided here.
  * Wrong-target is checked before archived, because scope is a fact about
  * whether the Label belongs here at all and the archive state is a fact about
  * when it may be applied: telling a caller that a Folder-A Label is archived
@@ -794,8 +791,7 @@ export async function attachTaskLabel(
   labelId: string,
 ): Promise<AttachResult> {
   return inTransaction(db, async (tx) => {
-    /* The lock is the first statement of the transaction, which is what
-       cap-guards.test.ts asserts of every guard in this directory: the count
+    /* The lock is the first statement of the transaction: the count
        below has to be read after the lock is held, or the second caller reads
        the same number the first one did and both insert.
 

@@ -1,17 +1,13 @@
 /*
-The 7.16 workflow-file contract (RFC 0005, DES-206), as RFC 0005 change
-control item 44's B3 widened it: a folder's page blocks and each task's
+The 7.16 workflow-file contract (DES-206): a folder's page blocks and each task's
 title, notes, star, repeat, reminder and step titles, never ids, people, due
 dates or states. The refusal is the schema's shape, not a scrubbing pass:
 zod strips every key these objects do not name, so a hostile file's members,
 statuses and ids are not rejected so much as never read, and what remains is
 exactly what an empty folder plus typed work would have been.
 
-**A step's tick is a state, so it does not travel either.** The prototype's
-own workflow file carries each task's state and whether each step is ticked,
-and item 44's list carries neither; ledger entry L-115 records the prototype
-contradicting itself about this and the schema settling it by carrying no
-completion. A step therefore arrives as a title, and `done` is one of the
+**A step's tick is a state, so it does not travel either.** 7.16's list
+carries no completion. A step therefore arrives as a title, and `done` is one of the
 keys stripped rather than read.
 
 **A reminder arrives in its date-only mode and no other.** 4.8 admits two,
@@ -24,15 +20,13 @@ refused by exactly the numbers a typed one is, which is why this file names
 no cap of its own beyond the three the endpoint has always had: up to 50
 folders, 500 blocks and 1000 tasks per file; the folder cap is the array's,
 the block and task caps the whole file's, checked across folders. The task
-cap was added by RFC 0005 change control item 18: until then the array's
-only bound was the body parser's default, an accident a parser
-configuration change would have widened silently.
+cap is explicit so that the array's bound is not the body parser's default,
+which a parser configuration change would widen silently.
 
 ----------------------------------------------------------------------
 
-**One canonical shape, read from more than one arrangement.** Added after
-the import was measured against the files people actually hold, which is a
-different set from the files this schema was written against.
+**One canonical shape, read from more than one arrangement**, because the
+files people actually hold are not all in the canonical one.
 
 The canonical arrangement is `folders: [{ name, blocks, tasks }]` and it is
 the only one the server, the domain and the acceptance suite ever see: the
@@ -45,18 +39,12 @@ tolerance for slop:
 
 - **A one-folder file with its page and its work at the top level**, which
   is `dana`, `version`, `name`, `items` and `tasks` and no `folders` key at
-  all. That is what DES-206's own serialiser wrote
-  (`docs/design/prototype-v2/src/lib/workflow.ts`, deleted `a7886df` on
-  2026-09-01 and in git history before that commit), so it is the shape of
-  every workflow file the product has ever handed a person, and until this
-  change the schema answered it with "folders: expected array, received
-  undefined" and the Import control answered it with "this is not a Dana
-  workflow file". A file the product wrote and cannot read is the defect
-  this half fixes.
-- **A step given as its title**, `steps: ["Book the room"]`. DES-206's
-  reader carries the same rule in as many words ("Older files carried bare
-  step titles; a string is read as an unticked step, which is what it
-  meant"), and a tick was never going to travel anyway.
+  all. That is what the original design serialiser wrote, so it is the
+  shape of the earliest workflow files the product handed people, and a file
+  the product wrote must stay readable.
+- **A step given as its title**, `steps: ["Book the room"]`. Older files
+  carried bare step titles; a string is read as an unticked step, which is
+  what it meant, and a tick does not travel anyway.
 
 **The normaliser translates and it drops; it never truncates and never
 invents.** It drops only what cannot be a Dana object at all: a page item
@@ -73,14 +61,11 @@ unimportable.
 **A page image does not travel**, and that is 7.16 rather than an oversight:
 an image block is a `file_id` into the exporting account, which is a row the
 importing account cannot read (10.2) rather than a picture. Carrying the
-bytes instead would be 7.15's upload path inside an import, which is a
-widening of a frozen section and is escalated rather than decided here. So an
+bytes instead would be 7.15's upload path inside an import, which would be a
+contract change to 7.16 and 7.15 rather than a decision for this file. So an
 image item creates nothing, and the writing around it keeps its order.
 
-**What changed at #185 is that the file now says so.** This paragraph used to
-end "an image item is dropped", and dropped is exactly what it was: the page
-had a picture, the file had a gap, and nobody was told at either end. At
-version 4 the gap is an explicit `{ kind: 'omitted', was }` placeholder and
+**The file says so (#185).** At version 4 the gap is an explicit `{ kind: 'omitted', was }` placeholder and
 the writer answers a count of them, so the loss is recorded in the bytes and
 said at the export surface. Versions 1 to 3 still drop, because a file of
 those versions has no way to say anything else.
@@ -205,7 +190,7 @@ one array, in page order, and says everything positionally.
   level-1 heading above it, which is what 4.17's `section_block_id` holds and
   what 7.16's contiguity rule already guarantees can be read off the order.
 - **Everything else belongs to the innermost Section still open**, which is the
-  ruling's "a task block after a `section` block is under it". That covers every
+  rule "a task block after a `section` block is under it". That covers every
   page the composer draws.
 - **`section` is the escape and it is written only where the default is wrong.**
   7.16 admits content at the page root *after* a Section, and a purely
@@ -250,13 +235,11 @@ export type WorkflowPageBlockKind = (typeof WORKFLOW_PAGE_BLOCK_KINDS)[number]
 The kinds a format 4 file records as dropped rather than carries.
 
 **`file`, `audio` and `video` are named here before this tree has them**, and
-that is deliberate rather than speculative: #220 adds them to
-`DOCUMENT_BLOCK_KINDS` on a branch open beside this one, they are media by the
-same argument `image` is, and a list written to be completed later is a list
-that is silently incomplete on the day the other branch merges.
-`tests/guards/guard-workflow-page-covers-every-block-kind.test.ts` is what makes
-that claim checkable in either direction: every kind a page may hold is either
-carried above or omitted here, and a kind that is neither fails by name.
+that is deliberate rather than speculative: they are media by the same
+argument `image` is (#220), and a list written to be completed later is
+silently incomplete on the day the kinds arrive. Every kind a page may hold
+must be either carried above or omitted here; nothing currently checks that,
+so a kind added to `DOCUMENT_BLOCK_KINDS` needs a line in one of the two.
 */
 export const WORKFLOW_OMITTED_BLOCK_KINDS = [
   'image',
@@ -1224,13 +1207,7 @@ export type ImportWorkflowBody = z.infer<typeof canonicalWorkflowBody>
 POST /workflows/import → 201: the folders the file created, id and name each,
 which 9.13's starter offer places in the sidebar without a second read.
 
-**This is the move `client/api/mutations.ts` asked for and did not make.** Its
-comment there says the schema was declared in the client "rather than in
-`src/shared/`" because this file "belongs to the API role, so this session
-declares what it needs to parse and leaves the move to the Steward". The move
-is this, at #39. The client copy is still the one the mutation parses with,
-because `api/http.ts` and its neighbours are not a backend session's to edit;
-the handoff is a one-line import swap and deletes eight lines there.
+The client's `api/mutations.ts` parses with this schema.
 */
 export const importWorkflowResponse = z.object({
   folders: z.array(z.object({ id: z.uuid(), name: z.string() })),
@@ -1238,8 +1215,7 @@ export const importWorkflowResponse = z.object({
 export type ImportWorkflowResponse = z.infer<typeof importWorkflowResponse>
 
 /** Whether the file asks the endpoint to evaluate a date, which is the
- * condition frozen 7.6's own tz ruling of 2026-08-10 puts a required
- * parameter behind: a repeat needs 4.5's anchor and a reminder needs 8.6's,
+ * condition under which 7.6 requires the tz parameter: a repeat needs 4.5's anchor and a reminder needs 8.6's,
  * and a file carrying neither evaluates nothing and needs no zone. */
 export function needsImportAnchor(file: ImportWorkflowBody): boolean {
   const dated = (task: {
@@ -1342,7 +1318,7 @@ caller therefore hands this function 7.6 details, and what it may hand over
 is fixed here rather than at the call site, so a key added to the file
 format is added once.
 
-**What it writes is item 44's B3 list and nothing beside it.** The title,
+**What it writes is 7.16's portable list and nothing beside it.** The title,
 the notes, the star, the repeat, the reminder in its date-only mode, and the
 step titles; and of the page, every block of writing it holds, in order, each
 Task among them at its own position. A

@@ -2,13 +2,11 @@
 AC-366: given one person's shelf, when another person asks for it by id,
 then every 7.16 shelf route answers 404 and nothing about it is disclosed.
 
-**Why this criterion exists, and it is not because the routes are wrong.**
-They are right, and were before this file: `shelfView` scopes on user_id and
-every shelf handler runs through it. What was missing is anything that would
-notice if they stopped being right. Nothing structural checks authorization
-at all — `ac-236-structural-guard-sweep.test.ts` fails a route missing a
-session or CSRF check, and since issue #33 a GET that answers anything but
-401 without one, but a route that takes a session and then reads whatever id
+**Why this criterion exists.** `shelfView` scopes on user_id and every shelf
+handler runs through it; this notices if that stops being true. Nothing
+structural checks authorization — `ac-236-structural-guard-sweep.test.ts`
+fails a route missing a session or CSRF check, and a GET that answers
+anything but 401 without one, but a route that takes a session and then reads whatever id
 it is handed passes the whole suite. The `accessOf`-shaped gates are all
 hand-written, and a hand-written gate needs a behavioural case behind it.
 

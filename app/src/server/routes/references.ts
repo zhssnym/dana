@@ -23,12 +23,9 @@ an inaccessible target indistinguishable from a nonexistent one. A malformed
 own and says nothing about anybody's data.
 
 **Neither route is a grant.** Nothing here writes: no membership, no event, no
-dependency, no reference row. **AC-430 was named here as the criterion that would check
-that from the outside, and no such criterion was ever written**: issue #223 landed
-AC-424 to AC-428, and 430 belongs to no bullet in section 12 and no file under
-`app/tests/` (found by `app/tests/guards/guard-criterion-citations.test.ts`, issue
-#257). What does reach it is AC-428, whose last clause is that no number of either
-operation creates a membership, an Authority, an event or a dependency.
+dependency, no reference row. AC-428's last clause is that no number of
+either operation creates a membership, an Authority, an event or a
+dependency.
 
 `GET /references/search` carries 10.4's search limiter, the bucket
 `GET /search` already uses, because it is the same act at the same cost and a

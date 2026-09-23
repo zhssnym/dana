@@ -1,70 +1,46 @@
 /*
 9.2's public page, at `/`.
 
-The Codex lane's landing, adopted by the owner on 2026-08-24 and ported here
-from `docs/design/prototype-v2/src/screens/landing-screen.tsx`, a prototype
-deleted (`a7886df`, 2026-09-01) and in git history before that commit. It
-replaces the two-column composition this file carried since P8R.
-
-**The copy is no longer this file's transcription of a table**, because 9.2
-stopped carrying one on the same ruling. That section now fixes the rules copy
-is written under and the design record holds the sentences, so the strings
-below are the design's own and a later revision of them is a design change
-rather than a specification amendment. The one string 9.2 still spells is the
-line under the sign-in control, which discloses what Dana takes rather than
-claiming what Dana does; it is written here exactly as that section spells it.
+**The copy is the design's.** 9.2 fixes the rules copy is written under, not the
+sentences, so a later revision of them is a design change rather than a
+specification amendment. The one string 9.2 still spells is the line under the
+sign-in control, which discloses what Dana takes rather than claiming what Dana
+does; it is written here exactly as that section spells it.
 
 **The claim rule is the one to watch, and it is broken by addition.** 9.2 says
 the page may name no capability Dana does not ship, of which the no-AI-claim
 rule is the instance AC-159 asserts by reading the whole rendered body. Nothing
 here may promise a capability that is not in section 1's product.
 
-**There is one "Continue with Google", and it is a link.** The design draws two,
-in the hero and again in the closing block, which is precisely the shape 9.2
-forbids and AC-159's own file names as the ordinary way one call to action
-becomes two. The hero's is kept and the closing block's is dropped; the closing
-block keeps its words and loses its button. So that dropping it costs no reach,
-the header is sticky here where the design lets it scroll away, which puts the
-sign-in path one glance from every point on a page this long. The header's
-control is named "Sign in" and is navigation to the same destination rather
-than a second call to action; AC-159 counts the name 9.2 fixes, and this is not
-it.
+**There is one "Continue with Google", and it is a link.** Two calls to action,
+one in the hero and one in a closing block, is the shape 9.2 forbids. The
+closing block keeps its words and has no button; so that this costs no reach,
+the header is sticky, which puts the sign-in path one glance from every point on
+a page this long. The header's control is named "Sign in" and is navigation to
+the same destination rather than a second call to action; AC-159 counts the name
+9.2 fixes, and this is not it.
 
-It is a link and not the button the design draws, which 9.2 states outright as
-behaviour rather than presentation: it carries the viewer's detected timezone
-to 7.1's authorisation endpoint, which is how a first session gets a timezone
-before any row exists to hold one, and a link is what makes that destination
-visible, bookmarkable and reachable with scripting unavailable.
+It is a link and not a button, which 9.2 states outright as behaviour rather
+than presentation: it carries the viewer's detected timezone to 7.1's
+authorisation endpoint, which is how a first session gets a timezone before any
+row exists to hold one, and a link is what makes that destination visible,
+bookmarkable and reachable with scripting unavailable.
 
-**Four departures from the design, each named rather than made silently.**
+**Details worth keeping.**
 
-The heading's rotating verb keeps its fixed accessible name. The design already
-renders "A place to finish the work." to assistive technology and rotates the
-verb only behind `aria-hidden`, and 9.2 now requires exactly that of any
-animated heading: a heading whose text depends on when it is sampled has no
-name at all. Nothing changed here; it is written down because it would be easy
-to lose.
+The heading's rotating verb keeps its fixed accessible name: "A place to finish
+the work." is what assistive technology reads, and the verb rotates only behind
+`aria-hidden`. 9.2 requires exactly that of any animated heading: a heading
+whose text depends on when it is sampled has no name at all.
 
-The copyright year is computed rather than typed. The design writes "© 2026
-Dana", and the P8R port dropped the line for hardcoding a year that would be
-wrong within months. Computing it keeps the line and removes the objection.
+The copyright year is computed rather than typed, so the line is never wrong.
 
-The design's em dash is a comma, protocol section 7's convention holding across
-copy adopted from outside the corpus, the same substitution the P8R port made
-in the old subheading. The sentence's meaning is unchanged.
+There is no mount-time viewport-minimum override: this application pins no
+desktop floor on `document.body`, so there is nothing to undo.
 
-The design's mount-time `min-width` override is dropped rather than ported. It
-exists because the prototype pins a desktop floor on `document.body` that this
-application does not have: section 13 item 32 removed the floor at S8, so the
-override would be a fix for a problem that is not here, reaching outside React
-to undo something nothing does.
-
-**The two product images are the prototype's screenshots**, which is a debt
-rather than a choice: at S13 the v2 client is three packages from complete, so
-there is no real application to photograph. They must be re-shot from the built
-client before release, and S14 owns that; a landing page that pictures screens
-the product does not yet draw is the claim rule failing by illustration rather
-than by sentence.
+**The two product images must picture the built client.** A landing page that
+pictures screens the product does not draw is the claim rule failing by
+illustration rather than by sentence.
 
 This page renders whether or not there is a session. A client that redirected
 signed-in visitors away from `/` would hide the only surface an unauthenticated
@@ -82,8 +58,8 @@ import {
 import { browserTimezone } from '../api/tz.js'
 import { Button } from '../components/ui/button.js'
 import { DanaMark } from '../components/dana-mark.js'
-/* The public family's header control, lifted out at S16 so the legal pages
-   of DES-032 wear the same one rather than a second copy of it. */
+/* The public family's header control, shared so the legal pages wear the same
+   one rather than a second copy of it. */
 import { DanaIdentity } from './dana-identity.js'
 import {
   ArrowDown,
@@ -262,8 +238,8 @@ function SectionEyebrow({
 }
 
 /*
-The Google mark is the control's own, at DES-030's export. It is decorative, so
-the link's accessible name stays the three words 9.2 fixes and AC-159 counts.
+The Google mark is the control's own. It is decorative, so the link's accessible
+name stays the three words 9.2 fixes and AC-159 counts.
 */
 function GoogleGlyph(): React.JSX.Element {
   return (
@@ -913,10 +889,9 @@ export function LandingPage(): React.JSX.Element {
       */}
       <section className="px-5 py-10 text-center sm:px-8 sm:py-12">
         <Reveal className="mx-auto max-w-[1120px] rounded-[28px] bg-muted/55 px-6 py-12 sm:px-12 sm:py-14">
-          {/* Drawn rather than fetched at S21 (ledger L-141, AC-265), and the
-              same call `landing-screen.tsx:517` makes. It sits in no link or
-              button, so it plays from itself: a 44px mark is a big enough
-              target for that in a way a 14px icon in a row is not. */}
+          {/* Drawn rather than fetched (AC-265). It sits in no link or button,
+              so it plays from itself: a 44px mark is a big enough target for
+              that in a way a 14px icon in a row is not. */}
           <DanaMark className="mx-auto size-11" />
           <h2 className="mx-auto mt-6 text-[clamp(36px,4.4vw,54px)] leading-[1.04] font-semibold tracking-[-0.045em]">
             Start on Desk.

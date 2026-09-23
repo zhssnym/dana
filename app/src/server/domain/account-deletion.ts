@@ -21,8 +21,7 @@ counts what is left of it.
 Nothing here is new machinery. Step 2 is 8.9's transfer with its second
 caller, step 3 is 8.8's cascade, step 4 is 5.3's R-CLEAN, each imported from
 the module that already owns it, so an implementation cannot drift from the
-one AC-016, AC-018 and AC-019 already state. None of the three has a test file
-since the 2026-09-20 cut, so they are the decision and not a check.
+one those sections state.
 
 **Step 6c exists because no ON DELETE clause on users(id) fires here, and that
 is the one thing to know before adding a table to this schema (issue #253,
@@ -77,9 +76,7 @@ export interface UserCascadeDisposal {
  * What becomes of one foreign key that points at `users(id)` with
  * `ON DELETE RESTRICT` or `NO ACTION`.
  *
- * **Added 2026-09-21 by Ruling 6 of issue #210**,
- * https://github.com/zhssnym/dana/issues/210#issuecomment-5757696835, and the
- * list above is where to read first: that one enumerates the clauses that
+ * The list above is where to read first: that one enumerates the clauses that
  * promise to change a row and cannot, because 8.10 step 7 scrubs the `users`
  * row rather than deleting it. **These promise to *refuse* a delete that never
  * comes**, which is why the guard left them alone -- a clause that refuses
@@ -366,7 +363,7 @@ export async function deleteAccountData(
   // state for exactly this transition, and responded_at is set because 4.9
   // gives it to any terminal transition. The sweep is by inviter and pending
   // status and nothing wider: an invite merely addressed to this account's
-  // email belongs to somebody else's decision and keeps waiting (AC-133).
+  // email belongs to somebody else's decision and keeps waiting.
   const pendingInvites = await rowsOf(
     tx,
     sql`SELECT count(*)::int AS n FROM invites
@@ -461,8 +458,7 @@ export async function deleteAccountData(
   // folderless avatar, whose id was published on every roster the person
   // ever appeared in, and their uploads in folders that survive them. A
   // transferred folder keeps its other members' files; what leaves with the
-  // person is what they put in (8.10 step 6a, RFC 0005 change control item
-  // 18). The rows delete inside the transaction; the objects belong to the
+  // person is what they put in (8.10 step 6a). The rows delete inside the transaction; the objects belong to the
   // caller, who removes every collected id from the store only after the
   // commit, the order 7.15's delete uses, so a rollback cannot have already
   // destroyed bytes whose rows survived.

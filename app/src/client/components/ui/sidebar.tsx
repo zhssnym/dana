@@ -65,10 +65,9 @@ function useSidebar() {
 
 function SidebarProvider({
   /* The cookie the provider itself writes is the only record of this choice,
-     and in a client-only prototype nobody reads it back, shadcn expects a
-     server to and to pass `defaultOpen`. So a collapsed sidebar sprang open
-     again on every navigation, which is what Imran saw when pressing a nav
-     item while collapsed. Reading our own cookie is the whole fix. */
+     and in a client-only app nobody reads it back; shadcn expects a
+     server to and to pass `defaultOpen`. Without this a collapsed sidebar
+     springs open again on every navigation. */
   defaultOpen = readStoredOpen(),
   open: openProp,
   onOpenChange: setOpenProp,
@@ -279,14 +278,9 @@ function Sidebar({
 
 /*
 The two controls below are the sidebar's rail control of 9.1, and their names
-are the one place this file departs from the prototype it was ported from at
-S8, as they were the one place it departed from the shadcn distribution it
-was copied in from at P8R session R2.
-
-Both name the control "Toggle Sidebar", one string across both states. 9.1's
-names table took this control at the P8R mid-package change control on
-2026-08-13 and gave it two, "Collapse sidebar" when expanded and "Expand
-sidebar" when collapsed, for the reason it gives the completion checkbox and
+depart from the shadcn distribution, which names the control "Toggle
+Sidebar" in both states. 9.1's names table gives it two, "Collapse sidebar"
+when expanded and "Expand sidebar" when collapsed, for the reason it gives the completion checkbox and
 9.5 gives the star: the control is an icon-only toggle, so each state owes a
 screen reader something true. `useSidebar` already carries that state, so the
 correction is the name and nothing else, and AC-182 reads the control by it.

@@ -1,11 +1,9 @@
 /*
 The 4.11 recurrence grammar: parse and validate, nothing else.
 
-This file is in src/shared rather than in src/server/time by the by-file
-ruling of P6's kickoff, and the reasoning is worth carrying here because the
-directory is otherwise the API role's. One grammar has to serve two callers
-that must never disagree: the write-path validator, which 4.11 requires
-revalidated server-side and which the API role wires in front of the
+This file is in src/shared rather than in src/server/time because one grammar
+has to serve two callers that must never disagree: the write-path validator,
+which 4.11 requires revalidated server-side and which sits in front of the
 recurrenceRule primitive in tasks.ts, and the iterator in src/server/time,
 which evaluates the same string. src/shared is the one directory both import,
 and the client's convenience validation is a third caller with the same need.
@@ -23,8 +21,8 @@ grammatical and still too long (BYDAY admits a repeated day list), so the
 caller needs both checks and gets them from the two places that own them.
 
 What this file deliberately does not export is a formatter. 4.11 admits only
-strings the preset builder can produce, and that builder is the client's, in a
-later package; when it arrives, its serializer belongs beside this parser
+strings the preset builder can produce, and that builder is the client's; its
+serializer belongs beside this parser
 rather than inside the component that calls it.
 */
 
@@ -86,7 +84,7 @@ export interface RecurrenceRule {
  * Why a string is outside the subset, in the terms 4.11 uses.
  *
  * A discriminated result rather than a throw, and a reason rather than a
- * boolean: the API role raises 4.11's 422 in the schema layer and 7.0 wants
+ * boolean: the schema layer raises 4.11's 422, and 7.0 wants
  * the field named with something a person can act on, while the iterator
  * wants the parts. One function serves both.
  */
@@ -120,7 +118,7 @@ function parseCount(value: string): number | null {
  *
  * 11.9 rules this form and only this form: within an RRULE the UNTIL value is
  * a DATE or DATE-TIME, the DATE form carries no separators, and admitting the
- * extended spelling would widen frozen 4.11 rather than read it. The
+ * extended spelling would widen 4.11 rather than read it. The
  * existence check is here rather than in the iterator because 20260230 is not
  * a date at all, and a validator that stored it would hand the iterator a
  * bound no instance can ever be compared against honestly.
@@ -148,15 +146,14 @@ function refuse(reason: string): RecurrenceParse {
 /**
  * The 4.11 subset, parsed.
  *
- * Two decisions about how strict to be, both of which come out of 11.9's
- * UNTIL ruling and are recorded here because a later reader will ask.
+ * Two decisions about how strict to be, both following 11.9's UNTIL rule.
  *
  * **Part order is free, and case is not.** RFC 5545 fixes no order for the
  * parts of a recurrence rule, so both orderings of a rule are equally valid
  * value strings and refusing one would invent a constraint neither 4.11 nor
- * the RFC states. The UNTIL ruling turned on the opposite fact: the extended
+ * the RFC states. The UNTIL rule turns on the opposite fact: the extended
  * spelling of a date is not a valid value string of the RFC at all, so
- * admitting it would widen the frozen text. Case is the same kind of
+ * admitting it would widen 4.11. Case is the same kind of
  * narrowing as the subset itself, and it is where the preset-builder sentence
  * bites: names and values are matched exactly as RFC 5545 writes them,
  * because a builder emits one spelling and free-form input is rejected.

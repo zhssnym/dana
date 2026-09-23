@@ -1,6 +1,6 @@
 /*
-The S6 domain module: comments, replies, and likes per 4.15 and 7.14
-(RFC 0005), member-only throughout.
+The domain module for comments, replies, and likes per 4.15 and 7.14,
+member-only throughout.
 
 Three rules this module is the whole enforcement of:
 
@@ -82,7 +82,7 @@ export async function createComment(
   body: PostCommentBody,
 ): Promise<CreateCommentResult> {
   return inTransaction(db, async (tx) => {
-    /* polish: search F1. The task's own people, read here so the fan-out
+    /* The task's own people, read here so the fan-out
        below can reach them: a comment on a task concerns its assignee and
        its creator whether or not either has spoken yet (4.14, "the people
        it concerns"), which is what 9.12's empty state promises. The title is
@@ -215,7 +215,7 @@ export async function createComment(
       subjectId: commentId,
       subjectName: snippetOf(body.body ?? null, fileName),
       folderId,
-      /* polish: search F4. The detail names where the comment landed, so the
+      /* The detail names where the comment landed, so the
          bell reads "commented on 'Book the van'" rather than "created
          <snippet>, commented". 4.13 caps detail at 200. */
       detail: `commented on "${placeName}"`.slice(0, 200),
@@ -316,7 +316,7 @@ async function commentLineById(
   return row === undefined ? null : lineFrom(row)
 }
 
-/* 7.14's read shape (item 57 B5): the aggregate is 4.16's columns as JSON,
+/* 7.14's read shape: the aggregate is 4.16's columns as JSON,
    which PGlite hands back parsed and node-postgres as text. "Ordered as
    attached" is cf.created_at, which createComment stamps a microsecond apart
    per attachment for exactly this ORDER BY to read; file_id follows it as a
@@ -426,9 +426,8 @@ is nothing to widen here and nothing to narrow — moderation removes a comment
 and does not rewrite it, which is #228's Full-control list read exactly as it
 is written.
 
-**The attachments moved here on 2026-09-04 (issue #94), on Imran's ruling that
-a person may add or remove them without deleting the comment and posting it
-again.** Three rules, and each is the create half's own rule read backwards.
+**A person may add or remove attachments without deleting the comment and
+posting it again (issue #94).** Three rules, and each is the create half's own rule read backwards.
 
 `patch.file_ids` is the whole new set. Omitted, nothing about the attachments
 is touched; `[]` removes them all; anything else makes the set exactly those
@@ -559,13 +558,10 @@ export async function editComment(
 /**
  * The author, or a member who moderates; the caller has resolved which.
  *
- * **This said "Author or folder owner (4.15)" until 2026-09-20 (issue #268),
- * and had been false since #228's R8A landed.** `routes/conversation.ts`
- * resolves `comment.mutate.own` or `comment.moderate`, and moderation is Full
+ * `routes/conversation.ts` resolves `comment.mutate.own` or `comment.moderate`, and moderation is Full
  * control's: an owner whose Access was lowered does not moderate, and a
  * Full-control member who owns nothing does. 4.15 is the table and says
- * nothing about who may delete; 7.14 is where the rule lives, and its dated
- * amendment of 2026-09-20 carries the correction (AC-790).
+ * nothing about who may delete; 7.14 is where the rule lives.
  *
  * The replies cascade with the row (4.15's FK), their words going with the
  * thread they answered.

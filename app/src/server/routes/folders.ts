@@ -1,17 +1,15 @@
 /*
 The 7.4 surface: folders and membership. Handlers validate with the shared
 schemas, resolve access through the domain module, delegate every decision
-that touches rows, and serialize; no business logic lives here (the API
-role's route convention).
+that touches rows, and serialize; no business logic lives here.
 
-Mounted under /api/v1 by the boot file, which is the Platform engineer's;
-the wiring request is recorded in README.md beside this file. The router
+Mounted under /api/v1 by the boot file. The router
 carries its own session attachment so it composes whichever order routers
 mount in: when the auth router ran first on this request, its attachSession
 already resolved the cookie and this one steps aside, and when it did not,
 this router still stands alone behind the same three middleware links
-(11.3: session, CSRF on mutations, then the handler; rate limiting joins
-at P9). That block lives in `preamble.ts` since issue #36, with what is and
+(11.3: session, CSRF on mutations, then the handler, with rate limiting).
+That block lives in `preamble.ts` since issue #36, with what is and
 is not true of it written down there.
 
 Status grammar, uniform across the surface (5.4, 7.0, 10.2): no session
@@ -241,9 +239,7 @@ export function createFoldersRouter(
     const db = database(res)
     if (db === null) return
     // 7.4 names the Folder objects and their order and no wrapper, so the
-    // array answers bare, the literal reading; the API role's shape review
-    // carries the routed wrapper question and this line is where its
-    // answer lands.
+    // array answers bare, the literal reading.
     res.status(200).json(await listFolders(db, viewer(req)))
   })
 
@@ -304,7 +300,7 @@ export function createFoldersRouter(
       // gets the empty array rather than a missing key, so that "not yours to
       // see" and "there are none" stay one shape on the wire; the members
       // array, with each member's current Access, stays visible to every
-      // member under R9 section 13.
+      // member.
       res.status(200).json({
         ...folder,
         members: await membersOf(db, folderId),
@@ -328,21 +324,9 @@ export function createFoldersRouter(
       const parsed = parseBody(patchFolderBody, req, res, securityLog)
       if (parsed === null) return
       /*
-      **The DES-225 split is gone, and this is the decision that moved.**
-      It used to read: the name is the owner's, the rest of the 4.3 identity
-      is any member's. Accepted #209 R8A revises both halves in one sentence
-      -- a Folder's identity is ordinary shared Work, so Can edit and above
-      change all of it, and Can contribute and below change none of it. The
-      old rule let a Can-view member repaint a folder they may not otherwise
-      touch, and refused the rename to a Full-control administrator who was
-      not the owner, which is precisely the ownership-as-authority proxy
-      #209 exists to remove.
-
-      AC-011, AC-012 and AC-193 pinned the superseded split and were
-      rewritten against accepted R8A on 2026-09-20, under Hassan's ruling,
-      https://github.com/zhssnym/dana/issues/228#issuecomment-5750892771.
-      AC-011's actor is now a Can-view member and AC-012's is a Full-control
-      member who owns nothing, which is what tells the new rule from the old.
+      A Folder's identity (4.3) is ordinary shared Work (#209): Can edit and
+      above change all of it, including the name, and Can contribute and below
+      change none of it. Ownership confers no authority here.
       */
       const access = await gate(req, res, folderId, 'folder.profile.edit')
       if (access === null) return
@@ -379,16 +363,11 @@ export function createFoldersRouter(
       if (db === null) return
       const folderId = parsedId(res, req.params.id)
       if (folderId === null) return
-      /* Hassan's ruling of 2026-09-20 on #228
-         (https://github.com/zhssnym/dana/issues/228#issuecomment-5750892771):
-         moving a Folder to Trash is recoverable administrative deletion and
-         belongs to Full control, not to custody. **Accepted R8A settles it
-         neither way**, and the narrower reading was taken because the
-         recoverable direction of a wrong call is the restrictive one. The
-         owner who lowered their own Access no longer reaches it here; what
-         they keep is `folder.restore` and the permanent destruction below,
-         which are the two custody acts. AC-015 was rewritten against that
-         ruling the same day and now drives both halves. */
+      /* Moving a Folder to Trash is recoverable administrative deletion and
+         belongs to Full control, not to custody (#228). The owner who lowered
+         their own Access does not reach it here; what they keep is
+         `folder.restore` and the permanent destruction below, which are the
+         two custody acts. */
       const access = await gate(req, res, folderId, 'folder.trash')
       if (access === null) return
       if (access.isDefault) {
@@ -466,10 +445,7 @@ export function createFoldersRouter(
       if (parsed === null) return
       const actorId = viewer(req)
       /* Accepted R8A: administering members is Full control's and Can edit
-         explicitly cannot administer people. Before issue #228 any member
-         could add any other, which is the widest of the membership-only
-         write paths R8A closes; AC-024 carried that rule and was rewritten
-         against R8A on 2026-09-20. */
+         explicitly cannot administer people. AC-024 drives it. */
       const access = await gate(req, res, folderId, 'member.add')
       if (access === null) return
       const result = await addMember(
@@ -512,16 +488,15 @@ export function createFoldersRouter(
         case 'added': {
           /*
           5.3: the share-grant email follows the successful add alone, through
-          Platform's notify module; under test the injected sink observes it,
-          in production Resend sends it from P7 on.
+          the notify module; under test the injected sink observes it, in
+          production Resend sends it.
 
-          The members read moved ahead of the send at S19 and nothing else
-          about the ordering moved: the add has already committed, and this
-          read is the one the 201 body is built from either way. It is where
-          the actor's own display_name is, which item 32 has the email name,
-          and the actor is necessarily in it, a non-member being unable to
-          reach this line. The folder's name comes from the access read this
-          handler made before it granted. So the ruled copy costs no query.
+          The members read comes before the send: the add has already
+          committed, and this read is the one the 201 body is built from
+          either way. It is where the actor's own display_name is, which the
+          email names, and the actor is necessarily in it, a non-member being
+          unable to reach this line. The folder's name comes from the access
+          read this handler made before it granted. So the copy costs no query.
           */
           const members = await membersOf(db, folderId)
           if (result.targetEmail !== null) {
@@ -541,8 +516,8 @@ export function createFoldersRouter(
             (member) => member.user.id === parsed.user_id,
           )
           // The row was inserted in this request; not finding it is a state
-          // the contract has no shape for, and the shape review ruled that
-          // answering a degenerate body is worse than failing loudly (the
+          // the contract has no shape for, and answering a degenerate body is
+          // worse than failing loudly (the
           // boot error handler envelopes this as the 500 it is).
           if (added === undefined) {
             throw new Error(
@@ -619,10 +594,9 @@ export function createFoldersRouter(
   )
 
   /*
-  The leave, addressed as one's own membership (RFC 0005; the 9.6 door).
+  The leave, addressed as one's own membership (the 9.6 door).
   The same three shapes as the members path above with the target fixed to
-  the caller, recorded at S5's change control as an alias of 5.3's leave
-  rather than a new act: the ex-owner AC-202 frees walks through here.
+  the caller: an alias of 5.3's leave rather than a new act.
   */
   router.delete(
     '/folders/:id/my-membership',
@@ -642,7 +616,7 @@ export function createFoldersRouter(
   )
 
   /* ---------------------------------------------------------------- *
-   * Access administration (issue #228, #209 R8A / R9)
+   * Access administration (issues #228, #209)
    * ---------------------------------------------------------------- */
 
   /*
@@ -656,8 +630,8 @@ export function createFoldersRouter(
   authority check in front of it and the mapping of six outcomes onto 7.0's
   status taxonomy.
 
-  Hard stop 5: the path carries two ids and both are gated. `member.access.change`
-  answers for the actor, and the row in `ac-397`'s table says what a stranger
+  The path carries two ids and both are gated. `member.access.change`
+  answers for the actor, and the row in AC-397's table says what a stranger
   and a plain member each get.
   */
   router.patch(
@@ -809,10 +783,10 @@ export function createFoldersRouter(
   #228 owns the *truth* of these records and owes two surfaces: the Folder's
   own history, and a member-specific recent view for the member panel. It
   owes no filter taxonomy, no search and no grouping -- those are the M2
-  History product's under R9A, and inventing a query language here would be
+  History product's, and inventing a query language here would be
   the duplication that section warns about.
 
-  Visible to every current member (R9 section 13). A person whose membership
+  Visible to every current member. A person whose membership
   ended keeps their entries in the record and loses the Folder, which is why
   these read through the ordinary gate rather than through the history table.
   */
@@ -1055,9 +1029,8 @@ export function createFoldersRouter(
   /*
   The member-details projection (#230 "Member-details backend contract").
 
-  It reads at `folder.read`, which is every member: R9 section 13 already
-  makes a member's Access Folder-visible and R5 makes their Responsibility
-  Folder-visible, so this composes two things the roster already shows with a
+  It reads at `folder.read`, which is every member: a member's Access and
+  their Responsibility are already Folder-visible, so this composes two things the roster already shows with a
   count of their current work.
 
   The three `viewer_may_*` flags are computed here from `mayPerform` rather

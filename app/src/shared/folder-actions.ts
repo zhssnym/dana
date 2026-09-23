@@ -35,45 +35,32 @@ permits anything.**
 locking the row, writing the history -- and re-exports these names, so a
 server caller sees no change.
 
-## Which record every line below cites, and why it is not R7
+## Which record every line below cites
 
-An earlier draft of this file grounded most of the table in "#209 R7 section
-X". **R7 is marked "(PROPOSED, not accepted)" in #209 and R8A supersedes it**
--- "R8A supersedes the five-level recommendation in R7 and earlier R4 matrices
-where they conflict" -- so it is authority for nothing, and a citation pointing
-at a superseded record is worse than none because it reads as authoritative.
-Corrected on 2026-09-20 under Hassan's ruling,
-https://github.com/zhssnym/dana/issues/228#issuecomment-5750892771.
+The R-numbered records are in #209. Every `why` below names one of four, and
+only these four: R7 is superseded by R8A and is authority for nothing.
 
-Every `why` below now names one of four records, and they are the only four:
-
-- **accepted R8A** -- "Status: ACCEPTED by owner" -- for the six presets and
-  what each of them is *for*;
+- **accepted R8A** -- for the six presets and what each of them is *for*;
 - **#228's capability boundaries**, the product issue's own per-preset lists,
   whose stated canonical authority is accepted R8A and R10B, for the rules
   finer-grained than R8A's six lines;
 - **governing R5/R6**, which R8A's supersession clause keeps governing for
   structural ownership and explicit owner succession;
-- **Hassan's ruling of 2026-09-20**, named as his, for `folder.trash`, which
-  R8A does not settle either way.
+- **Hassan's ruling on #228** for `folder.trash`, which R8A does not settle
+  either way.
 
 **These `why` strings are on the wire.** A refused mutation answers
 `{"error":{"code":"forbidden","message":<why>}}`, so this is product copy read
-by a person and not only a comment read by the next agent.
+by a person and not only a comment read by the next developer.
 
 ## What this table is, and what it is not
 
-`docs/workflow/backend.md` says, correctly, that **there is no
-authorization chokepoint and there cannot be one**, because what counts as
-authorized depends on what is being asked for. That remains true. What this
-file is, is the one place that knows *the answer* for every Folder action, so
+**No single place can decide whether a Folder action is authorized**, because
+what counts as authorized depends on what is being asked for. What this file is, is the one place that knows *the answer* for every Folder action, so
 that the hand-written gates scattered across the routes stop each carrying a
 rule of their own.
 
-The distinction matters and is not pedantry. Before this file, a route decided
-both *which* question to ask and *what the answer was*; the second half was
-duplicated, drifted, and was invisible to the suite. After it, a route still
-decides which action it is performing and which target facts it must read --
+The distinction matters and is not pedantry. A route decides which action it is performing and which target facts it must read --
 that part is irreducibly per-route -- but the answer comes from
 `mayPerform` and from nowhere else. #228's authorization-resolver section
 asks for exactly that and forbids the two things either side of it -- "do not
@@ -213,11 +200,7 @@ export const FOLDER_ACTIONS = [
   'personal.reminder_snooze',
   'personal.label',
   'personal.view_preferences',
-  /* The M1-F facet framework (issue #210), on Hassan's technical ruling of
-     2026-09-21,
-     https://github.com/zhssnym/dana/issues/210#issuecomment-5756722756,
-     section 2. Seven rows and one new per-rule flag; the ladder and
-     `mayPerform`'s shape are unchanged.
+  /* The M1-F facet framework (issue #210): seven rows and one per-rule flag.
 
      There is deliberately **no eighth action for the private order write**.
      Arranging the private facets only you can see is the existing
@@ -318,8 +301,8 @@ permanent deletes, and moving the Folder itself to Trash. Accepted R8A gives
 Full control "administer members, Access, Responsibilities and all shared
 Folder work" and denies Can edit the power to "administer people/Access";
 #228's Full-control list carries the permanent deletes and the moderation; and
-the Folder's own trip to Trash is Hassan's ruling of 2026-09-20, which R8A
-does not settle.
+the Folder's own trip to Trash is Hassan's ruling on #228, which R8A does
+not settle.
 */
 const RULES: Record<FolderAction, ActionRule> = {
   'folder.read': {
@@ -551,7 +534,7 @@ const RULES: Record<FolderAction, ActionRule> = {
     why: "#228's personal-actions rule: saved Views and view preferences are account state",
   },
   /* ---------------------------------------------------------------- *
-   * The facet framework (issue #210, ruling of 2026-09-21 section 2)
+   * The facet framework (issue #210)
    * ---------------------------------------------------------------- */
   'facet.read': {
     atLeast: null,

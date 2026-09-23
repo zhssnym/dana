@@ -183,18 +183,12 @@ export function createDatabaseSql(name: string, provider: LocaleProvider): strin
  * The database one test file runs against, or undefined on the PGlite leg.
  *
  * Every file gets its pool slot's own database, and nothing is routed anywhere
- * else. One file was, for the hours between issue #32 and issue #92: AC-001
- * asserted the prose of a server message, prose needs `lc_messages = C`, and
- * that is a superuser-context GUC the role this leg runs as cannot set on a
- * database it creates, at session level, through the startup packet, with
- * ALTER DATABASE, or by inheriting it from a TEMPLATE, all four measured on
- * 2026-09-03. So that file ran on the base database, which a superuser had set
- * it on, and that made it the one file whose schema another branch's
- * forward-only migrations could change underneath it. The assertion now reads
- * the SQLSTATE and the column field of the server's error, which no locale
- * translates (helpers.ts, serverErrorFields), the routing is gone, and
- * `guard-postgres-leg-isolation.test.ts` fails any file that grows a prose assertion
- * so it has no reason to return.
+ * else. So no test may assert the prose of a server message: prose needs
+ * `lc_messages = C`, a superuser-context GUC the role this leg runs as cannot
+ * set on a database it creates (at session level, through the startup packet,
+ * with ALTER DATABASE, or by inheriting it from a TEMPLATE, all four
+ * measured). Assert the SQLSTATE and the fields of the server's error instead,
+ * which no locale translates (helpers.ts, serverErrorFields).
  */
 export function targetDatabaseUrl(): string | undefined {
   const runId = process.env[RUN_ID_ENV]

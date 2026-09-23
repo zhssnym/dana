@@ -1,23 +1,15 @@
 /*
 Editing an existing task, as one hook, wherever the card is drawn.
 
-polish: taskcard F3 (2026-08-30). `task-surface-host.tsx` held the whole of
-what it takes to edit a task, the detail read, the thread beside it, the
-comment writes, 9.5's un-complete confirmation, and the write path through
-`tasks/task-writer.tsx`, and it held them for the dialog and the panel alone.
-`/app/tasks/:id`, the task's own address and the "Tab" of 9.3's three homes,
-drew a read-only sheet with an "Open editor" button that popped the dialog
-over it, so choosing Tab in Settings gave a third, weaker card rather than
-the card in a tab.
+The detail read, the thread beside it, the comment writes, 9.5's un-complete
+confirmation, and the write path through `tasks/task-writer.tsx`, used by the
+dialog and the panel through `task-surface-host.tsx` and by `/app/tasks/:id`,
+the task's own address and the "Tab" of 9.3's three homes, so the page is the
+editor rather than a weaker third card.
 
-This hook is that editing, lifted out so the page can be the editor. The host
-still owns the create path, which is a draft with no id and belongs to the
-surface that opens over a page; a task with an address already exists. Both
-consumers hand the same `ConceptTask` to the same `TaskSurface` composition,
-which is DES-117's one-artifact promise kept rather than restated.
-
-Everything below is the host's own code moved, comments included, so the
-reasoning stays where the reader finds the mechanism.
+The host still owns the create path, which is a draft with no id and belongs to
+the surface that opens over a page; a task with an address already exists. Both
+consumers hand the same `ConceptTask` to the same `TaskSurface` composition.
 */
 
 import { useMemo, useState } from 'react'
@@ -87,32 +79,28 @@ export function useTaskEditing(editing: string | null): TaskEditing {
   const task = useTask(editing)
 
   /*
-  **Seam, S23: 9.5's confirmation, on the surface that has no screen behind
-  it.**
+  **9.5's confirmation, on the surface that has no screen behind it.**
 
-  9.3 gives the card's completion control 9.5's rule "unchanged": an
-  un-complete that takes a G-SERIES successor confirms first, because 5.1
-  deletes that successor in the same transaction and the parenthesis is the
-  part the person cannot see, "any edits already made to the next occurrence
-  go with it". A row gets this from its page, which is where the confirm has
-  lived since P8; a surface has no page behind it, so it is here, in the one
-  component that owns the surface's write.
+  9.3 gives the card's completion control 9.5's rule "unchanged": an un-complete
+  that takes a G-SERIES successor confirms first, because 5.1 deletes that
+  successor in the same transaction and the parenthesis is the part the person
+  cannot see, "any edits already made to the next occurrence go with it". A row
+  gets this from its page; a surface has no page behind it, so it is here, in
+  the one component that owns the surface's write.
 
-  Only on the branch that has one: a task with no rule generates no
-  successor, so there is nothing to warn about and a confirmation with an
-  empty consequence is the dead control DES-144 removes.
+  Only on the branch that has one: a task with no rule generates no successor,
+  so there is nothing to warn about and a confirmation with an empty consequence
+  is a dead control.
   */
   const [uncompleting, setUncompleting] = useState<(() => void) | null>(null)
 
   /*
-  **S26: the thread inside a task, which had no mount at all.**
+  **The thread inside a task.**
 
-  Ledger L-246 and L-258, and the owner's own list from the 2026-08-26 review.
-  9.3 puts Comments on the card after the content blocks and applies 9.6's
-  rules to them (L-158), `components/task-card.tsx` has drawn the disclosure
-  since S23, and the server has answered `?task=` since S5. What was missing
-  was one query and one write path, and this is the only component that holds
-  both a task's identity and its folder's.
+  9.3 puts Comments on the card after the content blocks and applies 9.6's rules
+  to them, `components/task-card.tsx` draws the disclosure, and the server
+  answers `?task=`. This is the one query and the one write path, and this is
+  the only component that holds both a task's identity and its folder's.
   */
   const threadFolderId = task.data?.folder.id ?? null
   const thread = useThread(
@@ -129,10 +117,11 @@ export function useTaskEditing(editing: string | null): TaskEditing {
   /* Who an author is, off the roster the People screen and the sharing panel
      already read; an id this client cannot resolve says "Someone" rather than
      being shown.
-     polish round-2: the picture rides with the name, as it does on the folder
-     page's own copy of this directory. 7.14 carries an author's id alone, so
-     this map is the only route an avatar has onto a comment, and both reads
-     behind it carry `avatar_url`. */
+
+     The picture rides with the name, as it does on the folder page's own copy
+     of this directory. 7.14 carries an author's id alone, so this map is the
+     only route an avatar has onto a comment, and both reads behind it carry
+     `avatar_url`. */
   const authorPeople = useMemo(() => {
     const people = new Map<string, { name: string; image?: string }>()
     const viewer = me.data?.user
@@ -187,17 +176,15 @@ export function useTaskEditing(editing: string | null): TaskEditing {
         (authorId) => authorPeople.get(authorId) ?? { name: 'Someone' },
         Date.now(),
         /*
-        What this viewer's Access lets the thread offer.
+        What this viewer's Access lets the thread offer (issue #268).
 
-        **It was one boolean off `is_owner` on the same library row until
-        2026-09-20 (issue #268)**, and that had been false since #228's R8A
-        landed — moderation is `comment.moderate`, Full control's, which
-        custody neither confers nor implies, and an author's own edit and
-        delete are `comment.mutate.own`, which authorship alone does not
-        confer either. `my_access` rides the same row (Hassan's Ruling 4 of
-        2026-09-20), so the correct gates cost the same lookup and go through
-        `lib/folder-authority.ts`, the table the routes themselves resolve
-        against, rather than through a second ladder here (AC-790).
+        Moderation is `comment.moderate`, Full control's, which custody neither
+        confers nor implies, and an author's own edit and delete are
+        `comment.mutate.own`, which authorship alone does not confer either.
+        `my_access` rides the same library row, so the correct gates cost the
+        same lookup and go through `lib/folder-authority.ts`, the table the
+        routes themselves resolve against, rather than through a second ladder
+        here (AC-790).
         */
         mayConverse,
       ),
@@ -208,7 +195,7 @@ export function useTaskEditing(editing: string | null): TaskEditing {
   const concept: ConceptTask | null =
     task.data === undefined || rows === undefined
       ? null
-      : /* S26: the conversation rides the concept, which is where
+      : /* The conversation rides the concept, which is where
            `components/task-card.tsx` reads it (9.3's Comments block). */
         {
           ...toConceptTask(task.data, { today: presenterToday(), folders: rows, clock }),
@@ -225,13 +212,12 @@ export function useTaskEditing(editing: string | null): TaskEditing {
   function write(_taskId: string, fields: Partial<ConceptTask>): void {
     if (editing === null) return
     /*
-    **S26's seam: the conversation is 7.14's and never 7.6's.**
+    **The conversation is 7.14's and never 7.6's.**
 
-    `writtenElsewhere` has carried `comments` since S22 precisely so that a
-    thread change never rides a task PATCH; what it had nowhere to go to is
-    what this answers. `lib/thread.ts` turns the array the lifted thread wants
-    into the routes that would produce it, and the folder is the task's own,
-    which is also where 7.15 scopes an attachment.
+    `writtenElsewhere` carries `comments` so that a thread change never rides a
+    task PATCH. `lib/thread.ts` turns the array the thread wants into the routes
+    that would produce it, and the folder is the task's own, which is also where
+    7.15 scopes an attachment.
     */
     if (fields.comments !== undefined) {
       const folderId = threadFolderId
@@ -255,10 +241,10 @@ export function useTaskEditing(editing: string | null): TaskEditing {
       return
     }
     /*
-    The block's picker, item 58 (D): a file added under Attachments is a
-    comment carrying that file and nothing said, because that is the one
-    way 4.15 lets a file hang on a task. The same two calls the composer
-    makes, 7.15 then 7.14, and the refetch draws it in both places.
+    The block's picker: a file added under Attachments is a comment carrying
+    that file and nothing said, because that is the one way 4.15 lets a file
+    hang on a task. The same two calls the composer makes, 7.15 then 7.14, and
+    the refetch draws it in both places.
     */
     if (fields.attachments !== undefined) {
       const folderId = threadFolderId
@@ -273,13 +259,11 @@ export function useTaskEditing(editing: string | null): TaskEditing {
       return
     }
     /*
-    **The condition is not "does it repeat", which is the reading that cost
-    this row two runs.** Completing a rule-carrying task moves the rule to
-    the successor, so the completed occurrence carries a `series_id` and no
-    rule at all: a client asking whether the task repeats gets "no" from the
-    one row where the confirm is owed. That is written down already, in
-    `pages/DonePage.tsx`, and recorded as a reading in `src/client/README.md`
-    with its own escalation. One condition, two surfaces, and this is the
+    **The condition is not "does it repeat".** Completing a rule-carrying task
+    moves the rule to the successor, so the completed occurrence carries a
+    `series_id` and no rule at all: a client asking whether the task repeats
+    gets "no" from the one row where the confirm is owed. `pages/DonePage.tsx`
+    uses the same condition. One condition, two surfaces, and this is the
     second.
     */
     const takesSuccessor =

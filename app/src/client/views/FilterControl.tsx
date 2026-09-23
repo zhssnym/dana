@@ -1,65 +1,44 @@
 /*
 9.1's filter, drawn: one control on every place-page, named "Filter" by that
-section's names table, holding every axis DES-156 rebuilt.
+section's names table, holding every axis.
 
-**The markup is `prototype-v2`'s `components/task-filters.tsx` and the model
-is this client's**, which is RFC 0005 change control item 48(i)'s distinction
-applied to the one file of RFC 0004's S25 row where it actually bites. That
-file is 1,139 lines and only its last four hundred are a panel: the rest is a
-filter model over name-keyed fixture people, a `localStorage` store for saved
-views its own comment says "may not be ported as though it worked", and a set
-of predicates this client already has in `views/filter.ts` over ids. So the
-controls, their classes, their arrangement and their words cross; the state
-they read does not. Measured before it was decided, by item 48(j)'s method:
-the panel's own class strings were 18 of 41 present before this file changed.
+**The markup is the panel; the model is `views/filter.ts`'s**, predicates over
+ids, so the controls, their classes, their arrangement and their words live here
+and the state they read does not.
 
-**The panel is a page of axes rather than a page of every value.** Each axis
-is one row saying what it is set to, opening onto its values, which is the
-prototype's `Axis` and the reason the panel fits in 292 pixels with seven axes
-in it. The switches and the two footer acts sit flat beneath them.
+**The panel is a page of axes rather than a page of every value.** Each axis is
+one row saying what it is set to, opening onto its values, which is the reason
+the panel fits in 292 pixels with seven axes in it. The switches and the two
+footer acts sit flat beneath them.
 
-**Nothing here fetches.** 6 Q1's closing line, "it changes no query", is true
-of every axis and not only of importance, because section 6 offers no
-parameter for any of them; AC-167 measures it by counting requests.
+**Nothing here fetches.** 6 Q1's closing line, "it changes no query", is true of
+every axis and not only of importance, because section 6 offers no parameter for
+any of them; AC-167 measures it by counting requests.
 
-**"Save as view" is here rather than beside the page's title** because 9.1
-puts it here in terms, "the save-view control inside it", and because what it
-saves is exactly the state this panel holds (DES-153: a view is a name over a
-filter). It writes ids, never names, which is what makes a saved view survive
-a rename (AC-209).
+**"Save as view" is here rather than beside the page's title** because 9.1 puts
+it here in terms, "the save-view control inside it", and because what it saves
+is exactly the state this panel holds: a view is a name over a filter. It writes
+ids, never names, which is what makes a saved view survive a rename (AC-209).
 
-**The seams, each named because a later reader will otherwise take the
-prototype's version for the contract. Four are the ones this file was written
-with; three more were found by driving the leg rather than by reading it,
-which is item 47(e)'s lesson arriving here too, and each of those is beside
-the code it governs rather than in this list: the three axis labels a
-criterion addresses, the panel committing and closing, and the Due axis
-resting open.**
+**Four rules a reader might otherwise miss.** Three more sit beside the code
+they govern: the three axis labels a criterion addresses, the panel committing
+and closing, and the Due axis resting open.
 
-1. **The trigger is named "Filter" and says nothing about a count.** The
-   prototype writes an aria-label of "Filters" with the active count in it;
-   9.1's names table fixes "Filter" for this control, and AC-167, AC-176,
-   AC-221, AC-228 and AC-259 all address it as `{ name: 'Filter', exact:
-   true }`. The section wins (11.13), which is the ruling F1 and F2 took. The
-   count badge beside the glyph is the prototype's and stays, being
-   presentation rather than a name. A chip's own name drops the word "filter"
-   for the same reason and keeps everything else the prototype gives it.
-2. **A value row is an `option` in a `listbox`, not a `menuitemradio`.** The
-   prototype's `FilterChoice` carries `role="menuitemradio"`; the criteria
-   above reach a value as `getByRole('option')` or `getByRole('menuitem')`,
-   and ARIA makes `menuitemradio` neither of those, so a verbatim lift turns
-   green cases red for a role 9.1 does not fix either way. The visible
-   control, its classes and its tick are the prototype's; the role is the one
-   the section's own addressing paragraph makes reachable.
-3. **Saved views are 4.19's rows and not a browser store.** The prototype
-   keeps them in `localStorage` and says in terms that no part of that may be
-   ported as though it worked; this client has `POST /views` and the pin list
-   of 9.7 behind it. So the list, its delete control and the naming form are
-   the prototype's markup over the real thing.
-4. **People are ids and the label is theirs.** The prototype matches people by
-   first name because its fixtures have no ids; `usePlace` hands this the ids
-   its rows actually name, and `UNASSIGNED` is the assignee axis's own value
-   for nobody rather than a person.
+1. **The trigger is named "Filter" and says nothing about a count.** 9.1's names
+   table fixes "Filter" for this control, and AC-167, AC-176, AC-221, AC-228 and
+   AC-259 all address it as `{ name: 'Filter', exact: true }`. The count badge
+   beside the glyph is presentation rather than a name. A chip's own name drops
+   the word "filter" for the same reason.
+2. **A value row is an `option` in a `listbox`, not a `menuitemradio`.** Tests
+   reach a value as `getByRole('option')` or `getByRole('menuitem')`, and ARIA
+   makes `menuitemradio` neither of those. The role is the one the section's own
+   addressing paragraph makes reachable.
+3. **Saved views are 4.19's rows and not a browser store**: `POST /views` and
+   the pin list of 9.7 are behind the list, its delete control and the naming
+   form.
+4. **People are ids and the label is theirs.** `usePlace` hands this the ids its
+   rows actually name, and `UNASSIGNED` is the assignee axis's own value for
+   nobody rather than a person.
 */
 import { useState } from 'react'
 import { useSearchParams } from 'react-router'
@@ -116,14 +95,13 @@ export interface SavedViewEntry {
 }
 
 /*
-What the panel says a half-built range means, which is the prototype's own
-reading: an open range is "from this day onward" rather than nothing, and
-`views/filter.ts` already honours it that way.
+What the panel says a half-built range means: an open range is "from this day
+onward" rather than nothing, and `views/filter.ts` honours it that way.
 */
 function rangeSentence(from: string | null, to: string | null): string {
   if (from !== null && to !== null) return from === to ? from : `${from} to ${to}`
-  /* polish: pagehead F2. A half-built range filters nothing yet, so the
-     sentence says what is still owed rather than promising "from here on". */
+  /* A half-built range filters nothing yet, so the sentence says what is still
+     owed rather than promising "from here on". */
   if (from !== null) return `From ${from}. Now pick the last day.`
   if (to !== null) return `Until ${to}. Now pick the first day.`
   return 'Pick the first day, then the last.'
@@ -154,23 +132,10 @@ const stripButtonClass = (active: boolean): string =>
   )
 
 /*
-The axis labels, and three of them are the client's words rather than the
-prototype's, each because a criterion addresses the string and this row owns
-no rework of one.
-
-Item 48(e)'s lesson is what found them, and it found them by being followed:
-when a lift changes a *string*, grep the string across `app/tests/` and trust
-that over any pile sorted by surface. AC-176 addresses two of the due axis's
-values exactly, and AC-228 and AC-259 both address the group-by value as the
-one word "Date", where the prototype writes "Any", "Has a due date" and "Due
-date". Section 9 fixes none of the three, so no section settles it and the
-criterion is the only artefact with an opinion. Taking the prototype's three
-words would turn four green cases red in a package the triage gave no rework
-to, which is what item 47(j) declined to do for the same reason.
-
-**Offered to persona 11 and to S29**, which is the row that collects exactly
-this class. Every other label below is the prototype's, the two range presets
-nothing addresses included.
+The axis labels. Three of them are fixed by the strings the criteria address:
+AC-176 addresses two of the due axis's values exactly, and AC-228 and AC-259
+both address the group-by value as the one word "Date". Section 9 fixes none of
+the three. When changing a label, grep the string across `app/tests/` first.
 */
 const DUE_LABEL: Record<DueAxis, string> = {
   any: 'Any due date',
@@ -196,11 +161,11 @@ const GROUP_LABEL: Record<GroupBy, string> = {
 /*
 Which axes the menu offers, which is every one except a section.
 
-Item 44's B2 makes sections a folder page's first and unfiltered arrangement
-and the filter the thing that changes it, so `section` is a value `usePlace`
-falls back to and never one a person picks: offering it on Today would ask
-eight pages worth of tasks which of one folder page's blocks they sit under,
-which is DES-144's dead control with a menu entry.
+Sections are a folder page's first and unfiltered arrangement and the filter is
+the thing that changes it, so `section` is a value `usePlace` falls back to and
+never one a person picks: offering it on Today would ask eight pages worth of
+tasks which of one folder page's blocks they sit under, which is a dead control
+with a menu entry.
 */
 const GROUP_CHOICES: readonly GroupBy[] = ['none', 'folder', 'person', 'date']
 
@@ -366,14 +331,13 @@ function Axis({
   readonly label: string
   readonly value: string
   /*
-  **Seam, S25.** The prototype opens every axis closed, and the Due axis opens
-  open here. Two reasons, and the second is the one that decides it: Due is
-  the one axis every place page and the folder page share as their first
-  question, so a panel that opens on nothing makes the commonest narrowing two
-  presses; and 9.6 states that question in terms as what the folder page's
-  filter offers, "all open tasks, those with a due date, and those without",
-  which AC-176 reads by opening the filter and pressing the option. Every
-  other axis rests closed, which is what keeps the panel a page of axes.
+  The Due axis opens open; every other axis rests closed. Due is the one axis
+  every place page and the folder page share as their first question, so a panel
+  that opens on nothing makes the commonest narrowing two presses; and 9.6
+  states that question in terms as what the folder page's filter offers, "all
+  open tasks, those with a due date, and those without", which AC-176 reads by
+  opening the filter and pressing the option. The rest resting closed is what
+  keeps the panel a page of axes.
   */
   readonly defaultOpen?: boolean
   readonly children: React.ReactNode
@@ -439,8 +403,8 @@ export function FilterControl({
 
   const narrowed = isNarrowed(filter)
   const arranged = filter.groupBy !== 'none' || filter.sort !== 'manual'
-  /* polish: pagehead F2. The badge counts the axes that narrow, and a custom
-     range with a day still owed narrows nothing, so it is not one of them. */
+  /* The badge counts the axes that narrow, and a custom range with a day still
+     owed narrows nothing, so it is not one of them. */
   const count =
     Number(filter.due !== 'any' && !customRangeOpen(filter)) +
     Number(filter.assignees.length > 0) +
@@ -450,21 +414,18 @@ export function FilterControl({
     Number(!filter.showAbandoned)
 
   /*
-  **Seam, S25: the panel commits and closes, which the prototype's does not.**
+  **The panel commits and closes.**
 
-  DES-156's rule, as this client has carried it since the axis model was
-  written: choosing a due range, a grouping or a sort is one answer to one
-  question, so it is written and the panel closes the way a select does, and
-  the chips in the window bar then say what happened. The two set-valued axes
-  are the exception, and they are the exception for the reason they exist,
-  "more than one value per axis, Sara and Hassan", so their checkboxes leave
-  the panel open until a person is done with them. A switch closes for the
-  same reason a range does, being one press that settles one variable.
+  Choosing a due range, a grouping or a sort is one answer to one question, so
+  it is written and the panel closes the way a select does, and the chips in the
+  window bar then say what happened. The two set-valued axes are the exception,
+  and they are the exception for the reason they exist, "more than one value per
+  axis, Sara and Hassan", so their checkboxes leave the panel open until a
+  person is done with them. A switch closes for the same reason a range does,
+  being one press that settles one variable.
 
-  It is a seam rather than a preference because AC-167 reaches the important
-  switch by pressing "Filter" before each toggle, and its own comment says it
-  does so because section 9 fixes nothing about whether the surface stays
-  open. A panel that stayed open would answer that second press by closing.
+  AC-167 reaches the important switch by pressing "Filter" before each toggle,
+  so a panel that stayed open would answer that second press by closing.
   */
   function commit(next: PageFilter): void {
     onChange(next)
@@ -475,7 +436,7 @@ export function FilterControl({
     const chosen = filter[axis].includes(id)
       ? filter[axis].filter((entry) => entry !== id)
       : [...filter[axis], id]
-    // The two set-valued axes leave the panel open (DES-156).
+    // The two set-valued axes leave the panel open.
     onChange({ ...filter, [axis]: chosen })
   }
 
@@ -624,23 +585,16 @@ export function FilterControl({
           />
           {filter.due === 'custom' ? (
             /*
-            **Ledger L-216 closes properly here, and it read closed before.**
+            **One calendar**, shared by the due picker, the reminder picker and
+            the filter's custom range: `components/ui/calendar.tsx`. Two date
+            fields and a month grid would be two ways to answer one question in
+            one product.
 
-            That entry is "one calendar, shared by the due picker, the reminder
-            picker and the filter's custom range", and this client had it for
-            two of the three: `components/ui/calendar.tsx` answers the pickers
-            of `components/task-pickers.tsx` and drew nothing here, where a
-            pair of native `type="date"` inputs stood instead. Two date fields
-            and a month grid are two ways to answer one question in one
-            product, which is the fault DES-154 exists to name, and no
-            criterion addressed either, so nothing would have found it.
-
-            The gesture is the prototype's own: the first press opens a range
-            and the second closes it. An open range is a real state rather than
-            a half-finished one, "from with no to" meaning on or after that
-            day, which `views/filter.ts` already honours; and closing it sorts
-            the two days, because the 20th back to the 14th is a range somebody
-            meant rather than a mistake to refuse.
+            The first press opens a range and the second closes it. An open
+            range is a real state rather than a half-finished one, "from with no
+            to" meaning on or after that day, which `views/filter.ts` already
+            honours; and closing it sorts the two days, because the 20th back to
+            the 14th is a range somebody meant rather than a mistake to refuse.
             */
             <div className="px-1 pt-1.5">
               <p className="pb-1.5 text-[12px] leading-4 text-[var(--color-graphite-500)]">
@@ -692,15 +646,14 @@ export function FilterControl({
         </Axis>
 
         {/*
-        9.1's created-by axis, landed at S25 and closing ledger L-177 and
-        L-255. Beside the assignee axis rather than instead of it, which is the
-        prototype's own arrangement and its stated reason: Dana records a
-        creator and never an assigner, so "who made this" and "who is carrying
-        it" are two questions, and Assignments answers only the second.
+        9.1's created-by axis. Beside the assignee axis rather than instead of
+        it: Dana records a creator and never an assigner, so "who made this" and
+        "who is carrying it" are two questions, and Assignments answers only the
+        second.
 
         No "Unassigned" counterpart, and that is not an omission: 4.5 makes
         `created_by` NOT NULL, so there is no task nobody made.
-        */}
+         */}
         <Axis icon={UserPlus} label={CREATED_BY} value={chosenLabel(filter.creators)}>
           {people.map((person) => (
             <FilterToggle
@@ -852,11 +805,11 @@ export function FilterControl({
 }
 
 /**
- * The filter's readout, in the window bar's left end (9.1, DES-153).
+ * The filter's readout, in the window bar's left end (9.1).
  *
- * One chip per axis rather than per value, and never a count alone, which
- * 9.1 says in terms. The markup is the prototype's; the model is
- * `views/filter.ts`'s, which is where each chip's own reset lives.
+ * One chip per axis rather than per value, and never a count alone, which 9.1
+ * says in terms. The model is `views/filter.ts`'s, which is where each chip's
+ * own reset lives.
  */
 export function FilterChips({
   filter,
@@ -879,10 +832,9 @@ export function FilterChips({
         <button
           key={chip.key}
           type="button"
-          /* **Seam, S25**, and the naming seam again. The prototype names this
-             "Remove filter: {label}", and AC-176 addresses the filter control
-             itself as `getByRole('button', { name: /filter/i })`, which a chip
-             carrying the word "filter" makes ambiguous; 9.1 names the chip
+          /* No word "filter" in the chip's name: AC-176 addresses the filter
+             control itself as `getByRole('button', { name: /filter/i })`, which
+             a chip carrying the word would make ambiguous; 9.1 names the chip
              nowhere, so nothing is given up by saying the same thing without
              that word. */
           aria-label={`Remove ${chip.label}`}
@@ -897,11 +849,10 @@ export function FilterChips({
           )}
         >
           {(() => {
-            /* Each axis carries its own glyph, which is the prototype's
-               arrangement: a chip is read at a glance and the word after the
-               glyph is what narrows it. The map is here rather than in
-               `filter.ts` because that module is pure and holds no
-               components, the same rule `grouping.ts` keeps. */
+            /* Each axis carries its own glyph: a chip is read at a glance and
+               the word after the glyph is what narrows it. The map is here
+               rather than in `filter.ts` because that module is pure and holds
+               no components, the same rule `grouping.ts` keeps. */
             const Glyph = CHIP_ICON[chip.key] ?? CalendarDays
             return (
               <Glyph
