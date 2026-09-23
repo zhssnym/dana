@@ -1,6 +1,6 @@
 import type { PartialBlock } from '@blocknote/core'
 import type { PageBlockKind, PageView } from '../../../../shared/pages.js'
-import { MAX_SECTION_DEPTH, RICH_TEXT_BLOCK_KINDS, STRUCTURED_BLOCK_KINDS, isListKind } from '../../../../shared/page-document.js'
+import { MAX_SECTION_DEPTH, RICH_TEXT_BLOCK_KINDS, STRUCTURED_BLOCK_KINDS, isListKind, isPresentationHeadingKind } from '../../../../shared/page-document.js'
 import type { CanvasBlock, canvasSchema } from './schema.js'
 
 export type CanvasInput = PartialBlock<typeof canvasSchema.blockSchema, typeof canvasSchema.inlineContentSchema, typeof canvasSchema.styleSchema>
@@ -57,6 +57,9 @@ export function hydrateCanvas(page: PageView, columnWidth: number): CanvasInput[
       const level = Math.min(block.section_block_id === null ? 1 : (levels.get(block.section_block_id) ?? 0) + 1, MAX_SECTION_DEPTH)
       levels.set(block.id, level)
       nodes.set(block.id, { id: block.id, type: 'heading', props: { level, isToggleable: true }, content: contentOf(block.text, block.rich_content), children: [] })
+    } else if (isPresentationHeadingKind(block.kind)) {
+      const level = Number(block.kind.slice(-1)) as 1 | 2 | 3
+      nodes.set(block.id, { id: block.id, type: 'heading', props: { level, isToggleable: false }, content: contentOf(block.text, block.rich_content), children: [] })
     } else if (block.kind === 'image') nodes.set(block.id, { id: block.id, type: 'image', props: { url: block.file_id ? `/api/v1/files/${block.file_id}` : '', caption: block.text ?? '', previewWidth: columnWidth * (block.width_pct ?? 100) / 100 }, children: [] })
     else if (block.kind === 'folder_ref') nodes.set(block.id, { id: block.id, type: 'paragraph', content: [{ type: 'link', href: `/app/folders/${block.ref_folder_id}`, content: block.text ?? 'Open folder' }], children: [] })
     else nodes.set(block.id, { id: block.id, type: 'paragraph', content: contentOf(block.text, block.rich_content), children: [] })
@@ -149,10 +152,12 @@ export function dehydrateCanvas(blocks: readonly CanvasBlock[], columnWidth: num
   function visit(children: readonly CanvasBlock[], parent: string | null): void {
     for (const block of children) {
       const task = block.type === 'danaTask'
+      const groupHeading = block.type === 'heading' && block.props.isToggleable !== false
       result.items.push({ kind: task ? 'task' : 'block', id: task ? block.props.taskId : block.id, section_block_id: parent, list_parent_block_id: null })
       if (!task) {
         const runs = richRuns(block)
         const image = block.type === 'image'
+        const presentationHeading = block.type === 'heading' && !groupHeading
         const fileId = image ? /(?:^|\/)api\/v1\/files\/([0-9a-f-]{36})$/i.exec(block.props.url)?.[1] ?? null : null
         if (image && block.props.url && !fileId) throw new Error('Upload this image to Dana before saving. External image URLs are not supported.')
         /* Only over the paragraph this editor drew the reference as, which is
@@ -180,9 +185,10 @@ export function dehydrateCanvas(blocks: readonly CanvasBlock[], columnWidth: num
            survived and the relation did not, which is this loss pointed the
            other way. AC-665 pins it, with two runs and a style. */
         const reference = block.type === 'paragraph' ? folderRefs.get(block.id) ?? null : null
-        result.blocks.push({ id: block.id, block_kind: block.type === 'heading' ? 'section' : image ? 'image' : reference !== null ? 'folder_ref' : 'paragraph', text: image ? block.props.caption : runs.map((run) => run.text).join(''), rich_content: image || reference !== null ? null : { version: 1, runs }, file_id: fileId, ref_folder_id: reference, width_pct: image ? Math.max(25, Math.min(100, Math.round((block.props.previewWidth || columnWidth) / columnWidth * 100))) : null, checked: null })
+        const headingKind = presentationHeading ? (`heading${String(block.props.level)}` as PageBlockKind) : 'section'
+        result.blocks.push({ id: block.id, block_kind: block.type === 'heading' ? headingKind : image ? 'image' : reference !== null ? 'folder_ref' : 'paragraph', text: image ? block.props.caption : runs.map((run) => run.text).join(''), rich_content: image || reference !== null ? null : { version: 1, runs }, file_id: fileId, ref_folder_id: reference, width_pct: image ? Math.max(25, Math.min(100, Math.round((block.props.previewWidth || columnWidth) / columnWidth * 100))) : null, checked: null })
       }
-      visit(block.children, block.type === 'heading' ? block.id : parent)
+      visit(block.children, groupHeading ? block.id : parent)
     }
   }
   visit(blocks, null)
