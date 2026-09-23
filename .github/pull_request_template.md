@@ -18,7 +18,7 @@ gate's record too, if you ran it. -->
 
 ## Reviewer verdict
 
-<!-- A paragraph from the reviewer agent. "It found nothing" is a verdict. -->
+<!-- A paragraph from the second-read review (AGENTS.md, "Reviewing a change"). "It found nothing" is a verdict. -->
 
 ## Screenshots
 

@@ -17,7 +17,6 @@ This file is short on purpose. It points at the documents that hold the detail.
 | `docs/milestones/` | What is being built and why, one brief per milestone. |
 | `docs/README.md` | What belongs in `docs/` at all. Read it before writing a document. |
 | `app/tests/README.md` | What the test suite keeps and why. |
-| `.claude/agents/` | Subagents: `developer`, `reviewer`, `gatekeeper`, `integrator`, `auditor`, `test-writer`. |
 | `AGREEMENT.md` | The working agreement between Imran and Hassan. A human document, not agent rules. |
 
 ## Commands
@@ -50,8 +49,8 @@ npm run gate                        # the full gate; optional before a PR
 1. Branch from `main` (any name) and open a pull request. Issues are optional.
 2. Before opening it:
    - `npm run gate -- --quick` passes, plus the tests for what you changed.
-   - Run the read-only `reviewer` agent and put its verdict in the PR description. On Codex,
-     do a separate read-only pass using `.claude/agents/reviewer.md` as its instructions.
+   - Get a second read: a fresh, read-only agent (or pass) reviews the diff using the
+     checklist in "Reviewing a change" below. Put its verdict in the PR description.
 3. The PR title is a Conventional Commit (`feat:`, `fix:`, `docs:`, ...). Use `!` only when
    people using Dana must relearn something.
 4. CI runs the whole suite on every PR and on `main`: lint, typecheck, build, tests on
@@ -115,14 +114,33 @@ Each of these passes every test when wrong. Details in `docs/troubleshooting.md`
 - Old comments cite `RFC 0005`, `CLAUDE.md`, or docs/workflow. Those are gone; read the
   citation as history, and see `docs/troubleshooting.md` for resolving them through git.
 
+## Reviewing a change
+
+Merging deploys straight to production, so the review is the second reader. Read the diff
+itself, not the PR description, and check in this order:
+
+1. The silent failures in `docs/troubleshooting.md`: a migration's number and journal
+   `when` against `main` and open branches; a request field no server code reads; a new
+   CSP source; an id-bearing route without an `accessOf(...)` gate and its ac-397 row (path
+   ids only; query/body ids are invisible to it); a renamed storage key; `tokens.css` or
+   `presenters.ts` changes.
+2. Evidence: `--quick` output and focused tests for the change; PR CI green on the head.
+3. Claims vs evidence: a "flake" must match a class in `docs/troubleshooting.md`.
+4. What no test covers, and whether it matters (security, data loss, core path).
+5. What breaks that nobody looked at: callers, screens reading a changed field, a
+   migration's effect on existing rows, route mount order in `app/src/server/routes/bundle.ts`.
+
+Report file:line and what would go wrong, ranked by impact, ending with a one-line verdict.
+If you find nothing, say so; never invent findings.
+
 ## Claude Code notes
 
 - Claude Code reads this file only when no `CLAUDE.md` or `CLAUDE.local.md` exists. Do not
   create a `CLAUDE.md` and do not run `/init`. Check with `/memory` that this file loaded.
 - If it did not load (older client, third-party provider), create an untracked
   `CLAUDE.local.md` at the repository root containing the single line `@AGENTS.md`.
-- Custom subagents in `.claude/agents/` receive this file automatically; the built-in
-  Explore and Plan agents do not, so brief them yourself.
+- There are no predefined subagents. Brief any agent you spawn with the task and the parts
+  of this file it needs; the built-in Explore and Plan agents do not receive this file.
 - Agent worktrees are created under the `worktrees` directory in `.claude/`. That path has
   a dot segment, so `npm run gate` refuses the browser leg there and browser tests fail
   there. Use `npm run gate -- --quick` in a worktree, or copy the tree to a dot-free path.
