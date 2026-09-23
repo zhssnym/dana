@@ -67,8 +67,19 @@ npm run gate                        # the full gate; optional before a PR
   confident, and wrong. Verify by running the code.
 - Never edit a test to make code pass. Change a test or criterion only when the behaviour it
   pins actually changes, and say which behaviour moved in the PR.
+- **One PR carries the whole change.** A server change takes the screen that shows it; a
+  changed word on screen takes the criterion and spec sentence that named it.
+- **Verify by running or reading code, never by reading a document.** Check that code you
+  found actually runs (something imports it, a route or screen reaches it). Counts and
+  inventories in docs are the first thing to drift.
+- Say how you verified UI: `npm test` proves the client compiles and little else. Say
+  whether you ran the screen, or say plainly that you did not.
 - Add a test only for security, data loss, or a core smoke path. Never pin counts (number
-  of routes, files, rows in a list) in a test.
+  of routes, files, rows in a list) in a test. A test worth having: asserts the stored row,
+  not just the response; asserts what was removed as well as what was kept; was seen to go
+  red when you broke the code the way it exists to catch; never asserts server message prose
+  (assert SQLSTATE or constraint name); never compares two values it measured itself
+  without a settle.
 - Report "blocked" rather than "done" when something is unverified, and list what you did
   not verify.
 - Stage explicit paths; never `git add -A` in a shared tree.

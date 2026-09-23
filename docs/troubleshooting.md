@@ -153,7 +153,12 @@ All commands run from `app/`. From the repository root there is no `package.json
 
 ## 4. Flaky failures
 
-Name the class before you act. Only some of them are answered by re-running.
+Name the class before you act. Only some of them are answered by re-running. Triage a red in
+this order: (1) is it red on `main`'s latest CI run too? then it isn't this branch's;
+(2) does it match a class below? (3) does the test compare two values it measured itself?
+then it races the UI and running it alone makes it fail *more*; (4) only then treat it as
+real. Re-run at most once. Only `GATE: green` is green: `incomplete` means a step didn't
+run, and a record from a dirty tree describes something that isn't the commit.
 
 - **Worker-fork death.** You see `[vitest-pool]: Worker forks emitted error`, or whole files
   fail with their tests skipped. Run the affected files alone before believing it. Capping
@@ -260,6 +265,18 @@ Name the class before you act. Only some of them are answered by re-running.
   message.** Under `GIT_EDITOR=true`, `git rebase --continue` applies `cleanup=strip` to the
   conflicted commit only. Use `git -c core.commentChar=';' rebase --continue`, then diff
   `git log -1 --format=%B` for the old and new sha.
+- **Resolving a rebase or merge conflict.**
+  - `app/db/migrations/meta/_journal.json`: keep both entries in ascending `when` order.
+    If both sides took the same migration number, renumber the branch's file and journal
+    `tag` together and give it a `when` above `main`'s last. Merge several
+    migration-carrying branches in `when` order.
+  - Section 12 criterion numbers: keep both sides' bullets; if both took the same number,
+    renumber the branch's to one past the highest, rename its test file, and move the
+    allocator line.
+  - A file git auto-merged cleanly where both sides edited the same function: read the
+    merged result; a clean merge is the one that bites silently.
+  - A branch with a migration: run the suite on both engines (`TEST_DATABASE_URL` set, then
+    `env -u TEST_DATABASE_URL`), printing the variable each time.
 - **`origin/<branch>` looks stale after `git fetch origin <branch>`.** Here that form doesn't
   always update the remote-tracking ref. `git ls-remote --heads origin <branch>` is the
   authority. Use `git fetch origin <branch>:refs/remotes/origin/<branch>` to update the ref.
