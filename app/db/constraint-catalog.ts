@@ -1217,6 +1217,23 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
     ],
     indexes: [],
   },
+  /* Migration 0032, issue #221: the Shelf-keyed sibling of
+     page_document_receipts. No actor column, because a Shelf is one
+     person's (4.18); the receipts go with the Shelf. */
+  shelf_document_receipts: {
+    primaryKey: { name: 'shelf_document_receipts_pkey', columns: ['shelf_id', 'mutation_id'] },
+    uniques: [],
+    checks: [],
+    foreignKeys: [
+      {
+        name: 'shelf_document_receipts_shelf_id_fkey',
+        columns: ['shelf_id'],
+        references: { table: 'shelves', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+    ],
+    indexes: [],
+  },
   user_views: {
     primaryKey: { name: 'user_views_pkey', columns: ['id'] },
     uniques: [],
