@@ -68,6 +68,7 @@ import type {
 } from './folder-access.js'
 import { accessOf } from './folders.js'
 import { dropFolderLabelsOnMove, taskLabelsOf } from './labels.js'
+import { taskDependencyCountsOf } from './task-dependency-counts.js'
 import { positionAtSectionEnd, seededItems } from './page-order.js'
 
 /* ------------------------------------------------------------------ *
@@ -415,6 +416,9 @@ export async function taskView(
        reader of the Label tables that could scope itself differently would be
        one too many. */
     labels: await taskLabelsOf(executor, viewerId, taskId),
+    /* Issue #225's row counts, through the batch `readCards` uses with a
+       list of one, so a row replaced by a write's response counts the same. */
+    ...(await taskDependencyCountsOf(executor, viewerId, taskId)),
     created_at: toIso(row.created_at),
     updated_at: toIso(row.updated_at),
     notes: nullableString(row.notes),

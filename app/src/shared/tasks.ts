@@ -891,6 +891,21 @@ export const taskCard = z.object({
   `personal` arrays, which is the same per-viewer field `pulled` already is.
   */
   labels: taskLabels,
+  /*
+  Row-level dependency counts (issue #225's prerequisite, over #224's
+  relation), so a row can show a compact "Blocked · N" without a request per
+  row. `blocked_by_count` counts blockers that are not completed — pending or
+  abandoned, because abandoned is not done (#224's `unresolved`) — and
+  `blocks_count` counts dependents while this task is not completed. Only
+  edges whose other end the viewer can read are counted, so a count never
+  reports the status of a task the viewer cannot see; the detail read's
+  `unknown` edge is where such a relation is acknowledged.
+
+  Optional on the schema because they were added after clients shipped; every
+  server producer of a card or a detail sends both.
+  */
+  blocked_by_count: z.int().nonnegative().optional(),
+  blocks_count: z.int().nonnegative().optional(),
   created_at: z.iso.datetime(),
   updated_at: z.iso.datetime(),
 })
