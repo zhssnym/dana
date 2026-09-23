@@ -207,7 +207,7 @@ export function CanvasSurface({
               | 'file'
               | 'audio'
               | 'video',
-            icon: React.ReactNode,
+            icon: React.JSX.Element,
             aliases: string[],
             subtext: string,
           ): DefaultReactSuggestionItem => ({
