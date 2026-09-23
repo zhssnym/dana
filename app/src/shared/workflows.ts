@@ -160,6 +160,26 @@ const importTask = z.object({
       `labels: a task carries at most ${String(TASK_FOLDER_LABEL_CAP)} labels`,
     )
     .optional(),
+  /*
+  Internal Task dependencies (#207: "preserve internal Task dependencies when
+  both Tasks are part of the workflow").
+
+  **`key` is file-local and is never a database id**, for the reason a Label's
+  key is not: a file is imported into any account any number of times. It is
+  unique across the whole file, not one folder, because a dependency may cross
+  Folders and a file may carry up to 50 of them. `depends_on` names the keys of
+  the Tasks this one waits on.
+
+  **A key the file does not declare is skipped rather than refused**: it is by
+  definition a Task outside the workflow, and #207 excludes external
+  dependencies in M1 rather than binding the copy to anything. A duplicated
+  key, a Task waiting on itself and a cycle of any length are refused, 422,
+  because the live endpoint refuses each of them and an import is not a way
+  around it. Both keys are optional and absent from every file written before
+  this, which therefore imports exactly as it did.
+  */
+  key: z.string().min(1).max(64).optional(),
+  depends_on: z.array(z.string().min(1).max(64)).max(1000).optional(),
 })
 
 /** One Task's portable keys, wherever the file writes it: a member of a
@@ -932,7 +952,127 @@ const canonicalWorkflowBody = z
         }
       }
     })
+    for (const issue of workflowDependencyIssues(file.folders)) {
+      ctx.addIssue({ code: 'custom', path: issue.path, message: issue.message })
+    }
   })
+
+/** The two dependency keys a Task of the file may carry (#207). */
+interface DependencyKeys {
+  key?: string
+  depends_on?: string[]
+}
+
+/** A Task of the file with the path its keys are refused at. */
+interface KeyedTask {
+  path: (string | number)[]
+  task: DependencyKeys
+}
+
+function keyedTasksOf(
+  folders: readonly {
+    tasks?: readonly DependencyKeys[]
+    page?: { blocks: readonly (DependencyKeys & { kind: string })[] }
+  }[],
+): KeyedTask[] {
+  return folders.flatMap((folder, index) => [
+    ...(folder.tasks ?? []).map((task, taskIndex) => ({
+      path: ['folders', index, 'tasks', taskIndex],
+      task,
+    })),
+    ...(folder.page?.blocks ?? []).flatMap((block, blockIndex) =>
+      block.kind === 'task'
+        ? [{ path: ['folders', index, 'page', 'blocks', blockIndex], task: block }]
+        : [],
+    ),
+  ])
+}
+
+/**
+ * The file's internal dependency edges as `[dependent key, blocker key]`,
+ * keeping only those whose both ends the file declares (#207). The importer
+ * reads this and nothing else, so the rule "external dependencies are
+ * excluded" is stated once.
+ */
+export function workflowDependencyEdges(
+  folders: Parameters<typeof keyedTasksOf>[0],
+): [string, string][] {
+  const tasks = keyedTasksOf(folders)
+  const declared = new Set(
+    tasks.flatMap(({ task }) => (task.key === undefined ? [] : [task.key])),
+  )
+  const edges: [string, string][] = []
+  const seen = new Set<string>()
+  for (const { task } of tasks) {
+    if (task.key === undefined) continue
+    for (const blocker of task.depends_on ?? []) {
+      if (!declared.has(blocker)) continue
+      const pair = JSON.stringify([task.key, blocker])
+      if (seen.has(pair)) continue
+      seen.add(pair)
+      edges.push([task.key, blocker])
+    }
+  }
+  return edges
+}
+
+/** Duplicate keys, self-dependencies and cycles, each refused where the live
+ * endpoint refuses the same edge. The cycle walk is the file-local form of
+ * `createTaskDependency`'s: every Task an import creates is new, so no edge
+ * outside the file can reach one and the file's own graph is the whole graph. */
+function workflowDependencyIssues(
+  folders: Parameters<typeof keyedTasksOf>[0],
+): { path: (string | number)[]; message: string }[] {
+  const tasks = keyedTasksOf(folders)
+  const issues: { path: (string | number)[]; message: string }[] = []
+  const pathOf = new Map<string, (string | number)[]>()
+  for (const { path, task } of tasks) {
+    if (task.key === undefined) continue
+    if (pathOf.has(task.key)) {
+      issues.push({
+        path: [...path, 'key'],
+        message: `key: the task key ${JSON.stringify(task.key)} is used twice in one file`,
+      })
+      continue
+    }
+    pathOf.set(task.key, path)
+  }
+  if (issues.length > 0) return issues
+  const waitsOn = new Map<string, string[]>()
+  for (const [dependent, blocker] of workflowDependencyEdges(folders)) {
+    if (dependent === blocker) {
+      issues.push({
+        path: [...(pathOf.get(dependent) ?? []), 'depends_on'],
+        message: 'depends_on: a task cannot depend on itself',
+      })
+      continue
+    }
+    waitsOn.set(dependent, [...(waitsOn.get(dependent) ?? []), blocker])
+  }
+  // Depth-first, colouring each key: 1 on the current path, 2 finished.
+  const colour = new Map<string, 1 | 2>()
+  const visit = (key: string): boolean => {
+    colour.set(key, 1)
+    for (const next of waitsOn.get(key) ?? []) {
+      const seen = colour.get(next)
+      if (seen === 1) return true
+      if (seen === undefined && visit(next)) return true
+    }
+    colour.set(key, 2)
+    return false
+  }
+  for (const key of waitsOn.keys()) {
+    if (colour.has(key)) continue
+    if (visit(key)) {
+      issues.push({
+        path: [...(pathOf.get(key) ?? []), 'depends_on'],
+        message: 'depends_on: these dependencies would form a cycle',
+      })
+      break
+    }
+  }
+  return issues
+}
 
 /* ------------------------------------------------------------------ *
  * Normalisation: the arrangements a real file arrives in, folded into
@@ -983,7 +1123,7 @@ function normalizeStep(step: unknown): Record<string, unknown> | null {
  * malformed file, and 422 naming `notes` would be a strange thing to tell
  * the person who opened it. */
 function dropNulls(task: Record<string, unknown>): void {
-  for (const key of ['notes', 'important', 'recurrence_rule', 'reminder', 'steps', 'labels']) {
+  for (const key of ['notes', 'important', 'recurrence_rule', 'reminder', 'steps', 'labels', 'key', 'depends_on']) {
     if (task[key] === null) delete task[key]
   }
 }
@@ -1270,6 +1410,33 @@ function labelKeysOf(
   return keys
 }
 
+/** One dependency edge as the exporter reads it: the dependent waits on the
+ * blocker. Structural, so the caller may hand over whatever it assembled from
+ * `GET /tasks/:id/dependencies`. */
+export interface WorkflowDependencyEdge {
+  dependent_task_id: string
+  blocking_task_id: string
+}
+
+/** The part of `GET /tasks/:id/dependencies` the exporter reads: which Tasks
+ * this one waits on. A null far end is a Task the viewer cannot read, which is
+ * never one of the Folder's own and so never written. */
+export const workflowDependencyRead = z.object({
+  depends_on: z.array(z.object({ task: z.object({ id: z.string() }).nullable() })),
+})
+
+/** One Task's `depends_on` read as the edges the exporter takes. */
+export function workflowDependencyEdgesOf(
+  taskId: string,
+  read: z.infer<typeof workflowDependencyRead>,
+): WorkflowDependencyEdge[] {
+  return read.depends_on.flatMap((edge) =>
+    edge.task === null
+      ? []
+      : [{ dependent_task_id: taskId, blocking_task_id: edge.task.id }],
+  )
+}
+
 /**
  * What "Save as workflow" produces: the file, and a count of what the page held
  * that a file does not.
@@ -1357,6 +1524,11 @@ export function folderToWorkflowFile(
    * native Purpose facet. Existing callers that have not loaded Purpose keep
    * emitting format 4 until the frontend handoff wires this parameter. */
   purpose?: { display_name: string | null; page: PageView },
+  /** #207: the dependency edges among `tasks`, by live id. Only an edge whose
+   * both ends are handed over is written, as file-local `key`/`depends_on`;
+   * an edge to a Task outside the file is excluded, and a Folder with no
+   * dependencies writes the file byte-for-byte as before. */
+  dependencies: readonly WorkflowDependencyEdge[] = [],
 ): WorkflowExport {
   /* 10.3 caps a folder name at 100 and admits no empty one, and this is the
      one place the name is not already a row that satisfied both. */
@@ -1385,8 +1557,31 @@ export function folderToWorkflowFile(
       ? { description: label.description }
       : {}),
   }))
+  const exportedIds = new Set(tasks.map((task) => task.id))
+  const internal = dependencies.filter(
+    (edge) =>
+      edge.dependent_task_id !== edge.blocking_task_id &&
+      exportedIds.has(edge.dependent_task_id) &&
+      exportedIds.has(edge.blocking_task_id),
+  )
+  const taskKeyOf = new Map<string, string>()
+  for (const task of tasks) {
+    if (
+      internal.some(
+        (edge) =>
+          edge.dependent_task_id === task.id ||
+          edge.blocking_task_id === task.id,
+      )
+    ) {
+      taskKeyOf.set(task.id, `t${String(taskKeyOf.size + 1)}`)
+    }
+  }
   const portable = (task: TaskDetail): Omit<WorkflowTaskBlock, 'kind'> => {
   const labelKeys = labelKeysOf(task, keyOf)
+  const taskKey = taskKeyOf.get(task.id)
+  const dependsOn = internal
+    .filter((edge) => edge.dependent_task_id === task.id)
+    .map((edge) => taskKeyOf.get(edge.blocking_task_id) as string)
   return {
     title: task.title,
     ...(task.notes !== null && task.notes !== '' ? { notes: task.notes } : {}),
@@ -1408,6 +1603,8 @@ export function folderToWorkflowFile(
        not written at any version. An archived assignment finds no key, having
        been filtered out of the vocabulary above, and drops out here. */
     ...(labelKeys.length > 0 ? { labels: labelKeys } : {}),
+    ...(taskKey === undefined ? {} : { key: taskKey }),
+    ...(dependsOn.length > 0 ? { depends_on: dependsOn } : {}),
   }
   }
   /*

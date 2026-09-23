@@ -197,7 +197,12 @@ import { getLabelsResponse } from '../../shared/labels.js'
 import type { LabelDefinition } from '../../shared/labels.js'
 import { getTaskResponse } from '../../shared/tasks.js'
 import type { TaskDetail } from '../../shared/tasks.js'
-import { folderToWorkflowFile } from '../../shared/workflows.js'
+import {
+  folderToWorkflowFile,
+  workflowDependencyEdgesOf,
+  workflowDependencyRead,
+} from '../../shared/workflows.js'
+import type { WorkflowDependencyEdge } from '../../shared/workflows.js'
 import type { Facet } from '../../shared/facets.js'
 import type { PageView } from '../../shared/pages.js'
 import { workPageOf } from '../components/page/canvas/adapters.js'
@@ -829,8 +834,11 @@ export function FolderPage({
     */
     let tasks: TaskDetail[]
     let labels: readonly LabelDefinition[]
+    let dependencies: WorkflowDependencyEdge[]
     try {
-      const [details, vocabulary] = await Promise.all([
+      /* #207: each pending Task's dependencies, read beside its detail, so
+         the file keeps the ordering between the work it carries. */
+      const [details, vocabulary, waits] = await Promise.all([
         Promise.all(
           pending.map((task) =>
             cache.fetchQuery({
@@ -847,9 +855,21 @@ export function FolderPage({
               `/labels?scope=folder&folder_id=${encodeURIComponent(id)}`,
             ),
         }),
+        Promise.all(
+          pending.map(async (task) =>
+            workflowDependencyEdgesOf(
+              task.id,
+              await getPlain(
+                workflowDependencyRead,
+                `/tasks/${task.id}/dependencies`,
+              ),
+            ),
+          ),
+        ),
       ])
       tasks = details
       labels = labelRowsOf(vocabulary)
+      dependencies = waits.flat()
     } catch {
       showToast('Could not read this folder’s tasks, so nothing was saved.')
       return
@@ -860,6 +880,8 @@ export function FolderPage({
       page.data?.blocks ?? [],
       page.data,
       labels,
+      undefined,
+      dependencies,
     )
     const file = JSON.stringify(saved.file, null, 2)
     const blob = new Blob([file], { type: 'application/json' })
