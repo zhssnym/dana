@@ -14,7 +14,7 @@ groups next to it.
 
 ## The next number
 
-**The next number to take from the tail is 847.**
+**The next number to take from the tail is 852.**
 
 **This section is the allocator and `## Numbers` below it is not.** That one is a
 chronological record of what each branch spent and why, written newest-first in places and
@@ -28,6 +28,13 @@ the number it names, and **move the line above in the same commit that spends it
 this section and fails when anything in the tree has spent that number or anything over it,
 which is what makes a stale allocator a red rather than a trap. It reads this section and no
 other part of this file, so keep the sentence's wording; everything else here is prose.
+
+**847 moved to 852 on 2026-09-23 by issue #211, which took AC-847 to AC-851.**
+The five executable criteria pin the native Purpose document and its authority/writing
+boundaries, its stable Dana Link, Folder duplication, workflow format 5 portability, and
+account export under Hassan's technical ruling
+https://github.com/zhssnym/dana/issues/211#issuecomment-5801396721. The line read 847 when
+the block was taken; the five files are under `app/tests/criteria/`.
 
 **846 moved to 847 on 2026-09-21, for AC-846.** Ruling 6 of the #210 addendum,
 https://github.com/zhssnym/dana/issues/210#issuecomment-5757696835, made a private facet
