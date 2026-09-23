@@ -1,8 +1,9 @@
 /*
 AC-848: a Dana Link to Purpose names the stable native facet identity. Rename
-changes its live label, hiding does not revoke it, an inaccessible Purpose is
-indistinguishable from a missing one, and resolving/searching the reference
-grants nothing.
+changes its live label, hiding does not revoke it, its stable route resolves
+to the owning Folder without exposing that Folder to outsiders, an inaccessible
+Purpose is indistinguishable from a missing one, and resolving/searching the
+reference grants nothing.
 
 Issue #211, R1-R3 and Hassan's ruling:
 https://github.com/zhssnym/dana/issues/211#issuecomment-5801396721
@@ -78,6 +79,14 @@ describe('AC-848 Purpose Dana Links resolve live and grant nothing', () => {
       (search.json() as { results: { kind: string; id: string }[] }).results,
       'the hidden but readable Purpose remains discoverable to its member',
     ).toContainEqual(expect.objectContaining({ kind: 'facet', id: purpose.id }))
+
+    const location = await member.browser.api(`/facets/${purpose.id}/location`)
+    expectStatus(
+      location,
+      200,
+      'the stable hidden Purpose route still resolves to its Folder without unhiding it',
+    )
+    expect(location.json()).toEqual({ folder_id: folderId })
   })
 
   test('an outsider learns nothing and reference operations create no grant', async () => {
@@ -104,6 +113,23 @@ describe('AC-848 Purpose Dana Links resolve live and grant nothing', () => {
       inaccessible.body,
       'the response body is indistinguishable too',
     ).toBe(absent.body)
+
+    const inaccessibleLocation = await stranger.browser.api(
+      `/facets/${purpose.id}/location`,
+    )
+    const absentLocation = await stranger.browser.api(
+      `/facets/${missing}/location`,
+    )
+    expectStatus(
+      inaccessibleLocation,
+      404,
+      'the navigation bridge does not disclose the owning Folder to an outsider',
+    )
+    expectStatus(absentLocation, 404, 'a missing Purpose has the same location refusal')
+    expect(
+      inaccessibleLocation.body,
+      'the location response is equally non-enumerating',
+    ).toBe(absentLocation.body)
 
     await member.browser.api(`/references/facet/${purpose.id}`)
     await member.browser.api(
