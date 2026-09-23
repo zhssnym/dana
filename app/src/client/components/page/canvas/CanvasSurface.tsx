@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { offset } from '@floating-ui/react'
 import { BlockNoteView } from '@blocknote/shadcn'
 import {
@@ -10,6 +10,16 @@ import {
 import type { DefaultReactSuggestionItem } from '@blocknote/react'
 import { filterSuggestionItems, SideMenuExtension } from '@blocknote/core/extensions'
 import { CanvasFormattingToolbar } from './CanvasFormattingToolbar.js'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../../ui/alert-dialog.js'
 import { installCanvasGuard } from './guard.js'
 import { ancestorsOf, bindTaskCommand, continueAfterGroup, headingOneContext, insertCanvasHeading, moveCanvasBlock, removeHeadingKeepingContent } from './commands.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
@@ -83,24 +93,31 @@ const canvasSidePosition = {
 }
 
 /** Visual editor host. The caller owns hydration, uploads, Task actions and durable saving. */
-export function CanvasSurface({ editor, onChange, onCreateTask, allowHeadings = true, editable = true }: {
+export function CanvasSurface({ editor, onChange, onCreateTask, folderRefs, allowHeadings = true, editable = true }: {
   readonly editor: CanvasEditor
   readonly onChange: (editor: CanvasEditor) => void
   readonly onCreateTask?: (block?: CanvasBlock) => void
+  readonly folderRefs: ReadonlyMap<string, string>
   readonly allowHeadings?: boolean
   readonly editable?: boolean
 }): React.JSX.Element {
   const [feedback, setFeedback] = useState('')
+  const [referenceToConvert, setReferenceToConvert] = useState<CanvasBlock | null>(null)
   const [theme, setTheme] = useState<'dark' | 'light'>(() => document.documentElement.classList.contains('dark') ? 'dark' : 'light')
+  const requestTask = useCallback((block?: CanvasBlock): void => {
+    const target = block ?? editor.getTextCursorPosition().block
+    if (folderRefs.has(target.id)) setReferenceToConvert(target)
+    else onCreateTask?.(block)
+  }, [editor, folderRefs, onCreateTask])
   useEffect(() => installCanvasGuard(editor, setFeedback), [editor])
-  useEffect(() => onCreateTask ? bindTaskCommand(editor, onCreateTask) : undefined, [editor, onCreateTask])
+  useEffect(() => onCreateTask ? bindTaskCommand(editor, requestTask) : undefined, [editor, onCreateTask, requestTask])
   useEffect(() => {
     const observer = new MutationObserver(() => setTheme(document.documentElement.classList.contains('dark') ? 'dark' : 'light'))
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
     return () => observer.disconnect()
   }, [])
   return (
-    <CommandContext.Provider value={{ task: onCreateTask, explain: setFeedback }}>
+    <CommandContext.Provider value={{ task: onCreateTask ? requestTask : undefined, explain: setFeedback }}>
     <div className="dana-writing-canvas min-w-0">
       <BlockNoteView
         editor={editor}
@@ -163,6 +180,20 @@ export function CanvasSurface({ editor, onChange, onCreateTask, allowHeadings = 
       </BlockNoteView>
       <p role="status" aria-live="polite" className="min-h-6 px-2 text-sm text-muted-foreground">{feedback}</p>
     </div>
+    <AlertDialog open={referenceToConvert !== null} onOpenChange={(open) => { if (!open) setReferenceToConvert(null) }}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Convert this folder reference to a Task?</AlertDialogTitle>
+          <AlertDialogDescription>The reference and its relation to the folder will be removed. A Task will be created with the link text as its title.</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction destructive onClick={() => {
+            if (referenceToConvert !== null) onCreateTask?.(referenceToConvert)
+          }}>Convert to Task</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
     </CommandContext.Provider>
   )
 }
