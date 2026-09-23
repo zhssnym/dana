@@ -1,17 +1,15 @@
 /*
-AC-014 (as replaced by RFC 0005): given the owner deletes a custom folder,
+AC-014: given the owner deletes a custom folder,
 then the response carries 7.4's exact counts, the folder leaves every list
 and view, and it waits in Trash with its memberships, tasks of all
 statuses, steps, My Day entries, reminders, and pending invites held; when
 the 30 day window lapses and the pass runs, then all of it is gone.
 
-The v1 criterion asserted the rows gone at delete time, 8.8's one
-transaction being the whole story. RFC 0005 splits it: DELETE marks the
-folder (deleted_at, spec 7.13), the tasks inside carrying no mark of their
+Deletion is two-phase: DELETE marks the folder (deleted_at, spec 7.13), the tasks inside carrying no mark of their
 own because a task in a trashed folder is unreachable while its folder is
 (4.5), and the 11.7 pass purges the folder row at 30 days, the named
-cascades of 8.8 firing then. The frozen 7.4 response is unchanged: the
-counts are the dialog's promise either way, so they are asserted exactly,
+cascades of 8.8 firing then. The 7.4 response's counts are the dialog's
+promise, so they are asserted exactly,
 and 8.11's rule that abandoned rows count on neither side is asserted on
 the way in, against the same rows the deletion will count.
 
@@ -19,7 +17,7 @@ Everything here rides a control folder alongside: a purge that sweeps too
 widely is the failure a cascade test exists to catch, so every gone
 assertion has a still-there twin.
 
-Spec: 7.0, 7.4, 7.13, 8.8, 8.11, 11.7 (RFC 0005).
+Spec: 7.0, 7.4, 7.13, 8.8, 8.11, 11.7.
 */
 import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
@@ -166,10 +164,9 @@ describe('AC-014: deleting a custom folder marks it, and the pass removes it', (
   })
 
   test('AC-014 adversarial: the detail lists exactly the pending invites before the delete', async () => {
-    // The key is pending_invites, settled at the shape review and ruled
-    // into frozen 7.4, and pending is the word: the declined invite seeded
-    // beside the two live ones must not appear. Element fields are frozen
-    // 7.4's five.
+    // The key is pending_invites (7.4), and pending is the word: the
+    // declined invite seeded beside the two live ones must not appear.
+    // Element fields are 7.4's five.
     const { owner, folderId, doomedInviteIds } = await stage()
     const [pendingPlain, pendingWithTask, declined] = doomedInviteIds
     if (

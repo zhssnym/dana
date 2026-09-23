@@ -1,19 +1,17 @@
 /*
 8.6's five recompute triggers, as one callable its consumers invoke.
 
-**Why this is a function rather than a rule other sessions follow.** The
-reminders seam states the tiebreaker in the words this
-file exists to satisfy: this role owns all five triggers as a callable, never
-as arithmetic the callers restate, and every caller invokes it inside its own
-transaction. Call sites restating one computation is one chance per site to
+**Why this is a function rather than a rule callers follow.** All five
+triggers are one callable, never arithmetic the callers restate, and every
+caller invokes it inside its own transaction. Call sites restating one computation is one chance per site to
 disagree about a timezone, and two that disagreed would differ by an hour
 twice a year.
 
 **Four of 8.6's five triggers reach this file; the fifth is answered by the
-write itself.** Three fire inside the Collaboration engineer's PATCH
+write itself.** Three fire inside PATCH
 /tasks/:id, for due_date, due_time and assignee_id, and one inside the
-Security engineer's auth module, at the login sync and at PATCH /me, which
-frozen 7.1 charges with the recompute in its own text. The trigger for the
+auth module, at the login sync and at PATCH /me, which
+7.1 charges with the recompute in its own text. The trigger for the
 reminder's own value and mode reaches no call site here, and deliberately: all
 three paths that write a reminder share one upsert, and that upsert asks
 planReminder below what to store, so the row already holds the answer this
@@ -23,14 +21,14 @@ would be scheduled by one and skipped by the other, which is one decision made
 twice at exactly the moment the two answers differ.
 
 **The caller owns the transaction, and calls after its own write.** Nothing
-here opens a transaction, the shape of P5's deleteAccountData(tx, userId) and
+here opens a transaction, the shape of deleteAccountData(tx, userId) and
 of this directory's own generateSuccessor. Every function below reads the
 current row rather than taking values on trust, so it must run after the write
 that triggered it and inside the same transaction: called before, it computes
 from the state the trigger just replaced. That ordering is the whole contract
 and it is the one thing a caller can get wrong silently.
 
-**Two behaviors, not five.** 8.6's ruling of 2026-08-10 draws the line for us:
+**Two behaviors, not five.** 8.6 draws the line:
 
 - The four task-scoped triggers change the occasion the reminder is about, its
   deadline, its lead time or the person owed it, and a new occasion deserves a
@@ -39,14 +37,14 @@ and it is the one thing a caller can get wrong silently.
   fired_at with it, so 4.8's note that fired_at is set when state leaves
   scheduled stays true of every row rather than of most of them.
 - The timezone trigger re-expresses an unchanged occasion on a different wall
-  clock. It touches rows in state scheduled and no others, which is frozen
+  clock. It touches rows in state scheduled and no others, which is
   7.1's own scope, so a delivered reminder is never revived into a second copy
   of the same email and a skipped row stays skipped.
 
 **One invariant covers fired_at everywhere below**: it is null exactly when
 state is scheduled, and otherwise carries the moment the row reached its
 current terminal state. 4.8's note is satisfied in both directions by that,
-and it is what the ruling above asks for without a special case per trigger.
+and it is what 8.6 asks for without a special case per trigger.
 */
 import { sql } from 'drizzle-orm'
 
@@ -61,7 +59,7 @@ export type ReminderState = 'scheduled' | 'sent' | 'skipped'
 
 /** The state a freshly computed instant lands in. 8.6: scheduled when the
  * instant is in the future, skipped when it is already past, never fired
- * retroactively. Frozen 7.9 carries the same qualifier for the PUT. */
+ * retroactively. 7.9 carries the same qualifier for the PUT. */
 export type ComputedState = 'scheduled' | 'skipped'
 
 /**
@@ -72,8 +70,7 @@ export type ComputedState = 'scheduled' | 'skipped'
  * and a trigger that has to be inferred here from what changed would be
  * inferred from the row after the change, where the evidence is gone. It also
  * makes each call site answerable for the trigger it owns: the four taskId
- * arms are the Collaboration engineer's and the userId arm is the Security
- * engineer's.
+ * arms are the tasks routes' and the userId arm is the auth module's.
  */
 export type ReminderTrigger =
   /** PATCH /tasks/:id moved due_date to a non-null date (7.6). Clearing it is
@@ -88,8 +85,8 @@ export type ReminderTrigger =
    * returns, and the ON CONFLICT branch draws no line between a first write
    * and an overwrite that this arm could sit on. Kept rather than dropped
    * because a union naming four of five triggers is the worse lie, and the
-   * recompute handles it correctly for any caller that ever needs it: the
-   * unit tests exercise it, and that is where it is exercised. */
+   * recompute handles it correctly for any caller that ever needs it. No
+   * caller exercises it today. */
   | { readonly kind: 'reminder'; readonly taskId: string }
   /** PATCH /tasks/:id moved assignee_id, in either direction. This is the one
    * trigger that changes the zone rather than a local time inside one. */
@@ -178,7 +175,7 @@ an instant here would be the defect 4.11's floating storage exists to prevent.
 The zone comes from COALESCE(assignee_id, created_by), which is 8.6's first
 line: the assignee's zone, or the reminder creator's when the task is
 unassigned. The creator is a fallback for the computation and not a sixth
-trigger, ruled at the P7 kickoff and recorded in 8.6 with its reasoning, so a
+trigger, as 8.6 records with its reasoning, so a
 creator who travels moves nothing and no query here watches that column.
 */
 const reminderComputationColumns = sql`
@@ -270,8 +267,8 @@ function planFrom(source: ComputationSource, at: Date): ReminderPlan {
 /**
  * The instant and state a reminder about to be written should carry.
  *
- * For the three paths that create a row rather than recompute one: frozen
- * 7.9's PUT, the reminder arm of frozen 7.6's create body, and 8.5's copy onto
+ * For the three paths that create a row rather than recompute one:
+ * 7.9's PUT, the reminder arm of 7.6's create body, and 8.5's copy onto
  * a generated successor, which this module performs itself below. 4.8 makes
  * fire_at NOT NULL, so the row cannot be inserted first and computed after,
  * and the caller writing values this function returned is not restating any
@@ -279,12 +276,11 @@ function planFrom(source: ComputationSource, at: Date): ReminderPlan {
  *
  * Write all three of fireAt, state and firedAt, on the insert and on the
  * conflict branch alike. An upsert that carried the instant across and left
- * the other two is the case frozen 7.9 states and AC-148 writes down — writes down
- * rather than checks, its test file having gone in the 2026-09-20 cut: a row that
+ * the other two is the case 7.9 states: a row that
  * already fired keeps its terminal state and its old fired_at, holding exactly
  * the value the user asked for and never firing again.
  *
- * The caller is expected to have raised frozen 7.9's two 422s already, for a
+ * The caller is expected to have raised 7.9's two 422s already, for a
  * task with no due_date and for a body carrying the wrong mode. Those are
  * validation, they answer a status code, and this function throws rather than
  * reporting them because reaching it with either means the guard is missing.
@@ -354,7 +350,7 @@ export async function recomputeReminders(
  * The four task-scoped triggers: one row, recomputed from any state.
  *
  * No state predicate, deliberately. 8.6's reset names no state it resets from
- * and frozen 7.6's due_date bullet scopes its recompute to none either,
+ * and 7.6's due_date bullet scopes its recompute to none either,
  * because a user who pushes a deadline out by a week and then hears nothing
  * has lost the reminder they can still see configured on the task.
  */
@@ -394,7 +390,7 @@ async function recomputeForTask(
  * A row this trigger cannot compute is reported rather than thrown. The other
  * four fire on the very write that produced the shape, so a throw there points
  * straight at the defect and costs one refused task edit; this one fires
- * inside sign-in, which frozen 7.1 already refuses to fail over a zone problem
+ * inside sign-in, which 7.1 already refuses to fail over a zone problem
  * (it treats an unrecognized tz as absent rather than answering 422), and one
  * unwritable reminder row taking down every login for that account is a worse
  * outcome than a stale instant on a row that was already wrong.
@@ -442,27 +438,18 @@ async function recomputeForZoneChange(
  * every path that writes the column, and 8.5's own line reads that fire_at and
  * state are both per 8.6.
  *
- * This function used to write 'scheduled' flatly, following 8.5's pseudocode
- * before the third change control amended it, and defended the override here
- * on the ground that the delivery loop reaches the same answer one tick later.
- * That defence was true beyond six hours and exactly inverted inside them,
- * which is the window ordinary values land in: the loop selects scheduled rows
- * with fire_at <= now() and skips only what is more than six hours stale, so a
+ * Never write 'scheduled' flatly on the ground that the delivery loop reaches
+ * the same answer one tick later: the loop selects scheduled rows with
+ * fire_at <= now() and skips only what is more than six hours stale, so a
  * daily task due 09:00 whose reminder leads by a day, completed at 10:00, puts
- * the successor's instant an hour back and the next tick mails a reminder for
- * a deadline that has not arrived. The argument is recorded rather than
- * deleted because what made it wrong was its shape: a path that computes an
- * instant and then names a state instead of reading the one the instant earns.
- * AC-168 states it, and states rather than checks it: that criterion's test file went
- * in the 2026-09-20 cut.
+ * the successor's instant an hour back and the next tick would mail a reminder
+ * for a deadline that has not arrived. A path that computes an instant must
+ * read the state the instant earns rather than name one.
  *
  * `at` is the moment "already past" is measured against, and it is threaded
- * from generateSuccessor's own parameter rather than read here. Until the
- * state became a function of the instant this argument had nothing to decide,
- * so its absence was invisible: a caller stating the instant it evaluates
- * today at, which generateSuccessor documents as its whole reason for taking
- * one, would have had that opinion honored for the successor's due date and
- * silently ignored for its reminder's state.
+ * from generateSuccessor's own parameter rather than read here, so a caller
+ * stating the instant it evaluates today at has that honored for the
+ * reminder's state as well as for the successor's due date.
  */
 export async function copyReminderToSuccessor(
   tx: Executor,

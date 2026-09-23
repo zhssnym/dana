@@ -10,7 +10,7 @@ transition the only one that reaches it. A missed occurrence just snowballs
 in My Day until someone acts on it.
 
 **The caller owns the transaction.** This function takes an executor and
-opens nothing, the shape of P5's deleteAccountData(tx, userId): 8.3 requires
+opens nothing, the shape of deleteAccountData(tx, userId): 8.3 requires
 the insert to commit with the status change or not at all, because a
 successor without its completion, or a completion without its successor, is
 a series a user cannot repair. It also needs no lock of its own, the guarded
@@ -18,8 +18,8 @@ UPDATE that decided the caller won having already taken the row.
 
 **The zone is the request's, not the row's.** cutoff = max(due_date,
 current_date(actor.tz)), and 8.5 binds actor.tz to the zone of the request
-that made the transition. Frozen 7.6 carries it as a parameter on complete
-and abandon by the human owner's ruling of 2026-08-10, and 8.1 reserves
+that made the transition. 7.6 carries it as a parameter on complete and
+abandon, and 8.1 reserves
 users.timezone for reminder fire instants alone: a task completed by a
 colleague in Auckland must generate against the day it is where the request
 came from, and the column on the actor's row is the one wrong answer within
@@ -148,11 +148,9 @@ export async function generateSuccessor(
   )
 
   /*
-  8.5's reminder arm, deferred at P6 with the computation it needed and
-  closed here at P7: "if reminder exists on t, insert reminder on s with same
-  mode and value, fire_at recomputed per 8.6, state='scheduled'". It sits
-  between the step copy above and the rule handover below, where the P6
-  comment said it would, and it reads the assignee's zone rather than the
+  8.5's reminder arm: "if reminder exists on t, insert reminder on s with
+  same mode and value, fire_at recomputed per 8.6". It sits between the step
+  copy above and the rule handover below, and it reads the assignee's zone rather than the
   request's, which is 8.6's rule and not this function's. The successor row
   already carries the assignee and the due_time it was copied with, so the
   computation is over the successor and needs nothing passed to it: the whole

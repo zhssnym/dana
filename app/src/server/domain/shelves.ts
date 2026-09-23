@@ -1,6 +1,6 @@
 /*
-The S5 shelf module (4.18, 7.16): a per-user container whose membership
-remains folder_members.shelf_name, unchanged and frozen, and whose page needs a
+The shelf module (4.18, 7.16): a per-user container whose membership
+remains folder_members.shelf_name, and whose page needs a
 stable key a rename cannot move. The API holds membership and shelf name in step
 in one transaction, both directions: a rename rewrites the viewer's matching
 labels, a delete clears them, and the id never changes. Shelves are private
@@ -77,7 +77,7 @@ export async function shelfView(
  * 4.18's sentence is that the API "holds membership and shelf name in step in
  * one transaction", and until this function existed it held them in step in
  * two directions out of three: a rename rewrote the matching memberships, a
- * delete cleared them, and a membership written through frozen 7.4 named
+ * delete cleared them, and a membership written through 7.4 named
  * whatever string it liked. The third direction is the reported defect. 9.1 draws the Library
  * as "the viewer's shelves and folders as one ordered list" and its roles
  * table makes every shelf row a link, so a group heading whose membership no
@@ -222,8 +222,8 @@ export async function patchShelf(
       **And image-kinded**, which is `patchFolderProfile`'s second clause
       verbatim: a cover is a picture, and without it a `voice` note's id would
       be storable as one and drawn as a broken image. `putPlaceCover` (7.19) is
-      the third gate that takes a cover's file id, and it lacked this clause
-      until AC-374; the three now agree on which files they take. `serveFile`
+      the third gate that takes a cover's file id; the three agree on which
+      files they take. `serveFile`
       shares the predicate above with this gate and carries no kind clause,
       correctly: it serves voice notes too.
 
@@ -239,8 +239,7 @@ export async function patchShelf(
       the right gate rather than the wrong one. A fix written from the deferral
       sentence alone would have gated folder pages and left shelf pages ungated
       — where the folder-less pictures this change introduces live. `putPage`
-      carries both halves; AC-375 states both, and states rather than checks
-      them, its test file having gone in the 2026-09-20 cut.
+      carries both halves.
       */
       let coverFileId = patch.cover_file_id
       if (patch.cover_file_id !== undefined && patch.cover_file_id !== null) {
@@ -396,8 +395,8 @@ Duplicating a shelf, server-side and in one transaction.
 **Why this is a route at all, when the client already had one that worked.**
 `ShelfPage.tsx` duplicated a shelf by POSTing a new one and PATCHing the
 other five fields onto it, which #117 found dropping the cover. The obvious
-repair is a sixth field in that PATCH, and it does not hold: Imran ruled on
-#117 that the two shelves must be independent — "changing or removing the
+repair is a sixth field in that PATCH, and it does not hold: #117 requires
+the two shelves to be independent — "changing or removing the
 cover on either shelf must not change the other" — and two shelves pointing
 at one `cover_file_id` are not, because `DELETE /files/:id` blanks both
 through 0003's SET NULL. So the duplicate needs its own file, which needs the
@@ -480,8 +479,8 @@ export async function duplicateShelf(
          `coverFileFor`**, which is the whole difference between a set and a
          duplicate: the source is a folder-less cover of this person's own,
          which is exactly the shape a *set* keeps rather than copies, and
-         keeping it here would hand two shelves one `cover_file_id` and make
-         Imran's ruling on #117 unkeepable. The scope is null because a shelf
+         keeping it here would hand two shelves one `cover_file_id` and break
+         #117's independence. The scope is null because a shelf
          is private (4.18) and its cover belongs to the person.
 
          **A source whose bytes have gone from the store carries no file at

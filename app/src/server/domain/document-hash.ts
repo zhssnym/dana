@@ -21,10 +21,9 @@ A cycle in this position fails in a way that reads as a broken function rather
 than as a broken import graph, and it does not fail everywhere. Node evaluates
 the modules in whatever order the *entry point* reaches them, so the binding
 is initialized for most callers and not for the one that enters the cycle at
-`page-document.ts` -- `src/server/domain/pages.test.ts`, in this suite. That
-file failed with `TypeError: documentHash is not a function` pointing at a
-function four modules away, while every other file that used the same code
-passed. Three layers of the cycle had nothing to do with hashing.
+`page-document.ts`. That entry point fails with `TypeError: documentHash is
+not a function` pointing at a function four modules away, while every other
+file that uses the same code passes. Three layers of the cycle had nothing to do with hashing.
 
 So it is a leaf module, `page-document.ts` re-exports it, and nothing about it
 changed. `rich-content.ts` is the same move made on the shared side of the same

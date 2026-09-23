@@ -1,7 +1,5 @@
 /*
-Unit tests for the key arithmetic behind 4.5's `position`. Unit tests are the
-implementing role's under protocol section 8; the criteria that assert what a
-person sees are AC-266 to AC-269 and are persona 11's.
+Unit tests for the key arithmetic behind 4.5's `position`.
 
 What is worth testing here is the property rather than any particular key:
 the result lands strictly between its bounds, it satisfies the CHECK the

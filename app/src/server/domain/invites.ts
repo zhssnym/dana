@@ -1,19 +1,18 @@
 /*
-The P5 domain module: invites per spec 7.5, the 5.2 lifecycle table, V-INV
+The domain module for invites per spec 7.5, the 5.2 lifecycle table, V-INV
 and the instant-share conversion of 8.7, and the acceptance transaction.
 Routes validate and serialize; every decision that touches rows is here,
 behind the 10.2 rule that nothing leaves this file without being scoped to
 the viewer or to a folder the caller has already resolved access on.
 
-Results are discriminated unions rather than thrown statuses, the P2 module's
-convention, so the route layer owns the mapping onto 7.0's taxonomy and this
+Results are discriminated unions rather than thrown statuses, the folders
+module's convention, so the route layer owns the mapping onto 7.0's taxonomy and this
 file stays testable without HTTP.
 
-Two rulings are load-bearing here and are named where they act rather than
-only in this header: the 10.3 member cap binds every membership 8.7 grants
-(the Steward's kickoff ruling of 2026-08-09), and a bare invite to an email
-already on the inviter's roster answers 409 (the owner's ruling of the same
-day, now frozen 7.5's appended paragraph).
+Two rules are load-bearing here and are named where they act rather than
+only in this header: the 10.3 member cap binds every membership 8.7 grants,
+and a bare invite to an email already on the inviter's roster answers 409
+(7.5's appended paragraph).
 */
 import { sql } from 'drizzle-orm'
 
@@ -40,7 +39,7 @@ const MEMBER_CAP = 25
 
 /** 5.2's resend guard, one resend per invite per 24 hours, anchored on
  * last_sent_at (10.4's per-invite line, which is a state guard rather than
- * the middleware rate limiting P9 owns). */
+ * the middleware rate limiting). */
 const RESEND_WINDOW_HOURS = 24
 
 /* ------------------------------------------------------------------ *
@@ -58,15 +57,13 @@ function nullableString(value: unknown): string | null {
 }
 
 /*
-The invite as this surface reports it. Frozen 7.5 enumerates no element for
+The invite as this surface reports it. 7.5 enumerates no element for
 POST /invites' 201 body or for GET /invites/sent, and src/shared/invites.ts
 stopped there deliberately, recording that the strongest candidate reading
-is that the two are one object. This is that object, so the endpoint shape
-review the RFC 0001 P5 row places after this package meets one shape rather
-than two: it satisfies the shared floor (an id) and carries the columns of
+is that the two are one object. This is that object: it satisfies the shared floor (an id) and carries the columns of
 4.9 a client can act on.
 
-folder_name rides beside folder_id because the pending list frozen 7.5 does
+folder_name rides beside folder_id because the pending list 7.5 does
 enumerate carries the name rather than the id, and the inviter's own list
 renders the same sentence about the same folder. accepted_by is deliberately
 absent: it is a bare user id this surface offers no person shape for.
@@ -115,8 +112,8 @@ async function inviteElementById(
   const row = found[0]
   if (row === undefined) {
     // The row was written in this transaction; not finding it is a state the
-    // contract has no shape for, and the P2 precedent (the vanished
-    // membership) is to fail loudly rather than answer a degenerate body.
+    // contract has no shape for, and the precedent (the vanished
+    // membership in the folders module) is to fail loudly rather than answer a degenerate body.
     throw new Error(`invite ${inviteId} vanished between insert and read`)
   }
   return inviteFromRow(row)
@@ -124,9 +121,8 @@ async function inviteElementById(
 
 /** One invite, by id, in the element shape above. The route reads it after a
  * transition so a 200 answers what a fresh read would, the convention 7.1,
- * 7.2 and 7.4 each carry on their mutations; frozen 7.5 names no body for
- * decline, cancel and resend, so this is a candidate the endpoint shape
- * review meets rather than a shape this package fixes. */
+ * 7.2 and 7.4 each carry on their mutations; 7.5 names no body for
+ * decline, cancel and resend. */
 export async function inviteById(
   db: Db,
   inviteId: string,
@@ -165,7 +161,7 @@ export interface PendingInviteForRecipient {
 
 /*
 Q12, the login surface: invites addressed to the viewer's lowercased email
-with status pending. The element is frozen 7.5's, and its inviter person
+with status pending. The element is 7.5's, and its inviter person
 carries exactly display_name and avatar_url: a recipient has no claim on the
 inviter's id, which addresses nothing they may call.
 
@@ -174,8 +170,8 @@ an invite names (4.9 stores an email, not a user), and it is why an account
 whose address differs by one dot sees nothing: 8.7 makes matching equality
 and nothing more.
 
-Newest first, the sent list's order, so the two 7.5 lists read alike; frozen
-7.5 fixes an order for neither.
+Newest first, the sent list's order, so the two 7.5 lists read alike; 7.5
+fixes an order for neither.
 */
 export async function pendingInvitesFor(
   db: Db,
@@ -303,25 +299,24 @@ async function pendingDuplicateId(
 }
 
 /*
-V-INV on create, in the order the two frozen texts give it when they are read
+V-INV on create, in the order the two spec texts give it when they are read
 together: 8.7 lists the sequence and 7.5's bullet carries the already-member
 refusal 8.7's list does not repeat. So: email syntax and lowercasing (the
 shared schema, before this module is reached), own email, the folder's
 accessibility and its default flag, the target's current membership, the
 task's presence inside the folder, the roster conversion or its bare
-refusal, then INV-11's dedupe. Rate limits are 10.4's and P9's middleware,
-not this function's.
+refusal, then INV-11's dedupe. Rate limits are 10.4's middleware, not this
+function's.
 
-The order is not decoration. AC-059 sends a self-invite naming a default
-folder and requires the 422, so the own-email check must outrank the folder's
-409; AC-060 sends a member's address against a folder the caller cannot see
-and requires 404, so access outranks the membership conflict and nothing
+The order is not decoration. A self-invite naming a default folder answers
+422, so the own-email check must outrank the folder's 409; a member's address
+against a folder the caller cannot see answers 404, so access outranks the membership conflict and nothing
 confirms the folder exists.
 
 One transaction covers the lot, because two of the outcomes write: the
 conversion grants a membership under the cap, and the parked path inserts an
 invite against a uniqueness INV-11 shares with a concurrent caller. Sends are
-deliberately not here; the route sends after the commit, the P2 share-grant
+deliberately not here; the route sends after the commit, the share-grant
 convention, so a rolled-back transaction can never have mailed anybody.
 */
 export async function createInvite(
@@ -339,7 +334,7 @@ export async function createInvite(
     /*
     The same read that compares addresses now also answers who the email
     names. Both templates this transaction can produce render the inviter's
-    display_name (RFC 0005 change control item 32), and the row is already
+    display_name, and the row is already
     being opened, so naming a person costs no statement of its own. Null when
     8.10 has scrubbed the account; the template resolves the fallback.
     */
@@ -402,10 +397,9 @@ export async function createInvite(
 
     if (target !== undefined && (await areConnected(tx, inviterId, target.id))) {
       /*
-      The conversion arm, folder-conditional since the owner's ruling of
-      2026-08-09: the instant share creates a membership and only a folder
+      The conversion arm is folder-conditional: the instant share creates a membership and only a folder
       defines one, so a bare invite to a connected person answers 409 and
-      creates nothing (AC-141). What separates the two answers is the folder
+      creates nothing. What separates the two answers is the folder
       and nothing else.
       */
       if (folderId === null) return { kind: 'already_connected' }
@@ -418,9 +412,8 @@ export async function createInvite(
         )
       }
 
-      // The cap the kickoff ruling put on every 8.7 grant: lock the folder,
-      // then count, so the count and the insert are one decision (AC-124's
-      // acceptance arm races exactly this shape on the other grant path).
+      // The 10.3 cap on every 8.7 grant: lock the folder, then count, so the
+      // count and the insert are one decision.
       await tx.execute(
         sql`SELECT 1 FROM folders WHERE id = ${folderId} FOR UPDATE`,
       )
@@ -501,7 +494,7 @@ export async function createInvite(
     /*
     8.7's closing sentence: creating a new assignment-invite for a task
     clears task_id on any earlier pending invite for that task, which is what
-    keeps 7.0's pending_invite_email single-valued (AC-139). The older row
+    keeps 7.0's pending_invite_email single-valued. The older row
     stays pending and can still grant its folder; only its assignment intent
     is superseded.
     */
@@ -524,8 +517,8 @@ export async function createInvite(
     )
     const insertedId = inserted[0]?.id
     if (insertedId !== undefined && folderId !== null) {
-      /* polish: folderpage F3. The folder's history said nothing about an
-         invite, so "who did I ask into this" had no answer there. Recorded
+      /* Without this the folder's history would say nothing about an
+         invite, and "who did I ask into this" would have no answer there. Recorded
          as 'edited' with the predicate in detail, the same way a member's
          arrival is (4.13's verb list being a CHECK constraint). */
       await recordEvent(tx, {
@@ -673,7 +666,7 @@ The acceptance transaction of 8.7, in its order, all or nothing:
   the Trash guard when a folder is attached: a folder whose deleted_at is set
     is refused, and the acceptance rolls back whole (issue #28)
   membership grant when a folder is attached and the acceptor is not already
-    a member, under the 10.3 cap the kickoff ruling binds to every 8.7 grant
+    a member, under the 10.3 cap that binds every 8.7 grant
   conditional assignment when a task is attached
   the invite itself moves to accepted
 
@@ -683,7 +676,7 @@ both pass a read and both grant. Zero rows updated means the invite was not
 pending when this transaction reached it, which is 5.2's 409.
 
 A refused acceptance rolls back whole, so the invite stays pending and can be
-accepted once the folder has room (the ruling's closing clause, AC-140). The
+accepted once the folder has room. The
 refusal is expressed by throwing a private marker rather than by returning,
 because a return value commits the transaction and everything this function
 has written by then, the connection row included, has to go with it.
@@ -691,15 +684,13 @@ has written by then, the connection row included, has to go with it.
 const CAP_ROLLBACK = Symbol('member cap refusal, rolling the acceptance back')
 
 /*
-The Trash guard, issue #28, decided by the owner on 2026-09-03 and written
-into 5.2's accept row and 8.7's transaction.
+The Trash guard, issue #28, written into 5.2's accept row and 8.7's
+transaction.
 
-Deleting a folder was hard until RFC 0005 made it soft, and its pending
-invites went with it in the same statement. Since then the row survives for
-thirty days and this function never looked at `deleted_at`, so an acceptance
-inside that window succeeded and handed somebody a membership on a folder no
-query but Trash will ever show them. Nothing was specified for the window;
-this is the answer chosen for it, and the reasons are 8.7's.
+Deleting a folder is soft: the row survives for thirty days in Trash, and
+without this guard an acceptance inside that window would hand somebody a
+membership on a folder no query but Trash will ever show them. The reasons
+for refusing are 8.7's.
 
 It is a rollback marker rather than a return for exactly the CAP_ROLLBACK
 reason above: the connection row is already written by the time the folder is
@@ -844,7 +835,7 @@ export async function acceptInvite(
       /*
       The conditional assignment, its conditions read as one guarded UPDATE:
       the task exists, it is still in the invite's folder, it is still
-      unassigned, and since RFC 0005 it is not waiting in Trash, a trashed
+      unassigned, and it is not waiting in Trash, a trashed
       task being 8.7's "moved on" in its newest form. Anything else is
       skipped silently (8.7), because a skipped assignment loses a
       convenience while a refusal would consume the recipient's one chance
@@ -903,7 +894,7 @@ export type ResendResult =
 5.2's resend row: the inviter alone (the route's guard), pending alone, and
 at least 24 hours since last_sent_at. Terminal outranks the window, so the
 status is guarded first and a canceled invite answers 409 however old its
-anchor (AC-068).
+anchor.
 
 The window is evaluated by the database against the stored instant, in the
 same statement that re-stamps it: a refusal must leave the anchor untouched,

@@ -4,11 +4,9 @@ AC-236: structural: every mutating route on the mounted application answers
 reading route answers 401 with no session unless it is one of three named
 public reads, all enumerated over the router rather than sampled.
 
-The S14 security review's route sweep found the chain held on the day it
-ran, and its own record says the result decays the moment a router is
-added. AC-114's precedent is that a structural criterion, one that
-interrogates the artifact rather than sampling it, is the form that keeps
-being true. This walks the mounted Express router, collects every POST,
+A one-off route review decays the moment a router is added; a structural
+criterion, one that interrogates the artifact rather than sampling it, is the
+form that keeps being true. This walks the mounted Express router, collects every POST,
 PATCH, PUT and DELETE, and drives each one twice: bare, expecting 401
 (requireSession precedes requireCsrf, so an unauthenticated caller is never
 told a token was all they lacked), and signed in without the header,

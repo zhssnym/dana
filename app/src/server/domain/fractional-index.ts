@@ -1,11 +1,9 @@
 /*
-The key arithmetic behind 4.5's `position` (RFC 0005 change control item 44,
-B4): a string of base-62 digits ordered lexicographically, with a key
-computable strictly between any two.
+The key arithmetic behind 4.5's `position`: a string of base-62 digits
+ordered lexicographically, with a key computable strictly between any two.
 
-**Why a string and not a number.** Item 44's own words: "a plain integer
-renumbers every row below a drop; the shape to use is a fractional index,
-which is what Notion, Linear and Figma do". A drop writes one row here,
+**Why a string and not a number.** A plain integer renumbers every row below
+a drop; a fractional index does not. A drop writes one row here,
 whatever the list's length, which is also what makes two people dragging one
 shared list cheap: they touch different rows and never renumber each other's.
 
@@ -26,8 +24,7 @@ ones the naive version fails.
 
 **Ties are expected and are not this module's problem.** Two placements into
 one gap compute the same key by construction. Section 6's preamble ends every
-order with id, so the tie resolves to one sequence both readers see, which is
-the answer item 44's concurrency question wanted.
+order with id, so the tie resolves to one sequence both readers see.
 
 **Collation.** The column is `COLLATE "C"`, so the order this module reasons
 about (JavaScript's comparison, by code unit) and the order the database

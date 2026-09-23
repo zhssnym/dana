@@ -24,14 +24,7 @@ a match in the middle of a word counts and a prefix-only implementation
 fails; ILIKE, so case is not a filter; and title OR notes, so a needle
 present only in the notes is found.
 
-Q8's wildcard escaping was asserted here as three adversarial cases and moved
-to ac-131-search-literal-wildcards.test.ts when the Steward numbered the rule
-on 2026-08-07. The judgment that put them here, that escaping is a property
-of Q8's predicate which this file already measures, was right when it was
-made and is superseded rather than contradicted: escaping was a silence when
-the six numbers beside it were authored and became a rule the specification
-states once the change control ruled it, which is the standard those six were
-admitted under. Nothing about the three cases changed in the move.
+Q8's wildcard escaping is AC-131's rule and is not asserted here.
 
 Spec: 6 Q8 (input, predicate, sort, pagination), 4.12 (the trigram index),
 10.2, 7.10.

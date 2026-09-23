@@ -5,17 +5,15 @@ Q2, Q3, Q4 and Q5: the four capped list pages, GET /views/tasks,
 The three that 6.1's proof is about are built from one scope sentence,
 OPEN_SCOPE in cards.ts, and add their own conjunct to it: Q2 adds ANYTIME, Q3
 adds SCHEDULED, and Q5 adds nothing. That is not a convenience, it is the
-proof's stated dependency. **AC-070 was the property test over it and no longer
-exists**, having gone in the 2026-09-20 cut; sharing this fragment is what stands in for it,
-and 06.1's own dated correction says how much weaker that is.
+proof's stated dependency, and no test checks it: sharing this fragment is
+what holds it.
 
-Both conjuncts moved on 2026-09-20 with issue #216 and they are in cards.ts
-rather than here for the reason that file's header gives: Scheduled stopped
-being "due_date IS NOT NULL" and became "a Start Date or a Due Date", so
+Both conjuncts are in cards.ts rather than here for the reason that file's
+header gives: Scheduled is "a Start Date or a Due Date" (issue #216), so
 Anytime is written as the negation of it and the partition holds structurally
-instead of by two sentences agreeing. What a Scheduled row is ordered by moved
-with it, from due_date to SCHEDULE_DATE, which is the due date where there is
-one and the start date otherwise.
+instead of by two sentences agreeing. A Scheduled row is ordered by
+SCHEDULE_DATE, which is the due date where there is one and the start date
+otherwise.
 
 Q5 goes further and reuses the two functions rather than the two predicates.
 Section 6 says All is "two stacked sections in one scroll: Planned rendered
@@ -24,9 +22,9 @@ third scheme exists." A third scheme is exactly what a third query would be,
 so there is not one here.
 
 Q4 is the odd one and section 6 says why: it borrows Q3's keys for its dated
-rows and Q2's for its undated ones. The two agreed on created_at only at the
-polish round of 2026-08-30, when Q2 turned ascending; the CASE split below
-is kept because the boundary is real even while the directions coincide. It is still one list, so it is one
+rows and Q2's for its undated ones. The two agree on created_at ascending;
+the CASE split below is kept because the boundary is real even while the
+directions coincide. It is still one list, so it is one
 ORDER BY, with the keys of each block written as expressions that are null in
 the other. The alternative, two queries concatenated, would answer the same
 sequence today and would stop being one list the moment a key changed.
@@ -63,28 +61,22 @@ import {
 /**
  * Q2's row order: "status_rank, created_at ascending, id ascending".
  *
- * Ascending since the polish round of 2026-08-30 (it was descending from
- * P4 to 2.1.0): the owner ruled that a newly added task lands at the foot
- * of the list it was typed into, everywhere, and a list whose newest row
- * leads puts every capture at the top instead. Q2 feeds Anytime, the
- * folder groups and Q4's undated block, so this one fragment is that
- * ruling for all three.
+ * Ascending: a newly added task lands at the foot of the list it was typed
+ * into, everywhere, and a list whose newest row leads puts every capture at
+ * the top instead. Q2 feeds Anytime, the folder groups and Q4's undated
+ * block, so this one fragment is that rule for all three.
  */
 const Q2_ROW_ORDER = sql`${STATUS_RANK} ASC, t.created_at ASC, t.id ASC`
 
 /**
- * Q7's second section as RFC 0005 change control item 44 B4 amended it: the
- * hand order of 4.5 first, nulls leading, then Q2's own row keys.
+ * Q7's second section: the hand order of 4.5 first, nulls trailing, then
+ * Q2's own row keys.
  *
- * **This is the only order in section 6 that B4 moved**, and the ruling says
- * so in terms: it "keeps every one of section 6's eleven queries and their
- * byte-identical ordering guarantee untouched except the one that reads a
- * folder's unscheduled list". Nothing else in this file reads `position`,
- * and AC-269 is the criterion that holds the rest of them still.
+ * **This is the only order in section 6 that reads `position`**; nothing
+ * else in this file does (AC-269).
  *
- * Nulls trail (leading until the polish round of 2026-08-30): a task with
- * no position yet is a task nobody has placed, and the owner's ruling is
- * that what nobody has placed sits at the foot, newest last, exactly where
+ * Nulls trail: a task with no position yet is a task nobody has placed, and
+ * what nobody has placed sits at the foot, newest last, exactly where
  * the capture that made it put it. Q2's keys stay behind the new one rather
  * than being replaced: two people may place into one gap at once, so ties
  * in `position` are expected by design, and the keys behind it end in id,
@@ -135,8 +127,7 @@ const Q2_ORDER = sql`f.is_default DESC, lower(f.name) ASC, f.id ASC,
  * Q4's order, one list across the boundary: "schedule date ascending nulls
  * last, then within scheduled rows the Q3 keys (status_rank, timed flag,
  * due_time, created_at, id), within Anytime rows the Q2 keys (status_rank,
- * created_at ascending, id ascending — descending until the polish round of
- * 2026-08-30)".
+ * created_at ascending, id ascending)".
  *
  * The boundary this list crosses is Q3's against Q2's, and since issue #216
  * that is the Scheduled boundary rather than the due date's: Q4's own
@@ -300,9 +291,8 @@ export async function allView(
  * the same two functions rather than restating their predicates, which is
  * what stops the folder-scoped copy of an order from drifting from the
  * page-scoped one. The second takes Q2's row order alone, the folder
- * clauses of the grouped order having nothing left to order, and since
- * RFC 0005 change control item 44 it takes the hand order of 4.5 in front of
- * those keys; the constant below is where that sits.
+ * clauses of the grouped order having nothing left to order, and it takes
+ * the hand order of 4.5 in front of those keys; the constant below is where that sits.
  */
 export function folderScheduled(
   executor: Executor,

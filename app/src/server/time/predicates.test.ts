@@ -121,7 +121,7 @@ describe('checkCalendarRange, Q3Cs two rules', () => {
   })
 
   test('an inverted range is refused where the span check alone would pass it', () => {
-    // The recorded ground of the 2026-08-07 ruling: a negative difference is
+    // Why inverted ranges are refused separately: a negative difference is
     // at most 62, so a check written only as days <= 62 admits a whole
     // inverted year. This is the case that makes the first rule not
     // redundant.

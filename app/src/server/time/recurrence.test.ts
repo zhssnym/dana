@@ -3,10 +3,8 @@ The iterator against the dates the specification and RFC 5545 name.
 
 These are the cases whose answers are written down somewhere: 8.5's four
 worked examples, 4.11's inclusive UNTIL, the short-month skip the RFC
-requires, and section 13 item 15's leap-year rule. The differential suite in
-recurrence-oracle.test.ts covers the space around them; this file covers the
-points where a wrong answer would be a wrong reading of a sentence rather
-than a wrong loop.
+requires, and 4.11's leap-year rule: the points where a wrong answer would
+be a wrong reading of a sentence rather than a wrong loop.
 */
 import { describe, expect, test } from 'vitest'
 

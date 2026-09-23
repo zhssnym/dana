@@ -1,10 +1,5 @@
 # The authentication module (spec 11.6)
 
-There is one team and no area anyone may not edit. `AGENTS.md` at the
-repository root is how work on this module flows. The thirteen persona files
-this line used to name were deleted at the workflow restructure (`a7886df`,
-2026-09-01) and are in git history before that commit.
-
 Implements sections 7.1, 7.2, 10.1, and 11.6 against the acceptance criteria
 AC-005 to AC-010, AC-105 to AC-115, and AC-119 to AC-123.
 
@@ -44,18 +39,10 @@ The module also exports the 11.3 middleware (`attachSession`, `requireSession`,
 routers behind those three, in that order, and that order is a stable
 interface: changing it changes every router mounted behind it.
 
-**Still outstanding: the pruning call.** When the P7 scheduler lands, its pass
-should call the pruning function, which is the second of 11.7's two duties:
-
-```ts
-import { pruneExpiredSessions } from './auth/index.js'
-// inside the 60-second pass, after the reminder work:
-await pruneExpiredSessions(dbClient.db)
-```
-
-Pruning is hygiene, not revocation (11.6): `resolveSession` already refuses an
+**The pruning call.** The scheduler pass (`scheduler/pass.ts`) calls
+`pruneExpiredSessions`, the second of 11.7's duties. Pruning is hygiene, not revocation (11.6): `resolveSession` already refuses an
 expired row the pass has not reached, and logout and account deletion delete
-rows themselves. Nothing breaks while this is unwired; rows merely accumulate.
+rows themselves.
 
 ## What is here
 
@@ -80,14 +67,10 @@ which P9 extended rather than replaced.
 
 ## Open items
 
-**The Steward this heading used to name went with the personas** (`a7886df`,
-2026-09-01). What is open below is Hassan's, and the channel for one is a
-GitHub issue; `AGENTS.md` is the process.
+The channel for an open item is a GitHub issue.
 
 - **AC-086's third case cannot pass beside AC-154's third case, and the fixture
-  is why.** Raised at the P7 phase 3 session and escalated rather than fixed,
-  under the build-era rule for "an acceptance criterion appears wrong"; the
-  standing rule now is `AGENTS.md`'s, which says the same thing. `AC-086: one login recomputes two due dates either
+  is why.** `AC-086: one login recomputes two due dates either
   side of a transition` builds its two reminders on due dates in 2010, so
   `planReminder` computes an instant sixteen years past and frozen 7.9's own
   qualifier writes them `skipped`, which the probe confirms. 8.6's ruling of

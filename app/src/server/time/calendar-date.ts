@@ -19,8 +19,8 @@ on it is a change to a published contract, not a local edit.
 /**
  * A floating calendar date in 4.11's storage and wire format, YYYY-MM-DD.
  *
- * A plain string alias rather than a branded type on purpose: the Query
- * engineer reads due_date and added_on straight off a result row as strings,
+ * A plain string alias rather than a branded type on purpose: the view
+ * queries read due_date and added_on straight off a result row as strings,
  * and a brand would put a cast at every one of those boundaries, which is a
  * ceremony that teaches people to cast rather than to check. Every function
  * below validates what it is given instead, so a malformed date fails loudly
@@ -145,9 +145,9 @@ export function earliestDate(...dates: readonly CalendarDate[]): CalendarDate {
 /**
  * Inclusive on both ends, which is the reading Q3C's "start and end dates,
  * inclusive" fixes and the one the 62-day span is measured against: a span of
- * 62 admits 63 dates, and AC-125 states that boundary from both sides. **It states it
- * and nothing runs it**: AC-125's test file went in the 2026-09-20 cut, so the boundary is
- * held by `calendar-date.test.ts` beside this file and by nothing at the wire.
+ * 62 admits 63 dates, and AC-125 states that boundary from both sides. The
+ * boundary is held by `calendar-date.test.ts` beside this file and by nothing
+ * at the wire.
  */
 export function withinInclusive(
   date: CalendarDate,

@@ -1,7 +1,5 @@
 /*
-The 7.27 Folder facet domain (issue #210, M1-F), on Hassan's technical ruling
-of 2026-09-21,
-https://github.com/zhssnym/dana/issues/210#issuecomment-5756722756.
+The 7.27 Folder facet domain (issue #210, M1-F).
 
 Routes validate and map outcomes to statuses; every decision that touches rows
 is here, behind the 10.2 rule that no query leaves this file without being
@@ -91,8 +89,8 @@ function nullableInt(value: unknown): number | null {
 }
 
 /**
- * The name rule, and the only place it is written. Exported since Ruling 7
- * of the #210 addendum, because 7.22's export resolves a facet's name exactly
+ * The name rule, and the only place it is written. Exported because 7.22's
+ * export resolves a facet's name exactly
  * as 7.27 does -- a second copy of this rule is how an export comes to read
  * back tabs nobody recognises.
  *
@@ -192,7 +190,7 @@ export async function listFacets(
  *
  * The positions are `initialKeys(4)` -- `a0`, `a1`, `a2`, `a3` -- which is
  * exactly what migration 0027's backfill wrote as literals, because a
- * migration cannot call this function. AC-830 is what keeps the two in step.
+ * migration cannot call this function. The two must stay in step.
  *
  * `created_by` is provenance and never authority (#228's authorship rule): it
  * is the folder's creator here and the actor everywhere else, and no gate ever
@@ -218,14 +216,11 @@ export async function createNativeFacets(
  * Every private facet one person holds in one folder, deleted permanently
  * with its blocks.
  *
- * **Ruling 6 of 2026-09-21**,
- * https://github.com/zhssnym/dana/issues/210#issuecomment-5757696835: a
- * private facet is the owner's own writing that no other member may ever
+ * A private facet is the owner's own writing that no other member may ever
  * read, so nothing in the folder has a claim on it once the owner is gone.
  * When a membership ends by any path it goes with them.
  *
- * **Deleted and not trashed**, which is the ruling's word and is the whole
- * point. A `deleted_at` here would leave a row nobody may read -- the former
+ * **Deleted and not trashed**, which is the whole point. A `deleted_at` here would leave a row nobody may read -- the former
  * member is no longer in the folder, so `trashedFacets` cannot see it, and
  * every other member is refused by `facet.read`, which admits no preset -- and
  * nobody may restore, because restoring needs a membership that has ended.
@@ -383,7 +378,7 @@ export interface CreateFacetInput {
 }
 
 /**
- * The refusal order the ruling fixes, and the reason it is this way round:
+ * The refusal order, and the reason it is this way round:
  * **existence first** (10.2, so nothing leaks), **then the body**, because an
  * authority refusal must be able to name what it refused, **then the preset**,
  * **then state**, which is only meaningful on a body already valid and an
@@ -515,9 +510,8 @@ export async function createFacet(
   })
 }
 
-/** SQLSTATE 23505. Never the message: this cluster answers in French, and
- * `tests/guards/guard-postgres-leg-isolation.test.ts` fails by name any test
- * that reads server prose -- the same rule applies to the server itself. */
+/** SQLSTATE 23505. Never the message: the server's prose is translated into
+ * the cluster's language, so nothing may read it. */
 function uniqueViolation(error: unknown): boolean {
   const code = (error as { code?: unknown } | null)?.code
   if (code === '23505') return true
@@ -885,7 +879,7 @@ export async function setMyFacetOrder(
 /**
  * Private to shared, and **there is no inverse**: the same path in reverse is
  * 409, because shared to private is a private *copy* and the copy is out of
- * this slice (#210, ruling section 5).
+ * this slice (#210).
  *
  * The id, the document and the position are all kept. Keeping the id is the
  * whole point of doing this as a conversion rather than as a copy: every link
@@ -949,7 +943,7 @@ export async function shareFacet(
  * a way into part of Main and never a second copy of it. The other direction
  * is the FK's: deleting the H1 destroys its Work facet outright rather than
  * trashing it, because 7.16's `delete_block` is permanent and an unrestorable
- * Trash row is worse than none (the ruling's one reading past #210's words).
+ * Trash row is worse than none.
  *
  * A native is 409 rather than 422: the body was fine and the actor was
  * permitted; what is wrong is the state of the thing they named, and the
@@ -1178,7 +1172,7 @@ export async function destroyFacets(
  * exactly what destroying a Task is.
  *
  * It runs through the 11.7 collection above rather than writing a delete
- * beside it, which is item 36's requirement on this endpoint.
+ * beside it.
  */
 export async function destroyFacet(
   db: Db,
@@ -1547,7 +1541,7 @@ export async function applyFacetDocument(
     issued `DELETE FROM page_blocks WHERE id = $1` with no `facet_id` clause.
     **Any block in Dana could be deleted by anyone holding its id**, through a
     private facet in their own Desk, with no membership of the folder it lived
-    in. AC-845 drives the review's two probes.
+    in.
 
     Three things close it, and each is load-bearing on its own:
 

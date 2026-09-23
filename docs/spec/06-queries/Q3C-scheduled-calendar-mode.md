@@ -2,40 +2,18 @@
 
 Parameters: start and end dates, inclusive, with end minus start at most 62 days; zoom
 levels day, week, month. start must not be after end: an inverted range answers 422 naming
-the pair, ruled at P4 mid-package change control on 2026-08-07. The arithmetic above
-admits an inverted range by accident, a negative difference being at most 62, and the
-alternative reading answers it with the bare grid of the empty state. Refusing is chosen
-because a malformed request would otherwise be indistinguishable from a legitimately empty
-month, and because 7.0 already gives every endpoint 422 for a validation failure with the
-field named, so this adds no status to the frozen surface and states which failure it is.
-Year zoom is cut for v1 because projecting a daily rule at year scale produces hundreds of
-markers with no designed density rendering. The zoom levels name viewports rather than
-ranges: this query answers whatever inclusive range the request carries, and what the
-month zoom asks for is 9.5's, recorded there at the P6 change control of 2026-08-10
-because neither section had said it and AC-082 states the rule over the range its request
-names. **AC-082 has no test file**: it went in the 2026-09-20 cut, and the only thing left
-carrying the number is `components/calendar/grid.test.ts`, which is a geometry case about
-the six-week grid and reaches no wire at all. So the range rule here is the decision and
-not a proof.
-Real rows: folder_id IN ACCESSIBLE(V) AND the task's Schedule overlaps [start, end],
-all three statuses. The Schedule's span runs from activation_date = COALESCE(start_date,
-due_date) to schedule_date = COALESCE(due_date, start_date), and the overlap is
-inclusive at both ends: activation_date <= end AND schedule_date >= start. A task
-carrying neither date has no span and is never a real row.
+the pair, because a malformed request would otherwise be indistinguishable from a
+legitimately empty month. Year zoom is cut because projecting a daily rule at year scale
+produces hundreds of markers with no designed density rendering. The zoom levels name
+viewports rather than ranges: this query answers whatever inclusive range the request
+carries, and what the month zoom asks for is 9.5's.
 
-**It read `due_date BETWEEN start AND end` until 2026-09-20 and issue #216 made it an
-overlap**, because a task now has a span rather than a day and a span has to reach every
-grid it crosses. A task starting 28 September and due 3 October was absent from both the
-September and the October grid under the old reading, its bar disappearing on one screen
-and reappearing on another. For the two one-date states the two readings are the same
-statement, a span whose ends coincide overlapping a range exactly when its day is inside
-it, so AC-126's decision stands unchanged. (**AC-126 has no test file** — it was cut on
-2026-09-20 with 220 others, `app/tests/README.md` — so it is cited here as the decision
-it is and not as a pin. What executes the inclusive bounds is AC-452, which seeds a row
-on each end of the range and a row one day outside each end, in both directions.)
-**One row per task, whatever its span covers**: the row
-carries both dates and the grid draws one bar from them, and a row per day covered would
-be the duplication issue #216 refuses.
+Real rows: folder_id IN ACCESSIBLE(V) AND the task's Schedule overlaps [start, end], all
+three statuses. The Schedule's span runs from activation_date = COALESCE(start_date,
+due_date) to schedule_date = COALESCE(due_date, start_date), and the overlap is inclusive
+at both ends: activation_date <= end AND schedule_date >= start. A task carrying neither
+date has no span and is never a real row. The overlap is what lets a span reach every grid
+it crosses. One row per task, whatever its span covers: the row carries both dates.
 
 What the four Schedule states draw: a Due-only task is a one-day event on its Due Date; a
 Start-only task a one-day start event on its Start Date; a Start+Due pair on one day a
@@ -45,25 +23,18 @@ them but semantically one task. The range is inclusive at the day level. Draggin
 Due-only task's Due Date, a Start-only task's Start Date, and a Start+Due range whole,
 preserving its day span; there is no edge resizing.
 
-**Two dated build notes about the fourth state, both 2026-09-20 and both recorded because
-the honest half of an unbuilt feature is a decision rather than a gap.** The spanning bar
-is not built: a Start+Due pair draws as one chip, on its Due Date where this grid holds
-that day, on its Start Date where it holds that one instead, and on the grid's first day
-where the span encloses the whole range and holds neither end. That last case is what the
-overlap predicate made reachable and it is the reason the placement is stated at all — a
-row the query returned must be drawn somewhere, and the reading that placed it on a day
-with no cell dropped it from the screen entirely. And the whole-range drag is not built
-either, so **a Start+Due row is not draggable** on the calendar or on a date-grouped
-board: moving one end of a pair would resize a span nobody asked to resize, and refusing
-the gesture is the non-destructive half of the sentence above. The other two forms drag
-as that sentence says, each moving the one date it carries. Pending renders normal (overdue styled on past dates), completed faded and
-checked, abandoned faded and struck: the calendar is a record. Virtual instances: for
-every accessible pending task with a recurrence_rule, the rule instances strictly after
-that task's due_date, intersected with [start, end] (section 8.5). Ghost style, click
-opens the current occurrence. Cell order: all-day banners first (status_rank, id), then
-timed rows (due_time, status_rank, id), then ghosts (date order, task id). The flat array
-this endpoint answers leads on activation_date, the **first** day of the Schedule, which
-is the opposite of Q3's choice and for the reason a grid differs from a list: a list
-places a task under the day it is owed, and a bar is anchored where it begins. For the
-two one-date states the two expressions name the same date. Empty state (no
-rows in range): the bare grid; no message.
+Until the spanning bar and the whole-range drag are built, a Start+Due pair draws as one
+chip: on its Due Date where the grid holds that day, else on its Start Date, else on the
+grid's first day when the span encloses the whole range. A row the query returned must be
+drawn somewhere. Such a row is not draggable on the calendar or on a date-grouped board,
+because moving one end would resize a span nobody asked to resize.
+
+Pending renders normal (overdue styled on past dates), completed faded and checked,
+abandoned faded and struck: the calendar is a record. Virtual instances: for every
+accessible pending task with a recurrence_rule, the rule instances strictly after that
+task's due_date, intersected with [start, end] (section 8.5). Ghost style, click opens the
+current occurrence. Cell order: all-day banners first (status_rank, id), then timed rows
+(due_time, status_rank, id), then ghosts (date order, task id). The flat array this
+endpoint answers leads on activation_date, the first day of the Schedule, the opposite of
+Q3's choice: a list places a task under the day it is owed, and a bar is anchored where it
+begins. Empty state (no rows in range): the bare grid; no message.

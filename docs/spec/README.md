@@ -66,4 +66,3 @@ and move it in the same commit.
 | 10 | [`10-non-functional/`](10-non-functional/) | Auth, authorization, limits, rate limits, logging, PWA, email, response headers |
 | 11 | [`11-architecture/`](11-architecture/) | The stack, its constraints, rejected alternatives, and hazards |
 | 12 | [`12-acceptance-criteria/`](12-acceptance-criteria/) | The numbered criteria and the number allocator; the definition of done |
-| 13 | [`13-open-questions/`](13-open-questions/) | Retired. Maps old item numbers still cited in the code to where each went; open questions are GitHub issues |

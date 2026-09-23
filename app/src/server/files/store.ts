@@ -1,9 +1,8 @@
 /*
-The object store behind one interface (RFC 0005, 4.16; RFC 0004 S4). Bytes
-live here; the files table is the authority on existence, ownership and
-quota, and its id is the object key. A provider swap (the S3-compatible
-question section 13 holds for S-inf) is a new factory returning this same
-interface, and nothing above it changes, which is the S4 acceptance line.
+The object store behind one interface (4.16). Bytes live here; the files
+table is the authority on existence, ownership and quota, and its id is the
+object key. A provider swap (an S3-compatible store, say) is a new factory
+returning this same interface, and nothing above it changes.
 
 Construction is pure: createApp performs no I/O (11.10), so the root
 directory is made lazily at the first put rather than at boot. Reads answer

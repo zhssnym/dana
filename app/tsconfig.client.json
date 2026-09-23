@@ -7,9 +7,8 @@
     "lib": ["es2023", "dom", "dom.iterable"],
     "types": ["vite/client"]
   },
-  // tests/**/*.tsx is the acceptance suite's component leg, the second of
-  // P8's two test legs. Those files run under jsdom, selected per file by a
-  // "@vitest-environment jsdom" docblock so vitest.config.ts's global node
+  // tests/**/*.tsx is the acceptance suite's component leg. Those files run
+  // under jsdom, selected per file by a "@vitest-environment jsdom" docblock so vitest.config.ts's global node
   // environment and the files running under it do not move, and they render
   // client components, so this is the project whose jsx, dom lib, and bundler
   // resolution they need; tsconfig.server.json excludes them for the same

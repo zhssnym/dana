@@ -8,9 +8,8 @@ than a column. So the query answers one ordered stream and the split happens
 over it, in the order the stream arrived: filtering preserves relative order,
 so each group comes out in Q1's sort without either group being sorted twice.
 
-Every date decision here is the Scheduling engineer's, imported rather than
-restated, which the module seam requires and this file's
-hard boundaries repeat: today(tz) for 8.1's today(V), qualifyDate for 8.2's
+Every date decision here is src/server/time's, imported rather than
+restated: today(tz) for 8.1's today(V), qualifyDate for 8.2's
 minimum, myDayGroup for the Carried and Today boundary, and localDayWindow
 for Q1R's "completed_at falls on today in V's timezone".
 
@@ -91,11 +90,10 @@ async function openGroups(
     // "Sort inside each group: due_date ascending nulls last, due_time
     // ascending nulls first, id." One order for both groups, because the
     // groups are a partition of this sequence rather than two queries.
-    /* created_at before id since the polish round of 2026-08-30: the final
-       key used to be the uuid alone, which is random, so a task captured on
-       Today landed anywhere in its group rather than at its foot. Oldest
-       first puts every capture last, the same ruling Q2 took that day, and
-       id stays behind it as the deterministic tiebreak. */
+    /* created_at before id: the uuid alone is random, so a task captured on
+       Today would land anywhere in its group rather than at its foot. Oldest
+       first puts every capture last, the same rule as Q2, and id stays
+       behind it as the deterministic tiebreak. */
     order: sql`t.due_date ASC NULLS LAST, t.due_time ASC NULLS FIRST, t.created_at ASC, t.id ASC`,
     limit: CAP_PROBE,
     /* The activation date is read back as a column rather than rebuilt in
@@ -167,8 +165,7 @@ async function recap(
 /**
  * GET /views/my-day.
  *
- * The cap is per response across all three sections, ruled at the P4 change
- * control on 2026-08-07, and the rows kept are the first 1000 in the order
+ * The cap is per response across all three sections, and the rows kept are the first 1000 in the order
  * 7.10 enumerates them: carried, today, recap.
  */
 export async function myDayView(

@@ -1,40 +1,28 @@
 /*
 The four 11.8 templates, rendered as HTML with a text/plain alternative.
 
-**The words are not this module's any more.** They were, deliberately, while
-DES-034 was open: section 9 owns Dana's normative copy and carried none for
-email, so this file wrote its own and wrote it spare. Imran closed DES-034 on
-2026-08-25 and every subject, heading, body, context line, action label and
-destination below is his, recorded at RFC 0005 change control **item 32**,
-which is the one place that copy lives. `docs/design/prototype-v2/`'s
-`transactional-email-screen.tsx` was the treatment and its strings are
-fixtures written before the ruling; where the two differ, item 32 wins. That
-prototype is deleted (`a7886df`, 2026-09-01) and is in git history before that
-commit, so item 32 is now the only live authority for these words.
+**The words are designed copy, not this module's to restyle.** Every subject,
+heading, body, context line, action label and destination below is the
+designer's, and this file is where that copy lives.
 
-**Two parts, because 10.7 now says two.** Amended 2026-08-25 (item 26) from
-"plain, short templates" to HTML with a **required** text/plain alternative:
-HTML alone does not meet the section, and the text part must say the same
-thing and carry the same one action link rather than being a stub. "Short"
-and "one action link each" did not move, and they are the halves that do the
-deliverability work. So every message below is written once, as a
+**Two parts, because 10.7 says two:** HTML with a **required** text/plain
+alternative. The text part must say the same thing and carry the same one
+action link rather than being a stub. "Short" and "one action link each" are
+the halves that do the deliverability work. So every message below is written once, as a
 Composition, and rendered twice; nothing is said in one part that the other
 does not say, because neither part is authored separately.
 
-**11.4 and the values written out a second time (RFC 0005 change control item
-34).** `app/src/client/styles/tokens.css` is the single tokens file and that
+**11.4 and the values written out a second time.** `app/src/client/styles/tokens.css` is the single tokens file and that
 rule does not move; it governs the client, and an email client reads no
 external stylesheet, so a rendered message must carry every value inline.
 The colours below are that file's graphite ramp transcribed, each named after
 the token it came from so a divergence is findable, and the font stack is the
 token file's fallback run because the self-hosted Inter arrives with a client
-bundle no email loads. The precedent is `auth/pages.ts`, which has carried the
-same duplication with the same reason in its own header since ef6f39a, and the
-shape asked for is a comment on both sides; this is the side one role can
-write.
+bundle no email loads. `auth/pages.ts` carries the same duplication with the
+same reason in its own header.
 
 **Two glyphs of the treatment are not carried, and that is a medium
-constraint rather than a judgement about the design.** The prototype draws a
+constraint rather than a judgement about the design.** The design draws a
 lucide icon in the purpose tile and a second in the context card. Both are
 inline SVG, which Gmail strips and which the Word rendering engine behind
 Outlook on Windows does not draw, so on most clients the tiles would arrive as
@@ -99,8 +87,8 @@ interface Composition {
 const SENT_BY_DANA = 'Sent by Dana'
 
 /*
-The orientation footer, on the two invitations and on neither of the others
-(item 32). The discriminator is whether the recipient knows what Dana is: an
+The orientation footer, on the two invitations and on neither of the others.
+The discriminator is whether the recipient knows what Dana is: an
 invitation goes to a bare address that may hold no account, so the line is
 orientation the reader needs before deciding to click, and its second clause
 is the single most useful thing to tell them, Google being the only sign-in
@@ -114,9 +102,7 @@ promotional classification, turn on whether a message is functional, and
 promotional content can pull in an unsubscribe requirement, which would be a
 second link where 10.7 allows one.
 
-The em dash is Imran's ruled copy, quoted from item 32 rather than restyled.
-Protocol section 7 forbids one in this repository's own prose, which product
-copy is not.
+The em dash is the designed copy, quoted rather than restyled.
 */
 const ORIENTATION_FOOTER =
   "Dana keeps a project's tasks, notes and people on one page. You'll sign in with Google — there's no password to create."
@@ -124,15 +110,14 @@ const ORIENTATION_FOOTER =
 /** 10.6 fixes /app as the installed application's start URL, and 9.8's
  * invite gate deliberately has no path of its own: it renders in place of the
  * application whenever there are pending invites, over whatever /app route is
- * beneath it. So "the invites view" of item 32 is this address, while the
- * other two templates address rows of 9.1's table (RFC 0005 change control
- * item 34). */
+ * beneath it. So "the invites view" is this address, while the other two
+ * templates address rows of 9.1's table. */
 function startUrl(context: TemplateContext): string {
   return `${context.appOrigin}/app`
 }
 
 /** "Someone" as the fallback rather than as the sentence: 8.10 can scrub an
- * account between the act and the send, and item 32 keeps the word for that
+ * account between the act and the send, and the copy keeps the word for that
  * case alone. It is resolved here so no call site can choose another. */
 function inviterOf(name: string | null): string {
   return name === null || name.trim() === '' ? 'Someone' : name
@@ -190,8 +175,8 @@ function compose(
         body: `${inviter} shared this folder with you. It's in your sidebar now, ready to open.`,
         contextTitle: folderName,
         contextMeta: `Shared folder · Shared by ${inviter}`,
-        // The one action label carrying data, which is why item 32 rules it
-        // beside its destination rather than leaving a generic "Open Dana".
+        // The one action label carrying data, named beside its destination
+        // rather than left as a generic "Open Dana".
         action: `Open ${folderName}`,
         href: `${context.appOrigin}/app/folders/${folderId}`,
         footer: SENT_BY_DANA,
@@ -203,10 +188,8 @@ function compose(
         subject: `Reminder: ${task.title}`,
         purpose: 'Task reminder',
         heading: task.title,
-        // Item 32: the body names neither the folder nor the due, both of
-        // which the context card carries. The prototype's "A reminder from
-        // your Travel folder" said the card's own line twice and reads oddly
-        // when the task is in Desk.
+        // The body names neither the folder nor the due, both of which the
+        // context card carries; saying either would repeat the card's line.
         body: 'You set a reminder for this task.',
         contextTitle: dueLine(task.dueDate, task.dueTime),
         contextMeta: `In ${task.folderName}`,
@@ -254,10 +237,9 @@ function escapeHtml(value: string): string {
 The HTML part: tables, inline styles, and nothing an email client has to
 fetch but the mark.
 
-Tables rather than the prototype's flexbox because the Word rendering engine
-behind Outlook on Windows lays out tables and does not lay out flex, so a
-flexbox composition arrives there as a stack of full-width blocks. What a
-person sees is the prototype's card either way; only the mechanism differs.
+Tables rather than flexbox because the Word rendering engine behind Outlook
+on Windows lays out tables and does not lay out flex, so a flexbox
+composition arrives there as a stack of full-width blocks.
 
 The document carries an empty title deliberately. A title is drawn in no mail
 client's message body, and filling it with the subject would put a sentence in

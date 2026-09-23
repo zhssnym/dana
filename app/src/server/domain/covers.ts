@@ -1,6 +1,6 @@
 /*
 The 7.19 place-cover module: 4.20's per-viewer rows for Dana's own place
-pages (RFC 0005 change control item 44, B1).
+pages.
 
 Three things this module is careful about.
 
@@ -42,9 +42,9 @@ shelf — which is precisely the defect this module's history above says was
 closed, still open for the one folder-less kind that is not its owner's alone.
 And a `voice` note or a plain attachment could be stored as a cover and drawn
 as a broken image with the wrong mime, which is the reason `patchShelf`'s own
-comment gives for the identical clause. AC-374 asserts both, and the arms that
-must survive it: a folder-less `cover` of the caller's own, and an `image`
-from a folder they are in.
+comment gives for the identical clause. The arms that must survive it: a
+folder-less `cover` of the caller's own, and an `image` from a folder they
+are in.
 
 A file this endpoint will not take answers 404 rather than 403 or 422, one
 sentence for all three faults — absent, unreadable, not a picture — which is
@@ -121,8 +121,8 @@ is copied first. Their quota pays for the copy, which is the honest price of
 a picture that is theirs.
 
 **What is deliberately not a copy: the same folder-less picture of their own
-worn on two of their pages.** AC-373 fixes that one upload dresses a shelf
-and a place page, and both read back the same id; the sweep in
+worn on two of their pages.** One upload can dress a shelf and a place page,
+and both read back the same id; the sweep in
 `domain/files.ts` counts references across every column, so removing it from
 one page leaves the other alone. Copying there would buy independence that
 reference counting already provides, at the cost of a contract the suite

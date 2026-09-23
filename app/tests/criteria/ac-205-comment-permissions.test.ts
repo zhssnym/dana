@@ -7,7 +7,7 @@ Three roles, three answers, one thread. The author-or-owner delete rule is
 4.15's and it is asserted from both sides so an implementation that checks
 only one of the two grants cannot pass.
 
-Spec: 4.15, 7.14, 10.2 (RFC 0005).
+Spec: 4.15, 7.14, 10.2.
 */
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 

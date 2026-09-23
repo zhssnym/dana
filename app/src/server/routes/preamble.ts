@@ -18,13 +18,10 @@ route on until the session middleware is already on it.
 `createApp` mounts `createAuthRouter` first at `/api/v1`, and that router's
 own `router.use(attachSession(db))` matches every path under the mount, so
 every request has its session resolved before any router in this directory
-sees it. Measured 2026-09-03 by deleting the block from `routes/trash.ts`
-outright: AC-236 stayed green (2 of 2), and AC-189 and AC-190 with it, which
-is what a no-op looks like. Every mount site in the repository — `index.ts`
-and the four `routes/*.test.ts` harnesses — puts the auth router first.
+sees it: deleting the block from a route file leaves AC-236 green, which is
+what a no-op looks like.
 
-So what this block buys is **order tolerance**, which `routes/README.md` has
-promised of every router here since P2: a router that attaches its own session
+So what this block buys is **order tolerance**: a router that attaches its own session
 can be mounted before the auth router, or without it, and still authenticate.
 Deleting it would make the mount order in `index.ts` load-bearing for
 authentication as well as for path shadowing, which is the hazard the comment

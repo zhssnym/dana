@@ -9,11 +9,10 @@ stranger's.
 ## Why this file exists
 
 `ac-236` made **authentication** structural, on every method since issue #33.
-Authorization was left resting entirely on people remembering: spec 10.2 was
-corrected on 2026-08-31 to say so plainly, and issue #74 counted what it rests
-on — **twenty hand-written `accessOf(...)` calls across nine files, and
-forgetting one fails nothing**. A GET that takes a session and then reads
-whatever id it is handed passed the entire suite before this file.
+Authorization rests on people remembering: it is **hand-written
+`accessOf(...)` calls across many files, and forgetting one fails nothing**
+(issue #74). Without this file, a GET that takes a session and then reads
+whatever id it is handed passes the entire suite.
 
 The mitigation that does exist is genuinely good and is why this was a gap
 rather than a live vulnerability: the membership check is written inside the
@@ -57,16 +56,12 @@ says nothing about it, and the counts are what would notice.
 - **`member`**, on the twelve routes where 5.4, 7.15 or the Folder Access
   model of issue #228 grants a member visibility and withholds the act: 403,
   and the refusal may say why, precisely because the person can already see
-  the thing. One of the twelve, `DELETE /api/v1/files/:id`, is the defect this
-  sweep found; it is fixed, and its row carries the story. **The count is
-  prose and nothing asserts it** -- what is asserted is the route enumeration
-  below, in both directions -- so read it as a description of the table rather
-  than as a guard over it. It said eleven until 2026-09-20 and was already
-  stale by then: issue #228 added four id-bearing Access routes with member
-  variants, and `PATCH /api/v1/folders/:id` **lost** its variant the same day,
-  because accepted #209 R8A gives a folder's whole identity to Can edit and
-  `fx.member` is admitted at Can edit, so there is no act on that route this
-  actor is refused. That row carries the reasoning and Hassan's ruling.
+  the thing. **The count is prose and nothing asserts it** -- what is
+  asserted is the route enumeration below, in both directions -- so read it
+  as a description of the table rather than as a guard over it.
+  `PATCH /api/v1/folders/:id` has no member variant, because accepted #209
+  R8A gives a folder's whole identity to Can edit and `fx.member` is admitted
+  at Can edit, so there is no act on that route this actor is refused.
 - **`viewerScoped`**, on four routes, which are this file's `PUBLIC_READS`:
   the id in the path names no row of ours that could belong to somebody else,
   so every signed-in caller gets the same answer and the row records why. An
@@ -175,11 +170,11 @@ const METHODS = ['get', 'post', 'patch', 'put', 'delete'] as const
  * Mount points this application uses. A router layer is attributed to the
  * first one its own regexp accepts.
  *
- * **`/api` was here and had to come out (review of 2026-09-04).** A layer's
+ * **Bare `/api` must not be in this list.** A layer's
  * `match` is a prefix test, so a router mounted at bare `/api` accepts
  * `/api/v1` too and would have been attributed to the first candidate in the
- * list. Its routes would then have been keyed `/api/v1/whatever`, tabulated
- * under that name, and driven at a path no route matches — straight into the
+ * list. Its routes would then be keyed `/api/v1/whatever`, tabulated under
+ * that name, and driven at a path no route matches — straight into the
  * `/api` catch-all, which answers the same 404 the table expects. The bad
  * outcome is not a red run, it is a green one over routes nobody swept. So
  * this list holds only mounts that are unambiguous, `ROUTE_BASE` below fixes
@@ -188,14 +183,9 @@ const METHODS = ['get', 'post', 'patch', 'put', 'delete'] as const
  * no-mount-is-a-prefix-of-another rule the attribution rests on is asserted in
  * the enumeration test rather than left to whoever edits this line.
  *
- * **`/api/csp-report` was added by that guard rather than by foresight**, on
- * 2026-09-04 at the wave-1 integration merge: issue #99's router is mounted at
- * its own path, the walk had no name for it, and the run went red naming a
- * route path of `/`. That is the whole of what the guard is for, and it is
- * worth recording that its first firing was a true one. The route carries no
- * parameter, so it enumerates and is then filtered out; what would have
- * happened without the guard is that it, and anything later mounted beside it,
- * would have been keyed under whichever mount matched first.
+ * **`/api/csp-report`** (issue #99) is mounted at its own path, so it needs
+ * its own entry; without one the walk reports a route path of `/`. The route
+ * carries no parameter, so it enumerates and is then filtered out.
  */
 const MOUNTS = ['/api/v1', '/api/health', '/api/csp-report']
 
@@ -276,9 +266,8 @@ function idBearingRoutes(application: unknown): string[] {
  * Every id the table addresses, as a union rather than as loose fields.
  *
  * **The union is what makes the visibility control complete instead of
- * diligent** (review of 2026-09-04). That control was a hand-written list of
- * probes, and a hand-written list is exactly the thing this file exists to
- * refuse: an id added here and forgotten there would be swept while nothing
+ * diligent**. A hand-written list of probes is exactly the thing this file
+ * exists to refuse: an id added here and forgotten there would be swept while nothing
  * proved it was a real row, and every 404 about it would be honest about the
  * wrong thing. The probes below are a `Record` over this union, so the
  * compiler refuses a new id that nobody proves visible.
@@ -367,11 +356,8 @@ async function fixturesOf(): Promise<Fixtures> {
      each of which has two gates — the target and the Label — and each of
      which answers 404 to a stranger either way. Driven with the *owner's*
      Personal Label the row is satisfied by the Label gate alone, so deleting
-     the target gate leaves it green; that is exactly what a mutation found on
-     2026-09-20, with the folder gate removed and a stranger writing a
-     `folder_personal_labels` row against a Folder they cannot see, and with
-     `accessibleTask` removed and both this file and `ac-236` still green.
-     Handing over a Label they genuinely own takes the Label gate out of the
+     the target gate leaves it green — a mutation test showed exactly that,
+     for both the folder gate and `accessibleTask`. Handing over a Label they genuinely own takes the Label gate out of the
      answer and leaves only the target's. */
   const strangerPersonalLabelId = await makePersonalLabel(
     stranger,
@@ -463,14 +449,9 @@ interface Row {
 }
 
 /*
-Adding a route is adding one line here, and the wave-1 integration merge of
-2026-09-04 is the first time that was measured rather than asserted. Three
-routes it carried were named in this comment while they were still on other
-branches: `POST /api/v1/shelves/:id/duplicate` arrived, cost exactly the one
-row below it, and took the count from 59 to 60; `GET /api/v1/me/export` and
-`POST /api/csp-report` carry no id and are outside this enumeration, which is
-also why neither appears here. Nothing else about the table moved for a merge
-that touched sixteen issues, which is the property the count is pinned for.
+Adding a route is adding one line here. Routes that carry no id, such as
+`GET /api/v1/me/export` and `POST /api/csp-report`, are outside this
+enumeration.
 */
 const TABLE = new Map<string, Row>([
   /* -------------------------------------------------------------- *
@@ -497,17 +478,12 @@ const TABLE = new Map<string, Row>([
         expected: 404,
         rule: '5.4: a non-member sees nothing, so every act on the folder is 404',
       },
-      /* **No member variant, and its absence is the decision.** This row
-         carried one until 2026-09-20: 403 on a rename, the DES-225 split in
-         which the folder-owned identity was any member's and the name was the
-         owner's. `fx.member` is admitted at Can edit, and accepted #209 R8A
-         makes a folder's whole identity ordinary shared Folder work that Can
-         edit changes, so there is no act on this route this actor is refused
-         and a member row here would assert the superseded rule. AC-011,
-         AC-012 and AC-193 carry it, under Hassan's ruling of 2026-09-20,
-         https://github.com/zhssnym/dana/issues/228#issuecomment-5750892771.
-         The refusal that did not move is `DELETE /api/v1/folders/:id` below,
-         whose member row still reads 403. */
+      /* **No member variant, and its absence is the decision.** `fx.member`
+         is admitted at Can edit, and accepted #209 R8A makes a folder's whole
+         identity ordinary shared Folder work that Can edit changes, so there
+         is no act on this route this actor is refused (AC-011, AC-012,
+         AC-193). `DELETE /api/v1/folders/:id` below does refuse the member,
+         403. */
     },
   ],
   [
@@ -581,7 +557,7 @@ const TABLE = new Map<string, Row>([
     },
   ],
   /*
-  The four routes issue #228 added, each with the row hard-stops.md asks for.
+  The four Access routes of issue #228, each with its authorization row.
 
   Three of them are member administration, so the *member* variant matters as
   much as the stranger's: a plain member sees the folder and is refused the
@@ -644,7 +620,8 @@ const TABLE = new Map<string, Row>([
     },
   ],
   /*
-  The five routes issue #230 added, each with the row hard-stops.md asks for.
+  The five Responsibility routes of issue #230, each with its authorization
+  row.
 
   Three are reads that carry the folder's own visibility: #209 R5 makes the
   Responsibility document Folder-visible in M1 and R10 gives prior revisions
@@ -1516,13 +1493,9 @@ const TABLE = new Map<string, Row>([
          asking. A stranger handing over a label they genuinely own must still
          be refused, because what they may not reach is the **folder**; a row
          driving the owner's label would pass on the label gate alone and would
-         say nothing about the folder gate this route also needs.
-
-         It drove the owner's until 2026-09-20 while saying it drove the
-         stranger's, and the gap was provable: with `folderAccess` replaced by
-         a bare `parsedId` in this route, this file stayed green and a stranger
-         wrote a `folder_personal_labels` row against a folder they cannot
-         see. The four assignment rows all carried it. */
+         say nothing about the folder gate this route also needs: with
+         `folderAccess` replaced by a bare `parsedId`, a stranger could write a
+         `folder_personal_labels` row against a folder they cannot see. */
       attempt: (fx) => ({
         path: `/folders/${fx.folderId}/labels/${fx.strangerPersonalLabelId}`,
       }),
@@ -1583,18 +1556,17 @@ const TABLE = new Map<string, Row>([
   answered 404 rather than anything about the body.
 
   **Two of them carry a `member` variant and nine do not, and the split is the
-  decision rather than an oversight.** `fx.member` holds Can edit, and issue
-  #210's ruling puts create, rename, hide, reorder and delete at exactly that
+  decision rather than an oversight.** `fx.member` holds Can edit, and 7.27
+  (issue #210) puts create, rename, hide, reorder and delete at exactly that
   bar — so there is no act on those routes this actor is refused, and a member
   row would assert a rule nobody made. The two that do refuse them are
   `DELETE /api/v1/trash/facets/:id`, which is Full control with ownership
-  ignored (7.13's 2026-09-20 correction, the Task rule rather than the
-  Folder's), and `POST /api/v1/folders/:id/facets/:facetId/share`, which needs
+  ignored (7.13, the Task rule rather than the Folder's), and `POST /api/v1/folders/:id/facets/:facetId/share`, which needs
   the facet's **owner** as well as the preset and so refuses a Can-edit member
   who does not own it.
 
   **What no row here can reach is the private-facet rule**, and that is worth
-  saying because it is the most important thing #210's ruling decided. A
+  saying because it is the most important rule of 7.27. A
   private facet is invisible to Full control and to the structural owner, and
   this sweep drives a stranger and a Can-edit member — neither of whom is
   either. AC-838 is where that is driven, at every preset and at the owner, and
@@ -1943,11 +1915,10 @@ describe('AC-397 every id-bearing route refuses a stranger', () => {
   uuid that is nobody's, and then the stranger's 404 is the truth about a row
   that does not exist rather than about a row they may not have. Every factory
   asserts its own 201, so this holds by construction; it is asserted anyway,
-  because "by construction" is what the folder-row comment CLAUDE.md warns
-  about also said.
+  because comments here describe intent, and "by construction" is a claim
+  worth running.
 
-  **A `Record` over `ResourceId` rather than a list of calls** (review of
-  2026-09-04), so the compiler refuses an id that joins `Fixtures` and no
+  **A `Record` over `ResourceId` rather than a list of calls**, so the compiler refuses an id that joins `Fixtures` and no
   probe. The two pages are named beside it and not in it, because a page is
   addressed by its home's id and has none of its own.
   */
@@ -2128,14 +2099,9 @@ describe('AC-397 every id-bearing route refuses a stranger', () => {
   /*
   The register of findings this sweep turned up that were not its to fix.
 
-  **It is empty as of 2026-09-04 and the machinery stays.** The one entry it
-  ever held was `DELETE /api/v1/files/:id`, which answered 404 to a member who
-  reads the same bytes at 200; the owner ruled the correction in the same day
-  as a move toward 10.2's stated grammar rather than a change to frozen 7.15,
-  so the variant was promoted into the member pass above and AC-398 now asserts
-  the pair directly. What is left is the shape for the next one, because a
-  sweep that can only record findings it is allowed to fix is a sweep that will
-  one day be quietly narrowed to fit.
+  **It is empty, and the machinery stays** as the shape for the next one,
+  because a sweep that can only record findings it is allowed to fix is a
+  sweep that will one day be quietly narrowed to fit.
 
   **Written as a manual inversion rather than as `test.fails`, and the empty
   register is exactly why.** `test.fails` passes when its body throws, so with

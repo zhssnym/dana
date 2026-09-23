@@ -23,8 +23,7 @@ everything; `member` is in `owner`'s folder, which is what lets the sweep
 tell 5.4's member column from its owner column; `stranger` has no
 relationship to anything here and is who most of the table is driven as.
 
-The upstream stub is `src/server/http/cover-photos-contract.test.ts`'s,
-shortened: `GET /covers/photos/:id/thumb` and `POST /folders/:id/cover/photo`
+The upstream photo stub exists because `GET /covers/photos/:id/thumb` and `POST /folders/:id/cover/photo`
 both call Openverse before they reach anything of ours, and a sweep that let
 them reach the real network would be measuring the internet's availability.
 Nothing here touches it.
@@ -57,8 +56,8 @@ export interface MemoryFileStore {
 }
 
 /** In memory rather than on disk: the sweep stores one picture and reads it
- * back through the route, and `.data` is a directory this suite has been
- * bitten by before (CLAUDE.md). Shaped exactly as AppOptions.fileStore. */
+ * back through the route, and a local `.data` can reach a state where every
+ * query throws (docs/troubleshooting.md). Shaped exactly as AppOptions.fileStore. */
 export function memoryFileStore(): MemoryFileStore {
   const objects = new Map<string, Buffer>()
   return {
@@ -263,7 +262,7 @@ export async function makeFolderLabel(
   return idOf(made, 'the created folder label')
 }
 
-/** A saved view, one person's own by construction (RFC 0005). */
+/** A saved view, one person's own by construction (4.19). */
 export async function makeSavedView(
   owner: Actor,
   name: string,
@@ -461,7 +460,7 @@ export async function trashTask(owner: Actor, taskId: string): Promise<void> {
 }
 
 /** A folder in the Trash, with its member still attached so the permanent
- * delete has the 403 arm item 38 gives it. */
+ * delete has the 403 arm 7.13 gives it. */
 export async function trashFolder(
   owner: Actor,
   folderId: string,

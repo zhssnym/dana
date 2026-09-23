@@ -297,7 +297,7 @@ function taskFrom(
     recurrence_rule: nullableString(row.recurrence_rule),
     series_id: nullableString(row.series_id),
     /* Null where the creator's account was deleted: 8.10 scrubs the name and
-       AC-250 makes every card read null. The column still points at the
+       every card reads null. The column still points at the
        scrubbed row, which is not this document's business. */
     created_by: nullableString(row.creator_display_name),
     assignee: nullableString(row.assignee_display_name),
@@ -791,8 +791,7 @@ export async function exportForViewer(
   const blocksByShelf = groupBy(shelfBlockRows, 'shelf_id')
 
   /*
-  Ruling 7 of the #210 addendum, https://github.com/zhssnym/dana/issues/210#issuecomment-5757696835:
-  the person's own Folder facets and their documents.
+  Issue #210: the person's own Folder facets and their documents.
 
   **The membership join is the scope and it is inside the FROM clause**, as
   every other statement here has it. Two conditions, and the second is the one
@@ -800,8 +799,8 @@ export async function exportForViewer(
   in every folder this person is currently in, owned or not -- and
   `fo.owner_id = viewer` takes the shared ones only where the folder page
   beside them is already being carried under `folders.blocks`. That second
-  clause is the "shared facets follow the folder page" rule the ruling asks
-  7.22 to state in words, written as SQL.
+  clause is 7.22's "shared facets follow the folder page" rule, written as
+  SQL.
 
   Trashed facets come too, with `trashed` set, as a trashed folder does; the
   export is what the person has, and a thirty-day window has not closed yet.

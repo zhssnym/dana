@@ -1,5 +1,5 @@
 /*
-The sample workspace surface (RFC 0005 change control item 60): what
+The sample workspace surface (7.20): what
 GET /sample answers, and what POST /sample answers again. DELETE answers
 204 and no body, so no schema is here for it.
 */
@@ -20,6 +20,6 @@ export const sampleStatus = z.object({
 export type SampleStatus = z.infer<typeof sampleStatus>
 
 /** DELETE /sample's one optional word back: the sample folders it left
- * standing because someone else is a member (item 60's shared-folder rule).
+ * standing because someone else is a member (7.20's shared-folder rule).
  * Carried in a header rather than a body so the 204 stays a 204. */
 export const SAMPLE_KEPT_HEADER = 'x-dana-sample-kept'

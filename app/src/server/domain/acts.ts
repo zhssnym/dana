@@ -1,10 +1,9 @@
 /*
-The S5 object acts (7.16, RFC 0005): duplicate for tasks and folders under
+The object acts (7.16): duplicate for tasks and folders under
 DES-198's copy rules, the workflow import under DES-206's, and the direct
 ownership transfer of 8.9's second form.
 
-DES-198, as the design record settles it after its own shipped
-contradiction: a copy takes the structure and never the grants, the
+DES-198, as 7.16 states it: a copy takes the structure and never the grants, the
 progress, or the conversation; the work lands on whoever made the copy; and
 due dates are shifted rather than copied, but only when the plan is spent.
 The intervals are what a template keeps, so when the folder's earliest date
@@ -12,15 +11,11 @@ has already passed, every date moves forward by the same days that bring
 that earliest date to today; dates still ahead are a live plan and copy
 untouched.
 
-**The comparison day is today in the caller's zone, and until 2026-09-04 it was
-the database session's `current_date` (issue #76).** The header here defended
-that as "a template being a day conservative, not a lie". It was a lie: 8.1
-defines today as the current date in the request's tz and says in terms that an
-endpoint which evaluates a date and takes no tz is an incomplete surface rather
-than an invitation to substitute the stored zone below — recorded at the P4
-merge review after this exact mistake had been made once already, and 7.8 is
-the endpoint that was completed then. Both duplicates now take `tz` on 7.8's
-precedent, exactly as 7.16's import does: present and invalid is 422, absent is
+**The comparison day is today in the caller's zone, never the database
+session's `current_date` (issue #76).** 8.1 defines today as the current date
+in the request's tz and says in terms that an endpoint which evaluates a date
+and takes no tz is an incomplete surface rather than an invitation to
+substitute the stored zone. Both duplicates take `tz` on 7.8's precedent, exactly as 7.16's import does: present and invalid is 422, absent is
 422 when a date would be evaluated, and absent is fine when none would.
 
 Whether a date would be evaluated is decided without a zone, because the zone
@@ -213,7 +208,7 @@ export async function duplicateFolder(
       block said "the cover is deliberately not carried: its file row is the
       source folder's and its visibility scope would lie in the copy", which
       diagnosed the problem exactly and then dropped the picture rather than
-      solving it — so a duplicated folder wore its preset and its crop (AC-293)
+      solving it — so a duplicated folder wore its preset and its crop
       and silently lost an uploaded photograph, which is #117's fault one object
       over. The copy is made **inside the new folder**, so its scope is the
       copy's own membership and nothing lies. It spends the duplicator's quota,
@@ -290,8 +285,8 @@ export async function duplicateFolder(
          duplicate and an import are new Folders whose only member is the
          person who made them, which is R10B's rule for member standing read
          one table over, and #210's out-of-scope list leaves the copy of a
-         facet's content to a later slice. `guard-native-facets-on-every-folder`
-         fails the day a `folders` insert has no call like this beside it. */
+         facet's content to a later slice. Every `folders` insert needs a call
+         like this beside it. */
       await createNativeFacets(tx, copyId, viewerId)
       if (coverFileId !== null) {
         // The scope, now that there is a folder to name (4.16, 7.15).
@@ -411,8 +406,7 @@ export async function duplicateFolder(
           task.recurrence_rule === null ? null : String(task.recurrence_rule)
         const inserted = await rowsOf(
           tx,
-          /* polish: folderpage F9. The hand order (4.5's position, item 44's
-             B4) is part of the structure a duplicate keeps: without it the
+          /* The hand order (4.5's position) is part of the structure a duplicate keeps: without it the
              copy came out in creation order, which is not the order the
              person had arranged. */
           sql`INSERT INTO tasks
@@ -597,17 +591,16 @@ export async function duplicateFolder(
       const shift = Number(shifted[0]?.shift ?? 0)
       if (shift > 0) {
         /*
-        start_date moves with it, corrected 2026-09-20 (issue #215).
+        start_date moves with it (issue #215).
 
         The point of this shift is in the line above it: one delta for the whole
         folder, so the copy keeps the intervals the person arranged. A start
         date left where it stood breaks exactly that, and breaks it worst on the
         task the shift is derived from - a plan starting 1 January and due 10
         January, duplicated in September, would come out starting in January and
-        due today. The ruling on #215 said duplication copies the field as it
-        stands, and that was written for the single-task act below, where one
-        spent deadline is clamped onto today rather than a folder being moved
-        bodily. Here it was wrong, and this is the correction.
+        due today. Copying the field as it stands is right only for the
+        single-task act below, where one spent deadline is clamped onto today
+        rather than a folder being moved bodily.
 
         Both columns take the same delta, so a pair that satisfied
         tasks_start_before_due_check still does. The WHERE widens because the
@@ -632,8 +625,7 @@ export async function duplicateFolder(
         subjectName: name,
         folderId: copyId,
         /* The bar and the History line say which of 9.6's two things happened
-           (ledger L-055, RFC 0005 change control item 58): the prototype's own
-           two sentences. */
+           (L-055). */
         detail:
           shift > 0
             ? `from ${String(source?.name ?? 'a folder')}, dates moved to start today`
@@ -676,11 +668,10 @@ export type DuplicateTaskResult =
   | { kind: 'tz_required' }
 
 /**
- * RFC 0005 change control items 46 and 47(b), enacted by RFC 0004's S28a:
- * the copy carries the title, the notes, the importance, the steps (all
+ * The copy carries the title, the notes, the importance, the steps (all
  * undone), the section, the due date and the repeat, and never the
  * conversation, the completion, or the assignment, which lands on whoever
- * made the copy (item 44's B10). The date follows 9.6's one rule for a
+ * made the copy. The date follows 9.6's one rule for a
  * folder applied to one task: a spent due date re-anchors on today and a
  * future one keeps, the repeat riding whichever the copy carries.
  *
@@ -724,12 +715,11 @@ export async function duplicateTask(
         : storedDue
     /*
     The start date follows the due date by the same number of days when 9.6
-    re-anchors a spent one, and copies as it stands otherwise (issue #215,
-    corrected the same day it was ruled).
+    re-anchors a spent one, and copies as it stands otherwise (issue #215).
 
-    The first draft of this copied it verbatim and said so in the ruling. That
-    was wrong in the case it is most likely to meet: a task starting 1 January
-    and due 10 January, duplicated in September, came out starting in January
+    Copying it verbatim would be wrong in the case it is most likely to meet:
+    a task starting 1 January
+    and due 10 January, duplicated in September, would come out starting in January
     and due today - a nine-month Schedule nobody wrote. What a duplicate is for
     is the shape of the work, and the Schedule is a shape rather than two
     independent dates.
@@ -881,8 +871,8 @@ export async function importWorkflow(
          duplicate and an import are new Folders whose only member is the
          person who made them, which is R10B's rule for member standing read
          one table over, and #210's out-of-scope list leaves the copy of a
-         facet's content to a later slice. `guard-native-facets-on-every-folder`
-         fails the day a `folders` insert has no call like this beside it. */
+         facet's content to a later slice. Every `folders` insert needs a call
+         like this beside it. */
       await createNativeFacets(tx, folderId, viewerId)
       const taskMap = new Map<string,string>()
       /*
@@ -939,13 +929,13 @@ export async function importWorkflow(
       const madeTaskIds: string[] = []
       // Work arrives as typed work would: pending, unticked, the
       // importer's (the DES-198 contradiction's one rule). What travels is
-      // item 44's B3 list and no more, which is the widening; what does not
+      // the 7.16 list and no more; what does not
       // is still ids, people, due dates and states.
       for (const [taskIndex,task] of work.entries()) {
         // A repeat needs 4.5's anchor and a reminder needs 8.6's, and the
         // file carries no date, so the day the run began is the date they
         // get. A task carrying neither stays undated, which is what the
-        // exclusion is about (change control item 46(a)).
+        // exclusion is about.
         const dated =
           task.recurrence_rule !== undefined || task.reminder !== undefined
         const madeTask = await rowsOf(

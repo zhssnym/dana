@@ -1,5 +1,5 @@
 /*
-The 7.12 contract: events and notifications (RFC 0005). Events are read-only
+The 7.12 contract: events and notifications. Events are read-only
 on the wire, written only by the 10.2 chokepoint, so the request side here is
 two query shapes and two read-state posts; the response side is the event
 line every history surface renders.
@@ -86,11 +86,9 @@ export function parseSubjectRef(ref: string): {
 }
 
 /*
-The read half, added by the S9 client arm on 2026-08-24, for the reason
-`shelves.ts`, `bundle.ts` and `trash.ts` record at their own additions: the
-v2 packages published query shapes and interfaces but no zod schema for what
-a read answers, and `api/http.ts` parses every response through one. Recorded
-with those three as one change control item.
+The read half: `api/http.ts` parses every response through a zod schema, so
+each read needs one beside the query shapes and interfaces, as in
+`shelves.ts`, `bundle.ts` and `trash.ts`.
 */
 export const eventLine = z.object({
   id: z.uuid(),
@@ -108,9 +106,8 @@ export const eventLine = z.object({
 The envelope, not a bare array: the three list reads all carry 10.3's
 list cap and report whether they hit it, so a client can render section
 6's truncation line rather than silently showing the first thousand of
-something longer. Written from `domain/events.ts` rather than guessed,
-after a guess got it wrong and the parse failed silently in the window
-bar, which is the failure mode a response schema exists to make loud.
+something longer. Written from `domain/events.ts` rather than guessed: a
+wrong guess fails the parse silently in the window bar.
 */
 export const getEventsResponse = z.object({
   events: z.array(eventLine),
@@ -119,12 +116,9 @@ export const getEventsResponse = z.object({
 export type GetEventsResponse = z.infer<typeof getEventsResponse>
 
 /*
-The notifications read (7.12), added by the S12 client arm on 2026-08-25 for
-the reason the read half above records: `api/http.ts` parses every response
-through a schema, and S3 published `NotificationLine` with no zod for it.
+The notifications read (7.12), for the reason the read half above records.
 Written from `domain/events.ts`'s `listNotifications`, the same discipline as
-`getEventsResponse` beside it, and recorded with the S9 additions as one
-change control item.
+`getEventsResponse` beside it.
 */
 export const notificationLine = z.object({
   id: z.uuid(),

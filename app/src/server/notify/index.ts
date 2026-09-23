@@ -1,26 +1,25 @@
 /*
 The 11.8 notification module, transport half: send-or-log behind the 11.10
-construction seam's options.notifications sink, ruled mid-P2 (d8e722f).
+construction seam's options.notifications sink.
 
 Why a sink exists at all: 11.8 forbids real sending in development and
 tests, and 10.5 keeps recipient addresses out of the logs, so without
-injection an outbound email is unobservable and AC-021 and AC-024 could
-not count sends. When the seam injects a sink, every message is delivered
+injection an outbound email is unobservable and no test could count
+sends. When the seam injects a sink, every message is delivered
 to its send(message); absent the sink, the module logs the suppression and
 sends nothing. The log line carries only the template name, so the 10.5
 rule is structural: the recipient address never reaches the logger in any
 environment.
 
-The Resend transport landed at P7, in ./resend.ts, and the template bodies
-with it in ./templates.ts; S19 made them four and gave each two parts. The
-order of precedence here is 11.10's
+The Resend transport is ./resend.ts, and the four templates, each in two
+parts, are ./templates.ts. The order of precedence here is 11.10's
 sentence read literally: an injected sink replaces the logging, and absent
 one, 11.8 stands unchanged, which is log in development and tests and send
 in production. So the sink wins over the transport, the transport over the
 log, and a process with neither still sends nothing and says so.
 
-Call sites are the Collaboration engineer's (7.4 share grant, 7.5 invites)
-and, since P7, the scheduler pass's reminder: routes reach the
+Call sites are the routes (7.4 share grant, 7.5 invites) and the scheduler
+pass's reminder: routes reach the
 per-application instance through notifierOf(app), attached by createApp so
 the sink arrives with the same construction call that carries the database
 handle, and the pass is handed that same instance at boot.
@@ -31,14 +30,12 @@ import type { Application } from 'express'
  * than by exact spelling, but one canonical spelling means nothing depends
  * on that tolerance.
  *
- * invite split into two on Imran's DES-034 ruling (RFC 0005 change control
- * item 32, enacted at S19 under item 34). 7.5 makes folder_id optional, so
- * one name carried two events whose subject, heading and context all differ;
+ * The invite is two templates because 7.5 makes folder_id optional, so
+ * one name would carry two events whose subject, heading and context all differ;
  * and the template name is what the 11.10 sink reads, so under one name no
  * acceptance criterion could tell a folder invitation from a connection
- * invitation. Both new names still answer the invite matcher the sharing
- * harness matches by word, which is why the split cost the criteria that
- * count invite sends nothing. */
+ * invitation. Both names still answer the invite matcher the sharing
+ * harness matches by word. */
 export type MessageTemplate =
   | 'invite_folder'
   | 'invite_connection'
@@ -52,15 +49,12 @@ closed, and template payload fields are added here rather than at a call
 site, so every widening of what an email carries is a visible change to this
 file.
 
-**It is a union now rather than one interface with optional payloads**, and
-the reason is the fault S19 exists to repair. Until then the invite and
-share-grant templates said "Someone has invited you" because nothing in this
-type could carry a person, and the shape that permitted that was an optional
-key: a call site passing nothing still typechecked, and the template had no
-choice but to write a sentence about nobody. Under the union a message cannot
-be constructed without the payload its own template renders from, so the
-compiler now holds the property those templates used to apologise for. The
-two keys 11.10 fixes, template and to, are on every arm.
+**It is a union rather than one interface with optional payloads.** With an
+optional key, a call site passing nothing still typechecks and the template
+has no choice but to write a sentence about nobody ("Someone has invited
+you"). Under the union a message cannot be constructed without the payload its
+own template renders from, so the compiler holds that property. The two keys
+11.10 fixes, template and to, are on every arm.
 */
 export type OutboundMessage =
   | {
@@ -82,8 +76,7 @@ export type OutboundMessage =
 The inviter as a template renders them.
 
 Nullable because 8.10 can scrub an account between the act and the send, and
-item 32 keeps "Someone" as the fallback for exactly that: it stops being the
-default sentence and becomes the edge case it should always have been.
+the copy keeps "Someone" as the fallback for exactly that edge case.
 Resolving the fallback belongs to the templates rather than to a call site,
 so no two call sites can choose different words for the same silence.
 */
@@ -92,7 +85,7 @@ export interface InviterPayload {
 }
 
 /** A folder as a template renders and links to it. The id rides along
- * because item 32's action destinations are per template: a share grant
+ * because the action destinations are per template: a share grant
  * opens that folder's own page, which a payload carrying only a name could
  * not address. */
 export interface FolderPayload {
@@ -115,7 +108,7 @@ export interface ReminderPayload {
   /** Floating, as stored (4.4): the date the task is due, and its wall time
    * when it has one. Never rendered as "Today": a floating time reads as the
    * reader's own local time (8.1), and a server composing "Today" would have
-   * to decide whose today that is (item 32). */
+   * to decide whose today that is. */
   dueDate: string
   dueTime: string | null
   /** The folder the task lives in, which is this template's context line.

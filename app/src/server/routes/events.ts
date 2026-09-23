@@ -1,5 +1,5 @@
 /*
-The 7.12 surface: events and notifications (RFC 0005). Handlers validate
+The 7.12 surface: events and notifications. Handlers validate
 with the shared schemas, resolve access through the domain modules, and
 serialize; events are never written here, because the 10.2 chokepoint is the
 only writer and it lives with the mutations.
@@ -57,9 +57,8 @@ export function createEventsRouter(options: EventsRouterOptions = {}): Router {
     }
 
     // The subject scope: readable exactly when the subject is (7.12). A
-    // shelf is its owner's alone (4.18, S5); comments gain their
-    // resolution with S6; until then a reference to one names nothing the
-    // viewer can read, which 10.2 answers as not-found rather than a hint.
+    // shelf is its owner's alone (4.18); a comment reference is not
+    // resolved here, so it names nothing the viewer can read, which 10.2 answers as not-found rather than a hint.
     const subject = parseSubjectRef(String(parsed.data.subject))
     const readable =
       subject.kind === 'folder'

@@ -8,7 +8,7 @@ import { z } from 'zod'
 import { folderMemberUser } from './folders.js'
 
 /*
-GET /connections, frozen 7.3's element: { user: {id, display_name,
+GET /connections, 7.3's element: { user: {id, display_name,
 avatar_url, email}, connected_at }.
 
 The user is 7.0's person shape extended by one field rather than restated,
@@ -27,13 +27,12 @@ one would be failing a truth rather than reporting it. Not nullable, although
 excludes soft-deleted users outright.
 
 That last sentence disagrees with me.ts, which types the same person's email
-nullable from the same fact about the same column, and the P5 shape review
-settled the pair rather than flattening it. The difference is in the frozen
-text, not in two authors' taste. 7.3's own sentence carries the exclusion,
+nullable from the same fact about the same column, deliberately. The
+difference is in the spec text, not in two authors' taste. 7.3's own sentence carries the exclusion,
 "excluding soft-deleted users", so non-nullable here is that clause
 transcribed: it is what makes a contract test notice a roster query that lost
 its deleted_at filter, which is the regression the clause exists to forbid.
-Frozen 7.1 carries no equivalent clause, so me.ts reports the column instead,
+7.1 carries no equivalent clause, so me.ts reports the column instead,
 and it is right to. The two schemas describe what their endpoint promises,
 which is the level a response shape works at, rather than agreeing about a
 column neither of them is.

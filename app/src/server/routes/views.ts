@@ -1,21 +1,17 @@
 /*
 The 7.10 surface: the six view pages, the calendar, the folder page, and
 search. Handlers validate with the shared schemas, delegate every read to
-src/server/views, and serialize; no predicate and no order lives here (the
-API role's route convention, and this package's own boundary, since an order
-written in a handler is an order section 6 cannot be compared to).
+src/server/views, and serialize; no predicate and no order lives here, since an order
+written in a handler is an order section 6 cannot be compared to.
 
-Mounted under /api/v1 by the boot file, which is the Platform engineer's; the
-wiring request is recorded in README.md beside this file. The router carries
+Mounted under /api/v1 by the boot file. The router carries
 its own session attachment and steps aside when another router's already ran,
-the P2 folders router's arrangement, so it composes whichever order routers
+the folders router's arrangement, so it composes whichever order routers
 mount in behind the same 11.3 links. That block is `preamble.ts` since issue
 #36.
 
-GET /folders/:id/tasks lives here rather than in folders.ts, by the P2 merge
-ruling that this directory is shared by file with each route file belonging
-to its route's owner: the path prefix is the folders router's, the endpoint
-is 7.10's. Express matches on the whole path, so the two routers never see
+GET /folders/:id/tasks lives here rather than in folders.ts: the path prefix
+is the folders router's, but the endpoint is 7.10's. Express matches on the whole path, so the two routers never see
 each other's requests whichever mounts first.
 
 Status grammar (5.4, 7.0, 10.2): no session 401; a folder that does not exist
@@ -73,8 +69,7 @@ export function createViewsRouter(options: ViewsRouterOptions = {}): Router {
   /**
    * The tz every view takes (7.0), and the whole of what six of the nine
    * endpoints validate. An absent tz fails the same check an invalid one
-   * does, which is the owner's ruling of 2026-08-07 and the reason the
-   * schema carries no default: UTC would hand most of the world the wrong
+   * does, and the schema carries no default: UTC would hand most of the world the wrong
    * day with nothing on the wire to say it had been substituted.
    */
   const zoneOf = (req: Request, res: Response): string | null => {
@@ -140,7 +135,7 @@ export function createViewsRouter(options: ViewsRouterOptions = {}): Router {
       calendar arithmetic, and answered here because that module says
       outright that naming the field and choosing the status are the
       route's. Both are 422 naming the pair, which adds no status to the
-      frozen surface: 7.0 already gives every endpoint 422 for a validation
+      surface: 7.0 already gives every endpoint 422 for a validation
       failure with the field named.
       */
       const range = checkCalendarRange(start, end)

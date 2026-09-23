@@ -8,7 +8,7 @@ here rather than assembled at a call site.
 prefix-anchored LIKE finds none of what this is for. ILIKE, so case is not a
 filter. title OR notes, so a needle that lives only in the body is found.
 
-**The escaping**, ruled at the P4 mid-package change control on 2026-08-07: a
+**The escaping**: a
 backslash, percent or underscore inside q is escaped before it is
 interpolated, so a search for "50%" matches text containing those three
 characters rather than everything containing "50". Without it the pattern
@@ -77,7 +77,7 @@ export async function searchView(
     viewerId,
     // All three statuses: a task being completed or abandoned is a reason to
     // draw a chip, never a reason to make it unfindable. Step titles reach
-    // their task since 7.18 (RFC 0005): the step is not a result of its
+    // their task (7.18): the step is not a result of its
     // own, the task it belongs to is.
     where: sql`(t.title ILIKE ${pattern} OR t.notes ILIKE ${pattern}
                 OR EXISTS (SELECT 1 FROM steps s

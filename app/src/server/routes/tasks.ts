@@ -1,16 +1,13 @@
 /*
 The 7.6, 7.7 and 7.8 surfaces: tasks, steps, and My Day membership. Handlers
 validate with the shared schemas, delegate every decision that touches rows
-to the domain module, and serialize; no business logic lives here (the API
-role's route convention).
+to the domain module, and serialize; no business logic lives here.
 
-Mounted under /api/v1 by the boot file, which is the Platform engineer's; the
-wiring request is recorded in README.md beside this file. The router carries
-its own session attachment and steps aside when another router's already ran,
-the P2 folders router's arrangement, so it composes whichever order routers
-mount in behind the same 11.3 links (session, CSRF on mutations, then the
-handler; rate limiting joins at P9). That block is `preamble.ts` since issue
-#36.
+Mounted under /api/v1 by the boot file. The router carries its own session
+attachment and steps aside when another router's already ran, the folders
+router's arrangement, so it composes whichever order routers mount in behind
+the same 11.3 links (session, CSRF on mutations, then the handler, with rate
+limiting). That block is `preamble.ts` (issue #36).
 
 Status grammar, uniform across the surface (5.4, 7.0, 10.2): no session 401;
 a task or folder that does not exist, or that the viewer is not a member of,
@@ -18,10 +15,8 @@ a task or folder that does not exist, or that the viewer is not a member of,
 INV-5 unassign guard 409; limit and membership failures 422 through the
 shared schemas and the domain results.
 
-The step mutations and both My Day calls answer the affected TaskDetail, which
-frozen 7.7 and 7.8 now say themselves: the shape review settled it and the
-owner entered it, so what was provisional when this router landed is contract.
-The shapes carry their grounds and their names in src/shared/tasks.ts, and the
+The step mutations and both My Day calls answer the affected TaskDetail, as
+7.7 and 7.8 say. The shapes carry their grounds and their names in src/shared/tasks.ts, and the
 handlers below answer them.
 */
 import type { Request, Response, Router } from 'express'
@@ -98,7 +93,7 @@ function fieldError(res: Response, field: string, problem: string): void {
   sendError(res, 422, 'validation_failed', `${field}: ${problem}.`)
 }
 
-/** The same 422 for the two refusals frozen 7.9 names, which the domain
+/** The same 422 for the two refusals 7.9 names, which the domain
  * module raises because both read a row: the field is the mode the caller
  * sent, so a client reads one grammar whether the schema or the row refused
  * it (7.9, 4.8, 10.3). */
@@ -109,9 +104,8 @@ function reminderError(res: Response, refusal: ReminderRefusal): void {
 /*
 7.6's transition envelope, one shape for all four endpoints: the task, the
 successor a recurring completion generates, and the successor a G-SERIES
-uncomplete deletes. The keys have been answered from the first transition so
-the client contract never changes shape under it, and P6 is where the two
-companions start carrying values. Which of them a call fills is the domain
+uncomplete deletes. The keys are always present so the client contract never
+changes shape. Which of them a call fills is the domain
 module's answer and not this function's: 5.1 puts generation on two of the
 four endpoints and the guard on the other two, and a no-op fills neither.
 */
@@ -224,11 +218,9 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
       switch (result.kind) {
         case 'not_found':
         case 'target_not_found':
-          // 7.6 reads 404 for a target the caller is not a member of, where
-          // it once admitted 404 or 422: narrowed by owner ruling at the P3
-          // shape review, because a 422 would confirm that a folder the
-          // caller cannot see exists, which is the leak 10.2 forbids. This
-          // line already answered the narrower of the two.
+          // 7.6 reads 404 for a target the caller is not a member of, never
+          // 422, because a 422 would confirm that a folder the caller cannot
+          // see exists, which is the leak 10.2 forbids.
           notFound(res)
           return
         case 'assignee_not_member':
@@ -320,8 +312,8 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
    * ---------------------------------------------------------------- */
 
   /*
-  The tz of frozen 7.6's two generating transitions, by owner ruling on
-  2026-08-10, and it is two rules rather than one.
+  The tz of 7.6's two generating transitions, and it is two rules rather
+  than one.
 
   This is the present-value half, which is the half a route can answer alone:
   a value that is not an IANA identifier is 422 naming tz, always, on either
@@ -366,7 +358,7 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
         tz = zone
       }
       /*
-      One path, two graves, disjoint by construction (RFC 0005, 7.13): a
+      One path, two graves, disjoint by construction (7.13): a
       trashed task is invisible to the 5.1 transition below, and a visible
       task is by definition not trashed, so "restore" means the one thing
       the row's state admits. The un-trash is tried first because its
@@ -403,7 +395,7 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
           sendError(res, 409, 'conflict', result.message)
           return
         case 'tz_required':
-          // 7.6 as ruled: the transition would run generation and no zone was
+          // 7.6: the transition would run generation and no zone was
           // named, so nothing happened and the same call retried with one
           // gets the transition it asked for.
           fieldError(
@@ -453,7 +445,7 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
   }
 
   /* ---------------------------------------------------------------- *
-   * 7.6's order endpoint (RFC 0005 change control item 44, B4)
+   * 7.6's order endpoint
    * ---------------------------------------------------------------- */
 
   router.post(
@@ -515,10 +507,9 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
   client posts to B naming A — which is why there is no second surface for it
   and no second row in the table.
 
-  **They are not on the TaskDetail and deliberately not.** Frozen 7.0
-  enumerates that object's keys and the acceptance suite asserts them exactly,
-  so a dependency projection folded into it would be a change to a frozen
-  section rather than an addition beside one. A task's relations are their own
+  **They are not on the TaskDetail and deliberately not.** 7.0 enumerates
+  that object's keys exactly, so a dependency projection folded into it would
+  be a contract change rather than an addition beside one. A task's relations are their own
   read, which is also what lets a row-level client ask for them only where it
   draws them.
 
@@ -719,7 +710,7 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
     },
   )
 
-  /* RFC 0005 change control item 58: B9's promotion, 7.7's fourth line. */
+  /* Step promotion, 7.7's fourth line. */
   router.post(
     '/tasks/:id/steps/:stepId/promote',
     requireSession,
@@ -760,7 +751,7 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
       const taskId = parsedId(res, req.params.id)
       if (taskId === null) return
       /*
-      7.8's tz, by owner ruling on 2026-08-08: an absent or invalid one is
+      7.8's tz: an absent or invalid one is
       422 naming the field, the treatment 7.0 gives the parameter on every
       view endpoint. viewTz is imported rather than restated for that reason,
       and wrapped in an object here so the issue carries path ['tz']: a bare
@@ -810,12 +801,12 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
    * ---------------------------------------------------------------- */
 
   /*
-  The two endpoints frozen 7.9 names, on the router the rest of the task
+  The two endpoints 7.9 names, on the router the rest of the task
   surface already lives on: the row they address is 4.8's, keyed by the task
   in the path, and every guard on it is a fact about that task.
 
-  The body is parsed before the task is resolved, the ordering the P3 shape
-  review checked on the wire for 7.6's status refusal and 7.4 already used: a
+  The body is parsed before the task is resolved, the ordering 7.6's status
+  refusal and 7.4 use: a
   refusal that reads no row tells a prober nothing about which rows exist.
   What the schema answers here is 4.8's exclusive-or and 10.3's offset range,
   properties of the value sent; the two refusals 7.9 names by name both read
@@ -846,8 +837,7 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
           forbidden(res, result.reason)
           return
         case 'written':
-          // 200 with the affected TaskDetail, by the owner's ruling of
-          // 2026-08-10 on the silence this bullet carried: 7.0 gives the
+          // 200 with the affected TaskDetail: 7.0 gives the
           // reminder no object of its own and this section offers no GET for
           // one, so the parent task is the only object that reports the call.
           res.status(200).json(result.task)
@@ -877,7 +867,7 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
       }
       // 7.9's own 204, and idempotent: the 404 above is the task's, never the
       // reminder's, so a second call and a task that never had one both land
-      // here. The ruling that gave the PUT a body left this bullet alone.
+      // here.
       res.status(204).end()
     },
   )

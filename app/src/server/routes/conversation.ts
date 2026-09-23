@@ -1,5 +1,5 @@
 /*
-The 7.14 surface (RFC 0005): the thread on a folder or a task, member-only
+The 7.14 surface: the thread on a folder or a task, member-only
 throughout, one reply level enforced, likes as one idempotent bit.
 
 Status grammar (7.0, 10.2, DES-225): a folder or comment out of the

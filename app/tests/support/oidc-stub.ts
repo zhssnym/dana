@@ -1,11 +1,11 @@
 /*
-A hostile stand-in for Google's OpenID Connect provider, owned by the
-Adversarial Test role (persona 11). AC-105 to AC-115 exist because the
-authentication module of spec 11.6 has no other reviewer, and they are only
+A hostile stand-in for Google's OpenID Connect provider. AC-105 to AC-115
+exist because the authentication module of spec 11.6 has no other reviewer, and they are only
 testable if requests and tokens can be crafted: a wrong state, a replayed
 nonce, a mismatched PKCE verifier, an unverified email, a token signed with
-the wrong key. That is what this file is for. The Security engineer's module
-must pass against it unmodified and never edits it.
+the wrong key. That is what this file is for. The authentication module must
+pass against it unmodified, and fixing a failure never means editing this
+stub.
 
 It signs with node:crypto and depends on nothing outside the standard
 library, so it stays usable whatever the implementation picks up.

@@ -12,7 +12,7 @@ below, and the callback turns it into a page that says what happened. Dana
 does not join the two accounts; see 10.1 and the error's own comment.
 
 Idempotence is the unique index doing the work rather than a read-then-write,
-because a read-then-write is exactly the race AC-006 drives. The insert says
+because a read-then-write is exactly the race AC-006 describes. The insert says
 ON CONFLICT (google_sub) DO NOTHING RETURNING id, so of two concurrent first
 sign-ins one inserts and the other returns no row; Postgres makes the loser's
 insert wait on the winner's index tuple, so by the time it returns empty the
@@ -21,7 +21,7 @@ those rows and creates nothing, which is what keeps the account at one Desk
 (INV-2) and one settings row (INV-14).
 
 Atomicity is the caller's transaction. Everything here runs on one executor,
-so a fault anywhere (AC-005 injects one on the last insert) takes the user,
+so a fault anywhere (AC-005) takes the user,
 the folder, and the membership down with it.
 */
 import { sql } from 'drizzle-orm'
@@ -45,13 +45,10 @@ the folder disagree with the sidebar it hangs in. It goes in
 or empty it through 7.4 like any other folder's, and this is a default rather
 than a fixture: nothing restores it.
 
-**The sentence lives in two files and AC-315 is the decision that they agree (issue
-#97) — a decision and no longer a check, its test file having gone in the 2026-09-20 cut.** `routes.ts` is the client's and this constant is the server's, and
-neither side may import the other (the eslint boundary). The wording changed
-once already, on issue #21, and only the client moved: nothing on this side
-failed, and every new account would have gone on receiving the old sentence
-under a sidebar saying the new one. Whoever rewords Desk in `routes.ts`
-rewords it here in the same change, and the criterion is what says so.
+**The sentence lives in two files and they must agree (AC-315, issue #97),
+and nothing checks it.** `routes.ts` is the client's and this constant is the
+server's, and neither side may import the other (the eslint boundary).
+Whoever rewords Desk in `routes.ts` rewords it here in the same change.
 
 Only new accounts get it. Existing Desks are not backfilled, because a
 migration that wrote words into a folder somebody had deliberately left
@@ -70,7 +67,7 @@ export interface GoogleIdentity {
 export interface ProvisionOptions {
   /**
    * Whether a brand-new account is written its sample workspace inside this
-   * transaction (RFC 0005 change control item 60). The default is the
+   * transaction (7.20). The default is the
    * application's; the acceptance suite and the browser harness opt out so
    * that a fresh account is the empty one their criteria count on.
    */
@@ -80,13 +77,13 @@ export interface ProvisionOptions {
 /**
  * A verified Google email that already belongs to a different live account.
  *
- * **The decision, ruled by Imran on issue #17 on 2026-09-03 and specified at
- * 10.1: Dana never joins two accounts because their addresses look alike.**
+ * **10.1 (issue #17): Dana never joins two accounts because their addresses
+ * look alike.**
  * Joining is the only one of refuse, ask and join that can hand somebody
  * another person's account, and it cannot be taken back once it has. So the
- * behaviour does not change; what changes is that the refusal is now
- * distinguishable from every other reason a sign-in fails, because the
- * callback can only explain a refusal it can tell apart.
+ * sign-in is refused, and the refusal is distinguishable from every other
+ * reason a sign-in fails, because the callback can only explain a refusal it
+ * can tell apart.
  *
  * **What this error carries and what it deliberately does not.** No email
  * address, no user id, no row. The callback needs to know which refusal this
@@ -286,13 +283,12 @@ export async function provisionUser(
     /* The four native facets, in this same transaction (issue #210, 4.30:
        "natives are created with the Folder and never lazily"). Every path
        that inserts a `folders` row owes this call, and
-       `tests/guards/guard-native-facets-on-every-folder.test.ts` fails the
-       day one does not. */
+       nothing checks that automatically. */
     await createNativeFacets(tx, folderId, userId)
 
     await tx.execute(sql`INSERT INTO user_settings (user_id) VALUES (${userId})`)
 
-    // Item 60: the sample workspace, in this same transaction, so the first
+    // 7.20: the sample workspace, in this same transaction, so the first
     // page the person sees is already full and a fault anywhere leaves no
     // half-made account behind.
     if (options.sample === true) {
@@ -310,11 +306,9 @@ export async function provisionUser(
  *
  * Both of those are "no write, and no 8.6 recompute" in 8.1's own sentence, so
  * the two guards below are one guard read twice and the recompute sits behind
- * them rather than beside them. AC-086 states both absences with a real zone
- * change beside each — states them and no longer runs, its test file having gone in
- * the 2026-09-20 cut, because an implementation that recomputes on every login
- * passes the positive cases and moves a traveler's instants for a sign-in that
- * changed nothing.
+ * them rather than beside them. An implementation that recomputes on every
+ * login passes the positive cases and moves a traveler's instants for a
+ * sign-in that changed nothing (AC-086).
  *
  * The write and the recompute go in one transaction of this function's own.
  * provisionUser's has committed by the time we are called: the zone this

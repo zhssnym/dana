@@ -32,7 +32,7 @@ interface DevLoginBody {
   sub?: unknown
   name?: unknown
   timezone?: unknown
-  /** Item 60: `false` opts a brand-new account out of the sample workspace
+  /** 7.20: `false` opts a brand-new account out of the sample workspace
    * and `true` opts it in, whatever the application's default; the browser
    * harness sends false so a fresh account is the empty one its criteria
    * count on. Honoured here and nowhere else. */

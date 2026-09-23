@@ -1,7 +1,6 @@
 /*
-The person's bundle (RFC 0005, 4.19; the 9.7 settings screen): the v2
-settings surface at /settings, beside and never instead of frozen 7.2's
-/me/settings, and the saved views at /views. Arrangement state serializes
+The person's bundle (4.19; the 9.7 settings screen): the settings surface at
+/settings, and the saved views at /views. Arrangement state serializes
 ids, never display names (11.15's port note), which is the whole reason
 user_views exists as a table rather than a bookmark.
 */
@@ -74,20 +73,16 @@ export const patchSettingsBody = z.object({
   row_density: z.enum(['comfortable', 'compact']).optional(),
   clock: z.enum(['12h', '24h']).optional(),
   task_open: z.enum(['dialog', 'panel', 'tab']).optional(),
-  /* Imran's ruling on #140: the calendar's zoom follows the account rather
-     than the browser, "consistent with other durable preferences such as
-     density, clock format, and task-open surface". It rides beside those
-     three because it is the same kind of fact, and `domain/bundle.ts` gained
-     its reader and its writer in this same change, which is what this folder's
-     own rule asks of a new request field. A value outside the three is 422
+  /* The calendar's zoom follows the account rather than the browser (#140),
+     like density, clock format and task-open surface, so it rides beside
+     those three. `domain/bundle.ts` reads and writes it. A value outside the three is 422
      naming `calendar_zoom` rather than a quiet narrowing to the default,
      which is 7.10's enumerated-value rule and the answer 4.10's CHECK gives
      underneath it. */
   calendar_zoom: z.enum(CALENDAR_ZOOMS).optional(),
   /* The cap is "every native view, and no more", so it is the array's own
-     length rather than the 9 that was written here: a tenth view added above
-     used to make a full pin list a 422, which is the second way that array
-     was load-bearing at a distance (#39). */
+     length rather than a literal: a literal would make a full pin list a 422
+     the day a view is added above (#39). */
   pinned_views: z.array(z.enum(NATIVE_VIEWS)).max(NATIVE_VIEWS.length).optional(),
   sidebar_order: z.array(z.uuid()).max(300).optional(),
   arrangements: z.record(z.uuid(), z.string().max(40)).optional(),
@@ -115,8 +110,8 @@ export interface SettingsBundle {
 export const postViewBody = z.object({
   name: z.string().min(1).max(40),
   /** The filter model, zod-checked for shape and size; its values are ids
-   * by the client serializer's discipline, which AC-209 states and, since its test file
-   * went in the 2026-09-20 cut, no longer checks. */
+   * by the client serializer's discipline, which AC-209 states and no test
+   * currently checks. */
   definition: z.record(z.string().max(40), z.unknown()),
   pinned: z.boolean().optional(),
 })
@@ -134,10 +129,8 @@ export interface SavedView {
 }
 
 /*
-The read half, added by the S9 client arm on 2026-08-24, for the reason
-`shelves.ts` records at its own addition: S7 published the patch body and the
-`SettingsBundle` interface, and `api/http.ts` parses every response through a
-zod schema, so the sidebar cannot read its own pin list without this. The
+The read half: `api/http.ts` parses every response through a zod schema, so
+the sidebar cannot read its own pin list without this. The
 interface above stays the type the server writes against; this is the same
 shape as a parser, and the two are asserted equal by construction below.
 */

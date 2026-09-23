@@ -38,7 +38,7 @@ const TIMEOUT_MS = 10_000
 export interface ResendConfig {
   apiKey: string
   /** The 10.7 sender: noreply at the product domain, whose SPF, DKIM and
-   * DMARC records are P10's launch checklist. */
+   * DMARC records are a launch prerequisite. */
   from: string
   /** This deployment's origin, for each template's one action link. */
   appOrigin: string
@@ -60,8 +60,7 @@ export function createResendTransport(
           from: config.from,
           to: [message.to],
           subject: rendered.subject,
-          // Both parts, since 10.7's amendment of 2026-08-25 (RFC 0005
-          // change control item 26): the provider assembles the multipart
+          // Both parts (10.7): the provider assembles the multipart
           // alternative from the pair, and a send carrying html alone does
           // not meet the section. The text part is no stub; it is the same
           // composition rendered a second way.

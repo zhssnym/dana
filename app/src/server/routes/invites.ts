@@ -2,10 +2,9 @@
 The 7.5 surface: invites, their five transitions, and the two lists. Handlers
 validate with the shared schemas, resolve the actor through the domain
 module, delegate every decision that touches rows, and serialize; no business
-logic lives here (the API role's route convention).
+logic lives here.
 
-Mounted under /api/v1 by the boot file, which is the Platform engineer's; the
-wiring request is recorded in README.md beside this file. The router carries
+Mounted under /api/v1 by the boot file. The router carries
 its own session attachment so it composes whichever order routers mount in,
 the folders router's arrangement exactly; that block is `preamble.ts` since
 issue #36.
@@ -15,14 +14,12 @@ no session 401; an invite the caller cannot act on or see reads 404, never
 403, so nothing leaks; an actor who can see the invite but may not take this
 action gets 403; a transition against a terminal invite is 409, as is every
 V-INV rule conflict; limits and field failures are 422; and the resend window
-of 5.2 is this package's one 429, with Retry-After. One 409 here carries a
+of 5.2 is this router's one 429, with Retry-After. One 409 here carries a
 code of its own rather than `conflict`: accepting into a folder that is
 sitting in Trash answers `folder_deleted` (issue #28), because a client has
 to say something different for it than for an invite that is merely spent.
 
-Two response shapes here are wider than frozen 7.5 enumerates, and both are
-recorded for the endpoint shape review the RFC 0001 P5 row places after this
-package rather than settled by it: the object inside { invite } is the
+Two response shapes here are wider than 7.5 enumerates: the object inside { invite } is the
 invite element the domain module produces, which is also what GET
 /invites/sent lists, and the conversion answers { converted_to_share,
 membership } with the member element 7.4's own mutation already answers.
@@ -67,14 +64,14 @@ export interface InvitesRouterOptions {
 /*
 Which invitation this is, decided from the row rather than from the request.
 
-7.5 makes folder_id optional and item 32 splits the template on exactly that:
+7.5 makes folder_id optional and the templates split on exactly that:
 `invite_connection` when it is null, `invite_folder` when it is not. The
 decision is made here, at the call site, from data already in hand, and it is
 made in one function because three sites send an invitation, the create, the
 resend and nothing else in between: two of them would otherwise repeat this
 conditional and could one day disagree about it.
 
-`folder_name` rides InviteElement because frozen 7.5's pending list carries
+`folder_name` rides InviteElement because 7.5's pending list carries
 it, so a folder invitation names its folder without a read of its own. A
 folder_id with no name would be a row whose folder vanished under it, which
 the invite's own foreign key does not permit; the throw says so rather than
@@ -202,8 +199,7 @@ export function createInvitesRouter(
           ])
           return
         case 'already_connected':
-          // The owner's ruling of 2026-08-09, frozen 7.5's appended
-          // paragraph: the connection a bare invite exists to create already
+          // 7.5's appended paragraph: the connection a bare invite exists to create already
           // holds, so there is nothing this request could accomplish. The
           // copy is 9.8's People screen sentence.
           sendError(
@@ -234,9 +230,9 @@ export function createInvitesRouter(
           return
         case 'converted': {
           // 8.7's instant share. The grant email is the share-grant
-          // template, never the invite one: there is nothing to accept. Since
-          // S19 it also names the sharer and the folder (RFC 0005 change
-          // control item 32), both read by the transaction that granted.
+          // template, never the invite one: there is nothing to accept. It
+          // names the sharer and the folder, both read by the transaction
+          // that granted.
           if (result.targetEmail !== null) {
             await notifierOf(req.app).send({
               template: 'share_grant',
@@ -400,10 +396,9 @@ export function createInvitesRouter(
       })
       res.status(200).json({
         connection_created: result.connectionCreated,
-        // Frozen 7.5 names the key and not its object. This answers what a
+        // 7.5 names the key and not its object. This answers what a
         // fresh GET /folders entry would give for the folder the acceptance
-        // granted, the 7.4 mutation convention, and it is one of the shapes
-        // routed to the endpoint shape review.
+        // granted, the 7.4 mutation convention.
         folder:
           result.folderId === null
             ? null

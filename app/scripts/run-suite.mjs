@@ -1,27 +1,22 @@
 /*
 The vitest leg with a guard on its own completeness.
 
-**Why this file exists.** On 2026-08-24 a serial PGlite run reported
+**Why this file exists.** Vitest can lose files and still exit 0. A run once
+reported
 
     Test Files  223 passed (228)
     Tests       1636 passed (1665)
 
 emitted five `[vitest-pool]: Worker forks emitted error / Worker exited
 unexpectedly`, printed its own warning that this "might cause false positive
-tests", and returned **exit code 0**. Five files never ran. CI's test steps
-read nothing but the exit code, so a run in that state reports success having
-measured 223 of 228 files, and nothing anywhere says so. That is the false
-green the protocol's definition of done exists to forbid, arriving through
-the one door nobody was watching.
-
-The workflow already guards the other false green, an empty
-TEST_DATABASE_URL silently re-running the PGlite leg twice; this guards the
-one underneath it.
+tests", and returned **exit code 0**. Five files never ran. CI reads nothing
+but the exit code, so a run in that state reports success having measured 223
+of 228 files, and nothing anywhere says so.
 
 **What it checks, and why that is the right check.** Vitest's summary line
 carries both halves of the fact: the categories it is reporting, and the
 total it collected in parentheses. A complete run accounts for every
-collected file in some category. The losing run reported 223 passed against a
+collected file in some category. The run above reported 223 passed against a
 collected 228 and named no category for the other five, which is exactly the
 arithmetic this refuses. So the rule is that the reported categories sum to
 the total, on both the file line and the test line.
@@ -36,9 +31,7 @@ first flaky parse would teach everyone to ignore it.
 Skipped files count toward the total on purpose. A file skipped on purpose is
 accounted for; a file that vanished is not.
 
-Spec: protocol section 4 (the definition of done and its false-green rule),
-11.10 and 11.11 (the legs and what runs them), and the SESSION-LOG entry of
-2026-08-24 that records the run this was written from.
+Spec: 11.10 and 11.11 (the legs and what runs them).
 */
 import { spawn } from 'node:child_process'
 import path from 'node:path'
@@ -76,8 +69,7 @@ function categories(body) {
  * whose categories do not add up to the total it collected, which is the
  * check this file exists for.
  *
- * Exported since 2026-09-04, because `scripts/gate.mjs` needs the same two
- * numbers for the gate record it prints, and a second regular expression over
+ * Exported because `scripts/gate.mjs` needs the same two numbers for the gate record it prints, and a second regular expression over
  * the same output is a second thing to keep in step. Nothing about the check
  * moves with it: the gate reaches this leg by running `npm test`, so the guard
  * below runs whether or not anything reads what this function returns.

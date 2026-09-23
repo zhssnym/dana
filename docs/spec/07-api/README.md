@@ -8,7 +8,6 @@ spelling. The client and tests address these strings literally; section 9 names 
 | - | - | - |
 | 7.0 | [`07.0-conventions.md`](07.0-conventions.md) | 7.0 Conventions |
 | 7.1 | [`07.1-auth-and-account.md`](07.1-auth-and-account.md) | 7.1 Auth and account |
-| 7.2 | [`07.2-settings.md`](07.2-settings.md) | 7.2 Settings — retired; see 7.23 |
 | 7.3 | [`07.3-connections.md`](07.3-connections.md) | 7.3 Connections (roster) |
 | 7.4 | [`07.4-folders-and-membership.md`](07.4-folders-and-membership.md) | 7.4 Folders and membership |
 | 7.5 | [`07.5-invites.md`](07.5-invites.md) | 7.5 Invites |

@@ -1,19 +1,19 @@
 /*
-The sample workspace (RFC 0005 change control item 60): written into a
+The sample workspace (7.20): written into a
 brand-new account inside 7.1's provisioning transaction, so the first page a
 person sees is already full, and taken out again in one act.
 
 **Every object the sample makes is registered in sample_objects by its own
 id**, and that register is the whole of the removal's knowledge. It is a
 register rather than a column on the owning rows because the rows are
-frozen section 4's, and because a task the person completes, moves, renames
+section 4's, and because a task the person completes, moves, renames
 or trashes keeps its id, so the register still finds it however it has been
 handled since. What it deliberately does not carry are the objects that ride
 another's fate: steps, page blocks, comments, reminders, Today pulls and
 events all cascade with their task or folder by 4's own named constraints,
 so recording them would be recording the cascade twice.
 
-**Two rules, ruled by delegation and recorded in item 60.**
+**Two rules.**
 
 A task moved out of the sample is the person's. Removal takes a registered
 task whose folder is still a sample folder or Desk (the sample put four
@@ -216,9 +216,8 @@ async function writeFolder(
 
   /* The four native facets, in this same transaction (issue #210, 4.30:
    "natives are created with the Folder and never lazily"). Every path
-   that inserts a `folders` row owes this call, and
-   `tests/guards/guard-native-facets-on-every-folder.test.ts` fails the
-   day one does not. */
+   that inserts a `folders` row owes this call, and nothing checks that
+   automatically. */
   await createNativeFacets(tx, folderId, userId)
 
   const sections = new Map<string, string>()

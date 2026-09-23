@@ -5,9 +5,13 @@ unless stated. All timestamps are timestamptz stored in UTC. There is deliberate
 workspace table: the workspace is fully derived from users, connections, and memberships,
 and a table would hold nothing.
 
-Page names in this section's prose are v1's ("My Day" for Today, for example). The
-tables and queries kept their v1 names when the pages were renamed, so such a name is a
-citation of a table or query, never a claim about what a page is called.
+Columns, types, defaults and every named constraint and index are in
+`app/db/migrations/`, which is the truth for them. The files below carry only what a
+column or constraint means and why it is shaped that way.
+
+Table and query names are v1's ("My Day" for Today, for example). A stored identifier is
+not display copy, so such a name is a citation of a table or query, never a claim about
+what a page is called.
 
 | | File | Covers |
 | - | - | - |

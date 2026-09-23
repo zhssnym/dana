@@ -1,18 +1,16 @@
 /*
-Harness for the P4 views and search criteria (AC-045 to AC-058 and AC-070,
-plus the coverage findings this session routes for amendment), built on the
-P2 folder layer and the P3 task layer: the same booted application, stub
+Harness for the views and search criteria (AC-045 to AC-058 and AC-070),
+built on the folder and task layers: the same booted application, stub
 identity provider, cookie-jar browsers, lazily signed-in casts, the 7.0
 TaskCard shape restated once in tasks-harness.ts and asserted key-exact, and
 the invariant sweep scoped to named rows.
 
 Six decisions worth the words.
 
-**This package writes nothing, so its fixtures are written directly.** Every
-earlier layer sets up through the endpoints of the package under test,
-because a broken create should fail that package's files on one attributable
-sentence. P4 has no create: it is nine read endpoints, and every defect
-available to it is an ordering, a predicate, a scope, or a cursor. So the
+**The views write nothing, so their fixtures are written directly.** The
+other layers set up through the endpoints under test, because a broken create
+should fail those files on one attributable sentence. The views have no
+create: they are nine read endpoints, and every defect available to them is an ordering, a predicate, a scope, or a cursor. So the
 fixtures are inserted here with every column named, which is what the
 orderings need. Q2 sorts by created_at descending, Q6 pages by completed_at,
 and Q8 sorts by updated_at descending; none of those columns can be dictated
@@ -22,11 +20,9 @@ invariants over its own fixture, so a seed that violated section 3 fails as
 a bad fixture instead of passing as a good result.
 
 **today(tz) is computed here and never imported.** The date predicates of Q1
-and Q3C live in `src/server/time/**`, which the Scheduling engineer writes in
-the session after this one. Importing them would borrow the definition of
-correct from the module under test, the standing Steward ruling this suite's
-timezone predicate already follows; a wrong helper would then agree with
-itself and every date criterion in the package would pass vacuously. The
+and Q3C live in `src/server/time/**`. Importing them would borrow the
+definition of correct from the module under test; a wrong helper would then
+agree with itself and every date criterion here would pass vacuously. The
 oracle here is Intl, reached through formatToParts rather than through a
 locale whose format is a convention, and the arithmetic below is calendar
 arithmetic on YYYY-MM-DD strings, never on instants.
@@ -57,17 +53,14 @@ choice is a function of the instant, not of any assertion: no case branches on
 it, and the residual is caught by expectStillSameDay rather than tolerated.
 
 **The nine 7.10 envelopes are restated here and asserted key-exact**, the way
-tasks-harness.ts restates the two 7.0 shapes and for the same standing
-ruling: this suite measures `app/src/shared/` and cannot borrow its
-definition of correct. Every row of every envelope is parsed through the 7.0
-TaskCard check, which is the guard the RFC 0001 P4 row asks for by name: this
-package necessarily writes a second producer of that frozen shape, because
-`taskView` in `domain/tasks.ts` produces one card at a time and no list
-endpoint can call it per row.
+tasks-harness.ts restates the two 7.0 shapes and for the same reason: this
+suite measures `app/src/shared/` and cannot borrow its definition of correct.
+Every row of every envelope is parsed through the 7.0 TaskCard check, because
+the views are a second producer of that shape: `taskView` in
+`domain/tasks.ts` produces one card at a time and no list endpoint can call
+it per row.
 
-Three of those shapes were silences when this layer was written and are text
-now, all escalated from P4 and entered by owner ruling on 2026-08-07. Frozen
-7.10 enumerates its ninth body: GET /folders/:id/tasks answers scheduled,
+Three details of 7.10 worth naming. It enumerates its ninth body: GET /folders/:id/tasks answers scheduled,
 unscheduled and truncated on section=open, and days with next_cursor on
 section=completed, which are the key names the other eight bodies already use
 for the same things. The `folder` inside groups, and inside the tasks_groups
@@ -315,10 +308,10 @@ export function expectStillSameDay(
 }
 
 /* ------------------------------------------------------------------ *
- * The rows and envelopes of frozen 7.10
+ * The rows and envelopes of 7.10
  * ------------------------------------------------------------------ */
 
-/** The frozen 7.0 TaskCard, typed for the fields the P4 criteria read off a
+/** The 7.0 TaskCard, typed for the fields the views criteria read off a
  * row. Every field here is checked at run time by expectCards, which applies
  * the key-exact shape restated in tasks-harness.ts; the interface is for the
  * reading, never for the judging. */
@@ -337,7 +330,7 @@ export interface Card extends Record<string, unknown> {
     avatar_url: string | null
   } | null
   folder: { id: string; name: string; is_default: boolean }
-  // RFC 0005 unit 12a's two widenings of frozen 7.0. created_by is the same
+  // created_by is the same
   // person shape assignee carries, and is null only where 8.10 scrubbed the
   // creator; section_block_id is the 4.17 section the row sits under on its
   // folder's page, null for a task under none.
@@ -349,9 +342,9 @@ export interface Card extends Record<string, unknown> {
   section_block_id: string | null
 }
 
-/** Every row of every 7.10 body is a 7.0 TaskCard. This is the contract test
- * the RFC 0001 P4 row asks for by name, applied on the wire rather than in
- * the producer, because this package writes a second producer of the shape. */
+/** Every row of every 7.10 body is a 7.0 TaskCard, checked on the wire rather
+ * than in the producer, because the views are a second producer of the
+ * shape. */
 export function expectCards(value: unknown, source: string): Card[] {
   expect(Array.isArray(value), `${source} must be an array (spec 7.10)`).toBe(
     true,
@@ -386,15 +379,13 @@ export interface Group {
 }
 
 /*
-7.10 wrote groups as [{folder, rows}] without saying which object `folder`
-is, the 7.0 Folder schema and the {id, name, is_default} stub every TaskCard
-carries both satisfying the word. Escalated from P4 and ruled by the human
-owner on 2026-08-07: it is the stub, because a group heading needs exactly
+7.10 writes groups as [{folder, rows}], and `folder` is the {id, name,
+is_default} stub every TaskCard carries rather than the 7.0 Folder object,
+because a group heading needs exactly
 what a card's folder label needs, Folder's counts being the 8.11 computation
 no grouped view asks for and its ownership fields being 7.4's business. So
-the shape is key-exact here like every other one, rather than asserted at the
-intersection of two readings. The sharp half stands unchanged: the group's
-folder is the folder its own rows are in.
+the shape is key-exact here like every other one. And the group's folder is
+the folder its own rows are in.
 */
 function expectGroups(value: unknown, source: string): Group[] {
   expect(Array.isArray(value), `${source} must be an array (spec 7.10)`).toBe(
@@ -509,7 +500,7 @@ async function readView(
 }
 
 /* ------------------------------------------------------------------ *
- * The nine endpoints of frozen 7.10
+ * The nine endpoints of 7.10
  * ------------------------------------------------------------------ */
 
 export interface MyDayBody {
@@ -595,11 +586,9 @@ export interface CalendarBody {
 }
 
 /*
-The virtual arm is P6's and is asserted here only as far as this package
-owes it: 7.10 enumerates the key, so the key exists and is an array, exactly
-the treatment P3 gave 7.0's recurrence_rule and reminder keys while their
-computations were deferred. What draws in it is 8.5's projection over the
-4.11 iterator, and AC-082 pins that in P6's range, not this one.
+The virtual arm is asserted here only as far as the key: 7.10 enumerates it,
+so it exists and is an array. What draws in it is 8.5's projection over the
+4.11 iterator, which AC-082 states.
 */
 export async function calendar(
   actor: Actor,
@@ -677,14 +666,11 @@ export interface FolderOpenBody {
 }
 
 /*
-The one body frozen 7.10 described in prose without naming its keys. The P4
-kickoff escalated the question with a recommendation; the human owner ruled
-it on 2026-08-07, and 7.10 now enumerates the body like its eight neighbours,
-with the key names they already use for the same things. Read from that text
-rather than from the recommendation that preceded it.
+GET /folders/:id/tasks, which 7.10 enumerates with the key names its eight
+neighbours use for the same things.
 
 `section` is sent explicitly by both readers below, each naming the section
-it is for, even though 7.10 now defaults it to open. The default is a
+it is for, even though 7.10 defaults it to open. The default is a
 behavior of the endpoint and is asserted where behaviors are, in AC-058.
 */
 export async function folderOpen(
@@ -740,7 +726,7 @@ export async function search(
     actor,
     '/search',
     { tz, q, cursor },
-    // 7.18 (RFC 0005) adds the three kinds beside Q8's tasks; the task
+    // 7.18 adds the three kinds beside Q8's tasks; the task
     // half of the response is unchanged and is all this helper reads.
     ['folders', 'next_cursor', 'pages', 'rows', 'shelves'],
     `GET /search must answer Q8's matches in Q8's order for ${JSON.stringify(q)} (spec 7.10, 6 Q8, 7.18)`,
@@ -929,7 +915,7 @@ export async function seedManyTasks(
  * A folder both actors are members of. INV-5 forces the assignee in a
  * single-member folder, so any fixture with an unassigned or
  * differently-assigned task needs two members, and 5.3 needs the roster
- * connection first. Connections are P5's surface and are seeded.
+ * connection first, which is seeded.
  */
 export async function sharedFolder(
   db: Db,

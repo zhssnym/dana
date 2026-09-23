@@ -1,18 +1,15 @@
 /*
-Harness for the P2 folder and membership criteria (AC-011 to AC-024), built
-on the P1 auth harness: the same booted application, stub identity provider,
-and cookie-jar browsers, plus what this package needs on top.
+Harness for the folder and membership criteria (AC-011 to AC-024), built on
+the auth harness: the same booted application, stub identity provider, and
+cookie-jar browsers, plus what folders need on top.
 
 Three decisions worth the words:
 
-**Setup goes through the API wherever the API is in this package.** Folders
-are created with POST /folders and members added with POST members, because
-those surfaces are P2's own: a broken create fails every file here on one
-attributable sentence, which is the correct verdict for the package. Setup
-that the package does not deliver (roster connections arrive with P5's
-invites, tasks with P3, and the invite rows themselves with P5) is seeded
-directly in the database instead, so no criterion here depends on a package
-that has not been built.
+**Setup goes through the API for the surface under test.** Folders are
+created with POST /folders and members added with POST members: a broken
+create fails every file here on one attributable sentence. Setup from other
+surfaces (roster connections, tasks, invite rows) is seeded directly in the
+database, so no folder criterion depends on another surface's endpoints.
 
 **Memberships are seeded directly only where the spec turns on join time.**
 AC-019's transfer rule reads folder_members.created_at, ties included, and
@@ -20,10 +17,9 @@ an API cannot be asked to produce two equal timestamps; those rows are
 inserted with explicit instants. Everywhere else membership arrives through
 the endpoint under test.
 
-**Database assertions are scoped to this suite's own rows.** On the
-TEST_DATABASE_URL leg every worker shares one database (helpers.ts), so the
-invariant checks here take explicit folder and user ids and never sweep
-whole tables.
+**Database assertions are scoped to this suite's own rows.** A worker's
+database holds rows from every file it has run (helpers.ts), so the invariant
+checks here take explicit folder and user ids and never sweep whole tables.
 */
 import { randomUUID } from 'node:crypto'
 
@@ -53,9 +49,7 @@ export interface Actor {
   browser: TestBrowser
 }
 
-/** The package prefix only names rows: on the TEST_DATABASE_URL leg every
- * worker shares one database, so a stray row should say which package left
- * it. Defaulted so the P2 files that predate the parameter read unchanged. */
+/** The prefix only names rows, so a stray row says which file left it. */
 export async function signInActor(
   app: AuthTestApp,
   slug: string,
@@ -79,7 +73,7 @@ export async function signInActor(
 }
 
 /*
-Lazily signed-in actors, the P1 holder() pattern generalized. A failure in
+Lazily signed-in actors, the auth harness's holder() pattern generalized. A failure in
 beforeAll reports the whole file as one error and marks its tests skipped,
 hiding which criteria were being asserted; signing in on first use makes
 each test fail under its own name instead.
@@ -219,11 +213,11 @@ export function removeMember(
 }
 
 /* ------------------------------------------------------------------ *
- * Setup that later packages will own, seeded directly
+ * Setup from other surfaces, seeded directly
  * ------------------------------------------------------------------ */
 
-/** Roster connections are P5's surface (invites); P2 only reads them. The
- * canonical column order is INV-9's, delegated to SQL rather than restated. */
+/** Roster connections, which invites create; the folder criteria only read
+ * them. The canonical column order is INV-9's, delegated to SQL rather than restated. */
 export async function connect(db: Db, a: string, b: string): Promise<void> {
   await db.execute(sql`
     INSERT INTO connections (user_a_id, user_b_id)
@@ -300,7 +294,7 @@ export interface SeedTaskOptions {
   dueTime?: string | null
 }
 
-/** Tasks are P3's surface; P2's transactions act on their rows. INV-8's
+/** Tasks, whose rows the folder transactions act on. INV-8's
  * completion columns follow the status so seeds satisfy section 4. */
 export async function seedTask(
   db: Db,
@@ -348,7 +342,7 @@ export async function seedMyDayEntry(
 }
 
 /** One reminder per task (4.8). Date-only mode by default; fire_at is any
- * future instant, since only the row's existence matters to P2's cascades. */
+ * future instant, since only the row's existence matters to the cascades. */
 export async function seedReminder(
   db: Db,
   taskId: string,
@@ -371,7 +365,7 @@ export interface SeedInviteOptions {
   access?: FolderAccessPreset
 }
 
-/** Invite rows are P5's surface; P2's folder deletion cascades them and
+/** Invite rows; folder deletion cascades them and
  * R-CLEAN leaves them standing.
  *
  * `access` is derived rather than asked for (issue #228): a folder invite
@@ -411,13 +405,9 @@ export interface FolderListEntry extends Record<string, unknown> {
 }
 
 /*
-Settled at 04's shape review and ruled into frozen 7.4 by the human owner
-(grounds in src/shared/folders.ts, commit 7a40172; the Steward transcribes
-the sentence at the merge): GET /folders answers the bare array, because
-7.10's wrapped responses are the ones carrying more than rows. The
-single-wrapper-key tolerance this helper held while the shape was open is
-gone with the openness; a wrapper is a contract violation now and fails
-here, once, with the ruling named.
+GET /folders answers the bare array (7.4; grounds in src/shared/folders.ts),
+because 7.10's wrapped responses are the ones carrying more than rows. A
+wrapper is a contract violation and fails here, once.
 */
 export async function listFolders(actor: Actor): Promise<FolderListEntry[]> {
   const response = await actor.browser.api('/folders')
@@ -483,19 +473,16 @@ export async function taskAssignee(
 }
 
 /*
-The count contract, asserted rather than trusted since the P6 implementer
-review. This helper reads one column named n from one row, and every caller
-writes count(*)::int AS n. A query that answers anything else used to produce
-NaN: not zero, not an error, but a value that compares equal to itself under
-Object.is, which toBe uses. Three P6 call sites passed SELECT id instead. One
-met .toBe(0) and failed visibly; the other two compared a count before an
-operation against the count after, NaN on both sides, so "a refused create
-writes no task at all" passed while asserting nothing whatever. That is the
-vacuous green this role exists to prevent, and it is worse than the red beside
-it because nothing reports it.
+The count contract, asserted rather than trusted. This helper reads one
+column named n from one row, and every caller writes count(*)::int AS n. A
+query that answers anything else would produce NaN: not zero, not an error,
+but a value that compares equal to itself under Object.is, which toBe uses.
+Comparing a count before an operation against the count after, NaN on both
+sides, passes while asserting nothing whatever — a vacuous green, worse than
+a red because nothing reports it.
 
-The call sites are repaired. This guard is what makes the next one fail
-loudly, and it changes nothing for a correct caller: count(*) answers exactly
+This guard makes such a caller fail loudly, and it changes nothing for a
+correct caller: count(*) answers exactly
 one row even when it counts to zero, so every existing caller satisfies it.
 */
 export async function countRows(db: Db, query: ReturnType<typeof sql>): Promise<number> {
@@ -514,7 +501,7 @@ export async function countRows(db: Db, query: ReturnType<typeof sql>): Promise<
 }
 
 /*
-The invariant sweep the persona requires after mutation-heavy tests, scoped
+The invariant sweep run after mutation-heavy tests, scoped
 to named rows. Deleted folders are skipped: the deleting test asserts the
 cascade itself, and section 3 speaks of rows that exist.
 */

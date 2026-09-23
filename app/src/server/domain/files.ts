@@ -1,5 +1,5 @@
 /*
-The S4 domain module: files per 4.16 and 7.15 (RFC 0005). The table is the
+The domain module for files per 4.16 and 7.15. The table is the
 authority on existence, ownership and quota; the object store holds bytes
 under the row's id and is handed in by the caller, never constructed here.
 
@@ -12,7 +12,7 @@ would then have to explain forever.
 
 Images pass through sharp once, downscale and validation in one act: a
 payload that claims image/* and cannot be decoded is refused as the lying
-mime it is (AC-194's security half), and one that can is bounded to 2048px
+mime it is, and one that can is bounded to 2048px
 on its longest edge, which is 7.15's server-side downscale.
 
 That same pass now answers the shape of what it wrote (4.16's width and
@@ -93,8 +93,7 @@ name a file its own home can reach.
 */
 const FOLDERLESS_KINDS: ReadonlySet<FileKind> = new Set(FOLDERLESS_UPLOAD_KINDS)
 
-/** Raster formats only for the image kinds (the S4 security review's first
- * condition): SVG decodes like an image and serves like a document, and a
+/** Raster formats only for the image kinds: SVG decodes like an image and serves like a document, and a
  * document with scripts on the application's own origin is a session
  * walking out the door. */
 const RASTER_MIMES: ReadonlySet<string> = new Set(RASTER_MIME_LIST)
@@ -102,8 +101,8 @@ const RASTER_MIMES: ReadonlySet<string> = new Set(RASTER_MIME_LIST)
 /*
 #220's two media allowlists, and the container check behind them.
 
-**They fail closed, and that is the ruled behaviour rather than a compromise.**
-R1 forbids introducing FFmpeg or any media-probing subsystem in M1 and says
+**They fail closed, and that is the intended behaviour rather than a compromise.**
+#220's R1 forbids introducing FFmpeg or any media-probing subsystem in M1 and says
 what to do instead: keep the allowlist narrow, fail closed, and leave the
 generic File path available. So a payload that is not one of these container
 types is refused *as `audio` or `video`* and may be uploaded as a generic
@@ -132,8 +131,8 @@ one case needs no prefix even in principle — a UTF-16LE byte-order mark is
 `FF FE`, which is a legal MPEG-1 Layer I frame sync and is exactly what the
 last arm of `containerOf` looks for, so a UTF-16LE HTML document *is* an
 allowlisted container as far as this check can tell. Reading further than the
-leading bytes is the subsystem R1 rules out, so this is the ruled shape of the
-check rather than a hole to be closed.
+leading bytes is the subsystem R1 rules out, so this is the intended shape of
+the check rather than a hole to be closed.
 
 **What stops those bytes being rendered is the response, and it is worth
 naming here because it is not in this file.** Three things, none of them this
@@ -142,9 +141,8 @@ declared type at the bytes; a `Content-Type` that is the allowlisted audio or
 video type the caller declared, which no browser renders as markup; and 10.8's
 policy, set on every response including this one — `default-src 'self'`,
 `object-src 'none'`, and a `script-src` of `'self'` and one hash with no
-`unsafe-inline` in it. AC-601 asserts all three off the wire, and asserts the
-leading-byte reading above in the same file, so the two halves of this
-paragraph move together or not at all.
+`unsafe-inline` in it. The two halves of this paragraph move together or not
+at all.
 */
 const MEDIA_MIMES: Readonly<Record<'audio' | 'video', ReadonlySet<string>>> = {
   audio: new Set(AUDIO_MIMES),
@@ -274,7 +272,7 @@ interface Reencoded {
  * catch answers null, and the route refuses 422. That protection is a
  * library default rather than anything written below, so passing
  * limitInputPixels: false to this constructor would remove it with nothing
- * to notice (S14 security review F-7, RFC 0005 change control item 18). */
+ * to notice. */
 async function downscaled(bytes: Buffer): Promise<Reencoded | null> {
   try {
     const { default: sharp } = await import('sharp')
@@ -367,7 +365,7 @@ export async function createFile(
     folder-scoped `files` row, which is listed in its folder and deletable by
     its members exactly as any other folder-scoped attachment is — the reclaim
     sweep does not and must not take it, `folder_id IS NULL` being one of the
-    two clauses AC-705 holds.
+    two clauses that decide what is sweepable.
 
     This is the upload half of undoing "uploader authorship is standing
     authority". The delete half is in `deleteFile` below.
@@ -418,7 +416,7 @@ export async function createFile(
 
   return inTransaction(db, async (tx) => {
     // The quota read locks the owner's row so two uploads racing the last
-    // megabyte serialize, the folder-cap shape from P2 applied to bytes.
+    // megabyte serialize, the folder-cap shape applied to bytes.
     await tx.execute(
       sql`SELECT 1 FROM users WHERE id = ${viewerId} FOR UPDATE`,
     )
@@ -477,15 +475,12 @@ was true while `createFile` refused a folder-less anything else. The moment a
 person can upload a cover of their own with no folder, the same clause hands
 every signed-in account read access to every personal cover picture in Dana
 for the cost of guessing a uuid, which is not what "pictures belong to the
-user" was ruled to mean. Measured before the change, on the PGlite leg: a
-second account's `GET /api/v1/files/:id` against a folder-less `cover` row
-with real bytes answered **200**.
+user" means.
 
 So: a folder-scoped file is its members', unchanged; an **avatar** with no
 folder stays readable by any signed-in account, because a member list renders
 other people's pictures and that behaviour is 7.15's; every other folder-less
-file is its owner's alone. AC-371 states all three arms, and states rather than checks
-them: its test file went in the 2026-09-20 cut.
+file is its owner's alone.
 
 **Issue #167 widened which kinds may be folder-less and this predicate needed
 no widening at all**, which is worth saying because the obvious reading of the
@@ -495,9 +490,6 @@ became its uploader's alone the moment `createFile` began storing one, on the
 same clause that already held a folder-less `cover`. A predicate written as
 `kind = 'cover' OR ...` would have had to be found and changed here, and a
 change missed there would have been a disclosure rather than a refusal.
-AC-413 states the image arm directly for that reason — states it, its test file having
-gone in the 2026-09-20 cut, so this predicate's widened arm is held by this comment and by
-`domain/files.test.ts` rather than by a criterion.
 
 The predicate is deliberately self-contained — a correlated EXISTS rather than
 a join — so a caller needs nothing in its FROM clause but `files f`.
@@ -566,16 +558,13 @@ answer 404 to avoid an existence leak, and *permitted-visibility but
 forbidden-action* answers 403. A member of the folder who did not upload the
 file can read the same bytes at 200 through `serveFile` a few lines up, so
 there is nothing left to leak — they have already been told the file exists,
-by being handed it. AC-397's authorization sweep is what found this; it drove
-`GET /files/:id` at 200 and `DELETE /files/:id` at 404 for one caller on one
-file. `deleteComment` in `domain/comments.ts` is the same shape and has always
+by being handed it. AC-397's authorization sweep holds this. `deleteComment` in `domain/comments.ts` is the same shape and has always
 answered 403.
 
 So the fault was never the rule, which is 7.15's and unchanged: the same
 people delete the same files as before, and no caller who was refused is now
 admitted. What moved is which refusal they hear, and it moved toward 10.2's
-own grammar rather than away from it, which is why the owner ruled it a
-correction rather than a change to frozen 7.15.
+own grammar rather than away from it.
 
 **The readability check runs only when the delete removed nothing**, so the
 ordinary path costs exactly the one statement it always did. It is
@@ -598,9 +587,8 @@ export async function deleteFile(
 ): Promise<DeleteFileResult> {
   const outcome = await inTransaction(db, async (tx) => {
     /*
-    **The rule changed here, and it is the sharpest edge of the authorship
-    ruling** (issue #228, whose authorship rule supersedes the old one in
-    terms).
+    **The rule changed here, and it is the sharpest edge of #228's
+    authorship rule.**
 
     It was "the uploader or the folder owner". The uploader half is exactly
     what the accepted cross-cutting rule forbids -- a member reduced to Can
@@ -746,9 +734,9 @@ now swept by the 11.7 tick once nothing references it.
 
 **Why the sweep is deferred rather than done at the moment of replacement,
 which was the obvious design and is wrong.** A file this server has stopped
-referencing is still a file the *caller* is holding the id of: AC-368 sets a
-shelf's cover to a picture, replaces it with a gradient, and sets the same
-picture back, which is an ordinary thing for a picker to do and would answer
+referencing is still a file the *caller* is holding the id of: setting a
+shelf's cover to a picture, replacing it with a gradient, and setting the same
+picture back is an ordinary thing for a picker to do and would answer
 422 against a row deleted the instant the gradient landed. So reclamation is
 about a file nothing has referenced *for a while*, and 30 days is the line
 Dana already draws everywhere it destroys something (7.13's Trash, 8.8's
@@ -760,8 +748,7 @@ the whole reason 0014 exists.** Aging from the upload measures when the bytes
 arrived, not when the last reference went: a cover uploaded in June and worn
 until this morning is, the instant it is replaced, both unreferenced and four
 months old, so the next tick took it with no window at all — which is exactly
-the case the window was traded for. AC-385 could not see it, because it only
-ever aged a file that was already unworn. `files.unreferenced_since`
+the case the window was traded for. `files.unreferenced_since`
 (migration 0014) records the moment instead, and the tick writes it, clears it
 and reads it.
 
@@ -795,10 +782,10 @@ export type CoverFileResult =
  * questions. A *set* asks "may this page point at this row as it stands?",
  * and the answer is yes when the row is already a `cover` in the page's own
  * scope owned by the person setting it — that file is theirs outright and
- * copying it would buy nothing, while AC-373 fixes that one folder-less
+ * copying it would buy nothing, and one folder-less
  * picture of a person's own may dress a shelf and a place page at once, both
  * reading back the same id. A *duplicate* asks for a second, independent
- * picture and must never answer with the first: Imran's ruling on #117 is
+ * picture and must never answer with the first: #117 requires
  * that "changing or removing the cover on either shelf must not change the
  * other", and two shelves on one `cover_file_id` are blanked together by
  * 0003's SET NULL the moment that file is deleted.
@@ -883,7 +870,7 @@ and no caller may rewrite it.
 (`files_duration_voice_check`); width and height ride only for the kinds
 allowed to carry them (`files_dimensions_kind_check`), and the bytes are the
 same bytes sharp already reported on, so nothing is re-measured. No audio or
-video duration is persisted at all, which is R1's ruling: browser playback
+video duration is persisted at all, per #220's R1: browser playback
 discovers it at runtime and M1 adds no probing subsystem to write it down.
 */
 export async function copyPageFile(
@@ -1001,9 +988,8 @@ the whole of what stands between the 11.7 tick and every profile picture in
 Dana — which is why #220 widened that clause by naming three more kinds and not
 by restating it as everything-but.
 `guard-reclaim-reference-arms.test.ts` cannot see that — it reads
-`pg_constraint`, and a reference held as text is not there — so AC-705 is what
-holds it, and it is the criterion to read before touching the two clauses that
-decide what is sweepable.
+`pg_constraint`, and a reference held as text is not there — so read this
+before touching the two clauses that decide what is sweepable.
 
 **It is a query and not a counter column**, which is why no migration comes
 with this work. A counter is a second record of a fact the foreign keys
@@ -1039,15 +1025,6 @@ the last, and the pass after it next came off a block would delete it on the
 same tick with no window at all. The window is the whole of what 7.19 and
 migration 0014 bought, and a two-kind clear arm silently withdraws it from
 three of the five kinds.
-
-**AC-705 is the watcher, over all three arms, and AC-810 reads the trace
-rather than the scope.** AC-705's first two cases hold the mark and the delete
-— the avatar the list must never admit and the three kinds #220 added — and
-its third, `a marked folder-less video that something references again is
-unmarked by the next pass`, is the only thing in the suite that reads this
-list in the clear arm; narrowing that arm alone turns it red and nothing
-else. AC-810 stays green under either, which is why it is not the watcher:
-its subject is the `file_reclaimed` line and the batch cap.
 
 Widen this list by naming kinds and never by restating it as a `NOT IN`: an
 avatar's absence from it is the only thing standing between the tick and every
@@ -1108,9 +1085,8 @@ function kindIsReclaimable(): SQL {
  *
  * They are data-modifying CTEs of one statement, which is `destroyFolders`'s
  * shape in `domain/trash.ts` and is chosen for its reason: one snapshot, one
- * wrapperless statement, and the pass keeps the property `interval.test.ts`
- * pins — one transaction per tick, so that file can go on counting passes by
- * counting transactions. It is also stronger than three statements sharing a
+ * wrapperless statement, and the pass keeps one transaction per tick. It is
+ * also stronger than three statements sharing a
  * transaction would be, which at READ COMMITTED would still take three
  * snapshots.
  *
@@ -1123,11 +1099,7 @@ function kindIsReclaimable(): SQL {
  * unreferenced clause excludes on its own. The delete therefore never depends
  * on the other two having run first.
  *
- * Narrow on purpose, and every clause earns its place. **AC-705 is the case
- * over the two clauses in this paragraph**; AC-700 to AC-704
- * hold the five reference arms and every one of them uses a folder-less
- * cover or image, so they are all green under a sweep widened to take a
- * third kind or a folder-scoped row.
+ * Narrow on purpose, and every clause earns its place.
  * **`RECLAIMABLE_KINDS`**, which is
  * `('cover', 'image', 'file', 'audio', 'video')` — widened from the
  * first two on 2026-09-20 for issue #220 and on the clause's own reasoning
@@ -1138,8 +1110,7 @@ function kindIsReclaimable(): SQL {
  * requires a folder (migration 0024), so no `voice` row can satisfy the
  * `folder_id IS NULL` beside this and naming it would be decoration. An
  * avatar is still absent too, and that exclusion stays judged and
- * load-bearing rather than structural — it is the half of AC-705 where being
- * wrong destroys every profile picture in the product, so this list is
+ * load-bearing rather than structural — being wrong about it destroys every profile picture in the product, so this list is
  * widened by naming kinds and never by restating it as a `NOT IN`. What
  * changed is that a composer File, Audio or Video may now be folder-less, and
  * a folder-less one is in exactly the position the folder-less page image was
@@ -1193,10 +1164,7 @@ function kindIsReclaimable(): SQL {
  * first time it went unreferenced rather than from the last, and the pass
  * after it next came off a block would take it on that same tick. That is the
  * whole of what migration 0014 and 7.19 bought, withdrawn from three kinds
- * by a clause that reads like a narrowing of what is scanned. **AC-705's
- * third case is what holds this arm** — a marked folder-less video that
- * regains a reference, unmarked by the next pass — and it is the only thing
- * in the suite that goes red when this arm alone is narrowed; the constant's
+ * by a clause that reads like a narrowing of what is scanned. The constant's
  * own comment carries the rest.
  *
  * **What it destroys, it says (issue #276).** One `file_reclaimed` line per
