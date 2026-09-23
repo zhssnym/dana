@@ -96,6 +96,7 @@ import {
 import type { LabelDefinition } from './labels.js'
 import {
   MAX_SECTION_DEPTH,
+  PRESENTATION_HEADING_KINDS,
   RICH_TEXT_BLOCK_KINDS,
   documentOperation,
   documentOutlineItem,
@@ -403,6 +404,107 @@ const workflowPage = z.object({
     ),
 })
 
+/* ------------------------------------------------------------------ *
+ * Format 5: the native Purpose facet (#211)
+ * ------------------------------------------------------------------ */
+
+export const WORKFLOW_PURPOSE_BLOCK_KINDS = [
+  'paragraph',
+  ...PRESENTATION_HEADING_KINDS,
+  'bullet',
+  'numbered',
+  'checklist',
+  'quote',
+  'callout',
+  'code',
+] as const
+export type WorkflowPurposeBlockKind =
+  (typeof WORKFLOW_PURPOSE_BLOCK_KINDS)[number]
+
+const purposeContentBlock = z
+  .object({
+    kind: z.enum(WORKFLOW_PURPOSE_BLOCK_KINDS),
+    text: z.string().max(4000).nullable().optional(),
+    rich_content: richContent.nullable().optional(),
+    checked: z.boolean().optional(),
+    list_parent: pageBlockIndex.optional(),
+  })
+  .superRefine((block, ctx) => {
+    if (
+      (PRESENTATION_HEADING_KINDS as readonly string[]).includes(block.kind) &&
+      (block.text?.length ?? 0) > 120
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['text'],
+        message: 'A heading has at most 120 characters.',
+      })
+    }
+    if (
+      block.rich_content !== null &&
+      block.rich_content !== undefined &&
+      (!(RICH_TEXT_BLOCK_KINDS as readonly string[]).includes(block.kind) ||
+        block.rich_content.runs.map((run) => run.text).join('') !==
+          (block.text ?? null))
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['rich_content'],
+        message: 'Rich content must match its text projection.',
+      })
+    }
+    if (block.checked !== undefined && block.kind !== 'checklist') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['checked'],
+        message: 'Only a checklist item is checked or unchecked.',
+      })
+    }
+    if (block.list_parent !== undefined && !isListKind(block.kind)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['list_parent'],
+        message: 'Only a bullet, numbered or checklist item is a nested list item.',
+      })
+    }
+  })
+
+export const workflowPurposeBlock = z.discriminatedUnion('kind', [
+  purposeContentBlock,
+  pageOmittedBlock,
+])
+export type WorkflowPurposeBlock = z.infer<typeof workflowPurposeBlock>
+
+export const workflowPurpose = z
+  .object({
+    display_name: z.string().min(1).max(120).nullable().optional(),
+    blocks: z
+      .array(workflowPurposeBlock)
+      .max(
+        WORKFLOW_PAGE_ITEM_CAP,
+        `purpose: a document carries at most ${String(WORKFLOW_PAGE_ITEM_CAP)} items`,
+      ),
+  })
+  .superRefine((purpose, ctx) => {
+    purpose.blocks.forEach((block, index) => {
+      if (block.kind === 'omitted' || block.list_parent === undefined) return
+      const parent = purpose.blocks[block.list_parent]
+      if (
+        block.list_parent >= index ||
+        parent === undefined ||
+        parent.kind === 'omitted' ||
+        !isListKind(parent.kind)
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['blocks', index, 'list_parent'],
+          message: 'A list item nests under an earlier list item of this Purpose document.',
+        })
+      }
+    })
+  })
+export type WorkflowPurpose = z.infer<typeof workflowPurpose>
+
 /*
 The one reading of a format 4 page, used by the schema and by the import.
 
@@ -530,6 +632,8 @@ const importFolder = z.object({
   /** Format 4's one ordered page (#185). Gated on the version by
    * `readsPage` below, exactly as `labels` is gated on 3. */
   page: workflowPage.optional(),
+  /** Format 5's reusable native Purpose document (#211). */
+  purpose: workflowPurpose.optional(),
   /*
   DES-206's own name for `blocks`, declared for one reason: to refuse it
   **beside a page**, which is the same contradiction the rule below refuses for
@@ -602,7 +706,7 @@ that cost the picker was this array — one line, in one file, exactly as the
 paragraph above promised. 1, 2 and 3 are read as they always were, so a file
 written before that change imports with the same rows it always made.
 */
-export const WORKFLOW_FILE_VERSIONS = [1, 2, 3, 4] as const
+export const WORKFLOW_FILE_VERSIONS = [1, 2, 3, 4, 5] as const
 
 /** The array as the body schema reads it. A union of literals rather than
  * `z.literal([...])` so the issue a bad version produces keeps the shape it
@@ -653,7 +757,9 @@ const canonicalWorkflowBody = z
         sum +
         (folder.page !== undefined
           ? pageBlocks(folder)
-          : (folder.document?.blocks.length ?? folder.blocks?.length ?? 0)),
+          : (folder.document?.blocks.length ?? folder.blocks?.length ?? 0)) +
+        (folder.purpose?.blocks ?? []).filter((block) => block.kind !== 'omitted')
+          .length,
       0,
     )
     if (blocks > 500) {
@@ -905,7 +1011,7 @@ function dropNulls(task: Record<string, unknown>): void {
  * key `importFolder` names is here, because "null means absent" is a property
  * of the format rather than of any one key. */
 function dropFolderNulls(folder: Record<string, unknown>): void {
-  for (const key of ['tasks', 'blocks', 'document', 'labels', 'page']) {
+  for (const key of ['tasks', 'blocks', 'document', 'labels', 'page', 'purpose']) {
     if (folder[key] === null) delete folder[key]
   }
 }
@@ -934,7 +1040,7 @@ product decision #227 did not take, and this file's rule everywhere else is
 that an arrangement it cannot read is dropped rather than guessed at.
 */
 function readsLabels(file: Record<string, unknown>): boolean {
-  return file.version === 3 || file.version === 4
+  return file.version === 3 || file.version === 4 || file.version === 5
 }
 
 /*
@@ -949,7 +1055,11 @@ arrangement like any other: dropped, reported by the client's own reporter, and
 never measured against rules it never claimed to satisfy.
 */
 function readsPage(file: Record<string, unknown>): boolean {
-  return file.version === 4
+  return file.version === 4 || file.version === 5
+}
+
+function readsPurpose(file: Record<string, unknown>): boolean {
+  return file.version === 5
 }
 
 function normalizeTask(task: unknown, labels: boolean): unknown {
@@ -977,6 +1087,7 @@ function normalizeFolder(
   folder: unknown,
   labels: boolean,
   carriesPage: boolean,
+  carriesPurpose: boolean,
 ): unknown {
   /* A folder given as its name alone, which is what a file listing the
      folders of an arrangement writes. */
@@ -986,6 +1097,7 @@ function normalizeFolder(
   dropFolderNulls(next)
   if (!labels) delete next.labels
   if (!carriesPage) delete next.page
+  if (!carriesPurpose) delete next.purpose
   /* A format 4 folder says everything in its page, so the older arrangements
      are left exactly as the file wrote them: a `blocks` key beside a page is
      the contradiction the body refuses, and folding `items` into one here
@@ -1070,7 +1182,8 @@ export function normalizeWorkflowFile(value: unknown): unknown {
     if (
       !Array.isArray(file.tasks) &&
       !Array.isArray(file.items) &&
-      !isRecord(file.page)
+      !isRecord(file.page) &&
+      !isRecord(file.purpose)
     ) {
       return file
     }
@@ -1086,6 +1199,7 @@ export function normalizeWorkflowFile(value: unknown): unknown {
            the top level would otherwise meet "folders: expected array" about
            a file it got right in every other respect. */
         ...(isRecord(file.page) ? { page: file.page } : {}),
+        ...(isRecord(file.purpose) ? { purpose: file.purpose } : {}),
         ...(Array.isArray(file.tasks) ? { tasks: file.tasks } : {}),
         ...(Array.isArray(file.items) ? { items: file.items } : {}),
       },
@@ -1093,7 +1207,10 @@ export function normalizeWorkflowFile(value: unknown): unknown {
   }
   const labels = readsLabels(file)
   const page = readsPage(file)
-  file.folders = folders.map((folder) => normalizeFolder(folder, labels, page))
+  const purpose = readsPurpose(file)
+  file.folders = folders.map((folder) =>
+    normalizeFolder(folder, labels, page, purpose),
+  )
   return file
 }
 
