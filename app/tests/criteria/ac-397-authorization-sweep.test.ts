@@ -307,6 +307,7 @@ type ResourceId =
      for the preset -- a green row measuring the wrong refusal, which is the
      failure this file's two controls exist to catch. */
   | 'facetId'
+  | 'purposeFacetId'
   | 'trashedFacetId'
 
 interface Fixtures extends Record<ResourceId, string> {
@@ -386,6 +387,16 @@ async function fixturesOf(): Promise<Fixtures> {
   await makePlaceCover(owner, PLACE, fileId)
 
   const facetId = await makeFacet(owner, folderId, 'ac397 the facet')
+  const nativeFacets = await owner.browser.api(`/folders/${folderId}/facets`)
+  if (nativeFacets.status !== 200) {
+    throw new Error(`AC-397 could not read native facets: ${String(nativeFacets.status)}`)
+  }
+  const purposeFacetId = (
+    nativeFacets.json() as { facets: Array<{ id: string; kind: string }> }
+  ).facets.find((facet) => facet.kind === 'purpose')?.id
+  if (purposeFacetId === undefined) {
+    throw new Error('AC-397 folder fixture has no native Purpose facet')
+  }
   const trashedFacetId = await makeFacet(owner, folderId, 'ac397 doomed facet')
   await trashFacet(owner, folderId, trashedFacetId)
 
@@ -420,6 +431,7 @@ async function fixturesOf(): Promise<Fixtures> {
     strangerPersonalLabelId,
     folderLabelId,
     facetId,
+    purposeFacetId,
     trashedFacetId,
   }
   return fixtures
@@ -1729,6 +1741,16 @@ const TABLE = new Map<string, Row>([
     },
   ],
   [
+    'GET /api/v1/facets/:id/location',
+    {
+      attempt: (fx) => ({ path: `/facets/${fx.purposeFacetId}/location` }),
+      stranger: {
+        expected: 404,
+        rule: '7.27 and 10.2: the location read exists only to enter a readable native Purpose through its owning Folder; a non-member must not learn that Folder id or whether the facet exists',
+      },
+    },
+  ],
+  [
     'POST /api/v1/facets/:id/restore',
     {
       attempt: (fx) => ({ path: `/facets/${fx.trashedFacetId}/restore` }),
@@ -1909,11 +1931,17 @@ describe('AC-397 every id-bearing route refuses a stranger', () => {
     lesson the five paragraphs above this one record five times over, and it
     holds even when there is only one branch open, because the number to write
     down is always the one the sweep reported.
+
+    **96 to 97 on 2026-09-23** (issue #211): the one access-safe
+    `GET /facets/:id/location` bridge that lets the stable Purpose Dana Link
+    enter its owning Folder. Its row is above and its fixture is the actual
+    native Purpose created with the Folder, so the stranger 404 measures the
+    new route rather than a generic blank facet.
     */
     expect(
       routes.length,
-      `the walker found ${String(routes.length)} routes carrying a path parameter and there were 96 after issue #223 added the Dana Link resolver, issue #224 added the three task-dependency routes, issue #226 added the eleven id-bearing routes of the Label surface, issue #228 added the two Access-administration mutations and the two Access-history reads, issue #230 added the member-details projection, the two Responsibility reads, the Responsibility commit and the self-edit grant toggle, and issue #210 added the eleven routes of the facet surface. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means an id-bearing route was added, and it owes this table a row saying what a stranger gets when they ask for somebody else's`,
-    ).toBe(96)
+      `the walker found ${String(routes.length)} routes carrying a path parameter and there were 97 after issue #223 added the Dana Link resolver, issue #224 added the three task-dependency routes, issue #226 added the eleven id-bearing routes of the Label surface, issue #228 added the two Access-administration mutations and the two Access-history reads, issue #230 added the member-details projection, the two Responsibility reads, the Responsibility commit and the self-edit grant toggle, issue #210 added the eleven routes of the facet surface, and issue #211 added the Purpose facet location bridge. Fewer means the enumeration lost sight of routes that still exist, a router mounted inside another router being the way that happens; more means an id-bearing route was added, and it owes this table a row saying what a stranger gets when they ask for somebody else's`,
+    ).toBe(97)
 
     const missing = routes.filter((route) => !TABLE.has(route))
     expect(
@@ -2082,6 +2110,11 @@ describe('AC-397 every id-bearing route refuses a stranger', () => {
       what: 'the facet, on its folder\'s facet listing',
       path: `/folders/${fx.folderId}/facets`,
       holds: fx.facetId,
+    }),
+    purposeFacetId: (fx) => ({
+      what: 'the native Purpose facet location',
+      path: `/facets/${fx.purposeFacetId}/location`,
+      holds: fx.folderId,
     }),
     trashedFacetId: (fx) => ({
       what: 'the trashed facet',
