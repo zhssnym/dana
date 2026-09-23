@@ -17,22 +17,37 @@ the set exactly those ids. The gate is the one the words already had — the
 author, and nobody widened — and the answer carries the fresh comment beside
 the `edited` flag it always carried, because the resolved file rows are
 something the caller cannot compute from what it sent.
+
+Since issue #320 a Folder-level comment belongs to a Discussion.
+`/discussions/:id/comments` is that Discussion's conversation, the same
+comment in every other respect (body, files, replies, likes, fan-out).
+`/folders/:id/comments` without `task` stays exactly as the deployed client
+uses it and is the Folder's "General discussion": the read answers it, and a
+write lands in the open one, made if missing. A resolved or trashed
+Discussion refuses every write to its conversation with 409
+`discussion_frozen`, after the 404 and the 403 have had their say.
 */
 import type { Request, Response, Router } from 'express'
 import { z } from 'zod'
 
 import type { DbClient } from '../../../db/client.js'
-import { patchCommentBody, postCommentBody } from '../../shared/comments.js'
+import {
+  DISCUSSION_FROZEN,
+  patchCommentBody,
+  postCommentBody,
+} from '../../shared/comments.js'
 import { requireCsrf, requireSession } from '../auth/index.js'
 import {
   accessibleComment,
   createComment,
   deleteComment,
+  discussionScope,
   editComment,
   likeComment,
   threadView,
   unlikeComment,
 } from '../domain/comments.js'
+import type { CommentThread, CreateCommentResult } from '../domain/comments.js'
 import { accessOf } from '../domain/folders.js'
 import { mayPerform } from '../domain/folder-access.js'
 import { sendError, sendValidationError } from '../http/errors.js'
@@ -50,6 +65,75 @@ export interface ConversationRouterOptions {
 }
 
 const threadQuery = z.object({ task: z.uuid().optional() })
+
+function folderThread(task: string | undefined): CommentThread {
+  return task === undefined ? { kind: 'folder' } : { kind: 'task', taskId: task }
+}
+
+const FROZEN_MESSAGE =
+  'This discussion is resolved or in Trash, so its conversation takes no changes. Reopen or restore it first.'
+
+function sendFrozen(res: Response): void {
+  sendError(res, 409, DISCUSSION_FROZEN, FROZEN_MESSAGE)
+}
+
+/** The create half's refusals, shared by the Folder and Discussion routes
+ * so the two threads cannot answer the same mistake differently. */
+function sendCreateOutcome(
+  res: Response,
+  outcome: CreateCommentResult,
+  sentFileIds: boolean,
+): void {
+  switch (outcome.kind) {
+    case 'task_not_here':
+      sendError(
+        res,
+        422,
+        'validation_failed',
+        'task: must name a task of this folder.',
+      )
+      return
+    case 'discussion_not_here':
+      // Purged between the route's read and the write: gone, as 10.2 says.
+      sendError(res, 404, 'not_found', 'Not found.')
+      return
+    case 'frozen':
+      sendFrozen(res)
+      return
+    case 'parent_not_here':
+      sendError(
+        res,
+        422,
+        'validation_failed',
+        'parent_id: must name a comment of this thread.',
+      )
+      return
+    case 'too_deep':
+      sendError(
+        res,
+        422,
+        'validation_failed',
+        'parent_id: threads hold one level of replies.',
+      )
+      return
+    case 'file_not_here':
+      // The message names the field the caller actually sent: 7.14 takes
+      // `file_id` for one file and `file_ids` for up to 10.3's ten, and a
+      // 422 that names the other one is a 422 nobody can act on.
+      sendError(
+        res,
+        422,
+        'validation_failed',
+        sentFileIds
+          ? 'file_ids: every id must name a file stored in this folder.'
+          : 'file_id: must name a file stored in this folder.',
+      )
+      return
+    case 'created':
+      res.status(201).json(outcome.comment)
+      return
+  }
+}
 
 export function createConversationRouter(
   options: ConversationRouterOptions = {},
@@ -78,7 +162,12 @@ export function createConversationRouter(
       res
         .status(200)
         .json(
-          await threadView(db, viewer(req), folderId, query.data.task ?? null),
+          await threadView(
+            db,
+            viewer(req),
+            folderId,
+            folderThread(query.data.task),
+          ),
         )
     },
   )
@@ -122,51 +211,82 @@ export function createConversationRouter(
         db,
         viewer(req),
         folderId,
-        query.data.task ?? null,
+        folderThread(query.data.task),
         parsed,
       )
-      switch (outcome.kind) {
-        case 'task_not_here':
-          sendError(
-            res,
-            422,
-            'validation_failed',
-            'task: must name a task of this folder.',
-          )
-          return
-        case 'parent_not_here':
-          sendError(
-            res,
-            422,
-            'validation_failed',
-            'parent_id: must name a comment of this thread.',
-          )
-          return
-        case 'too_deep':
-          sendError(
-            res,
-            422,
-            'validation_failed',
-            'parent_id: threads hold one level of replies.',
-          )
-          return
-        case 'file_not_here':
-          // The message names the field the caller actually sent: 7.14 takes
-          // `file_id` for one file and `file_ids` for up to 10.3's ten, and a
-          // 422 that names the other one is a 422 nobody can act on.
-          sendError(
-            res,
-            422,
-            'validation_failed',
-            parsed.file_ids === undefined
-              ? 'file_id: must name a file stored in this folder.'
-              : 'file_ids: every id must name a file stored in this folder.',
-          )
-          return
-        case 'created':
-          res.status(201).json(outcome.comment)
-          return
+      sendCreateOutcome(res, outcome, parsed.file_ids !== undefined)
+    },
+  )
+
+  /*
+  A Discussion's conversation (issue #320). The Discussion is resolved to its
+  Folder first and the Folder's access decides everything, so an id naming
+  no Discussion and a Discussion in somebody else's Folder read identically
+  (404, 10.2). A trashed Discussion's conversation still reads, as its row
+  does, and takes no writes; a trashed Folder hides both (`accessOf`).
+  */
+  router.get(
+    '/discussions/:id/comments',
+    requireSession,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const discussionId = parsedId(res, req.params.id)
+      if (discussionId === null) return
+      const scope = await discussionScope(db, discussionId)
+      const facts =
+        scope === null ? null : await accessOf(db, viewer(req), scope.folderId)
+      if (scope === null || facts === null) {
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
       }
+      const allowed = mayPerform(facts, 'discussion.read')
+      if (!allowed.allowed) {
+        sendError(res, 403, 'forbidden', allowed.reason)
+        return
+      }
+      res.status(200).json(
+        await threadView(db, viewer(req), scope.folderId, {
+          kind: 'discussion',
+          discussionId: scope.id,
+        }),
+      )
+    },
+  )
+
+  router.post(
+    '/discussions/:id/comments',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const discussionId = parsedId(res, req.params.id)
+      if (discussionId === null) return
+      const parsed = parseBody(postCommentBody, req, res, securityLog)
+      if (parsed === null) return
+      const scope = await discussionScope(db, discussionId)
+      const facts =
+        scope === null ? null : await accessOf(db, viewer(req), scope.folderId)
+      if (scope === null || facts === null) {
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      // The Folder thread's own bar: Consultation is participation (R8A).
+      const allowed = mayPerform(facts, 'comment.create')
+      if (!allowed.allowed) {
+        sendError(res, 403, 'forbidden', allowed.reason)
+        return
+      }
+      const outcome = await createComment(
+        db,
+        viewer(req),
+        scope.folderId,
+        { kind: 'discussion', discussionId: scope.id },
+        parsed,
+      )
+      sendCreateOutcome(res, outcome, parsed.file_ids !== undefined)
     },
   )
 
@@ -232,6 +352,9 @@ export function createConversationRouter(
         case 'gone':
           sendError(res, 404, 'not_found', 'Not found.')
           return
+        case 'frozen':
+          sendFrozen(res)
+          return
         case 'edited':
           res.status(200).json({ edited: true, comment: outcome.comment })
           return
@@ -279,7 +402,10 @@ export function createConversationRouter(
         )
         return
       }
-      await deleteComment(db, viewer(req), access)
+      if ((await deleteComment(db, viewer(req), access)) === 'frozen') {
+        sendFrozen(res)
+        return
+      }
       res.status(204).end()
     },
   )
@@ -306,7 +432,10 @@ export function createConversationRouter(
         sendError(res, 403, 'forbidden', mayLike.reason)
         return
       }
-      await likeComment(db, viewer(req), commentId)
+      if ((await likeComment(db, viewer(req), commentId)) === 'frozen') {
+        sendFrozen(res)
+        return
+      }
       res.status(204).end()
     },
   )
@@ -331,7 +460,10 @@ export function createConversationRouter(
         sendError(res, 403, 'forbidden', mayUnlike.reason)
         return
       }
-      await unlikeComment(db, viewer(req), commentId)
+      if ((await unlikeComment(db, viewer(req), commentId)) === 'frozen') {
+        sendFrozen(res)
+        return
+      }
       res.status(204).end()
     },
   )

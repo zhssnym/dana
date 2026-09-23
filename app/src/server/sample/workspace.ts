@@ -34,6 +34,7 @@ import { sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
+import { GENERAL_DISCUSSION_TITLE } from '../../shared/consultation.js'
 import type { SampleCounts, SampleStatus } from '../../shared/sample.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
@@ -234,11 +235,26 @@ async function writeFolder(
   for (const task of folder.tasks) {
     await writeTask(tx, userId, anchor, folderId, task, sections)
   }
-  for (const comment of folder.conversation ?? []) {
-    await tx.execute(
-      sql`INSERT INTO comments (folder_id, author_id, body)
-          VALUES (${folderId}::uuid, ${userId}::uuid, ${comment.body})`,
+  /* Issue #320: a Folder-level comment belongs to a Discussion, so the
+     sample's conversation is the Folder's "General discussion", in 0029's
+     backfill shape. */
+  const conversation = folder.conversation ?? []
+  if (conversation.length > 0) {
+    const general = await rowsOf(
+      tx,
+      sql`INSERT INTO discussions (folder_id, title, created_by)
+          VALUES (${folderId}::uuid, ${GENERAL_DISCUSSION_TITLE},
+                  ${userId}::uuid)
+          RETURNING id`,
     )
+    const discussionId = String(general[0]?.id)
+    for (const comment of conversation) {
+      await tx.execute(
+        sql`INSERT INTO comments (folder_id, discussion_id, author_id, body)
+            VALUES (${folderId}::uuid, ${discussionId}::uuid,
+                    ${userId}::uuid, ${comment.body})`,
+      )
+    }
   }
   await recordEvent(tx, {
     actorId: userId,
