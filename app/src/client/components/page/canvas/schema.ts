@@ -2,6 +2,7 @@ import { BlockNoteSchema, createExtension, createHeadingBlockSpec, defaultBlockS
 
 import { MAX_SECTION_DEPTH } from '../../../../shared/page-document.js'
 
+import { createCanvasCallout } from './CanvasCallout.js'
 import { createCanvasTaskSpec } from './CanvasTask.js'
 import { createCanvasParagraph } from './CanvasParagraph.js'
 import { createTaskAtCursor, removeEmptyBeforeHeading } from './commands.js'
@@ -82,7 +83,16 @@ export const canvasSchema = BlockNoteSchema.create({
   blockSpecs: {
     paragraph: createCanvasParagraph(),
     heading: groupHeading,
+    bulletListItem: defaultBlockSpecs.bulletListItem,
+    numberedListItem: defaultBlockSpecs.numberedListItem,
+    checkListItem: defaultBlockSpecs.checkListItem,
+    quote: defaultBlockSpecs.quote,
+    callout: createCanvasCallout(),
+    codeBlock: defaultBlockSpecs.codeBlock,
     image: defaultBlockSpecs.image,
+    file: defaultBlockSpecs.file,
+    audio: defaultBlockSpecs.audio,
+    video: defaultBlockSpecs.video,
     danaTask: createCanvasTaskSpec(),
   },
   styleSpecs: { bold: defaultStyleSpecs.bold, italic: defaultStyleSpecs.italic },
