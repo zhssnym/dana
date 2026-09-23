@@ -11,12 +11,14 @@ import type { DefaultReactSuggestionItem } from '@blocknote/react'
 import { filterSuggestionItems, SideMenuExtension } from '@blocknote/core/extensions'
 import { CanvasFormattingToolbar } from './CanvasFormattingToolbar.js'
 import { installCanvasGuard } from './guard.js'
-import { ancestorsOf, bindTaskCommand, continueAfterGroup, headingOneContext, insertCanvasHeading, moveCanvasBlock, removeHeadingKeepingContent } from './commands.js'
+import { ancestorsOf, bindTaskCommand, continueAfterGroup, headingOneContext, insertCanvasHeading, insertDocumentHeading, moveCanvasBlock, removeHeadingKeepingContent } from './commands.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
 import './canvas.css'
 import { ArrowDown, CheckCircle2, X } from '../../../lib/icons.js'
 
-const CommandContext = createContext<{ task?: (block?: CanvasBlock) => void; explain: (message: string) => void }>({ explain: () => {} })
+type HeadingMode = 'section' | 'document' | 'none'
+
+const CommandContext = createContext<{ task?: (block?: CanvasBlock) => void; explain: (message: string) => void; headingMode: HeadingMode }>({ explain: () => {}, headingMode: 'section' })
 
 function CanvasBlockMenu(): React.JSX.Element | null {
   const editor = useBlockNoteEditor() as CanvasEditor
@@ -25,10 +27,15 @@ function CanvasBlockMenu(): React.JSX.Element | null {
   const sideBlock = useExtensionState(SideMenuExtension, { editor, selector: (state) => state?.block })
   const block = sideBlock === undefined ? undefined : editor.getBlock(sideBlock.id)
   if (block === undefined) return null
-  const group = block.type === 'heading' ? block : (ancestorsOf(editor.document, block.id) ?? []).at(-1)
+  const group = commands.headingMode === 'section'
+    ? block.type === 'heading' && block.props.isToggleable !== false
+      ? block
+      : (ancestorsOf(editor.document, block.id) ?? []).filter((item) => item.type === 'heading' && item.props.isToggleable !== false).at(-1)
+    : undefined
+  const directions = commands.headingMode === 'section' ? (['up', 'down', 'out', 'in'] as const) : (['up', 'down'] as const)
   return (
     <DragHandleMenu>
-      {(['up', 'down', 'out', 'in'] as const).map((direction) => <components.Generic.Menu.Item key={direction} onClick={() => commands.explain(moveCanvasBlock(editor, block, direction) ?? '')}>
+      {directions.map((direction) => <components.Generic.Menu.Item key={direction} onClick={() => commands.explain(moveCanvasBlock(editor, block, direction) ?? '')}>
         <span>{{ up: 'Move up', down: 'Move down', out: 'Move out of group', in: 'Move into previous group' }[direction]}</span>
       </components.Generic.Menu.Item>)}
       {block.type === 'paragraph' && commands.task ? <components.Generic.Menu.Item onClick={() => commands.task?.(block)}><CheckCircle2 size={16} /><span>Convert to Task</span></components.Generic.Menu.Item> : null}
@@ -37,7 +44,7 @@ function CanvasBlockMenu(): React.JSX.Element | null {
           <ArrowDown size={16} /><span>Continue after group</span>
         </components.Generic.Menu.Item>
       ) : null}
-      {block.type === 'heading' ? (
+      {block.type === 'heading' && commands.headingMode === 'section' ? (
         <components.Generic.Menu.Item onClick={() => removeHeadingKeepingContent(editor, block)}>
           <X size={16} /><span>Remove heading<span className="block text-xs text-muted-foreground">Keep its Tasks and content</span></span>
         </components.Generic.Menu.Item>
@@ -83,11 +90,11 @@ const canvasSidePosition = {
 }
 
 /** Visual editor host. The caller owns hydration, uploads, Task actions and durable saving. */
-export function CanvasSurface({ editor, onChange, onCreateTask, allowHeadings = true, editable = true }: {
+export function CanvasSurface({ editor, onChange, onCreateTask, headingMode = 'section', editable = true }: {
   readonly editor: CanvasEditor
   readonly onChange: (editor: CanvasEditor) => void
   readonly onCreateTask?: (block?: CanvasBlock) => void
-  readonly allowHeadings?: boolean
+  readonly headingMode?: HeadingMode
   readonly editable?: boolean
 }): React.JSX.Element {
   const [feedback, setFeedback] = useState('')
@@ -100,7 +107,7 @@ export function CanvasSurface({ editor, onChange, onCreateTask, allowHeadings = 
     return () => observer.disconnect()
   }, [])
   return (
-    <CommandContext.Provider value={{ task: onCreateTask, explain: setFeedback }}>
+    <CommandContext.Provider value={{ task: onCreateTask, explain: setFeedback, headingMode }}>
     <div className="dana-writing-canvas min-w-0">
       <BlockNoteView
         editor={editor}
@@ -110,7 +117,7 @@ export function CanvasSurface({ editor, onChange, onCreateTask, allowHeadings = 
         slashMenu={false}
         sideMenu={false}
         onChange={() => { setFeedback(''); onChange(editor) }}
-        aria-label="Folder writing and Tasks"
+        aria-label={onCreateTask === undefined ? 'Folder writing' : 'Folder writing and Tasks'}
       >
         <FormattingToolbarController formattingToolbar={CanvasFormattingToolbar} />
         <SideMenuController sideMenu={CanvasSideMenu} floatingUIOptions={canvasSidePosition} />
@@ -120,12 +127,20 @@ export function CanvasSurface({ editor, onChange, onCreateTask, allowHeadings = 
           const core: DefaultReactSuggestionItem[] = defaults.filter((item) => 'key' in item && (item.key === 'paragraph' || item.key === 'image'))
             .map((item) => 'key' in item && item.key === 'paragraph' ? { ...item, title: 'Text' } : item)
           const heading = byKey('heading')
-          if (allowHeadings && heading !== undefined) {
+          if (headingMode === 'section' && heading !== undefined) {
             core.splice(1, 0, { ...heading, title: 'Heading 1', onItemClick: () => insertCanvasHeading(editor, 1) })
             if (headingOneContext(editor) !== undefined) core.splice(2, 0, {
               ...byKey('heading_2') ?? heading, title: 'Heading 2', subtext: 'A subgroup inside Heading 1',
               onItemClick: () => insertCanvasHeading(editor, 2),
             })
+          } else if (headingMode === 'document' && heading !== undefined) {
+            const headings = ([1, 2, 3] as const).map((level) => ({
+              ...(level === 1 ? heading : byKey(`heading_${String(level)}`) ?? heading),
+              title: `Heading ${String(level)}`,
+              subtext: 'Document heading',
+              onItemClick: () => insertDocumentHeading(editor, level),
+            }))
+            core.splice(1, 0, ...headings)
           }
           if (onCreateTask !== undefined) core.splice(1, 0, {
             title: 'Task', subtext: 'A Dana Task', icon: <CheckCircle2 size={16} />,
