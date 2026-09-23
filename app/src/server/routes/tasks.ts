@@ -36,7 +36,9 @@ import type { TaskCard, TaskDetail } from '../../shared/tasks.js'
 import { postTaskDependencyBody } from '../../shared/task-dependencies.js'
 import { viewTz } from '../../shared/views.js'
 import { requireCsrf, requireSession } from '../auth/index.js'
-import { sendError, sendValidationError } from '../http/errors.js'
+import { sendError, sendFieldValidationError, sendValidationError } from '../http/errors.js'
+import { documentTransaction } from '../../shared/page-document.js'
+import { TaskDocumentRefusal } from '../domain/task-document.js'
 import { parseBody } from '../http/parse-body.js'
 import { optionalLimit } from '../security/rate-limit.js'
 import type { RateLimits } from '../security/rate-limit.js'
@@ -54,8 +56,10 @@ import {
   patchTask,
   pullIntoMyDay,
   putTaskReminder,
+  taskDocument,
   taskView,
   transitionTask,
+  writeTaskDocument,
 } from '../domain/tasks.js'
 import type { ReminderRefusal, TransitionEvent } from '../domain/tasks.js'
 import {
@@ -185,6 +189,60 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
     }
     res.status(200).json(task)
   })
+
+  /* ---------------------------------------------------------------- *
+   * The Task document (issue #221): 7.16's PageView and document
+   * transaction over the Task's own blocks. Read by any member who can
+   * see the Task; written under `task.edit`, the gate a `notes` PATCH has.
+   * ---------------------------------------------------------------- */
+
+  router.get('/tasks/:id/document', requireSession, async (req: Request, res: Response) => {
+    const db = database(res)
+    if (db === null) return
+    const taskId = parsedId(res, req.params.id)
+    if (taskId === null) return
+    const view = await taskDocument(db, viewer(req), taskId)
+    if (view === null) {
+      notFound(res)
+      return
+    }
+    res.status(200).json(view)
+  })
+
+  router.put(
+    '/tasks/:id/document',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const taskId = parsedId(res, req.params.id)
+      if (taskId === null) return
+      const parsed = parseBody(documentTransaction, req, res, securityLog)
+      if (parsed === null) return
+      try {
+        res.status(200).json(await writeTaskDocument(db, viewer(req), taskId, parsed))
+      } catch (error) {
+        if (!(error instanceof TaskDocumentRefusal)) throw error
+        if (error.outcome === 'not_found') {
+          notFound(res)
+          return
+        }
+        if (error.outcome === 'forbidden') {
+          forbidden(res, error.message)
+          return
+        }
+        if (error.outcome === 'invalid') {
+          sendFieldValidationError(res, [
+            { field: error.field ?? 'operations', message: error.message },
+          ])
+          return
+        }
+        sendError(res, 409, 'conflict', error.message)
+      }
+    },
+  )
 
   router.patch(
     '/tasks/:id',

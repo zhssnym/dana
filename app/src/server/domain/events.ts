@@ -180,6 +180,7 @@ export async function listNotifications(
     db,
     sql`SELECT n.id AS notification_id, n.read_at,
                n.created_at AS notified_at, c.task_id AS comment_task_id,
+               c.discussion_id AS comment_discussion_id,
                ${EVENT_COLUMNS}
         FROM notifications n
         JOIN events e ON e.id = n.event_id
@@ -198,6 +199,9 @@ export async function listNotifications(
          on the task with its thread open rather than on the folder. Null
          for a folder-level comment and for every other subject. */
       task_id: nullableString(row.comment_task_id),
+      /* Issue #320: the Discussion a Folder-level comment sits in, so the
+         bell can open that conversation. Null otherwise. */
+      discussion_id: nullableString(row.comment_discussion_id),
       event: eventFromRow(row),
     })),
     truncated: rows.length > LIST_CAP,

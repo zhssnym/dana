@@ -33,6 +33,7 @@ import { sql } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
 import type {
+  DocumentTransaction,
   PageBlock,
   PageActionBody,
   PageItemRef,
@@ -40,6 +41,7 @@ import type {
   PageView,
 } from '../../shared/pages.js'
 import { WIDTH_BLOCK_KINDS } from '../../shared/pages.js'
+import { isMediaKind } from '../../shared/page-document.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
@@ -47,6 +49,7 @@ import { readableFileScope } from './files.js'
 import { mayPerform } from './folder-access.js'
 import { accessOf } from './folders.js'
 import { shelfView } from './shelves.js'
+import { applyShelfDocument, shelfDocumentMetadata, ShelfDocumentRefusal } from './shelf-document.js'
 import { initialKeys } from './fractional-index.js'
 import {
   placementKey,
@@ -74,6 +77,17 @@ function nullableInt(value: unknown): number | null {
   return value === null || value === undefined ? null : Number(value)
 }
 
+/** Issue #267: when the server took this media block's file, or null. Only a
+ * media block that still names no file reports it; a block given a new file,
+ * or turned into another kind, has nothing missing to report. Exported for
+ * every page reader so the rule lives once. */
+export function fileReclaimedAt(row: Record<string, unknown>): string | null {
+  if (row.file_id !== null && row.file_id !== undefined) return null
+  if (!isMediaKind(String(row.kind))) return null
+  if (row.file_reclaimed_at === null || row.file_reclaimed_at === undefined) return null
+  return toIso(row.file_reclaimed_at)
+}
+
 function blockFromRow(row: Record<string, unknown>): PageBlock {
   return {
     id: String(row.id),
@@ -88,6 +102,7 @@ function blockFromRow(row: Record<string, unknown>): PageBlock {
     file_id: nullableString(row.file_id),
     file_width: nullableInt(row.file_width),
     file_height: nullableInt(row.file_height),
+    file_reclaimed_at: fileReclaimedAt(row),
     ref_folder_id: nullableString(row.ref_folder_id),
     width_pct: row.width_pct === null || row.width_pct === undefined ? null : Number(row.width_pct),
     updated_at: toIso(row.updated_at),
@@ -356,6 +371,16 @@ export async function putPage(
       const modern = await rowsOf(tx,sql`SELECT id FROM page_blocks WHERE folder_id=${home.folderId}::uuid AND (rich_content IS NOT NULL OR (kind='section' AND section_block_id IS NOT NULL) OR kind NOT IN ('section','paragraph','image','folder_ref') OR EXISTS (SELECT 1 FROM page_document_receipts r WHERE r.folder_id=page_blocks.folder_id)) LIMIT 1`)
       if(modern.length) return {kind:'stale',blockId:String(modern[0]?.id)} as const
     }
+    /* #221, the Shelf half of the same rule. Once a Shelf has been written
+       through the document transaction, or holds a block the legacy editor
+       cannot draw, the legacy whole-page writer is refused: it would read
+       only the four kinds it knows and write the rest back as deletions. A
+       Shelf the composer has never touched keeps the legacy PUT exactly. */
+    if (home.folderId === null && home.shelfId !== null) {
+      await tx.execute(sql`SELECT 1 FROM shelves WHERE id = ${home.shelfId}::uuid FOR UPDATE`)
+      const modern = await rowsOf(tx,sql`SELECT id FROM page_blocks WHERE shelf_id=${home.shelfId}::uuid AND (rich_content IS NOT NULL OR kind NOT IN ('section','paragraph','image','folder_ref')) UNION ALL SELECT shelf_id AS id FROM shelf_document_receipts WHERE shelf_id=${home.shelfId}::uuid LIMIT 1`)
+      if(modern.length) return {kind:'stale',blockId:String(modern[0]?.id)} as const
+    }
     const current = await rowsOf(
       tx,
       sql`SELECT b.id, b.updated_at FROM page_blocks b
@@ -404,6 +429,9 @@ export async function putPage(
                   file_id = ${block.file_id ?? null},
                   ref_folder_id = ${block.ref_folder_id ?? null},
                   width_pct = ${block.width_pct ?? null},
+                  file_reclaimed_at = CASE
+                    WHEN ${block.file_id ?? null}::uuid IS NULL AND kind = ${block.kind}
+                    THEN file_reclaimed_at END,
                   updated_at = now()
               WHERE id = ${block.id}::uuid`,
         )
@@ -783,6 +811,8 @@ export async function actOnFolderPage(
         const sets: ReturnType<typeof sql>[] = []
         if (body.text !== undefined) sets.push(sql`text = ${body.text}`)
         if (body.file_id !== undefined) sets.push(sql`file_id = ${body.file_id}`)
+        // Issue #267: a block given a file again has nothing missing to report.
+        if (body.file_id != null) sets.push(sql`file_reclaimed_at = NULL`)
         if (body.width_pct !== undefined) sets.push(sql`width_pct = ${body.width_pct}`)
         sets.push(sql`updated_at = now()`)
         await tx.execute(
@@ -820,6 +850,43 @@ export async function actOnFolderPage(
     throw error
   })
 }
+/**
+ * #221: a Shelf's `document_transaction`. The Shelf is resolved and locked in
+ * the transaction that writes, so the owner check and the write read one
+ * snapshot. Refusals leave as `ShelfDocumentRefusal`; a Shelf that is not the
+ * viewer's is `not_found`, never 403 (4.18, 10.2).
+ */
+export async function actOnShelfPage(
+  db: Db,
+  viewerId: string,
+  shelfId: string,
+  body: DocumentTransaction,
+): Promise<PageView> {
+  return inTransaction(db, async (tx) => {
+    const shelves = await rowsOf(
+      tx,
+      sql`SELECT name FROM shelves
+           WHERE id = ${shelfId}::uuid AND user_id = ${viewerId}::uuid FOR UPDATE`,
+    )
+    const shelf = shelves[0]
+    if (shelf === undefined) throw new ShelfDocumentRefusal('not_found', 'Not found.')
+    const name = String(shelf.name)
+    const mutation = await applyShelfDocument(tx, viewerId, shelfId, name, body)
+    if (!mutation.replayed) {
+      await recordEvent(tx, {
+        actorId: viewerId,
+        verb: 'edited',
+        subjectKind: 'shelf',
+        subjectId: shelfId,
+        subjectName: name,
+        folderId: null,
+        detail: 'edited the page',
+      })
+    }
+    return { ...(await pageViewIn(tx, viewerId, { folderId: null, shelfId })), mutation }
+  })
+}
+
 /** The read again, on the transaction's own snapshot, so the response can
  * never describe blocks the write did not leave. */
 async function pageViewIn(
@@ -832,7 +899,7 @@ async function pageViewIn(
     sql`SELECT b.id, b.kind, b.position, b.page_position,
                b.section_block_id, b.list_parent_block_id, b.checked,
                b.text, b.rich_content, b.file_id, b.ref_folder_id,
-               b.width_pct, b.updated_at,
+               b.width_pct, b.updated_at, b.file_reclaimed_at,
                f.width AS file_width, f.height AS file_height
         FROM page_blocks b
         LEFT JOIN files f ON f.id = b.file_id
@@ -840,7 +907,11 @@ async function pageViewIn(
         ORDER BY b.page_position ASC NULLS LAST, b.position ASC, b.id ASC`,
   )
   return {
-    ...await documentMetadata(tx, home.folderId),
+    /* #221: a Shelf reads its own revision now, where it used to read the
+       empty document's constant. Old clients never read it on a Shelf. */
+    ...(home.folderId === null && home.shelfId !== null
+      ? await shelfDocumentMetadata(tx, home.shelfId)
+      : await documentMetadata(tx, home.folderId)),
     blocks: rows.map(blockFromRow),
     items: await pageItemsIn(tx, viewerId, home),
   }

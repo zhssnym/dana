@@ -1064,9 +1064,12 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
          old homes and a null `facet_id`, so no backfill was needed. AC-836
          is the behavioural case -- a facet's blocks carry `facet_id` and
          never `folder_id`, and no Task row ever belongs to a facet. */
+      /* Migration 0031 (#221) re-added it once more under the same name over
+         `num_nonnulls(folder_id, shelf_id, facet_id, task_id) = 1`: the
+         fourth home is a Task's document. */
       {
         name: 'page_blocks_one_home_check',
-        columns: ['facet_id', 'folder_id', 'shelf_id'],
+        columns: ['facet_id', 'folder_id', 'shelf_id', 'task_id'],
       },
       { name: 'page_blocks_page_position_format_check', columns: ['page_position'] },
       {
@@ -1091,6 +1094,15 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
         name: 'page_blocks_facet_id_fkey',
         columns: ['facet_id'],
         references: { table: 'folder_facets', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+      /* Migration 0031 (#221): a Task's document. CASCADE, because purging
+         the Task takes its document; trashing it stamps `deleted_at` and
+         touches no block. */
+      {
+        name: 'page_blocks_task_id_fkey',
+        columns: ['task_id'],
+        references: { table: 'tasks', columns: ['id'] },
         onDelete: 'cascade',
       },
       {
@@ -1185,6 +1197,13 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
         columns: ['facet_id', 'page_position', 'id'],
         partial: true,
       },
+      /* Migration 0031 (#221): one Task document in page order. */
+      {
+        name: 'page_blocks_task_page_position_idx',
+        unique: false,
+        columns: ['task_id', 'page_position', 'id'],
+        partial: true,
+      },
     ],
   },
   shelves: {
@@ -1212,6 +1231,23 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
         name: 'shelves_user_id_fkey',
         columns: ['user_id'],
         references: { table: 'users', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+    ],
+    indexes: [],
+  },
+  /* Migration 0032, issue #221: the Shelf-keyed sibling of
+     page_document_receipts. No actor column, because a Shelf is one
+     person's (4.18); the receipts go with the Shelf. */
+  shelf_document_receipts: {
+    primaryKey: { name: 'shelf_document_receipts_pkey', columns: ['shelf_id', 'mutation_id'] },
+    uniques: [],
+    checks: [],
+    foreignKeys: [
+      {
+        name: 'shelf_document_receipts_shelf_id_fkey',
+        columns: ['shelf_id'],
+        references: { table: 'shelves', columns: ['id'] },
         onDelete: 'cascade',
       },
     ],

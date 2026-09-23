@@ -113,7 +113,11 @@ The paragraph above is still the rule for taking the next one: read it off the
 branches that are open rather than off this file. This branch is the only one
 open with an export change on it, checked at the time of writing.
 */
-export const EXPORT_VERSION = 6
+/*
+**6 to 7 on 2026-09-24, for issue #221.** Every task gains `document`, the
+Task's own blocks. Read the next number off the open branches, as above.
+*/
+export const EXPORT_VERSION = 7
 
 /**
  * 10.3's "List responses capped at 1000 rows with truncated flag", applied
@@ -222,6 +226,28 @@ export const exportReminder = z.object({
 })
 export type ExportReminder = z.infer<typeof exportReminder>
 
+/** 4.17, without the file dimensions `GET /pages` joins in: the shape of a
+ * picture is a fact about the file, and `files` below carries it once. */
+export const exportBlock = z.object({
+  rich_content:richContent.nullable(),
+  section_block_id:z.uuid().nullable(),
+  /* #219's two structured-block columns. They are here rather than derived,
+     because an export that dropped them would read back a flattened list and a
+     checklist with no ticks, which is the loss the issue exists to prevent. */
+  list_parent_block_id:z.uuid().nullable(),
+  checked:z.boolean().nullable(),
+  page_position:z.string().nullable(),
+  id: z.uuid(),
+  kind: z.string(),
+  position: z.number().int(),
+  text: z.string().nullable(),
+  file_id: z.uuid().nullable(),
+  ref_folder_id: z.uuid().nullable(),
+  width_pct: z.number().int().nullable(),
+  updated_at: z.string(),
+})
+export type ExportBlock = z.infer<typeof exportBlock>
+
 /**
  * A task and everything hanging off it. Two people appear on it and both as
  * a display name alone: the creator and the assignee.
@@ -261,30 +287,13 @@ export const exportTask = z.object({
      own — in that task's own `folder_labels` (#227 area 5). */
   personal_label_ids: z.array(z.uuid()),
   folder_label_ids: z.array(z.uuid()),
+  /* Version 7, issue #221: the Task's document, in page order. `notes` above
+     is its plain-text projection; this is the content itself, so a reader of
+     version 6 that dropped it would lose formatting and media, never text. */
+  document: z.array(exportBlock),
 })
 export type ExportTask = z.infer<typeof exportTask>
 
-/** 4.17, without the file dimensions `GET /pages` joins in: the shape of a
- * picture is a fact about the file, and `files` below carries it once. */
-export const exportBlock = z.object({
-  rich_content:richContent.nullable(),
-  section_block_id:z.uuid().nullable(),
-  /* #219's two structured-block columns. They are here rather than derived,
-     because an export that dropped them would read back a flattened list and a
-     checklist with no ticks, which is the loss the issue exists to prevent. */
-  list_parent_block_id:z.uuid().nullable(),
-  checked:z.boolean().nullable(),
-  page_position:z.string().nullable(),
-  id: z.uuid(),
-  kind: z.string(),
-  position: z.number().int(),
-  text: z.string().nullable(),
-  file_id: z.uuid().nullable(),
-  ref_folder_id: z.uuid().nullable(),
-  width_pct: z.number().int().nullable(),
-  updated_at: z.string(),
-})
-export type ExportBlock = z.infer<typeof exportBlock>
 
 /** A folder the person owns (4.3), with its page, its tasks and the names of
  * the people in it. Members are display names and nothing else. */
@@ -391,6 +400,9 @@ export const exportComment = z.object({
   id: z.uuid(),
   folder_id: z.uuid(),
   task_id: z.uuid().nullable(),
+  /** The Discussion a Folder-level comment belongs to (issue #320, 4.31);
+   * null on a Task comment. */
+  discussion_id: z.uuid().nullable(),
   parent_id: z.uuid().nullable(),
   body: z.string().nullable(),
   created_at: z.string(),

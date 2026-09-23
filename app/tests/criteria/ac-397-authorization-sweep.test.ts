@@ -95,6 +95,9 @@ one.
 
 Spec: 5.4, 7.0, 7.13, 7.15, 10.2. Issue #74.
 */
+import { randomUUID } from 'node:crypto'
+
+import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
 import { startAuthTestApp } from '../support/auth-harness.js'
@@ -109,7 +112,6 @@ import {
   makeInvite,
   makeFolderLabel,
   makeNotification,
-  makeOutcome,
   makePersonalLabel,
   makePlaceCover,
   makeSavedView,
@@ -146,6 +148,13 @@ afterAll(async () => {
     await upstream.close()
   }
   if ((app as AuthTestApp | undefined) === undefined) return
+  /* The seeded Discussion first: its Outcome's actor key would otherwise be
+     released before the Discussion that holds it. */
+  if (fixtures !== undefined) {
+    await app.db.execute(
+      sql`DELETE FROM discussions WHERE id = ${fixtures.discussionId}::uuid`,
+    )
+  }
   await cast.cleanup(app.db)
   await app.close()
 })
@@ -300,12 +309,17 @@ type ResourceId =
      failure this file's two controls exist to catch. */
   | 'facetId'
   | 'trashedFacetId'
-  /* Issue #320's three: an open Discussion (every write row aims at it, so
-     a refusal is about the caller and never about its state), a trashed one
-     for the Trash pair, and the Outcome of a third, resolved one. */
+  /* #320's two Dana Link targets, seeded as rows: an open Discussion and one
+     (superseded) Outcome of it. */
   | 'discussionId'
-  | 'trashedDiscussionId'
   | 'outcomeId'
+  /* Issue #320: the General discussion the owner's legacy Folder-thread
+     comment was filed under, read back from that comment rather than made
+     through a Discussion route, so the comment routes' rows stand on their
+     own. */
+  | 'generalDiscussionId'
+  /* Issue #320: a trashed Discussion, for the Trash pair (7.28). */
+  | 'trashedDiscussionId'
 
 interface Fixtures extends Record<ResourceId, string> {
   owner: Actor
@@ -334,6 +348,7 @@ async function fixturesOf(): Promise<Fixtures> {
   const dependencyId = await makeDependency(owner, taskId, blockingTaskId)
   const fileId = await makeFile(owner, folderId, 'ac397.png')
   const commentId = await makeComment(owner, folderId, 'ac397 the comment')
+  const generalDiscussionId = await discussionOfComment(owner, folderId, commentId)
   const shelfId = await makeShelf(owner, 'ac397 the shelf')
   const viewId = await makeSavedView(owner, 'ac397 the view')
   const inviteId = await makeInvite(
@@ -384,18 +399,12 @@ async function fixturesOf(): Promise<Fixtures> {
   const trashedFacetId = await makeFacet(owner, folderId, 'ac397 doomed facet')
   await trashFacet(owner, folderId, trashedFacetId)
 
-  const discussionId = await makeDiscussion(owner, folderId, 'ac397 the discussion')
   const trashedDiscussionId = await makeDiscussion(
     owner,
     folderId,
     'ac397 doomed discussion',
   )
   await trashDiscussion(owner, trashedDiscussionId)
-  const outcomeId = await makeOutcome(
-    owner,
-    await makeDiscussion(owner, folderId, 'ac397 the resolved discussion'),
-    'ac397 the outcome',
-  )
 
   const trashedTaskId = await makeTask(owner, folderId, 'ac397 the doomed task')
   await trashTask(owner, trashedTaskId)
@@ -406,6 +415,17 @@ async function fixturesOf(): Promise<Fixtures> {
     'ac397 doomed',
   )
   await trashFolder(owner, trashedFolderId)
+
+  const discussionId = randomUUID()
+  await app.db.execute(sql`
+    INSERT INTO discussions (id, folder_id, title, created_by)
+    VALUES (${discussionId}::uuid, ${folderId}::uuid, 'ac397 the discussion',
+            ${owner.id}::uuid)`)
+  const outcomeId = randomUUID()
+  await app.db.execute(sql`
+    INSERT INTO discussion_outcomes (id, discussion_id, statement, actor_id)
+    VALUES (${outcomeId}::uuid, ${discussionId}::uuid, 'ac397 the outcome',
+            ${owner.id}::uuid)`)
 
   fixtures = {
     owner,
@@ -430,10 +450,28 @@ async function fixturesOf(): Promise<Fixtures> {
     facetId,
     trashedFacetId,
     discussionId,
-    trashedDiscussionId,
     outcomeId,
+    generalDiscussionId,
+    trashedDiscussionId,
   }
   return fixtures
+}
+
+/** The Discussion a Folder-thread comment was filed under (issue #320). */
+async function discussionOfComment(
+  owner: Actor,
+  folderId: string,
+  commentId: string,
+): Promise<string> {
+  const thread = await owner.browser.json(`/folders/${folderId}/comments`, 'GET')
+  expect(thread.status).toBe(200)
+  const line = (
+    thread.json() as { comments: { id: string; discussion_id?: string | null }[] }
+  ).comments.find((comment) => comment.id === commentId)
+  expect(line?.discussion_id, 'the Folder-thread comment names its Discussion').toEqual(
+    expect.any(String),
+  )
+  return String(line?.discussion_id)
 }
 
 /* ------------------------------------------------------------------ *
@@ -864,6 +902,32 @@ const TABLE = new Map<string, Row>([
     },
   ],
 
+  [
+    'GET /api/v1/discussions/:id/comments',
+    {
+      attempt: (fx) => ({
+        path: `/discussions/${fx.generalDiscussionId}/comments`,
+      }),
+      stranger: {
+        expected: 404,
+        rule: '#320 and 7.14: a Discussion is its Folder\'s, so its conversation is member-only and a Discussion outside the viewer\'s membership is 404, never 403',
+      },
+    },
+  ],
+  [
+    'POST /api/v1/discussions/:id/comments',
+    {
+      attempt: (fx) => ({
+        path: `/discussions/${fx.generalDiscussionId}/comments`,
+        body: { body: 'ac397 from a stranger' },
+      }),
+      stranger: {
+        expected: 404,
+        rule: '#320 and 7.14: writing to a Discussion needs membership of its Folder',
+      },
+    },
+  ],
+
   /* -------------------------------------------------------------- *
    * Tasks and steps (5.4 row 2: every member acts, no non-member does)
    * -------------------------------------------------------------- */
@@ -874,6 +938,34 @@ const TABLE = new Map<string, Row>([
       stranger: {
         expected: 404,
         rule: 'AC-102 by name: a fetch of an existing task in an inaccessible folder is indistinguishable from a nonexistent id',
+      },
+    },
+  ],
+  [
+    'GET /api/v1/tasks/:id/document',
+    {
+      attempt: (fx) => ({ path: `/tasks/${fx.taskId}/document` }),
+      stranger: {
+        expected: 404,
+        rule: "#221 (AC-882): a Task's document is read by whoever can see the Task, so a non-member is 404 exactly as on `GET /tasks/:id`",
+      },
+    },
+  ],
+  [
+    'PUT /api/v1/tasks/:id/document',
+    {
+      attempt: (fx) => ({
+        path: `/tasks/${fx.taskId}/document`,
+        body: {
+          action: 'document_transaction',
+          mutation_id: '00000000-0000-4000-8000-000000000397',
+          base_revision: 'ac397',
+          operations: [{ op: 'set_outline', items: [] }],
+        },
+      }),
+      stranger: {
+        expected: 404,
+        rule: "#221 (AC-882): the document transaction over a Task, refused as 404 because the Task's folder is not the caller's to see",
       },
     },
   ],
@@ -957,6 +1049,16 @@ const TABLE = new Map<string, Row>([
       stranger: {
         expected: 404,
         rule: '10.2: a task\'s relations are read by exactly the people who read the task, and an inaccessible task is 404 rather than 403',
+      },
+    },
+  ],
+  [
+    'GET /api/v1/folders/:id/dependencies',
+    {
+      attempt: (fx) => ({ path: `/folders/${fx.folderId}/dependencies` }),
+      stranger: {
+        expected: 404,
+        rule: '10.2 and 7.25: a Folder\'s internal relations are read by exactly its members, and a non-member is told what an id naming nothing is told — 404, never 403, with no edge looked at',
       },
     },
   ],
@@ -1143,6 +1245,24 @@ const TABLE = new Map<string, Row>([
         body: { blocks: [] },
       }),
       stranger: { expected: 404, rule: '4.17 and 4.18, as the read above' },
+    },
+  ],
+  [
+    'POST /api/v1/shelves/:id/page/actions',
+    {
+      attempt: (fx) => ({
+        path: `/shelves/${fx.shelfId}/page/actions`,
+        body: {
+          action: 'document_transaction',
+          mutation_id: '00000000-0000-4000-8000-000000000890',
+          base_revision: 'ac397',
+          operations: [{ op: 'set_outline', items: [] }],
+        },
+      }),
+      stranger: {
+        expected: 404,
+        rule: "#221 and 4.18: a Shelf's document transaction, refused before the body is read because the Shelf is not the caller's",
+      },
     },
   ],
   [
@@ -1440,6 +1560,26 @@ const TABLE = new Map<string, Row>([
       stranger: {
         expected: 404,
         rule: 'issue #214 and 10.2: "referenced from" is gated on the target through the Dana Link resolver, so a reader who cannot open the target is told what an id naming nothing is told — 404, and no source is scanned',
+      },
+    },
+  ],
+  [
+    'GET /api/v1/discussions/:id/backlinks',
+    {
+      attempt: (fx) => ({ path: `/discussions/${fx.discussionId}/backlinks` }),
+      stranger: {
+        expected: 404,
+        rule: 'issues #214 and #320, 10.2: a Discussion is a Dana Link target gated on membership of its live Folder, so a non-member is told what an id naming nothing is told — 404, and no source is scanned',
+      },
+    },
+  ],
+  [
+    'GET /api/v1/outcomes/:id/backlinks',
+    {
+      attempt: (fx) => ({ path: `/outcomes/${fx.outcomeId}/backlinks` }),
+      stranger: {
+        expected: 404,
+        rule: 'issues #214 and #320, 10.2: an Outcome is a Dana Link target gated on membership of the live Folder of its Discussion, so a non-member is told what an id naming nothing is told — 404, and no source is scanned',
       },
     },
   ],
@@ -2156,6 +2296,11 @@ describe('AC-397 every id-bearing route refuses a stranger', () => {
       path: `/folders/${fx.folderId}/comments`,
       holds: fx.commentId,
     }),
+    generalDiscussionId: (fx) => ({
+      what: 'the General discussion, by its conversation',
+      path: `/discussions/${fx.generalDiscussionId}/comments`,
+      holds: fx.commentId,
+    }),
     notificationId: (fx) => ({
       what: 'the notification',
       path: '/notifications',
@@ -2206,17 +2351,19 @@ describe('AC-397 every id-bearing route refuses a stranger', () => {
       holds: fx.trashedFacetId,
     }),
     discussionId: (fx) => ({
-      what: 'the discussion',
-      path: `/discussions/${fx.discussionId}`,
+      what: 'the discussion, as a Dana Link',
+      path: `/references/discussion/${fx.discussionId}`,
+      holds: fx.discussionId,
+    }),
+    outcomeId: (fx) => ({
+      what: 'the outcome, as a Dana Link',
+      path: `/references/outcome/${fx.outcomeId}`,
+      holds: fx.outcomeId,
     }),
     trashedDiscussionId: (fx) => ({
       what: 'the trashed discussion',
       path: '/trash',
       holds: fx.trashedDiscussionId,
-    }),
-    outcomeId: (fx) => ({
-      what: 'the outcome',
-      path: `/outcomes/${fx.outcomeId}`,
     }),
   }
 
