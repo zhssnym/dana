@@ -11,14 +11,6 @@ afterEach(() => {
   for (const editor of editors.splice(0)) editor.unmount()
 })
 
-function editorWith(
-  blocks: Parameters<typeof BlockNoteEditor.create>[0] extends infer _T
-    ? never
-    : never,
-): never {
-  throw new Error(String(blocks))
-}
-
 function create(blocks: Parameters<CanvasEditor['replaceBlocks']>[1]): CanvasEditor {
   const editor = BlockNoteEditor.create({ schema: canvasSchema })
   editors.push(editor)
