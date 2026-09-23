@@ -328,6 +328,19 @@ export function dehydrateCanvas(
         block.type === 'bulletListItem' ||
         block.type === 'numberedListItem' ||
         block.type === 'checkListItem'
+      const unuploadedRequiredMedia =
+        (block.type === 'file' ||
+          block.type === 'audio' ||
+          block.type === 'video') &&
+        block.props.url === ''
+
+      /*
+       * File/audio/video are invalid on the wire without a file id. Their
+       * empty editor block is only the local file-picker placeholder, so do
+       * not put it in the durable outline until a file has actually uploaded.
+       * Image is different by contract: an empty image placeholder is allowed.
+       */
+      if (unuploadedRequiredMedia) continue
 
       result.items.push({
         kind: task ? 'task' : 'block',
