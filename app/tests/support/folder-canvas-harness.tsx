@@ -76,6 +76,10 @@ export interface CanvasSurfaceSpy {
     editor: CanvasEditor
     onChange: (editor: CanvasEditor) => void
     onCreateTask?: (block?: CanvasBlock) => void
+    onUploadFile: (
+      kind: 'image' | 'file' | 'audio' | 'video',
+      file: File,
+    ) => Promise<{ url: string; name: string }>
     editable?: boolean
   } | null
 }
@@ -113,9 +117,10 @@ export function pageBlock(blockId: string, kind: PageBlock['kind'], text: string
 }
 
 /**
- * One folder page carrying everything this editor cannot draw: a checklist
- * item nested under a bullet inside a Section, a ticked one, and a `code`
- * block, which is the kind the contract refuses rich content on.
+ * One folder page carrying the structured vocabulary used by the composed
+ * save-path criteria: a checklist item nested under a bullet inside a Section,
+ * a ticked one, and a `code` block, which is the kind the contract refuses
+ * rich content on.
  *
  * `rich_content` is set on the list items and absent from the code block,
  * which is how the server stores them: `RICH_TEXT_BLOCK_KINDS` admits the
