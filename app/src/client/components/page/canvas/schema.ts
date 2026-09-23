@@ -1,5 +1,6 @@
 import { BlockNoteSchema, createExtension, createHeadingBlockSpec, defaultBlockSpecs, defaultStyleSpecs } from '@blocknote/core'
 
+import { AUDIO_MIMES, RASTER_MIMES, VIDEO_MIMES } from '../../../../shared/files.js'
 import { MAX_SECTION_DEPTH } from '../../../../shared/page-document.js'
 
 import { createCanvasCallout } from './CanvasCallout.js'
@@ -78,6 +79,31 @@ const groupHeading = {
   },
 }
 
+/**
+ * Keep BlockNote's media recognition on the exact same MIME allowlists the
+ * server accepts. This makes a dropped unsupported media file fall through to
+ * the generic File block instead of drawing a player the server will refuse.
+ */
+function mediaSpec<T extends typeof defaultBlockSpecs.image>(
+  spec: T,
+  accept: readonly string[],
+): T {
+  return {
+    ...spec,
+    implementation: {
+      ...spec.implementation,
+      meta: {
+        ...spec.implementation.meta,
+        fileBlockAccept: [...accept],
+      },
+    },
+  } as T
+}
+
+const image = mediaSpec(defaultBlockSpecs.image, RASTER_MIMES)
+const audio = mediaSpec(defaultBlockSpecs.audio as typeof defaultBlockSpecs.image, AUDIO_MIMES)
+const video = mediaSpec(defaultBlockSpecs.video as typeof defaultBlockSpecs.image, VIDEO_MIMES)
+
 /** Restricted vocabulary, projected to Dana records by the persistence adapter. */
 export const canvasSchema = BlockNoteSchema.create({
   blockSpecs: {
@@ -89,10 +115,10 @@ export const canvasSchema = BlockNoteSchema.create({
     quote: defaultBlockSpecs.quote,
     callout: createCanvasCallout(),
     codeBlock: defaultBlockSpecs.codeBlock,
-    image: defaultBlockSpecs.image,
+    image,
     file: defaultBlockSpecs.file,
-    audio: defaultBlockSpecs.audio,
-    video: defaultBlockSpecs.video,
+    audio: audio as typeof defaultBlockSpecs.audio,
+    video: video as typeof defaultBlockSpecs.video,
     danaTask: createCanvasTaskSpec(),
   },
   styleSpecs: { bold: defaultStyleSpecs.bold, italic: defaultStyleSpecs.italic },
