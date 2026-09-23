@@ -47,7 +47,7 @@ describe('restrained BlockNote integration', () => {
     const original = editor.document
     editor.updateBlock(original[0]!, { type: 'heading', props: { level: 2 } })
     expect(editor.document).toEqual(original)
-    expect(explain).toHaveBeenCalledWith(expect.stringContaining('Only two levels'))
+    expect(explain).toHaveBeenCalledWith(expect.stringContaining('nested in order'))
     stop()
   })
 
