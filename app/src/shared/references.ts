@@ -16,10 +16,10 @@ be tempted by one of them:
 - a target the viewer cannot reach and a target that does not exist are the
   **same answer** — 404, no label, no folder, no dates, no assignee, nothing
   that separates the two (spec 7.0, 10.2);
-- the grammar is closed. Three kinds, three client routes, and a fourth kind
-  becomes referenceable by joining `REFERENCE_KINDS` and `KIND_SEGMENT`
-  together — which is the extensibility the issue asks for, and is the whole
-  of it.
+- the grammar is closed. #223 began with Task, Folder and Shelf; #211 adds the
+  stable native Purpose facet through the generic `facet` kind. A further kind
+  becomes referenceable by joining `REFERENCE_KINDS`, `KIND_SEGMENT` and the
+  server resolver together — which is the extensibility this grammar provides.
 
 **Why the parser lives here rather than on either side.** The client turns a
 pasted URL into a target before it asks; the server builds the canonical
@@ -36,9 +36,10 @@ import { searchQ } from './views.js'
  * The closed set of referenceable kinds
  * ------------------------------------------------------------------ */
 
-/** M1's three, in the issue's own order. A kind belongs here only once it has
- * a stable id and a stable client route; adding one is this constant, its
- * segment below, and a branch in the server's resolver. */
+/** The closed reference set. #223's first three are followed by #211's
+ * generic facet route; the server currently resolves that fourth kind only for
+ * native Purpose. A kind belongs here only once it has stable identity and a
+ * stable client route. */
 export const REFERENCE_KINDS = ['task', 'folder', 'shelf', 'facet'] as const
 export type ReferenceKind = (typeof REFERENCE_KINDS)[number]
 
