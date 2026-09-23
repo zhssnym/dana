@@ -226,7 +226,7 @@ export function hydrateCanvas(page: PageView, columnWidth: number): CanvasInput[
     const sectionParent = nodes.get(sectionParentId)
     if (
       sectionParent?.type !== 'heading' ||
-      sectionParent.props.isToggleable === false
+      sectionParent.props?.isToggleable === false
     ) {
       throw new CanvasHydrationError(
         'The page has an invalid group. Its content has been preserved; reload before editing.',
