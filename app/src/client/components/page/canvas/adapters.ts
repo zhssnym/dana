@@ -194,6 +194,55 @@ export function documentOf(page: PageView): CanvasDocument {
   return { blocks, items: page.items.map((item) => ({ ...item, section_block_id: parents.get(item.id) ?? null, list_parent_block_id: listParents.get(item.id) ?? null })) }
 }
 
+/** The editable window a Work facet opens onto one root Section. The root H1
+ * itself is the facet title and stays outside the editor; everything beneath
+ * it keeps the same ids and therefore remains Main's document. */
+export function workPageOf(page: PageView, rootId: string): PageView {
+  const included = new Set<string>([rootId])
+  for (const block of page.blocks) {
+    if (block.section_block_id !== null && included.has(block.section_block_id)) included.add(block.id)
+  }
+  const taskParents = new Map(page.task_placements?.map((placement) => [placement.id, placement.section_block_id]) ?? [])
+  const itemIds = new Set(page.items.flatMap((item) => {
+    if (item.kind === 'block') return included.has(item.id) && item.id !== rootId ? [item.id] : []
+    const parent = taskParents.get(item.id)
+    return parent !== undefined && parent !== null && included.has(parent) ? [item.id] : []
+  }))
+  return {
+    ...page,
+    blocks: page.blocks
+      .filter((block) => itemIds.has(block.id))
+      .map((block) => block.section_block_id === rootId ? { ...block, section_block_id: null } : block),
+    items: page.items.filter((item) => itemIds.has(item.id)),
+    task_placements: page.task_placements
+      ?.filter((placement) => itemIds.has(placement.id))
+      .map((placement) => placement.section_block_id === rootId ? { ...placement, section_block_id: null } : placement),
+  }
+}
+
+/** Put an edited Work projection back into the complete Main document before
+ * diffing. Siblings outside the linked H1 never enter the editor and are
+ * copied byte-for-byte into the proposal. */
+export function mergeWorkDocument(page: PageView, rootId: string, work: CanvasDocument): CanvasDocument {
+  const base = documentOf(page)
+  const old = workPageOf(page, rootId)
+  const replaced = new Set(old.items.map((item) => item.id))
+  const projectedItems = work.items.map((item) => item.section_block_id === null ? { ...item, section_block_id: rootId } : item)
+  const first = base.items.findIndex((item) => replaced.has(item.id))
+  const root = base.items.findIndex((item) => item.id === rootId)
+  const at = first >= 0 ? first : root >= 0 ? root + 1 : base.items.length
+  const keptItems = base.items.filter((item) => !replaced.has(item.id))
+  const before = base.items.slice(0, at).filter((item) => !replaced.has(item.id)).length
+  keptItems.splice(before, 0, ...projectedItems)
+  return {
+    blocks: [
+      ...base.blocks.filter((block) => !replaced.has(block.id)),
+      ...work.blocks,
+    ],
+    items: keptItems,
+  }
+}
+
 /*
 This build's editor draws every #219 structured kind as an ordinary paragraph
 and expresses no list nesting, because the BlockNote half of #219 is the

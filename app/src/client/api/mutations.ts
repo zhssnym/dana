@@ -96,6 +96,23 @@ import { duplicateFolderResponse } from '../../shared/folders.js'
 import type { DuplicateFolderResponse } from '../../shared/folders.js'
 import { getPageResponse } from '../../shared/pages.js'
 import type { GetPageResponse, PageActionBody, PutPageBody } from '../../shared/pages.js'
+import {
+  facet,
+  getFacetsResponse,
+  patchFacetBody,
+  postFacetBody,
+  putFacetOrderBody,
+  putMyFacetOrderBody,
+  shareFacetBody,
+} from '../../shared/facets.js'
+import type {
+  Facet,
+  GetFacetsResponse,
+  PatchFacetBody,
+  PostFacetBody,
+  PutFacetOrderBody,
+  PutMyFacetOrderBody,
+} from '../../shared/facets.js'
 import { shelf } from '../../shared/shelves.js'
 import type { PatchShelfBody, PostShelvesBody, Shelf } from '../../shared/shelves.js'
 
@@ -598,6 +615,117 @@ export function useFolderPageAction(): UseMutationResult<
   })
 }
 
+export function useCreateFacet(): UseMutationResult<
+  Facet,
+  Error,
+  { readonly folderId: string; readonly body: PostFacetBody }
+> {
+  return useMutation({
+    mutationFn: ({ folderId, body }) =>
+      mutateApi(facet, {
+        method: 'POST',
+        path: `/folders/${folderId}/facets`,
+        body: postFacetBody.parse(body),
+      }),
+  })
+}
+
+export function usePatchFacet(): UseMutationResult<
+  Facet,
+  Error,
+  { readonly folderId: string; readonly facetId: string; readonly body: PatchFacetBody }
+> {
+  return useMutation({
+    mutationFn: ({ folderId, facetId, body }) =>
+      mutateApi(facet, {
+        method: 'PATCH',
+        path: `/folders/${folderId}/facets/${facetId}`,
+        body: patchFacetBody.parse(body),
+      }),
+  })
+}
+
+export function usePutFacetOrder(): UseMutationResult<
+  GetFacetsResponse,
+  Error,
+  { readonly folderId: string; readonly body: PutFacetOrderBody }
+> {
+  return useMutation({
+    mutationFn: ({ folderId, body }) =>
+      mutateApi(getFacetsResponse, {
+        method: 'PUT',
+        path: `/folders/${folderId}/facets/order`,
+        body: putFacetOrderBody.parse(body),
+      }),
+  })
+}
+
+export function usePutMyFacetOrder(): UseMutationResult<
+  GetFacetsResponse,
+  Error,
+  { readonly folderId: string; readonly body: PutMyFacetOrderBody }
+> {
+  return useMutation({
+    mutationFn: ({ folderId, body }) =>
+      mutateApi(getFacetsResponse, {
+        method: 'PUT',
+        path: `/folders/${folderId}/facets/my-order`,
+        body: putMyFacetOrderBody.parse(body),
+      }),
+  })
+}
+
+export function useShareFacet(): UseMutationResult<
+  Facet,
+  Error,
+  { readonly folderId: string; readonly facetId: string }
+> {
+  return useMutation({
+    mutationFn: ({ folderId, facetId }) =>
+      mutateApi(facet, {
+        method: 'POST',
+        path: `/folders/${folderId}/facets/${facetId}/share`,
+        body: shareFacetBody.parse({ confirm: true }),
+      }),
+  })
+}
+
+export function useDeleteFacet(): UseMutationResult<
+  void,
+  Error,
+  { readonly folderId: string; readonly facetId: string }
+> {
+  return useMutation({
+    mutationFn: ({ folderId, facetId }) =>
+      mutateApi(null, {
+        method: 'DELETE',
+        path: `/folders/${folderId}/facets/${facetId}`,
+      }),
+  })
+}
+
+export function useFacetPageAction(): UseMutationResult<
+  GetPageResponse,
+  Error,
+  { readonly folderId: string; readonly facetId: string; readonly body: PageActionBody }
+> {
+  return useMutation({
+    mutationFn: ({ folderId, facetId, body }) =>
+      mutateApi(getPageResponse, {
+        method: 'POST',
+        path: `/folders/${folderId}/facets/${facetId}/page/actions`,
+        body,
+      }),
+  })
+}
+
+export function useRestoreFacet(): UseMutationResult<Facet, Error, string> {
+  return useMutation({
+    mutationFn: (id: string) =>
+      mutateApi(facet, { method: 'POST', path: `/facets/${id}/restore` }),
+  })
+}
+
 export function usePutShelfPage(): UseMutationResult<
   GetPageResponse,
   Error,
@@ -838,6 +966,13 @@ export function useDestroyTrashedFolder(): UseMutationResult<void, Error, string
   return useMutation({
     mutationFn: (id: string) =>
       mutateApi(null, { method: 'DELETE', path: `/trash/folders/${id}` }),
+  })
+}
+
+export function useDestroyTrashedFacet(): UseMutationResult<void, Error, string> {
+  return useMutation({
+    mutationFn: (id: string) =>
+      mutateApi(null, { method: 'DELETE', path: `/trash/facets/${id}` }),
   })
 }
 

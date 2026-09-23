@@ -23,13 +23,14 @@ not be narrower than the rule.
 **No capture anywhere on the page**, which 9.11 says in terms and which the
 shell honours by the floating button's own rule; this file adds none.
 */
-import { useRestoreFolder, useTransitionTask } from '../api/mutations.js'
+import { useRestoreFacet, useRestoreFolder, useTransitionTask } from '../api/mutations.js'
 import { TrashScreen } from '../screens/trash-screen.js'
 import { showToast } from '../state/toasts.js'
 
 export function TrashPage(): React.JSX.Element {
   const restoreFolder = useRestoreFolder()
   const restoreTask = useTransitionTask()
+  const restoreFacet = useRestoreFacet()
 
   return (
     <div className="min-h-full">
@@ -48,6 +49,7 @@ export function TrashPage(): React.JSX.Element {
           else if (item.kind === 'task') {
             restoreTask.mutate({ id: item.subject, event: 'restore' }, { onSuccess: said })
           }
+          else restoreFacet.mutate(item.subject, { onSuccess: said })
         }}
       />
     </div>

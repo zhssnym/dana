@@ -58,12 +58,16 @@ table's rather than this module's.
 */
 import { useMemo } from 'react'
 
-import { useDestroyTrashedFolder, useDestroyTrashedTask } from '../api/mutations.js'
+import {
+  useDestroyTrashedFacet,
+  useDestroyTrashedFolder,
+  useDestroyTrashedTask,
+} from '../api/mutations.js'
 import { useTrash as useTrashRead } from '../api/queries.js'
 import { folderGates } from './folder-authority.js'
 import type { FolderAccessPreset } from '../../shared/folder-access.js'
 
-export type TrashKind = 'task' | 'folder' | 'shelf'
+export type TrashKind = 'task' | 'folder' | 'facet'
 
 export interface TrashItem {
   id: string
@@ -126,14 +130,14 @@ const EMPTY: TrashItem[] = []
  */
 export function mayPurge(
   row: { readonly my_access: FolderAccessPreset; readonly is_owner: boolean },
-  kind: 'task' | 'folder',
+  kind: 'task' | 'folder' | 'facet',
 ): boolean {
   const gates = folderGates({
     access: row.my_access,
     isOwner: row.is_owner,
     isDefault: false,
   })
-  return kind === 'task' ? gates.destroyTask : gates.destroyFolder
+  return kind === 'folder' ? gates.destroyFolder : gates.destroyTask
 }
 
 export function useTrash(): TrashItem[] {
@@ -162,6 +166,17 @@ export function useTrash(): TrashItem[] {
           at: Date.parse(folder.deleted_at),
           from: plural(folder.task_count, 'task', 'tasks'),
           purgeable: mayPurge(folder, 'folder'),
+        }),
+      ),
+      ...data.facets.map(
+        (facet): TrashItem => ({
+          id: `facet-${facet.id}`,
+          kind: 'facet',
+          subject: facet.id,
+          name: facet.name,
+          at: Date.parse(facet.deleted_at),
+          from: facet.folder_name,
+          purgeable: mayPurge(facet, 'facet'),
         }),
       ),
     ]
@@ -194,9 +209,11 @@ export function usePurge(): {
 } {
   const task = useDestroyTrashedTask()
   const folder = useDestroyTrashedFolder()
+  const facet = useDestroyTrashedFacet()
   const purge = async (item: TrashItem): Promise<void> => {
     if (item.kind === 'task') await task.mutateAsync(item.subject)
     else if (item.kind === 'folder') await folder.mutateAsync(item.subject)
+    else await facet.mutateAsync(item.subject)
   }
   return {
     purge: (item) => purge(item).catch(() => undefined),
@@ -207,6 +224,6 @@ export function usePurge(): {
         /* Toasted by the mutation cache; the list refetches as it stands. */
       }
     },
-    pending: task.isPending || folder.isPending,
+    pending: task.isPending || folder.isPending || facet.isPending,
   }
 }

@@ -472,6 +472,7 @@ export const Workflow = icon(Lu.Workflow, null)
 /* Hiding a view from the sidebar (DES-170). Static and animation are the
    same drawing, which is the rule the alert glyphs broke. */
 export const EyeOff = icon(Lu.EyeOff, Anim.EyeOffIcon)
+export const Eye = icon(Lu.Eye, Anim.EyeIcon)
 export const FileText = icon(Lu.FileText, Anim.FileTextIcon)
 export const Video = icon(Lu.Video, Anim.VideoIcon) // animated: no film
 export const Folder = icon(Lu.Folder, Anim.FolderIcon)

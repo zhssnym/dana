@@ -40,6 +40,10 @@ describe('AC-790 who Trash offers a permanent delete to', () => {
       mayPurge(row('full_control', false), 'task'),
       "#228's Full-control list: permanently deleting a Task from Trash is an irreversible administrative act, and ownership is ignored by it",
     ).toBe(true)
+    expect(
+      mayPurge(row('full_control', false), 'facet'),
+      '#210 gives a trashed custom facet the same Full-control, ownership-ignored rule as a Task',
+    ).toBe(true)
   })
 
   test('AC-790: and is still not offered the folder, the two acts being two rules', () => {
@@ -69,6 +73,7 @@ describe('AC-790 who Trash offers a permanent delete to', () => {
     for (const isOwner of [false, true]) {
       expect(mayPurge(row('can_edit', isOwner), 'task')).toBe(false)
       expect(mayPurge(row('can_edit', isOwner), 'folder')).toBe(false)
+      expect(mayPurge(row('can_edit', isOwner), 'facet')).toBe(false)
     }
   })
 })

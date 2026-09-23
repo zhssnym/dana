@@ -15,8 +15,8 @@ import { CanvasTaskProvider } from './CanvasTask.js'
 import { CanvasSurface } from './CanvasSurface.js'
 import { canvasSchema } from './schema.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
-import { baselineOf, dehydrateCanvas, folderRefsOf, hydrateCanvas, richRuns } from './adapters.js'
-import type { CanvasInput } from './adapters.js'
+import { baselineOf, dehydrateCanvas, folderRefsOf, hydrateCanvas, mergeWorkDocument, richRuns, workPageOf } from './adapters.js'
+import type { CanvasDocument, CanvasInput } from './adapters.js'
 import { CanvasWriter } from './saving.js'
 import { pasteIntoCanvas } from './paste.js'
 import type { TaskRows } from '../../../pages/task-rows.js'
@@ -26,6 +26,10 @@ interface Props extends Pick<Rows, 'tasks' | 'context' | 'actions' | 'onAsk'> {
   readonly page: PageView
   readonly folderId: string
   readonly arrangeable: boolean
+  /** A blank facet owns a document but no Tasks or Sections. Work facets
+   * continue to use the Folder page and never pass this id. */
+  readonly facetId?: string
+  readonly workRootId?: string
 }
 
 /** Reset history only at identity-changing checkpoints or explicit server reconciliation. */
@@ -34,7 +38,7 @@ export default function FolderCanvas(props: Props): React.JSX.Element {
   return <PersistedCanvas key={`${props.folderId}:${checkpoint.epoch}`} {...props} initialPage={checkpoint.page} onCheckpoint={(page) => setCheckpoint((old) => ({ page, epoch: old.epoch + 1 }))} />
 }
 
-function PersistedCanvas({ page, initialPage, folderId, tasks, context, actions, onAsk, arrangeable, onCheckpoint }: Props & {
+function PersistedCanvas({ page, initialPage, folderId, facetId, workRootId, tasks, context, actions, onAsk, arrangeable, onCheckpoint }: Props & {
   readonly initialPage: PageView
   readonly onCheckpoint: (page: PageView) => void
 }): React.JSX.Element {
@@ -42,12 +46,12 @@ function PersistedCanvas({ page, initialPage, folderId, tasks, context, actions,
   const host = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState<number | null>(null)
   useEffect(() => { setWidth(host.current?.clientWidth || 600) }, [])
-  return <div ref={host} className="min-w-0">{width === null ? <p role="status">Loading writing…</p> : <CanvasSession page={page} initialPage={initialPage} folderId={folderId} tasks={tasks} context={context} actions={actions} onAsk={onAsk} arrangeable={arrangeable} onCheckpoint={onCheckpoint} width={width} onSaved={(next) => {
-    queryClient.setQueryData(queryKeys.folderPage(folderId), next)
+  return <div ref={host} className="min-w-0">{width === null ? <p role="status">Loading writing…</p> : <CanvasSession {...{ page, initialPage, folderId, facetId, workRootId, tasks, context, actions, onAsk, arrangeable, onCheckpoint }} width={width} onSaved={(next) => {
+    queryClient.setQueryData(facetId === undefined ? queryKeys.folderPage(folderId) : queryKeys.facetPage(folderId, facetId), next)
   }} />}</div>
 }
 
-function CanvasSession({ page, initialPage, folderId, tasks, context, actions, onAsk, arrangeable, onCheckpoint, width, onSaved }: Props & {
+function CanvasSession({ page, initialPage, folderId, facetId, workRootId, tasks, context, actions, onAsk, arrangeable, onCheckpoint, width, onSaved }: Props & {
   readonly initialPage: PageView
   readonly onCheckpoint: (page: PageView) => void
   readonly width: number
@@ -60,7 +64,23 @@ function CanvasSession({ page, initialPage, folderId, tasks, context, actions, o
   const [creating, setCreating] = useState(false)
   const [recovery, setRecovery] = useState(false)
   const [previousDraft, setPreviousDraft] = useState<string | null>(null)
-  const initial = useMemo(() => hydrateCanvas(initialPage, width), [initialPage, width])
+  const editorPage = useMemo(() => workRootId === undefined ? initialPage : workPageOf(initialPage, workRootId), [initialPage, workRootId])
+  const initial = useMemo(() => {
+    const hydrated = hydrateCanvas(editorPage, width)
+    if (workRootId === undefined) return hydrated
+    const shift = (blocks: CanvasInput[]): CanvasInput[] => blocks.map((block) => {
+      const children = block.children ? shift(block.children) : []
+      if (block.type === 'heading') {
+        return {
+          ...block,
+          props: { ...block.props, level: Math.min(3, Number(block.props?.level ?? 1) + 1) as 1 | 2 | 3 },
+          children,
+        }
+      }
+      return { ...block, children } as CanvasInput
+    })
+    return shift(hydrated)
+  }, [editorPage, width, workRootId])
   /* Which of these block ids the server *currently* stores as a reference, so
      it is read from `page` — the query row `onSaved` writes back after every
      save — and never from `initialPage`, which the editor's content comes from.
@@ -123,8 +143,20 @@ function CanvasSession({ page, initialPage, folderId, tasks, context, actions, o
   // kinds and no nesting, so a writer based on it has nothing to restore from
   // and every save flattens the page. An empty page still starts from an empty
   // baseline, so the placeholder paragraph is written rather than assumed.
-  const [writer] = useState(() => new CanvasWriter(baselineOf(initialPage, initial.length ? dehydrateCanvas(editor.document, width, folderRefs) : { blocks: [], items: [] }), initialPage.revision!,
-    (body) => mutateApi(getPageResponse, { method: 'POST', path: `/folders/${folderId}/page/actions`, body }),
+  const documentPath = facetId === undefined ? `/folders/${folderId}/page` : `/folders/${folderId}/facets/${facetId}/page`
+  const projection = (current: readonly CanvasBlock[]): CanvasDocument => {
+    const drawn = dehydrateCanvas(current, width, folderRefs)
+    const lossless = baselineOf(editorPage, drawn)
+    return workRootId === undefined ? lossless : mergeWorkDocument(page, workRootId, lossless)
+  }
+  const empty = { blocks: [], items: [] }
+  const firstProjection = initial.length
+    ? projection(editor.document)
+    : workRootId === undefined
+      ? empty
+      : mergeWorkDocument(initialPage, workRootId, empty)
+  const [writer] = useState(() => new CanvasWriter(firstProjection, initialPage.revision!,
+    (body) => mutateApi(getPageResponse, { method: 'POST', path: `${documentPath}/actions`, body }),
     () => {
       render((value) => value + 1)
       try {
@@ -135,7 +167,7 @@ function CanvasSession({ page, initialPage, folderId, tasks, context, actions, o
     (next, checkpoint) => { onSaved(next); if (checkpoint) onCheckpoint(next) },
   ))
   // This is a recoverable draft, never a cached page or an automatic offline queue.
-  const draftKey = `dana-canvas-draft:${folderId}`
+  const draftKey = `dana-canvas-draft:${facetId ?? folderId}`
   useEffect(() => {
     try { const draft = sessionStorage.getItem(draftKey); setPreviousDraft(draft); setRecovery(draft !== null) } catch { /* storage is optional */ }
   }, [draftKey])
@@ -158,7 +190,7 @@ function CanvasSession({ page, initialPage, folderId, tasks, context, actions, o
 
   function changed(current: CanvasEditor): void {
     try {
-      writer.change(dehydrateCanvas(current.document, width, folderRefs))
+      writer.change(projection(current.document))
       setError('')
     } catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not prepare this edit for saving.') }
   }
@@ -174,7 +206,7 @@ function CanvasSession({ page, initialPage, folderId, tasks, context, actions, o
   async function loadLatest(): Promise<void> {
     copyDraft()
     try {
-      const latest = await getPlain(getPageResponse, `/folders/${folderId}/page`)
+      const latest = await getPlain(getPageResponse, documentPath)
       onSaved(latest)
       onCheckpoint(latest)
     } catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not reload the page.') }
@@ -234,7 +266,7 @@ function CanvasSession({ page, initialPage, folderId, tasks, context, actions, o
       })()
     }}>Retry interrupted save</Button><Button variant="ghost" onClick={() => { sessionStorage.removeItem(draftKey); setRecovery(false) }}>Dismiss</Button></div> : null}
     <CanvasTaskProvider tasks={tasks} context={context} actions={actions} onAsk={onAsk}>
-      <CanvasSurface editor={editor} onChange={changed} onCreateTask={askTask} editable={arrangeable && !creating && !pendingTask} />
+      <CanvasSurface editor={editor} onChange={changed} onCreateTask={facetId === undefined ? askTask : undefined} allowHeadings={facetId === undefined} editable={arrangeable && !creating && !pendingTask} />
     </CanvasTaskProvider>
     <div role="status" aria-live="polite" className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
       {feedback || (writer.state === 'saving' ? 'Saving…' : writer.state === 'changed' ? 'Unsaved writing' : 'Saved')}

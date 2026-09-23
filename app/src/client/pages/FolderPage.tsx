@@ -108,16 +108,23 @@ import { useNavigate, useParams, useSearchParams } from 'react-router'
 
 import {
   useCreateTask,
+  useCreateFacet,
+  useFolderPageAction,
+  useDeleteFacet,
   useDeleteFolder,
   useLeaveFolder,
   useDeleteComment,
   useDuplicateFolder,
   useUpdateMyMembership,
   usePatchComment,
+  usePatchFacet,
   usePostComment,
+  usePutFacetOrder,
+  usePutMyFacetOrder,
   useRenameFolder,
   useRestoreFolder,
   useSetCommentLike,
+  useShareFacet,
   useTransferOwnership,
 } from '../api/mutations.js'
 import {
@@ -127,7 +134,9 @@ import {
   useFolders,
   useFolderCompletedTasks,
   useFolderOpenTasks,
+  useFolderFacets,
   useFolderPage,
+  useFacetPage,
   useShelves,
   useThread,
 } from '../api/queries.js'
@@ -200,7 +209,7 @@ import {
   otherMembers,
   viewerFacts,
 } from '../lib/folder-authority.js'
-import { ruleFor } from '../../shared/folder-actions.js'
+import { mayPerform, ruleFor } from '../../shared/folder-actions.js'
 /* Aliased: `shell/app-sidebar.ts` exports a `FolderAction` too, and it is
    a different thing — the five menu acts a Library row reaches by link,
    against #228's closed vocabulary of every Folder action there is. */
@@ -212,11 +221,13 @@ import { openTaskForm } from '../shell/overlays.js'
 import { useReserveRightEdge } from '../components/right-edge.js'
 import { pushUndo, undoLabel } from '../shell/undo.js'
 import { WindowBarActions } from '../components/window-bar.js'
+import { FolderFacetNavigator } from '../components/folder-facets.js'
+import type { CreateFacetInput, FacetCapabilities } from '../components/folder-facets.js'
 import { CollapsibleSection, PageSection } from '../components/page/PageSection.js'
 import { groupRows, LOOSE } from '../views/grouping.js'
 import { PLACES } from '../views/place-pages.js'
 import { TaskBoard } from '../views/TaskBoard.js'
-import { PlaceChrome, usePlace } from '../views/usePlace.js'
+import { PlaceControls, PlaceFilterChips, usePlace } from '../views/usePlace.js'
 import { isNarrowed } from '../views/filter.js'
 import { MorePages, PageBody } from '../components/page/PageStates.js'
 import { FOLDER_EMPTY } from './empty-states.js'
@@ -227,6 +238,9 @@ import type { LabelDefinition } from '../../shared/labels.js'
 import { getTaskResponse } from '../../shared/tasks.js'
 import type { TaskDetail } from '../../shared/tasks.js'
 import { folderToWorkflowFile } from '../../shared/workflows.js'
+import type { Facet } from '../../shared/facets.js'
+import type { PageView } from '../../shared/pages.js'
+import { workPageOf } from '../components/page/canvas/adapters.js'
 
 /**
  * What the list says when the folder holds open tasks and the filter has
@@ -360,6 +374,7 @@ export function FolderPage({
   const shelves = useShelves()
   const open = useFolderOpenTasks(id)
   const page = useFolderPage(id)
+  const facets = useFolderFacets(id)
   /* "Save as workflow" reads each row's 7.6 detail before it writes the
      file, through the cache the row already stores one in. */
   const cache = useQueryClient()
@@ -372,6 +387,13 @@ export function FolderPage({
   const patch = useRenameFolder()
   const leave = useLeaveFolder()
   const transfer = useTransferOwnership()
+  const createFacet = useCreateFacet()
+  const pageAction = useFolderPageAction()
+  const patchFacet = usePatchFacet()
+  const deleteFacet = useDeleteFacet()
+  const putFacetOrder = usePutFacetOrder()
+  const putMyFacetOrder = usePutMyFacetOrder()
+  const shareFacet = useShareFacet()
   const duplicate = useDuplicateFolder()
   const membership = useUpdateMyMembership()
   /* Every label in use, which is what the move submenu offers, deduplicated
@@ -618,6 +640,48 @@ export function FolderPage({
   */
   const facts = viewerFacts(detail, members, basis.viewerId)
   const gates = facts === null ? null : folderGates(facts)
+  const facetRows = facets.data?.facets ?? []
+  const requestedFacetId = search.get('facet')
+  const mainFacet = facetRows.find((facet) => facet.kind === 'main')
+  const activeFacet = facetRows.find(
+    (facet) => facet.id === requestedFacetId && !facet.hidden,
+  ) ?? mainFacet
+
+  const selectFacet = useCallback((facet: Facet): void => {
+    setSearch((current) => {
+      const next = new URLSearchParams(current)
+      if (facet.kind === 'main') next.delete('facet')
+      else next.set('facet', facet.id)
+      return next
+    }, { replace: true })
+  }, [setSearch])
+
+  const facetCapabilities = useCallback((facet: Facet | null): FacetCapabilities => {
+    if (facts === null || basis.viewerId === null || detail === undefined) {
+      return { createShared: false, createPrivate: false, reorderShared: false, reorderPrivate: false, rename: false, hide: false, delete: false, share: false }
+    }
+    const actor = {
+      folderId: id,
+      actorId: basis.viewerId,
+      access: facts.access,
+      isOwner: facts.isOwner,
+      isDefault: facts.isDefault,
+      name: detail.name,
+    }
+    const target = { facetOwnerId: facet?.owner_id ?? null }
+    const allowed = (action: Parameters<typeof mayPerform>[1]): boolean =>
+      mayPerform(actor, action, target).allowed
+    return {
+      createShared: mayPerform(actor, 'facet.create', { facetOwnerId: null }).allowed,
+      createPrivate: mayPerform(actor, 'facet.create', { facetOwnerId: basis.viewerId }).allowed,
+      reorderShared: allowed('facet.reorder'),
+      reorderPrivate: facet?.private === true && allowed('facet.reorder'),
+      rename: facet !== null && allowed('facet.rename'),
+      hide: facet !== null && allowed('facet.hide'),
+      delete: facet !== null && allowed('facet.delete'),
+      share: facet?.private === true && facet.owner_id === basis.viewerId && allowed('facet.convert_to_shared'),
+    }
+  }, [basis.viewerId, detail, facts, id])
   /* Governing R6 section 2: ownership passes only to a member who *currently*
      holds Full control, and there is no default successor. The list this
      replaced sorted every other member by `joined_at` and labelled the first
@@ -674,6 +738,103 @@ export function FolderPage({
         })
         navigate(paths.desk)
       },
+    })
+  }
+
+  function createFolderFacet(input: CreateFacetInput): void {
+    createFacet.mutate({
+      folderId: id,
+      body: input.kind === 'work'
+        ? { kind: 'work', h1_block_id: input.h1BlockId, after_facet_id: activeFacet?.id }
+        : { kind: input.kind, display_name: input.name, after_facet_id: activeFacet?.id },
+    }, { onSuccess: selectFacet })
+  }
+
+  function createWorkSection(name: string): void {
+    const existing = new Set(page.data?.blocks.map((block) => block.id) ?? [])
+    pageAction.mutate({
+      id,
+      body: {
+        action: 'insert_block',
+        block_kind: 'section',
+        text: name,
+        section_block_id: null,
+        after: page.data?.items.at(-1) ?? null,
+        before: null,
+      },
+    }, {
+      onSuccess: (next) => {
+        cache.setQueryData(queryKeys.folderPage(id), next)
+        const section = next.blocks.find((block) =>
+          block.kind === 'section' && block.section_block_id === null && !existing.has(block.id))
+        if (section === undefined) return
+        createFacet.mutate({
+          folderId: id,
+          body: { kind: 'work', h1_block_id: section.id, after_facet_id: activeFacet?.id },
+        }, { onSuccess: selectFacet })
+      },
+    })
+  }
+
+  function renameFolderFacet(facet: Facet, name: string | null): void {
+    patchFacet.mutate({
+      folderId: id,
+      facetId: facet.id,
+      body: { display_name: name, updated_at: facet.updated_at },
+    })
+  }
+
+  function hideFolderFacet(facet: Facet, hidden: boolean): void {
+    patchFacet.mutate({
+      folderId: id,
+      facetId: facet.id,
+      body: { hidden, updated_at: facet.updated_at },
+    }, {
+      onSuccess: () => {
+        if (hidden && activeFacet?.id === facet.id && mainFacet) selectFacet(mainFacet)
+      },
+    })
+  }
+
+  function removeFolderFacet(facet: Facet): void {
+    confirm.ask(
+      `Delete ${facet.name}? It will wait in Trash for 30 days.`,
+      () => deleteFacet.mutate({ folderId: id, facetId: facet.id }, {
+        onSuccess: () => {
+          if (mainFacet) selectFacet(mainFacet)
+        },
+      }),
+    )
+  }
+
+  function exposeFolderFacet(facet: Facet): void {
+    confirm.ask(
+      `Share ${facet.name} with everyone in ${detail?.name ?? 'this folder'}? Its current writing will become visible according to Folder access.`,
+      () => shareFacet.mutate({ folderId: id, facetId: facet.id }),
+    )
+  }
+
+  function reorderFolderFacets(dragged: Facet, orderedVisible: readonly Facet[]): void {
+    if (dragged.private) {
+      const index = orderedVisible.findIndex((facet) => facet.id === dragged.id)
+      const anchor = index > 0 ? orderedVisible[index - 1] : null
+      putMyFacetOrder.mutate({
+        folderId: id,
+        body: { placements: [{ facet_id: dragged.id, after_facet_id: anchor?.id ?? null }] },
+      })
+      return
+    }
+    const visibleShared = orderedVisible.filter((facet) => !facet.private).map((facet) => facet.id)
+    let visibleIndex = 0
+    const sharedOrder = facetRows.filter((facet) => !facet.private).map((facet) => {
+      if (facet.hidden) return facet.id
+      const next = visibleShared[visibleIndex]
+      visibleIndex += 1
+      return next ?? facet.id
+    })
+    putFacetOrder.mutate({
+      folderId: id,
+      body: { order: sharedOrder },
     })
   }
 
@@ -1061,7 +1222,7 @@ export function FolderPage({
             bar's left end, the view strip and the filter at its right. Drawn
             by the same component every place page uses, which is what makes
             this one filter rather than a ninth. */}
-        <PlaceChrome place={place} />
+        <PlaceFilterChips place={place} />
         {/* Order 2, which is 9.1's own sentence for the bar's right end:
             "the view strip, the filter control, the Activity line, and the
             object's overflow menu". The first two are `PlaceChrome`'s at the
@@ -1279,6 +1440,7 @@ export function FolderPage({
           />
         </WindowBarActions>
 
+        <div className="space-y-3">
         <PageSection name="Folder header">
           {/*
           **S26: the head is the prototype's own composition, not this page's
@@ -1458,7 +1620,32 @@ export function FolderPage({
           </header>
         </PageSection>
 
-        <div className="mt-7 space-y-7">
+        {facets.data ? (
+          <FolderFacetNavigator
+            facets={facetRows}
+            activeId={activeFacet?.id ?? ''}
+            capabilities={facetCapabilities}
+            page={page.data}
+            onSelect={selectFacet}
+            onCreate={createFolderFacet}
+            onCreateWorkSection={createWorkSection}
+            onReorder={reorderFolderFacets}
+            onRename={renameFolderFacet}
+            onHide={hideFolderFacet}
+            onDelete={removeFolderFacet}
+            onShare={exposeFolderFacet}
+            controls={activeFacet?.kind === 'main' || activeFacet?.kind === 'work'
+              ? <PlaceControls place={place} />
+              : undefined}
+          />
+        ) : (
+          <p role={facets.isError ? 'alert' : 'status'} className="text-sm text-muted-foreground">
+            {facets.isError ? 'Could not load facets. Reload to try again.' : 'Loading facets…'}
+          </p>
+        )}
+        </div>
+
+        {activeFacet?.kind === 'main' ? <div className="mt-7 space-y-7">
           {/*
           polish round 2, folderpage: the open list and the page's blocks are
           one body, not two regions with a hole between them.
@@ -1571,7 +1758,19 @@ export function FolderPage({
               {threadSurface}
             </CollapsibleSection>
           ) : null}
-        </div>
+        </div> : activeFacet ? (
+          <FacetContent
+            facet={activeFacet}
+            folderId={id}
+            folderPage={page.data}
+            tasks={openRows}
+            context={context}
+            actions={actions}
+            onAsk={confirm.ask}
+            consultation={threadSurface}
+            onOpenMain={() => { if (mainFacet) selectFacet(mainFacet) }}
+          />
+        ) : null}
       </PageBody>
 
       {sharing && detail !== undefined ? (
@@ -1754,6 +1953,76 @@ export function FolderPage({
       </Dialog>
 
       <ConfirmDialog pending={confirm.pending} onClose={confirm.close} />
+    </div>
+  )
+}
+
+function FacetContent({
+  facet,
+  folderId,
+  folderPage,
+  tasks,
+  context,
+  actions,
+  onAsk,
+  consultation,
+  onOpenMain,
+}: {
+  readonly facet: Facet
+  readonly folderId: string
+  readonly folderPage: PageView | undefined
+  readonly tasks: readonly Parameters<typeof TaskRows>[0]['tasks'][number][]
+  readonly context: RowContext
+  readonly actions: ReturnType<typeof useRowActions>
+  readonly onAsk: (message: string, action: () => void) => void
+  readonly consultation: React.ReactNode
+  readonly onOpenMain: () => void
+}): React.JSX.Element {
+  const blank = facet.kind === 'shared_blank' || facet.kind === 'private_blank'
+  const document = useFacetPage(folderId, facet.id, blank)
+
+  if (facet.kind === 'consultation') {
+    return <div className="mt-7"><PageSection name="Consultation">{consultation}</PageSection></div>
+  }
+  if (facet.kind === 'purpose' || facet.kind === 'results') {
+    const purpose = facet.kind === 'purpose'
+    return (
+      <div className="mx-auto mt-10 flex min-h-64 max-w-[440px] flex-col items-center justify-center px-6 text-center">
+        <h2 className="text-sm font-semibold text-[var(--color-graphite-800)]">{facet.name}</h2>
+        <p className="mt-1.5 max-w-[40ch] text-xs leading-5 text-muted-foreground">
+          {purpose
+            ? 'Keep the intent behind this folder close to its tasks, notes, and decisions.'
+            : 'Bring outcomes, signals, and evidence of progress into one view.'}
+        </p>
+        <span className="mt-3 text-[11px] text-[var(--color-graphite-400)]">Guided workspace coming soon</span>
+      </div>
+    )
+  }
+  if (facet.kind === 'work') {
+    const focused = folderPage && facet.h1_block_id ? workPageOf(folderPage, facet.h1_block_id) : null
+    const ids = new Set(focused?.items.map((item) => item.id) ?? [])
+    const focusedTasks = tasks.filter((task) => ids.has(task.id))
+    return (
+      <div className="mt-6 space-y-3">
+        <div className="flex items-center justify-between gap-3 border-b border-[var(--color-graphite-100)] pb-2.5 text-xs text-muted-foreground">
+          <span>This is the live section from Main. Changes here update the same Tasks and writing.</span>
+          <Button variant="ghost" size="sm" onClick={onOpenMain}>Open in Main</Button>
+        </div>
+        {focused ? (
+          <Suspense fallback={<p role="status">Loading section…</p>}>
+            <FolderCanvas key={`${folderId}:${facet.id}`} page={folderPage!} tasks={focusedTasks} folderId={folderId} workRootId={facet.h1_block_id ?? undefined} context={context} actions={actions} onAsk={onAsk} arrangeable />
+          </Suspense>
+        ) : <p role="status">Loading section…</p>}
+      </div>
+    )
+  }
+  return (
+    <div className="mt-7">
+      {document.data ? (
+        <Suspense fallback={<p role="status">Loading writing…</p>}>
+          <FolderCanvas key={`${folderId}:${facet.id}`} page={document.data} tasks={[]} folderId={folderId} facetId={facet.id} context={context} actions={actions} onAsk={onAsk} arrangeable />
+        </Suspense>
+      ) : <p role={document.isError ? 'alert' : 'status'}>{document.isError ? 'Could not load this facet. Reload to try again.' : 'Loading writing…'}</p>}
     </div>
   )
 }

@@ -31,6 +31,8 @@ import { getPlaceDescriptionsResponse } from '../../shared/place-descriptions.js
 import type { GetPlaceDescriptionsResponse } from '../../shared/place-descriptions.js'
 import { getPageResponse } from '../../shared/pages.js'
 import type { GetPageResponse } from '../../shared/pages.js'
+import { getFacetsResponse } from '../../shared/facets.js'
+import type { GetFacetsResponse } from '../../shared/facets.js'
 import type { GetConnectionsResponse } from '../../shared/connections.js'
 import { getFolderResponse, getFoldersResponse } from '../../shared/folders.js'
 import type { GetFolderResponse, GetFoldersResponse } from '../../shared/folders.js'
@@ -477,6 +479,28 @@ export function useFolderPage(id: string): UseQueryResult<GetPageResponse> {
   return useQuery({
     queryKey: queryKeys.folderPage(id),
     queryFn: () => getPlain(getPageResponse, `/folders/${id}/page`),
+  })
+}
+
+/** 7.27's canonical facet sequence. The client renders this order verbatim. */
+export function useFolderFacets(id: string): UseQueryResult<GetFacetsResponse> {
+  return useQuery({
+    queryKey: queryKeys.folderFacets(id),
+    queryFn: () => getPlain(getFacetsResponse, `/folders/${id}/facets`),
+  })
+}
+
+/** A blank facet's own 4.17 document. Work facets use useFolderPage instead. */
+export function useFacetPage(
+  folderId: string,
+  facetId: string,
+  enabled = true,
+): UseQueryResult<GetPageResponse> {
+  return useQuery({
+    queryKey: queryKeys.facetPage(folderId, facetId),
+    queryFn: () =>
+      getPlain(getPageResponse, `/folders/${folderId}/facets/${facetId}/page`),
+    enabled,
   })
 }
 

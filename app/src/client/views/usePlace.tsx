@@ -353,38 +353,36 @@ export function usePlace(
  * person would say it out loud.
  */
 export function PlaceChrome({ place }: { readonly place: Place }): React.JSX.Element {
+  return (
+    <>
+      <PlaceFilterChips place={place} />
+      <WindowBarActions>
+        <PlaceControls place={place} />
+      </WindowBarActions>
+    </>
+  )
+}
+
+/** The filter state summary remains in the window bar even when controls move. */
+export function PlaceFilterChips({ place }: { readonly place: Place }): React.JSX.Element {
+  const navigate = useNavigate()
+  const changeFilter = makeFilterChange(place, navigate)
+  return (
+    <WindowBarLead>
+      <FilterChips filter={place.filter} onChange={changeFilter} people={place.people} />
+    </WindowBarLead>
+  )
+}
+
+/** The actionable view and filter controls, reusable by an in-page surface. */
+export function PlaceControls({ place }: { readonly place: Place }): React.JSX.Element {
   const saveView = useCreateSavedView()
   const savedViews = useSavedViews()
   const navigate = useNavigate()
   /* polish: pagehead F3. Editing the filter by hand leaves the saved view
      behind, so its id leaves the address too; otherwise "Clear all" cleared
      the chips while the sidebar went on saying the view was open. */
-  const changeFilter = (next: PageFilter): void => {
-    place.setFilter(next)
-    /*
-    Read from the address bar and not from `useSearchParams`, for the reason
-    written at `liveSearch`: a view opened a moment ago is in the address at
-    once and in React's copy of it whenever the scheduler gets there, and
-    deciding from the copy meant that clearing a filter quickly enough left
-    the id behind and let the seed put the filter back (issue #47).
-    */
-    const rest = liveSearch()
-    if (!rest.has('view')) return
-    rest.delete('view')
-    const query = rest.toString()
-    /*
-    `setSearchParams` is not used here, and neither is a bare `?query`: both
-    resolve against the router's pathname, which lags for exactly the same
-    reason the search does, so a search written during a page change could
-    land on the page being left. The pathname is taken from the address bar
-    alongside the search, so the two halves of this navigation are always the
-    same instant.
-    */
-    navigate(
-      { pathname: window.location.pathname, search: query === '' ? '' : `?${query}` },
-      { replace: true },
-    )
-  }
+  const changeFilter = makeFilterChange(place, navigate)
   /*
   The views saved on this page, listed at the panel's head, which is the
   prototype's own arrangement and the third seam `FilterControl` records.
@@ -400,10 +398,6 @@ export function PlaceChrome({ place }: { readonly place: Place }): React.JSX.Ele
     .map((view) => ({ id: view.id, name: view.name }))
   return (
     <>
-      <WindowBarLead>
-        <FilterChips filter={place.filter} onChange={changeFilter} people={place.people} />
-      </WindowBarLead>
-      <WindowBarActions>
         {/* DES-150's arrangement, written down: views, then the filter. */}
         {/*
         polish: pagehead F1, folderpage F8, places F5. The strip rested
@@ -448,9 +442,25 @@ export function PlaceChrome({ place }: { readonly place: Place }): React.JSX.Ele
             })
           }}
         />
-      </WindowBarActions>
     </>
   )
+}
+
+function makeFilterChange(
+  place: Place,
+  navigate: ReturnType<typeof useNavigate>,
+): (next: PageFilter) => void {
+  return (next: PageFilter): void => {
+    place.setFilter(next)
+    const rest = liveSearch()
+    if (!rest.has('view')) return
+    rest.delete('view')
+    const query = rest.toString()
+    navigate(
+      { pathname: window.location.pathname, search: query === '' ? '' : `?${query}` },
+      { replace: true },
+    )
+  }
 }
 
 /**
