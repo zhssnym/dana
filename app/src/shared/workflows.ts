@@ -1351,11 +1351,11 @@ because 7.16 excludes them, and they are absent from the file rather than
 stripped on the way back in, so a file a person opens in an editor shows
 them nothing about anybody.
 
-**It writes format 4 and nothing else (#185).** The `blocks` and `tasks`
-collections, and #204's `document` with its account-local uuids, are still
-*read*; none of them is written any more, because two output formats are two
-things to keep in step and the whole defect #185 reports is a file that cannot
-say what the page says.
+**It writes the current ordered-page format.** Without Purpose this remains
+format 4 (#185). When the caller supplies the native Purpose document, #211
+raises the file to format 5 and adds only that portable Purpose payload. The
+legacy `blocks` and `tasks` collections, and #204's `document` with its
+account-local uuids, are still *read* but are never written.
 */
 export function folderToWorkflowFile(
   name: string,
@@ -1686,10 +1686,10 @@ export function folderToWorkflowFile(
   return {
     file: {
       dana: 'workflow',
-      /* One version out of *this* function. It writes #185's ordered page and
-         nothing else, because a second output format is a second thing to keep
-         right: every file `folderToWorkflowFile` hands a person says the same
-         thing about its own structure. 1, 2 and 3 are still read.
+      /* One current version out of *this* function. It always writes #185's
+         ordered Main page; when Purpose is absent that is format 4, and when
+         Purpose is present #211 adds the portable Purpose document and emits
+         format 5. Formats 1 through 4 remain readable.
 
          **Scoped to this writer, corrected 2026-09-21.** The sentence here
          read "every file this product hands a person", which is false and was
