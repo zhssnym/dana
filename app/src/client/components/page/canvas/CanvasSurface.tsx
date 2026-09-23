@@ -2,19 +2,34 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import { offset } from '@floating-ui/react'
 import { BlockNoteView } from '@blocknote/shadcn'
 import {
-  FormattingToolbarController, SuggestionMenuController, SideMenuController, SideMenu,
+  FilePanelController, FormattingToolbarController, SuggestionMenuController, SideMenuController, SideMenu,
   DragHandleMenu, RemoveBlockItem,
   useBlockNoteEditor, useComponentsContext, useExtensionState,
   getDefaultReactSlashMenuItems,
 } from '@blocknote/react'
 import type { DefaultReactSuggestionItem } from '@blocknote/react'
-import { filterSuggestionItems, SideMenuExtension } from '@blocknote/core/extensions'
+import { filterSuggestionItems, insertOrUpdateBlockForSlashMenu, SideMenuExtension } from '@blocknote/core/extensions'
+import { CanvasFilePanel } from './CanvasFilePanel.js'
+import type { CanvasMediaKind, CanvasUploadedFile } from './CanvasFilePanel.js'
 import { CanvasFormattingToolbar } from './CanvasFormattingToolbar.js'
 import { installCanvasGuard } from './guard.js'
 import { ancestorsOf, bindTaskCommand, continueAfterGroup, headingOneContext, insertCanvasHeading, insertDocumentHeading, moveCanvasBlock, removeHeadingKeepingContent } from './commands.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
 import './canvas.css'
-import { ArrowDown, CheckCircle2, X } from '../../../lib/icons.js'
+import {
+  ArrowDown,
+  AudioLines,
+  CheckCircle2,
+  Code,
+  FileText,
+  Image,
+  Lightbulb,
+  ListChecks,
+  ListPlus,
+  Quote,
+  Video,
+  X,
+} from '../../../lib/icons.js'
 
 type HeadingMode = 'section' | 'document' | 'none'
 
@@ -90,10 +105,21 @@ const canvasSidePosition = {
 }
 
 /** Visual editor host. The caller owns hydration, uploads, Task actions and durable saving. */
-export function CanvasSurface({ editor, onChange, onCreateTask, headingMode = 'section', editable = true }: {
+export function CanvasSurface({
+  editor,
+  onChange,
+  onCreateTask,
+  onUploadFile,
+  headingMode = 'section',
+  editable = true,
+}: {
   readonly editor: CanvasEditor
   readonly onChange: (editor: CanvasEditor) => void
   readonly onCreateTask?: (block?: CanvasBlock) => void
+  readonly onUploadFile: (
+    kind: CanvasMediaKind,
+    file: File,
+  ) => Promise<CanvasUploadedFile>
   readonly headingMode?: HeadingMode
   readonly editable?: boolean
 }): React.JSX.Element {
@@ -116,32 +142,157 @@ export function CanvasSurface({ editor, onChange, onCreateTask, headingMode = 's
         formattingToolbar={false}
         slashMenu={false}
         sideMenu={false}
+        filePanel={false}
         onChange={() => { setFeedback(''); onChange(editor) }}
         aria-label={onCreateTask === undefined ? 'Folder writing' : 'Folder writing and Tasks'}
       >
         <FormattingToolbarController formattingToolbar={CanvasFormattingToolbar} />
+        <FilePanelController
+          filePanel={(props) => (
+            <CanvasFilePanel {...props} onUpload={onUploadFile} />
+          )}
+        />
         <SideMenuController sideMenu={CanvasSideMenu} floatingUIOptions={canvasSidePosition} />
         <SuggestionMenuController triggerCharacter="/" getItems={async (query) => {
           const defaults = getDefaultReactSlashMenuItems(editor)
-          const byKey = (key: string): DefaultReactSuggestionItem | undefined => defaults.find((item) => 'key' in item && item.key === key)
-          const core: DefaultReactSuggestionItem[] = defaults.filter((item) => 'key' in item && (item.key === 'paragraph' || item.key === 'image'))
-            .map((item) => 'key' in item && item.key === 'paragraph' ? { ...item, title: 'Text' } : item)
+          const byKey = (
+            key: string,
+          ): DefaultReactSuggestionItem | undefined =>
+            defaults.find((item) => 'key' in item && item.key === key)
+          const paragraph = byKey('paragraph')
           const heading = byKey('heading')
+          const core: DefaultReactSuggestionItem[] = [
+            ...(paragraph === undefined
+              ? []
+              : [{ ...paragraph, title: 'Text' }]),
+          ]
+
           if (headingMode === 'section' && heading !== undefined) {
-            core.splice(1, 0, { ...heading, title: 'Heading 1', onItemClick: () => insertCanvasHeading(editor, 1) })
-            if (headingOneContext(editor) !== undefined) core.splice(2, 0, {
-              ...byKey('heading_2') ?? heading, title: 'Heading 2', subtext: 'A subgroup inside Heading 1',
-              onItemClick: () => insertCanvasHeading(editor, 2),
+            core.push({
+              ...heading,
+              title: 'Heading 1',
+              onItemClick: () => insertCanvasHeading(editor, 1),
             })
+            if (headingOneContext(editor) !== undefined) {
+              core.push({
+                ...(byKey('heading_2') ?? heading),
+                title: 'Heading 2',
+                subtext: 'A subgroup inside Heading 1',
+                onItemClick: () => insertCanvasHeading(editor, 2),
+              })
+            }
           } else if (headingMode === 'document' && heading !== undefined) {
-            const headings = ([1, 2, 3] as const).map((level) => ({
-              ...(level === 1 ? heading : byKey(`heading_${String(level)}`) ?? heading),
-              title: `Heading ${String(level)}`,
-              subtext: 'Document heading',
-              onItemClick: () => insertDocumentHeading(editor, level),
-            }))
-            core.splice(1, 0, ...headings)
+            core.push(
+              ...([1, 2, 3] as const).map((level) => ({
+                ...(level === 1
+                  ? heading
+                  : byKey(`heading_${String(level)}`) ?? heading),
+                title: `Heading ${String(level)}`,
+                subtext: 'Document heading',
+                onItemClick: () => insertDocumentHeading(editor, level),
+              })),
+            )
           }
+
+          const authored = (
+            title: string,
+            type:
+              | 'bulletListItem'
+              | 'numberedListItem'
+              | 'checkListItem'
+              | 'quote'
+              | 'callout'
+              | 'codeBlock'
+              | 'image'
+              | 'file'
+              | 'audio'
+              | 'video',
+            icon: React.ReactNode,
+            aliases: string[],
+            subtext: string,
+          ): DefaultReactSuggestionItem => ({
+            title,
+            subtext,
+            aliases,
+            group: 'Basic blocks',
+            icon,
+            onItemClick: () =>
+              insertOrUpdateBlockForSlashMenu(editor, { type }),
+          })
+
+          core.push(
+            authored(
+              'Bulleted list',
+              'bulletListItem',
+              <ListPlus size={16} />,
+              ['bullet', 'unordered list'],
+              'A simple list',
+            ),
+            authored(
+              'Numbered list',
+              'numberedListItem',
+              <ListPlus size={16} />,
+              ['numbered', 'ordered list'],
+              'An automatically numbered list',
+            ),
+            authored(
+              'Checklist',
+              'checkListItem',
+              <ListChecks size={16} />,
+              ['check', 'todo list'],
+              'Authored checklist, not a Task',
+            ),
+            authored(
+              'Quote',
+              'quote',
+              <Quote size={16} />,
+              ['blockquote'],
+              'Quoted writing',
+            ),
+            authored(
+              'Callout',
+              'callout',
+              <Lightbulb size={16} />,
+              ['note'],
+              'A neutral highlighted note',
+            ),
+            authored(
+              'Code',
+              'codeBlock',
+              <Code size={16} />,
+              ['code block'],
+              'Plain monospaced code',
+            ),
+            authored(
+              'Image',
+              'image',
+              <Image size={16} />,
+              ['picture', 'photo'],
+              'Upload an image',
+            ),
+            authored(
+              'File',
+              'file',
+              <FileText size={16} />,
+              ['attachment', 'document'],
+              'Upload as a downloadable file',
+            ),
+            authored(
+              'Audio',
+              'audio',
+              <AudioLines size={16} />,
+              ['sound'],
+              'Upload previewable audio',
+            ),
+            authored(
+              'Video',
+              'video',
+              <Video size={16} />,
+              ['movie'],
+              'Upload previewable video',
+            ),
+          )
+
           if (onCreateTask !== undefined) core.splice(1, 0, {
             title: 'Task', subtext: 'A Dana Task', icon: <CheckCircle2 size={16} />,
             /*
