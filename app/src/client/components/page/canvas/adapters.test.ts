@@ -81,52 +81,150 @@ describe('page and editor adapters', () => {
     expect(level(legacy[0])).toBe(1)
     expect(level(legacy[0]!.children![0])).toBe(2)
   })
-  /*
-  #219's backend phase landed six structured kinds that this editor cannot draw
-  yet, so it hydrates each of them as a paragraph. Without the guard in
-  canvasOperations the next save would read that rendering as a conversion and
-  flatten the page: the kinds gone, the ticks gone, the nesting gone, silently.
-  These two cases are that guard in both directions.
-
-  **They are not evidence that a save keeps any of it, and this file is where
-  that was believed.** Both hand `before` the true kinds; the caller built it
-  with `dehydrateCanvas`, which knows three kinds and no nesting, so the branch
-  they exercise could not fire in the composition these assertions were read as
-  covering, and every save flattened the page for a release with this test
-  green (issue #250). The criteria that measure the composition are AC-464 to
-  AC-466, which drive `FolderCanvas` itself, and AC-580, which sends what it
-  emits through the server. Read these two as unit cases over one function and
-  take no comfort from them about the save path.
-  */
-  test('a kind this editor cannot express is preserved across a save, and a dangling list parent is dropped', () => {
-    const record = (id: string, kind: PageBlock['kind'], checked: boolean | null = null) =>
-      ({ id, block_kind: kind, text: id, rich_content: { version: 1 as const, runs: [{ text: id }] }, file_id: null, ref_folder_id: null, width_pct: null, checked })
-    const before = {
-      blocks: [record('bullet', 'bullet'), record('tick', 'checklist', true)],
-      items: [
-        { kind: 'block' as const, id: 'bullet', section_block_id: null, list_parent_block_id: null },
-        { kind: 'block' as const, id: 'tick', section_block_id: null, list_parent_block_id: 'bullet' },
-      ],
+  test('structured Purpose writing round-trips kind, rich content, ticks and list ancestry', () => {
+    const bullet = {
+      ...block('bullet', 'bullet'),
+      text: 'First',
+      rich_content: { version: 1 as const, runs: [{ text: 'First', bold: true }] },
     }
-    // What this build's dehydrateCanvas produces from that page: paragraphs,
-    // no ticks, no nesting.
-    const flattened = {
-      blocks: [record('bullet', 'paragraph'), record('tick', 'paragraph')],
-      items: [
-        { kind: 'block' as const, id: 'bullet', section_block_id: null, list_parent_block_id: null },
-        { kind: 'block' as const, id: 'tick', section_block_id: null, list_parent_block_id: null },
-      ],
+    const numbered = {
+      ...block('numbered', 'numbered'),
+      text: 'Second',
+      rich_content: { version: 1 as const, runs: [{ text: 'Second' }] },
+      list_parent_block_id: 'bullet',
     }
-    const unchanged = canvasOperations(before, flattened)
-    expect(unchanged.map((op) => op.op)).toEqual(['set_outline'])
-    expect(unchanged.at(-1)).toEqual({ op: 'set_outline', items: before.items })
+    const checklist = {
+      ...block('check', 'checklist'),
+      text: 'Confirm',
+      rich_content: { version: 1 as const, runs: [{ text: 'Confirm', italic: true }] },
+      list_parent_block_id: 'numbered',
+      checked: true,
+    }
+    const quote = {
+      ...block('quote', 'quote'),
+      text: 'A reason',
+      rich_content: { version: 1 as const, runs: [{ text: 'A reason' }] },
+    }
+    const callout = {
+      ...block('callout', 'callout'),
+      text: 'Keep this visible',
+      rich_content: { version: 1 as const, runs: [{ text: 'Keep this visible' }] },
+    }
+    const code = {
+      ...block('code', 'code'),
+      text: 'npm run gate',
+      rich_content: null,
+    }
+    const page: PageView = {
+      blocks: [bullet, numbered, checklist, quote, callout, code],
+      items: ['bullet', 'numbered', 'check', 'quote', 'callout', 'code'].map(
+        (id) => ({ kind: 'block' as const, id }),
+      ),
+      task_placements: [],
+    }
 
-    // Delete the parent and the child is promoted rather than left naming a
-    // block the save no longer carries, which the server would refuse forever.
-    const removed = canvasOperations(before, { blocks: [flattened.blocks[1]!], items: [flattened.items[1]!] })
-    expect(removed.map((op) => op.op)).toEqual(['delete_block', 'set_outline'])
-    expect(removed.at(-1)).toEqual({ op: 'set_outline', items: [{ kind: 'block', id: 'tick', section_block_id: null, list_parent_block_id: null }] })
+    const input = hydrateCanvas(page, 600)
+    expect(input.map((item) => item.id)).toEqual([
+      'bullet',
+      'quote',
+      'callout',
+      'code',
+    ])
+    expect(input[0]?.children?.[0]?.id).toBe('numbered')
+    expect(input[0]?.children?.[0]?.children?.[0]?.id).toBe('check')
+
+    const editor = BlockNoteEditor.create({
+      schema: canvasSchema,
+      initialContent: input,
+    })
+    const saved = dehydrateCanvas(editor.document, 600, folderRefsOf(page))
+    expect(
+      saved.blocks.map((item) => [
+        item.id,
+        item.block_kind,
+        item.checked,
+      ]),
+    ).toEqual([
+      ['bullet', 'bullet', null],
+      ['numbered', 'numbered', null],
+      ['check', 'checklist', true],
+      ['quote', 'quote', null],
+      ['callout', 'callout', null],
+      ['code', 'code', null],
+    ])
+    expect(saved.blocks.find((item) => item.id === 'bullet')?.rich_content)
+      .toEqual(bullet.rich_content)
+    expect(saved.blocks.find((item) => item.id === 'check')?.rich_content)
+      .toEqual(checklist.rich_content)
+    expect(saved.blocks.find((item) => item.id === 'code')?.rich_content)
+      .toBeNull()
+    expect(
+      saved.items.map((item) => [
+        item.id,
+        item.section_block_id,
+        item.list_parent_block_id,
+      ]),
+    ).toEqual([
+      ['bullet', null, null],
+      ['numbered', null, 'bullet'],
+      ['check', null, 'numbered'],
+      ['quote', null, null],
+      ['callout', null, null],
+      ['code', null, null],
+    ])
+    editor.unmount()
   })
+
+  test('Purpose media round-trips exact block kind, file id and video width', () => {
+    const fileId = '00000000-0000-4000-8000-000000000011'
+    const audioId = '00000000-0000-4000-8000-000000000012'
+    const videoId = '00000000-0000-4000-8000-000000000013'
+    const page: PageView = {
+      blocks: [
+        { ...block('file', 'file'), text: null, file_id: fileId },
+        { ...block('audio', 'audio'), text: null, file_id: audioId },
+        {
+          ...block('video', 'video'),
+          text: null,
+          file_id: videoId,
+          width_pct: 50,
+        },
+      ],
+      items: ['file', 'audio', 'video'].map((id) => ({
+        kind: 'block' as const,
+        id,
+      })),
+      task_placements: [],
+    }
+
+    const editor = BlockNoteEditor.create({
+      schema: canvasSchema,
+      initialContent: hydrateCanvas(page, 600),
+    })
+    const saved = dehydrateCanvas(editor.document, 600, folderRefsOf(page))
+    expect(saved.blocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'file',
+          block_kind: 'file',
+          file_id: fileId,
+        }),
+        expect.objectContaining({
+          id: 'audio',
+          block_kind: 'audio',
+          file_id: audioId,
+        }),
+        expect.objectContaining({
+          id: 'video',
+          block_kind: 'video',
+          file_id: videoId,
+          width_pct: 50,
+        }),
+      ]),
+    )
+    editor.unmount()
+  })
+
   test('presentation headings round-trip as flat document headings rather than Work Sections', () => {
     const page: PageView = {
       blocks: [
