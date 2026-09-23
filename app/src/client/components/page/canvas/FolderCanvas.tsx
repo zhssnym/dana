@@ -27,9 +27,11 @@ interface Props extends Pick<Rows, 'tasks' | 'context' | 'actions' | 'onAsk'> {
   readonly page: PageView
   readonly folderId: string
   readonly arrangeable: boolean
-  /** A blank facet owns a document but no Tasks or Sections. Work facets
-   * continue to use the Folder page and never pass this id. */
+  /** A facet with its own document passes this id. Work facets continue to
+   * use the Folder page and never pass it. */
   readonly facetId?: string
+  /** Purpose headings change document typography only; they never create Work Sections. */
+  readonly presentationHeadings?: boolean
   readonly workRootId?: string
 }
 
