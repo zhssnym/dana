@@ -586,6 +586,14 @@ export async function deleteFile(
   fileId: string,
 ): Promise<DeleteFileResult> {
   const outcome = await inTransaction(db, async (tx) => {
+    /* Issue #267: the blocks this file is about to be taken from, read before
+       the delete because `page_blocks_file_id_fkey`'s SET NULL erases the
+       only link. The file row is locked first so no block can come to name it
+       between this read and the delete (an inserting FK check needs a KEY
+       SHARE lock that FOR UPDATE refuses). They are marked only if the delete
+       below actually removes the row. */
+    await tx.execute(sql`SELECT id FROM files WHERE id = ${fileId} FOR UPDATE`)
+    const wearers = await blocksNamingFiles(tx, sql`${fileId}::uuid`)
     /*
     **The rule changed here, and it is the sharpest edge of #228's
     authorship rule.**
@@ -623,7 +631,10 @@ export async function deleteFile(
             )
           RETURNING f.id`,
     )
-    if (removed.length > 0) return 'deleted' as const
+    if (removed.length > 0) {
+      await markBlocksReclaimed(tx, wearers)
+      return 'deleted' as const
+    }
     const readable = await rowsOf(
       tx,
       sql`SELECT f.id FROM files f
@@ -633,6 +644,48 @@ export async function deleteFile(
   })
   if (outcome === 'deleted') await store.remove(fileId)
   return outcome
+}
+
+/*
+Issue #267: what a media block remembers when the server takes its file.
+
+`page_blocks_file_id_fkey` is ON DELETE SET NULL, so a deleted file leaves
+every block that named it with a null `file_id` — and an image block with a
+null `file_id` is also what a freshly inserted, never-filled picture saves as.
+Stored data could not tell "not chosen yet" from "was chosen and is gone", and
+only the first is safe to fill in by clicking. `page_blocks.file_reclaimed_at`
+(migration 0033) is the difference, stamped by every server path that deletes
+a file a block may still name: `deleteFile` above and account deletion's step
+6a. The 7.19 sweep and the Trash purge's comment-file victims never delete a
+referenced file (`fileIsUnreferenced()`), so they need no mark.
+
+Two halves because the mark must be taken before the delete — afterwards the
+SET NULL has erased the link — but written only once the delete succeeded.
+*/
+export async function blocksNamingFiles(
+  tx: Executor,
+  fileIds: SQL,
+): Promise<string[]> {
+  const rows = await rowsOf(
+    tx,
+    sql`SELECT id FROM page_blocks WHERE file_id IN (${fileIds}) FOR UPDATE`,
+  )
+  return rows.map((row) => String(row.id))
+}
+
+export async function markBlocksReclaimed(
+  tx: Executor,
+  blockIds: readonly string[],
+): Promise<void> {
+  if (blockIds.length === 0) return
+  await tx.execute(
+    sql`UPDATE page_blocks SET file_reclaimed_at = now()
+         WHERE file_id IS NULL
+           AND id IN (${sql.join(
+             blockIds.map((id) => sql`${id}::uuid`),
+             sql`, `,
+           )})`,
+  )
 }
 
 /**

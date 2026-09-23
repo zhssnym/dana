@@ -135,6 +135,15 @@ export interface PageBlock {
   */
   file_width: number | null
   file_height: number | null
+  /**
+   * Issue #267: when the server deleted the file this media block named, as an
+   * ISO instant, or null. Non-null only on an image/file/audio/video block
+   * whose `file_id` is null — the file was chosen and is gone — which is what
+   * separates it from a freshly inserted block nobody has filled yet (null
+   * `file_id`, null here). Read-only, like the dimensions: never sent back.
+   * Optional so an older server's response still parses.
+   */
+  file_reclaimed_at?: string | null
   ref_folder_id: string | null
   width_pct: number | null
   updated_at: string
@@ -251,6 +260,7 @@ export const pageBlock = z.object({
   file_id: z.uuid().nullable(),
   file_width: z.number().int().nullable(),
   file_height: z.number().int().nullable(),
+  file_reclaimed_at: z.string().nullable().optional(),
   ref_folder_id: z.uuid().nullable(),
   width_pct: z.number().int().nullable(),
   updated_at: z.string(),
