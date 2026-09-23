@@ -66,6 +66,7 @@ import {
 } from './labels.js'
 import { upsertReminder } from './tasks.js'
 import { positionAtSectionEnd, seededItems } from './page-order.js'
+import { initialKeys } from './fractional-index.js'
 import { copyDependenciesWithin } from './task-dependencies.js'
 /* 4.11 calendar arithmetic rather than a second copy of it here: both ends are
    UTC midnights, so no DST shift can round the division (issue #215). */
@@ -1128,7 +1129,84 @@ export async function importWorkflow(
         operations.push({op:'set_outline' as const,items:outline})
         const base=await documentMetadata(tx,folderId)
         await applyDocument(tx,viewerId,folderId,{action:'document_transaction',mutation_id:randomUUID(),base_revision:base.revision,operations})
-      }      await recordEvent(tx, {
+      }
+      if (folder.purpose !== undefined) {
+        const purposeFacet = (
+          await rowsOf(
+            tx,
+            sql`SELECT id FROM folder_facets
+                  WHERE folder_id = ${folderId}::uuid
+                    AND kind = 'purpose'
+                    AND deleted_at IS NULL`,
+          )
+        )[0]
+        if (purposeFacet === undefined) {
+          throw new DocumentRefusal(
+            'not_convertible',
+            'The imported Folder has no native Purpose facet.',
+            `folders.${String(folderIndex)}.purpose`,
+          )
+        }
+        const purposeId = String(purposeFacet.id)
+        await tx.execute(
+          sql`UPDATE folder_facets
+                  SET display_name = ${folder.purpose.display_name ?? null},
+                      updated_at = now()
+                WHERE id = ${purposeId}::uuid`,
+        )
+        const idOf = new Map<number, string>()
+        const carried = folder.purpose.blocks
+          .map((block, index) => ({ block, index }))
+          .filter(({ block }) => block.kind !== 'omitted')
+        carried.forEach(({ index }) => idOf.set(index, randomUUID()))
+        const keys = initialKeys(carried.length)
+        for (const [position, entry] of carried.entries()) {
+          const block = entry.block
+          if (block.kind === 'omitted') continue
+          const id = idOf.get(entry.index)
+          if (id === undefined) {
+            throw new DocumentRefusal(
+              'not_convertible',
+              'Purpose block identity could not be reconstructed.',
+              `folders.${String(folderIndex)}.purpose`,
+            )
+          }
+          await tx.execute(
+            sql`INSERT INTO page_blocks
+                  (id, facet_id, kind, position, text, rich_content, file_id,
+                   width_pct, checked, page_position)
+                VALUES (${id}::uuid, ${purposeId}::uuid, ${block.kind},
+                        ${position}, ${block.text ?? null},
+                        ${block.rich_content === null || block.rich_content === undefined
+                          ? null
+                          : JSON.stringify(block.rich_content)}::jsonb,
+                        NULL, NULL,
+                        ${block.kind === 'checklist' ? (block.checked ?? false) : null},
+                        ${keys[position] as string})`,
+          )
+        }
+        for (const entry of carried) {
+          const block = entry.block
+          if (block.kind === 'omitted' || block.list_parent === undefined) {
+            continue
+          }
+          const child = idOf.get(entry.index)
+          const parent = idOf.get(block.list_parent)
+          if (child === undefined || parent === undefined) {
+            throw new DocumentRefusal(
+              'not_convertible',
+              'Purpose list structure names content the file did not carry.',
+              `folders.${String(folderIndex)}.purpose`,
+            )
+          }
+          await tx.execute(
+            sql`UPDATE page_blocks
+                    SET list_parent_block_id = ${parent}::uuid
+                  WHERE id = ${child}::uuid AND facet_id = ${purposeId}::uuid`,
+          )
+        }
+      }
+      await recordEvent(tx, {
         actorId: viewerId,
         verb: 'created',
         subjectKind: 'folder',
