@@ -945,6 +945,117 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
       },
     ],
   },
+  // Migration 0030 (#321): Consultation structured input rounds.
+  discussion_input_rounds: {
+    primaryKey: { name: 'discussion_input_rounds_pkey', columns: ['id'] },
+    uniques: [{ name: 'discussion_input_rounds_id_mode_key', columns: ['id', 'mode'] }],
+    checks: [
+      { name: 'discussion_input_rounds_close_reason_check', columns: ['close_reason'] },
+      {
+        name: 'discussion_input_rounds_closure_check',
+        columns: ['close_reason', 'closed_at', 'state'],
+      },
+      { name: 'discussion_input_rounds_mode_check', columns: ['mode'] },
+      { name: 'discussion_input_rounds_prompt_length_check', columns: ['prompt'] },
+      { name: 'discussion_input_rounds_state_check', columns: ['state'] },
+    ],
+    foreignKeys: [
+      {
+        name: 'discussion_input_rounds_closed_by_fkey',
+        columns: ['closed_by'],
+        references: { table: 'users', columns: ['id'] },
+        onDelete: 'restrict',
+      },
+      {
+        name: 'discussion_input_rounds_created_by_fkey',
+        columns: ['created_by'],
+        references: { table: 'users', columns: ['id'] },
+        onDelete: 'restrict',
+      },
+      {
+        name: 'discussion_input_rounds_discussion_id_fkey',
+        columns: ['discussion_id'],
+        references: { table: 'discussions', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+    ],
+    indexes: [
+      {
+        name: 'discussion_input_rounds_discussion_idx',
+        unique: false,
+        columns: ['discussion_id', 'created_at'],
+        partial: false,
+      },
+      {
+        // At most one open round per Discussion (#321).
+        name: 'discussion_input_rounds_one_open_key',
+        unique: true,
+        columns: ['discussion_id'],
+        partial: true,
+      },
+    ],
+  },
+  discussion_input_options: {
+    primaryKey: { name: 'discussion_input_options_pkey', columns: ['id'] },
+    uniques: [
+      { name: 'discussion_input_options_round_id_id_key', columns: ['round_id', 'id'] },
+      {
+        name: 'discussion_input_options_round_id_position_key',
+        columns: ['round_id', 'position'],
+      },
+    ],
+    checks: [
+      { name: 'discussion_input_options_label_length_check', columns: ['label'] },
+      { name: 'discussion_input_options_position_check', columns: ['position'] },
+    ],
+    foreignKeys: [
+      {
+        name: 'discussion_input_options_round_id_fkey',
+        columns: ['round_id'],
+        references: { table: 'discussion_input_rounds', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+    ],
+    indexes: [],
+  },
+  discussion_input_responses: {
+    primaryKey: { name: 'discussion_input_responses_pkey', columns: ['id'] },
+    uniques: [
+      {
+        name: 'discussion_input_responses_round_id_user_id_key',
+        columns: ['round_id', 'user_id'],
+      },
+    ],
+    checks: [
+      { name: 'discussion_input_responses_body_length_check', columns: ['body'] },
+      { name: 'discussion_input_responses_concern_check', columns: ['concern'] },
+      {
+        name: 'discussion_input_responses_shape_check',
+        columns: ['body', 'concern', 'mode', 'option_id'],
+      },
+    ],
+    foreignKeys: [
+      {
+        name: 'discussion_input_responses_option_fkey',
+        columns: ['round_id', 'option_id'],
+        references: { table: 'discussion_input_options', columns: ['round_id', 'id'] },
+        onDelete: 'cascade',
+      },
+      {
+        name: 'discussion_input_responses_round_mode_fkey',
+        columns: ['round_id', 'mode'],
+        references: { table: 'discussion_input_rounds', columns: ['id', 'mode'] },
+        onDelete: 'cascade',
+      },
+      {
+        name: 'discussion_input_responses_user_id_fkey',
+        columns: ['user_id'],
+        references: { table: 'users', columns: ['id'] },
+        onDelete: 'restrict',
+      },
+    ],
+    indexes: [],
+  },
   comment_likes: {
     primaryKey: { name: 'comment_likes_pkey', columns: ['comment_id', 'user_id'] },
     uniques: [],

@@ -226,6 +226,12 @@ export const FOLDER_ACTIONS = [
   'discussion.restore',
   'discussion.trash.own_unshared',
   'discussion.purge',
+  /* Consultation structured input (issue #321): "Ask for input" rounds
+     inside a Discussion. Reading rounds, responses and counts is
+     `discussion.read`; these govern the round and one's own response. */
+  'input_round.open',
+  'input_round.close',
+  'input_round.respond',
 ] as const
 
 export type FolderAction = (typeof FOLDER_ACTIONS)[number]
@@ -649,6 +655,25 @@ const RULES: Record<FolderAction, ActionRule> = {
   'discussion.purge': {
     atLeast: 'full_control',
     why: '#320: permanently deleting a Discussion destroys shared history and may break links to it, so it is Full control\'s, like every permanent delete',
+  },
+  /* Structured input (issue #321). "The Discussion is open and not in
+     Trash" and "the round is open" are facts about rows, checked by the
+     domain under the Discussion's lock; this table answers who. The creator
+     here is the **Discussion's** creator (`target.creatorId`), which is
+     #321's stewardship: there is no Poll Admin or Facilitator role. */
+  'input_round.open': {
+    atLeast: 'can_edit',
+    whenCreatorAtLeast: 'can_comment',
+    why: "#321: asking for input is the Discussion's creator's while they still have Can comment, or Can edit's in any open Discussion",
+  },
+  'input_round.close': {
+    atLeast: 'can_edit',
+    whenCreatorAtLeast: 'can_comment',
+    why: "#321: an input round is closed by its Discussion's creator while they still have Can comment, or by Can edit",
+  },
+  'input_round.respond': {
+    atLeast: 'can_comment',
+    why: '#321: Can comment submits, changes and withdraws their own response while the round is open; Can view only reads',
   },
 }
 
