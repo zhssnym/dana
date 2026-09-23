@@ -21,7 +21,8 @@ gates and neither has an ungated read of its own:
 - a folder through `accessOf`, the same;
 - a shelf through `shelfView`, which is scoped to its owner because 4.18 makes
   a shelf private by construction;
-- a Purpose facet through a membership join on its Folder (#211), hidden state
+- a Purpose (#211) or Results (#213) facet through a membership join on its
+  Folder, hidden state
   deliberately irrelevant because hide is presentation rather than access.
 
 `resolveReference` applies those four gates. The search queries below
@@ -64,6 +65,15 @@ function summary(
   return { kind, id, label, path: referencePath(kind, id) }
 }
 
+/* The facets a `facet` reference may name: the document-bearing natives,
+   Purpose (#211) and Results (#213). Both are shared by construction
+   (`folder_facets_owner_kind_check`), so folder membership is the whole access
+   join. The label is the stored override or that kind's default name. */
+const documentNativeFacet = sql`ff.kind IN ('purpose', 'results')`
+const facetLabel = sql`COALESCE(ff.display_name,
+  CASE ff.kind WHEN 'results' THEN ${DEFAULT_FACET_NAMES.results}
+               ELSE ${DEFAULT_FACET_NAMES.purpose} END)`
+
 /**
  * One target, or null when the viewer cannot have it — which covers both "it
  * is not there" and "it is not yours", deliberately indistinguishably.
@@ -93,15 +103,14 @@ export async function resolveReference(
     case 'facet': {
       const found = await rowsOf(
         executor,
-        sql`SELECT ff.id,
-                   COALESCE(ff.display_name, ${DEFAULT_FACET_NAMES.purpose}) AS label
+        sql`SELECT ff.id, ${facetLabel} AS label
               FROM folder_facets ff
               JOIN folders fo
                 ON fo.id = ff.folder_id AND fo.deleted_at IS NULL
               JOIN folder_members m
                 ON m.folder_id = ff.folder_id AND m.user_id = ${viewerId}
              WHERE ff.id = ${target.id}::uuid
-               AND ff.kind = 'purpose'
+               AND ${documentNativeFacet}
                AND ff.deleted_at IS NULL`,
       )
       const row = found[0]
@@ -137,23 +146,22 @@ function taskQuery(viewerId: string, pattern: string, scope: SQL): SQL {
     LIMIT ${REFERENCE_SEARCH_LIMIT}`
 }
 
-/** Native Purpose facets only. Hidden is intentionally absent from the
- * predicate: hiding a facet is presentation state, not revocation (#211). */
+/** Native Purpose (#211) and Results (#213) facets only. Hidden is
+ * intentionally absent from the predicate: hiding a facet is presentation
+ * state, not revocation (#211). */
 function purposeQuery(viewerId: string, pattern: string, scope: SQL): SQL {
   return sql`
-    SELECT ff.id,
-           COALESCE(ff.display_name, ${DEFAULT_FACET_NAMES.purpose}) AS label
+    SELECT ff.id, ${facetLabel} AS label
     FROM folder_facets ff
     JOIN folders fo
       ON fo.id = ff.folder_id AND fo.deleted_at IS NULL
     JOIN folder_members m
       ON m.folder_id = ff.folder_id AND m.user_id = ${viewerId}
-    WHERE ff.kind = 'purpose'
+    WHERE ${documentNativeFacet}
       AND ff.deleted_at IS NULL
-      AND COALESCE(ff.display_name, ${DEFAULT_FACET_NAMES.purpose}) ILIKE ${pattern}
+      AND ${facetLabel} ILIKE ${pattern}
       ${scope}
-    ORDER BY lower(COALESCE(ff.display_name, ${DEFAULT_FACET_NAMES.purpose})) ASC,
-             ff.id ASC
+    ORDER BY lower(${facetLabel}) ASC, ff.id ASC
     LIMIT ${REFERENCE_SEARCH_LIMIT}`
 }
 
