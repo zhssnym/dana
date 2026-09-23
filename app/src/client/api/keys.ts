@@ -39,6 +39,9 @@ export const queryKeys = {
      'folder' so the folder's own thread and a task's never collide. */
   shelf: (id: string) => ['shelves', id] as const,
   folderPage: (id: string) => ['folders', id, 'page'] as const,
+  folderFacets: (id: string) => ['folders', id, 'facets'] as const,
+  facetPage: (folderId: string, facetId: string) =>
+    ['folders', folderId, 'facets', facetId, 'page'] as const,
   shelfPage: (id: string) => ['shelves', id, 'page'] as const,
   notifications: () => ['notifications'] as const,
   thread: (folderId: string, taskId: string | null) =>

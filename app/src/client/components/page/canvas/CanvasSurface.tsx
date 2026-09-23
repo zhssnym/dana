@@ -83,10 +83,11 @@ const canvasSidePosition = {
 }
 
 /** Visual editor host. The caller owns hydration, uploads, Task actions and durable saving. */
-export function CanvasSurface({ editor, onChange, onCreateTask, editable = true }: {
+export function CanvasSurface({ editor, onChange, onCreateTask, allowHeadings = true, editable = true }: {
   readonly editor: CanvasEditor
   readonly onChange: (editor: CanvasEditor) => void
   readonly onCreateTask?: (block?: CanvasBlock) => void
+  readonly allowHeadings?: boolean
   readonly editable?: boolean
 }): React.JSX.Element {
   const [feedback, setFeedback] = useState('')
@@ -119,14 +120,14 @@ export function CanvasSurface({ editor, onChange, onCreateTask, editable = true 
           const core: DefaultReactSuggestionItem[] = defaults.filter((item) => 'key' in item && (item.key === 'paragraph' || item.key === 'image'))
             .map((item) => 'key' in item && item.key === 'paragraph' ? { ...item, title: 'Text' } : item)
           const heading = byKey('heading')
-          if (heading !== undefined) {
+          if (allowHeadings && heading !== undefined) {
             core.splice(1, 0, { ...heading, title: 'Heading 1', onItemClick: () => insertCanvasHeading(editor, 1) })
             if (headingOneContext(editor) !== undefined) core.splice(2, 0, {
               ...byKey('heading_2') ?? heading, title: 'Heading 2', subtext: 'A subgroup inside Heading 1',
               onItemClick: () => insertCanvasHeading(editor, 2),
             })
           }
-          core.splice(1, 0, {
+          if (onCreateTask !== undefined) core.splice(1, 0, {
             title: 'Task', subtext: 'A Dana Task', icon: <CheckCircle2 size={16} />,
             /*
             Called with no argument, and the wrapper is load-bearing rather
@@ -153,8 +154,7 @@ export function CanvasSurface({ editor, onChange, onCreateTask, editable = true 
             put here later needs the same one.
             */
             onItemClick: () => {
-              if (onCreateTask !== undefined) onCreateTask()
-              else setFeedback('Task creation and placement are not connected in this development preview yet. Existing Tasks use their native Dana controls.')
+              onCreateTask()
             },
             aliases: ['todo'], group: 'Basic blocks',
           })
