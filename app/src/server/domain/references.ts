@@ -46,6 +46,7 @@ import { sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 
 import { REFERENCE_SEARCH_LIMIT, referencePath } from '../../shared/references.js'
+import { DEFAULT_FACET_NAMES } from '../../shared/facets.js'
 import type {
   ReferenceKind,
   ReferenceSummary,
@@ -92,6 +93,25 @@ export async function resolveReference(
       const shelf = await shelfView(executor, viewerId, target.id)
       return shelf === null ? null : summary('shelf', shelf.id, shelf.name)
     }
+    case 'facet': {
+      const found = await rowsOf(
+        executor,
+        sql`SELECT ff.id,
+                   COALESCE(ff.display_name, ${DEFAULT_FACET_NAMES.purpose}) AS label
+              FROM folder_facets ff
+              JOIN folders fo
+                ON fo.id = ff.folder_id AND fo.deleted_at IS NULL
+              JOIN folder_members m
+                ON m.folder_id = ff.folder_id AND m.user_id = ${viewerId}
+             WHERE ff.id = ${target.id}::uuid
+               AND ff.kind = 'purpose'
+               AND ff.deleted_at IS NULL`,
+      )
+      const row = found[0]
+      return row === undefined
+        ? null
+        : summary('facet', String(row.id), String(row.label))
+    }
   }
 }
 
@@ -120,6 +140,26 @@ function taskQuery(viewerId: string, pattern: string, scope: SQL): SQL {
     LIMIT ${REFERENCE_SEARCH_LIMIT}`
 }
 
+/** Native Purpose facets only. Hidden is intentionally absent from the
+ * predicate: hiding a facet is presentation state, not revocation (#211). */
+function purposeQuery(viewerId: string, pattern: string, scope: SQL): SQL {
+  return sql`
+    SELECT ff.id,
+           COALESCE(ff.display_name, ${DEFAULT_FACET_NAMES.purpose}) AS label
+    FROM folder_facets ff
+    JOIN folders fo
+      ON fo.id = ff.folder_id AND fo.deleted_at IS NULL
+    JOIN folder_members m
+      ON m.folder_id = ff.folder_id AND m.user_id = ${viewerId}
+    WHERE ff.kind = 'purpose'
+      AND ff.deleted_at IS NULL
+      AND COALESCE(ff.display_name, ${DEFAULT_FACET_NAMES.purpose}) ILIKE ${pattern}
+      ${scope}
+    ORDER BY lower(COALESCE(ff.display_name, ${DEFAULT_FACET_NAMES.purpose})) ASC,
+             ff.id ASC
+    LIMIT ${REFERENCE_SEARCH_LIMIT}`
+}
+
 export async function searchReferences(
   executor: Executor,
   viewerId: string,
@@ -138,12 +178,31 @@ export async function searchReferences(
           executor,
           taskQuery(viewerId, pattern, sql` AND t.folder_id = ${folderId}`),
         )
+  const contextPurposeRows =
+    folderId === undefined
+      ? []
+      : await rowsOf(
+          executor,
+          purposeQuery(
+            viewerId,
+            pattern,
+            sql` AND ff.folder_id = ${folderId}`,
+          ),
+        )
   const otherRows = await rowsOf(
     executor,
     taskQuery(
       viewerId,
       pattern,
       folderId === undefined ? sql`` : sql` AND t.folder_id <> ${folderId}`,
+    ),
+  )
+  const otherPurposeRows = await rowsOf(
+    executor,
+    purposeQuery(
+      viewerId,
+      pattern,
+      folderId === undefined ? sql`` : sql` AND ff.folder_id <> ${folderId}`,
     ),
   )
 
@@ -172,11 +231,17 @@ export async function searchReferences(
     ...contextRows.map((row) =>
       summary('task', String(row.id), String(row.title)),
     ),
+    ...contextPurposeRows.map((row) =>
+      summary('facet', String(row.id), String(row.label)),
+    ),
     ...otherRows.map((row) =>
       summary('task', String(row.id), String(row.title)),
     ),
     ...folderRows.map((row) =>
       summary('folder', String(row.id), String(row.name)),
+    ),
+    ...otherPurposeRows.map((row) =>
+      summary('facet', String(row.id), String(row.label)),
     ),
     ...shelfRows.map((row) =>
       summary('shelf', String(row.id), String(row.name)),
