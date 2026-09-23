@@ -24,7 +24,7 @@ const groupHeading = {
         const { selection } = editor.prosemirrorState
         const block = editor.getTextCursorPosition().block
         // Let BlockNote handle selections, mid-title splitting and ordinary prose.
-        if (block.type !== 'heading' || !selection.empty || selection.$from.parentOffset !== selection.$from.parent.content.size) return false
+        if (block.type !== 'heading' || block.props.isToggleable === false || !selection.empty || selection.$from.parentOffset !== selection.$from.parent.content.size) return false
         // Upstream splitting transfers children to the new paragraph. Dana's group
         // membership must survive, so use its public subtree insertion operation.
         if (window.localStorage.getItem(`toggle-${block.id}`) === 'false') {
