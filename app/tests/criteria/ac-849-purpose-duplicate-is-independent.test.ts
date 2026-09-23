@@ -111,7 +111,7 @@ describe('AC-849 duplicate carries Purpose as independent authored context', () 
 
     /* Write the complete document after the deliberate refusal above. */
     const fresh = await facetPageOf(owner, folderId, purpose.id)
-    const ids = [parent, child, linked, crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID()]
+    const ids: string[] = [parent, child, linked, crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID()]
     const ops = [
       put(ids[0]!, 'bullet', 'parent'),
       put(ids[1]!, 'numbered', 'child'),
