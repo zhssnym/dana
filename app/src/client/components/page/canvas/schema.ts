@@ -84,25 +84,27 @@ const groupHeading = {
  * server accepts. This makes a dropped unsupported media file fall through to
  * the generic File block instead of drawing a player the server will refuse.
  */
-function mediaSpec<T extends typeof defaultBlockSpecs.image>(
-  spec: T,
-  accept: readonly string[],
-): T {
-  return {
-    ...spec,
+function mediaSpec<T>(spec: T, accept: readonly string[]): T {
+  const typed = spec as unknown as {
     implementation: {
-      ...spec.implementation,
+      meta?: Record<string, unknown>
+    }
+  }
+  return {
+    ...typed,
+    implementation: {
+      ...typed.implementation,
       meta: {
-        ...spec.implementation.meta,
+        ...typed.implementation.meta,
         fileBlockAccept: [...accept],
       },
     },
-  } as T
+  } as unknown as T
 }
 
 const image = mediaSpec(defaultBlockSpecs.image, RASTER_MIMES)
-const audio = mediaSpec(defaultBlockSpecs.audio as typeof defaultBlockSpecs.image, AUDIO_MIMES)
-const video = mediaSpec(defaultBlockSpecs.video as typeof defaultBlockSpecs.image, VIDEO_MIMES)
+const audio = mediaSpec(defaultBlockSpecs.audio, AUDIO_MIMES)
+const video = mediaSpec(defaultBlockSpecs.video, VIDEO_MIMES)
 
 /** Restricted vocabulary, projected to Dana records by the persistence adapter. */
 export const canvasSchema = BlockNoteSchema.create({
@@ -117,8 +119,8 @@ export const canvasSchema = BlockNoteSchema.create({
     codeBlock: defaultBlockSpecs.codeBlock,
     image,
     file: defaultBlockSpecs.file,
-    audio: audio as typeof defaultBlockSpecs.audio,
-    video: video as typeof defaultBlockSpecs.video,
+    audio,
+    video,
     danaTask: createCanvasTaskSpec(),
   },
   styleSpecs: { bold: defaultStyleSpecs.bold, italic: defaultStyleSpecs.italic },
