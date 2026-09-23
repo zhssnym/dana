@@ -48,6 +48,7 @@ import {
   otherMemberCount,
   pendingInvitesOf,
   patchFolderProfile,
+  sectionProgressOf,
   recoverOwnerFullControl,
   removeMembership,
   setMyMembership,
@@ -303,6 +304,8 @@ export function createFoldersRouter(
       // member.
       res.status(200).json({
         ...folder,
+        // Issue #205: finite progress per Section, additive.
+        section_progress: await sectionProgressOf(db, folderId),
         members: await membersOf(db, folderId),
         pending_invites: mayPerform(facts, 'invite.view').allowed
           ? await pendingInvitesOf(db, folderId)
