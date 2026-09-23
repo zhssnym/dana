@@ -1,5 +1,5 @@
 /*
-AC-428: given the same six rows, when one person resolves each by exact Dana
+AC-428: given the same eight rows, when one person resolves each by exact Dana
 URL and searches for all of them by name, then the two doors agree row for
 row; and given any number of either operation, then no membership, no
 Authority, no event and no dependency has been created by having referenced
@@ -7,12 +7,12 @@ anything.
 
 **Why the agreement is a criterion of its own.** The issue makes it a
 requirement in its own right, and the reason is that the two doors are written
-separately: `resolveReference` calls the three gates directly, and the search
-queries repeat those gates' `FROM` clauses inline. Two spellings of one rule
+separately: `resolveReference` calls the per-kind gates directly, and the search
+queries repeat those gates' access predicates inline. Two spellings of one rule
 is exactly the arrangement that drifts, and it drifts silently — a search that
 quietly matched a row the resolver refuses would leak the very metadata the
 resolver exists to withhold, the label, straight into a picker list. The table
-below is over the same six ids in both directions, so a disagreement in either
+below is over the same eight ids in both directions, so a disagreement in either
 direction fails.
 
 **Why "grants nothing" is worth asserting rather than arguing.** Nothing in
@@ -24,7 +24,7 @@ The counts here are over the three tables where such a change would land, and
 the last case re-asks the refusal question afterwards, because a grant that
 left no row but opened a door is the same failure.
 
-Spec: 5.3, 5.4, 10.2, 4.13. Issue #223.
+Spec: 5.3, 5.4, 10.2, 4.13, 7.24. Issues #223 and #211.
 */
 import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
@@ -53,8 +53,8 @@ async function stage(): Promise<ReferenceStage> {
   return staged
 }
 
-/** The six rows both doors are asked about, and whether the viewer may have
- * each one. Three are theirs; three are the stranger's and match the same
+/** The eight rows both doors are asked about, and whether the viewer may have
+ * each one. Four are theirs; four are the stranger's and match the same
  * needle, so a door that returned one of them is leaking rather than
  * merely being generous. */
 function targets(
@@ -69,6 +69,12 @@ function targets(
       what: 'own folder',
     },
     { kind: 'shelf', id: fx.shelfId, accessible: true, what: 'own shelf' },
+    {
+      kind: 'facet',
+      id: fx.contextPurposeId,
+      accessible: true,
+      what: 'own Purpose facet',
+    },
     {
       kind: 'task',
       id: fx.strangerTaskId,
@@ -87,6 +93,12 @@ function targets(
       accessible: false,
       what: "another person's shelf",
     },
+    {
+      kind: 'facet',
+      id: fx.strangerPurposeId,
+      accessible: false,
+      what: "another person's Purpose facet",
+    },
   ]
 }
 
@@ -101,7 +113,7 @@ afterAll(async () => {
 })
 
 describe('AC-428 the paste door and the typing door tell one story', () => {
-  test('AC-428: exact-URL resolution and typed search agree on all six rows', async () => {
+  test('AC-428: exact-URL resolution and typed search agree on all eight rows', async () => {
     const fx = await stage()
     const found = await searchReferences(fx.viewer, NEEDLE)
     expectStatus(found, 200, 'the typed search answers')
@@ -165,6 +177,10 @@ describe('AC-428 the paste door and the typing door tell one story', () => {
       [`/tasks/${fx.contextTaskId}`, 'the task'],
       [`/folders/${fx.contextFolderId}`, 'the folder'],
       [`/shelves/${fx.shelfId}`, 'the shelf'],
+      [
+        `/folders/${fx.contextFolderId}/facets/${fx.contextPurposeId}/page`,
+        'the Purpose facet',
+      ],
     ]
     for (const [path, what] of reads) {
       const answer = await fx.stranger.browser.json(path, 'GET')

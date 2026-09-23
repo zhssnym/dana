@@ -14,7 +14,7 @@ groups next to it.
 
 ## The next number
 
-**The next number to take from the tail is 847.**
+**The next number to take from the tail is 852.**
 
 **This section is the allocator and `## Numbers` below it is not.** That one is a
 chronological record of what each branch spent and why, written newest-first in places and
@@ -28,6 +28,13 @@ the number it names, and **move the line above in the same commit that spends it
 this section and fails when anything in the tree has spent that number or anything over it,
 which is what makes a stale allocator a red rather than a trap. It reads this section and no
 other part of this file, so keep the sentence's wording; everything else here is prose.
+
+**847 moved to 852 on 2026-09-23 by issue #211, which took AC-847 to AC-851.**
+The five executable criteria pin the native Purpose document and its authority/writing
+boundaries, its stable Dana Link, Folder duplication, workflow format 5 portability, and
+account export under Hassan's technical ruling
+https://github.com/zhssnym/dana/issues/211#issuecomment-5801396721. The line read 847 when
+the block was taken; the five files are under `app/tests/criteria/`.
 
 **846 moved to 847 on 2026-09-21, for AC-846.** Ruling 6 of the #210 addendum,
 https://github.com/zhssnym/dana/issues/210#issuecomment-5757696835, made a private facet
@@ -201,7 +208,7 @@ catch one merge too late. One number is spent, 790.
 marked rather than removed. A gap in the run is ordinary, and it is not a free number by
 default, so read this list before spending one.
 
-- **523 criteria carry their text in the files below, and 520 of them are live.** Every
+- **528 criteria carry their text in the files below, and 525 of them are live.** Every
   number from AC-001 to AC-825 not named below is one of them. Re-derived on 2026-09-21 by
   issue #247, as the last merge of the day, by **counting the `- AC-` bullets across the
   files** — this section's own rule, written out in the AC-470 bullet below: the row is
@@ -871,20 +878,20 @@ what that sentence is for.
 | - | - | - |
 | 12.1 | [`12.1-schema-and-migrations.md`](12.1-schema-and-migrations.md) | 12.1 Schema and migrations, 8 criteria |
 | 12.2 | [`12.2-sign-in-and-sessions.md`](12.2-sign-in-and-sessions.md) | 12.2 Sign-in and sessions, 18 criteria |
-| 12.3 | [`12.3-the-account.md`](12.3-the-account.md) | 12.3 The account: profile, settings, deletion, 30 criteria |
+| 12.3 | [`12.3-the-account.md`](12.3-the-account.md) | 12.3 The account: profile, settings, deletion, 31 criteria |
 | 12.4 | [`12.4-folders-and-membership.md`](12.4-folders-and-membership.md) | 12.4 Folders and membership, 49 criteria |
 | 12.5 | [`12.5-sharing-roster-and-people.md`](12.5-sharing-roster-and-people.md) | 12.5 Sharing, the roster and people, 18 criteria |
 | 12.6 | [`12.6-tasks-steps-and-the-task-surface.md`](12.6-tasks-steps-and-the-task-surface.md) | 12.6 Tasks, steps and the task surface, 48 criteria |
 | 12.7 | [`12.7-today.md`](12.7-today.md) | 12.7 Today, 11 criteria |
-| 12.8 | [`12.8-views-filters-and-search.md`](12.8-views-filters-and-search.md) | 12.8 Views, filters and search, 40 criteria |
-| 12.9 | [`12.9-pages-blocks-and-covers.md`](12.9-pages-blocks-and-covers.md) | 12.9 Pages, blocks and covers, 66 criteria |
+| 12.8 | [`12.8-views-filters-and-search.md`](12.8-views-filters-and-search.md) | 12.8 Views, filters and search, 41 criteria |
+| 12.9 | [`12.9-pages-blocks-and-covers.md`](12.9-pages-blocks-and-covers.md) | 12.9 Pages, blocks and covers, 67 criteria |
 | 12.10 | [`12.10-shelves-and-the-library.md`](12.10-shelves-and-the-library.md) | 12.10 Shelves and the Library, 13 criteria |
 | 12.11 | [`12.11-recurrence.md`](12.11-recurrence.md) | 12.11 Recurrence, 15 criteria |
 | 12.12 | [`12.12-reminders.md`](12.12-reminders.md) | 12.12 Reminders, 24 criteria |
 | 12.13 | [`12.13-events-history-and-notifications.md`](12.13-events-history-and-notifications.md) | 12.13 Events, history and notifications, 9 criteria |
 | 12.14 | [`12.14-comments-and-likes.md`](12.14-comments-and-likes.md) | 12.14 Comments and likes, 12 criteria |
 | 12.15 | [`12.15-files-images-and-avatars.md`](12.15-files-images-and-avatars.md) | 12.15 Files, images and avatars, 24 criteria |
-| 12.16 | [`12.16-duplicating-and-importing.md`](12.16-duplicating-and-importing.md) | 12.16 Duplicating, importing and workflow files, 17 criteria |
+| 12.16 | [`12.16-duplicating-and-importing.md`](12.16-duplicating-and-importing.md) | 12.16 Duplicating, importing and workflow files, 19 criteria |
 | 12.17 | [`12.17-first-run-and-the-sample-workspace.md`](12.17-first-run-and-the-sample-workspace.md) | 12.17 First run and the sample workspace, 9 criteria |
 | 12.18 | [`12.18-the-application-shell.md`](12.18-the-application-shell.md) | 12.18 The application shell, 16 criteria |
 | 12.19 | [`12.19-drag-drop-selection-and-undo.md`](12.19-drag-drop-selection-and-undo.md) | 12.19 Drag, drop, selection and undo, 13 criteria |

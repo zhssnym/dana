@@ -1,26 +1,27 @@
 /*
-AC-844: a facet document refuses `create_task`, a `section` block, a
-`folder_ref` block and a nested list item, each 422 naming its field and each
-writing nothing; and the same transaction with those removed commits.
+AC-844: a facet document refuses `create_task`, a semantic `section`
+block and a `folder_ref` block, each 422 naming its field and each writing
+nothing; ordinary authored writing, including nested lists, commits.
 
 Issue #210 (M1-F), invariant 15 of Hassan's technical ruling of 2026-09-21,
-https://github.com/zhssnym/dana/issues/210#issuecomment-5756722756.
+https://github.com/zhssnym/dana/issues/210#issuecomment-5756722756, amended by
+#211 on Hassan's 2026-09-23 ruling:
+https://github.com/zhssnym/dana/issues/211#issuecomment-5801396721.
 Spec 7.27, 7.16, 4.17.
 
-## Four refusals, three of which are the ruling's and one of which is not
+## Three operational refusals; nested lists are now authored structure
 
-`create_task`, `section` and `folder_ref` are in the ruling's section 3. The
-**nested list item** is this branch's decision and is declared as such in the
-pull request, in 7.27 and in 4.17's amendment: `page_blocks_list_parent_kind_check`
-(migration 0021) admits a list parent only where `folder_id IS NOT NULL`, the
-ruling does not amend it and migration 0027 does not either, so the alternatives
-were a 500 from the CHECK or a nesting silently dropped. A named 422 is the
-third. **This criterion is what would go red the day somebody widens the CHECK
-and forgets the refusal, or removes the refusal and forgets the CHECK.**
+`create_task`, semantic `section` and `folder_ref` remain the three
+refusals from #210. #211 deliberately supersedes #210's temporary
+implementation-time nested-list refusal: migration 0028 widens
+`page_blocks_list_parent_kind_check` for facet-homed list rows and the facet
+transaction now proves that the parent is an earlier list item in the same
+document. This criterion moves with that accepted decision rather than keeping
+the old limitation green.
 
 ## "Writes nothing" is the assertion that matters
 
-Every one of the four transactions below also carries a perfectly ordinary
+Every one of the three refused transactions below also carries a perfectly ordinary
 paragraph. A handler that refused the offending operation and committed the
 rest would answer 422 and leave the document changed, which is the worst
 available outcome: the caller believes nothing happened. So each case reads the
@@ -76,7 +77,7 @@ const item = (id: string, listParent: string | null = null) => ({
 })
 
 describe('AC-844 a facet document refuses what a facet cannot hold', () => {
-  test('the four refusals, each 422 naming its field and each writing nothing', async () => {
+  test('the three operational refusals, each 422 naming its field and each writing nothing', async () => {
     const [owner] = (await cast.of(app)) as [Actor]
     const folderId = await sharedFolder(app, owner, 'AC-844 refusals')
     const facet = await createFacetOk(owner, folderId, {
@@ -151,51 +152,10 @@ describe('AC-844 a facet document refuses what a facet cannot hold', () => {
           ],
         },
       ],
-      [
-        'a nested list item',
-        'page_blocks_list_parent_kind_check admits a list parent only on a Folder page',
-        {
-          operations: [
-            paragraph(innocent, 'and this should not land'),
-            {
-              op: 'put_block',
-              id: 'PARENT',
-              block_kind: 'bullet',
-              text: 'parent',
-              rich_content: null,
-              file_id: null,
-              ref_folder_id: null,
-              width_pct: null,
-              checked: null,
-            },
-            {
-              op: 'put_block',
-              id: 'CHILD',
-              block_kind: 'bullet',
-              text: 'child',
-              rich_content: null,
-              file_id: null,
-              ref_folder_id: null,
-              width_pct: null,
-              checked: null,
-            },
-            {
-              op: 'set_outline',
-              items: [item(existing), item(innocent), item('PARENT'), item('CHILD', 'PARENT')],
-            },
-          ],
-        },
-      ],
     ]
 
     for (const [what, why, shape] of attempts) {
-      const parent = crypto.randomUUID()
-      const child = crypto.randomUUID()
-      const body = JSON.parse(
-        JSON.stringify(shape)
-          .replaceAll('PARENT', parent)
-          .replaceAll('CHILD', child),
-      ) as { operations: unknown[] }
+      const body = shape as { operations: unknown[] }
 
       const refused = await postFacetPageAction(owner, folderId, facet.id, {
         action: 'document_transaction',
@@ -238,10 +198,9 @@ describe('AC-844 a facet document refuses what a facet cannot hold', () => {
     })
     const page = await facetPageOf(owner, folderId, facet.id)
 
-    /* The positive half, and it is what makes the four refusals refusals
-       rather than a route that rejects everything. Every kind a facet *may*
-       hold is written in one transaction: a paragraph, two un-nested list
-       items, a ticked checklist item, a quote, a callout and a code block. */
+    /* The positive half, and it is what makes the three refusals refusals
+       rather than a route that rejects everything. Every kind here is authored
+       writing; #211 additionally nests the second list item under the first. */
     const ids = {
       para: crypto.randomUUID(),
       bulletA: crypto.randomUUID(),
@@ -277,7 +236,9 @@ describe('AC-844 a facet document refuses what a facet cannot hold', () => {
         block(ids.code, 'code', 'const x = 1'),
         {
           op: 'set_outline',
-          items: Object.values(ids).map((id) => item(id)),
+          items: Object.values(ids).map((id) =>
+            item(id, id === ids.bulletB ? ids.bulletA : null),
+          ),
         },
       ],
     })
@@ -315,10 +276,18 @@ describe('AC-844 a facet document refuses what a facet cannot hold', () => {
       expect(String(row.facet_id), "every one is the facet's").toBe(facet.id)
       expect(row.folder_id, 'and none is the Folder page\'s').toBeNull()
       expect(
-        [row.list_parent_block_id, row.section_block_id],
-        'and neither parent relation is written, which is what the two untouched CHECKs of 4.17 require of a facet block',
-      ).toEqual([null, null])
+        row.section_block_id,
+        'facet-authored structure never becomes Main Work Section membership',
+      ).toBeNull()
     }
+    expect(
+      stored.map((row) =>
+        row.list_parent_block_id === null
+          ? null
+          : String(row.list_parent_block_id),
+      ),
+      '#211 persists list ancestry inside the facet and nowhere else',
+    ).toEqual([null, null, ids.bulletA, null, null, null, null])
     expect(
       stored.map((row) => row.checked),
       'the tick travelled on the checklist item and on nothing else, which is 4.17\'s own rule unchanged',

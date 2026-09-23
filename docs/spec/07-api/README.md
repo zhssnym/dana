@@ -192,9 +192,10 @@ from the front door.** `GET /api/v1/trash` gains a third array, `facets`, beside
 `folders`; 7.13's own text is unchanged and the addition is described in 7.27 rather than
 written into it, because the rule it follows — `is_owner` and `my_access` on every Trash row,
 and Full control with ownership ignored for the permanent delete — is 7.13's own 2026-09-20
-correction applied to a third kind. And 7.16's `document_transaction` is reused verbatim for a
-blank facet's document, with **four refusals** that are 7.27's rather than 7.16's; 7.16 is not
-touched.
+correction applied to a third kind. And 7.16's `document_transaction` is reused for a
+facet document; #211 makes native Purpose document-bearing too, retains the **three operational
+refusals** (`create_task`, semantic `section`, `folder_ref`) and admits same-facet nested lists.
+The #211 portability amendment is recorded in 7.16 itself.
 
 **7.27 fixes a refusal order for itself and says so at the top: 404, then 422, then 403, then
 409.** That is not a change to 7.0, which fixes the taxonomy rather than the sequence, and it

@@ -21,6 +21,7 @@ Each criterion file still boots its own application and signs its own cast in,
 which is how every file in this suite works; what is shared is the shape of
 the fixture and the two transports, not the state.
 */
+import { sql } from 'drizzle-orm'
 import { expect } from 'vitest'
 
 import type { AuthTestApp } from './auth-harness.js'
@@ -48,11 +49,14 @@ export interface ReferenceStage {
   /** A task in each of those two. */
   contextTaskId: string
   otherTaskId: string
+  /** The viewer's native Purpose facet, renamed to match NEEDLE (#211). */
+  contextPurposeId: string
   /** The viewer's shelf. Shelves are private by construction (4.18). */
   shelfId: string
   /** The stranger's three, every one of them matching NEEDLE. */
   strangerFolderId: string
   strangerTaskId: string
+  strangerPurposeId: string
   strangerShelfId: string
 }
 
@@ -111,6 +115,26 @@ export async function stageReferences(
     title: `r223 ${NEEDLE} private task`,
   })
 
+  const purposeOf = async (folderId: string, name: string): Promise<string> => {
+    const result = (await app.db.execute(
+      sql`UPDATE folder_facets
+              SET display_name = ${name}, updated_at = now()
+            WHERE folder_id = ${folderId}::uuid AND kind = 'purpose'
+            RETURNING id`,
+    )) as unknown as { rows: { id: unknown }[] }
+    const row = result.rows[0]
+    if (row === undefined) throw new Error('the native Purpose facet must exist')
+    return String(row.id)
+  }
+  const contextPurposeId = await purposeOf(
+    contextFolderId,
+    `r223 ${NEEDLE} purpose`,
+  )
+  const strangerPurposeId = await purposeOf(
+    strangerFolderId,
+    `r223 ${NEEDLE} private purpose`,
+  )
+
   const shelfId = await createShelf(viewer, `r223 ${NEEDLE} shelf`)
   const strangerShelfId = await createShelf(
     stranger,
@@ -124,9 +148,11 @@ export async function stageReferences(
     otherFolderId,
     contextTaskId,
     otherTaskId,
+    contextPurposeId,
     shelfId,
     strangerFolderId,
     strangerTaskId,
+    strangerPurposeId,
     strangerShelfId,
   }
 }

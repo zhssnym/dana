@@ -36,12 +36,12 @@ describe('the Dana Link grammar', () => {
     }
   })
 
-  test('the three client routes are the three the issue names', () => {
+  test('the supported client routes are the ones the reference grammar names', () => {
     const paths = REFERENCE_KINDS.map((kind: ReferenceKind) =>
       referencePath(kind, ID),
     )
-    expect(paths, 'M1 targets Task, Folder and Shelf and nothing else').toEqual(
-      [`/app/tasks/${ID}`, `/app/folders/${ID}`, `/app/shelves/${ID}`],
+    expect(paths, '#223 targets Task, Folder and Shelf; #211 adds stable facet identity').toEqual(
+      [`/app/tasks/${ID}`, `/app/folders/${ID}`, `/app/shelves/${ID}`, `/app/facets/${ID}`],
     )
   })
 
