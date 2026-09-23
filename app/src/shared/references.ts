@@ -48,8 +48,8 @@ export const referenceKind = z.enum(REFERENCE_KINDS, {
 })
 
 /** The client route segment each kind is addressed by, which is the plural
- * the SPA already uses: `/app/tasks/:id`, `/app/folders/:id`,
- * `/app/shelves/:id`. */
+ * the SPA uses: `/app/tasks/:id`, `/app/folders/:id`, `/app/shelves/:id`,
+ * and `/app/facets/:id`. */
 const KIND_SEGMENT: Record<ReferenceKind, string> = {
   task: 'tasks',
   folder: 'folders',
