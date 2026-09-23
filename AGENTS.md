@@ -152,7 +152,7 @@ If you find nothing, say so; never invent findings.
   `CLAUDE.local.md` at the repository root containing the single line `@AGENTS.md`.
 - There are no predefined subagents. Brief any agent you spawn with the task and the parts
   of this file it needs; the built-in Explore and Plan agents do not receive this file.
-- Agent worktrees are created under the `worktrees` directory in `.claude/`. That path has
+- Agent worktrees are created under the `worktrees` directory in .claude. That path has
   a dot segment, so `npm run gate` refuses the browser leg there and browser tests fail
   there. Use `npm run gate -- --quick` in a worktree, or copy the tree to a dot-free path.
 - `DANA_GATE_PORT` (default 3100) gives each parallel browser run its own port. Two runs on

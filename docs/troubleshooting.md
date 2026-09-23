@@ -143,7 +143,7 @@ All commands run from `app/`. From the repository root there is no `package.json
   (`Avatar` renders no `<img>` until the image loads, and jsdom never loads one). Otherwise, run
   the browser test or the app, or say plainly that it wasn't checked in a browser.
 - **Every request answers 500 from session resolution, and the throw is in
-  `PglitePreparedQuery.queryWithCache`.** The local `app/.data` PGlite directory is corrupt. The
+  `PglitePreparedQuery.queryWithCache`.** The local app/.data PGlite directory is corrupt. The
   tell is that the 500s come from `resolveSession`, not from the handler you changed. Run
   `rm -rf app/.data`; it's scratch and never committed. The cause is unknown.
 - **A test that relies on two concurrent connections behaves differently on PGlite.** PGlite is
@@ -301,7 +301,7 @@ run, and a record from a dirty tree describes something that isn't the commit.
   collaborators. The repo therefore stays private, and any credential that leaves it is
   rotated. Never copy the file anywhere else. A branch that deletes it deletes it from every
   working tree that checks that branch out.
-- **Never commit `app/.data/`.** It's the local PGlite scratch database.
+- **Never commit app/.data.** It's the local PGlite scratch database.
 
 ## 10. Tools and libraries
 
