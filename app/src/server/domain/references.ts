@@ -20,7 +20,9 @@ gates and neither has a read of its own:
 - a task through `accessibleTask`, whose membership join is the scope;
 - a folder through `accessOf`, the same;
 - a shelf through `shelfView`, which is scoped to its owner because 4.18 makes
-  a shelf private by construction.
+  a shelf private by construction;
+- a Purpose facet through a membership join on its Folder (#211), hidden state
+  deliberately irrelevant because hide is presentation rather than access.
 
 `resolveReference` calls those three functions. The search queries below
 repeat their `FROM` clauses rather than calling them per row, which is the one
