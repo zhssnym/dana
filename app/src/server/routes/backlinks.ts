@@ -1,11 +1,13 @@
 /*
-"Referenced from" (issue #214). Four GETs, one per Dana Link target kind, no
+"Referenced from" (issue #214). One GET per Dana Link target kind, no
 writes, no table:
 
     GET /api/v1/tasks/:id/backlinks
     GET /api/v1/folders/:id/backlinks
     GET /api/v1/shelves/:id/backlinks
     GET /api/v1/facets/:id/backlinks
+    GET /api/v1/discussions/:id/backlinks     (#320)
+    GET /api/v1/outcomes/:id/backlinks        (#320)
 
 **Why a path id per kind rather than `?target=<link>`.** The ac-397 sweep sees
 path parameters only; a target on the query string would be the one id no
@@ -41,6 +43,10 @@ const SEGMENTS: readonly (readonly [string, ReferenceKind])[] = [
   ['folders', 'folder'],
   ['shelves', 'shelf'],
   ['facets', 'facet'],
+  /* #320. Targets only: a Discussion's opening context and an Outcome's
+     statement are plain text, which holds no `href`, so neither is a source. */
+  ['discussions', 'discussion'],
+  ['outcomes', 'outcome'],
 ]
 
 export function createBacklinksRouter(

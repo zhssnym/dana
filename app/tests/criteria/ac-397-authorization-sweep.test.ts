@@ -95,6 +95,9 @@ one.
 
 Spec: 5.4, 7.0, 7.13, 7.15, 10.2. Issue #74.
 */
+import { randomUUID } from 'node:crypto'
+
+import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
 import { startAuthTestApp } from '../support/auth-harness.js'
@@ -143,6 +146,13 @@ afterAll(async () => {
     await upstream.close()
   }
   if ((app as AuthTestApp | undefined) === undefined) return
+  /* The seeded Discussion first: its Outcome's actor key would otherwise be
+     released before the Discussion that holds it. */
+  if (fixtures !== undefined) {
+    await app.db.execute(
+      sql`DELETE FROM discussions WHERE id = ${fixtures.discussionId}::uuid`,
+    )
+  }
   await cast.cleanup(app.db)
   await app.close()
 })
@@ -297,6 +307,10 @@ type ResourceId =
      failure this file's two controls exist to catch. */
   | 'facetId'
   | 'trashedFacetId'
+  /* #320's two Dana Link targets, seeded as rows: an open Discussion and one
+     (superseded) Outcome of it. */
+  | 'discussionId'
+  | 'outcomeId'
 
 interface Fixtures extends Record<ResourceId, string> {
   owner: Actor
@@ -385,6 +399,17 @@ async function fixturesOf(): Promise<Fixtures> {
   )
   await trashFolder(owner, trashedFolderId)
 
+  const discussionId = randomUUID()
+  await app.db.execute(sql`
+    INSERT INTO discussions (id, folder_id, title, created_by)
+    VALUES (${discussionId}::uuid, ${folderId}::uuid, 'ac397 the discussion',
+            ${owner.id}::uuid)`)
+  const outcomeId = randomUUID()
+  await app.db.execute(sql`
+    INSERT INTO discussion_outcomes (id, discussion_id, statement, actor_id)
+    VALUES (${outcomeId}::uuid, ${discussionId}::uuid, 'ac397 the outcome',
+            ${owner.id}::uuid)`)
+
   fixtures = {
     owner,
     member,
@@ -407,6 +432,8 @@ async function fixturesOf(): Promise<Fixtures> {
     folderLabelId,
     facetId,
     trashedFacetId,
+    discussionId,
+    outcomeId,
   }
   return fixtures
 }
@@ -1474,6 +1501,26 @@ const TABLE = new Map<string, Row>([
       },
     },
   ],
+  [
+    'GET /api/v1/discussions/:id/backlinks',
+    {
+      attempt: (fx) => ({ path: `/discussions/${fx.discussionId}/backlinks` }),
+      stranger: {
+        expected: 404,
+        rule: 'issues #214 and #320, 10.2: a Discussion is a Dana Link target gated on membership of its live Folder, so a non-member is told what an id naming nothing is told — 404, and no source is scanned',
+      },
+    },
+  ],
+  [
+    'GET /api/v1/outcomes/:id/backlinks',
+    {
+      attempt: (fx) => ({ path: `/outcomes/${fx.outcomeId}/backlinks` }),
+      stranger: {
+        expected: 404,
+        rule: 'issues #214 and #320, 10.2: an Outcome is a Dana Link target gated on membership of the live Folder of its Discussion, so a non-member is told what an id naming nothing is told — 404, and no source is scanned',
+      },
+    },
+  ],
 
   /* -------------------------------------------------------------- *
    * Labels (issue #226, parent #208)
@@ -2103,6 +2150,16 @@ describe('AC-397 every id-bearing route refuses a stranger', () => {
       what: 'the trashed facet',
       path: '/trash',
       holds: fx.trashedFacetId,
+    }),
+    discussionId: (fx) => ({
+      what: 'the discussion, as a Dana Link',
+      path: `/references/discussion/${fx.discussionId}`,
+      holds: fx.discussionId,
+    }),
+    outcomeId: (fx) => ({
+      what: 'the outcome, as a Dana Link',
+      path: `/references/outcome/${fx.outcomeId}`,
+      holds: fx.outcomeId,
     }),
   }
 
