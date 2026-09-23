@@ -41,6 +41,7 @@ import { HEALTH_PATH, healthRouter, recordDatabaseKind } from './routes/health.j
 import { createInvitesRouter } from './routes/invites.js'
 import { createLabelsRouter } from './routes/labels.js'
 import { createReferencesRouter } from './routes/references.js'
+import { createBacklinksRouter } from './routes/backlinks.js'
 import { createSampleRouter } from './routes/sample.js'
 import { createTasksRouter } from './routes/tasks.js'
 import { createTrashRouter } from './routes/trash.js'
@@ -711,6 +712,18 @@ export function createApp(options: AppOptions = {}): express.Express {
   app.use(
     '/api/v1',
     createReferencesRouter({ dbClient: options.dbClient, rateLimits }),
+  )
+
+  // "Referenced from" (issue #214): `GET /{tasks,folders,shelves,facets}/:id/backlinks`.
+  // Each is two segments past its prefix with the literal `backlinks`, a path
+  // no earlier router claims, so this mount is order-independent. It takes
+  // the app origin so an absolute same-origin Dana Link counts as one.
+  app.use(
+    '/api/v1',
+    createBacklinksRouter({
+      dbClient: options.dbClient,
+      ...(options.appOrigin === undefined ? {} : { appOrigin: options.appOrigin }),
+    }),
   )
 
   /*

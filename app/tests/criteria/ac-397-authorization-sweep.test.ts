@@ -1378,6 +1378,46 @@ const TABLE = new Map<string, Row>([
       },
     },
   ],
+  [
+    'GET /api/v1/tasks/:id/backlinks',
+    {
+      attempt: (fx) => ({ path: `/tasks/${fx.taskId}/backlinks` }),
+      stranger: {
+        expected: 404,
+        rule: 'issue #214 and 10.2: "referenced from" is gated on the target through the Dana Link resolver, so a reader who cannot open the target is told what an id naming nothing is told — 404, and no source is scanned',
+      },
+    },
+  ],
+  [
+    'GET /api/v1/folders/:id/backlinks',
+    {
+      attempt: (fx) => ({ path: `/folders/${fx.folderId}/backlinks` }),
+      stranger: {
+        expected: 404,
+        rule: 'issue #214 and 10.2: "referenced from" is gated on the target through the Dana Link resolver, so a reader who cannot open the target is told what an id naming nothing is told — 404, and no source is scanned',
+      },
+    },
+  ],
+  [
+    'GET /api/v1/shelves/:id/backlinks',
+    {
+      attempt: (fx) => ({ path: `/shelves/${fx.shelfId}/backlinks` }),
+      stranger: {
+        expected: 404,
+        rule: 'issue #214 and 10.2: "referenced from" is gated on the target through the Dana Link resolver, so a reader who cannot open the target is told what an id naming nothing is told — 404, and no source is scanned',
+      },
+    },
+  ],
+  [
+    'GET /api/v1/facets/:id/backlinks',
+    {
+      attempt: (fx) => ({ path: `/facets/${fx.facetId}/backlinks` }),
+      stranger: {
+        expected: 404,
+        rule: 'issue #214 and 10.2: "referenced from" is gated on the target through the Dana Link resolver, so a reader who cannot open the target is told what an id naming nothing is told — 404, and no source is scanned',
+      },
+    },
+  ],
 
   /* -------------------------------------------------------------- *
    * Labels (issue #226, parent #208)
