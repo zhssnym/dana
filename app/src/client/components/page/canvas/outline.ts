@@ -56,6 +56,7 @@ const KNOWN_TYPES: ReadonlySet<string> = new Set([
   'codeBlock',
   'danaTask',
   'danaFolder',
+  'danaPage',
   'diagram',
   'divider',
 ])
@@ -152,6 +153,20 @@ export function removedCanvasTasks(before: readonly OutlineBlock[], after: reado
     return blocks.flatMap((block) => [
       ...(block.type === 'danaTask' && block.props.taskId
         ? [block.props.taskId]
+        : []),
+      ...ids(block.children),
+    ])
+  }
+  const remaining = new Set(ids(after))
+  return ids(before).filter((id) => !remaining.has(id))
+}
+
+/** The sub-pages (folder ids) a change would drop from the document, as for Tasks above. */
+export function removedCanvasPages(before: readonly OutlineBlock[], after: readonly OutlineBlock[]): string[] {
+  function ids(blocks: readonly OutlineBlock[]): string[] {
+    return blocks.flatMap((block) => [
+      ...(block.type === 'danaPage' && typeof block.props.folderId === 'string' && block.props.folderId !== ''
+        ? [block.props.folderId]
         : []),
       ...ids(block.children),
     ])

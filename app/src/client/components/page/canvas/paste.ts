@@ -129,6 +129,9 @@ export function normalizeCanvasPaste(
           'Task references cannot be duplicated by paste. Move the original Task with its block menu.',
         )
       }
+      if (block.type === 'danaPage') {
+        throw new Error('A page cannot be duplicated by paste. Drag the original to move it.')
+      }
       const id = crypto.randomUUID()
 
       if (block.type === 'heading') {

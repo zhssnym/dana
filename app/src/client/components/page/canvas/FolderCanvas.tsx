@@ -17,7 +17,7 @@ import { CanvasSurface } from './CanvasSurface.js'
 import type { CanvasMediaKind, CanvasUploadedFile } from './CanvasFilePanel.js'
 import { canvasSchema } from './schema.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
-import { baselineOf, dehydrateCanvas, folderRefsOf, hydrateCanvas, mergeWorkDocument, richRuns, workPageOf } from './adapters.js'
+import { baselineOf, dehydrateCanvas, pendingPages, folderRefsOf, hydrateCanvas, mergeWorkDocument, richRuns, workPageOf } from './adapters.js'
 import type { CanvasDocument, CanvasInput } from './adapters.js'
 import { CanvasWriter } from './saving.js'
 import { NOT_SAVED, RecoveryNotice, SaveFailure } from './SaveFailure.js'
@@ -231,6 +231,7 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
     : workRootId === undefined
       ? empty
       : mergeWorkDocument(initialPage, workRootId, empty)
+  const queryClient = useQueryClient()
   const [writer] = useState(() => new CanvasWriter(firstProjection(), initialPage.revision ?? '',
     (body) => mutateApi(getPageResponse, { method: 'POST', path: `${documentPath}/actions`, body }),
     () => {
@@ -240,7 +241,17 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
         else sessionStorage.setItem(`dana-canvas-draft:${folderId}`, JSON.stringify({ folderId, revision: writer.revision, blocks: editor.document, pending: writer.pending?.request }))
       } catch { /* recoverable in memory; storage is optional */ }
     },
-    (next, checkpoint) => { onSaved(next); if (checkpoint) onCheckpoint(next) },
+    (next, checkpoint, operations) => {
+      onSaved(next)
+      if (checkpoint) onCheckpoint(next)
+      /* A sub-page made, trashed or restored by this save: the sidebar's
+         tree and every page row read the folder list. A `/page` title is let
+         go only once that list has the page, so its row never blinks. */
+      const created = operations.flatMap((op) => op.op === 'create_page' ? [op.id] : [])
+      if (created.length > 0 || operations.some((op) => op.op === 'trash_page' || (op.op === 'put_block' && op.block_kind === 'page'))) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.folders(), exact: true }).finally(() => { for (const id of created) pendingPages.delete(id) })
+      }
+    },
   ))
   // This is a recoverable draft, never a cached page or an automatic offline queue.
   const draftKey = `dana-canvas-draft:${facetId ?? folderId}`

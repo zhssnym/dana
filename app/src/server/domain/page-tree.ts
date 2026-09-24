@@ -22,6 +22,8 @@ their own check (A under B, B under A) would together make a cycle no CHECK
 can see; one lock for the whole tree serialises them. Moves are rare and
 short, so one key costs nothing worth a finer scheme.
 */
+import { randomUUID } from 'node:crypto'
+
 import { sql } from 'drizzle-orm'
 
 import type { FolderCrumb } from '../../shared/folders.js'
@@ -31,6 +33,7 @@ import { recordEvent } from './events.js'
 import { folderActorFacts, mayPerform } from './folder-access.js'
 import type { FolderActorFacts } from './folder-access.js'
 import { keyBetween } from './fractional-index.js'
+import { seededItems } from './page-order.js'
 
 /** Levels from a root (depth 1) down to the deepest page, inclusive. */
 export const PAGE_TREE_MAX_DEPTH = 20
@@ -211,8 +214,8 @@ export type MoveFolderResult =
  * Takes the tree lock itself (a no-op re-entry if the caller holds it: an
  * advisory xact lock is re-entrant within one transaction). The `page` block
  * that stands for the page in its parent's document moves in the same
- * transaction once the document ops land (wave 2 follow-up); this function is
- * where that call belongs.
+ * transaction: a new parent gets it at the end of its document, a move to the
+ * root removes it, and a reorder under the same parent leaves it where it is.
  */
 export async function moveFolder(
   tx: Executor,
@@ -226,12 +229,20 @@ export async function moveFolder(
   if (page === null) return { kind: 'not_found' }
   const onPage = mayPerform(page, PAGE_TREE_EDIT_ACTION)
   if (!onPage.allowed) return { kind: 'forbidden', reason: onPage.reason }
+  const before = await rowsOf(
+    tx,
+    sql`SELECT parent_folder_id FROM folders WHERE id = ${folderId}::uuid`,
+  )
+  const priorParent = before[0]?.parent_folder_id
+  const oldParent =
+    priorParent === null || priorParent === undefined ? null : String(priorParent)
 
   if (parentId === null) {
     await tx.execute(
       sql`UPDATE folders SET parent_folder_id = NULL, child_position = NULL
            WHERE id = ${folderId}::uuid`,
     )
+    await removeHomeBlock(tx, folderId)
     await recordMove(tx, actorId, page)
     return { kind: 'moved' }
   }
@@ -281,6 +292,10 @@ export async function moveFolder(
                            child_position = ${position}
          WHERE id = ${folderId}::uuid`,
   )
+  if (oldParent !== parentId) {
+    await removeHomeBlock(tx, folderId)
+    await appendHomeBlock(tx, parentId, folderId)
+  }
   await recordMove(tx, actorId, page)
   return { kind: 'moved' }
 }
@@ -298,6 +313,120 @@ async function recordMove(
     subjectName: page.name,
     folderId: page.folderId,
     detail: 'moved the page',
+  })
+}
+
+/* ------------------------------------------------------------------ *
+ * Home blocks: a sub-page's `page` block in its parent's Main document
+ * ------------------------------------------------------------------ */
+
+/*
+Lock order, so these never deadlock with a document transaction: the tree lock
+first (`lockPageTree`), then the document's folder row, then the sub-page's row.
+Every caller that changes a page's place takes the tree lock before anything
+else, and so does a document transaction carrying a tree op (`actOnFolderPage`).
+
+The invariant: every live sub-page whose parent is live has exactly one `page`
+block, in the parent's Main document (`page_blocks_page_home_idx` holds "at
+most one"; these functions keep "exactly"). The writers that change a page's
+place outside a document transaction -- the sidebar "+", a move, the route
+DELETE, a restore -- call these; the document transaction's own `create_page`
+and `trash_page` write the block themselves. A document's revision is computed
+from its rows, so writing rows is all it takes to keep the other document's
+revision honest.
+*/
+
+/** The `page` block that is `folderId`'s home, wherever it is. */
+export async function homeBlockOf(
+  tx: Executor,
+  folderId: string,
+): Promise<{ id: string; folderId: string } | null> {
+  const rows = await rowsOf(
+    tx,
+    sql`SELECT id, folder_id FROM page_blocks
+         WHERE kind = 'page' AND ref_folder_id = ${folderId}::uuid`,
+  )
+  const row = rows[0]
+  return row === undefined ? null : { id: String(row.id), folderId: String(row.folder_id) }
+}
+
+/** Appends `folderId`'s home block at the end of `parentId`'s Main document:
+ * top level (no Section, no parent block), after every item there is. Takes
+ * the parent's folder row lock, the one the document transaction holds. */
+export async function appendHomeBlock(
+  tx: Executor,
+  parentId: string,
+  folderId: string,
+): Promise<string> {
+  await tx.execute(sql`SELECT 1 FROM folders WHERE id = ${parentId}::uuid FOR UPDATE`)
+  const items = await seededItems(tx, parentId)
+  const last = items[items.length - 1]?.pagePosition ?? null
+  const counted = await rowsOf(
+    tx,
+    sql`SELECT coalesce(max(position), -1)::int AS last FROM page_blocks
+         WHERE folder_id = ${parentId}::uuid`,
+  )
+  const id = randomUUID()
+  await tx.execute(
+    sql`INSERT INTO page_blocks (id, folder_id, kind, position, page_position, ref_folder_id)
+        VALUES (${id}::uuid, ${parentId}::uuid, 'page',
+                ${Number(counted[0]?.last ?? -1) + 1}, ${keyBetween(last, null)},
+                ${folderId}::uuid)`,
+  )
+  return id
+}
+
+/** Removes `folderId`'s home block from whichever document holds it, under
+ * that document's folder row lock. */
+export async function removeHomeBlock(tx: Executor, folderId: string): Promise<void> {
+  const home = await homeBlockOf(tx, folderId)
+  if (home === null) return
+  await tx.execute(sql`SELECT 1 FROM folders WHERE id = ${home.folderId}::uuid FOR UPDATE`)
+  await tx.execute(sql`DELETE FROM page_blocks WHERE id = ${home.id}::uuid`)
+}
+
+/** After a restore: a live page under a live parent gets its home block back,
+ * at the end, when it has none. A page whose parent is in Trash reads as a
+ * root for now and needs none. */
+export async function ensureHomeBlock(tx: Executor, folderId: string): Promise<void> {
+  const rows = await rowsOf(
+    tx,
+    sql`SELECT f.parent_folder_id FROM folders f
+          JOIN folders p ON p.id = f.parent_folder_id AND p.deleted_at IS NULL
+         WHERE f.id = ${folderId}::uuid AND f.deleted_at IS NULL`,
+  )
+  const parent = rows[0]?.parent_folder_id
+  if (parent === null || parent === undefined) return
+  if ((await homeBlockOf(tx, folderId)) !== null) return
+  await appendHomeBlock(tx, String(parent), folderId)
+}
+
+/**
+ * Brings a trashed page back in the caller's transaction: the row, the set
+ * trashed with it (`restorePageSubtree`), and the `restored` event. The caller
+ * has gated `folder.restore`. Shared by POST /folders/:id/restore and the
+ * document transaction, where re-putting a trashed page's `page` block (the
+ * editor's Undo of "Move page to Trash") restores it in place.
+ */
+export async function restoreTrashedPage(
+  tx: Executor,
+  actorId: string,
+  folderId: string,
+  name: string,
+): Promise<void> {
+  await tx.execute(
+    sql`UPDATE folders SET deleted_at = NULL, trashed_with_folder_id = NULL
+        WHERE id = ${folderId}::uuid`,
+  )
+  await restorePageSubtree(tx, actorId, folderId)
+  await recordEvent(tx, {
+    actorId,
+    verb: 'restored',
+    subjectKind: 'folder',
+    subjectId: folderId,
+    subjectName: name,
+    folderId,
+    detail: 'restored from Trash',
   })
 }
 

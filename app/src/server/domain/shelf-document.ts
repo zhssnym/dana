@@ -146,6 +146,14 @@ export async function applyShelfDocument(
     if (op.op === 'create_task') {
       throw new ShelfDocumentRefusal('invalid', 'a Shelf holds no Tasks; create it in a Folder instead')
     }
+    // Wave 2: sub-pages live in a Folder's Main document alone.
+    if (
+      op.op === 'create_page' ||
+      op.op === 'trash_page' ||
+      (op.op === 'put_block' && op.block_kind === 'page')
+    ) {
+      throw new ShelfDocumentRefusal('invalid', "A page block lives only on a folder's page.")
+    }
     if (op.op === 'put_block') {
       writes.set(op.id, {
         ...op,

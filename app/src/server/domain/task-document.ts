@@ -398,6 +398,14 @@ export async function applyTaskDocumentLocked(
     if (op.op === 'create_task') {
       throw new TaskDocumentRefusal('invalid', 'a Task document holds no Tasks; use Steps', 'operations')
     }
+    // Wave 2: sub-pages live in a Folder's Main document alone.
+    if (
+      op.op === 'create_page' ||
+      op.op === 'trash_page' ||
+      (op.op === 'put_block' && op.block_kind === 'page')
+    ) {
+      throw new TaskDocumentRefusal('invalid', "A page block lives only on a folder's page.", 'operations')
+    }
     if (op.op === 'put_block') {
       if (op.block_kind === 'section') {
         throw new TaskDocumentRefusal('invalid', 'a Task document has no Sections; use a heading', 'operations')

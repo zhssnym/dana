@@ -10,6 +10,9 @@ import { createTaskIn } from './tasks.js'
 import { positionedItems } from './page-order.js'
 import { recordEvent } from './events.js'
 import { syncMentions } from './mentions.js'
+import { createSubPage, trashFolderSubtree } from './folders.js'
+import { folderActorFacts, mayPerform } from './folder-access.js'
+import { restoreTrashedPage } from './page-tree.js'
 
 type BlockOp = Extract<DocumentOperation,{op:'put_block'}>
 /* `documentHash` moved to `document-hash.ts` with issue #230 and is re-exported
@@ -42,6 +45,13 @@ export async function documentMetadata(tx:Executor,folderId:string|null) {
  const tasks=await rowsOf(tx,sql`SELECT id,section_block_id,page_position FROM tasks WHERE folder_id=${folderId}::uuid AND deleted_at IS NULL ORDER BY id`)
  return {revision:documentHash({blocks,tasks}),task_placements:tasks.map(t=>({id:String(t.id),section_block_id:t.section_block_id==null?null:String(t.section_block_id)}))}
 }
+/** Whether a Main-document transaction changes the page tree: it creates or
+ * trashes a sub-page, or puts a `page` block (which may re-home or restore
+ * one). Such a transaction takes the tree lock before the folder row. */
+export function touchesPageTree(body:DocumentTransaction):boolean {
+ return body.operations.some(op=>op.op==='create_page'||op.op==='trash_page'||(op.op==='put_block'&&op.block_kind==='page'))
+}
+const PAGE_BLOCK_RETAINED='A page block leaves only when its page goes to Trash.'
 export async function applyDocument(tx:Executor,viewerId:string,folderId:string,body:DocumentTransaction) {
  const hash=documentHash(body)
  const receipts=await rowsOf(tx,sql`SELECT payload_hash,committed_revision,created_task_ids FROM page_document_receipts WHERE actor_id=${viewerId}::uuid AND folder_id=${folderId}::uuid AND mutation_id=${body.mutation_id}::uuid`)
@@ -58,6 +68,8 @@ export async function applyDocument(tx:Executor,viewerId:string,folderId:string,
  const original=new Set(blocks.keys())
  const tasks=new Set(metadata.task_placements.map(t=>t.id))
  const created:Extract<DocumentOperation,{op:'create_task'}>[]=[]
+ const createdPages:Extract<DocumentOperation,{op:'create_page'}>[]=[]
+ const trashedPages=new Set<string>()
  let outline:DocumentOutlineItem[]=[]
  for(const op of body.operations){
   // A checklist item always records a tick, so an omitted one is unchecked
@@ -70,7 +82,17 @@ export async function applyDocument(tx:Executor,viewerId:string,folderId:string,
   }
   else if(op.op==='delete_block') {if(!blocks.delete(op.id))throw new DocumentRefusal('not_found','Block not found.')}
   else if(op.op==='create_task'){if(tasks.has(op.id)||created.some(t=>t.id===op.id))throw new DocumentRefusal('not_convertible','Task identity already exists.');created.push(op);tasks.add(op.id)}
-  else outline=op.items
+  /* Wave 2: a sub-page and its home `page` block, made together. The block is
+     an ordinary member of the block set from here on, so the outline must
+     place it like any other; the folder row is written after validation. */
+  else if(op.op==='create_page'){
+   if(op.id===op.block_id||blocks.has(op.block_id)||createdPages.some(p=>p.id===op.id||p.block_id===op.block_id))throw new DocumentRefusal('not_convertible','An inserted identity already exists.')
+   createdPages.push(op)
+   blocks.set(op.block_id,{op:'put_block',id:op.block_id,block_kind:'page',text:null,rich_content:null,file_id:null,ref_folder_id:op.id,width_pct:null,checked:null,toggleable:null})
+  }
+  else if(op.op==='trash_page')trashedPages.add(op.folder_id)
+  else if(op.op==='set_outline')outline=op.items
+  else {const unknown:never=op;throw new DocumentRefusal('not_convertible',`Unknown operation ${String((unknown as {op?:unknown}).op)}.`)}
  }
  if(blocks.size>500)throw new DocumentRefusal('not_convertible','A page holds at most 500 blocks.')
  if(tasks.size>1000)throw new DocumentRefusal('not_convertible','A page holds at most 1000 Tasks.')
@@ -126,7 +148,8 @@ export async function applyDocument(tx:Executor,viewerId:string,folderId:string,
  changes is only which rows are *audited*, and auditing a row this transaction
  leaves exactly as it found it was never this function's job.
  */
- const changed = new Set(body.operations.flatMap(op=>op.op==='put_block'?[op.id]:[]))
+ const changed = new Set(body.operations.flatMap(op=>op.op==='put_block'?[op.id]:op.op==='create_page'?[op.block_id]:[]))
+ const tree=await pageTreeRules(tx,viewerId,folderId,{stored,blocks,original,createdPages,trashedPages})
  for(const block of blocks.values()){
   if(!changed.has(block.id))continue
   /*
@@ -164,11 +187,27 @@ export async function applyDocument(tx:Executor,viewerId:string,folderId:string,
    if(file===undefined)throw new DocumentRefusal('file_not_here','That file is not in this folder.')
    if(isMediaKind(block.block_kind)&&!(BLOCK_FILE_KINDS[block.block_kind] as readonly string[]).includes(String(file.kind)))throw new DocumentRefusal('file_kind_mismatch',`This ${block.block_kind} block names a file uploaded as ${String(file.kind)}. Upload it again as the kind you mean to insert.`)
   }
-  if(block.ref_folder_id!==null){const refs=await rowsOf(tx,sql`SELECT f.id FROM folders f JOIN folder_members m ON m.folder_id=f.id WHERE f.id=${block.ref_folder_id}::uuid AND m.user_id=${viewerId}::uuid AND f.deleted_at IS NULL`);if(refs.length===0)throw new DocumentRefusal('not_found','Referenced folder is not accessible.')}
+  // A `page` block's reference was judged by `pageTreeRules` above.
+  if(block.ref_folder_id!==null&&block.block_kind!=='page'){const refs=await rowsOf(tx,sql`SELECT f.id FROM folders f JOIN folder_members m ON m.folder_id=f.id WHERE f.id=${block.ref_folder_id}::uuid AND m.user_id=${viewerId}::uuid AND f.deleted_at IS NULL`);if(refs.length===0)throw new DocumentRefusal('not_found','Referenced folder is not accessible.')}
  }
- const fresh=[...blocks.keys()].filter(id=>!original.has(id)).concat(created.map(t=>t.id))
- if(fresh.length){const collisions=await rowsOf(tx,sql`SELECT id FROM page_blocks WHERE id IN (${sql.join(fresh.map(id=>sql`${id}::uuid`),sql`,`)}) UNION ALL SELECT id FROM tasks WHERE id IN (${sql.join(fresh.map(id=>sql`${id}::uuid`),sql`,`)})`);if(collisions.length)throw new DocumentRefusal('not_convertible','An inserted identity already exists.')}
+ const fresh=[...blocks.keys()].filter(id=>!original.has(id)).concat(created.map(t=>t.id),createdPages.map(p=>p.id))
+ if(new Set(fresh).size!==fresh.length)throw new DocumentRefusal('not_convertible','An inserted identity already exists.')
+ if(fresh.length){const ids=sql.join(fresh.map(id=>sql`${id}::uuid`),sql`,`);const collisions=await rowsOf(tx,sql`SELECT id FROM page_blocks WHERE id IN (${ids}) UNION ALL SELECT id FROM tasks WHERE id IN (${ids}) UNION ALL SELECT id FROM folders WHERE id IN (${ids})`);if(collisions.length)throw new DocumentRefusal('not_convertible','An inserted identity already exists.')}
  // All authorization and final-state validation precede the first write.
+ /* The tree writes come first: a trashed page goes (with the sub-pages its
+    actor may trash), a re-put page comes back, and a new page's folder row
+    exists before the `page` block that references it is inserted. A refusal
+    from `createSubPage` rolls the whole transaction back like any other. */
+ for(const id of tree.toTrash)await trashFolderSubtree(tx,viewerId,id)
+ for(const page of tree.toRestore)await restoreTrashedPage(tx,viewerId,page.id,page.name)
+ for(const page of createdPages){
+  const made=await createSubPage(tx,viewerId,folderId,{id:page.id,name:page.title,homeBlock:false})
+  if(made.kind==='parent_not_found')throw new DocumentRefusal('not_found','Folder not found.')
+  if(made.kind==='forbidden')throw new DocumentRefusal('not_convertible',made.reason)
+  if(made.kind==='too_deep')throw new DocumentRefusal('not_convertible','Pages nest 20 levels deep at most.')
+  if(made.kind==='default_parent')throw new DocumentRefusal('not_convertible','A default folder holds no sub-pages.')
+  if(made.kind==='folder_cap')throw new DocumentRefusal('not_convertible','You have reached the folder limit.')
+ }
  for(const id of original)if(!blocks.has(id))await tx.execute(sql`DELETE FROM page_blocks WHERE id=${id}::uuid`)
  /* `checked` travels with the block rather than with the outline, because a
     tick is authored content and not placement. A kind that stops being a
@@ -193,4 +232,74 @@ export async function applyDocument(tx:Executor,viewerId:string,folderId:string,
  const committed=await documentMetadata(tx,folderId)
  await tx.execute(sql`INSERT INTO page_document_receipts (actor_id,folder_id,mutation_id,payload_hash,committed_revision,created_task_ids) VALUES (${viewerId}::uuid,${folderId}::uuid,${body.mutation_id}::uuid,${hash},${committed.revision},${JSON.stringify(created.map(t=>t.id))}::jsonb)`)
  return {mutation_id:body.mutation_id,committed_revision:committed.revision,replayed:false,created_task_ids:created.map(t=>t.id)}
+}
+
+/*
+Wave 2's rules for `page` blocks in a Folder's Main document, asked over the
+final block set before anything is written. A `page` block is a sub-page's
+home: it names one page whose parent is this folder, the database keeps at most
+one per page (`page_blocks_page_home_idx`), and it is how the page appears in
+this document.
+
+- **Retention, like a Task's.** Every stored `page` block is still here at the
+  end, the same kind naming the same page, unless the same transaction sends
+  its page to Trash (`trash_page`). Deleting one, retyping it or pointing it
+  elsewhere is refused and nothing is written.
+- **`trash_page` names a page this document holds**, and its block must be gone
+  at the end. It needs `folder.trash` on that page; a page the viewer is not a
+  member of answers 404 and nothing else. A page already in Trash (its block
+  outlived it, e.g. a sub-page trashed with a grandparent) is only unhomed.
+- **`create_page`'s block must be here at the end**, naming the page it made.
+- **A new `page` block for an existing page** re-homes a sub-page of this
+  folder that has no home block: a live one simply gets it, and one in Trash
+  that went there on its own is restored in place (`folder.restore`) -- the
+  editor's Undo of "Move page to Trash". Anything else is refused.
+*/
+async function pageTreeRules(tx:Executor,viewerId:string,folderId:string,state:{stored:Record<string,unknown>[],blocks:Map<string,BlockOp>,original:Set<string>,createdPages:Extract<DocumentOperation,{op:'create_page'}>[],trashedPages:Set<string>}):Promise<{toTrash:string[],toRestore:{id:string,name:string}[]}>{
+ const {stored,blocks,original,createdPages,trashedPages}=state
+ const storedPages=new Map<string,string>()
+ for(const row of stored)if(row.kind==='page')storedPages.set(String(row.id),String(row.ref_folder_id))
+ const storedRefs=new Set(storedPages.values())
+ const finalRefs=new Map<string,string>()
+ for(const block of blocks.values()){
+  if(block.block_kind!=='page')continue
+  const ref=block.ref_folder_id as string
+  if(finalRefs.has(ref))throw new DocumentRefusal('not_convertible','A page has one page block.')
+  finalRefs.set(ref,block.id)
+  if(original.has(block.id)&&!storedPages.has(block.id))throw new DocumentRefusal('not_convertible','A block does not turn into a page block; create the page instead.')
+ }
+ for(const [id,ref] of storedPages){
+  const now=blocks.get(id)
+  if(now===undefined?!trashedPages.has(ref):(now.block_kind!=='page'||now.ref_folder_id!==ref))throw new DocumentRefusal('not_convertible',PAGE_BLOCK_RETAINED)
+ }
+ const toTrash:string[]=[]
+ for(const ref of trashedPages){
+  if(!storedRefs.has(ref))throw new DocumentRefusal('not_found','Page not found.')
+  const facts=await folderActorFacts(tx,viewerId,ref,{includeTrashed:true})
+  if(facts===null)throw new DocumentRefusal('not_found','Page not found.')
+  if(finalRefs.has(ref))throw new DocumentRefusal('not_convertible','A page going to Trash leaves its page block.')
+  const live=await rowsOf(tx,sql`SELECT 1 FROM folders WHERE id=${ref}::uuid AND deleted_at IS NULL FOR UPDATE`)
+  if(live.length===0)continue
+  const decision=mayPerform(facts,'folder.trash')
+  if(!decision.allowed||facts.isDefault)throw new DocumentRefusal('not_convertible',decision.allowed?'A default folder is never moved to Trash.':decision.reason)
+  toTrash.push(ref)
+ }
+ const made=new Map(createdPages.map(p=>[p.id,p.block_id]))
+ for(const [id,blockId] of made)if(finalRefs.get(id)!==blockId)throw new DocumentRefusal('not_convertible','A new page keeps its page block in the outline.')
+ const toRestore:{id:string,name:string}[]=[]
+ for(const [ref,blockId] of finalRefs){
+  if(original.has(blockId)||made.has(ref))continue
+  const facts=await folderActorFacts(tx,viewerId,ref,{includeTrashed:true})
+  if(facts===null)throw new DocumentRefusal('not_found','Referenced page is not accessible.')
+  const rows=await rowsOf(tx,sql`SELECT f.parent_folder_id,(f.deleted_at IS NOT NULL) AS trashed,f.trashed_with_folder_id,EXISTS(SELECT 1 FROM page_blocks h WHERE h.kind='page' AND h.ref_folder_id=f.id) AS homed FROM folders f WHERE f.id=${ref}::uuid FOR UPDATE OF f`)
+  const row=rows[0]
+  if(row===undefined||row.parent_folder_id===null||String(row.parent_folder_id)!==folderId)throw new DocumentRefusal('not_convertible','A page block stands for a page under this one.')
+  if(row.homed===true)throw new DocumentRefusal('not_convertible','That page already has its page block.')
+  if(row.trashed!==true)continue
+  if(row.trashed_with_folder_id!==null)throw new DocumentRefusal('not_convertible','That page went to Trash with another page; restore that one.')
+  const decision=mayPerform(facts,'folder.restore')
+  if(!decision.allowed)throw new DocumentRefusal('not_convertible',decision.reason)
+  toRestore.push({id:ref,name:facts.name})
+ }
+ return {toTrash,toRestore}
 }

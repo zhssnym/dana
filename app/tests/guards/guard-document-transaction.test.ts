@@ -260,3 +260,58 @@ test('a Task document and a Purpose document nest blocks and store a toggle head
  expect(fread.blocks.find(x=>x.id===fq)?.list_parent_block_id).toBe(fh)
  expect(fread.blocks.find(x=>x.id===fh)?.toggleable).toBe(true)
 })
+
+/*
+Wave 2 (pages in pages): a `page` block is a sub-page's home in its parent's
+Main document, retained like a Task. Deleting one without `trash_page`, or
+retyping it, is refused before the first write -- the revision, the block row
+and the sub-page are all as they were. Every other document home (a Purpose
+facet, a Task document, a Shelf) refuses the two tree ops and the kind.
+*/
+test('a page block leaves only with trash_page, keeps its kind, and lives only on a folder page',async()=>{
+ const [owner]=await cast.of(app) as [Actor,Actor]
+ const folder=await createFolder(owner,'page retention');const url=`/folders/${folder}/page/actions`
+ const child=randomUUID(),home=randomUUID(),p=randomUUID()
+ expectStatus(await transact(owner,url,(await read(owner,folder)).revision!,[put(p,'paragraph','Intro'),{op:'create_page',id:child,block_id:home,title:'Kept child'},{op:'set_outline',items:[at(p),at(home)]}]),200,'create_page')
+ // The Task whose document is tried below, seeded before the baseline.
+ const taskId=await seedTask(app.db,{folderId:folder,createdBy:owner.id})
+ const taskUrl=`/tasks/${taskId}/document`
+ const before=await read(owner,folder)
+ const unchanged=async(why:string)=>{
+  expect((await read(owner,folder)).revision,why).toBe(before.revision)
+  const row=(await app.db.execute(sql`SELECT b.kind, b.ref_folder_id, f.deleted_at FROM page_blocks b JOIN folders f ON f.id = b.ref_folder_id WHERE b.id = ${home}::uuid`)) as unknown as {rows:{kind:string;ref_folder_id:string;deleted_at:unknown}[]}
+  expect(row.rows.map(r=>[r.kind,r.ref_folder_id,r.deleted_at]),why).toEqual([['page',child,null]])
+ }
+ const refused=async(operations:DocumentOperation[],why:string)=>{const r=await transact(owner,url,before.revision!,operations);expect(r.status,why).toBe(422);await unchanged(why)}
+ await refused([{op:'delete_block',id:home},{op:'set_outline',items:[at(p)]}],'deleting a page block without trash_page')
+ await refused([put(home,'paragraph','no longer a page'),{op:'set_outline',items:[at(p),at(home)]}],'turning a page block into a paragraph')
+ const other=await createFolder(owner,'page retention elsewhere')
+ await refused([put(home,'page',null,{ref_folder_id:other}),{op:'set_outline',items:[at(p),at(home)]}],'pointing a page block at another page')
+ await refused([put(p,'page',null,{ref_folder_id:child}),{op:'set_outline',items:[at(p),at(home)]}],'turning a paragraph into a page block')
+ const sneak=randomUUID()
+ await refused([put(sneak,'page',null,{ref_folder_id:other}),{op:'set_outline',items:[at(p),at(home),at(sneak)]}],'homing a page that is not a sub-page of this one')
+
+ // Every other document home refuses the tree ops and the kind.
+ const page=randomUUID(),pb=randomUUID()
+ const treeOps:DocumentOperation[][]=[
+  [{op:'create_page',id:page,block_id:pb,title:'Nope'},{op:'set_outline',items:[at(pb)]}],
+  [{op:'trash_page',folder_id:child},{op:'set_outline',items:[]}],
+  [put(pb,'page',null,{ref_folder_id:child}),{op:'set_outline',items:[at(pb)]}],
+ ]
+ const taskBase=((await owner.browser.api(taskUrl)).json() as PageView).revision!
+ for(const ops of treeOps){const r=await transact(owner,taskUrl,taskBase,ops,'PUT');expect(r.status,`task document: ${ops[0]!.op}`).toBe(422)}
+ expect(((await owner.browser.api(taskUrl)).json() as PageView).revision).toBe(taskBase)
+ const facets=(await owner.browser.json(`/folders/${folder}/facets`,'GET')).json() as {facets:{id:string;kind:string}[]}
+ const purpose=`/folders/${folder}/facets/${facets.facets.find(f=>f.kind==='purpose')!.id}/page`
+ const facetBase=((await owner.browser.json(purpose,'GET')).json() as PageView).revision!
+ for(const ops of treeOps){const r=await transact(owner,`${purpose}/actions`,facetBase,ops);expect(r.status,`facet document: ${ops[0]!.op}`).toBe(422)}
+ expect(((await owner.browser.json(purpose,'GET')).json() as PageView).revision).toBe(facetBase)
+ const shelf=await owner.browser.json('/shelves','POST',{name:'page retention shelf'});expectStatus(shelf,201,'shelf')
+ const shelfPage=`/shelves/${String((shelf.json() as {id:unknown}).id)}/page`
+ const shelfBase=((await owner.browser.json(shelfPage,'GET')).json() as PageView).revision!
+ for(const ops of treeOps){const r=await transact(owner,`${shelfPage}/actions`,shelfBase,ops);expect(r.status,`shelf document: ${ops[0]!.op}`).toBe(422)}
+ expect(((await owner.browser.json(shelfPage,'GET')).json() as PageView).revision).toBe(shelfBase)
+ const made=(await app.db.execute(sql`SELECT id FROM folders WHERE id = ${page}::uuid`)) as unknown as {rows:unknown[]}
+ expect(made.rows).toEqual([])
+ await unchanged('after the other homes refused')
+})

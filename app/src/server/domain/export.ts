@@ -252,6 +252,7 @@ function blockFrom(row: Record<string, unknown>): ExportBlock {
     file_id: nullableString(row.file_id),
     ref_folder_id: nullableString(row.ref_folder_id),
     width_pct: nullableInt(row.width_pct),
+    toggleable: row.toggleable === true ? true : null,
     updated_at: toIso(row.updated_at),
   }
 }
@@ -444,7 +445,7 @@ export async function exportForViewer(
     cappedPerParent(
       sql`b.id, b.folder_id, b.kind, b.position, b.text, b.file_id,
           b.ref_folder_id, b.width_pct, b.updated_at, b.rich_content, b.section_block_id,
-          b.list_parent_block_id, b.checked, b.page_position`,
+          b.list_parent_block_id, b.checked, b.page_position, b.toggleable`,
       sql`FROM page_blocks b
           JOIN folders f ON f.id = b.folder_id AND f.owner_id = ${viewerId}
           WHERE b.folder_id IN ${idSet(folderIds)}`,
@@ -535,7 +536,7 @@ export async function exportForViewer(
     cappedPerParent(
       sql`b.id, b.task_id, b.kind, b.position, b.text, b.file_id,
           b.ref_folder_id, b.width_pct, b.updated_at, b.rich_content, b.section_block_id,
-          b.list_parent_block_id, b.checked, b.page_position`,
+          b.list_parent_block_id, b.checked, b.page_position, b.toggleable`,
       sql`FROM page_blocks b
           JOIN tasks t ON t.id = b.task_id
           JOIN folders f ON f.id = t.folder_id
@@ -810,7 +811,7 @@ export async function exportForViewer(
     cappedPerParent(
       sql`b.id, b.shelf_id, b.kind, b.position, b.text, b.file_id,
           b.ref_folder_id, b.width_pct, b.updated_at, b.rich_content, b.section_block_id,
-          b.list_parent_block_id, b.checked, b.page_position`,
+          b.list_parent_block_id, b.checked, b.page_position, b.toggleable`,
       sql`FROM page_blocks b
           JOIN shelves s ON s.id = b.shelf_id AND s.user_id = ${viewerId}
           WHERE b.shelf_id IN ${idSet(
@@ -866,7 +867,7 @@ export async function exportForViewer(
             sql`b.id, b.facet_id, b.kind, b.position, b.text, b.file_id,
                 b.ref_folder_id, b.width_pct, b.updated_at, b.rich_content,
                 b.section_block_id, b.list_parent_block_id, b.checked,
-                b.page_position`,
+                b.page_position, b.toggleable`,
             /* **The scope, restated in this statement's own FROM clause.**
                `facets` above was already gathered under exactly this
                predicate, so the `IN` list alone would be correct -- and that
@@ -961,7 +962,16 @@ export async function exportForViewer(
       ),
       blocks: truncation
         .apply('folders.blocks', blocksByFolder.get(id) ?? [])
-        .map(blockFrom),
+        .map(blockFrom)
+        /* A `page` block names a sub-page, and like `parent_folder_id` it
+           names one this document carries or nothing (version 8). */
+        .map((block) =>
+          block.kind === 'page' &&
+          block.ref_folder_id !== null &&
+          !exportedFolderIds.has(block.ref_folder_id)
+            ? { ...block, ref_folder_id: null }
+            : block,
+        ),
       labels: truncation
         .apply('folders.labels', labelsByFolder.get(id) ?? [])
         .map(labelFrom),

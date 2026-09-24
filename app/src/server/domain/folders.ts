@@ -38,9 +38,11 @@ import {
 } from './responsibility.js'
 import {
   PAGE_TREE_EDIT_ACTION,
+  appendHomeBlock,
   lastChildPosition,
   lockPageTree,
   mayAddChildUnder,
+  removeHomeBlock,
   trashPageSubtree,
   visibleParentPredicate,
 } from './page-tree.js'
@@ -496,13 +498,17 @@ export type CreateSubPageResult =
  * Needs `folder.page.edit` on the parent (adding a sub-page edits that
  * page's structure). The tree lock is taken before anything is read, so a
  * concurrent move cannot deepen the parent between the check and the insert.
- * `id` lets a client-generated id through (the future document op).
+ * `id` lets a client-generated id through (the document's `create_page`).
+ *
+ * The new page's home `page` block is appended at the end of the parent's
+ * Main document, unless `homeBlock` is false: `create_page` places the block
+ * itself, where the person typed it.
  */
 export async function createSubPage(
   tx: Executor,
   actorId: string,
   parentId: string,
-  input: { id?: string; name: string; description?: string | null },
+  input: { id?: string; name: string; description?: string | null; homeBlock?: boolean },
 ): Promise<CreateSubPageResult> {
   await lockPageTree(tx)
   const parent = await folderActorFacts(tx, actorId, parentId)
@@ -520,6 +526,7 @@ export async function createSubPage(
     childPosition: await lastChildPosition(tx, parentId),
   })
   if (id === null) return { kind: 'folder_cap' }
+  if (input.homeBlock !== false) await appendHomeBlock(tx, parentId, id)
 
   const copied = await rowsOf(
     tx,
@@ -670,14 +677,20 @@ export async function deleteFolder(
   actorId: string,
   folderId: string,
 ): Promise<DeletedCounts> {
-  return inTransaction(db, async (tx) =>
-    (await trashFolderSubtree(tx, actorId, folderId)).counts,
-  )
+  return inTransaction(db, async (tx) => {
+    /* Wave 2: moved to Trash from outside its parent's document (the sidebar,
+       the page's own menu), the page leaves that document too. The pages
+       trashed with it keep theirs, inside documents that are in Trash with
+       them, so a restore brings the set back where it was. */
+    await lockPageTree(tx)
+    await removeHomeBlock(tx, folderId)
+    return (await trashFolderSubtree(tx, actorId, folderId)).counts
+  })
 }
 
 /**
  * The body of the Trash move, in the caller's transaction (DELETE
- * /folders/:id today, the document's `trash_page` op later). The caller has
+ * /folders/:id, and the document's `trash_page` op). The caller has
  * gated the page itself (`folder.trash`) and refused a default folder.
  *
  * Wave 2: the page's live descendants that the actor may also move to Trash
