@@ -168,10 +168,10 @@
    heading"). BlockNote's placeholder decoration never reaches Dana's paragraph
    node view, so the rule is written here against the page's only block, and
    the words come from the surface's `--dana-canvas-placeholder`. */
-.dana-writing-canvas .bn-editor > .bn-block-group > .bn-block-outer:only-child > .bn-block > .react-renderer > .bn-block-content[data-content-type='paragraph']:has(.ProseMirror-trailingBreak:only-child) {
+.dana-writing-canvas .bn-editor:not(.ProseMirror-focused) > .bn-block-group > .bn-block-outer:only-child > .bn-block > .react-renderer > .bn-block-content[data-content-type='paragraph']:has(.ProseMirror-trailingBreak:only-child) {
   position: relative;
 }
-.dana-writing-canvas .bn-editor > .bn-block-group > .bn-block-outer:only-child > .bn-block > .react-renderer > .bn-block-content[data-content-type='paragraph']:has(.ProseMirror-trailingBreak:only-child)::after {
+.dana-writing-canvas .bn-editor:not(.ProseMirror-focused) > .bn-block-group > .bn-block-outer:only-child > .bn-block > .react-renderer > .bn-block-content[data-content-type='paragraph']:has(.ProseMirror-trailingBreak:only-child)::after {
   content: var(--dana-canvas-placeholder, none);
   position: absolute;
   inset-inline-start: 0;
@@ -255,3 +255,56 @@
 .dana-writing-canvas .bn-block:has(> .bn-block-content[data-dana-section]) > .bn-block-group > .bn-block-outer::before {
   display: none;
 }
+
+
+/* ---- r4-editor: one hint at a time. While the page is being written in,
+   only the focused empty block says anything ("Type '/' for commands"; a
+   heading or list says what it is); every other empty block is blank, as in
+   Notion. The empty page's own line above shows only while nothing is focused.
+   BlockNote marks the focused empty block `data-is-empty-and-focused`: on the
+   block's content, or on the wrapper of Dana's paragraph node view. */
+.dana-writing-canvas .bn-editor .bn-block-content[data-content-type]:has(.ProseMirror-trailingBreak:only-child)::after { content: none; }
+.dana-writing-canvas .bn-editor.ProseMirror-focused [data-is-empty-and-focused] > .bn-block-content[data-content-type]:has(.ProseMirror-trailingBreak:only-child),
+.dana-writing-canvas .bn-editor.ProseMirror-focused .bn-block-content[data-content-type][data-is-empty-and-focused]:has(.ProseMirror-trailingBreak:only-child) {
+  position: relative;
+}
+.dana-writing-canvas .bn-editor.ProseMirror-focused [data-is-empty-and-focused] > .bn-block-content[data-content-type]:has(.ProseMirror-trailingBreak:only-child)::after,
+.dana-writing-canvas .bn-editor.ProseMirror-focused .bn-block-content[data-content-type][data-is-empty-and-focused]:has(.ProseMirror-trailingBreak:only-child)::after {
+  content: "Type '/' for commands";
+  position: absolute;
+  inset-inline-start: 0;
+  top: 0;
+  color: var(--muted-foreground);
+  font-style: normal;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.dana-writing-canvas .bn-editor.ProseMirror-focused .bn-block-content[data-content-type='heading'][data-is-empty-and-focused]:has(.ProseMirror-trailingBreak:only-child)::after { content: "Heading"; }
+.dana-writing-canvas .bn-editor.ProseMirror-focused .bn-block-content:is([data-content-type='bulletListItem'], [data-content-type='numberedListItem'], [data-content-type='checkListItem'], [data-content-type='toggleListItem'])[data-is-empty-and-focused]:has(.ProseMirror-trailingBreak:only-child)::after { content: "List"; position: static; }
+/* A clicked image, divider, page or Task row (ProseMirror's node selection)
+   wears the same soft tint as a block selection, never BlockNote's inset
+   outline. */
+.dana-writing-canvas .bn-block-content.ProseMirror-selectednode > ::after,
+.dana-writing-canvas .ProseMirror-selectednode > .bn-block-content > ::after { content: none; }
+.dana-writing-canvas .bn-block-content.ProseMirror-selectednode,
+.dana-writing-canvas .ProseMirror-selectednode > .bn-block-content { position: relative; }
+.dana-writing-canvas .bn-block-content.ProseMirror-selectednode::after,
+.dana-writing-canvas .ProseMirror-selectednode > .bn-block-content::after {
+  content: '';
+  position: absolute;
+  inset: calc(-1 * var(--dana-block-selection-inset-y)) calc(-1 * var(--dana-block-selection-inset-x));
+  background: var(--dana-block-selection);
+  border-radius: var(--dana-block-selection-radius);
+  pointer-events: none;
+  animation: dana-block-selection-in var(--duration-fast) var(--ease-enter);
+}
+.dana-writing-canvas .bn-inline-content .ProseMirror-selectednode::after {
+  background: var(--dana-block-selection);
+  box-shadow: none;
+  border-radius: var(--radius-sm);
+}
+/* A node selection has nothing to format: BlockNote still mounted the
+   toolbar with no buttons, a small empty ring above the block. */
+.bn-formatting-toolbar:not(:has(button)) { display: none; }
+/* The block menu takes focus to read its keys; that is not a place to ring. */
+.dana-block-menu:focus-visible { outline: none !important; }

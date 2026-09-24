@@ -142,6 +142,7 @@ function DragHandle(): React.JSX.Element | null {
           onDragStart={(event) => { sideMenu.blockDragStart(event, block) }}
           onDragEnd={sideMenu.blockDragEnd}
           className="bn-button dana-drag-handle"
+          data-focus="self"
           icon={<GripVertical size={16} />}
         />
       </Components.Generic.Menu.Trigger>
