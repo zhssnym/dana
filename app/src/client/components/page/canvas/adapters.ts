@@ -3,6 +3,7 @@ import type { PartialBlock } from '@blocknote/core'
 import type { PageBlockKind, PageView } from '../../../../shared/pages.js'
 import { MAX_SECTION_DEPTH, isPresentationHeadingKind } from '../../../../shared/page-document.js'
 import type { CanvasBlock, canvasSchema } from './schema.js'
+import { danaLinkOf } from '../../links/dana-link.js'
 
 export type CanvasInput = PartialBlock<typeof canvasSchema.blockSchema, typeof canvasSchema.inlineContentSchema, typeof canvasSchema.styleSchema>
 export interface RichRun { text: string; bold?: boolean; italic?: boolean; href?: string }
@@ -24,10 +25,13 @@ export class CanvasHydrationError extends Error {
   override readonly name = 'CanvasHydrationError'
 }
 
-function contentOf(text: string | null, rich?: { version: 1; runs: RichRun[] } | null): CanvasInput['content'] {
+export function contentOf(text: string | null, rich?: { version: 1; runs: RichRun[] } | null): CanvasInput['content'] {
   if (!rich) return text ?? ''
   return rich.runs.map((run) => {
     const node = { type: 'text' as const, text: run.text, styles: { ...(run.bold ? { bold: true } : {}), ...(run.italic ? { italic: true } : {}) } }
+    // A run whose href is a Dana Link draws as a live chip (#223); its text
+    // rides along as the label a save writes back.
+    if (run.href && danaLinkOf(run.href) !== null) return { type: 'danaLink' as const, props: { href: run.href, label: run.text } }
     return run.href ? { type: 'link' as const, href: run.href, content: [node] } : node
   })
 }
@@ -251,6 +255,8 @@ export function richRuns(block: CanvasBlock): RichRun[] {
     }
     if (inline.type === 'text') append(inline.text, inline.styles)
     else if (inline.type === 'link') for (const text of inline.content) append(text.text, text.styles, inline.href)
+    // Its own run, never merged into a neighbour, so two chips stay two.
+    else if (inline.type === 'danaLink') runs.push({ text: inline.props.label || 'Link', href: inline.props.href })
   }
   return runs
 }
@@ -354,10 +360,14 @@ export function dehydrateCanvas(
         const runs = richRuns(block)
         const presentationHeading =
           block.type === 'heading' && !groupHeading
+        // A Shelf's native Folder row (#221) is a `folder_ref` by type; a
+        // paragraph is one only by the page's own map (#255).
         const reference =
-          block.type === 'paragraph'
-            ? folderRefs.get(block.id) ?? null
-            : null
+          block.type === 'danaFolder'
+            ? block.props.folderId || null
+            : block.type === 'paragraph'
+              ? folderRefs.get(block.id) ?? null
+              : null
 
         let blockKind: PageBlockKind = 'paragraph'
         if (block.type === 'heading') {
@@ -402,7 +412,9 @@ export function dehydrateCanvas(
               ? null
               : block.type === 'codeBlock'
                 ? codeText
-                : runs.map((run) => run.text).join('')
+                : block.type === 'danaFolder'
+                  ? null
+                  : runs.map((run) => run.text).join('')
         const rich =
           block.type === 'image' ||
           block.type === 'file' ||

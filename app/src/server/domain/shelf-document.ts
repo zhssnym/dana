@@ -26,7 +26,7 @@ refusals named:
   home, and widening it is a `page_blocks` change this issue does not need.
 
 **A Folder row is a `folder_ref` block naming the folder**, which is how the
-legacy Shelf editor already stores it (`lib/shelf-layout.ts`). The Folder's
+legacy Shelf editor stored it. The Folder's
 membership of the Shelf stays where it has always lived,
 `folder_members.shelf_name`; the block is placement only. So a written
 `folder_ref` must name a live folder the viewer is a member of **and has on

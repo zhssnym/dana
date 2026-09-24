@@ -1939,7 +1939,7 @@ const TABLE = new Map<string, Row>([
       attempt: (fx) => ({ path: `/facets/${fx.purposeFacetId}/location` }),
       stranger: {
         expected: 404,
-        rule: '7.27 and 10.2: the location read exists only to enter a readable native Purpose through its owning Folder; a non-member must not learn that Folder id or whether the facet exists',
+        rule: '7.27 and 10.2: the location read exists only to enter a readable native Purpose or Results through its owning Folder; a non-member must not learn that Folder id or whether the facet exists',
       },
     },
   ],

@@ -44,6 +44,7 @@ import { setTaskOpen } from "../lib/task-surface-preference.js"
 import { copyTaskLink, duplicateTask, makeFolderOfTask } from "../tasks/task-acts.js"
 import { cn } from "./ui/utils.js"
 import { useIsMobile } from "./ui/use-mobile.js"
+import { ReferencedFrom } from "./links/referenced-from.js"
 
 const T_FAST = "duration-[var(--duration-fast)] ease-[var(--ease-standard)]"
 const FOCUS =
@@ -487,6 +488,8 @@ export function TaskPage({
         chrome="surface"
         onClose={() => {}}
       />
+      {/* #214: the documents that link to this Task. Absent while none do. */}
+      {props.id ? <ReferencedFrom kind="task" id={props.id} className="mt-3 pl-7" /> : null}
     </div>
   )
 }

@@ -206,6 +206,7 @@ import type { Facet } from '../../shared/facets.js'
 import { getPageResponse } from '../../shared/pages.js'
 import type { PageView } from '../../shared/pages.js'
 import { workPageOf } from '../components/page/canvas/adapters.js'
+import { ReferencedFrom } from '../components/links/referenced-from.js'
 
 /**
  * What the list says when the folder holds open tasks and the filter has
@@ -594,7 +595,7 @@ export function FolderPage({
   const linkedDiscussion = search.get('discussion') !== null && !isDefault
   const linkedConsultation = (facet: Facet): boolean => linkedDiscussion && facet.kind === 'consultation'
   const activeFacet = facetRows.find(
-    (facet) => facet.id === requestedFacetId && (!facet.hidden || facet.kind === 'purpose' || linkedConsultation(facet)),
+    (facet) => facet.id === requestedFacetId && (!facet.hidden || facet.kind === 'purpose' || facet.kind === 'results' || linkedConsultation(facet)),
   ) ?? facetRows.find(linkedConsultation) ?? mainFacet
 
   const selectFacet = useCallback((facet: Facet): void => {
@@ -1681,6 +1682,8 @@ export function FolderPage({
                 )}
               </PageBody>
             </PageSection>
+            {/* #214: the documents that link to this Folder. Absent while none do. */}
+            <ReferencedFrom kind="folder" id={id} className="mt-2" />
 
           </div>
 
@@ -1939,37 +1942,29 @@ function FacetContent({
   readonly onOpenMain: () => void
 }): React.JSX.Element {
   const blank = facet.kind === 'shared_blank' || facet.kind === 'private_blank'
-  const document = useFacetPage(folderId, facet.id, blank || facet.kind === 'purpose')
+  const document = useFacetPage(folderId, facet.id, blank || facet.kind === 'purpose' || facet.kind === 'results')
 
   if (facet.kind === 'consultation') {
     return <>{consultation}</>
   }
-  if (facet.kind === 'purpose') {
+  if (facet.kind === 'purpose' || facet.kind === 'results') {
+    const purpose = facet.kind === 'purpose'
     return (
       <div className="mt-7">
         {document.data ? (
           <>
             {document.data.items.length === 0 ? (
               <p className="mb-3 px-2 text-xs leading-5 text-muted-foreground">
-                Describe why this work exists, what it aims to achieve, or what should guide it.
+                {purpose
+                  ? 'Describe why this work exists, what it aims to achieve, or what should guide it.'
+                  : 'Record what actually happened: outcomes, findings, evaluations, and partial or unsuccessful results.'}
               </p>
             ) : null}
             <Suspense fallback={<p role="status">Loading writing…</p>}>
               <FolderCanvas key={`${folderId}:${facet.id}`} page={document.data} tasks={[]} folderId={folderId} facetId={facet.id} presentationHeadings context={context} actions={actions} onAsk={onAsk} arrangeable={sharedPageEditable} />
             </Suspense>
           </>
-        ) : <p role={document.isError ? 'alert' : 'status'}>{document.isError ? 'Could not load Purpose. Reload to try again.' : 'Loading writing…'}</p>}
-      </div>
-    )
-  }
-  if (facet.kind === 'results') {
-    return (
-      <div className="mx-auto mt-10 flex min-h-64 max-w-[440px] flex-col items-center justify-center px-6 text-center">
-        <h2 className="text-sm font-semibold text-[var(--color-graphite-800)]">{facet.name}</h2>
-        <p className="mt-1.5 max-w-[40ch] text-xs leading-5 text-muted-foreground">
-          Bring outcomes, signals, and evidence of progress into one view.
-        </p>
-        <span className="mt-3 text-[11px] text-[var(--color-graphite-400)]">Guided workspace coming soon</span>
+        ) : <p role={document.isError ? 'alert' : 'status'}>{document.isError ? `Could not load ${purpose ? 'Purpose' : 'Results'}. Reload to try again.` : 'Loading writing…'}</p>}
       </div>
     )
   }

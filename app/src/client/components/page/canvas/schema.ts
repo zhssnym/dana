@@ -1,12 +1,14 @@
-import { BlockNoteSchema, createExtension, createHeadingBlockSpec, defaultBlockSpecs, defaultStyleSpecs } from '@blocknote/core'
+import { BlockNoteSchema, createExtension, createHeadingBlockSpec, defaultBlockSpecs, defaultInlineContentSpecs, defaultStyleSpecs } from '@blocknote/core'
 
 import { AUDIO_MIMES, RASTER_MIMES, VIDEO_MIMES } from '../../../../shared/files.js'
 import { MAX_SECTION_DEPTH } from '../../../../shared/page-document.js'
 
 import { createCanvasCallout } from './CanvasCallout.js'
 import { createCanvasTaskSpec } from './CanvasTask.js'
+import { createCanvasFolderSpec } from './CanvasFolder.js'
 import { createCanvasParagraph } from './CanvasParagraph.js'
 import { createTaskAtCursor, removeEmptyBeforeHeading } from './commands.js'
+import { danaLinkInlineSpec } from '../../links/dana-link-chip.js'
 
 // The vocabulary only, derived from the one ceiling rather than restated beside it.
 // A Section's level is its depth in the persisted outline, so the editor must be able
@@ -166,7 +168,11 @@ export const canvasSchema = BlockNoteSchema.create({
     audio,
     video,
     danaTask: createCanvasTaskSpec(),
+    // A Shelf's native Folder row (#221); only the Shelf canvas inserts one.
+    danaFolder: createCanvasFolderSpec(),
   },
+  // A Dana Link (#223) is a chip; `adapters.ts` stores it as an href run.
+  inlineContentSpecs: { ...defaultInlineContentSpecs, danaLink: danaLinkInlineSpec },
   styleSpecs: { bold: defaultStyleSpecs.bold, italic: defaultStyleSpecs.italic },
 })
 

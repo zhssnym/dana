@@ -133,7 +133,9 @@ import type {
 
 import { defaultFolderDescription } from '../lib/folder-description.js'
 import { mutateApi, requestTimezone } from './http.js'
-import { VALIDATION_ERROR_TOAST_META } from './queryClient.js'
+import { INLINE_VALIDATION_META, VALIDATION_ERROR_TOAST_META } from './queryClient.js'
+import { taskDependencyEdge } from '../../shared/task-dependencies.js'
+import type { TaskDependencyEdge } from '../../shared/task-dependencies.js'
 
 /*
 Making a folder is one request, and it has to stay one.
@@ -189,6 +191,51 @@ export function useUpdateTask(): UseMutationResult<TaskDetail, Error, PatchTaskV
  * 7.6 answers 204, so nothing is parsed: `mutateApi(null, ...)` is the arm
  * that exists for the three mutations of section 7 with no body.
  */
+/**
+ * 7.25's one write: `dependentId` gains `blockingId` as a blocker. "Blocks…"
+ * is the same call with the two reversed. A 422 (self or cycle) is drawn
+ * inline by the picker in words for a person, so it raises no toast.
+ */
+export interface AddDependencyVariables {
+  readonly dependentId: string
+  readonly blockingId: string
+}
+
+export function useAddTaskDependency(): UseMutationResult<
+  TaskDependencyEdge,
+  Error,
+  AddDependencyVariables
+> {
+  return useMutation({
+    mutationFn: ({ dependentId, blockingId }: AddDependencyVariables) =>
+      mutateApi(taskDependencyEdge, {
+        method: 'POST',
+        path: `/tasks/${dependentId}/dependencies`,
+        body: { blocking_task_id: blockingId },
+      }),
+    meta: { [INLINE_VALIDATION_META]: true },
+  })
+}
+
+export interface RemoveDependencyVariables {
+  readonly taskId: string
+  readonly dependencyId: string
+}
+
+export function useRemoveTaskDependency(): UseMutationResult<
+  void,
+  Error,
+  RemoveDependencyVariables
+> {
+  return useMutation({
+    mutationFn: ({ taskId, dependencyId }: RemoveDependencyVariables) =>
+      mutateApi(null, {
+        method: 'DELETE',
+        path: `/tasks/${taskId}/dependencies/${dependencyId}`,
+      }),
+  })
+}
+
 export function useDeleteTask(): UseMutationResult<void, Error, string> {
   return useMutation({
     mutationFn: (id: string) => mutateApi(null, { method: 'DELETE', path: `/tasks/${id}` }),
@@ -721,17 +768,6 @@ export function useRestoreFacet(): UseMutationResult<Facet, Error, string> {
   return useMutation({
     mutationFn: (id: string) =>
       mutateApi(facet, { method: 'POST', path: `/facets/${id}/restore` }),
-  })
-}
-
-export function usePutShelfPage(): UseMutationResult<
-  GetPageResponse,
-  Error,
-  PutPageVariables
-> {
-  return useMutation({
-    mutationFn: ({ id, body }: PutPageVariables) =>
-      mutateApi(getPageResponse, { method: 'PUT', path: `/shelves/${id}/page`, body }),
   })
 }
 
