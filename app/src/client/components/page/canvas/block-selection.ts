@@ -10,8 +10,9 @@ reads and writes of it.
 
 The tint is drawn by `BlockSelectionStyle` as a generated stylesheet keyed by
 the blocks' `data-id`, never as an attribute written into the editor's DOM,
-which ProseMirror would observe and redraw away. Its colour is canvas.css's
-`--dana-block-selection` (spec: rgba(35,131,226,.14) light / .24 dark), no
+which ProseMirror would observe and redraw away. It is a soft layer a little
+larger than the blocks, one shape for the whole run, from canvas.css's
+`--dana-block-selection*` (spec: rgba(35,131,226,.14) light / .24 dark), no
 border or outline.
 
 API for other units:
@@ -71,13 +72,22 @@ export function useBlockSelection(editor: AnyEditor): readonly string[] {
   return useSyncExternalStore((listener) => onBlockSelection(editor, listener), () => blockSelection(editor))
 }
 
-/** The tint for the selected blocks, scoped to this editor's own root. */
+/**
+ * The tint for the selected blocks, scoped to this editor's own root: one
+ * soft layer per block that reaches a little past it on every side, rounded
+ * only at the run's top and bottom, so a run of blocks (always one sibling
+ * run) reads as one calm shape. canvas.css holds its measures and fade.
+ */
 export function BlockSelectionStyle({ editor, scope }: { readonly editor: AnyEditor; readonly scope: string }): React.JSX.Element | null {
   const ids = useBlockSelection(editor)
   if (ids.length === 0) return null
-  const selectors = ids.map((id) => `.${scope} .bn-block-outer[data-id="${CSS.escape(id)}"] > .bn-block`).join(',\n')
+  const block = (id: string): string => `.${scope} .bn-block-outer[data-id="${CSS.escape(id)}"] > .bn-block`
+  const all = ids.map(block)
   // No caret, and no text highlight over the picked blocks: they are picked whole.
-  return createElement('style', null, `${selectors} { background: var(--dana-block-selection); border-radius: var(--radius-sm); }
+  return createElement('style', null, `${all.join(', ')} { position: relative; }
+${all.map((selector) => `${selector}::after`).join(', ')} { content: ''; position: absolute; inset: 0 calc(-1 * var(--dana-block-selection-inset-x)); background: var(--dana-block-selection); pointer-events: none; animation: dana-block-selection-in var(--duration-fast) var(--ease-enter); }
+${block(ids[0]!)}::after { top: calc(-1 * var(--dana-block-selection-inset-y)); border-start-start-radius: var(--dana-block-selection-radius); border-start-end-radius: var(--dana-block-selection-radius); }
+${block(ids.at(-1)!)}::after { bottom: calc(-1 * var(--dana-block-selection-inset-y)); border-end-start-radius: var(--dana-block-selection-radius); border-end-end-radius: var(--dana-block-selection-radius); }
 .${scope} .bn-editor { caret-color: transparent; }
 .${scope} .bn-editor ::selection { background: transparent; }`)
 }
@@ -120,19 +130,116 @@ function nestSelection(editor: AnyEditor, view: EditorView, ids: readonly string
   selectBlocks(view, ids)
 }
 
+/** Where a Shift+arrow run started: the end of the selection that stays put. */
+const anchors = new WeakMap<object, string>()
+
+/** A block's own row: its content line, never the children nested under it. */
+const OWN_ROW = ':scope > .bn-block > .bn-block-content, :scope > .bn-block > .react-renderer > .bn-block-content'
+
+function outerOf(view: EditorView, id: string): HTMLElement | null {
+  return view.dom.querySelector<HTMLElement>(`.bn-block-outer[data-id="${CSS.escape(id)}"]`)
+}
+
+/** Every block a reader can see, in reading order (children after their parent; a closed toggle's are skipped). */
+function visibleBlocks(view: EditorView): HTMLElement[] {
+  return [...view.dom.querySelectorAll<HTMLElement>('.bn-block-outer[data-id]')]
+    .filter((outer) => (outer.querySelector(OWN_ROW)?.getBoundingClientRect().height ?? 0) > 0)
+}
+
+/** The visible block before `id`, or the first one after it (past its children when `pastChildren`). */
+function neighbour(view: EditorView, id: string, direction: -1 | 1, pastChildren: boolean): HTMLElement | null {
+  const outer = outerOf(view, id)
+  if (outer === null) return null
+  const blocks = visibleBlocks(view)
+  const at = blocks.indexOf(outer)
+  if (at < 0) return null
+  if (direction === -1) return blocks[at - 1] ?? null
+  return blocks.slice(at + 1).find((next) => !(pastChildren && outer.contains(next))) ?? null
+}
+
+function reveal(view: EditorView, ids: readonly string[], edge: 'first' | 'last'): void {
+  const id = edge === 'first' ? ids[0] : ids.at(-1)
+  if (id !== undefined) outerOf(view, id)?.querySelector(OWN_ROW)?.scrollIntoView({ block: 'nearest' })
+}
+
+/** ↑/↓ move the selection a block; with Shift they extend or shrink it from its anchor. */
+function arrowSelection(editor: AnyEditor, view: EditorView, ids: readonly string[], direction: -1 | 1, extend: boolean): void {
+  if (!extend) {
+    const next = neighbour(view, direction === -1 ? ids[0]! : ids.at(-1)!, direction, false)?.getAttribute('data-id')
+    if (next === null || next === undefined) return
+    anchors.set(editor, next)
+    setBlockSelection(editor, [next])
+    reveal(view, [next], 'first')
+    return
+  }
+  const stored = anchors.get(editor)
+  const anchor = stored !== undefined && ids.includes(stored) ? stored : direction === 1 ? ids[0]! : ids.at(-1)!
+  anchors.set(editor, anchor)
+  // The moving end is the one away from the anchor; toward the anchor it shrinks.
+  const growing = ids.length === 1 || (direction === 1 ? anchor === ids[0] : anchor === ids.at(-1))
+  if (!growing) {
+    setBlockSelection(editor, direction === 1 ? ids.slice(1) : ids.slice(0, -1))
+    reveal(view, blockSelection(editor), direction === 1 ? 'first' : 'last')
+    return
+  }
+  const next = neighbour(view, direction === 1 ? ids.at(-1)! : ids[0]!, direction, true)?.getAttribute('data-id')
+  if (next === null || next === undefined) return
+  setBlockSelection(editor, direction === 1 ? [...ids, next] : [next, ...ids])
+  reveal(view, blockSelection(editor), direction === 1 ? 'last' : 'first')
+}
+
+/** Enter: back to writing, the caret at the end of the block's text; a sub-page row opens. */
+function editSelection(editor: AnyEditor, view: EditorView, ids: readonly string[]): void {
+  const id = ids[0]!
+  const block = editor.getBlock(id)
+  if (block === undefined) return
+  const page = outerOf(view, id)?.querySelector<HTMLElement>(':scope > .bn-block a[data-canvas-page-id]')
+  if (page !== null && page !== undefined) { clearBlockSelection(editor); page.click(); return }
+  if (!Array.isArray(block.content)) return
+  editor.setTextCursorPosition(id, 'end')
+  view.focus()
+}
+
 /*
-The canvas's one key handler for block selection (window, capture phase, so
-it runs before the editor's own keys):
-- with blocks selected: Backspace/Delete remove them, Mod+D duplicates,
-  Tab/Shift-Tab nest and un-nest, Mod+A picks every block,
-  Esc clears and leaves the editor (the next Esc reaches a peek), a typed
-  character is swallowed, and any other plain key drops the selection;
-- in text: Esc picks the current block (unless the / menu is open), Mod+A
-  picks the block's text and then every block, Mod+D duplicates the block.
+Mod+/: the block's ⋮⋮ menu (Turn into first), from the keyboard. BlockNote
+shows its gutter for the block under the pointer, so it is pointed at the
+selected block, and the handle opens its menu as it does for ↓.
+*/
+function openBlockMenu(view: EditorView, id: string): void {
+  const row = outerOf(view, id)?.querySelector<HTMLElement>(OWN_ROW)
+  if (row === null || row === undefined) return
+  const box = row.getBoundingClientRect()
+  row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: box.left + 1, clientY: box.top + Math.min(box.height / 2, 8) }))
+  let frames = 0
+  const press = (): void => {
+    const container = view.dom.closest('.bn-container') ?? document
+    const handle = container.querySelector<HTMLElement>('.dana-drag-handle')
+    if (handle === null) { if (++frames < 10) requestAnimationFrame(press); return }
+    handle.focus()
+    handle.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }))
+  }
+  requestAnimationFrame(press)
+}
+
+/*
+The canvas's key handler for block selection (window, capture phase, so it
+runs before the editor's own keys), in Notion's three modes:
+- writing: Esc selects the current block (unless the / menu is open, or
+  something inside the page takes Esc for itself, as a draft Task line does:
+  the pick happens only if the key comes back up to the window unclaimed).
+  Mod+A picks the block's text and then every block, Mod+D duplicates the
+  block;
+- blocks selected: ↑/↓ move the selection, Shift+↑/↓ extend it, Enter writes
+  in it again, Backspace/Delete remove, Mod+D duplicates, Mod+/ opens its
+  menu, Tab/Shift-Tab nest, Mod+A picks every block, Esc clears and leaves the
+  editor (the next Esc reaches a peek), a typed character is swallowed, and
+  any other plain key drops the selection;
+- nothing: the keys are the page's.
 A click anywhere but a menu, the gutter or a Shift-click drops the selection.
 */
 export function useBlockSelectionKeys(editor: AnyEditor, actions: BlockSelectionActions): void {
   useEffect(() => {
+    let escape: KeyboardEvent | null = null
     function onKey(event: KeyboardEvent): void {
       // A synthetic key (the drag closing the handle menu) is not the user's.
       if (event.isComposing || !event.isTrusted) return
@@ -163,9 +270,10 @@ export function useBlockSelectionKeys(editor: AnyEditor, actions: BlockSelection
           } else setBlockSelection(editor, editor.document.map((block) => block.id))
           return
         }
-        if (key === 'Escape' && !mod && !event.shiftKey && !editor.getExtension(SuggestionMenu)?.shown()) {
-          const id = currentBlockId(view)
-          if (id !== null) { stop(); setBlockSelection(editor, [id]) }
+        if (key === 'Escape' && !mod && !event.shiftKey && !editor.getExtension(SuggestionMenu)?.shown() && currentBlockId(view) !== null) {
+          // Claimed (a handler that yields to a claimed Esc does), and decided on the way back up.
+          event.preventDefault()
+          escape = event
         }
         return
       }
@@ -180,11 +288,24 @@ export function useBlockSelectionKeys(editor: AnyEditor, actions: BlockSelection
         if (ids.every((id) => editor.getBlock(id) !== undefined)) setBlockSelection(editor, ids)
         return
       }
+      if ((key === 'ArrowUp' || key === 'ArrowDown') && !mod && !event.altKey) { stop(); arrowSelection(editor, view, ids, key === 'ArrowUp' ? -1 : 1, event.shiftKey); return }
+      if (key === 'Enter' && !mod && !event.shiftKey && !event.altKey) { stop(); editSelection(editor, view, ids); return }
+      if (key === '/' && mod && !event.shiftKey && !event.altKey) { stop(); openBlockMenu(view, ids[0]!); return }
       if (mod && key.toLowerCase() === 'a' && !event.shiftKey) { stop(); setBlockSelection(editor, editor.document.map((block) => block.id)); return }
       if (key === 'Tab' && !mod && !event.altKey) { stop(); nestSelection(editor, view, ids, event.shiftKey ? 'out' : 'in', actions.admits); return }
       if (['Shift', 'Control', 'Meta', 'Alt'].includes(key) || mod) return // copy, cut, undo keep their meaning
       if (key.length === 1) { stop(); return } // a typed character does not replace the blocks
       clearBlockSelection(editor)
+    }
+    function onKeyUnclaimed(event: KeyboardEvent): void {
+      if (event !== escape) return
+      escape = null
+      const view = viewOf(editor)
+      const id = view === undefined ? null : currentBlockId(view)
+      if (id === null) return
+      event.stopPropagation()
+      anchors.set(editor, id)
+      setBlockSelection(editor, [id])
     }
     function onPointer(event: PointerEvent): void {
       if (event.shiftKey || blockSelection(editor).length === 0) return
@@ -193,8 +314,13 @@ export function useBlockSelectionKeys(editor: AnyEditor, actions: BlockSelection
       clearBlockSelection(editor)
     }
     window.addEventListener('keydown', onKey, true)
+    window.addEventListener('keydown', onKeyUnclaimed)
     window.addEventListener('pointerdown', onPointer, true)
-    return () => { window.removeEventListener('keydown', onKey, true); window.removeEventListener('pointerdown', onPointer, true) }
+    return () => {
+      window.removeEventListener('keydown', onKey, true)
+      window.removeEventListener('keydown', onKeyUnclaimed)
+      window.removeEventListener('pointerdown', onPointer, true)
+    }
   }, [editor, actions])
 }
 
