@@ -449,7 +449,9 @@ export function DuePanel({ task, patch }: PanelProps) {
   const update = useUpdateTask()
   const set = (date: Date) => {
     patch(task.id, { due: dueLabelFor(date) })
-    update.mutate({ id: task.id, body: { due_date: isoDay(date) } })
+    /* A task not made yet has no address; its draft carries the day into the
+       create instead. */
+    if (task.id !== "new") update.mutate({ id: task.id, body: { due_date: isoDay(date) } })
     close()
   }
   /* 8.4's own cascade, which is what the sentence describes. */
@@ -465,7 +467,7 @@ export function DuePanel({ task, patch }: PanelProps) {
     /* One request, because 8.4's cascade is the server's: clearing the date
        ends the repeat and removes the reminder inside 7.6's own transaction,
        which is what the warning above this promised. */
-    update.mutate({ id: task.id, body: { due_date: null } })
+    if (task.id !== "new") update.mutate({ id: task.id, body: { due_date: null } })
   }
 
   const presets = [
