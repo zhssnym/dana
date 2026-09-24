@@ -247,7 +247,12 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --float-rise: 4px;
   --focus-ring: color-mix(in oklch, var(--ring) 45%, transparent);
 
-  --control-height: 32px;
+  /* r4-system: the one control height, row, and rhythm. See SYSTEM.md. */
+  --control-height: 28px;
+  --row-height: 32px;
+  --space-inline: 8px;
+  --space-row: 2px;
+  --space-group: 24px;
   --shell-sidebar-row-height: 28px;
   --shell-sidebar-item-height: var(--shell-sidebar-row-height);
   --shell-sidebar-section-font-size: 12px;
@@ -424,10 +429,6 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
 
   /* One soft focus ring, keyboard only, following the element's radius.
      Primitives that draw their own ring set outline-none. */
-  :focus-visible {
-    outline: 2px solid var(--focus-ring);
-    outline-offset: 1px;
-  }
 
   /* In the base layer so text-size utilities on controls still win. */
   button,
@@ -522,4 +523,40 @@ button:not(:disabled),
 /* A query container, so page-cover.tsx can bleed a cover to 100cqw. */
 [data-shell-scroll] {
   container-type: inline-size;
+}
+
+/* r4-system: exactly one focus style, app-wide. Unlayered and !important so
+   no component can stack a second one: the soft outline is the only focus
+   indicator, and every Tailwind focus ring (a box-shadow) is neutralised.
+   Text entry shows its caret (and a bordered field its border), menu items
+   their highlight; `data-focus="self"` opts an element out because it shows
+   focus its own way (the editor's selection tint, a selected row). */
+:focus-visible {
+  outline: 2px solid var(--focus-ring) !important;
+  outline-offset: 1px !important;
+}
+:focus,
+:focus-visible {
+  --tw-ring-shadow: 0 0 #0000 !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
+  --tw-ring-offset-width: 0px !important;
+}
+:focus:not(:focus-visible) {
+  outline: none !important;
+}
+:is(input, textarea, select, [contenteditable]:not([contenteditable="false"]),
+  [role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"],
+  [role="option"], [data-focus="self"]):focus-visible,
+[contenteditable]:not([contenteditable="false"]) :focus-visible {
+  outline: none !important;
+}
+[class*="focus-within:ring"]:focus-within {
+  --tw-ring-shadow: 0 0 #0000 !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
+}
+
+/* r4-system: the one divider. */
+.dana-divider {
+  border: 0;
+  border-top: 1px solid var(--line);
 }

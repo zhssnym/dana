@@ -97,7 +97,7 @@ function AlertDialogCancel({
   return (
     <AlertDialogPrimitive.Close
       render={<Button type="button" variant="ghost" />}
-      className={cn("h-8 px-3", className)}
+      className={cn("h-[var(--control-height)] px-3", className)}
       {...props}
     />
   )
@@ -117,9 +117,9 @@ function AlertDialogAction({
         />
       }
       className={cn(
-        "h-8 px-3",
+        "h-[var(--control-height)] px-3",
         destructive &&
-          "bg-destructive text-destructive-foreground hover:bg-destructive/90 focus-visible:ring-destructive/30",
+          "bg-destructive text-destructive-foreground hover:bg-destructive/90",
         className,
       )}
       {...props}

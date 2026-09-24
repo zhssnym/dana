@@ -5,35 +5,36 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "./utils.js"
 
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md text-sm font-medium whitespace-nowrap select-none disabled:pointer-events-none disabled:opacity-50 aria-invalid:ring-2 aria-invalid:ring-destructive/30 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "group/button inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md text-sm font-medium whitespace-nowrap select-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
+    /* r4-system: one shape (control height, radius, 14px/500); only the
+       colour varies. Neutral is the button; ghost drops the hairline for
+       toolbars; destructive is the one danger style; commit (accent) is
+       for the single action on a screen that really matters. */
     variants: {
       variant: {
-        /* THE action of a surface: solid accent. One per view. */
-        default: "bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80",
-        /* Kept as a name for existing call sites; it is the same action. */
-        commit: "bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80",
-        /* Secondary actions beside THE action: text with a hairline. */
+        default:
+          "border border-input text-foreground hover:bg-accent active:bg-press aria-expanded:bg-accent",
         outline:
           "border border-input text-foreground hover:bg-accent active:bg-press aria-expanded:bg-accent",
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-input/70 aria-expanded:bg-input/70",
-        /* Everything else: text, a background on hover. */
+          "border border-input text-foreground hover:bg-accent active:bg-press aria-expanded:bg-accent",
         ghost:
           "text-foreground hover:bg-accent active:bg-press aria-expanded:bg-accent",
         destructive:
-          "text-destructive hover:bg-destructive/10 active:bg-destructive/15",
+          "border border-input text-destructive hover:bg-destructive/10 active:bg-destructive/15",
+        commit: "bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80",
         link: "h-auto! px-0! text-primary underline-offset-4 hover:underline",
       },
       size: {
-        default: "h-7 px-2",
-        xs: "h-5 gap-1 px-1.5 text-xs [&_svg:not([class*='size-'])]:size-3",
+        default: "h-[var(--control-height)] px-2.5",
+        lg: "h-[var(--control-height)] px-2.5",
         sm: "h-6 gap-1 px-1.5 text-xs [&_svg:not([class*='size-'])]:size-3.5",
-        lg: "h-8 px-3",
-        icon: "size-7",
-        "icon-xs": "size-5 [&_svg:not([class*='size-'])]:size-3",
+        xs: "h-5 gap-1 px-1.5 text-xs [&_svg:not([class*='size-'])]:size-3",
+        icon: "size-[var(--control-height)]",
+        "icon-lg": "size-[var(--control-height)]",
         "icon-sm": "size-6 [&_svg:not([class*='size-'])]:size-3.5",
-        "icon-lg": "size-8",
+        "icon-xs": "size-5 [&_svg:not([class*='size-'])]:size-3",
       },
     },
     defaultVariants: {

@@ -15,7 +15,7 @@ function Textarea({
         "w-full min-w-0 resize-none text-sm text-foreground outline-none [field-sizing:content] placeholder:text-quiet-foreground disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
         bare
           ? "bg-transparent"
-          : "px-2 py-1.5 rounded-md border border-input bg-background focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20",
+          : "px-2 py-1.5 rounded-md border border-input bg-background focus-visible:border-ring aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20",
         className,
       )}
       {...props}

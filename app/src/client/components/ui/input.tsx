@@ -18,7 +18,7 @@ function Input({
         "w-full min-w-0 text-sm text-foreground outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-xs file:font-medium file:text-foreground placeholder:text-quiet-foreground disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
         bare
           ? "bg-transparent"
-          : "h-8 px-2 rounded-md border border-input bg-background focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20",
+          : "h-[var(--control-height)] px-2 rounded-md border border-input bg-background focus-visible:border-ring aria-invalid:border-destructive",
         className
       )}
       {...props}

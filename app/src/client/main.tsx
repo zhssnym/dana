@@ -33,6 +33,7 @@ import { createQueryClient, setQueryClient } from './api/queryClient.js'
 import { TooltipProvider } from './components/ui/tooltip.js'
 import { Router } from './Router.js'
 import { installSearchShortcut } from './shell/overlays.js'
+import { installNativeContextMenuGuard } from './lib/native-context-menu.js'
 import { getFoldersResponse } from '../shared/folders.js'
 import { getInvitesPendingResponse } from '../shared/invites.js'
 import { meResponse } from '../shared/me.js'
@@ -127,6 +128,7 @@ reason the three chrome reads are: this module runs before the document's
 load event, and nothing about a window-level shortcut should wait on routing.
 */
 installSearchShortcut(document)
+installNativeContextMenuGuard(document)
 
 createRoot(rootElement).render(
   <StrictMode>

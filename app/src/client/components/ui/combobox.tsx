@@ -139,7 +139,7 @@ export function Combobox({
           }
         }}
         className={cn(
-          'inline-flex h-8 max-w-full min-w-0 cursor-pointer items-center justify-between gap-2 rounded-md px-2 text-sm text-foreground transition-colors outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/30 disabled:pointer-events-none disabled:opacity-50 data-popup-open:bg-accent',
+          'inline-flex h-[var(--control-height)] max-w-full min-w-0 cursor-pointer items-center justify-between gap-2 rounded-md px-2 text-sm text-foreground transition-colors outline-none hover:bg-accent disabled:pointer-events-none disabled:opacity-50 data-popup-open:bg-accent',
           className,
         )}
       >
@@ -169,7 +169,7 @@ export function Combobox({
                 setActive(0)
               }}
               onKeyDown={onKeyDown}
-              className="h-8 min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
+              className="h-[var(--control-height)] min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
             />
           </div>
         ) : null}
@@ -197,7 +197,7 @@ export function Combobox({
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => pick(option)}
                 className={cn(
-                  'flex h-8 cursor-pointer items-center gap-2 rounded-md px-2 text-sm text-foreground',
+                  'flex h-[var(--control-height)] cursor-pointer items-center gap-2 rounded-md px-2 text-sm text-foreground',
                   index === active ? 'bg-accent' : null,
                 )}
               >
