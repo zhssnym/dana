@@ -3,7 +3,7 @@
 owns the reads and the account delete; this file draws five sections in one
 column (Account, Appearance, Time, People, Data), then a quiet support line, then
 Delete account set apart at the very end, then the quiet support line. Built from
-the system `RowGroup` and `Row`, neutral buttons, one danger style. Settings is the home of every
+sections of the system `Row` (`settings/screen.tsx`), neutral buttons, one danger style. Settings is the home of every
 configuration: a preference is not also toggled from a menu elsewhere.
 
 What is worth knowing:
@@ -44,13 +44,11 @@ import {
   useViewer,
 } from '../lib/viewer.js'
 import { PeopleSettings } from './settings/people.js'
-import { Screen, StackingRow } from './settings/screen.js'
+import { Screen, SettingsSection, StackingRow } from './settings/screen.js'
 import { InlineError } from './state-patterns.js'
 import { isOwnPicture, PersonFace } from './person-face.js'
 import { Button } from './ui/button.js'
 import { Combobox } from './ui/combobox.js'
-import { RowGroup } from './ui/row.js'
-import { Segmented } from './ui/segmented.js'
 import { useIsMobile } from './ui/use-mobile.js'
 import { Skeleton } from './ui/skeleton.js'
 
@@ -135,7 +133,7 @@ export function SettingsPageContent({
   }, [ready])
 
   return (
-    <Screen title="Settings">
+    <Screen title="Settings" bleed={false}>
       {previewState === 'loading' ? (
         <div className="space-y-3" aria-label="Loading settings" aria-busy="true">
           <Skeleton className="h-5 w-24" />
@@ -146,15 +144,15 @@ export function SettingsPageContent({
         <InlineError />
       ) : (
         <>
-          <RowGroup title="Account" aria-label="Account">
+          <SettingsSection title="Account">
             <ViewerRow />
-          </RowGroup>
+          </SettingsSection>
 
-          <RowGroup title="Appearance" aria-label="Appearance">
+          <SettingsSection title="Appearance">
             <StackingRow
               label="Theme"
               control={
-                <Segmented
+                <Choice
                   label="Theme"
                   value={theme}
                   options={[
@@ -162,7 +160,9 @@ export function SettingsPageContent({
                     { value: 'light', label: 'Light' },
                     { value: 'dark', label: 'Dark' },
                   ]}
-                  onValueChange={setTheme}
+                  onValueChange={(next) => {
+                    setTheme(next as typeof theme)
+                  }}
                 />
               }
             />
@@ -170,7 +170,7 @@ export function SettingsPageContent({
               <StackingRow
                 label="Open tasks in"
                 control={
-                  <Segmented
+                  <Choice
                     label="Open tasks in"
                     value={taskOpen}
                     options={[
@@ -178,36 +178,40 @@ export function SettingsPageContent({
                       { value: 'panel', label: 'Side peek' },
                       { value: 'tab', label: 'Full page' },
                     ]}
-                    onValueChange={setTaskOpen}
+                    onValueChange={(next) => {
+                      setTaskOpen(next as typeof taskOpen)
+                    }}
                   />
                 }
               />
             )}
-          </RowGroup>
+          </SettingsSection>
 
-          <RowGroup title="Time" aria-label="Time">
+          <SettingsSection title="Time">
             <StackingRow label="Timezone" control={<TimezoneSelect />} />
             <StackingRow
               label="Clock"
               control={
-                <Segmented
+                <Choice
                   label="Clock"
                   value={clock === '24' ? '24h' : '12h'}
                   options={[
                     { value: '12h', label: '12-hour' },
                     { value: '24h', label: '24-hour' },
                   ]}
-                  onValueChange={setClock}
+                  onValueChange={(next) => {
+                    setClock(next as '12h' | '24h')
+                  }}
                 />
               }
             />
-          </RowGroup>
+          </SettingsSection>
 
-          <RowGroup id="people" title="People" aria-label="People" className="scroll-mt-6">
+          <SettingsSection id="people" title="People" className="scroll-mt-6">
             <PeopleSettings />
-          </RowGroup>
+          </SettingsSection>
 
-          <RowGroup title="Data" aria-label="Data">
+          <SettingsSection title="Data">
             <StackingRow
               label="Download my data"
               description="Everything Dana holds about you, as one JSON file"
@@ -232,10 +236,10 @@ export function SettingsPageContent({
                 }
               />
             ) : null}
-          </RowGroup>
+          </SettingsSection>
 
           {/* Destructive, so last and set apart by the one divider. */}
-          <RowGroup aria-label="Delete account" divider>
+          <SettingsSection aria-label="Delete account">
             <StackingRow
               label="Delete account"
               description="Shared pages you own must be handed on or deleted first"
@@ -245,9 +249,9 @@ export function SettingsPageContent({
                 </Button>
               }
             />
-          </RowGroup>
+          </SettingsSection>
 
-          <p className="mt-[var(--space-group)] px-2 text-xs text-muted-foreground">
+          <p className="mt-10 text-xs text-muted-foreground">
             Something wrong? Write to{' '}
             <a
               href={`mailto:${SUPPORT_EMAIL}`}
@@ -262,6 +266,32 @@ export function SettingsPageContent({
     </Screen>
   )
 }
+
+/* A simple choice: the one picker, at the one width, so the right column
+   reads as one calm edge and the chosen value is always shown in words. */
+function Choice({
+  label,
+  value,
+  options,
+  onValueChange,
+}: {
+  label: string
+  value: string
+  options: { value: string; label: string }[]
+  onValueChange: (next: string) => void
+}) {
+  return (
+    <Combobox
+      aria-label={label}
+      value={value}
+      onValueChange={onValueChange}
+      options={options}
+      className={PICKER}
+    />
+  )
+}
+
+const PICKER = 'w-56 justify-between border border-input'
 
 /* 7.1's PATCH /me takes a timezone. The list is the browser's own; a zone it
    does not list, which 7.2 may still have detected, is offered as the current
@@ -278,7 +308,7 @@ function TimezoneSelect() {
       onValueChange={setViewerTimezone}
       placeholder="Choose a timezone"
       searchPlaceholder="Search timezones"
-      className="w-56 justify-between border border-input"
+      className={PICKER}
       contentClassName="w-72"
       options={listed.map((zone) => ({ value: zone, label: zone.replace(/_/g, ' ') }))}
     />

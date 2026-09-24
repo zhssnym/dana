@@ -76,7 +76,6 @@ import {
   useRestoreFolder,
 } from '../api/mutations.js'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog.js'
-import { Separator } from '../components/ui/separator.js'
 import { leaveFolderConfirm } from '../lib/object-acts.js'
 import { showToast } from '../state/toasts.js'
 import { pushUndo, undoLabel } from './undo.js'
@@ -1448,14 +1447,15 @@ export function AppSidebar({
           />
         </div>
       </SidebarHeader>
-      <Separator className="mx-3 data-horizontal:w-auto" />
 
       <SidebarContent className="pt-0 pb-2" onContextMenu={openGroundMenu}>
-        {/* Views and Library: one heading style, one gap above each heading. */}
+        {/* Focus and Library: one heading style and one gap above each
+            heading, the head row included; the heading row keeps room for a
+            "+" as Library's has. */}
         <SidebarGroup className="px-2 pt-(--space-group) pb-0">
           <div className="flex h-(--shell-sidebar-row-height) items-center pr-1 pl-2">
             <h2 className="min-w-0 flex-1 truncate text-xs font-medium text-muted-foreground">
-              Views
+              Focus
             </h2>
           </div>
           <SidebarGroupContent>
