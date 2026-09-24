@@ -41,7 +41,8 @@ export interface Place {
    * a board always has an axis.
    */
   readonly groupBy: GroupBy
-  /** The page's rows in the order the View menu asked for. Never re-fetches. */
+  /** The page's rows in the order the View menu asked for, abandoned ones only
+      while "Show completed" is on. Never re-fetches. */
   readonly narrow: (rows: readonly TaskCard[]) => readonly TaskCard[]
   /** A capture at this page's entry defaults, optionally inside a column. */
   readonly capture: (title: string, column?: ColumnValue) => void
@@ -52,6 +53,8 @@ export interface PlaceOptions {
   /** Where the View settings are remembered, if not under the spine's key. */
   readonly filterKey?: string
   readonly capture?: (title: string, column?: ColumnValue) => void
+  /** The page's own "Show completed" where it keeps one (the folder's). */
+  readonly showCompleted?: boolean
 }
 
 export function usePlace(
@@ -108,7 +111,15 @@ export function usePlace(
     mode,
     setMode,
     groupBy,
-    narrow: (input) => sortRows(input, filter.sort),
+    /* "Show completed" is the one way back to finished work: completed and
+       abandoned alike. An abandoned row stays in place, struck and muted. */
+    narrow: (input) =>
+      sortRows(
+        (options.showCompleted ?? filter.showCompleted)
+          ? input
+          : input.filter((task) => task.status !== 'abandoned'),
+        filter.sort,
+      ),
     capture: options.capture ?? capture,
   }
 }

@@ -368,6 +368,7 @@ export function FolderPage({
   */
   const place = usePlace(PLACES.folder, openRows, {
     filterKey: `folder:${id}`,
+    showCompleted,
     capture: (title, column) => {
       create.mutate({
         title,

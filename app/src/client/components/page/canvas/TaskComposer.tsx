@@ -30,6 +30,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { BlockNoteSchema, createHeadingBlockSpec, defaultBlockSpecs, defaultInlineContentSpecs, defaultStyleSpecs } from '@blocknote/core'
 import type { PartialBlock } from '@blocknote/core'
 import { filterSuggestionItems } from '@blocknote/core/extensions'
+import { en } from '@blocknote/core/locales'
 import { BlockNoteView } from '@blocknote/shadcn'
 import {
   DragHandleMenu, FilePanelController, FormattingToolbarController, RemoveBlockItem, SideMenu, SideMenuController,
@@ -249,6 +250,8 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
   }
   const editor = useCreateBlockNote({
     schema: taskSchema,
+    /* One quiet word where the notes go, and nothing on later empty lines. */
+    dictionary: { ...en, placeholders: { ...en.placeholders, emptyDocument: 'Notes', default: '' } },
     initialContent: initial.length ? initial : [{ id: crypto.randomUUID(), type: 'paragraph', content: '' }],
     uploadFile: folderId === null ? undefined : async (file, blockId) => {
       const type = blockId === undefined ? undefined : editorRef.current?.getBlock(blockId)?.type

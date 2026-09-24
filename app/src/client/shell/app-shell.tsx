@@ -4,7 +4,7 @@ only place any of it exists.
 
 Everything here is global because section 9 says it is: the sidebar ("the
 application's only chrome"), the offline banner ("global, persistent while
-offline"), the toast region, the floating add button, and 10.6's update
+offline"), the toast region, and 10.6's update
 affordance. A page renders inside the outlet and adds none of them.
 
 **There is no top bar.** Search and notifications sit at the top of the
@@ -82,13 +82,9 @@ import {
 import { InviteGate } from '../pages/InviteGate.js'
 import { useUpdateAffordance } from '../pwa/useUpdateAffordance.js'
 import { paths } from '../routes.js'
-import { placeAt } from '../views/place-pages.js'
-import { effectiveMode, useViewMode } from '../views/view-mode.js'
-import type { ViewMode } from '../views/view-mode.js'
 import { ToastRegion } from '../state/ToastRegion.js'
 import { showToast } from '../state/toasts.js'
 import { AppSidebar } from './app-sidebar.js'
-import { FloatingAddButton } from './FloatingAddButton.js'
 import { useFolderGroupActions } from './folder-groups.js'
 import { OfflineBanner } from './OfflineBanner.js'
 import { UndoBar } from '../components/undo-bar.js'
@@ -129,22 +125,6 @@ const NO_SHELVES: readonly Shelf[] = []
    names no string for this, so it is this file's, written in the register the
    other client-side refusals use: what happened, and nothing about JSON. */
 const WORKFLOW_UNREADABLE = "That file isn't a workflow Dana can read."
-
-/** Every view there is, so the shell reads the store rather than a page. */
-const ALL_VIEWS: readonly ViewMode[] = ['list', 'board', 'calendar']
-
-/**
- * Whether the phone's floating "Add task" shows (`FloatingAddButton` returns
- * nothing on a laptop). It focuses the page's own "New task" row, so it shows
- * only on the places whose spine says so, and never in board view, where
- * every column captures and a column says where the task lands better than
- * any row. Trash is not a place: no capture there.
- */
-function showsFloatingAdd(pathname: string, mode: ViewMode): boolean {
-  const spine = placeAt(pathname)
-  if (spine === null || spine.capture !== 'floating') return false
-  return effectiveMode(mode, spine.views) !== 'board'
-}
 
 /** 10.6's update copy, transcribed. AC-100 addresses it by this name. */
 const UPDATE_AVAILABLE = 'Update available, reload'
@@ -268,10 +248,6 @@ export function AppShell(): React.JSX.Element {
   useEffect(() => {
     if (clockPreference !== undefined) adoptClock(clockPreference)
   }, [clockPreference])
-  /* The remembered view, unresolved: every mode is passed as offered so this
-     reads the store rather than a page's answer to it, and showsFloatingAdd
-     resolves it against the page it is actually on. */
-  const [remembered] = useViewMode(ALL_VIEWS)
   const groups = useFolderGroupActions(
     folders.data ?? NO_FOLDERS,
     shelves.data ?? NO_SHELVES,
@@ -424,7 +400,6 @@ export function AppShell(): React.JSX.Element {
     if (signedOut) window.location.replace(paths.landing)
   }, [signedOut])
 
-  const floating = showsFloatingAdd(location.pathname, remembered)
   /* The one write path out of a card. See the provider at this component's
      root. */
   const taskPatch = useApiTaskPatch()
@@ -598,7 +573,6 @@ export function AppShell(): React.JSX.Element {
                 <Outlet />
               </div>
             </div>
-            {floating ? <FloatingAddButton /> : null}
           </SidebarInset>
           {/* 9.1's "New folder" action, and beside it the three surfaces its
               folder groups open: the create dialog, the rename dialog and the
@@ -642,12 +616,7 @@ export function AppShell(): React.JSX.Element {
           sidebar provider so it is not clipped by the shell's own layout and
           so there is exactly one of it however many pages mount. */}
       <UndoBar />
-      {/* Up by the capture button's height where one is drawn, and on the
-          corner where none is (9.1: the floating button appears only on Today,
-          Important and Assignments). A notice landing on the control people
-          press most is the fault the undo bar's own placement avoids, and this
-          is the same rule for the other corner. */}
-      <ToastRegion clearsCapture={floating} />
+      <ToastRegion clearsCapture={false} />
       {/* 9.3's form, mounted once and last, for the reason in this file's
           header, and inside the same interim stacking wrapper the search
           overlay carries above. The Complex Interaction engineer owns both. */}

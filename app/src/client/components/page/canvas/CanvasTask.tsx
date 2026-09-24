@@ -72,7 +72,8 @@ function ResolvedTask({ taskId, bridge }: { readonly taskId: string; readonly br
     />
   )
   const known = listed ?? completedListed ?? detail.data
-  if (known !== undefined && (listed !== undefined || (completedListed === undefined && known.status !== 'completed'))) {
+  /* Finished means completed or abandoned: both hide with "Show completed". */
+  if (known !== undefined && known.status !== 'abandoned' && (listed !== undefined || (completedListed === undefined && known.status !== 'completed'))) {
     return <div data-canvas-task-id={taskId} className="min-w-0" contentEditable={false}>{row(known)}</div>
   }
   if (known !== undefined) {

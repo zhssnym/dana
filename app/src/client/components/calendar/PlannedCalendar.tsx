@@ -63,6 +63,8 @@ import { movableEnd } from '../../parts/schedule.js'
 import { InlineError } from '../state-patterns.js'
 import { Button } from '../ui/button.js'
 import { cn } from '../ui/utils.js'
+import { formatClockTime } from '../../lib/dates.js'
+import { useTimeFormat } from '../../lib/time-format.js'
 import { openTask } from '../task-open.js'
 import {
   WEEKDAY_LABELS,
@@ -153,6 +155,7 @@ function CalendarEvent({
      resize a span the person was carrying with nothing saying so, so the drag
      is refused: the non-destructive reading of an unbuilt feature. */
   const movable = !ghost && !completed && !abandoned && event.moves !== null
+  const clock = useTimeFormat()
 
   return (
     <button
@@ -199,7 +202,7 @@ function CalendarEvent({
       )}
       {event.dueTime === null ? null : (
         <span className="shrink-0 text-muted-foreground">
-          {event.dueTime.slice(0, 5)}
+          {formatClockTime(event.dueTime, clock)}
         </span>
       )}
       <span className="truncate">{event.title}</span>
