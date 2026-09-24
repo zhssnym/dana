@@ -1642,11 +1642,14 @@ export async function applyFacetDocument(
     }
 
     const committed = await facetDocumentMetadata(tx, facetId)
+    // An object, not an array: only an array-valued receipt marks the Folder
+    // page itself as on the document path (pages.ts), and a facet document's
+    // write must not shut the deployed client's legacy Folder page writer.
     await tx.execute(
       sql`INSERT INTO page_document_receipts
             (actor_id, folder_id, mutation_id, payload_hash, committed_revision, created_task_ids)
           VALUES (${viewerId}::uuid, ${folderId}::uuid, ${body.mutation_id}::uuid,
-                  ${hash}, ${committed.revision}, ${JSON.stringify([])}::jsonb)`,
+                  ${hash}, ${committed.revision}, ${JSON.stringify({ facet_id: facetId })}::jsonb)`,
     )
     const view = await facetPageViewIn(tx, facetId)
     return {

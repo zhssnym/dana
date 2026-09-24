@@ -30,7 +30,8 @@ deployed client edits `tasks.notes` as one string, so both stay:
 - A legacy `notes` write (PATCH /tasks/:id) against a Task that has a
   document is `legacyNotesWrite` below. If the document is still a plain
   mirror of `notes` (only paragraphs, no rich content, no files, and its
-  projection equals the stored notes exactly) the write replaces it. Otherwise
+  whole text, uncut, fits the 10000-character column, so `notes` holds every
+  character of it) the write replaces it. Otherwise
   the document keeps every block and the written text is **appended** as new
   paragraphs -- only the part after the stored notes when the write extends
   them, the whole text otherwise. Appending can repeat text; it can never drop
@@ -162,10 +163,13 @@ async function appendParagraphs(
   texts: readonly string[],
 ): Promise<void> {
   if (texts.length === 0) return
-  for (const text of texts) {
+  // `position` carries the order to `relayout`: these rows have no
+  // page_position yet and share one `updated_at`, so without it they would be
+  // ordered by their random ids.
+  for (const [index, text] of texts.entries()) {
     await tx.execute(
       sql`INSERT INTO page_blocks (task_id, kind, position, text)
-          VALUES (${taskId}::uuid, 'paragraph', 0, ${text})`,
+          VALUES (${taskId}::uuid, 'paragraph', ${index}, ${text})`,
     )
   }
 }
@@ -237,6 +241,12 @@ export async function legacyNotesWrite(
   if (blocks.length === 0) return next
   if (nextText === storedText) return next
   const texts = blocks.map((b) => str(b.text))
+  // Replaceable only when `notes` holds every character of the document: all
+  // plain paragraphs whose UNCUT text fits the column. A longer document's
+  // `notes` is a cut projection, so replacing it would erase the tail; and a
+  // short plain document whose text differs from `notes` is one the deploy
+  // overlap left behind (the old server wrote `notes` alone), so `notes` is
+  // the newer copy and replacing loses nothing.
   const plainMirror =
     blocks.every(
       (b) =>
@@ -244,7 +254,8 @@ export async function legacyNotesWrite(
         (b.rich_content === null || b.rich_content === undefined) &&
         (b.file_id === null || b.file_id === undefined) &&
         (b.list_parent_block_id === null || b.list_parent_block_id === undefined),
-    ) && (notesProjection(texts) ?? '') === storedText
+    ) &&
+    Array.from(texts.filter((text): text is string => text !== null).join('\n')).length <= NOTES_MAX
   if (plainMirror) {
     await tx.execute(sql`DELETE FROM page_blocks WHERE task_id = ${taskId}::uuid`)
     if (nextText !== '') {
@@ -505,11 +516,16 @@ export async function applyTaskDocumentLocked(
          WHERE id = ${taskId}::uuid`,
   )
   const committed = await revisionOf(tx, taskId)
+  // `created_task_ids` holds an object, not an array, on a Task document's
+  // receipt. pages.ts reads an array-valued receipt on a folder as "the
+  // Folder page itself is on the document path" and shuts the deployed
+  // client's legacy block writer; a Task document's write says nothing about
+  // the Folder page, so its receipt must not count (no scope column exists).
   await tx.execute(
     sql`INSERT INTO page_document_receipts
           (actor_id, folder_id, mutation_id, payload_hash, committed_revision, created_task_ids)
         VALUES (${viewerId}::uuid, ${folderId}::uuid, ${body.mutation_id}::uuid,
-                ${hash}, ${committed}, ${JSON.stringify([])}::jsonb)`,
+                ${hash}, ${committed}, ${JSON.stringify({ task_id: taskId })}::jsonb)`,
   )
   const view = await taskDocumentViewIn(tx, taskId)
   return {
