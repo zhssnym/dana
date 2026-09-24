@@ -125,7 +125,6 @@ export function TodayPage(): React.JSX.Element {
       <PlaceHead
         place={place}
         bare={total === 0}
-        {...(total === 0 ? {} : { fact: `${String(recap.length)} of ${String(total)} done` })}
       />
 
       <div>
