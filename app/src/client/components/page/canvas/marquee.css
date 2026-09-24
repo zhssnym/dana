@@ -1,14 +1,5 @@
-/* The marquee's band (`CanvasMarquee.tsx`). The picked blocks' tint is
-   `block-selection.ts`'s, from canvas.css's --dana-block-selection. */
-.dana-marquee-rect {
-  position: fixed;
-  left: 0;
-  top: 0;
-  z-index: 60;
-  pointer-events: none;
-  background-color: color-mix(in srgb, var(--accent-color) 10%, transparent);
-  border-radius: var(--radius-sm);
-}
+/* A marquee drag (`CanvasMarquee.tsx`) draws nothing of its own: the picked
+   blocks' tint (`block-selection.ts`) is the one look. */
 body.dana-marquee-dragging,
 body.dana-marquee-dragging * {
   user-select: none;

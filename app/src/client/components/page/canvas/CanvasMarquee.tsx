@@ -4,8 +4,12 @@ Mount once inside a `BlockNoteView`:
 `<CanvasMarquee />`.
 
 - Mouse-down in empty page space or the side margins (never in text) and
-  drag: a faint rectangle; the blocks it touches become block-selected. The
+  drag: the blocks the dragged span touches become block-selected, their
+  tint the only thing drawn (a band over it read as a second selection). The
   page scrolls when the pointer nears its top or bottom edge. Shift-drag adds.
+- A drag that starts in text selects text while it stays in its block; once
+  it reaches another block it becomes the same block selection (no band),
+  and the text highlight gives way to the tint. One look at a time.
 - A plain click in a side margin puts the caret on that line, as the editor
   would have.
 - Shift-click on a block extends a block selection to it.
@@ -87,12 +91,11 @@ interface Gesture {
   readonly startX: number
   readonly startY: number // in scroller content coordinates
   readonly base: readonly string[]
-  pointerX: number
+  /** The block a drag from text began in; null for a band from empty space. */
+  readonly fromText: string | null
   pointerY: number
   started: boolean
   frame: number
-  rect: HTMLDivElement | null
-  lastKey: string
 }
 
 let gesture: Gesture | null = null
@@ -162,39 +165,26 @@ function tick(): void {
     else scroller.scrollTop += speed
   }
   const anchorY = current.startY - scrollTopOf(scroller)
-  const top = Math.max(Math.min(anchorY, current.pointerY), box.top)
-  const bottom = Math.min(Math.max(anchorY, current.pointerY), box.bottom)
-  const left = Math.max(Math.min(current.startX, current.pointerX), box.left)
-  const right = Math.min(Math.max(current.startX, current.pointerX), box.right)
-  if (current.rect !== null) {
-    current.rect.style.transform = `translate(${left}px, ${top}px)`
-    current.rect.style.width = `${Math.max(0, right - left)}px`
-    current.rect.style.height = `${Math.max(0, bottom - top)}px`
-  }
   const hits = hitIds(view, Math.min(anchorY, current.pointerY), Math.max(anchorY, current.pointerY))
   const ids = [...new Set([...current.base, ...hits])]
-  const key = ids.join(' ')
-  if (key !== current.lastKey) {
-    current.lastKey = key
-    setBlockSelection(current.instance.editor, ids)
-  }
+  /* Against the editor's selection rather than the last one set: a
+     selectionchange still in flight from the text drag can replace it. */
+  if (ids.join(' ') !== blockSelection(current.instance.editor).join(' ')) setBlockSelection(current.instance.editor, ids)
   current.frame = requestAnimationFrame(tick)
 }
 
 function onMove(event: MouseEvent): void {
   const current = gesture
   if (current === null) return
-  current.pointerX = event.clientX
   current.pointerY = event.clientY
   if (!current.started) {
-    const dy = event.clientY - (current.startY - scrollTopOf(current.scroller))
-    if (Math.hypot(event.clientX - current.startX, dy) < DRAG_THRESHOLD) return
+    const anchorY = current.startY - scrollTopOf(current.scroller)
+    if (current.fromText !== null) {
+      // Text selection is the browser's until the drag reaches another block.
+      const hits = hitIds(current.view, Math.min(anchorY, event.clientY), Math.max(anchorY, event.clientY))
+      if (hits.every((id) => id === current.fromText)) return
+    } else if (Math.hypot(event.clientX - current.startX, event.clientY - anchorY) < DRAG_THRESHOLD) return
     current.started = true
-    const rect = document.createElement('div')
-    rect.className = 'dana-marquee-rect'
-    rect.setAttribute('aria-hidden', 'true')
-    document.body.appendChild(rect)
-    current.rect = rect
     document.body.classList.add('dana-marquee-dragging')
     current.frame = requestAnimationFrame(tick)
   }
@@ -209,7 +199,6 @@ function endGesture(): Gesture | null {
   window.removeEventListener('blur', onCancel)
   if (current === null) return null
   cancelAnimationFrame(current.frame)
-  current.rect?.remove()
   document.body.classList.remove('dana-marquee-dragging')
   return current
 }
@@ -220,6 +209,7 @@ function onUp(event: MouseEvent): void {
   const current = endGesture()
   if (current === null) return
   const { view } = current
+  if (current.fromText !== null && !current.started) return // text selected within one block
   if (current.started) {
     // The keys act on the picked blocks from here (Backspace, Cmd/Ctrl+D, Tab…).
     if (isBlockSelection(view.state.selection)) view.focus()
@@ -277,7 +267,11 @@ function onPointerDown(event: MouseEvent): void {
       event.stopPropagation()
       setBlockSelection(instance.editor, [...picked, id])
       view.focus()
+      return
     }
+    // Text: the editor's, watched in case the drag leaves this block.
+    const from = event.shiftKey || target.closest('.bn-inline-content') === null ? null : blockIdAt(target, view)
+    if (from !== null) begin(instance, view, event, [], from)
     return
   }
   if (!inEditor && (target.closest(INTERACTIVE) !== null || hasOwnText(target))) return
@@ -286,19 +280,19 @@ function onPointerDown(event: MouseEvent): void {
   if (inEditor) event.stopPropagation()
   const active = document.activeElement
   if (active instanceof HTMLElement && active !== view.dom && !view.dom.contains(active) && active !== document.body) active.blur()
-  const scroller = scrollerOf(view.dom)
-  const base = event.shiftKey ? picked : []
   if (!event.shiftKey) clearBlockSelection(instance.editor)
+  begin(instance, view, event, event.shiftKey ? picked : [], null)
+}
+
+function begin(instance: Instance, view: EditorView, event: MouseEvent, base: readonly string[], fromText: string | null): void {
+  const scroller = scrollerOf(view.dom)
   gesture = {
-    instance, view, scroller, base,
+    instance, view, scroller, base, fromText,
     startX: event.clientX,
     startY: event.clientY + scrollTopOf(scroller),
-    pointerX: event.clientX,
     pointerY: event.clientY,
     started: false,
     frame: 0,
-    rect: null,
-    lastKey: base.join(' '),
   }
   window.addEventListener('mousemove', onMove, true)
   window.addEventListener('mouseup', onUp, true)
