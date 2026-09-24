@@ -22,7 +22,6 @@ import { FolderPage } from './pages/FolderPage.js'
 import { LandingPage } from './pages/LandingPage.js'
 import { LegalPage } from './pages/LegalPage.js'
 import { NotFoundPage } from './pages/NotFoundPage.js'
-import { PeoplePage } from './pages/PeoplePage.js'
 import { ScheduledPage } from './pages/ScheduledPage.js'
 import { SettingsPage } from './pages/SettingsPage.js'
 import { ShelfPage } from './pages/ShelfPage.js'
@@ -72,7 +71,8 @@ export function Router(): React.JSX.Element {
           <Route path="discussions/:id" element={<DiscussionLinkPage />} />
           <Route path="outcomes/:id" element={<OutcomeLinkPage />} />
           <Route path="settings" element={<SettingsPage />} />
-          <Route path="people" element={<PeoplePage />} />
+          {/* People lives in Settings now; the old address still lands there. */}
+          <Route path="people" element={<Navigate to={`${paths.settings}#people`} replace />} />
           {retiredPaths.map(({ from, to }) => (
             <Route
               key={from}

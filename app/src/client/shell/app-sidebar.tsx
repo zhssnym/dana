@@ -1,14 +1,18 @@
 /*
 The sidebar: the application's only chrome, and a navigation landmark.
 
-Top to bottom, and nothing else (redesign "Quiet", Navigation):
+Top to bottom, and nothing else (round 2, Sidebar):
 
-  Search · Notifications · Today · Upcoming · Assigned · Library · account
+  head row · Search · Today · Upcoming · Assigned · Library · Settings, Trash
 
-- **Search** is a row with its word, and Ctrl/Cmd-K opens the same overlay
-  (`overlays.ts`). On a phone the phone bar holds the one search entry, so the
-  drawer leaves it out.
-- **Notifications** is one row with its unread count.
+- **The head row** is the account button (the viewer's face, "Dana", a
+  chevron) whose menu names the viewer and offers Settings and Sign out; then,
+  at its right, the bell as a small square button with an unread dot, and the
+  collapse button. The drawer on a phone draws the same row.
+- **Search** looks like the field it opens: a bordered box reading "Search"
+  with its Ctrl K / ⌘K keycap. Pressing it, or the shortcut, opens the
+  palette (`overlays.ts`). On a phone the phone bar holds the one search
+  entry, so the drawer leaves it out.
 - **Today, Upcoming, Assigned** are the only cross-project lists. Upcoming and
   Assigned are the Scheduled and Assignments pages under their sidebar names.
 - **Library**: the Desk folder first, then the viewer's shelves and folders as
@@ -16,7 +20,8 @@ Top to bottom, and nothing else (redesign "Quiet", Navigation):
   "…" appears on hover in space the row already reserves, and a right-click
   opens that same menu. The Library's one "+" makes a folder, a shelf, or
   imports a workflow.
-- **Account** at the foot: Settings, People, Trash, Sign out.
+- **The foot** is two direct rows, Settings and Trash. People is a section of
+  Settings, so the sidebar no longer links it; /app/people still answers.
 
 Collapsing hides the sidebar entirely (`collapsible="offcanvas"`); the shell
 draws the one small control that brings it back.
@@ -26,6 +31,7 @@ import type { ReactElement } from 'react'
 import { Link, useNavigate } from 'react-router'
 import type { LucideIcon } from '../lib/icons.js'
 import {
+  ChevronDown,
   ChevronRight,
   FolderPlus,
   Folders,
@@ -34,7 +40,6 @@ import {
   Search,
   Settings,
   Trash2,
-  UsersRound,
   Workflow,
 } from '../lib/icons.js'
 
@@ -756,56 +761,86 @@ function LibraryPlusMenu({
   )
 }
 
-/** The account menu: Settings, People, Trash, and Sign out. Named "Account". */
+/**
+ * The head row's account button: the viewer's face, "Dana" and a chevron.
+ * Its menu names the viewer (name and email), then Settings and Sign out.
+ * Named "Account".
+ */
 function AccountMenu({
   displayName,
+  email,
   image = null,
   onNavigate,
   onSignOut,
 }: {
   readonly displayName: string | null
+  readonly email: string | null
   readonly image?: string | null
   readonly onNavigate: (path: string) => void
   readonly onSignOut: () => void
 }): React.JSX.Element {
+  const name = displayName ?? email ?? ''
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <SidebarMenuButton
-            className={cn(SIDEBAR_ROW, 'h-8 text-foreground')}
+          <button
+            type="button"
+            className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 text-sm font-medium text-foreground outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/30 data-popup-open:bg-sidebar-accent"
             aria-label="Account"
-          >
-            <PersonFace
-              name={displayName ?? ''}
-              initials={initialsOf(displayName ?? '')}
-              image={image}
-              className="size-6"
-            />
-            <span className="min-w-0 truncate">{displayName ?? ''}</span>
-          </SidebarMenuButton>
+          />
         }
-      />
-      <DropdownMenuContent side="top" align="start" className="w-52">
+      >
+        <PersonFace name={name} initials={initialsOf(name)} image={image} />
+        <span className="min-w-0 truncate">Dana</span>
+        <ChevronDown
+          className="size-3.5 shrink-0 text-muted-foreground"
+          strokeWidth={1.75}
+          aria-hidden="true"
+        />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent side="bottom" align="start" className="w-60">
+        <div className="flex items-center gap-2 px-2 py-1.5">
+          <PersonFace name={name} initials={initialsOf(name)} image={image} />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm text-foreground">{name}</p>
+            {email === null || email === name ? null : (
+              <p className="truncate text-xs text-muted-foreground">{email}</p>
+            )}
+          </div>
+        </div>
+        <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => { onNavigate(paths.settings) }}>
           <Settings className="size-4" strokeWidth={1.75} aria-hidden="true" />
           Settings
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => { onNavigate(paths.people) }}>
-          <UsersRound className="size-4" strokeWidth={1.75} aria-hidden="true" />
-          People
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => { onNavigate(paths.trash) }}>
-          <Trash2 className="size-4" strokeWidth={1.75} aria-hidden="true" />
-          Trash
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
         <DropdownMenuItem onClick={onSignOut}>
           <LogOut className="size-4" strokeWidth={1.75} aria-hidden="true" />
           Sign out
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  )
+}
+
+/** A search field in look, a button in fact: it opens the palette. */
+function SearchField({ onOpen }: { readonly onOpen: () => void }): React.JSX.Element {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label="Search"
+      className="flex h-7 w-full items-center gap-2 rounded-sm border border-border bg-background px-2 text-sm text-muted-foreground outline-none hover:border-ring/40 focus-visible:ring-2 focus-visible:ring-ring/30"
+    >
+      <Search className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+      <span className="flex-1 text-left">Search</span>
+      <kbd
+        aria-hidden="true"
+        className="rounded-xs border border-border bg-muted px-1 font-sans text-xs leading-4 text-muted-foreground"
+      >
+        {IS_MAC ? '⌘K' : 'Ctrl K'}
+      </kbd>
+    </button>
   )
 }
 
@@ -816,6 +851,7 @@ export function AppSidebar({
   onSidebarOrderChange,
   groups: groupActions,
   displayName,
+  email = null,
   avatarUrl = null,
   activeFolderId,
   currentPath,
@@ -837,6 +873,7 @@ export function AppSidebar({
   readonly onSidebarOrderChange: (ids: readonly string[]) => void
   readonly groups: FolderGroupActions
   readonly displayName: string | null
+  readonly email?: string | null
   readonly avatarUrl?: string | null
   readonly activeFolderId: string | null
   readonly currentPath: string
@@ -874,29 +911,22 @@ export function AppSidebar({
          make the column lag the pointer. */
       className="h-full shrink-0 border-r border-border bg-sidebar transition-none"
     >
-      <SidebarHeader className="gap-0 p-2 pb-0">
-        <SidebarMenu>
-          {/* On a phone the phone bar holds the one search entry. */}
-          {isMobile ? null : (
-            <SidebarMenuItem className="flex items-center gap-1">
-              <SidebarMenuButton
-                className={cn(SIDEBAR_ROW, 'flex-1')}
-                aria-label="Search"
-                onClick={onOpenSearch}
-              >
-                <Search strokeWidth={1.75} aria-hidden="true" />
-                <span className="flex-1">Search</span>
-                <kbd className="font-sans text-xs text-muted-foreground" aria-hidden="true">
-                  {IS_MAC ? '⌘K' : 'Ctrl K'}
-                </kbd>
-              </SidebarMenuButton>
-              <SidebarTrigger className="size-(--shell-sidebar-row-height) shrink-0 rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-foreground [&_svg]:!size-4" />
-            </SidebarMenuItem>
-          )}
-          <SidebarMenuItem>
-            <NotificationsBell side={isMobile ? 'bottom' : 'right'} className={SIDEBAR_ROW} />
-          </SidebarMenuItem>
-        </SidebarMenu>
+      <SidebarHeader className="gap-2 p-2 pb-0">
+        <div className="flex items-center gap-0.5">
+          <AccountMenu
+            displayName={displayName}
+            email={email}
+            image={avatarUrl}
+            onNavigate={(path) => {
+              void navigate(path)
+            }}
+            onSignOut={onSignOut}
+          />
+          <NotificationsBell />
+          <SidebarTrigger className="size-7 shrink-0 rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-foreground [&_svg]:!size-4" />
+        </div>
+        {/* On a phone the phone bar holds the one search entry. */}
+        {isMobile ? null : <SearchField onOpen={onOpenSearch} />}
       </SidebarHeader>
 
       <SidebarContent className="py-2">
@@ -967,16 +997,18 @@ export function AppSidebar({
           }}
         />
         <SidebarMenu>
-          <SidebarMenuItem>
-            <AccountMenu
-              displayName={displayName}
-              image={avatarUrl}
-              onNavigate={(path) => {
-                void navigate(path)
-              }}
-              onSignOut={onSignOut}
-            />
-          </SidebarMenuItem>
+          <NavigationRow
+            name="Settings"
+            to={paths.settings}
+            icon={Settings}
+            active={currentPath.startsWith(paths.settings)}
+          />
+          <NavigationRow
+            name="Trash"
+            to={paths.trash}
+            icon={Trash2}
+            active={currentPath === paths.trash}
+          />
         </SidebarMenu>
       </SidebarFooter>
 

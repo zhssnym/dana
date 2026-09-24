@@ -163,7 +163,7 @@ export function ShelfPage(): React.JSX.Element {
               setConfirmingDelete(true)
             }}
           >
-            <Suspense fallback={<p role="status">Loading writing…</p>}>
+            <Suspense fallback={<p role="status" className="sr-only">Loading writing…</p>}>
               <ShelfCanvas
                 shelfId={id}
                 page={page.data}

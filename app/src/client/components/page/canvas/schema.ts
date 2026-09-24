@@ -119,7 +119,7 @@ type MediaRender = (this: unknown, block: { id: string; props: { url: string; ca
 type WithReclaimedAt<T extends { config: { propSchema: object } }> = Omit<T, 'config'> & {
   config: Omit<T['config'], 'propSchema'> & { propSchema: T['config']['propSchema'] & { reclaimedAt: { default: '' } } }
 }
-function withReclaimNotice<T extends { config: { propSchema: object } }>(spec: T, noun: string): WithReclaimedAt<T> {
+function withReclaimNotice<T extends { config: { propSchema: object } }>(spec: T, noun: string, addLabel?: string): WithReclaimedAt<T> {
   const typed = spec as unknown as { config: { propSchema: Record<string, unknown> }; implementation: { render: MediaRender } }
   const stockRender = typed.implementation.render
   return {
@@ -129,7 +129,13 @@ function withReclaimNotice<T extends { config: { propSchema: object } }>(spec: T
       ...typed.implementation,
       render: function (block, editor) {
         const reclaimedAt = (block.props as { reclaimedAt?: string }).reclaimedAt ?? ''
-        if (reclaimedAt === '' || block.props.url !== '') return stockRender.call(this, block, editor)
+        if (reclaimedAt === '' || block.props.url !== '') {
+          const stock = stockRender.call(this, block, editor)
+          // The empty block's one quiet row (styled in canvas.css); a click opens `CanvasFilePanel`.
+          const text = stock.dom.querySelector('.bn-add-file-button-text')
+          if (text && addLabel !== undefined) text.textContent = addLabel
+          return stock
+        }
         const dom = document.createElement('div')
         dom.className = 'dana-reclaimed-image'
         dom.contentEditable = 'false'
@@ -164,8 +170,8 @@ function withReclaimNotice<T extends { config: { propSchema: object } }>(spec: T
 
 const audio = withReclaimNotice(mediaSpec(defaultBlockSpecs.audio, AUDIO_MIMES), 'file')
 const video = withReclaimNotice(mediaSpec(defaultBlockSpecs.video, VIDEO_MIMES), 'file')
-const file = withReclaimNotice(defaultBlockSpecs.file, 'file')
-const image = withReclaimNotice(mediaSpec(defaultBlockSpecs.image, RASTER_MIMES), 'picture')
+const file = withReclaimNotice(defaultBlockSpecs.file, 'file', 'Add a file')
+const image = withReclaimNotice(mediaSpec(defaultBlockSpecs.image, RASTER_MIMES), 'picture', 'Add an image')
 
 /** Restricted vocabulary, projected to Dana records by the persistence adapter. */
 export const canvasSchema = BlockNoteSchema.create({

@@ -57,7 +57,6 @@ import {
 
 import { usePlannedCalendarView, useFolders } from '../../api/queries.js'
 import { useUpdateTask } from '../../api/mutations.js'
-import { showToast } from '../../state/toasts.js'
 import { formatDueDate, presenterToday } from '../../parts/presenters.js'
 import { movableEnd } from '../../parts/schedule.js'
 import { InlineError } from '../state-patterns.js'
@@ -492,13 +491,11 @@ export function PlannedCalendar({
     const end = movableEnd(row)
     if (end === null) return
     if (row[end] === date) return
-    update.mutate(
-      {
-        id: taskId,
-        body: end === 'due_date' ? { due_date: date } : { start_date: date },
-      },
-      { onSuccess: () => showToast(`Moved to ${formatDueDate(date, today)}`) },
-    )
+    // The card moving is the answer; success says nothing.
+    update.mutate({
+      id: taskId,
+      body: end === 'due_date' ? { due_date: date } : { start_date: date },
+    })
   }
 
   const cells = useMemo(

@@ -20,6 +20,7 @@ import type { CanvasBlock, CanvasEditor } from './schema.js'
 import { baselineOf, dehydrateCanvas, folderRefsOf, hydrateCanvas, mergeWorkDocument, richRuns, workPageOf } from './adapters.js'
 import type { CanvasDocument, CanvasInput } from './adapters.js'
 import { CanvasWriter } from './saving.js'
+import { NOT_SAVED, SaveFailure } from './SaveFailure.js'
 import { pasteIntoCanvas } from './paste.js'
 import type { TaskRows } from '../../../pages/task-rows.js'
 
@@ -70,7 +71,7 @@ function PersistedCanvas({ page, initialPage, folderId, facetId, presentationHea
       else setReloadNote('The page still has no version. Try again in a moment.')
     }) }}>Load the page again</Button>{reloadNote}
   </div>
-  return <div ref={host} className="min-w-0">{width === null ? <p role="status">Loading writing…</p> : <CanvasSession {...{ page, initialPage, folderId, facetId, presentationHeadings, workRootId, tasks, completed, showCompleted, context, actions, onAsk, arrangeable, onCheckpoint }} width={width} onSaved={(next) => {
+  return <div ref={host} className="min-w-0">{width === null ? <p role="status" className="sr-only">Loading writing…</p> : <CanvasSession {...{ page, initialPage, folderId, facetId, presentationHeadings, workRootId, tasks, completed, showCompleted, context, actions, onAsk, arrangeable, onCheckpoint }} width={width} onSaved={(next) => {
     queryClient.setQueryData(facetId === undefined ? queryKeys.folderPage(folderId) : queryKeys.facetPage(folderId, facetId), next)
   }} />}</div>
 }
@@ -256,7 +257,7 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
   useEffect(() => {
     if (!page.revision || page.revision === writer.revision || writer.state === 'saving') return
     if (writer.state === 'saved') onCheckpoint(page)
-    else setError('This page changed elsewhere. Your writing is retained. Save a copy and load the latest page before continuing.')
+    else setError('This page changed elsewhere. Your writing is kept here. Load the latest to continue; your writing will be offered back.')
   }, [page, writer, onCheckpoint])
 
   function changed(current: CanvasEditor): void {
@@ -377,17 +378,7 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
   }
   const draftBox = `.dana-writing-canvas .bn-block[data-id="${draftTask}"] > .react-renderer > .bn-block-content`
   const draftStyle = draftTask === null ? '' : `${draftBox}{display:flex;flex-direction:row;align-items:center} ${draftBox}::before{content:"";flex-shrink:0;width:14px;height:14px;border:1.5px solid var(--muted-foreground);border-radius:var(--radius-sm);margin-inline:calc(var(--spacing) * 2.5) calc(var(--spacing) * 2)} ${draftBox} > *{flex:1;min-width:0}${draftEmpty ? ` ${draftBox} .bn-inline-content::before{content:"Task title" !important;color:var(--muted-foreground);position:absolute;pointer-events:none}` : ''}`
-  const feedback = error || (writer.state === 'failed' ? writer.error instanceof Error ? writer.error.message : 'Could not save. Your writing is retained.' : '')
   const pendingTask = writer.pending?.request.operations.some((operation) => operation.op === 'create_task') === true
-  // "Saving…" only after two seconds of continuous unsaved writing; a quick
-  // save says nothing at all, and a saved page never says "Saved".
-  const busy = writer.state === 'changed' || writer.state === 'saving'
-  const [slow, setSlow] = useState(false)
-  useEffect(() => {
-    if (!busy) return
-    const timer = window.setTimeout(() => setSlow(true), 2000)
-    return () => { window.clearTimeout(timer); setSlow(false) }
-  }, [busy])
   const downloadDraft = (): void => {
     if (!previousDraft) return
     const url = URL.createObjectURL(new Blob([previousDraft], { type: 'application/json' }))
@@ -434,13 +425,10 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
       />
       </div>
     </CanvasTaskProvider>
-    <div role="status" aria-live="polite" className="flex min-h-6 flex-wrap items-center gap-1 text-xs text-muted-foreground">
-      {feedback ? <>
-        <span>{writer.state === 'failed' && !error ? 'Not saved — ' : feedback}</span>
-        {writer.pending ? <Button variant="outline" size="sm" onClick={() => { void writer.retry() }}>Retry save</Button> : null}
-        <Button variant="ghost" size="sm" onClick={copyDraft}>Download writing</Button>
-        <Button variant="ghost" size="sm" onClick={() => { void loadLatest() }}>Load latest</Button>
-      </> : busy && slow ? 'Saving…' : null}
-    </div>
+    <SaveFailure
+      message={error || (writer.state === 'failed' ? NOT_SAVED : null)}
+      onRetry={!error && writer.state === 'failed' && writer.pending ? () => { void writer.retry() } : undefined}
+      onLoadLatest={() => { void loadLatest() }}
+    />
   </>
 }
