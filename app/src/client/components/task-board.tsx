@@ -395,6 +395,7 @@ export function TaskBoard({
   columnRef,
   footer,
   quickAdd,
+  grid = "grid-cols-2",
 }: {
   columns: BoardColumn[]
   onOpenTask: (taskId: string, mode?: TaskOpenMode) => void
@@ -419,6 +420,8 @@ export function TaskBoard({
   quickAdd?: (column: BoardColumn) => ReactNode
   /* After the last column, the folder page's "Add section". */
   footer?: ReactNode
+  /* The column grid: two by default; a page's status board is three across. */
+  grid?: string
 }) {
   const zones = useRef(new Map<string, HTMLElement>())
 
@@ -438,7 +441,7 @@ export function TaskBoard({
   }
 
   return (
-    <div className="grid grid-cols-2 items-start gap-3 pb-4">
+    <div className={cn("grid items-start gap-3 pb-4", grid)}>
       {columns.map((column) => (
         /*
         9.1's regions rule makes a board column "a named region, named by its
