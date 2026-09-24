@@ -108,7 +108,8 @@ export const PLACES: Record<PlaceKey, PlaceSpine> = {
     name: 'Folder',
     path: '',
     icon: Layers3,
-    views: LIST_AND_BOARD,
+    /* A page's tasks also draw as the Linear thread (round 2). */
+    views: ['list', 'linear', 'board'],
     groups: [
       { value: 'none', label: 'None' },
       { value: 'person', label: 'Person' },

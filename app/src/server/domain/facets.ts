@@ -152,11 +152,11 @@ function facetFromRow(row: Record<string, unknown>): Facet {
  * caller has already resolved folder membership, and this is the second scope
  * on top of it.
  *
- * **Main is forced first rather than trusted to be.** The shared-order write
- * refuses a list whose first entry is not Main, so Main does hold the lowest
- * shared position -- but a private facet's position is written by a different
- * route against a different rule, and #210's "Main stays first" is not a thing
- * that should depend on two routes agreeing. One `ORDER BY` clause settles it.
+ * **The stored position is the order** (round 2). Main used to be forced
+ * first here; tabs are now dragged freely on the row, so Main (shown as
+ * "Work") sits wherever a person put it. A folder nobody has reordered still
+ * holds its creation keys, Main first, and the client draws that as the default
+ * Purpose · Work · Results · Discussion.
  */
 function facetSelect(viewerId: string, folderId: string, extra: SQL = sql``): SQL {
   return sql`
@@ -167,7 +167,7 @@ function facetSelect(viewerId: string, folderId: string, extra: SQL = sql``): SQ
       LEFT JOIN page_blocks h1 ON h1.id = f.h1_block_id
      WHERE f.folder_id = ${folderId}::uuid
        AND (f.owner_id IS NULL OR f.owner_id = ${viewerId}::uuid)${extra}
-     ORDER BY (f.kind = 'main') DESC, f.position ASC, f.id ASC`
+     ORDER BY f.position ASC, f.id ASC`
 }
 
 export async function listFacets(
@@ -693,7 +693,7 @@ async function readOne(
  * The shared sequence, and **the list is the whole truth**, as 7.16's
  * `set_outline` is: no partial order and no merge. A list that omits a facet
  * every member can see is 422, a list naming one twice is 422, a list
- * carrying a private id is 422, and Main not first is 422.
+ * carrying a private id is 422. Main may stand anywhere (round 2).
  *
  * The write is one key per row from `initialKeys`, so the stored sequence
  * matches the requested one exactly rather than approximately, and the private
@@ -764,15 +764,14 @@ export async function setFacetOrder(
         'is the whole order and must carry every shared facet of this Folder',
       )
     }
-    const mainId = shared.find((row) => String(row.kind) === 'main')
-    if (mainId === undefined || order[0] !== String(mainId.id)) {
-      return invalid('order', 'Main is always first')
-    }
 
     const decision = mayPerform(facts, 'facet.reorder', { facetOwnerId: null })
     if (!decision.allowed) return { kind: 'forbidden', reason: decision.reason } as const
 
-    const keys = initialKeys(order.length)
+    /* Keys from `a1` on, never `a0`: a written order must never be mistaken
+       for the untouched creation keys (Main `a0`, Purpose `a1`, Consultation
+       `a2`, Results `a3`), which the client draws as the default order. */
+    const keys = initialKeys(order.length + 1).slice(1)
     for (const [index, id] of order.entries()) {
       await tx.execute(
         sql`UPDATE folder_facets SET position = ${keys[index] as string}, updated_at = now()
