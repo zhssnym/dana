@@ -533,7 +533,9 @@ export function FolderTabs({
           <Plus strokeWidth={1.75} aria-hidden="true" />
         </Button>
       ) : null}
-      {trailing === undefined ? null : <div className="ms-auto mb-1 shrink-0 self-center">{trailing}</div>}
+      {/* Always drawn, at the control height, so the row is the same height on
+          every tab whether or not the tab has anything here. */}
+      <div className="ms-auto mb-1 flex h-7 shrink-0 items-center self-center">{trailing ?? null}</div>
       <DropdownMenu
         open={menu !== null}
         onOpenChange={(open) => {
