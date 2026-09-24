@@ -1,34 +1,35 @@
 /*
-A path under /app that 9.1's route table does not name.
+A path 9.1's route table does not name, inside /app or outside it.
 
-It renders inside the chrome rather than replacing it, which is the same rule
-the 404 of an inaccessible folder follows: the shell survives, so the person
-can navigate away from a page they cannot see. The treatment is the shared
-empty-state vocabulary, so a wrong URL and an empty list read as the same kind
-of quiet answer; the sentence stays one text run.
+Inside /app it renders within the chrome and names itself in the top bar's
+trail; outside it there is no chrome. Either way: the one empty-state line and
+one way on (Today when signed in, the front page otherwise).
 */
+import { Link, useLocation } from 'react-router'
 
-import { Compass } from 'lucide-react'
-
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-} from '../components/ui/empty.js'
+import { useMe } from '../api/queries.js'
+import { paths } from '../routes.js'
+import { BreadcrumbTrail } from '../components/breadcrumb-trail.js'
+import { Button } from '../components/ui/button.js'
+import { WindowBarLead } from '../components/window-bar.js'
 
 export function NotFoundPage(): React.JSX.Element {
+  const signedIn = useMe().isSuccess
+  const inApp = useLocation().pathname.startsWith(`${paths.home}/`)
   return (
-    <Empty className="min-h-72">
-      <EmptyMedia className="text-[var(--color-graphite-400)]">
-        <Compass className="size-9" strokeWidth={1.6} aria-hidden="true" />
-      </EmptyMedia>
-      <EmptyHeader>
-        <h1 className="text-base leading-6 font-semibold text-foreground">Not found</h1>
-        <EmptyDescription className="max-w-[54ch] text-sm leading-5 text-muted-foreground">
-          That page does not exist. Everything Dana has is in the sidebar.
-        </EmptyDescription>
-      </EmptyHeader>
-    </Empty>
+    <div className={inApp ? 'flex flex-col items-start gap-3 pt-2' : 'flex flex-col items-start gap-3 px-4 py-16'}>
+      {inApp ? (
+        <WindowBarLead>
+          <BreadcrumbTrail folderId={null} current="Not found" />
+        </WindowBarLead>
+      ) : null}
+      {/* The trail already says "Not found"; the line says only why. */}
+      <h1 className="text-sm font-normal text-muted-foreground">
+        {inApp ? 'That page does not exist.' : 'Not found. That page does not exist.'}
+      </h1>
+      <Button render={<Link to={signedIn ? paths.today : paths.landing} />}>
+        {signedIn ? 'Go to Today' : 'Go to Dana'}
+      </Button>
+    </div>
   )
 }

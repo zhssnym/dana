@@ -21,18 +21,18 @@ Two columns per row, because a one-row board is too short.
 
 import { useEffect, useRef, useState, type ReactNode } from "react"
 
-import { ListChecks, MessageSquare, Plus, Star } from "../lib/icons.js"
+import { Plus } from "../lib/icons.js"
 import { InlineInput } from "./ui/inline-field.js"
-import { Face } from "./person-face.js"
+import { CheckMark } from "./ui/checkbox.js"
+import { useRowKeys } from "./row-keys.js"
+import { RowMeta } from "./task-meta.js"
 import {
-  FOCUS,
   T_FAST,
   TaskList,
   type TaskListWiring,
   type TaskOpenMode,
   type TaskRowProps,
 } from "./task-row.js"
-import { commentCount } from "../tasks/task-model.js"
 import { cn } from "./ui/utils.js"
 
 export type BoardTask = TaskRowProps & { id: string }
@@ -57,7 +57,18 @@ export interface BoardColumn {
   every column's answer but that one.
   */
   takes?: boolean
+  /* A status column's colour, Notion's: Not started grey, In progress blue,
+     Done green. Only the page's status board sets it; a column of people or
+     folders has no colour to wear, so its name stays plain text. */
+  tone?: BoardTone
 }
+
+export type BoardTone = "grey" | "blue" | "green"
+
+/* Round 4: the status pills stay but go muted. One neutral pill for every
+   tone; the column's position and name say which status it is, so colour is
+   saved for the rare thing that matters (a late date). */
+const PILL = "rounded-full bg-muted px-2 py-0.5 text-muted-foreground"
 
 /* -------------------------------------------------------------- capture, */
 
@@ -72,7 +83,15 @@ should do and what a floating button cannot.
 
 Every board has it, so a board can be worked in and not only looked at.
 */
-export function BoardQuickAdd({ onAdd }: { onAdd: (title: string) => void }) {
+export function BoardQuickAdd({
+  onAdd,
+  label = "New task",
+}: {
+  onAdd: (title: string) => void
+  /* The accessible name adds the column's, so three identical rows are told
+     apart by a screen reader; what is drawn stays "New task". */
+  label?: string
+}) {
   const [editing, setEditing] = useState(false)
   const [title, setTitle] = useState("")
 
@@ -80,15 +99,19 @@ export function BoardQuickAdd({ onAdd }: { onAdd: (title: string) => void }) {
     return (
       <button
         type="button"
+        aria-label={label}
         onClick={() => setEditing(true)}
         className={cn(
-          "flex h-8 items-center gap-1.5 rounded-md px-2 text-[12px] leading-4 text-[var(--color-graphite-400)] transition-colors hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-700)]",
+          "flex h-[var(--control-height)] w-full items-center gap-1.5 rounded-md px-2 text-sm text-muted-foreground transition-colors hover:bg-hover hover:text-foreground",
+          /* Quiet until wanted: shown on the column's hover or focus, always on
+             touch, and always in an empty column, where it is the only thing
+             to do (the column passes `data-empty`). */
+          "opacity-0 group-hover/column:opacity-100 focus-visible:opacity-100 group-data-[empty]/column:opacity-100 [@media(hover:none)]:opacity-100",
           T_FAST,
-          FOCUS,
         )}
       >
-        <Plus className="size-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />
-        Add task
+        <Plus className="size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+        New task
       </button>
     )
   }
@@ -101,6 +124,9 @@ export function BoardQuickAdd({ onAdd }: { onAdd: (title: string) => void }) {
       aria-label="New task name"
       onChange={(event) => setTitle(event.target.value)}
       onBlur={() => {
+        /* Typed words are kept rather than lost to a stray click. */
+        const trimmed = title.trim()
+        if (trimmed) onAdd(trimmed)
         setEditing(false)
         setTitle("")
       }}
@@ -115,44 +141,9 @@ export function BoardQuickAdd({ onAdd }: { onAdd: (title: string) => void }) {
           setTitle("")
         }
       }}
-      className={cn(
-        "h-9 w-full rounded-md border border-[var(--color-graphite-300)] bg-card px-2.5 text-[13px] leading-5 outline-none",
-        "placeholder:text-[var(--color-graphite-400)] focus-visible:border-[var(--color-dana-accent-600)] focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-100)]",
-      )}
+      /* One focus style only: the inline field's own ring. */
+      className="mx-0 h-[var(--control-height)] w-full px-2 text-sm"
     />
-  )
-}
-
-/*
-A new column, where a column is a thing you can make.
-
-A column on this board is a *value* of the axis it is grouped by, so whether you
-can add one is not the board's decision, it is a fact about the axis. Sections
-are things a person makes, and so are folders, so those boards offer it and say
-the name of the thing. A person is not something you create because you wanted a
-column for them, and every date already exists, so those boards do not offer it
-at all rather than offering it and refusing.
-*/
-export function BoardAddColumn({
-  label,
-  onClick,
-}: {
-  label: string
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "flex h-10 items-center justify-center gap-1.5 rounded-lg border border-dashed border-[var(--color-graphite-300)] text-[12px] leading-4 text-[var(--color-graphite-400)] transition-colors hover:border-[var(--color-graphite-400)] hover:text-[var(--color-graphite-600)]",
-        T_FAST,
-        FOCUS,
-      )}
-    >
-      <Plus className="size-3.5" strokeWidth={2} aria-hidden="true" />
-      {label}
-    </button>
   )
 }
 
@@ -194,9 +185,18 @@ function BoardCard({
     return () => wiring.onRegisterOpen(null)
   })
 
-  const threadCount = commentCount(task.comments)
-  const showDue = Boolean(task.due) && !given?.due
-  const showFace = Boolean(task.assignee) && !given?.assignee
+  /* Whether the meta line has anything to say. A card with nothing (no date,
+     folder, face, count, repeat or set star) is its title alone, so a board
+     of plain tasks stays compact; such a card is starred from the task. */
+  const finished = done || task.status === "abandoned"
+  const hasMeta =
+    (task.due !== undefined && !given?.due && !done) ||
+    (task.folder !== undefined && !given?.folder) ||
+    ((task.blockedBy ?? 0) > 0 && !finished) ||
+    (task.assignee !== undefined && task.assignee !== null && !given?.assignee) ||
+    (task.steps !== undefined && task.steps.total > 0) ||
+    task.recurrence !== undefined ||
+    Boolean(task.important)
   const drag = wiring.dragState
   const carried = Boolean(drag?.isActive) && !drag?.isSettling
 
@@ -204,6 +204,7 @@ function BoardCard({
     <div
       ref={wiring.itemRef}
       {...wiring.listProps}
+      data-task-id={task.id}
       /*
       A list item, not a button. 9.1's roles table fixes "a board column is a
       named region; its cards, list items or rows", and the card sits inside
@@ -219,27 +220,34 @@ function BoardCard({
       reason: this is what the list holds and what the drag engine moves.
       */
       role="listitem"
-      tabIndex={0}
+      /* The keyboard path (`row-keys.ts`): the board is one Tab stop, the
+         arrows move between cards, Enter opens and Space completes. */
+      data-row-key=""
       onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
+        if (event.target !== event.currentTarget) return
+        if (event.key === "Enter") {
           event.preventDefault()
           onOpen()
+        } else if (event.key === " ") {
+          event.preventDefault()
+          onCheck()
         }
       }}
       style={{
-        /* The carried card tracks the pointer exactly; the ones making space
+        /* The carried card tracks the pointer exactly, across columns too; the ones making space
            for it ease. Same arrangement as the row's ExpandShell. */
         transform:
-          drag && drag.offset !== 0 ? `translate3d(0, ${drag.offset}px, 0)` : undefined,
+          drag && (drag.offset !== 0 || (drag.crossOffset ?? 0) !== 0)
+            ? `translate3d(${drag.crossOffset ?? 0}px, ${drag.offset}px, 0)`
+            : undefined,
         transition: carried
           ? "box-shadow var(--duration-fast) var(--ease-standard)"
           : "transform var(--duration-base) var(--ease-enter), box-shadow var(--duration-base) var(--ease-enter)",
         zIndex: carried ? 30 : undefined,
       }}
       className={cn(
-        "group/card relative cursor-pointer rounded-md border border-[var(--color-graphite-200)] bg-card px-2.5 py-2 transition-shadow hover:shadow-[var(--elevation-1)]",
+        "group/row relative cursor-pointer rounded-md border border-border bg-background px-2.5 py-2 transition-colors hover:bg-hover",
         T_FAST,
-        FOCUS,
         carried && "cursor-grabbing shadow-[var(--elevation-2)]",
       )}
     >
@@ -253,115 +261,42 @@ function BoardCard({
             event.stopPropagation()
             onCheck()
           }}
-          className={cn(
-            "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded",
-            FOCUS,
-          )}
+          className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-sm"
         >
-          <span
-            className={cn(
-              "flex size-4 items-center justify-center rounded-[3px] border transition-[background-color,border-color]",
-              T_FAST,
-              done
-                ? "border-[var(--color-success-600)] bg-[var(--color-success-600)]"
-                : "border-input bg-background",
-            )}
-          >
-            <svg viewBox="0 0 20 20" className="size-3" aria-hidden="true">
-              <path
-                d="M4 10.5 L8.2 14.5 L16 5.8"
-                fill="none"
-                className="stroke-[var(--color-graphite-0)]"
-                strokeWidth="3"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                style={{
-                  strokeDasharray: 20,
-                  strokeDashoffset: done ? 0 : 20,
-                  transition: "stroke-dashoffset var(--duration-base) var(--ease-enter)",
-                }}
-              />
-            </svg>
-          </span>
+          <CheckMark checked={done} />
         </button>
         <span
           className={cn(
-            "min-w-0 flex-1 text-[14px] leading-5 text-[var(--color-graphite-800)]",
+            "min-w-0 flex-1 text-sm text-foreground",
+            (done || task.status === "abandoned") && "text-muted-foreground",
+            /* Every card carries its box, on a page's board and Assigned's alike. */
             (done || task.status === "abandoned") &&
-              "text-[var(--color-graphite-500)] line-through decoration-[var(--color-graphite-400)]",
+              "line-through decoration-muted-foreground",
           )}
         >
           {task.title}
         </span>
-        <button
-          type="button"
-          /* The names are 9.1's and 9.5's, "Important" when on and "Mark as
-             important" when off, the same control as the row's star. */
-          aria-label={task.important ? "Important" : "Mark as important"}
-          aria-pressed={task.important || undefined}
-          onClick={(event) => {
-            event.stopPropagation()
-            onStar()
-          }}
-          className={cn(
-            "flex size-5 shrink-0 items-center justify-center rounded transition-opacity",
-            T_FAST,
-            FOCUS,
-            task.important && !given?.important
-              ? "text-[var(--color-graphite-900)] opacity-100"
-              : task.important
-                ? "text-[var(--color-graphite-600)] opacity-100"
-                : "text-[var(--color-graphite-400)] opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100 hover:text-[var(--color-graphite-600)]",
-          )}
-        >
-          <Star
-            className={cn(
-              "size-4 data-[size=sm]:size-4",
-              task.important && !given?.important && "fill-current",
-            )}
-            strokeWidth={1.75}
-            aria-hidden="true"
-          />
-        </button>
       </span>
-      {(showDue || task.steps || threadCount > 0 || showFace) && !done ? (
-        <span className="mt-1.5 flex items-center gap-2.5 pl-7">
-          {showDue && task.due ? (
-            <span
-              className={cn(
-                "text-[12px] leading-4",
-                task.due.overdue && !given?.overdue
-                  ? "font-medium text-[var(--color-danger-700)]"
-                  : "text-[var(--color-graphite-500)]",
-              )}
-            >
-              {task.due.label}
-            </span>
-          ) : null}
-          {task.steps ? (
-            <span className="inline-flex items-center gap-1 text-[12px] leading-4 text-[var(--color-graphite-500)] tabular-nums">
-              <ListChecks
-                className="size-3.5 data-[size=sm]:size-3.5"
-                strokeWidth={1.75}
-                aria-hidden="true"
-              />
-              {task.steps.complete}/{task.steps.total}
-            </span>
-          ) : null}
-          {threadCount > 0 ? (
-            <span className="inline-flex items-center gap-1 text-[12px] leading-4 text-[var(--color-graphite-500)] tabular-nums">
-              <MessageSquare
-                className="size-3.5 data-[size=sm]:size-3.5"
-                strokeWidth={1.75}
-                aria-hidden="true"
-              />
-              {threadCount}
-            </span>
-          ) : null}
-          {showFace && task.assignee ? (
-            <Face person={task.assignee} className="ml-auto" />
-          ) : null}
-        </span>
+      {/* The one meta line every view draws (`task-meta.tsx`): date, folder,
+          face, subtasks, repeat, then the star at its end. A finished card's
+          deadline is spent, so it drops its date, as a finished row does. */}
+      {hasMeta ? (
+        <RowMeta
+          className={"-mb-1 mt-0.5 w-full justify-between pl-7"}
+          source={{
+            ...(task.due === undefined ? {} : { due: task.due }),
+            ...(task.folder === undefined ? {} : { folder: task.folder }),
+            ...(task.assignee === undefined ? {} : { assignee: task.assignee }),
+            ...(task.steps === undefined ? {} : { steps: { done: task.steps.complete, total: task.steps.total } }),
+            ...(task.recurrence === undefined ? {} : { recurrence: task.recurrence }),
+            blockedBy: task.blockedBy ?? 0,
+            finished,
+            important: Boolean(task.important),
+            ...(task.importantTooltip === undefined ? {} : { importantTooltip: task.importantTooltip }),
+          }}
+          given={{ ...given, ...(done ? { due: true } : {}) }}
+          onToggleImportant={onStar}
+        />
       ) : null}
       {/*
       **What a release would do, said in words.**
@@ -374,7 +309,7 @@ function BoardCard({
       way.
        */}
       {wiring.proposal === undefined ? null : (
-        <span className="pointer-events-none absolute top-1/2 right-2 z-40 -translate-y-1/2 rounded-full bg-[var(--color-graphite-900)] px-2 py-0.5 text-[0.625rem] font-medium whitespace-nowrap text-[var(--color-graphite-50)]">
+        <span className="pointer-events-none absolute top-1/2 right-2 z-40 -translate-y-1/2 rounded-sm bg-foreground px-2 py-0.5 text-xs font-medium whitespace-nowrap text-background">
           {wiring.proposal}
         </span>
       )}
@@ -395,6 +330,7 @@ export function TaskBoard({
   columnRef,
   footer,
   quickAdd,
+  grid = "grid-cols-2",
 }: {
   columns: BoardColumn[]
   onOpenTask: (taskId: string, mode?: TaskOpenMode) => void
@@ -419,26 +355,34 @@ export function TaskBoard({
   quickAdd?: (column: BoardColumn) => ReactNode
   /* After the last column, the folder page's "Add section". */
   footer?: ReactNode
+  /* The column grid: two by default; a page's status board is three across. */
+  grid?: string
 }) {
   const zones = useRef(new Map<string, HTMLElement>())
+  const keys = useRowKeys<HTMLDivElement>()
 
+  /*
+  A column is as short as its cards (`items-start`), so a release anywhere
+  below one still lands in it: the column under the pointer's x whose top is
+  the nearest above the pointer. Side by side that is the one column in that
+  lane; stacked on a phone it is the column the pointer has scrolled into.
+  */
   function columnAt(point: { x: number; y: number }) {
+    let found: string | null = null
+    let foundTop = Number.NEGATIVE_INFINITY
     for (const [key, node] of zones.current) {
       const box = node.getBoundingClientRect()
-      if (
-        point.x >= box.left &&
-        point.x <= box.right &&
-        point.y >= box.top &&
-        point.y <= box.bottom
-      ) {
-        return key
+      if (point.x < box.left || point.x > box.right || point.y < box.top) continue
+      if (box.top > foundTop) {
+        found = key
+        foundTop = box.top
       }
     }
-    return null
+    return found
   }
 
   return (
-    <div className="grid grid-cols-2 items-start gap-3 pb-4">
+    <div ref={keys} className={cn("grid items-start gap-3 pb-4", grid)}>
       {columns.map((column) => (
         /*
         9.1's regions rule makes a board column "a named region, named by its
@@ -451,34 +395,38 @@ export function TaskBoard({
           key={column.key}
           aria-label={column.label}
           data-board-column={column.key}
+          data-empty={column.tasks.length === 0 ? "" : undefined}
           ref={(node) => {
             if (node) zones.current.set(column.key, node)
             else zones.current.delete(column.key)
             columnRef?.(column)(node)
           }}
-          className="flex min-h-[280px] flex-col rounded-lg bg-[var(--color-graphite-50)] p-2 transition-shadow"
+          /* Round 4: the cards carry the structure, so the column draws no
+             frame of its own, and an empty column stays as short as its
+             heading and its "New task" rather than standing full height. */
+          className="group/column flex flex-col"
         >
-          <div className="group/col flex h-7 items-center gap-1.5 px-1">
+          <div className="group/col mb-1 flex h-7 items-center gap-1.5 px-1">
             {columnLead?.(column)}
             {column.mark}
             <span
               className={cn(
-                "min-w-0 truncate text-[12px] leading-4 font-medium",
-                column.quiet
-                  ? "text-[var(--color-graphite-400)]"
-                  : "text-[var(--color-graphite-600)]",
+                "min-w-0 truncate text-xs font-medium",
+                column.tone ? PILL : "text-muted-foreground",
               )}
             >
               {column.label}
             </span>
-            <span className="text-[12px] leading-4 text-[var(--color-graphite-400)] tabular-nums">
+            {/* The count sits at the far end, apart from the name. */}
+            <span className="ml-auto text-xs text-muted-foreground tabular-nums">
               {column.tasks.length}
             </span>
           </div>
 
           <TaskList
-            className="flex-1 gap-1.5"
+            className="gap-1.5"
             tasks={column.tasks}
+            followAcross
             onTaskOpen={onOpenTask}
             onDropAt={(taskId, point) => {
               const landing = columnAt(point)
@@ -518,7 +466,9 @@ export function TaskBoard({
             }}
           />
 
-          {quickAdd ? <div className="mt-auto pt-1">{quickAdd(column)}</div> : null}
+          {/* Right after the last card, as Notion draws it, not pinned to the
+              column's foot. */}
+          {quickAdd ? <div className="pt-1">{quickAdd(column)}</div> : null}
         </section>
       ))}
       {footer}

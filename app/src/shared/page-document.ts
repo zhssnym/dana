@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { taskTitle } from './tasks.js'
+import { folderName } from './folders.js'
 import type { FileKind } from './files.js'
 
 /* `richContent` moved to `rich-content.ts` with issue #230 and is re-exported
@@ -28,7 +29,7 @@ export const MAX_SECTION_DEPTH = 3
  * decision 6), and `page_blocks_rich_content_check` says the same thing in the
  * database.
  */
-export const LIST_BLOCK_KINDS = ['bullet','numbered','checklist'] as const
+export const LIST_BLOCK_KINDS = ['bullet','numbered','checklist','toggle'] as const
 export type ListBlockKind = (typeof LIST_BLOCK_KINDS)[number]
 export const STRUCTURED_BLOCK_KINDS = [...LIST_BLOCK_KINDS,'quote','callout','code'] as const
 /** #211: document headings are authored structure, never Main Work Sections. */
@@ -50,7 +51,7 @@ export const isPresentationHeadingKind = (kind:string):kind is PresentationHeadi
 export const MEDIA_BLOCK_KINDS = ['image','file','audio','video'] as const
 export type MediaBlockKind = (typeof MEDIA_BLOCK_KINDS)[number]
 export const isMediaKind = (kind:string):kind is MediaBlockKind => (MEDIA_BLOCK_KINDS as readonly string[]).includes(kind)
-export const DOCUMENT_BLOCK_KINDS = ['section','paragraph',...PRESENTATION_HEADING_KINDS,'image','folder_ref',...STRUCTURED_BLOCK_KINDS,'file','audio','video','diagram'] as const
+export const DOCUMENT_BLOCK_KINDS = ['section','paragraph',...PRESENTATION_HEADING_KINDS,'image','folder_ref',...STRUCTURED_BLOCK_KINDS,'file','audio','video','diagram','divider','page'] as const
 export type DocumentBlockKind = (typeof DOCUMENT_BLOCK_KINDS)[number]
 /**
  * The kinds that persist a dragged width (4.17's `width_pct`, 25 to 100).
@@ -115,6 +116,24 @@ export const RICH_TEXT_BLOCK_KINDS = ['section','paragraph',...PRESENTATION_HEAD
 /** The one test for "may this take part in list nesting", written once. */
 export const isListKind = (kind:string):kind is ListBlockKind => (LIST_BLOCK_KINDS as readonly string[]).includes(kind)
 /**
+ * Any block nests (wave 2, migration 0038). `list_parent_block_id` is the
+ * general block parent: a child may be any kind but a Section (a Section's
+ * place is `section_block_id`, Work grouping), and a parent is one of the
+ * writing kinds below -- text, a heading, a list item, a toggle, a quote or a
+ * callout. A picture, a file, a code block, a diagram or a divider holds
+ * nothing. The database states only the child half
+ * (`page_blocks_list_parent_kind_check`); the parent half, precedence, the one
+ * Section rule and the depth ceiling are `domain/document-outline.ts`.
+ */
+export const NEST_PARENT_KINDS = ['paragraph',...PRESENTATION_HEADING_KINDS,...LIST_BLOCK_KINDS,'quote','callout'] as const
+/** How deep blocks nest under blocks: a root block is depth 0, its child 1. */
+export const MAX_NEST_DEPTH = 12
+/** May a block of this kind sit under another block at all. */
+export const mayNest = (childKind:string):boolean => childKind!=='section'
+/** The one test for "may a block of `childKind` nest under one of `parentKind`". */
+export const mayNestUnder = (childKind:string,parentKind:string):boolean =>
+ mayNest(childKind) && (NEST_PARENT_KINDS as readonly string[]).includes(parentKind)
+/**
  * An outline item carries both parent relations, and they are independent.
  * `section_block_id` is Work grouping: which Section this block or Task belongs
  * to. `list_parent_block_id` is writing structure: which list item this list
@@ -128,12 +147,14 @@ export const isListKind = (kind:string):kind is ListBlockKind => (LIST_BLOCK_KIN
  */
 export const documentOutlineItem = z.object({kind:z.enum(['block','task']),id:z.uuid(),section_block_id:z.uuid().nullable(),list_parent_block_id:z.uuid().nullable().default(null)}).superRefine((item,ctx)=>{
  if(item.list_parent_block_id===null)return
- if(item.kind!=='block')ctx.addIssue({code:'custom',path:['list_parent_block_id'],message:'A Task is never a nested list item.'})
- if(item.list_parent_block_id===item.id)ctx.addIssue({code:'custom',path:['list_parent_block_id'],message:'A list item cannot be nested under itself.'})
+ if(item.kind!=='block')ctx.addIssue({code:'custom',path:['list_parent_block_id'],message:'A Task is never a nested block.'})
+ if(item.list_parent_block_id===item.id)ctx.addIssue({code:'custom',path:['list_parent_block_id'],message:'A block cannot be nested under itself.'})
 })
 export type DocumentOutlineItem = z.infer<typeof documentOutlineItem>
 export const documentOperation = z.discriminatedUnion('op',[
- z.object({op:z.literal('put_block'),id:z.uuid(),block_kind:z.enum(DOCUMENT_BLOCK_KINDS),text:z.string().max(4000).nullable(),rich_content:richContent.nullable(),file_id:z.uuid().nullable(),ref_folder_id:z.uuid().nullable(),width_pct:z.number().int().min(25).max(100).nullable(),checked:z.boolean().nullable().default(null)}).superRefine((b,ctx)=>{
+ z.object({op:z.literal('put_block'),id:z.uuid(),block_kind:z.enum(DOCUMENT_BLOCK_KINDS),text:z.string().max(4000).nullable(),rich_content:richContent.nullable(),file_id:z.uuid().nullable(),ref_folder_id:z.uuid().nullable(),width_pct:z.number().int().min(25).max(100).nullable(),checked:z.boolean().nullable().default(null),toggleable:z.boolean().nullable().optional()}).superRefine((b,ctx)=>{
+  // A toggle heading (0038): only a presentation heading folds its children.
+  if((b.toggleable??null)!==null && !isPresentationHeadingKind(b.block_kind))ctx.addIssue({code:'custom',path:['toggleable'],message:'Only a heading folds.'})
   if((b.block_kind==='section'||isPresentationHeadingKind(b.block_kind)) && (b.text?.length??0)>120)ctx.addIssue({code:'custom',path:['text'],message:'A heading has at most 120 characters.'})
   if(b.rich_content!==null && (!(RICH_TEXT_BLOCK_KINDS as readonly string[]).includes(b.block_kind)||b.rich_content.runs.map(r=>r.text).join('')!==b.text))ctx.addIssue({code:'custom',path:['rich_content'],message:'Rich content must match its text projection.'})
   // 4.17's width, as #220 leaves it: an image and a previewable video persist
@@ -153,6 +174,13 @@ export const documentOperation = z.discriminatedUnion('op',[
   // #222: a diagram is its source text alone; the picture is derived on read.
   if(b.block_kind==='diagram'&&(b.file_id!==null||b.ref_folder_id!==null))ctx.addIssue({code:'custom',path:['file_id'],message:'A diagram carries no file and no folder reference.'})
   if(isMediaKind(b.block_kind)&&b.ref_folder_id!==null)ctx.addIssue({code:'custom',path:['ref_folder_id'],message:'A media block carries no folder reference.'})
+  // A divider is a rule and nothing else: no text, no rich content, no file,
+  // no folder reference and no width.
+  if(b.block_kind==='divider'&&((b.text!==null&&b.text!=='')||b.rich_content!==null||b.file_id!==null||b.ref_folder_id!==null||b.width_pct!==null))ctx.addIssue({code:'custom',path:['text'],message:'A divider carries no text, no file, no folder reference and no width.'})
+  // Wave 2: a `page` block stands for one sub-page of this Folder and is its
+  // name alone -- the title is the sub-page's own, read from the folder the
+  // viewer can see, never copied here. It names that page and nothing else.
+  if(b.block_kind==='page'&&(b.ref_folder_id===null||(b.text!==null&&b.text!=='')||b.rich_content!==null||b.file_id!==null||b.width_pct!==null))ctx.addIssue({code:'custom',path:['ref_folder_id'],message:'A page block names one page and carries nothing else.'})
   if((b.block_kind==='file'||b.block_kind==='audio'||b.block_kind==='video')&&((b.text!==null&&b.text!=='')||b.rich_content!==null))ctx.addIssue({code:'custom',path:['text'],message:'A file, audio or video block carries no text of its own.'})
   /*
   4.17: a media block **references one stored file by `file_id`**. Until this
@@ -182,6 +210,14 @@ export const documentOperation = z.discriminatedUnion('op',[
  }),
  z.object({op:z.literal('delete_block'),id:z.uuid()}),
  z.object({op:z.literal('create_task'),id:z.uuid(),title:taskTitle}),
+ /* Wave 2 (pages in pages), a Folder's Main document only. `create_page`
+    makes sub-page `id` under this Folder -- members and presets copied from
+    it (Hassan's decision 1) -- and its home `page` block `block_id`, which the
+    final outline must place. `trash_page` moves sub-page `folder_id` (and the
+    sub-pages its actor may trash) to Trash; the same transaction must delete
+    its `page` block, and a `page` block is never deleted without it. */
+ z.object({op:z.literal('create_page'),id:z.uuid(),block_id:z.uuid(),title:folderName}),
+ z.object({op:z.literal('trash_page'),folder_id:z.uuid()}),
  z.object({op:z.literal('set_outline'),items:z.array(documentOutlineItem).max(1500)})
 ])
 export type DocumentOperation = z.infer<typeof documentOperation>

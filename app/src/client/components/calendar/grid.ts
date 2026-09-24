@@ -16,19 +16,15 @@ constructed. A civil date has no DST. The one date this client evaluates
 against a clock is today, which `api/tz.ts` owns and `presenters.ts` re-exports
 as `presenterToday()`; the component reads it from there and hands it in.
 
-**The month names are a table and not `Intl`.** This is `presenters.ts`'s own
-reasoning, applied to the second place that needs it: a locale-driven
-formatter renders "août" on a French browser beside section 9's English copy,
-and this machine's own tooling answers in French. That file's table is private
-to it and carries abbreviations alone, so the long names below are a second
-table rather than a reuse. Once that file exports its table, this one should
-be deleted so the two cannot drift.
+**Period titles come from `lib/dates.ts`**, the one date formatter.
 
 **The format is the design's, which 9.1 says outright:** "the format of a date
 is the design's and this section has never spelled one". The week title
 joins its two dates with "to" rather than an en dash, as every other range in
 this client's copy does.
 */
+
+import { formatDate, formatDayHeading, formatMonthHeading } from '../../lib/dates.js'
 
 /** 9.5's three zoom levels. Year zoom is cut for v1 by Q3C. */
 export type Zoom = 'day' | 'week' | 'month'
@@ -45,21 +41,6 @@ export const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] 
 
 /** Six weeks of days: 9.5's fixed month grid, and 42 is well inside Q3C's 62. */
 export const MONTH_GRID_DAYS = 42
-
-const MONTH_NAMES = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December',
-] as const
 
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/
 
@@ -168,42 +149,18 @@ export function shiftAnchor(zoom: Zoom, anchor: string, direction: -1 | 1): stri
   return keyOf(Date.UTC(at.getUTCFullYear(), at.getUTCMonth() + direction, 1))
 }
 
-/** "September", or the empty string for a date this module could not read. */
-function monthName(date: string): string {
-  const stamp = stampOf(date)
-  if (Number.isNaN(stamp)) return ''
-  return MONTH_NAMES[new Date(stamp).getUTCMonth()] ?? ''
-}
-
-/** "Sep". Every English month abbreviates to its own first three letters. */
-function monthAbbreviation(date: string): string {
-  return monthName(date).slice(0, 3)
-}
-
-function yearOf(date: string): string {
-  return date.slice(0, 4)
-}
-
 /**
- * The heading above the grid: which period is on screen.
- *
- * Section 9 spells no string for it, the header being the design's. It is a
- * heading rather than a
- * control, so nothing addresses it by name and nothing here is normative copy.
+ * The heading above the grid: which period is on screen. Day: "Today",
+ * "Saturday", "24 Sep"; month: "September", "October 2027"; week:
+ * "21 to 27 Sep", with years only outside today's year.
  */
-export function periodTitle(zoom: Zoom, anchor: string): string {
-  if (zoom === 'day') {
-    return `${String(dayOfMonth(anchor))} ${monthName(anchor)} ${yearOf(anchor)}`
-  }
-  if (zoom === 'month') {
-    return `${monthName(anchor)} ${yearOf(anchor)}`
-  }
+export function periodTitle(zoom: Zoom, anchor: string, today = ''): string {
+  if (zoom === 'day') return formatDayHeading(anchor, today)
+  if (zoom === 'month') return formatMonthHeading(anchor, today)
   const start = startOfWeek(anchor)
   const end = addDays(start, 6)
-  const from =
-    monthOf(start) === monthOf(end)
-      ? String(dayOfMonth(start))
-      : `${String(dayOfMonth(start))} ${monthAbbreviation(start)}`
-  const head = yearOf(start) === yearOf(end) ? from : `${from} ${yearOf(start)}`
-  return `${head} to ${String(dayOfMonth(end))} ${monthAbbreviation(end)} ${yearOf(end)}`
+  const endLabel = formatDate(end, today)
+  if (monthOf(start) === monthOf(end)) return `${String(dayOfMonth(start))} to ${endLabel}`
+  const startLabel = formatDate(start, start.slice(0, 4) === end.slice(0, 4) ? end : today)
+  return `${startLabel} to ${endLabel}`
 }

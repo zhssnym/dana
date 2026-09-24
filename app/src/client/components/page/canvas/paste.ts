@@ -1,6 +1,7 @@
 import type { CanvasBlock, CanvasEditor } from './schema.js'
 import type { CanvasInput } from './adapters.js'
 import { ancestorsOf } from './commands.js'
+import { isSectionHeading } from './outline.js'
 
 const internalFile = /^\/api\/v1\/files\/[0-9a-f-]{36}$/i
 
@@ -50,12 +51,23 @@ export function normalizeCanvasPaste(
         ),
       }
     }
+    if (block.type === 'toggleListItem') {
+      return {
+        id,
+        type: 'toggleListItem',
+        content: block.content,
+        children: block.children.map((child) =>
+          structured(child, crypto.randomUUID()),
+        ),
+      }
+    }
+    if (block.type === 'divider') return { id, type: 'divider', children: [] }
     if (block.type === 'quote') {
       return {
         id,
         type: 'quote',
         content: block.content,
-        children: [],
+        children: block.children.map((child) => structured(child, crypto.randomUUID())),
       }
     }
     if (block.type === 'callout') {
@@ -63,7 +75,7 @@ export function normalizeCanvasPaste(
         id,
         type: 'callout',
         content: block.content,
-        children: [],
+        children: block.children.map((child) => structured(child, crypto.randomUUID())),
       }
     }
     if (block.type === 'diagram') {
@@ -101,11 +113,12 @@ export function normalizeCanvasPaste(
         children: [],
       }
     }
+    // Text holds nested blocks (0038), so a pasted paragraph keeps its own.
     return {
       id,
       type: 'paragraph',
       content: Array.isArray(block.content) ? block.content : '',
-      children: [],
+      children: block.children.map((child) => structured(child, crypto.randomUUID())),
     }
   }
 
@@ -115,6 +128,9 @@ export function normalizeCanvasPaste(
         throw new Error(
           'Task references cannot be duplicated by paste. Move the original Task with its block menu.',
         )
+      }
+      if (block.type === 'danaPage') {
+        throw new Error('A page cannot be duplicated by paste. Drag the original to move it.')
       }
       const id = crypto.randomUUID()
 
@@ -194,7 +210,7 @@ export function pasteIntoCanvas(
     const current = editor.getTextCursorPosition().block
     const parent = ancestorsOf(editor.document, current.id)?.at(-1)
     const level =
-      parent?.type === 'heading' && parent.props.isToggleable !== false
+      parent !== undefined && isSectionHeading(parent) && parent.type === 'heading'
         ? parent.props.level
         : 0
     const normalized = normalizeCanvasPaste(

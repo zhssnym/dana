@@ -6,9 +6,9 @@ and what glyph. This draws them and nothing else, so the folder menu in the
 Library and the folder menu on that folder's own window bar are now the same
 menu, differing only in what each surface hands over.
 
-**A surface may still add items of its own, through `extra`.** Two do: the
-Library row's "Add task" and "New folder group", and the folder page's
-"Transfer ownership". That escape hatch is deliberate and narrow, taking a
+**A surface may still add items of its own, through `extra`.** The folder's
+menu no longer does: its header "…", its Library row "…" and the row's
+right-click all draw exactly `lib/object-acts.ts`'s folder list. That escape hatch is deliberate and narrow, taking a
 *rendered* node rather than a spec, so an act that belongs to the object
 cannot be smuggled in this way and quietly diverge again. Anything belonging
 to every surface goes in the contract. AC-246 enumerates the four items that

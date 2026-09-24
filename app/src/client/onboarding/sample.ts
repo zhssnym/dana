@@ -9,9 +9,11 @@ the sample either way, and the strip is furniture whose absence changes
 nothing on the server. The Settings row is the way back to the act from a
 device that dismissed it.
 
-**Removal is confirmed once and then undone from the bar.** The confirm is
-9.1's ConfirmDialog with the act in the sentence; the undo is POST /sample,
-which is idempotent, so a bar pressed twice lands on one workspace.
+**Removal is one press, and the undo bar is its safety net**: no confirm
+before it, because the act is reversible. The undo is POST /sample, which is
+idempotent, so a bar pressed twice lands on one workspace. Removing the sample
+also answers the starter offer: a person who just said no to example content
+is not offered more of it (`StarterOffer.tsx`).
 */
 import { useState } from 'react'
 
@@ -19,12 +21,13 @@ import { useRemoveSample, useRestoreSample } from '../api/mutations.js'
 import { useSample } from '../api/queries.js'
 import { pushUndo } from '../shell/undo.js'
 import { showToast } from '../state/toasts.js'
+import { dismissStarters } from './StarterOffer.js'
 
 export const SAMPLE_COPY = {
-  strip: 'This is a sample workspace to show you around.',
+  strip: 'Sample workspace',
+  stripRemove: 'Remove',
   remove: 'Remove sample data',
   keep: 'Keep it',
-  confirm: 'Remove the sample workspace? Everything it added goes; anything you made yourself stays.',
   undone: 'Sample workspace removed',
   restore: 'Restore sample data',
   keptOne: (name: string) => `${name} was left in place because it is shared.`,
@@ -59,10 +62,6 @@ export interface SampleActs {
   /** The strip has been dismissed on this device. */
   readonly kept: boolean
   readonly keep: () => void
-  /** Whether the confirm is open; the caller draws the dialog. */
-  readonly confirming: boolean
-  readonly askRemove: () => void
-  readonly cancelRemove: () => void
   readonly remove: () => void
   readonly restore: () => void
 }
@@ -72,14 +71,13 @@ export function useSampleActs(): SampleActs {
   const removeSample = useRemoveSample()
   const restoreSample = useRestoreSample()
   const [kept, setKept] = useState(readKept)
-  const [confirming, setConfirming] = useState(false)
 
   const restore = (): void => {
     restoreSample.mutate()
   }
 
   const remove = (): void => {
-    setConfirming(false)
+    dismissStarters()
     removeSample.mutate(undefined, {
       onSuccess: (keptFolders) => {
         pushUndo(SAMPLE_COPY.undone, restore)
@@ -98,9 +96,6 @@ export function useSampleActs(): SampleActs {
       writeKept(true)
       setKept(true)
     },
-    confirming,
-    askRemove: () => setConfirming(true),
-    cancelRemove: () => setConfirming(false),
     remove,
     restore,
   }

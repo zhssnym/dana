@@ -1,10 +1,9 @@
 /*
 The card's Dependencies block (#225), over 7.25's three endpoints.
 
-**Minimal by default.** A task with no dependency draws two quiet actions,
-"Depends on…" and "Blocks…", and no heading: a folder that never uses the
-feature should not feel heavier because it exists. Once an edge exists, or the
-person opens the picker, it becomes an ordinary card block.
+**Absent by default.** A task with no dependency draws nothing at all: the
+panel's "Add property" menu offers "Dependency", which opens this block on its
+picker (`opening`). Once an edge exists it is an ordinary panel section.
 
 **One relation, two doors.** "Depends on…" posts to this task naming the pick;
 "Blocks…" posts to the pick naming this task, which is 7.25's own reversal.
@@ -16,7 +15,7 @@ Only tasks are offered, and only ones not already related.
 **A refusal is said where the person is looking.** The server's 422 (self,
 cycle) is re-worded here and suppressed as a toast (`INLINE_VALIDATION_META`).
 */
-import { useMemo, useState, type ReactNode } from "react"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
 
 import { useFolderOpenTasks, useReferenceSearch, useTaskDependencies } from "../api/queries.js"
 import { useAddTaskDependency, useRemoveTaskDependency } from "../api/mutations.js"
@@ -36,7 +35,7 @@ export const BLOCKED_BY_HEADING = "Blocked by"
 export const BLOCKS_HEADING = "Blocks"
 
 const QUIET_BUTTON =
-  "inline-flex h-6 items-center gap-1.5 rounded-md px-1.5 text-[length:var(--text-meta-size)] text-[var(--color-graphite-500)] transition-colors hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-700)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-dana-accent-600)]"
+  "inline-flex h-6 items-center gap-1.5 rounded-md px-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 
 /** Why an add was refused, in words for the person rather than the field. */
 function refusalOf(error: unknown, mode: Mode): string {
@@ -52,36 +51,38 @@ function refusalOf(error: unknown, mode: Mode): string {
   return "Couldn't add the dependency. Try again."
 }
 
-export function TaskDependencies({
-  taskId,
-  folderId,
-  section,
-}: {
+interface DependenciesProps {
   taskId: string
   folderId: string | undefined
   /* The card's own block chrome, handed in so this file needs nothing from
      `task-card.tsx` and the two never import each other. */
   section: (badge: string | undefined, body: ReactNode) => ReactNode
-}) {
-  /* A lab fixture's id is its title; only a real task has a relation. */
-  if (!UUID.test(taskId)) return null
-  return <Dependencies taskId={taskId} folderId={folderId} section={section} />
+  /** "Add property → Dependency" was chosen: open on the picker. */
+  opening?: boolean
+  /** The block went back to having nothing to show. */
+  onIdle?: () => void
 }
 
-function Dependencies({
-  taskId,
-  folderId,
-  section,
-}: {
-  taskId: string
-  folderId: string | undefined
-  section: (badge: string | undefined, body: ReactNode) => ReactNode
-}) {
+/** Whether a task id is one the server can hold a relation for. */
+export function isRelatableTask(taskId: string): boolean {
+  return UUID.test(taskId)
+}
+
+export function TaskDependencies(props: DependenciesProps) {
+  /* A lab fixture's id is its title; only a real task has a relation. */
+  if (!UUID.test(props.taskId)) return null
+  return <Dependencies {...props} />
+}
+
+function Dependencies({ taskId, folderId, section, opening = false, onIdle }: DependenciesProps) {
   const read = useTaskDependencies(taskId)
   const add = useAddTaskDependency()
   const remove = useRemoveTaskDependency()
-  const [mode, setMode] = useState<Mode | null>(null)
+  const [mode, setMode] = useState<Mode | null>(opening ? "depends_on" : null)
   const [refusal, setRefusal] = useState<string | null>(null)
+  useEffect(() => {
+    if (opening) setMode("depends_on")
+  }, [opening])
 
   const dependsOn = read.data?.depends_on ?? []
   const blocks = read.data?.blocks ?? []
@@ -117,7 +118,7 @@ function Dependencies({
     <div className="flex flex-wrap items-center gap-0.5">
       <button
         type="button"
-        className={cn(QUIET_BUTTON, mode === "depends_on" && "bg-[var(--color-graphite-50)] text-[var(--color-graphite-700)]")}
+        className={cn(QUIET_BUTTON, mode === "depends_on" && "bg-muted text-foreground")}
         aria-expanded={mode === "depends_on"}
         onClick={() => open("depends_on")}
       >
@@ -126,7 +127,7 @@ function Dependencies({
       </button>
       <button
         type="button"
-        className={cn(QUIET_BUTTON, mode === "blocks" && "bg-[var(--color-graphite-50)] text-[var(--color-graphite-700)]")}
+        className={cn(QUIET_BUTTON, mode === "blocks" && "bg-muted text-foreground")}
         aria-expanded={mode === "blocks"}
         onClick={() => open("blocks")}
       >
@@ -154,10 +155,12 @@ function Dependencies({
     )
 
   const empty = dependsOn.length === 0 && blocks.length === 0
-  if (empty && mode === null) {
-    /* Nothing yet: two quiet actions, no heading, no block. */
-    return <div className="-ml-1.5">{actions}</div>
-  }
+  const idle = empty && mode === null
+  useEffect(() => {
+    if (idle && read.data !== undefined) onIdle?.()
+  }, [idle, read.data, onIdle])
+  /* Nothing yet: no heading, no block, no actions. */
+  if (idle) return null
 
   const activeBlockers = dependsOn.filter(
     (edge) => edge.state === "active" || edge.state === "unresolved",
@@ -205,7 +208,7 @@ function EdgeList({
 }) {
   return (
     <div>
-      <div className="pb-0.5 text-[length:var(--text-meta-size)] leading-4 font-medium text-[var(--color-graphite-500)]">
+      <div className="pb-0.5 text-xs leading-4 font-medium text-muted-foreground">
         {heading}
       </div>
       <ul className="flex flex-col" aria-label={heading}>
@@ -255,45 +258,45 @@ function EdgeRow({
   const word = stateWord(edge, direction)
   const title = edge.task?.title ?? "Private task"
   return (
-    <li className="group/dep -mx-1 flex h-7 items-center gap-2 rounded-md px-1 text-[length:var(--text-meta-size)] hover:bg-[var(--color-graphite-50)]">
+    <li className="group/dep -mx-1 flex h-7 items-center gap-2 rounded-md px-1 text-xs hover:bg-accent">
       {done ? (
         <CheckCircle2
-          className="size-3.5 shrink-0 text-[var(--color-graphite-400)]"
+          className="size-3.5 shrink-0 text-muted-foreground"
           strokeWidth={1.75}
           aria-hidden="true"
         />
       ) : (
         <span
           aria-hidden="true"
-          className="mx-[3px] size-2 shrink-0 rounded-full border border-[var(--color-graphite-400)]"
+          className="mx-[3px] size-2 shrink-0 rounded-full border border-border"
         />
       )}
       {edge.task === null ? (
         /* 7.25's `unknown`: the relation exists, the far task is not the
            viewer's to see, and nothing about it is drawn beyond that. */
-        <span className="min-w-0 truncate text-[var(--color-graphite-400)] italic">{title}</span>
+        <span className="min-w-0 truncate text-muted-foreground italic">{title}</span>
       ) : (
         <button
           type="button"
           onClick={() => edge.task && openTask(edge.task.id)}
           className={cn(
-            "min-w-0 truncate text-left text-[var(--color-graphite-700)] hover:underline focus-visible:underline focus-visible:outline-none",
-            done && "text-[var(--color-graphite-500)] line-through",
+            "min-w-0 truncate text-left text-foreground hover:underline focus-visible:underline focus-visible:outline-none",
+            done && "text-muted-foreground line-through",
           )}
         >
           {title}
         </button>
       )}
       {showFolder && edge.task !== null ? (
-        <span className="shrink-0 truncate text-[var(--color-graphite-400)]">
+        <span className="shrink-0 truncate text-muted-foreground">
           {edge.task.folder.name}
         </span>
       ) : null}
       {word ? (
         <span
           className={cn(
-            "shrink-0 text-[var(--color-graphite-500)]",
-            edge.state === "unresolved" && direction === "depends_on" && "text-[var(--color-danger-700)]",
+            "shrink-0 text-muted-foreground",
+            edge.state === "unresolved" && direction === "depends_on" && "text-destructive",
           )}
         >
           {word}
@@ -304,7 +307,7 @@ function EdgeRow({
         aria-label={`Remove dependency on ${title}`}
         title="Remove"
         onClick={onRemove}
-        className="ml-auto inline-flex size-5 shrink-0 items-center justify-center rounded text-[var(--color-graphite-400)] opacity-0 transition-opacity group-hover/dep:opacity-100 hover:text-[var(--color-graphite-700)] focus-visible:opacity-100"
+        className="ml-auto inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity group-hover/dep:opacity-100 hover:text-foreground focus-visible:opacity-100"
       >
         <X className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
       </button>
@@ -357,7 +360,7 @@ function DependencyPicker({
     status = searching ? "No matching tasks." : "Type to search your tasks."
 
   return (
-    <div className="flex flex-col gap-1 rounded-md border border-[var(--color-graphite-200)] bg-card p-1.5">
+    <div className="flex flex-col gap-1 rounded-md border border-border bg-card p-1.5">
       <input
         autoFocus
         role="combobox"
@@ -391,10 +394,10 @@ function DependencyPicker({
             onCancel()
           }
         }}
-        className="h-7 w-full rounded bg-transparent px-1.5 text-[length:var(--text-meta-size)] text-[var(--color-graphite-700)] outline-none placeholder:text-[var(--color-graphite-400)] focus:ring-1 focus:ring-[var(--color-dana-accent-600)]"
+        className="h-7 w-full rounded bg-transparent px-1.5 text-xs text-foreground outline-none placeholder:text-muted-foreground"
       />
       {refusal ? (
-        <p role="alert" className="px-1.5 text-[length:var(--text-meta-size)] leading-4 text-[var(--color-danger-700)]">
+        <p role="alert" className="px-1.5 text-xs leading-4 text-destructive">
           {refusal}
         </p>
       ) : null}
@@ -409,8 +412,8 @@ function DependencyPicker({
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => onPick(candidate.id)}
             className={cn(
-              "flex h-7 cursor-pointer items-center truncate rounded px-1.5 text-[length:var(--text-meta-size)] text-[var(--color-graphite-700)]",
-              index === clamped && "bg-[var(--color-graphite-50)]",
+              "flex h-7 cursor-pointer items-center truncate rounded px-1.5 text-xs text-foreground",
+              index === clamped && "bg-muted",
             )}
           >
             {candidate.label}
@@ -418,7 +421,7 @@ function DependencyPicker({
         ))}
       </ul>
       {status ? (
-        <p className="px-1.5 pb-0.5 text-[length:var(--text-meta-size)] leading-4 text-[var(--color-graphite-400)]">{status}</p>
+        <p className="px-1.5 pb-0.5 text-xs leading-4 text-muted-foreground">{status}</p>
       ) : null}
     </div>
   )

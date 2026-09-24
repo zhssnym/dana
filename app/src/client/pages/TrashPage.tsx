@@ -1,9 +1,8 @@
 /*
 Trash, 9.11, at /app/trash.
 
-**This file is wiring and the markup is `screens/trash-screen.tsx`**, lifted
-whole from the designer's prototype over `lib/trash.ts`; the screen's
-header names its five seams and the lib's header names what it crosses.
+**This file is wiring and the markup is `screens/trash-screen.tsx`**, over
+`lib/trash.ts`.
 
 **The two restores take two hooks and one address between them**, which is
 the one thing this page knows that the screen does not. A folder goes to
@@ -40,8 +39,8 @@ export function TrashPage(): React.JSX.Element {
           const said = (): void => {
             showToast(
               (item.kind === 'task' || item.kind === 'discussion') && item.from
-                ? `Restored "${item.name}" to ${item.from}`
-                : `Restored "${item.name}"`,
+                ? `Restored “${item.name}” to ${item.from}`
+                : `Restored “${item.name}”`,
             )
           }
           if (item.kind === 'folder') restoreFolder.mutate(item.subject, { onSuccess: said })

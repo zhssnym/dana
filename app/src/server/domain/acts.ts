@@ -34,6 +34,7 @@ is created, and what the file smuggled was never read.
 import { randomUUID } from 'node:crypto'
 
 import { sql } from 'drizzle-orm'
+import type { SQL } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
 import type { DocumentOperation } from '../../shared/pages.js'
@@ -52,8 +53,16 @@ import { inTransaction, pairSet, rowsOf } from '../database.js'
 import type { Executor, IdPair } from '../database.js'
 import { recordEvent } from './events.js'
 import { createNativeFacets } from './facets.js'
-import { recordAccessTransition } from './folder-access.js'
+import { folderActorFacts, mayPerform, recordAccessTransition } from './folder-access.js'
+import { copyParentMembers } from './folders.js'
 import { copyCoverFile, copyPageFile, readableFileScope } from './files.js'
+import {
+  appendHomeBlock,
+  lastChildPosition,
+  lockPageTree,
+  mayAddChildUnder,
+  PAGE_TREE_EDIT_ACTION,
+} from './page-tree.js'
 import { applyDocument, documentMetadata, DocumentRefusal } from './page-document.js'
 import {
   applyWorkflowTaskLabels,
@@ -65,7 +74,7 @@ import {
 import { upsertReminder } from './tasks.js'
 import { copyTaskDocument } from './task-document.js'
 import { positionAtSectionEnd, seededItems } from './page-order.js'
-import { initialKeys } from './fractional-index.js'
+import { initialKeys, keyBetween } from './fractional-index.js'
 import { copyDependenciesWithin } from './task-dependencies.js'
 /* 4.11 calendar arithmetic rather than a second copy of it here: both ends are
    UTC midnights, so no DST shift can round the division (issue #215). */
@@ -156,6 +165,76 @@ function remapRichContentLinks(
   }
 }
 
+/**
+ * Where a sub-page's copy goes: under the same parent, directly after the
+ * original. Null (a top-level copy) when the source is a root, or when the
+ * duplicator may not add a page under its parent.
+ */
+async function placeOfCopy(
+  tx: Executor,
+  viewerId: string,
+  sourceId: string,
+): Promise<{ parentId: string; childPosition: string } | null> {
+  const found = await rowsOf(
+    tx,
+    sql`SELECT f.parent_folder_id, f.child_position FROM folders f
+          JOIN folders p ON p.id = f.parent_folder_id AND p.deleted_at IS NULL
+         WHERE f.id = ${sourceId}::uuid`,
+  )
+  const row = found[0]
+  if (row === undefined) return null
+  const parentId = String(row.parent_folder_id)
+  const parent = await folderActorFacts(tx, viewerId, parentId)
+  if (parent === null || parent.isDefault) return null
+  if (!mayPerform(parent, PAGE_TREE_EDIT_ACTION).allowed) return null
+  if (!(await mayAddChildUnder(tx, parentId))) return null
+  if (row.child_position === null || row.child_position === undefined) {
+    return { parentId, childPosition: await lastChildPosition(tx, parentId) }
+  }
+  const lower = String(row.child_position)
+  const next = await rowsOf(
+    tx,
+    sql`SELECT min(child_position) AS upper FROM folders
+         WHERE parent_folder_id = ${parentId}::uuid AND child_position > ${lower}`,
+  )
+  const upper = next[0]?.upper
+  return {
+    parentId,
+    childPosition: keyBetween(lower, upper === null || upper === undefined ? null : String(upper)),
+  }
+}
+
+/** A top-level copy: the original's collection, and the slot after it in the
+ * duplicator's stored Library order (4.19's `sidebar_order`) when that names it. */
+async function placeBesideInLibrary(
+  tx: Executor,
+  viewerId: string,
+  sourceId: string,
+  copyId: string,
+): Promise<void> {
+  await tx.execute(
+    sql`UPDATE folder_members SET shelf_name = (
+          SELECT shelf_name FROM folder_members
+           WHERE folder_id = ${sourceId}::uuid AND user_id = ${viewerId}::uuid)
+         WHERE folder_id = ${copyId}::uuid AND user_id = ${viewerId}::uuid`,
+  )
+  const settings = await rowsOf(
+    tx,
+    sql`SELECT sidebar_order FROM user_settings WHERE user_id = ${viewerId}::uuid FOR UPDATE`,
+  )
+  const raw: unknown = settings[0]?.sidebar_order
+  const order: unknown = typeof raw === 'string' ? JSON.parse(raw) : raw
+  if (!Array.isArray(order)) return
+  const at = order.indexOf(sourceId)
+  // 300 is `patchSettingsBody.sidebar_order`'s limit.
+  if (at < 0 || order.length >= 300) return
+  const next = [...order.slice(0, at + 1), copyId, ...order.slice(at + 1)]
+  await tx.execute(
+    sql`UPDATE user_settings SET sidebar_order = ${JSON.stringify(next)}::jsonb
+         WHERE user_id = ${viewerId}::uuid`,
+  )
+}
+
 export async function duplicateFolder(
   db: Db,
   store: ObjectStore,
@@ -168,6 +247,10 @@ export async function duplicateFolder(
   const copiedObjects: string[] = []
   try {
     return await inTransaction(db, async (tx) => {
+      /* The tree lock before anything is read (lock order), so the copy's
+         place beside the original cannot move under it. */
+      await lockPageTree(tx)
+      const place = await placeOfCopy(tx, viewerId, sourceFolderId)
       await tx.execute(sql`SELECT 1 FROM users WHERE id = ${viewerId} FOR UPDATE`)
       const owned = await rowsOf(
         tx,
@@ -256,12 +339,14 @@ export async function duplicateFolder(
       const made = await rowsOf(
         tx,
         sql`INSERT INTO folders (owner_id, name, icon, color, description,
-                                 cover_file_id, cover_preset, cover_focal_y)
+                                 cover_file_id, cover_preset, cover_focal_y,
+                                 parent_folder_id, child_position)
             VALUES (${viewerId}::uuid, ${name}, ${source?.icon ?? null},
                     ${source?.color ?? null}, ${source?.description ?? null},
                     ${coverFileId}::uuid,
                     ${coverFileId === null ? (source?.cover_preset ?? null) : null},
-                    ${Number(source?.cover_focal_y ?? 50)})
+                    ${Number(source?.cover_focal_y ?? 50)},
+                    ${place?.parentId ?? null}::uuid, ${place?.childPosition ?? null})
             RETURNING id`,
       )
       const copyId = String(made[0]?.id)
@@ -292,6 +377,13 @@ export async function duplicateFolder(
          facet's content to a later slice. Every `folders` insert needs a call
          like this beside it. */
       await createNativeFacets(tx, copyId, viewerId)
+      /* Beside the original: a sub-page as `createSubPage` makes one, or a
+         top-level page next to it in the duplicator's own Library. */
+      if (place === null) await placeBesideInLibrary(tx, viewerId, sourceFolderId, copyId)
+      else {
+        await appendHomeBlock(tx, place.parentId, copyId)
+        await copyParentMembers(tx, viewerId, place.parentId, copyId)
+      }
       if (coverFileId !== null) {
         // The scope, now that there is a folder to name (4.16, 7.15).
         await tx.execute(
@@ -301,7 +393,9 @@ export async function duplicateFolder(
       }
 
       // Copy explicit membership and mixed placement; never infer parents from proximity.
-      const blocks = await rowsOf(tx,sql`SELECT * FROM page_blocks WHERE folder_id=${sourceFolderId}::uuid ORDER BY position,id`)
+      // Wave 2: a `page` block is its sub-page's one home and the duplicate
+      // copies this page alone, so the sub-pages keep theirs in the source.
+      const blocks = await rowsOf(tx,sql`SELECT * FROM page_blocks WHERE folder_id=${sourceFolderId}::uuid AND kind <> 'page' ORDER BY position,id`)
       const sectionMap = new Map(blocks.map(block=>[String(block.id),randomUUID()]))
       /*
       Every page asset is copied into the new folder as an independent file,
@@ -492,7 +586,7 @@ export async function duplicateFolder(
         const purposeBlocks = await rowsOf(
           tx,
           sql`SELECT id, kind, position, text, rich_content, file_id, width_pct,
-                     checked, list_parent_block_id, page_position
+                     checked, list_parent_block_id, page_position, toggleable
                 FROM page_blocks
                WHERE facet_id = ${sourcePurposeId}::uuid
                ORDER BY page_position ASC NULLS LAST, position ASC, id ASC`,
@@ -535,14 +629,15 @@ export async function duplicateFolder(
           await tx.execute(
             sql`INSERT INTO page_blocks
                   (id, facet_id, kind, position, text, rich_content, file_id,
-                   width_pct, checked, page_position)
+                   width_pct, checked, page_position, toggleable)
                 VALUES (${purposeIdentity.get(String(block.id))}::uuid,
                         ${copiedPurposeId}::uuid, ${String(block.kind)},
                         ${Number(block.position)}, ${block.text ?? null},
                         ${richContent === null ? null : JSON.stringify(richContent)}::jsonb,
                         ${fileId}::uuid, ${block.width_pct ?? null},
                         ${block.checked === null || block.checked === undefined ? null : Boolean(block.checked)},
-                        ${block.page_position ?? null})`,
+                        ${block.page_position ?? null},
+                        ${block.toggleable === true ? true : null})`,
           )
         }
         for (const block of purposeBlocks) {
@@ -835,6 +930,13 @@ export async function duplicateTask(
 export type ImportResult =
   | { kind: 'imported'; folders: Array<{ id: string; name: string }> }
   | { kind: 'folder_cap' }
+  /* Only with `parentId` (POST /folders/:id/import), on `createSubPage`'s
+     terms: the parent is missing, trashed or not the actor's (404); below
+     edit rights there (403); a default folder (422); too deep (422). */
+  | { kind: 'parent_not_found' }
+  | { kind: 'forbidden'; reason: string }
+  | { kind: 'default_parent' }
+  | { kind: 'too_deep' }
 
 export async function importWorkflow(
   db: Db,
@@ -845,9 +947,37 @@ export async function importWorkflow(
    * an input of the request rather than a fact the server holds. */
   anchor: string | null = null,
   store?: ObjectStore,
+  /** The page the file's folders become sub-pages of, in file order after
+   * its existing children; absent, they are top-level pages. */
+  parentId?: string,
 ): Promise<ImportResult> {
   const copiedObjects:string[]=[]
+  /*
+  The import's own clock, the sample workspace's fix (`server/sample/workspace.ts`).
+  The whole import is one transaction, where `now()` is one instant, so every
+  Folder and Task it made shared a `created_at`, and every list ordering by
+  `created_at, id` fell through to the random uuid: the Tasks read in a
+  different order from the file. Each row takes its own millisecond instead, in
+  file order, within the minute before now so nothing is created in the future.
+  */
+  let tick = 0
+  const clock = (): SQL => {
+    tick += 1
+    return sql`now() - interval '60 seconds' + ${tick}::int * interval '1 millisecond'`
+  }
   return inTransaction(db, async (tx) => {
+    /* Into a page: `createSubPage`'s gate, under the tree lock taken before
+       anything is read, so a concurrent move cannot deepen or trash the
+       parent between the check and the inserts. */
+    if (parentId !== undefined) {
+      await lockPageTree(tx)
+      const parent = await folderActorFacts(tx, viewerId, parentId)
+      if (parent === null) return { kind: 'parent_not_found' } as const
+      const decision = mayPerform(parent, PAGE_TREE_EDIT_ACTION)
+      if (!decision.allowed) return { kind: 'forbidden', reason: decision.reason } as const
+      if (parent.isDefault) return { kind: 'default_parent' } as const
+      if (!(await mayAddChildUnder(tx, parentId))) return { kind: 'too_deep' } as const
+    }
     await tx.execute(sql`SELECT 1 FROM users WHERE id = ${viewerId} FOR UPDATE`)
     const owned = await rowsOf(
       tx,
@@ -868,10 +998,14 @@ export async function importWorkflow(
        the path it answers with — `folders.<n>.labels` — is the one
        `canonicalWorkflowBody`'s own refusals already use. */
     for (const [folderIndex, folder] of file.folders.entries()) {
+      const childPosition =
+        parentId === undefined ? null : await lastChildPosition(tx, parentId)
       const made = await rowsOf(
         tx,
-        sql`INSERT INTO folders (owner_id, name)
-            VALUES (${viewerId}::uuid, ${folder.name})
+        sql`INSERT INTO folders (owner_id, name, created_at,
+                                 parent_folder_id, child_position)
+            VALUES (${viewerId}::uuid, ${folder.name}, ${clock()},
+                    ${parentId ?? null}::uuid, ${childPosition})
             RETURNING id`,
       )
       const folderId = String(made[0]?.id)
@@ -891,6 +1025,13 @@ export async function importWorkflow(
         actorId: viewerId,
         transition: 'created_owner',
       })
+      /* Into a page, the new page is a sub-page as `createSubPage` makes one:
+         a home block at the end of the parent's Main document, and the
+         parent's members copied with their presets. */
+      if (parentId !== undefined) {
+        await appendHomeBlock(tx, parentId, folderId)
+        await copyParentMembers(tx, viewerId, parentId, folderId)
+      }
       /* The four native facets, in this same transaction (issue #210, 4.30:
          "natives are created with the Folder and never lazily"). **The
          source's facets do not travel and the file carries none**: a
@@ -968,13 +1109,13 @@ export async function importWorkflow(
           tx,
           sql`INSERT INTO tasks (folder_id, title, notes, important, due_date,
                                  recurrence_rule, series_id, assignee_id,
-                                 created_by)
+                                 created_by, created_at)
               VALUES (${folderId}::uuid, ${task.title},
                       ${task.notes ?? null}, ${task.important ?? false},
                       ${dated ? anchor : null}::date,
                       ${task.recurrence_rule ?? null},
                       ${task.recurrence_rule === undefined ? null : randomUUID()}::uuid,
-                      ${viewerId}::uuid, ${viewerId}::uuid)
+                      ${viewerId}::uuid, ${viewerId}::uuid, ${clock()})
               RETURNING id`,
         )
         const taskId = String(madeTask[0]?.id)

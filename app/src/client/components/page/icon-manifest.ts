@@ -56,6 +56,7 @@ import {
   Fish,
   Flag,
   Flame,
+  FileText,
   Folder,
   Footprints,
   FOLDER_ICON_KEYS,
@@ -388,10 +389,11 @@ export const ICON_LABELS: Record<keyof typeof FOLDER_ICONS, string> = {
 
 /** The icon a stored key draws; an unset or unknown key is the folder. */
 export function markIcon(key: string | null): LucideIcon {
-  if (key === null) return Folder
+  /* No icon of its own: the plain page glyph (a page, never a folder). */
+  if (key === null) return FileText
   const drawn = (FOLDER_ICONS as Record<string, LucideIcon>)[key]
   if (drawn !== undefined) return drawn
   /* An emoji is a key like any other and resolves here rather than at any
      call site, so every surface that draws identity draws it. */
-  return emojiMark(key) ?? Folder
+  return emojiMark(key) ?? FileText
 }

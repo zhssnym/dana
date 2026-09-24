@@ -145,11 +145,6 @@ export function to12Hour(hour: number) {
   return hour % 12 === 0 ? 12 : hour % 12
 }
 
-export function to24Hour(hour12: number, period: "AM" | "PM") {
-  const base = hour12 % 12
-  return period === "PM" ? base + 12 : base
-}
-
 export function periodOf(hour: number): "AM" | "PM" {
   return hour < 12 ? "AM" : "PM"
 }

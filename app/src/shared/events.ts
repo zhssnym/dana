@@ -21,6 +21,8 @@ export const EVENT_VERBS = [
   'removed',
   'deleted',
   'left',
+  // Wave 2 (W-D): an @mention, told only to the person named (0041).
+  'mentioned',
 ] as const
 export type EventVerb = (typeof EVENT_VERBS)[number]
 

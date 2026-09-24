@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useCreateBlockNote } from '@blocknote/react'
 import { BlockNoteEditor } from '@blocknote/core'
+import { en } from '@blocknote/core/locales'
 import { useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router'
 import '@blocknote/shadcn/style.css'
 import type { PageView } from '../../../../shared/pages.js'
 import { AUDIO_MIMES, RASTER_MIMES, VIDEO_MIMES } from '../../../../shared/files.js'
@@ -9,18 +11,20 @@ import { getPageResponse } from '../../../../shared/pages.js'
 import { documentTransaction } from '../../../../shared/page-document.js'
 import { getPlain, mutateApi, uploadFile as uploadDanaFile } from '../../../api/http.js'
 import { queryKeys } from '../../../api/keys.js'
+import { paths } from '../../../routes.js'
+import { FOLDER_ACTION_PARAM } from '../../../shell/app-sidebar.js'
 import { Button } from '../../ui/button.js'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog.js'
-import { Input } from '../../ui/input.js'
 import { CanvasErrorBoundary } from './CanvasErrorBoundary.js'
 import { CanvasTaskProvider } from './CanvasTask.js'
 import { CanvasSurface } from './CanvasSurface.js'
 import type { CanvasMediaKind, CanvasUploadedFile } from './CanvasFilePanel.js'
 import { canvasSchema } from './schema.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
-import { baselineOf, dehydrateCanvas, folderRefsOf, hydrateCanvas, mergeWorkDocument, richRuns, workPageOf } from './adapters.js'
+import { baselineOf, dehydrateCanvas, openOnCreate, pendingPages, folderRefsOf, hydrateCanvas, mergeWorkDocument, richRuns, workPageOf } from './adapters.js'
 import type { CanvasDocument, CanvasInput } from './adapters.js'
 import { CanvasWriter } from './saving.js'
+import { isSectionHeading } from './outline.js'
+import { NOT_SAVED, RecoveryNotice, SaveFailure } from './SaveFailure.js'
 import { pasteIntoCanvas } from './paste.js'
 import type { TaskRows } from '../../../pages/task-rows.js'
 
@@ -35,17 +39,41 @@ interface Props extends Pick<Rows, 'tasks' | 'context' | 'actions' | 'onAsk'> {
   /** Purpose headings change document typography only; they never create Work Sections. */
   readonly presentationHeadings?: boolean
   readonly workRootId?: string
+  /** The folder's completed task cards the page already loaded; a placement
+   * found here draws as its real row, checked and muted. */
+  readonly completed?: Rows['tasks']
+  /** False hides completed placements in place (the View menu's "Show completed"). */
+  readonly showCompleted?: boolean
 }
 
 /** Reset history only at identity-changing checkpoints or explicit server reconciliation. */
 export default function FolderCanvas(props: Props): React.JSX.Element {
   const [checkpoint, setCheckpoint] = useState<{ page: PageView; epoch: number }>({ page: props.page, epoch: 0 })
+  /* One id for this opening of the page, kept across checkpoint remounts: a
+     draft stamped with it was written by this opening, not "from before". */
+  const [opening] = useState(() => crypto.randomUUID())
   return <CanvasErrorBoundary>
-    <PersistedCanvas key={`${props.folderId}:${checkpoint.epoch}`} {...props} initialPage={checkpoint.page} onCheckpoint={(page) => setCheckpoint((old) => ({ page, epoch: old.epoch + 1 }))} />
+    <PersistedCanvas key={`${props.folderId}:${checkpoint.epoch}`} {...props} opening={opening} initialPage={checkpoint.page} onCheckpoint={(page) => setCheckpoint((old) => ({ page, epoch: old.epoch + 1 }))} />
   </CanvasErrorBoundary>
 }
 
-function PersistedCanvas({ page, initialPage, folderId, facetId, presentationHeadings, workRootId, tasks, context, actions, onAsk, arrangeable, onCheckpoint }: Props & {
+/** The one error "Load latest" answers besides a failed save. */
+/* A Task made with Enter keeps the person writing Tasks: the save remounts
+   the editor (a checkpoint), so the next line is opened by the new editor,
+   right under the Task, with the page scrolled where it was. Keyed by draft key. */
+const resumeAfter = new Map<string, { taskId: string; scroller: Element | null; top: number; line?: string }>()
+function scrollerOf(element: Element | null): Element | null {
+  for (let at = element?.parentElement ?? null; at !== null; at = at.parentElement) {
+    const overflow = getComputedStyle(at).overflowY
+    if ((overflow === 'auto' || overflow === 'scroll') && at.scrollHeight > at.clientHeight) return at
+  }
+  return document.scrollingElement
+}
+
+const CHANGED_ELSEWHERE = 'This page changed elsewhere. Your writing is kept here. Load the latest to continue; your writing will be offered back.'
+
+function PersistedCanvas({ page, initialPage, folderId, facetId, presentationHeadings, workRootId, tasks, completed, showCompleted, context, actions, onAsk, arrangeable, onCheckpoint, opening }: Props & {
+  readonly opening: string
   readonly initialPage: PageView
   readonly onCheckpoint: (page: PageView) => void
 }): React.JSX.Element {
@@ -66,12 +94,13 @@ function PersistedCanvas({ page, initialPage, folderId, facetId, presentationHea
       else setReloadNote('The page still has no version. Try again in a moment.')
     }) }}>Load the page again</Button>{reloadNote}
   </div>
-  return <div ref={host} className="min-w-0">{width === null ? <p role="status">Loading writing…</p> : <CanvasSession {...{ page, initialPage, folderId, facetId, presentationHeadings, workRootId, tasks, context, actions, onAsk, arrangeable, onCheckpoint }} width={width} onSaved={(next) => {
+  return <div ref={host} className="min-w-0">{width === null ? <p role="status" className="sr-only">Loading writing…</p> : <CanvasSession {...{ page, initialPage, folderId, facetId, presentationHeadings, workRootId, tasks, completed, showCompleted, context, actions, onAsk, arrangeable, onCheckpoint, opening }} width={width} onSaved={(next) => {
     queryClient.setQueryData(facetId === undefined ? queryKeys.folderPage(folderId) : queryKeys.facetPage(folderId, facetId), next)
   }} />}</div>
 }
 
-function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadings, workRootId, tasks, context, actions, onAsk, arrangeable, onCheckpoint, width, onSaved }: Props & {
+function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadings, workRootId, tasks, completed, showCompleted = true, context, actions, onAsk, arrangeable, onCheckpoint, opening, width, onSaved }: Props & {
+  readonly opening: string
   readonly initialPage: PageView
   readonly onCheckpoint: (page: PageView) => void
   readonly width: number
@@ -79,10 +108,14 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
 }): React.JSX.Element {
   const [, render] = useState(0)
   const [error, setError] = useState('')
-  const [taskAt, setTaskAt] = useState<string | null>(null)
-  const [title, setTitle] = useState('')
+  const [notice, setNotice] = useState('')
+  /* The empty line "/ Task" turned into a task being titled in place: its
+     block id while the person types, null otherwise. */
+  const [draftTask, setDraftTask] = useState<string | null>(null)
+  const draftRef = useRef<string | null>(null)
+  draftRef.current = draftTask
+  const [draftEmpty, setDraftEmpty] = useState(true)
   const [creating, setCreating] = useState(false)
-  const [taskError, setTaskError] = useState('')
   const [recovery, setRecovery] = useState(false)
   const [previousDraft, setPreviousDraft] = useState<string | null>(null)
   const editorPage = useMemo(() => workRootId === undefined ? initialPage : workPageOf(initialPage, workRootId), [initialPage, workRootId])
@@ -91,7 +124,9 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
     if (workRootId === undefined) return hydrated
     const shift = (blocks: CanvasInput[]): CanvasInput[] => blocks.map((block) => {
       const children = block.children ? shift(block.children) : []
-      if (block.type === 'heading') {
+      // A Section's level is its depth, one deeper in the window; a
+      // presentation heading keeps the level it is stored with.
+      if (block.type === 'heading' && isSectionHeading({ type: block.type, props: (block.props ?? {}) as Record<string, unknown> })) {
         return {
           ...block,
           props: { ...block.props, level: Math.min(3, Number(block.props?.level ?? 1) + 1) as 1 | 2 | 3 },
@@ -165,8 +200,11 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
     }
   }
 
+  // One hint everywhere, the one the focused empty line shows too (canvas.css).
+  const placeholder = "Press '/' for commands"
   const editor = useCreateBlockNote({
     schema: canvasSchema,
+    dictionary: { ...en, placeholders: { ...en.placeholders, emptyDocument: placeholder, default: placeholder } },
     initialContent: initial.length ? initial : [{ id: crypto.randomUUID(), type: 'paragraph', content: '' }],
     pasteHandler: ({ editor: current, event, defaultPasteHandler }) =>
       pasteIntoCanvas(
@@ -198,9 +236,9 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
     },
   })
   // The baseline is the server's page reconciled with what this editor can draw
-  // of it, never the editor's rendering alone: `dehydrateCanvas` knows three
-  // kinds and no nesting, so a writer based on it has nothing to restore from
-  // and every save flattens the page. An empty page still starts from an empty
+  // of it, never the editor's rendering alone: a writer based on the rendering
+  // alone has nothing to restore a kind the editor cannot draw from, and every
+  // save would lose it. An empty page still starts from an empty
   // baseline, so the placeholder paragraph is written rather than assumed.
   const documentPath = facetId === undefined ? `/folders/${folderId}/page` : `/folders/${folderId}/facets/${facetId}/page`
   const projection = (current: readonly CanvasBlock[]): CanvasDocument => {
@@ -217,22 +255,54 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
     : workRootId === undefined
       ? empty
       : mergeWorkDocument(initialPage, workRootId, empty)
+  const queryClient = useQueryClient()
+  const navigate = useNavigate()
+  const navigateRef = useRef(navigate)
+  navigateRef.current = navigate
+  // This is a recoverable draft, never a cached page or an automatic offline queue.
+  // One key per document: Work and each tab keep their own.
+  const draftKey = `dana-canvas-draft:${facetId ?? folderId}`
   const [writer] = useState(() => new CanvasWriter(firstProjection(), initialPage.revision ?? '',
     (body) => mutateApi(getPageResponse, { method: 'POST', path: `${documentPath}/actions`, body }),
     () => {
       render((value) => value + 1)
       try {
-        if (writer.state === 'saved') sessionStorage.removeItem(`dana-canvas-draft:${folderId}`)
-        else sessionStorage.setItem(`dana-canvas-draft:${folderId}`, JSON.stringify({ folderId, revision: writer.revision, blocks: editor.document, pending: writer.pending?.request }))
+        if (writer.state === 'saved') sessionStorage.removeItem(draftKey)
+        else sessionStorage.setItem(draftKey, JSON.stringify({ folderId, opening, revision: writer.revision, blocks: editor.document, pending: writer.pending?.request }))
       } catch { /* recoverable in memory; storage is optional */ }
     },
-    (next, checkpoint) => { onSaved(next); if (checkpoint) onCheckpoint(next) },
+    (next, checkpoint, operations) => {
+      onSaved(next)
+      if (checkpoint) onCheckpoint(next)
+      /* A sub-page made, trashed or restored by this save: the sidebar's
+         tree and every page row read the folder list. A `/page` title is let
+         go only once that list has the page, so its row never blinks. */
+      // A Task made here changes the folder list's counts.
+      if (operations.some((op) => op.op === 'create_task')) void queryClient.invalidateQueries({ queryKey: queryKeys.folders(), exact: true })
+      const created = operations.flatMap((op) => op.op === 'create_page' ? [op.id] : [])
+      if (created.length > 0 || operations.some((op) => op.op === 'trash_page' || (op.op === 'put_block' && op.block_kind === 'page'))) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.folders(), exact: true }).finally(() => {
+          for (const id of created) pendingPages.delete(id)
+          // `/page` opens what it made, its title selected to be typed over.
+          const opened = created.find((id) => openOnCreate.has(id))
+          for (const id of created) openOnCreate.delete(id)
+          if (opened !== undefined) void navigateRef.current(`${paths.folder(opened)}?${FOLDER_ACTION_PARAM}=rename`)
+        })
+      }
+    },
   ))
-  // This is a recoverable draft, never a cached page or an automatic offline queue.
-  const draftKey = `dana-canvas-draft:${facetId ?? folderId}`
   useEffect(() => {
-    try { const draft = sessionStorage.getItem(draftKey); setPreviousDraft(draft); setRecovery(draft !== null) } catch { /* storage is optional */ }
-  }, [draftKey])
+    /* Offered back only when it predates this opening of the page. A save
+       that makes a task remounts this editor while the previous one's draft
+       is still stored; that writing is the page on screen, not "from before".
+       "Load latest" stores its draft without the stamp, so it is offered. */
+    try {
+      const draft = sessionStorage.getItem(draftKey)
+      const own = draft !== null && (JSON.parse(draft) as { opening?: unknown }).opening === opening
+      setPreviousDraft(own ? null : draft)
+      setRecovery(draft !== null && !own)
+    } catch { /* storage is optional */ }
+  }, [draftKey, opening])
   useEffect(() => {
     if (writer.state === 'saved') return
     const warn = (event: BeforeUnloadEvent): void => { event.preventDefault(); event.returnValue = '' }
@@ -244,13 +314,18 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
     const timer = window.setTimeout(() => { void writer.flush() }, 450)
     return () => window.clearTimeout(timer)
   }, [writer, writer.state, writer.latest])
+  // Leaving the page or the tab sends what the 450 ms wait was holding; the
+  // request outlives this editor, and the cache it answers into is shared.
+  useEffect(() => () => { void writer.drain() }, [writer])
   useEffect(() => {
     if (!page.revision || page.revision === writer.revision || writer.state === 'saving') return
     if (writer.state === 'saved') onCheckpoint(page)
-    else setError('This page changed elsewhere. Your writing is retained. Save a copy and load the latest page before continuing.')
+    else setError(CHANGED_ELSEWHERE)
   }, [page, writer, onCheckpoint])
 
   function changed(current: CanvasEditor): void {
+    const drafting = draftRef.current === null ? undefined : current.getBlock(draftRef.current)
+    if (drafting !== undefined) setDraftEmpty(richRuns(drafting).every((run) => run.text === ''))
     try {
       writer.change(projection(current.document))
       setError('')
@@ -266,25 +341,34 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
     URL.revokeObjectURL(url)
   }
   async function loadLatest(): Promise<void> {
-    copyDraft()
+    // Kept as the Task and Shelf writers keep it: the draft goes to this tab's
+    // storage and the remount offers it back ("Earlier writing…"); a download
+    // only when storage refuses it.
+    try { sessionStorage.setItem(draftKey, JSON.stringify({ folderId, revision: writer.revision, blocks: editor.document, pending: writer.pending?.request })) } catch { copyDraft() }
     try {
       const latest = await getPlain(getPageResponse, documentPath)
       onSaved(latest)
       onCheckpoint(latest)
     } catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not reload the page.') }
   }
-  async function createTask(): Promise<void> {
-    if (!taskAt || !title.trim()) return
-    if (writer.state === 'failed') { setTaskError(taskBlocked); return }
+  /* Takes its block and title as arguments rather than reading state, because
+     the slash menu calls it in the same tick it would have set that state. A
+     refusal leaves the title where it was typed, on the page, so it is never
+     lost, and says why below the canvas. */
+  async function createTask(blockId: string | null, taskTitle: string): Promise<void> {
+    if (!blockId || !taskTitle.trim()) return
+    const refuse = (message: string): void => { resumeAfter.delete(draftKey); setError(message) }
+    if (writer.state === 'failed') { refuse(taskBlocked); return }
     setCreating(true)
-    setTaskError('')
     await writer.flush()
-    if (writer.state !== 'saved') { setCreating(false); setTaskError(taskBlocked); return }
+    if (writer.state !== 'saved') { setCreating(false); refuse(taskBlocked); return }
     const id = crypto.randomUUID()
     const replace = (blocks: readonly CanvasInput[]): CanvasInput[] => blocks.flatMap((block) => {
-      if (block.id === taskAt) {
+      if (block.id === blockId) {
         const task: CanvasInput = { id, type: 'danaTask', props: { taskId: id } }
-        return block.type === 'paragraph' ? [task] : [block, task]
+        // Text, or a stored to-do, becomes the Task (blocks nested under it follow it);
+        // anything else keeps its place and the Task follows.
+        return block.type === 'paragraph' || block.type === 'checkListItem' ? [task, ...replace(block.children ?? [])] : [block, task]
       }
       return [{ ...block, children: block.children ? replace(block.children) : [] }]
     })
@@ -297,52 +381,149 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
       temporary = BlockNoteEditor.create({ schema: canvasSchema, initialContent: proposal })
       drafted = dehydrateCanvas(temporary.document, width, folderRefs)
     } catch (failure) {
-      // Nothing was sent; keep the dialog open so the title is not lost.
-      setTaskError(failure instanceof Error ? failure.message : 'Could not prepare this Task for saving.')
+      // Nothing was sent; the title is still the line's own text.
+      refuse(failure instanceof Error ? failure.message : 'Could not prepare this Task for saving.')
       setCreating(false)
       return
     } finally { temporary?.unmount() }
     writer.change(drafted)
-    // A failed send is reported by the save status below, whose Retry save
+    const resume = resumeAfter.get(draftKey)
+    if (resume !== undefined) resume.taskId = id
+    // A failed send is reported by the save status below, whose Retry
     // re-sends this exact request, Task included.
-    try { await writer.flush({ id, title: title.trim() }) } finally { setCreating(false); setTaskAt(null) }
+    try { await writer.flush({ id, title: taskTitle.trim() }) } finally {
+      setCreating(false)
+      if ((writer.state as string) === 'failed') resumeAfter.delete(draftKey)
+    }
   }
-  const taskBlocked = 'Your writing has not saved, so a Task cannot be created yet. Close this, then use Retry save or Download writing below.'
+  const taskBlocked = 'Your writing has not saved, so a task cannot be created yet. Use Retry save or Download writing below.'
+  /* A paragraph with text becomes its task at once. An empty line becomes a
+     task being titled right there: the line takes a checkbox and a "Task
+     title" placeholder, Enter or leaving it creates the task from what was
+     typed, and leaving it empty takes the line away. No dialog. */
   function askTask(target?: CanvasBlock): void {
     const block = target ?? editor.getTextCursorPosition().block
-    setTaskAt(block.id)
-    setTaskError(writer.state === 'failed' ? taskBlocked : '')
-    setTitle(block.type === 'paragraph' ? richRuns(block).map((run) => run.text).join('') : '')
+    const text = block.type === 'paragraph' || block.type === 'checkListItem' ? richRuns(block).map((run) => run.text).join('') : ''
+    if (text.trim()) { void createTask(block.id, text); return }
+    if (writer.state === 'failed') { setError(taskBlocked); return }
+    let at = block.id
+    if (block.type !== 'paragraph') {
+      const [inserted] = editor.insertBlocks([{ type: 'paragraph', content: '' }], block, 'after')
+      if (inserted === undefined) return
+      at = inserted.id
+    }
+    setDraftTask(at)
+    setDraftEmpty(true)
+    editor.setTextCursorPosition(at, 'end')
+    editor.focus()
   }
-  const feedback = error || (writer.state === 'failed' ? writer.error instanceof Error ? writer.error.message : 'Could not save. Your writing is retained.' : '')
-  const pendingTask = writer.pending?.request.operations.some((operation) => operation.op === 'create_task') === true
-  return <>
-    {!arrangeable ? <p className="mb-3 text-sm text-muted-foreground">Writing and movement are paused while this view is sorted, filtered or grouped. Return to manual order to edit the outline.</p> : null}
-    {recovery ? <div role="status" className="mb-3 text-sm text-muted-foreground">A writing draft from this tab is available. <Button variant="ghost" onClick={() => {
-      const saved = previousDraft
-      if (saved) {
-        const url = URL.createObjectURL(new Blob([saved], { type: 'application/json' }))
-        const link = document.createElement('a'); link.href = url; link.download = `dana-recovered-${folderId}.json`; link.click(); URL.revokeObjectURL(url)
+  function settleDraftTask(resume = false): void {
+    const blockId = draftRef.current
+    if (blockId === null) return
+    draftRef.current = null
+    setDraftTask(null)
+    const block = editor.getBlock(blockId)
+    if (block === undefined) return
+    const text = block.type === 'paragraph' ? richRuns(block).map((run) => run.text).join('') : ''
+    if (text.trim()) {
+      if (resume) {
+        const scroller = scrollerOf(document.querySelector(`.dana-writing-canvas .bn-block[data-id="${blockId}"]`))
+        resumeAfter.set(draftKey, { taskId: '', scroller, top: scroller?.scrollTop ?? 0 })
       }
-    }}>Download previous draft</Button><Button variant="outline" onClick={() => {
-      void (async () => {
-        try {
-          const data: unknown = JSON.parse(previousDraft ?? '{}')
-          const pending = typeof data === 'object' && data !== null && 'pending' in data ? documentTransaction.safeParse(data.pending) : null
-          if (!pending?.success) { setError('This draft has no interrupted request. Download it to keep the writing.'); return }
-          const next = await mutateApi(getPageResponse, { method: 'POST', path: `/folders/${folderId}/page/actions`, body: pending.data })
-          // Keep a copy of any writing made after that original request.
-          if (previousDraft) {
-            const url = URL.createObjectURL(new Blob([previousDraft], { type: 'application/json' }))
-            const link = document.createElement('a'); link.href = url; link.download = `dana-recovered-${folderId}.json`; link.click(); URL.revokeObjectURL(url)
-          }
-          sessionStorage.removeItem(draftKey)
-          onSaved(next); onCheckpoint(next)
-        } catch (failure) { setError(failure instanceof Error ? failure.message : 'The interrupted save could not be recovered.') }
-      })()
-    }}>Retry interrupted save</Button><Button variant="ghost" onClick={() => { sessionStorage.removeItem(draftKey); setRecovery(false) }}>Dismiss</Button></div> : null}
-    <CanvasTaskProvider tasks={tasks} context={context} actions={actions} onAsk={onAsk}>
+      void createTask(blockId, text)
+      return
+    }
+    if (editor.document.length > 1) editor.removeBlocks([blockId])
+  }
+  /* Leaving the line — the cursor moving to another block, or focus leaving the
+     editor — settles it the way Enter does. */
+  useEffect(() => editor.onSelectionChange(() => {
+    const blockId = draftRef.current
+    if (blockId !== null && editor.getTextCursorPosition().block.id !== blockId) settleDraftTask()
+  }), [editor])
+  useEffect(() => {
+    const resume = resumeAfter.get(draftKey)
+    if (resume === undefined || resume.taskId === '') return
+    // Idempotent: a development double run finds the line it opened.
+    let id = resume.line !== undefined && editor.getBlock(resume.line) !== undefined ? resume.line : undefined
+    if (id === undefined) {
+      const task = editor.getBlock(resume.taskId)
+      if (task === undefined) { resumeAfter.delete(draftKey); return }
+      id = editor.insertBlocks([{ type: 'paragraph', content: '' }], task, 'after')[0]?.id
+      if (id === undefined) { resumeAfter.delete(draftKey); return }
+      resume.line = id
+    }
+    const line: string = id
+    setDraftTask(line)
+    setDraftEmpty(true)
+    const settle = (): void => {
+      if (editor.getBlock(line) === undefined) return
+      editor.setTextCursorPosition(line, 'end')
+      editor.focus()
+      if (resume.scroller !== null) resume.scroller.scrollTop = resume.top
+      document.querySelector(`.dana-writing-canvas .bn-block[data-id="${line}"]`)?.scrollIntoView({ block: 'nearest' })
+    }
+    settle()
+    const frame = requestAnimationFrame(settle)
+    const done = window.setTimeout(() => { if (resumeAfter.get(draftKey) === resume) resumeAfter.delete(draftKey) }, 0)
+    return () => { cancelAnimationFrame(frame); window.clearTimeout(done) }
+  }, [editor, draftKey])
+  const draftKeys = (event: React.KeyboardEvent<HTMLDivElement>): void => {
+    if (draftRef.current === null) return
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault(); event.stopPropagation(); settleDraftTask(true)
+    } else if (event.key === 'Escape') {
+      event.preventDefault(); event.stopPropagation()
+      const blockId = draftRef.current
+      draftRef.current = null; setDraftTask(null)
+      const block = editor.getBlock(blockId)
+      if (block !== undefined && editor.document.length > 1 && richRuns(block).every((run) => run.text.trim() === '')) editor.removeBlocks([blockId])
+    }
+  }
+  const draftBox = `.dana-writing-canvas .bn-block[data-id="${draftTask}"] > .react-renderer > .bn-block-content`
+  const draftStyle = draftTask === null ? '' : `${draftBox}{display:flex;flex-direction:row;align-items:center} ${draftBox}::before{content:"";flex-shrink:0;width:var(--checkbox-size);height:var(--checkbox-size);border:1px solid color-mix(in srgb, var(--muted-foreground) 50%, transparent);border-radius:var(--radius-sm);margin-inline:calc((var(--control-height) - var(--checkbox-size)) / 2)} ${draftBox}::after{content:none !important} ${draftBox} > *{flex:1;min-width:0}${draftEmpty ? ` ${draftBox} .bn-inline-content::before{content:"Task title" !important;color:var(--muted-foreground);position:absolute;pointer-events:none}` : ''}`
+  const pendingTask = writer.pending?.request.operations.some((operation) => operation.op === 'create_task') === true
+  const draftHasRequest = ((): boolean => {
+    try {
+      const data: unknown = JSON.parse(previousDraft ?? '{}')
+      return typeof data === 'object' && data !== null && 'pending' in data && documentTransaction.safeParse(data.pending).success
+    } catch { return false }
+  })()
+  const downloadDraft = (): void => {
+    if (!previousDraft) return
+    const url = URL.createObjectURL(new Blob([previousDraft], { type: 'application/json' }))
+    const link = document.createElement('a'); link.href = url; link.download = `dana-recovered-${folderId}.json`; link.click(); URL.revokeObjectURL(url)
+  }
+  return <>
+    {!arrangeable ? <p className="mb-3 text-sm text-muted-foreground">Writing is paused while this list is filtered or sorted.</p> : null}
+    {recovery ? <RecoveryNotice
+      onDownload={downloadDraft}
+      onRestore={!draftHasRequest ? undefined : () => {
+        void (async () => {
+          try {
+            const data: unknown = JSON.parse(previousDraft ?? '{}')
+            const pending = typeof data === 'object' && data !== null && 'pending' in data ? documentTransaction.safeParse(data.pending) : null
+            if (!pending?.success) { setError('This draft has no interrupted request. Download it to keep the writing.'); return }
+            const next = await mutateApi(getPageResponse, { method: 'POST', path: `${documentPath}/actions`, body: pending.data })
+            // Keep a copy of any writing made after that original request.
+            downloadDraft()
+            sessionStorage.removeItem(draftKey)
+            onSaved(next); onCheckpoint(next)
+          } catch (failure) { setError(failure instanceof Error ? failure.message : 'The interrupted save could not be recovered.') }
+        })()
+      }}
+      onDiscard={() => { sessionStorage.removeItem(draftKey); setRecovery(false) }}
+    /> : null}
+    <CanvasTaskProvider tasks={tasks} completed={completed} context={context} actions={actions} onAsk={onAsk}>
+      {draftStyle === '' ? null : <style>{draftStyle}</style>}
+      <div
+        className={showCompleted ? 'min-w-0' : 'dana-hide-completed min-w-0'}
+        onKeyDownCapture={draftKeys}
+        onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) settleDraftTask() }}
+      >
       <CanvasSurface
+        peopleFolderId={folderId}
+        placeholder={placeholder}
         editor={editor}
         onChange={changed}
         onCreateTask={facetId === undefined ? askTask : undefined}
@@ -356,18 +537,14 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
               : 'none'
         }
         editable={arrangeable && !creating && !pendingTask}
+        onNotice={setNotice}
       />
+      </div>
     </CanvasTaskProvider>
-    <div role="status" aria-live="polite" className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-      {feedback || (writer.state === 'saving' ? 'Saving…' : writer.state === 'changed' ? 'Unsaved writing' : 'Saved')}
-      {feedback ? <><Button variant="outline" onClick={() => { void writer.retry() }} disabled={!writer.pending}>Retry save</Button><Button variant="ghost" onClick={copyDraft}>Download writing</Button><Button variant="ghost" onClick={() => { void loadLatest() }}>Download writing and load latest</Button></> : null}
-    </div>
-    <Dialog open={taskAt !== null} onOpenChange={(open) => { if (!open && !creating) setTaskAt(null) }}>
-      <DialogContent><DialogHeader><DialogTitle>Create Task</DialogTitle><DialogDescription>The Task keeps this position. Document undo starts a new history after creation; Task actions remain in its own menu.</DialogDescription></DialogHeader>
-        <Input aria-label="Task title" value={title} maxLength={500} onChange={(event) => setTitle(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void createTask() }} />
-        {taskError ? <p role="alert" className="text-sm text-destructive">{taskError}</p> : null}
-        <DialogFooter><Button variant="ghost" onClick={() => setTaskAt(null)} disabled={creating}>Cancel</Button><Button variant="commit" onClick={() => { void createTask() }} disabled={creating || !title.trim() || writer.state === 'failed'}>Create Task</Button></DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <SaveFailure
+      message={error || (writer.state === 'failed' ? NOT_SAVED : null) || notice || null}
+      onRetry={!error && writer.state === 'failed' && writer.pending ? () => { void writer.retry() } : undefined}
+      onLoadLatest={writer.state === 'failed' || error === CHANGED_ELSEWHERE ? () => { void loadLatest() } : undefined}
+    />
   </>
 }

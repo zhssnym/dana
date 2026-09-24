@@ -1,49 +1,25 @@
 /*
-9.5's Scheduled, at /app/scheduled: everything with a date.
-
-The page replaces v1's Planned, and 6 Q3 is unchanged behind it: "Scheduled,
-list mode (v1: Planned)" is the whole of the change to the query.
-
-**The list is Q3's order under a ladder of headings**, which is the one thing
-this page gained. `views/ladder.ts` decides the rungs and states their
-reasoning; what belongs here is why they are headings and not controls: "a row
-says 'Due tomorrow' about one task and a heading says 'Tomorrow' about a
-bucket, one date vocabulary at two altitudes" (9.5). Each rung is a named
-region, "one per ladder rung named as its heading reads" (9.1's regions rule),
-which is what lets a criterion say which part of the ladder it means.
-
-**The calendar is the one this page always had and is not ported again.**
-Q3C's grid, its "+N more", its zooms and its ghosts are the Complex
-Interaction engineer's and live in `components/calendar/`. What changed is who
-switches to it: the mode toggle this page drew beside its own title is gone,
-and the view strip in the window bar is the one control (DES-150), because a
-bespoke switcher on one page is the fork DES-154 exists to prevent. 9.5's "mode
-and zoom persist client-side" is still true and is now one preference across
-every page rather than this page's own key.
-
-**The quick-add sits at the list foot and dates its task today**, which is
-9.1's placement and 9.3's entry row, and which is also the only thing that
-keeps a task made here on the page it was made on: Q3 admits dated rows only,
-so an undated capture would be watched to vanish (DES-182).
+Upcoming, at /app/scheduled: everything with a date (6 Q3), under a ladder of
+date headings, then the "New task" row, which dates its task today so it stays
+on this page. The View menu switches to the calendar, groups by folder instead
+of date, and shows finished dated work as a plain "Done" group at the end.
 */
 import { CalendarDays } from '../lib/icons.js'
 
 import { usePlannedView, useMultiMemberFolderIds } from '../api/queries.js'
 import { PlannedCalendar } from '../components/calendar/index.js'
-import { QuickAdd } from '../components/quick-add.js'
+import { NEW_TASK_ROW_PHONE, QuickAdd } from '../components/quick-add.js'
 import { groupRows } from '../views/grouping.js'
 import { ladderRungs } from '../views/ladder.js'
 import { PLACES } from '../views/place-pages.js'
-import { TaskBoard } from '../views/TaskBoard.js'
-import { PlaceChrome, PlaceHead, usePlace } from '../views/usePlace.js'
+import { DoneGroup } from '../views/DoneGroup.js'
+import { PlaceGroup, PlaceHead, usePlace } from '../views/usePlace.js'
 import { isScheduled } from '../parts/schedule.js'
 import { useRowActions } from '../parts/useRowActions.js'
-import { PageSection } from '../components/page/PageSection.js'
-import { CompletedFoot } from '../components/page/CompletedFoot.js'
 import { PageBody } from '../components/page/PageStates.js'
 import { PLANNED_EMPTY } from './empty-states.js'
 import { ConfirmDialog, TaskRows, useConfirm, useRowBasis } from './task-rows.js'
-import { groupHeadingMedia } from '../views/group-mark.js'
+import { useRowKeys } from '../components/row-keys.js'
 
 const SPINE = PLACES.scheduled
 
@@ -52,6 +28,8 @@ export function ScheduledPage(): React.JSX.Element {
   const actions = useRowActions()
   const confirm = useConfirm()
   const basis = useRowBasis()
+  /* One Tab stop for the page's rows; arrows, Enter and Space (`row-keys.ts`). */
+  const keys = useRowKeys<HTMLDivElement>()
   const multiMemberFolderIds = useMultiMemberFolderIds()
 
   const rows = view.data?.rows ?? []
@@ -59,102 +37,61 @@ export function ScheduledPage(): React.JSX.Element {
   const context = { ...basis, multiMemberFolderIds }
 
   const narrowed = place.narrow(rows)
-  const rungs = ladderRungs(narrowed, place.today)
-  const columns = groupRows(narrowed, place.groupBy, place.today, place.viewerId)
+  const groups =
+    place.groupBy === 'none'
+      ? ladderRungs(narrowed, place.today)
+      : groupRows(narrowed, place.groupBy, place.today, place.viewerId)
 
   return (
-    <div className="space-y-7">
-      <PlaceChrome place={place} />
-      <PlaceHead place={place} />
+    <div ref={keys} className="space-y-6">
+      <PlaceHead place={place} bare={rows.length === 0 && !place.filter.showCompleted} />
 
       {place.mode === 'calendar' ? (
-        /* Everything about the calendar, its range request included, is inside
-           that component; this page decides only which of the three views 9.1
-           gives it is showing. */
-        <PlannedCalendar />
+        <PlannedCalendar
+          onCreate={(title, date) => {
+            place.capture(title, { due_date: date })
+          }}
+        />
       ) : (
-        <div>
-          <PageBody
-            query={view}
-            isEmpty={rows.length === 0}
-            emptyCopy={PLANNED_EMPTY}
-            emptyIcon={CalendarDays}
-            truncated={view.data?.truncated ?? false}
-          >
-            {place.mode === 'board' ? (
-              <TaskBoard
-                place={place}
-                columns={columns}
-                context={context}
-                actions={actions}
-              />
-            ) : place.groupBy !== 'none' ? (
-              /* A grouping replaces the ladder rather than nesting inside it
-                 (DES-156): a folder inside a Tuesday is not what was asked
-                 for, and returning Group by to Nothing gives the ladder back. */
+        /* Rows bleed their padding into the gutter: a checkbox, a heading
+           and the title share one left edge. */
+        <div className="-mx-1.5 space-y-6">
+          <div>
+            <PageBody
+              query={view}
+              isEmpty={rows.length === 0}
+              emptyCopy={PLANNED_EMPTY}
+              emptyIcon={CalendarDays}
+              truncated={view.data?.truncated ?? false}
+            >
               <div className="space-y-6">
-                {columns.map((column) => (
-                  <PageSection
-                    key={column.key}
-                    name={column.name}
-                    heading={column.name}
-                    headingMedia={groupHeadingMedia(column.mark, basis.folders)}
-                    count={column.rows.length}
-                  >
+                {groups.map((group) => (
+                  <PlaceGroup key={group.key} name={group.name} heading={group.name}>
                     <TaskRows
-                      tasks={column.rows}
+                      tasks={group.rows}
+                      /* What the date heading says, a row does not repeat: under
+                         "Tomorrow" a row keeps only its time. Overdue dates stay red. */
+                      {...(place.groupBy === 'none'
+                        ? { given: { day: 'date' in group && group.date !== null } }
+                        : {})}
                       context={context}
                       actions={actions}
                       onAsk={confirm.ask}
                     />
-                  </PageSection>
+                  </PlaceGroup>
                 ))}
               </div>
-            ) : (
-              <div className="space-y-6">
-                {rungs.map((rung) => (
-                  <PageSection key={rung.key} name={rung.name} heading={rung.name}>
-                    <TaskRows
-                      tasks={rung.rows}
-                      context={context}
-                      actions={actions}
-                      onAsk={confirm.ask}
-                    />
-                  </PageSection>
-                ))}
-              </div>
-            )}
-          </PageBody>
-          {/* 9.1 puts the quick-add at a list's foot, and 9.3's table gives
-              this entry point today's date. Outside `PageBody` so the page's
-              one capture point is there while a read is in flight or has
-              failed, which is the rule the folder page's own row follows. */}
-          {place.mode === 'board' ? null : (
+            </PageBody>
             <QuickAdd
-              folderName="Desk"
+              className={NEW_TASK_ROW_PHONE}
               onAdd={(title) => {
                 place.capture(title)
               }}
-              onOpenFullForm={() => {
-                place.openFull()
-              }}
             />
-          )}
-
-          {/* Every page that lists tasks ends with its completed foot:
-              "Spec Q3 keeps completed rows out of the *list*, and this is a
-              section under it rather than rows in it, so the ordering rule is
-              untouched." The predicate is Q3's spine, having a date, so a
-              finished undated task belongs to another page's foot. The
-              spine is Scheduled's membership rather than a column, so it
-              moved with it on issue #216: a start-only task is scheduled
-              work and its completion belongs at this foot. */}
-          <CompletedFoot
-            keep={isScheduled}
-            context={context}
-            actions={actions}
-            onAsk={confirm.ask}
-          />
+          </div>
+          {place.filter.showCompleted ? (
+            <DoneGroup place={place} context={context} actions={actions} onAsk={confirm.ask} keep={isScheduled} />
+          ) : null}
         </div>
       )}
 

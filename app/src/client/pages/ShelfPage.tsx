@@ -14,17 +14,17 @@ once the document route has written a Shelf, that PUT answers 409. **The acts**:
 `lib/nav-links.ts`, Duplicate as one call to `POST /shelves/:id/duplicate` and
 no folders (9.10: a folder is on one shelf), which carries the mark, the colour,
 the description and a cover picture of the copy's own and does not carry the
-blocks — see the act's own note — Save as workflow as 7.16's file, Delete
+blocks — see the act's own note — Delete
 unlabelling its folders and keeping them, and Rename as 7.16's PATCH, whose
 transaction rewrites the member labels (4.18's lockstep). **A folder row opens
-as its own tab beside the shelf's** (9.1), the press appending through the tab
-store rather than retargeting.
+the folder**, there being no tab strip to append to. **Delete asks first**, in
+the sidebar's own sentence.
 
-**"New folder..." asks the shell for its dialog** through `shell/overlays.ts`,
-carrying this shelf's name as the label the new folder is filed under, which is
-the same two writes the sidebar's "Add folder to {shelf}" performs.
+**Pages join a collection by dragging them onto it in the sidebar**, never
+from this page: the page is the title and its writing, with the
+member rows placed in it, and nothing else.
 */
-import { lazy, Suspense, useMemo } from 'react'
+import { lazy, Suspense, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
 import {
@@ -39,26 +39,11 @@ import { DEFAULT_FOLDER_COLOR } from '../parts/presenters.js'
 import { paths } from '../routes.js'
 import { ShelfPage as ShelfScreen } from '../screens/shelf-page.js'
 import type { CanvasFolderRow } from '../components/page/canvas/CanvasFolder.js'
-import { openNewFolder } from '../shell/overlays.js'
-import { openInNewTab } from '../shell/tabs.js'
+import { deleteGroupConfirm } from '../shell/folder-groups.js'
+import { ConfirmDialog } from '../components/ui/ConfirmDialog.js'
 import { PageBody } from '../components/page/PageStates.js'
-import type { Folder } from '../../shared/folders.js'
 
 const ShelfCanvas = lazy(() => import('../components/page/canvas/ShelfCanvas.js'))
-
-/** The workflow file this shelf exports: its folders, by name. */
-function shelfWorkflowFile(name: string, folders: readonly Folder[]): string {
-  return JSON.stringify(
-    {
-      dana: 'workflow',
-      version: 1,
-      name,
-      folders: folders.map((folder) => ({ name: folder.name })),
-    },
-    null,
-    2,
-  )
-}
 
 export function ShelfPage(): React.JSX.Element {
   const { id = '' } = useParams<{ id: string }>()
@@ -70,6 +55,7 @@ export function ShelfPage(): React.JSX.Element {
   const remove = useDeleteShelf()
   const duplicate = useDuplicateShelf()
   const move = useUpdateMyMembership()
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
 
   const detail = shelf.data
   const name = detail?.name ?? ''
@@ -90,24 +76,8 @@ export function ShelfPage(): React.JSX.Element {
         name: folder.name,
         color: folder.color ?? DEFAULT_FOLDER_COLOR,
         icon: folder.icon,
-        pending: folder.counts.pending,
       })),
     [onShelf],
-  )
-  const addable = useMemo(
-    () =>
-      (folders.data ?? [])
-        .filter(
-          (folder) =>
-            !folder.is_default && (folder.my_shelf === null || folder.my_shelf !== name),
-        )
-        .map((folder) => ({
-          id: folder.id,
-          name: folder.name,
-          color: folder.color ?? DEFAULT_FOLDER_COLOR,
-          icon: folder.icon,
-        })),
-    [folders.data, name],
   )
 
   return (
@@ -131,7 +101,7 @@ export function ShelfPage(): React.JSX.Element {
               patch.mutate({ id, body: { name: next } })
             }}
             onCopyLink={() => {
-              copyShelfLink(id, name)
+              copyShelfLink(id)
             }}
             onDuplicate={() => {
               /*
@@ -160,55 +130,52 @@ export function ShelfPage(): React.JSX.Element {
                 },
               })
             }}
-            onSaveWorkflow={() => {
-              const blob = new Blob([shelfWorkflowFile(name, onShelf)], {
-                type: 'application/json',
-              })
-              const url = URL.createObjectURL(blob)
-              const anchor = document.createElement('a')
-              anchor.href = url
-              anchor.download = `${name}.dana-workflow.json`
-              anchor.click()
-              URL.revokeObjectURL(url)
-            }}
             onDelete={() => {
-              /* Unlabels its folders and keeps them (9.10); section 9 puts
-                 no confirm on it, and the way back is making it again. */
-              remove.mutate(id, {
-                onSuccess: () => {
-                  void navigate(paths.desk)
-                },
-              })
+              /* Unlabels its folders and keeps them (9.10), but the shelf's
+                 own writing goes with it, so it asks first, in the sidebar's
+                 own sentence. */
+              setConfirmingDelete(true)
             }}
           >
-            <Suspense fallback={<p role="status">Loading writing…</p>}>
+            {/* One quiet line, so an empty collection is not a bare title. */}
+            {onShelf.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No pages in this collection yet.</p>
+            ) : null}
+            <Suspense fallback={<p role="status" className="sr-only">Loading writing…</p>}>
               <ShelfCanvas
                 shelfId={id}
                 page={page.data}
                 folders={shelfFolders}
-                addableFolders={addable}
                 folderHref={paths.folder}
                 settled={!shelf.isFetching && !folders.isFetching}
                 onOpenFolder={(folderId) => {
-                  void navigate(openInNewTab(paths.folder(folderId)))
-                }}
-                onAddFolder={async (folderId) => {
-                  /* The same act the sidebar's "Move to shelf" performs: the
-                     `shelf` field is the membership (4.18); the composer places
-                     the row once it is written (AC-223). */
-                  await move.mutateAsync({ id: folderId, body: { shelf: name } })
+                  void navigate(paths.folder(folderId))
                 }}
                 onRemoveFolder={async (folderId) => {
                   /* Remove from shelf clears the membership; the folder stays. */
                   await move.mutateAsync({ id: folderId, body: { shelf: null } })
                 }}
-                onCreateFolder={() => {
-                  openNewFolder(name)
-                }}
               />
             </Suspense>
           </ShelfScreen>
         )}
+        {confirmingDelete ? (
+          <ConfirmDialog
+            message={deleteGroupConfirm(onShelf.length)}
+            confirmLabel="Delete collection"
+            onContinue={() => {
+              setConfirmingDelete(false)
+              remove.mutate(id, {
+                onSuccess: () => {
+                  void navigate(paths.today)
+                },
+              })
+            }}
+            onCancel={() => {
+              setConfirmingDelete(false)
+            }}
+          />
+        ) : null}
       </PageBody>
     </PageBody>
   )

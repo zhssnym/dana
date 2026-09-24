@@ -1,230 +1,72 @@
 /*
-The task surface: one task held five ways, a dialog, full screen, a sidebar on
-either edge, or a floating card, plus the sixth way that is really the page
-bar's: opened as a tab.
+A task's page, in the three ways it is shown (ROUND2-SPEC "Task"):
 
-**A task in a surface is a page, not a row.** List affordances turn to noise
-once the list is gone: a collapse chevron leaves a naked row floating in an
-empty screen, and a 14px row title would be the largest text on a full page.
-What leaves is the row; what stays is the card. The surface composes its own
-header, the title at page scale renaming in place, a deliberate completion
-control, the star, over the same `TaskCard` blocks the inline row opens, wired
-through the same `useCardWiring` layer: same fields, same commit-as-it-is-made
-behaviour, two compositions.
+- **Center peek** (`TaskCenterPeek`), the default (round 3): a centered sheet,
+  ~960px, over the dimmed page, like Notion's center peek.
+- **Side peek** (`TaskPanel`): a panel at the right edge; the page makes room
+  rather than being covered, so the list stays visible and usable, and
+  clicking another row swaps the peek's task.
+- **Full page** (`TaskView kind="page"`, from `pages/TaskPage.tsx`):
+  /app/tasks/:id in the app's own shell, and always so on a phone.
 
-The view switcher is the icon strip, labels on hover, the same grammar as the
-conversation's homes. Escape closes; the chrome closes; the card's own footer
-offers neither, because two closes in one surface is one too many.
+Settings > Appearance > "Open tasks in" chooses. The peeks carry ↑/↓ to step
+through the tasks listed under them (also Ctrl/Cmd+Shift+K and J, Notion's
+keys), "Open as full page" and a close; Escape closes them. Both ease in and
+out on the motion tokens rather than snapping. The view is one: a header with the
+task's one "…", the title renaming in place, and `TaskCard` (properties, then
+the Work and Discussion tabs).
 */
 
-import { InlineInput } from "./ui/inline-field.js"
-import { useEffect, useRef, useState, type ReactNode } from "react"
+import { InlineTextarea } from "./ui/inline-field.js"
+import { useCallback, useEffect, useRef, useState } from "react"
 
-import { ChevronRight, X } from "../lib/icons.js"
+import { ChevronDown, ChevronUp, Maximize2, X } from "../lib/icons.js"
 import { TITLE_REQUIRED, tooLong } from "./task-copy.js"
-/* 10.3's number for the field, from the shared contract rather than restated:
-   a limit written twice is a limit the client and the server can disagree on,
-   which is the one thing this message must never do. */
+/* 10.3's number for the field, from the shared contract rather than restated. */
 import { TASK_TITLE_LIMIT } from "../../shared/tasks.js"
-import { FolderMark, folderNameOf } from "./folder-mark.js"
 import { HistorySheet } from "./history-sheet.js"
 import { TaskCard } from "./task-card.js"
-import {
-  Actions,
-  Check,
-  TASK_OPEN_OPTIONS,
-  useCardWiring,
-  type TaskOpenMode,
-  type TaskRowProps,
-} from "./task-row.js"
-import { ViewStrip } from "./view-strip.js"
-import { HoldsTheDocument, ReservesRightEdge } from "./right-edge.js"
-import { WindowBarActions, WindowBarLead } from "./window-bar.js"
-import { setTaskOpen } from "../lib/task-surface-preference.js"
-import { copyTaskLink, duplicateTask, makeFolderOfTask } from "../tasks/task-acts.js"
+import { useCardWiring, type TaskRowProps } from "./task-row.js"
+import { ReservesRightEdge } from "./right-edge.js"
+import { ObjectMenu } from "./object-menu.js"
+import { copyTaskLink, duplicateTask } from "../tasks/task-acts.js"
 import { cn } from "./ui/utils.js"
-import { useIsMobile } from "./ui/use-mobile.js"
 import { ReferencedFrom } from "./links/referenced-from.js"
+import { Button } from "./ui/button.js"
+import { openTask } from "./task-open.js"
+import { BreadcrumbTrail } from "./breadcrumb-trail.js"
+import { prefetchTask, useTask } from "../api/queries.js"
+import { useQueryClient } from "@tanstack/react-query"
 
-const T_FAST = "duration-[var(--duration-fast)] ease-[var(--ease-standard)]"
-const FOCUS =
-  "outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)] focus-visible:ring-offset-1"
-
-export type TaskSurfaceMode = Exclude<TaskOpenMode, "tab">
-
-/* The side panel's width, remembered like every other display preference: a
-   person who widens it once should not widen it again on the next task. Clamped
-   so the panel can never eat the page or vanish. */
-const PANEL_KEY = "dana.taskPanelWidth"
-const PANEL_MIN = 360
-const PANEL_MAX = 720
-const PANEL_DEFAULT = 440
-
-/*
-**The dialog is resizable too, and 9.3 is why.**
-
-9.3 makes the width a property of the surface rather than of one of its shapes:
-"The form's width is the viewer's, persisted client-side, on the sidebar's rule
-in 9.1", and AC-182 reads that on the dialog, drags its handle and reloads. So
-the dialog carries one, remembered under its own key, on the same rule and with
-the same clamp as the panel's.
-
-Wider bounds than the panel's, because a dialog is centred rather than pinned to
-an edge; 680 stays the default, so nothing about the surface changes until
-somebody drags it.
-*/
-const DIALOG_KEY = "dana.taskDialogWidth"
-const DIALOG_MIN = 420
-const DIALOG_MAX = 960
-const DIALOG_DEFAULT = 680
-
-function readDialogWidth() {
-  try {
-    const stored = Number(localStorage.getItem(DIALOG_KEY))
-    if (!Number.isFinite(stored) || stored <= 0) return DIALOG_DEFAULT
-    return Math.min(DIALOG_MAX, Math.max(DIALOG_MIN, stored))
-  } catch {
-    return DIALOG_DEFAULT
-  }
+/* Page / Sub / Task, the same trail the top bar draws for a task's full page. */
+function PeekTrail({ taskId }: { taskId: string }) {
+  const task = useTask(taskId)
+  if (task.data === undefined) return null
+  return <BreadcrumbTrail folderId={task.data.folder.id} current={task.data.title} />
 }
 
-function readPanelWidth() {
-  try {
-    const stored = Number(localStorage.getItem(PANEL_KEY))
-    if (!Number.isFinite(stored) || stored <= 0) return PANEL_DEFAULT
-    return Math.min(PANEL_MAX, Math.max(PANEL_MIN, stored))
-  } catch {
-    return PANEL_DEFAULT
-  }
-}
+/** The panel's width on a desktop. Fixed: the page beside it is the thing
+    that flexes. */
+export const TASK_PANEL_WIDTH = 480
 
-/* The grab edge, mirrored: a right panel is widened by dragging left, a left
-   panel by dragging right, so the arithmetic flips with the side. Keyboard
-   resizing comes along, as it does on the app sidebar. */
-function PanelResizeHandle({
-  side,
-  min = PANEL_MIN,
-  max = PANEL_MAX,
-  width,
-  onChange,
-  onCommit,
-  onReset,
-}: {
-  side: "left" | "right"
-  min?: number
-  max?: number
-  width: number
-  onChange: (next: number) => void
-  onCommit: (next: number) => void
-  onReset: () => void
-}) {
-  const drag = useRef<{ pointerId: number; startX: number; startWidth: number; current: number } | null>(null)
-
-  /* The bounds are the surface's rather than the panel's, a centred dialog
-     affording more room than an edge does. */
-  const clamp = (value: number) => Math.min(max, Math.max(min, value))
-
-  return (
-    <div
-      role="separator"
-      /* 9.1's names table, "Resize sidebar" and "Resize panel". */
-      aria-label="Resize panel"
-      aria-orientation="vertical"
-      aria-valuemin={min}
-      aria-valuemax={max}
-      aria-valuenow={Math.round(width)}
-      tabIndex={0}
-      onDoubleClick={onReset}
-      onPointerDown={(event) => {
-        if (event.button !== 0) return
-        event.preventDefault()
-        event.currentTarget.focus()
-        drag.current = {
-          pointerId: event.pointerId,
-          startX: event.clientX,
-          startWidth: width,
-          current: width,
-        }
-        event.currentTarget.setPointerCapture(event.pointerId)
-      }}
-      onPointerMove={(event) => {
-        if (!drag.current || drag.current.pointerId !== event.pointerId) return
-        const delta = event.clientX - drag.current.startX
-        const next = clamp(
-          drag.current.startWidth + (side === "right" ? -delta : delta),
-        )
-        drag.current.current = next
-        onChange(next)
-      }}
-      onPointerUp={(event) => {
-        if (!drag.current || drag.current.pointerId !== event.pointerId) return
-        onCommit(drag.current.current)
-        drag.current = null
-        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-          event.currentTarget.releasePointerCapture(event.pointerId)
-        }
-      }}
-      onKeyDown={(event) => {
-        const step = event.shiftKey ? 24 : 8
-        let next: number | null = null
-        if (event.key === "ArrowLeft") next = clamp(width + (side === "right" ? step : -step))
-        else if (event.key === "ArrowRight") next = clamp(width + (side === "right" ? -step : step))
-        else if (event.key === "Home") next = PANEL_MIN
-        else if (event.key === "End") next = PANEL_MAX
-        if (next === null) return
-        event.preventDefault()
-        onChange(next)
-        onCommit(next)
-      }}
-      className={cn(
-        "absolute inset-y-0 z-10 w-1.5 cursor-col-resize transition-colors",
-        T_FAST,
-        FOCUS,
-        "hover:bg-[var(--color-dana-accent-200)] focus-visible:bg-[var(--color-dana-accent-200)]",
-        side === "right" ? "left-0" : "right-0",
-      )}
-    />
-  )
-}
-
-/* The title at page scale, renaming in place by the row's own rule. */
-function PageTitle({
+/* The title, big, renaming in place. Required, 1 to 300, refused with a
+   reason where the person is looking (9.3, AC-161); the server enforces the
+   same bounds. Enter commits, Escape puts it back. */
+function Title({
   value,
   done,
   onRename,
-  compact = false,
 }: {
   value: string
   done: boolean
   onRename: (title: string) => void
-  compact?: boolean
 }) {
-  /* A task with no name has just been made, so the page opens in the field.
-     This is a separate title component from the row's, so it needs its own
-     autofocus for the floating button to land on a writable page. */
-  const [editing, setEditing] = useState(value.trim() === "")
   const [draft, setDraft] = useState(value)
-  /*
-  **9.3's title row refuses and says why.**
-
-  The row is "1 to 300; empty commits are refused with 'Give it a title'", and
-  10.3 is where the 300 comes from; over-limit fields take "Too long: limit N
-  characters", which AC-161 reads with the number in it, because a surface
-  saying only Too long leaves the person to find out how much to delete by
-  deleting.
-
-  **It is a client message about a server rule and never a rule of its own.**
-  7.6 and 10.3 enforce both bounds and answer 422 naming the field; this is the
-  convenience 9.3 asks for in front of them. Never implement a validation the
-  server does not also enforce.
-
-  Held here rather than raised, because the control that has to change is this
-  one and a message somewhere else would be a message beside the wrong field.
-  */
+  const [editing, setEditing] = useState(false)
   const [refusal, setRefusal] = useState<string | null>(null)
 
   function commit(next: string): void {
-    const trimmed = next.trim()
+    const trimmed = next.replace(/\s+/g, " ").trim()
     if (trimmed === "") {
       setRefusal(TITLE_REQUIRED)
       return
@@ -234,54 +76,21 @@ function PageTitle({
       return
     }
     setRefusal(null)
-    onRename(trimmed)
     setEditing(false)
+    if (trimmed !== value) onRename(trimmed)
   }
 
-  const metrics = cn(
-    "min-w-0 flex-1 text-left font-semibold",
-    /* The panel is 440px by default and a 24px title fills a third of it, so
-       the page's scale steps down where the surface is narrow rather than
-       shouting inside a column. */
-    compact ? "text-lg leading-7" : "text-2xl leading-8",
-    done
-      ? "text-[var(--color-graphite-500)] line-through decoration-[var(--color-graphite-400)]"
-      : "text-foreground",
-  )
-
-  /*
-  **The title is a field at rest, not a button that becomes one.**
-
-  `ui/inline-field.tsx` "renders as the text it edits, shows a soft ground when
-  you point at it, and grows a ring only once you are actually in it", so there
-  is nothing a click-to-edit button would buy.
-
-  9.3 requires it. Its field table opens "the title (editable in place,
-  required)", and the tests read it as a field: AC-092, AC-093 and AC-161 all
-  `fill` and `blur` `formField(page, 'title')`, and the `taskSurface` helper
-  identifies the whole surface as a dialog containing an element labelled title,
-  the title being the one thing 9.3 puts on the card and on no picker. A control
-  that is a button until it is clicked answers to none of that while it is
-  resting.
-
-  **The name is 9.3's field name, "title".** The row's own rename control keeps
-  "Task title", because it is a different control on a surface that may hold
-  fifty of them and giving both one name would make `formField` ambiguous.
-
-  `editing` still does its one remaining job, which is the autofocus: a task
-  with no name has just been made, so the page opens in the field.
-  */
   return (
-    <>
-      <InlineInput
-        autoFocus={editing}
+    <div className="flex flex-col gap-1">
+      <InlineTextarea
+        rows={1}
         value={editing ? draft : value}
+        /* 9.3's field name; tests address the title as a field. */
         aria-label="title"
         aria-invalid={refusal !== null}
-        onFocus={(event) => {
+        onFocus={() => {
           setDraft(value)
           setEditing(true)
-          event.currentTarget.select()
         }}
         onChange={(event) => {
           setDraft(event.target.value)
@@ -292,6 +101,7 @@ function PageTitle({
           if (event.key === "Enter") {
             event.preventDefault()
             commit(draft)
+            event.currentTarget.blur()
           }
           if (event.key === "Escape") {
             event.preventDefault()
@@ -299,449 +109,551 @@ function PageTitle({
             setDraft(value)
             setRefusal(null)
             setEditing(false)
+            event.currentTarget.blur()
           }
         }}
         className={cn(
-          metrics,
-          "-mx-1 rounded-md px-1",
-          editing &&
-            "bg-background outline-none ring-2 ring-[var(--color-dana-accent-600)]",
+          "text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-semibold hover:bg-transparent focus:bg-transparent",
+          done ? "text-muted-foreground line-through" : "text-foreground",
         )}
       />
       {refusal === null ? null : (
-        <p
-          role="status"
-          className="text-[12px] leading-4 text-[var(--color-danger-700)]"
-        >
+        <p role="status" className="text-xs text-destructive">
           {refusal}
         </p>
       )}
-    </>
-  )
-}
-
-
-/*
-The task as a page: the surface's composition and the tab's. Exported so the
-tab view renders exactly this with no chrome around it, a tab already has
-its close in the strip.
-*/
-export function TaskPage({
-  task: props,
-  compact = false,
-  inWindow = false,
-}: {
-  task: TaskRowProps & { id: string }
-  /* A narrow surface, the side panel, steps the page scale down. */
-  compact?: boolean
-  /*
-  This page *is* the window's content, the tab presentation, so its chrome
-  belongs in the window bar rather than inside the scroll area.
-
-  A task has no filter and no cover, but the bar's right end holds the controls
-  for whatever the tab is showing, and a task has controls. So the same
-  `Actions` cluster is drawn there instead of in the header: one element, one
-  set of handlers, moved rather than copied.
-
-  The bar's left end holds the task's address: its folder, and its section
-  within that folder, the same path the row shows.
-  */
-  inWindow?: boolean
-}) {
-  const { task, patch, cardHandlers } = useCardWiring(props)
-  /* The surface's menu carries History like the row's, over the same sheet. */
-  const [historyOpen, setHistoryOpen] = useState(false)
-
-  const actions = (
-    <Actions
-      task={task}
-      persistent
-      onHistory={props.id ? () => setHistoryOpen(true) : undefined}
-      extra={
-        props.id ? (
-          <HistorySheet
-            kind="task"
-            subject={props.id}
-            name={task.title}
-            open={historyOpen}
-            onOpenChange={setHistoryOpen}
-          />
-        ) : undefined
-      }
-      onStar={() => {
-        patch(task.id, { important: !task.important })
-        props.onToggleImportant?.()
-      }}
-      onRestore={
-        task.abandoned ? () => patch(task.id, { abandoned: false }) : undefined
-      }
-      onMoveToFolder={(folder: { name: string; color: string }) =>
-        patch(task.id, { folder })
-      }
-      onAbandon={props.onAbandon}
-      onDelete={props.onDelete}
-      /* The three acts a surface can perform from its own id, as the row reads
-         them: none is drawn without one. */
-      onCopyLink={props.id ? () => copyTaskLink(props.id!, task.title) : undefined}
-      onDuplicate={props.id ? () => duplicateTask(props.id!, task.title) : undefined}
-      onMakeFolder={props.id ? () => makeFolderOfTask(props.id!, task.title) : undefined}
-    />
-  )
-
-  return (
-    <div>
-      {inWindow ? (
-        <>
-          <WindowBarLead>
-            <span className="flex min-w-0 items-center gap-1.5 pl-1 text-[12px] leading-4 text-[var(--color-graphite-500)]">
-              <FolderMark
-                name={task.folder?.name}
-                color={task.folder?.color}
-                className="size-3.5 shrink-0"
-              />
-              <span className="truncate">{folderNameOf(task.folder?.name)}</span>
-              {props.section ? (
-                <>
-                  {/* A chevron rather than a second glyph: the mark before it
-                      already said "folder", and what this adds is depth, not a
-                      different kind of thing. */}
-                  <ChevronRight
-                    className="size-3 shrink-0 text-[var(--color-graphite-400)]"
-                    strokeWidth={2}
-                    aria-hidden="true"
-                  />
-                  <span className="truncate">{props.section}</span>
-                </>
-              ) : null}
-            </span>
-          </WindowBarLead>
-          <WindowBarActions>{actions}</WindowBarActions>
-        </>
-      ) : null}
-      {/*
-      The checkbox sits on the title's first line, not on the header's top edge.
-
-      A fixed nudge cannot be right for two title sizes, so the alignment is
-      derived instead: the row is centred on the title's own line height, and
-      the line height is the thing that already changes with `compact`. One
-      rule, both sizes, and any future size too.
-       */}
-      <header className="flex items-start gap-3 pb-2 pl-1">
-        <span
-          className={cn(
-            "flex shrink-0 items-center",
-            compact ? "h-7" : "h-8",
-          )}
-        >
-          {/*
-          **9.5's confirmation, at the control rather than in the write path.**
-
-          9.3 gives the card's completion control 9.5's rule "unchanged": an
-          un-complete that takes a G-SERIES successor confirms first, because
-          5.1 deletes that successor in the same transaction and the parenthesis
-          is the part the person cannot see, "any edits already made to the next
-          occurrence go with it". A row gets this from its page; a surface has
-          no page behind it.
-
-          **It sits on the control and not on the write**: a writer sees a
-          `Partial<ConceptTask>` and has to work out from the task what the
-          press meant, while this component holds both the press and the task.
-          The rule is the task's own `recurrence`, which survives a completion,
-          the successor existing because the rule did.
-
-          Only on the branch that has a successor: a task with no rule generates
-          none, and a confirmation with an empty consequence is a dead control.
-           */}
-          <Check task={task} onToggle={() => patch(task.id, { done: !task.done })} />
-        </span>
-        <PageTitle
-          compact={compact}
-          value={task.title}
-          done={Boolean(task.done)}
-          onRename={(title) => patch(task.id, { title })}
-        />
-        {/*
-        The row's own trailing cluster, reused rather than rebuilt.
-
-        A surface must not do strictly less to a task than the row it came from,
-        so the page takes `Actions` entire: the same items, in the same order,
-        from one definition, star included.
-         */}
-        {inWindow ? null : (
-          <span
-            className={cn(
-              "flex shrink-0 items-center",
-              compact ? "h-7" : "h-8",
-            )}
-          >
-            {actions}
-          </span>
-        )}
-      </header>
-      {/* The same card, the same wiring, the page differs only in what
-          stands above it. The card keeps its own left gutter (pl-7), which
-          here lines the blocks up under the title rather than under a row. */}
-      <TaskCard
-        task={task}
-        patch={patch}
-        {...cardHandlers}
-        chrome="surface"
-        onClose={() => {}}
-      />
-      {/* #214: the documents that link to this Task. Absent while none do. */}
-      {props.id && props.id !== "new" ? <ReferencedFrom kind="task" id={props.id} className="mt-3 pl-7" /> : null}
     </div>
   )
 }
 
-function SurfaceChrome({
-  mode,
-  onModeChange,
-  onOpenInTab,
-  onClose,
-  children,
-}: {
-  mode: TaskSurfaceMode
-  onModeChange: (mode: TaskSurfaceMode) => void
-  onOpenInTab?: () => void
-  onClose: () => void
-  children: ReactNode
-}) {
-  /* The strip offers every mode; "tab" is an action rather than a state, so
-     selecting it hands the task to the page bar instead of switching. */
-  const options = TASK_OPEN_OPTIONS.filter(
-    (option) => option.key !== "tab" || Boolean(onOpenInTab),
-  )
-
+/*
+The task's one "…": history, copy link, duplicate, delete. Status carries
+abandon and restore, and the breadcrumb says where the task lives.
+*/
+function TaskMenu({ id, title, onDelete }: { id: string; title: string; onDelete?: () => void }) {
+  const [historyOpen, setHistoryOpen] = useState(false)
   return (
     <>
-      <div className="flex h-11 shrink-0 items-center gap-2 border-b border-[var(--color-graphite-100)] pr-2 pl-4">
-        {/*
-        **The chrome does not repeat the title**, the same rule as
-        `components/window-bar.tsx`: "The title is not repeated. The tab says
-        it; saying it twice, two centimetres apart, is how a chrome stack starts
-        looking cluttered." The card below carries the title as a field.
-
-        **Repeating it would cost more than clutter.** AC-178 refuses an open
-        task's surface saying anything matching /completed/i, which is how it
-        proves the history block renders the completion only when the task has
-        one. A title read as text would put every word of the task's own name
-        into that assertion. The card's title is an `<input>`, whose value is
-        not text content, so the field says the name without asserting anything
-        about the task's state.
-
-        The strip keeps its space, so the view controls stay where they are.
-         */}
-        <span className="min-w-0 flex-1" />
-        {/* Unlabelled icons beside the close control read as nothing in
-            particular; the word says what they choose, and that choosing one is
-            remembered. */}
-        <span
-          className="text-[11px] leading-4 text-[var(--color-graphite-500)]"
-          title="Where this task opens; Dana remembers the one you pick"
-        >
-          Open in
-        </span>
-        <ViewStrip
-          ariaLabel="Where this task opens"
-          value={mode}
-          options={options}
-          onSelect={(key) => {
-            if (key === "tab") {
-              onOpenInTab?.()
-              return
-            }
-            setTaskOpen(key === "right" ? "panel" : "dialog")
-            onModeChange(key as TaskSurfaceMode)
-          }}
-        />
-        <span aria-hidden="true" className="mx-0.5 h-4 w-px bg-[var(--color-graphite-200)]" />
-        <button
-          type="button"
-          aria-label="Close task"
-          onClick={onClose}
-          className={cn(
-            "flex size-7 items-center justify-center rounded-md text-[var(--color-graphite-500)] transition-colors hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)]",
-            T_FAST,
-            FOCUS,
-          )}
-        >
-          <X className="size-4 data-[size=sm]:size-4" strokeWidth={1.75} aria-hidden="true" />
-        </button>
-      </div>
-      {children}
+      <ObjectMenu
+        kind="task"
+        name={title}
+        width="w-56"
+        handlers={{
+          history: () => setHistoryOpen(true),
+          "copy-link": () => copyTaskLink(id),
+          duplicate: () => duplicateTask(id, title),
+          delete: onDelete,
+        }}
+      />
+      <HistorySheet
+        kind="task"
+        subject={id}
+        name={title}
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+      />
     </>
   )
 }
 
-export function TaskSurface({
-  task,
-  mode,
-  onModeChange,
-  onOpenInTab,
+/** The tasks before and after the open one, in the order the page shows them. */
+export interface PeekSteps {
+  readonly prev: string | null
+  readonly next: string | null
+}
+
+function HeaderButton({
+  label,
+  keys,
+  disabled = false,
+  onClick,
+  children,
+}: {
+  label: string
+  keys?: string
+  disabled?: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      aria-label={label}
+      aria-keyshortcuts={keys}
+      title={label}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      {children}
+    </Button>
+  )
+}
+
+/*
+The task as one page, whichever way it is shown: a side peek, a center peek or
+the full page. A peek draws its controls in a bar beside its breadcrumb; the
+full page draws them on the title line, as the folder page does, since the
+app's own bar is its breadcrumb.
+*/
+export function TaskView({
+  task: props,
   onClose,
+  onOpenFull,
+  kind = "side",
+  steps,
 }: {
   task: TaskRowProps & { id: string }
-  mode: TaskSurfaceMode
-  onModeChange: (mode: TaskSurfaceMode) => void
-  onOpenInTab?: () => void
-  onClose: () => void
+  /** The close control; absent draws none. */
+  onClose?: () => void
+  /** "Open as full page"; absent (the full page itself) draws none. */
+  onOpenFull?: () => void
+  kind?: "side" | "center" | "page"
+  /** A peek's neighbours in the list under it; absent draws no arrows. */
+  steps?: PeekSteps
 }) {
-  const closeRef = useRef(onClose)
-  closeRef.current = onClose
-  const [panelWidth, setPanelWidth] = useState(readPanelWidth)
-  const [dialogWidth, setDialogWidth] = useState(readDialogWidth)
-  /* Below 768px the surface takes the whole width in either mode and its resize
-     handle goes, a hand having nothing to drag against; the close control in
-     the chrome above stays where it is. */
-  const isMobile = useIsMobile()
+  const { task, patch, cardHandlers } = useCardWiring(props)
 
-  useEffect(() => {
-    function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") closeRef.current()
-    }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [])
+  const controls = (
+    <div className="flex shrink-0 items-center gap-1">
+      {task.abandoned ? <span className="px-2 text-xs text-muted-foreground">Abandoned</span> : null}
+      {steps && (steps.prev !== null || steps.next !== null) ? (
+        <>
+          <HeaderButton
+            label="Previous task"
+            keys="Control+Shift+K"
+            disabled={steps.prev === null}
+            onClick={() => steps.prev !== null && openTask(steps.prev)}
+          >
+            <ChevronUp className="size-4" strokeWidth={1.75} aria-hidden="true" />
+          </HeaderButton>
+          <HeaderButton
+            label="Next task"
+            keys="Control+Shift+J"
+            disabled={steps.next === null}
+            onClick={() => steps.next !== null && openTask(steps.next)}
+          >
+            <ChevronDown className="size-4" strokeWidth={1.75} aria-hidden="true" />
+          </HeaderButton>
+        </>
+      ) : null}
+      {onOpenFull ? (
+        <HeaderButton label="Open as full page" onClick={onOpenFull}>
+          <Maximize2 className="size-4" strokeWidth={1.75} aria-hidden="true" />
+        </HeaderButton>
+      ) : null}
+      <TaskMenu
+        id={props.id}
+        title={task.title}
+        {...(props.onDelete === undefined ? {} : { onDelete: props.onDelete })}
+      />
+      {onClose ? (
+        <HeaderButton label="Close task" onClick={onClose}>
+          <X className="size-4" strokeWidth={1.75} aria-hidden="true" />
+        </HeaderButton>
+      ) : null}
+    </div>
+  )
 
-  /* Keyed by task and mode so a switch remounts the page cleanly rather
-     than carrying transient state across layouts. */
-  const page = (
-    <TaskPage
-      /*
-      Keyed by task and mode so a switch remounts the page cleanly rather than
-      carrying transient state, the title's draft and its refusal, across
-      layouts.
-      */
-      key={`${task.id}-${mode}`}
-      task={task}
-      compact={mode === "right"}
+  const title = (
+    <Title
+      /* A different task is a fresh draft. */
+      key={props.id}
+      value={task.title}
+      done={Boolean(task.done)}
+      onRename={(title) => patch(task.id, { title })}
     />
   )
 
-  const chrome = (body: ReactNode) => (
-    <SurfaceChrome
-      mode={mode}
-      onModeChange={onModeChange}
-      onOpenInTab={onOpenInTab}
-      onClose={onClose}
-    >
-      {body}
-    </SurfaceChrome>
+  const rest = (
+    <>
+      <TaskCard task={task} patch={patch} {...cardHandlers} />
+      {/* #214: the documents that link to this Task. Absent while none do. */}
+      <ReferencedFrom kind="task" id={props.id} />
+    </>
   )
 
-  if (mode === "dialog") {
+  if (kind === "page") {
+    /* Straight in the shell's column, as the folder page is, so the two share
+       one measure. The page scrolls, not an inner box. */
     return (
-      <HoldsTheDocument>
-      <div className="fixed inset-0 z-50 duration-[var(--duration-base)] ease-[var(--ease-enter)] animate-in fade-in-0">
-        <button
-          type="button"
-          aria-label="Close task"
-          onClick={onClose}
-          className="absolute inset-0 cursor-default bg-black/30"
-        />
-        <div
-          style={{ width: isMobile ? "100%" : dialogWidth }}
-          /*
-          **The dialog says so.** 9.1's roles table fixes "The task surface: a
-          dialog when opened as one; a page when opened as a tab or by its URL",
-          and tests read exactly that, `getByRole('dialog')` filtered by the
-          element labelled title. The label is the task, so a page holding a
-          picker open over the surface still has one dialog named after the task
-          and one named after the field.
-          */
-          role="dialog"
-          aria-modal="true"
-          aria-label={task.title}
-          /*
-          **`transition-none`, because the handle above makes the width move.**
-          The class list carries `duration-*` for the entrance animation and no
-          `transition-*`, which would leave transition-property at its initial
-          value, `all`: every pointer move would animate the width over 200 ms
-          instead of following the hand, and AC-182 would measure a width still
-          travelling. The entrance keeps its animation; only the transition is
-          switched off.
-          */
-          className={cn(
-            "absolute inset-x-0 mx-auto flex w-full max-w-full flex-col overflow-hidden border border-[var(--color-graphite-200)] bg-card shadow-[var(--elevation-2)] transition-none duration-[var(--duration-base)] ease-[var(--ease-enter)] animate-in fade-in-0 slide-in-from-top-2",
-            isMobile ? "top-0 max-h-svh rounded-none" : "top-[8vh] max-h-[84vh] rounded-xl",
-          )}
-        >
-          {isMobile ? null : (
-          <PanelResizeHandle
-            side="left"
-            min={DIALOG_MIN}
-            max={DIALOG_MAX}
-            width={dialogWidth}
-            onChange={setDialogWidth}
-            onCommit={(next) => {
-              setDialogWidth(next)
-              try {
-                localStorage.setItem(DIALOG_KEY, String(Math.round(next)))
-              } catch {
-                /* Remembered for this session only, the honest fallback. */
-              }
-            }}
-            onReset={() => setDialogWidth(DIALOG_DEFAULT)}
-          />
-          )}
-          {chrome(
-            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">{page}</div>,
-          )}
+      <div className="flex flex-col gap-4 pt-2 pb-24">
+        <div className="flex min-w-0 items-start gap-2">
+          <div className="min-w-0 flex-1">{title}</div>
+          {controls}
         </div>
+        {rest}
       </div>
-      </HoldsTheDocument>
     )
   }
 
-  function commitPanelWidth(next: number) {
-    setPanelWidth(next)
-    try {
-      localStorage.setItem(PANEL_KEY, String(Math.round(next)))
-    } catch {
-      /* Remembered for this session only, the honest fallback. */
-    }
-  }
-
-  /*
-  The page makes room rather than being covered: a right sidebar adjusts the
-  view of the page instead of overlapping it.
-
-  A panel that sits *over* the page hides the row the task came from, which is
-  the one piece of context a side-by-side surface exists to keep. Notion, Linear
-  and Things all shrink the page for the same reason.
-
-  The width is published as a variable on the document rather than lifted into
-  the shell's state, because the panel owns its own width, it is resizable, and
-  remembered, and threading a live number up through the shell so the shell can
-  hand it back down is a lot of wiring for a fact that has one owner. The shell
-  reads the variable; nothing has to be told.
-  */
   return (
-    <ReservesRightEdge width={isMobile ? 0 : panelWidth}>
-    <aside
-      aria-label={task.title}
-      style={{ width: isMobile ? "100%" : panelWidth }}
-      className={cn(
-        "fixed right-0 bottom-0 z-50 flex max-w-full flex-col border-l border-[var(--color-graphite-200)] bg-card shadow-[var(--elevation-2)] duration-[var(--duration-slow)] ease-[var(--ease-enter)] animate-in slide-in-from-right",
-        /* Keep the tab strip visible, then let the panel provide its own
-           window bar instead of leaving the page's bar as an empty cap. */
-        isMobile ? "top-0" : "top-[var(--shell-pagebar-height)]",
-      )}
-    >
-      {isMobile ? null : (
-      <PanelResizeHandle
-        side={mode === "right" ? "right" : "left"}
-        width={panelWidth}
-        onChange={setPanelWidth}
-        onCommit={commitPanelWidth}
-        onReset={() => commitPanelWidth(PANEL_DEFAULT)}
-      />
-      )}
-      {chrome(
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">{page}</div>,
-      )}
-    </aside>
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex h-12 shrink-0 items-center gap-1 px-3">
+        {/* The task's path, as the top bar draws it on its full page. It takes
+            the slack so the controls stay at the right edge. */}
+        <div data-peek-breadcrumb="" className="flex min-w-0 flex-1 items-center">
+          <PeekTrail taskId={task.id} />
+        </div>
+        {controls}
+      </div>
+      <div
+        className={cn(
+          "min-h-0 flex-1 overflow-y-auto pb-16",
+          kind === "center" ? "px-14 pt-2 max-md:px-4" : "px-6",
+        )}
+      >
+        <div className="flex flex-col gap-4">
+          {title}
+          {rest}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/*
+Escape closes a peek, unless the key was meant for something inside it: a
+field being edited, or an open menu, picker or another dialog, each of which
+handles Escape itself. The peek's own element is not "another dialog".
+
+Ctrl/Cmd+Shift+K and J step to the previous and next task (Notion's keys),
+from anywhere in the peek, the editor included: nothing inside claims them.
+*/
+function usePeekKeys(
+  onClose: () => void,
+  self: React.RefObject<HTMLElement | null>,
+  steps: PeekSteps,
+) {
+  const closeRef = useRef(onClose)
+  closeRef.current = onClose
+  const stepsRef = useRef(steps)
+  stepsRef.current = steps
+
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.defaultPrevented) return
+      const key = event.key.toLowerCase()
+      if ((event.ctrlKey || event.metaKey) && event.shiftKey && !event.altKey && (key === "j" || key === "k")) {
+        const to = key === "j" ? stepsRef.current.next : stepsRef.current.prev
+        /* Always ours while a peek is open: Ctrl+Shift+K must not also open
+           search, whose listener answers any Ctrl+K. */
+        event.preventDefault()
+        event.stopPropagation()
+        if (to !== null) openTask(to)
+        return
+      }
+      if (event.key !== "Escape") return
+      const target = event.target
+      if (target instanceof HTMLElement) {
+        const tag = target.tagName.toLowerCase()
+        if (tag === "input" || tag === "textarea" || target.isContentEditable) return
+      }
+      const open = document.querySelectorAll(
+        '[role="menu"], [role="dialog"], [role="alertdialog"], [role="listbox"]',
+      )
+      for (const node of open) {
+        if (node === self.current) continue
+        /* A menu still easing out after its own Escape is already closed:
+           the next Escape is the peek's. */
+        if (node.hasAttribute("data-ending-style") || node.hasAttribute("data-closed")) continue
+        return
+      }
+      closeRef.current()
+    }
+    /* Capture: the page under a peek (the folder canvas) stops Escape's
+       propagation for its own selection, and a peek over it must still
+       hear the key. */
+    window.addEventListener("keydown", onKey, true)
+    return () => window.removeEventListener("keydown", onKey, true)
+  }, [self])
+}
+
+/*
+The tasks listed under the peek, in the order they are drawn: every task row
+carries `data-task-id` (a canvas task block wraps one), so the page's own
+order is the order, whichever view drew it. Rows inside the peek are not the
+list. A task opened from somewhere that lists nothing (search, the calendar)
+has no neighbours, and the arrows do not draw.
+*/
+export function usePeekSteps(taskId: string, self: React.RefObject<HTMLElement | null>): PeekSteps {
+  const [steps, setSteps] = useState<PeekSteps>({ prev: null, next: null })
+  useEffect(() => {
+    const read = () => {
+      const ids: string[] = []
+      for (const node of document.querySelectorAll<HTMLElement>("[data-task-id]")) {
+        if (self.current?.contains(node)) continue
+        const id = node.dataset.taskId
+        if (id !== undefined && id !== "" && !ids.includes(id)) ids.push(id)
+      }
+      const at = ids.indexOf(taskId)
+      const prev = at < 0 ? null : (ids[at - 1] ?? null)
+      const next = at < 0 ? null : (ids[at + 1] ?? null)
+      setSteps((current) =>
+        current.prev === prev && current.next === next ? current : { prev, next },
+      )
+    }
+    read()
+    /* A cold load with ?task= opens the peek before the list has rendered;
+       re-read whenever rows arrive, leave or reorder. */
+    let frame = 0
+    const observer = new MutationObserver(() => {
+      if (frame !== 0) return
+      frame = requestAnimationFrame(() => {
+        frame = 0
+        read()
+      })
+    })
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["data-task-id"],
+    })
+    return () => {
+      observer.disconnect()
+      cancelAnimationFrame(frame)
+    }
+  }, [taskId, self])
+  return steps
+}
+
+/*
+Opening a peek waits for the task's read. Start it when a row is pressed, or
+hovered for a moment, so by the click's end the data is usually here and the
+peek opens at once. Mounted once, by the host.
+*/
+const HOVER_INTENT_MS = 120
+
+export function usePrefetchTaskOnIntent(): void {
+  const client = useQueryClient()
+  useEffect(() => {
+    let timer = 0
+    const idOf = (event: Event): string | null => {
+      const target = event.target instanceof Element ? event.target : null
+      const row = target?.closest<HTMLElement>("[data-task-id]")
+      const id = row?.dataset.taskId
+      return id === undefined || id === "" ? null : id
+    }
+    const onDown = (event: PointerEvent) => {
+      const id = idOf(event)
+      if (id !== null) prefetchTask(client, id)
+    }
+    const onOver = (event: PointerEvent) => {
+      window.clearTimeout(timer)
+      if (event.pointerType !== "mouse") return
+      const id = idOf(event)
+      if (id !== null) timer = window.setTimeout(() => prefetchTask(client, id), HOVER_INTENT_MS)
+    }
+    document.addEventListener("pointerdown", onDown, true)
+    document.addEventListener("pointerover", onOver, true)
+    return () => {
+      window.clearTimeout(timer)
+      document.removeEventListener("pointerdown", onDown, true)
+      document.removeEventListener("pointerover", onOver, true)
+    }
+  }, [client])
+}
+
+/*
+**Motion.** A peek eases in and out on the floating-layer utilities
+(`motion-float`, `motion-fade` in tokens.css), which animate between
+`data-starting-style` / `data-ending-style` and rest. Base UI sets those for
+its own popups; a peek is not one, so this does the same by hand: it mounts
+"starting", rests two frames later, and on close goes "ending" and only then
+calls `onClose`, once its exit has run (or after a short fallback, since
+reduced motion or a hidden tab may never fire the end event).
+
+Focus moves into the peek and returns, on close, to what had it before; when
+that was nothing (a mouse press on a canvas task focuses nothing), or the peek
+has since stepped to another task, it goes to the row of the task on screen.
+*/
+type Phase = "starting" | "open" | "ending"
+
+/** Longer than any exit on the motion tokens; only a missed end event waits for it. */
+const EXIT_FALLBACK_MS = 250
+
+/* The focusable home of a task's row under the peek: the row, or the nearest
+   focusable wrapper holding that one task, or its first control. */
+function rowFocusTarget(taskId: string, peek: HTMLElement | null): HTMLElement | null {
+  const rows = document.querySelectorAll<HTMLElement>(`[data-task-id="${CSS.escape(taskId)}"]`)
+  const row = Array.from(rows).find((node) => peek?.contains(node) !== true)
+  if (row === undefined) return null
+  if (row.tabIndex >= 0) return row
+  const wrapper = row.parentElement?.closest<HTMLElement>("[tabindex]:not([tabindex=\"-1\"])")
+  if (
+    wrapper != null &&
+    Array.from(wrapper.querySelectorAll<HTMLElement>("[data-task-id]")).every(
+      (node) => node.dataset.taskId === taskId,
+    )
+  ) {
+    return wrapper
+  }
+  return row.querySelector<HTMLElement>("button, a[href], [tabindex]:not([tabindex=\"-1\"])")
+}
+
+function usePeekMotion(
+  onClose: () => void,
+  self: React.RefObject<HTMLElement | null>,
+  taskId: string,
+) {
+  const shownId = useRef(taskId)
+  shownId.current = taskId
+  const [phase, setPhase] = useState<Phase>("starting")
+  const closeRef = useRef(onClose)
+  closeRef.current = onClose
+  const done = useRef(false)
+
+  useEffect(() => {
+    const opened = shownId.current
+    const peek = self.current
+    const active = document.activeElement
+    const opener = active instanceof HTMLElement && active !== document.body ? active : null
+    let second = 0
+    const first = requestAnimationFrame(() => {
+      second = requestAnimationFrame(() => {
+        setPhase((current) => (current === "starting" ? "open" : current))
+      })
+    })
+    self.current?.focus({ preventScroll: true })
+    return () => {
+      cancelAnimationFrame(first)
+      cancelAnimationFrame(second)
+      const back =
+        opener?.isConnected === true && shownId.current === opened
+          ? opener
+          : rowFocusTarget(shownId.current, peek)
+      back?.focus({ preventScroll: true })
+    }
+  }, [self])
+
+  const finish = useCallback(() => {
+    if (done.current) return
+    done.current = true
+    closeRef.current()
+  }, [])
+
+  const requestClose = useCallback(() => {
+    setPhase("ending")
+  }, [])
+
+  useEffect(() => {
+    if (phase !== "ending") return
+    const fallback = window.setTimeout(finish, EXIT_FALLBACK_MS)
+    return () => window.clearTimeout(fallback)
+  }, [phase, finish])
+
+  const motion: Record<string, string> = {
+    ...(phase === "starting" ? { "data-starting-style": "" } : {}),
+    ...(phase === "ending" ? { "data-ending-style": "" } : {}),
+  }
+  return { phase, requestClose, finish, motion }
+}
+
+/*
+Side peek: a panel at the right edge. It reserves its width, so the page
+narrows rather than being covered and the list beside it stays usable. It
+slides in and out on the motion tokens.
+*/
+export function TaskPanel({
+  task,
+  onClose,
+  onOpenFull,
+}: {
+  task: TaskRowProps & { id: string }
+  onClose: () => void
+  onOpenFull?: () => void
+}) {
+  const self = useRef<HTMLElement>(null)
+  const { phase, requestClose, finish } = usePeekMotion(onClose, self, task.id)
+  const steps = usePeekSteps(task.id, self)
+  usePeekKeys(requestClose, self, steps)
+
+  return (
+    <ReservesRightEdge width={TASK_PANEL_WIDTH}>
+      <aside
+        ref={self}
+        aria-label={task.title}
+        tabIndex={-1}
+        data-focus="self"
+        style={{ width: TASK_PANEL_WIDTH }}
+        onAnimationEnd={(event) => {
+          if (phase === "ending" && event.target === event.currentTarget) finish()
+        }}
+        className={cn(
+          "fixed inset-y-0 right-0 z-40 flex max-w-full flex-col border-l border-border bg-background outline-none",
+          phase === "ending"
+            ? "animate-out fade-out-0 slide-out-to-right-4 fill-mode-forwards duration-(--duration-fast) ease-(--ease-exit)"
+            : "animate-in fade-in-0 slide-in-from-right-4 duration-(--duration-base) ease-(--ease-enter)",
+        )}
+      >
+        <TaskView
+          key={task.id}
+          task={task}
+          onClose={requestClose}
+          steps={steps}
+          {...(onOpenFull ? { onOpenFull } : {})}
+        />
+      </aside>
     </ReservesRightEdge>
+  )
+}
+
+/** The center peek's width on a desktop. */
+export const TASK_PEEK_WIDTH = 960
+
+/*
+Center peek, the default: the page in a centered sheet over the dimmed page,
+as Notion's center peek. The scrim fades; the sheet fades and rises into
+place. A press on the dimmed page, the close or Escape closes it, easing out
+first.
+*/
+export function TaskCenterPeek({
+  task,
+  onClose,
+  onOpenFull,
+}: {
+  task: TaskRowProps & { id: string }
+  onClose: () => void
+  onOpenFull?: () => void
+}) {
+  const self = useRef<HTMLDivElement>(null)
+  const { phase, requestClose, finish, motion } = usePeekMotion(onClose, self, task.id)
+  const steps = usePeekSteps(task.id, self)
+  usePeekKeys(requestClose, self, steps)
+
+  return (
+    <div
+      {...motion}
+      className="fixed inset-0 z-40 flex items-start justify-center bg-scrim pt-[6vh] pb-[4vh] motion-fade"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) requestClose()
+      }}
+    >
+      <div
+        {...motion}
+        ref={self}
+        role="dialog"
+        aria-modal="true"
+        aria-label={task.title}
+        tabIndex={-1}
+        data-focus="self"
+        style={{ width: `min(${TASK_PEEK_WIDTH}px, calc(100vw - 32px))` }}
+        onTransitionEnd={(event) => {
+          if (phase === "ending" && event.target === event.currentTarget) finish()
+        }}
+        className="flex h-full max-h-full flex-col overflow-hidden rounded-lg bg-popover shadow-md outline-none motion-float"
+      >
+        <TaskView
+          key={task.id}
+          kind="center"
+          task={task}
+          onClose={requestClose}
+          steps={steps}
+          {...(onOpenFull ? { onOpenFull } : {})}
+        />
+      </div>
+    </div>
   )
 }

@@ -5,7 +5,7 @@ import { Link } from 'react-router'
 import { getFolderResponse } from '../../../../shared/folders.js'
 import { getTaskResponse } from '../../../../shared/tasks.js'
 import { ApiError, getPlain } from '../../../api/http.js'
-import { linksIn, videoTarget } from '../../../pages/composer-research-content.js'
+import { linksIn, videoTarget } from './links.js'
 
 function Reference({ href, kind, id }: { readonly href: string; readonly kind: 'folders' | 'tasks'; readonly id: string }): React.JSX.Element | null {
   const query = useQuery({
@@ -21,7 +21,7 @@ function Reference({ href, kind, id }: { readonly href: string; readonly kind: '
     },
   })
   if (!query.data) return null
-  return <Link to={href} className="mt-1 inline-flex max-w-full items-center gap-2 rounded-md bg-muted px-2 py-1 text-sm text-foreground"><span className="text-xs text-muted-foreground">{kind === 'folders' ? 'Folder' : 'Task'}</span><span className="truncate">{query.data}</span></Link>
+  return <Link to={href} className="mt-1 inline-flex max-w-full items-center gap-2 rounded-md bg-muted px-2 py-1 text-sm text-foreground"><span className="text-xs text-muted-foreground">{kind === 'folders' ? 'Page' : 'Task'}</span><span className="truncate">{query.data}</span></Link>
 }
 
 function LinkPreview({ href }: { readonly href: string }): React.JSX.Element | null {

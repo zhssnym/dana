@@ -1,0 +1,20 @@
+/* The marquee's band (`CanvasMarquee.tsx`), drawn for a drag from empty space
+   or the margins. The picked blocks' tint is `block-selection.ts`'s, from
+   canvas.css's --dana-block-selection. */
+.dana-marquee-rect {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 60;
+  pointer-events: none;
+  background-color: color-mix(in srgb, var(--accent-color) 10%, transparent);
+  border-radius: var(--radius-sm);
+}
+body.dana-marquee-dragging,
+body.dana-marquee-dragging * {
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+}
+/* A drag by the handle has no use for the handle's menu. */
+body.dana-block-dragging .dana-block-menu { display: none; }

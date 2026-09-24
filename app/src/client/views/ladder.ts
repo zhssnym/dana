@@ -45,7 +45,8 @@ by the schedule date and a start three days spent sorts first - and 9.5 says
 in terms that "a Start Date passing is not overdue and is not styled as one",
 8.1 keeping overdue a relation to the deadline alone. So a row whose only
 date is a spent Start Date takes a rung of its own, **Started**, rather than
-a heading that calls it late. It is a relation to today rather than a day, so
+a heading that calls it late ("In progress", the one name the Board, Today and
+Linear give a started task). It is a relation to today rather than a day, so
 like Overdue it carries no date and captures nothing (DES-182).
 
 Where Started sits relative to Overdue is first appearance in Q3's order,
@@ -54,7 +55,7 @@ interleave in the stream, so whichever past date is earliest opens its rung
 first. Nothing is re-sorted to tidy that, because the page is Q3's order and
 tidying it would move rows.
 */
-import { addDays, monthLabelOf, weekStart, weekdayNameOf } from '../parts/format-dates.js'
+import { addDays, formatDayHeading, formatMonthHeading, weekStart } from '../lib/dates.js'
 import { scheduleDateOf } from '../parts/schedule.js'
 import type { Schedule } from '../parts/schedule.js'
 import type { TaskCard } from '../../shared/tasks.js'
@@ -82,7 +83,7 @@ interface Bucket {
  * date columns - and a second spelling of the name is a second heading for
  * one bucket.
  */
-const STARTED: Bucket = { key: 'started', name: 'Started', date: null }
+const STARTED: Bucket = { key: 'started', name: 'In progress', date: null }
 
 /**
  * Which rung a date belongs on, given today.
@@ -98,14 +99,14 @@ export function rungFor(due: string | null, today: string): Bucket {
   if (due === tomorrow) return { key: 'tomorrow', name: 'Tomorrow', date: tomorrow }
 
   const thisWeekEnd = addDays(weekStart(today), 6)
-  if (due <= thisWeekEnd) return { key: due, name: weekdayNameOf(due), date: due }
+  if (due <= thisWeekEnd) return { key: due, name: formatDayHeading(due, today), date: due }
 
   const nextWeekEnd = addDays(thisWeekEnd, 7)
   if (due <= nextWeekEnd) return { key: 'next-week', name: 'Next week', date: null }
 
   const month = due.slice(0, 7)
   const twelveMonths = addDays(today, 365)
-  if (due <= twelveMonths) return { key: month, name: monthLabelOf(due), date: null }
+  if (due <= twelveMonths) return { key: month, name: formatMonthHeading(due, today), date: null }
   return { key: 'later', name: 'Later', date: null }
 }
 

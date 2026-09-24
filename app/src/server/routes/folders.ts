@@ -23,6 +23,7 @@ import type { Request, Response, Router } from 'express'
 import type { Db, DbClient } from '../../../db/client.js'
 import {
   patchFolderBody,
+  patchFolderLocationBody,
   patchFolderMyMembershipBody,
   postFolderMembersBody,
   postFoldersBody,
@@ -40,6 +41,7 @@ import {
   addMember,
   changeMemberAccess,
   createFolder,
+  createSubPageIn,
   deleteFolder,
   folderView,
   isMember,
@@ -84,6 +86,8 @@ import {
 } from '../domain/responsibility.js'
 import { readFolderDependencies } from '../domain/task-dependencies.js'
 import type { GetFolderDependenciesResponse } from '../../shared/task-dependencies.js'
+import { inTransaction } from '../database.js'
+import { moveFolder, visibleAncestors } from '../domain/page-tree.js'
 import { routerWithPreamble } from './preamble.js'
 
 export interface FoldersRouterOptions {
@@ -256,6 +260,40 @@ export function createFoldersRouter(
       if (db === null) return
       const parsed = parseBody(postFoldersBody, req, res, securityLog)
       if (parsed === null) return
+      /* Wave 2: a sub-page. `parent_folder_id` is a body id, so
+         `createSubPage` gates it itself (404 non-member or trashed parent,
+         403 below Can edit there) and copies the parent's members. */
+      if (parsed.parent_folder_id !== undefined && parsed.parent_folder_id !== null) {
+        const sub = await createSubPageIn(db, viewer(req), parsed.parent_folder_id, {
+          name: parsed.name,
+          description: parsed.description ?? null,
+        })
+        switch (sub.kind) {
+          case 'created':
+            res.status(201).json(await folderView(db, viewer(req), sub.id))
+            return
+          case 'parent_not_found':
+            sendError(res, 404, 'not_found', 'Not found.')
+            return
+          case 'forbidden':
+            sendError(res, 403, 'forbidden', sub.reason)
+            return
+          case 'default_parent':
+            sendError(res, 422, 'validation_failed', 'parent_folder_id: your personal folder cannot hold sub-pages.')
+            return
+          case 'too_deep':
+            sendError(res, 422, 'validation_failed', 'parent_folder_id: pages can nest at most 20 deep.')
+            return
+          case 'folder_cap':
+            sendError(
+              res,
+              422,
+              'validation_failed',
+              'You already have 200 custom folders, the most an account can hold.',
+            )
+            return
+        }
+      }
       /* The description rides the create rather than a PATCH behind it
          (7.4, 2026-09-04). Absent is undefined here and NULL in the row,
          which is every folder made before this. */
@@ -306,6 +344,9 @@ export function createFoldersRouter(
       // member.
       res.status(200).json({
         ...folder,
+        /* Wave 2: the breadcrumb, cut at the first ancestor this viewer is
+           not a member of or that is trashed (`visibleAncestors`). */
+        ancestors: (await visibleAncestors(db, viewer(req), [folderId])).get(folderId) ?? [],
         // Issue #205: finite progress per Section, additive.
         section_progress: await sectionProgressOf(db, folderId),
         members: await membersOf(db, folderId),
@@ -393,6 +434,58 @@ export function createFoldersRouter(
         tasksAbandoned: deleted.tasks_abandoned,
       })
       res.status(200).json({ deleted })
+    },
+  )
+
+  /* ---------------------------------------------------------------- *
+   * The page tree: move a page (wave 2)
+   * ---------------------------------------------------------------- */
+
+  router.patch(
+    '/folders/:id/location',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const folderId = parsedId(res, req.params.id)
+      if (folderId === null) return
+      /* The path id's own gate first (10.2 order: 404 before anything about
+         the body). `moveFolder` resolves it again inside its transaction,
+         under the tree lock, along with the two body ids the ac-397 sweep
+         cannot see: `parent_folder_id` and `after_id` each answer 404 unless
+         the actor is a member of that live page. */
+      const access = await gate(req, res, folderId, 'folder.page.edit')
+      if (access === null) return
+      const parsed = parseBody(patchFolderLocationBody, req, res, securityLog)
+      if (parsed === null) return
+      const outcome = await inTransaction(db, (tx) =>
+        moveFolder(tx, viewer(req), folderId, parsed.parent_folder_id, parsed.after_id),
+      )
+      switch (outcome.kind) {
+        case 'moved':
+          res.status(200).json(await folderView(db, viewer(req), folderId))
+          return
+        case 'not_found':
+          sendError(res, 404, 'not_found', 'Not found.')
+          return
+        case 'forbidden':
+          sendError(res, 403, 'forbidden', outcome.reason)
+          return
+        case 'default_folder':
+          sendError(res, 422, 'validation_failed', 'parent_folder_id: your personal folder always stays at the top level.')
+          return
+        case 'cycle':
+          sendError(res, 422, 'validation_failed', 'parent_folder_id: a page cannot go inside itself or one of its own sub-pages.')
+          return
+        case 'too_deep':
+          sendError(res, 422, 'validation_failed', 'parent_folder_id: pages can nest at most 20 deep.')
+          return
+        case 'not_a_sibling':
+          sendError(res, 422, 'validation_failed', 'after_id: must name a page directly inside the new parent.')
+          return
+      }
     },
   )
 

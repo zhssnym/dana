@@ -10,6 +10,7 @@ Results are discriminated unions rather than thrown statuses, so the route
 layer owns the mapping onto 7.0's taxonomy and this file stays testable
 without HTTP.
 */
+import { notSamplePerson } from '../sample/people.js'
 import { sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 
@@ -25,6 +26,7 @@ import { createNativeFacets, deletePrivateFacetsOf } from './facets.js'
 import {
   folderActorFacts,
   lockedMembership,
+  mayPerform,
   otherFullControlCount,
   presetOf,
   recordAccessTransition,
@@ -35,6 +37,16 @@ import {
   createInitialResponsibility,
   endResponsibilityStanding,
 } from './responsibility.js'
+import {
+  PAGE_TREE_EDIT_ACTION,
+  appendHomeBlock,
+  lastChildPosition,
+  lockPageTree,
+  mayAddChildUnder,
+  removeHomeBlock,
+  trashPageSubtree,
+  visibleParentPredicate,
+} from './page-tree.js'
 import { ensureShelf } from './shelves.js'
 
 /* ------------------------------------------------------------------ *
@@ -137,6 +149,10 @@ function folderFromRow(
     cover_preset: nullableString(row.cover_preset),
     cover_focal_y: Number(row.cover_focal_y ?? 50),
     description: nullableString(row.description),
+    /* Wave 2: the parent as this viewer may see it -- `folderSelect` nulls
+       both columns unless the parent is live and the viewer a member of it. */
+    parent_folder_id: nullableString(row.parent_folder_id),
+    child_position: nullableString(row.child_position),
   }
 }
 
@@ -169,6 +185,11 @@ function folderSelect(viewerId: string, folderId?: string) {
            (f.owner_id = ${viewerId}) AS is_owner,
            f.icon, f.color, f.cover_file_id, f.cover_preset, f.cover_focal_y,
            f.description,
+           -- Wave 2: a hidden or trashed parent is no parent to this viewer.
+           CASE WHEN ${visibleParentPredicate(viewerId)}
+                THEN f.parent_folder_id END AS parent_folder_id,
+           CASE WHEN ${visibleParentPredicate(viewerId)}
+                THEN f.child_position END AS child_position,
            m.shelf_name AS my_shelf, m.color AS my_color,
            m.access AS my_access,
            (SELECT count(*)::int FROM folder_members mm
@@ -326,66 +347,13 @@ export async function createFolder(
   description: string | null = null,
 ): Promise<CreateFolderResult> {
   return inTransaction(db, async (tx) => {
-    await tx.execute(sql`SELECT 1 FROM users WHERE id = ${viewerId} FOR UPDATE`)
-
-    // Trashed folders are out of the count: a person who deleted their way
-    // under the cap has done exactly what the cap asks of them, and the
-    // purge would otherwise change what an account may do 30 days late.
-    const owned = await rowsOf(
-      tx,
-      sql`SELECT count(*)::int AS n FROM folders
-          WHERE owner_id = ${viewerId} AND NOT is_default
-            AND deleted_at IS NULL`,
-    )
-    if (Number(owned[0]?.n ?? 0) >= 200) return { kind: 'folder_cap' }
-
-    // 7.4: folder plus owner membership, one transaction, which this now
-    // shares with the guard that admitted them.
-    const inserted = await rowsOf(
-      tx,
-      sql`INSERT INTO folders (owner_id, name, description)
-          VALUES (${viewerId}::uuid, ${name}, ${description})
-          RETURNING id`,
-    )
-    const id = String(inserted[0]?.id)
-    /* R8A and R5: the creator starts owner *and* Full control, and the two
-       are separate facts from this line onward -- the owner may later be
-       lowered, and a Full-control member who is not the owner may later
-       exist. The transition is written in the same transaction as the
-       membership, which is R9 section 3's atomicity rule, and it is
-       `created_owner` rather than `member_added` so that the Folder's very
-       first standing is distinguishable in history from a grant somebody
-       made afterwards. */
-    await tx.execute(
-      sql`INSERT INTO folder_members (folder_id, user_id, access)
-          VALUES (${id}::uuid, ${viewerId}::uuid, 'full_control')`,
-    )
-    await recordAccessTransition(tx, {
-      folderId: id,
-      memberId: viewerId,
-      previousAccess: null,
-      newAccess: 'full_control',
-      actorId: viewerId,
-      transition: 'created_owner',
+    const id = await insertOwnedFolder(tx, viewerId, {
+      name,
+      description,
+      parentId: null,
+      childPosition: null,
     })
-    /* The four native facets, **in this transaction and never lazily**
-       (issue #210). #210's "stable internal
-       identity" is a fact of the folder rather than of whoever looked first,
-       and lazy creation would mean a GET writes, two members race
-       `folder_facets_folder_native_kind_idx`, and a Can-view member's read
-       either creates rows or answers differently from a Can-edit member's.
-       Migration 0027 did the same for every folder that already existed,
-       trashed ones included. */
-    await createNativeFacets(tx, id, viewerId)
-    await recordEvent(tx, {
-      actorId: viewerId,
-      verb: 'created',
-      subjectKind: 'folder',
-      subjectId: id,
-      subjectName: name,
-      folderId: id,
-    })
-
+    if (id === null) return { kind: 'folder_cap' }
     return {
       kind: 'created',
       folder: {
@@ -398,13 +366,14 @@ export async function createFolder(
         my_shelf: null,
         my_color: null,
         /* The membership this transaction just wrote, spelled as the literal
-           it is rather than read back: the `INSERT INTO folder_members` above
-           names `full_control` and the creator is the only member there is. It is
-           the creator's *own* preset, which is what `my_access` means
-           everywhere (7.4's amendment of 2026-09-20), and here the creator,
-           the owner and the sole member are one person -- which is exactly
-           the case in which the owner-versus-viewer confusion is invisible,
-           so nothing about this line is evidence the projection is right. */
+           it is rather than read back: the `INSERT INTO folder_members` in
+           `insertOwnedFolder` names `full_control` and the creator is the
+           only member there is. It is the creator's *own* preset, which is
+           what `my_access` means everywhere (7.4's amendment of 2026-09-20),
+           and here the creator, the owner and the sole member are one person
+           -- which is exactly the case in which the owner-versus-viewer
+           confusion is invisible, so nothing about this line is evidence the
+           projection is right. */
         my_access: 'full_control',
         personal_labels: [],
         icon: null,
@@ -413,9 +382,201 @@ export async function createFolder(
         cover_preset: null,
         cover_focal_y: 50,
         description,
+        parent_folder_id: null,
+        child_position: null,
       },
     }
   })
+}
+
+/**
+ * The insert every new owned page shares, root or sub-page, in the caller's
+ * transaction: the cap behind the owner's row lock, the row, the owner's
+ * Full-control membership and its transition, the native facets and the
+ * `created` event. Answers the new id, or null at the 10.3 cap.
+ */
+async function insertOwnedFolder(
+  tx: Executor,
+  viewerId: string,
+  input: {
+    id?: string
+    name: string
+    description: string | null
+    parentId: string | null
+    childPosition: string | null
+  },
+): Promise<string | null> {
+  await tx.execute(sql`SELECT 1 FROM users WHERE id = ${viewerId} FOR UPDATE`)
+
+  // Trashed folders are out of the count: a person who deleted their way
+  // under the cap has done exactly what the cap asks of them, and the
+  // purge would otherwise change what an account may do 30 days late.
+  const owned = await rowsOf(
+    tx,
+    sql`SELECT count(*)::int AS n FROM folders
+        WHERE owner_id = ${viewerId} AND NOT is_default
+          AND deleted_at IS NULL`,
+  )
+  if (Number(owned[0]?.n ?? 0) >= 200) return null
+
+  // 7.4: folder plus owner membership, one transaction, which this now
+  // shares with the guard that admitted them.
+  const idValue =
+    input.id === undefined ? sql`gen_random_uuid()` : sql`${input.id}::uuid`
+  const inserted = await rowsOf(
+    tx,
+    sql`INSERT INTO folders (id, owner_id, name, description,
+                             parent_folder_id, child_position)
+        VALUES (${idValue}, ${viewerId}::uuid, ${input.name},
+                ${input.description}, ${input.parentId}::uuid,
+                ${input.childPosition})
+        RETURNING id`,
+  )
+  const id = String(inserted[0]?.id)
+  /* R8A and R5: the creator starts owner *and* Full control, and the two
+     are separate facts from this line onward -- the owner may later be
+     lowered, and a Full-control member who is not the owner may later
+     exist. The transition is written in the same transaction as the
+     membership, which is R9 section 3's atomicity rule, and it is
+     `created_owner` rather than `member_added` so that the Folder's very
+     first standing is distinguishable in history from a grant somebody
+     made afterwards. */
+  await tx.execute(
+    sql`INSERT INTO folder_members (folder_id, user_id, access)
+        VALUES (${id}::uuid, ${viewerId}::uuid, 'full_control')`,
+  )
+  await recordAccessTransition(tx, {
+    folderId: id,
+    memberId: viewerId,
+    previousAccess: null,
+    newAccess: 'full_control',
+    actorId: viewerId,
+    transition: 'created_owner',
+  })
+  /* The four native facets, **in this transaction and never lazily**
+     (issue #210). #210's "stable internal
+     identity" is a fact of the folder rather than of whoever looked first,
+     and lazy creation would mean a GET writes, two members race
+     `folder_facets_folder_native_kind_idx`, and a Can-view member's read
+     either creates rows or answers differently from a Can-edit member's.
+     Migration 0027 did the same for every folder that already existed,
+     trashed ones included. */
+  await createNativeFacets(tx, id, viewerId)
+  await recordEvent(tx, {
+    actorId: viewerId,
+    verb: 'created',
+    subjectKind: 'folder',
+    subjectId: id,
+    subjectName: input.name,
+    folderId: id,
+  })
+  return id
+}
+
+export type CreateSubPageResult =
+  | { kind: 'created'; id: string }
+  | { kind: 'folder_cap' }
+  /** The parent is missing, trashed or not the actor's: 404 (10.2). */
+  | { kind: 'parent_not_found' }
+  /** Below edit rights on the parent: 403 with the resolver's reason. */
+  | { kind: 'forbidden'; reason: string }
+  /** The parent is a default folder, which is never a parent: 422. */
+  | { kind: 'default_parent' }
+  /** One more level would make the tree deeper than 20: 422. */
+  | { kind: 'too_deep' }
+
+/**
+ * A new page under `parentId`, in the caller's transaction (POST /folders
+ * with `parent_folder_id` today, the document's `create_page` op later).
+ *
+ * Wave 2, Hassan's decision 1: the new page **copies the parent's members
+ * and their Access presets at this moment**, and nothing links the two
+ * afterwards. The creator becomes owner with Full control whatever they
+ * hold on the parent. Each copied membership is recorded as `member_added`
+ * by the creator, in this transaction, as a direct add would be. Personal
+ * membership fields (shelf, colour) are the member's own and are not copied.
+ *
+ * Needs `folder.page.edit` on the parent (adding a sub-page edits that
+ * page's structure). The tree lock is taken before anything is read, so a
+ * concurrent move cannot deepen the parent between the check and the insert.
+ * `id` lets a client-generated id through (the document's `create_page`).
+ *
+ * The new page's home `page` block is appended at the end of the parent's
+ * Main document, unless `homeBlock` is false: `create_page` places the block
+ * itself, where the person typed it.
+ */
+export async function createSubPage(
+  tx: Executor,
+  actorId: string,
+  parentId: string,
+  input: { id?: string; name: string; description?: string | null; homeBlock?: boolean },
+): Promise<CreateSubPageResult> {
+  await lockPageTree(tx)
+  const parent = await folderActorFacts(tx, actorId, parentId)
+  if (parent === null) return { kind: 'parent_not_found' }
+  const decision = mayPerform(parent, PAGE_TREE_EDIT_ACTION)
+  if (!decision.allowed) return { kind: 'forbidden', reason: decision.reason }
+  if (parent.isDefault) return { kind: 'default_parent' }
+  if (!(await mayAddChildUnder(tx, parentId))) return { kind: 'too_deep' }
+
+  const id = await insertOwnedFolder(tx, actorId, {
+    id: input.id,
+    name: input.name,
+    description: input.description ?? null,
+    parentId,
+    childPosition: await lastChildPosition(tx, parentId),
+  })
+  if (id === null) return { kind: 'folder_cap' }
+  if (input.homeBlock !== false) await appendHomeBlock(tx, parentId, id)
+  await copyParentMembers(tx, actorId, parentId, id)
+  return { kind: 'created', id }
+}
+
+/** Wave 2, decision 1: the new sub-page `childId` copies `parentId`'s live
+ * members other than the actor, with their Access presets, each recorded as
+ * `member_added` by the actor. `createSubPage` and the import into a page
+ * (POST /folders/:id/import) both call it. */
+export async function copyParentMembers(
+  tx: Executor,
+  actorId: string,
+  parentId: string,
+  childId: string,
+): Promise<void> {
+  const copied = await rowsOf(
+    tx,
+    sql`INSERT INTO folder_members (folder_id, user_id, access)
+        SELECT ${childId}::uuid, m.user_id, m.access
+          FROM folder_members m
+          JOIN users u ON u.id = m.user_id AND u.deleted_at IS NULL
+         WHERE m.folder_id = ${parentId}::uuid AND m.user_id <> ${actorId}::uuid
+        RETURNING user_id, access`,
+  )
+  for (const row of copied) {
+    const access = presetOf(row.access)
+    if (access === null) {
+      throw new Error(
+        `folder_members.access holds an unknown preset in ${parentId}`,
+      )
+    }
+    await recordAccessTransition(tx, {
+      folderId: childId,
+      memberId: String(row.user_id),
+      previousAccess: null,
+      newAccess: access,
+      actorId,
+      transition: 'member_added',
+    })
+  }
+}
+
+/** `createSubPage` in its own transaction, for POST /folders. */
+export async function createSubPageIn(
+  db: Db,
+  actorId: string,
+  parentId: string,
+  input: { name: string; description?: string | null },
+): Promise<CreateSubPageResult> {
+  return inTransaction(db, (tx) => createSubPage(tx, actorId, parentId, input))
 }
 
 /* ------------------------------------------------------------------ *
@@ -530,37 +691,66 @@ export async function deleteFolder(
   folderId: string,
 ): Promise<DeletedCounts> {
   return inTransaction(db, async (tx) => {
-    const counts = (
-      await rowsOf(
-        tx,
-        sql`SELECT
-              (count(*) FILTER (WHERE status = 'pending'))::int AS open,
-              (count(*) FILTER (WHERE status = 'completed'))::int AS completed,
-              (count(*) FILTER (WHERE status = 'abandoned'))::int AS abandoned
-            FROM tasks WHERE folder_id = ${folderId} AND deleted_at IS NULL`,
-      )
-    )[0]
-    const marked = await rowsOf(
+    /* Wave 2: moved to Trash from outside its parent's document (the sidebar,
+       the page's own menu), the page leaves that document too. The pages
+       trashed with it keep theirs, inside documents that are in Trash with
+       them, so a restore brings the set back where it was. */
+    await lockPageTree(tx)
+    await removeHomeBlock(tx, folderId)
+    return (await trashFolderSubtree(tx, actorId, folderId)).counts
+  })
+}
+
+/**
+ * The body of the Trash move, in the caller's transaction (DELETE
+ * /folders/:id, and the document's `trash_page` op). The caller has
+ * gated the page itself (`folder.trash`) and refused a default folder.
+ *
+ * Wave 2: the page's live descendants that the actor may also move to Trash
+ * go with it, each stamped `trashed_with_folder_id = folderId`, so /trash
+ * lists the initiator alone and a restore brings the set back; a descendant
+ * the actor may not trash stays live (see `trashPageSubtree`). The counts
+ * are the initiator's own, as 7.4's response has always described.
+ */
+export async function trashFolderSubtree(
+  tx: Executor,
+  actorId: string,
+  folderId: string,
+): Promise<{ counts: DeletedCounts; trashedWith: string[] }> {
+  const counts = (
+    await rowsOf(
       tx,
-      sql`UPDATE folders SET deleted_at = now()
-          WHERE id = ${folderId} RETURNING name`,
+      sql`SELECT
+            (count(*) FILTER (WHERE status = 'pending'))::int AS open,
+            (count(*) FILTER (WHERE status = 'completed'))::int AS completed,
+            (count(*) FILTER (WHERE status = 'abandoned'))::int AS abandoned
+          FROM tasks WHERE folder_id = ${folderId} AND deleted_at IS NULL`,
     )
-    await recordEvent(tx, {
-      actorId,
-      verb: 'deleted',
-      subjectKind: 'folder',
-      subjectId: folderId,
-      subjectName: String(marked[0]?.name ?? ''),
-      folderId,
-      detail: 'moved to Trash for 30 days',
-      recipients: await memberIdsOf(tx, folderId),
-    })
-    return {
+  )[0]
+  const marked = await rowsOf(
+    tx,
+    sql`UPDATE folders SET deleted_at = now(), trashed_with_folder_id = NULL
+        WHERE id = ${folderId} RETURNING name`,
+  )
+  await recordEvent(tx, {
+    actorId,
+    verb: 'deleted',
+    subjectKind: 'folder',
+    subjectId: folderId,
+    subjectName: String(marked[0]?.name ?? ''),
+    folderId,
+    detail: 'moved to Trash for 30 days',
+    recipients: await memberIdsOf(tx, folderId),
+  })
+  const trashedWith = await trashPageSubtree(tx, actorId, folderId)
+  return {
+    counts: {
       tasks_open: Number(counts?.open ?? 0),
       tasks_completed: Number(counts?.completed ?? 0),
       tasks_abandoned: Number(counts?.abandoned ?? 0),
-    }
-  })
+    },
+    trashedWith,
+  }
 }
 
 /** The recipients of a folder-scoped fan-out (4.14); recordEvent drops the
@@ -937,7 +1127,8 @@ export async function otherMemberCount(
   const found = await rowsOf(
     db,
     sql`SELECT count(*)::int AS n FROM folder_members
-        WHERE folder_id = ${folderId} AND user_id <> ${excludingUserId}`,
+        WHERE folder_id = ${folderId} AND user_id <> ${excludingUserId}
+          AND ${notSamplePerson(sql`user_id`)}`,
   )
   return Number(found[0]?.n ?? 0)
 }
@@ -1140,6 +1331,7 @@ export async function transferOwnership(
     tx,
     sql`SELECT user_id FROM folder_members
         WHERE folder_id = ${folderId} AND user_id <> ${departingOwnerId}
+          AND ${notSamplePerson(sql`user_id`)}
         ORDER BY created_at ASC, user_id ASC
         LIMIT 1`,
   )
@@ -1387,12 +1579,14 @@ export async function ownedSharedFolders(
     sql`SELECT f.id, f.name,
                EXISTS (SELECT 1 FROM folder_members s
                         WHERE s.folder_id = f.id AND s.user_id <> ${ownerId}
+                          AND ${notSamplePerson(sql`s.user_id`)}
                           AND s.access = 'full_control') AS heir
         FROM folders f
         WHERE f.owner_id = ${ownerId} AND NOT f.is_default
           AND f.deleted_at IS NULL
           AND EXISTS (SELECT 1 FROM folder_members m
-                       WHERE m.folder_id = f.id AND m.user_id <> ${ownerId})
+                       WHERE m.folder_id = f.id AND m.user_id <> ${ownerId}
+                         AND ${notSamplePerson(sql`m.user_id`)})
         ORDER BY lower(f.name) ASC, f.id ASC`,
   )
   return found.map((row) => ({

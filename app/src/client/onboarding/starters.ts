@@ -35,7 +35,7 @@ import type { ImportWorkflowBody } from '../../shared/workflows.js'
 /** 9.13's normative first paragraph, on every starter folder's page. */
 const DELETABLE =
   'This is an example, and it is yours now. Change anything you like, or ' +
-  'delete the whole folder from its menu when you are done with it.'
+  'delete the whole page from its menu when you are done with it.'
 
 export interface Starter {
   /** Stable across renames of the folder inside; used as a React key. */
@@ -51,7 +51,7 @@ export const STARTERS: readonly [Starter, Starter, Starter] = [
   {
     id: 'trip',
     label: 'Plan a trip',
-    summary: 'One folder holding the brief, the bookings, and everything still to decide.',
+    summary: 'One page holding the brief, the bookings, and everything still to decide.',
     file: {
       dana: 'workflow',
       version: 1,
@@ -72,9 +72,9 @@ export const STARTERS: readonly [Starter, Starter, Starter] = [
             {
               kind: 'paragraph',
               text:
-                'Give any task below a due date and it appears on Scheduled. Give it ' +
+                'Give any task below a due date and it appears on Upcoming. Give it ' +
                 "today's date and it appears on Today as well. Nothing is filed twice: " +
-                'the pages are questions asked of the same tasks, not folders to sort into.',
+                'the pages are questions asked of the same tasks, not pages to sort into.',
             },
           ],
           tasks: [
@@ -83,7 +83,7 @@ export const STARTERS: readonly [Starter, Starter, Starter] = [
             { title: 'Check passport expiry and whether you need a visa' },
             { title: 'Book the flights' },
             { title: 'Book somewhere to stay for the first two nights' },
-            { title: 'Give this task a due date, then open Scheduled to find it' },
+            { title: 'Give this task a due date, then open Upcoming to find it' },
             { title: 'Make a rough day by day list, and leave one day empty' },
             { title: 'Book the first evening meal, so arriving needs no decisions' },
             { title: 'Download offline maps and tickets' },
@@ -96,7 +96,7 @@ export const STARTERS: readonly [Starter, Starter, Starter] = [
   {
     id: 'team',
     label: 'Run a small team',
-    summary: 'A shared folder, work that belongs to somebody, and a weekly rhythm.',
+    summary: 'A shared page, work that belongs to somebody, and a weekly rhythm.',
     file: {
       dana: 'workflow',
       version: 1,
@@ -106,13 +106,13 @@ export const STARTERS: readonly [Starter, Starter, Starter] = [
           name: 'Run a small team',
           blocks: [
             { kind: 'paragraph', text: DELETABLE },
-            { kind: 'section', text: 'Share this folder to see what it is for' },
+            { kind: 'section', text: 'Share this page to see what it is for' },
             {
               kind: 'paragraph',
               text:
-                'Open the folder menu and invite someone by email. Sharing a folder ' +
+                'Open the page menu and invite someone by email. Sharing a page ' +
                 'shares every task in it, which is the only unit Dana shares: once they ' +
-                'accept, tasks here can be assigned to them and the folder gets a ' +
+                'accept, tasks here can be assigned to them and the page gets a ' +
                 'conversation the two of you share.',
             },
             { kind: 'section', text: 'The weekly rhythm' },
@@ -125,10 +125,10 @@ export const STARTERS: readonly [Starter, Starter, Starter] = [
             },
           ],
           tasks: [
-            { title: 'Invite one person to this folder' },
+            { title: 'Invite one person to this page' },
             { title: 'Write down what this team is for, in one sentence' },
             { title: 'List the three things that actually matter this quarter' },
-            { title: 'Assign a task to someone else, then open Assignments to see it' },
+            { title: 'Assign a task to someone else, then open Assigned to see it' },
             { title: 'Star the one task that is genuinely urgent, then open Important' },
             { title: 'Book a weekly check in, and keep it short' },
             { title: 'Agree how a decision gets made when the two of you disagree' },
@@ -155,9 +155,9 @@ export const STARTERS: readonly [Starter, Starter, Starter] = [
             {
               kind: 'paragraph',
               text:
-                'This folder is a shape: a goal, a source, practice, and review. When it ' +
-                'has worked for you once, export it from the folder menu as a workflow ' +
-                'file and import it again for the next thing you learn. The shape comes ' +
+                'This page is a shape: a goal, a source, practice, and review. When it ' +
+                'has worked for you once, choose Export in the page menu, then Import ' +
+                'the file again for the next thing you learn. The shape comes ' +
                 'across; the old dates, people and finished work stay behind.',
             },
             { kind: 'section', text: 'Write a goal you can finish' },
@@ -176,7 +176,7 @@ export const STARTERS: readonly [Starter, Starter, Starter] = [
             { title: 'Do the first hour today, badly, before you feel ready' },
             { title: 'Practise out loud or on paper, not only in your head' },
             { title: 'Review after a week and cut whatever did not help' },
-            { title: 'Export this folder as a workflow, ready for the next thing' },
+            { title: 'Export this page, ready for the next thing' },
           ],
         },
       ],

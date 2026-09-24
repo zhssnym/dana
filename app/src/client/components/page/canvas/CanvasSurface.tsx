@@ -1,17 +1,12 @@
-import { createContext, useCallback, useContext, useEffect, useState } from 'react'
-import { offset } from '@floating-ui/react'
+import { useCallback, useEffect, useId, useMemo, useState } from 'react'
 import { BlockNoteView } from '@blocknote/shadcn'
 import {
-  FilePanelController, FormattingToolbarController, SuggestionMenuController, SideMenuController, SideMenu,
-  DragHandleMenu,
-  useBlockNoteEditor, useComponentsContext, useExtensionState,
-  getDefaultReactSlashMenuItems,
+  FilePanelController, FormattingToolbarController, SideMenuController,
 } from '@blocknote/react'
-import type { DefaultReactSuggestionItem } from '@blocknote/react'
-import { filterSuggestionItems, insertOrUpdateBlockForSlashMenu, SideMenuExtension } from '@blocknote/core/extensions'
 import { CanvasFilePanel } from './CanvasFilePanel.js'
 import type { CanvasMediaKind, CanvasUploadedFile } from './CanvasFilePanel.js'
 import { CanvasFormattingToolbar } from './CanvasFormattingToolbar.js'
+import { CanvasMarquee } from './CanvasMarquee.js'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,107 +17,38 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '../../ui/alert-dialog.js'
-import { installCanvasGuard } from './guard.js'
-import { ancestorsOf, bindTaskCommand, continueAfterGroup, headingOneContext, insertCanvasHeading, insertDocumentHeading, moveCanvasBlock, removeCanvasBlocks, removeHeadingKeepingContent } from './commands.js'
+import { installCanvasGuard, removingPages } from './guard.js'
+import { pendingPages } from './adapters.js'
+import { publishedFolders } from '../../../lib/folder-library.js'
+import { pushUndo, undoLabel } from '../../../shell/undo.js'
+import { bindTaskCommand, removeCanvasBlocks } from './commands.js'
+import { CanvasSlashMenu, blockMenuTargets, headingTogglesFor } from './slash-items.js'
+import { isSectionHeading, shelfOutlineFailure, validateCanvasOutline } from './outline.js'
+import { BlockMenuContext, BlockSideMenu, blockSidePosition, duplicateBlocks, pageTheme, turnBlocksInto } from './BlockSideMenu.js'
+import type { BlockMenuModel } from './BlockSideMenu.js'
+import { BlockSelectionStyle, useBlockAnchor, useBlockSelectionKeys } from './block-selection.js'
+import { backspaceToText, contains, simulateNest, TEXT_TYPES, TURN_TARGETS } from './turn-into.js'
+import type { TreeBlock } from './turn-into.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
-import { DanaLinkSuggestions, linkSlashItem } from '../../links/dana-link-picker.js'
+import { MentionSuggestions } from './mentions.js'
+import { useCanvasTaskDelete } from './CanvasTask.js'
 import './canvas.css'
-import {
-  ArrowDown,
-  AudioLines,
-  CheckCircle2,
-  Code,
-  FileText,
-  Image,
-  Lightbulb,
-  ListChecks,
-  ListPlus,
-  Network,
-  Quote,
-  Video,
-  X,
-} from '../../../lib/icons.js'
 
 type HeadingMode = 'section' | 'document' | 'none'
 
-const CommandContext = createContext<{ task?: (block?: CanvasBlock) => void; explain: (message: string) => void; headingMode: HeadingMode; removeFolder?: (folderId: string) => void; flat?: boolean }>({ explain: () => {}, headingMode: 'section' })
+const TASK: ReadonlySet<string> = new Set(['danaTask'])
+const TASK_OR_FOLDER: ReadonlySet<string> = new Set(['danaTask', 'danaFolder', 'danaPage'])
+const LIST_TYPES: ReadonlySet<string> = new Set(['bulletListItem', 'numberedListItem', 'checkListItem', 'toggleListItem'])
 
-function CanvasBlockMenu(): React.JSX.Element | null {
-  const editor = useBlockNoteEditor() as CanvasEditor
-  const commands = useContext(CommandContext)
-  const components = useComponentsContext()!
-  const sideBlock = useExtensionState(SideMenuExtension, { editor, selector: (state) => state?.block })
-  const block = sideBlock === undefined ? undefined : editor.getBlock(sideBlock.id)
-  if (block === undefined) return null
-  const group = commands.headingMode === 'section'
-    ? block.type === 'heading' && block.props.isToggleable !== false
-      ? block
-      : (ancestorsOf(editor.document, block.id) ?? []).filter((item) => item.type === 'heading' && item.props.isToggleable !== false).at(-1)
-    : undefined
-  const directions = commands.headingMode === 'section' ? (['up', 'down', 'out', 'in'] as const) : (['up', 'down'] as const)
-  return (
-    <DragHandleMenu>
-      {directions.filter((direction) => !commands.flat || (direction !== 'out' && !(direction === 'in' && block.type === 'heading'))).map((direction) => <components.Generic.Menu.Item key={direction} onClick={() => commands.explain(moveCanvasBlock(editor, block, direction) ?? '')}>
-        <span>{{ up: 'Move up', down: 'Move down', out: 'Move out of group', in: 'Move into previous group' }[direction]}</span>
-      </components.Generic.Menu.Item>)}
-      {block.type === 'paragraph' && commands.task ? <components.Generic.Menu.Item onClick={() => commands.task?.(block)}><CheckCircle2 size={16} /><span>Convert to Task</span></components.Generic.Menu.Item> : null}
-      {group?.type === 'heading' && !commands.flat ? (
-        <components.Generic.Menu.Item onClick={() => continueAfterGroup(editor, group)}>
-          <ArrowDown size={16} /><span>Continue after group</span>
-        </components.Generic.Menu.Item>
-      ) : null}
-      {block.type === 'heading' && commands.headingMode === 'section' ? (
-        <components.Generic.Menu.Item onClick={() => removeHeadingKeepingContent(editor, block)}>
-          <X size={16} /><span>Remove heading<span className="block text-xs text-muted-foreground">Keep its Tasks and content</span></span>
-        </components.Generic.Menu.Item>
-      ) : block.type === 'danaFolder' ? (
-        /* #221: a Folder row is the Shelf's membership, so it leaves through the
-           membership act and never through generic Delete. */
-        commands.removeFolder ? <components.Generic.Menu.Item onClick={() => commands.removeFolder?.(block.props.folderId)}>
-          <X size={16} /><span>Remove from shelf<span className="block text-xs text-muted-foreground">The folder itself is kept</span></span>
-        </components.Generic.Menu.Item> : null
-      ) : block.type === 'danaTask' ? (
-        /*
-        Why a Task block has no Delete, said in words that name a control that
-        exists. "Use the Task menu for Task actions" named none: the row's
-        overflow is labelled "More actions" and there is nothing called a Task
-        menu anywhere in the product, and on a finished Task there was no row
-        under the pointer at all. A finished block now collapses to nothing
-        (`CanvasTask.tsx`), so this menu is not reachable on one; the Done
-        clause is here because a string that is only true where it happens to
-        be reachable is the same defect waiting for the next change.
-        */
-        <p className="px-3 py-2 text-sm text-muted-foreground">Delete a Task from its own row, under More actions. A finished Task keeps its row in Done.</p>
-      ) : <components.Generic.Menu.Item onClick={() => {
-        const selected = editor.getSelection()?.blocks
-        removeCanvasBlocks(editor, selected?.some((item) => item.id === block.id) ? selected : [block])
-      }}>Delete</components.Generic.Menu.Item>}
-    </DragHandleMenu>
-  )
+/** A Shelf keeps one heading level: its headings are stored flat and group
+ * by position (`ShelfCanvas`). Blocks nest under blocks there as anywhere. */
+function flatShelfFailure(blocks: readonly TreeBlock[]): boolean {
+  return shelfOutlineFailure(blocks)
 }
 
-function CanvasSideMenu(): React.JSX.Element {
-  return <SideMenu dragHandleMenu={CanvasBlockMenu} />
-}
-
-// Keep BlockNote's controller; adapt its offset to the actual Dana line box.
-const canvasSidePosition = {
-  useFloatingOptions: {
-    middleware: [offset(({ elements, rects }) => {
-      const reference = elements.reference
-      const element = reference instanceof Element ? reference : reference.contextElement
-      const content = element?.querySelector('.bn-block-content') ?? element
-      const line = content?.querySelector('.bn-inline-content') ?? content
-      if (line === undefined || line === null) return { mainAxis: 8 }
-      const box = line.getBoundingClientRect()
-      const referenceBox = reference.getBoundingClientRect()
-      const style = getComputedStyle(line)
-      const lineHeight = Number.parseFloat(style.lineHeight) || box.height
-      const toggle = content?.querySelector('.bn-toggle-button')
-      const mainAxis = toggle ? referenceBox.left - toggle.getBoundingClientRect().left + 8 : 8
-      return { mainAxis, crossAxis: box.top - referenceBox.top + (lineHeight - rects.floating.height) / 2 }
-    })],
-  },
+/** A folder reference is drawn as text but stored as `folder_ref`, which holds nothing. */
+function referenceHolds(blocks: readonly TreeBlock[], folderRefs: ReadonlyMap<string, string>): boolean {
+  return blocks.some((block) => (block.children.length > 0 && folderRefs.has(block.id)) || referenceHolds(block.children, folderRefs))
 }
 
 /** Visual editor host. The caller owns hydration, uploads, Task actions and durable saving. */
@@ -137,7 +63,9 @@ export function CanvasSurface({
   label,
   onRemoveFolder,
   flatGroups = false,
-  extraSlashItems,
+  placeholder,
+  peopleFolderId,
+  onNotice,
 }: {
   readonly editor: CanvasEditor
   readonly onChange: (editor: CanvasEditor) => void
@@ -150,31 +78,183 @@ export function CanvasSurface({
   readonly headingMode?: HeadingMode
   readonly editable?: boolean
   readonly label?: string
-  /** A Shelf's Remove from shelf, offered on its Folder rows (#221). */
+  /** A Collection's (Shelf's) Remove from collection, offered on its Folder rows (#221). */
   readonly onRemoveFolder?: (folderId: string) => void
   /** A Shelf stores its headings flat, content belonging by position: one
    * heading level, and no "out of group" gestures a reload would undo. */
   readonly flatGroups?: boolean
-  readonly extraSlashItems?: readonly DefaultReactSuggestionItem[]
+  /** What an empty page says (see canvas.css: BlockNote's own placeholder
+   * decoration does not reach Dana's paragraph node view). */
+  readonly placeholder?: string
+  /** Whose members the `@` menu offers (Wave 2); none offers pages only. */
+  readonly peopleFolderId?: string
+  /** Where a refused gesture's sentence goes: the page's one save line
+   * (`SaveFailure`), so a canvas never draws a second status line. */
+  readonly onNotice: (message: string) => void
 }): React.JSX.Element {
-  const [feedback, setFeedback] = useState('')
   const [referenceToConvert, setReferenceToConvert] = useState<CanvasBlock | null>(null)
-  const [theme, setTheme] = useState<'dark' | 'light'>(() => document.documentElement.classList.contains('dark') ? 'dark' : 'light')
+  const [theme, setTheme] = useState<'dark' | 'light'>(pageTheme)
   const requestTask = useCallback((block?: CanvasBlock): void => {
     const target = block ?? editor.getTextCursorPosition().block
     if (folderRefs.has(target.id)) setReferenceToConvert(target)
     else onCreateTask?.(block)
   }, [editor, folderRefs, onCreateTask])
-  useEffect(() => installCanvasGuard(editor, setFeedback), [editor])
+  const slashContext = useMemo(() => ({
+    surface: headingMode === 'document' ? 'document' as const : headingMode === 'none' ? 'plain' as const : flatGroups ? 'shelf' as const : 'work' as const,
+    onCreateTask: onCreateTask === undefined ? undefined : () => { onCreateTask() },
+  }), [headingMode, flatGroups, onCreateTask])
+  useEffect(() => installCanvasGuard(editor, onNotice), [editor, onNotice])
   useEffect(() => onCreateTask ? bindTaskCommand(editor, requestTask) : undefined, [editor, onCreateTask, requestTask])
   useEffect(() => {
-    const observer = new MutationObserver(() => setTheme(document.documentElement.classList.contains('dark') ? 'dark' : 'light'))
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+    const observer = new MutationObserver(() => setTheme(pageTheme()))
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'data-theme'] })
     return () => observer.disconnect()
   }, [])
+
+  // What this canvas's structure admits: the persisted outline's rules, and a
+  // Shelf's flat ones. A refused shape is never offered (menu) or attempted (Tab).
+  const admits = useCallback((document: readonly TreeBlock[]): boolean =>
+    validateCanvasOutline(document) === null && !(flatGroups && flatShelfFailure(document)) && !referenceHolds(document, folderRefs), [flatGroups, folderRefs])
+  const deleteTask = useCanvasTaskDelete()
+  const remove = useCallback((ids: readonly string[]): void => {
+    removeCanvasBlocks(editor, ids.flatMap((id) => { const block = editor.getBlock(id); return block === undefined ? [] : [block] }))
+  }, [editor])
+  /* A sub-page's own act: the block leaves (the next save sends its
+     `delete_block` with `trash_page`), and Undo puts the same block back where
+     it was (the save then sends it as a `put_block`, which restores the page). */
+  const trashPage = useCallback((id: string, folderId: string): void => {
+    const own = editor.getBlock(id)
+    if (own === undefined) return
+    const parent = editor.getParentBlock(id)
+    const siblings = parent?.children ?? editor.document
+    const at = siblings.findIndex((block) => block.id === id)
+    const previous = siblings[at - 1]?.id
+    const next = siblings[at + 1]?.id
+    const name = publishedFolders().find((folder) => folder.id === folderId)?.name ?? pendingPages.get(folderId) ?? 'Untitled'
+    removingPages([folderId], () => { removeCanvasBlocks(editor, [own]) })
+    if (editor.getBlock(id) !== undefined) return
+    pushUndo(`${undoLabel('Moved', name)} to Trash`, () => {
+      if (editor.getBlock(id) !== undefined) return
+      const block = { id, type: 'danaPage' as const, props: { folderId } }
+      if (previous !== undefined && editor.getBlock(previous) !== undefined) editor.insertBlocks([block], previous, 'after')
+      else if (next !== undefined && editor.getBlock(next) !== undefined) editor.insertBlocks([block], next, 'before')
+      else if (parent !== undefined && editor.getBlock(parent.id) !== undefined) editor.updateBlock(parent.id, { children: [block] })
+      else { const last = editor.document.at(-1); if (last !== undefined) editor.insertBlocks([block], last, 'after') }
+    })
+  }, [editor])
+  const duplicate = useCallback((ids: readonly string[]): void => {
+    const blocks = ids.flatMap((id) => { const block = editor.getBlock(id) as TreeBlock | undefined; return block === undefined ? [] : [block] })
+    // A Task or a page is one record; a copy of its row would be a second row for the same one.
+    if (blocks.some((block) => contains(block, TASK))) { onNotice("This selection contains a Task, which can't be duplicated. Select only the writing."); return }
+    if (blocks.some((block) => contains(block, TASK_OR_FOLDER))) { onNotice("This selection contains a page, which can't be duplicated. Select only the writing."); return }
+    duplicateBlocks(editor, ids)
+  }, [editor, onNotice])
+  const menu = useMemo<BlockMenuModel>(() => ({
+    targets: (block) => blockMenuTargets(editor, block),
+    turnInto: (ids, target) => { turnBlocksInto(editor, ids, target, headingMode === 'none' ? undefined : (block) => headingTogglesFor(editor, block, target)) },
+    // A stored to-do (no longer made anywhere) turns into a Task as text does.
+    extraTarget: (block) => (block.type === 'paragraph' || block.type === 'checkListItem') && onCreateTask !== undefined
+      ? { title: 'Task', run: () => { requestTask(editor.getBlock(block.id) ?? undefined) } }
+      : null,
+    canDuplicate: (block) => !contains(block, TASK_OR_FOLDER),
+    duplicate,
+    removal: (block, ids) => {
+      /* #221: a Folder row is the Shelf's membership, so it leaves through
+         the membership act and never through generic Delete. */
+      if (block.type === 'danaFolder') {
+        const folderId = String(block.props.folderId)
+        return onRemoveFolder ? { label: 'Remove from collection', run: () => { onRemoveFolder(folderId) } } : null
+      }
+      if (block.type === 'danaPage') {
+        const folderId = String(block.props.folderId)
+        return { label: 'Move page to Trash', run: () => { trashPage(block.id, folderId) } }
+      }
+      // A Task's Delete is the task's own act: its confirmation, then undo.
+      if (block.type === 'danaTask') {
+        const run = deleteTask?.(String(block.props.taskId)) ?? null
+        return run === null ? null : { label: 'Delete', run }
+      }
+      return { label: 'Delete', run: () => { remove(ids) } }
+    },
+  }), [editor, headingMode, onCreateTask, requestTask, duplicate, onRemoveFolder, remove, deleteTask, trashPage])
+  const selectionActions = useMemo(() => ({ remove, duplicate, admits }), [remove, duplicate, admits])
+  useBlockSelectionKeys(editor, selectionActions)
+  useBlockAnchor(editor, true)
+  const scope = `dana-canvas-${useId().replace(/[^a-zA-Z0-9]/g, '')}`
+
+  // Tab nests any block under the block above it (0038), only where the
+  // result is a shape this canvas can keep; elsewhere it does nothing rather
+  // than refuse out loud. Code keeps its own Tab. Shift-Tab is BlockNote's
+  // own un-nest, which lifts any block a level (the blocks after it in its
+  // parent follow as its children); the canvas guard refuses a shape it
+  // cannot keep.
+  /*
+  Enter on an empty list item nested under a block steps out a level (at the
+  root or directly in a Section, BlockNote's own Enter makes it text).
+  Backspace at the start of a block: such a nested list item steps out; any
+  other kind turns into text, its children kept (text holds them), unless the
+  result is a shape the canvas refuses or the block is a Section holding
+  content (then nothing happens, so a Section never dissolves by accident);
+  text merges (BlockNote's).
+  */
+  const onKeyDownCapture = (event: React.KeyboardEvent): void => {
+    if (event.metaKey || event.ctrlKey || event.altKey) return
+    const { selection } = editor.prosemirrorState
+    if (!selection.empty || editor.domElement === undefined || !editor.domElement.contains(event.target as Node)) return
+    const block = editor.getTextCursorPosition().block
+    const stop = (): void => { event.preventDefault(); event.stopPropagation() }
+    const parent = editor.getParentBlock(block.id)
+    const inList = LIST_TYPES.has(block.type) && parent !== undefined && !isSectionHeading(parent)
+    if (event.key === 'Tab' && !event.shiftKey) {
+      if (block.type === 'codeBlock') return
+      const next = simulateNest(editor.document as unknown as TreeBlock[], block.id)
+      if (next === null || !admits(next)) stop()
+    } else if (event.key === 'Enter' && !event.shiftKey) {
+      if (inList && Array.isArray(block.content) && block.content.length === 0) { stop(); editor.unnestBlock() }
+    } else if (event.key === 'Backspace' && !event.shiftKey && selection.$from.parentOffset === 0) {
+      if (inList) { stop(); editor.unnestBlock(); return }
+      if (block.type === 'paragraph' || !TEXT_TYPES.has(block.type)) return
+      stop()
+      const next = backspaceToText(editor.document as unknown as TreeBlock[], block as unknown as TreeBlock)
+      if (next === null || !admits(next)) return
+      turnBlocksInto(editor, [block.id], TURN_TARGETS[0]!, undefined)
+      editor.setTextCursorPosition(block.id, 'start')
+    }
+  }
+
+  // Clicking below the last block writes on: an empty last line is reused,
+  // otherwise a new one is made after everything. When the page ends in a
+  // Section, the line goes inside it, after its last block: what is drawn
+  // under a heading belongs to it, so Freeform and Linear agree.
+  const writeBelow = (event: React.MouseEvent): void => {
+    if (!editable || event.button !== 0) return
+    event.preventDefault()
+    let last = editor.document.at(-1)
+    if (last === undefined) return
+    let section: typeof last | undefined
+    while (headingMode === 'section' && last !== undefined && isSectionHeading(last)) {
+      section = last
+      last = last.children.at(-1)
+    }
+    const empty = last !== undefined && last.type === 'paragraph' && Array.isArray(last.content) && last.content.length === 0 && last.children.length === 0
+    let target = empty ? last : last !== undefined ? editor.insertBlocks([{ type: 'paragraph' }], last, 'after')[0] : undefined
+    if (target === undefined && section !== undefined) {
+      editor.updateBlock(section, { children: [{ type: 'paragraph' }] })
+      target = editor.getBlock(section.id)?.children[0]
+    }
+    if (target === undefined) return
+    editor.setTextCursorPosition(target, 'end')
+    editor.focus()
+  }
+
   return (
-    <CommandContext.Provider value={{ task: onCreateTask ? requestTask : undefined, explain: setFeedback, headingMode, removeFolder: onRemoveFolder, flat: flatGroups }}>
-    <div className="dana-writing-canvas min-w-0">
+    <BlockMenuContext.Provider value={menu}>
+    <BlockSelectionStyle editor={editor} scope={scope} />
+    <div
+      onKeyDownCapture={onKeyDownCapture}
+      className={`dana-writing-canvas ${scope} min-w-0`}
+      style={placeholder === undefined ? undefined : ({ '--dana-canvas-placeholder': JSON.stringify(placeholder) } as React.CSSProperties)}
+    >
       <BlockNoteView
         editor={editor}
         editable={editable}
@@ -183,8 +263,8 @@ export function CanvasSurface({
         slashMenu={false}
         sideMenu={false}
         filePanel={false}
-        onChange={() => { setFeedback(''); onChange(editor) }}
-        aria-label={label ?? (onCreateTask === undefined ? 'Folder writing' : 'Folder writing and Tasks')}
+        onChange={() => { onNotice(''); onChange(editor) }}
+        aria-label={label ?? (onCreateTask === undefined ? 'Page writing' : 'Page writing and tasks')}
       >
         <FormattingToolbarController formattingToolbar={CanvasFormattingToolbar} />
         <FilePanelController
@@ -192,213 +272,27 @@ export function CanvasSurface({
             <CanvasFilePanel {...props} onUpload={onUploadFile} />
           )}
         />
-        <SideMenuController sideMenu={CanvasSideMenu} floatingUIOptions={canvasSidePosition} />
-        <SuggestionMenuController triggerCharacter="/" getItems={async (query) => {
-          const defaults = getDefaultReactSlashMenuItems(editor)
-          const byKey = (
-            key: string,
-          ): DefaultReactSuggestionItem | undefined =>
-            defaults.find((item) => 'key' in item && item.key === key)
-          const paragraph = byKey('paragraph')
-          const heading = byKey('heading')
-          const core: DefaultReactSuggestionItem[] = [
-            ...(paragraph === undefined
-              ? []
-              : [{ ...paragraph, title: 'Text' }]),
-          ]
-
-          if (headingMode === 'section' && heading !== undefined) {
-            core.push({
-              ...heading,
-              title: 'Heading 1',
-              onItemClick: () => insertCanvasHeading(editor, 1),
-            })
-            if (!flatGroups && headingOneContext(editor) !== undefined) {
-              core.push({
-                ...(byKey('heading_2') ?? heading),
-                title: 'Heading 2',
-                subtext: 'A subgroup inside Heading 1',
-                onItemClick: () => insertCanvasHeading(editor, 2),
-              })
-            }
-          } else if (headingMode === 'document' && heading !== undefined) {
-            core.push(
-              ...([1, 2, 3] as const).map((level) => ({
-                ...(level === 1
-                  ? heading
-                  : byKey(`heading_${String(level)}`) ?? heading),
-                title: `Heading ${String(level)}`,
-                subtext: 'Document heading',
-                onItemClick: () => insertDocumentHeading(editor, level),
-              })),
-            )
-          }
-
-          const authored = (
-            title: string,
-            type:
-              | 'bulletListItem'
-              | 'numberedListItem'
-              | 'checkListItem'
-              | 'quote'
-              | 'callout'
-              | 'codeBlock'
-              | 'diagram'
-              | 'image'
-              | 'file'
-              | 'audio'
-              | 'video',
-            icon: React.JSX.Element,
-            aliases: string[],
-            subtext: string,
-          ): DefaultReactSuggestionItem => ({
-            title,
-            subtext,
-            aliases,
-            group: 'Basic blocks',
-            icon,
-            onItemClick: () =>
-              insertOrUpdateBlockForSlashMenu(editor, { type }),
-          })
-
-          core.push(
-            authored(
-              'Bulleted list',
-              'bulletListItem',
-              <ListPlus size={16} />,
-              ['bullet', 'unordered list'],
-              'A simple list',
-            ),
-            authored(
-              'Numbered list',
-              'numberedListItem',
-              <ListPlus size={16} />,
-              ['numbered', 'ordered list'],
-              'An automatically numbered list',
-            ),
-            authored(
-              'Checklist',
-              'checkListItem',
-              <ListChecks size={16} />,
-              ['check', 'todo list'],
-              'Authored checklist, not a Task',
-            ),
-            authored(
-              'Quote',
-              'quote',
-              <Quote size={16} />,
-              ['blockquote'],
-              'Quoted writing',
-            ),
-            authored(
-              'Callout',
-              'callout',
-              <Lightbulb size={16} />,
-              ['note'],
-              'A neutral highlighted note',
-            ),
-            authored(
-              'Code',
-              'codeBlock',
-              <Code size={16} />,
-              ['code block'],
-              'Plain monospaced code',
-            ),
-            authored(
-              'Diagram',
-              'diagram',
-              <Network size={16} />,
-              ['flowchart', 'mermaid', 'chart'],
-              'Boxes and arrows from text',
-            ),
-            authored(
-              'Image',
-              'image',
-              <Image size={16} />,
-              ['picture', 'photo'],
-              'Upload an image',
-            ),
-            authored(
-              'File',
-              'file',
-              <FileText size={16} />,
-              ['attachment', 'document'],
-              'Upload as a downloadable file',
-            ),
-            authored(
-              'Audio',
-              'audio',
-              <AudioLines size={16} />,
-              ['sound'],
-              'Upload previewable audio',
-            ),
-            authored(
-              'Video',
-              'video',
-              <Video size={16} />,
-              ['movie'],
-              'Upload previewable video',
-            ),
-          )
-
-          if (onCreateTask !== undefined) core.splice(1, 0, {
-            title: 'Task', subtext: 'A Dana Task', icon: <CheckCircle2 size={16} />,
-            /*
-            Called with no argument, and the wrapper is load-bearing rather
-            than a style.
-
-            `DefaultSuggestionItem.onItemClick` is typed `() => void`, and
-            `SuggestionMenuController` invokes it as `item.onItemClick(editor)`
-            — read off the installed build,
-            `node_modules/@blocknote/react/dist/blocknote-react.js`, rather than
-            recalled. So `onItemClick: onCreateTask` handed the **editor** to a
-            handler whose first parameter is an optional `CanvasBlock`:
-            `askTask` took it for the block to anchor on, read `.id` off it as
-            `undefined`, and set `taskAt` to `undefined`. The dialog opened
-            anyway, `taskAt !== null` being true of `undefined`, and
-            `createTask`'s own `if (!taskAt) return` then made the Create Task
-            button do nothing at all — no task, no error, no feedback line.
-            Shipped in #204 and live from 2026-09-17 to 2026-09-20 (#234, cause
-            4): the `/` menu is the first of the three routes 9.6 names to the
-            Create Task dialog, and it was the broken one. AC-166 is the
-            criterion that reaches it.
-
-            The type cannot catch this — it promises an arity the library does
-            not keep — so the arrow is the whole of the defence, and any handler
-            put here later needs the same one.
-            */
-            onItemClick: () => {
-              onCreateTask()
-            },
-            aliases: ['todo'], group: 'Basic blocks',
-          })
-          // "Link to…" (#223) sits after the Task item.
-          const task = core.findIndex((item) => item.title === 'Task')
-          core.splice(task < 0 ? core.length : task + 1, 0, linkSlashItem(editor))
-          core.push(...extraSlashItems ?? [])
-          /* One group: the default heading items carry 'Headings' between
-             'Basic blocks' items, and BlockNote keys groups by name, so two
-             'Basic blocks' runs render a duplicate key and an empty header. */
-          return filterSuggestionItems(core.map((item) => ({ ...item, group: 'Basic blocks', size: 'small' as const })), query)
-        }} />
-        {editable ? <DanaLinkSuggestions editor={editor} /> : null}
+        <SideMenuController sideMenu={BlockSideMenu} floatingUIOptions={blockSidePosition} />
+        <CanvasSlashMenu editor={editor} context={slashContext} />
+        {editable ? <MentionSuggestions editor={editor} folderId={peopleFolderId} /> : null}
+        <CanvasMarquee />
       </BlockNoteView>
-      <p role="status" aria-live="polite" className="min-h-6 px-2 text-sm text-muted-foreground">{feedback}</p>
+      {editable ? <div aria-hidden="true" className="dana-canvas-tail" onMouseDown={writeBelow} /> : null}
     </div>
     <AlertDialog open={referenceToConvert !== null} onOpenChange={(open) => { if (!open) setReferenceToConvert(null) }}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Convert this folder reference to a Task?</AlertDialogTitle>
-          <AlertDialogDescription>The reference and its relation to the folder will be removed. A Task will be created with the link text as its title.</AlertDialogDescription>
+          <AlertDialogTitle>Turn this page link into a task?</AlertDialogTitle>
+          <AlertDialogDescription>The link to the page is removed, and a task is made with the link text as its title.</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction destructive onClick={() => {
+          <AlertDialogAction onClick={() => {
             if (referenceToConvert !== null) onCreateTask?.(referenceToConvert)
-          }}>Convert to Task</AlertDialogAction>
+          }}>Turn into task</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
-    </CommandContext.Provider>
+    </BlockMenuContext.Provider>
   )
 }

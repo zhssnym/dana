@@ -34,8 +34,11 @@ import { requireCsrf, requireSession } from '../auth/index.js'
 import {
   createDiscussion,
   folderOfDiscussion,
+  folderOfTask,
   listDiscussions,
   listOutcomes,
+  markDiscussionRead,
+  markTaskThreadRead,
   purgeDiscussion,
   readDiscussion,
   readOutcome,
@@ -266,6 +269,48 @@ export function createConsultationRouter(
       const parsed = parseBody(reopenDiscussionBody, req, res, securityLog)
       if (parsed === null) return
       answer(res, 200, await reopenDiscussion(db, viewer(req), discussionId))
+    },
+  )
+
+  /** The viewer opened the thread (round 5): their read marker, and their
+   * notifications about its posts marked read. Idempotent, so PUT. Under
+   * `mutationLimit` like the notification read routes in routes/events.ts. */
+  router.put(
+    '/discussions/:id/read',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const discussionId = await visibleDiscussion(req, res)
+      if (discussionId === null) return
+      const outcome = await markDiscussionRead(db, viewer(req), discussionId)
+      if (refused(res, outcome)) return
+      res.status(204).end()
+    },
+  )
+
+  /** The task-thread twin (round 7): the viewer opened a task's thread.
+   * The task is resolved to its live Folder and `accessOf` decides, so a
+   * stranger is 404 like on every other `/tasks/:id` route; the domain
+   * re-resolves both in its transaction. Answers the previous `read_at`. */
+  router.put(
+    '/tasks/:id/thread/read',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const taskId = parsedId(res, req.params.id)
+      if (taskId === null) return
+      const folderId = await folderOfTask(db, taskId)
+      if (folderId === null || (await accessOf(db, viewer(req), folderId)) === null) {
+        notFound(res)
+        return
+      }
+      answer(res, 200, await markTaskThreadRead(db, viewer(req), taskId))
     },
   )
 

@@ -122,11 +122,16 @@ export function backlinkPath(row: LooseBacklink): string | null {
     if (row.home === 'shelf') return `/app/shelves/${row.home_id}`
     if (row.home === 'facet' && row.folder_id !== null) return `/app/folders/${row.folder_id}?facet=${row.home_id}`
   }
+  /* A post in a thread (W-C): the thread opens, or the task on its Discussion tab. */
+  if (row.surface === 'post') {
+    if (row.home === 'discussion') return `/app/discussions/${row.home_id}`
+    if (row.home === 'task') return `/app/tasks/${row.home_id}?tab=discussion`
+  }
   return row.folder_id === null ? null : `/app/folders/${row.folder_id}`
 }
 
 const KIND_NOUN: Readonly<Record<string, string>> = {
-  task: 'Task', folder: 'Folder', shelf: 'Shelf', facet: 'Facet', discussion: 'Discussion', outcome: 'Outcome',
+  task: 'Task', folder: 'Page', shelf: 'Collection', facet: 'Facet', discussion: 'Discussion', outcome: 'Outcome',
 }
 export function kindNoun(kind: string): string {
   return KIND_NOUN[kind] ?? 'Link'

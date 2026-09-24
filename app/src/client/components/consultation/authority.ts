@@ -70,8 +70,6 @@ export interface DiscussionPowers {
   readonly trash: boolean
   /** Writing into its conversation at all (Can comment), before frozen state. */
   readonly comment: boolean
-  /** Asking for structured input (#321), `InputRoundsPanel`'s `canOpen`. */
-  readonly openRound: boolean
 }
 
 export function discussionPowers(
@@ -98,6 +96,5 @@ export function discussionPowers(
     reopen: resolved && either('discussion.reopen'),
     trash,
     comment: may(viewer, 'comment.create', false),
-    openRound: open && either('input_round.open'),
   }
 }

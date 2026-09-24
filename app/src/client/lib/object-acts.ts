@@ -34,10 +34,10 @@ about what the press does, and each act that opens a confirmation or a picker
 rather than acting carries one. 9.1 carries the rule beneath its names table.
 AC-217, AC-246, AC-180 and AC-183 read them.
 
-**The folder's move is "Move to shelf".** 9.6 fixes the string, "a member's
-personal shelf placement is 'Move to shelf' on the row"; the Library's groups
-are the viewer's shelves, so the act and the thing it moves a folder onto carry
-one name.
+**The folder's shelf move is "Move to collection".** Shelves are called
+Collections on screen (wave 2, Hassan's decision 2); the identifiers keep the
+old word. The act and the thing it moves a folder onto carry one name. "Move
+to…" is the other move: into another page, in the page tree.
 
 There is no "Label and colour": the name collides with a shelf, and the mark on
 the page already opens the picker. An overflow menu is for what is *not* on the
@@ -49,18 +49,19 @@ import type { ReactNode } from 'react'
 import {
   Ban,
   Copy,
+  Download,
   FolderInput,
-  Folders,
   Fullscreen,
   History,
   Link2,
   LogOut,
   OpenInNewTab,
   Pencil,
+  Plus,
   RotateCcw,
   SunMedium,
   Trash2,
-  Workflow,
+  UserRoundCheck,
 } from './icons.js'
 import type { LucideIcon } from './icons.js'
 
@@ -83,19 +84,25 @@ export type ActKey =
   | 'open'
   | 'history'
   | 'rename'
+  /* A new page inside this one. The sidebar row draws it as a "+" under a
+     pointer; on a touch screen, which has no hover, it lives in the "…". */
+  | 'add-page'
   | 'move'
+  /* A folder's cover picture: the folder page owns its dialog,
+     so the Library row reaches them through `?folder-action=`. */
+  | 'cover'
+  /* The owner's hand-on (9.6), in the leave group: it ends their custody. */
+  | 'transfer'
   | 'pull'
   | 'unpull'
-  /*
-  "Make this a folder…": the task held alone becomes a folder, a composition of
-  `POST /folders` and `PATCH /tasks/:id` performed by `tasks/task-acts.ts`.
-  `components/task-row.tsx` names the key in its act map. Like `duplicate`
-  beside it, it appears only where a surface supplies a handler.
-  */
+  /* 'move' and 'make-folder' have no spec in any list now: nothing on screen
+     reached them. The keys remain for task-row.tsx's unused `Actions`. */
   | 'make-folder'
   | 'copy-link'
   | 'duplicate'
   | 'workflow'
+  /* Import a Dana file under this page (round 3). */
+  | 'import'
   | 'abandon'
   | 'restore'
   /* The member's exit from a shared folder (9.6's role matrix). Its group is
@@ -139,45 +146,65 @@ const OBJECT_ACTS: Record<ObjectKind, readonly ActSpec[]> = {
        DELETE, offered one at a time the way abandon and restore are. */
     { key: 'pull', label: 'Add to Today', icon: SunMedium, group: 2 },
     { key: 'unpull', label: 'Remove from Today', icon: SunMedium, group: 2 },
-    { key: 'move', label: 'Move to folder…', icon: FolderInput, group: 2 },
-    { key: 'make-folder', label: 'Make this a folder…', icon: Folders, group: 2 },
     { key: 'copy-link', label: 'Copy link', icon: Link2, group: 3 },
     { key: 'duplicate', label: 'Duplicate', icon: Copy, group: 3 },
     { key: 'abandon', label: 'Abandon', icon: Ban, group: 4 },
     { key: 'restore', label: 'Restore', icon: RotateCcw, group: 4 },
-    { key: 'delete', label: 'Delete task…', icon: Trash2, group: 5, destructive: true },
+    { key: 'delete', label: 'Delete task', icon: Trash2, group: 5, destructive: true },
   ],
+  /*
+  **One folder menu, drawn identically in its three homes**: the folder page's
+  header "…", the Library row's "…", and a right-click on that row (which opens
+  the row's "…"). Every surface passes the same handlers, so the order below is
+  the menu; nothing arrives through `extra`. "Open in a new tab" left with the
+  tab strip.
+  */
   folder: [
-    { key: 'open', label: 'Open in a new tab', icon: OpenInNewTab, group: 1 },
     { key: 'history', label: 'History', icon: History, group: 1 },
+    /* Rename and Add a page inside are the sidebar row's: on the page itself
+       the title is edited in place and `/page` adds a sub-page, so the page
+       passes neither. Tabs are managed on the tab strip itself. */
     { key: 'rename', label: 'Rename', icon: Pencil, group: 2 },
-    { key: 'move', label: 'Move to shelf', icon: FolderInput, group: 2 },
+    { key: 'add-page', label: 'Add a page inside', icon: Plus, group: 2 },
     { key: 'copy-link', label: 'Copy link', icon: Link2, group: 3 },
     { key: 'duplicate', label: 'Duplicate', icon: Copy, group: 3 },
-    { key: 'workflow', label: 'Save as workflow', icon: Workflow, group: 3 },
+    /* Notion's pair (round 3): Import brings a file in under this page,
+       Export writes this page to a file. The key keeps its old name so the
+       sidebar's `?folder-action=workflow` deep link still reaches it. */
+    { key: 'import', label: 'Import as sub-page…', icon: FolderInput, group: 3 },
+    { key: 'workflow', label: 'Export as template', icon: Download, group: 3 },
     /* Leave and Delete are never offered together: a surface supplies the one
        its viewer's role permits (9.6's matrix), which is the contract's own
        safety property doing the permission work. */
-    { key: 'leave', label: 'Leave folder…', icon: LogOut, group: 4 },
-    { key: 'delete', label: 'Delete folder…', icon: Trash2, group: 5, destructive: true },
+    { key: 'transfer', label: 'Transfer ownership…', icon: UserRoundCheck, group: 4 },
+    /* Leave asks first (access goes, no undo), so it keeps its ellipsis;
+       Delete goes to Trash with undo and asks nothing. */
+    { key: 'leave', label: 'Leave page…', icon: LogOut, group: 4 },
+    { key: 'delete', label: 'Delete page', icon: Trash2, group: 5, destructive: true },
   ],
   shelf: [
-    { key: 'open', label: 'Open shelf', icon: OpenInNewTab, group: 1 },
+    { key: 'open', label: 'Open collection', icon: OpenInNewTab, group: 1 },
     { key: 'history', label: 'History', icon: History, group: 1 },
-    { key: 'rename', label: 'Rename shelf', icon: Pencil, group: 2 },
+    { key: 'rename', label: 'Rename collection', icon: Pencil, group: 2 },
     /* 9.10: "the page's address is still copyable, an address not being an
        invitation". A shelf is private by construction, so a link opens nothing
        for whoever receives it; the act is copying an address, which is what
        people copy links for most. */
     { key: 'copy-link', label: 'Copy link', icon: Link2, group: 3 },
     { key: 'duplicate', label: 'Duplicate', icon: Copy, group: 3 },
-    { key: 'workflow', label: 'Save as workflow', icon: Workflow, group: 3 },
-    { key: 'delete', label: 'Delete shelf…', icon: Trash2, group: 5, destructive: true },
+    { key: 'workflow', label: 'Export', icon: Download, group: 3 },
+    { key: 'delete', label: 'Delete collection…', icon: Trash2, group: 5, destructive: true },
   ],
 }
 
-/** The glyph a surface's own extra item draws, so those match the contract's. */
-export const ACT_EXTRA_ICONS = { group: Folders } as const
+/** 9.6's leave confirm, one sentence (AC-183). FolderPage keeps its own copy
+ * of this string; it could import this one. */
+export function leaveFolderConfirm(name: string): string {
+  return (
+    `Leave ${name}? You lose access to it, and anything in it assigned to ` +
+    'you becomes unassigned.'
+  )
+}
 
 /*
 How a surface supplies an act: a function, or a submenu to choose from.

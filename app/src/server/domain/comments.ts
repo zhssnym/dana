@@ -27,18 +27,25 @@ history line reads back is what was said, not that saying occurred.
 import { sql } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
-import { attachedFileIds } from '../../shared/comments.js'
+import {
+  attachedFileIds,
+  postContent,
+  postFileIds,
+  postPlainText,
+} from '../../shared/comments.js'
 import { GENERAL_DISCUSSION_TITLE } from '../../shared/consultation.js'
 import type {
   CommentFile,
   CommentLine,
   PatchCommentBody,
   PostCommentBody,
+  PostContent,
   ThreadView,
 } from '../../shared/comments.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
+import { MentionRefusal, syncMentions } from './mentions.js'
 import { presetOf } from './folder-access.js'
 import type { FolderActorFacts } from './folder-access.js'
 
@@ -62,6 +69,35 @@ function snippetOf(body: string | null, fileName: string | null): string {
     return body.length > 120 ? `${body.slice(0, 119)}…` : body
   }
   return fileName ?? 'an attachment'
+}
+
+/*
+A post's words (W-C): with `content`, the plain `body` every older reader
+uses is derived from it, never sent beside it, and an empty derivation is a
+NULL body (a pictures-only post), which is what a wordless comment has always
+stored. Without `content` the body is what was sent.
+*/
+function derivedBody(content: PostContent): string | null {
+  const text = postPlainText(content)
+  return text.length > 0 ? text : null
+}
+
+/** Whether every file a post's media blocks name is one of `attached`, the
+ * same comment's own attachments. A block naming anything else would let a
+ * post display a file that is not its own (W-C). */
+function mediaIsAttached(content: PostContent, attached: readonly string[]): boolean {
+  const own = new Set(attached)
+  return postFileIds(content).every((id) => own.has(id))
+}
+
+/* The stored jsonb, as either driver hands it back (parsed, or text if it
+   ever arrives cast). Parsed through the contract so a row that somehow
+   fails it reads as a plain-text comment rather than breaking the thread. */
+export function postContentOrNull(value: unknown): PostContent | null {
+  if (value === null || value === undefined) return null
+  const raw: unknown = typeof value === 'string' ? JSON.parse(value) : value
+  const parsed = postContent.safeParse(raw)
+  return parsed.success ? parsed.data : null
 }
 
 /* ------------------------------------------------------------------ *
@@ -186,6 +222,9 @@ export type CreateCommentResult =
   | { kind: 'parent_not_here' }
   | { kind: 'too_deep' }
   | { kind: 'file_not_here' }
+  | { kind: 'content_file_not_attached' }
+  | { kind: 'empty' }
+  | { kind: 'mention_unknown' }
 
 export async function createComment(
   db: Db,
@@ -194,6 +233,20 @@ export async function createComment(
   thread: CommentThread,
   body: PostCommentBody,
 ): Promise<CreateCommentResult> {
+  /* W-C, decided before the transaction opens and so before any write (the
+     legacy Folder thread may create a General discussion below): the words
+     are derived from `content`, every media block must name one of this
+     comment's own `file_ids`, and the comment must still carry words or a
+     file. */
+  const words = body.content === undefined ? (body.body ?? null) : derivedBody(body.content)
+  if (body.content !== undefined) {
+    if (!mediaIsAttached(body.content, attachedFileIds(body))) {
+      return { kind: 'content_file_not_attached' } as const
+    }
+    if (words === null && attachedFileIds(body).length === 0) {
+      return { kind: 'empty' } as const
+    }
+  }
   return inTransaction(db, async (tx) => {
     const taskId = thread.kind === 'task' ? thread.taskId : null
     /* The task's own people, read here so the fan-out
@@ -330,10 +383,12 @@ export async function createComment(
     const inserted = await rowsOf(
       tx,
       sql`INSERT INTO comments
-            (folder_id, task_id, discussion_id, parent_id, author_id, body)
+            (folder_id, task_id, discussion_id, parent_id, author_id, body,
+             content)
           VALUES (${folderId}::uuid, ${taskId}, ${discussionId}::uuid,
                   ${body.parent_id ?? null}, ${viewerId}::uuid,
-                  ${body.body ?? null})
+                  ${words},
+                  ${body.content === undefined ? null : JSON.stringify(body.content)}::jsonb)
           RETURNING id, created_at`,
     )
     const commentId = String(inserted[0]?.id)
@@ -368,6 +423,9 @@ export async function createComment(
       )
     }
 
+    // Wave 2 (W-D): the people this post newly mentions are told by their
+    // own `mentioned` event and left out of `commented` below.
+    const mentioned = new Set(await syncMentions(tx, { pageFolderId: folderId, actorId: viewerId, commentId }))
     // The thread's participants (4.14): everyone who has spoken in this
     // thread before this comment; recordEvent drops the actor.
     const participants = await rowsOf(
@@ -393,13 +451,14 @@ export async function createComment(
       verb: 'created',
       subjectKind: 'comment',
       subjectId: commentId,
-      subjectName: snippetOf(body.body ?? null, fileName),
+      subjectName: snippetOf(words, fileName),
       folderId,
-      /* The detail names where the comment landed, so the
-         bell reads "commented on 'Book the van'" rather than "created
-         <snippet>, commented". 4.13 caps detail at 200. */
-      detail: `commented on "${placeName}"`.slice(0, 200),
-      recipients: [...participants.map((row) => String(row.author_id)), ...taskPeople],
+      /* The detail names where the post landed, so the bell reads
+         "posted in 'Book the van'" rather than "created <snippet>".
+         Rows stored before round 5 say "commented on"; the bell reads
+         both. 4.13 caps detail at 200. */
+      detail: `posted in "${placeName}"`.slice(0, 200),
+      recipients: [...participants.map((row) => String(row.author_id)), ...taskPeople].filter((id) => !mentioned.has(id)),
     })
 
     return {
@@ -411,7 +470,8 @@ export async function createComment(
         discussion_id: discussionId,
         parent_id: body.parent_id ?? null,
         author_id: viewerId,
-        body: body.body ?? null,
+        body: words,
+        content: body.content ?? null,
         likes: 0,
         liked: false,
         files: attached,
@@ -419,6 +479,9 @@ export async function createComment(
         edited_at: null,
       },
     } as const
+  }).catch((error: unknown) => {
+    if (error instanceof MentionRefusal) return { kind: 'mention_unknown' } as const
+    throw error
   })
 }
 
@@ -433,7 +496,7 @@ export async function createComment(
 function commentSelect(viewerId: string): ReturnType<typeof sql> {
   return sql`SELECT c.id, c.folder_id, c.task_id, c.discussion_id,
                c.parent_id, c.author_id,
-               c.body, c.created_at, c.edited_at,
+               c.body, c.content, c.created_at, c.edited_at,
                (SELECT count(*)::int FROM comment_likes l
                  WHERE l.comment_id = c.id) AS likes,
                EXISTS (SELECT 1 FROM comment_likes l
@@ -458,6 +521,7 @@ function lineFrom(row: Record<string, unknown>): CommentLine {
     parent_id: nullableString(row.parent_id),
     author_id: String(row.author_id),
     body: nullableString(row.body),
+    content: postContentOrNull(row.content),
     likes: Number(row.likes),
     liked: row.liked === true,
     files: filesFrom(row.files),
@@ -629,8 +693,11 @@ export type EditCommentResult =
   | { kind: 'edited'; comment: CommentLine }
   | { kind: 'file_not_here' }
   | { kind: 'nothing_left' }
+  | { kind: 'content_file_not_attached' }
+  | { kind: 'empty' }
   | { kind: 'frozen' }
   | { kind: 'gone' }
+  | { kind: 'mention_unknown' }
 
 /*
 The author's own edit (7.14); the caller has resolved it.
@@ -714,11 +781,54 @@ export async function editComment(
     }
     const present = await rowsOf(
       tx,
-      sql`SELECT id FROM comments WHERE id = ${access.id}::uuid FOR UPDATE`,
+      sql`SELECT id, body, content FROM comments
+          WHERE id = ${access.id}::uuid FOR UPDATE`,
     )
-    if (present[0] === undefined) return { kind: 'gone' } as const
+    const current = present[0]
+    if (current === undefined) return { kind: 'gone' } as const
 
-    const nextBody = patch.body ?? access.body
+    /*
+    W-C: the words and the post content move together.
+
+    - `content` sent: it is stored and `body` is derived from it.
+    - `body` sent: a plain-text edit, which replaces the post, so `content`
+      is cleared to NULL and the comment reads as the text it now is. (The
+      alternative, refusing, would strand a post edited by a client that only
+      knows `body`; clearing loses the layout and never the words or files.)
+    - neither: both stay as they are, and a stored post's media blocks must
+      still name files the comment keeps.
+
+    Either way the final media blocks must name only the final attachments
+    (the new `file_ids` if sent, else the current ones), and the comment must
+    still carry words or a file. All of it is decided before the first write.
+    Only the author reaches this function (`comment.mutate.own`), so only the
+    author changes a post's content.
+    */
+    const currentContent = postContentOrNull(current.content)
+    const nextContent: PostContent | null =
+      patch.content !== undefined
+        ? patch.content
+        : patch.body !== undefined
+          ? null
+          : currentContent
+    const nextBody =
+      patch.content !== undefined
+        ? derivedBody(patch.content)
+        : (patch.body ?? nullableString(current.body))
+    const finalFileIds =
+      patch.file_ids ??
+      (
+        await rowsOf(
+          tx,
+          sql`SELECT file_id FROM comment_files WHERE comment_id = ${access.id}::uuid`,
+        )
+      ).map((row) => String(row.file_id))
+    if (nextContent !== null && !mediaIsAttached(nextContent, finalFileIds)) {
+      return { kind: 'content_file_not_attached' } as const
+    }
+    if (patch.content !== undefined && nextBody === null && finalFileIds.length === 0) {
+      return { kind: 'empty' } as const
+    }
     let firstFileName: string | null = null
 
     if (patch.file_ids !== undefined) {
@@ -757,13 +867,17 @@ export async function editComment(
 
     const updated = await rowsOf(
       tx,
-      sql`UPDATE comments SET body = ${nextBody}, edited_at = now()
+      sql`UPDATE comments
+          SET body = ${nextBody},
+              content = ${nextContent === null ? null : JSON.stringify(nextContent)}::jsonb,
+              edited_at = now()
           WHERE id = ${access.id}::uuid
           RETURNING id`,
     )
     // Unreachable behind the lock above and kept as its backstop: if the row
     // ever stops being held, this answers 404 rather than "edited".
     if (updated[0] === undefined) return { kind: 'gone' } as const
+    await syncMentions(tx, { pageFolderId: access.folderId, actorId: viewerId, commentId: access.id })
 
     await recordEvent(tx, {
       actorId: viewerId,
@@ -779,6 +893,9 @@ export async function editComment(
     return comment === null
       ? ({ kind: 'gone' } as const)
       : ({ kind: 'edited', comment } as const)
+  }).catch((error: unknown) => {
+    if (error instanceof MentionRefusal) return { kind: 'mention_unknown' } as const
+    throw error
   })
 }
 
@@ -790,8 +907,9 @@ export async function editComment(
  * Full-control member who owns nothing does. 4.15 is the table and says
  * nothing about who may delete; 7.14 is where the rule lives.
  *
- * The replies cascade with the row (4.15's FK), their words going with the
- * thread they answered.
+ * Replies survive: migration 0047 made 4.15's parent key ON DELETE SET NULL,
+ * so each reply stays in the thread as an ordinary post (parent_id NULL),
+ * its author's words intact. Only this row goes.
  */
 export async function deleteComment(
   db: Db,

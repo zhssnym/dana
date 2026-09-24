@@ -37,7 +37,7 @@ import { parseRecurrenceRule } from '../../shared/recurrence.js'
 import type { FolderGroupOption } from '../components/folder-group-dialog.js'
 import type { FolderRowProps } from '../components/folder-row.js'
 import type { TaskRowProps } from '../components/task-row.js'
-import { formatTime } from '../lib/time-format.js'
+import { formatDate, formatDayInline, formatDayTime } from '../lib/dates.js'
 import type { TimeFormat } from '../lib/time-format.js'
 import { activationDateOf } from './schedule.js'
 
@@ -63,101 +63,15 @@ export function presenterToday(): string {
  * ------------------------------------------------------------------ */
 
 /*
-The wording, derived rather than copied.
-
-**The three cases are 8.10's boundary statement, exactly:** "a task with
-due_date D is due today when D = today(V), overdue when D < today(V), future
-when D > today(V)". So a label has three forms and no more.
-
-**The overdue form is restricted to pending rows, and that restriction is Q3C's
-sentence rather than a nicety:** "Pending renders normal (overdue styled on past
-dates), completed faded and checked, abandoned faded and struck". A finished
-task's date is history and the alert on it would be an alarm about something
-already dealt with.
-
-**The format is the design's.** 9.1's sections paragraph: "the format of a date
-is the design's and this section has never spelled one". The strings are "Due
-today", "Due 14 Aug" and "Overdue · 6 Aug", and the rule below reproduces them
-exactly.
-
-**The time is carried when the row has one, on Q4's sentence:** dated rows "show
-due date and time like a Planned row", to minute precision because that is
-4.11's, **on the viewer's own clock**: 9.7 gives the person the choice for their
-rows. The notation therefore arrives on the context rather than being decided
-here, and a fresh account reads 12-hour, which is `lib/time-format.ts`'s
-default.
-
-**The month names are a fixed table and not `Intl`.** A locale-driven formatter
-renders "août" on a French browser beside section 9's English copy; section 9's
-strings are normative English. A table also makes the function total: it
-constructs no `Date`, so it cannot read a clock, cannot shift a civil date
-across a zone, and cannot depend on an ICU version.
+The due label is `lib/dates.ts`'s plain form: "Today", "Tomorrow", "Mon",
+"24 Sep", plus the time on the viewer's clock when the row has one. No "Due"
+or "Overdue" words: overdue is the `overdue` flag, which the row paints red,
+and only a pending row can be overdue (Q3C).
 */
 
-/** 4.11's YYYY-MM-DD split into its three integers, with no `Date` involved. */
-function parseCivilDate(
-  value: string,
-): { year: number; month: number; day: number } | null {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
-  if (match === null) return null
-  const [, year, month, day] = match
-  if (year === undefined || month === undefined || day === undefined) return null
-  const monthNumber = Number(month)
-  if (monthNumber < 1 || monthNumber > 12) return null
-  return { year: Number(year), month: monthNumber, day: Number(day) }
-}
-
-const MONTH_ABBREVIATIONS = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
-] as const
-
-/**
- * A due date as the design writes one: "6 Aug", and "6 Aug 2027" when the year
- * is not the year the reader is standing in.
- *
- * The year is this session's decision and is named as one in the report: the
- * design's screens show no year because every date on them falls inside the
- * fixture's own year, so they settle the same-year form and say nothing about
- * any other. Two dates twelve months apart rendering identically is the
- * failure the suffix exists to prevent, and it changes no string the design
- * actually shows.
- */
+/** A due date as the absolute form: "6 Aug", "6 Aug 2027" outside today's year. */
 export function formatDueDate(dueDate: string, today: string): string {
-  const parsed = parseCivilDate(dueDate)
-  if (parsed === null) return dueDate
-  const month = MONTH_ABBREVIATIONS[parsed.month - 1]
-  if (month === undefined) return dueDate
-  const dayAndMonth = `${String(parsed.day)} ${month}`
-  const thisYear = parseCivilDate(today)?.year
-  return thisYear === parsed.year ? dayAndMonth : `${dayAndMonth} ${String(parsed.year)}`
-}
-
-/**
- * 4.11's wall-clock time as a row shows it, on the viewer's own clock.
- *
- * The column is rendered by Postgres as HH:MM:SS and read tolerantly by the
- * shared shape, so the seconds are dropped here rather than assumed absent.
- *
- * `lib/time-format.ts` is the one place a time becomes words, and this follows
- * it: a row and a picker must not disagree about 17:30 and 5:30 PM, and a clock
- * setting that changed the picker and left every row alone would be a setting
- * nobody could see.
- */
-function formatDueTime(dueTime: string, clock: TimeFormat): string {
-  const match = /^(\d{2}):(\d{2})/.exec(dueTime)
-  if (match === null) return dueTime
-  return formatTime(`${match[1] ?? ''}:${match[2] ?? ''}`, clock) ?? dueTime
+  return formatDate(dueDate, today)
 }
 
 /** What `TaskRowProps['due']` is, named so the rule below has a return type. */
@@ -188,15 +102,9 @@ export function dueDisplay(
 ): DueDisplay | undefined {
   const { due_date: dueDate, due_time: dueTime } = task
   if (dueDate === null) return undefined
-
-  const suffix = dueTime === null ? '' : ` ${formatDueTime(dueTime, clock)}`
+  const label = formatDayTime(dueDate, dueTime, today, clock)
   const overdue = task.status === 'pending' && dueDate < today
-
-  if (overdue) {
-    return { label: `Overdue · ${formatDueDate(dueDate, today)}${suffix}`, overdue: true }
-  }
-  if (dueDate === today) return { label: `Due today${suffix}` }
-  return { label: `Due ${formatDueDate(dueDate, today)}${suffix}` }
+  return overdue ? { label, overdue: true } : { label }
 }
 
 /* ------------------------------------------------------------------ *
@@ -256,12 +164,18 @@ this for the name alone, and the unit tests pin the two-key answer. Absent and
 null are the same answer here, which is the disc.
 */
 export function personDisplay(person: {
+  id?: string
   display_name: string | null
   avatar_url?: string | null
 }): AssigneeDisplay {
   const name = person.display_name ?? DELETED_USER
   const image = person.avatar_url ?? null
-  return { initials: initialsOf(name), name, ...(image === null ? {} : { image }) }
+  return {
+    ...(person.id === undefined ? {} : { id: person.id }),
+    initials: initialsOf(name),
+    name,
+    ...(image === null ? {} : { image }),
+  }
 }
 
 /* ------------------------------------------------------------------ *
@@ -383,14 +297,13 @@ export function folderDisplay(
 /** The display half of a sidebar folder row; the rest is the shell's. */
 export type FolderRowDisplay = Pick<
   FolderRowProps,
-  'name' | 'color' | 'icon' | 'pending' | 'href'
+  'name' | 'color' | 'icon' | 'href'
 >
 
 /**
  * One folder as the sidebar row takes it.
  *
- * `pending` is 8.11's pending tally, which 7.4 already puts on the Folder
- * object, and `href` is 9.1's routes table read through `routes.ts` rather than
+ * No count: a sidebar row is its mark and its name. `href` is 9.1's routes table read through `routes.ts` rather than
  * spelled again here. AC-175 names the row as a link to this path, and AC-243
  * its mark as the one that folder's own page draws.
  */
@@ -400,7 +313,6 @@ export function folderRowDisplay(folder: Folder): FolderRowDisplay {
     name: folder.name,
     color: mark.color,
     icon: mark.icon,
-    pending: folder.counts.pending,
     href: paths.folder(folder.id),
   }
 }
@@ -480,42 +392,6 @@ export function folderGroupLabels(
   return [...labels].sort((a, b) => a.localeCompare(b))
 }
 
-/** What 9.6's "Label and color" dialog opens holding. */
-export interface FolderLabelFields {
-  /** The personal label, empty where the folder carries none. */
-  readonly label: string
-  /**
-   * The chosen colour as `#RRGGBB`, or undefined where none was chosen.
-   *
-   * Undefined rather than a hex of this module's own, and the distinction is
-   * 11.4's: a folder's colour is the person's runtime choice on 7.4's
-   * `my_color` and a client that supplied one from its own swatches would be
-   * telling them they picked a colour they did not. `DEFAULT_FOLDER_COLOR`
-   * above is the token a dot is *painted* with when there is no choice, which
-   * is a CSS variable and not a value a colour control can hold.
-   */
-  readonly color: string | undefined
-}
-
-/**
- * A folder as 9.6's dialog takes it: the personal label and the colour
- * together, "both being the two fields of 7.4's my-membership and neither
- * meaning anything without the other".
- *
- * The mapping is null-to-absent in both directions, which is the whole of the
- * shape: 4.4 makes each column nullable, a text box holds "" rather than null,
- * and a colour control holds a hex or nothing at all.
- */
-export function folderLabelFields(folder: {
-  my_shelf: string | null
-  my_color: string | null
-}): FolderLabelFields {
-  return {
-    label: folder.my_shelf ?? '',
-    color: folder.my_color ?? undefined,
-  }
-}
-
 /* ------------------------------------------------------------------ *
  * Invites
  * ------------------------------------------------------------------ */
@@ -525,8 +401,10 @@ export interface InviteRowDisplay {
   readonly id: string
   /** 9.8's row sentence, which is also how a test tells two rows apart. */
   readonly sentence: string
-  /** The inviter's display name, which is what the disc's tint is a function
-      of (`parts/person-tint.ts`) and what the sentence already names. */
+  /** The inviter's user id, which their face is a function of
+      (`parts/person-tint.ts`), so it matches the face they wear elsewhere. */
+  readonly inviterId?: string
+  /** The inviter's display name, which the sentence names. */
   readonly inviter: string
   /** The inviter's initials, for the row's avatar. */
   readonly initials: string
@@ -551,7 +429,7 @@ export interface InviteRowDisplay {
  */
 export function inviteRowDisplay(invite: {
   id: string
-  inviter: { display_name: string | null; avatar_url?: string | null }
+  inviter: { id?: string; display_name: string | null; avatar_url?: string | null }
   folder_name: string | null
 }): InviteRowDisplay {
   const who = invite.inviter.display_name ?? 'Someone'
@@ -559,6 +437,7 @@ export function inviteRowDisplay(invite: {
   return {
     id: invite.id,
     sentence: `${who} invited you to ${invite.folder_name ?? 'connect'}`,
+    ...(invite.inviter.id === undefined ? {} : { inviterId: invite.inviter.id }),
     inviter: who,
     initials: initialsOf(who),
     ...(image === null ? {} : { image }),
@@ -662,29 +541,21 @@ export type TaskRowDisplay = Pick<
 >
 
 /*
-Q4's outward tooltip uses the current page names: "Also in Scheduled, due
-2026-07-28" for a dated row and "Also in Anytime, in Work" for an undated one.
-The date is rendered as the card carries it, which is the form Q4's example
-writes and therefore the one place in this file where a date is not the design's
-format.
-
-**The split is Scheduled's membership and not the due date's presence** (issue
-#216). Q4's two blocks are Q3's and Q2's membership - its own sentence says the
-first shows rows "like a Scheduled row" and the second "like an Anytime row" -
-so a Start-only row sits in the Scheduled block, and a tooltip that read the due
-date alone would tell a person their row was "Also in Anytime" while the same
-page drew it above the boundary. A Start-only row therefore names the fact its
-home would show, which is its Start Date: Q4's third form, "Also in Scheduled,
-starts 2026-09-28".
+Q4's outward tooltip: "Also in Upcoming, due tomorrow" for a dated row, "Also in
+Upcoming, starts 28 Sep" for a Start-only row (it sits in the dated block,
+issue #216), and "Also in Anytime, in Work" for an undated one.
 */
 function importantTooltipFor(
   task: Pick<TaskCard, 'important' | 'start_date' | 'due_date' | 'folder'>,
   mode: StarTooltipMode,
+  today: string,
 ): string | undefined {
   if (mode === 'inward') return undefined
-  if (task.due_date !== null) return `Also in Scheduled, due ${task.due_date}`
+  if (task.due_date !== null) {
+    return `Also in Upcoming, due ${formatDayInline(task.due_date, today)}`
+  }
   if (task.start_date !== null) {
-    return `Also in Scheduled, starts ${task.start_date}`
+    return `Also in Upcoming, starts ${formatDayInline(task.start_date, today)}`
   }
   return `Also in Anytime, in ${task.folder.name}`
 }
@@ -763,7 +634,7 @@ export function taskRowDisplay(task: TaskCard, context: RowContext): TaskRowDisp
     due: showDue ? dueDisplay(task, today, clock) : undefined,
     status: task.status,
     important: task.important,
-    importantTooltip: importantTooltipFor(task, starTooltip),
+    importantTooltip: importantTooltipFor(task, starTooltip, today),
     assignee,
     // Q3: null assignee in a folder with more than one member. Pending rows
     // only: the state lab scopes the chip ("Shared Planned context only"),

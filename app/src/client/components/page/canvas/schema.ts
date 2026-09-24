@@ -4,12 +4,19 @@ import { AUDIO_MIMES, RASTER_MIMES, VIDEO_MIMES } from '../../../../shared/files
 import { MAX_SECTION_DEPTH } from '../../../../shared/page-document.js'
 
 import { createCanvasCallout } from './CanvasCallout.js'
+import { formatDate } from '../../../lib/dates.js'
+import { todayInBrowserZone } from '../../../api/tz.js'
+import { isoDay } from '../../../tasks/task-model.js'
 import { createCanvasTaskSpec } from './CanvasTask.js'
 import { createCanvasFolderSpec } from './CanvasFolder.js'
+import { createCanvasPageSpec } from './CanvasPage.js'
 import { createCanvasParagraph } from './CanvasParagraph.js'
 import { createCanvasDiagramSpec } from './CanvasDiagram.js'
 import { createTaskAtCursor, removeCanvasBlocks, removeEmptyBeforeHeading } from './commands.js'
 import { danaLinkInlineSpec } from '../../links/dana-link-chip.js'
+import { mentionInlineSpec } from './mentions.js'
+import { canvasMarkdownShortcuts, legacyCheckList, withoutInputRules } from './markdown.js'
+import { isSectionHeading } from './outline.js'
 
 // The vocabulary only, derived from the one ceiling rather than restated beside it.
 // A Section's level is its depth in the persisted outline, so the editor must be able
@@ -17,9 +24,29 @@ import { danaLinkInlineSpec } from '../../links/dana-link-chip.js'
 // and the move rules that would keep it valid, are the surface's own (#218).
 const headingLevels = Array.from({ length: MAX_SECTION_DEPTH }, (_, index) => index + 1)
 const heading = createHeadingBlockSpec({ levels: headingLevels, defaultLevel: 1, allowToggleHeadings: true })
+
+/*
+Toggle state lives under BlockNote's own `toggle-<id>` keys, which it reads as
+open only when the value is 'true'. Dana opens by default, so an open toggle
+needs no key: the key is seeded for upstream's render and removed after it,
+and only closed toggles ('false') stay stored. Storage can be blocked, which
+reads as open.
+*/
+export function toggleClosed(id: string): boolean {
+  try { return window.localStorage.getItem(`toggle-${id}`) === 'false' } catch { return false }
+}
+export function openByDefault<T>(id: string, render: () => T): T {
+  const key = `toggle-${id}`
+  try { if (window.localStorage.getItem(key) === null) window.localStorage.setItem(key, 'true') } catch { /* storage unavailable */ }
+  const result = render()
+  try { if (window.localStorage.getItem(key) === 'true') window.localStorage.removeItem(key) } catch { /* storage unavailable */ }
+  return result
+}
+
 const groupHeading = {
   ...heading,
-  extensions: [...heading.extensions ?? [], createExtension({
+  // Upstream's `#` rules would open a Section anywhere; Dana's are by surface (`markdown.ts`).
+  extensions: [...withoutInputRules(heading.extensions, () => true), canvasMarkdownShortcuts, createExtension({
     key: 'canvas-heading-enter',
     keyboardShortcuts: {
       'Mod-Enter': ({ editor }): boolean => createTaskAtCursor(editor as CanvasEditor),
@@ -29,10 +56,13 @@ const groupHeading = {
         const { selection } = editor.prosemirrorState
         const block = editor.getTextCursorPosition().block
         // Let BlockNote handle selections, mid-title splitting and ordinary prose.
+        // Any heading that folds takes this path: a Section, and a toggle
+        // heading (Notion's Enter at the end of an open toggle heading starts
+        // its first child); a flat presentation heading is ordinary prose.
         if (block.type !== 'heading' || block.props.isToggleable === false || !selection.empty || selection.$from.parentOffset !== selection.$from.parent.content.size) return false
         // Upstream splitting transfers children to the new paragraph. Dana's group
         // membership must survive, so use its public subtree insertion operation.
-        if (window.localStorage.getItem(`toggle-${block.id}`) === 'false') {
+        if (!isSectionHeading(block) && toggleClosed(block.id)) {
           editor.transact(() => {
             const [next] = editor.insertBlocks([{ type: 'paragraph' }], block, 'after')
             editor.setTextCursorPosition(next!)
@@ -50,17 +80,32 @@ const groupHeading = {
   })],
   config: {
     ...heading.config,
-    propSchema: { ...heading.config.propSchema, isToggleable: { default: true } },
+    /*
+    A heading is a Work Section unless it says otherwise (`isSectionHeading`):
+    `isToggleable: false` is a flat presentation heading, and
+    `isToggleable: true, presentation: true` a toggle heading, a presentation
+    heading that folds the blocks nested under it (stored heading1-3 with
+    `toggleable`, migration 0038). `presentation` is never stored itself.
+    */
+    propSchema: { ...heading.config.propSchema, isToggleable: { default: true }, presentation: { default: false } },
   },
   implementation: {
     ...heading.implementation,
     render: (function (block, editor) {
+      // A Section is a plain heading on screen (Notion's Heading n): no arrow,
+      // no fold, never hidden. Its `isToggleable` marks it a Section in storage
+      // only, so upstream draws it as a flat heading. Toggle headings fold.
+      if (isSectionHeading(block)) {
+        const plain = heading.implementation.render.call(this, { ...block, props: { ...block.props, isToggleable: false } }, editor)
+        // The Section's own props, not the copy's, travel with it (a copied
+        // Section pastes as a Section): `isToggleable: true` is the default,
+        // which BlockNote writes as no attribute at all.
+        if (plain.dom instanceof HTMLElement) { plain.dom.setAttribute('data-dana-section', ''); plain.dom.removeAttribute('data-is-toggleable') }
+        if (plain.contentDOM !== undefined) plain.contentDOM.setAttribute('aria-level', String(block.props.level + 1))
+        return plain
+      }
       // Keep the complete upstream renderer and its structural CSS wrapper.
-      const key = `toggle-${block.id}`
-      try {
-        if (window.localStorage.getItem(key) === null) window.localStorage.setItem(key, 'true')
-      } catch { /* preference storage can be unavailable */ }
-      const result = heading.implementation.render.call(this, block, editor)
+      const result = openByDefault(block.id, () => heading.implementation.render.call(this, block, editor))
       const contentDOM = result.contentDOM
       const toggle = result.dom.querySelector<HTMLButtonElement>('.bn-toggle-button')
       const wrapper = result.dom.querySelector('.bn-toggle-wrapper')
@@ -116,7 +161,7 @@ type MediaRender = (this: unknown, block: { id: string; props: { url: string; ca
 type WithReclaimedAt<T extends { config: { propSchema: object } }> = Omit<T, 'config'> & {
   config: Omit<T['config'], 'propSchema'> & { propSchema: T['config']['propSchema'] & { reclaimedAt: { default: '' } } }
 }
-function withReclaimNotice<T extends { config: { propSchema: object } }>(spec: T, noun: string): WithReclaimedAt<T> {
+function withReclaimNotice<T extends { config: { propSchema: object } }>(spec: T, noun: string, addLabel?: string): WithReclaimedAt<T> {
   const typed = spec as unknown as { config: { propSchema: Record<string, unknown> }; implementation: { render: MediaRender } }
   const stockRender = typed.implementation.render
   return {
@@ -126,14 +171,20 @@ function withReclaimNotice<T extends { config: { propSchema: object } }>(spec: T
       ...typed.implementation,
       render: function (block, editor) {
         const reclaimedAt = (block.props as { reclaimedAt?: string }).reclaimedAt ?? ''
-        if (reclaimedAt === '' || block.props.url !== '') return stockRender.call(this, block, editor)
+        if (reclaimedAt === '' || block.props.url !== '') {
+          const stock = stockRender.call(this, block, editor)
+          // The empty block's one quiet row (styled in canvas.css); a click opens `CanvasFilePanel`.
+          const text = stock.dom.querySelector('.bn-add-file-button-text')
+          if (text && addLabel !== undefined) text.textContent = addLabel
+          return stock
+        }
         const dom = document.createElement('div')
         dom.className = 'dana-reclaimed-image'
         dom.contentEditable = 'false'
         dom.setAttribute('role', 'group')
         const date = new Date(reclaimedAt)
         const message = document.createElement('p')
-        message.textContent = `This ${noun} was deleted on ${Number.isNaN(date.getTime()) ? 'an earlier date' : date.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}.`
+        message.textContent = `This ${noun} was deleted on ${Number.isNaN(date.getTime()) ? 'an earlier date' : formatDate(isoDay(date), todayInBrowserZone())}.`
         dom.setAttribute('aria-label', message.textContent)
         dom.appendChild(message)
         if (block.props.caption) {
@@ -161,8 +212,41 @@ function withReclaimNotice<T extends { config: { propSchema: object } }>(spec: T
 
 const audio = withReclaimNotice(mediaSpec(defaultBlockSpecs.audio, AUDIO_MIMES), 'file')
 const video = withReclaimNotice(mediaSpec(defaultBlockSpecs.video, VIDEO_MIMES), 'file')
-const file = withReclaimNotice(defaultBlockSpecs.file, 'file')
-const image = withReclaimNotice(mediaSpec(defaultBlockSpecs.image, RASTER_MIMES), 'picture')
+const file = withReclaimNotice(defaultBlockSpecs.file, 'file', 'Add a file')
+const image = withReclaimNotice(mediaSpec(defaultBlockSpecs.image, RASTER_MIMES), 'picture', 'Add an image')
+
+/* A toggle opens by default, like a Section, so what is written under it goes
+   inside: Enter at the end of an open toggle's title starts its first child
+   (upstream starts a sibling toggle, which stays the closed toggle's Enter). */
+const upstreamToggle = defaultBlockSpecs.toggleListItem
+const toggleList = {
+  ...upstreamToggle,
+  extensions: [createExtension({
+    key: 'canvas-toggle-enter',
+    runsBefore: ['toggle-list-item-shortcuts'],
+    keyboardShortcuts: {
+      Enter: ({ editor }) => {
+        const { selection } = editor.prosemirrorState
+        const block = editor.getTextCursorPosition().block
+        if (block.type !== 'toggleListItem' || !selection.empty || selection.$from.parentOffset !== selection.$from.parent.content.size) return false
+        if (!Array.isArray(block.content) || block.content.length === 0) return false
+        if (toggleClosed(block.id)) return false
+        const id = crypto.randomUUID()
+        editor.transact(() => {
+          editor.updateBlock(block, { children: [{ id, type: 'paragraph', content: '' }, ...block.children] })
+          editor.setTextCursorPosition(id)
+        })
+        return true
+      },
+    },
+  }), ...upstreamToggle.extensions ?? []],
+  implementation: {
+    ...upstreamToggle.implementation,
+    render: (function (block, editor) {
+      return openByDefault(block.id, () => upstreamToggle.implementation.render.call(this, block, editor))
+    }) as typeof upstreamToggle.implementation.render,
+  },
+}
 
 /** Restricted vocabulary, projected to Dana records by the persistence adapter. */
 export const canvasSchema = BlockNoteSchema.create({
@@ -171,8 +255,12 @@ export const canvasSchema = BlockNoteSchema.create({
     heading: groupHeading,
     bulletListItem: defaultBlockSpecs.bulletListItem,
     numberedListItem: defaultBlockSpecs.numberedListItem,
-    checkListItem: defaultBlockSpecs.checkListItem,
-    quote: defaultBlockSpecs.quote,
+    // Old documents' to-dos only: nothing makes a new one (`legacyCheckList`).
+    checkListItem: legacyCheckList(defaultBlockSpecs.checkListItem),
+    // `> ` is a toggle (`markdown.ts`); `" ` stays upstream's quote rule.
+    quote: { ...defaultBlockSpecs.quote, extensions: withoutInputRules(defaultBlockSpecs.quote.extensions, (find) => find.source === '^>\\s$') },
+    toggleListItem: toggleList,
+    divider: { ...defaultBlockSpecs.divider, extensions: withoutInputRules(defaultBlockSpecs.divider.extensions, () => true) },
     callout: createCanvasCallout(),
     codeBlock: defaultBlockSpecs.codeBlock,
     image,
@@ -183,9 +271,11 @@ export const canvasSchema = BlockNoteSchema.create({
     // A Shelf's native Folder row (#221); only the Shelf canvas inserts one.
     danaFolder: createCanvasFolderSpec(),
     diagram: createCanvasDiagramSpec(),
+    // A sub-page of this Folder (Wave 2); only Folder Work's `/page` inserts one.
+    danaPage: createCanvasPageSpec(),
   },
   // A Dana Link (#223) is a chip; `adapters.ts` stores it as an href run.
-  inlineContentSpecs: { ...defaultInlineContentSpecs, danaLink: danaLinkInlineSpec },
+  inlineContentSpecs: { ...defaultInlineContentSpecs, danaLink: danaLinkInlineSpec, mention: mentionInlineSpec },
   styleSpecs: { bold: defaultStyleSpecs.bold, italic: defaultStyleSpecs.italic },
 })
 

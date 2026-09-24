@@ -26,21 +26,31 @@
   font-family: var(--font-family-sans);
   font-weight: var(--font-weight-semibold);
 }
-/* BlockNote omits data-level for the default H1 value. */
+/* BlockNote omits data-level for the default H1 value. Three clear steps,
+   as in Notion (tokens.css), on every canvas: Work, Purpose, Results, a
+   Task's notes, a collection page and a post. */
 .dana-writing-canvas [data-content-type='heading'] {
-  --level: var(--text-xl);
-  font-size: var(--text-xl);
-  line-height: var(--text-xl--line-height);
+  --level: var(--text-h1-size);
+  font-size: var(--text-h1-size);
+  line-height: var(--text-h1-line);
 }
 .dana-writing-canvas [data-content-type='heading'][data-level='2'] {
-  --level: var(--text-heading-size);
-  font-size: var(--text-heading-size);
-  line-height: var(--text-heading-line);
+  --level: var(--text-h2-size);
+  font-size: var(--text-h2-size);
+  line-height: var(--text-h2-line);
 }
 .dana-writing-canvas [data-content-type='heading'][data-level='3'] {
-  --level: var(--text-body-size);
+  --level: var(--text-h3-size);
+  font-size: var(--text-h3-size);
+  line-height: var(--text-h3-line);
+}
+/* An open toggle heading with nothing inside: a quiet body-size line, not
+   heading-size text (upstream sets 16px). */
+.dana-writing-canvas .bn-toggle-add-block-button {
   font-size: var(--text-body-size);
   line-height: var(--text-body-line);
+  font-weight: var(--font-weight-regular);
+  color: var(--muted-foreground);
 }
 .dana-writing-canvas .bn-side-menu button svg,
 .dana-writing-canvas .bn-toggle-button svg {
@@ -48,14 +58,14 @@
   height: var(--icon-size-compact);
 }
 .dana-writing-canvas .bn-side-menu .bn-button {
-  color: var(--color-graphite-300);
+  color: color-mix(in oklch, var(--muted-foreground), transparent 40%);
   background: transparent;
   border: 0;
   box-shadow: none;
 }
 .dana-writing-canvas .bn-side-menu { gap: calc(var(--spacing) * 1); }
 .dana-writing-canvas .bn-side-menu .bn-button:hover {
-  background: transparent;
+  background: var(--accent);
   color: var(--muted-foreground);
 }
 .dana-writing-canvas .bn-toggle-wrapper { position: relative; }
@@ -78,15 +88,54 @@
 }
 .dana-writing-canvas [data-content-type='danaTask'] > div,
 .dana-writing-canvas [data-canvas-task-id] { width: 100%; min-width: 0; }
-/* A finished Task's slim line (#315) and the guard's refusal outline (#314). */
-.dana-writing-canvas [data-canvas-task-done] { padding-block: 2px; }
-.dana-writing-canvas [data-canvas-task-done] a { color: var(--muted-foreground); text-decoration: none; }
-.dana-writing-canvas [data-canvas-task-done] a:hover { text-decoration: underline; }
+/* r5-views: a Task block is one --row-height row, the same as in every list;
+   the block's own 3px padding would make it 42px apart. */
+.dana-writing-canvas .bn-block-content[data-content-type='danaTask'] { padding-block: 0; }
+/* A completed Task is its real row, muted in place; "Show completed" off hides
+   it (`FolderCanvas`). The guard's refusal outline (#314) follows. */
+/* Only the placement's own block: a section heading's outer block holds its
+   children too, so a bare `:has()` hid the whole section for one done task. */
+.dana-hide-completed .bn-block-outer:has(> .bn-block > :not(.bn-block-group) [data-canvas-task-done]) { display: none; }
 .dana-writing-canvas [data-canvas-task-refused] { outline: 2px solid var(--destructive); outline-offset: 2px; border-radius: var(--radius-sm); }
 .dana-writing-canvas .bn-drag-handle-menu { font-size: var(--text-body-size); line-height: var(--text-body-line); }
 .dana-writing-canvas img { max-width: 100%; height: auto; }
+/* Phone: the writing starts at the page's gutter, like every other page. The
+   section toggle sits inline before its heading instead of in a left margin,
+   and a touch screen gets no hover side menu to make room for (the block menu
+   is desktop's, where drag stays as it is). */
 @media (max-width: 480px) {
-  .dana-writing-canvas { padding-left: calc(var(--spacing) * 14); }
+  .dana-writing-canvas { padding-left: 0; }
+  .dana-writing-canvas .bn-toggle-wrapper { display: flex; align-items: center; }
+  .dana-writing-canvas .bn-toggle-button { position: static; flex-shrink: 0; margin-inline-end: calc(var(--spacing) * 1); }
+  /* No left margin for the gutter to sit in: it would be cut off at the edge. */
+  .dana-writing-canvas .bn-side-menu { display: none; }
+}
+@media (hover: none) {
+  .dana-writing-canvas .bn-side-menu { display: none; }
+}
+/* An empty Image or File block is one quiet row, "Add an image" / "Add a file"
+   (text set in schema.ts), on the page's own background in both themes; it
+   replaces BlockNote's grey slab. A click opens `CanvasFilePanel`. */
+.dana-writing-canvas [data-file-block] .bn-add-file-button {
+  gap: calc(var(--spacing) * 2);
+  min-height: var(--control-height);
+  padding: calc(var(--spacing) * 1) calc(var(--spacing) * 2);
+  border-radius: var(--radius-sm);
+  background-color: transparent;
+  color: var(--muted-foreground);
+}
+.dana-writing-canvas .bn-editor[contenteditable='true'] [data-file-block] .bn-add-file-button:hover {
+  background-color: var(--muted);
+}
+.dana-writing-canvas [data-file-block] .bn-add-file-button-icon {
+  width: var(--icon-size-compact);
+  height: var(--icon-size-compact);
+}
+.dana-writing-canvas [data-file-block] .bn-add-file-button-icon svg { width: 100%; height: 100%; }
+.dana-writing-canvas [data-file-block] .bn-add-file-button-text {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
 }
 /* Issue #267: a picture whose file was reclaimed, told apart from an empty frame. */
 .dana-writing-canvas .dana-reclaimed-image {
@@ -112,3 +161,225 @@
 .dana-writing-canvas .dana-reclaimed-image button:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 /* A Shelf's Folder row is a row, not a link inside prose (#221). */
 .dana-writing-canvas a[data-canvas-folder-id] { text-decoration: none; color: inherit; }
+/* So is a sub-page row (wave 2 `page` block). */
+.dana-writing-canvas a[data-canvas-page-id] { text-decoration: none; color: inherit; }
+/* BlockNote's own placeholder (the task notes' "Notes") in the same quiet
+   style as the canvas's: muted, never italic. */
+.dana-writing-canvas .bn-block-content:has(.ProseMirror-trailingBreak:only-child)::after {
+  color: var(--muted-foreground);
+  font-style: normal;
+}
+/* The empty page's one line (Quiet spec: "Write, or type / for a task or
+   heading"). BlockNote's placeholder decoration never reaches Dana's paragraph
+   node view, so the rule is written here against the page's only block, and
+   the words come from the surface's `--dana-canvas-placeholder`. */
+.dana-writing-canvas .bn-editor:not(.ProseMirror-focused) > .bn-block-group > .bn-block-outer:only-child > .bn-block > .react-renderer > .bn-block-content[data-content-type='paragraph']:has(.ProseMirror-trailingBreak:only-child) {
+  --dana-hint: var(--dana-canvas-placeholder, none);
+}
+/* Block selection (`block-selection.ts`): a block picked by Esc, its handle or
+   the marquee is tinted, never outlined. Spec: #2383e2 at 14% light, 24% dark.
+   The tint reaches a little past the blocks (so it never hugs the text) and a
+   run of blocks is one rounded shape, fading in as it is picked. */
+.dana-writing-canvas {
+  --dana-block-selection: color-mix(in srgb, var(--accent-color) 14%, transparent);
+  --dana-block-selection-inset-x: calc(var(--spacing) * 1.5);
+  --dana-block-selection-inset-y: calc(var(--spacing) * 0.5);
+  --dana-block-selection-radius: var(--radius-lg);
+  /* How far a toggle's ▸ hangs left of its text (see .bn-toggle-button), for the tint to cover it. */
+  --dana-block-selection-hang: calc(var(--spacing) * 8);
+}
+@keyframes dana-block-selection-in { from { opacity: 0; } to { opacity: 1; } }
+/* Phone: the ▸ sits inline (above), inside the block. */
+@media (max-width: 480px) { .dana-writing-canvas { --dana-block-selection-hang: 0px; } }
+.dark .dana-writing-canvas,
+[data-theme="dark"] .dana-writing-canvas { --dana-block-selection: color-mix(in srgb, var(--accent-color) 24%, transparent); }
+/* The gutter: "+" and ⋮⋮ fade in on hover, 24px targets, quiet until pointed at. */
+.dana-writing-canvas .bn-side-menu { animation: dana-gutter-in 120ms ease-out; }
+@keyframes dana-gutter-in { from { opacity: 0; } to { opacity: 1; } }
+.dana-writing-canvas .bn-side-menu .bn-button {
+  width: calc(var(--spacing) * 6);
+  height: calc(var(--spacing) * 6);
+  min-width: 0;
+  padding: 0;
+  border-radius: var(--radius-sm);
+}
+.dana-writing-canvas .bn-side-menu .dana-drag-handle { cursor: grab; }
+/* The block menu and the slash menu: one menu treatment, the popover surface,
+   rows the height of every other menu's (28px) at 14px, the single menu shadow. */
+.dana-block-menu,
+.bn-suggestion-menu.dana-slash-menu {
+  min-width: calc(var(--spacing) * 56);
+  padding: calc(var(--spacing) * 1);
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: var(--popover);
+  color: var(--popover-foreground);
+  box-shadow: var(--shadow-float);
+  font-size: var(--text-sm);
+}
+.dana-block-menu .bn-menu-item,
+.dana-block-menu [role="menuitem"],
+.dana-slash-menu .bn-suggestion-menu-item {
+  min-height: calc(var(--spacing) * 7);
+  height: auto;
+  padding-block: 0;
+  padding-inline: calc(var(--spacing) * 2);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+}
+.dana-slash-menu .bn-suggestion-menu-label {
+  padding: calc(var(--spacing) * 2) calc(var(--spacing) * 2) calc(var(--spacing) * 1);
+  font-size: var(--text-xs);
+  font-weight: 400;
+  color: var(--muted-foreground);
+}
+/* A Task on the canvas has one menu, the gutter's ⋮⋮ (Delete, Copy link):
+   the row's own "More actions" is not drawn here. */
+.dana-writing-canvas [data-canvas-task-id] button[aria-label="More actions"] { display: none; }
+/* Space below the last block: a click there writes on (CanvasSurface,
+   TaskComposer). It is the lower part of the screen, as in Notion, in every
+   editor: a Task's notes live only in its peek or page, never in a list. */
+.dana-canvas-tail { min-height: max(calc(var(--spacing) * 16), 30vh); cursor: text; }
+
+/* ---- r3-slash: a Section is a plain heading (schema.ts draws it without the
+   toggle). What it holds sits at the heading's own indent, as under a Notion
+   heading; a toggle heading still indents what it folds. */
+.dana-writing-canvas .bn-block:has(> .bn-block-content[data-dana-section]) > .bn-block-group {
+  margin-inline-start: 0;
+}
+/* r4-freeform: a Section's heading and spacing already group its tasks, so
+   BlockNote's nesting guide is not drawn beside them. */
+.dana-writing-canvas .bn-block:has(> .bn-block-content[data-dana-section]) > .bn-block-group > .bn-block-outer::before {
+  display: none;
+}
+
+
+/* ---- r4-editor: one hint at a time. While the page is being written in,
+   only the focused empty block says anything ("Press '/' for commands"; a
+   heading or list says what it is); every other empty block is blank, as in
+   Notion. The empty page's own line above shows only while nothing is focused.
+   BlockNote marks the focused empty block `data-is-empty-and-focused`: on the
+   block's content, or on the wrapper of Dana's paragraph node view. */
+.dana-writing-canvas .bn-editor .bn-block-content[data-content-type]:has(.ProseMirror-trailingBreak:only-child)::after { content: none; }
+.dana-writing-canvas .bn-editor.ProseMirror-focused [data-is-empty-and-focused] > .bn-block-content[data-content-type]:has(.ProseMirror-trailingBreak:only-child),
+.dana-writing-canvas .bn-editor.ProseMirror-focused .bn-block-content[data-content-type][data-is-empty-and-focused]:has(.ProseMirror-trailingBreak:only-child) {
+  --dana-hint: "Press '/' for commands";
+}
+.dana-writing-canvas .bn-editor.ProseMirror-focused .bn-block-content[data-content-type='heading'][data-is-empty-and-focused]:has(.ProseMirror-trailingBreak:only-child) { --dana-hint: "Heading"; }
+.dana-writing-canvas .bn-editor.ProseMirror-focused .bn-block-content:is([data-content-type='bulletListItem'], [data-content-type='numberedListItem'], [data-content-type='checkListItem'], [data-content-type='toggleListItem'])[data-is-empty-and-focused]:has(.ProseMirror-trailingBreak:only-child) { --dana-hint: "List"; }
+/* r8-caret: every hint above is drawn here, inside the inline content the
+   caret lives in, as ProseMirror's own placeholder is: a zero-height float
+   takes no room on the line, so the hint's first letter starts exactly at the
+   caret and shares its baseline, whatever the block's padding. (Drawn on the
+   block instead, BlockNote's `margin-inline: -2px` put it 2px left.) */
+.dana-writing-canvas .bn-editor .bn-inline-content:has(.ProseMirror-trailingBreak:only-child)::before {
+  content: var(--dana-hint, none);
+  float: inline-start;
+  height: 0;
+  color: var(--muted-foreground);
+  font-style: normal;
+  pointer-events: none;
+  white-space: nowrap;
+}
+/* A clicked image, divider, page or Task row (ProseMirror's node selection)
+   wears the same soft tint as a block selection, never BlockNote's inset
+   outline; and only while the editor has focus. A node selection outlives a
+   blur (Esc, a click elsewhere, a row that opened a page), and a page of
+   nothing but rows has no caret to trade it for, so a tint drawn blurred
+   could never be let go. */
+.dana-writing-canvas .bn-block-content.ProseMirror-selectednode > ::after,
+.dana-writing-canvas .ProseMirror-selectednode > .bn-block-content > ::after { content: none; }
+.dana-writing-canvas .bn-block-content.ProseMirror-selectednode,
+.dana-writing-canvas .ProseMirror-selectednode > .bn-block-content { position: relative; }
+.dana-writing-canvas .ProseMirror-focused .bn-block-content.ProseMirror-selectednode::after,
+.dana-writing-canvas .ProseMirror-focused .ProseMirror-selectednode > .bn-block-content::after {
+  content: '';
+  position: absolute;
+  inset: calc(-1 * var(--dana-block-selection-inset-y)) calc(-1 * var(--dana-block-selection-inset-x));
+  background: var(--dana-block-selection);
+  border-radius: var(--dana-block-selection-radius);
+  pointer-events: none;
+  animation: dana-block-selection-in var(--duration-fast) var(--ease-enter);
+}
+.dana-writing-canvas .bn-inline-content .ProseMirror-selectednode::after {
+  background: var(--dana-block-selection);
+  box-shadow: none;
+  border-radius: var(--radius-sm);
+}
+/* A node selection has nothing to format: BlockNote still mounted the
+   toolbar with no buttons, a small empty ring above the block. */
+.bn-formatting-toolbar:not(:has(button)) { display: none; }
+/* The block menu takes focus to read its keys; that is not a place to ring. */
+.dana-block-menu:focus-visible { outline: none !important; }
+
+/* ---- r5-discuss: the post composer's one hint. The composer
+   (`thread/PostEditor.tsx`) says only its own words ("Write a reply…",
+   "Write the first post…", from `--dana-canvas-placeholder`), focused or
+   not, and only while it is empty: the page's "Press '/' for commands" and
+   its heading/list hints are the page's, not a message box's. A 1px start
+   inset keeps the hint's first letter out of the scroller's clip on phones,
+   where the canvas's own left padding is zeroed. */
+.dana-writing-canvas.dana-post-editor { padding-inline-start: 1px; }
+.dana-writing-canvas.dana-post-editor .bn-editor.ProseMirror-focused [data-is-empty-and-focused] > .bn-block-content[data-content-type]:has(.ProseMirror-trailingBreak:only-child),
+.dana-writing-canvas.dana-post-editor .bn-editor.ProseMirror-focused .bn-block-content[data-content-type][data-is-empty-and-focused]:has(.ProseMirror-trailingBreak:only-child) {
+  --dana-hint: none;
+}
+.dana-writing-canvas.dana-post-editor .bn-editor > .bn-block-group > .bn-block-outer:only-child > .bn-block > .react-renderer > .bn-block-content[data-content-type='paragraph']:has(.ProseMirror-trailingBreak:only-child) {
+  --dana-hint: var(--dana-canvas-placeholder, none);
+}
+
+/* ---- r5-page: one ink for every Delete, and the submenu chevron as quiet
+   as the other icons. */
+.dana-block-menu .dana-menu-danger,
+.dana-block-menu .dana-menu-danger svg { color: var(--destructive); }
+.dana-block-menu [aria-haspopup] > svg:last-child,
+.dana-block-menu .bn-menu-item > svg:last-child {
+  width: calc(var(--spacing) * 4);
+  height: calc(var(--spacing) * 4);
+  color: var(--muted-foreground);
+}
+/* A Task on the page is a row like the sub-page rows beside it: one row height. */
+.dana-writing-canvas [data-canvas-task-id] { --task-row-height: var(--row-height); }
+/* The divider block is the one divider: the hairline, not a second grey. */
+.dana-writing-canvas .bn-block-content[data-content-type='divider'] hr { border: 0; border-top: 1px solid var(--border); background: none; }
+/* A Task row reached by keyboard (Tab, or focus handed back when its peek
+   closes) wears the block-selection tint: the editor suppresses the global
+   outline inside its document, and a ring would stack on the row's own. */
+.dana-writing-canvas [data-canvas-task-id]:focus-visible {
+  outline: none;
+  background: var(--dana-block-selection);
+  box-shadow: 0 0 0 var(--dana-block-selection-inset-y) var(--dana-block-selection);
+}
+
+/* ---- r7-editor: Notion's to-do rhythm at Dana's body size.
+   Every one-line text block is one --row-height tall, as a Task row is, so
+   tasks, text and the empty line after them step at one pitch instead of
+   32 / 27 / 28. A Task's checkbox sits on the text's left edge (not 6px in)
+   with 8px to its title, centred on the title's first line (the row is one
+   line; both centre on it). */
+.dana-writing-canvas:not(.dana-post-editor) .bn-block-content:is([data-content-type='paragraph'], [data-content-type='bulletListItem'], [data-content-type='numberedListItem'], [data-content-type='checkListItem'], [data-content-type='toggleListItem'], [data-content-type='quote']) {
+  padding-block: calc((var(--row-height) - var(--text-body-line)) / 2);
+}
+.dana-writing-canvas [data-canvas-task-id] button[aria-label="Complete task"],
+.dana-writing-canvas [data-canvas-task-id] button[aria-label="Mark as not done"] {
+  margin-inline-start: calc((var(--checkbox-size) - var(--control-height)) / 2);
+}
+.dana-writing-canvas [data-canvas-task-id] button[aria-label="Complete task"] + span,
+.dana-writing-canvas [data-canvas-task-id] button[aria-label="Mark as not done"] + span {
+  margin-inline-start: calc(var(--checkbox-size) + var(--spacing) * 2 - var(--control-height));
+}
+
+/* ---- r9-caret: Notion's writing line. Canvas body text is 16px on a 24px
+   line (headings keep their own sizes), the caret is the text's own colour,
+   and the empty-line hint is the quieter placeholder grey. Still one
+   --row-height per one-line block: (32 - 24) / 2 = 4px above and below. */
+.dana-writing-canvas .bn-editor { caret-color: var(--text); }
+.dana-writing-canvas:not(.dana-post-editor) .bn-editor {
+  font-size: var(--text-editor-size);
+  line-height: var(--text-editor-line);
+}
+.dana-writing-canvas:not(.dana-post-editor) .bn-block-content:is([data-content-type='paragraph'], [data-content-type='bulletListItem'], [data-content-type='numberedListItem'], [data-content-type='checkListItem'], [data-content-type='toggleListItem'], [data-content-type='quote']) {
+  padding-block: calc((var(--row-height) - var(--text-editor-line)) / 2);
+}
+.dana-writing-canvas .bn-editor .bn-inline-content:has(.ProseMirror-trailingBreak:only-child)::before,
+.dana-writing-canvas .bn-block-content:has(.ProseMirror-trailingBreak:only-child)::after { color: var(--text-placeholder); }

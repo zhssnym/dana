@@ -1,282 +1,404 @@
 /*
-A Folder's Consultation facet: its Discussions, most recent activity first as
-the server orders them (#212, #320). A state filter (Open by default), a
-debounced title/context search, keyset "Load more", and a Start button for
-viewers who may start one.
+The Discussion tab's threads, laid out as Today lays out tasks (r9-dlist): an
+"Open" group ending in "New thread", then a "Resolved" group; no tabs, no
+column headers. Most recent activity first, as the server orders them.
 
-"No discussions yet" is only said when the Folder truly has none: an empty
-Open list asks the unfiltered list once (`NothingOpen`) before choosing
-between "No discussions yet" and "No open discussions".
+Each thread is one row at the task row's height. Where a task has its
+checkbox a thread has its status mark, in a shape a task never has: an
+outline speech bubble while open, a filled check circle once resolved.
+Pressing the mark resolves (the thread view's close without a decision) or
+reopens the thread, with Undo. The title carries the row; an unread one (a
+post from someone else since this person last read it, the server's
+`read_at`) is heavier and nothing else marks it. On the right: an open
+thread's other participants and "4 posts · 12 min"; a resolved one's
+"Resolved 15 Sep".
+
+The keyboard path is the task lists' (`row-keys.ts`): arrows move, Enter
+opens, Space resolves or reopens. An old `?threads=closed` link still loads;
+the parameter is ignored since both groups are always shown.
+
+The list re-reads every twenty seconds while the tab is visible
+(`useDiscussions`), so new activity arrives without a reload.
 */
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
-import { useDiscussions } from '../../api/consultation.js'
-import type { Discussion, DiscussionListState } from '../../../shared/consultation.js'
-import { formatAgo } from '../../parts/format-dates.js'
-import { MessageSquare, Plus, Search } from '../../lib/icons.js'
+import {
+  useCreateDiscussion,
+  useDiscussions,
+  useReopenDiscussion,
+  useResolveDiscussion,
+} from '../../api/consultation.js'
+import type { Discussion } from '../../../shared/consultation.js'
+import { DISCUSSION_TITLE_MAX } from '../../../shared/consultation.js'
+import { MessageCircle, Plus, ResolvedMark } from '../../lib/icons.js'
+import type { PersonResolver } from '../../lib/thread.js'
+import { formatAgo, formatCompactDate } from '../../parts/format-dates.js'
+import { presenterToday } from '../../parts/presenters.js'
+import { pushUndo, undoLabel } from '../../shell/undo.js'
+import { useRowKeys } from '../row-keys.js'
 import { InlineError } from '../state-patterns.js'
-import { Badge } from '../ui/badge.js'
-import { Button } from '../ui/button.js'
-import { Input } from '../ui/input.js'
 import { Skeleton } from '../ui/skeleton.js'
-import { mayStartDiscussion } from './authority.js'
+import { cn } from '../ui/utils.js'
+import { discussionPowers, mayStartDiscussion } from './authority.js'
 import type { ConsultationViewer } from './authority.js'
-import { Choice } from './Choice.js'
-import { StartDiscussionDialog } from './StartDiscussionDialog.js'
 
-const FILTERS: ReadonlyArray<{ value: DiscussionListState; label: string }> = [
-  { value: 'open', label: 'Open' },
-  { value: 'resolved', label: 'Resolved' },
-  { value: 'all', label: 'All' },
-]
+type State = 'open' | 'resolved'
 
-const SEARCH_DEBOUNCE_MS = 250
+/** Someone else posted since this person last read the thread. */
+export function isUnread(d: Discussion, viewerId: string | null): boolean {
+  const last = d.last_post
+  if (last === null || last === undefined || last.author_id === viewerId) return false
+  if (d.read_at === null || d.read_at === undefined) return true
+  return Date.parse(last.created_at) > Date.parse(d.read_at)
+}
 
-/* Search is offered once there are more discussions than fit at a glance. */
-const SEARCH_FROM = 9
-
-const WHAT_A_DISCUSSION_IS =
-  'A discussion is one question for this folder. People talk it through, then someone records the outcome so the decision stays findable.'
+/* The task row's grid: the mark sits where a task's checkbox does. */
+const ROW =
+  'grid h-[var(--row-height)] w-full grid-cols-[var(--control-height)_minmax(0,1fr)_auto] items-center rounded-sm pr-1.5 text-sm transition-colors duration-[var(--duration-fast)]'
 
 export function DiscussionList({
   folderId,
   viewer,
+  personOf,
   onOpen,
+  onStarted,
 }: {
-  folderId: string
-  viewer: ConsultationViewer | null
-  onOpen: (discussionId: string) => void
+  readonly folderId: string
+  readonly viewer: ConsultationViewer | null
+  readonly personOf: PersonResolver
+  readonly onOpen: (discussionId: string) => void
+  readonly onStarted: (discussionId: string) => void
 }): React.JSX.Element {
-  const [state, setState] = useState<DiscussionListState>('open')
-  const [search, setSearch] = useState('')
-  const [query, setQuery] = useState('')
-  const [starting, setStarting] = useState(false)
+  const list = useDiscussions(folderId, 'all', '')
+  const resolve = useResolveDiscussion()
+  const reopen = useReopenDiscussion()
+  const keys = useRowKeys<HTMLDivElement>()
+  /* A pressed mark moves its row at once; the refetch then agrees. */
+  const [moved, setMoved] = useState<ReadonlyMap<string, State>>(new Map())
+  const move = (id: string, to: State | null): void => {
+    setMoved((current) => {
+      const next = new Map(current)
+      if (to === null) next.delete(id)
+      else next.set(id, to)
+      return next
+    })
+  }
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => setQuery(search), SEARCH_DEBOUNCE_MS)
-    return () => window.clearTimeout(timer)
-  }, [search])
-
-  const list = useDiscussions(folderId, state, query)
   const discussions = list.data?.pages.flatMap((page) => page.discussions) ?? []
+  const stateOf = (d: Discussion): State => moved.get(d.id) ?? (d.state === 'open' ? 'open' : 'resolved')
+  const may = (d: Discussion): boolean => {
+    if (viewer === null) return false
+    const powers = discussionPowers(viewer, d, false)
+    return stateOf(d) === 'open' ? powers.resolve : powers.reopen
+  }
+  const open = discussions.filter((d) => stateOf(d) === 'open')
+  const resolved = discussions.filter((d) => stateOf(d) === 'resolved')
   const mayStart = viewer !== null && mayStartDiscussion(viewer)
-  const searching = query.trim() !== ''
-  /* Once shown, the box stays while a search is typed, even if it narrows
-     the list below the threshold. */
-  const offerSearch =
-    search !== '' || searching || discussions.length >= SEARCH_FROM || list.hasNextPage
+  const now = Date.now()
+  const today = presenterToday()
+  const viewerId = viewer?.viewerId ?? null
 
-  const startButton = mayStart ? (
-    <Button
-      type="button"
-      className="h-[var(--control-height)] shrink-0 bg-[var(--color-graphite-900)] px-3 text-white hover:bg-[var(--color-graphite-800)]"
-      onClick={() => setStarting(true)}
-    >
-      <Plus data-icon="inline-start" className="size-4" strokeWidth={1.75} aria-hidden="true" />
-      Start a discussion
-    </Button>
-  ) : null
-
-  let body: React.JSX.Element
-  if (list.isPending) {
-    body = <ListSkeleton />
-  } else if (list.isError) {
-    body = <InlineError onRetry={() => void list.refetch()} />
-  } else if (discussions.length === 0) {
-    body =
-      searching || state === 'resolved' ? (
-        <NoMatch
-          text={
-            searching
-              ? `No discussions match “${query.trim()}”.`
-              : 'No resolved discussions yet.'
-          }
-        />
-      ) : state === 'open' ? (
-        <NothingOpen folderId={folderId} startButton={startButton} />
-      ) : (
-        <NoDiscussionsYet startButton={startButton} />
+  const toggle = (d: Discussion): void => {
+    if (!may(d)) return
+    const settled = (): void => { move(d.id, null) }
+    if (stateOf(d) === 'open') {
+      move(d.id, 'resolved')
+      resolve.mutate(
+        { id: d.id, body: {} },
+        {
+          onSettled: settled,
+          onSuccess: () => {
+            pushUndo(undoLabel('Resolved', d.title), () => { reopen.mutate(d.id) })
+          },
+        },
       )
-  } else {
-    const now = Date.now()
-    body = (
-      <div className="space-y-2">
-        <ul className="divide-y divide-[var(--color-graphite-100)]">
-          {discussions.map((discussion) => (
-            <DiscussionRow
-              key={discussion.id}
-              discussion={discussion}
-              now={now}
-              onOpen={onOpen}
-            />
-          ))}
-        </ul>
-        {list.hasNextPage ? (
-          <div className="flex justify-center">
-            <Button
-              type="button"
-              variant="outline"
-              className="h-[var(--control-height)] px-3"
-              disabled={list.isFetchingNextPage}
-              onClick={() => void list.fetchNextPage()}
-            >
-              Load more
-            </Button>
-          </div>
-        ) : null}
+    } else {
+      move(d.id, 'open')
+      reopen.mutate(d.id, {
+        onSettled: settled,
+        onSuccess: () => {
+          pushUndo(undoLabel('Reopened', d.title), () => { resolve.mutate({ id: d.id, body: {} }) })
+        },
+      })
+    }
+  }
+
+  /* The keyboard path's scope mounts once, loading or not: `useRowKeys`
+     attaches to it on the first render only. */
+  if (list.isPending || list.isError) {
+    return (
+      <div ref={keys} className="-mx-1.5 min-w-0">
+        {list.isPending ? <ListSkeleton /> : <InlineError onRetry={() => void list.refetch()} />}
       </div>
     )
   }
 
+  const row = (d: Discussion): React.JSX.Element => (
+    <li key={d.id}>
+      <ThreadRow
+        discussion={d}
+        state={stateOf(d)}
+        may={may(d)}
+        now={now}
+        today={today}
+        personOf={personOf}
+        viewerId={viewerId}
+        onOpen={onOpen}
+        onToggle={() => { toggle(d) }}
+      />
+    </li>
+  )
+
   return (
-    <div className="min-w-0 space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <Choice
-          label="Filter discussions by state"
-          value={state}
-          options={FILTERS}
-          onSelect={setState}
-          className="shrink-0"
-        />
-        {offerSearch ? (
-        <div className="relative min-w-[10rem] flex-1">
-          <Search
-            className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-[var(--color-graphite-400)]"
-            strokeWidth={1.75}
-            aria-hidden="true"
-          />
-          <Input
-            type="search"
-            aria-label="Search discussions"
-            placeholder="Search discussions"
-            value={search}
-            maxLength={200}
-            className="pl-7"
-            onChange={(event) => setSearch(event.target.value)}
-          />
-        </div>
-        ) : (
-          <div className="flex-1" />
+    <div ref={keys} className="-mx-1.5 min-w-0">
+      <div className="space-y-[var(--space-group)]">
+        <section aria-label="Open">
+          <h2 className="mb-1 px-1.5 text-sm font-section text-foreground">Open</h2>
+          <ul className="flex flex-col">
+            {open.map(row)}
+            {mayStart ? (
+              <li>
+                <NewThread folderId={folderId} onStarted={onStarted} />
+              </li>
+            ) : null}
+          </ul>
+          {open.length === 0 && !mayStart ? (
+            <p className="px-1.5 py-1 text-sm text-muted-foreground">No open threads.</p>
+          ) : null}
+        </section>
+
+        {resolved.length === 0 ? null : (
+          <section aria-label="Resolved">
+            <h2 className="mb-1 px-1.5 text-sm font-section text-foreground">Resolved</h2>
+            <ul className="flex flex-col">{resolved.map(row)}</ul>
+          </section>
         )}
-        {startButton}
+
+        {list.hasNextPage ? (
+          <button
+            type="button"
+            className="h-[var(--control-height)] rounded-sm px-1.5 text-xs text-muted-foreground outline-none hover:text-foreground"
+            disabled={list.isFetchingNextPage}
+            onClick={() => void list.fetchNextPage()}
+          >
+            Show older threads
+          </button>
+        ) : null}
       </div>
-
-      {body}
-
-      {mayStart ? (
-        <StartDiscussionDialog
-          folderId={folderId}
-          open={starting}
-          onOpenChange={setStarting}
-          onOpen={onOpen}
-        />
-      ) : null}
     </div>
   )
 }
 
-function DiscussionRow({
-  discussion,
+function ThreadRow({
+  discussion: d,
+  state,
+  may,
   now,
+  today,
+  personOf,
+  viewerId,
   onOpen,
+  onToggle,
 }: {
-  discussion: Discussion
-  now: number
-  onOpen: (discussionId: string) => void
+  readonly discussion: Discussion
+  readonly state: State
+  readonly may: boolean
+  readonly now: number
+  readonly today: string
+  readonly personOf: PersonResolver
+  readonly viewerId: string | null
+  readonly onOpen: (discussionId: string) => void
+  readonly onToggle: () => void
 }): React.JSX.Element {
-  const resolved = discussion.state === 'resolved'
-  const statement = discussion.current_outcome?.statement ?? null
+  const isOpen = state === 'open'
+  const fresh = isUnread(d, viewerId)
+  const mark = isOpen ? (
+    <MessageCircle className="size-4 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
+  ) : (
+    <ResolvedMark className="text-primary" />
+  )
   return (
-    <li className="min-w-0 px-3 py-2.5">
-      <div className="flex min-w-0 items-center gap-2">
+    <div
+      /* The keyboard path (`row-keys.ts`) keys rows by `data-task-id`. */
+      data-row-key=""
+      data-task-id={d.id}
+      data-thread-state={state}
+      role="link"
+      aria-label={d.title}
+      className={cn(ROW, 'cursor-pointer hover:bg-muted')}
+      onClick={(event) => {
+        if ((event.target as HTMLElement).closest('button')) return
+        onOpen(d.id)
+      }}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return
+        if (event.key === 'Enter') {
+          event.preventDefault()
+          onOpen(d.id)
+        } else if (event.key === ' ') {
+          event.preventDefault()
+          onToggle()
+        }
+      }}
+    >
+      {may ? (
         <button
           type="button"
-          className="min-w-0 truncate text-left text-sm font-medium text-[var(--color-graphite-900)] underline-offset-2 outline-none hover:underline focus-visible:underline"
-          onClick={() => onOpen(discussion.id)}
+          aria-label={isOpen ? 'Resolve thread' : 'Reopen thread'}
+          title={isOpen ? 'Resolve' : 'Reopen'}
+          className="flex size-[var(--control-height)] items-center justify-center rounded-sm active:scale-90"
+          onClick={(event) => {
+            event.stopPropagation()
+            onToggle()
+          }}
         >
-          {discussion.title}
+          {mark}
         </button>
-        {discussion.is_general ? (
-          <Badge variant="secondary" className="shrink-0">
-            General
-          </Badge>
-        ) : null}
-        {resolved ? (
-          <span className="shrink-0 text-xs text-[var(--color-graphite-500)]">Resolved</span>
-        ) : null}
-        <span className="ml-auto shrink-0 pl-2 text-xs whitespace-nowrap text-[var(--color-graphite-600)]">
-          Active {formatAgo(discussion.last_activity_at, now)}
+      ) : (
+        <span className="flex size-[var(--control-height)] items-center justify-center">{mark}</span>
+      )}
+      <span
+        title={d.title}
+        className={cn(
+          'min-w-0 truncate',
+          isOpen ? 'text-foreground' : 'text-muted-foreground',
+          fresh ? 'font-title' : 'font-normal',
+        )}
+      >
+        {d.title}
+      </span>
+      <span className="flex items-center gap-2 pl-3 text-xs whitespace-nowrap text-muted-foreground">
+        {isOpen ? (
+          <>
+            <Faces ids={(d.participant_ids ?? []).filter((id) => id !== viewerId).slice(0, 3)} personOf={personOf} />
+            <span>{postsAndWhen(d, now)}</span>
+          </>
+        ) : d.resolved_at === null ? null : (
+          <span>Resolved {formatCompactDate(d.resolved_at.slice(0, 10), today)}</span>
+        )}
+      </span>
+    </div>
+  )
+}
+
+function postsAndWhen(d: Discussion, now: number): string {
+  const count = d.post_count ?? 0
+  const posts = `${String(count)} post${count === 1 ? '' : 's'}`
+  return `${posts} · ${formatAgo(d.last_post?.created_at ?? d.last_activity_at, now)}`
+}
+
+/** Who else is talking, as small overlapping faces; the reader never shows. */
+function Faces({
+  ids,
+  personOf,
+}: {
+  readonly ids: readonly string[]
+  readonly personOf: PersonResolver
+}): React.JSX.Element | null {
+  if (ids.length === 0) return null
+  return (
+    <span className="flex -space-x-1" aria-label={ids.map((id) => personOf(id).name).join(', ')}>
+      {ids.map((id) => {
+        const person = personOf(id)
+        return (
+          <span
+            key={id}
+            title={person.name}
+            className="flex size-4 items-center justify-center overflow-hidden rounded-full bg-muted text-[0.625rem] leading-none text-muted-foreground ring-2 ring-background"
+          >
+            {person.image === undefined ? (
+              (person.name.trim()[0] ?? '?').toUpperCase()
+            ) : (
+              <img src={person.image} alt="" className="size-full object-cover" />
+            )}
+          </span>
+        )
+      })}
+    </span>
+  )
+}
+
+/** The list's last row: "New thread", then a title, then Enter. */
+function NewThread({
+  folderId,
+  onStarted,
+}: {
+  readonly folderId: string
+  readonly onStarted: (discussionId: string) => void
+}): React.JSX.Element {
+  const create = useCreateDiscussion()
+  const [typing, setTyping] = useState(false)
+  const [title, setTitle] = useState('')
+
+  if (!typing) {
+    return (
+      <button
+        type="button"
+        className={cn(ROW, 'text-left text-muted-foreground outline-none hover:bg-muted hover:text-foreground')}
+        onClick={() => { setTyping(true) }}
+      >
+        <span className="flex justify-center">
+          <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" />
         </span>
-      </div>
-      {resolved && statement !== null ? (
-        <p className="mt-0.5 truncate text-xs text-[var(--color-graphite-700)]">
-          <span className="font-medium">Outcome:</span> {statement}
-        </p>
-      ) : null}
-      {discussion.context !== null && discussion.context.trim() !== '' ? (
-        <p className="mt-0.5 truncate text-xs text-[var(--color-graphite-600)]">{discussion.context}</p>
-      ) : null}
-    </li>
+        New thread
+      </button>
+    )
+  }
+
+  const cancel = (): void => {
+    setTyping(false)
+    setTitle('')
+  }
+  return (
+    <form
+      className={ROW}
+      onSubmit={(event) => {
+        event.preventDefault()
+        const trimmed = title.trim()
+        if (trimmed === '' || create.isPending) return
+        create.mutate(
+          { folderId, body: { title: trimmed } },
+          {
+            onSuccess: (discussion) => {
+              cancel()
+              onStarted(discussion.id)
+            },
+          },
+        )
+      }}
+    >
+      <span className="flex justify-center">
+        <Plus className="size-4 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
+      </span>
+      <input
+        aria-label="New thread title"
+        placeholder="Thread title, then Enter"
+        autoFocus
+        value={title}
+        maxLength={DISCUSSION_TITLE_MAX}
+        disabled={create.isPending}
+        className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
+        onChange={(event) => { setTitle(event.target.value) }}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            event.preventDefault()
+            cancel()
+          }
+        }}
+        onBlur={() => { if (title.trim() === '') cancel() }}
+      />
+    </form>
   )
 }
 
 function ListSkeleton(): React.JSX.Element {
   return (
-    <div
-      className="divide-y divide-[var(--color-graphite-100)]"
-      aria-label="Loading discussions"
-      aria-busy="true"
-    >
+    <div className="divide-y divide-border" aria-label="Loading threads" aria-busy="true">
       {[0, 1, 2].map((row) => (
-        <div key={row} className="space-y-1.5 px-3 py-3">
+        <div key={row} className="py-3">
           <Skeleton className={row === 1 ? 'h-3.5 w-2/5' : 'h-3.5 w-3/5'} />
-          <Skeleton className="h-3 w-4/5" />
         </div>
       ))}
     </div>
   )
-}
-
-function NoDiscussionsYet({
-  startButton,
-}: {
-  startButton: React.JSX.Element | null
-}): React.JSX.Element {
-  return (
-    <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
-      <MessageSquare
-        className="size-7 text-[var(--color-graphite-400)]"
-        strokeWidth={1.75}
-        aria-hidden="true"
-      />
-      <p className="text-sm font-medium text-[var(--color-graphite-900)]">No discussions yet</p>
-      <p className="max-w-[52ch] text-xs leading-5 text-[var(--color-graphite-600)]">
-        {WHAT_A_DISCUSSION_IS}
-      </p>
-      {startButton !== null ? <div className="mt-1">{startButton}</div> : null}
-    </div>
-  )
-}
-
-function NoMatch({ text }: { text: string }): React.JSX.Element {
-  return (
-    <p className="px-4 py-6 text-center text-xs text-[var(--color-graphite-600)]">
-      {text}
-    </p>
-  )
-}
-
-/** The Open list is empty: say "No discussions yet" only if All is empty too. */
-function NothingOpen({
-  folderId,
-  startButton,
-}: {
-  folderId: string
-  startButton: React.JSX.Element | null
-}): React.JSX.Element {
-  const all = useDiscussions(folderId, 'all', '')
-  if (all.isPending) return <ListSkeleton />
-  const any = (all.data?.pages[0]?.discussions.length ?? 0) > 0
-  if (all.isError || any) return <NoMatch text="No open discussions." />
-  return <NoDiscussionsYet startButton={startButton} />
 }

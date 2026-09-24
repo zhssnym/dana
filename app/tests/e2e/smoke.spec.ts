@@ -39,14 +39,17 @@ test('smoke: sign in, create a task, open a folder', async ({ page }) => {
 
   await test.step('the signed-in shell renders', async () => {
     await page.goto('/app')
+    // /app lands on Today.
+    await expect(page).toHaveURL(/\/app\/today$/)
     await expect(page.getByRole('navigation').first()).toBeVisible()
   })
 
   const title = `smoke task ${Date.now()}`
   await test.step('the quick-add creates a task', async () => {
-    await page.goto('/app/anytime')
-    await page.getByRole('button', { name: 'Add a task', exact: true }).first().click()
-    const box = page.getByRole('textbox', { name: 'Add a task', exact: true }).first()
+    // Already on Today. The inline "New task" row ends the list; N focuses it.
+    await expect(page.getByRole('textbox', { name: 'New task', exact: true }).first()).toBeVisible()
+    await page.keyboard.press('n')
+    const box = page.getByRole('textbox', { name: 'New task', exact: true }).first()
     await expect(box).toBeFocused()
     await box.fill(title)
     await box.press('Enter')
@@ -74,5 +77,21 @@ test('smoke: sign in, create a task, open a folder', async ({ page }) => {
     await link.click()
     await expect(page).toHaveURL(new RegExp(`${folderPath}$`))
     await expect(taskRow(page, 'Buy milk').first()).toBeVisible()
+  })
+
+  await test.step('writing typed just before leaving the page is saved', async () => {
+    // The autosave waits 450 ms; leaving inside that wait must still send it.
+    const words = `left at once ${Date.now()}`
+    // The space below the last block writes on, in a fresh line.
+    await page.locator('.dana-canvas-tail').first().click()
+    await page.keyboard.type(words)
+    await expect(page.locator('.dana-writing-canvas').first()).toContainText(words)
+    await page.getByRole('navigation').getByRole('link', { name: /Today/ }).first().click()
+    await expect
+      .poll(async () => {
+        const response = await page.request.get(`/api/v1/folders/${seedIds.groceries}/page`)
+        return (await response.text()).includes(words)
+      })
+      .toBe(true)
   })
 })

@@ -28,7 +28,7 @@ import { PLACE_DESCRIPTION_MAX } from "../../shared/place-descriptions.js"
 import { AlignLeft, type LucideIcon } from "../lib/icons.js"
 import { resolveCover } from "./folder-cover.js"
 import { AddCoverAction, PageCover } from "./page-cover.js"
-import { FOCUS, T_FAST } from "./task-row.js"
+import { T_FAST } from "./task-row.js"
 import { InlineTextarea } from "./ui/inline-field.js"
 /* Covers are read from 7.19 keyed by 4.20's place, through
    `lib/page-identity.js`; its two names are aliased on import. */
@@ -37,6 +37,19 @@ import {
   usePageIdentity as useFolderIdentity,
 } from "../lib/page-identity.js"
 import { cn } from "./ui/utils.js"
+
+/*
+How a long page path folds (round 3: the trail itself is drawn in the top bar,
+not in the page head; search still names paths with this).
+
+**A long trail keeps its ends.** The root says which tree this is and the
+nearest parent says where you are; the middle is the least informative part,
+so it is what folds into "…".
+*/
+export function crumbTrail<T>(crumbs: readonly T[], keep = 4): (T | null)[] {
+  if (crumbs.length <= keep) return [...crumbs]
+  return [crumbs[0] as T, null, ...crumbs.slice(crumbs.length - (keep - 2))]
+}
 
 /*
 Whether this page is currently wearing a cover, the header needs it, because a
@@ -54,20 +67,10 @@ export function usePageHasCover(storageName: string) {
   )
 }
 
-/* The reading column, one definition. The folder page's own measure, so the
-   six pages cannot drift from it by a rounding of padding. */
-export function pageBodyClass(className?: string) {
-  return cn(
-    "mx-auto w-full max-w-[var(--shell-content-max)] px-10 pb-8",
-    className,
-  )
-}
-
 /*
 The mark itself, one definition.
 
-The mark has no container: a soft radial scrim over a cover, nothing at all on a
-bare page. It is a component so every page draws the same mark, and the two call
+The mark has no container, over a cover or not. It is a component so every page draws the same mark, and the two call
 sites differ in the one way they honestly differ: a folder's mark is a control
 that opens the icon picker, a system page's is not a control at all and is
 therefore not a button. Everything else, the geometry included, is written once
@@ -76,12 +79,7 @@ here:
 - **It grows over a cover rather than shrinking**, 32px bare to 40px plated. A
   cover is the one place identity has competition and the one place it should be
   loudest.
-- **The scrim is the plate's replacement.** A dark glyph on a dark photograph is
-  what a container would solve, and the answer is to give the mark ground rather
-  than a fence, the same trick a caption over an image uses. On a bare page
-  there is nothing to separate from and the scrim is simply absent.
-- **A control says so on hover**, with a disc that reads on both grounds,
-  painted over the scrim rather than under it.
+- **A control says so on hover**, with a disc.
 */
 export function PageMark({
   icon: Icon,
@@ -100,17 +98,11 @@ export function PageMark({
 } & Omit<ComponentPropsWithoutRef<"button">, "color">) {
   const body = (
     <>
-      {hasCover ? (
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute -inset-2 rounded-full bg-[radial-gradient(closest-side,var(--color-graphite-0)_35%,color-mix(in_oklab,var(--color-graphite-0)_70%,transparent)_65%,transparent_100%)]"
-        />
-      ) : null}
       {interactive ? (
         <span
           aria-hidden="true"
           className={cn(
-            "pointer-events-none absolute inset-0 rounded-full bg-[var(--color-graphite-100)] opacity-0 transition-opacity group-hover/mark:opacity-100 group-focus-visible/mark:opacity-100",
+            "pointer-events-none absolute inset-0 rounded-full bg-accent opacity-0 transition-opacity group-hover/mark:opacity-100 group-focus-visible/mark:opacity-100",
             T_FAST,
           )}
         />
@@ -125,7 +117,7 @@ export function PageMark({
   )
 
   const shape = cn(
-    "relative flex shrink-0 items-center justify-center text-[var(--color-graphite-800)]",
+    "relative flex shrink-0 items-center justify-center text-foreground",
     hasCover ? "z-40 -ml-1.5 -mt-9 size-14" : "-ml-1.5 size-10",
     className,
   )
@@ -133,7 +125,7 @@ export function PageMark({
   if (!interactive) return <div className={shape}>{body}</div>
 
   return (
-    <button type="button" className={cn("group/mark rounded-full", shape, FOCUS)} {...rest}>
+    <button type="button" className={cn("group/mark rounded-full", shape)} {...rest}>
       {body}
     </button>
   )
@@ -178,7 +170,7 @@ function PageHeadingStructure({
       {/* On a phone the fact wraps under the name. */}
       <div className="mt-1.5 flex items-baseline justify-between gap-6">
         <div className="flex min-w-0 items-baseline gap-3 max-md:flex-col max-md:items-start max-md:gap-1">
-          <h1 className="min-w-0 max-w-full truncate text-2xl leading-8 font-semibold text-foreground max-md:whitespace-normal">
+          <h1 className="min-w-0 max-w-full truncate text-[length:var(--text-title-size)] leading-8 font-semibold text-foreground max-md:whitespace-normal">
             {title}
           </h1>
           {fact === undefined ? null : (
@@ -372,7 +364,7 @@ export function PageDescription({
        there is nothing to read. */
     if (!value) return null
     return (
-      <p className="-mx-1 mt-1 max-w-xl px-1 py-0.5 text-[12px] leading-5 whitespace-pre-wrap text-[var(--color-graphite-600)]">
+      <p className="-mx-1 mt-1 max-w-xl px-1 py-0.5 text-xs leading-5 whitespace-pre-wrap text-muted-foreground">
         {value}
       </p>
     )
@@ -384,10 +376,9 @@ export function PageDescription({
         type="button"
         onClick={() => setEditing(true)}
         className={cn(
-          "-mx-1 mt-1 flex h-6 items-center gap-1.5 rounded-md px-1 text-[12px] leading-5 text-[var(--color-graphite-400)] transition-[opacity,background-color,color]",
+          "-mx-1 mt-1 flex h-6 items-center gap-1.5 rounded-md px-1 text-xs leading-5 text-quiet-foreground transition-[opacity,background-color,color]",
           T_FAST,
-          FOCUS,
-          "hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-600)]",
+          "hover:bg-accent hover:text-muted-foreground",
           offer ? "opacity-100" : "opacity-0 group-hover/head:opacity-100 focus-visible:opacity-100",
         )}
       >
@@ -412,9 +403,9 @@ export function PageDescription({
       autoFocus={editing}
       onBlur={(event) => commit(event.target.value)}
       className={cn(
-        "-mx-1 mt-1 block w-[calc(100%+0.5rem)] max-w-xl resize-none rounded-md bg-transparent px-1 py-0.5 text-[12px] leading-5 text-[var(--color-graphite-600)] outline-none transition-colors [field-sizing:content]",
+        "-mx-1 mt-1 block w-[calc(100%+0.5rem)] max-w-xl resize-none rounded-md bg-transparent px-1 py-0.5 text-xs leading-5 text-muted-foreground outline-none transition-colors [field-sizing:content]",
         T_FAST,
-        "placeholder:text-[var(--color-graphite-400)] hover:bg-[var(--color-graphite-50)] focus:bg-card focus:ring-1 focus:ring-[var(--color-dana-accent-600)]",
+        "placeholder:text-quiet-foreground hover:bg-accent focus:bg-card",
       )}
     />
   )

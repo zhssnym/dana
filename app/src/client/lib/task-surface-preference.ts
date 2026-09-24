@@ -1,13 +1,12 @@
 /*
 Where a task opens belongs to the person, not to one browser.
 
-`user_settings.task_open` is the record for all three choices: dialog, panel,
-and tab. localStorage is only its fast mirror, so the first task can open in
-the expected place while the settings bundle is still loading. Once that
-bundle arrives it wins and refreshes the mirror, exactly like the theme.
-
-The client calls the panel `right` while the API calls it `panel`; this module
-is the only place that translates between those spellings.
+`user_settings.task_open` is the record for Settings > Appearance > "Open
+tasks in": `dialog` is Center peek (the default, migration 0046), `panel` is
+Side peek and `tab` is Full page. localStorage is only its fast mirror, so the first task
+can open in the expected place while the settings bundle is still loading.
+Once that bundle arrives it wins and refreshes the mirror, exactly like the
+theme. A phone ignores the choice: there a task is always its full page.
 */
 
 import { useEffect, useSyncExternalStore } from 'react'
@@ -20,29 +19,17 @@ import { getSettingsResponse } from '../../shared/bundle.js'
 import type { GetSettingsResponse, SettingsBundle } from '../../shared/bundle.js'
 import { showToast } from '../state/toasts.js'
 
-/**
- * Where a task opens, in the prototype's spelling, which is what every lifted
- * surface switches on.
- *
- * Kept in step with `TaskOpenMode` by the type-check at its call sites; the
- * union is restated here so this module depends on no component.
- */
-export type TaskSurfacePreference = 'dialog' | 'right'
-
-/** The API and local mirror deliberately use the same spelling. */
-type StoredMode = SettingsBundle['task_open']
+/** Side peek (`panel`), Center peek (`dialog`) or Full page (`tab`). */
+export type TaskOpenMode = SettingsBundle['task_open']
+type StoredMode = TaskOpenMode
 
 const KEY = 'dana.taskSurface'
 
-/** 9.3's default, and what this answers before anyone has chosen. */
+/** Center peek, what this answers before anyone has chosen. */
 const DEFAULT = 'dialog' satisfies StoredMode
 
 function fromStored(mode: string | null): StoredMode {
   return mode === 'panel' || mode === 'tab' ? mode : DEFAULT
-}
-
-export function surfacePreferenceFor(mode: StoredMode): TaskSurfacePreference {
-  return mode === 'panel' ? 'right' : DEFAULT
 }
 
 function read(): StoredMode {
@@ -110,7 +97,7 @@ export function useTaskOpenPreference(): StoredMode {
 }
 
 /**
- * 9.7's "where a task opens" control.
+ * 9.7's "Open tasks in" control.
  *
  * The mirror updates immediately for a responsive choice, while the account
  * write makes the same choice follow the person to another browser.

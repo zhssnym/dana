@@ -1,37 +1,27 @@
 /*
 9.7's Settings page, at /app/settings.
 
-**This file owns the route wiring and server reads.** The visible Settings
-layout is `components/settings-page-content.tsx`, which receives the data it
-needs instead of opening a second settings query inside presentation code.
-
-What the page supplies is what the screen cannot know: the saved views of
-4.19 and the write that pins one, where People lives, how a session ends,
-and 7.1's `DELETE /me`, whose body carries the literal the person typed and
-after which there is nothing left to navigate a signed-in client to.
-
-**Storage used against 10.3's quota is the one thing 9.7 names that is still
-not here**: nothing reports the total, and a label with an invented figure
-under it is worse than an absent label.
+**This file owns the route wiring and server reads.** The visible layout is
+`components/settings-page-content.tsx`, which receives what it needs instead of
+opening a second settings query inside presentation code. What the page adds is
+7.1's `DELETE /me`, whose body carries the
+literal the person typed and after which there is nothing left to navigate a
+signed-in client to.
 */
-import { useNavigate } from 'react-router'
+import { useState } from 'react'
 
 import { mutateApi } from '../api/http.js'
-import { usePatchSavedView } from '../api/mutations.js'
-import { useBundle, useSavedViews } from '../api/queries.js'
+import { useBundle } from '../api/queries.js'
 import { SettingsPageContent } from '../components/settings-page-content.js'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog.js'
-import { SAMPLE_COPY, useSampleActs } from '../onboarding/sample.js'
+import { useSampleActs } from '../onboarding/sample.js'
 import { paths } from '../routes.js'
-import { signOut } from '../shell/session.js'
 
 export function SettingsPage(): React.JSX.Element {
-  const navigate = useNavigate()
   const bundle = useBundle()
-  const savedViews = useSavedViews()
-  const patchSavedView = usePatchSavedView()
   /* Item 60: the sample workspace's row, over the same hook as the strip. */
   const sample = useSampleActs()
+  const [deleting, setDeleting] = useState(false)
 
   return (
     <>
@@ -46,35 +36,31 @@ export function SettingsPage(): React.JSX.Element {
                 folders: sample.counts?.folders ?? 0,
               }
         }
-        onRemoveSample={sample.askRemove}
+        onRemoveSample={sample.remove}
         onRestoreSample={sample.restore}
         previewState={bundle.isPending ? 'loading' : bundle.isError ? 'error' : null}
-        taskOpen={bundle.data?.task_open ?? 'dialog'}
-        savedViews={savedViews.data ?? []}
-        onPinSavedView={(id, pinned) => {
-          patchSavedView.mutate({ id, body: { pinned } })
-        }}
-        onOpenPeople={() => {
-          void navigate(paths.people)
-        }}
-        onSignOut={signOut}
-        onDeleteAccount={() => {
-          /* 7.1 requires the literal string in the body, and the server runs
-             8.10 and destroys every session. */
-          void mutateApi(null, {
-            method: 'DELETE',
-            path: '/me',
-            body: { confirm: 'DELETE' },
-          }).then(() => {
-            window.location.assign(paths.landing)
-          })
-        }}
+        onDeleteAccount={() => setDeleting(true)}
       />
-      {sample.confirming ? (
+      {deleting ? (
         <ConfirmDialog
-          message={SAMPLE_COPY.confirm}
-          onContinue={sample.remove}
-          onCancel={sample.cancelRemove}
+          message="Delete your Dana account?"
+          description="Shared pages you own must be handed on or deleted first, and Dana names them; private pages and their tasks are deleted for good."
+          requireText="DELETE"
+          confirmLabel="Delete account"
+          cancelLabel="Cancel"
+          onCancel={() => setDeleting(false)}
+          onContinue={() => {
+            setDeleting(false)
+            /* 7.1 requires the literal string in the body, and the server runs
+               8.10 and destroys every session. */
+            void mutateApi(null, {
+              method: 'DELETE',
+              path: '/me',
+              body: { confirm: 'DELETE' },
+            }).then(() => {
+              window.location.assign(paths.landing)
+            })
+          }}
         />
       ) : null}
     </>

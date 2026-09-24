@@ -85,7 +85,8 @@ import {
   RICH_TEXT_BLOCK_KINDS,
   documentOperation,
   documentOutlineItem,
-  isListKind,
+  mayNest,
+  mayNestUnder,
   richContent,
 } from './page-document.js'
 import type { PageView, PageBlock } from './pages.js'
@@ -253,13 +254,19 @@ not need to copy private account ids".
 export const WORKFLOW_PAGE_BLOCK_KINDS = [
   'section',
   'paragraph',
+  /* A presentation heading on Work: writing, never a Section (it groups
+     nothing and carries no level of its own but its kind). Its fold
+     (`toggleable`) is not carried, as on Purpose. */
+  ...PRESENTATION_HEADING_KINDS,
   'bullet',
   'numbered',
   'checklist',
+  'toggle',
   'quote',
   'callout',
   'code',
   'diagram',
+  'divider',
 ] as const
 export type WorkflowPageBlockKind = (typeof WORKFLOW_PAGE_BLOCK_KINDS)[number]
 
@@ -279,6 +286,11 @@ export const WORKFLOW_OMITTED_BLOCK_KINDS = [
   'audio',
   'video',
   'folder_ref',
+  /* Wave 2's sub-page block. Not written as a link to the page: a Dana link
+     is `/folders/<id>`, an id of the exporting account, which is the one
+     thing this format promises not to carry (#185), and it would name nothing
+     in the importing account. The placeholder records that it was there. */
+  'page',
 ] as const
 export type WorkflowOmittedBlockKind = (typeof WORKFLOW_OMITTED_BLOCK_KINDS)[number]
 
@@ -318,7 +330,7 @@ const pageContentBlock = z
     section: pageBlockIndex.nullable().optional(),
   })
   .superRefine((block, ctx) => {
-    if (block.kind === 'section' && (block.text?.length ?? 0) > 120) {
+    if ((block.kind === 'section' || (PRESENTATION_HEADING_KINDS as readonly string[]).includes(block.kind)) && (block.text?.length ?? 0) > 120) {
       ctx.addIssue({
         code: 'custom',
         path: ['text'],
@@ -358,11 +370,25 @@ const pageContentBlock = z
         message: "A heading's Section is its level, so it names none.",
       })
     }
-    if (block.list_parent !== undefined && !isListKind(block.kind)) {
+    if (
+      block.list_parent !== undefined &&
+      !mayNest(block.kind)
+    ) {
       ctx.addIssue({
         code: 'custom',
         path: ['list_parent'],
-        message: 'Only a bullet, numbered or checklist item is a nested list item.',
+        message: 'A Section never nests under a block.',
+      })
+    }
+    if (
+      block.kind === 'divider' &&
+      ((block.text !== null && block.text !== undefined && block.text !== '') ||
+        (block.rich_content !== null && block.rich_content !== undefined))
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['text'],
+        message: 'A divider carries no text.',
       })
     }
   })
@@ -429,10 +455,12 @@ export const WORKFLOW_PURPOSE_BLOCK_KINDS = [
   'bullet',
   'numbered',
   'checklist',
+  'toggle',
   'quote',
   'callout',
   'code',
   'diagram',
+  'divider',
 ] as const
 export type WorkflowPurposeBlockKind =
   (typeof WORKFLOW_PURPOSE_BLOCK_KINDS)[number]
@@ -476,11 +504,25 @@ const purposeContentBlock = z
         message: 'Only a checklist item is checked or unchecked.',
       })
     }
-    if (block.list_parent !== undefined && !isListKind(block.kind)) {
+    if (
+      block.list_parent !== undefined &&
+      !mayNest(block.kind)
+    ) {
       ctx.addIssue({
         code: 'custom',
         path: ['list_parent'],
-        message: 'Only a bullet, numbered or checklist item is a nested list item.',
+        message: 'A Section never nests under a block.',
+      })
+    }
+    if (
+      block.kind === 'divider' &&
+      ((block.text !== null && block.text !== undefined && block.text !== '') ||
+        (block.rich_content !== null && block.rich_content !== undefined))
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['text'],
+        message: 'A divider carries no text.',
       })
     }
   })
@@ -509,12 +551,12 @@ export const workflowPurpose = z
         block.list_parent >= index ||
         parent === undefined ||
         parent.kind === 'omitted' ||
-        !isListKind(parent.kind)
+        !mayNestUnder(block.kind, parent.kind)
       ) {
         ctx.addIssue({
           code: 'custom',
           path: ['blocks', index, 'list_parent'],
-          message: 'A list item nests under an earlier list item of this Purpose document.',
+          message: 'A block nests under an earlier writing block of this Purpose document.',
         })
       }
     })
@@ -615,12 +657,12 @@ export function readWorkflowPage(
         target === undefined ||
         target.kind === 'task' ||
         target.kind === 'omitted' ||
-        !isListKind(target.kind)
+        !mayNestUnder(block.kind, target.kind)
       ) {
         issues.push({
           path: [index, 'list_parent'],
           message:
-            'A list item nests under a bullet, numbered or checklist item written above it',
+            'A block nests under a writing block written above it',
         })
         return
       }

@@ -21,8 +21,9 @@ AC-920..AC-925: comments inside a Discussion (issue #320).
   fresh General discussion rather than being refused, a legacy reply to a
   comment of the resolved one is refused as frozen, and the legacy read
   still shows the resolved one's history.
-- AC-925: the sample workspace's Folder conversation is written under a
-  General discussion, and removing the sample still works.
+- AC-925: every Folder-level comment the sample workspace writes is filed
+  under a Discussion (its titled threads, since round 12), and removing the
+  sample still works.
 
 Asserted on stored rows, not only responses. Spec: 4.15, 4.31, 7.14.
 */
@@ -422,8 +423,8 @@ describe('AC-924 a resolved General discussion does not silence the legacy threa
   })
 })
 
-describe('AC-925 the sample workspace files its conversation under a General discussion', () => {
-  test('every sample Folder-level comment has one; removal still works', async () => {
+describe('AC-925 the sample workspace files its conversation under Discussions', () => {
+  test('every sample Folder-level comment is in one; removal still works', async () => {
     const [, , stranger] = (await cast.of(app)) as [Actor, Actor, Actor]
     expectStatus(
       await stranger.browser.json('/sample', 'POST', {}),
@@ -432,7 +433,7 @@ describe('AC-925 the sample workspace files its conversation under a General dis
     )
     const scoped = await rows(
       app.db,
-      sql`SELECT d.title, d.is_general
+      sql`SELECT d.id AS discussion_id
           FROM comments c
           JOIN folders f ON f.id = c.folder_id AND f.owner_id = ${stranger.id}::uuid
           LEFT JOIN discussions d ON d.id = c.discussion_id
@@ -440,7 +441,7 @@ describe('AC-925 the sample workspace files its conversation under a General dis
     )
     expect(scoped.length).toBeGreaterThan(0)
     for (const row of scoped) {
-      expect(row).toMatchObject({ title: 'General discussion', is_general: true })
+      expect(row.discussion_id).not.toBeNull()
     }
 
     expectStatus(

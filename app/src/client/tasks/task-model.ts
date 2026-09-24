@@ -10,10 +10,9 @@ copy of one fact would say "Weekly" about a task that repeats on weekdays.
 the join and is the only place the two vocabularies meet.
 */
 import { todayInBrowserZone } from '../api/tz.js'
+import { formatDay } from '../lib/dates.js'
 
 import type { TimeFormat } from '../lib/time-format.js'
-
-export { personTint } from '../parts/person-tint.js'
 
 /* ------------------------------------------------------------------ *
  * Days, and the one clock this file is allowed
@@ -93,14 +92,28 @@ and no others. A label carrying no year means the current one, which is what
 export function parseDueLabel(label: string): Date | null {
   if (/today/i.test(label)) return today()
   if (/tomorrow/i.test(label)) return addDays(today(), 1)
-  const found = label.match(/(\d{1,2})\s+([A-Za-z]{3})(?:\s+(\d{4}))?/)
+  if (/yesterday/i.test(label)) return addDays(today(), -1)
+  const weekday = DAY_SHORT.findIndex((name) => label === name || label.startsWith(`${name} `))
+  if (weekday >= 0) {
+    /* `formatDay` writes a weekday only for 2–6 days ahead. */
+    const delta = (weekday - today().getDay() + 7) % 7
+    return addDays(today(), delta < 2 ? delta + 7 : delta)
+  }
+  /* "24 Sep 2027", or "Sep 24, 2027" where the locale puts the month first. */
+  const dayFirst = label.match(/(\d{1,2})\s+([A-Za-z]{3})(?:\s+(\d{4}))?/)
+  const monthFirst = dayFirst ? null : label.match(/([A-Za-z]{3})\s+(\d{1,2})(?:,\s*(\d{4}))?/)
+  const found = dayFirst
+    ? { day: dayFirst[1], month: dayFirst[2], year: dayFirst[3] }
+    : monthFirst
+      ? { day: monthFirst[2], month: monthFirst[1], year: monthFirst[3] }
+      : null
   if (!found) return null
   const month = MONTH_SHORT.findIndex(
-    (name) => name.toLowerCase() === (found[2] ?? '').slice(0, 3).toLowerCase(),
+    (name) => name.toLowerCase() === (found.month ?? '').slice(0, 3).toLowerCase(),
   )
   if (month < 0) return null
-  const year = found[3] === undefined ? today().getFullYear() : Number(found[3])
-  return new Date(year, month, Number(found[1]))
+  const year = found.year === undefined ? today().getFullYear() : Number(found.year)
+  return new Date(year, month, Number(found.day))
 }
 
 /*
@@ -199,7 +212,7 @@ type is here because `ConceptTask` refers to it.
 */
 export interface ConceptComment {
   id: string
-  author: { initials: string; name: string; image?: string }
+  author: { initials: string; name: string; image?: string; id?: string }
   at: string
   body?: string
   /* Reactions: the lightest way a team says "seen and agreed" without a
@@ -288,6 +301,9 @@ export interface ConceptTask {
      behind it. A count that cannot be wrong is better than a count. */
   steps?: ConceptStep[]
   attachments?: Attachment[]
+  /* The Labels the viewer can see on this task (#226), personal then folder,
+     archived ones left out. Read-only here: the panel shows them when set. */
+  labels?: { id: string; name: string }[]
   /* Which unit a recurrence counts in. */
   repeatUnit?: 'day' | 'week' | 'month' | 'year'
   recurrence?: boolean
@@ -319,73 +335,16 @@ export function stepCount(task: ConceptTask): { done: number; total: number } | 
   }
 }
 
-export function commentCount(comments: ConceptComment[] | undefined): number {
-  if (!comments) return 0
-  return comments.reduce(
-    (sum, comment) => sum + 1 + (comment.replies?.length ?? 0),
-    0,
-  )
-}
-
-/* ------------------------------------------------------------------ *
- * The wording half
- * ------------------------------------------------------------------ */
-/*
-Everything that turns a field into the words a chip or a row says, here rather
-than beside the surfaces for the reason this file's header gives: one fact
-written down in two places will disagree with itself.
-
-- **`today()` is a pass-through and never a second clock.** This client's today
-  is 4.11's, evaluated in `api/tz.ts`, the only place a date is evaluated,
-  exactly as `presenterToday()` is one.
-- **There is no `firstName`.** A real client compares ids;
-  `lib/people-library.ts`'s `isSamePerson` does.
-- **`personTint` is re-exported rather than transcribed.** The colour is
-  `parts/person-tint.ts`'s, which `components/person-face.tsx` uses, and one
-  person must be one colour on every surface.
-
-**The due label is the one place two answers could exist**, so the seam is worth
-stating. `parts/presenters.ts` owns `dueDisplay`, which builds a label from
-4.11's today and 9.7's clock against 8.10's three cases, and
-`tasks/task-concept.ts` puts that label on `ConceptTask.due`. `dueLabelFor`
-below is the *inverse direction*, a date the person just picked turned back into
-the same words, and `parseDueLabel` reads those words back out for a calendar to
-highlight. They are the picker's half of one round trip and are here because
-that is where every caller of them is. What they must never become is a second
-answer to "what does this task's date say", which is `dueDisplay`'s and reaches
-a card through the mapper.
-*/
-
-/* The short absolute form, "18 Aug", which every chip, heading and range label
-   uses. The long form is the Done page's day headings, and the two are the
-   only two this product has. */
-export function dayStamp(date: Date): string {
-  return `${date.getDate()} ${MONTH_SHORT[date.getMonth()] ?? ''}`
-}
-
 /*
 And back out again in the same words, so a date set from the picker reads in the
 row exactly like one that was always there.
 
-**The wording is `parts/presenters.ts`'s and is restated rather than imported**:
-that module is pure and takes a `TaskCard`, and this is called with a bare
-`Date` from inside a picker that has no card yet. The three forms are 8.10's
-three cases, and AC-183 asserts the sentences.
+The words are `lib/dates.ts`'s `formatDay`, the same formatter `dueDisplay`
+uses, so a picked date and a fetched one read identically.
 */
 export function dueLabelFor(date: Date): { label: string; overdue?: boolean } {
-  const rung = dayRung(date)
-  if (rung === 'today') return { label: 'Due today' }
-  if (rung === 'tomorrow') return { label: 'Due tomorrow' }
-  if (rung === 'overdue') {
-    return { label: `Overdue · ${dayStamp(date)}`, overdue: true }
-  }
-  return { label: `Due ${dayStamp(date)}` }
-}
-
-/* "Sat 15 Aug", the hint beside a preset, so "This weekend" says which day it
-   actually means before anybody commits to it. */
-export function shortDate(date: Date): string {
-  return `${DAY_SHORT[date.getDay()] ?? ''} ${date.getDate()} ${MONTH_SHORT[date.getMonth()] ?? ''}`
+  const label = formatDay(isoDay(date), todayInBrowserZone())
+  return dayRung(date) === 'overdue' ? { label, overdue: true } : { label }
 }
 
 export function ordinal(day: number): string {
@@ -456,14 +415,6 @@ export function repeatShort(task: ConceptTask): string {
     return 'Weekdays'
   }
   return every === 1 ? 'Weekly' : `Every ${every} weeks`
-}
-
-/* The words on a due chip. One function for the same reason the repeat summary
-   is one: the row and the card both draw this, and the last time each wrote
-   its own, the row spent a day saying "Weekly" about a task that repeated on
-   weekdays. No clock here: a due date is a day. */
-export function dueChipValue(task: ConceptTask): string {
-  return task.due ? task.due.label : 'No date'
 }
 
 /* A reminder is a sentence with a time somewhere inside it rather than a time

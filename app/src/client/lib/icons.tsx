@@ -426,7 +426,6 @@ export const Ban = icon(Lu.Ban, null) // animated: no ban. Abandoned is a
 export const Bell = icon(Lu.Bell, Anim.BellIcon)
 export const ArrowLeft = icon(Lu.ArrowLeft, Anim.ArrowLeftIcon)
 export const ArrowRight = icon(Lu.ArrowRight, Anim.ArrowRightIcon)
-export const CalendarCheck2 = icon(Lu.CalendarCheck, Anim.CalendarCheckIcon)
 export const CalendarClock = icon(Lu.CalendarClock, Anim.CalendarClockIcon)
 /* No date on it, the other value of the axis `CalendarDays` carries, and
    the filter's own words for it ("No due date"). Static and animation are the
@@ -516,6 +515,20 @@ export const Star = icon(Lu.Star, Anim.StarIcon)
 export const SunMedium = icon(Lu.SunMedium, Anim.SunMediumIcon)
 export const Trash2 = icon(Lu.Trash2, Anim.Trash2Icon)
 export const Undo2 = icon(Lu.Undo2, null)
+/* The thread list's status marks (r9-dlist): an outline bubble for an open
+   thread, a filled check circle for a resolved one. Neither is square, so a
+   thread never reads as a task's checkbox. */
+export const MessageCircle = icon(Lu.MessageCircle, null)
+export function ResolvedMark({ className }: { readonly className?: string }): React.JSX.Element {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={cn("size-4", className)}>
+      <circle cx="12" cy="12" r="10" fill="currentColor" />
+      <path d="m8 12.5 2.75 2.75L16 10" fill="none" stroke="var(--primary-foreground)" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+/* The icon picker's random-colour cell (e8-colors). */
+export const Shuffle = icon(Lu.Shuffle, Anim.ShuffleIcon)
 /*
 Desk's mark: a desk lamp.
 
@@ -575,6 +588,8 @@ export const SendHorizontal = icon(Lu.SendHorizontal, Anim.SendHorizontalIcon)
 
 export const LayoutGrid = icon(Lu.LayoutGrid, Anim.LayoutGridIcon)
 export const List = icon(Lu.List, Anim.ListIcon)
+export const GitCommitVertical = icon(Lu.GitCommitVertical, null)
+export const SquareKanban = icon(Lu.SquareKanban, null)
 
 /* ─── Surfaces and structure (the critique round) ──────────────────────── */
 
@@ -593,6 +608,13 @@ export const LoaderCircle = icon(Lu.LoaderCircle, Anim.LoaderCircleIcon)
 export const PanelRight = icon(Lu.PanelRight, null) // animated: no panel-right; layout-list reads as a panel beside a page, where the menu glyph read as a hamburger
 export const PictureInPicture2 = icon(Lu.PictureInPicture2, null) // animated: no pip; the out-of-flow meaning survives
 export const Pilcrow = icon(Lu.Pilcrow, Anim.PilcrowIcon)
+/* The slash menu's block kinds (r3-slash): drawn still, as menus are. */
+export const Heading2 = icon(Lu.Heading2, null)
+export const Heading3 = icon(Lu.Heading3, null)
+export const ListOrdered = icon(Lu.ListOrdered, null)
+export const ListCollapse = icon(Lu.ListCollapse, null)
+export const Minus = icon(Lu.Minus, null)
+export const Type = icon(Lu.Type, null)
 export const ThumbsUp = icon(Lu.ThumbsUp, Anim.ThumbsUpIcon)
 
 /* ─── The folder identity library (DES-130) ─────────────────────────────

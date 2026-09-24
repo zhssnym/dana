@@ -33,6 +33,7 @@ import type { SQL } from 'drizzle-orm'
 import type { GetSearchResponse, SearchCursor } from '../../shared/views.js'
 import { encodeSearchCursor } from '../../shared/views.js'
 import { rowsOf } from '../database.js'
+import { visibleAncestors } from '../domain/page-tree.js'
 import type { Executor } from '../database.js'
 
 import {
@@ -116,7 +117,8 @@ export async function searchView(
   )
   const pageHits = await rowsOf(
     executor,
-    sql`SELECT b.id AS block_id, b.folder_id, b.shelf_id, b.text
+    sql`SELECT b.id AS block_id, b.folder_id, b.shelf_id, b.text,
+               f.name AS folder_name
         FROM page_blocks b
         LEFT JOIN folders f ON f.id = b.folder_id
         LEFT JOIN shelves sh ON sh.id = b.shelf_id
@@ -127,7 +129,7 @@ export async function searchView(
              the same search that finds a paragraph. An image and a folder
              reference carry a caption and a label rather than writing. */
           AND b.kind IN ('section', 'paragraph', 'bullet', 'numbered',
-                         'checklist', 'quote', 'callout', 'code',
+                         'checklist', 'toggle', 'quote', 'callout', 'code',
                          'diagram')
           AND (
             (b.folder_id IS NOT NULL AND f.deleted_at IS NULL AND EXISTS (
@@ -138,6 +140,20 @@ export async function searchView(
         ORDER BY b.id ASC
         LIMIT ${SEARCH_PAGE_SIZE}`,
   )
+
+  /* Wave 2: each folder hit's and page hit's place in the page tree, as
+     this viewer may see it -- one depth-capped upward walk for the whole
+     batch, cut at the first ancestor the viewer is not a member of or that
+     is trashed, so a hidden parent's name never reaches the results. Every
+     starting folder here is already one the viewer is a member of. */
+  const trail = await visibleAncestors(executor, viewerId, [
+    ...folderHits.map((row) => String(row.id)),
+    ...pageHits.flatMap((row) =>
+      row.folder_id === null ? [] : [String(row.folder_id)],
+    ),
+  ])
+  const crumbsOf = (folderId: string) =>
+    (trail.get(folderId) ?? []).map((crumb) => ({ id: crumb.id, name: crumb.name }))
 
   const page = rows.slice(0, SEARCH_PAGE_SIZE)
   const last = page[page.length - 1]
@@ -156,6 +172,7 @@ export async function searchView(
     folders: folderHits.map((row) => ({
       id: String(row.id),
       name: String(row.name),
+      breadcrumbs: crumbsOf(String(row.id)),
     })),
     shelves: shelfHits.map((row) => ({
       id: String(row.id),
@@ -166,6 +183,18 @@ export async function searchView(
       folder_id: row.folder_id === null ? null : String(row.folder_id),
       shelf_id: row.shelf_id === null ? null : String(row.shelf_id),
       text: String(row.text ?? ''),
+      /* The page's folder's ancestors, then the folder itself (which the
+         membership join above already admitted). A shelf page has none. */
+      breadcrumbs:
+        row.folder_id === null
+          ? []
+          : [
+              ...crumbsOf(String(row.folder_id)),
+              {
+                id: String(row.folder_id),
+                name: String(row.folder_name ?? ''),
+              },
+            ],
     })),
   }
 }

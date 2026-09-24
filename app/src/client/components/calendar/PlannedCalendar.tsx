@@ -53,17 +53,17 @@ import {
   Folder as FolderIcon,
   Plus,
   Repeat2,
-} from 'lucide-react'
+} from '../../lib/icons.js'
 
 import { usePlannedCalendarView, useFolders } from '../../api/queries.js'
 import { useUpdateTask } from '../../api/mutations.js'
-import { showToast } from '../../state/toasts.js'
 import { formatDueDate, presenterToday } from '../../parts/presenters.js'
 import { movableEnd } from '../../parts/schedule.js'
-import { openTaskForm } from '../../shell/overlays.js'
 import { InlineError } from '../state-patterns.js'
 import { Button } from '../ui/button.js'
 import { cn } from '../ui/utils.js'
+import { formatClockTime } from '../../lib/dates.js'
+import { useTimeFormat } from '../../lib/time-format.js'
 import { openTask } from '../task-open.js'
 import {
   WEEKDAY_LABELS,
@@ -154,6 +154,7 @@ function CalendarEvent({
      resize a span the person was carrying with nothing saying so, so the drag
      is refused: the non-destructive reading of an unbuilt feature. */
   const movable = !ghost && !completed && !abandoned && event.moves !== null
+  const clock = useTimeFormat()
 
   return (
     <button
@@ -168,13 +169,13 @@ function CalendarEvent({
           : undefined
       }
       className={cn(
-        'flex w-full items-center gap-1.5 overflow-hidden rounded-[4px] border border-transparent bg-[var(--color-graphite-25)] px-1.5 text-left text-[var(--color-graphite-700)] transition-[background-color,border-color] hover:border-[var(--color-graphite-200)] hover:bg-white focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:outline-none',
+        'flex w-full items-center gap-1.5 overflow-hidden rounded-sm border border-transparent bg-muted px-1.5 text-left text-foreground transition-[background-color,border-color] hover:border-border hover:bg-background focus-visible:outline-none',
         movable && 'cursor-grab active:cursor-grabbing',
-        compact ? 'min-h-5 text-[10px] leading-3' : 'min-h-7 text-xs leading-4',
-        completed && 'bg-white text-[var(--color-graphite-400)]',
-        abandoned && 'bg-white text-[var(--color-graphite-500)] line-through',
+        compact ? 'min-h-5 text-xs' : 'min-h-7 text-xs leading-4',
+        completed && 'bg-background text-muted-foreground',
+        abandoned && 'bg-background text-muted-foreground line-through',
         ghost &&
-          'border-dashed border-[var(--color-graphite-300)] bg-transparent text-[var(--color-graphite-500)]',
+          'border-dashed border-border bg-transparent text-muted-foreground',
       )}
       onClick={(mouse) => {
         mouse.stopPropagation()
@@ -199,8 +200,8 @@ function CalendarEvent({
         />
       )}
       {event.dueTime === null ? null : (
-        <span className="shrink-0 text-[var(--color-graphite-500)]">
-          {event.dueTime.slice(0, 5)}
+        <span className="shrink-0 text-muted-foreground">
+          {formatClockTime(event.dueTime, clock)}
         </span>
       )}
       <span className="truncate">{event.title}</span>
@@ -220,6 +221,7 @@ function DayCell({
   events,
   onReveal,
   onDropTask,
+  onCreate,
 }: {
   readonly date: string
   readonly zoom: Zoom
@@ -232,8 +234,11 @@ function DayCell({
   readonly onReveal: () => void
   /** A row dropped here takes this date. */
   readonly onDropTask: (taskId: string) => void
+  /** Makes a task due on this day; absent, the cell makes nothing. */
+  readonly onCreate?: (title: string) => void
 }): React.JSX.Element {
   const [over, setOver] = useState(false)
+  const [drafting, setDrafting] = useState(false)
   /*
   The control takes the last line rather than a line of its own, so a cell
   that overflows is exactly as tall as one that does not. Reserving a line
@@ -253,13 +258,13 @@ function DayCell({
       data-today={date === today ? 'true' : undefined}
       data-date={date}
       className={cn(
-        'group/calendar-cell relative border-r border-b border-[var(--color-graphite-100)] p-1.5',
+        'group/calendar-cell relative border-r border-b border-border p-1.5',
         CELL_MIN_HEIGHT[zoom],
-        outsideMonth && 'bg-[var(--color-graphite-25)]',
-        weekend && !outsideMonth && 'bg-[var(--color-graphite-25)]/35',
+        outsideMonth && 'bg-muted',
+        weekend && !outsideMonth && 'bg-muted/40',
         lastColumn && 'border-r-0',
         lastRow && 'border-b-0',
-        over && 'bg-[var(--color-graphite-100)]',
+        over && 'bg-muted',
       )}
       onDragOver={(drag) => {
         if (!drag.dataTransfer.types.includes('text/plain')) return
@@ -278,29 +283,30 @@ function DayCell({
       }}
     >
       {/*
-      The whole cell opens the form at this date: 9.5's "click on empty cell
-      opens the form with that date", and 9.3's calendar row gives it that
-      date, important off and Inbox, which the form resolves from the folder
-      list as it does everywhere that table writes "Inbox". A button rather
-      than a click handler on the cell, so the affordance is reachable by
-      keyboard and announces what it does; it is painted beneath the rows, so
-      a click on a row opens that task and never the form.
+      The whole cell makes a task on this date, in place: 9.5's "click on empty
+      cell" with that date as the due date. It opens a "New task" line inside
+      the cell, the same inline row every list ends in, so there is no form to
+      leave. A button rather than a click handler on the cell, so the
+      affordance is reachable by keyboard and announces what it does; it is
+      painted beneath the rows, so a click on a row opens that task.
       */}
-      <button
-        type="button"
-        className="absolute inset-0 z-0 rounded-none text-left outline-none transition-colors hover:bg-[var(--color-graphite-50)]/70 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/30"
-        aria-label={`Create task on ${formatDueDate(date, today)}`}
-        onClick={() => {
-          openTaskForm({ due_date: date, important: false })
-        }}
-      />
+      {onCreate === undefined ? null : (
+        <button
+          type="button"
+          className="absolute inset-0 z-0 rounded-none text-left outline-none transition-colors hover:bg-muted/70"
+          aria-label={`New task on ${formatDueDate(date, today)}`}
+          onClick={() => {
+            setDrafting(true)
+          }}
+        />
+      )}
 
       <div className="pointer-events-none relative z-10 mb-1.5 flex h-6 items-center justify-between">
         <span
           className={cn(
-            'flex size-6 items-center justify-center rounded-md text-xs font-medium text-[var(--color-graphite-600)]',
-            date === today && 'bg-[var(--color-graphite-900)] text-white',
-            outsideMonth && date !== today && 'text-[var(--color-graphite-400)]',
+            'flex size-6 items-center justify-center rounded-md text-xs font-medium text-muted-foreground',
+            date === today && 'bg-primary text-primary-foreground',
+            outsideMonth && date !== today && 'text-muted-foreground',
           )}
         >
           {/*
@@ -321,7 +327,7 @@ function DayCell({
           {dayOfMonth(date)}{' '}
         </span>
         <Plus
-          className="size-3.5 text-[var(--color-graphite-400)] opacity-0 transition-opacity group-hover/calendar-cell:opacity-100 group-focus-within/calendar-cell:opacity-100"
+          className="size-3.5 text-muted-foreground opacity-0 transition-opacity group-hover/calendar-cell:opacity-100 group-focus-within/calendar-cell:opacity-100"
           strokeWidth={1.75}
           aria-hidden="true"
         />
@@ -340,10 +346,19 @@ function DayCell({
             }}
           />
         ))}
+        {drafting && onCreate !== undefined ? (
+          <CellDraft
+            label={`New task on ${formatDueDate(date, today)}`}
+            onAdd={onCreate}
+            onDone={() => {
+              setDrafting(false)
+            }}
+          />
+        ) : null}
         {hidden > 0 ? (
           <button
             type="button"
-            className="flex h-5 items-center rounded-[4px] px-1.5 text-[10px] font-semibold text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)] focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:outline-none"
+            className="flex h-5 items-center rounded-sm px-1.5 text-xs font-semibold text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none"
             onClick={onReveal}
           >
             +{hidden} more
@@ -354,7 +369,60 @@ function DayCell({
   )
 }
 
-export function PlannedCalendar(): React.JSX.Element {
+/** The in-cell "New task" line: Enter makes it, Escape or leaving empty closes it. */
+function CellDraft({
+  label,
+  onAdd,
+  onDone,
+}: {
+  readonly label: string
+  readonly onAdd: (title: string) => void
+  readonly onDone: () => void
+}): React.JSX.Element {
+  const [title, setTitle] = useState('')
+  /* Enter, Escape and blur each end the line; only the first one counts. */
+  const ended = useRef(false)
+  function end(keep: boolean): void {
+    if (ended.current) return
+    ended.current = true
+    const next = title.trim()
+    if (keep && next !== '') onAdd(next)
+    onDone()
+  }
+  return (
+    <input
+      autoFocus
+      value={title}
+      maxLength={300}
+      placeholder="New task"
+      aria-label={label}
+      className="h-5 w-full min-w-0 rounded-sm bg-background px-1.5 text-xs text-foreground outline-none ring-1 ring-border placeholder:text-muted-foreground"
+      onChange={(event) => {
+        setTitle(event.target.value)
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault()
+          end(true)
+        } else if (event.key === 'Escape') {
+          event.preventDefault()
+          event.stopPropagation()
+          end(false)
+        }
+      }}
+      onBlur={() => {
+        end(true)
+      }}
+    />
+  )
+}
+
+export function PlannedCalendar({
+  onCreate,
+}: {
+  /** Makes a task due on the given day; the page supplies its own capture. */
+  readonly onCreate?: (title: string, date: string) => void
+} = {}): React.JSX.Element {
   const today = presenterToday()
   /*
   The zoom is the account's (#140, #142), as 9.5 says it persists.
@@ -423,13 +491,11 @@ export function PlannedCalendar(): React.JSX.Element {
     const end = movableEnd(row)
     if (end === null) return
     if (row[end] === date) return
-    update.mutate(
-      {
-        id: taskId,
-        body: end === 'due_date' ? { due_date: date } : { start_date: date },
-      },
-      { onSuccess: () => showToast(`Moved to ${formatDueDate(date, today)}`) },
-    )
+    // The card moving is the answer; success says nothing.
+    update.mutate({
+      id: taskId,
+      body: end === 'due_date' ? { due_date: date } : { start_date: date },
+    })
   }
 
   const cells = useMemo(
@@ -471,15 +537,15 @@ export function PlannedCalendar(): React.JSX.Element {
         />
       ) : null}
 
-      <div className="overflow-hidden rounded-[10px] border border-[var(--color-graphite-200)] bg-white">
-        <div className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-b border-[var(--color-graphite-200)] bg-[var(--color-graphite-25)] px-2 py-1.5">
+      <div className="overflow-hidden rounded-md border border-border bg-background">
+        <div className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-b border-border bg-muted px-2 py-1.5">
           <div className="flex min-w-0 items-center gap-2">
-            <h2 className="min-w-36 truncate px-2 text-base leading-6 font-semibold text-[var(--color-graphite-800)]">
-              {periodTitle(zoom, anchor)}
+            <h2 className="min-w-36 truncate px-2 text-sm leading-6 font-semibold text-foreground">
+              {periodTitle(zoom, anchor, today)}
             </h2>
             <Button
               variant="outline"
-              className="h-[var(--control-height)] border-[var(--color-graphite-200)] bg-white px-3 text-[13px] font-medium text-[var(--color-graphite-700)] shadow-none hover:bg-[var(--color-graphite-50)]"
+              className="h-[var(--control-height)] border-border bg-background px-3 text-sm font-medium text-foreground shadow-none hover:bg-muted"
               onClick={() => {
                 setAnchor(today)
               }}
@@ -489,11 +555,11 @@ export function PlannedCalendar(): React.JSX.Element {
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="flex overflow-hidden rounded-lg border border-[var(--color-graphite-200)] bg-white">
+            <div className="flex overflow-hidden rounded-md border border-border bg-background">
               <Button
                 variant="ghost"
                 size="icon"
-                className="size-[var(--control-height)] rounded-none border-r border-[var(--color-graphite-200)] text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-900)]"
+                className="size-[var(--control-height)] rounded-none border-r border-border text-muted-foreground hover:bg-muted hover:text-foreground"
                 aria-label="Previous"
                 onClick={() => {
                   setAnchor((was) => shiftAnchor(zoom, was, -1))
@@ -504,7 +570,7 @@ export function PlannedCalendar(): React.JSX.Element {
               <Button
                 variant="ghost"
                 size="icon"
-                className="size-[var(--control-height)] rounded-none text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-900)]"
+                className="size-[var(--control-height)] rounded-none text-muted-foreground hover:bg-muted hover:text-foreground"
                 aria-label="Next"
                 onClick={() => {
                   setAnchor((was) => shiftAnchor(zoom, was, 1))
@@ -517,7 +583,7 @@ export function PlannedCalendar(): React.JSX.Element {
             {/* `aria-pressed` is what carries the current zoom; the raised
                 tone is a second cue and never the only one. */}
             <div
-              className="flex h-11 items-center rounded-lg border border-[var(--color-graphite-200)] bg-white p-0.5"
+              className="flex h-11 items-center rounded-md border border-border bg-background p-0.5"
               role="group"
               aria-label="Calendar zoom"
             >
@@ -526,9 +592,9 @@ export function PlannedCalendar(): React.JSX.Element {
                   key={level}
                   variant="ghost"
                   className={cn(
-                    'h-[var(--control-height)] rounded-md px-3 text-[13px] font-medium text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-50)]',
+                    'h-[var(--control-height)] rounded-md px-3 text-sm font-medium text-muted-foreground hover:bg-muted',
                     zoom === level &&
-                      'bg-[var(--color-graphite-100)] text-[var(--color-graphite-900)] hover:bg-[var(--color-graphite-100)]',
+                      'bg-muted text-foreground hover:bg-muted',
                   )}
                   aria-pressed={zoom === level}
                   onClick={() => {
@@ -542,10 +608,10 @@ export function PlannedCalendar(): React.JSX.Element {
           </div>
         </div>
 
-        <div role="grid" aria-label="Scheduled calendar" className="bg-white" ref={grid}>
+        <div role="grid" aria-label="Upcoming calendar" className="bg-background" ref={grid}>
           <div
             role="row"
-            className="grid border-b border-[var(--color-graphite-200)] bg-white"
+            className="grid border-b border-border bg-background"
             style={{ gridTemplateColumns: template }}
           >
             {headers.map((label) => (
@@ -558,7 +624,7 @@ export function PlannedCalendar(): React.JSX.Element {
                 rather than a second style for the same words, in the same
                 product, two clicks apart.
                 */
-                className="flex h-7 items-center px-2 text-[11px] leading-4 font-medium text-[var(--color-graphite-400)]"
+                className="flex h-7 items-center px-2 text-xs font-medium text-muted-foreground"
               >
                 {label}
               </div>
@@ -596,6 +662,13 @@ export function PlannedCalendar(): React.JSX.Element {
                   onDropTask={(taskId) => {
                     moveTaskTo(taskId, date)
                   }}
+                  {...(onCreate === undefined
+                    ? {}
+                    : {
+                        onCreate: (title: string) => {
+                          onCreate(title, date)
+                        },
+                      })}
                 />
               ))}
             </div>

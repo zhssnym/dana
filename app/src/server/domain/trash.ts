@@ -40,6 +40,12 @@ import { trashedFacets } from './facets.js'
 import { mayPerform, presetOf } from './folder-access.js'
 import type { FolderActorFacts } from './folder-access.js'
 import type { FolderAccessPreset } from '../../shared/folder-access.js'
+import {
+  destroyableTrashedWith,
+  ensureHomeBlock,
+  lockPageTree,
+  restoreTrashedPage,
+} from './page-tree.js'
 
 function toIso(value: unknown): string {
   return value instanceof Date
@@ -96,6 +102,15 @@ export async function trashView(
         JOIN folder_members m
           ON m.folder_id = f.id AND m.user_id = ${viewerId}
         WHERE f.deleted_at IS NOT NULL
+          /* Wave 2: a sub-page trashed with its parent rides the parent's
+             entry, which restores and purges the set. It is listed on its
+             own only for a viewer who cannot see that entry (not a member
+             of the initiating page), so it never vanishes from the one
+             Trash that could bring it back. */
+          AND (f.trashed_with_folder_id IS NULL
+               OR NOT EXISTS (SELECT 1 FROM folder_members im
+                               WHERE im.folder_id = f.trashed_with_folder_id
+                                 AND im.user_id = ${viewerId}))
         ORDER BY f.deleted_at DESC, f.id DESC`,
   )
   /* The third kind (issue #210). It is read by
@@ -252,6 +267,8 @@ export async function restoreFolder(
   folderId: string,
 ): Promise<'restored' | 'not_found' | { kind: 'forbidden'; reason: string }> {
   return inTransaction(db, async (tx) => {
+    // The tree lock before any row lock (page-tree.ts's lock order).
+    await lockPageTree(tx)
     const found = await rowsOf(
       tx,
       sql`SELECT f.id, f.name, f.is_default, m.access,
@@ -298,18 +315,13 @@ export async function restoreFolder(
     if (!decision.allowed) {
       return { kind: 'forbidden', reason: decision.reason }
     }
-    await tx.execute(
-      sql`UPDATE folders SET deleted_at = NULL WHERE id = ${folderId}`,
-    )
-    await recordEvent(tx, {
-      actorId: viewerId,
-      verb: 'restored',
-      subjectKind: 'folder',
-      subjectId: folderId,
-      subjectName: String(row.name),
-      folderId,
-      detail: 'restored from Trash',
-    })
+    /* Wave 2: restoring a page on its own (a sub-page restored ahead of the
+       page it was trashed with) takes it out of that set, and restoring an
+       initiator brings its set back (`restorePageSubtree`). A page whose
+       parent is live comes back with its home `page` block, appended at the
+       end of the parent's document when it has none. */
+    await restoreTrashedPage(tx, viewerId, folderId, String(row.name))
+    await ensureHomeBlock(tx, folderId)
     return 'restored'
   })
 }
@@ -565,9 +577,18 @@ export async function destroyFolder(
     if (!decision.allowed) {
       return { kind: 'forbidden', reason: decision.reason } as const
     }
+    /* Wave 2: the pages trashed with this one go with it, each that this
+       actor may destroy on its own terms; the rest are released by
+       `folders_trashed_with_folder_id_fkey`'s SET NULL and stay in Trash as
+       entries of their own. The 11.7 purge needs no such step: the set
+       shares its initiator's `deleted_at`, so it ages out together. */
+    const alsoDoomed = await destroyableTrashedWith(tx, viewerId, folderId)
     const destroyed = await destroyFolders(
       tx,
-      sql`SELECT id FROM folders WHERE id = ${folderId}`,
+      sql`SELECT id FROM folders WHERE id IN (${sql.join(
+        [folderId, ...alsoDoomed].map((id) => sql`${id}::uuid`),
+        sql`, `,
+      )})`,
     )
     return { kind: 'destroyed', fileIds: destroyed.fileIds } as const
   })

@@ -49,12 +49,12 @@ what it is for.
 components take rows as props and callbacks as props.
 
 ```tsx
-export function ImportantPage() {
-  const view = useImportantView()
+export function ScheduledPage() {
+  const view = usePlannedView()
   const me = useMe()
   const actions = useRowActions()
   return (
-    <PageBody query={view} isEmpty={(view.data?.rows.length ?? 0) === 0} emptyCopy={IMPORTANT_EMPTY}>
+    <PageBody query={view} isEmpty={(view.data?.rows.length ?? 0) === 0} emptyCopy={PLANNED_EMPTY}>
       <TaskList tasks={view.data?.rows ?? []} viewerId={me.data?.user.id ?? null} {...actions} />
     </PageBody>
   )
@@ -62,8 +62,7 @@ export function ImportantPage() {
 ```
 
 The rule exists because a component that fetches is a component that cannot be
-rendered twice on one page, and 9.5's All page renders other pages' regions
-inside itself. Stated precisely: **a component that observes a query may be
+rendered twice on one page. Stated precisely: **a component that observes a query may be
 mounted once and only by a page that cannot render it twice; everything else
 takes rows as props.** `PlannedCalendar` calls the Q3C hook itself for that
 reason (the range it asks for is the range its own grid laid out), and a
@@ -117,7 +116,7 @@ page would be two answers to one question.
 ## The offline banner and the toasts
 
 **Settled.** The banner is `shell/OfflineBanner.tsx`, rendered once by the
-shell, above the outlet. It is global because 10.6's fallback opens every `/app`
+shell, as a persistent notice in the one notice column (`state/ToastRegion.tsx`). It is global because 10.6's fallback opens every `/app`
 path from the cached shell, and a banner a page rendered would be missing on
 exactly the pages reached while the connection is down.
 
@@ -299,7 +298,6 @@ region it sits in is what tells two instances apart.
 | Global search control | `Search` | button |
 | The avatar menu | `Account` | button |
 | The app name | its own text, `Dana` | link to `/app` |
-| Floating add button | `Add task` | button |
 | The sidebar's rail control | `Collapse sidebar`, `Expand sidebar` | button |
 | The sidebar's resize handle | `Resize sidebar` | separator |
 | Update affordance | `Update available, reload` | button |
@@ -318,16 +316,15 @@ task surface would have two elements answering to "Important".
 ## The overlay seam
 
 **Settled.** `shell/overlays.ts` is how the chrome asks for the surfaces it does
-not build. The floating add button calls `openTaskForm(defaults)` with the
-entry-point defaults of 9.3; the search control and the Ctrl+K and `/`
-shortcuts call `openSearch()`. `components/task-open.ts`'s
+not build: the search control and the Ctrl+K and `/` shortcuts call
+`openSearch()`. There is no task form: `N`
+and a calendar day each lead to an inline "New task" line. `components/task-open.ts`'s
 `openTask(taskId, { upcoming })` carries an identity and no defaults, because a
 row, a calendar cell and a search result each open a task that exists; the
 `upcoming` flag is 9.5's ghost path and rides that path alone.
 
-**Settled.** The entry-point defaults are the chrome's, because 9.3's table
-keys them by where the person clicked, and they are read from one table,
-`views/place-pages.ts`.
+**Settled.** The entry-point defaults are read from one table,
+`views/place-pages.ts`, by the row that captures.
 
 **Settled.** Both surfaces are mounted once by the shell, because each opens
 over whatever page is beneath it. **The search overlay is first in document
@@ -382,11 +379,6 @@ The surfaces of 9.4 and 9.5 and the machinery they share.
 | Today (9.4) | `pages/TodayPage.tsx` | Q1 and Q1R | list, board | the floating button |
 | Scheduled | `pages/ScheduledPage.tsx` | Q3, Q3C | list, board, calendar | its list foot, dated today |
 | Assignments | `pages/AssignmentsPage.tsx` | Q5, composed | list, board | the floating button |
-| Important | `pages/ImportantPage.tsx` | Q4 | list, board | the floating button |
-| All | `pages/AllPage.tsx` | Q5, and Q6 collapsed | list, board | its undated half |
-| Done | `pages/DonePage.tsx` | Q6 | list, board | nothing (9.5) |
-| Abandoned | `pages/AbandonedPage.tsx` | Q5, narrowed by status | list, board | nothing (9.5) |
-| Anytime | `pages/AnytimePage.tsx` | Q2, ungrouped | list, board | its list foot, undated |
 
 The folder page (9.6) is a place-page too; `views/place-pages.ts` says what it
 supplies of its own.
@@ -407,7 +399,7 @@ end and the tab's controls at its right, so a place-page renders into both;
 `WindowBarActions` and `WindowBarLead` take which slot, so the registration,
 the subscription and the absent-before-mount case are written once.
 
-**Q6 pages are one hook body for one order.** `useDoneView` and
+**Q6 readers are one hook body for one order.** `useDoneView` and
 `useFolderCompletedTasks` are both `useInfiniteQuery` over the same shape,
 because section 6 defines Q7's third section as "Q6 predicate, order, and
 pagination, folder_id = F" and 7.10's cursor kind names the order it pages
@@ -428,8 +420,7 @@ response reports, and each is argued at its call site.
   that takes the successor branch, and 5.1 defines that branch by a pending
   sibling. 8.5 moves the rule onto the successor and 5.1's exhausted-series
   clause leaves it on the last row, so a completed row has a successor exactly
-  when it carries a `series_id` and no rule. `pages/DonePage.tsx` and
-  `components/task-editing.tsx` read it that way; asking whether the task
+  when it carries a `series_id` and no rule. `components/task-editing.tsx` reads it that way; asking whether the task
   "repeats" gets "no" from the one row where the confirm is owed. A field
   saying whether the branch applies would let the client stop.
 - **9.4's un-pull control is hidden when the row also qualifies

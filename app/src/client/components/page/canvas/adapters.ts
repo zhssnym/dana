@@ -1,12 +1,13 @@
 import { plainContentToString } from '@blocknote/core'
 import type { PartialBlock } from '@blocknote/core'
 import type { PageBlockKind, PageView } from '../../../../shared/pages.js'
-import { MAX_SECTION_DEPTH, isPresentationHeadingKind } from '../../../../shared/page-document.js'
+import { MAX_SECTION_DEPTH, NEST_PARENT_KINDS, isPresentationHeadingKind } from '../../../../shared/page-document.js'
 import type { CanvasBlock, canvasSchema } from './schema.js'
+import { isSectionHeading, isToggleHeading } from './outline.js'
 import { danaLinkOf } from '../../links/dana-link.js'
 
 export type CanvasInput = PartialBlock<typeof canvasSchema.blockSchema, typeof canvasSchema.inlineContentSchema, typeof canvasSchema.styleSchema>
-export interface RichRun { text: string; bold?: boolean; italic?: boolean; href?: string }
+export interface RichRun { text: string; bold?: boolean; italic?: boolean; href?: string; mention?: { user_id: string } }
 export interface CanvasRecord {
   id: string
   block_kind: PageBlockKind
@@ -16,6 +17,9 @@ export interface CanvasRecord {
   ref_folder_id: string | null
   width_pct: number | null
   checked: boolean | null
+  /** True on a toggle heading (a presentation heading that folds its
+   * children), null on every other block (migration 0038). */
+  toggleable: boolean | null
 }
 export interface CanvasPlacement { kind: 'block' | 'task'; id: string; section_block_id: string | null; list_parent_block_id: string | null }
 export interface CanvasDocument { blocks: CanvasRecord[]; items: CanvasPlacement[] }
@@ -31,6 +35,7 @@ export function contentOf(text: string | null, rich?: { version: 1; runs: RichRu
     const node = { type: 'text' as const, text: run.text, styles: { ...(run.bold ? { bold: true } : {}), ...(run.italic ? { italic: true } : {}) } }
     // A run whose href is a Dana Link draws as a live chip (#223); its text
     // rides along as the label a save writes back.
+    if (run.mention) return { type: 'mention' as const, props: { userId: run.mention.user_id, label: run.text } }
     if (run.href && danaLinkOf(run.href) !== null) return { type: 'danaLink' as const, props: { href: run.href, label: run.text } }
     return run.href ? { type: 'link' as const, href: run.href, content: [node] } : node
   })
@@ -109,10 +114,12 @@ export function hydrateCanvas(page: PageView, columnWidth: number): CanvasInput[
       }
     } else if (isPresentationHeadingKind(block.kind)) {
       const level = Number(block.kind.slice(-1)) as 1 | 2 | 3
+      // A toggle heading folds what is nested under it; `presentation` keeps
+      // it apart from a Section, which folds too (`isSectionHeading`).
       node = {
         id: block.id,
         type: 'heading',
-        props: { level, isToggleable: false },
+        props: block.toggleable === true ? { level, isToggleable: true, presentation: true } : { level, isToggleable: false },
         content: contentOf(block.text, block.rich_content),
         children: [],
       }
@@ -138,6 +145,15 @@ export function hydrateCanvas(page: PageView, columnWidth: number): CanvasInput[
         content: contentOf(block.text, block.rich_content),
         children: [],
       }
+    } else if (block.kind === 'toggle') {
+      node = {
+        id: block.id,
+        type: 'toggleListItem',
+        content: contentOf(block.text, block.rich_content),
+        children: [],
+      }
+    } else if (block.kind === 'divider') {
+      node = { id: block.id, type: 'divider', children: [] }
     } else if (block.kind === 'quote') {
       node = {
         id: block.id,
@@ -185,6 +201,8 @@ export function hydrateCanvas(page: PageView, columnWidth: number): CanvasInput[
       } as CanvasInput
     } else if (block.kind === 'diagram') {
       node = { id: block.id, type: 'diagram', props: { source: block.text ?? '' }, children: [] }
+    } else if (block.kind === 'page') {
+      node = { id: block.id, type: 'danaPage', props: { folderId: block.ref_folder_id ?? '' }, children: [] }
     } else if (block.kind === 'folder_ref') {
       node = {
         id: block.id,
@@ -193,7 +211,7 @@ export function hydrateCanvas(page: PageView, columnWidth: number): CanvasInput[
           {
             type: 'link',
             href: `/app/folders/${block.ref_folder_id ?? ''}`,
-            content: block.text ?? 'Open folder',
+            content: block.text ?? 'Open page',
           },
         ],
         children: [],
@@ -209,22 +227,26 @@ export function hydrateCanvas(page: PageView, columnWidth: number): CanvasInput[
     nodes.set(block.id, node)
   }
 
+  // Any block but a Section may nest (0038): `list_parent_block_id` is the
+  // general block parent, and the parent's stored kind says whether it holds.
+  const kinds = new Map(page.blocks.map((block) => [block.id, block.kind]))
   const root: CanvasInput[] = []
   for (const item of page.items) {
     const node = nodes.get(item.id)!
     const listParentId = listParents.get(item.id) ?? null
     if (listParentId !== null) {
-      const listParent = nodes.get(listParentId)
+      const parent = nodes.get(listParentId)
+      const parentKind = kinds.get(listParentId)
       if (
-        listParent?.type !== 'bulletListItem' &&
-        listParent?.type !== 'numberedListItem' &&
-        listParent?.type !== 'checkListItem'
+        parent === undefined ||
+        parentKind === undefined ||
+        !(NEST_PARENT_KINDS as readonly string[]).includes(parentKind)
       ) {
         throw new CanvasHydrationError(
-          'The page has an invalid list. Its content has been preserved; reload before editing.',
+          'The page has an invalid nesting. Its content has been preserved; reload before editing.',
         )
       }
-      listParent.children!.push(node)
+      parent.children!.push(node)
       continue
     }
 
@@ -235,8 +257,8 @@ export function hydrateCanvas(page: PageView, columnWidth: number): CanvasInput[
     }
     const sectionParent = nodes.get(sectionParentId)
     if (
-      sectionParent?.type !== 'heading' ||
-      sectionParent.props?.isToggleable === false
+      sectionParent === undefined ||
+      kinds.get(sectionParentId) !== 'section'
     ) {
       throw new CanvasHydrationError(
         'The page has an invalid group. Its content has been preserved; reload before editing.',
@@ -255,13 +277,15 @@ export function richRuns(block: CanvasBlock): RichRun[] {
       if (!text) return
       const run: RichRun = { text, ...(styles.bold ? { bold: true } : {}), ...(styles.italic ? { italic: true } : {}), ...(href ? { href } : {}) }
       const last = runs.at(-1)
-      if (last && last.bold === run.bold && last.italic === run.italic && last.href === run.href) last.text += text
+      if (last && last.mention === undefined && last.bold === run.bold && last.italic === run.italic && last.href === run.href) last.text += text
       else runs.push(run)
     }
     if (inline.type === 'text') append(inline.text, inline.styles)
     else if (inline.type === 'link') for (const text of inline.content) append(text.text, text.styles, inline.href)
     // Its own run, never merged into a neighbour, so two chips stay two.
     else if (inline.type === 'danaLink') runs.push({ text: inline.props.label || 'Link', href: inline.props.href })
+    // A person mention (Wave 2): its own run, like a chip.
+    else if (inline.type === 'mention' && inline.props.userId) runs.push({ text: inline.props.label || '@', mention: { user_id: inline.props.userId } })
   }
   return runs
 }
@@ -327,19 +351,21 @@ export function dehydrateCanvas(
   const fileIdOf = (url: string): string | null =>
     /(?:^|\/)api\/v1\/files\/([0-9a-f-]{36})$/i.exec(url)?.[1] ?? null
 
+  /*
+   * `sectionParent` is the Section the children belong to (Work grouping);
+   * `blockParent` the ordinary block they are nested under, if any. A
+   * Section's children get its id as their Section and no block parent; any
+   * other block's children get it as their block parent and keep its Section
+   * (the server's one Section rule).
+   */
   function visit(
     children: readonly CanvasBlock[],
     sectionParent: string | null,
-    listParent: string | null,
+    blockParent: string | null,
   ): void {
     for (const block of children) {
       const task = block.type === 'danaTask'
-      const groupHeading =
-        block.type === 'heading' && block.props.isToggleable !== false
-      const listKind =
-        block.type === 'bulletListItem' ||
-        block.type === 'numberedListItem' ||
-        block.type === 'checkListItem'
+      const groupHeading = isSectionHeading(block)
       const unuploadedRequiredMedia =
         (block.type === 'file' ||
           block.type === 'audio' ||
@@ -357,7 +383,7 @@ export function dehydrateCanvas(
        * deleted by the next autosave. Either way its children are kept.
        */
       if (unuploadedRequiredMedia) {
-        visit(block.children, sectionParent, null)
+        visit(block.children, sectionParent, blockParent)
         continue
       }
 
@@ -365,7 +391,7 @@ export function dehydrateCanvas(
         kind: task ? 'task' : 'block',
         id: task ? block.props.taskId : block.id,
         section_block_id: sectionParent,
-        list_parent_block_id: listKind ? listParent : null,
+        list_parent_block_id: task ? null : blockParent,
       })
 
       if (!task) {
@@ -389,6 +415,7 @@ export function dehydrateCanvas(
         } else if (block.type === 'bulletListItem') blockKind = 'bullet'
         else if (block.type === 'numberedListItem') blockKind = 'numbered'
         else if (block.type === 'checkListItem') blockKind = 'checklist'
+        else if (block.type === 'toggleListItem') blockKind = 'toggle'
         else if (block.type === 'quote') blockKind = 'quote'
         else if (block.type === 'callout') blockKind = 'callout'
         else if (block.type === 'codeBlock') blockKind = 'code'
@@ -451,7 +478,11 @@ export function dehydrateCanvas(
             : null
 
         // #222: a diagram is its source text; no rich content, file or width.
-        if (block.type === 'diagram') result.blocks.push({ id: block.id, block_kind: 'diagram', text: block.props.source, rich_content: null, file_id: null, ref_folder_id: null, width_pct: null, checked: null })
+        if (block.type === 'divider') result.blocks.push({ id: block.id, block_kind: 'divider', text: null, rich_content: null, file_id: null, ref_folder_id: null, width_pct: null, checked: null, toggleable: null })
+        // Wave 2: a sub-page is its reference and nothing else, the same
+        // record `documentOf` reads, so an untouched one is never re-sent.
+        else if (block.type === 'danaPage') result.blocks.push({ id: block.id, block_kind: 'page', text: null, rich_content: null, file_id: null, ref_folder_id: block.props.folderId, width_pct: null, checked: null, toggleable: null })
+        else if (block.type === 'diagram') result.blocks.push({ id: block.id, block_kind: 'diagram', text: block.props.source, rich_content: null, file_id: null, ref_folder_id: null, width_pct: null, checked: null, toggleable: null })
         else result.blocks.push({
           id: block.id,
           block_kind: blockKind,
@@ -462,15 +493,17 @@ export function dehydrateCanvas(
           width_pct: widthPct,
           checked:
             block.type === 'checkListItem' ? block.props.checked : null,
+          toggleable: presentationHeading && isToggleHeading(block) ? true : null,
         })
       }
 
       if (groupHeading) {
         visit(block.children, block.id, null)
-      } else if (listKind) {
-        visit(block.children, sectionParent, block.id)
+      } else if (task) {
+        // A Task holds nothing (`validateCanvasOutline`); kept all the same.
+        visit(block.children, sectionParent, blockParent)
       } else {
-        visit(block.children, sectionParent, null)
+        visit(block.children, sectionParent, block.id)
       }
     }
   }
@@ -483,7 +516,7 @@ export function documentOf(page: PageView): CanvasDocument {
   const parents = new Map(page.task_placements?.map((task) => [task.id, task.section_block_id]) ?? [])
   const blocks = page.blocks.map((block): CanvasRecord => {
     parents.set(block.id, block.section_block_id)
-    return { id: block.id, block_kind: block.kind, text: block.text, rich_content: block.rich_content ?? null, file_id: block.file_id, ref_folder_id: block.ref_folder_id, width_pct: block.width_pct, checked: block.checked }
+    return { id: block.id, block_kind: block.kind, text: block.text, rich_content: block.rich_content ?? null, file_id: block.file_id, ref_folder_id: block.ref_folder_id, width_pct: block.width_pct, checked: block.checked, toggleable: block.toggleable === true ? true : null }
   })
   const listParents = new Map(page.blocks.map((block) => [block.id, block.list_parent_block_id]))
   return { blocks, items: page.items.map((item) => ({ ...item, section_block_id: parents.get(item.id) ?? null, list_parent_block_id: listParents.get(item.id) ?? null })) }
@@ -566,13 +599,40 @@ export function baselineOf(page: PageView, projected: CanvasDocument): CanvasDoc
   return restoreCanvas(documentOf(page), projected)
 }
 
+/**
+ * Sub-pages `/page` has placed but no save has created yet: folder id to the
+ * title it will be created with. Module state, because the block carries only
+ * its folder id and the slash menu, the row and the save all need the title.
+ * An entry stays until the save that created it has landed and the folder
+ * list has it (`FolderCanvas`), so a retry re-sends the same `create_page`.
+ */
+export const pendingPages = new Map<string, string>()
+
+/** Sub-pages `/page` just made, to open once the save has created them: as in
+ * Notion, the new page opens with its title selected (as the sidebar's "+"). */
+export const openOnCreate = new Set<string>()
+
+/**
+ * Wave 2: a `page` block new to the document whose folder `/page` is still
+ * holding is created with it (`create_page`, never `put_block`); any other new
+ * one names a trashed sub-page and restores it in place. A `page` block that
+ * leaves the document moves its sub-page to Trash in the same transaction.
+ */
 export function canvasOperations(before: CanvasDocument, after: CanvasDocument) {
   const restored = restoreCanvas(before, after)
   const old = new Map(before.blocks.map((block) => [block.id, block]))
   const ids = new Set(restored.blocks.map((block) => block.id))
   return [
-    ...before.blocks.filter((block) => !ids.has(block.id)).map((block) => ({ op: 'delete_block' as const, id: block.id })),
-    ...restored.blocks.filter((block) => JSON.stringify(old.get(block.id)) !== JSON.stringify(block)).map((block) => ({ op: 'put_block' as const, ...block })),
+    ...before.blocks.filter((block) => !ids.has(block.id)).flatMap((block) => [
+      { op: 'delete_block' as const, id: block.id },
+      ...(block.block_kind === 'page' && block.ref_folder_id !== null ? [{ op: 'trash_page' as const, folder_id: block.ref_folder_id }] : []),
+    ]),
+    ...restored.blocks.filter((block) => JSON.stringify(old.get(block.id)) !== JSON.stringify(block)).map((block) => {
+      const title = block.block_kind === 'page' && block.ref_folder_id !== null && !old.has(block.id) ? pendingPages.get(block.ref_folder_id) : undefined
+      return title !== undefined && block.ref_folder_id !== null
+        ? { op: 'create_page' as const, id: block.ref_folder_id, block_id: block.id, title }
+        : { op: 'put_block' as const, ...block }
+    }),
     { op: 'set_outline' as const, items: restored.items },
   ]
 }

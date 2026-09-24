@@ -20,7 +20,6 @@ page's blocks, so no event is dispatched.
 */
 import { SHELF_PREFIX } from './page-identity.js'
 import { shelfLink } from './nav-links.js'
-import { showToast } from '../state/toasts.js'
 
 export function shelfKey(id: string): string {
   return `${SHELF_PREFIX}${id}`
@@ -28,7 +27,7 @@ export function shelfKey(id: string): string {
 
 export { shelfLink }
 
-export function copyShelfLink(id: string, name: string): void {
+/** Copy a shelf's address, silently: a copy is not an event worth a notice. */
+export function copyShelfLink(id: string): void {
   void navigator.clipboard?.writeText(shelfLink(id)).catch(() => {})
-  showToast(`Link to ${name} copied`)
 }
