@@ -63,7 +63,8 @@ import type {
   PageView,
 } from '../../shared/pages.js'
 import type { TrashedFacet } from '../../shared/trash.js'
-import { TOGGLE_CHILD_KINDS, mayNestUnder } from '../../shared/page-document.js'
+import { nestingProblem } from './document-outline.js'
+import { hashableBlocks } from './document-hash.js'
 import { fileReclaimedAt } from './pages.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
@@ -1303,6 +1304,7 @@ function facetBlockFromRow(row: Record<string, unknown>): PageBlock {
     page_position: nullableString(row.page_position),
     section_block_id: null,
     list_parent_block_id: nullableString(row.list_parent_block_id),
+    toggleable: row.toggleable === true ? true : null,
     checked: row.checked === null || row.checked === undefined ? null : Boolean(row.checked),
     rich_content: (row.rich_content ?? null) as PageBlock['rich_content'],
     text: nullableString(row.text),
@@ -1324,9 +1326,9 @@ async function facetDocumentMetadata(
   const blocks = await rowsOf(
     tx,
     sql`SELECT id, kind, text, rich_content, file_id, width_pct, checked,
-               list_parent_block_id, page_position, position
+               list_parent_block_id, page_position, position, toggleable
           FROM page_blocks WHERE facet_id = ${facetId}::uuid ORDER BY id`,
-  )
+  ).then(hashableBlocks)
   /* The facet id is inside the hash, and that is load-bearing rather than
      decorative. `page_document_receipts` is keyed (actor, folder, mutation),
      with no room for a facet, so a client that sent one mutation id to two
@@ -1345,7 +1347,7 @@ export async function facetPageView(
     const blocks = await rowsOf(
       tx,
       sql`SELECT b.id, b.kind, b.position, b.page_position, b.checked,
-                 b.list_parent_block_id, b.rich_content, b.text, b.file_id, b.width_pct, b.updated_at, b.file_reclaimed_at,
+                 b.list_parent_block_id, b.toggleable, b.rich_content, b.text, b.file_id, b.width_pct, b.updated_at, b.file_reclaimed_at,
                  f.width AS file_width, f.height AS file_height, f.name AS file_name
             FROM page_blocks b
             LEFT JOIN files f ON f.id = b.file_id
@@ -1562,30 +1564,6 @@ export async function applyFacetDocument(
         )
       }
       seen.add(item.id)
-      if (item.listParent !== null) {
-        const itemKind = writes.get(item.id)?.block_kind ?? storedKinds.get(item.id)
-        const parentKind =
-          writes.get(item.listParent)?.block_kind ?? storedKinds.get(item.listParent)
-        if (itemKind === undefined || !(TOGGLE_CHILD_KINDS as readonly string[]).includes(itemKind)) {
-          throw new FacetDocumentRefusal(
-            'invalid',
-            'only a list item, or writing inside a toggle, is nested',
-            'list_parent_block_id',
-          )
-        }
-        if (
-          !blocks.has(item.listParent) ||
-          !seen.has(item.listParent) ||
-          parentKind === undefined ||
-          !mayNestUnder(itemKind, parentKind)
-        ) {
-          throw new FacetDocumentRefusal(
-            'invalid',
-            'a list item nests under an earlier list item of this facet document, and other writing only under a toggle',
-            'list_parent_block_id',
-          )
-        }
-      }
     }
     if (seen.size !== blocks.size) {
       throw new FacetDocumentRefusal(
@@ -1593,6 +1571,19 @@ export async function applyFacetDocument(
         'The outline must retain every undeleted block.',
         'operations',
       )
+    }
+    // Block nesting (0038), the rule every document home shares.
+    const nesting = nestingProblem(
+      outline.map((item) => ({
+        kind: item.kind,
+        id: item.id,
+        section_block_id: null,
+        list_parent_block_id: item.listParent,
+      })),
+      (id) => (blocks.has(id) ? (writes.get(id)?.block_kind ?? storedKinds.get(id)) : undefined),
+    )
+    if (nesting !== null) {
+      throw new FacetDocumentRefusal('invalid', nesting, 'list_parent_block_id')
     }
 
     /* The file scope, asked only of the blocks this transaction writes and
@@ -1684,17 +1675,18 @@ export async function applyFacetDocument(
     for (const write of writes.values()) {
       await tx.execute(
         sql`INSERT INTO page_blocks
-              (id, facet_id, kind, position, text, rich_content, file_id, width_pct, checked)
+              (id, facet_id, kind, position, text, rich_content, file_id, width_pct, checked, toggleable)
             VALUES (${write.id}::uuid, ${facetId}::uuid, ${write.block_kind}, 0,
                     ${write.text},
                     ${write.rich_content === null ? null : JSON.stringify(write.rich_content)}::jsonb,
                     ${write.file_id}::uuid, ${write.width_pct},
-                    ${write.block_kind === 'checklist' ? (write.checked ?? false) : null})
+                    ${write.block_kind === 'checklist' ? (write.checked ?? false) : null},
+                    ${write.toggleable === true ? true : null})
             ON CONFLICT (id) DO UPDATE
                SET kind = EXCLUDED.kind, text = EXCLUDED.text,
                    rich_content = EXCLUDED.rich_content,
                    file_id = EXCLUDED.file_id, width_pct = EXCLUDED.width_pct,
-                   checked = EXCLUDED.checked,
+                   checked = EXCLUDED.checked, toggleable = EXCLUDED.toggleable,
                    file_reclaimed_at = CASE
                      WHEN EXCLUDED.file_id IS NULL AND EXCLUDED.kind = page_blocks.kind
                      THEN page_blocks.file_reclaimed_at END,
@@ -1750,7 +1742,7 @@ async function facetPageViewIn(tx: Executor, facetId: string): Promise<PageView>
   const blocks = await rowsOf(
     tx,
     sql`SELECT b.id, b.kind, b.position, b.page_position, b.checked,
-               b.list_parent_block_id, b.rich_content, b.text, b.file_id, b.width_pct, b.updated_at, b.file_reclaimed_at,
+               b.list_parent_block_id, b.toggleable, b.rich_content, b.text, b.file_id, b.width_pct, b.updated_at, b.file_reclaimed_at,
                f.width AS file_width, f.height AS file_height, f.name AS file_name
           FROM page_blocks b
           LEFT JOIN files f ON f.id = b.file_id

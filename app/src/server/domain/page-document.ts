@@ -2,7 +2,9 @@ import { sql } from 'drizzle-orm'
 import type { Executor } from '../database.js'
 import { rowsOf } from '../database.js'
 import type { DocumentTransaction, DocumentOperation, DocumentOutlineItem } from '../../shared/pages.js'
-import { BLOCK_FILE_KINDS, MAX_SECTION_DEPTH, TOGGLE_CHILD_KINDS, isListKind, isMediaKind, isPresentationHeadingKind, mayNestUnder } from '../../shared/page-document.js'
+import { BLOCK_FILE_KINDS, MAX_SECTION_DEPTH, isMediaKind, isPresentationHeadingKind } from '../../shared/page-document.js'
+import { nestingProblem } from './document-outline.js'
+import { hashableBlocks } from './document-hash.js'
 import { initialKeys } from './fractional-index.js'
 import { createTaskIn } from './tasks.js'
 import { positionedItems } from './page-order.js'
@@ -36,7 +38,7 @@ only caller that has a path to give.
 export class DocumentRefusal extends Error { constructor(readonly kind:'stale'|'not_convertible'|'file_not_here'|'file_kind_mismatch'|'not_found',message:string,readonly field?:string){super(message)} }
 export async function documentMetadata(tx:Executor,folderId:string|null) {
  if(folderId===null)return {revision:documentHash(null),task_placements:[]}
- const blocks=await rowsOf(tx,sql`SELECT id,kind,text,rich_content,file_id,ref_folder_id,width_pct,section_block_id,list_parent_block_id,checked,page_position,position FROM page_blocks WHERE folder_id=${folderId}::uuid ORDER BY id`)
+ const blocks=hashableBlocks(await rowsOf(tx,sql`SELECT id,kind,text,rich_content,file_id,ref_folder_id,width_pct,section_block_id,list_parent_block_id,checked,page_position,position,toggleable FROM page_blocks WHERE folder_id=${folderId}::uuid ORDER BY id`))
  const tasks=await rowsOf(tx,sql`SELECT id,section_block_id,page_position FROM tasks WHERE folder_id=${folderId}::uuid AND deleted_at IS NULL ORDER BY id`)
  return {revision:documentHash({blocks,tasks}),task_placements:tasks.map(t=>({id:String(t.id),section_block_id:t.section_block_id==null?null:String(t.section_block_id)}))}
 }
@@ -51,8 +53,8 @@ export async function applyDocument(tx:Executor,viewerId:string,folderId:string,
  const previousOutline=await positionedItems(tx,folderId)
  const metadata=await documentMetadata(tx,folderId)
  if(metadata.revision!==body.base_revision)throw new DocumentRefusal('stale','The page changed. Your draft is retained; reconcile it with the current page.')
- const stored=await rowsOf(tx,sql`SELECT id,kind,text,rich_content,file_id,ref_folder_id,width_pct,page_position,position,section_block_id,list_parent_block_id,checked FROM page_blocks WHERE folder_id=${folderId}::uuid FOR UPDATE`)
- const blocks=new Map<string,BlockOp>(stored.map(b=>[String(b.id),{op:'put_block',id:String(b.id),block_kind:b.kind as BlockOp['block_kind'],text:b.text as string|null,rich_content:b.rich_content as BlockOp['rich_content'],file_id:b.file_id as string|null,ref_folder_id:b.ref_folder_id as string|null,width_pct:b.width_pct as number|null,checked:b.checked===null||b.checked===undefined?null:Boolean(b.checked)}]))
+ const stored=await rowsOf(tx,sql`SELECT id,kind,text,rich_content,file_id,ref_folder_id,width_pct,page_position,position,section_block_id,list_parent_block_id,checked,toggleable FROM page_blocks WHERE folder_id=${folderId}::uuid FOR UPDATE`)
+ const blocks=new Map<string,BlockOp>(stored.map(b=>[String(b.id),{op:'put_block',id:String(b.id),block_kind:b.kind as BlockOp['block_kind'],text:b.text as string|null,rich_content:b.rich_content as BlockOp['rich_content'],file_id:b.file_id as string|null,ref_folder_id:b.ref_folder_id as string|null,width_pct:b.width_pct as number|null,checked:b.checked===null||b.checked===undefined?null:Boolean(b.checked),toggleable:b.toggleable===true?true:null}]))
  const original=new Set(blocks.keys())
  const tasks=new Set(metadata.task_placements.map(t=>t.id))
  const created:Extract<DocumentOperation,{op:'create_task'}>[]=[]
@@ -64,7 +66,7 @@ export async function applyDocument(tx:Executor,viewerId:string,folderId:string,
   // page_blocks_checked_kind_check states in the database.
   if(op.op==='put_block'){
    if(isPresentationHeadingKind(op.block_kind))throw new DocumentRefusal('not_convertible','Presentation headings belong to a facet document; Main uses Work Sections.')
-   blocks.set(op.id,{...op,checked:op.block_kind==='checklist'?(op.checked??false):null})
+   blocks.set(op.id,{...op,checked:op.block_kind==='checklist'?(op.checked??false):null,toggleable:op.toggleable===true?true:null})
   }
   else if(op.op==='delete_block') {if(!blocks.delete(op.id))throw new DocumentRefusal('not_found','Block not found.')}
   else if(op.op==='create_task'){if(tasks.has(op.id)||created.some(t=>t.id===op.id))throw new DocumentRefusal('not_convertible','Task identity already exists.');created.push(op);tasks.add(op.id)}
@@ -75,9 +77,7 @@ export async function applyDocument(tx:Executor,viewerId:string,folderId:string,
  // A Section's heading level is its depth in this outline and nothing else; depths
  // is the running ancestry measurement, recorded as each Section is accepted so that
  // a child reads its parent's rather than re-walking the chain.
- // listParents records each accepted list item's Section, so a nested item can
- // be checked against its parent's without re-walking the outline.
- const seen=new Set<string>();const depths=new Map<string,number>();const listParents=new Map<string,string|null>();let active:string[]=[]
+ const seen=new Set<string>();const depths=new Map<string,number>();let active:string[]=[]
  for(const item of outline){
   if(seen.has(item.id)||(item.kind==='block'?!blocks.has(item.id):!tasks.has(item.id)))throw new DocumentRefusal('not_convertible','The outline has unknown or repeated identities.')
   seen.add(item.id)
@@ -86,42 +86,15 @@ export async function applyDocument(tx:Executor,viewerId:string,folderId:string,
   const block=item.kind==='block'?blocks.get(item.id):undefined
   const depth=parent===null?1:(depths.get(parent)??0)+1
   if(block?.block_kind==='section' && depth>MAX_SECTION_DEPTH)throw new DocumentRefusal('not_convertible',`Headings nest ${MAX_SECTION_DEPTH} levels deep at most.`)
-  /*
-  List nesting (#219), and it is a second relation rather than a second use of
-  the one above. Everything it refuses is refused here, ahead of the first
-  write, and every rule reads off the ordered outline:
-
-  - only a bullet, a numbered item or a checklist item takes part at all, on
-    either end, so a Task, a Section, a paragraph, a quote, a callout, a code
-    block and an image can neither be nested nor be nested under;
-  - the parent is a block of this same document, because it is looked up in
-    `blocks`, which holds this folder's blocks and nothing else;
-  - the parent precedes its descendants, which `seen` answers, and that is also
-    the whole of the cycle rule: a relation in which every parent appears
-    earlier in one finite order cannot close a loop.
-
-  The last rule is the one deliberately added beyond the issue's list, and it is
-  stated rather than assumed: a nested list item shares its list parent's
-  Section. The two relations stay independent — neither is derived from the
-  other and neither is inferred from proximity — but a child whose Section
-  differs from its parent's describes a list that is inside two Sections at
-  once, which no reader can draw. It is refused rather than stored.
-  */
-  const listParent=item.list_parent_block_id
-  if(listParent!==null){
-   if(item.kind!=='block'||block===undefined||!(TOGGLE_CHILD_KINDS as readonly string[]).includes(block.block_kind))throw new DocumentRefusal('not_convertible','Only a list item, or writing inside a toggle, is nested.')
-   const parentBlock=blocks.get(listParent)
-   // A list item nests under a list item; under a toggle, writing nests too.
-   if(parentBlock===undefined||!mayNestUnder(block.block_kind,parentBlock.block_kind))throw new DocumentRefusal('not_convertible','A list item nests under another list item of this page, and other writing only under a toggle.')
-   if(!seen.has(listParent))throw new DocumentRefusal('not_convertible','A list parent must precede the items nested under it.')
-   if(listParents.get(listParent)!==item.section_block_id)throw new DocumentRefusal('not_convertible',"A nested list item belongs to its list parent's Section.")
-  }
-  if(item.kind==='block'&&block!==undefined&&isListKind(block.block_kind))listParents.set(item.id,item.section_block_id)
   if(parent===null)active=[]
   else {const at=active.indexOf(parent);if(at<0)throw new DocumentRefusal('not_convertible','Heading content must form a contiguous group.');active=active.slice(0,at+1)}
   if(block?.block_kind==='section'){active.push(item.id);depths.set(item.id,depth)}
  }
  if(seen.size!==blocks.size+tasks.size)throw new DocumentRefusal('not_convertible','The outline must retain every Task and undeleted block.')
+ // Block nesting (0038): parent kind, precedence, one Section, depth -- the
+ // rule every document home shares (`document-outline.ts`).
+ const nesting=nestingProblem(outline,(id)=>blocks.get(id)?.block_kind)
+ if(nesting!==null)throw new DocumentRefusal('not_convertible',nesting)
  /*
  The blocks this transaction writes, and the set every reference rule below is
  asked over. It is the same set the INSERT pass uses further down, hoisted here
@@ -206,7 +179,7 @@ export async function applyDocument(tx:Executor,viewerId:string,folderId:string,
     `file_id: null` whenever its caption changes, and must not erase the only
     record that a picture was there — and clears once the block gets a file or
     becomes another kind. */
- for(const block of blocks.values())if(changed.has(block.id))await tx.execute(sql`INSERT INTO page_blocks (id,folder_id,kind,position,text,rich_content,file_id,ref_folder_id,width_pct,checked) VALUES (${block.id}::uuid,${folderId}::uuid,${block.block_kind},0,${block.text},${block.rich_content === null ? null : JSON.stringify(block.rich_content)}::jsonb,${block.file_id}::uuid,${block.ref_folder_id}::uuid,${block.width_pct},${block.checked}) ON CONFLICT (id) DO UPDATE SET kind=EXCLUDED.kind,text=EXCLUDED.text,rich_content=EXCLUDED.rich_content,file_id=EXCLUDED.file_id,ref_folder_id=EXCLUDED.ref_folder_id,width_pct=EXCLUDED.width_pct,checked=EXCLUDED.checked,file_reclaimed_at=CASE WHEN EXCLUDED.file_id IS NULL AND EXCLUDED.kind=page_blocks.kind THEN page_blocks.file_reclaimed_at END,list_parent_block_id=CASE WHEN EXCLUDED.kind IN ('bullet','numbered','checklist','toggle','paragraph','quote','callout','code','divider') THEN page_blocks.list_parent_block_id ELSE NULL END,updated_at=now()`)
+ for(const block of blocks.values())if(changed.has(block.id))await tx.execute(sql`INSERT INTO page_blocks (id,folder_id,kind,position,text,rich_content,file_id,ref_folder_id,width_pct,checked,toggleable) VALUES (${block.id}::uuid,${folderId}::uuid,${block.block_kind},0,${block.text},${block.rich_content === null ? null : JSON.stringify(block.rich_content)}::jsonb,${block.file_id}::uuid,${block.ref_folder_id}::uuid,${block.width_pct},${block.checked},${block.toggleable}) ON CONFLICT (id) DO UPDATE SET kind=EXCLUDED.kind,text=EXCLUDED.text,rich_content=EXCLUDED.rich_content,file_id=EXCLUDED.file_id,ref_folder_id=EXCLUDED.ref_folder_id,width_pct=EXCLUDED.width_pct,checked=EXCLUDED.checked,toggleable=EXCLUDED.toggleable,file_reclaimed_at=CASE WHEN EXCLUDED.file_id IS NULL AND EXCLUDED.kind=page_blocks.kind THEN page_blocks.file_reclaimed_at END,list_parent_block_id=CASE WHEN EXCLUDED.kind <> 'section' THEN page_blocks.list_parent_block_id ELSE NULL END,updated_at=now()`)
  for(const task of created){const result=await createTaskIn(tx,viewerId,{folder_id:folderId,title:task.title},{id:task.id,pagePosition:'a0'});if(result.kind!=='created')throw new DocumentRefusal('not_convertible','Task creation was refused.')}
  const keys=initialKeys(outline.length)
  // List parentage is structure, so a save that only re-nests a list item must

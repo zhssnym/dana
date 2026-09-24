@@ -27,7 +27,7 @@ describe('AC-1008 a diagram round-trips as its source (canvas)', () => {
     const hydrated = hydrateCanvas(page, 600)
     expect(hydrated).toEqual([{ id: ID, type: 'diagram', props: { source: SOURCE }, children: [] }])
     expect(dehydrateCanvas(hydrated as unknown as CanvasBlock[], 600, new Map()).blocks).toEqual([
-      { id: ID, block_kind: 'diagram', text: SOURCE, rich_content: null, file_id: null, ref_folder_id: null, width_pct: null, checked: null },
+      { id: ID, block_kind: 'diagram', text: SOURCE, rich_content: null, file_id: null, ref_folder_id: null, width_pct: null, checked: null, toggleable: null },
     ])
   })
 

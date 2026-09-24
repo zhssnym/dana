@@ -493,7 +493,7 @@ export async function duplicateFolder(
         const purposeBlocks = await rowsOf(
           tx,
           sql`SELECT id, kind, position, text, rich_content, file_id, width_pct,
-                     checked, list_parent_block_id, page_position
+                     checked, list_parent_block_id, page_position, toggleable
                 FROM page_blocks
                WHERE facet_id = ${sourcePurposeId}::uuid
                ORDER BY page_position ASC NULLS LAST, position ASC, id ASC`,
@@ -536,14 +536,15 @@ export async function duplicateFolder(
           await tx.execute(
             sql`INSERT INTO page_blocks
                   (id, facet_id, kind, position, text, rich_content, file_id,
-                   width_pct, checked, page_position)
+                   width_pct, checked, page_position, toggleable)
                 VALUES (${purposeIdentity.get(String(block.id))}::uuid,
                         ${copiedPurposeId}::uuid, ${String(block.kind)},
                         ${Number(block.position)}, ${block.text ?? null},
                         ${richContent === null ? null : JSON.stringify(richContent)}::jsonb,
                         ${fileId}::uuid, ${block.width_pct ?? null},
                         ${block.checked === null || block.checked === undefined ? null : Boolean(block.checked)},
-                        ${block.page_position ?? null})`,
+                        ${block.page_position ?? null},
+                        ${block.toggleable === true ? true : null})`,
           )
         }
         for (const block of purposeBlocks) {

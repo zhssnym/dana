@@ -1,6 +1,6 @@
 import type { CanvasBlock, CanvasEditor } from './schema.js'
 import { insertOrUpdateBlockForSlashMenu } from '@blocknote/core/extensions'
-import { validateCanvasOutline } from './outline.js'
+import { isSectionHeading, validateCanvasOutline } from './outline.js'
 
 const taskCommands = new WeakMap<CanvasEditor, (block?: CanvasBlock) => void>()
 export function bindTaskCommand(editor: CanvasEditor, command: (block?: CanvasBlock) => void): () => void {
@@ -34,12 +34,12 @@ export function moveCanvasBlock(editor: CanvasEditor, block: CanvasBlock, direct
     items.splice(target, 0, moving)
   } else if (direction === 'in') {
     const previous = items[index - 1]
-    if (previous?.type !== 'heading' || previous.props.isToggleable === false) return 'Put this right after a heading to move it into that section.'
+    if (previous === undefined || previous.type !== 'heading' || !isSectionHeading(previous)) return 'Put this right after a heading to move it into that section.'
     if (moving.type === 'heading') moving.props.level = previous.props.level + 1
     items.splice(index, 1)
     previous.children.push(moving)
   } else {
-    if (!parent || parent.type !== 'heading' || parent.props.isToggleable === false) return 'This is not inside a section.'
+    if (!parent || parent.type !== 'heading' || !isSectionHeading(parent)) return 'This is not inside a section.'
     const ancestors = ancestorsOf(document, parent.id) ?? []
     const destination = ancestors.at(-1)?.children ?? document
     if (moving.type === 'heading') moving.props.level = parent.props.level
@@ -79,7 +79,7 @@ export function removeEmptyBeforeHeading(editor: CanvasEditor, key: 'Backspace' 
   const index = siblings.findIndex((block) => block.id === current.id)
   const empty = key === 'Backspace' ? siblings[index - 1] : current
   const group = key === 'Backspace' ? current : siblings[index + 1]
-  if (group?.type !== 'heading' || group.props.isToggleable === false || empty?.type !== 'paragraph' || empty.content.length !== 0 || empty.children.length !== 0) return false
+  if (group?.type !== 'heading' || !isSectionHeading(group) || empty?.type !== 'paragraph' || empty.content.length !== 0 || empty.children.length !== 0) return false
   editor.transact(() => {
     editor.removeBlocks([empty])
     editor.setTextCursorPosition(group, 'start')
@@ -91,7 +91,7 @@ export function removeEmptyBeforeHeading(editor: CanvasEditor, key: 'Backspace' 
 export function sectionContext(editor: CanvasEditor, level: number): CanvasBlock | undefined {
   const current = editor.getTextCursorPosition().block
   return [...ancestorsOf(editor.document, current.id) ?? [], current]
-    .find((block) => block.type === 'heading' && block.props.isToggleable !== false && block.props.level === level)
+    .find((block) => block.type === 'heading' && isSectionHeading(block) && block.props.level === level)
 }
 
 /** Only insert new children; never adopt existing following content by proximity.
@@ -107,7 +107,7 @@ export function insertCanvasHeading(editor: CanvasEditor, level: 1 | 2 | 3): voi
   // Only crossing a Dana group boundary needs the structural path below.
   const parent = parents.at(-1)
   if ((level === 1 && parent === undefined) ||
-    (level > 1 && parent?.type === 'heading' && parent.props.isToggleable !== false && parent.props.level === level - 1)) {
+    (level > 1 && parent?.type === 'heading' && isSectionHeading(parent) && parent.props.level === level - 1)) {
     insertOrUpdateBlockForSlashMenu(editor, { type: 'heading', props: { level, isToggleable: true } })
     editor.focus()
     return

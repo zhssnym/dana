@@ -1260,9 +1260,12 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
          refuse). A list parent belongs
          only to a list item on a folder page, and never to itself. */
       { name: 'page_blocks_checked_kind_check', columns: ['checked', 'kind'] },
+      /* Migration 0038 (wave 2, W-B) re-added this under the same name as the
+         general block parent: any kind but a Section, on every home, never
+         itself. The home columns left the expression, so the list shrinks. */
       {
         name: 'page_blocks_list_parent_kind_check',
-        columns: ['facet_id', 'folder_id', 'id', 'kind', 'list_parent_block_id'],
+        columns: ['id', 'kind', 'list_parent_block_id'],
       },
       /* Migration 0027 (#210) dropped and re-added this under the same name
          over `num_nonnulls(folder_id, shelf_id, facet_id) = 1`, so the
@@ -1284,6 +1287,9 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
         columns: ['folder_id', 'section_block_id'],
       },
       { name: 'page_blocks_text_length_check', columns: ['kind', 'text'] },
+      /* Migration 0038 (wave 2, W-B): a toggle heading, and only a
+         presentation heading, folds its children. */
+      { name: 'page_blocks_toggleable_kind_check', columns: ['kind', 'toggleable'] },
       /* Migration 0024 (#220) widened both of these in place and moved
          neither: `page_blocks_kind_check` above gained `file`, `audio` and
          `video`, and the width check below gained `video` beside `image`,

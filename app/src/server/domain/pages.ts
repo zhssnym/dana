@@ -96,6 +96,7 @@ function blockFromRow(row: Record<string, unknown>): PageBlock {
     page_position: nullableString(row.page_position),
     section_block_id: nullableString(row.section_block_id),
     list_parent_block_id: nullableString(row.list_parent_block_id),
+    toggleable: row.toggleable === true ? true : null,
     checked: row.checked === null || row.checked === undefined ? null : Boolean(row.checked),
     rich_content: (row.rich_content ?? null) as PageBlock["rich_content"],
     text: nullableString(row.text),
@@ -898,7 +899,7 @@ async function pageViewIn(
   const rows = await rowsOf(
     tx,
     sql`SELECT b.id, b.kind, b.position, b.page_position,
-               b.section_block_id, b.list_parent_block_id, b.checked,
+               b.section_block_id, b.list_parent_block_id, b.toggleable, b.checked,
                b.text, b.rich_content, b.file_id, b.ref_folder_id,
                b.width_pct, b.updated_at, b.file_reclaimed_at,
                f.width AS file_width, f.height AS file_height, f.name AS file_name

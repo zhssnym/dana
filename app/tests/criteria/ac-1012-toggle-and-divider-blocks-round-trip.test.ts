@@ -1,7 +1,8 @@
 /*
 AC-1012: a Toggle block and a Divider block round-trip through the Folder
 document. A paragraph nested under a toggle keeps its toggle as its list
-parent; a divider carries no text; a paragraph may not nest under a bullet.
+parent; a divider carries no text and holds nothing; since 0038 a paragraph nests under a
+bullet.
 
 Data-loss class: a toggle's children are held by `list_parent_block_id`, so a
 save path that forgot a paragraph may hold one would flatten the toggle on the
@@ -50,7 +51,7 @@ const transact = async (
 }
 
 describe('AC-1012 toggle and divider blocks round-trip', () => {
-  test('a toggle holds a paragraph, a divider stands alone, a bullet holds no paragraph', async () => {
+  test('a toggle holds a paragraph, a divider stands alone, a bullet holds a paragraph', async () => {
     const [owner] = (await cast.of(app)) as [Actor]
     const folderId = await createFolder(owner, 'ac1012 the fold')
     const toggle = randomUUID()
@@ -104,25 +105,42 @@ describe('AC-1012 toggle and divider blocks round-trip', () => {
       ]),
     ).toBeGreaterThanOrEqual(400)
 
-    // A paragraph nests under a toggle and nothing else: under a bullet it is refused.
+    // Since 0038 any block nests under writing: a paragraph under a bullet is
+    // stored with the bullet as its parent. Under a divider nothing nests.
     const bullet = randomUUID()
+    const under = randomUUID()
+    const nested = await compose(
+      owner,
+      folderId,
+      [
+        put(bullet, 'bullet', 'a point'),
+        put(under, 'paragraph', 'its detail'),
+        {
+          op: 'set_outline',
+          items: [at(toggle), at(inside, null, toggle), at(divider), at(bullet), at(under, null, bullet)],
+        },
+      ],
+      'a paragraph nested under a bullet must save (0038)',
+    )
+    expect(nested.blocks.find((b) => b.id === under)?.list_parent_block_id).toBe(bullet)
     const stray = randomUUID()
     expect(
       await transact(owner, folderId, [
-        put(bullet, 'bullet', 'a point'),
-        put(stray, 'paragraph', 'not a list item'),
+        put(stray, 'paragraph', 'under a rule'),
         {
           op: 'set_outline',
-          items: [at(toggle), at(inside, null, toggle), at(divider), at(bullet), at(stray, null, bullet)],
+          items: [at(toggle), at(inside, null, toggle), at(divider), at(bullet), at(under, null, bullet), at(stray, null, divider)],
         },
       ]),
-    ).toBeGreaterThanOrEqual(400)
+    ).toBe(422)
 
     const after = await readPage(owner, folderId)
     expect(after.blocks.map((b) => [b.id, b.kind, b.text, b.list_parent_block_id])).toEqual([
       [toggle, 'toggle', 'Details', null],
       [inside, 'paragraph', 'Still hidden', toggle],
       [divider, 'divider', null, null],
+      [bullet, 'bullet', 'a point', null],
+      [under, 'paragraph', 'its detail', bullet],
     ])
   })
 })

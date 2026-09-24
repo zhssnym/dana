@@ -85,8 +85,8 @@ import {
   RICH_TEXT_BLOCK_KINDS,
   documentOperation,
   documentOutlineItem,
+  mayNest,
   mayNestUnder,
-  TOGGLE_CHILD_KINDS,
   richContent,
 } from './page-document.js'
 import type { PageView, PageBlock } from './pages.js'
@@ -363,12 +363,12 @@ const pageContentBlock = z
     }
     if (
       block.list_parent !== undefined &&
-      !(TOGGLE_CHILD_KINDS as readonly string[]).includes(block.kind)
+      !mayNest(block.kind)
     ) {
       ctx.addIssue({
         code: 'custom',
         path: ['list_parent'],
-        message: 'Only a list item, or writing inside a toggle, is nested.',
+        message: 'A Section never nests under a block.',
       })
     }
     if (
@@ -497,12 +497,12 @@ const purposeContentBlock = z
     }
     if (
       block.list_parent !== undefined &&
-      !(TOGGLE_CHILD_KINDS as readonly string[]).includes(block.kind)
+      !mayNest(block.kind)
     ) {
       ctx.addIssue({
         code: 'custom',
         path: ['list_parent'],
-        message: 'Only a list item, or writing inside a toggle, is nested.',
+        message: 'A Section never nests under a block.',
       })
     }
     if (
@@ -547,7 +547,7 @@ export const workflowPurpose = z
         ctx.addIssue({
           code: 'custom',
           path: ['blocks', index, 'list_parent'],
-          message: 'A list item nests under an earlier list item of this Purpose document.',
+          message: 'A block nests under an earlier writing block of this Purpose document.',
         })
       }
     })
@@ -653,7 +653,7 @@ export function readWorkflowPage(
         issues.push({
           path: [index, 'list_parent'],
           message:
-            'A list item nests under a list item written above it, and other writing only under a toggle',
+            'A block nests under a writing block written above it',
         })
         return
       }

@@ -5,12 +5,15 @@ and `CanvasWriter`, posting 7.16's `document_transaction` to
 
 What a Shelf document is, and so what this adapter does on top of the shared one:
 
-- **Flat, belonging by position.** The Shelf route refuses `section_block_id`
-  and `list_parent_block_id`, and the legacy Shelf editor always meant "a block
-  under a heading folds with it". So a read groups each block under the section
-  before it (content before the first section stays at the root), and a write
-  sends the editor's order flat. One heading level; the surface hides the
-  gestures a reload would undo.
+- **Headings group by position; blocks nest by parent.** The Shelf route
+  refuses `section_block_id`, and the legacy Shelf editor always meant "a block
+  under a heading folds with it". So a read groups each root block under the
+  section before it (content before the first section stays at the root), and
+  a write sends the editor's order with no Section. One heading level; the
+  surface hides the gestures a reload would undo. Since 0038 a Shelf stores
+  `list_parent_block_id` like every home: any block but a heading nests under
+  a writing block (Tab), and a nested block is read back under its parent,
+  never regrouped under a heading.
 - **Folders join a Shelf elsewhere, never here**: the sidebar drag and "Move to
   shelf" write the membership, and the arrival is placed after the content.
   The page offers no picker of its own — one home per action.
@@ -18,7 +21,7 @@ What a Shelf document is, and so what this adapter does on top of the shared one
   the membership (`folder_members.shelf_name`), position is the document: a
   stored row whose folder has left the Shelf is not drawn and is deleted by the
   next save; a member with no row is drawn after the content and written by the
-  next save. A row leaves only through Remove from shelf — the guard below
+  next save. A row leaves only through Remove from collection — the guard below
   refuses a generic delete, a paste that places a folder twice, and an undo
   that would place a folder that is no longer on the Shelf.
 */
@@ -63,10 +66,11 @@ interface Props {
 const NO_REFS: ReadonlyMap<string, string> = new Map()
 
 /** The one error "Load latest" answers besides a failed save. */
-const CHANGED_ELSEWHERE = 'This shelf changed elsewhere. Your writing is kept here. Load the latest to continue; your writing will be offered back.'
+const CHANGED_ELSEWHERE = 'This collection changed elsewhere. Your writing is kept here. Load the latest to continue; your writing will be offered back.'
 
 /** The page as the shared hydrator reads it: stale Folder rows dropped, each
- * block grouped under the section before it. */
+ * root block grouped under the section before it, and each nested block left
+ * under its own parent (the hydrator places it by `list_parent_block_id`). */
 function positionalPage(page: PageView, members: ReadonlySet<string>): PageView {
   const byId = new Map(page.blocks.map((block) => [block.id, block]))
   const kept = new Set<string>()
@@ -78,7 +82,7 @@ function positionalPage(page: PageView, members: ReadonlySet<string>): PageView 
     if (block.kind === 'folder_ref' && (block.ref_folder_id === null || !members.has(block.ref_folder_id))) continue
     kept.add(block.id)
     if (block.kind === 'section') { section = block.id; blocks.push({ ...block, section_block_id: null, list_parent_block_id: null }) }
-    else blocks.push({ ...block, section_block_id: section, list_parent_block_id: null })
+    else blocks.push({ ...block, section_block_id: section })
   }
   return { ...page, blocks, items: page.items.filter((item) => kept.has(item.id)), task_placements: [] }
 }
@@ -90,8 +94,10 @@ function folderIdsOf(blocks: readonly OutlineBlock[]): string[] {
   ])
 }
 
+/** What a Shelf stores: no Section membership (headings group by position),
+ * and each nested block's parent. */
 function flat(document: CanvasDocument): CanvasDocument {
-  return { blocks: document.blocks, items: document.items.map((item) => ({ ...item, section_block_id: null, list_parent_block_id: null })) }
+  return { blocks: document.blocks, items: document.items.map((item) => ({ ...item, section_block_id: null })) }
 }
 
 export default function ShelfCanvas(props: Props): React.JSX.Element {
@@ -234,22 +240,16 @@ function ShelfEditor({ shelfId, page, initialPage, folders, folderHref, onOpenFo
   // The Folder-row guard. Runs beside the canvas's own (`installCanvasGuard`).
   useEffect(() => editor.onBeforeChange(({ tr }) => {
     if (!tr.docChanged) return
-    const nested = (blocks: readonly OutlineBlock[]): boolean => blocks.some((block) =>
-      (block.type !== 'heading' && block.children.length > 0) || nested(block.children))
-    if (nested(fragmentToBlocks<typeof canvasSchema.blockSchema, typeof canvasSchema.inlineContentSchema, typeof canvasSchema.styleSchema>(tr.doc.content))) {
-      setNotice('A shelf keeps its lists flat: nested list items are not supported here.')
-      return false
-    }
     const before = folderIdsOf(fragmentToBlocks<typeof canvasSchema.blockSchema, typeof canvasSchema.inlineContentSchema, typeof canvasSchema.styleSchema>(tr.before.content))
     const after = folderIdsOf(fragmentToBlocks<typeof canvasSchema.blockSchema, typeof canvasSchema.inlineContentSchema, typeof canvasSchema.styleSchema>(tr.doc.content))
     const had = new Set(before)
     const has = new Set(after)
     const failure = before.some((id) => !has.has(id) && !sanctioned.current.has(id))
-      ? 'A folder leaves this shelf only through Remove from shelf, in its row\'s menu. Select only the writing to delete it.'
+      ? 'A folder leaves this collection only through Remove from collection, in its row\'s menu. Select only the writing to delete it.'
       : after.length !== new Set(after).size
-        ? 'A folder can be placed on a shelf once.'
+        ? 'A folder can be placed in a collection once.'
         : after.some((id) => !had.has(id) && !members.current.has(id) && !sanctioned.current.has(id))
-          ? 'That folder is no longer on this shelf. Move it here from the sidebar.'
+          ? 'That folder is no longer in this collection. Move it here from the sidebar.'
           : null
     if (failure === null) return
     setNotice(failure)
@@ -333,7 +333,7 @@ function ShelfEditor({ shelfId, page, initialPage, folders, folderHref, onOpenFo
       const latest = await getPlain(getPageResponse, `/shelves/${shelfId}/page`)
       queryClient.setQueryData(queryKeys.shelfPage(shelfId), latest)
       onCheckpoint(latest)
-    } catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not reload the shelf.') }
+    } catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not reload the collection.') }
   }
 
   const bridge = useMemo(() => ({ byId: new Map(folders.map((folder) => [folder.id, folder])), href: folderHref, open: onOpenFolder }), [folders, folderHref, onOpenFolder])
@@ -349,7 +349,7 @@ function ShelfEditor({ shelfId, page, initialPage, folders, folderHref, onOpenFo
         editor={editor}
         onChange={changed}
         folderRefs={NO_REFS}
-        label="Shelf writing and folders"
+        label="Collection writing and folders"
         flatGroups
         onUploadFile={uploadCanvasFile}
         onRemoveFolder={(folderId) => { void remove(folderId) }}

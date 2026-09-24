@@ -10,10 +10,8 @@ inside Task content").
 
 **What a Task document refuses that a Folder page admits**: `create_task`, a
 `section` block (Sections are Main's; a Task document uses heading1-3), a
-`folder_ref` block, and a nested list item (`list_parent_block_id`), because
-`page_blocks_list_parent_kind_check` still admits a list parent only on a
-folder or facet home and a refusal here is a 422 naming the field rather than
-a 500 from the CHECK.
+and a `folder_ref` block. Since migration 0038 a Task document nests blocks
+like every other home (`document-outline.ts`).
 
 **`notes` and the document, and why nothing is lost between them.** The
 deployed client edits `tasks.notes` as one string, so both stay:
@@ -46,7 +44,8 @@ import type {
 } from '../../shared/pages.js'
 import { rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
-import { documentHash } from './document-hash.js'
+import { documentHash, hashableBlocks } from './document-hash.js'
+import { nestingProblem } from './document-outline.js'
 import { fileReclaimedAt } from './pages.js'
 import { initialKeys } from './fractional-index.js'
 import { syncMentions } from './mentions.js'
@@ -96,7 +95,7 @@ async function blockRows(tx: Executor, taskId: string) {
   return rowsOf(
     tx,
     sql`SELECT b.id, b.kind, b.position, b.page_position, b.checked,
-               b.list_parent_block_id, b.rich_content, b.text, b.file_id,
+               b.list_parent_block_id, b.toggleable, b.rich_content, b.text, b.file_id,
                b.width_pct, b.updated_at, b.file_reclaimed_at,
                f.width AS file_width, f.height AS file_height, f.name AS file_name
           FROM page_blocks b
@@ -118,6 +117,7 @@ function blockFromRow(row: Record<string, unknown>): PageBlock {
     page_position: str(row.page_position),
     section_block_id: null,
     list_parent_block_id: str(row.list_parent_block_id),
+    toggleable: row.toggleable === true ? true : null,
     checked: row.checked === null || row.checked === undefined ? null : Boolean(row.checked),
     rich_content: (row.rich_content ?? null) as PageBlock['rich_content'],
     text: str(row.text),
@@ -142,10 +142,10 @@ async function revisionOf(tx: Executor, taskId: string): Promise<string> {
   const blocks = await rowsOf(
     tx,
     sql`SELECT id, kind, text, rich_content, file_id, width_pct, checked,
-               list_parent_block_id, page_position, position
+               list_parent_block_id, page_position, position, toggleable
           FROM page_blocks WHERE task_id = ${taskId}::uuid ORDER BY id`,
   )
-  return documentHash({ task: taskId, blocks, tasks: [] })
+  return documentHash({ task: taskId, blocks: hashableBlocks(blocks), tasks: [] })
 }
 
 /** The read, for a caller that has already gated and holds a transaction. */
@@ -290,7 +290,7 @@ export async function copyTaskDocument(
   const rows = await rowsOf(
     tx,
     sql`SELECT id, kind, position, page_position, text, rich_content, file_id,
-               width_pct, checked, list_parent_block_id
+               width_pct, checked, list_parent_block_id, toggleable
           FROM page_blocks WHERE task_id = ${fromTaskId}::uuid
          ORDER BY page_position ASC NULLS LAST, position, updated_at, id`,
   )
@@ -300,13 +300,14 @@ export async function copyTaskDocument(
     const inserted = await rowsOf(
       tx,
       sql`INSERT INTO page_blocks
-            (task_id, kind, position, page_position, text, rich_content, file_id, width_pct, checked)
+            (task_id, kind, position, page_position, text, rich_content, file_id, width_pct, checked, toggleable)
           VALUES (${toTaskId}::uuid, ${String(row.kind)}, ${Number(row.position)},
                   ${str(row.page_position)}, ${str(row.text)},
                   ${row.rich_content === null || row.rich_content === undefined ? null : JSON.stringify(row.rich_content)}::jsonb,
                   ${row.file_id === null || row.file_id === undefined ? null : mapFile === undefined ? String(row.file_id) : await mapFile(String(row.file_id))}::uuid,
                   ${row.width_pct === null || row.width_pct === undefined ? null : Number(row.width_pct)},
-                  ${row.checked === null || row.checked === undefined ? null : Boolean(row.checked)})
+                  ${row.checked === null || row.checked === undefined ? null : Boolean(row.checked)},
+                  ${row.toggleable === true ? true : null})
           RETURNING id`,
     )
     ids.set(String(row.id), String(inserted[0]?.id))
@@ -384,9 +385,10 @@ export async function applyTaskDocumentLocked(
 
   const stored = await rowsOf(
     tx,
-    sql`SELECT id FROM page_blocks WHERE task_id = ${taskId}::uuid FOR UPDATE`,
+    sql`SELECT id, kind FROM page_blocks WHERE task_id = ${taskId}::uuid FOR UPDATE`,
   )
   const original = new Set(stored.map((row) => String(row.id)))
+  const storedKinds = new Map(stored.map((row) => [String(row.id), String(row.kind)]))
   const blocks = new Set(original)
   const writes = new Map<string, Extract<DocumentOperation, { op: 'put_block' }>>()
   const named = new Set<string>()
@@ -428,17 +430,23 @@ export async function applyTaskDocumentLocked(
     if (item.kind !== 'block' || !blocks.has(item.id) || seen.has(item.id)) {
       throw new TaskDocumentRefusal('invalid', 'The outline has unknown or repeated identities.', 'operations')
     }
-    if (item.listParent !== null) {
-      throw new TaskDocumentRefusal(
-        'invalid',
-        'a Task document does not nest list items yet',
-        'list_parent_block_id',
-      )
-    }
     seen.add(item.id)
   }
   if (seen.size !== blocks.size) {
     throw new TaskDocumentRefusal('invalid', 'The outline must retain every undeleted block.', 'operations')
+  }
+  // Block nesting (0038), the rule every document home shares.
+  const nesting = nestingProblem(
+    outline.map((item) => ({
+      kind: item.kind,
+      id: item.id,
+      section_block_id: null,
+      list_parent_block_id: item.listParent,
+    })),
+    (id) => (blocks.has(id) ? (writes.get(id)?.block_kind ?? storedKinds.get(id)) : undefined),
+  )
+  if (nesting !== null) {
+    throw new TaskDocumentRefusal('invalid', nesting, 'list_parent_block_id')
   }
 
   // A file must be in the Task's folder; elsewhere and nonexistent answer
@@ -482,17 +490,18 @@ export async function applyTaskDocumentLocked(
   for (const write of writes.values()) {
     await tx.execute(
       sql`INSERT INTO page_blocks
-            (id, task_id, kind, position, text, rich_content, file_id, width_pct, checked)
+            (id, task_id, kind, position, text, rich_content, file_id, width_pct, checked, toggleable)
           VALUES (${write.id}::uuid, ${taskId}::uuid, ${write.block_kind}, 0,
                   ${write.text},
                   ${write.rich_content === null ? null : JSON.stringify(write.rich_content)}::jsonb,
                   ${write.file_id}::uuid, ${write.width_pct},
-                  ${write.block_kind === 'checklist' ? (write.checked ?? false) : null})
+                  ${write.block_kind === 'checklist' ? (write.checked ?? false) : null},
+                  ${write.toggleable === true ? true : null})
           ON CONFLICT (id) DO UPDATE
              SET kind = EXCLUDED.kind, text = EXCLUDED.text,
                  rich_content = EXCLUDED.rich_content,
                  file_id = EXCLUDED.file_id, width_pct = EXCLUDED.width_pct,
-                 checked = EXCLUDED.checked,
+                 checked = EXCLUDED.checked, toggleable = EXCLUDED.toggleable,
                  -- Issue #267's rule, as in every other block writer: the
                  -- mark survives a same-kind rewrite with no file and clears
                  -- once the block gets a file or changes kind.
@@ -508,7 +517,8 @@ export async function applyTaskDocumentLocked(
   for (const [index, item] of outline.entries()) {
     await tx.execute(
       sql`UPDATE page_blocks
-             SET page_position = ${keys[index] as string}, position = ${index}
+             SET page_position = ${keys[index] as string}, position = ${index},
+                 list_parent_block_id = ${item.listParent}::uuid
            WHERE id = ${item.id}::uuid AND task_id = ${taskId}::uuid`,
     )
   }

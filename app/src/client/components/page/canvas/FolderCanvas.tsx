@@ -212,9 +212,9 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
     },
   })
   // The baseline is the server's page reconciled with what this editor can draw
-  // of it, never the editor's rendering alone: `dehydrateCanvas` knows three
-  // kinds and no nesting, so a writer based on it has nothing to restore from
-  // and every save flattens the page. An empty page still starts from an empty
+  // of it, never the editor's rendering alone: a writer based on the rendering
+  // alone has nothing to restore a kind the editor cannot draw from, and every
+  // save would lose it. An empty page still starts from an empty
   // baseline, so the placeholder paragraph is written rather than assumed.
   const documentPath = facetId === undefined ? `/folders/${folderId}/page` : `/folders/${folderId}/facets/${facetId}/page`
   const projection = (current: readonly CanvasBlock[]): CanvasDocument => {

@@ -2,12 +2,13 @@ import { createExtension } from '@blocknote/core'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
 import { ancestorsOf } from './commands.js'
 import { MAX_SECTION_DEPTH } from '../../../../shared/page-document.js'
+import { isSectionHeading } from './outline.js'
 
 /**
  * Which canvas an editor is, for the rules that differ by what its server
  * stores. `work` is a Folder's Main page (headings are Sections), `document` a
  * Purpose/Results facet (flat headings), `plain` a facet without headings,
- * `shelf` a Shelf (flat headings, nothing nests) and `task` a Task body.
+ * `shelf` a Shelf (one heading level, stored flat) and `task` a Task body.
  * The slash menu binds it (`CanvasSlashMenu`); an unbound editor is `work`.
  */
 export type CanvasSurfaceKind = 'work' | 'document' | 'plain' | 'shelf' | 'task'
@@ -21,15 +22,21 @@ export function surfaceOf(editor: object): CanvasSurfaceKind {
   return surfaces.get(editor) ?? 'work'
 }
 
-/** Where a toggle holds its content (the server's `TOGGLE_CHILD_KINDS`). */
+/** Where a toggle list is offered. Every surface nests since 0038; a Shelf
+ * does not offer the toggle list (its `>` stays a quote) and the Task
+ * composer's schema has none. */
 export const TOGGLE_SURFACES: ReadonlySet<CanvasSurfaceKind> = new Set(['work', 'document', 'plain'])
 
-const isSection = (block: CanvasBlock): boolean => block.type === 'heading' && block.props.isToggleable !== false
+/** Where a presentation heading may fold (a toggle heading): Purpose, Results
+ * and a Task body. On Work a heading is a Section, which folds already. */
+export const TOGGLE_HEADING_SURFACES: ReadonlySet<CanvasSurfaceKind> = new Set(['document', 'task'])
+
+const isSection = (block: CanvasBlock): boolean => isSectionHeading(block)
 
 /**
  * The one heading a Work block may become where it stands: a Section's level is
  * its depth, so a block under an H1 becomes an H2 whatever was asked. Null
- * where no heading can stand (inside a list or a toggle, or below an H3).
+ * where no heading can stand (nested under a block, or below an H3).
  */
 export function workHeadingLevel(editor: CanvasEditor, block: CanvasBlock): 1 | 2 | 3 | null {
   const ancestors = ancestorsOf(editor.document, block.id) ?? []
@@ -39,18 +46,19 @@ export function workHeadingLevel(editor: CanvasEditor, block: CanvasBlock): 1 | 
 }
 
 /** The heading a surface stores for "Heading n"; null where it has none. */
-export function headingFor(editor: CanvasEditor, block: CanvasBlock, level: 1 | 2 | 3): { level: 1 | 2 | 3; isToggleable: boolean } | null {
+export function headingFor(editor: CanvasEditor, block: CanvasBlock, level: 1 | 2 | 3): { level: 1 | 2 | 3; isToggleable: boolean; presentation: boolean } | null {
   const surface = surfaceOf(editor)
-  if (surface === 'document' || surface === 'task') return { level, isToggleable: false }
-  if (surface === 'shelf') return { level: 1, isToggleable: true }
+  // A flat presentation heading; `presentation: false` clears a toggle heading's.
+  if (surface === 'document' || surface === 'task') return { level, isToggleable: false, presentation: false }
+  if (surface === 'shelf') return { level: 1, isToggleable: true, presentation: false }
   if (surface === 'plain') return null
   const fitted = workHeadingLevel(editor, block)
-  return fitted === null ? null : { level: fitted, isToggleable: true }
+  return fitted === null ? null : { level: fitted, isToggleable: true, presentation: false }
 }
 
 /**
  * Notion's markdown shortcuts, by surface: `#`/`##`/`###` + space headings,
- * `>` + space a toggle (a quote where nothing nests), `"` + space a quote
+ * `>` + space a toggle (a quote where no toggle list is offered), `"` + space a quote
  * (upstream's rule, kept), `---` a divider, ``` a code block. `-`/`*`/`+`,
  * `1.` and `[]` are upstream's own rules. Upstream's `#`, `>` and `---` rules
  * are stripped from their specs (`schema.ts`) so these are the only ones.

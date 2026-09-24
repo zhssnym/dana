@@ -80,7 +80,7 @@ interface View {
   blocks: { id: string; kind: string; text: string | null }[]
 }
 
-function paragraph(id: string, text: string) {
+function paragraph(id: string, text: string | null) {
   return {
     op: 'put_block',
     id,
@@ -343,7 +343,7 @@ describe('AC-881 to AC-885: the Task document routes', () => {
     expect(sections.map((row) => row.text).sort()).toEqual(['first work', 'second work'])
   })
 
-  test('AC-883: a Task document refuses Task rows, Sections and nested list items with 422', async () => {
+  test('AC-883: a Task document refuses Task rows, Sections and a block nested under a divider with 422', async () => {
     const { owner, folderId } = await stage()
     const taskId = await seedNoted(folderId, owner.id, null)
     const view = await readDocument(owner, taskId)
@@ -356,7 +356,7 @@ describe('AC-881 to AC-885: the Task document routes', () => {
     const nestedParent = randomUUID()
     const nestedChild = randomUUID()
     const nested = await writeDocument(owner, taskId, view.revision, [
-      { ...paragraph(nestedParent, 'a'), block_kind: 'bullet' },
+      { ...paragraph(nestedParent, null), block_kind: 'divider' },
       { ...paragraph(nestedChild, 'b'), block_kind: 'bullet' },
       {
         op: 'set_outline',
@@ -368,6 +368,29 @@ describe('AC-881 to AC-885: the Task document routes', () => {
     ])
     expect(nested.status).toBe(422)
     expect(await blocksOf(taskId)).toEqual([])
+
+    // Since 0038 a Task document nests: a block under a toggle heading is
+    // stored with its parent, and the heading keeps `toggleable`.
+    const heading = randomUUID()
+    const inside = randomUUID()
+    const folds = await writeDocument(owner, taskId, view.revision, [
+      { ...paragraph(heading, 'Folds'), block_kind: 'heading1', rich_content: null, toggleable: true },
+      paragraph(inside, 'inside'),
+      {
+        op: 'set_outline',
+        items: [
+          { kind: 'block', id: heading, section_block_id: null, list_parent_block_id: null },
+          { kind: 'block', id: inside, section_block_id: null, list_parent_block_id: heading },
+        ],
+      },
+    ])
+    expect(folds.status, JSON.stringify(folds.json())).toBe(200)
+    const stored = await rows(sql`SELECT id, list_parent_block_id, toggleable FROM page_blocks
+                                   WHERE task_id = ${taskId}::uuid ORDER BY page_position`)
+    expect(stored).toEqual([
+      { id: heading, list_parent_block_id: null, toggleable: true },
+      { id: inside, list_parent_block_id: heading, toggleable: null },
+    ])
   })
 
   test('AC-884: duplicate and export carry the Task document', async () => {
