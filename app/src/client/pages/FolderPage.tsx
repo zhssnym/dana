@@ -203,6 +203,7 @@ import { getFolderDependenciesResponse } from '../../shared/task-dependencies.js
 import type { Facet } from '../../shared/facets.js'
 import type { PageView } from '../../shared/pages.js'
 import { workPageOf } from '../components/page/canvas/adapters.js'
+import { ReferencedFrom } from '../components/links/referenced-from.js'
 
 /**
  * What the list says when the folder holds open tasks and the filter has
@@ -1590,6 +1591,8 @@ export function FolderPage({
                 )}
               </PageBody>
             </PageSection>
+            {/* #214: the documents that link to this Folder. Absent while none do. */}
+            <ReferencedFrom kind="folder" id={id} className="mt-2" />
 
           </div>
 

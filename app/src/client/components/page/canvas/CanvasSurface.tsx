@@ -23,6 +23,7 @@ import {
 import { installCanvasGuard } from './guard.js'
 import { ancestorsOf, bindTaskCommand, continueAfterGroup, headingOneContext, insertCanvasHeading, moveCanvasBlock, removeHeadingKeepingContent } from './commands.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
+import { DanaLinkSuggestions, linkSlashItem } from '../../links/dana-link-picker.js'
 import './canvas.css'
 import { ArrowDown, CheckCircle2, X } from '../../../lib/icons.js'
 
@@ -175,8 +176,12 @@ export function CanvasSurface({ editor, onChange, onCreateTask, folderRefs, allo
             },
             aliases: ['todo'], group: 'Basic blocks',
           })
+          // Last of the Basic blocks: BlockNote keys its groups by adjacency.
+          const basic = core.findLastIndex((item) => item.group === 'Basic blocks')
+          core.splice(basic + 1, 0, linkSlashItem(editor))
           return filterSuggestionItems(core.map((item) => ({ ...item, size: 'small' as const })), query)
         }} />
+        {editable ? <DanaLinkSuggestions editor={editor} /> : null}
       </BlockNoteView>
       <p role="status" aria-live="polite" className="min-h-6 px-2 text-sm text-muted-foreground">{feedback}</p>
     </div>

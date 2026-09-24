@@ -59,4 +59,9 @@ export const queryKeys = {
    * *reusable* taxonomy into the file and therefore needs the definitions
    * nothing is currently wearing (#227 area 4). */
   folderLabels: (id: string) => ['folders', id, 'labels'] as const,
+
+  /** A Dana Link chip's live label (#223), and a target's "Referenced from"
+   * list (#214). Read by `components/links/`. */
+  reference: (kind: string, id: string) => ['references', kind, id] as const,
+  backlinks: (kind: string, id: string) => ['backlinks', kind, id] as const,
 } as const

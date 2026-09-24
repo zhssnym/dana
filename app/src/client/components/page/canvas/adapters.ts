@@ -2,6 +2,7 @@ import type { PartialBlock } from '@blocknote/core'
 import type { PageBlockKind, PageView } from '../../../../shared/pages.js'
 import { MAX_SECTION_DEPTH, RICH_TEXT_BLOCK_KINDS, STRUCTURED_BLOCK_KINDS, isListKind } from '../../../../shared/page-document.js'
 import type { CanvasBlock, canvasSchema } from './schema.js'
+import { danaLinkOf } from '../../links/dana-link.js'
 
 export type CanvasInput = PartialBlock<typeof canvasSchema.blockSchema, typeof canvasSchema.inlineContentSchema, typeof canvasSchema.styleSchema>
 export interface RichRun { text: string; bold?: boolean; italic?: boolean; href?: string }
@@ -27,6 +28,9 @@ function contentOf(text: string | null, rich?: { version: 1; runs: RichRun[] } |
   if (!rich) return text ?? ''
   return rich.runs.map((run) => {
     const node = { type: 'text' as const, text: run.text, styles: { ...(run.bold ? { bold: true } : {}), ...(run.italic ? { italic: true } : {}) } }
+    // A run whose href is a Dana Link draws as a live chip (#223); its text
+    // rides along as the label a save writes back.
+    if (run.href && danaLinkOf(run.href) !== null) return { type: 'danaLink' as const, props: { href: run.href, label: run.text } }
     return run.href ? { type: 'link' as const, href: run.href, content: [node] } : node
   })
 }
@@ -88,6 +92,8 @@ export function richRuns(block: CanvasBlock): RichRun[] {
     }
     if (inline.type === 'text') append(inline.text, inline.styles)
     else if (inline.type === 'link') for (const text of inline.content) append(text.text, text.styles, inline.href)
+    // Its own run, never merged into a neighbour, so two chips stay two.
+    else if (inline.type === 'danaLink') runs.push({ text: inline.props.label || 'Link', href: inline.props.href })
   }
   return runs
 }

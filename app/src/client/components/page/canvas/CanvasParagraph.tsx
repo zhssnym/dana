@@ -36,14 +36,16 @@ function LinkPreview({ href }: { readonly href: string }): React.JSX.Element | n
 
 const base = defaultBlockSpecs.paragraph
 type InlineText = { type: 'text'; text: string }
-type Inline = InlineText | { type: 'link'; href: string; content: InlineText[] }
+// A Dana Link chip (`danaLink`, #223) has no content and draws itself; it adds
+// no text here and no preview below.
+type Inline = InlineText | { type: 'link'; href: string; content: InlineText[] } | { type: 'danaLink' }
 /** Supported inline custom block; all text/selection/history remain BlockNote's. */
 export const createCanvasParagraph = createReactBlockSpec(base.config, {
   meta: base.implementation.meta,
   parse: base.implementation.parse,
   render: ({ block, contentRef }) => {
     const content = block.content as Inline[]
-    const text = content.map((inline) => inline.type === 'text' ? inline.text : inline.content.map((run) => run.text).join('')).join('')
+    const text = content.map((inline) => inline.type === 'text' ? inline.text : inline.type === 'link' ? inline.content.map((run) => run.text).join('') : '').join('')
     const links = [...new Set([...linksIn(text), ...content.flatMap((inline) => inline.type === 'link' ? [inline.href] : [])])]
     return <div className="min-w-0 w-full"><p ref={contentRef} />{links.length ? <div contentEditable={false}>{links.slice(0, 3).map((href) => <LinkPreview key={href} href={href} />)}</div> : null}</div>
   },
