@@ -44,6 +44,7 @@ import { optionalLimit } from '../security/rate-limit.js'
 import type { RateLimits } from '../security/rate-limit.js'
 import { createSecurityLogger } from '../security/log.js'
 import type { SecurityLogger } from '../security/log.js'
+import type { ObjectStore } from '../files/store.js'
 import {
   addStep,
   createTask,
@@ -75,6 +76,8 @@ export interface TasksRouterOptions {
   dbClient?: DbClient
   rateLimits?: RateLimits
   securityLog?: SecurityLogger
+  /** #221: a move copies a file its Task shares with what stays behind. */
+  fileStore?: ObjectStore
 }
 
 function notFound(res: Response): void {
@@ -272,7 +275,7 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
       }
       const parsed = parseBody(patchTaskBody, req, res, securityLog)
       if (parsed === null) return
-      const result = await patchTask(db, viewer(req), taskId, parsed)
+      const result = await patchTask(db, viewer(req), taskId, parsed, options.fileStore)
       switch (result.kind) {
         case 'not_found':
         case 'target_not_found':
@@ -293,6 +296,14 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
             res,
             'section_block_id',
             'must name a section of the folder the task ends in',
+          )
+          return
+        case 'quota_exceeded':
+          sendError(
+            res,
+            413,
+            'quota_exceeded',
+            "You've used your 1 GB of storage. Delete some files to add more.",
           )
           return
         case 'unassign_single_member':

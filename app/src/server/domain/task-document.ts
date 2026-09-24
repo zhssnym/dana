@@ -46,6 +46,7 @@ import type {
 import { rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { documentHash } from './document-hash.js'
+import { fileReclaimedAt } from './pages.js'
 import { initialKeys } from './fractional-index.js'
 
 /** 4.17's paragraph ceiling and 4.5's notes ceiling, in code points, which is
@@ -94,7 +95,7 @@ async function blockRows(tx: Executor, taskId: string) {
     tx,
     sql`SELECT b.id, b.kind, b.position, b.page_position, b.checked,
                b.list_parent_block_id, b.rich_content, b.text, b.file_id,
-               b.width_pct, b.updated_at,
+               b.width_pct, b.updated_at, b.file_reclaimed_at,
                f.width AS file_width, f.height AS file_height
           FROM page_blocks b
           LEFT JOIN files f ON f.id = b.file_id
@@ -121,6 +122,7 @@ function blockFromRow(row: Record<string, unknown>): PageBlock {
     file_id: str(row.file_id),
     file_width: row.file_width === null || row.file_width === undefined ? null : Number(row.file_width),
     file_height: row.file_height === null || row.file_height === undefined ? null : Number(row.file_height),
+    file_reclaimed_at: fileReclaimedAt(row),
     ref_folder_id: null,
     width_pct: row.width_pct === null || row.width_pct === undefined ? null : Number(row.width_pct),
     updated_at:
@@ -477,7 +479,14 @@ export async function applyTaskDocumentLocked(
              SET kind = EXCLUDED.kind, text = EXCLUDED.text,
                  rich_content = EXCLUDED.rich_content,
                  file_id = EXCLUDED.file_id, width_pct = EXCLUDED.width_pct,
-                 checked = EXCLUDED.checked, updated_at = now()
+                 checked = EXCLUDED.checked,
+                 -- Issue #267's rule, as in every other block writer: the
+                 -- mark survives a same-kind rewrite with no file and clears
+                 -- once the block gets a file or changes kind.
+                 file_reclaimed_at = CASE
+                   WHEN EXCLUDED.file_id IS NULL AND EXCLUDED.kind = page_blocks.kind
+                   THEN page_blocks.file_reclaimed_at END,
+                 updated_at = now()
            WHERE page_blocks.task_id = ${taskId}::uuid`,
     )
   }
