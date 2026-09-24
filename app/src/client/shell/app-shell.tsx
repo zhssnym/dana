@@ -25,7 +25,7 @@ and 4.19's bundle at `/settings` back the sidebar and the account menu on every
 page, so a page that fetched them would fetch them again on the next page for
 the same answer. `main.tsx` starts `/me` and `/folders` before this component
 mounts; the bundle is read at the `useBundle` call below, whose own comment says
-why it is the bundle rather than 7.2's settings. The account menu reads `/me`.
+why it is the bundle rather than 7.2's settings.
 The shell renders before any of them answers, and it has to: 10.6's navigation
 fallback opens every /app path from the cached shell with no network at all, and
 AC-091 and AC-160 read the sidebar's page links there.
@@ -62,6 +62,7 @@ import {
   useMe,
   usePendingInvites,
   useShelves,
+  useTask,
 } from '../api/queries.js'
 import { NewFolderDialog } from '../components/index.js'
 import { SearchOverlay } from '../components/search/index.js'
@@ -80,19 +81,18 @@ import {
 } from '../components/ui/sidebar.js'
 import { InviteGate } from '../pages/InviteGate.js'
 import { useUpdateAffordance } from '../pwa/useUpdateAffordance.js'
-import { paths } from '../routes.js'
+import { navPages, paths } from '../routes.js'
 import { ToastRegion } from '../state/ToastRegion.js'
 import { AppSidebar } from './app-sidebar.js'
 import { useFolderGroupActions } from './folder-groups.js'
 import { OfflineBanner } from './OfflineBanner.js'
 import { UndoBar } from '../components/undo-bar.js'
 import { useAppearance } from './appearance.js'
-import { signOut } from './session.js'
-import { useWorkflowFileImport } from './workflow-import.js'
 import { mirroredTheme } from '../lib/theme.js'
 import { onOpenNewFolder, openSearch } from './overlays.js'
 import { useModalOpen, useRightEdge } from '../components/right-edge.js'
-import { WindowBar, WindowBarActions } from '../components/window-bar.js'
+import { WindowBar, WindowBarActions, WindowBarLead } from '../components/window-bar.js'
+import { BreadcrumbTrail, HistoryArrows } from '../components/breadcrumb-trail.js'
 import {
   clampSidebarWidth,
   clearSidebarWidth,
@@ -163,6 +163,48 @@ function ShowSidebar(): React.JSX.Element | null {
   if (isMobile || state === 'expanded') return null
   return (
     <SidebarTrigger className="ml-2 size-7 shrink-0 rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground [&_svg]:!size-4" />
+  )
+}
+
+const TASK_PREFIX = '/app/tasks/'
+const SHELF_PREFIX = '/app/shelves/'
+
+/*
+The window bar's left end: the history arrows, then where this route sits.
+A page is its trail; a task is its page's trail and its title; a collection
+and the fixed places are their names. Nothing is drawn for a route with no
+name of its own (a redirect on its way somewhere).
+*/
+function TopTrail(): React.JSX.Element {
+  const { pathname } = useLocation()
+  const taskId = pathname.startsWith(TASK_PREFIX) ? pathname.slice(TASK_PREFIX.length) : null
+  const task = useTask(taskId)
+  const shelfId = pathname.startsWith(SHELF_PREFIX) ? pathname.slice(SHELF_PREFIX.length) : null
+  const shelves = useShelves(shelfId !== null)
+
+  let trail: React.JSX.Element | null = null
+  if (pathname.startsWith(FOLDER_PREFIX)) {
+    trail = <BreadcrumbTrail folderId={pathname.slice(FOLDER_PREFIX.length)} />
+  } else if (taskId !== null) {
+    trail = task.data === undefined ? null : (
+      <BreadcrumbTrail folderId={task.data.folder.id} current={task.data.title} />
+    )
+  } else {
+    const place =
+      shelfId !== null
+        ? shelves.data?.find((shelf) => shelf.id === shelfId)?.name
+        : pathname.startsWith(paths.settings)
+          ? 'Settings'
+          : pathname === paths.trash
+            ? 'Trash'
+            : navPages.find((page) => page.path === pathname)?.name
+    trail = place === undefined ? null : <BreadcrumbTrail folderId={null} current={place} />
+  }
+  return (
+    <WindowBarLead>
+      <HistoryArrows />
+      {trail}
+    </WindowBarLead>
   )
 }
 
@@ -250,10 +292,6 @@ export function AppShell(): React.JSX.Element {
       setNewFolderOpen(true)
     },
   )
-
-  /* 9.1's "Import (a workflow file)": the whole flow, progress line to landing
-     on the imported folder, is `workflow-import.ts`'s. */
-  const importFile = useWorkflowFileImport()
 
   // 9.1's two view preferences, read once at the first render so the sidebar
   // paints at the width the viewer left it at rather than jumping to it.
@@ -452,9 +490,6 @@ export function AppShell(): React.JSX.Element {
               patchBundle.mutate({ sidebar_order: [...ids] })
             }}
             groups={groups.actions}
-            displayName={me.data?.user.display_name ?? null}
-            email={me.data?.user.email ?? null}
-            avatarUrl={me.data?.user.avatar_url ?? null}
             activeFolderId={activeFolderId}
             currentPath={location.pathname}
             currentSearch={location.search}
@@ -470,13 +505,6 @@ export function AppShell(): React.JSX.Element {
               clearSidebarWidth()
             }}
             onOpenSearch={openSearch}
-            onNewFolder={() => {
-              setNewFolderIn(null)
-              setNewFolderOpen(true)
-            }}
-            onNewShelf={() => { groups.actions.onNewShelf() }}
-            onImportWorkflow={importFile}
-            onSignOut={signOut}
           />
           {/*
           `SidebarInset` is the `main` landmark. A right-edge panel publishes its
@@ -496,6 +524,7 @@ export function AppShell(): React.JSX.Element {
                 <WindowBar />
               </div>
             </div>
+            <TopTrail />
             <UpdateChrome showUpdate={update.showUpdate} onUpdate={update.applyUpdate} />
             <OfflineBanner />
             {/* The one region that scrolls. */}

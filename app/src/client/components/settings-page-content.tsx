@@ -19,8 +19,8 @@ What is worth knowing:
 - **Sample data lives here and only here** among the pages; Remove confirms once
   (the route page's dialog) and then offers the undo bar.
 - **People** (9.8) is a section here, and /app/people lands on `#people`.
-  Settings is reached from the sidebar's foot, beside Trash; Sign out has one
-  home, the sidebar's account menu, and is not repeated here.
+  Settings is reached from the sidebar's foot, beside Trash. Sign out has one
+  home, the Account section here; the sidebar has no account menu.
 - **Pickers are the one `Combobox`**; the timezone list is long, so it filters
   as you type.
 - **Delete account** requires typing DELETE, and says shared folders must be
@@ -29,6 +29,7 @@ What is worth knowing:
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 
 import { SUPPORT_EMAIL } from '../../shared/support.js'
+import { signOut } from '../shell/session.js'
 import { ImagePlus } from '../lib/icons.js'
 import { setTheme, useTheme } from '../lib/theme.js'
 import { setClock, useTimeFormat } from '../lib/time-format.js'
@@ -209,6 +210,15 @@ export function SettingsPageContent({
         <>
           <ScreenSection id="settings-account" title="Account">
             <ViewerRow />
+            <Row
+              title="Sign out"
+              description="Sign out of Dana on this device"
+              control={
+                <Button variant="outline" onClick={signOut}>
+                  Sign out
+                </Button>
+              }
+            />
             <p className="py-2 text-xs text-muted-foreground">
               Something wrong? Write to{' '}
               <a
