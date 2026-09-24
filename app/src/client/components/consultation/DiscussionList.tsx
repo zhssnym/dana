@@ -1,27 +1,38 @@
 /*
-The Discussion tab's list of threads (W-C), most recent activity first as the
-server orders them (#212, #320).
+The Discussion tab's threads, as a table (W-C; r3 discuss): one line per
+thread, most recent activity first as the server orders them (#212, #320).
 
-Each row: the title, the newest post's preview, the faces of who is talking,
-how many posts, and when. Closed threads fold under "Closed (n)". The last row
-is "New thread": click, type a title, Enter — the thread opens with the
-composer focused; Escape lets it go. Nothing else: no filter, no search, no
-dialog.
+GitHub Issues' list, calmed down: `Open n` / `Closed n` above it, then a
+quiet header and one row per thread — title, who started it, how many posts,
+who is talking, when it last moved. A closed thread's row carries its decision
+after the title. The Open view's last row is "New thread": click, type a
+title, Enter — the thread opens with its composer focused; Escape lets it go.
+
+The whole row opens the thread; the title is the row's one focusable button,
+so the table reads as a table and a keyboard reaches each thread once. Below
+`sm` the columns fold into one muted line under the title.
 */
 import { useState } from 'react'
 
 import { useCreateDiscussion, useDiscussions } from '../../api/consultation.js'
 import type { Discussion } from '../../../shared/consultation.js'
-import { DISCUSSION_TITLE_MAX, GENERAL_DISCUSSION_TITLE } from '../../../shared/consultation.js'
-import { ChevronDown, ChevronRight, MessageSquare, Plus } from '../../lib/icons.js'
+import { DISCUSSION_TITLE_MAX } from '../../../shared/consultation.js'
+import { Plus } from '../../lib/icons.js'
 import type { PersonResolver } from '../../lib/thread.js'
 import { formatAgo } from '../../parts/format-dates.js'
 import { initialsOf } from '../../parts/presenters.js'
 import { Face } from '../person-face.js'
 import { InlineError } from '../state-patterns.js'
 import { Skeleton } from '../ui/skeleton.js'
+import { cn } from '../ui/utils.js'
 import { mayStartDiscussion } from './authority.js'
 import type { ConsultationViewer } from './authority.js'
+
+type View = 'open' | 'closed'
+
+const TOGGLE =
+  'rounded-sm px-1 py-0.5 text-sm outline-none transition-colors duration-[var(--duration-fast)] focus-visible:ring-2 focus-visible:ring-ring'
+const HEAD = 'py-1.5 text-left text-xs font-normal text-muted-foreground'
 
 export function DiscussionList({
   folderId,
@@ -37,11 +48,12 @@ export function DiscussionList({
   readonly onStarted: (discussionId: string) => void
 }): React.JSX.Element {
   const list = useDiscussions(folderId, 'all', '')
-  const [showClosed, setShowClosed] = useState(false)
+  const [view, setView] = useState<View>('open')
   const discussions = list.data?.pages.flatMap((page) => page.discussions) ?? []
   const open = discussions.filter((d) => d.state === 'open')
   const closed = discussions.filter((d) => d.state !== 'open')
   const mayStart = viewer !== null && mayStartDiscussion(viewer)
+  const shown = view === 'open' ? open : closed
   const now = Date.now()
 
   if (list.isPending) return <ListSkeleton />
@@ -49,50 +61,56 @@ export function DiscussionList({
 
   return (
     <div className="min-w-0">
-      <ul className="divide-y divide-border" aria-label="Threads">
-        {open.map((d) => (
-          <ThreadRow key={d.id} discussion={d} now={now} personOf={personOf} onOpen={onOpen} />
-        ))}
-        {mayStart ? (
-          <li>
-            <NewThread folderId={folderId} onStarted={onStarted} />
-          </li>
-        ) : null}
-      </ul>
+      <div className="mb-1 flex items-center gap-3" role="group" aria-label="Show">
+        {(['open', 'closed'] as const).map((which) => {
+          const count = which === 'open' ? open.length : closed.length
+          const active = view === which
+          return (
+            <button
+              key={which}
+              type="button"
+              aria-pressed={active}
+              className={cn(TOGGLE, active ? 'font-medium text-foreground' : 'text-muted-foreground hover:text-foreground')}
+              onClick={() => { setView(which) }}
+            >
+              {which === 'open' ? 'Open' : 'Closed'} <span className="tabular-nums">{count}</span>
+            </button>
+          )
+        })}
+      </div>
 
-      {open.length === 0 && !mayStart ? (
-        <p className="py-4 text-sm text-muted-foreground">No open threads.</p>
-      ) : null}
-
-      {closed.length > 0 ? (
-        <div className="mt-4">
-          <button
-            type="button"
-            aria-expanded={showClosed}
-            className="flex items-center gap-1 rounded-sm py-1 text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-            onClick={() => { setShowClosed((value) => !value) }}
-          >
-            {showClosed ? (
-              <ChevronDown className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
-            ) : (
-              <ChevronRight className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
-            )}
-            Closed ({closed.length})
-          </button>
-          {showClosed ? (
-            <ul className="divide-y divide-border" aria-label="Closed threads">
-              {closed.map((d) => (
-                <ThreadRow key={d.id} discussion={d} now={now} personOf={personOf} onOpen={onOpen} />
-              ))}
-            </ul>
+      <table className="w-full table-fixed border-collapse max-sm:block" aria-label={view === 'open' ? 'Open threads' : 'Closed threads'}>
+        <thead className="max-sm:hidden">
+          <tr className="border-b border-border">
+            <th scope="col" className={cn(HEAD, 'pl-2')}>Thread</th>
+            <th scope="col" className={cn(HEAD, 'w-40 max-sm:hidden')}>Started by</th>
+            <th scope="col" className={cn(HEAD, 'w-16 pr-4 text-right max-sm:hidden')}>Posts</th>
+            <th scope="col" className={cn(HEAD, 'w-20 max-sm:hidden')}>People</th>
+            <th scope="col" className={cn(HEAD, 'w-28 pr-2 text-right max-sm:hidden')}>Last activity</th>
+          </tr>
+        </thead>
+        <tbody className="max-sm:block">
+          {shown.map((d) => (
+            <ThreadRow key={d.id} discussion={d} now={now} personOf={personOf} onOpen={onOpen} />
+          ))}
+          {view === 'open' && mayStart ? (
+            <tr className="max-sm:block">
+              <td colSpan={5} className="p-0 max-sm:block">
+                <NewThread folderId={folderId} onStarted={onStarted} />
+              </td>
+            </tr>
           ) : null}
-        </div>
+        </tbody>
+      </table>
+
+      {shown.length === 0 && !(view === 'open' && mayStart) ? (
+        <p className="px-2 py-3 text-sm text-muted-foreground">{view === 'open' ? 'No open threads.' : 'No closed threads.'}</p>
       ) : null}
 
       {list.hasNextPage ? (
         <button
           type="button"
-          className="mt-2 rounded-sm py-1 text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          className="mt-2 rounded-sm px-2 py-1 text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
           disabled={list.isFetchingNextPage}
           onClick={() => void list.fetchNextPage()}
         >
@@ -101,6 +119,11 @@ export function DiscussionList({
       ) : null}
     </div>
   )
+}
+
+function faceOf(personOf: PersonResolver, id: string): { id: string; initials: string; name: string; image?: string } {
+  const person = personOf(id)
+  return { id, initials: initialsOf(person.name), name: person.name, ...(person.image === undefined ? {} : { image: person.image }) }
 }
 
 function ThreadRow({
@@ -114,66 +137,55 @@ function ThreadRow({
   readonly personOf: PersonResolver
   readonly onOpen: (discussionId: string) => void
 }): React.JSX.Element {
-  const last = d.last_post ?? null
   const decided = d.state !== 'open' ? d.current_outcome?.statement ?? null : null
-  const preview =
-    decided !== null
-      ? `Decided: ${decided}`
-      : last !== null
-        ? `${personOf(last.author_id).name}: ${last.preview === '' ? 'shared a file' : last.preview}`
-        : d.context !== null && d.context.trim() !== ''
-          ? d.context
-          : 'No posts yet'
-  const faces = (d.participant_ids ?? []).slice(0, 3)
+  const people = (d.participant_ids ?? []).slice(0, 3)
   const count = d.post_count ?? 0
+  const author = personOf(d.created_by).name
+  const when = formatAgo(d.last_post?.created_at ?? d.last_activity_at, now)
+  const cell = 'py-2.5 align-middle text-sm text-muted-foreground max-sm:hidden'
   return (
-    <li className="min-w-0">
-      <button
-        type="button"
-        className="-mx-2 flex w-[calc(100%+1rem)] min-w-0 items-center gap-3 rounded-md px-2 py-2.5 text-left outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
-        onClick={() => { onOpen(d.id) }}
-      >
-        <span className="min-w-0 flex-1">
-          <span className="flex min-w-0 items-baseline gap-2">
-            <span className="min-w-0 truncate text-sm font-medium text-foreground">{d.title}</span>
-            {d.is_general && d.title !== GENERAL_DISCUSSION_TITLE ? <span className="shrink-0 text-xs text-muted-foreground">General</span> : null}
-          </span>
-          <span className="mt-0.5 block truncate text-xs text-muted-foreground">{preview}</span>
+    <tr
+      className="cursor-pointer border-b border-border transition-colors max-sm:block duration-[var(--duration-fast)] hover:bg-accent"
+      onClick={() => { onOpen(d.id) }}
+    >
+      <td className="min-w-0 py-2.5 pr-3 pl-2 align-middle max-sm:block">
+        <button
+          type="button"
+          className="block w-full min-w-0 truncate rounded-sm text-left text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={(event) => {
+            event.stopPropagation()
+            onOpen(d.id)
+          }}
+        >
+          <span className="font-medium">{d.title}</span>
+          {decided !== null && decided !== '' ? <span className="text-muted-foreground"> — {decided}</span> : null}
+        </button>
+        <span className="mt-0.5 block truncate text-xs text-muted-foreground sm:hidden">
+          {author} · {count} post{count === 1 ? '' : 's'} · {when}
         </span>
-        <span className="flex shrink-0 flex-col items-end gap-1">
-          <span className="text-xs whitespace-nowrap text-muted-foreground">
-            {formatAgo(last?.created_at ?? d.last_activity_at, now)}
-          </span>
-          <span className="flex items-center gap-2">
-            {faces.length > 0 ? (
-              <span className="flex -space-x-1" aria-label={faces.map((id) => personOf(id).name).join(', ')}>
-                {faces.map((id) => {
-                  const person = personOf(id)
-                  return (
-                    <Face
-                      key={id}
-                      dense
-                      className="ring-2 ring-background"
-                      person={{ initials: initialsOf(person.name), name: person.name, ...(person.image === undefined ? {} : { image: person.image }) }}
-                    />
-                  )
-                })}
-              </span>
-            ) : null}
-            {count > 0 ? (
-              <span className="flex items-center gap-0.5 text-xs text-muted-foreground tabular-nums" aria-label={`${String(count)} post${count === 1 ? '' : 's'}`}>
-                <MessageSquare className="size-3" strokeWidth={1.75} aria-hidden="true" />
-                {count}
-              </span>
-            ) : null}
-          </span>
+      </td>
+      <td className={cn(cell, 'pr-3')}>
+        <span className="flex min-w-0 items-center gap-1.5">
+          <Face dense person={faceOf(personOf, d.created_by)} />
+          <span className="min-w-0 truncate">{author}</span>
         </span>
-      </button>
-    </li>
+      </td>
+      <td className={cn(cell, 'pr-4 text-right tabular-nums')}>{count}</td>
+      <td className={cell}>
+        {people.length > 0 ? (
+          <span className="flex -space-x-1" aria-label={people.map((id) => personOf(id).name).join(', ')}>
+            {people.map((id) => (
+              <Face key={id} dense className="ring-2 ring-background" person={faceOf(personOf, id)} />
+            ))}
+          </span>
+        ) : null}
+      </td>
+      <td className={cn(cell, 'pr-2 text-right whitespace-nowrap')}>{when}</td>
+    </tr>
   )
 }
 
-/** The list's last row: "New thread", then a title, then Enter. */
+/** The table's last row: "New thread", then a title, then Enter. */
 function NewThread({
   folderId,
   onStarted,
@@ -189,7 +201,7 @@ function NewThread({
     return (
       <button
         type="button"
-        className="-mx-2 flex w-[calc(100%+1rem)] items-center gap-2 rounded-md px-2 py-2.5 text-left text-sm text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex w-full items-center gap-2 px-2 py-2.5 text-left text-sm text-muted-foreground outline-none transition-colors duration-[var(--duration-fast)] hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
         onClick={() => { setTyping(true) }}
       >
         <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" />
@@ -204,7 +216,7 @@ function NewThread({
   }
   return (
     <form
-      className="flex items-center gap-2 py-2"
+      className="flex items-center gap-2 px-2 py-2"
       onSubmit={(event) => {
         event.preventDefault()
         const trimmed = title.trim()
@@ -246,9 +258,8 @@ function ListSkeleton(): React.JSX.Element {
   return (
     <div className="divide-y divide-border" aria-label="Loading threads" aria-busy="true">
       {[0, 1, 2].map((row) => (
-        <div key={row} className="space-y-1.5 py-2.5">
+        <div key={row} className="py-3">
           <Skeleton className={row === 1 ? 'h-3.5 w-2/5' : 'h-3.5 w-3/5'} />
-          <Skeleton className="h-3 w-4/5" />
         </div>
       ))}
     </div>

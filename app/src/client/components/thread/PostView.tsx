@@ -33,10 +33,13 @@ export function PostView({
   content,
   body,
   files,
+  edited = false,
 }: {
   readonly content: PostContent | null | undefined
   readonly body: string | null
   readonly files: readonly CommentFile[]
+  /** Slack's "(edited)": inline after the last line when it is text, else on a line of its own. */
+  readonly edited?: boolean
 }): React.JSX.Element {
   const inner = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
@@ -61,24 +64,29 @@ export function PostView({
   const placed = new Set<string>()
   if (content) walkPostBlocks(content.blocks, (block) => { if (block.file_id !== undefined) placed.add(block.file_id) })
   const loose = files.filter((file) => !placed.has(file.id))
+  const mark = edited ? <span className="text-xs text-muted-foreground"> (edited)</span> : null
+  const lastBlock = content ? content.blocks.at(-1) : undefined
+  const inline =
+    content ? lastBlock?.kind === 'paragraph' && (lastBlock.children?.length ?? 0) === 0 && loose.length === 0 : loose.length === 0
 
   return (
     <div className="min-w-0">
       <div
         ref={inner}
         className={cn(
-          'min-w-0 space-y-1.5 text-sm break-words text-foreground',
+          'min-w-0 space-y-1.5 text-sm break-words whitespace-pre-wrap text-foreground',
           !open && FOLD,
           !open && 'overflow-hidden',
           !open && overflows && '[mask-image:linear-gradient(to_bottom,black_70%,transparent)]',
         )}
       >
         {content ? (
-          <Blocks blocks={content.blocks} files={byId} />
+          <Blocks blocks={content.blocks} files={byId} suffix={inline ? mark : null} />
         ) : body !== null && body !== '' ? (
-          <p className="whitespace-pre-wrap">{body}</p>
+          <p className="whitespace-pre-wrap">{body}{inline ? mark : null}</p>
         ) : null}
         {loose.length > 0 ? <Tiles files={loose} /> : null}
+        {mark !== null && !inline ? <p className="leading-none">{mark}</p> : null}
       </div>
       {overflows || open ? (
         <button
@@ -100,7 +108,16 @@ export function PostView({
 type Files = ReadonlyMap<string, CommentFile>
 
 /** Siblings, with consecutive list items gathered into one list. */
-function Blocks({ blocks, files }: { readonly blocks: readonly PostBlock[]; readonly files: Files }): React.JSX.Element {
+function Blocks({
+  blocks,
+  files,
+  suffix = null,
+}: {
+  readonly blocks: readonly PostBlock[]
+  readonly files: Files
+  /** Drawn at the end of the last block's text (a paragraph's). */
+  readonly suffix?: React.ReactNode
+}): React.JSX.Element {
   const out: React.JSX.Element[] = []
   let index = 0
   while (index < blocks.length) {
@@ -125,7 +142,7 @@ function Blocks({ blocks, files }: { readonly blocks: readonly PostBlock[]; read
       )
       continue
     }
-    out.push(<Block key={index} block={block} files={files} />)
+    out.push(<Block key={index} block={block} files={files} suffix={index === blocks.length - 1 ? suffix : null} />)
     index += 1
   }
   return <>{out}</>
@@ -136,7 +153,15 @@ function Children({ block, files }: { readonly block: PostBlock; readonly files:
   return <div className="mt-1 space-y-1.5 pl-5"><Blocks blocks={block.children} files={files} /></div>
 }
 
-function Block({ block, files }: { readonly block: PostBlock; readonly files: Files }): React.JSX.Element {
+function Block({
+  block,
+  files,
+  suffix = null,
+}: {
+  readonly block: PostBlock
+  readonly files: Files
+  readonly suffix?: React.ReactNode
+}): React.JSX.Element {
   switch (block.kind) {
     case 'heading1':
     case 'heading2':
@@ -210,7 +235,7 @@ function Block({ block, files }: { readonly block: PostBlock; readonly files: Fi
     default:
       return (
         <div>
-          <p className="min-h-5"><Runs rich={block.rich_content} /></p>
+          <p className="min-h-5"><Runs rich={block.rich_content} />{suffix}</p>
           <Children block={block} files={files} />
         </div>
       )

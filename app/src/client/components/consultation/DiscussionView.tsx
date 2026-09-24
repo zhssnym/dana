@@ -4,9 +4,10 @@ always at the bottom.
 
 "Close thread" asks one optional line, "What was decided?": empty closes the
 thread without a decision (Wave 2 decision 3), words record it, and the
-decision is pinned at the top with who and when. A closed or trashed thread
-takes no writes (the server answers 409 `discussion_frozen`), so its composer
-becomes a quiet "Closed · Reopen" line and no post offers anything.
+decision sits under the header as "Decided", with who and when. A closed or
+trashed thread takes no writes (the server answers 409 `discussion_frozen`),
+so its composer becomes a quiet "Closed by X · when · Reopen" line and no post
+offers anything.
 
 Which acts are drawn is `discussionPowers`; none of it is authorization. The
 General discussion is the folder's own conversation, so it is never offered
@@ -127,6 +128,9 @@ function ThreadBody(props: {
 
   const now = Date.now()
   const outcome = d.state === 'resolved' ? d.current_outcome : null
+  const closedBy = outcome?.actor_id ?? d.resolved_by
+  const closedAt = outcome?.created_at ?? d.resolved_at
+  const trashed = d.trashed_at !== null
   const trashable = powers.trash && !d.is_general
 
   const refused = (error: unknown): void => {
@@ -134,7 +138,7 @@ function ThreadBody(props: {
   }
 
   return (
-    <div className="min-w-0 space-y-5">
+    <div className="min-w-0 space-y-4">
       <BackButton onBack={onBack} />
 
       <header className="space-y-1">
@@ -166,10 +170,14 @@ function ThreadBody(props: {
             </div>
           ) : null}
         </div>
-        <p className="text-xs text-muted-foreground">
-          {d.trashed_at !== null ? 'In Trash · ' : d.state === 'resolved' ? 'Closed · ' : ''}
-          Started by {personOf(d.created_by).name} · {formatAgo(d.created_at, now)}
-          {d.is_general ? ' · the folder’s own conversation' : ''}
+        <p className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+          <StatePill trashed={trashed} closed={d.state === 'resolved'} />
+          <span className="min-w-0">
+            {d.is_general
+              ? 'This page’s own conversation'
+              : `${personOf(d.created_by).name} started this ${formatAgo(d.created_at, now)}`}
+            {comments !== undefined ? ` · ${String(comments.length)} ${comments.length === 1 ? 'post' : 'posts'}` : ''}
+          </span>
         </p>
         {d.context !== null && d.context !== '' ? (
           <p className="pt-1 text-sm break-words whitespace-pre-wrap text-muted-foreground">{d.context}</p>
@@ -177,11 +185,10 @@ function ThreadBody(props: {
       </header>
 
       {outcome !== null ? (
-        <section aria-label="Decision" className="rounded-md bg-muted px-3 py-2">
-          <p className="text-sm break-words whitespace-pre-wrap text-foreground">
-            <span className="font-medium">Decided:</span> {outcome.statement}
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
+        <section aria-label="Decision" className="space-y-0.5 border-l-2 border-success-600 pl-3">
+          <p className="text-xs font-medium text-muted-foreground">Decided</p>
+          <p className="text-sm break-words whitespace-pre-wrap text-foreground">{outcome.statement}</p>
+          <p className="text-xs text-muted-foreground">
             {personOf(outcome.actor_id).name} · {formatAgo(outcome.created_at, now)}
           </p>
         </section>
@@ -202,14 +209,16 @@ function ThreadBody(props: {
         {...(frozen
           ? {
               closed: (
-                <p className="border-t border-border pt-3 text-xs text-muted-foreground">
-                  {d.trashed_at !== null ? 'In Trash' : 'Closed'}
+                <p className="border-t border-border pt-3 text-sm text-muted-foreground">
+                  {trashed
+                    ? 'In Trash'
+                    : `Closed${closedBy !== null ? ` by ${personOf(closedBy).name}` : ''}${closedAt !== null ? ` · ${formatAgo(closedAt, now)}` : ''}`}
                   {powers.reopen ? (
                     <>
                       {' · '}
                       <button
                         type="button"
-                        className={`${QUIET} underline-offset-2 hover:underline`}
+                        className="rounded-sm text-sm text-muted-foreground underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring"
                         disabled={reopen.isPending}
                         onClick={() => { reopen.mutate(d.id) }}
                       >
@@ -239,11 +248,21 @@ function ThreadBody(props: {
   )
 }
 
+/** Open, Closed or In Trash, as GitHub marks an issue. */
+function StatePill({ trashed, closed }: { readonly trashed: boolean; readonly closed: boolean }): React.JSX.Element {
+  const tone = trashed || closed ? 'bg-muted text-muted-foreground' : 'bg-success-100 text-success-700'
+  return (
+    <span className={`shrink-0 rounded-full px-2 text-xs font-medium ${tone}`}>
+      {trashed ? 'In Trash' : closed ? 'Closed' : 'Open'}
+    </span>
+  )
+}
+
 /** The title; those who may edit it click it to rename (Enter saves, Escape leaves). */
 function Title({ discussion: d, editable }: { readonly discussion: Discussion; readonly editable: boolean }): React.JSX.Element {
   const update = useUpdateDiscussion()
   const [draft, setDraft] = useState<string | null>(null)
-  const heading = 'min-w-0 flex-1 text-base font-semibold break-words text-foreground'
+  const heading = 'min-w-0 flex-1 text-xl font-semibold break-words text-foreground'
 
   if (draft === null) {
     return editable ? (
@@ -277,7 +296,7 @@ function Title({ discussion: d, editable }: { readonly discussion: Discussion; r
       value={draft}
       maxLength={DISCUSSION_TITLE_MAX}
       disabled={update.isPending}
-      className="min-w-0 flex-1 rounded-sm bg-transparent text-base font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="min-w-0 flex-1 rounded-sm bg-transparent text-xl font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
       onChange={(event) => { setDraft(event.target.value) }}
       onBlur={save}
       onKeyDown={(event) => {

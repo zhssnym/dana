@@ -11,7 +11,16 @@ the file panel and the `@` menu (people, then pages) are the canvas's.
 **Files.** An image pasted, dropped or picked uploads at once through
 `POST /files` (the canvas's upload), and the block holds its served URL; the
 post then names the id in its content and in `file_ids`, which the server
-requires. Ctrl/Cmd+Enter posts; so does the one button.
+requires.
+
+**Keys.** A new post (no `initial`) takes Slack's keys: Enter sends and
+Shift+Enter keeps BlockNote's line break. Enter falls through to the editor
+while an IME is composing, while a slash or `@` menu is open, when the caret is
+in a list item or a code block, when the key came from outside this editor
+(a portaled popover such as the file panel's URL field), and on a touch-first
+device, where Enter is a newline and the Send button sends. Editing a post
+(`initial` given) keeps the editor's keys: Enter makes a new block and Esc
+cancels. Ctrl/Cmd+Enter always sends or saves.
 
 Default export: `React.lazy` keeps BlockNote out of the page's own chunk.
 */
@@ -24,6 +33,7 @@ import '@blocknote/shadcn/style.css'
 
 import type { CommentFile, PostContent } from '../../../shared/comments.js'
 import { uploadFile } from '../../api/http.js'
+import { SendHorizontal } from '../../lib/icons.js'
 import { Button } from '../ui/button.js'
 import { MentionSuggestions } from '../page/canvas/mentions.js'
 import { pageTheme } from '../page/canvas/BlockSideMenu.js'
@@ -46,6 +56,13 @@ const postSchema = BlockNoteSchema.create({
 })
 
 const SLASH = { surface: 'document', media: true } as const
+
+/* Where Enter belongs to the editor, not to Send. */
+const ENTER_KEEPS = new Set(['bulletListItem', 'numberedListItem', 'checkListItem', 'toggleListItem', 'codeBlock'])
+
+function touchFirst(): boolean {
+  return typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches
+}
 
 export interface PostEditorProps {
   /** Where an upload is stored (the thread's folder). */
@@ -77,6 +94,8 @@ export default function PostEditor({
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [empty, setEmpty] = useState(initial === undefined)
+  const editing = initial !== undefined
+  const [coarse] = useState(touchFirst)
 
   async function upload(kind: CanvasMediaKind, file: File): Promise<{ url: string; name: string }> {
     try {
@@ -148,6 +167,22 @@ export default function PostEditor({
     }
   }
 
+  /** Enter on a new post sends, unless the editor needs that Enter. */
+  function enterSends(event: React.KeyboardEvent<HTMLDivElement>): boolean {
+    if (editing || coarse) return false
+    if (event.shiftKey || event.altKey || event.nativeEvent.isComposing || event.keyCode === 229) return false
+    const own = host.current?.querySelector('.ProseMirror')
+    if (!(event.target instanceof Node) || own == null || !own.contains(event.target)) return false
+    if (document.querySelector('.bn-suggestion-menu') !== null) return false
+    try {
+      return !ENTER_KEEPS.has(editor.getTextCursorPosition().block.type)
+    } catch {
+      return false
+    }
+  }
+
+  const sendTitle = editing ? 'Ctrl+Enter' : coarse ? undefined : 'Enter to send'
+
   return (
     <div
       ref={host}
@@ -157,6 +192,10 @@ export default function PostEditor({
           event.preventDefault()
           event.stopPropagation()
           void submit()
+        } else if (event.key === 'Enter' && enterSends(event)) {
+          event.preventDefault()
+          event.stopPropagation()
+          if (!empty) void submit()
         } else if (event.key === 'Escape' && onCancel !== undefined && !event.defaultPrevented) {
           /* BlockNote's own menus close on their Escape first. */
           const menu = document.querySelector('.bn-suggestion-menu, .bn-formatting-toolbar')
@@ -164,52 +203,74 @@ export default function PostEditor({
         }
       }}
     >
-      <div
-        className="dana-writing-canvas dana-post-editor max-h-[60vh] min-h-10 min-w-0 overflow-y-auto rounded-md border border-border bg-background px-3 py-2 focus-within:border-ring"
-        /* BlockNote's placeholder never reaches the canvas paragraph; canvas.css draws this one. */
-        style={{ '--dana-canvas-placeholder': JSON.stringify(placeholder) } as React.CSSProperties}
-      >
-        <BlockNoteView
-          editor={editor}
-          theme={pageTheme()}
-          formattingToolbar={false}
-          slashMenu={false}
-          sideMenu={false}
-          filePanel={false}
-          aria-label={label}
-          onChange={() => {
-            try {
-              setEmpty(postContentOf(editor.document as unknown as LooseBlock[]) === null)
-            } catch {
-              setEmpty(false)
-            }
-          }}
-        >
-          <FormattingToolbarController formattingToolbar={CanvasFormattingToolbar} />
-          <FilePanelController filePanel={(props) => <CanvasFilePanel {...props} onUpload={upload} />} />
-          <CanvasSlashMenu editor={editor as unknown as CanvasEditor} context={SLASH} />
-          <MentionSuggestions editor={editor as unknown as CanvasEditor} folderId={folderId} />
-        </BlockNoteView>
-      </div>
-      <div className="mt-2 flex items-center justify-end gap-2">
-        {error !== '' ? <p role="alert" className="mr-auto min-w-0 text-xs text-destructive">{error}</p> : null}
-        {onCancel !== undefined ? (
-          <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
-            Cancel
-          </Button>
-        ) : null}
-        <Button
-          type="button"
-          variant="commit"
-          size="sm"
-          disabled={busy || empty}
-          title="Ctrl+Enter"
-          onClick={() => {
-            void submit()
-          }}
-        >
-          {submitLabel}
-        </Button>
+      <div className="min-w-0 rounded-lg border border-border bg-background focus-within:border-ring">
+        {/* The padding lives here: canvas.css zeroes the canvas's own left padding on phones. */}
+        <div className="min-w-0 px-3 pt-2">
+          <div
+            className="dana-writing-canvas dana-post-editor max-h-[60vh] min-h-10 min-w-0 overflow-y-auto"
+            /* BlockNote's placeholder never reaches the canvas paragraph; canvas.css draws this one. */
+            style={{ '--dana-canvas-placeholder': JSON.stringify(placeholder) } as React.CSSProperties}
+          >
+            <BlockNoteView
+              editor={editor}
+              theme={pageTheme()}
+              formattingToolbar={false}
+              slashMenu={false}
+              sideMenu={false}
+              filePanel={false}
+              aria-label={label}
+              onChange={() => {
+                try {
+                  setEmpty(postContentOf(editor.document as unknown as LooseBlock[]) === null)
+                } catch {
+                  setEmpty(false)
+                }
+              }}
+            >
+              <FormattingToolbarController formattingToolbar={CanvasFormattingToolbar} />
+              <FilePanelController filePanel={(props) => <CanvasFilePanel {...props} onUpload={upload} />} />
+              <CanvasSlashMenu editor={editor as unknown as CanvasEditor} context={SLASH} />
+              <MentionSuggestions editor={editor as unknown as CanvasEditor} folderId={folderId} />
+            </BlockNoteView>
+          </div>
+        </div>
+        <div className="flex items-center justify-end gap-2 px-2 pb-2">
+          {error !== '' ? <p role="alert" className="mr-auto min-w-0 px-1 text-xs text-destructive">{error}</p> : null}
+          {onCancel !== undefined ? (
+            <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
+              Cancel
+            </Button>
+          ) : null}
+          {editing ? (
+            <Button
+              type="button"
+              variant="commit"
+              size="sm"
+              disabled={busy || empty}
+              title={sendTitle}
+              onClick={() => {
+                void submit()
+              }}
+            >
+              {submitLabel}
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="commit"
+              size="icon-sm"
+              disabled={busy || empty}
+              aria-label={submitLabel}
+              title={sendTitle}
+              onClick={() => {
+                void submit()
+              }}
+            >
+              <SendHorizontal strokeWidth={1.75} aria-hidden="true" />
+              <span className="sr-only">{submitLabel}</span>
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   )
