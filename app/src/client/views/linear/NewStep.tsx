@@ -1,7 +1,6 @@
 /*
-The foot of the path: type a step, Enter adds it and keeps the caret here for
-the next one, Esc clears. A new step is not linked to the one above it -
-linking is a choice, made on the thread.
+The foot of a milestone in the queue: type a step, Enter adds it (not started)
+and keeps the caret here for the next one, Esc clears.
 */
 import { useState } from 'react'
 import { Plus } from 'lucide-react'
@@ -13,7 +12,7 @@ export function NewStep(props: {
 }): React.JSX.Element {
   const [draft, setDraft] = useState('')
   return (
-    <li role="listitem" className="group/new relative flex h-10 items-center gap-2 pr-2">
+    <li role="listitem" className="group/new relative flex h-8 items-center gap-2 pr-2">
       {props.children}
       <span aria-hidden className="relative flex size-6 shrink-0 items-center justify-center">
         <span
