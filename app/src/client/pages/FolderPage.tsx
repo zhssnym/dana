@@ -1454,11 +1454,11 @@ function FacetContent({
                   : 'Record what actually happened: outcomes, findings, evaluations, and partial or unsuccessful results.'}
               </p>
             ) : null}
-            <Suspense fallback={<p role="status">Loading writing…</p>}>
+            <Suspense fallback={<p role="status" className="sr-only">Loading writing…</p>}>
               <FolderCanvas key={`${folderId}:${facet.id}`} page={document.data} tasks={[]} folderId={folderId} facetId={facet.id} presentationHeadings context={context} actions={actions} onAsk={onAsk} arrangeable={sharedPageEditable} />
             </Suspense>
           </>
-        ) : <p role={document.isError ? 'alert' : 'status'}>{document.isError ? `Could not load ${purpose ? 'Purpose' : 'Results'}. Reload to try again.` : 'Loading writing…'}</p>}
+        ) : <p role={document.isError ? 'alert' : 'status'} className={document.isError ? undefined : 'sr-only'}>{document.isError ? `Could not load ${purpose ? 'Purpose' : 'Results'}. Reload to try again.` : 'Loading writing…'}</p>}
       </div>
     )
   }
@@ -1475,20 +1475,20 @@ function FacetContent({
           </button>
         </p>
         {focused && completedReady ? (
-          <Suspense fallback={<p role="status">Loading section…</p>}>
+          <Suspense fallback={<p role="status" className="sr-only">Loading section…</p>}>
             <FolderCanvas key={`${folderId}:${facet.id}`} page={folderPage!} tasks={focusedTasks} completed={completed} showCompleted={showCompleted} folderId={folderId} workRootId={facet.h1_block_id ?? undefined} context={context} actions={actions} onAsk={onAsk} arrangeable />
           </Suspense>
-        ) : <p role="status">Loading section…</p>}
+        ) : <p role="status" className="sr-only">Loading section…</p>}
       </div>
     )
   }
   return (
     <div className="mt-2">
       {document.data ? (
-        <Suspense fallback={<p role="status">Loading writing…</p>}>
+        <Suspense fallback={<p role="status" className="sr-only">Loading writing…</p>}>
           <FolderCanvas key={`${folderId}:${facet.id}`} page={document.data} tasks={[]} folderId={folderId} facetId={facet.id} context={context} actions={actions} onAsk={onAsk} arrangeable />
         </Suspense>
-      ) : <p role={document.isError ? 'alert' : 'status'}>{document.isError ? 'Could not load this facet. Reload to try again.' : 'Loading writing…'}</p>}
+      ) : <p role={document.isError ? 'alert' : 'status'} className={document.isError ? undefined : 'sr-only'}>{document.isError ? 'Could not load this facet. Reload to try again.' : 'Loading writing…'}</p>}
     </div>
   )
 }

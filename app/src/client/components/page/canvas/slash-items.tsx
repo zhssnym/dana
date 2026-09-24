@@ -20,7 +20,7 @@ import { SuggestionMenuController, getDefaultReactSlashMenuItems, useComponentsC
 import type { DefaultReactSuggestionItem, SuggestionMenuProps } from '@blocknote/react'
 import { SuggestionMenu, insertOrUpdateBlockForSlashMenu } from '@blocknote/core/extensions'
 
-import { CheckCircle2, Lightbulb, Network } from '../../../lib/icons.js'
+import { CheckCircle2, FileText, Image as ImageIcon, Lightbulb, Network } from '../../../lib/icons.js'
 import { linkSlashItem } from '../../links/dana-link-picker.js'
 import { ancestorsOf, insertCanvasHeading, sectionContext } from './commands.js'
 import { TOGGLE_SURFACES, bindCanvasSurface, headingFor, surfaceOf, workHeadingLevel } from './markdown.js'
@@ -196,8 +196,8 @@ export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item
     const image = byKey('image')
     const file = byKey('file')
     // Upstream's items open the file panel on the new block (`CanvasFilePanel`).
-    if (image !== undefined) add('Media', 'Image', ['img', 'image', 'picture', 'photo'], () => { image.onItemClick() }, image.icon)
-    if (file !== undefined) add('Media', 'File', ['file', 'attachment', 'upload', 'document'], () => { file.onItemClick() }, file.icon)
+    if (image !== undefined) add('Media', 'Image', ['img', 'image', 'picture', 'photo'], () => { image.onItemClick() }, <ImageIcon size={16} />)
+    if (file !== undefined) add('Media', 'File', ['file', 'attachment', 'upload', 'document'], () => { file.onItemClick() }, <FileText size={16} />)
   }
 
   /*

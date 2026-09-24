@@ -24,9 +24,10 @@ or a shelf at its page, a comment at the folder that holds its thread. No
 per-row actions, no hand deletion; "Mark all read" is the surface's only
 other verb and renders only while something is unread.
 
-**Unread is told by tone and a dot, never by hue**, the badge on
-`bg-foreground text-background` because roles invert with the theme and fixed
-values go white-on-white.
+**The trigger is a small square bell in the sidebar's head row.** Unread is
+told by a dot on it and by tone in the list, never by hue: the dot is
+`bg-foreground` because roles invert with the theme and fixed values go
+white-on-white. The count lives in the accessible name.
 
 Liveness: the list refetches on focus like every read, and polls only
 while the popover is open (`useNotifications(open)`), and nothing more.
@@ -134,12 +135,12 @@ function sentenceOf(row: NotificationLine): { readonly act: string; readonly quo
 }
 
 export function NotificationsBell({
-  side = 'right',
+  side = 'bottom',
   className,
 }: {
-  /** Where the list opens: right of the sidebar on a laptop, below on a phone. */
+  /** Where the list opens: below the sidebar's head row. */
   readonly side?: 'right' | 'bottom'
-  /** The row treatment the sidebar gives every entry. */
+  /** Extra classes for the square trigger. */
   readonly className?: string
 } = {}): React.JSX.Element {
   const [open, setOpen] = useState(false)
@@ -179,19 +180,20 @@ export function NotificationsBell({
             type="button"
             data-popup-open={open ? '' : undefined}
             className={cn(
-              'flex w-full items-center outline-none focus-visible:ring-2 focus-visible:ring-ring/30',
+              'relative flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30 data-popup-open:bg-sidebar-accent data-popup-open:text-foreground [&_svg]:size-4',
               className,
             )}
             aria-label={bellName(unread)}
+            title="Notifications"
           />
         }
       >
         <Bell strokeWidth={1.75} aria-hidden="true" />
-        <span className="flex-1 text-left">Notifications</span>
         {unread > 0 ? (
-          <span aria-hidden="true" className="text-xs font-medium text-foreground tabular-nums">
-            {unread > 99 ? '99+' : unread}
-          </span>
+          <span
+            aria-hidden="true"
+            className="absolute top-1 right-1 size-1.5 rounded-full bg-foreground ring-2 ring-sidebar"
+          />
         ) : null}
       </PopoverTrigger>
       <PopoverContent

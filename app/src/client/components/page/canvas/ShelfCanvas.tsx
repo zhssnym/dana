@@ -45,6 +45,7 @@ import { dehydrateCanvas, documentOf, hydrateCanvas } from './adapters.js'
 import type { CanvasDocument, CanvasInput } from './adapters.js'
 import type { OutlineBlock } from './outline.js'
 import { CanvasWriter } from './saving.js'
+import { NOT_SAVED, SaveFailure } from './SaveFailure.js'
 import { pasteIntoCanvas } from './paste.js'
 
 interface Props {
@@ -102,7 +103,7 @@ function ShelfSession(props: Props & { readonly initialPage: PageView; readonly 
   const host = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState<number | null>(null)
   useEffect(() => { setWidth(host.current?.clientWidth || 600) }, [])
-  return <div ref={host} className="min-w-0">{width === null ? <p role="status">Loading writing…</p> : <ShelfEditor {...props} width={width} />}</div>
+  return <div ref={host} className="min-w-0">{width === null ? <p role="status" className="sr-only">Loading writing…</p> : <ShelfEditor {...props} width={width} />}</div>
 }
 
 function ShelfEditor({ shelfId, page, initialPage, folders, folderHref, onOpenFolder, onRemoveFolder, onCheckpoint, width, settled }: Props & {
@@ -334,16 +335,8 @@ function ShelfEditor({ shelfId, page, initialPage, folders, folderHref, onOpenFo
   }
 
   const bridge = useMemo(() => ({ byId: new Map(folders.map((folder) => [folder.id, folder])), href: folderHref, open: onOpenFolder }), [folders, folderHref, onOpenFolder])
-  const feedback = error || (writer.state === 'failed' ? writer.error instanceof Error ? writer.error.message : 'Could not save. Your writing is retained.' : '')
-  // The folder page's rule: "Saving…" only after two seconds unsaved, nothing
-  // when a save is quick, and never a lone "Saved".
-  const busy = writer.state === 'changed' || writer.state === 'saving'
-  const [slow, setSlow] = useState(false)
-  useEffect(() => {
-    if (!busy) return
-    const timer = window.setTimeout(() => setSlow(true), 2000)
-    return () => { window.clearTimeout(timer); setSlow(false) }
-  }, [busy])
+  // The folder page's line: a failure only; a refused gesture's notice when nothing failed.
+  const failure = error || (writer.state === 'failed' ? NOT_SAVED : '')
   return <>
     {previousDraft !== null ? <div role="status" className="mb-3 text-sm text-muted-foreground">
       Unsaved writing from before is kept.
@@ -361,14 +354,11 @@ function ShelfEditor({ shelfId, page, initialPage, folders, folderHref, onOpenFo
         onRemoveFolder={(folderId) => { void remove(folderId) }}
       />
     </CanvasFolderProvider>
-    <div role="status" aria-live="polite" className="flex min-h-6 flex-wrap items-center gap-1 text-xs text-muted-foreground">
-      {feedback ? <>
-        <span>{writer.state === 'failed' && !error ? 'Not saved — ' : feedback}</span>
-        {writer.pending ? <Button variant="ghost" size="sm" onClick={() => { void writer.retry() }}>Retry</Button> : null}
-        <Button variant="ghost" size="sm" onClick={copyDraft}>Download writing</Button>
-        <Button variant="ghost" size="sm" onClick={() => { void loadLatest() }}>Load latest</Button>
-      </> : notice || (busy && slow ? 'Saving…' : null)}
-    </div>
+    <SaveFailure
+      message={failure || notice || null}
+      onRetry={!error && writer.state === 'failed' && writer.pending ? () => { void writer.retry() } : undefined}
+      onLoadLatest={failure ? () => { void loadLatest() } : undefined}
+    />
   </>
 }
 
