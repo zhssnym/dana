@@ -17,7 +17,7 @@ export class CanvasWriter {
   constructor(document: CanvasDocument, revision: string,
     private readonly send: (request: DocumentRequest) => Promise<PageView>,
     private readonly notify: () => void,
-    private readonly committed: (page: PageView, checkpoint: boolean) => void,
+    private readonly committed: (page: PageView, checkpoint: boolean, operations: DocumentRequest['operations']) => void,
   ) {
     this.acknowledged = document
     this.latest = document
@@ -78,7 +78,7 @@ export class CanvasWriter {
         }
         this.state = this.settled(this.latest) ? 'saved' : 'changed'
         this.error = undefined
-        this.committed(page, checkpoint)
+        this.committed(page, checkpoint, pending.request.operations)
       } catch (error) {
         this.error = error
         this.state = 'failed'

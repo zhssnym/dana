@@ -17,7 +17,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '../../ui/alert-dialog.js'
-import { installCanvasGuard } from './guard.js'
+import { installCanvasGuard, removingPages } from './guard.js'
+import { pendingPages } from './adapters.js'
+import { publishedFolders } from '../../../lib/folder-library.js'
+import { pushUndo, undoLabel } from '../../../shell/undo.js'
 import { bindTaskCommand, removeCanvasBlocks } from './commands.js'
 import { CanvasSlashMenu, blockMenuTargets } from './slash-items.js'
 import { isSectionHeading, shelfOutlineFailure, validateCanvasOutline } from './outline.js'
@@ -33,7 +36,7 @@ import './canvas.css'
 
 type HeadingMode = 'section' | 'document' | 'none'
 
-const TASK_OR_FOLDER: ReadonlySet<string> = new Set(['danaTask', 'danaFolder'])
+const TASK_OR_FOLDER: ReadonlySet<string> = new Set(['danaTask', 'danaFolder', 'danaPage'])
 const LIST_TYPES: ReadonlySet<string> = new Set(['bulletListItem', 'numberedListItem', 'checkListItem', 'toggleListItem'])
 
 /** A Shelf keeps one heading level: its headings are stored flat and group
@@ -116,6 +119,29 @@ export function CanvasSurface({
   const remove = useCallback((ids: readonly string[]): void => {
     removeCanvasBlocks(editor, ids.flatMap((id) => { const block = editor.getBlock(id); return block === undefined ? [] : [block] }))
   }, [editor])
+  /* A sub-page's own act: the block leaves (the next save sends its
+     `delete_block` with `trash_page`), and Undo puts the same block back where
+     it was (the save then sends it as a `put_block`, which restores the page). */
+  const trashPage = useCallback((id: string, folderId: string): void => {
+    const own = editor.getBlock(id)
+    if (own === undefined) return
+    const parent = editor.getParentBlock(id)
+    const siblings = parent?.children ?? editor.document
+    const at = siblings.findIndex((block) => block.id === id)
+    const previous = siblings[at - 1]?.id
+    const next = siblings[at + 1]?.id
+    const name = publishedFolders().find((folder) => folder.id === folderId)?.name ?? pendingPages.get(folderId) ?? 'Untitled'
+    removingPages([folderId], () => { removeCanvasBlocks(editor, [own]) })
+    if (editor.getBlock(id) !== undefined) return
+    pushUndo(`${undoLabel('Moved', name)} to Trash`, () => {
+      if (editor.getBlock(id) !== undefined) return
+      const block = { id, type: 'danaPage' as const, props: { folderId } }
+      if (previous !== undefined && editor.getBlock(previous) !== undefined) editor.insertBlocks([block], previous, 'after')
+      else if (next !== undefined && editor.getBlock(next) !== undefined) editor.insertBlocks([block], next, 'before')
+      else if (parent !== undefined && editor.getBlock(parent.id) !== undefined) editor.updateBlock(parent.id, { children: [block] })
+      else { const last = editor.document.at(-1); if (last !== undefined) editor.insertBlocks([block], last, 'after') }
+    })
+  }, [editor])
   const duplicate = useCallback((ids: readonly string[]): void => {
     const blocks = ids.flatMap((id) => { const block = editor.getBlock(id) as TreeBlock | undefined; return block === undefined ? [] : [block] })
     if (blocks.some((block) => contains(block, TASK_OR_FOLDER))) return
@@ -136,6 +162,10 @@ export function CanvasSurface({
         const folderId = String(block.props.folderId)
         return onRemoveFolder ? { label: 'Remove from collection', run: () => { onRemoveFolder(folderId) } } : null
       }
+      if (block.type === 'danaPage') {
+        const folderId = String(block.props.folderId)
+        return { label: 'Move page to Trash', run: () => { trashPage(block.id, folderId) } }
+      }
       // A Task's Delete is the task's own act: its confirmation, then undo.
       if (block.type === 'danaTask') {
         const run = deleteTask?.(String(block.props.taskId)) ?? null
@@ -143,7 +173,7 @@ export function CanvasSurface({
       }
       return { label: 'Delete', run: () => { remove(ids) } }
     },
-  }), [editor, headingMode, headingToggles, onCreateTask, requestTask, duplicate, onRemoveFolder, remove, deleteTask])
+  }), [editor, headingMode, headingToggles, onCreateTask, requestTask, duplicate, onRemoveFolder, remove, deleteTask, trashPage])
   const selectionActions = useMemo(() => ({ remove, duplicate, admits }), [remove, duplicate, admits])
   useBlockSelectionKeys(editor, selectionActions)
   useBlockAnchor(editor, true)

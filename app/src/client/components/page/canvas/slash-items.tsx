@@ -4,7 +4,9 @@ Task body and a Shelf. Each canvas renders `<CanvasSlashMenu>` with the surface
 it is; what a surface offers is what its server stores:
 
 - `work` (Folder Main): headings are Sections, so "Heading n" and "Toggle
-  heading n" are one thing there (a Section folds); Task is offered.
+  heading n" are one thing there (a Section folds); Task and Page (a
+  sub-page, Wave 2) are offered. Purpose and Results are facet documents,
+  where the server stores no page, so Page is Work's alone.
 - `document` (Purpose, Results): flat headings, and toggle headings 1-3 (a
   heading that folds the blocks nested under it); no Task, no Section.
 - `plain` (a facet with no headings).
@@ -26,6 +28,8 @@ import { SuggestionMenu, insertOrUpdateBlockForSlashMenu } from '@blocknote/core
 
 import { CheckCircle2, FileText, Image as ImageIcon, Lightbulb, Network } from '../../../lib/icons.js'
 import { linkSlashItem } from '../../links/dana-link-picker.js'
+import { folderMark } from '../../../parts/presenters.js'
+import { pendingPages } from './adapters.js'
 import { ancestorsOf, insertCanvasHeading, sectionContext } from './commands.js'
 import { TOGGLE_HEADING_SURFACES, TOGGLE_SURFACES, bindCanvasSurface, surfaceOf } from './markdown.js'
 import { shelfOutlineFailure, validateCanvasOutline } from './outline.js'
@@ -50,6 +54,8 @@ type Item = DefaultReactSuggestionItem & { readonly group: 'Basic blocks' | 'Med
 type AnyEditor = CanvasEditor
 
 const TURN_TRIGGER = '⁣turn'
+/** What the sidebar names a new page (`app-sidebar.tsx`). */
+const NEW_PAGE_TITLE = 'Untitled'
 
 const has = (editor: AnyEditor, type: string): boolean => type in editor.schema.blockSchema
 
@@ -210,6 +216,20 @@ export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item
   `onCreateTask` itself gave it the editor as its optional block (#204, #234).
   */
   if (surface === 'work' && onCreateTask !== undefined) add('Dana', 'Task', ['task', 'todo task', 'action'], () => { onCreateTask() }, <CheckCircle2 size={16} />)
+  /* A sub-page: its folder is created by the next save (`create_page`), with
+     the title the sidebar gives a new page, and the row opens it. */
+  if (surface === 'work' && has(editor, 'danaPage')) {
+    const PageIcon = folderMark(undefined).icon
+    add('Dana', 'Page', ['page', 'subpage', 'sub-page'], () => {
+      const folderId = crypto.randomUUID()
+      pendingPages.set(folderId, NEW_PAGE_TITLE)
+      const current = editor.getTextCursorPosition().block
+      const empty = current.type === 'paragraph' && Array.isArray(current.content) && current.content.length === 0 && current.children.length === 0
+      // A fresh block id: a block the page already stored cannot become a page.
+      editor.insertBlocks([{ id: crypto.randomUUID(), type: 'danaPage', props: { folderId } }], current, empty ? 'before' : 'after')
+      editor.focus()
+    }, <PageIcon size={16} />)
+  }
   if (has(editor, 'diagram')) add('Dana', 'Diagram', ['diagram', 'flowchart', 'mermaid', 'chart'], insert('diagram'), <Network size={16} />)
   const link = linkSlashItem(editor)
   add('Dana', 'Link to page', ['link', 'mention', 'reference', '@', 'page'], link.onItemClick, link.icon)
