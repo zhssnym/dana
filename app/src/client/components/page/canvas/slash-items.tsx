@@ -12,8 +12,16 @@ it is; what a surface offers is what its server stores:
   heading that folds the blocks nested under it); no Task, no Section.
 - `plain` (a facet with no headings).
 - `shelf`: one heading level, stored flat; no toggle list.
-- `task`: the Task composer's own schema (to-do, callout and divider; no toggle
+- `task`: the Task composer's own schema (callout and divider; no toggle
   list), with toggle headings as on a document.
+- `post`: a discussion post; a document without toggle headings (the post
+  contract has none).
+
+No To-do list anywhere: Task covers it and people took one for the other. A
+to-do already stored still renders and turns into anything (`turn-into.ts`).
+Toggle heading 1-3 are found by typing ("toggle", "th1"), not listed, as in
+Notion. Each row is an icon box, the name, and the markdown shortcut that makes
+the same block on this surface, muted on the right.
 
 Every surface nests any block under a writing block (0038); Tab does it.
 
@@ -21,13 +29,15 @@ Typed turn-into: `/turn h1`, `/turn toggle`, `/turnbullet` convert the block
 the cursor is in, keeping its text, and its children where the target holds
 them (otherwise they follow it). Cmd/Ctrl+/ opens the same list for the block.
 */
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import type { JSX } from 'react'
 import { SuggestionMenuController, getDefaultReactSlashMenuItems, useComponentsContext } from '@blocknote/react'
 import type { DefaultReactSuggestionItem, SuggestionMenuProps } from '@blocknote/react'
 import { SuggestionMenu, insertOrUpdateBlockForSlashMenu } from '@blocknote/core/extensions'
 
-import { CheckCircle2, FileText, Image as ImageIcon, Lightbulb, Network } from '../../../lib/icons.js'
+import { CheckCircle2, Code, FileText, Heading1, Heading2, Heading3, IconMotion, Image as ImageIcon, Lightbulb, Link2, List, ListCollapse, ListOrdered, Minus, Network, Quote, Type } from '../../../lib/icons.js'
+import type { LucideIcon } from '../../../lib/icons.js'
+import './slash-menu.css'
 import { linkSlashItem } from '../../links/dana-link-picker.js'
 import { folderMark } from '../../../parts/presenters.js'
 import { pendingPages } from './adapters.js'
@@ -51,7 +61,13 @@ export interface SlashContext {
   readonly media?: boolean
 }
 
-type Item = DefaultReactSuggestionItem & { readonly group: 'Basic blocks' | 'Media' | 'Dana' | 'Turn into' }
+type Item = DefaultReactSuggestionItem & {
+  readonly group: 'Basic blocks' | 'Media' | 'Dana' | 'Turn into'
+  /** The markdown shortcut that makes the same block here, shown muted. */
+  readonly hint?: string
+  /** Listed only once something is typed (Notion's toggle headings). */
+  readonly searchOnly?: boolean
+}
 type AnyEditor = CanvasEditor
 
 const TURN_TRIGGER = '⁣turn'
@@ -73,7 +89,6 @@ const TURN_ALIASES: Record<TurnKey, readonly string[]> = {
   th1: ['toggle heading 1', 'toggle h1', 'toggleh1'],
   th2: ['toggle heading 2', 'toggle h2', 'toggleh2'],
   th3: ['toggle heading 3', 'toggle h3', 'toggleh3'],
-  todo: ['todo', 'to-do', 'checkbox', 'checklist', '[]'],
   toggle: ['toggle', '>', 'collapsible', 'details'],
   bullet: ['bullet', 'bulleted', 'ul', '-', '*', 'unordered'],
   numbered: ['num', 'numbered', 'ol', '1.', 'ordered'],
@@ -81,9 +96,16 @@ const TURN_ALIASES: Record<TurnKey, readonly string[]> = {
   callout: ['callout', 'note', 'tip'],
   code: ['code', '```', 'snippet'],
 }
-const TURN_ICONS: Record<string, string> = {
-  paragraph: 'paragraph', bulletListItem: 'bullet_list', numberedListItem: 'numbered_list', checkListItem: 'check_list',
-  toggleListItem: 'toggle_list', quote: 'quote', codeBlock: 'code_block',
+/** One icon family (Lucide), one size, for every block kind the menus name. */
+const HEADING_ICONS: Record<1 | 2 | 3, LucideIcon> = { 1: Heading1, 2: Heading2, 3: Heading3 }
+const KIND_ICONS: Record<string, LucideIcon> = {
+  paragraph: Type, bulletListItem: List, numberedListItem: ListOrdered, toggleListItem: ListCollapse,
+  quote: Quote, callout: Lightbulb, codeBlock: Code, divider: Minus,
+}
+const glyph = (Icon: LucideIcon): JSX.Element => <Icon aria-hidden="true" />
+function kindIcon(type: string, level?: 1 | 2 | 3): JSX.Element | undefined {
+  const Icon = type === 'heading' ? HEADING_ICONS[level ?? 1] : KIND_ICONS[type]
+  return Icon === undefined ? undefined : glyph(Icon)
 }
 
 /** How a surface stores a heading: a Section (`true`) or a presentation
@@ -149,12 +171,10 @@ function turnItems(editor: AnyEditor): Item[] {
     blocks.length > 0 &&
     blocks.every((block, index) => own[index]!.some((allowed) => allowed.key === target.key) || isCurrent(block, target)) &&
     blocks.some((block) => !isCurrent(block, target)))
-  const defaults = getDefaultReactSlashMenuItems(editor)
-  const iconOf = (key: string): JSX.Element | undefined => defaults.find((item) => 'key' in item && item.key === key)?.icon
   return targets.map((target) => ({
     title: target.title,
     aliases: [...TURN_ALIASES[target.key]],
-    icon: target.type === 'callout' ? <Lightbulb size={16} /> : iconOf(target.type === 'heading' ? (target.level === 1 ? 'heading' : `heading_${target.level}`) : TURN_ICONS[target.type] ?? ''),
+    icon: kindIcon(target.type, target.level),
     group: 'Turn into',
     onItemClick: () => {
       turnScope.delete(editor)
@@ -171,65 +191,64 @@ export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item
   const defaults = getDefaultReactSlashMenuItems(editor)
   const byKey = (key: string): DefaultReactSuggestionItem | undefined => defaults.find((item) => 'key' in item && item.key === key)
   const items: Item[] = []
-  const add = (group: Item['group'], title: string, aliases: readonly string[], onItemClick: () => void, icon?: JSX.Element): void => {
-    items.push({ title, aliases: [...aliases], group, icon, onItemClick })
+  const add = (group: Item['group'], title: string, aliases: readonly string[], onItemClick: () => void, icon?: JSX.Element, extra: { hint?: string; searchOnly?: boolean } = {}): void => {
+    items.push({ title, aliases: [...aliases], group, icon, onItemClick, ...extra })
   }
   const insert = (type: string, props: Record<string, unknown> = {}) => (): void => {
     insertOrUpdateBlockForSlashMenu(editor, { type, props } as never)
     editor.focus()
   }
 
-  add('Basic blocks', 'Text', ['text', 'paragraph', 'plain', 'p'], insert('paragraph'), byKey('paragraph')?.icon)
-  if (has(editor, 'checkListItem')) add('Basic blocks', 'To-do list', ['todo', 'to-do', '[]', 'checkbox', 'checklist'], insert('checkListItem'), byKey('check_list')?.icon)
+  add('Basic blocks', 'Text', ['text', 'paragraph', 'plain', 'p'], insert('paragraph'), kindIcon('paragraph'))
 
   // Headings, by what the surface stores.
-  const headingIcon = (level: number): JSX.Element | undefined => byKey(level === 1 ? 'heading' : `heading_${level}`)?.icon
   if (surface === 'work') {
     const cursor = editor.getTextCursorPosition().block
     const inside = (ancestorsOf(editor.document, cursor.id) ?? []).some((block) => block.type !== 'heading')
     for (const level of [1, 2, 3] as const) {
       // A Section where one of this level stands; a presentation heading elsewhere.
       const section = !inside && (level === 1 || sectionContext(editor, level - 1) !== undefined)
-      add('Basic blocks', `Heading ${level}`, [`h${level}`, '#'.repeat(level), 'title', 'heading', ...(section ? ['section'] : [])], section ? () => { insertCanvasHeading(editor, level) } : insert('heading', { level, isToggleable: false, presentation: false }), headingIcon(level))
-    }
-    for (const level of [1, 2, 3] as const) {
-      add('Basic blocks', `Toggle heading ${level}`, [`toggle heading ${level}`, `toggle h${level}`, `toggleh${level}`, 'toggle', 'collapsible'], insert('heading', { level, isToggleable: true, presentation: true }), headingIcon(level))
+      add('Basic blocks', `Heading ${level}`, [`h${level}`, '#'.repeat(level), 'title', 'heading', ...(section ? ['section'] : [])], section ? () => { insertCanvasHeading(editor, level) } : insert('heading', { level, isToggleable: false, presentation: false }), kindIcon('heading', level), { hint: '#'.repeat(level) })
     }
   } else if (surface === 'shelf') {
-    add('Basic blocks', 'Heading 1', ['h1', '#', 'title', 'heading'], insert('heading', { level: 1, isToggleable: true }), headingIcon(1))
+    add('Basic blocks', 'Heading 1', ['h1', '#', 'title', 'heading'], insert('heading', { level: 1, isToggleable: true }), kindIcon('heading', 1), { hint: '#' })
   } else if (surface !== 'plain') {
     for (const level of [1, 2, 3] as const) {
-      add('Basic blocks', `Heading ${level}`, [`h${level}`, '#'.repeat(level), 'title', 'heading'], insert('heading', { level, isToggleable: false, presentation: false }), headingIcon(level))
-    }
-    // A heading that folds the blocks nested under it (stored with `toggleable`).
-    if (TOGGLE_HEADING_SURFACES.has(surface)) {
-      for (const level of [1, 2, 3] as const) {
-        add('Basic blocks', `Toggle heading ${level}`, [`toggle heading ${level}`, `toggle h${level}`, `toggleh${level}`, 'toggle', 'collapsible'], insert('heading', { level, isToggleable: true, presentation: true }), headingIcon(level))
-      }
+      add('Basic blocks', `Heading ${level}`, [`h${level}`, '#'.repeat(level), 'title', 'heading'], insert('heading', { level, isToggleable: false, presentation: false }), kindIcon('heading', level), { hint: '#'.repeat(level) })
     }
   }
-  if (has(editor, 'toggleListItem') && TOGGLE_SURFACES.has(surface)) add('Basic blocks', 'Toggle list', ['toggle', '>', 'collapsible', 'details'], insert('toggleListItem'), byKey('toggle_list')?.icon)
-  add('Basic blocks', 'Bulleted list', ['bullet', 'bulleted', '-', '*', 'ul', 'unordered'], insert('bulletListItem'), byKey('bullet_list')?.icon)
-  add('Basic blocks', 'Numbered list', ['num', 'numbered', '1.', 'ol', 'ordered'], insert('numberedListItem'), byKey('numbered_list')?.icon)
-  add('Basic blocks', 'Quote', ['quote', 'blockquote', '"'], insert('quote'), byKey('quote')?.icon)
-  if (has(editor, 'callout')) add('Basic blocks', 'Callout', ['callout', 'note', 'tip', 'info'], insert('callout'), <Lightbulb size={16} />)
-  if (has(editor, 'divider')) add('Basic blocks', 'Divider', ['div', 'divider', '---', 'hr', 'line', 'separator'], insert('divider'), byKey('divider')?.icon)
-  if (has(editor, 'codeBlock')) add('Basic blocks', 'Code', ['code', '```', 'snippet'], byKey('code_block')?.onItemClick ?? insert('codeBlock'), byKey('code_block')?.icon)
+  const toggles = has(editor, 'toggleListItem') && TOGGLE_SURFACES.has(surface)
+  add('Basic blocks', 'Bulleted list', ['bullet', 'bulleted', '-', '*', 'ul', 'unordered'], insert('bulletListItem'), kindIcon('bulletListItem'), { hint: '-' })
+  add('Basic blocks', 'Numbered list', ['num', 'numbered', '1.', 'ol', 'ordered'], insert('numberedListItem'), kindIcon('numberedListItem'), { hint: '1.' })
+  if (toggles) add('Basic blocks', 'Toggle list', ['toggle', '>', 'collapsible', 'details'], insert('toggleListItem'), kindIcon('toggleListItem'), { hint: '>' })
+  // A heading that folds the blocks nested under it (stored with `toggleable`),
+  // found by typing: Notion does not list them either.
+  if (TOGGLE_HEADING_SURFACES.has(surface)) {
+    for (const level of [1, 2, 3] as const) {
+      add('Basic blocks', `Toggle heading ${level}`, [`toggle heading ${level}`, `toggle h${level}`, `toggleh${level}`, `th${level}`, 'toggle', 'collapsible'], insert('heading', { level, isToggleable: true, presentation: true }), kindIcon('heading', level), { searchOnly: true })
+    }
+  }
+  // `>` is the toggle list's where there is one, and the quote's elsewhere (`markdown.ts`).
+  add('Basic blocks', 'Quote', ['quote', 'blockquote', '"'], insert('quote'), kindIcon('quote'), { hint: toggles ? '"' : '>' })
+  if (has(editor, 'callout')) add('Basic blocks', 'Callout', ['callout', 'note', 'tip', 'info'], insert('callout'), kindIcon('callout'))
+  if (has(editor, 'divider')) add('Basic blocks', 'Divider', ['div', 'divider', '---', 'hr', 'line', 'separator'], insert('divider'), kindIcon('divider'), { hint: '---' })
+  if (has(editor, 'codeBlock')) add('Basic blocks', 'Code', ['code', '```', 'snippet'], byKey('code_block')?.onItemClick ?? insert('codeBlock'), kindIcon('codeBlock'), { hint: '```' })
 
   if (media) {
     const image = byKey('image')
     const file = byKey('file')
     // Upstream's items open the file panel on the new block (`CanvasFilePanel`).
-    if (image !== undefined) add('Media', 'Image', ['img', 'image', 'picture', 'photo'], () => { image.onItemClick() }, <ImageIcon size={16} />)
-    if (file !== undefined) add('Media', 'File', ['file', 'attachment', 'upload', 'document'], () => { file.onItemClick() }, <FileText size={16} />)
+    if (image !== undefined) add('Media', 'Image', ['img', 'image', 'picture', 'photo'], () => { image.onItemClick() }, glyph(ImageIcon))
+    if (file !== undefined) add('Media', 'File', ['file', 'attachment', 'upload', 'document'], () => { file.onItemClick() }, glyph(FileText))
   }
 
   /*
   The arrow wrapper is load-bearing. `SuggestionMenuController` calls
   `item.onItemClick(editor)` although the type says `() => void`, so handing
   `onCreateTask` itself gave it the editor as its optional block (#204, #234).
+  Task answers "todo" and "checkbox" too: it is what a to-do became.
   */
-  if (surface === 'work' && onCreateTask !== undefined) add('Dana', 'Task', ['task', 'todo task', 'action'], () => { onCreateTask() }, <CheckCircle2 size={16} />)
+  if (surface === 'work' && onCreateTask !== undefined) add('Dana', 'Task', ['task', 'todo', 'to-do', 'checkbox', 'action'], () => { onCreateTask() }, glyph(CheckCircle2))
   /* A sub-page: its folder is created by the next save (`create_page`), with
      the title the sidebar gives a new page, and the row opens it. */
   if (surface === 'work' && has(editor, 'danaPage')) {
@@ -242,11 +261,11 @@ export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item
       // A fresh block id: a block the page already stored cannot become a page.
       editor.insertBlocks([{ id: crypto.randomUUID(), type: 'danaPage', props: { folderId } }], current, empty ? 'before' : 'after')
       editor.focus()
-    }, <PageIcon size={16} />)
+    }, glyph(PageIcon))
   }
-  if (has(editor, 'diagram')) add('Dana', 'Diagram', ['diagram', 'flowchart', 'mermaid', 'chart'], insert('diagram'), <Network size={16} />)
+  if (has(editor, 'diagram')) add('Dana', 'Diagram', ['diagram', 'flowchart', 'mermaid', 'chart'], insert('diagram'), glyph(Network))
   const link = linkSlashItem(editor)
-  add('Dana', 'Link to page', ['link', 'mention', 'reference', '@', 'page'], link.onItemClick, link.icon)
+  add('Dana', 'Link to page', ['link', 'mention', 'reference', '@', 'page'], link.onItemClick, glyph(Link2))
   return items
 }
 
@@ -269,7 +288,7 @@ function score(item: Item, query: string): number {
 /** Rank by closeness; group headers only while nothing has been typed. */
 export function filterSlashItems(items: readonly Item[], raw: string): DefaultReactSuggestionItem[] {
   const query = raw.trim().toLowerCase()
-  if (query === '') return items.map((item) => ({ ...item, size: 'small' as const }))
+  if (query === '') return items.filter((item) => item.searchOnly !== true).map((item) => ({ ...item, size: 'small' as const }))
   return items
     .map((item, index) => ({ item, index, score: score(item, query) }))
     .filter((entry) => entry.score > 0)
@@ -322,7 +341,31 @@ function withNoResults(editor: AnyEditor, query: string, items: DefaultReactSugg
   return [{ title: NO_RESULTS, onItemClick: () => {}, size: 'small', noResults: true } as DefaultReactSuggestionItem]
 }
 
-/** BlockNote's own menu, grouped, saying "No results" for a miss. */
+/*
+One row: a fixed icon box, the name, and the shortcut hint, on one centre line
+(`slash-menu.css`). Upstream's item copies its class onto the icon and label
+wrappers too, which is how the old rows' icons and labels drifted apart, so
+the row is drawn here; the controller still owns the keys and the choice.
+*/
+function SlashRow({ item, index, selected, onPick }: { readonly item: DefaultReactSuggestionItem & { hint?: string }; readonly index: number; readonly selected: boolean; readonly onPick: () => void }): JSX.Element {
+  const row = useRef<HTMLDivElement>(null)
+  useEffect(() => { if (selected) row.current?.scrollIntoView({ block: 'nearest' }) }, [selected])
+  return <div
+    ref={row}
+    id={`bn-suggestion-menu-item-${index}`}
+    role="option"
+    aria-selected={selected || undefined}
+    className="dana-slash-row"
+    onMouseDown={(event) => { event.preventDefault() }}
+    onClick={onPick}
+  >
+    <span className="dana-slash-icon" aria-hidden="true">{item.icon}</span>
+    <span className="dana-slash-name">{item.title}</span>
+    {item.hint === undefined ? null : <kbd className="dana-slash-hint">{item.hint}</kbd>}
+  </div>
+}
+
+/** The canvas's menu, grouped, saying "No results" for a miss. */
 function CanvasSuggestionList(props: SuggestionMenuProps<DefaultReactSuggestionItem>): JSX.Element {
   const Components = useComponentsContext()!
   const { items, selectedIndex, onItemClick, loadingState } = props
@@ -330,27 +373,20 @@ function CanvasSuggestionList(props: SuggestionMenuProps<DefaultReactSuggestionI
   let group: string | undefined
   if (items.length === 1 && isNoResults(items[0]!)) {
     return <Components.SuggestionMenu.Root id="bn-suggestion-menu" className="bn-suggestion-menu dana-slash-menu">
-      <Components.SuggestionMenu.EmptyItem className="bn-suggestion-menu-item text-muted-foreground">{NO_RESULTS}</Components.SuggestionMenu.EmptyItem>
+      <div className="dana-slash-empty">{NO_RESULTS}</div>
     </Components.SuggestionMenu.Root>
   }
   items.forEach((item, index) => {
     if (item.group !== undefined && item.group !== group) {
       group = item.group
-      rows.push(<Components.SuggestionMenu.Label className="bn-suggestion-menu-label" key={`group-${group}`}>{group}</Components.SuggestionMenu.Label>)
+      rows.push(<div className="dana-slash-group" role="presentation" key={`group-${group}`}>{group}</div>)
     }
-    rows.push(<Components.SuggestionMenu.Item
-      className="bn-suggestion-menu-item bn-suggestion-menu-item-small"
-      item={{ ...item, subtext: undefined, badge: undefined }}
-      id={`bn-suggestion-menu-item-${index}`}
-      isSelected={index === selectedIndex}
-      key={item.title}
-      onClick={() => onItemClick?.(item)}
-    />)
+    rows.push(<SlashRow item={item} index={index} selected={index === selectedIndex} key={item.title} onPick={() => onItemClick?.(item)} />)
   })
   return <Components.SuggestionMenu.Root id="bn-suggestion-menu" className="bn-suggestion-menu dana-slash-menu">
-    {rows}
+    <IconMotion enabled={false}>{rows}</IconMotion>
     {rows.length === 0 && loadingState !== 'loading-initial'
-      ? <Components.SuggestionMenu.EmptyItem className="bn-suggestion-menu-item">No results</Components.SuggestionMenu.EmptyItem>
+      ? <div className="dana-slash-empty">{NO_RESULTS}</div>
       : null}
   </Components.SuggestionMenu.Root>
 }

@@ -595,6 +595,13 @@ export const LoaderCircle = icon(Lu.LoaderCircle, Anim.LoaderCircleIcon)
 export const PanelRight = icon(Lu.PanelRight, null) // animated: no panel-right; layout-list reads as a panel beside a page, where the menu glyph read as a hamburger
 export const PictureInPicture2 = icon(Lu.PictureInPicture2, null) // animated: no pip; the out-of-flow meaning survives
 export const Pilcrow = icon(Lu.Pilcrow, Anim.PilcrowIcon)
+/* The slash menu's block kinds (r3-slash): drawn still, as menus are. */
+export const Heading2 = icon(Lu.Heading2, null)
+export const Heading3 = icon(Lu.Heading3, null)
+export const ListOrdered = icon(Lu.ListOrdered, null)
+export const ListCollapse = icon(Lu.ListCollapse, null)
+export const Minus = icon(Lu.Minus, null)
+export const Type = icon(Lu.Type, null)
 export const ThumbsUp = icon(Lu.ThumbsUp, Anim.ThumbsUpIcon)
 
 /* ─── The folder identity library (DES-130) ─────────────────────────────

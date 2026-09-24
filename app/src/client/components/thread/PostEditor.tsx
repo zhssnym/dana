@@ -45,7 +45,7 @@ const postSchema = BlockNoteSchema.create({
   styleSpecs: canvasSchema.styleSpecs,
 })
 
-const SLASH = { surface: 'document', media: true } as const
+const SLASH = { surface: 'post', media: true } as const
 
 export interface PostEditorProps {
   /** Where an upload is stored (the thread's folder). */

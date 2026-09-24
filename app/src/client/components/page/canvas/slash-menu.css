@@ -1,0 +1,64 @@
+/* The slash and Turn into menus' rows (`slash-items.tsx`), as in Notion: a
+   fixed icon box, the name, and the markdown shortcut muted on the right, all
+   on one centre line. The menu's surface is the block menu's (`canvas.css`). */
+.dana-slash-menu .dana-slash-row {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--spacing) * 2);
+  min-height: calc(var(--spacing) * 8);
+  padding-inline: calc(var(--spacing) * 2);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
+  color: var(--popover-foreground);
+  cursor: pointer;
+  user-select: none;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+.dana-slash-menu .dana-slash-row:hover,
+.dana-slash-menu .dana-slash-row[aria-selected="true"] {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+.dana-slash-menu .dana-slash-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--spacing) * 5);
+  height: calc(var(--spacing) * 5);
+  color: var(--muted-foreground);
+}
+.dana-slash-menu .dana-slash-icon svg {
+  width: var(--icon-size-compact);
+  height: var(--icon-size-compact);
+}
+.dana-slash-menu .dana-slash-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dana-slash-menu .dana-slash-hint {
+  flex: none;
+  font-family: inherit;
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+  color: var(--muted-foreground);
+}
+.dana-slash-menu .dana-slash-group {
+  padding: calc(var(--spacing) * 2) calc(var(--spacing) * 2) calc(var(--spacing) * 1);
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+  color: var(--muted-foreground);
+}
+.dana-slash-menu .dana-slash-group:first-child { padding-top: calc(var(--spacing) * 1); }
+.dana-slash-menu .dana-slash-empty {
+  display: flex;
+  align-items: center;
+  min-height: calc(var(--spacing) * 8);
+  padding-inline: calc(var(--spacing) * 2);
+  font-size: var(--text-sm);
+  color: var(--muted-foreground);
+}

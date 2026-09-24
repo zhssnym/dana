@@ -220,3 +220,10 @@
 /* Space below the last block: a click there writes on (CanvasSurface). */
 .dana-canvas-tail { min-height: calc(var(--spacing) * 16); cursor: text; }
 .dana-canvas-tail-short { min-height: calc(var(--spacing) * 8); }
+
+/* ---- r3-slash: a Section is a plain heading (schema.ts draws it without the
+   toggle). What it holds sits at the heading's own indent, as under a Notion
+   heading; a toggle heading still indents what it folds. */
+.dana-writing-canvas .bn-block:has(> .bn-block-content[data-dana-section]) > .bn-block-group {
+  margin-inline-start: 0;
+}
