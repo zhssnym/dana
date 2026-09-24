@@ -117,7 +117,7 @@ export function ObjectMenu({
 }
 
 /**
- * The folder's "Move to shelf" choices, one component for every home of the
+ * The folder's "Move to collection" choices (shelves, on screen), one component for every home of the
  * folder menu (the page header's "…" and the Library row's), so the submenu
  * cannot drift between them. Making a new shelf is the Library "+" menu's.
  */
@@ -141,7 +141,7 @@ export function moveToShelfChoice(
         ))}
         {shelves.length > 0 ? <DropdownMenuSeparator /> : null}
         <DropdownMenuRadioItem value="__none" closeOnClick>
-          Not on a shelf
+          Not in a collection
         </DropdownMenuRadioItem>
       </DropdownMenuRadioGroup>
     ),

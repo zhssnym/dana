@@ -62,7 +62,7 @@ export type SearchResultItem = {
      step titles, a folder's prose and description. Searching a title alone is
      what made a paragraph you wrote unfindable. */
   haystack?: string
-  /* The second line: a task's folder, a folder's shelf, a page's question. */
+  /* The second line: a task's folder, a page's place in the page tree, a place's question. */
   hint?: string
   status?: SearchResultStatus
   folder?: { name: string; color: string }
@@ -88,7 +88,7 @@ const kindOrder: SearchResultKind[] = ["task", "folder", "shelf", "page"]
 const kindLabels: Record<SearchResultKind, string> = {
   task: "Tasks",
   folder: "Folders",
-  shelf: "Shelves",
+  shelf: "Collections",
   page: "Pages",
 }
 

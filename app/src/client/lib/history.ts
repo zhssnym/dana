@@ -164,7 +164,7 @@ const VERB_PAST: Record<HistoryVerb, string> = {
 const THING: Record<HistorySubjectKind, string> = {
   task: 'the task',
   folder: 'the folder',
-  shelf: 'the shelf',
+  shelf: 'the collection',
 }
 
 /**

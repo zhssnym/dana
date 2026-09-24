@@ -70,9 +70,9 @@ export function IconPicker({
   /** The stored hex, null for unset (graphite). */
   readonly color: string | null
   readonly onPick: (next: { icon?: string; color?: string }) => void
-  /** polish: shelves F10. What the picker dresses, "Folder" or "Shelf", so a
-      shelf's picker does not head itself "Folder". */
-  readonly subject?: 'Folder' | 'Shelf'
+  /** polish: shelves F10. What the picker dresses, "Folder" or "Collection"
+      (a shelf, on screen), so a shelf's picker does not head itself "Folder". */
+  readonly subject?: 'Folder' | 'Collection'
 }): React.JSX.Element {
   const activeKey = icon ?? 'folder'
   const wearsEmoji = emojiOf(activeKey) !== null
@@ -84,8 +84,8 @@ export function IconPicker({
 
   const shownKey = preview ?? activeKey
   const shownLabel =
-    shownKey === 'folder' && subject === 'Shelf'
-      ? 'Shelf'
+    shownKey === 'folder' && subject === 'Collection'
+      ? 'Collection'
       : ((ICON_LABELS as Record<string, string>)[shownKey] ??
         emojiOf(shownKey) ??
         `${subject} icon`)

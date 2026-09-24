@@ -51,7 +51,7 @@ export function DanaLinkSuggestions({ editor }: { readonly editor: CanvasEditor 
       shouldOpen={atWordStart}
       getItems={async (query) => {
         const q = query.trim()
-        if (q.length < 2) return [hint('Type to link a Task, Folder, Shelf, Purpose, Results or Discussion')]
+        if (q.length < 2) return [hint('Type to link a Task, Folder, Collection, Purpose, Results or Discussion')]
         const mine = ++latest
         await new Promise((resolve) => setTimeout(resolve, 150))
         // Never [] here: BlockNote closes the menu on an empty answer.
@@ -91,7 +91,7 @@ export function DanaLinkSuggestions({ editor }: { readonly editor: CanvasEditor 
 export function linkSlashItem(editor: CanvasEditor): DefaultReactSuggestionItem {
   return {
     title: 'Link to…',
-    subtext: 'A Task, Folder, Shelf or Discussion',
+    subtext: 'A Task, Folder, Collection or Discussion',
     icon: <Link2 size={16} />,
     aliases: ['link', 'mention', 'reference', '@'],
     group: 'Basic blocks',
