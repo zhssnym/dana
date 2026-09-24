@@ -81,7 +81,7 @@ const PAGE_COPY = {
       },
       {
         heading: 'Questions',
-        body: ['Write to support.danadana@gmail.com and a person will answer.'],
+        body: ['Write to hassan.k.shahir@gmail.com and a person will answer.'],
       },
     ],
   },
@@ -128,7 +128,7 @@ const PAGE_COPY = {
       },
       {
         heading: 'Questions',
-        body: ['Write to support.danadana@gmail.com and a person will answer.'],
+        body: ['Write to hassan.k.shahir@gmail.com and a person will answer.'],
       },
     ],
   },
