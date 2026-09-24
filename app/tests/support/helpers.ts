@@ -400,11 +400,13 @@ export async function cleanupUsers(
        `discussions_current_outcome_fkey` then refuses the delete. The one
        way through that changes nothing but the pointer is the product's own
        reopen: back to open, the pointer cleared, which
-       `discussions_resolution_check` requires as one write. */
+       `discussions_resolution_check` requires as one write. `is_general`
+       is cleared with it, or a reopened General could collide with the
+       Folder's open one on `discussions_one_open_general_key`. */
     await db.execute(
       sql`UPDATE discussions
              SET state = 'open', resolved_at = NULL, resolved_by = NULL,
-                 current_outcome_id = NULL
+                 current_outcome_id = NULL, is_general = false
            WHERE current_outcome_id IN (
                    SELECT o.id FROM discussion_outcomes o
                     WHERE o.actor_id = ${id})`,

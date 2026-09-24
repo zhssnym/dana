@@ -856,6 +856,13 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
         columns: ['discussion_id', 'created_at'],
         partial: true,
       },
+      // Migration 0029: the legacy Folder thread's stray sweep (4.31).
+      {
+        name: 'comments_unfiled_folder_idx',
+        unique: false,
+        columns: ['folder_id'],
+        partial: true,
+      },
     ],
   },
   // Migration 0029 (#320): Consultation Discussions and their Outcomes.
@@ -906,6 +913,14 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
         columns: ['folder_id', 'last_activity_at', 'id'],
         partial: true,
         descColumns: ['last_activity_at', 'id'],
+      },
+      {
+        // At most one open, untrashed General discussion per Folder: the
+        // legacy Folder thread's write target (4.31).
+        name: 'discussions_one_open_general_key',
+        unique: true,
+        columns: ['folder_id'],
+        partial: true,
       },
     ],
   },

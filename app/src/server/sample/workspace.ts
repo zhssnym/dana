@@ -242,9 +242,9 @@ async function writeFolder(
   if (conversation.length > 0) {
     const general = await rowsOf(
       tx,
-      sql`INSERT INTO discussions (folder_id, title, created_by)
+      sql`INSERT INTO discussions (folder_id, title, created_by, is_general)
           VALUES (${folderId}::uuid, ${GENERAL_DISCUSSION_TITLE},
-                  ${userId}::uuid)
+                  ${userId}::uuid, true)
           RETURNING id`,
     )
     const discussionId = String(general[0]?.id)

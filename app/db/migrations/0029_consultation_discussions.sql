@@ -60,6 +60,16 @@
 --    nothing. The INSERT is guarded by NOT EXISTS so a re-run cannot
 --    duplicate.
 --
+-- 5. `discussions.is_general` marks the Folder's General discussion: the
+--    one the currently deployed client's Folder thread reads and writes
+--    (4.31). It is a flag, never the title, so renaming it (PATCH) or
+--    creating another Discussion titled "General discussion" moves nothing
+--    between the legacy thread and the Consultation. The backfill sets it;
+--    the legacy post sets it on the one it creates; nothing clears it.
+--    `discussions_one_open_general_key` holds at most one open, untrashed
+--    one per Folder, and `comments_unfiled_folder_idx` serves the legacy
+--    post's sweep of comments filed nowhere yet.
+--
 -- The three users keys are RESTRICT for 0027's reason: 8.10 scrubs a users
 -- row and never deletes it, so no clause on them fires; each is listed in
 -- USER_RESTRICT_DISPOSALS as outliving the account.
@@ -78,6 +88,7 @@ CREATE TABLE discussions (
   current_outcome_id uuid,
   last_activity_at timestamptz NOT NULL DEFAULT now(),
   trashed_at timestamptz,
+  is_general boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT discussions_pkey PRIMARY KEY (id),
@@ -103,6 +114,13 @@ CREATE TABLE discussions (
 CREATE INDEX discussions_folder_activity_idx
   ON discussions (folder_id, last_activity_at DESC, id DESC)
   WHERE trashed_at IS NULL;
+--> statement-breakpoint
+-- At most one open, untrashed General discussion per Folder: the legacy
+-- Folder thread's write target (see 5. below). A resolved or trashed one may
+-- sit beside it; reopen and restore refuse (409) rather than make two.
+CREATE UNIQUE INDEX discussions_one_open_general_key
+  ON discussions (folder_id)
+  WHERE is_general AND state = 'open' AND trashed_at IS NULL;
 --> statement-breakpoint
 CREATE TABLE discussion_outcomes (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -144,9 +162,16 @@ CREATE INDEX comments_discussion_thread_idx
   ON comments (discussion_id, created_at)
   WHERE discussion_id IS NOT NULL;
 --> statement-breakpoint
+-- The legacy post's stray sweep ("any Folder-level comment no Discussion
+-- holds yet?") answers from this instead of scanning the Folder's thread.
+CREATE INDEX comments_unfiled_folder_idx
+  ON comments (folder_id)
+  WHERE task_id IS NULL AND discussion_id IS NULL;
+--> statement-breakpoint
 INSERT INTO discussions
-  (folder_id, title, created_by, state, last_activity_at, created_at, updated_at)
-SELECT f.id, 'General discussion', f.owner_id, 'open',
+  (folder_id, title, created_by, state, is_general,
+   last_activity_at, created_at, updated_at)
+SELECT f.id, 'General discussion', f.owner_id, 'open', true,
        max(c.created_at), min(c.created_at), min(c.created_at)
   FROM folders f
   JOIN comments c ON c.folder_id = f.id AND c.task_id IS NULL
@@ -157,6 +182,6 @@ UPDATE comments c
    SET discussion_id = d.id
   FROM discussions d
  WHERE d.folder_id = c.folder_id
-   AND d.title = 'General discussion'
+   AND d.is_general
    AND c.task_id IS NULL
    AND c.discussion_id IS NULL;

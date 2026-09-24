@@ -11,7 +11,11 @@ asserts the stored row, not just the status.
 
 AC-911 is the removal boundary: a creator may trash their own Discussion only
 while nobody else has contributed and it has no Outcome; Can edit trashes any;
-purge is Full control's.
+purge is Full control's. The Folder's General discussion (`is_general`) is
+the deployed client's whole Folder thread, so resolving or trashing it is
+Full control's too, and reopen or restore never makes a second open one.
+Purging a Discussion or a Folder succeeds while an Outcome still names a live
+source comment.
 
 Spec: 7.28, 7.13, 10.2.
 */
@@ -350,5 +354,144 @@ describe('AC-910 Discussion acts follow Folder Access', () => {
       'and its conversation with it',
     ).toBe(0)
     expect(await stored(alone), 'nothing else was touched').toBeDefined()
+  })
+
+  test('AC-911: the General discussion is Full control\'s to resolve or remove', async () => {
+    const [owner, , , editor] = (await cast.of(app)) as [Actor, Actor, Actor, Actor, Actor]
+    const folderId = await createFolder(owner, 'ac911 general')
+    await connect(app.db, owner.id, editor.id)
+    await addMemberOk(owner, folderId, editor.id, 'can_edit')
+    const legacyPost = async (body: string) => {
+      const posted = await editor.browser.json(`/folders/${folderId}/comments`, 'POST', {
+        body,
+      })
+      expectStatus(posted, 201, 'the deployed client posts to the Folder thread')
+    }
+    await legacyPost('ac911 hello')
+    const generalOf = async () => {
+      const result = (await app.db.execute(
+        sql`SELECT id FROM discussions
+             WHERE folder_id = ${folderId}::uuid AND is_general
+               AND state = 'open' AND trashed_at IS NULL`,
+      )) as unknown as { rows: { id: string }[] }
+      return result.rows.map((row) => row.id)
+    }
+    const [general] = await generalOf()
+    expect(general).toBeDefined()
+    const generalId = String(general)
+
+    /* Can edit resolves and trashes ordinary Discussions, but not this one. */
+    expectStatus(
+      await editor.browser.json(`/discussions/${generalId}/resolve`, 'POST', {
+        statement: 'ac911 editor closes it',
+      }),
+      403,
+      'Can edit may not resolve the General discussion',
+    )
+    expect(await stored(generalId)).toMatchObject({
+      state: 'open',
+      current_outcome_id: null,
+      trashed_at: null,
+    })
+    expect(await outcomesOf(generalId), 'no Outcome was written').toBe(0)
+    expectStatus(
+      await editor.browser.json(`/discussions/${generalId}`, 'DELETE'),
+      403,
+      'Can edit may not trash the General discussion',
+    )
+    expect((await stored(generalId))?.trashed_at, 'still live').toBeNull()
+    const ordinary = await start(editor, folderId, 'ac911 ordinary')
+    expectStatus(
+      await editor.browser.json(`/discussions/${ordinary}/resolve`, 'POST', {
+        statement: 'ac911 settled',
+      }),
+      200,
+      'Can edit still resolves an ordinary Discussion',
+    )
+
+    /* Full control may; a later legacy post then opens a fresh General. */
+    expectStatus(
+      await owner.browser.json(`/discussions/${generalId}/resolve`, 'POST', {
+        statement: 'ac911 owner closes it',
+      }),
+      200,
+      'Full control resolves the General discussion',
+    )
+    await legacyPost('ac911 after resolve')
+    const [fresh] = await generalOf()
+    expect(fresh).toBeDefined()
+    expect(fresh).not.toBe(generalId)
+
+    /* Reopening the old one would make two open Generals: refused, unchanged. */
+    expectStatus(
+      await owner.browser.json(`/discussions/${generalId}/reopen`, 'POST', {}),
+      409,
+      'reopen never makes a second open General discussion',
+    )
+    expect((await stored(generalId))?.state).toBe('resolved')
+
+    /* Trash the open one, let a legacy post open another, and the trashed
+       one cannot come back open beside it. */
+    const freshId = String(fresh)
+    expectStatus(
+      await owner.browser.json(`/discussions/${freshId}`, 'DELETE'),
+      204,
+      'Full control trashes the General discussion',
+    )
+    await legacyPost('ac911 after trash')
+    expect(await generalOf()).toHaveLength(1)
+    expectStatus(
+      await owner.browser.json(`/discussions/${freshId}/restore`, 'POST'),
+      409,
+      'restore never makes a second open General discussion',
+    )
+    expect((await stored(freshId))?.trashed_at, 'still in Trash').not.toBeNull()
+  })
+
+  test('AC-911: purging a Discussion or a Folder succeeds while an Outcome names a live comment', async () => {
+    const [owner] = (await cast.of(app)) as [Actor]
+    const folderId = await createFolder(owner, 'ac911 purge sourced')
+    const sourced = async (title: string) => {
+      const id = await start(owner, folderId, title)
+      const posted = await owner.browser.json(`/discussions/${id}/comments`, 'POST', {
+        body: `${title} words`,
+      })
+      expectStatus(posted, 201, 'a comment to use as the outcome')
+      const commentId = String((posted.json() as { id: string }).id)
+      expectStatus(
+        await owner.browser.json(`/discussions/${id}/resolve`, 'POST', {
+          source_comment_id: commentId,
+        }),
+        200,
+        'Use as outcome',
+      )
+      return id
+    }
+
+    const one = await sourced('ac911 purge me')
+    expectStatus(await owner.browser.json(`/discussions/${one}`, 'DELETE'), 204, 'trashed')
+    expectStatus(
+      await owner.browser.json(`/trash/discussions/${one}`, 'DELETE'),
+      204,
+      'the Discussion purges with a sourced current Outcome',
+    )
+    expect(await stored(one)).toBeUndefined()
+    expect(await outcomesOf(one)).toBe(0)
+
+    const other = await sourced('ac911 purge folder')
+    expectStatus(await owner.browser.json(`/folders/${folderId}`, 'DELETE'), 200, 'Folder to Trash')
+    expectStatus(
+      await owner.browser.json(`/trash/folders/${folderId}`, 'DELETE'),
+      204,
+      'the Folder purges with a sourced current Outcome inside',
+    )
+    expect(await stored(other)).toBeUndefined()
+    expect(await outcomesOf(other)).toBe(0)
+    expect(
+      await countRows(
+        app.db,
+        sql`SELECT count(*)::int AS n FROM folders WHERE id = ${folderId}::uuid`,
+      ),
+    ).toBe(0)
   })
 })

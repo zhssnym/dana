@@ -146,7 +146,7 @@ describe('AC-852 migration 0029 moves Folder-level comments into one General dis
     const discussions = await rows(
       db,
       sql`SELECT folder_id, title, context, created_by, state, current_outcome_id,
-                 resolved_at, trashed_at,
+                 resolved_at, trashed_at, is_general,
                  (created_at AT TIME ZONE 'UTC')::text AS created_at,
                  (last_activity_at AT TIME ZONE 'UTC')::text AS last_activity_at
             FROM discussions ORDER BY folder_id`,
@@ -165,6 +165,8 @@ describe('AC-852 migration 0029 moves Folder-level comments into one General dis
         current_outcome_id: null,
         resolved_at: null,
         trashed_at: null,
+        // The flag, not the title, is what the legacy thread keys on (4.31).
+        is_general: true,
       })
     }
     // No fabricated activity: the thread's own first and last times.
@@ -255,6 +257,35 @@ describe('AC-853 the 0029 schema refuses what #320 forbids', () => {
   })
 })
 
+describe('AC-853 at most one open General discussion per Folder', () => {
+  test('a second open, untrashed General is refused; resolved, trashed or ordinary ones are not', async () => {
+    await expectRejectedBy(
+      () =>
+        db.execute(sql`
+          INSERT INTO discussions (folder_id, title, created_by, is_general)
+          VALUES (${ids.desk}::uuid, 'Renamed', ${ids.owner}::uuid, true)`),
+      'discussions_one_open_general_key',
+    )
+    // An ordinary Discussion may carry the title; a trashed General may sit beside.
+    await db.execute(sql`
+      INSERT INTO discussions (folder_id, title, created_by)
+      VALUES (${ids.desk}::uuid, 'General discussion', ${ids.owner}::uuid)`)
+    await db.execute(sql`
+      INSERT INTO discussions (folder_id, title, created_by, is_general, trashed_at)
+      VALUES (${ids.desk}::uuid, 'General discussion', ${ids.owner}::uuid, true, now())`)
+    expect(
+      await rows(
+        db,
+        sql`SELECT count(*)::int AS n FROM discussions
+             WHERE folder_id = ${ids.desk}::uuid AND is_general`,
+      ),
+    ).toEqual([{ n: 2 }])
+    await db.execute(sql`
+      DELETE FROM discussions WHERE folder_id = ${ids.desk}::uuid
+         AND (NOT is_general OR trashed_at IS NOT NULL)`)
+  })
+})
+
 describe('AC-854 Outcomes outlive their source comment and supersession', () => {
   test('resolve, reopen and resolve again keeps both Outcomes; deleting the source comment keeps the snapshot', async () => {
     const [discussion] = await rows(
@@ -306,6 +337,22 @@ describe('AC-854 Outcomes outlive their source comment and supersession', () => 
   })
 
   test('purging the Folder removes its Discussions, Outcomes and comments', async () => {
+    // A current Outcome still naming a live source comment must not block
+    // the purge's single cascading statement.
+    const [discussion] = await rows(
+      db,
+      sql`SELECT id FROM discussions WHERE folder_id = ${ids.withThread}::uuid`,
+    )
+    const discussionId = String(discussion?.id)
+    const [live] = await rows(
+      db,
+      sql`INSERT INTO discussion_outcomes (discussion_id, statement, actor_id, source_comment_id)
+          VALUES (${discussionId}::uuid, 'still sourced', ${ids.owner}::uuid, ${ids.second}::uuid)
+          RETURNING id`,
+    )
+    await db.execute(sql`
+      UPDATE discussions SET current_outcome_id = ${String(live?.id)}::uuid
+       WHERE id = ${discussionId}::uuid`)
     await db.execute(sql`DELETE FROM folders WHERE id = ${ids.withThread}::uuid`)
     expect(
       await rows(

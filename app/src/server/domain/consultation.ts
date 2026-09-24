@@ -98,7 +98,7 @@ function stringOrNull(value: unknown): string | null {
 const DISCUSSION_COLUMNS = sql`
   d.id, d.folder_id, d.title, d.context, d.created_by, d.state,
   d.resolved_at, d.resolved_by, d.current_outcome_id, d.last_activity_at,
-  d.created_at, d.updated_at, d.trashed_at,
+  d.created_at, d.updated_at, d.trashed_at, d.is_general,
   to_char(d.last_activity_at AT TIME ZONE 'UTC',
           'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS activity_key,
   o.id AS o_id, o.statement AS o_statement, o.actor_id AS o_actor_id,
@@ -136,6 +136,7 @@ function discussionFromRow(row: Record<string, unknown>): Discussion {
     created_at: toIso(row.created_at),
     updated_at: toIso(row.updated_at),
     trashed_at: isoOrNull(row.trashed_at),
+    is_general: row.is_general === true,
   }
 }
 
@@ -175,6 +176,8 @@ interface LockedDiscussion {
   createdBy: string
   state: 'open' | 'resolved'
   trashed: boolean
+  /** The Folder's General discussion: the deployed client's Folder thread. */
+  isGeneral: boolean
 }
 
 /**
@@ -188,7 +191,7 @@ async function lockedDiscussion(
 ): Promise<LockedDiscussion | null> {
   const rows = await rowsOf(
     tx,
-    sql`SELECT id, folder_id, title, created_by, state, trashed_at
+    sql`SELECT id, folder_id, title, created_by, state, trashed_at, is_general
           FROM discussions WHERE id = ${discussionId}::uuid
          FOR UPDATE`,
   )
@@ -201,8 +204,59 @@ async function lockedDiscussion(
     createdBy: String(row.created_by),
     state: row.state === 'resolved' ? 'resolved' : 'open',
     trashed: row.trashed_at !== null && row.trashed_at !== undefined,
+    isGeneral: row.is_general === true,
   }
 }
+
+/**
+ * The General discussion is the currently deployed client's whole Folder
+ * thread (4.31): resolving it freezes that thread's replies and trashing it
+ * hides the thread (and the scheduler purges it after 30 days). Until the
+ * Consultation UI ships, both are Full control's, the bar of
+ * `discussion.purge` and every other act that can take a shared history
+ * away from people who cannot see why. Ordinary Discussions are unaffected.
+ */
+function generalDecision(
+  facts: FolderActorFacts,
+  discussion: LockedDiscussion,
+): { allowed: true } | { allowed: false; reason: string } {
+  if (!discussion.isGeneral) return { allowed: true }
+  const decision = mayPerform(facts, 'discussion.purge')
+  if (decision.allowed) return decision
+  return {
+    allowed: false,
+    reason:
+      "Only people with Full control can resolve or remove the Folder's General discussion.",
+  }
+}
+
+/**
+ * Reopening or restoring a General discussion would make it open beside the
+ * one a legacy post has since opened, which `discussions_one_open_general_key`
+ * forbids. Checked under the Folder row's lock, the lock the legacy post takes
+ * before it creates one, so the check and the write see one answer.
+ */
+async function anotherOpenGeneral(
+  tx: Executor,
+  discussion: LockedDiscussion,
+): Promise<boolean> {
+  if (!discussion.isGeneral) return false
+  await tx.execute(
+    sql`SELECT id FROM folders WHERE id = ${discussion.folderId}::uuid
+        FOR NO KEY UPDATE`,
+  )
+  const rows = await rowsOf(
+    tx,
+    sql`SELECT 1 FROM discussions
+         WHERE folder_id = ${discussion.folderId}::uuid
+           AND id <> ${discussion.id}::uuid
+           AND is_general AND state = 'open' AND trashed_at IS NULL`,
+  )
+  return rows.length > 0
+}
+
+const ANOTHER_GENERAL =
+  'This Folder already has an open General discussion. Resolve it first.'
 
 /**
  * The Folder a Discussion belongs to, for the route's 404 before it reads a
@@ -494,6 +548,8 @@ export async function resolveDiscussion(
       creatorId: discussion.createdBy,
     })
     if (!decision.allowed) return forbidden(decision.reason)
+    const general = generalDecision(facts, discussion)
+    if (!general.allowed) return forbidden(general.reason)
     if (discussion.state !== 'open') {
       return conflict(
         'This Discussion is already resolved. Reopen it to record a new Outcome.',
@@ -581,6 +637,7 @@ export async function reopenDiscussion(
     if (discussion.state !== 'resolved') {
       return conflict('This Discussion is already open.')
     }
+    if (await anotherOpenGeneral(tx, discussion)) return conflict(ANOTHER_GENERAL)
     await tx.execute(
       sql`UPDATE discussions
              SET state = 'open', resolved_at = NULL, resolved_by = NULL,
@@ -663,6 +720,8 @@ export async function trashDiscussion(
     const { discussion, facts } = found
     const decision = await lifecycleDecision(tx, facts, discussion, 'discussion.trash')
     if (!decision.allowed) return forbidden(decision.reason)
+    const general = generalDecision(facts, discussion)
+    if (!general.allowed) return forbidden(general.reason)
     await tx.execute(
       sql`UPDATE discussions SET trashed_at = now(), updated_at = now()
            WHERE id = ${discussionId}::uuid`,
@@ -730,6 +789,9 @@ export async function restoreDiscussion(
     if (!decision.allowed) return forbidden(decision.reason)
     if (found.folderTrashed) {
       return conflict('Restore the Folder first; its Discussions come back with it.')
+    }
+    if (discussion.state === 'open' && (await anotherOpenGeneral(tx, discussion))) {
+      return conflict(ANOTHER_GENERAL)
     }
     await tx.execute(
       sql`UPDATE discussions SET trashed_at = NULL, updated_at = now()

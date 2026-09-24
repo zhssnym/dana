@@ -14,6 +14,9 @@ AC-920..AC-925: comments inside a Discussion (issue #320).
   the deployed client posts to files a new comment under the Folder's open
   "General discussion", creating it when missing, and reads that
   Discussion and never another; a Task thread stays `discussion_id` null.
+  The General discussion is its `is_general` flag, never its title:
+  renaming it moves nothing, and another Discussion titled "General
+  discussion" stays off the legacy thread.
 - AC-924: when the General discussion is resolved, a legacy post opens a
   fresh General discussion rather than being refused, a legacy reply to a
   comment of the resolved one is refused as frozen, and the legacy read
@@ -53,7 +56,7 @@ afterAll(async () => {
   for (const folderId of folders) {
     await app.db.execute(
       sql`UPDATE discussions SET state = 'open', resolved_at = NULL,
-                 resolved_by = NULL, current_outcome_id = NULL
+                 resolved_by = NULL, current_outcome_id = NULL, is_general = false
           WHERE folder_id = ${folderId}::uuid`,
     )
     await app.db.execute(sql`DELETE FROM folders WHERE id = ${folderId}::uuid`)
@@ -284,7 +287,7 @@ describe('AC-923 the legacy Folder thread is the General discussion', () => {
     })
     const general = await rows(
       app.db,
-      sql`SELECT id, title, state, created_by FROM discussions
+      sql`SELECT id, title, state, created_by, is_general FROM discussions
           WHERE folder_id = ${folderId}::uuid`,
     )
     expect(general).toHaveLength(1)
@@ -292,6 +295,7 @@ describe('AC-923 the legacy Folder thread is the General discussion', () => {
       title: 'General discussion',
       state: 'open',
       created_by: owner.id,
+      is_general: true,
     })
     const generalId = String(general[0]?.id)
     expect((await storedComment(first))?.discussion_id).toBe(generalId)
@@ -322,6 +326,38 @@ describe('AC-923 the legacy Folder thread is the General discussion', () => {
     })
     const legacy = await owner.browser.json(`/folders/${folderId}/comments`, 'GET')
     expect(idsOf(legacy)).toEqual([first, strayId, second, reply])
+
+    // Renaming the General discussion moves nothing, and a Discussion that
+    // merely carries its title is an ordinary one: the flag decides.
+    const renamed = await owner.browser.json(`/discussions/${generalId}`, 'PATCH', {
+      title: 'ac923 renamed',
+    })
+    expectStatus(renamed, 200, 'the General discussion is renamed')
+    expect((renamed.json() as { is_general?: unknown }).is_general).toBe(true)
+    const decoy = await owner.browser.json(`/folders/${folderId}/discussions`, 'POST', {
+      title: 'General discussion',
+    })
+    expectStatus(decoy, 201, 'a Discussion titled like the General one')
+    const decoyId = String((decoy.json() as { id?: unknown }).id)
+    expect((decoy.json() as { is_general?: unknown }).is_general).toBe(false)
+    const inDecoy = await post(owner, `/discussions/${decoyId}/comments`, {
+      body: 'ac923 decoy',
+    })
+    const afterRename = await post(owner, `/folders/${folderId}/comments`, {
+      body: 'ac923 after rename',
+    })
+    expect((await storedComment(afterRename))?.discussion_id).toBe(generalId)
+    const relisted = await owner.browser.json(`/folders/${folderId}/comments`, 'GET')
+    expect(idsOf(relisted)).toEqual([first, strayId, second, reply, afterRename])
+    expect(idsOf(relisted)).not.toContain(inDecoy)
+    expect(
+      await rows(
+        app.db,
+        sql`SELECT count(*)::int AS n FROM discussions
+            WHERE folder_id = ${folderId}::uuid AND is_general`,
+      ),
+      'no second General was forked by the rename',
+    ).toEqual([{ n: 1 }])
     // And the legacy thread's reply cannot reach into another Discussion.
     expectStatus(
       await owner.browser.json(`/folders/${folderId}/comments`, 'POST', {
@@ -376,7 +412,7 @@ describe('AC-924 a resolved General discussion does not silence the legacy threa
     const generals = await rows(
       app.db,
       sql`SELECT state FROM discussions
-          WHERE folder_id = ${folderId}::uuid AND title = 'General discussion'
+          WHERE folder_id = ${folderId}::uuid AND is_general
           ORDER BY created_at, id`,
     )
     expect(generals.map((row) => row.state)).toEqual(['resolved', 'open'])
@@ -396,14 +432,16 @@ describe('AC-925 the sample workspace files its conversation under a General dis
     )
     const scoped = await rows(
       app.db,
-      sql`SELECT d.title
+      sql`SELECT d.title, d.is_general
           FROM comments c
           JOIN folders f ON f.id = c.folder_id AND f.owner_id = ${stranger.id}::uuid
           LEFT JOIN discussions d ON d.id = c.discussion_id
           WHERE c.task_id IS NULL`,
     )
     expect(scoped.length).toBeGreaterThan(0)
-    for (const row of scoped) expect(row.title).toBe('General discussion')
+    for (const row of scoped) {
+      expect(row).toMatchObject({ title: 'General discussion', is_general: true })
+    }
 
     expectStatus(
       await stranger.browser.json('/sample', 'DELETE'),
