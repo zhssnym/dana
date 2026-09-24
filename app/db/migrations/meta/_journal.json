@@ -253,6 +253,13 @@
       "when": 1791200000000,
       "tag": "0037_toggle_and_divider_blocks",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1791300000000,
+      "tag": "0038_block_nesting",
+      "breakpoints": true
     }
   ]
 }

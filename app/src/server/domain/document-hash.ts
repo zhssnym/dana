@@ -44,3 +44,23 @@ import { createHash } from 'node:crypto'
 
 export const documentHash = (value: unknown): string =>
   createHash('sha256').update(JSON.stringify(value)).digest('hex')
+
+/**
+ * Block rows as a revision hashes them, with a column added after a document's
+ * first revision dropped wherever it is null (0038's `toggleable`, and on a
+ * Shelf `list_parent_block_id`), so adding the column changes no stored
+ * revision and no open editor meets a conflict it did not cause; a non-null
+ * value still changes the revision, which is the rule that matters.
+ */
+export const hashableBlocks = (
+  rows: readonly Record<string, unknown>[],
+  added: readonly string[] = ['toggleable'],
+): Record<string, unknown>[] =>
+  rows.map((row) => {
+    const out: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(row)) {
+      if (added.includes(key) && (value === null || value === undefined)) continue
+      out[key] = value
+    }
+    return out
+  })

@@ -108,6 +108,9 @@ export interface PageBlock {
    * Section carries both; either may be null while the other is not.
    */
   list_parent_block_id: string | null
+  /** 0038: true on a presentation heading that folds its children (a toggle
+   * heading), null otherwise. Optional because older readers omit it. */
+  toggleable?: boolean | null
   /** A checklist item's tick, and null on every other kind. Authored content:
    * it completes no Task, assigns nobody and moves no progress bar. */
   checked: boolean | null
@@ -260,6 +263,7 @@ export const pageBlock = z.object({
   page_position: z.string().nullable(),
   section_block_id: z.uuid().nullable(),
   list_parent_block_id: z.uuid().nullable(),
+  toggleable: z.boolean().nullable().optional(),
   checked: z.boolean().nullable(),
   text: z.string().nullable(),
   file_id: z.uuid().nullable(),

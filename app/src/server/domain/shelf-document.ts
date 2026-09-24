@@ -21,9 +21,8 @@ refusals named:
   not carry one (`page_blocks_section_membership_check`). A `section` block is
   admitted, flat, which is exactly what the legacy Shelf editor has always
   stored.
-- An outline item with a `list_parent_block_id` is refused:
-  `page_blocks_list_parent_kind_check` admits one only on a folder or facet
-  home, and widening it is a `page_blocks` change this issue does not need.
+- Since migration 0038 an outline item may carry a `list_parent_block_id`:
+  blocks nest on a Shelf like on every other home (`document-outline.ts`).
 
 **A Folder row is a `folder_ref` block naming the folder**, which is how the
 legacy Shelf editor stored it. The Folder's
@@ -41,7 +40,8 @@ import type { DocumentOperation, DocumentTransaction } from '../../shared/pages.
 import { BLOCK_FILE_KINDS, isMediaKind } from '../../shared/page-document.js'
 import { rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
-import { documentHash } from './document-hash.js'
+import { documentHash, hashableBlocks } from './document-hash.js'
+import { nestingProblem } from './document-outline.js'
 import { readableFileScope } from './files.js'
 import { initialKeys } from './fractional-index.js'
 
@@ -68,10 +68,15 @@ export async function shelfDocumentMetadata(
   const blocks = await rowsOf(
     tx,
     sql`SELECT id, kind, text, rich_content, file_id, ref_folder_id, width_pct,
-               checked, page_position, position
+               checked, page_position, position, list_parent_block_id, toggleable
           FROM page_blocks WHERE shelf_id = ${shelfId}::uuid ORDER BY id`,
   )
-  return { revision: documentHash({ shelf: shelfId, blocks }), task_placements: [] }
+  // Both columns are dropped where null, so every Shelf revision stored before
+  // 0038 reads the same after it.
+  return {
+    revision: documentHash({ shelf: shelfId, blocks: hashableBlocks(blocks, ['list_parent_block_id', 'toggleable']) }),
+    task_placements: [],
+  }
 }
 
 export interface ShelfMutation {
@@ -142,7 +147,11 @@ export async function applyShelfDocument(
       throw new ShelfDocumentRefusal('invalid', 'a Shelf holds no Tasks; create it in a Folder instead')
     }
     if (op.op === 'put_block') {
-      writes.set(op.id, { ...op, checked: op.block_kind === 'checklist' ? (op.checked ?? false) : null })
+      writes.set(op.id, {
+        ...op,
+        checked: op.block_kind === 'checklist' ? (op.checked ?? false) : null,
+        toggleable: op.toggleable === true ? true : null,
+      })
       blocks.add(op.id)
       named.add(op.id)
       refOf.set(op.id, op.block_kind === 'folder_ref' ? op.ref_folder_id : null)
@@ -174,13 +183,24 @@ export async function applyShelfDocument(
     if (item.section !== null) {
       throw new ShelfDocumentRefusal('invalid', 'a Shelf document has no Section membership', 'section_block_id')
     }
-    if (item.listParent !== null) {
-      throw new ShelfDocumentRefusal('invalid', 'a Shelf document has no nested list items', 'list_parent_block_id')
-    }
     seen.add(item.id)
   }
   if (seen.size !== blocks.size) {
     throw new ShelfDocumentRefusal('invalid', 'The outline must retain every undeleted block.')
+  }
+  // Block nesting (0038), the rule every document home shares.
+  const storedKinds = new Map(stored.map((row) => [String(row.id), String(row.kind)]))
+  const nesting = nestingProblem(
+    outline.map((item) => ({
+      kind: item.kind,
+      id: item.id,
+      section_block_id: null,
+      list_parent_block_id: item.listParent,
+    })),
+    (id) => (blocks.has(id) ? (writes.get(id)?.block_kind ?? storedKinds.get(id)) : undefined),
+  )
+  if (nesting !== null) {
+    throw new ShelfDocumentRefusal('invalid', nesting, 'list_parent_block_id')
   }
 
   // One placement per Folder row, asked of the final document.
@@ -261,7 +281,9 @@ export async function applyShelfDocument(
                SET kind = ${write.block_kind}, text = ${write.text},
                    rich_content = ${rich}::jsonb, file_id = ${write.file_id}::uuid,
                    ref_folder_id = ${write.ref_folder_id}::uuid, width_pct = ${write.width_pct},
-                   checked = ${write.checked},
+                   checked = ${write.checked}, toggleable = ${write.toggleable},
+                   list_parent_block_id = CASE WHEN ${write.block_kind} <> 'section'
+                     THEN list_parent_block_id END,
                    file_reclaimed_at = CASE
                      WHEN ${write.file_id}::uuid IS NULL AND kind = ${write.block_kind}
                      THEN file_reclaimed_at END,
@@ -271,10 +293,10 @@ export async function applyShelfDocument(
     } else {
       await tx.execute(
         sql`INSERT INTO page_blocks
-              (id, shelf_id, kind, position, text, rich_content, file_id, ref_folder_id, width_pct, checked)
+              (id, shelf_id, kind, position, text, rich_content, file_id, ref_folder_id, width_pct, checked, toggleable)
             VALUES (${write.id}::uuid, ${shelfId}::uuid, ${write.block_kind}, 0, ${write.text},
                     ${rich}::jsonb, ${write.file_id}::uuid, ${write.ref_folder_id}::uuid,
-                    ${write.width_pct}, ${write.checked})`,
+                    ${write.width_pct}, ${write.checked}, ${write.toggleable})`,
       )
     }
   }
@@ -283,7 +305,8 @@ export async function applyShelfDocument(
   const keys = initialKeys(outline.length)
   for (const [index, item] of outline.entries()) {
     await tx.execute(
-      sql`UPDATE page_blocks SET page_position = ${keys[index] as string}, position = ${index}
+      sql`UPDATE page_blocks SET page_position = ${keys[index] as string}, position = ${index},
+                                 list_parent_block_id = ${item.listParent}::uuid
            WHERE id = ${item.id}::uuid AND shelf_id = ${shelfId}::uuid`,
     )
   }

@@ -115,17 +115,23 @@ export const RICH_TEXT_BLOCK_KINDS = ['section','paragraph',...PRESENTATION_HEAD
 /** The one test for "may this take part in list nesting", written once. */
 export const isListKind = (kind:string):kind is ListBlockKind => (LIST_BLOCK_KINDS as readonly string[]).includes(kind)
 /**
- * A toggle is a list item that also holds writing. A list item nests under a
- * list item (a toggle included), as #219 has it; and under a `toggle`, and
- * under nothing else, a paragraph, a quote, a callout, a code block or a
- * divider may nest too, through the same `list_parent_block_id`. The database
- * says the same thing in `page_blocks_list_parent_kind_check` (0037).
+ * Any block nests (wave 2, migration 0038). `list_parent_block_id` is the
+ * general block parent: a child may be any kind but a Section (a Section's
+ * place is `section_block_id`, Work grouping), and a parent is one of the
+ * writing kinds below -- text, a heading, a list item, a toggle, a quote or a
+ * callout. A picture, a file, a code block, a diagram or a divider holds
+ * nothing. The database states only the child half
+ * (`page_blocks_list_parent_kind_check`); the parent half, precedence, the one
+ * Section rule and the depth ceiling are `domain/document-outline.ts`.
  */
-export const TOGGLE_CHILD_KINDS = ['paragraph',...LIST_BLOCK_KINDS,'quote','callout','code','divider'] as const
-export type ToggleChildKind = (typeof TOGGLE_CHILD_KINDS)[number]
+export const NEST_PARENT_KINDS = ['paragraph',...PRESENTATION_HEADING_KINDS,...LIST_BLOCK_KINDS,'quote','callout'] as const
+/** How deep blocks nest under blocks: a root block is depth 0, its child 1. */
+export const MAX_NEST_DEPTH = 12
+/** May a block of this kind sit under another block at all. */
+export const mayNest = (childKind:string):boolean => childKind!=='section'
 /** The one test for "may a block of `childKind` nest under one of `parentKind`". */
 export const mayNestUnder = (childKind:string,parentKind:string):boolean =>
- (isListKind(childKind)&&isListKind(parentKind)) || (parentKind==='toggle'&&(TOGGLE_CHILD_KINDS as readonly string[]).includes(childKind))
+ mayNest(childKind) && (NEST_PARENT_KINDS as readonly string[]).includes(parentKind)
 /**
  * An outline item carries both parent relations, and they are independent.
  * `section_block_id` is Work grouping: which Section this block or Task belongs
@@ -140,12 +146,14 @@ export const mayNestUnder = (childKind:string,parentKind:string):boolean =>
  */
 export const documentOutlineItem = z.object({kind:z.enum(['block','task']),id:z.uuid(),section_block_id:z.uuid().nullable(),list_parent_block_id:z.uuid().nullable().default(null)}).superRefine((item,ctx)=>{
  if(item.list_parent_block_id===null)return
- if(item.kind!=='block')ctx.addIssue({code:'custom',path:['list_parent_block_id'],message:'A Task is never a nested list item.'})
- if(item.list_parent_block_id===item.id)ctx.addIssue({code:'custom',path:['list_parent_block_id'],message:'A list item cannot be nested under itself.'})
+ if(item.kind!=='block')ctx.addIssue({code:'custom',path:['list_parent_block_id'],message:'A Task is never a nested block.'})
+ if(item.list_parent_block_id===item.id)ctx.addIssue({code:'custom',path:['list_parent_block_id'],message:'A block cannot be nested under itself.'})
 })
 export type DocumentOutlineItem = z.infer<typeof documentOutlineItem>
 export const documentOperation = z.discriminatedUnion('op',[
- z.object({op:z.literal('put_block'),id:z.uuid(),block_kind:z.enum(DOCUMENT_BLOCK_KINDS),text:z.string().max(4000).nullable(),rich_content:richContent.nullable(),file_id:z.uuid().nullable(),ref_folder_id:z.uuid().nullable(),width_pct:z.number().int().min(25).max(100).nullable(),checked:z.boolean().nullable().default(null)}).superRefine((b,ctx)=>{
+ z.object({op:z.literal('put_block'),id:z.uuid(),block_kind:z.enum(DOCUMENT_BLOCK_KINDS),text:z.string().max(4000).nullable(),rich_content:richContent.nullable(),file_id:z.uuid().nullable(),ref_folder_id:z.uuid().nullable(),width_pct:z.number().int().min(25).max(100).nullable(),checked:z.boolean().nullable().default(null),toggleable:z.boolean().nullable().optional()}).superRefine((b,ctx)=>{
+  // A toggle heading (0038): only a presentation heading folds its children.
+  if((b.toggleable??null)!==null && !isPresentationHeadingKind(b.block_kind))ctx.addIssue({code:'custom',path:['toggleable'],message:'Only a heading folds.'})
   if((b.block_kind==='section'||isPresentationHeadingKind(b.block_kind)) && (b.text?.length??0)>120)ctx.addIssue({code:'custom',path:['text'],message:'A heading has at most 120 characters.'})
   if(b.rich_content!==null && (!(RICH_TEXT_BLOCK_KINDS as readonly string[]).includes(b.block_kind)||b.rich_content.runs.map(r=>r.text).join('')!==b.text))ctx.addIssue({code:'custom',path:['rich_content'],message:'Rich content must match its text projection.'})
   // 4.17's width, as #220 leaves it: an image and a previewable video persist
