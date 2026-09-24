@@ -1033,6 +1033,7 @@ export function CommentsThread({
   emptyWord = "comment",
   layout = "block",
   canComment = true,
+  closedReason,
 }: {
   comments: ConceptComment[]
   onChange: (next: ConceptComment[]) => void
@@ -1047,6 +1048,10 @@ export function CommentsThread({
      is the lab's answer and what every surface that has not worked out the
      viewer's Access gets. */
   canComment?: boolean
+  /* A conversation that takes no comments from anyone right now (a resolved
+     Discussion, #212): the composer is disabled and says this instead of the
+     standing sentence, which would blame the viewer's Access. */
+  closedReason?: string
   /* "comment" in a card, "message" in a chat panel, the only wording that
      differs between the surfaces. */
   emptyWord?: string
@@ -1162,13 +1167,15 @@ export function CommentsThread({
 
   const composer = (
     <Composer
-      disabled={!canComment}
+      disabled={!canComment || closedReason !== undefined}
       placeholder={
-        canComment
-          ? comments.length === 0
-            ? `Write the first ${emptyWord}`
-            : placeholder
-          : COMMENTING_NEEDS_STANDING
+        closedReason !== undefined
+          ? closedReason
+          : canComment
+            ? comments.length === 0
+              ? `Write the first ${emptyWord}`
+              : placeholder
+            : COMMENTING_NEEDS_STANDING
       }
       onSubmit={(partial) => onChange([...comments, newComment(partial)])}
     />

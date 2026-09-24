@@ -20,6 +20,7 @@ not be narrower than the rule.
 **No capture anywhere on the page**, which 9.11 says in terms and which the
 shell honours by the floating button's own rule; this file adds none.
 */
+import { useRestoreDiscussion } from '../api/consultation.js'
 import { useRestoreFacet, useRestoreFolder, useTransitionTask } from '../api/mutations.js'
 import { TrashScreen } from '../screens/trash-screen.js'
 import { showToast } from '../state/toasts.js'
@@ -28,6 +29,7 @@ export function TrashPage(): React.JSX.Element {
   const restoreFolder = useRestoreFolder()
   const restoreTask = useTransitionTask()
   const restoreFacet = useRestoreFacet()
+  const restoreDiscussion = useRestoreDiscussion()
 
   return (
     <div className="min-h-full">
@@ -37,7 +39,7 @@ export function TrashPage(): React.JSX.Element {
              went; the toast names the folder it went back to. */
           const said = (): void => {
             showToast(
-              item.kind === 'task' && item.from
+              (item.kind === 'task' || item.kind === 'discussion') && item.from
                 ? `Restored "${item.name}" to ${item.from}`
                 : `Restored "${item.name}"`,
             )
@@ -45,6 +47,9 @@ export function TrashPage(): React.JSX.Element {
           if (item.kind === 'folder') restoreFolder.mutate(item.subject, { onSuccess: said })
           else if (item.kind === 'task') {
             restoreTask.mutate({ id: item.subject, event: 'restore' }, { onSuccess: said })
+          }
+          else if (item.kind === 'discussion') {
+            restoreDiscussion.mutate(item.subject, { onSuccess: said })
           }
           else restoreFacet.mutate(item.subject, { onSuccess: said })
         }}

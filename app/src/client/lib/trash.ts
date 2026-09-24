@@ -43,16 +43,17 @@ question; the answer is the table's rather than this module's.
 */
 import { useMemo } from 'react'
 
+import { useDestroyTrashedDiscussion } from '../api/consultation.js'
 import {
   useDestroyTrashedFacet,
   useDestroyTrashedFolder,
   useDestroyTrashedTask,
 } from '../api/mutations.js'
 import { useTrash as useTrashRead } from '../api/queries.js'
-import { folderGates } from './folder-authority.js'
+import { folderGates, mayDraw } from './folder-authority.js'
 import type { FolderAccessPreset } from '../../shared/folder-access.js'
 
-export type TrashKind = 'task' | 'folder' | 'facet'
+export type TrashKind = 'task' | 'folder' | 'facet' | 'discussion'
 
 export interface TrashItem {
   id: string
@@ -113,13 +114,22 @@ const EMPTY: TrashItem[] = []
  */
 export function mayPurge(
   row: { readonly my_access: FolderAccessPreset; readonly is_owner: boolean },
-  kind: 'task' | 'folder' | 'facet',
+  kind: TrashKind,
 ): boolean {
   const gates = folderGates({
     access: row.my_access,
     isOwner: row.is_owner,
     isDefault: false,
   })
+  /* A Discussion's `discussion.purge` is Full control with ownership
+     ignored, which is `task.destroy`'s rule; asked by name all the same, so
+     the table stays the one answer. */
+  if (kind === 'discussion') {
+    return mayDraw(
+      { access: row.my_access, isOwner: row.is_owner, isDefault: false },
+      'discussion.purge',
+    )
+  }
   return kind === 'folder' ? gates.destroyFolder : gates.destroyTask
 }
 
@@ -162,6 +172,17 @@ export function useTrash(): TrashItem[] {
           purgeable: mayPurge(facet, 'facet'),
         }),
       ),
+      ...data.discussions.map(
+        (discussion): TrashItem => ({
+          id: `discussion-${discussion.id}`,
+          kind: 'discussion',
+          subject: discussion.id,
+          name: discussion.title,
+          at: Date.parse(discussion.deleted_at),
+          from: discussion.folder_name,
+          purgeable: mayPurge(discussion, 'discussion'),
+        }),
+      ),
     ]
     return items.sort((a, b) => b.at - a.at)
   }, [data])
@@ -192,9 +213,11 @@ export function usePurge(): {
   const task = useDestroyTrashedTask()
   const folder = useDestroyTrashedFolder()
   const facet = useDestroyTrashedFacet()
+  const discussion = useDestroyTrashedDiscussion()
   const purge = async (item: TrashItem): Promise<void> => {
     if (item.kind === 'task') await task.mutateAsync(item.subject)
     else if (item.kind === 'folder') await folder.mutateAsync(item.subject)
+    else if (item.kind === 'discussion') await discussion.mutateAsync(item.subject)
     else await facet.mutateAsync(item.subject)
   }
   return {
@@ -206,6 +229,6 @@ export function usePurge(): {
         /* Toasted by the mutation cache; the list refetches as it stands. */
       }
     },
-    pending: task.isPending || folder.isPending || facet.isPending,
+    pending: task.isPending || folder.isPending || facet.isPending || discussion.isPending,
   }
 }
