@@ -11,9 +11,15 @@ thread and one read state fold into one row (`notifications-grouping.ts`);
 mentions never fold. "Mark all read" is the only other verb.
 
 Actors resolve through the connections roster already cached, by id; one this
-client cannot resolve reads "Someone". The list polls only while open.
+client cannot resolve reads "Someone".
+
+Live while the app is open (r7): the list re-reads every twenty seconds while
+the tab is visible (TanStack pauses the interval in a hidden tab), on focus as
+every read does, and at once when the bell is opened, so it never opens on
+stale rows. A row is two lines: who and what ("Bilal posted · 2 new"), then
+where and the words ("in "Launch" · “Bakery yes…”").
 */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 
 import {
@@ -84,10 +90,19 @@ function subjectPath(row: NotificationLine): string {
   }
 }
 
-/** "posted in "X"", from either stored form of a post's detail. */
-function postedIn(row: NotificationLine): string {
-  const place = placeOf(row.event.detail)
-  return place === null ? 'posted' : `posted in ${place}`
+/** "in "X"", from either stored form of a post's or a mention's detail. */
+function placeLine(row: NotificationLine): string | null {
+  const detail = row.event.detail ?? ''
+  const mentioned = /^mentioned you ins+(.+)$/.exec(detail.trim())?.[1]
+  const place = mentioned ?? placeOf(row.event.detail)
+  return place === null ? null : `in ${place}`
+}
+
+/** The second line: where, then the words, either of which may be absent. */
+function whereAndWords(place: string | null, quote: string | null): string | null {
+  const words = quote === null || quote === '' ? null : `“${quote}”`
+  if (place === null) return words
+  return words === null ? place : `${place} · ${words}`
 }
 
 /**
@@ -100,11 +115,11 @@ function sentenceOf(row: NotificationLine): { readonly act: string; readonly quo
   const detail = event.detail ?? ''
   if (event.verb === 'mentioned') {
     return event.subject_kind === 'comment'
-      ? { act: detail.startsWith('mentioned you') ? detail : 'mentioned you', quote: event.subject_name }
+      ? { act: 'mentioned you', quote: whereAndWords(placeLine(row), event.subject_name) }
       : { act: `mentioned you in "${event.subject_name}"`, quote: null }
   }
   if (event.subject_kind === 'comment') {
-    return { act: postedIn(row), quote: event.subject_name }
+    return { act: 'posted', quote: whereAndWords(placeLine(row), event.subject_name) }
   }
   if (detail.startsWith('assigned to ')) {
     return { act: `assigned you "${event.subject_name}"`, quote: null }
@@ -127,7 +142,12 @@ export function NotificationsBell({
 } = {}): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
-  const notifications = useNotifications(open)
+  const notifications = useNotifications(true)
+  /* Opening the bell always shows the truth, never the last poll's rows. */
+  const { refetch } = notifications
+  useEffect(() => {
+    if (open) void refetch()
+  }, [open, refetch])
   const connections = useConnections()
   const me = useMe()
   const markRead = useMarkNotificationRead()
@@ -152,12 +172,16 @@ export function NotificationsBell({
     return people.get(actorId)?.name ?? 'Someone'
   }
 
-  /* Opens the newest post of the group and reads every unread row in it. */
+  /* Reads every unread row in the group and opens it. One post opens at
+     that post; several open the thread with no `#post-`, so the thread lands
+     on its own first unread post (and draws "New" there), not the newest. */
   function openGroup(group: BellGroup): void {
     for (const row of group.rows) if (row.read_at === null) markRead.mutate(row.id)
     setOpen(false)
     const newest = group.rows[0]
-    if (newest !== undefined) void navigate(subjectPath(newest))
+    if (newest === undefined) return
+    const path = subjectPath(newest)
+    void navigate(group.rows.length > 1 && isPost(newest) ? path.replace(/#post-.*$/, '') : path)
   }
 
   /* One person or several, "posted in" the place, and how many are new. */
@@ -168,7 +192,7 @@ export function NotificationsBell({
     }
     const names = [...new Set(group.rows.map((row) => row.event.actor_id))].map(nameOf)
     const fresh = group.read ? '' : ` · ${group.rows.length} new`
-    return { actor: actorsPhrase(names), act: `${postedIn(newest)}${fresh}`, quote: newest.event.subject_name }
+    return { actor: actorsPhrase(names), act: `posted${fresh}`, quote: whereAndWords(placeLine(newest), newest.event.subject_name) }
   }
 
   return (
@@ -245,7 +269,7 @@ export function NotificationsBell({
                   <span className="flex items-baseline gap-2">
                     <span
                       className={cn(
-                        'min-w-0 flex-1 text-sm',
+                        'min-w-0 flex-1 truncate text-sm',
                         group.read ? 'text-muted-foreground' : 'text-foreground',
                       )}
                     >
@@ -257,7 +281,7 @@ export function NotificationsBell({
                   </span>
                   {quote === null ? null : (
                     <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                      “{quote}”
+                      {quote}
                     </span>
                   )}
                 </span>

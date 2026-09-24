@@ -10,8 +10,10 @@ invite names its Access, which `POST /folders/:id/members` requires and
 
 Every gate here (`mayAdd`, `mayInvite`, `mayRemove`, from `lib/folder-authority`)
 only hides a control the server would refuse anyway (5.3, 5.4, 7.11). Remove is
-never offered on the owner's row. Resend is disabled inside 24 hours with the
-tooltip "Resent recently"; the server's 429 is the rule. The folder detail and
+never offered on the owner's row. A member's line says what they may do (their
+Access), which is what an owner needs, not when they joined. Resend is shown
+only once it is allowed (24 hours after the last send); the server's 429 is the
+rule (r7: a disabled Resend was a dead control most of the time it was seen). The folder detail and
 the roster arrive as props from `FolderPage`; nothing here reads.
 
 The region "Sharing panel" (9.1) sits inside the sheet, because a dialog cannot
@@ -20,6 +22,7 @@ also be the region its controls are addressed within.
 import { useId, useState } from 'react'
 
 import type { GetConnectionsResponse } from '../../shared/connections.js'
+import { FOLDER_ACCESS_LABELS } from '../../shared/folder-access.js'
 import type { GetFolderResponse } from '../../shared/folders.js'
 import { folderInviteBody } from '../api/folder-invite.js'
 import {
@@ -32,15 +35,10 @@ import { Avatar, AvatarFallback } from '../components/ui/avatar.js'
 import { Button } from '../components/ui/button.js'
 import { Input } from '../components/ui/input.js'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '../components/ui/sheet.js'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '../components/ui/tooltip.js'
 import { cn } from '../components/ui/utils.js'
 import { mayDraw } from '../lib/folder-authority.js'
 import type { FolderViewerFacts } from '../lib/folder-authority.js'
-import { formatCompactDate, formatRelativeDay } from '../parts/format-dates.js'
+import { formatRelativeDay } from '../parts/format-dates.js'
 import { initialsOf, presenterToday } from '../parts/presenters.js'
 import { ConfirmDialog, useConfirm } from './task-rows.js'
 import { PersonFace } from '../components/person-face.js'
@@ -50,9 +48,6 @@ const SHARING_PANEL = 'Sharing panel'
 
 /** 9.6: the one field's label and placeholder. */
 const NAME_OR_EMAIL = 'Name or email'
-
-/** 9.6: the tooltip on a resend refused inside the 24 hour window. */
-const RESENT_RECENTLY = 'Resent recently'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -287,9 +282,7 @@ export function FolderSharingPanel({
                     <p className="min-w-0 flex-1 truncate text-sm text-foreground">
                       {name}{' '}
                       <span className="text-xs text-muted-foreground">
-                        {member.is_owner
-                          ? 'Owner'
-                          : `Joined ${formatCompactDate(member.joined_at.slice(0, 10))}`}
+                        {member.is_owner ? 'Owner' : FOLDER_ACCESS_LABELS[member.access]}
                       </span>
                     </p>
                     {mayRemove && !member.is_owner ? (
@@ -330,14 +323,13 @@ export function FolderSharingPanel({
                           Sent {formatRelativeDay(row.last_sent_at, presenterToday())}
                         </span>
                       </p>
-                      {/* Not bare "Cancel": that is the confirm dialog's word. */}
                       <Button
                         variant="ghost"
                         onClick={() => {
                           cancel.mutate(row.id)
                         }}
                       >
-                        Cancel invite
+                        Cancel
                       </Button>
                       {resendable(row.last_sent_at) ? (
                         <Button
@@ -348,20 +340,7 @@ export function FolderSharingPanel({
                         >
                           Resend
                         </Button>
-                      ) : (
-                        <Tooltip>
-                          <TooltipTrigger
-                            render={
-                              <span tabIndex={0} className="inline-flex">
-                                <Button variant="ghost" disabled>
-                                  Resend
-                                </Button>
-                              </span>
-                            }
-                          />
-                          <TooltipContent>{RESENT_RECENTLY}</TooltipContent>
-                        </Tooltip>
-                      )}
+                      ) : null}
                     </li>
                   ))}
                 </ul>

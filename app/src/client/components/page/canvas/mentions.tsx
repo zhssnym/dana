@@ -107,7 +107,7 @@ export function MentionSuggestions({
           key: `person:${person.id}`,
           title: person.name,
           detail: (named.get(person.name) ?? 0) > 1 ? person.email ?? (person.id === me.data?.user.id ? 'You' : undefined) : undefined,
-          icon: <PersonFace name={person.name} image={person.image} dense />,
+          icon: <PersonFace id={person.id} name={person.name} image={person.image} dense />,
           size: 'small' as const,
           onItemClick: () => { insertMention(editor, person) },
         }))

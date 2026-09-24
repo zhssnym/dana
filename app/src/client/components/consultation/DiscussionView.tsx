@@ -48,7 +48,6 @@ import { InlineError, SkeletonList } from '../state-patterns.js'
 import { ThreadPosts } from '../thread/ThreadPosts.js'
 import { Button } from '../ui/button.js'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu.js'
-import { Input } from '../ui/input.js'
 import type { ConsultationViewer } from './authority.js'
 import { discussionPowers } from './authority.js'
 
@@ -286,26 +285,28 @@ function Rename({ discussion: d, onDone }: { readonly discussion: Discussion; re
   )
 }
 
-/** "Close thread…": one optional line in the composer's place, then Enter. Escape leaves it open. */
+/** "Close thread…": one optional line in the composer's place and in its
+ * frame (the same 40px box, the act inline where Send was), then Enter.
+ * Escape or Cancel leaves it open. */
 function CloseThread({ discussion: d, onDone }: { readonly discussion: Discussion; readonly onDone: () => void }): React.JSX.Element {
   const resolve = useResolveDiscussion()
   const [statement, setStatement] = useState('')
   return (
     <form
-      className="flex min-w-0 items-center gap-2"
+      className="flex min-h-10 min-w-0 items-center gap-1 rounded-lg border border-border bg-background pr-1 pl-3 focus-within:border-ring"
       onSubmit={(event) => {
         event.preventDefault()
         const decided = statement.trim()
         resolve.mutate({ id: d.id, body: decided === '' ? {} : { statement: decided } }, { onSuccess: onDone })
       }}
     >
-      <Input
+      <input
         aria-label="What was decided?"
         placeholder="What was decided? (optional)"
         autoFocus
         value={statement}
         maxLength={OUTCOME_STATEMENT_MAX}
-        className="min-w-0 flex-1 text-sm md:text-sm"
+        className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
         onChange={(event) => { setStatement(event.target.value) }}
         onKeyDown={(event) => {
           if (event.key === 'Escape') {
@@ -317,7 +318,7 @@ function CloseThread({ discussion: d, onDone }: { readonly discussion: Discussio
       <Button type="button" variant="ghost" onClick={onDone}>
         Cancel
       </Button>
-      <Button type="submit" disabled={resolve.isPending}>
+      <Button type="submit" variant="ghost" disabled={resolve.isPending}>
         Close thread
       </Button>
     </form>

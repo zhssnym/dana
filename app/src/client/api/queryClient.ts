@@ -17,6 +17,9 @@ and every line below is one of the three:
   per-mutation key map exists, deliberately: a map is a list of the things
   somebody remembered, and the failure it produces is a shared folder that
   looks wrong after another member's edit, which is this role's named hazard.
+  The one exception is chat (r7): a post, edit, delete or like names the
+  thread and lists it changed (`INVALIDATES_META`), because a conversation
+  writes often and polls anyway.
 
 `networkMode: 'always'` on both is the 10.6 contract rather than a
 performance choice. TanStack Query's default, `'online'`, pauses a mutation
@@ -91,6 +94,16 @@ export function writeFailureMessage(error: unknown): string {
   return ERROR_TOAST
 }
 
+/**
+ * A mutation carrying this metadata names what its write changed, as a
+ * predicate over query keys built from its variables, and only those queries
+ * are refreshed (r7). For chat, where one post is one small write the thread
+ * already shows: the unfiltered rule below refetched about nineteen reads per
+ * post. Everything else keeps the unfiltered rule.
+ */
+export const INVALIDATES_META = 'invalidates'
+export type InvalidatesMeta = (variables: unknown) => (queryKey: readonly unknown[]) => boolean
+
 /** A mutation carrying this metadata asks for a validation response whose
  * message is already written for the person to correct their input. */
 export const VALIDATION_ERROR_TOAST_META = 'validationErrorToast'
@@ -145,7 +158,13 @@ export function createQueryClient(): QueryClient {
         }
         showToast(mutationFailureMessage(error, mutation.meta))
       },
-      onSuccess: () => {
+      onSuccess: (_data, variables, _onMutateResult, mutation) => {
+        const narrow = mutation.meta?.[INVALIDATES_META]
+        if (typeof narrow === 'function') {
+          const changed = (narrow as InvalidatesMeta)(variables)
+          void queryClientRef?.invalidateQueries({ predicate: (query) => changed(query.queryKey) })
+          return
+        }
         // A Dana Link chip's label (queryKeys.reference) is left to its own
         // staleTime: invalidating it on every save refetched one
         // GET /references per chip on each canvas autosave.

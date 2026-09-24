@@ -426,3 +426,13 @@ export type PatchCommentResponse = z.infer<typeof patchCommentResponse>
  * (moderation included) and likes.
  */
 export const DISCUSSION_FROZEN = 'discussion_frozen'
+
+/**
+ * PUT /tasks/:id/thread/read answers the viewer's previous read of the task's
+ * thread: an ISO time, or null when they had never opened it. The caller can
+ * then tell which posts arrived since.
+ */
+export const taskThreadReadResponse = z.object({
+  read_at: z.string().nullable(),
+})
+export type TaskThreadReadResponse = z.infer<typeof taskThreadReadResponse>
