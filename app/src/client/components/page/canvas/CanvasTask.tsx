@@ -72,11 +72,29 @@ function ResolvedTask({ taskId, bridge }: { readonly taskId: string; readonly br
     />
   )
   const known = listed ?? completedListed ?? detail.data
+  /* The editor swallows the list's tap engine (ProseMirror owns the pointer
+     inside its document), so the placement opens its Task itself, through the
+     same `onOpenTask` every list row calls: a click that is not on the
+     checkbox, star or another control, or Enter on the focused row. */
+  const opener = (task: TaskCard) => ({
+    tabIndex: 0,
+    onClick: (event: React.MouseEvent<HTMLDivElement>) => {
+      if ((event.target as HTMLElement).closest('button, a, input, [role="checkbox"], [role="menuitem"]')) return
+      if (event.metaKey || event.ctrlKey || event.shiftKey) return
+      bridge.actions.onOpenTask(task)
+    },
+    onKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (event.key !== 'Enter' || event.target !== event.currentTarget) return
+      event.preventDefault()
+      event.stopPropagation()
+      bridge.actions.onOpenTask(task)
+    },
+  })
   if (known !== undefined && (listed !== undefined || (completedListed === undefined && known.status !== 'completed'))) {
-    return <div data-canvas-task-id={taskId} className="min-w-0" contentEditable={false}>{row(known)}</div>
+    return <div data-canvas-task-id={taskId} className="min-w-0 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" contentEditable={false} {...opener(known)}>{row(known)}</div>
   }
   if (known !== undefined) {
-    return <div data-canvas-task-id={taskId} data-canvas-task-done="" className="min-w-0 text-muted-foreground opacity-60" contentEditable={false}>{row(known)}</div>
+    return <div data-canvas-task-id={taskId} data-canvas-task-done="" className="min-w-0 rounded-sm text-muted-foreground opacity-60 outline-none focus-visible:ring-2 focus-visible:ring-ring" contentEditable={false} {...opener(known)}>{row(known)}</div>
   }
   if (detail.isError) {
     return <div data-canvas-task-id={taskId} className="min-w-0 text-sm text-muted-foreground" contentEditable={false}>Task unavailable</div>

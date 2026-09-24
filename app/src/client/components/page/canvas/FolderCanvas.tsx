@@ -11,8 +11,6 @@ import { documentTransaction } from '../../../../shared/page-document.js'
 import { getPlain, mutateApi, uploadFile as uploadDanaFile } from '../../../api/http.js'
 import { queryKeys } from '../../../api/keys.js'
 import { Button } from '../../ui/button.js'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog.js'
-import { Input } from '../../ui/input.js'
 import { CanvasErrorBoundary } from './CanvasErrorBoundary.js'
 import { CanvasTaskProvider } from './CanvasTask.js'
 import { CanvasSurface } from './CanvasSurface.js'
@@ -85,10 +83,13 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
 }): React.JSX.Element {
   const [, render] = useState(0)
   const [error, setError] = useState('')
-  const [taskAt, setTaskAt] = useState<string | null>(null)
-  const [title, setTitle] = useState('')
+  /* The empty line "/ Task" turned into a task being titled in place: its
+     block id while the person types, null otherwise. */
+  const [draftTask, setDraftTask] = useState<string | null>(null)
+  const draftRef = useRef<string | null>(null)
+  draftRef.current = draftTask
+  const [draftEmpty, setDraftEmpty] = useState(true)
   const [creating, setCreating] = useState(false)
-  const [taskError, setTaskError] = useState('')
   const [recovery, setRecovery] = useState(false)
   const [previousDraft, setPreviousDraft] = useState<string | null>(null)
   const editorPage = useMemo(() => workRootId === undefined ? initialPage : workPageOf(initialPage, workRootId), [initialPage, workRootId])
@@ -259,6 +260,8 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
   }, [page, writer, onCheckpoint])
 
   function changed(current: CanvasEditor): void {
+    const drafting = draftRef.current === null ? undefined : current.getBlock(draftRef.current)
+    if (drafting !== undefined) setDraftEmpty(richRuns(drafting).every((run) => run.text === ''))
     try {
       writer.change(projection(current.document))
       setError('')
@@ -274,7 +277,10 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
     URL.revokeObjectURL(url)
   }
   async function loadLatest(): Promise<void> {
-    copyDraft()
+    // Kept as the Task and Shelf writers keep it: the draft goes to this tab's
+    // storage and the remount offers it back ("Earlier writing…"); a download
+    // only when storage refuses it.
+    try { sessionStorage.setItem(draftKey, JSON.stringify({ folderId, revision: writer.revision, blocks: editor.document, pending: writer.pending?.request })) } catch { copyDraft() }
     try {
       const latest = await getPlain(getPageResponse, documentPath)
       onSaved(latest)
@@ -283,13 +289,13 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
   }
   /* Takes its block and title as arguments rather than reading state, because
      the slash menu calls it in the same tick it would have set that state. A
-     refusal opens the dialog with the title kept, so it is never lost. */
+     refusal leaves the title where it was typed, on the page, so it is never
+     lost, and says why below the canvas. */
   async function createTask(blockId: string | null, taskTitle: string): Promise<void> {
     if (!blockId || !taskTitle.trim()) return
-    const refuse = (message: string): void => { setTaskAt(blockId); setTitle(taskTitle); setTaskError(message) }
+    const refuse = (message: string): void => { setError(message) }
     if (writer.state === 'failed') { refuse(taskBlocked); return }
     setCreating(true)
-    setTaskError('')
     await writer.flush()
     if (writer.state !== 'saved') { setCreating(false); refuse(taskBlocked); return }
     const id = crypto.randomUUID()
@@ -309,7 +315,7 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
       temporary = BlockNoteEditor.create({ schema: canvasSchema, initialContent: proposal })
       drafted = dehydrateCanvas(temporary.document, width, folderRefs)
     } catch (failure) {
-      // Nothing was sent; keep the dialog open so the title is not lost.
+      // Nothing was sent; the title is still the line's own text.
       refuse(failure instanceof Error ? failure.message : 'Could not prepare this Task for saving.')
       setCreating(false)
       return
@@ -317,18 +323,60 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
     writer.change(drafted)
     // A failed send is reported by the save status below, whose Retry
     // re-sends this exact request, Task included.
-    try { await writer.flush({ id, title: taskTitle.trim() }) } finally { setCreating(false); setTaskAt(null) }
+    try { await writer.flush({ id, title: taskTitle.trim() }) } finally { setCreating(false) }
   }
-  const taskBlocked = 'Your writing has not saved, so a task cannot be created yet. Close this, then use Retry or Download writing below.'
-  // A paragraph with text becomes its task at once; an empty line asks for a title.
+  const taskBlocked = 'Your writing has not saved, so a task cannot be created yet. Use Retry save or Download writing below.'
+  /* A paragraph with text becomes its task at once. An empty line becomes a
+     task being titled right there: the line takes a checkbox and a "Task
+     title" placeholder, Enter or leaving it creates the task from what was
+     typed, and leaving it empty takes the line away. No dialog. */
   function askTask(target?: CanvasBlock): void {
     const block = target ?? editor.getTextCursorPosition().block
     const text = block.type === 'paragraph' ? richRuns(block).map((run) => run.text).join('') : ''
     if (text.trim()) { void createTask(block.id, text); return }
-    setTaskAt(block.id)
-    setTaskError(writer.state === 'failed' ? taskBlocked : '')
-    setTitle(text)
+    if (writer.state === 'failed') { setError(taskBlocked); return }
+    let at = block.id
+    if (block.type !== 'paragraph') {
+      const [inserted] = editor.insertBlocks([{ type: 'paragraph', content: '' }], block, 'after')
+      if (inserted === undefined) return
+      at = inserted.id
+    }
+    setDraftTask(at)
+    setDraftEmpty(true)
+    editor.setTextCursorPosition(at, 'end')
+    editor.focus()
   }
+  function settleDraftTask(): void {
+    const blockId = draftRef.current
+    if (blockId === null) return
+    draftRef.current = null
+    setDraftTask(null)
+    const block = editor.getBlock(blockId)
+    if (block === undefined) return
+    const text = block.type === 'paragraph' ? richRuns(block).map((run) => run.text).join('') : ''
+    if (text.trim()) { void createTask(blockId, text); return }
+    if (editor.document.length > 1) editor.removeBlocks([blockId])
+  }
+  /* Leaving the line — the cursor moving to another block, or focus leaving the
+     editor — settles it the way Enter does. */
+  useEffect(() => editor.onSelectionChange(() => {
+    const blockId = draftRef.current
+    if (blockId !== null && editor.getTextCursorPosition().block.id !== blockId) settleDraftTask()
+  }), [editor])
+  const draftKeys = (event: React.KeyboardEvent<HTMLDivElement>): void => {
+    if (draftRef.current === null) return
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault(); event.stopPropagation(); settleDraftTask()
+    } else if (event.key === 'Escape') {
+      event.preventDefault(); event.stopPropagation()
+      const blockId = draftRef.current
+      draftRef.current = null; setDraftTask(null)
+      const block = editor.getBlock(blockId)
+      if (block !== undefined && editor.document.length > 1 && richRuns(block).every((run) => run.text.trim() === '')) editor.removeBlocks([blockId])
+    }
+  }
+  const draftBox = `.dana-writing-canvas .bn-block[data-id="${draftTask}"] > .react-renderer > .bn-block-content`
+  const draftStyle = draftTask === null ? '' : `${draftBox}{display:flex;flex-direction:row;align-items:center} ${draftBox}::before{content:"";flex-shrink:0;width:14px;height:14px;border:1.5px solid var(--muted-foreground);border-radius:var(--radius-sm);margin-inline:calc(var(--spacing) * 2.5) calc(var(--spacing) * 2)} ${draftBox} > *{flex:1;min-width:0}${draftEmpty ? ` ${draftBox} .bn-inline-content::before{content:"Task title" !important;color:var(--muted-foreground);position:absolute;pointer-events:none}` : ''}`
   const feedback = error || (writer.state === 'failed' ? writer.error instanceof Error ? writer.error.message : 'Could not save. Your writing is retained.' : '')
   const pendingTask = writer.pending?.request.operations.some((operation) => operation.op === 'create_task') === true
   // "Saving…" only after two seconds of continuous unsaved writing; a quick
@@ -362,7 +410,12 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
       })()
     }}>Retry saving it</Button><Button variant="ghost" size="sm" onClick={() => { sessionStorage.removeItem(draftKey); setRecovery(false) }}>Dismiss</Button></div> : null}
     <CanvasTaskProvider tasks={tasks} completed={completed} context={context} actions={actions} onAsk={onAsk}>
-      <div className={showCompleted ? 'min-w-0' : 'dana-hide-completed min-w-0'}>
+      {draftStyle === '' ? null : <style>{draftStyle}</style>}
+      <div
+        className={showCompleted ? 'min-w-0' : 'dana-hide-completed min-w-0'}
+        onKeyDownCapture={draftKeys}
+        onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) settleDraftTask() }}
+      >
       <CanvasSurface
         placeholder={placeholder}
         editor={editor}
@@ -384,17 +437,10 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
     <div role="status" aria-live="polite" className="flex min-h-6 flex-wrap items-center gap-1 text-xs text-muted-foreground">
       {feedback ? <>
         <span>{writer.state === 'failed' && !error ? 'Not saved — ' : feedback}</span>
-        {writer.pending ? <Button variant="ghost" size="sm" onClick={() => { void writer.retry() }}>Retry</Button> : null}
+        {writer.pending ? <Button variant="outline" size="sm" onClick={() => { void writer.retry() }}>Retry save</Button> : null}
         <Button variant="ghost" size="sm" onClick={copyDraft}>Download writing</Button>
-        <Button variant="ghost" size="sm" onClick={() => { void loadLatest() }}>Download writing and load latest</Button>
+        <Button variant="ghost" size="sm" onClick={() => { void loadLatest() }}>Load latest</Button>
       </> : busy && slow ? 'Saving…' : null}
     </div>
-    <Dialog open={taskAt !== null} onOpenChange={(open) => { if (!open && !creating) setTaskAt(null) }}>
-      <DialogContent><DialogHeader><DialogTitle>New task</DialogTitle></DialogHeader>
-        <Input aria-label="Task title" placeholder="Task title" value={title} maxLength={500} onChange={(event) => setTitle(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void createTask(taskAt, title) }} />
-        {taskError ? <p role="alert" className="text-sm text-destructive">{taskError}</p> : null}
-        <DialogFooter><Button variant="ghost" onClick={() => setTaskAt(null)} disabled={creating}>Cancel</Button><Button variant="commit" onClick={() => { void createTask(taskAt, title) }} disabled={creating || !title.trim() || writer.state === 'failed'}>Add task</Button></DialogFooter>
-      </DialogContent>
-    </Dialog>
   </>
 }

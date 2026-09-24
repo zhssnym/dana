@@ -67,7 +67,7 @@ import {
   SidebarTrigger,
 } from '../components/ui/sidebar.js'
 import { MORE_ACTIONS } from '../components/ui/copy.js'
-import { ObjectMenu } from '../components/object-menu.js'
+import { moveToShelfChoice, ObjectMenu } from '../components/object-menu.js'
 import { cn } from '../components/ui/utils.js'
 import { useDuplicateFolder } from '../api/mutations.js'
 import { folderGates } from '../lib/folder-authority.js'
@@ -208,7 +208,15 @@ the act (`?folder-action=…`), one implementation of each. Copy link and
 Duplicate need no surface and run here. `folderGates` decides which a viewer
 gets, the same call the folder page makes.
 */
-export type FolderAction = 'rename' | 'history' | 'workflow' | 'leave' | 'delete'
+export type FolderAction =
+  | 'rename'
+  | 'history'
+  | 'cover'
+  | 'tabs'
+  | 'workflow'
+  | 'transfer'
+  | 'leave'
+  | 'delete'
 
 /** The query the folder page reads to run an act the Library asked for. */
 export const FOLDER_ACTION_PARAM = 'folder-action'
@@ -258,61 +266,63 @@ function SidebarFolderRow({
       render={routerLink(display.href)}
       active={activeId === folder.id}
       nested={nested}
-      groupLabels={groups.labels}
-      currentLabel={folder.my_shelf}
-      /* The Desk folder is pinned first and never on a shelf. */
-      onNewGroup={
-        folder.is_default
-          ? undefined
-          : () => {
-              groups.onNewGroup(folder)
-            }
-      }
-      onMoveToLabel={
-        folder.is_default
-          ? undefined
-          : (label) => {
-              groups.onMoveToGroup(folder, label)
-            }
-      }
-      onHistory={() => {
-        void navigate(folderActionPath(folder.id, 'history'))
-      }}
-      onRename={
-        gates.identity
+      /* The same folder menu as the folder page's header "…" (one list in
+         `lib/object-acts.ts`); acts needing the page's surfaces open it with
+         `?folder-action=`. */
+      acts={{
+        history: () => {
+          void navigate(folderActionPath(folder.id, 'history'))
+        },
+        rename: gates.identity
           ? () => {
               void navigate(folderActionPath(folder.id, 'rename'))
             }
-          : undefined
-      }
-      onCopyLink={() => {
-        void navigator.clipboard.writeText(folderLink(folder.id))
-        showToast('Link copied')
-      }}
-      onDuplicate={() => {
-        duplicate.mutate(folder.id, {
-          onSuccess: (made) => {
-            void navigate(paths.folder(made.id))
-          },
-        })
-      }}
-      onSaveAsWorkflow={() => {
-        void navigate(folderActionPath(folder.id, 'workflow'))
-      }}
-      onLeave={
-        gates.leave
+          : undefined,
+        /* The Desk folder is pinned first and never on a shelf. */
+        move: folder.is_default
+          ? undefined
+          : moveToShelfChoice(groups.labels, folder.my_shelf, (label) => {
+              groups.onMoveToGroup(folder, label)
+            }),
+        cover: gates.identity
+          ? () => {
+              void navigate(folderActionPath(folder.id, 'cover'))
+            }
+          : undefined,
+        tabs: () => {
+          void navigate(folderActionPath(folder.id, 'tabs'))
+        },
+        'copy-link': () => {
+          void navigator.clipboard.writeText(folderLink(folder.id))
+          showToast('Link copied')
+        },
+        duplicate: () => {
+          duplicate.mutate(folder.id, {
+            onSuccess: (made) => {
+              void navigate(paths.folder(made.id))
+            },
+          })
+        },
+        workflow: () => {
+          void navigate(folderActionPath(folder.id, 'workflow'))
+        },
+        transfer:
+          gates.transferOwnership && folder.member_count > 1
+            ? () => {
+                void navigate(folderActionPath(folder.id, 'transfer'))
+              }
+            : undefined,
+        leave: gates.leave
           ? () => {
               void navigate(folderActionPath(folder.id, 'leave'))
             }
-          : undefined
-      }
-      onDelete={
-        gates.trash
+          : undefined,
+        delete: gates.trash
           ? () => {
               void navigate(folderActionPath(folder.id, 'delete'))
             }
-          : undefined
-      }
+          : undefined,
+      }}
     />
   )
 }

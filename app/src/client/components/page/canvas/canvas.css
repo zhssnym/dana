@@ -80,7 +80,9 @@
 .dana-writing-canvas [data-canvas-task-id] { width: 100%; min-width: 0; }
 /* A completed Task is its real row, muted in place; "Show completed" off hides
    it (`FolderCanvas`). The guard's refusal outline (#314) follows. */
-.dana-hide-completed .bn-block-outer:has([data-canvas-task-done]) { display: none; }
+/* Only the placement's own block: a section heading's outer block holds its
+   children too, so a bare `:has()` hid the whole section for one done task. */
+.dana-hide-completed .bn-block-outer:has(> .bn-block > :not(.bn-block-group) [data-canvas-task-done]) { display: none; }
 .dana-writing-canvas [data-canvas-task-refused] { outline: 2px solid var(--destructive); outline-offset: 2px; border-radius: var(--radius-sm); }
 .dana-writing-canvas .bn-drag-handle-menu { font-size: var(--text-body-size); line-height: var(--text-body-line); }
 .dana-writing-canvas img { max-width: 100%; height: auto; }
