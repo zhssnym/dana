@@ -7,6 +7,7 @@ export function bindTaskCommand(editor: CanvasEditor, command: (block?: CanvasBl
   taskCommands.set(editor, command)
   return () => { taskCommands.delete(editor) }
 }
+export function hasTaskCommand(editor: CanvasEditor): boolean { return taskCommands.has(editor) }
 export function createTaskAtCursor(editor: CanvasEditor): boolean {
   const command = taskCommands.get(editor)
   if (!command) return false

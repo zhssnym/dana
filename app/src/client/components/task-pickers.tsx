@@ -124,8 +124,6 @@ export function usePickerClose(): () => void {
 }
 
 const T_FAST = "duration-[var(--duration-fast)] ease-[var(--ease-standard)]"
-const FOCUS =
-  "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
 
 /*
 **A property row that opens a panel rather than a list.**
@@ -172,7 +170,7 @@ export function PropertyPicker({
           <button
             type="button"
             onClick={(event) => event.stopPropagation()}
-            className={cn(PROPERTY_ROW, FOCUS)}
+            className={PROPERTY_ROW}
           >
             <span className={PROPERTY_LABEL}>{label}</span>
             <span
@@ -196,7 +194,7 @@ export function PropertyPicker({
 
 /** One row of the task panel's properties block: the name, then the value. */
 export const PROPERTY_ROW =
-  "grid h-8 w-full grid-cols-[6rem_minmax(0,1fr)] items-center gap-2 rounded-sm px-2 text-left text-sm transition-colors duration-100 hover:bg-accent data-popup-open:bg-accent"
+  "grid h-[var(--control-height)] w-full grid-cols-[6rem_minmax(0,1fr)] items-center gap-2 rounded-sm px-2 text-left text-sm transition-colors duration-100 hover:bg-accent data-popup-open:bg-accent"
 export const PROPERTY_LABEL = "truncate text-muted-foreground"
 
 /* One choice in a picker, shaped like a menu item rather than a pill: full
@@ -260,9 +258,8 @@ export function PickerOption({
         if (finishes) close()
       }}
       className={cn(
-        "flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-sm transition-colors",
+        "flex h-[var(--control-height)] w-full items-center gap-2 rounded-md px-2 text-left text-sm transition-colors",
         T_FAST,
-        FOCUS,
         "hover:bg-accent",
         active
           ? "font-medium text-foreground"
@@ -348,9 +345,8 @@ export function PickerSegments({
             className={cn(
               "h-7 rounded-md px-2.5 text-xs transition-colors",
               T_FAST,
-              FOCUS,
               active === option.key
-                ? "bg-foreground font-medium text-white"
+                ? "bg-foreground font-medium text-background"
                 : "bg-muted text-foreground hover:bg-accent",
             )}
           >
@@ -561,7 +557,7 @@ export function DuePanel({ task, patch }: PanelProps) {
                 if (time === "") clearAt()
                 else setAt(time)
               }}
-              className="h-8 min-w-0 flex-1 rounded-md border border-border bg-card px-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="h-[var(--control-height)] min-w-0 flex-1 rounded-md border border-border bg-card px-2 text-sm text-foreground outline-none"
             />
             {at === null ? null : (
               <span className="shrink-0 text-muted-foreground">
@@ -667,7 +663,7 @@ export function ReminderPanel({ task, patch }: PanelProps) {
             if (time === "") clearAt()
             else setAt(time)
           }}
-          className="h-8 w-full rounded-md border border-border bg-card px-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="h-[var(--control-height)] w-full rounded-md border border-border bg-card px-2 text-sm text-foreground outline-none"
         />
       </div>
     </div>
@@ -819,9 +815,8 @@ export function RepeatPanel({ task, patch }: PanelProps) {
                       className={cn(
                         "flex h-7 w-full items-center justify-center rounded-full text-xs transition-colors",
                         T_FAST,
-                        FOCUS,
                         on
-                          ? "bg-foreground font-medium text-white"
+                          ? "bg-foreground font-medium text-background"
                           : "bg-muted text-foreground hover:bg-accent",
                       )}
                     >

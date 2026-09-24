@@ -54,7 +54,6 @@ import {
   Folders,
   Fullscreen,
   History,
-  Layers3,
   Link2,
   LogOut,
   OpenInNewTab,
@@ -90,10 +89,9 @@ export type ActKey =
      pointer; on a touch screen, which has no hover, it lives in the "…". */
   | 'add-page'
   | 'move'
-  /* A folder's cover picture and its tabs: the folder page owns both dialogs,
+  /* A folder's cover picture: the folder page owns its dialog,
      so the Library row reaches them through `?folder-action=`. */
   | 'cover'
-  | 'tabs'
   /* The owner's hand-on (9.6), in the leave group: it ends their custody. */
   | 'transfer'
   | 'pull'
@@ -166,17 +164,16 @@ const OBJECT_ACTS: Record<ObjectKind, readonly ActSpec[]> = {
     { key: 'history', label: 'History', icon: History, group: 1 },
     /* Rename and Add a page inside are the sidebar row's: on the page itself
        the title is edited in place and `/page` adds a sub-page, so the page
-       passes neither. Tabs… stays until the tab strip's own "+" lands. */
+       passes neither. Tabs are managed on the tab strip itself. */
     { key: 'rename', label: 'Rename', icon: Pencil, group: 2 },
     { key: 'add-page', label: 'Add a page inside', icon: Plus, group: 2 },
-    { key: 'tabs', label: 'Tabs…', icon: Layers3, group: 2 },
     { key: 'copy-link', label: 'Copy link', icon: Link2, group: 3 },
     { key: 'duplicate', label: 'Duplicate', icon: Copy, group: 3 },
     /* Notion's pair (round 3): Import brings a file in under this page,
        Export writes this page to a file. The key keeps its old name so the
        sidebar's `?folder-action=workflow` deep link still reaches it. */
-    { key: 'import', label: 'Import…', icon: FolderInput, group: 3 },
-    { key: 'workflow', label: 'Export', icon: Download, group: 3 },
+    { key: 'import', label: 'Import as sub-page…', icon: FolderInput, group: 3 },
+    { key: 'workflow', label: 'Export as template', icon: Download, group: 3 },
     /* Leave and Delete are never offered together: a surface supplies the one
        its viewer's role permits (9.6's matrix), which is the contract's own
        safety property doing the permission work. */
@@ -184,7 +181,7 @@ const OBJECT_ACTS: Record<ObjectKind, readonly ActSpec[]> = {
     /* Leave asks first (access goes, no undo), so it keeps its ellipsis;
        Delete goes to Trash with undo and asks nothing. */
     { key: 'leave', label: 'Leave page…', icon: LogOut, group: 4 },
-    { key: 'delete', label: 'Delete', icon: Trash2, group: 5, destructive: true },
+    { key: 'delete', label: 'Delete page', icon: Trash2, group: 5, destructive: true },
   ],
   shelf: [
     { key: 'open', label: 'Open collection', icon: OpenInNewTab, group: 1 },

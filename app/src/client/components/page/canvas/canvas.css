@@ -107,6 +107,8 @@
   .dana-writing-canvas { padding-left: 0; }
   .dana-writing-canvas .bn-toggle-wrapper { display: flex; align-items: center; }
   .dana-writing-canvas .bn-toggle-button { position: static; flex-shrink: 0; margin-inline-end: calc(var(--spacing) * 1); }
+  /* No left margin for the gutter to sit in: it would be cut off at the edge. */
+  .dana-writing-canvas .bn-side-menu { display: none; }
 }
 @media (hover: none) {
   .dana-writing-canvas .bn-side-menu { display: none; }
@@ -211,7 +213,7 @@
 }
 .dana-writing-canvas .bn-side-menu .dana-drag-handle { cursor: grab; }
 /* The block menu and the slash menu: one menu treatment, the popover surface,
-   32px rows at 14px, radius 8, the single menu shadow. */
+   rows the height of every other menu's (28px) at 14px, the single menu shadow. */
 .dana-block-menu,
 .bn-suggestion-menu.dana-slash-menu {
   min-width: calc(var(--spacing) * 56);
@@ -226,7 +228,7 @@
 .dana-block-menu .bn-menu-item,
 .dana-block-menu [role="menuitem"],
 .dana-slash-menu .bn-suggestion-menu-item {
-  min-height: calc(var(--spacing) * 8);
+  min-height: calc(var(--spacing) * 7);
   height: auto;
   padding-block: 0;
   padding-inline: calc(var(--spacing) * 2);
@@ -337,3 +339,18 @@
   pointer-events: none;
   white-space: nowrap;
 }
+
+/* ---- r5-page: one ink for every Delete, and the submenu chevron as quiet
+   as the other icons. */
+.dana-block-menu .dana-menu-danger,
+.dana-block-menu .dana-menu-danger svg { color: var(--destructive); }
+.dana-block-menu [aria-haspopup] > svg:last-child,
+.dana-block-menu .bn-menu-item > svg:last-child {
+  width: calc(var(--spacing) * 4);
+  height: calc(var(--spacing) * 4);
+  color: var(--muted-foreground);
+}
+/* A Task on the page is a row like the sub-page rows beside it: one row height. */
+.dana-writing-canvas [data-canvas-task-id] { --task-row-height: var(--row-height); }
+/* The divider block is the one divider: the hairline, not a second grey. */
+.dana-writing-canvas .bn-block-content[data-content-type='divider'] hr { border: 0; border-top: 1px solid var(--border); background: none; }

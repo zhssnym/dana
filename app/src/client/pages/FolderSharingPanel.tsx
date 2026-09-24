@@ -2,10 +2,11 @@
 9.6's sharing panel, opened by the page header's Share button: one "Name or
 email" field with one Invite button, the member list, and the pending invites.
 
-The field suggests connections who are not yet members. A picked connection
-(or a typed address that is exactly one of theirs) is added at once; any other
-address is sent a page invite, which the server turns into an instant share
-when the address is already a connection (7.5).
+The field suggests connections who are not yet members. Invite always sends a
+page invite by address, picked connection or typed address alike: the server
+turns an invite to a connected address into an instant share (7.5), and the
+invite names its Access, which `POST /folders/:id/members` requires and
+`useAddFolderMember` does not send.
 
 Every gate here (`mayAdd`, `mayInvite`, `mayRemove`, from `lib/folder-authority`)
 only hides a control the server would refuse anyway (5.3, 5.4, 7.11). Remove is
@@ -22,7 +23,6 @@ import type { GetConnectionsResponse } from '../../shared/connections.js'
 import type { GetFolderResponse } from '../../shared/folders.js'
 import { folderInviteBody } from '../api/folder-invite.js'
 import {
-  useAddFolderMember,
   useCancelInvite,
   useCreateInvite,
   useRemoveFolderMember,
@@ -75,8 +75,6 @@ function removeMemberConfirm(who: string, folder: string): string {
 const ROW =
   'flex min-h-[var(--row-height)] items-center gap-[var(--space-inline)] rounded-md px-2 py-1'
 
-type Target = { kind: 'add'; userId: string } | { kind: 'invite'; email: string }
-
 export function FolderSharingPanel({
   folder,
   connections,
@@ -94,7 +92,6 @@ export function FolderSharingPanel({
   const mayRemove = viewer !== null && mayDraw(viewer, 'member.remove')
   const mayAdd = viewer !== null && mayDraw(viewer, 'member.add')
   const mayInvite = viewer !== null && mayDraw(viewer, 'invite.create')
-  const addMember = useAddFolderMember()
   const removeMember = useRemoveFolderMember()
   const invite = useCreateInvite()
   const cancel = useCancelInvite()
@@ -102,7 +99,7 @@ export function FolderSharingPanel({
   const confirm = useConfirm()
   const listId = useId()
   const [text, setText] = useState('')
-  const [pickedId, setPickedId] = useState<string | null>(null)
+  const [pickedEmail, setPickedEmail] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(-1)
 
@@ -111,7 +108,7 @@ export function FolderSharingPanel({
 
   const query = text.trim().toLowerCase()
   const suggestions =
-    mayAdd && pickedId === null && query !== ''
+    mayAdd && pickedEmail === null && query !== ''
       ? invitable.filter(
           (entry) =>
             (entry.user.display_name ?? '').toLowerCase().includes(query) ||
@@ -122,21 +119,21 @@ export function FolderSharingPanel({
 
   /* What pressing Invite does right now, or null for nothing. */
   const exact = invitable.find((entry) => entry.user.email.toLowerCase() === query)
-  const target: Target | null =
-    mayAdd && pickedId !== null
-      ? { kind: 'add', userId: pickedId }
+  const target: string | null =
+    mayAdd && pickedEmail !== null
+      ? pickedEmail
       : mayAdd && exact !== undefined
-        ? { kind: 'add', userId: exact.user.id }
+        ? exact.user.email
         : mayInvite && query.includes('@')
-          ? { kind: 'invite', email: text.trim() }
+          ? text.trim()
           : null
-  const pending = addMember.isPending || invite.isPending
+  const pending = invite.isPending
 
   function pick(index: number): void {
     const entry = suggestions[index]
     if (entry === undefined) return
     setText(entry.user.display_name ?? entry.user.email)
-    setPickedId(entry.user.id)
+    setPickedEmail(entry.user.email)
     setOpen(false)
     setActive(-1)
   }
@@ -144,15 +141,11 @@ export function FolderSharingPanel({
   function submit(): void {
     if (target === null || pending) return
     setText('')
-    setPickedId(null)
+    setPickedEmail(null)
     setOpen(false)
     setActive(-1)
-    if (target.kind === 'add') {
-      addMember.mutate({ folderId: folder.id, userId: target.userId })
-    } else {
-      // A page invite must name its Access; folderInviteBody says which.
-      invite.mutate(folderInviteBody(target.email, folder.id))
-    }
+    // A page invite must name its Access; folderInviteBody says which.
+    invite.mutate(folderInviteBody(target, folder.id))
   }
 
   return (
@@ -201,7 +194,7 @@ export function FolderSharingPanel({
                     placeholder={mayAdd ? NAME_OR_EMAIL : 'Email'}
                     onChange={(event) => {
                       setText(event.target.value)
-                      setPickedId(null)
+                      setPickedEmail(null)
                       setOpen(true)
                       setActive(-1)
                     }}

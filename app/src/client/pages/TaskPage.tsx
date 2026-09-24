@@ -18,7 +18,6 @@ import { TaskView } from '../components/task-surface.js'
 import { isPhoneWidth } from '../components/task-surface-host.js'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog.js'
 import {
-  ABANDON_CONFIRM,
   DELETE_CONFIRM_LABEL,
   DELETE_TASK_CONFIRM,
   keepLabel,
@@ -83,17 +82,8 @@ export function TaskPage(): React.JSX.Element {
               {...(phone ? { onClose: leave } : {})}
               task={{
                 ...surfaceTask(id, editing.concept),
-                /* The two acts that end a task, with the row's confirms and
-                   undo entries; the page then leaves, its subject gone. */
-                onAbandon: () => {
-                  setPending({
-                    message: ABANDON_CONFIRM,
-                    run: () => {
-                      acts.onAbandon(detail)
-                      leave()
-                    },
-                  })
-                },
+                /* Delete, with the row's confirm and undo entry; the page
+                   then leaves, its subject gone. Status carries abandon. */
                 onDelete: () => {
                   setPending({
                     message: DELETE_TASK_CONFIRM,

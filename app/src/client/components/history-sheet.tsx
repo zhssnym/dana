@@ -26,13 +26,7 @@ because the question underneath "what happened" is almost always "what happened
 *when*", and a flat list of relative times makes you assemble that yourself.
 */
 
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "./ui/dialog.js"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog.js"
 import {
   type HistoryEvent,
   type HistorySubjectKind,
@@ -66,14 +60,14 @@ function timeOf(at: number, clock: TimeFormat) {
 export function HistorySheet({
   kind,
   subject,
-  name,
   open,
   onOpenChange,
   scope = "subject",
 }: {
   kind: HistorySubjectKind
   subject: string
-  name: string
+  /** The thing's name. The dialog does not repeat it; the page is behind it. */
+  name?: string
   open: boolean
   onOpenChange: (open: boolean) => void
   /* polish: folderpage F3. A folder's sheet reads everything that happened
@@ -89,17 +83,24 @@ export function HistorySheet({
   /* Grouped in render order rather than sorted into a map, because the events
      already arrive newest-first and a heading is simply the point where the
      day changes. */
+  /* Identical sentences in a row on one day ("edited the page" three times)
+     are one line, at the newest time. */
   const rows: Array<
-    { heading: string } | { event: HistoryEvent }
+    { heading: string } | { event: HistoryEvent; sentence: string }
   > = []
   let seen: string | null = null
+  let last: string | null = null
   for (const event of events) {
     const day = dayOf(event.at)
     if (day !== seen) {
       rows.push({ heading: day })
       seen = day
+      last = null
     }
-    rows.push({ event })
+    const sentence = sentenceOf(event, { kind, subject })
+    if (sentence === last) continue
+    last = sentence
+    rows.push({ event, sentence })
   }
 
   return (
@@ -107,22 +108,21 @@ export function HistorySheet({
       <DialogContent className="max-w-[520px]">
         <DialogHeader>
           <DialogTitle>History</DialogTitle>
-          <DialogDescription className="truncate">{name}</DialogDescription>
         </DialogHeader>
         {events.length ? (
-          <div className="-mx-1 max-h-[52vh] overflow-y-auto px-1">
+          <div className="max-h-[52vh] overflow-y-auto">
             {rows.map((row, index) =>
               "heading" in row ? (
                 <p
                   key={`${row.heading}-${index}`}
-                  className="px-1 pt-3 pb-1 text-xs font-medium text-muted-foreground first:pt-0"
+                  className="pt-3 pb-1 text-xs font-medium text-muted-foreground first:pt-0"
                 >
                   {row.heading}
                 </p>
               ) : (
                 <div
                   key={row.event.id}
-                  className="flex items-baseline gap-3 rounded-md px-1 py-1.5"
+                  className="flex items-baseline gap-3 py-1.5"
                 >
                   <span
                     className={`${clock === "12" ? "w-16" : "w-10"} shrink-0 text-xs leading-5 text-muted-foreground tabular-nums`}
@@ -134,7 +134,7 @@ export function HistorySheet({
                       the actor in it, rather than a verb column and an actor
                       column that read "Edited edited the page". */}
                   <span className="min-w-0 flex-1 text-sm text-foreground">
-                    {sentenceOf(row.event, { kind, subject })}
+                    {row.sentence}
                   </span>
                 </div>
               ),

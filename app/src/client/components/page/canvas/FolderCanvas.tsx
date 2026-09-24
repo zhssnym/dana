@@ -55,6 +55,18 @@ export default function FolderCanvas(props: Props): React.JSX.Element {
 }
 
 /** The one error "Load latest" answers besides a failed save. */
+/* A Task made with Enter keeps the person writing Tasks: the save remounts
+   the editor (a checkpoint), so the next line is opened by the new editor,
+   right under the Task, with the page scrolled where it was. Keyed by draft key. */
+const resumeAfter = new Map<string, { taskId: string; scroller: Element | null; top: number; line?: string }>()
+function scrollerOf(element: Element | null): Element | null {
+  for (let at = element?.parentElement ?? null; at !== null; at = at.parentElement) {
+    const overflow = getComputedStyle(at).overflowY
+    if ((overflow === 'auto' || overflow === 'scroll') && at.scrollHeight > at.clientHeight) return at
+  }
+  return document.scrollingElement
+}
+
 const CHANGED_ELSEWHERE = 'This page changed elsewhere. Your writing is kept here. Load the latest to continue; your writing will be offered back.'
 
 function PersistedCanvas({ page, initialPage, folderId, facetId, presentationHeadings, workRootId, tasks, completed, showCompleted, context, actions, onAsk, arrangeable, onCheckpoint }: Props & {
@@ -183,7 +195,8 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
     }
   }
 
-  const placeholder = facetId === undefined ? 'Write, or type / for a task or heading' : 'Write, or type / for a heading'
+  // One hint everywhere, the one the focused empty line shows too (canvas.css).
+  const placeholder = "Type '/' for commands"
   const editor = useCreateBlockNote({
     schema: canvasSchema,
     dictionary: { ...en, placeholders: { ...en.placeholders, emptyDocument: placeholder, default: placeholder } },
@@ -241,13 +254,16 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
   const navigate = useNavigate()
   const navigateRef = useRef(navigate)
   navigateRef.current = navigate
+  // This is a recoverable draft, never a cached page or an automatic offline queue.
+  // One key per document: Work and each tab keep their own.
+  const draftKey = `dana-canvas-draft:${facetId ?? folderId}`
   const [writer] = useState(() => new CanvasWriter(firstProjection(), initialPage.revision ?? '',
     (body) => mutateApi(getPageResponse, { method: 'POST', path: `${documentPath}/actions`, body }),
     () => {
       render((value) => value + 1)
       try {
-        if (writer.state === 'saved') sessionStorage.removeItem(`dana-canvas-draft:${folderId}`)
-        else sessionStorage.setItem(`dana-canvas-draft:${folderId}`, JSON.stringify({ folderId, revision: writer.revision, blocks: editor.document, pending: writer.pending?.request }))
+        if (writer.state === 'saved') sessionStorage.removeItem(draftKey)
+        else sessionStorage.setItem(draftKey, JSON.stringify({ folderId, revision: writer.revision, blocks: editor.document, pending: writer.pending?.request }))
       } catch { /* recoverable in memory; storage is optional */ }
     },
     (next, checkpoint, operations) => {
@@ -256,6 +272,8 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
       /* A sub-page made, trashed or restored by this save: the sidebar's
          tree and every page row read the folder list. A `/page` title is let
          go only once that list has the page, so its row never blinks. */
+      // A Task made here changes the page's "3 of 7 done" (the folder list).
+      if (operations.some((op) => op.op === 'create_task')) void queryClient.invalidateQueries({ queryKey: queryKeys.folders(), exact: true })
       const created = operations.flatMap((op) => op.op === 'create_page' ? [op.id] : [])
       if (created.length > 0 || operations.some((op) => op.op === 'trash_page' || (op.op === 'put_block' && op.block_kind === 'page'))) {
         void queryClient.invalidateQueries({ queryKey: queryKeys.folders(), exact: true }).finally(() => {
@@ -268,8 +286,6 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
       }
     },
   ))
-  // This is a recoverable draft, never a cached page or an automatic offline queue.
-  const draftKey = `dana-canvas-draft:${facetId ?? folderId}`
   useEffect(() => {
     try { const draft = sessionStorage.getItem(draftKey); setPreviousDraft(draft); setRecovery(draft !== null) } catch { /* storage is optional */ }
   }, [draftKey])
@@ -284,6 +300,9 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
     const timer = window.setTimeout(() => { void writer.flush() }, 450)
     return () => window.clearTimeout(timer)
   }, [writer, writer.state, writer.latest])
+  // Leaving the page or the tab sends what the 450 ms wait was holding; the
+  // request outlives this editor, and the cache it answers into is shared.
+  useEffect(() => () => { void writer.drain() }, [writer])
   useEffect(() => {
     if (!page.revision || page.revision === writer.revision || writer.state === 'saving') return
     if (writer.state === 'saved') onCheckpoint(page)
@@ -324,7 +343,7 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
      lost, and says why below the canvas. */
   async function createTask(blockId: string | null, taskTitle: string): Promise<void> {
     if (!blockId || !taskTitle.trim()) return
-    const refuse = (message: string): void => { setError(message) }
+    const refuse = (message: string): void => { resumeAfter.delete(draftKey); setError(message) }
     if (writer.state === 'failed') { refuse(taskBlocked); return }
     setCreating(true)
     await writer.flush()
@@ -354,9 +373,14 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
       return
     } finally { temporary?.unmount() }
     writer.change(drafted)
+    const resume = resumeAfter.get(draftKey)
+    if (resume !== undefined) resume.taskId = id
     // A failed send is reported by the save status below, whose Retry
     // re-sends this exact request, Task included.
-    try { await writer.flush({ id, title: taskTitle.trim() }) } finally { setCreating(false) }
+    try { await writer.flush({ id, title: taskTitle.trim() }) } finally {
+      setCreating(false)
+      if ((writer.state as string) === 'failed') resumeAfter.delete(draftKey)
+    }
   }
   const taskBlocked = 'Your writing has not saved, so a task cannot be created yet. Use Retry save or Download writing below.'
   /* A paragraph with text becomes its task at once. An empty line becomes a
@@ -379,7 +403,7 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
     editor.setTextCursorPosition(at, 'end')
     editor.focus()
   }
-  function settleDraftTask(): void {
+  function settleDraftTask(resume = false): void {
     const blockId = draftRef.current
     if (blockId === null) return
     draftRef.current = null
@@ -387,7 +411,14 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
     const block = editor.getBlock(blockId)
     if (block === undefined) return
     const text = block.type === 'paragraph' ? richRuns(block).map((run) => run.text).join('') : ''
-    if (text.trim()) { void createTask(blockId, text); return }
+    if (text.trim()) {
+      if (resume) {
+        const scroller = scrollerOf(document.querySelector(`.dana-writing-canvas .bn-block[data-id="${blockId}"]`))
+        resumeAfter.set(draftKey, { taskId: '', scroller, top: scroller?.scrollTop ?? 0 })
+      }
+      void createTask(blockId, text)
+      return
+    }
     if (editor.document.length > 1) editor.removeBlocks([blockId])
   }
   /* Leaving the line — the cursor moving to another block, or focus leaving the
@@ -396,10 +427,37 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
     const blockId = draftRef.current
     if (blockId !== null && editor.getTextCursorPosition().block.id !== blockId) settleDraftTask()
   }), [editor])
+  useEffect(() => {
+    const resume = resumeAfter.get(draftKey)
+    if (resume === undefined || resume.taskId === '') return
+    // Idempotent: a development double run finds the line it opened.
+    let id = resume.line !== undefined && editor.getBlock(resume.line) !== undefined ? resume.line : undefined
+    if (id === undefined) {
+      const task = editor.getBlock(resume.taskId)
+      if (task === undefined) { resumeAfter.delete(draftKey); return }
+      id = editor.insertBlocks([{ type: 'paragraph', content: '' }], task, 'after')[0]?.id
+      if (id === undefined) { resumeAfter.delete(draftKey); return }
+      resume.line = id
+    }
+    const line: string = id
+    setDraftTask(line)
+    setDraftEmpty(true)
+    const settle = (): void => {
+      if (editor.getBlock(line) === undefined) return
+      editor.setTextCursorPosition(line, 'end')
+      editor.focus()
+      if (resume.scroller !== null) resume.scroller.scrollTop = resume.top
+      document.querySelector(`.dana-writing-canvas .bn-block[data-id="${line}"]`)?.scrollIntoView({ block: 'nearest' })
+    }
+    settle()
+    const frame = requestAnimationFrame(settle)
+    const done = window.setTimeout(() => { if (resumeAfter.get(draftKey) === resume) resumeAfter.delete(draftKey) }, 0)
+    return () => { cancelAnimationFrame(frame); window.clearTimeout(done) }
+  }, [editor, draftKey])
   const draftKeys = (event: React.KeyboardEvent<HTMLDivElement>): void => {
     if (draftRef.current === null) return
     if (event.key === 'Enter' && !event.shiftKey) {
-      event.preventDefault(); event.stopPropagation(); settleDraftTask()
+      event.preventDefault(); event.stopPropagation(); settleDraftTask(true)
     } else if (event.key === 'Escape') {
       event.preventDefault(); event.stopPropagation()
       const blockId = draftRef.current
@@ -409,8 +467,14 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
     }
   }
   const draftBox = `.dana-writing-canvas .bn-block[data-id="${draftTask}"] > .react-renderer > .bn-block-content`
-  const draftStyle = draftTask === null ? '' : `${draftBox}{display:flex;flex-direction:row;align-items:center} ${draftBox}::before{content:"";flex-shrink:0;width:var(--checkbox-size);height:var(--checkbox-size);border:1px solid color-mix(in srgb, var(--muted-foreground) 50%, transparent);border-radius:var(--radius-sm);margin-inline:calc(var(--spacing) * 2.5) calc(var(--spacing) * 2)} ${draftBox}::after{content:none !important} ${draftBox} > *{flex:1;min-width:0}${draftEmpty ? ` ${draftBox} .bn-inline-content::before{content:"Task title" !important;color:var(--muted-foreground);position:absolute;pointer-events:none}` : ''}`
+  const draftStyle = draftTask === null ? '' : `${draftBox}{display:flex;flex-direction:row;align-items:center} ${draftBox}::before{content:"";flex-shrink:0;width:var(--checkbox-size);height:var(--checkbox-size);border:1px solid color-mix(in srgb, var(--muted-foreground) 50%, transparent);border-radius:var(--radius-sm);margin-inline:calc((var(--control-height) - var(--checkbox-size)) / 2)} ${draftBox}::after{content:none !important} ${draftBox} > *{flex:1;min-width:0}${draftEmpty ? ` ${draftBox} .bn-inline-content::before{content:"Task title" !important;color:var(--muted-foreground);position:absolute;pointer-events:none}` : ''}`
   const pendingTask = writer.pending?.request.operations.some((operation) => operation.op === 'create_task') === true
+  const draftHasRequest = ((): boolean => {
+    try {
+      const data: unknown = JSON.parse(previousDraft ?? '{}')
+      return typeof data === 'object' && data !== null && 'pending' in data && documentTransaction.safeParse(data.pending).success
+    } catch { return false }
+  })()
   const downloadDraft = (): void => {
     if (!previousDraft) return
     const url = URL.createObjectURL(new Blob([previousDraft], { type: 'application/json' }))
@@ -420,13 +484,13 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
     {!arrangeable ? <p className="mb-3 text-sm text-muted-foreground">Writing is paused while this list is filtered or sorted.</p> : null}
     {recovery ? <RecoveryNotice
       onDownload={downloadDraft}
-      onRestore={() => {
+      onRestore={!draftHasRequest ? undefined : () => {
         void (async () => {
           try {
             const data: unknown = JSON.parse(previousDraft ?? '{}')
             const pending = typeof data === 'object' && data !== null && 'pending' in data ? documentTransaction.safeParse(data.pending) : null
             if (!pending?.success) { setError('This draft has no interrupted request. Download it to keep the writing.'); return }
-            const next = await mutateApi(getPageResponse, { method: 'POST', path: `/folders/${folderId}/page/actions`, body: pending.data })
+            const next = await mutateApi(getPageResponse, { method: 'POST', path: `${documentPath}/actions`, body: pending.data })
             // Keep a copy of any writing made after that original request.
             downloadDraft()
             sessionStorage.removeItem(draftKey)

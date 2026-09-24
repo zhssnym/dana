@@ -43,7 +43,7 @@ function CanvasFolder({ folderId }: { readonly folderId: string }): React.JSX.El
       onClick={(event) => { event.preventDefault(); bridge.open(folderId) }}
       className={cn(
         'flex h-8 w-full items-center gap-2 rounded-sm px-1 text-left no-underline outline-none transition-colors',
-        'hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring',
+        'hover:bg-muted',
       )}
     >
       <Glyph className="size-4 shrink-0" style={{ color: folder.color }} strokeWidth={1.75} aria-hidden="true" />

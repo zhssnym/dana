@@ -226,6 +226,30 @@ export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item
       add('Basic blocks', `Heading ${level}`, [`h${level}`, '#'.repeat(level), 'title', 'heading'], insert('heading', { level, isToggleable: false, presentation: false }), kindIcon('heading', level), { hint: '#'.repeat(level) })
     }
   }
+  /*
+  The arrow wrapper is load-bearing. `SuggestionMenuController` calls
+  `item.onItemClick(editor)` although the type says `() => void`, so handing
+  `onCreateTask` itself gave it the editor as its optional block (#204, #234).
+  Task answers "todo" and "checkbox" too: it is what a to-do became, and it
+  sits right under Text and the headings, as a to-do does in Notion.
+  */
+  if (surface === 'work' && onCreateTask !== undefined) add('Basic blocks', 'Task', ['task', 'todo', 'to-do', 'checkbox', 'action', '[]'], () => { onCreateTask() }, glyph(CheckCircle2), { hint: '[]' })
+  /* A sub-page: its folder is created by the next save (`create_page`), with
+     the title the sidebar gives a new page, and then opens with that title
+     selected to be typed over (`FolderCanvas`), as Notion opens a new page. */
+  if (surface === 'work' && has(editor, 'danaPage')) {
+    const PageIcon = folderMark(undefined).icon
+    add('Basic blocks', 'Page', ['page', 'subpage', 'sub-page'], () => {
+      const folderId = crypto.randomUUID()
+      pendingPages.set(folderId, NEW_PAGE_TITLE)
+      openOnCreate.add(folderId)
+      const current = editor.getTextCursorPosition().block
+      const empty = current.type === 'paragraph' && Array.isArray(current.content) && current.content.length === 0 && current.children.length === 0
+      // A fresh block id: a block the page already stored cannot become a page.
+      editor.insertBlocks([{ id: crypto.randomUUID(), type: 'danaPage', props: { folderId } }], current, empty ? 'before' : 'after')
+      editor.focus()
+    }, glyph(PageIcon))
+  }
   const toggles = has(editor, 'toggleListItem') && TOGGLE_SURFACES.has(surface)
   add('Basic blocks', 'Bulleted list', ['bullet', 'bulleted', '-', '*', 'ul', 'unordered'], insert('bulletListItem'), kindIcon('bulletListItem'), { hint: '-' })
   add('Basic blocks', 'Numbered list', ['num', 'numbered', '1.', 'ol', 'ordered'], insert('numberedListItem'), kindIcon('numberedListItem'), { hint: '1.' })
@@ -251,29 +275,6 @@ export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item
     if (file !== undefined) add('Media', 'File', ['file', 'attachment', 'upload', 'document'], () => { file.onItemClick() }, glyph(FileText))
   }
 
-  /*
-  The arrow wrapper is load-bearing. `SuggestionMenuController` calls
-  `item.onItemClick(editor)` although the type says `() => void`, so handing
-  `onCreateTask` itself gave it the editor as its optional block (#204, #234).
-  Task answers "todo" and "checkbox" too: it is what a to-do became.
-  */
-  if (surface === 'work' && onCreateTask !== undefined) add('Dana', 'Task', ['task', 'todo', 'to-do', 'checkbox', 'action'], () => { onCreateTask() }, glyph(CheckCircle2))
-  /* A sub-page: its folder is created by the next save (`create_page`), with
-     the title the sidebar gives a new page, and then opens with that title
-     selected to be typed over (`FolderCanvas`), as Notion opens a new page. */
-  if (surface === 'work' && has(editor, 'danaPage')) {
-    const PageIcon = folderMark(undefined).icon
-    add('Dana', 'Page', ['page', 'subpage', 'sub-page'], () => {
-      const folderId = crypto.randomUUID()
-      pendingPages.set(folderId, NEW_PAGE_TITLE)
-      openOnCreate.add(folderId)
-      const current = editor.getTextCursorPosition().block
-      const empty = current.type === 'paragraph' && Array.isArray(current.content) && current.content.length === 0 && current.children.length === 0
-      // A fresh block id: a block the page already stored cannot become a page.
-      editor.insertBlocks([{ id: crypto.randomUUID(), type: 'danaPage', props: { folderId } }], current, empty ? 'before' : 'after')
-      editor.focus()
-    }, glyph(PageIcon))
-  }
   if (has(editor, 'diagram')) add('Dana', 'Diagram', ['diagram', 'flowchart', 'mermaid', 'chart'], insert('diagram'), glyph(Network))
   const link = linkSlashItem(editor)
   add('Dana', 'Link to page', ['link', 'mention', 'reference', '@', 'page'], link.onItemClick, glyph(Link2))

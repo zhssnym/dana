@@ -5,7 +5,7 @@
   display: flex;
   align-items: center;
   gap: calc(var(--spacing) * 2);
-  min-height: calc(var(--spacing) * 8);
+  min-height: calc(var(--spacing) * 7);
   padding-inline: calc(var(--spacing) * 2);
   border-radius: var(--radius-sm);
   font-size: var(--text-sm);

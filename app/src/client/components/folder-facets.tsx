@@ -1,7 +1,6 @@
 /*
-A page's tabs (its facets): a row of plain text tabs and nothing else, and
-the "Tabs…" dialog the page's "…" opens to rename, reorder, hide, add and
-remove them.
+A page's tabs (its facets): a row of plain text tabs and one "+", and nothing
+else. The row is the one place tabs are managed.
 
 **The row reads intro, work, conclusion** (round 2): Purpose · Work · Results ·
 Discussion, then the custom tabs in their stored order (`tabOrder`). `main` is
@@ -9,16 +8,16 @@ named "Work" and `consultation` "Discussion" by the server's own table
 (`DEFAULT_FACET_NAMES`); the stored kinds and the stored order are unchanged,
 so the four built-in tabs keep their places and only custom tabs move.
 
-**The row under the header is the tabs and one quiet "+"** (round 3, Notion's
-"add a view"): the "+" becomes a name field, Enter makes a blank tab with that
-name. A tab's own acts are on the tab: right-click it for Rename (in place)
-and Delete. Drag reorders. No icons, no eye, no view controls: hidden facets
-simply do not show, and showing them again, a private tab and a tab from a
-section of Work stay in the "Tabs…" dialog. Arrow keys move between tabs.
+**A tab's own acts are on the tab**: right-click it (or Shift+F10 / the menu
+key) for Rename, Hide (Purpose, Results, Discussion), Share (a private tab) and
+Delete (a custom tab). Work can be neither renamed nor hidden, so its menu
+offers what "+" offers. **The "+"** lists the hidden tabs to show again above
+"New tab"; with nothing hidden it goes straight to the name field. Drag, or
+Alt+←/→, reorders. Arrow keys move between tabs.
 
 **Every act is gated by the same table the routes resolve against**
 (`FacetCapabilities`, built by FolderPage from `shared/folder-actions.ts`), so
-the dialog offers nothing a 403 would answer.
+the row offers nothing a 403 would answer.
 */
 import type { Facet, FacetKind } from '../../shared/facets.js'
 import {
@@ -26,23 +25,19 @@ import {
   isRenameableFacetKind,
   NATIVE_TAB_ORDER,
 } from '../../shared/facets.js'
-import type { PageView } from '../../shared/pages.js'
 import { moved } from '../lib/use-sortable-list.js'
 import { useEffect, useRef, useState } from 'react'
 import { Button } from './ui/button.js'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog.js'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu.js'
-import { Switch } from './ui/switch.js'
+import { Tab, TabList } from './ui/tabs.js'
 import { cn } from './ui/utils.js'
-import { Pencil, Plus, Trash2 } from '../lib/icons.js'
+import { Plus } from '../lib/icons.js'
 
 export interface FacetCapabilities {
   readonly createShared: boolean
@@ -132,8 +127,7 @@ interface TabDrag {
  * tabs are: a mouse press that moves lifts the tab, a finger lifts it after a
  * long press; the lifted tab follows the pointer at reduced opacity and a thin
  * accent line marks the gap it will land in. Esc puts it back. Alt+← / Alt+→
- * on a focused tab moves it one place. The row is the one home of reordering;
- * the Tabs… dialog shows, hides and renames.
+ * on a focused tab moves it one place.
  */
 export function FolderTabs({
   facets,
@@ -144,6 +138,8 @@ export function FolderTabs({
   capabilities,
   onAdd,
   onRename,
+  onHide,
+  onShare,
   onDelete,
 }: {
   readonly facets: readonly Facet[]
@@ -153,17 +149,22 @@ export function FolderTabs({
   readonly canMove?: (facet: Facet) => boolean
   /** The whole visible row in its new order, the moved tab named. */
   readonly onReorder?: (dragged: Facet, orderedVisible: readonly Facet[]) => void
-  /** The same gate the dialog asks; absent offers no add, rename or delete. */
+  /** The gate for every act; absent offers no add, rename, hide or delete. */
   readonly capabilities?: (facet: Facet | null) => FacetCapabilities
   /** The "+": a blank shared tab with this name. */
   readonly onAdd?: (name: string) => void
   /** Rename in place; null gives a built-in tab its own name back. */
   readonly onRename?: (facet: Facet, name: string | null) => void
-  /** Delete a custom tab (the page confirms). */
+  /** Hide a built-in tab, or show it again from the "+". */
+  readonly onHide?: (facet: Facet, hidden: boolean) => void
+  /** Share a private tab with the page. */
+  readonly onShare?: (facet: Facet) => void
+  /** Delete a custom tab. */
   readonly onDelete?: (facet: Facet) => void
 }): React.JSX.Element | null {
+  const ordered = tabOrder(facets)
   /* Ordered over every tab, then filtered: a hidden built-in is not a reorder. */
-  const visible = tabOrder(facets).filter((facet) => !facet.hidden)
+  const visible = ordered.filter((facet) => !facet.hidden)
   const [drag, setDrag] = useState<TabDrag | null>(null)
   const dragRef = useRef<TabDrag | null>(null)
   const rowRef = useRef<HTMLDivElement | null>(null)
@@ -175,6 +176,10 @@ export function FolderTabs({
   const [renamingId, setRenamingId] = useState<string | null>(null)
   /* Right-click's menu: the tab it is for, opened where the pointer was. */
   const [menu, setMenu] = useState<{ readonly facet: Facet; readonly x: number; readonly y: number } | null>(null)
+  /* Where focus goes when a menu closes: back to its tab, or nowhere when the
+     chosen item opened a name field that has already taken it. */
+  const menuFor = useRef<string | null>(null)
+  const fieldOpening = useRef(false)
 
   const put = (next: TabDrag | null): void => {
     dragRef.current = next
@@ -230,15 +235,29 @@ export function FolderTabs({
 
   useEffect(() => clearTimer, [])
 
+  /* The current tab is never left scrolled out of a narrow row. */
+  useEffect(() => {
+    globalThis.document
+      .getElementById(`facet-tab-${activeId}`)
+      ?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [activeId])
+
   const canAdd = onAdd !== undefined && capabilities?.(null).createShared === true
   const mayRename = (facet: Facet): boolean =>
-    onRename !== undefined && facet.kind !== 'main' && isRenameable(facet) && capabilities?.(facet).rename === true
+    onRename !== undefined && isRenameable(facet) && capabilities?.(facet).rename === true
+  const mayHide = (facet: Facet): boolean =>
+    onHide !== undefined && isHideableFacetKind(facet.kind) && capabilities?.(facet).hide === true
+  const mayShare = (facet: Facet): boolean =>
+    onShare !== undefined && facet.private && capabilities?.(facet).share === true
   const mayDelete = (facet: Facet): boolean =>
     onDelete !== undefined && isCustom(facet) && capabilities?.(facet).delete === true
+  /* The tabs "+" can bring back. */
+  const showable = ordered.filter((facet) => facet.hidden && mayHide(facet))
+  const plusOffers = canAdd || showable.length > 0
 
   /* One tab is not a choice: a page showing only Work draws no row, unless
-     the "+" is there to make a second. */
-  if (visible.length < 2 && !canAdd) return null
+     the "+" is there to make or show a second. */
+  if (visible.length < 2 && !plusOffers) return null
   const active = visible.find((facet) => facet.id === activeId) ?? visible[0]
 
   function moveFocus(facet: Facet, direction: -1 | 1): void {
@@ -251,191 +270,256 @@ export function FolderTabs({
     })
   }
 
+  const hasMenu = (facet: Facet): boolean =>
+    mayRename(facet) || mayHide(facet) || mayShare(facet) || mayDelete(facet) || plusOffers
+
+  const openMenu = (facet: Facet, x: number, y: number): void => {
+    menuFor.current = facet.id
+    fieldOpening.current = false
+    setMenu({ facet, x, y })
+  }
+
+  const finalFocus = (): HTMLElement | boolean => {
+    if (fieldOpening.current) return false
+    const doc = globalThis.document
+    return (
+      doc.getElementById(`facet-tab-${menuFor.current ?? ''}`) ??
+      doc.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]') ??
+      true
+    )
+  }
+
+  const startAdding = (): void => {
+    fieldOpening.current = true
+    setAdding(true)
+  }
+
+  /* What "+" offers: the hidden tabs to show again, then "New tab". */
+  const plusItems = (
+    <>
+      {showable.map((facet) => (
+        <DropdownMenuItem key={facet.id} onClick={() => onHide?.(facet, false)}>
+          Show {facet.name}
+        </DropdownMenuItem>
+      ))}
+      {showable.length > 0 && canAdd ? <DropdownMenuSeparator /> : null}
+      {canAdd ? <DropdownMenuItem onClick={startAdding}>New tab</DropdownMenuItem> : null}
+    </>
+  )
+
+  const target = menu?.facet
+  const tabActs = target !== undefined && (mayRename(target) || mayHide(target) || mayShare(target) || mayDelete(target))
+
   return (
-    <div
-      ref={rowRef}
-      role="tablist"
-      aria-label="Page tabs"
-      className="flex min-w-0 items-center gap-5 overflow-x-auto border-b border-border [&::-webkit-scrollbar]:hidden"
-      style={{ scrollbarWidth: 'none' }}
-    >
-      {visible.map((facet, index) => {
-        const current = facet.id === active?.id
-        const movable = onReorder !== undefined && (canMove?.(facet) ?? false)
-        const lifted = drag?.lifted === true && drag.id === facet.id
-        /* The accent line sits in the gap before this tab, or after the last. */
-        const lineBefore = drag?.lifted === true && drag.gap === index
-        const lineAfter = drag?.lifted === true && drag.gap === visible.length && index === visible.length - 1
-        if (renamingId === facet.id) {
+    /* The hairline is the row's, under the tabs and the "+" alike. */
+    <div className="flex min-w-0 items-end gap-2 border-b border-border">
+      <TabList
+        ref={rowRef}
+        label="Page tabs"
+        /* Padded out and pulled back: the focus outline and the underline
+           overhang the tabs, and a scroller clips whatever overhangs it. */
+        className="-my-1 -ms-1 border-b-0 py-1 ps-1 pe-3"
+      >
+        {visible.map((facet, index) => {
+          const current = facet.id === active?.id
+          const movable = onReorder !== undefined && (canMove?.(facet) ?? false)
+          const lifted = drag?.lifted === true && drag.id === facet.id
+          /* The accent line sits in the gap before this tab, or after the last. */
+          const lineBefore = drag?.lifted === true && drag.gap === index
+          const lineAfter = drag?.lifted === true && drag.gap === visible.length && index === visible.length - 1
+          if (renamingId === facet.id) {
+            return (
+              <TabNameField
+                key={facet.id}
+                initial={facet.name}
+                label={`Name of ${facet.name}`}
+                onDone={(next) => {
+                  setRenamingId(null)
+                  /* Enter or Escape left focus nowhere: give it back to the tab. */
+                  globalThis.requestAnimationFrame(() => {
+                    const doc = globalThis.document
+                    if (doc.activeElement === null || doc.activeElement === doc.body) {
+                      doc.getElementById(`facet-tab-${facet.id}`)?.focus({ preventScroll: true })
+                    }
+                  })
+                  if (next === null || next === facet.name) return
+                  /* Clearing a built-in tab's name gives its own back. */
+                  if (next === '') {
+                    if (isRenameableFacetKind(facet.kind)) onRename?.(facet, null)
+                    return
+                  }
+                  onRename?.(facet, next)
+                }}
+              />
+            )
+          }
           return (
-            <TabNameField
+            <Tab
               key={facet.id}
-              initial={facet.name}
-              label={`Name of ${facet.name}`}
-              onDone={(next) => {
-                setRenamingId(null)
-                if (next === null || next === facet.name) return
-                /* Clearing a built-in tab's name gives its own back. */
-                if (next === '') {
-                  if (isRenameableFacetKind(facet.kind)) onRename?.(facet, null)
+              id={`facet-tab-${facet.id}`}
+              selected={current}
+              aria-label={facet.private ? `${facet.name} — Private, only you` : facet.name}
+              aria-haspopup={hasMenu(facet) ? 'menu' : undefined}
+              aria-keyshortcuts={movable ? 'Alt+ArrowLeft Alt+ArrowRight' : undefined}
+              title={facet.private ? 'Private — only you can see this tab' : undefined}
+              onClick={() => {
+                if (swallowClick.current) {
+                  swallowClick.current = false
                   return
                 }
-                onRename?.(facet, next)
+                onSelect(facet)
               }}
-            />
-          )
-        }
-        return (
-          <button
-            key={facet.id}
-            id={`facet-tab-${facet.id}`}
-            type="button"
-            role="tab"
-            aria-selected={current}
-            aria-label={facet.private ? `${facet.name} — Private, only you` : facet.name}
-            aria-keyshortcuts={movable ? 'Alt+ArrowLeft Alt+ArrowRight' : undefined}
-            title={facet.private ? 'Private — only you can see this tab' : undefined}
-            tabIndex={current ? 0 : -1}
-            onClick={() => {
-              if (swallowClick.current) {
-                swallowClick.current = false
-                return
-              }
-              onSelect(facet)
-            }}
-            onKeyDown={(event) => {
-              if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
-              event.preventDefault()
-              const direction = event.key === 'ArrowLeft' ? -1 : 1
-              if (event.altKey) {
-                if (!movable) return
-                /* Alt+←/→ moves the tab one place and keeps it focused. */
-                reorderTo(facet, direction < 0 ? index - 1 : index + 2)
-                globalThis.requestAnimationFrame(() => {
-                  globalThis.document.getElementById(`facet-tab-${facet.id}`)?.focus()
-                })
-                return
-              }
-              moveFocus(facet, direction)
-            }}
-            onPointerDown={(event) => {
-              if (!movable || event.button !== 0) return
-              const press: TabDrag = {
-                id: facet.id,
-                pointerId: event.pointerId,
-                startX: event.clientX,
-                x: event.clientX,
-                lifted: false,
-                gap: index,
-              }
-              put(press)
-              if (event.pointerType === 'touch') {
-                const target = event.currentTarget
-                clearTimer()
-                pressTimer.current = globalThis.setTimeout(() => {
-                  const held = dragRef.current
-                  if (held === null || held.id !== facet.id) return
-                  try {
-                    target.setPointerCapture(held.pointerId)
-                  } catch {
-                    /* The finger already left. */
-                  }
-                  put({ ...held, lifted: true })
-                }, LONG_PRESS_MS)
-              }
-            }}
-            onPointerMove={(event) => {
-              const held = dragRef.current
-              if (held === null || held.pointerId !== event.pointerId) return
-              if (!held.lifted) {
-                const distance = Math.abs(event.clientX - held.startX)
-                if (event.pointerType === 'touch') {
-                  /* Moving before the long press is a scroll, not a drag. */
-                  if (distance > 8) {
-                    clearTimer()
-                    put(null)
-                  }
+              onKeyDown={(event) => {
+                if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
+                  if (!hasMenu(facet)) return
+                  event.preventDefault()
+                  const box = event.currentTarget.getBoundingClientRect()
+                  openMenu(facet, box.left, box.bottom)
                   return
                 }
-                if (distance <= DRAG_SLOP_PX) return
-                event.currentTarget.setPointerCapture(event.pointerId)
-              }
-              put({ ...held, lifted: true, x: event.clientX, gap: gapAt(event.clientX, held) })
-            }}
-            onPointerUp={(event) => {
-              clearTimer()
-              const held = dragRef.current
-              if (held === null || held.pointerId !== event.pointerId) return
-              put(null)
-              if (!held.lifted) return
-              swallowClick.current = true
-              reorderTo(facet, held.gap)
-            }}
-            onPointerCancel={() => {
-              clearTimer()
-              put(null)
-            }}
-            onLostPointerCapture={() => {
-              if (dragRef.current?.lifted === true) put(null)
-            }}
-            onContextMenu={(event) => {
-              /* A long press lifts the tab rather than opening the menu. */
-              if (dragRef.current !== null && event.nativeEvent instanceof PointerEvent && event.nativeEvent.pointerType === 'touch') {
+                if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
                 event.preventDefault()
-                return
-              }
-              if (!mayRename(facet) && !mayDelete(facet)) return
-              event.preventDefault()
-              /* A keyboard's menu key reports no pointer: open under the tab. */
-              const box = event.currentTarget.getBoundingClientRect()
-              const keyboard = event.clientX === 0 && event.clientY === 0
-              setMenu({ facet, x: keyboard ? box.left : event.clientX, y: keyboard ? box.bottom : event.clientY })
-            }}
-            style={{
-              ...(lifted && drag !== null ? { transform: `translateX(${String(drag.x - drag.startX)}px)` } : {}),
-              ...(movable ? { WebkitTouchCallout: 'none' } : {}),
-            }}
-            className={cn(
-              /* No outline-none: the global soft focus ring (FEEL) marks the tab a key reached. */
-              'relative -mb-px shrink-0 border-b-2 py-2 text-sm whitespace-nowrap select-none focus-visible:rounded-sm focus-visible:text-foreground',
-              current
-                ? 'border-foreground font-medium text-foreground'
-                : 'border-transparent text-muted-foreground hover:text-foreground',
-              lifted && 'z-10 cursor-grabbing opacity-50 transition-none',
-              lineBefore &&
-                (index === 0
-                  ? 'before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-primary'
-                  : 'before:absolute before:inset-y-1.5 before:-left-3 before:w-0.5 before:rounded-full before:bg-primary'),
-              lineAfter &&
-                'after:absolute after:inset-y-1.5 after:-right-3 after:w-0.5 after:rounded-full after:bg-primary',
-            )}
-          >
-            {facet.name}
-          </button>
-        )
-      })}
-      {canAdd ? (
-        adding ? (
-          <TabNameField
-            initial=""
-            label="New tab name"
-            placeholder="Tab name"
-            onDone={(name) => {
-              setAdding(false)
-              if (name !== null && name !== '') onAdd?.(name)
-            }}
-          />
-        ) : (
-          <button
-            type="button"
+                const direction = event.key === 'ArrowLeft' ? -1 : 1
+                if (event.altKey) {
+                  if (!movable) return
+                  /* Alt+←/→ moves the tab one place and keeps it focused. */
+                  reorderTo(facet, direction < 0 ? index - 1 : index + 2)
+                  globalThis.requestAnimationFrame(() => {
+                    globalThis.document.getElementById(`facet-tab-${facet.id}`)?.focus()
+                  })
+                  return
+                }
+                moveFocus(facet, direction)
+              }}
+              onPointerDown={(event) => {
+                if (!movable || event.button !== 0) return
+                const press: TabDrag = {
+                  id: facet.id,
+                  pointerId: event.pointerId,
+                  startX: event.clientX,
+                  x: event.clientX,
+                  lifted: false,
+                  gap: index,
+                }
+                put(press)
+                if (event.pointerType === 'touch') {
+                  const target = event.currentTarget
+                  clearTimer()
+                  pressTimer.current = globalThis.setTimeout(() => {
+                    const held = dragRef.current
+                    if (held === null || held.id !== facet.id) return
+                    try {
+                      target.setPointerCapture(held.pointerId)
+                    } catch {
+                      /* The finger already left. */
+                    }
+                    put({ ...held, lifted: true })
+                  }, LONG_PRESS_MS)
+                }
+              }}
+              onPointerMove={(event) => {
+                const held = dragRef.current
+                if (held === null || held.pointerId !== event.pointerId) return
+                if (!held.lifted) {
+                  const distance = Math.abs(event.clientX - held.startX)
+                  if (event.pointerType === 'touch') {
+                    /* Moving before the long press is a scroll, not a drag. */
+                    if (distance > 8) {
+                      clearTimer()
+                      put(null)
+                    }
+                    return
+                  }
+                  if (distance <= DRAG_SLOP_PX) return
+                  event.currentTarget.setPointerCapture(event.pointerId)
+                }
+                put({ ...held, lifted: true, x: event.clientX, gap: gapAt(event.clientX, held) })
+              }}
+              onPointerUp={(event) => {
+                clearTimer()
+                const held = dragRef.current
+                if (held === null || held.pointerId !== event.pointerId) return
+                put(null)
+                if (!held.lifted) return
+                swallowClick.current = true
+                reorderTo(facet, held.gap)
+              }}
+              onPointerCancel={() => {
+                clearTimer()
+                put(null)
+              }}
+              onLostPointerCapture={() => {
+                if (dragRef.current?.lifted === true) put(null)
+              }}
+              onContextMenu={(event) => {
+                /* A long press lifts the tab rather than opening the menu. */
+                if (dragRef.current !== null && event.nativeEvent instanceof PointerEvent && event.nativeEvent.pointerType === 'touch') {
+                  event.preventDefault()
+                  return
+                }
+                if (!hasMenu(facet)) return
+                event.preventDefault()
+                /* A keyboard's menu key reports no pointer: open under the tab. */
+                const box = event.currentTarget.getBoundingClientRect()
+                const keyboard = event.clientX === 0 && event.clientY === 0
+                openMenu(facet, keyboard ? box.left : event.clientX, keyboard ? box.bottom : event.clientY)
+              }}
+              style={{
+                ...(lifted && drag !== null ? { transform: `translateX(${String(drag.x - drag.startX)}px)` } : {}),
+                ...(movable ? { WebkitTouchCallout: 'none' } : {}),
+              }}
+              className={cn(
+                'relative focus-visible:rounded-sm focus-visible:text-foreground',
+                lifted && 'z-10 cursor-grabbing opacity-50 transition-none',
+                lineBefore &&
+                  (index === 0
+                    ? 'before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-primary'
+                    : 'before:absolute before:inset-y-1.5 before:-left-2 before:w-0.5 before:rounded-full before:bg-primary'),
+                lineAfter &&
+                  'after:absolute after:inset-y-1.5 after:-right-2 after:w-0.5 after:rounded-full after:bg-primary',
+              )}
+            >
+              {facet.name}
+            </Tab>
+          )
+        })}
+      </TabList>
+      {/* The "+" sits outside the scroller, so a narrow screen never clips it. */}
+      {adding ? (
+        <TabNameField
+          initial=""
+          label="New tab name"
+          placeholder="Tab name"
+          onDone={(name) => {
+            setAdding(false)
+            fieldOpening.current = false
+            if (name !== null && name !== '') onAdd?.(name)
+          }}
+        />
+      ) : showable.length > 0 ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={<Button variant="ghost" size="icon" className="shrink-0 text-muted-foreground" />}
             aria-label="Add tab"
             title="Add tab"
-            onClick={() => setAdding(true)}
-            className="flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" />
-          </button>
-        )
+            <Plus strokeWidth={1.75} aria-hidden="true" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-auto" finalFocus={() => !fieldOpening.current}>
+            {plusItems}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : canAdd ? (
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Add tab"
+          title="Add tab"
+          onClick={startAdding}
+          className="shrink-0 text-muted-foreground"
+        >
+          <Plus strokeWidth={1.75} aria-hidden="true" />
+        </Button>
       ) : null}
       <DropdownMenu
         open={menu !== null}
@@ -449,19 +533,35 @@ export function FolderTabs({
           render={<span aria-hidden="true" tabIndex={-1} />}
           style={{ position: 'fixed', left: menu?.x ?? 0, top: menu?.y ?? 0, width: 0, height: 0 }}
         />
-        <DropdownMenuContent align="start" className="w-40">
-          {menu !== null && mayRename(menu.facet) ? (
-            <DropdownMenuItem onClick={() => setRenamingId(menu.facet.id)}>
-              <Pencil className="size-4" strokeWidth={1.75} aria-hidden="true" />
-              Rename
-            </DropdownMenuItem>
-          ) : null}
-          {menu !== null && mayDelete(menu.facet) ? (
-            <DropdownMenuItem variant="destructive" onClick={() => onDelete?.(menu.facet)}>
-              <Trash2 className="size-4" strokeWidth={1.75} aria-hidden="true" />
-              Delete
-            </DropdownMenuItem>
-          ) : null}
+        <DropdownMenuContent align="start" className="w-auto" finalFocus={finalFocus}>
+          {target !== undefined && tabActs ? (
+            <>
+              {mayRename(target) ? (
+                <DropdownMenuItem
+                  onClick={() => {
+                    fieldOpening.current = true
+                    setRenamingId(target.id)
+                  }}
+                >
+                  Rename
+                </DropdownMenuItem>
+              ) : null}
+              {mayShare(target) ? (
+                <DropdownMenuItem onClick={() => onShare?.(target)}>Share…</DropdownMenuItem>
+              ) : null}
+              {mayHide(target) ? (
+                <DropdownMenuItem onClick={() => onHide?.(target, true)}>Hide</DropdownMenuItem>
+              ) : null}
+              {mayDelete(target) ? (
+                <DropdownMenuItem variant="destructive" onClick={() => onDelete?.(target)}>
+                  Delete
+                </DropdownMenuItem>
+              ) : null}
+            </>
+          ) : (
+            /* Work can be neither renamed nor hidden: its menu is the "+"'s. */
+            plusItems
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
@@ -471,7 +571,7 @@ export function FolderTabs({
 /*
 A tab's name being typed: the "+" making a tab, or a tab renamed in place.
 Enter or leaving the field keeps it, Escape answers null (nothing changes).
-It sits where the tab text sits, the row's own size and baseline.
+It sits where the tab text sits, at the tab's size, underlined like the current tab.
 */
 function TabNameField({
   initial,
@@ -492,172 +592,31 @@ function TabNameField({
     onDone(next === null ? null : next.replace(/\s+/g, ' ').trim())
   }
   return (
-    <input
-      autoFocus
-      value={value}
-      aria-label={label}
-      placeholder={placeholder}
-      maxLength={120}
-      size={Math.max(8, value.length + 1)}
-      onFocus={(event) => event.currentTarget.select()}
-      onChange={(event) => setValue(event.target.value)}
-      onBlur={() => finish(value)}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter') {
-          event.preventDefault()
-          finish(value)
-        }
-        if (event.key === 'Escape') {
-          event.preventDefault()
-          event.stopPropagation()
-          finish(null)
-        }
-      }}
-      className="-mb-px shrink-0 border-b-2 border-foreground bg-transparent py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground"
-    />
-  )
-}
-
-/**
- * "Tabs…": a plain list of every tab, shown or hidden, in the row's order.
- * Each row is its name (renamed in place where it may be), text actions only
- * where they apply ("Share" on a private tab, "Delete" on a custom one) and a
- * Show switch where it may be hidden. "Add tab" at the foot. No per-row menu
- * and no grip: tabs are reordered by dragging them on the row itself.
- */
-export function FolderTabsDialog({
-  open,
-  onOpenChange,
-  facets,
-  capabilities,
-  page,
-  onCreate,
-  onRename,
-  onHide,
-  onDelete,
-  onShare,
-}: {
-  readonly open: boolean
-  readonly onOpenChange: (next: boolean) => void
-  readonly facets: readonly Facet[]
-  readonly capabilities: (facet: Facet | null) => FacetCapabilities
-  readonly page: PageView | undefined
-  readonly onCreate: (input: CreateFacetInput) => void
-  readonly onRename: (facet: Facet, name: string | null) => void
-  readonly onHide: (facet: Facet, hidden: boolean) => void
-  readonly onDelete: (facet: Facet) => void
-  readonly onShare: (facet: Facet) => void
-}): React.JSX.Element {
-  const general = capabilities(null)
-  const linked = new Set(facets.flatMap((facet) => (facet.h1_block_id ? [facet.h1_block_id] : [])))
-  const sections =
-    page?.blocks.filter(
-      (block) => block.kind === 'section' && block.section_block_id === null && !linked.has(block.id),
-    ) ?? []
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Tabs</DialogTitle>
-        </DialogHeader>
-        <ul className="-mx-1">
-          {tabOrder(facets).map((facet) => {
-            const caps = capabilities(facet)
-            const renameable = facet.kind !== 'main' && isRenameable(facet) && caps.rename
-            const hideable = isHideableFacetKind(facet.kind) && caps.hide
-            const custom = isCustom(facet)
-            return (
-              <li key={facet.id} className="flex h-9 items-center gap-2 rounded-md px-2 hover:bg-muted">
-                {renameable ? (
-                  <input
-                    key={facet.name}
-                    defaultValue={facet.name}
-                    aria-label={`Name of ${facet.name}`}
-                    maxLength={120}
-                    onBlur={(event) => {
-                      const next = event.target.value.trim()
-                      if (next === facet.name) return
-                      /* Clearing a built-in tab's name gives its own back. */
-                      if (next === '') {
-                        if (isRenameableFacetKind(facet.kind)) onRename(facet, null)
-                        else event.target.value = facet.name
-                        return
-                      }
-                      onRename(facet, next)
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') event.currentTarget.blur()
-                      if (event.key === 'Escape') {
-                        event.currentTarget.value = facet.name
-                        event.currentTarget.blur()
-                      }
-                    }}
-                    className="h-7 min-w-0 flex-1 rounded-sm bg-transparent px-1 text-sm text-foreground outline-none hover:bg-background focus-visible:ring-2 focus-visible:ring-ring"
-                  />
-                ) : (
-                  <span className="min-w-0 flex-1 truncate px-1 text-sm text-foreground">{facet.name}</span>
-                )}
-                {facet.private ? <span className="shrink-0 text-xs text-muted-foreground">Private</span> : null}
-                {facet.private && caps.share ? (
-                  <button type="button" onClick={() => onShare(facet)} className="shrink-0 rounded-sm px-1 text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
-                    Share…
-                  </button>
-                ) : null}
-                {custom && caps.delete ? (
-                  <button type="button" onClick={() => onDelete(facet)} className="shrink-0 rounded-sm px-1 text-xs text-muted-foreground outline-none hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring">
-                    Delete
-                  </button>
-                ) : null}
-                {hideable ? (
-                  <Switch
-                    aria-label={`Show ${facet.name}`}
-                    checked={!facet.hidden}
-                    onCheckedChange={(checked) => onHide(facet, !checked)}
-                  />
-                ) : null}
-              </li>
-            )
-          })}
-        </ul>
-        {general.createShared || general.createPrivate ? (
-          <div>
-            <DropdownMenu>
-              <DropdownMenuTrigger render={<Button variant="ghost" className="-ml-2 text-muted-foreground" />}>
-                Add tab
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-56">
-                {general.createShared ? (
-                  <DropdownMenuItem onClick={() => onCreate({ kind: 'shared_blank', name: 'New tab' })}>
-                    Blank tab
-                  </DropdownMenuItem>
-                ) : null}
-                {general.createPrivate ? (
-                  <DropdownMenuItem onClick={() => onCreate({ kind: 'private_blank', name: 'Private notes' })}>
-                    Private tab, only you
-                  </DropdownMenuItem>
-                ) : null}
-                {general.createShared && sections.length > 0 ? (
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger>A section of Work</DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent className="w-56">
-                      {sections.map((block) => (
-                        <DropdownMenuItem
-                          key={block.id}
-                          onClick={() => onCreate({ kind: 'work', h1BlockId: block.id })}
-                        >
-                          <span className="truncate">{block.text || 'Untitled section'}</span>
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
-                ) : null}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        ) : null}
-      </DialogContent>
-    </Dialog>
+    <span className="-mb-px inline-flex h-[var(--control-height)] shrink-0 items-center border-b-2 border-foreground">
+      <input
+        autoFocus
+        value={value}
+        aria-label={label}
+        placeholder={placeholder}
+        maxLength={120}
+        size={Math.max(8, value.length + 1)}
+        onFocus={(event) => event.currentTarget.select()}
+        onChange={(event) => setValue(event.target.value)}
+        onBlur={() => finish(value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            event.preventDefault()
+            finish(value)
+          }
+          if (event.key === 'Escape') {
+            event.preventDefault()
+            event.stopPropagation()
+            finish(null)
+          }
+        }}
+        className="bg-transparent text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground"
+      />
+    </span>
   )
 }
 

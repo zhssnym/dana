@@ -44,8 +44,6 @@ import {
 import { TaskDependencies, isRelatableTask } from "./task-dependencies.js"
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react"
 
-import { FolderMark, folderNameOf } from "./folder-mark.js"
-import { folderLibrary } from "../lib/folder-library.js"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -69,12 +67,10 @@ import { presenterToday } from "../parts/presenters.js"
 import { boardStatusOf, type BoardStatus } from "../views/BoardView.js"
 import {
   CHIP_ASSIGNEE,
-  CHIP_FOLDER,
   CHIP_REMINDER,
   CHIP_REPEAT,
   UNASSIGNED,
 } from "./task-card-copy.js"
-import { TaskMoveGuard, type PendingMove } from "./task-move-guard.js"
 import { TaskAssigneeInvite } from "./task-assignee-invite.js"
 import { TaskHistoryBlock } from "./task-history-block.js"
 import { INVITE_BY_EMAIL, STEP_CAP_NOTICE } from "./task-copy.js"
@@ -91,10 +87,10 @@ import {
 import { useTimeFormat } from "../lib/time-format.js"
 import { useSortableList } from "../lib/use-sortable-list.js"
 import { cn } from "./ui/utils.js"
+import { Checkbox } from "./ui/checkbox.js"
+import { Tab, TabList } from "./ui/tabs.js"
 
 const TaskComposer = lazy(() => import("./page/canvas/TaskComposer.js"))
-
-const FOCUS = "outline-none focus-visible:ring-2 focus-visible:ring-ring"
 
 /* The row's field name for the due date: the panel's word, not the chip's. */
 const DATE_LABEL = "Date"
@@ -152,9 +148,8 @@ export function EmptyAction({
         onSelect?.()
       }}
       className={cn(
-        "-ml-0.5 flex h-8 items-center gap-2 rounded-sm px-0.5 text-left text-sm text-muted-foreground transition-colors duration-100 hover:bg-accent hover:text-foreground",
+        "-ml-0.5 flex h-[var(--control-height)] items-center gap-2 rounded-sm px-0.5 text-left text-sm text-muted-foreground transition-colors duration-100 hover:bg-accent hover:text-foreground",
         fill ? "w-full" : "shrink-0",
-        FOCUS,
       )}
     >
       <Icon className="size-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />
@@ -284,33 +279,10 @@ function StepTitle({
         setEditing(true)
       }}
       onPointerDown={(event) => event.stopPropagation()}
-      className={cn(metrics, "-mx-1 cursor-text truncate rounded-sm px-1", FOCUS)}
+      className={cn(metrics, "-mx-1 cursor-text truncate rounded-sm px-1")}
     >
       {step.title}
     </button>
-  )
-}
-
-function StepBox({ done }: { done: boolean }) {
-  return (
-    <span
-      className={cn(
-        "flex size-4 items-center justify-center rounded-sm border transition-colors duration-100",
-        done ? "border-primary bg-primary" : "border-input bg-background",
-      )}
-    >
-      <svg viewBox="0 0 20 20" className="size-3" aria-hidden="true">
-        <path
-          d="M4 10.5 L8.2 14.5 L16 5.8"
-          fill="none"
-          className="stroke-primary-foreground"
-          strokeWidth="3"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          style={{ strokeDasharray: 20, strokeDashoffset: done ? 0 : 20, transition: "stroke-dashoffset 150ms ease-out" }}
-        />
-      </svg>
-    </span>
   )
 }
 
@@ -390,25 +362,19 @@ function StepList({
               {...stepDrag.handleProps(i)}
               className={cn(
                 "absolute -left-4 flex h-8 w-4 cursor-grab items-center justify-center text-muted-foreground opacity-0 transition-opacity duration-100 group-hover/step:opacity-100 focus-visible:opacity-100 active:cursor-grabbing",
-                FOCUS,
                 stepState.isActive && "opacity-100",
               )}
             >
               <GripVertical className="size-3.5" strokeWidth={2} aria-hidden="true" />
             </button>
-            <button
-              type="button"
-              role="checkbox"
-              aria-checked={step.done}
-              aria-label={`Mark step ${step.done ? "not done" : "done"}`}
-              onClick={(e) => {
-                e.stopPropagation()
-                toggleStep(task.id, i)
-              }}
-              className={cn("flex size-5 shrink-0 items-center justify-center rounded-sm", FOCUS)}
-            >
-              <StepBox done={Boolean(step.done)} />
-            </button>
+            <span className="flex size-5 shrink-0 items-center justify-center">
+              <Checkbox
+                checked={Boolean(step.done)}
+                aria-label={`Mark step ${step.done ? "not done" : "done"}`}
+                onClick={(event) => event.stopPropagation()}
+                onCheckedChange={() => toggleStep(task.id, i)}
+              />
+            </span>
             <StepTitle step={step} onRename={(title) => renameStep(task.id, i, title)} />
             <DropdownMenu>
               <DropdownMenuTrigger
@@ -420,7 +386,6 @@ function StepList({
                     onPointerDown={(event) => event.stopPropagation()}
                     className={cn(
                       "flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground opacity-0 transition-opacity duration-100 group-hover/step:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100 hover:text-foreground max-md:opacity-100",
-                      FOCUS,
                     )}
                   >
                     <MoreHorizontal className="size-4" strokeWidth={1.75} aria-hidden="true" />
@@ -461,7 +426,7 @@ function StepList({
            opens the next, blur saves what is there, Escape leaves. */
         <div className="-ml-0.5 flex h-8 items-center gap-2 rounded-sm pr-1">
           <span className="flex size-5 shrink-0 items-center justify-center">
-            <StepBox done={false} />
+            <Checkbox checked={false} tabIndex={-1} aria-hidden="true" className="pointer-events-none" />
           </span>
           <InlineInput
             autoFocus
@@ -639,7 +604,7 @@ function AttachmentPicker({
             onChange={(event) => setUrl(event.target.value)}
             placeholder="Paste a link"
             aria-label="Attachment link"
-            className="h-8 min-w-0 flex-1 text-sm"
+            className="h-[var(--control-height)] min-w-0 flex-1 text-sm"
           />
         </form>
       ) : null}
@@ -678,7 +643,6 @@ function AttachmentList({ files }: { files: NonNullable<ConceptTask["attachments
               {...rowProps}
               className={cn(
                 "flex h-10 w-full items-center gap-2.5 rounded-sm px-1 text-left transition-colors duration-100 hover:bg-accent",
-                FOCUS,
               )}
             >
               {file.preview ? (
@@ -772,7 +736,7 @@ function MenuRow({
           <button
             type="button"
             onClick={(event) => event.stopPropagation()}
-            className={cn(PROPERTY_ROW, FOCUS)}
+            className={PROPERTY_ROW}
           >
             <span className={PROPERTY_LABEL}>{label}</span>
             <span
@@ -840,7 +804,8 @@ never disagree: a pending task whose start date is today or earlier is In
 progress. Choosing In progress starts it today (or on its due day when that is
 earlier, since the server holds start <= due); Not started clears the start;
 Done is the completion verb, so a series still generates its next occurrence
-exactly once. An abandoned task says so, and any choice restores it first.
+exactly once. Abandoned is the fourth choice; an abandoned task says so, and
+any other choice restores it first.
 */
 function StatusRow({
   task,
@@ -865,8 +830,10 @@ function StatusRow({
   const current: StatusKey | "abandoned" = task.abandoned ? "abandoned" : boardStatusOf(card, today)
   const started = card.start_date !== null && card.start_date <= today
 
-  function choose(next: StatusKey) {
+  function choose(next: StatusKey | "abandoned") {
     if (card === undefined || next === current) return
+    // Abandon lives here, with the other states, not in the "…".
+    if (next === "abandoned") { patch(task.id, { abandoned: true }); return }
     if (next === "done") {
       if (task.abandoned) {
         setCompleteAfterRestore(true)
@@ -895,7 +862,7 @@ function StatusRow({
         </>
       }
     >
-      {(["not_started", "in_progress", "done"] as const).map((key) => (
+      {(["not_started", "in_progress", "done", "abandoned"] as const).map((key) => (
         <DropdownMenuItem key={key} onClick={() => choose(key)}>
           <StatusMark status={key} />
           <span className="flex-1">{STATUS_LABEL[key]}</span>
@@ -915,7 +882,6 @@ export function TaskCard({
   moveStep,
   moveStepsTo,
   removeSteps,
-  onNewFolder,
 }: {
   task: ConceptTask
   patch: (id: string, fields: Partial<ConceptTask>) => void
@@ -929,9 +895,8 @@ export function TaskCard({
     destination: { kind: "new-task" } | { kind: "folder"; name: string; color: string },
   ) => void
   removeSteps: (id: string, indices: number[]) => void
-  onNewFolder: (ids: string[]) => void
   /* The wiring hands every card handler over; the ones this panel no longer
-     draws (bulk step acts) are accepted and unused. */
+     draws (bulk step acts, a new folder) are accepted and unused. */
   [unused: string]: unknown
 }) {
   const timeFormat = useTimeFormat()
@@ -939,8 +904,6 @@ export function TaskCard({
   /* INV-5: the assignee is hidden in a single-member folder, not disabled. */
   const shared = useMultiMemberFolderIds()
   const assignable = task.folder?.id !== undefined && shared.has(task.folder.id)
-  /* 9.3's move warning: a move that would strand the assignee asks first. */
-  const [pendingMove, setPendingMove] = useState<PendingMove | null>(null)
   const [inviting, setInviting] = useState(false)
   /* The one property "Add property" has just revealed, if any. */
   const [adding, setAdding] = useState<AddableProperty | null>(null)
@@ -1003,28 +966,6 @@ export function TaskCard({
       {/* The properties block: quiet rows, only what is set. */}
       <div className="-mx-2 flex flex-col">
         <StatusRow task={task} patch={patch} />
-        <MenuRow
-          label={CHIP_FOLDER}
-          value={
-            <>
-              <FolderMark name={task.folder?.name} color={task.folder?.color} className="size-3.5 shrink-0" />
-              <span className="truncate">{folderNameOf(task.folder?.name)}</span>
-            </>
-          }
-        >
-          {folderLibrary().map((f) => (
-            <DropdownMenuItem key={f.name} onClick={() => setPendingMove(f)}>
-              <FolderMark name={f.name} color={f.color} className="size-4" />
-              {f.name}
-            </DropdownMenuItem>
-          ))}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => onNewFolder([task.id])}>
-            <FolderPlus className="size-4" strokeWidth={1.75} aria-hidden="true" />
-            New folder…
-          </DropdownMenuItem>
-        </MenuRow>
-
         {showDate ? (
           <PropertyPicker
             label={DATE_LABEL}
@@ -1120,8 +1061,7 @@ export function TaskCard({
                 <button
                   type="button"
                   className={cn(
-                    "flex h-8 w-full items-center gap-2 rounded-sm px-2 text-left text-sm text-muted-foreground transition-colors duration-100 hover:bg-accent hover:text-foreground data-popup-open:bg-accent",
-                    FOCUS,
+                    "flex h-[var(--control-height)] w-full items-center gap-2 rounded-sm px-2 text-left text-sm text-muted-foreground transition-colors duration-100 hover:bg-accent hover:text-foreground data-popup-open:bg-accent",
                   )}
                 >
                   <Plus className="size-3.5" strokeWidth={2} aria-hidden="true" />
@@ -1148,21 +1088,6 @@ export function TaskCard({
           onDone={() => setInviting(false)}
         />
       ) : null}
-
-      <TaskMoveGuard
-        pending={pendingMove}
-        assignee={task.assignee ?? undefined}
-        onProceed={(folder, stranded) => {
-          setPendingMove(null)
-          patch(task.id, {
-            folder,
-            /* `undefined` and not #169's `null`: the move is the server's own
-               unassign, and an explicit null would be refused (INV-5). */
-            ...(stranded ? { assignee: undefined } : {}),
-          })
-        }}
-        onCancel={() => setPendingMove(null)}
-      />
 
       {steps.length > 0 || adding === "steps" ? (
         <Section title="Steps" {...(counts ? { badge: `${counts.done}/${counts.total}` } : {})}>
@@ -1212,21 +1137,18 @@ export function TaskCard({
       {/* The page's two tabs, drawn as the folder page draws its own:
           Work is the task's document, Discussion its comments. */}
       <div className="flex flex-col gap-4">
-        <div role="tablist" aria-label="Task tabs" className="flex items-center gap-5 border-b border-border">
+        <TabList label="Task tabs">
           {(
             [
               ["notes", "Work"],
               ["discussion", "Discussion"],
             ] as const
           ).map(([key, name]) => (
-            <button
+            <Tab
               key={key}
-              type="button"
-              role="tab"
               id={`task-tab-${key}`}
-              aria-selected={tab === key}
               aria-controls={`task-tabpanel-${key}`}
-              tabIndex={tab === key ? 0 : -1}
+              selected={tab === key}
               onClick={() => setTab(key)}
               onKeyDown={(event) => {
                 if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
@@ -1235,17 +1157,11 @@ export function TaskCard({
                 setTab(next)
                 globalThis.requestAnimationFrame(() => document.getElementById(`task-tab-${next}`)?.focus())
               }}
-              className={cn(
-                "-mb-px flex shrink-0 items-baseline border-b-2 py-2 text-sm whitespace-nowrap outline-none transition-colors focus-visible:text-foreground",
-                tab === key
-                  ? "border-foreground font-medium text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground",
-              )}
             >
               {name}
-            </button>
+            </Tab>
           ))}
-        </div>
+        </TabList>
 
         {tab === "notes" ? (
           /* #221: the Task's own document, in the Folder canvas's writer. The

@@ -20,7 +20,7 @@ the Work and Discussion tabs).
 import { InlineTextarea } from "./ui/inline-field.js"
 import { useCallback, useEffect, useRef, useState } from "react"
 
-import { ChevronDown, ChevronUp, Maximize2, MoreHorizontal, X } from "../lib/icons.js"
+import { ChevronDown, ChevronUp, Maximize2, X } from "../lib/icons.js"
 import { TITLE_REQUIRED, tooLong } from "./task-copy.js"
 /* 10.3's number for the field, from the shared contract rather than restated. */
 import { TASK_TITLE_LIMIT } from "../../shared/tasks.js"
@@ -29,11 +29,10 @@ import { TaskCard } from "./task-card.js"
 import { useCardWiring, type TaskRowProps } from "./task-row.js"
 import { ReservesRightEdge } from "./right-edge.js"
 import { ObjectMenu } from "./object-menu.js"
-import { MORE_ACTIONS } from "./ui/copy.js"
 import { copyTaskLink, duplicateTask } from "../tasks/task-acts.js"
 import { cn } from "./ui/utils.js"
 import { ReferencedFrom } from "./links/referenced-from.js"
-import { pageBodyClass } from "./page-head.js"
+import { Button } from "./ui/button.js"
 import { openTask } from "./task-open.js"
 import { BreadcrumbTrail } from "./breadcrumb-trail.js"
 import { prefetchTask, useTask } from "../api/queries.js"
@@ -45,8 +44,6 @@ function PeekTrail({ taskId }: { taskId: string }) {
   if (task.data === undefined) return null
   return <BreadcrumbTrail folderId={task.data.folder.id} current={task.data.title} />
 }
-
-const FOCUS = "outline-none focus-visible:ring-2 focus-visible:ring-ring"
 
 /** The panel's width on a desktop. Fixed: the page beside it is the thing
     that flexes. */
@@ -116,7 +113,7 @@ function Title({
           }
         }}
         className={cn(
-          "text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-bold hover:bg-transparent focus:bg-transparent focus:ring-0",
+          "text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-semibold hover:bg-transparent focus:bg-transparent focus:ring-0",
           done ? "text-muted-foreground line-through" : "text-foreground",
         )}
       />
@@ -130,55 +127,28 @@ function Title({
 }
 
 /*
-The task's one "…": history, copy link, duplicate, abandon (or restore),
-delete. Moving is the Folder row's and done is the Status row's, in the
-properties block, so each has one home.
+The task's one "…": history, copy link, duplicate, delete. Status carries
+abandon and restore, and the breadcrumb says where the task lives.
 */
-function TaskMenu({
-  task,
-  id,
-  onRestore,
-  onAbandon,
-  onDelete,
-}: {
-  task: { title: string; done?: boolean; abandoned?: boolean }
-  id: string
-  onRestore: () => void
-  onAbandon?: () => void
-  onDelete?: () => void
-}) {
+function TaskMenu({ id, title, onDelete }: { id: string; title: string; onDelete?: () => void }) {
   const [historyOpen, setHistoryOpen] = useState(false)
   return (
     <>
       <ObjectMenu
         kind="task"
-        name={task.title}
+        name={title}
         width="w-56"
-        trigger={
-          <button
-            type="button"
-            aria-label={MORE_ACTIONS}
-            className={cn(
-              "flex size-8 items-center justify-center rounded-sm text-muted-foreground transition-colors duration-100 hover:bg-accent hover:text-foreground data-popup-open:bg-accent",
-              FOCUS,
-            )}
-          >
-            <MoreHorizontal className="size-4" strokeWidth={1.75} aria-hidden="true" />
-          </button>
-        }
         handlers={{
           history: () => setHistoryOpen(true),
           "copy-link": () => copyTaskLink(id),
-          duplicate: () => duplicateTask(id, task.title),
-          abandon: onAbandon && !task.abandoned ? onAbandon : undefined,
-          restore: task.abandoned ? onRestore : undefined,
+          duplicate: () => duplicateTask(id, title),
           delete: onDelete,
         }}
       />
       <HistorySheet
         kind="task"
         subject={id}
-        name={task.title}
+        name={title}
         open={historyOpen}
         onOpenChange={setHistoryOpen}
       />
@@ -195,38 +165,37 @@ export interface PeekSteps {
 function HeaderButton({
   label,
   keys,
-  disabled,
+  disabled = false,
   onClick,
   children,
 }: {
   label: string
-  keys: string
-  disabled: boolean
+  keys?: string
+  disabled?: boolean
   onClick: () => void
   children: React.ReactNode
 }) {
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
+      size="icon"
       aria-label={label}
       aria-keyshortcuts={keys}
       title={label}
       disabled={disabled}
       onClick={onClick}
-      className={cn(
-        "flex size-8 items-center justify-center rounded-sm text-muted-foreground transition-colors duration-100 hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40",
-        FOCUS,
-      )}
     >
       {children}
-    </button>
+    </Button>
   )
 }
 
 /*
 The task as one page, whichever way it is shown: a side peek, a center peek or
-the full page. The header carries the task's one "…", "Open as full page" in
-the peeks, and the close.
+the full page. A peek draws its controls in a bar beside its breadcrumb; the
+full page draws them on the title line, as the folder page does, since the
+app's own bar is its breadcrumb.
 */
 export function TaskView({
   task: props,
@@ -245,20 +214,10 @@ export function TaskView({
   steps?: PeekSteps
 }) {
   const { task, patch, cardHandlers } = useCardWiring(props)
-  const page = kind === "page"
 
-  const header = (
-    <div className={cn("flex h-12 shrink-0 items-center justify-end gap-1", page ? "-mr-2" : "px-3")}>
-      {page ? null : (
-        /* The task's path, as the top bar draws it on its full page. It takes
-           the slack so the controls stay at the right edge. */
-        <div data-peek-breadcrumb="" className="flex min-w-0 flex-1 items-center">
-          <PeekTrail taskId={task.id} />
-        </div>
-      )}
-      {task.abandoned ? (
-        <span className={cn("text-xs text-muted-foreground", page ? "mr-auto" : "px-2")}>Abandoned</span>
-      ) : null}
+  const controls = (
+    <div className="flex shrink-0 items-center gap-1">
+      {task.abandoned ? <span className="px-2 text-xs text-muted-foreground">Abandoned</span> : null}
       {steps && (steps.prev !== null || steps.next !== null) ? (
         <>
           <HeaderButton
@@ -280,78 +239,75 @@ export function TaskView({
         </>
       ) : null}
       {onOpenFull ? (
-        <button
-          type="button"
-          aria-label="Open as full page"
-          title="Open as full page"
-          onClick={onOpenFull}
-          className={cn(
-            "flex size-8 items-center justify-center rounded-sm text-muted-foreground transition-colors duration-100 hover:bg-accent hover:text-foreground",
-            FOCUS,
-          )}
-        >
+        <HeaderButton label="Open as full page" onClick={onOpenFull}>
           <Maximize2 className="size-4" strokeWidth={1.75} aria-hidden="true" />
-        </button>
+        </HeaderButton>
       ) : null}
       <TaskMenu
-        task={task}
         id={props.id}
-        onRestore={() => patch(task.id, { abandoned: false })}
-        {...(props.onAbandon === undefined ? {} : { onAbandon: props.onAbandon })}
+        title={task.title}
         {...(props.onDelete === undefined ? {} : { onDelete: props.onDelete })}
       />
       {onClose ? (
-        <button
-          type="button"
-          aria-label="Close task"
-          onClick={onClose}
-          className={cn(
-            "flex size-8 items-center justify-center rounded-sm text-muted-foreground transition-colors duration-100 hover:bg-accent hover:text-foreground",
-            FOCUS,
-          )}
-        >
+        <HeaderButton label="Close task" onClick={onClose}>
           <X className="size-4" strokeWidth={1.75} aria-hidden="true" />
-        </button>
+        </HeaderButton>
       ) : null}
     </div>
   )
 
-  const body = (
-    <div className="flex flex-col gap-4">
-      <Title
-        /* A different task is a fresh draft. */
-        key={props.id}
-        value={task.title}
-        done={Boolean(task.done)}
-        onRename={(title) => patch(task.id, { title })}
-      />
+  const title = (
+    <Title
+      /* A different task is a fresh draft. */
+      key={props.id}
+      value={task.title}
+      done={Boolean(task.done)}
+      onRename={(title) => patch(task.id, { title })}
+    />
+  )
+
+  const rest = (
+    <>
       <TaskCard task={task} patch={patch} {...cardHandlers} />
       {/* #214: the documents that link to this Task. Absent while none do. */}
       <ReferencedFrom kind="task" id={props.id} />
-    </div>
+    </>
   )
 
-  if (page) {
-    /* The folder page's own reading column, so a task page and a folder page
-       share one measure. The page scrolls, not an inner box. */
+  if (kind === "page") {
+    /* Straight in the shell's column, as the folder page is, so the two share
+       one measure. The page scrolls, not an inner box. */
     return (
-      <div className={pageBodyClass("pb-24 max-md:px-4")}>
-        <div className="pt-4 max-md:pt-0">{header}</div>
-        <div className="pt-2">{body}</div>
+      <div className="flex flex-col gap-4 pt-2 pb-24">
+        <div className="flex min-w-0 items-start gap-2">
+          <div className="min-w-0 flex-1">{title}</div>
+          {controls}
+        </div>
+        {rest}
       </div>
     )
   }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {header}
+      <div className="flex h-12 shrink-0 items-center gap-1 px-3">
+        {/* The task's path, as the top bar draws it on its full page. It takes
+            the slack so the controls stay at the right edge. */}
+        <div data-peek-breadcrumb="" className="flex min-w-0 flex-1 items-center">
+          <PeekTrail taskId={task.id} />
+        </div>
+        {controls}
+      </div>
       <div
         className={cn(
           "min-h-0 flex-1 overflow-y-auto pb-16",
-          kind === "center" ? "px-14 pt-2 max-md:px-4" : "px-6 max-md:px-0",
+          kind === "center" ? "px-14 pt-2 max-md:px-4" : "px-6",
         )}
       >
-        {body}
+        <div className="flex flex-col gap-4">
+          {title}
+          {rest}
+        </div>
       </div>
     </div>
   )
@@ -509,21 +465,51 @@ its own popups; a peek is not one, so this does the same by hand: it mounts
 calls `onClose`, once its exit has run (or after a short fallback, since
 reduced motion or a hidden tab may never fire the end event).
 
-Focus moves into the peek and returns, on close, to what had it before.
+Focus moves into the peek and returns, on close, to what had it before; when
+that was nothing (a mouse press on a canvas task focuses nothing), or the peek
+has since stepped to another task, it goes to the row of the task on screen.
 */
 type Phase = "starting" | "open" | "ending"
 
 /** Longer than any exit on the motion tokens; only a missed end event waits for it. */
 const EXIT_FALLBACK_MS = 250
 
-function usePeekMotion(onClose: () => void, self: React.RefObject<HTMLElement | null>) {
+/* The focusable home of a task's row under the peek: the row, or the nearest
+   focusable wrapper holding that one task, or its first control. */
+function rowFocusTarget(taskId: string, peek: HTMLElement | null): HTMLElement | null {
+  const rows = document.querySelectorAll<HTMLElement>(`[data-task-id="${CSS.escape(taskId)}"]`)
+  const row = Array.from(rows).find((node) => peek?.contains(node) !== true)
+  if (row === undefined) return null
+  if (row.tabIndex >= 0) return row
+  const wrapper = row.parentElement?.closest<HTMLElement>("[tabindex]:not([tabindex=\"-1\"])")
+  if (
+    wrapper != null &&
+    Array.from(wrapper.querySelectorAll<HTMLElement>("[data-task-id]")).every(
+      (node) => node.dataset.taskId === taskId,
+    )
+  ) {
+    return wrapper
+  }
+  return row.querySelector<HTMLElement>("button, a[href], [tabindex]:not([tabindex=\"-1\"])")
+}
+
+function usePeekMotion(
+  onClose: () => void,
+  self: React.RefObject<HTMLElement | null>,
+  taskId: string,
+) {
+  const shownId = useRef(taskId)
+  shownId.current = taskId
   const [phase, setPhase] = useState<Phase>("starting")
   const closeRef = useRef(onClose)
   closeRef.current = onClose
   const done = useRef(false)
 
   useEffect(() => {
-    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const opened = shownId.current
+    const peek = self.current
+    const active = document.activeElement
+    const opener = active instanceof HTMLElement && active !== document.body ? active : null
     let second = 0
     const first = requestAnimationFrame(() => {
       second = requestAnimationFrame(() => {
@@ -534,7 +520,11 @@ function usePeekMotion(onClose: () => void, self: React.RefObject<HTMLElement | 
     return () => {
       cancelAnimationFrame(first)
       cancelAnimationFrame(second)
-      if (opener?.isConnected === true) opener.focus({ preventScroll: true })
+      const back =
+        opener?.isConnected === true && shownId.current === opened
+          ? opener
+          : rowFocusTarget(shownId.current, peek)
+      back?.focus({ preventScroll: true })
     }
   }, [self])
 
@@ -576,7 +566,7 @@ export function TaskPanel({
   onOpenFull?: () => void
 }) {
   const self = useRef<HTMLElement>(null)
-  const { phase, requestClose, finish } = usePeekMotion(onClose, self)
+  const { phase, requestClose, finish } = usePeekMotion(onClose, self, task.id)
   const steps = usePeekSteps(task.id, self)
   usePeekKeys(requestClose, self, steps)
 
@@ -586,6 +576,7 @@ export function TaskPanel({
         ref={self}
         aria-label={task.title}
         tabIndex={-1}
+        data-focus="self"
         style={{ width: TASK_PANEL_WIDTH }}
         onAnimationEnd={(event) => {
           if (phase === "ending" && event.target === event.currentTarget) finish()
@@ -628,7 +619,7 @@ export function TaskCenterPeek({
   onOpenFull?: () => void
 }) {
   const self = useRef<HTMLDivElement>(null)
-  const { phase, requestClose, finish, motion } = usePeekMotion(onClose, self)
+  const { phase, requestClose, finish, motion } = usePeekMotion(onClose, self, task.id)
   const steps = usePeekSteps(task.id, self)
   usePeekKeys(requestClose, self, steps)
 
@@ -647,6 +638,7 @@ export function TaskCenterPeek({
         aria-modal="true"
         aria-label={task.title}
         tabIndex={-1}
+        data-focus="self"
         style={{ width: `min(${TASK_PEEK_WIDTH}px, calc(100vw - 32px))` }}
         onTransitionEnd={(event) => {
           if (phase === "ending" && event.target === event.currentTarget) finish()
