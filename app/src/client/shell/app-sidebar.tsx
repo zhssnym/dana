@@ -458,9 +458,14 @@ function FolderGroupBlock({
               name={group.label}
               width="w-44"
               handlers={{
-                rename: () => {
-                  groups.onRenameGroup(group.label)
-                },
+                /* A shelf with a page renames in its page title (the one home);
+                   only a bare label, which has no page, renames here. */
+                rename:
+                  group.shelf === null
+                    ? () => {
+                        groups.onRenameGroup(group.label)
+                      }
+                    : undefined,
                 'copy-link':
                   shelfId === null
                     ? undefined

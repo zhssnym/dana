@@ -20,9 +20,9 @@ transaction rewrites the member labels (4.18's lockstep). **A folder row opens
 the folder**, there being no tab strip to append to. **Delete asks first**, in
 the sidebar's own sentence.
 
-**"New folder..." asks the shell for its dialog** through `shell/overlays.ts`,
-carrying this shelf's name as the label the new folder is filed under, which is
-the same two writes the sidebar's "Add folder to {shelf}" performs.
+**Folders join a shelf from the sidebar** (drag, or a folder's "Move to
+shelf"), never from this page: the page is the title and its writing, with the
+member rows placed in it, and nothing else.
 */
 import { lazy, Suspense, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
@@ -39,7 +39,6 @@ import { DEFAULT_FOLDER_COLOR } from '../parts/presenters.js'
 import { paths } from '../routes.js'
 import { ShelfPage as ShelfScreen } from '../screens/shelf-page.js'
 import type { CanvasFolderRow } from '../components/page/canvas/CanvasFolder.js'
-import { openNewFolder } from '../shell/overlays.js'
 import { deleteGroupConfirm } from '../shell/folder-groups.js'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog.js'
 import { PageBody } from '../components/page/PageStates.js'
@@ -92,24 +91,8 @@ export function ShelfPage(): React.JSX.Element {
         name: folder.name,
         color: folder.color ?? DEFAULT_FOLDER_COLOR,
         icon: folder.icon,
-        pending: folder.counts.pending,
       })),
     [onShelf],
-  )
-  const addable = useMemo(
-    () =>
-      (folders.data ?? [])
-        .filter(
-          (folder) =>
-            !folder.is_default && (folder.my_shelf === null || folder.my_shelf !== name),
-        )
-        .map((folder) => ({
-          id: folder.id,
-          name: folder.name,
-          color: folder.color ?? DEFAULT_FOLDER_COLOR,
-          icon: folder.icon,
-        })),
-    [folders.data, name],
   )
 
   return (
@@ -185,24 +168,14 @@ export function ShelfPage(): React.JSX.Element {
                 shelfId={id}
                 page={page.data}
                 folders={shelfFolders}
-                addableFolders={addable}
                 folderHref={paths.folder}
                 settled={!shelf.isFetching && !folders.isFetching}
                 onOpenFolder={(folderId) => {
                   void navigate(paths.folder(folderId))
                 }}
-                onAddFolder={async (folderId) => {
-                  /* The same act the sidebar's "Move to shelf" performs: the
-                     `shelf` field is the membership (4.18); the composer places
-                     the row once it is written (AC-223). */
-                  await move.mutateAsync({ id: folderId, body: { shelf: name } })
-                }}
                 onRemoveFolder={async (folderId) => {
                   /* Remove from shelf clears the membership; the folder stays. */
                   await move.mutateAsync({ id: folderId, body: { shelf: null } })
-                }}
-                onCreateFolder={() => {
-                  openNewFolder(name)
                 }}
               />
             </Suspense>

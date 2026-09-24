@@ -92,6 +92,23 @@ export function resolveDue(anchor: string, due: SampleDue): string {
 
 type SampleKind = 'shelf' | 'folder' | 'task' | 'view'
 
+/*
+The sample's own clock. The whole sample is one transaction, where `now()` is
+one instant, so every shelf, folder, task and comment shared a `created_at` and
+every list that orders by `created_at, id` fell through to a random uuid: each
+new account saw its sample tasks in a different order. Each row takes its own
+millisecond instead, in the order `content.ts` lists it, all within the minute
+before now so nothing is created in the future.
+*/
+type SampleClock = () => SQL
+function sampleClock(): SampleClock {
+  let tick = 0
+  return () => {
+    tick += 1
+    return sql`now() - interval '60 seconds' + ${tick}::int * interval '1 millisecond'`
+  }
+}
+
 async function register(
   tx: Executor,
   userId: string,
@@ -106,6 +123,7 @@ async function register(
 
 async function writeTask(
   tx: Executor,
+  clock: SampleClock,
   userId: string,
   anchor: string,
   folderId: string,
@@ -120,7 +138,7 @@ async function writeTask(
     sql`INSERT INTO tasks
           (folder_id, title, notes, important, status, due_date, due_time,
            recurrence_rule, series_id, assignee_id, created_by,
-           completed_at, completed_by, section_block_id, deleted_at)
+           completed_at, completed_by, section_block_id, deleted_at, created_at)
         VALUES (${folderId}::uuid, ${task.title}, ${task.notes ?? null},
                 ${task.important ?? false},
                 ${completed ? 'completed' : 'pending'},
@@ -131,7 +149,7 @@ async function writeTask(
                 ${completed ? sql`now() - make_interval(days => ${task.doneDaysAgo ?? 0})` : sql`NULL`},
                 ${completed ? sql`${userId}::uuid` : sql`NULL`},
                 ${sectionId}::uuid,
-                ${task.trashed === true ? sql`now()` : sql`NULL`})
+                ${task.trashed === true ? sql`now()` : sql`NULL`}, ${clock()})
         RETURNING id`,
   )
   const taskId = String(inserted[0]?.id)
@@ -162,15 +180,15 @@ async function writeTask(
   for (const comment of task.thread ?? []) {
     const parent = await rowsOf(
       tx,
-      sql`INSERT INTO comments (folder_id, task_id, author_id, body)
-          VALUES (${folderId}::uuid, ${taskId}::uuid, ${userId}::uuid, ${comment.body})
+      sql`INSERT INTO comments (folder_id, task_id, author_id, body, created_at)
+          VALUES (${folderId}::uuid, ${taskId}::uuid, ${userId}::uuid, ${comment.body}, ${clock()})
           RETURNING id`,
     )
     for (const reply of comment.replies ?? []) {
       await tx.execute(
-        sql`INSERT INTO comments (folder_id, task_id, parent_id, author_id, body)
+        sql`INSERT INTO comments (folder_id, task_id, parent_id, author_id, body, created_at)
             VALUES (${folderId}::uuid, ${taskId}::uuid,
-                    ${String(parent[0]?.id)}::uuid, ${userId}::uuid, ${reply})`,
+                    ${String(parent[0]?.id)}::uuid, ${userId}::uuid, ${reply}, ${clock()})`,
       )
     }
   }
@@ -179,16 +197,17 @@ async function writeTask(
 
 async function writeFolder(
   tx: Executor,
+  clock: SampleClock,
   userId: string,
   anchor: string,
   folder: SampleFolder,
 ): Promise<void> {
   const inserted = await rowsOf(
     tx,
-    sql`INSERT INTO folders (owner_id, name, icon, color, description, deleted_at)
+    sql`INSERT INTO folders (owner_id, name, icon, color, description, deleted_at, created_at)
         VALUES (${userId}::uuid, ${folder.name}, ${folder.icon ?? null},
                 ${folder.color ?? null}, ${folder.description ?? null},
-                ${folder.trashed === true ? sql`now()` : sql`NULL`})
+                ${folder.trashed === true ? sql`now()` : sql`NULL`}, ${clock()})
         RETURNING id`,
   )
   const folderId = String(inserted[0]?.id)
@@ -233,7 +252,7 @@ async function writeFolder(
   }
 
   for (const task of folder.tasks) {
-    await writeTask(tx, userId, anchor, folderId, task, sections)
+    await writeTask(tx, clock, userId, anchor, folderId, task, sections)
   }
   /* Issue #320: a Folder-level comment belongs to a Discussion, so the
      sample's conversation is the Folder's "General discussion", in 0029's
@@ -250,9 +269,9 @@ async function writeFolder(
     const discussionId = String(general[0]?.id)
     for (const comment of conversation) {
       await tx.execute(
-        sql`INSERT INTO comments (folder_id, discussion_id, author_id, body)
+        sql`INSERT INTO comments (folder_id, discussion_id, author_id, body, created_at)
             VALUES (${folderId}::uuid, ${discussionId}::uuid,
-                    ${userId}::uuid, ${comment.body})`,
+                    ${userId}::uuid, ${comment.body}, ${clock()})`,
       )
     }
   }
@@ -279,20 +298,21 @@ export async function createSampleWorkspace(
   zone: string,
 ): Promise<SampleCounts> {
   const anchor = today(zone)
+  const clock = sampleClock()
 
   for (const shelf of SAMPLE_WORKSPACE.shelves) {
     const made = await rowsOf(
       tx,
-      sql`INSERT INTO shelves (user_id, name, icon, color, description)
+      sql`INSERT INTO shelves (user_id, name, icon, color, description, created_at)
           VALUES (${userId}::uuid, ${shelf.name}, ${shelf.icon ?? null},
-                  ${shelf.color ?? null}, ${shelf.description ?? null})
+                  ${shelf.color ?? null}, ${shelf.description ?? null}, ${clock()})
           RETURNING id`,
     )
     await register(tx, userId, 'shelf', String(made[0]?.id))
   }
 
   for (const folder of SAMPLE_WORKSPACE.folders) {
-    await writeFolder(tx, userId, anchor, folder)
+    await writeFolder(tx, clock, userId, anchor, folder)
   }
 
   const desk = await rowsOf(
@@ -301,7 +321,7 @@ export async function createSampleWorkspace(
   )
   const deskId = String(desk[0]?.id)
   for (const task of SAMPLE_WORKSPACE.desk) {
-    await writeTask(tx, userId, anchor, deskId, task, new Map())
+    await writeTask(tx, clock, userId, anchor, deskId, task, new Map())
   }
 
   for (const view of SAMPLE_WORKSPACE.views) {
