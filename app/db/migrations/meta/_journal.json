@@ -239,6 +239,13 @@
       "when": 1790900000000,
       "tag": "0034_diagram_block",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1791100000000,
+      "tag": "0036_task_open_side_peek",
+      "breakpoints": true
     }
   ]
 }

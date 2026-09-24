@@ -1,10 +1,12 @@
 /*
-The task panel's body: everything a task is, in one quiet column.
+The task page's body: everything a task is, in one quiet column, the same in
+the side peek, the center peek and the full page.
 
-The order is the redesign's (REDESIGN-SPEC "Task panel"): one properties block,
-the notes, the steps, attachments and dependencies only where there are some,
-then the comments. Nothing here can be dragged or collapsed; a task is not a
-form somebody arranges. Every edit commits as it is made, so there is no Save
+The order is the page's (ROUND2-SPEC "Task"): one properties block (Status
+first, then the fixed set, Steps, Dependencies and Attachments only where there
+are some), then the page's two tabs, **Notes** (the task's document) and
+**Discussion** (its comments, never on the body). Nothing here can be
+dragged or collapsed; a task is not a form somebody arranges. Every edit commits as it is made, so there is no Save
 and no footer of actions: the task's own acts live in the panel's one "…".
 
 **The properties block shows only what is set.** A task with no date draws no
@@ -40,7 +42,7 @@ import {
   type LucideIcon,
 } from "../lib/icons.js"
 import { TaskDependencies, isRelatableTask } from "./task-dependencies.js"
-import { lazy, Suspense, useRef, useState, type ReactNode } from "react"
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react"
 
 import { FolderMark, folderNameOf } from "./folder-mark.js"
 import { folderLibrary } from "../lib/folder-library.js"
@@ -61,7 +63,10 @@ import {
 } from "./task-pickers.js"
 import { CommentsThread } from "./comments.js"
 import { usePeopleLibrary } from "../lib/people-library.js"
-import { useMultiMemberFolderIds, useTaskDependencies } from "../api/queries.js"
+import { useMultiMemberFolderIds, useTask, useTaskDependencies } from "../api/queries.js"
+import { useUpdateTask } from "../api/mutations.js"
+import { presenterToday } from "../parts/presenters.js"
+import { boardStatusOf, type BoardStatus } from "../views/BoardView.js"
 import {
   CHIP_ASSIGNEE,
   CHIP_FOLDER,
@@ -322,8 +327,14 @@ function StepList({
   removeSteps,
   addStep,
   renameStep,
+  startAdding = false,
+  onIdle,
 }: {
   task: ConceptTask
+  /* "Add property" > Steps: the list opens already asking for the first. */
+  startAdding?: boolean
+  /* The field closed; the caller hides an empty list again. */
+  onIdle?: () => void
   toggleStep: (id: string, index: number) => void
   moveStep: (id: string, from: number, to: number) => void
   moveStepsTo?: (
@@ -335,7 +346,11 @@ function StepList({
   addStep: (id: string, title: string) => void
   renameStep: (id: string, index: number, title: string) => void
 }) {
-  const [adding, setAdding] = useState(false)
+  const [adding, setAddingState] = useState(startAdding)
+  const setAdding = (next: boolean) => {
+    setAddingState(next)
+    if (!next) onIdle?.()
+  }
   const [newStep, setNewStep] = useState("")
   const stepDrag = useSortableList({
     count: task.steps?.length ?? 0,
@@ -721,7 +736,7 @@ function AttachmentList({ files }: { files: NonNullable<ConceptTask["attachments
 
 /* ------------------------------------------------------------- properties */
 
-type AddableProperty = "date" | "reminder" | "repeat" | "assignee"
+type AddableProperty = "date" | "reminder" | "repeat" | "assignee" | "steps"
 
 /* "Due 25 Sep" → "25 Sep", "Due today 6:00 PM" → "Today 6:00 PM": the row's
    name already says what the value is. */
@@ -779,6 +794,119 @@ function MenuRow({
   )
 }
 
+/* ----------------------------------------------------------------- status */
+
+type StatusKey = BoardStatus
+
+const STATUS_LABEL: Record<StatusKey | "abandoned", string> = {
+  not_started: "Not started",
+  in_progress: "In progress",
+  done: "Done",
+  abandoned: "Abandoned",
+}
+
+/* The three states as one small mark: a dashed ring, a half-filled ring, a
+   filled check. Abandoned is a ring with a stroke through it. */
+export function StatusMark({ status, className }: { status: StatusKey | "abandoned"; className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      aria-hidden="true"
+      className={cn(
+        "size-3.5 shrink-0",
+        status === "not_started" || status === "abandoned" ? "text-muted-foreground" : "text-primary",
+        className,
+      )}
+    >
+      {status === "done" ? (
+        <>
+          <circle cx="8" cy="8" r="7" fill="currentColor" />
+          <path d="M5 8.3 7.1 10.3 11 6" fill="none" stroke="var(--background)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        </>
+      ) : (
+        <>
+          <circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray={status === "not_started" ? "2.4 1.8" : undefined} />
+          {status === "in_progress" ? <path d="M8 3.5a4.5 4.5 0 0 1 0 9z" fill="currentColor" /> : null}
+          {status === "abandoned" ? <path d="M4.5 11.5 11.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /> : null}
+        </>
+      )}
+    </svg>
+  )
+}
+
+/*
+Status, the first property: Not started, In progress, Done. The Board's own
+rule (`boardStatusOf` in `views/BoardView.tsx`), so the page and the Board can
+never disagree: a pending task whose start date is today or earlier is In
+progress. Choosing In progress starts it today (or on its due day when that is
+earlier, since the server holds start <= due); Not started clears the start;
+Done is the completion verb, so a series still generates its next occurrence
+exactly once. An abandoned task says so, and any choice restores it first.
+*/
+function StatusRow({
+  task,
+  patch,
+}: {
+  task: ConceptTask
+  patch: (id: string, fields: Partial<ConceptTask>) => void
+}) {
+  const card = useTask(task.id).data
+  const update = useUpdateTask()
+  const today = presenterToday()
+  /* Abandoned to Done is two verbs in order (restore, then complete); the
+     second waits for the first to land. */
+  const [completeAfterRestore, setCompleteAfterRestore] = useState(false)
+  useEffect(() => {
+    if (!completeAfterRestore || task.abandoned) return
+    setCompleteAfterRestore(false)
+    patch(task.id, { done: true })
+  }, [completeAfterRestore, task.abandoned, task.id, patch])
+
+  if (card === undefined) return null
+  const current: StatusKey | "abandoned" = task.abandoned ? "abandoned" : boardStatusOf(card, today)
+  const started = card.start_date !== null && card.start_date <= today
+
+  function choose(next: StatusKey) {
+    if (card === undefined || next === current) return
+    if (next === "done") {
+      if (task.abandoned) {
+        setCompleteAfterRestore(true)
+        patch(task.id, { abandoned: false })
+      } else patch(task.id, { done: true })
+      return
+    }
+    /* Out of Done first: an abandoned task is restored, a completed one
+       uncompleted, as a Board drop does. */
+    if (task.abandoned) patch(task.id, { abandoned: false })
+    else if (task.done) patch(task.id, { done: false })
+    if (next === "in_progress" && !started) {
+      const day = card.due_date !== null && card.due_date < today ? card.due_date : today
+      update.mutate({ id: task.id, body: { start_date: day } })
+    }
+    if (next === "not_started" && started) update.mutate({ id: task.id, body: { start_date: null } })
+  }
+
+  return (
+    <MenuRow
+      label="Status"
+      value={
+        <>
+          <StatusMark status={current} />
+          <span className="truncate">{STATUS_LABEL[current]}</span>
+        </>
+      }
+    >
+      {(["not_started", "in_progress", "done"] as const).map((key) => (
+        <DropdownMenuItem key={key} onClick={() => choose(key)}>
+          <StatusMark status={key} />
+          <span className="flex-1">{STATUS_LABEL[key]}</span>
+          {key === current ? <span className="text-xs text-muted-foreground">Current</span> : null}
+        </DropdownMenuItem>
+      ))}
+    </MenuRow>
+  )
+}
+
 /* ------------------------------------------------------------------- card */
 
 export function TaskCard({
@@ -827,6 +955,9 @@ export function TaskCard({
     (deps.data?.depends_on.length ?? 0) > 0 || (deps.data?.blocks.length ?? 0) > 0
   const attachments = task.attachments ?? []
   const labels = task.labels ?? []
+  const steps = task.steps ?? []
+  const [tab, setTab] = useState<"notes" | "discussion">("notes")
+  const comments = commentCount(task.comments)
 
   const showDate = Boolean(task.due) || adding === "date"
   const showReminder = Boolean(task.reminder) || adding === "reminder"
@@ -853,6 +984,9 @@ export function TaskCard({
     ...(assignable && !task.assignee
       ? [{ key: "assignee", label: CHIP_ASSIGNEE, icon: UserRound, onSelect: () => setAdding("assignee") }]
       : []),
+    ...(steps.length === 0 && adding !== "steps"
+      ? [{ key: "steps", label: "Steps", icon: ListPlus, onSelect: () => setAdding("steps") }]
+      : []),
     ...(relatable && deps.data !== undefined && !hasDeps && !depOpening
       ? [{ key: "dependency", label: "Dependency", icon: Workflow, onSelect: () => setDepOpening(true) }]
       : []),
@@ -865,6 +999,7 @@ export function TaskCard({
     <div className="flex flex-col gap-6">
       {/* The properties block: quiet rows, only what is set. */}
       <div className="-mx-2 flex flex-col">
+        <StatusRow task={task} patch={patch} />
         <MenuRow
           label={CHIP_FOLDER}
           value={
@@ -1026,45 +1161,22 @@ export function TaskCard({
         onCancel={() => setPendingMove(null)}
       />
 
-      {/* #221: the Task's own document, in the Folder canvas's writer. The
-          plain-text notes stand in while the writer loads. */}
-      <div>
-        <Suspense
-          fallback={
-            task.notes ? <p className="whitespace-pre-wrap px-1 text-sm text-foreground">{task.notes}</p> : null
-          }
-        >
-          <TaskComposer taskId={task.id} folderId={task.folder?.id ?? null} notes={task.notes ?? null} />
-        </Suspense>
-      </div>
-
-      <Section title="Steps" {...(counts ? { badge: `${counts.done}/${counts.total}` } : {})}>
-        <StepList
-          task={task}
-          toggleStep={toggleStep}
-          moveStep={moveStep}
-          {...(moveStepsTo === undefined ? {} : { moveStepsTo })}
-          removeSteps={removeSteps}
-          renameStep={(id, index, title) =>
-            patch(id, {
-              steps: (task.steps ?? []).map((step, i) => (i === index ? { ...step, title } : step)),
-            })
-          }
-          addStep={(id, title) =>
-            patch(id, { steps: [...(task.steps ?? []), { title, done: false }] })
-          }
-        />
-      </Section>
-
-      {attachments.length > 0 || attaching ? (
-        <Section title="Attachments" {...(attachments.length > 0 ? { badge: String(attachments.length) } : {})}>
-          {attachments.length > 0 ? <AttachmentList files={attachments} /> : null}
-          <AttachmentPicker
-            pickOnMount={attaching && attachments.length === 0}
-            onAdd={(added) => {
-              patch(task.id, { attachments: [...attachments, ...added] })
-              setAttaching(false)
-            }}
+      {steps.length > 0 || adding === "steps" ? (
+        <Section title="Steps" {...(counts ? { badge: `${counts.done}/${counts.total}` } : {})}>
+          <StepList
+            task={task}
+            startAdding={adding === "steps"}
+            onIdle={() => setAdding((current) => (current === "steps" ? null : current))}
+            toggleStep={toggleStep}
+            moveStep={moveStep}
+            {...(moveStepsTo === undefined ? {} : { moveStepsTo })}
+            removeSteps={removeSteps}
+            renameStep={(id, index, title) =>
+              patch(id, {
+                steps: steps.map((step, i) => (i === index ? { ...step, title } : step)),
+              })
+            }
+            addStep={(id, title) => patch(id, { steps: [...steps, { title, done: false }] })}
           />
         </Section>
       ) : null}
@@ -1081,17 +1193,83 @@ export function TaskCard({
         )}
       />
 
-      <Section
-        title="Comments"
-        {...(commentCount(task.comments) > 0 ? { badge: String(commentCount(task.comments)) } : {})}
-      >
-        <CommentsThread
-          comments={task.comments ?? []}
-          attachments={false}
-          canComment={task.canComment ?? true}
-          onChange={(next) => patch(task.id, { comments: next })}
-        />
-      </Section>
+      {attachments.length > 0 || attaching ? (
+        <Section title="Attachments" {...(attachments.length > 0 ? { badge: String(attachments.length) } : {})}>
+          {attachments.length > 0 ? <AttachmentList files={attachments} /> : null}
+          <AttachmentPicker
+            pickOnMount={attaching && attachments.length === 0}
+            onAdd={(added) => {
+              patch(task.id, { attachments: [...attachments, ...added] })
+              setAttaching(false)
+            }}
+          />
+        </Section>
+      ) : null}
+
+      {/* The page's two tabs, drawn as the folder page draws its own:
+          Notes is the task's document, Discussion its comments. */}
+      <div className="flex flex-col gap-4">
+        <div role="tablist" aria-label="Task tabs" className="flex items-center gap-5 border-b border-border">
+          {(
+            [
+              ["notes", "Notes"],
+              ["discussion", "Discussion"],
+            ] as const
+          ).map(([key, name]) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              id={`task-tab-${key}`}
+              aria-selected={tab === key}
+              aria-controls={`task-tabpanel-${key}`}
+              tabIndex={tab === key ? 0 : -1}
+              onClick={() => setTab(key)}
+              onKeyDown={(event) => {
+                if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
+                event.preventDefault()
+                const next = key === "notes" ? "discussion" : "notes"
+                setTab(next)
+                globalThis.requestAnimationFrame(() => document.getElementById(`task-tab-${next}`)?.focus())
+              }}
+              className={cn(
+                "-mb-px flex shrink-0 items-baseline gap-1.5 border-b-2 py-2 text-sm whitespace-nowrap outline-none transition-colors focus-visible:text-foreground",
+                tab === key
+                  ? "border-foreground font-medium text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {name}
+              {key === "discussion" && comments > 0 ? (
+                <span className="text-xs font-normal text-muted-foreground tabular-nums">{comments}</span>
+              ) : null}
+            </button>
+          ))}
+        </div>
+
+        {tab === "notes" ? (
+          /* #221: the Task's own document, in the Folder canvas's writer. The
+             plain-text notes stand in while the writer loads. */
+          <div role="tabpanel" id="task-tabpanel-notes" aria-labelledby="task-tab-notes">
+            <Suspense
+              fallback={
+                task.notes ? <p className="whitespace-pre-wrap px-1 text-sm text-foreground">{task.notes}</p> : null
+              }
+            >
+              <TaskComposer taskId={task.id} folderId={task.folder?.id ?? null} notes={task.notes ?? null} />
+            </Suspense>
+          </div>
+        ) : (
+          <div role="tabpanel" id="task-tabpanel-discussion" aria-labelledby="task-tab-discussion">
+            <CommentsThread
+              comments={task.comments ?? []}
+              attachments={false}
+              canComment={task.canComment ?? true}
+              onChange={(next) => patch(task.id, { comments: next })}
+            />
+          </div>
+        )}
+      </div>
 
       {/* Provenance, quiet at the foot: who made it and when, and who
           finished it. The whole record is "…" › History. */}
