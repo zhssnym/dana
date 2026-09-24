@@ -232,6 +232,7 @@ function BoardCard({
     <div
       ref={wiring.itemRef}
       {...wiring.listProps}
+      data-task-id={task.id}
       /*
       A list item, not a button. 9.1's roles table fixes "a board column is a
       named region; its cards, list items or rows", and the card sits inside

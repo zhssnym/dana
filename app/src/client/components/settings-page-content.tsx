@@ -253,8 +253,8 @@ export function SettingsPageContent({
                   label="Open tasks in"
                   value={taskOpen}
                   options={[
-                    ['panel', 'Side peek'],
                     ['dialog', 'Center peek'],
+                    ['panel', 'Side peek'],
                     ['tab', 'Full page'],
                   ]}
                   onSelect={setTaskOpen}

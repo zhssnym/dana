@@ -35,6 +35,15 @@ import { cn } from "./ui/utils.js"
 import { ReferencedFrom } from "./links/referenced-from.js"
 import { pageBodyClass } from "./page-head.js"
 import { openTask } from "./task-open.js"
+import { BreadcrumbTrail } from "./breadcrumb-trail.js"
+import { useTask } from "../api/queries.js"
+
+/* Page / Sub / Task, the same trail the top bar draws for a task's full page. */
+function PeekTrail({ taskId }: { taskId: string }) {
+  const task = useTask(taskId)
+  if (task.data === undefined) return null
+  return <BreadcrumbTrail folderId={task.data.folder.id} current={task.data.title} />
+}
 
 const FOCUS = "outline-none focus-visible:ring-2 focus-visible:ring-ring"
 
@@ -240,10 +249,11 @@ export function TaskView({
   const header = (
     <div className={cn("flex h-12 shrink-0 items-center justify-end gap-1", page ? "-mr-2" : "px-3")}>
       {page ? null : (
-        /* r3-peek: the breadcrumb's place (unit shell's BreadcrumbTrail, wired
-           by the lead after merge). Empty until then, and it takes the slack
-           so the controls stay at the right edge. */
-        <div data-peek-breadcrumb="" className="flex min-w-0 flex-1 items-center" />
+        /* The task's path, as the top bar draws it on its full page. It takes
+           the slack so the controls stay at the right edge. */
+        <div data-peek-breadcrumb="" className="flex min-w-0 flex-1 items-center">
+          <PeekTrail taskId={task.id} />
+        </div>
       )}
       {task.abandoned ? (
         <span className={cn("text-xs text-muted-foreground", page ? "mr-auto" : "px-2")}>Abandoned</span>
