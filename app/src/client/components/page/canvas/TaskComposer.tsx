@@ -27,7 +27,7 @@ editor never writes it.
 */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { BlockNoteSchema, createHeadingBlockSpec, defaultBlockSpecs, defaultStyleSpecs } from '@blocknote/core'
+import { BlockNoteSchema, createHeadingBlockSpec, defaultBlockSpecs, defaultInlineContentSpecs, defaultStyleSpecs } from '@blocknote/core'
 import type { PartialBlock } from '@blocknote/core'
 import { filterSuggestionItems } from '@blocknote/core/extensions'
 import { BlockNoteView } from '@blocknote/shadcn'
@@ -39,6 +39,7 @@ import '@blocknote/shadcn/style.css'
 import type { PageBlockKind, PageView } from '../../../../shared/pages.js'
 import { getPageResponse } from '../../../../shared/pages.js'
 import { ApiError, getPlain, mutateApi, uploadFile } from '../../../api/http.js'
+import { danaLinkInlineSpec } from '../../links/dana-link-chip.js'
 import { Button } from '../../ui/button.js'
 import { CanvasErrorBoundary } from './CanvasErrorBoundary.js'
 import { CanvasFormattingToolbar } from './CanvasFormattingToolbar.js'
@@ -63,6 +64,9 @@ export const taskSchema = BlockNoteSchema.create({
     audio: defaultBlockSpecs.audio,
     video: defaultBlockSpecs.video,
   },
+  /* A stored Dana Link run hydrates as the chip it is on every other canvas
+     (#207); without the spec `contentOf` hands this schema a node it cannot hold. */
+  inlineContentSpecs: { ...defaultInlineContentSpecs, danaLink: danaLinkInlineSpec },
   styleSpecs: { bold: defaultStyleSpecs.bold, italic: defaultStyleSpecs.italic },
 })
 type TaskBlock = typeof taskSchema.Block
