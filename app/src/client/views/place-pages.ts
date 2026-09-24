@@ -26,7 +26,7 @@ export type PlaceKey =
   | 'folder'
 
 /** Where a page's always-visible capture point is, or that it has none. */
-export type CaptureKind = 'floating' | 'inline' | 'none'
+export type CaptureKind = 'inline' | 'none'
 
 /** One Group by choice. `none` is the page's own arrangement, named for it. */
 export interface GroupChoice {
@@ -67,7 +67,7 @@ export const PLACES: Record<PlaceKey, PlaceSpine> = {
       { value: 'folder', label: 'Folder' },
     ],
     completed: true,
-    capture: 'floating',
+    capture: 'inline',
     boardAxis: 'folder',
   },
   scheduled: {
@@ -94,8 +94,8 @@ export const PLACES: Record<PlaceKey, PlaceSpine> = {
       { value: 'none', label: 'Person' },
       { value: 'folder', label: 'Folder' },
     ],
-    completed: false,
-    capture: 'floating',
+    completed: true,
+    capture: 'inline',
     boardAxis: 'person',
   },
   /*

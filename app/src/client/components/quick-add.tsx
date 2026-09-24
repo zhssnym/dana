@@ -14,6 +14,10 @@ import { cn } from './ui/utils.js'
 
 export const NEW_TASK = 'New task'
 
+/** On a phone there is no `N`, so a list's row stays pinned to the bottom of
+    the screen while the list scrolls: always one thumb away, never hunted for. */
+export const NEW_TASK_ROW_PHONE = 'max-md:sticky max-md:bottom-0 max-md:z-10 max-md:bg-background'
+
 export function QuickAdd({
   label = NEW_TASK,
   onAdd,
@@ -100,7 +104,7 @@ function onKey(event: KeyboardEvent): void {
 }
 
 /** Focuses the first "New task" row on screen; false when the page has none.
-    The shortcut and the phone's floating "Add task" both land here. */
+    The N / C shortcut lands here. */
 export function focusNewTaskRow(): boolean {
   const field = [...document.querySelectorAll<HTMLInputElement>('input[data-new-task]')].find(
     (candidate) => candidate.offsetParent !== null,

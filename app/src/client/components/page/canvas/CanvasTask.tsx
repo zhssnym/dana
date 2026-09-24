@@ -90,7 +90,8 @@ function ResolvedTask({ taskId, bridge }: { readonly taskId: string; readonly br
       bridge.actions.onOpenTask(task)
     },
   })
-  if (known !== undefined && (listed !== undefined || (completedListed === undefined && known.status !== 'completed'))) {
+  /* Finished means completed or abandoned: both hide with "Show completed". */
+  if (known !== undefined && known.status !== 'abandoned' && (listed !== undefined || (completedListed === undefined && known.status !== 'completed'))) {
     return <div data-canvas-task-id={taskId} className="min-w-0 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" contentEditable={false} {...opener(known)}>{row(known)}</div>
   }
   if (known !== undefined) {
