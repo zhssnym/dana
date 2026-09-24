@@ -5,10 +5,9 @@ Top to bottom, and nothing else (round 2, Sidebar):
 
   head row · Search · Today · Upcoming · Assigned · Library · Settings, Trash
 
-- **The head row** is the account button (the viewer's face, "Dana", a
-  chevron) whose menu names the viewer and offers Sign out; then,
-  at its right, the bell as a small square button with an unread dot, and the
-  collapse button. The drawer on a phone draws the same row.
+- **The head row** is the bell, a small square button with an unread dot, and
+  the collapse button, right-aligned. There is no account button: Sign out is
+  in Settings › Account. The drawer on a phone draws the same row.
 - **Search** looks like the field it opens: a bordered box reading "Search"
   with its Ctrl K / ⌘K keycap. Pressing it, or the shortcut, opens the
   palette (`overlays.ts`). On a phone the phone bar holds the one search
@@ -18,8 +17,8 @@ Top to bottom, and nothing else (round 2, Sidebar):
 - **Library**: the Desk folder first, then the viewer's shelves and folders as
   one ordered column (`library-order.ts`). A row is its icon and its name; its
   "…" appears on hover in space the row already reserves, and a right-click
-  opens that same menu. The Library's one "+" makes a folder, a collection
-  (a shelf, in storage and code), or imports a workflow.
+  opens that same menu. The Library's one "+" makes a top-level page in one
+  click; there is no menu of kinds (Import is in a page's "…").
 - **Pages in pages**: a root draws its sub-pages indented inside its own item
   (`page-tree.ts`), a page with children folds from its mark, and a row's
   hover "+" adds a page inside it. Dragging a page onto the middle of a row
@@ -35,16 +34,12 @@ import type { ReactElement } from 'react'
 import { Link, useNavigate } from 'react-router'
 import type { LucideIcon } from '../lib/icons.js'
 import {
-  ChevronDown,
   ChevronRight,
-  FolderPlus,
   Folders,
-  LogOut,
   Plus,
   Search,
   Settings,
   Trash2,
-  Workflow,
 } from '../lib/icons.js'
 
 import { useSidebar } from '../components/ui/sidebar.js'
@@ -55,13 +50,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '../components/ui/collapsible.js'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '../components/ui/dropdown-menu.js'
 import {
   Sidebar,
   SidebarContent,
@@ -79,11 +67,10 @@ import { moveToShelfChoice, ObjectMenu } from '../components/object-menu.js'
 import { cn } from '../components/ui/utils.js'
 import { useCreateFolder, useDuplicateFolder, useMoveFolder } from '../api/mutations.js'
 import { folderGates } from '../lib/folder-authority.js'
-import { folderRowDisplay, initialsOf, shelfMark } from '../parts/presenters.js'
+import { folderRowDisplay, shelfMark } from '../parts/presenters.js'
 import { folderLink, shelfLink } from '../lib/nav-links.js'
 import { navPages, paths } from '../routes.js'
 import { NotificationsBell } from '../components/notifications-bell.js'
-import { PersonFace } from '../components/person-face.js'
 import { SidebarResizeHandle } from './SidebarResizeHandle.js'
 /* The one drag engine, and the Library's answers to the two questions it asks
    about anything outside the list it is sorting. */
@@ -1022,103 +1009,20 @@ function LibraryColumn({
   )
 }
 
-/** The Library's one "+": the only home for making a folder, a shelf, or importing. */
-function LibraryPlusMenu({
-  onNewFolder,
-  onNewShelf,
-  onImport,
-}: {
-  readonly onNewFolder: () => void
-  readonly onNewShelf: () => void
-  readonly onImport: () => void
-}): React.JSX.Element {
+/** The Library's one "+": a new top-level page, one click, no menu. */
+function NewPageButton({ onNewPage }: { readonly onNewPage: () => void }): React.JSX.Element {
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-6 shrink-0 rounded-sm text-muted-foreground hover:bg-sidebar-accent hover:text-foreground data-popup-open:bg-sidebar-accent data-popup-open:text-foreground"
-            aria-label="New"
-            title="New folder, collection or import"
-          />
-        }
-      >
-        <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-48">
-        <DropdownMenuItem onClick={onNewFolder}>
-          <FolderPlus className="size-4" strokeWidth={1.75} aria-hidden="true" />
-          New folder
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={onNewShelf}>
-          <Folders className="size-4" strokeWidth={1.75} aria-hidden="true" />
-          New collection
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={onImport}>
-          <Workflow className="size-4" strokeWidth={1.75} aria-hidden="true" />
-          Import workflow…
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-}
-
-/**
- * The head row's account button: the viewer's face, "Dana" and a chevron.
- * Its menu names the viewer (name and email), then Sign out. Settings is the
- * foot's, so it has one home. Named "Account".
- */
-function AccountMenu({
-  displayName,
-  email,
-  image = null,
-  onSignOut,
-}: {
-  readonly displayName: string | null
-  readonly email: string | null
-  readonly image?: string | null
-  readonly onSignOut: () => void
-}): React.JSX.Element {
-  const name = displayName ?? email ?? ''
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <button
-            type="button"
-            className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 text-sm font-medium text-foreground outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/30 data-popup-open:bg-sidebar-accent"
-            aria-label="Account"
-          />
-        }
-      >
-        <PersonFace name={name} initials={initialsOf(name)} image={image} />
-        <span className="min-w-0 truncate">Dana</span>
-        <ChevronDown
-          className="size-3.5 shrink-0 text-muted-foreground"
-          strokeWidth={1.75}
-          aria-hidden="true"
-        />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent side="bottom" align="start" className="w-60">
-        <div className="flex items-center gap-2 px-2 py-1.5">
-          <PersonFace name={name} initials={initialsOf(name)} image={image} />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm text-foreground">{name}</p>
-            {email === null || email === name ? null : (
-              <p className="truncate text-xs text-muted-foreground">{email}</p>
-            )}
-          </div>
-        </div>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={onSignOut}>
-          <LogOut className="size-4" strokeWidth={1.75} aria-hidden="true" />
-          Sign out
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      className="size-6 shrink-0 rounded-sm text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+      aria-label="New page"
+      title="New page"
+      onClick={onNewPage}
+    >
+      <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" />
+    </Button>
   )
 }
 
@@ -1149,9 +1053,6 @@ export function AppSidebar({
   sidebarOrder,
   onSidebarOrderChange,
   groups: groupActions,
-  displayName,
-  email = null,
-  avatarUrl = null,
   activeFolderId,
   currentPath,
   currentSearch,
@@ -1160,10 +1061,6 @@ export function AppSidebar({
   onSidebarWidthCommit,
   onSidebarWidthReset,
   onOpenSearch,
-  onNewFolder,
-  onNewShelf,
-  onImportWorkflow,
-  onSignOut,
 }: {
   readonly folders: readonly Folder[] | undefined
   readonly shelves: readonly Shelf[] | undefined
@@ -1171,9 +1068,6 @@ export function AppSidebar({
   readonly sidebarOrder: readonly string[]
   readonly onSidebarOrderChange: (ids: readonly string[]) => void
   readonly groups: FolderGroupActions
-  readonly displayName: string | null
-  readonly email?: string | null
-  readonly avatarUrl?: string | null
   readonly activeFolderId: string | null
   readonly currentPath: string
   readonly currentSearch: string
@@ -1182,10 +1076,6 @@ export function AppSidebar({
   readonly onSidebarWidthCommit: (width: number) => void
   readonly onSidebarWidthReset: () => void
   readonly onOpenSearch: () => void
-  readonly onNewFolder: () => void
-  readonly onNewShelf: () => void
-  readonly onImportWorkflow: (file: File) => void
-  readonly onSignOut: () => void
 }): React.JSX.Element {
   /* On a phone the sidebar is a drawer, and it closes on the navigation it was
      opened to make. */
@@ -1195,9 +1085,19 @@ export function AppSidebar({
   useEffect(() => {
     if (isMobile) setOpenMobile(false)
   }, [currentPath, currentSearch, isMobile, setOpenMobile])
-  /* The application's one file input, pressed by the Library's Import. */
-  const workflowInput = useRef<HTMLInputElement>(null)
   const inbox = inboxOf(folders ?? [])
+  const navigate = useNavigate()
+  const create = useCreateFolder()
+  /* One page per press, the row "+"'s rule: a double click must not stack
+     Untitled pages while the first create is in flight. Opened with its name
+     selected, so typing replaces "Untitled". */
+  const newPage = (): void => {
+    if (create.isPending) return
+    create.mutate(
+      { name: 'Untitled' },
+      { onSuccess: (made) => void navigate(folderActionPath(made.id, 'rename')) },
+    )
+  }
   /* The Library draws roots; each root draws its own sub-pages. A page whose
      parent this viewer cannot see is a root here (`page-tree.ts`). */
   const allFolders = folders ?? NO_FOLDERS
@@ -1225,12 +1125,7 @@ export function AppSidebar({
     >
       <SidebarHeader className="gap-2 p-2 pb-0">
         <div className="flex items-center gap-0.5">
-          <AccountMenu
-            displayName={displayName}
-            email={email}
-            image={avatarUrl}
-            onSignOut={onSignOut}
-          />
+          <span className="min-w-0 flex-1" />
           <NotificationsBell />
           <SidebarTrigger className="size-7 shrink-0 rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-foreground [&_svg]:!size-4" />
         </div>
@@ -1260,13 +1155,7 @@ export function AppSidebar({
             <h2 className="min-w-0 flex-1 truncate text-xs font-medium text-muted-foreground">
               Library
             </h2>
-            <LibraryPlusMenu
-              onNewFolder={onNewFolder}
-              onNewShelf={onNewShelf}
-              onImport={() => {
-                workflowInput.current?.click()
-              }}
-            />
+            <NewPageButton onNewPage={newPage} />
           </div>
           <PageTreeContext.Provider value={pageTree}>
           {inbox === null ? null : (
@@ -1291,20 +1180,6 @@ export function AppSidebar({
       </SidebarContent>
 
       <SidebarFooter className="p-2">
-        <input
-          ref={workflowInput}
-          type="file"
-          accept=".json,application/json"
-          className="hidden"
-          aria-hidden="true"
-          tabIndex={-1}
-          onChange={(event) => {
-            const file = event.target.files?.[0]
-            event.target.value = ''
-            if (file === undefined) return
-            onImportWorkflow(file)
-          }}
-        />
         <SidebarMenu>
           <NavigationRow
             name="Settings"

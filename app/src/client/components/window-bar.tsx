@@ -15,9 +15,8 @@ does not live inside the scroll area.** A sticky control row inside the page
 docks, un-docks, needs a sentinel and a scroll listener, and repeats the name
 the tab beside it already says. So the strip is part of the shell:
 
-- **Left is reserved for the breadcrumb trail** that would arrive with nested
-  folders. Until Dana has directories there is nothing true to put there, and
-  inventing something would be inventing a hierarchy.
+- **Left is the way here**: the shell's history arrows and breadcrumb trail
+  (`breadcrumb-trail.tsx`), portalled in through `WindowBarLead`.
 - **Right holds the controls** for whatever the tab is showing.
 - **The title is not repeated.** The tab says it; saying it twice, two
   centimetres apart, is how a chrome stack starts looking cluttered.
@@ -64,17 +63,7 @@ function useSlot(end: "lead" | "trail") {
 export function WindowBar() {
   return (
     <div className="flex h-[var(--shell-windowbar-height)] shrink-0 items-center gap-1.5 bg-card px-3">
-      {/*
-      The left end, reserved for breadcrumbs and also the filter's chips: active
-      state belongs on the page as removable chips, not as a count you have to
-      open a panel to read.
-
-      Two things sharing one end is deliberate rather than a compromise. Both
-      answer the same question, *what am I looking at?*, and a trail followed by
-      the narrowing applied to it reads left to right in the order a person
-      would say it out loud. Dana has no nested folders, so the trail is empty
-      and the chips have the end to themselves.
-       */}
+      {/* The left end: history arrows and the breadcrumb trail. */}
       <div
         ref={(node) => setSlot("lead", node)}
         className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden"

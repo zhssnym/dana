@@ -1,7 +1,7 @@
 /*
-The one way out, shared by the account menu and the Settings row.
+The one way out: Settings › Account's Sign out row.
 
-Two surfaces offer Sign out, 9.1's menu and 9.7's Account section. One function, so the session ends and the
+One function, so the session ends and the
 account-preference mirrors leave with it. A shared device must not briefly
 paint the previous person's theme, open a task in their preferred surface, or
 draw the calendar at the zoom they left it on (the third since issue #140).
