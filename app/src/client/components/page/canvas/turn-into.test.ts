@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
 
 import { validateCanvasOutline } from './outline.js'
-import { conversionOf, simulate, simulateNest, TURN_TARGETS } from './turn-into.js'
+import { backspaceToText, conversionOf, simulate, simulateNest, TURN_TARGETS } from './turn-into.js'
 import type { TreeBlock } from './turn-into.js'
 
 const target = (key: string) => TURN_TARGETS.find((item) => item.key === key)!
@@ -9,6 +9,21 @@ const block = (id: string, type: string, props: Record<string, unknown> = {}, ch
   ({ id, type, props, content: [{ type: 'text', text: id, styles: {} }], children })
 
 describe('Turn into', () => {
+  test('Backspace never dissolves a Section: a heading holding Tasks and writing stays a heading', () => {
+    const section = block('h', 'heading', { level: 1, isToggleable: true }, [block('p', 'paragraph'), block('t', 'danaTask', { taskId: 'x' })])
+    expect(backspaceToText([section], section)).toBeNull()
+    // An empty heading, and a quote, still turn into text.
+    const empty = block('e', 'heading', { level: 2, isToggleable: true })
+    expect(backspaceToText([empty], empty)![0]!.type).toBe('paragraph')
+    const quote = block('q', 'quote')
+    expect(backspaceToText([quote], quote)![0]!.type).toBe('paragraph')
+  })
+
+  test('a Dana Link chip keeps its label when its line turns into Code', () => {
+    const rich = { ...block('p', 'paragraph'), content: [{ type: 'text', text: 'see ', styles: {} }, { type: 'danaLink', props: { href: '/t/1', label: 'Launch plan' } }] }
+    expect(conversionOf(rich, target('code'), undefined).update.content).toBe('see Launch plan')
+  })
+
   test('a section heading turned into text lifts its content out after it, keeping every block', () => {
     const doc = [block('h', 'heading', { level: 1, isToggleable: true }, [block('p', 'paragraph'), block('t', 'danaTask', { taskId: 'x' })])]
     const next = simulate(doc, 'h', target('text'), true)

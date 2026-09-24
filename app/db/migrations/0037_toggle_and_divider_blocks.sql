@@ -10,8 +10,10 @@
 --
 -- Widens four named CHECKs in place, exactly as 0028 and 0034 wrote them plus
 -- the new kinds. Forward only. Re-check the journal number/when against every
--- branch that is open when this merges; 0037 / 1791200000000 was chosen (0036 is taken by another branch) when
--- this was built.
+-- branch that is open when this merges; 0037 / 1791200000000 was chosen when
+-- this was built. There is no 0035: this migration was once numbered 0035 and
+-- was renumbered past 0036; the gap is harmless (the journal, not the file
+-- number, orders migrations).
 ALTER TABLE page_blocks
   DROP CONSTRAINT page_blocks_kind_check,
   ADD CONSTRAINT page_blocks_kind_check

@@ -52,11 +52,14 @@ function holdsChildren(target: TurnTarget, headingToggles: boolean): boolean {
   return LIST_TYPES.has(target.type) || (target.type === 'heading' && headingToggles)
 }
 
+/** Text runs, links and chips (a Dana Link's label) flattened, so Code loses no words. */
 function plainText(content: unknown): string {
   if (typeof content === 'string') return content
   if (!Array.isArray(content)) return ''
-  return content.map((inline: { type?: string; text?: string; content?: { text?: string }[] }) =>
-    inline.type === 'text' ? inline.text ?? '' : inline.type === 'link' ? (inline.content ?? []).map((run) => run.text ?? '').join('') : '').join('')
+  return content.map((inline: { type?: string; text?: string; content?: unknown; props?: { label?: unknown } }) =>
+    inline.type === 'text' ? inline.text ?? ''
+      : Array.isArray(inline.content) ? plainText(inline.content)
+        : typeof inline.props?.label === 'string' ? inline.props.label : '').join('')
 }
 
 export interface Conversion {
@@ -116,4 +119,16 @@ export function withoutIds(block: TreeBlock): Record<string, unknown> {
 
 export function contains(block: TreeBlock, types: ReadonlySet<string>): boolean {
   return types.has(block.type) || block.children.some((child) => contains(child, types))
+}
+
+/*
+Backspace at the start of a non-text block turns it into text, but only where
+the result is one the canvas can keep. A heading that holds blocks is a
+Section: turning it into text would dissolve the Section and move its Tasks
+and writing out, which no outline rule refuses, so it is never attempted.
+Returns the simulated document, or null when Backspace should do nothing.
+*/
+export function backspaceToText(document: readonly TreeBlock[], block: TreeBlock): TreeBlock[] | null {
+  if (block.type === 'heading' && block.children.length > 0) return null
+  return simulate(document, block.id, TURN_TARGETS[0]!, undefined)
 }

@@ -24,7 +24,7 @@ import { validateCanvasOutline } from './outline.js'
 import { BlockMenuContext, BlockSideMenu, blockSidePosition, duplicateBlocks, pageTheme, turnBlocksInto } from './BlockSideMenu.js'
 import type { BlockMenuModel } from './BlockSideMenu.js'
 import { BlockSelectionStyle, useBlockAnchor, useBlockSelectionKeys } from './block-selection.js'
-import { contains, simulateNest, TEXT_TYPES, TURN_TARGETS } from './turn-into.js'
+import { backspaceToText, contains, simulateNest, TEXT_TYPES, TURN_TARGETS } from './turn-into.js'
 import type { TreeBlock } from './turn-into.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
 import { DanaLinkSuggestions } from '../../links/dana-link-picker.js'
@@ -146,7 +146,9 @@ export function CanvasSurface({
   Enter on an empty nested list item steps out a level (at the root,
   BlockNote's own Enter makes it text). Backspace at the start of a block:
   a nested list item steps out; any other kind turns into text, its children
-  lifted after it when text cannot hold them; text merges (BlockNote's). A
+  lifted after it when text cannot hold them, unless the result is a shape the
+  canvas refuses or the block is a heading holding a Section (then nothing
+  happens, so a Section never dissolves by accident); text merges (BlockNote's). A
   nested item never turns into text in place, a shape the canvas cannot keep.
   */
   const onKeyDownCapture = (event: React.KeyboardEvent): void => {
@@ -166,6 +168,8 @@ export function CanvasSurface({
       if (inList) { stop(); editor.unnestBlock(); return }
       if (block.type === 'paragraph' || !TEXT_TYPES.has(block.type)) return
       stop()
+      const next = backspaceToText(editor.document as unknown as TreeBlock[], block as unknown as TreeBlock)
+      if (next === null || !admits(next)) return
       turnBlocksInto(editor, [block.id], TURN_TARGETS[0]!, undefined)
       editor.setTextCursorPosition(block.id, 'start')
     }
