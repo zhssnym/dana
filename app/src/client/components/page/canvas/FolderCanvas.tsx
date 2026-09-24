@@ -192,7 +192,9 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
             : (VIDEO_MIMES as readonly string[]).includes(mime)
               ? 'video'
               : 'file'
-      return uploadCanvasFile(kind, file)
+      // BlockNote applies an object result as an updateBlock partial, so the
+      // file's url and name go under `props` or the dropped block stays empty.
+      return { props: await uploadCanvasFile(kind, file) }
     },
   })
   // The baseline is the server's page reconciled with what this editor can draw

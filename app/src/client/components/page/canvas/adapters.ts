@@ -25,7 +25,7 @@ export class CanvasHydrationError extends Error {
   override readonly name = 'CanvasHydrationError'
 }
 
-function contentOf(text: string | null, rich?: { version: 1; runs: RichRun[] } | null): CanvasInput['content'] {
+export function contentOf(text: string | null, rich?: { version: 1; runs: RichRun[] } | null): CanvasInput['content'] {
   if (!rich) return text ?? ''
   return rich.runs.map((run) => {
     const node = { type: 'text' as const, text: run.text, styles: { ...(run.bold ? { bold: true } : {}), ...(run.italic ? { italic: true } : {}) } }
