@@ -12,8 +12,8 @@ Top to bottom, and nothing else (round 2, Sidebar):
   hover. Pressing it, or the shortcut, opens the
   palette (`overlays.ts`). On a phone the phone bar holds the one search
   entry, so the drawer leaves it out.
-- **Today, Upcoming, Assigned** are the only cross-project lists. Upcoming and
-  Assigned are the Scheduled and Assignments pages under their sidebar names.
+- **Focus** holds the cross-project lists (`focus-group.tsx`): Today,
+  Upcoming and Assigned by default, plus the saved filters its "+" adds.
 - **Library**: the Desk folder first, then the viewer's shelves and folders as
   one ordered column (`library-order.ts`). A row is its icon and its name; its
   "…" appears on hover in space the row already reserves, and a right-click
@@ -82,9 +82,11 @@ import { pushUndo, undoLabel } from './undo.js'
 import { folderGates } from '../lib/folder-authority.js'
 import { folderRowDisplay, shelfMark } from '../parts/presenters.js'
 import { folderLink, shelfLink } from '../lib/nav-links.js'
-import { navPages, paths } from '../routes.js'
+import { paths } from '../routes.js'
 import { NotificationsBell } from '../components/notifications-bell.js'
 import { SidebarResizeHandle } from './SidebarResizeHandle.js'
+import { FocusGroup } from './focus-group.js'
+import type { FocusListKey } from './focus-lists.js'
 import { usePageImport } from './workflow-import.js'
 import {
   DropdownMenu,
@@ -125,8 +127,6 @@ import type { Shelf } from '../../shared/shelves.js'
 export const SIDEBAR_ROW =
   'h-(--shell-sidebar-row-height) max-md:h-(--row-height) gap-2 rounded-md px-2 text-sm font-normal text-muted-foreground hover:bg-sidebar-accent hover:text-foreground data-active:bg-sidebar-accent data-active:font-medium data-active:text-foreground [&_svg]:!size-4 [&_svg]:shrink-0'
 
-/** The three cross-project lists: `routes.ts` owns their names, paths and marks. */
-const LISTS: readonly { name: string; path: string; icon: LucideIcon }[] = navPages
 
 const IS_MAC =
   typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
@@ -1326,6 +1326,8 @@ export function AppSidebar({
   shelves,
   sidebarOrder,
   onSidebarOrderChange,
+  focusLists,
+  onFocusListsChange,
   groups: groupActions,
   activeFolderId,
   currentPath,
@@ -1341,6 +1343,9 @@ export function AppSidebar({
   /** The viewer's arrangement of the Library (4.19's `sidebar_order`). */
   readonly sidebarOrder: readonly string[]
   readonly onSidebarOrderChange: (ids: readonly string[]) => void
+  /** The viewer's Focus lists in their order (`focus_lists`, round 8). */
+  readonly focusLists: readonly FocusListKey[]
+  readonly onFocusListsChange: (next: readonly FocusListKey[]) => void
   readonly groups: FolderGroupActions
   readonly activeFolderId: string | null
   readonly currentPath: string
@@ -1450,28 +1455,13 @@ export function AppSidebar({
 
       <SidebarContent className="pt-0 pb-2" onContextMenu={openGroundMenu}>
         {/* Focus and Library: one heading style and one gap above each
-            heading, the head row included; the heading row keeps room for a
-            "+" as Library's has. */}
-        <SidebarGroup className="px-2 pt-(--space-group) pb-0">
-          <div className="flex h-(--shell-sidebar-row-height) items-center pr-1 pl-2">
-            <h2 className="min-w-0 flex-1 truncate text-xs font-medium text-muted-foreground">
-              Focus
-            </h2>
-          </div>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {LISTS.map((page) => (
-                <NavigationRow
-                  key={page.path}
-                  name={page.name}
-                  to={page.path}
-                  icon={page.icon}
-                  active={currentPath === page.path}
-                />
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+            heading; each heading's "+" adds to its own group. */}
+        <FocusGroup
+          lists={focusLists}
+          onChange={onFocusListsChange}
+          currentPath={currentPath}
+          link={routerLink}
+        />
 
         <SidebarGroup
           ref={libraryKeys.ref}

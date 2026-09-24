@@ -514,6 +514,7 @@ export const exportSettings = z.object({
   pinned_views: z.array(z.string()),
   sidebar_order: z.array(z.string()),
   arrangements: z.record(z.string(), z.string()),
+  focus_lists: z.array(z.string()),
   show_important: z.boolean(),
   show_all: z.boolean(),
   show_done: z.boolean(),

@@ -28,6 +28,8 @@ export const paths = {
   today: '/app/today',
   scheduled: '/app/scheduled',
   assignments: '/app/assignments',
+  /** A Focus list the viewer added (round 8): Important, Overdue, No date, All open. */
+  focusList: (key: string) => `/app/lists/${key}`,
   folder: (id: string) => `/app/folders/${id}`,
   shelf: (id: string) => `/app/shelves/${id}`,
   task: (id: string) => `/app/tasks/${id}`,

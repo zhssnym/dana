@@ -24,6 +24,7 @@ import { sql } from 'drizzle-orm'
 import type { Db } from '../../../db/client.js'
 import type {
   CalendarZoom,
+  FocusListKey,
   PatchSettingsBody,
   PatchViewBody,
   PostViewBody,
@@ -33,7 +34,9 @@ import type {
 import {
   CALENDAR_ZOOMS,
   DEFAULT_CALENDAR_ZOOM,
+  DEFAULT_FOCUS_LISTS,
   DEFAULT_PINNED,
+  FOCUS_LISTS,
 } from '../../shared/bundle.js'
 import { inTransaction, rowsOf } from '../database.js'
 
@@ -107,11 +110,22 @@ function bundleFrom(row: Record<string, unknown>): SettingsBundle {
       !Array.isArray(arrangements)
         ? (arrangements as Record<string, string>)
         : {},
+    focus_lists: focusFrom(row.focus_lists),
   }
 }
 
+/** The stored Focus keys, unknown and repeated keys dropped, order kept. */
+function focusFrom(value: unknown): FocusListKey[] {
+  const stored = jsonOf(value)
+  if (!Array.isArray(stored)) return [...DEFAULT_FOCUS_LISTS]
+  const known = FOCUS_LISTS as readonly unknown[]
+  return stored.filter(
+    (key, at): key is FocusListKey => known.includes(key) && stored.indexOf(key) === at,
+  )
+}
+
 const BUNDLE_COLUMNS = sql`theme, row_density, clock, task_open, calendar_zoom,
-  pinned_views, sidebar_order, arrangements,
+  pinned_views, sidebar_order, arrangements, focus_lists,
   show_important, show_all, show_done`
 
 export async function readBundle(
@@ -162,6 +176,10 @@ export async function writeBundle(
   }
   if (patch.arrangements !== undefined) {
     sets.push(sql`arrangements = ${JSON.stringify(patch.arrangements)}::jsonb`)
+  }
+  if (patch.focus_lists !== undefined) {
+    const unique = [...new Set(patch.focus_lists)]
+    sets.push(sql`focus_lists = ${JSON.stringify(unique)}::jsonb`)
   }
   if (sets.length === 0) return readBundle(db, userId)
   sets.push(sql`updated_at = now()`)
