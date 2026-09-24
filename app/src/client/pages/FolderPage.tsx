@@ -1,7 +1,10 @@
 /*
-9.6's folder page: cover, mark, name, description, the loose open tasks with a
-quick-add, the page's blocks, the Completed section at the foot, and the
-conversation in one of its two homes.
+9.6's folder page, in the Quiet redesign's shape: a header of at most two rows
+(mark and name with "Share" and one "…" at the right; one muted line of
+description and progress), a row of plain text tabs, and the tab's body. On
+Main that body is the canvas, where a finished Task stays in place, checked and
+muted, and a text "View" menu at the list's top-right switches list and board
+and shows or hides completed Tasks.
 
 What is deliberate rather than transcription:
 
@@ -45,10 +48,10 @@ leave is 409 until they have handed custody to a member who *currently holds
 Full control*, and the picker offers exactly those. A sole owner is offered
 Delete, and Desk neither.
 
-**The overflow menu lives in the window bar** (9.1: the bar's right end holds
-"the object's overflow menu"), named "More actions", offering exactly the acts
+**The overflow menu sits at the header's right, beside Share**, named "More
+actions", offering Cover… and Tabs… (this page's own) and then exactly the acts
 this viewer's Access permits: History, Copy link, Duplicate, Save as workflow to
-everyone; **Rename at Can edit and above, Delete folder at Full control, Leave
+everyone; **Delete folder at Full control, Leave
 folder to any member who is not the owner and is not the last Full control, and
 Transfer ownership to the owner alone**, all through `lib/folder-authority.ts`.
 Duplicate is the server's; Save as workflow is a client-side export, structure
@@ -58,10 +61,11 @@ and titles only.
 the mutation cache already raises as the toast, and the page refetches its
 blocks at the same moment so the winning write replaces the loser on screen.
 
-**The conversation has two homes, switched from the surface itself** (9.6): a
-closed section at the page's foot, or the side panel, the choice a client-side
-preference. The thread fetches only while its surface is open and polls politely
-while it stays open.
+**The folder's conversation has one home: the Consultation tab**, as its
+General discussion. The foot section and the side panel it could move to are
+gone; a notification arriving with `?conversation=open` lands on Consultation.
+Rename is the title itself and Move to shelf is the sidebar's, so neither is in
+this page's menu.
 */
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -70,21 +74,15 @@ import { useNavigate, useParams, useSearchParams } from 'react-router'
 import {
   useCreateTask,
   useCreateFacet,
-  useFolderPageAction,
   useDeleteFacet,
   useDeleteFolder,
   useLeaveFolder,
-  useDeleteComment,
   useDuplicateFolder,
-  useUpdateMyMembership,
-  usePatchComment,
   usePatchFacet,
-  usePostComment,
   usePutFacetOrder,
   usePutMyFacetOrder,
   useRenameFolder,
   useRestoreFolder,
-  useSetCommentLike,
   useShareFacet,
   useTransferOwnership,
 } from '../api/mutations.js'
@@ -92,40 +90,26 @@ import {
   mergeCompletedDays,
   useConnections,
   useFolder,
-  useFolders,
   useFolderCompletedTasks,
   useFolderOpenTasks,
   useFolderFacets,
   useFolderPage,
   useFacetPage,
-  useShelves,
-  useThread,
 } from '../api/queries.js'
-import { getPlain, uploadFile } from '../api/http.js'
+import { getPlain } from '../api/http.js'
 import { queryKeys } from '../api/keys.js'
 import { showToast } from '../state/toasts.js'
 const FolderCanvas = lazy(() => import('../components/page/canvas/FolderCanvas.js'))
-/* The head is the shared page-head composition.
-   `components/page/IdentityHead.tsx` stays in the tree for the shelf page;
-   nothing here reads it. */
-import { AddCoverAction, PageCover } from '../components/page-cover.js'
-import { PageDescription, PageMark, usePageHasCover } from '../components/page-head.js'
-import { IconPicker } from '../components/page/IconPicker.js'
+import { PageCover } from '../components/page-cover.js'
+import { usePageHasCover } from '../components/page-head.js'
+import { FolderCoverDialog, FolderHeader } from '../components/folder-head.js'
 import { markIcon } from '../components/page/icon-manifest.js'
 import { FOLDER_PREFIX } from '../lib/page-identity.js'
 import { IDENTITY_COLOR_FALLBACK } from '../parts/identity-colors.js'
-import { InlineInput } from '../components/ui/inline-field.js'
-import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover.js'
-/* The one thread component, used wherever a conversation happens. */
-import { CommentsThread } from '../components/comments.js'
 import { ConsultationPanel } from '../components/consultation/ConsultationPanel.js'
 import { HistorySheet } from '../components/history-sheet.js'
 import { ObjectMenu } from '../components/object-menu.js'
-import { PersonFace } from '../components/person-face.js'
-
-import { AvatarGroup } from '../components/ui/avatar.js'
 import { Button } from '../components/ui/button.js'
-import { MORE_ACTIONS } from '../components/ui/copy.js'
 import {
   Dialog,
   DialogClose,
@@ -136,31 +120,19 @@ import {
   DialogTitle,
 } from '../components/ui/dialog.js'
 import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from '../components/ui/dropdown-menu.js'
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from '../components/ui/sheet.js'
 /* The empty-state icon goes to `PageBody`, whose `StateIcon` is typed on the
-   raw lucide component; everything drawn here comes from the icon module. */
+   raw lucide component. */
 import { Folder as FolderIcon } from 'lucide-react'
 
-import {
-  MessageSquare,
-  PanelRight,
-  Repeat2,
-  Share2,
-  UserRoundCheck,
-} from '../lib/icons.js'
-import { formatDayHeading } from '../parts/format-dates.js'
-import { folderGroupLabels, initialsOf } from '../parts/presenters.js'
 import type { RowContext } from '../parts/presenters.js'
 import { useRowActions } from '../parts/useRowActions.js'
 import { folderLink } from '../lib/nav-links.js'
@@ -175,22 +147,22 @@ import { mayPerform, ruleFor } from '../../shared/folder-actions.js'
    a different thing — the five menu acts a Library row reaches by link,
    against #228's closed vocabulary of every Folder action there is. */
 import type { FolderAction as FolderActionName } from '../../shared/folder-actions.js'
-import { applyThreadChange, commentFileKind, useConceptThread } from '../lib/thread.js'
 import { paths } from '../routes.js'
 import { FOLDER_ACTION_PARAM } from '../shell/app-sidebar.js'
 import { openTaskForm } from '../shell/overlays.js'
 import { useReserveRightEdge } from '../components/right-edge.js'
 import { pushUndo, undoLabel } from '../shell/undo.js'
-import { WindowBarActions } from '../components/window-bar.js'
-import { FolderFacetNavigator } from '../components/folder-facets.js'
+import { FolderTabs, FolderTabsDialog } from '../components/folder-facets.js'
 import type { CreateFacetInput, FacetCapabilities } from '../components/folder-facets.js'
-import { CollapsibleSection, PageSection } from '../components/page/PageSection.js'
+import { PageSection } from '../components/page/PageSection.js'
 import { groupRows, LOOSE } from '../views/grouping.js'
 import { PLACES } from '../views/place-pages.js'
 import { TaskBoard } from '../views/TaskBoard.js'
-import { PlaceControls, PlaceFilterChips, usePlace } from '../views/usePlace.js'
+import { PlaceFilterChips, usePlace } from '../views/usePlace.js'
+import type { ViewMode } from '../views/view-mode.js'
 import { isNarrowed } from '../views/filter.js'
-import { MorePages, PageBody } from '../components/page/PageStates.js'
+import { PageBody } from '../components/page/PageStates.js'
+import { SampleStrip } from '../onboarding/SampleStrip.js'
 import { FOLDER_EMPTY } from './empty-states.js'
 import { FolderSharingPanel } from './FolderSharingPanel.js'
 import { ConfirmDialog, TaskRows, useConfirm, useRowBasis } from './task-rows.js'
@@ -221,21 +193,11 @@ import { ReferencedFrom } from '../components/links/referenced-from.js'
 const FILTER_NARROWED_EMPTY = 'No open tasks match this filter.'
 
 /*
-What each right-edge panel reserves, in pixels.
-
-**These are the widths each panel is already drawn at, restated rather than
-introduced**, which is what keeps 11.4's single-tokens-file rule intact: the
-conversation sheet is `w-[380px]` in this file and the sharing panel is
-`w-[var(--sharing-panel-width)]`, 440px in `tokens.css`. A layout value has to
-reach JavaScript to be padding the shell can compute, and the alternative,
-reading the panel's own box after it renders, is a measurement that has to
-happen after the paint it is supposed to decide.
-
-The sharing panel's number is the one that can drift, its width being a token
-that may be retuned. It is named here so a reader looking for the duplicate
-finds it named as one.
+The width the sharing panel reserves at the right edge, restated from its
+`w-[var(--sharing-panel-width)]` (440px in `tokens.css`) because padding the
+shell computes has to be a number JavaScript holds. Named so a reader looking
+for the duplicate finds it named as one.
 */
-const CONVERSATION_PANEL_WIDTH = 380
 const SHARING_PANEL_WIDTH = 440
 
 /**
@@ -272,16 +234,13 @@ function leaveFolderConfirm(name: string): string {
   )
 }
 
-/** Where the conversation lives for this viewer, a client preference. */
-const CONVERSATION_HOME_KEY = 'dana.conversation.home'
-type ConversationHome = 'foot' | 'panel'
-function readConversationHome(): ConversationHome {
+/** The View menu's "Show completed", on by default. */
+const SHOW_COMPLETED_KEY = 'dana.folder.show-completed'
+function readShowCompleted(): boolean {
   try {
-    return globalThis.localStorage.getItem(CONVERSATION_HOME_KEY) === 'panel'
-      ? 'panel'
-      : 'foot'
+    return globalThis.localStorage.getItem(SHOW_COMPLETED_KEY) !== '0'
   } catch {
-    return 'foot'
+    return true
   }
 }
 
@@ -317,13 +276,6 @@ export function FolderPage({
   const navigate = useNavigate()
   const [search, setSearch] = useSearchParams()
   const folder = useFolder(id)
-  /* The Library's own list, for the two things this page reads off it: the
-     labels the move submenu offers, and nothing else. 8.3 answers it from the
-     same cache entry the sidebar filled, so it costs no request. */
-  const library = useFolders()
-  /* The move submenu offers the viewer's shelves, as in the sidebar, not only
-     the bare membership labels. */
-  const shelves = useShelves()
   const open = useFolderOpenTasks(id)
   const page = useFolderPage(id)
   const facets = useFolderFacets(id)
@@ -340,28 +292,12 @@ export function FolderPage({
   const leave = useLeaveFolder()
   const transfer = useTransferOwnership()
   const createFacet = useCreateFacet()
-  const pageAction = useFolderPageAction()
   const patchFacet = usePatchFacet()
   const deleteFacet = useDeleteFacet()
   const putFacetOrder = usePutFacetOrder()
   const putMyFacetOrder = usePutMyFacetOrder()
   const shareFacet = useShareFacet()
   const duplicate = useDuplicateFolder()
-  const membership = useUpdateMyMembership()
-  /* Every label in use, which is what the move submenu offers, deduplicated
-     and in the order the library holds them. 9.1 makes a group "the label of
-     7.4's my-membership and nothing else", so this is the whole of a group. */
-  /* The shelves the viewer has made are offered too, not only the labels
-     already in use, a shelf with nothing on it yet being exactly the one a
-     person wants to move to. `folderGroupLabels` is the union the sidebar
-     already draws from, so both surfaces answer from one list rather than from
-     two hand-written ones. */
-  const groupLabels = folderGroupLabels(library.data ?? [], shelves.data ?? [])
-  const postComment = usePostComment()
-  const patchComment = usePatchComment()
-  const deleteComment = useDeleteComment()
-  const setLike = useSetCommentLike()
-  const [completedOpen, setCompletedOpen] = useState(false)
   const [sharing, setSharing] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [transferOpen, setTransferOpen] = useState(false)
@@ -369,48 +305,26 @@ export function FolderPage({
   const [deleteAsk, setDeleteAsk] = useState(false)
   // 9.6's inline rename: the title is a heading until this is true.
   const [renaming, setRenaming] = useState(false)
-  /* Controlled, because "Label and colour" in the overflow has to open the same
-     picker the mark opens, and an uncontrolled popover can only be opened by
-     pressing it. */
-  const [markOpen, setMarkOpen] = useState(false)
-  const [conversationHome, setConversationHome] =
-    useState<ConversationHome>(readConversationHome)
-  /* A notification lands here with `?conversation=open`, so the thread the
-     person was told about is open on arrival rather than folded below the fold;
-     `search` is the page's own `useSearchParams`, read above. Both homes honour
-     it. */
-  const arrivingAtThread = search.get('conversation') === 'open'
-  const [footThreadOpen, setFootThreadOpen] = useState(arrivingAtThread)
-  const [panelOpen, setPanelOpen] = useState(arrivingAtThread)
+  const [tabsOpen, setTabsOpen] = useState(false)
+  const [coverOpen, setCoverOpen] = useState(false)
+  /* The View menu's "Show completed", remembered on this device for every
+     folder. A new key, so no existing preference moves. */
+  const [showCompleted, setShowCompleted] = useState(readShowCompleted)
+  const changeShowCompleted = (next: boolean): void => {
+    setShowCompleted(next)
+    try {
+      globalThis.localStorage.setItem(SHOW_COMPLETED_KEY, next ? '1' : '0')
+    } catch {
+      /* A preference that cannot persist is still this session's. */
+    }
+  }
 
   const connections = useConnections()
-  /* Desk, the account's default folder, has no page-level conversation
-     (issue #195): its Tasks carry their own threads, and a thread on the
-     person's own landing page is nobody's conversation. Every home of the
-     folder thread below is gated on this; comments already there stay in the
-     data and in exports. */
-  const deskHasNoThread = folder.data?.is_default === true
-  const threadOpen =
-    !deskHasNoThread &&
-    (conversationHome === 'foot' ? footThreadOpen : panelOpen)
-
   /*
-  9.6's two right-edge panels take room rather than covering. Each publishes its
-  own width while it is open and the shell pads the page body by whatever is
-  reserved; `components/right-edge.tsx` carries one number for both, because
-  they share one edge and two open at once would overlap each other long before
-  the page noticed.
-
-  History is deliberately not among them. It is a sheet you open, read and
-  close, with nothing on the page underneath that you are reading it against,
-  which a dialog answers better; the conversation and the sharing panel are the
-  two you work beside.
+  The sharing panel takes room rather than covering: it publishes its width
+  while open and the shell pads the page body by it (`components/right-edge`).
   */
-  const conversationPanelOpen =
-    !deskHasNoThread && conversationHome === 'panel' && panelOpen
-  useReserveRightEdge(CONVERSATION_PANEL_WIDTH, conversationPanelOpen)
   useReserveRightEdge(SHARING_PANEL_WIDTH, sharing)
-  const thread = useThread(id, null, threadOpen)
 
   const detail = folder.data
   const scheduled = open.data?.scheduled ?? []
@@ -472,9 +386,14 @@ export function FolderPage({
       })
     },
   })
-  /* Read while the foot is open, and while the board is up, whose Done column
-     is drawn from the same pages. */
-  const completed = useFolderCompletedTasks(id, completedOpen || place.mode === 'board')
+  /* Always read: the canvas draws each finished Task in place from these
+     cards (and hides them with a class when "Show completed" is off), and the
+     board's Done column is the same pages. One request for the first 50,
+     where a by-id read per finished placement is what #312 removed. */
+  const completed = useFolderCompletedTasks(id, true)
+  /* The canvas waits for them, so no finished placement is read by id while
+     the list is still on its way. */
+  const completedReady = completed.data !== undefined || completed.isError
   const visible = place.narrow(openRows)
   /*
   **The board's columns are the page's sections**, seeded from the blocks rather
@@ -524,6 +443,8 @@ export function FolderPage({
     sectionColumns,
   )
   const completedDays = mergeCompletedDays(completed.data?.pages)
+  /* The finished Tasks the canvas draws in place, checked and muted. */
+  const completedRows = useMemo(() => completedDays.flatMap((day) => day.rows), [completedDays])
   /*
   The board's Done column. No section and Done are the two columns that are not
   sections: one is a place, one is a status, and both take drops. Drawn only on
@@ -539,7 +460,7 @@ export function FolderPage({
             name: 'Done',
             mark: null,
             capture: null,
-            rows: completedDays.flatMap((day) => day.rows),
+            rows: [...completedRows],
             done: true,
           },
         ]
@@ -591,7 +512,11 @@ export function FolderPage({
   /* A Discussion address (`?discussion=`, from ConsultationLinkPage) opens the
      Consultation facet even when it is hidden or not named: a link to a
      Discussion must land on it. Never on Desk, which has no Consultation. */
-  const linkedDiscussion = search.get('discussion') !== null && !isDefault
+  /* `?conversation=open` is the address a notification about the folder's
+     thread carries; that thread is the General discussion, so it lands here
+     too. */
+  const linkedDiscussion =
+    (search.get('discussion') !== null || search.get('conversation') === 'open') && !isDefault
   const linkedConsultation = (facet: Facet): boolean => linkedDiscussion && facet.kind === 'consultation'
   const activeFacet = facetRows.find(
     (facet) => facet.id === requestedFacetId && (!facet.hidden || facet.kind === 'purpose' || facet.kind === 'results' || linkedConsultation(facet)),
@@ -656,14 +581,13 @@ export function FolderPage({
      somebody who is in it. */
   const others = otherMembers(members, basis.viewerId)
   /* Issue #205: finite progress counts one-off Tasks only, so a recurring
-     Task's endless occurrences never grow the denominator; they are named
-     apart as "N recurring". `counts` is the fallback for an older server. */
+     Task's endless occurrences never grow the denominator. The header says
+     only "N of M done"; `counts` is the fallback for an older server. */
   const progress = detail?.progress
   const completionDone = progress?.done ?? detail?.counts.completed ?? 0
   const completionTotal =
     progress?.total ??
     (detail?.counts.completed ?? 0) + (detail?.counts.pending ?? 0)
-  const recurringActive = progress?.recurring_active ?? 0
   /* Each Section's own "done/total" rides its heading on the canvas. The
      canvas is BlockNote's document, whose headings are not ours to render,
      so the chip is a pseudo-element keyed by the block id: never editable,
@@ -682,13 +606,6 @@ export function FolderPage({
     sectionChips.length === 0
       ? ''
       : `.dana-writing-canvas .bn-block-content[data-content-type='heading']::after{margin-inline-start:calc(var(--spacing) * 2);align-self:center;flex-shrink:0;font-size:var(--text-xs);line-height:var(--text-xs--line-height);font-weight:var(--font-weight-normal);color:var(--muted-foreground);font-variant-numeric:tabular-nums;user-select:none;pointer-events:none} ${sectionChips.join(' ')}`
-  /* The description is offered at rest on a folder nobody has dressed, where a
-     hidden affordance is one nobody discovers. */
-  const pristine =
-    detail !== undefined &&
-    detail.icon === null &&
-    detail.cover_file_id === null &&
-    detail.description === null
 
   /**
    * Who a comment's author is, off the members already read; a face the roster
@@ -736,32 +653,6 @@ export function FolderPage({
         ? { kind: 'work', h1_block_id: input.h1BlockId, after_facet_id: activeFacet?.id }
         : { kind: input.kind, display_name: input.name, after_facet_id: activeFacet?.id },
     }, { onSuccess: selectFacet })
-  }
-
-  function createWorkSection(name: string): void {
-    const existing = new Set(page.data?.blocks.map((block) => block.id) ?? [])
-    pageAction.mutate({
-      id,
-      body: {
-        action: 'insert_block',
-        block_kind: 'section',
-        text: name,
-        section_block_id: null,
-        after: page.data?.items.at(-1) ?? null,
-        before: null,
-      },
-    }, {
-      onSuccess: (next) => {
-        cache.setQueryData(queryKeys.folderPage(id), next)
-        const section = next.blocks.find((block) =>
-          block.kind === 'section' && block.section_block_id === null && !existing.has(block.id))
-        if (section === undefined) return
-        createFacet.mutate({
-          folderId: id,
-          body: { kind: 'work', h1_block_id: section.id, after_facet_id: activeFacet?.id },
-        }, { onSuccess: selectFacet })
-      },
-    })
   }
 
   function renameFolderFacet(facet: Facet, name: string | null): void {
@@ -1093,32 +984,6 @@ export function FolderPage({
     }
   })
 
-  const conversationSwitch = (
-    <button
-      type="button"
-      onClick={() => {
-        const next: ConversationHome =
-          conversationHome === 'foot' ? 'panel' : 'foot'
-        setConversationHome(next)
-        try {
-          globalThis.localStorage.setItem(CONVERSATION_HOME_KEY, next)
-        } catch {
-          /* A preference that cannot persist is still this session's. */
-        }
-        if (next === 'panel') {
-          setPanelOpen(true)
-          setFootThreadOpen(false)
-        } else {
-          setPanelOpen(false)
-        }
-      }}
-      className="flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[12px] leading-4 text-[var(--color-graphite-500)] transition-colors outline-none hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)] focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)]"
-    >
-      <PanelRight className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
-      {conversationHome === 'foot' ? 'Move to side panel' : 'Move to page'}
-    </button>
-  )
-
   /*
   Who a comment's author is, for the lifted thread, and stable so the mapping
   memoises. A face the roster cannot resolve says "Someone" rather than leaking
@@ -1128,505 +993,161 @@ export function FolderPage({
     (authorId: string) => authorPeople.get(authorId) ?? { name: 'Someone' },
     [authorPeople],
   )
-  /* What this folder's conversation may offer (issue #268). The route resolves
-     moderation as `comment.moderate` (Full control's, which custody does not
-     confer) and the author's own edit and delete as `comment.mutate.own` (Can
-     comment or better, which authorship does not confer). Same table, same call
-     as every other gate on this page (AC-790).
 
-     Memoised because it is the identity `useConceptThread` keys its own memo
-     on; `gates` is rebuilt every render, so an inline object would remap the
-     whole thread each time. Null gates means the roster has not landed, and the
-     honest answer then is to offer nothing rather than to guess — the same
-     direction every other gate on this page takes. */
-  const mayConverse = useMemo(
-    () => ({
-      moderate: gates?.moderate === true,
-      mutateOwnComment: gates?.mutateOwnComment === true,
-      likeComment: gates?.likeComment === true,
-      createComment: gates?.createComment === true,
-    }),
-    [
-      gates?.moderate,
-      gates?.mutateOwnComment,
-      gates?.likeComment,
-      gates?.createComment,
-    ],
-  )
-  const conversation = useConceptThread(
-    thread.data?.comments,
-    basis.viewerId,
-    personOf,
-    mayConverse,
-  )
+  const progressFact =
+    completionTotal > 0 ? `${String(completionDone)} of ${String(completionTotal)} done` : null
+  /* Main and a section's tab are lists; the View menu belongs to them alone. */
+  const listFacet = activeFacet?.kind === 'main' || activeFacet?.kind === 'work'
 
-  /*
-  The whole of the write path in this file: the thread announces a change as the
-  array it wants to exist, and `lib/thread.ts` turns that into 7.14's routes.
-  Its header carries the argument for the shape.
-
-  The upload is here rather than in `lib/thread.ts` because a comment's file is
-  7.15's, scoped to this folder like every other file in it, and this page is
-  the one thing that knows which folder that is.
-  */
-  const threadSurface = (
-    <div>
-      <div className="flex justify-end pb-1">{conversationSwitch}</div>
-      <CommentsThread
-        comments={conversation}
-        /* The composer's own half of `comment.create`; Reply's half rides each
-           comment. Disabled rather than hidden, and its sentence says what
-           standing commenting needs (issue #268; AC-790). */
-        canComment={mayConverse.createComment}
-        emptyWord={conversationHome === 'panel' ? 'message' : 'comment'}
-        layout={conversationHome === 'panel' ? 'pinned' : 'block'}
-        onChange={(next) => {
-          applyThreadChange(conversation, next, {
-            post: (body) => {
-              postComment.mutate({ folderId: id, body })
-            },
-            edit: (commentId, body) => {
-              patchComment.mutate({ id: commentId, body: { body } })
-            },
-            remove: (commentId) => {
-              deleteComment.mutate(commentId)
-            },
-            like: (commentId, liked) => {
-              setLike.mutate({ id: commentId, liked })
-            },
-            upload: (file) =>
-              uploadFile(commentFileKind(file), id, file).then((stored) => stored.id),
-          })
+  const headerActions = (
+    <>
+      {/* 9.6's Share control, a word rather than a glyph. Withheld on a
+          default folder, which INV-2 makes single-member and 5.3 refuses an
+          add on. AC-162 and AC-183 reach the sharing panel through it. */}
+      {isDefault ? null : (
+        <Button
+          variant="ghost"
+          aria-expanded={sharing}
+          className="text-muted-foreground"
+          onClick={() => {
+            setSharing(!sharing)
+          }}
+        >
+          Share
+        </Button>
+      )}
+      {/*
+      The folder's one "…". The object's contract (`lib/object-acts.ts`) draws
+      the shared acts; Cover… and Tabs… are this page's own and come first, and
+      Transfer ownership is 9.6's act for an owner with somewhere to hand the
+      folder to. Rename is the title itself and Move to shelf the sidebar's,
+      so neither handler is passed.
+       */}
+      <ObjectMenu
+        kind="folder"
+        name={detail?.name ?? ''}
+        align="end"
+        extra={
+          <>
+            {gates?.identity === true ? (
+              <DropdownMenuItem onClick={() => setCoverOpen(true)}>Cover…</DropdownMenuItem>
+            ) : null}
+            <DropdownMenuItem onClick={() => setTabsOpen(true)}>Tabs…</DropdownMenuItem>
+            {/* Offered whenever the folder is shared and the viewer owns it,
+                rather than only when somebody is eligible: the dialog says
+                what to do when nobody is. */}
+            {gates?.transferOwnership === true && others.length > 0 ? (
+              <DropdownMenuItem onClick={() => setTransferOpen(true)}>
+                Transfer ownership…
+              </DropdownMenuItem>
+            ) : null}
+            <DropdownMenuSeparator />
+          </>
+        }
+        handlers={{
+          history: () => {
+            setHistoryOpen(true)
+          },
+          'copy-link': () => {
+            void navigator.clipboard.writeText(folderLink(id))
+            showToast('Link copied')
+          },
+          duplicate: () => {
+            /* Duplicated server-side; the copy is the duplicator's own private
+               folder, and the page goes to it. 9.6: the bar says which
+               happened, read off 7.16's `shifted_days`. */
+            duplicate.mutate(id, {
+              onSuccess: (made) => {
+                showToast(
+                  made.shifted_days > 0
+                    ? `"${made.name}" made from "${detail?.name ?? ''}" with every task open, dates moved to start today`
+                    : `"${made.name}" made from "${detail?.name ?? ''}" with every task open`,
+                )
+                navigate(paths.folder(made.id))
+              },
+            })
+          },
+          workflow: () => {
+            void saveAsWorkflow()
+          },
+          /* Any member's, refused to the owner until they transfer and to the
+             last Full-control member; `folderGates` reads both off the roster. */
+          leave: gates?.leave === true ? askLeave : undefined,
+          /* Full control's, which custody does not confer (AC-015). */
+          delete: gates?.trash === true ? askDelete : undefined,
         }}
       />
-    </div>
+    </>
   )
 
   return (
-    <div className="space-y-7">
+    <div className="space-y-6">
+      {/* Desk is just a folder; while the sample workspace is present it says
+          so in one quiet line above the header. */}
+      {isDefault ? <SampleStrip /> : null}
       {/* The header is the folder read, so a folder the viewer cannot see
           renders 10.2's answer here: nonexistent, never forbidden. */}
       <PageBody query={folder} isEmpty={false} emptyCopy="">
-        {/* 9.6's "the filter of 9.1 narrows the page without touching its
-            arrangement": the chips at the bar's left end, the view strip and
-            the filter at its right. Drawn by the same component every place
-            page uses, which is what makes this one filter rather than a ninth. */}
+        {/* The filter's chips stay in the window bar's lead, so a narrowing
+            remembered for this folder can always be seen and cleared. */}
         <PlaceFilterChips place={place} />
-        {/* Order 2, which is 9.1's own sentence for the bar's right end:
-            "the view strip, the filter control, the Activity line, and the
-            object's overflow menu". The first two are `PlaceChrome`'s at the
-            default order and the third is the shell's at 1. */}
-        <WindowBarActions order={2}>
-          {/* The conversation's opener when its home is the panel; the foot
-              section is its own opener otherwise. */}
-          {conversationHome === 'panel' && !isDefault ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Conversation"
-              className="size-7 rounded-md text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-900)]"
-              onClick={() => {
-                setPanelOpen(true)
-              }}
-            >
-              <MessageSquare className="size-4" strokeWidth={1.75} aria-hidden="true" />
-            </Button>
-          ) : null}
-          {/*
-          The member faces and Share, in the bar rather than in the head.
 
-          They are the window's controls and not the page's content: a header
-          that carries them scrolls its own chrome away, and it puts two tiers
-          of control forty pixels apart. An icon rather than a filled block,
-          because the bar is chrome and chrome is quiet.
-           */}
-          {isDefault || members.length < 2 ? null : (
-            /* 9.6's member stack. One face is not a stack: a folder nobody
-               shares draws its owner's own picture at nobody, which is the
-               same noise the Share control is withheld for. */
-            <AvatarGroup>
-              {members.map((member) => (
-                /* The uploaded picture, and the name on hover. */
-                <span key={member.user.id} title={member.user.display_name ?? 'Someone'}>
-                  <PersonFace
-                    name={member.user.display_name ?? 'Someone'}
-                    initials={initialsOf(member.user.display_name ?? 'Someone')}
-                    image={member.user.avatar_url}
-                  />
-                </span>
-              ))}
-            </AvatarGroup>
-          )}
-          {/* 9.6's Share control. Withheld on a default folder, which
-              INV-2 makes single-member and 5.3 refuses an add on. The name
-              is the word it always answered to; AC-162 and AC-183 reach the
-              sharing panel through it. */}
-          {isDefault ? null : (
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Share"
-              aria-expanded={sharing}
-              className="size-7 rounded-md text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-900)]"
-              onClick={() => {
-                setSharing(!sharing)
-              }}
-            >
-              <Share2 className="size-4" strokeWidth={1.75} aria-hidden="true" />
-            </Button>
-          )}
-          {/*
-          9.1: the bar's right end holds the object's overflow menu, and it is
-          the object's contract rather than this page's list, so where a person
-          stands does not decide what they can do to the same folder.
-          `lib/object-acts.ts` owns the words, the glyphs and the order; what
-          stays the page's own is "Transfer ownership", 9.6's act for an owner
-          with somewhere to hand the folder to and one no other surface can
-          offer.
-           */}
-          <ObjectMenu
-            kind="folder"
-            name={detail?.name ?? ''}
-            align="end"
-            trigger={
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label={MORE_ACTIONS}
-                className="size-7 rounded-md text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-900)]"
-              />
-            }
-            /* **Offered whenever the folder is shared and the viewer owns it,
-               rather than only when somebody is eligible.** The eligible list
-               can be empty for a folder full of people, and an owner who must
-               transfer before they can leave would then be offered no route at
-               all and no reason. The dialog says what to do instead, which is a
-               sentence the menu cannot carry. */
-            extra={
-              gates?.transferOwnership === true && others.length > 0 ? (
-                <DropdownMenuItem
-                  onClick={() => {
-                    setTransferOpen(true)
-                  }}
-                >
-                  <UserRoundCheck className="size-4" strokeWidth={1.75} aria-hidden="true" />
-                  Transfer ownership
-                </DropdownMenuItem>
-              ) : undefined
-            }
-            handlers={{
-              history: () => {
-                setHistoryOpen(true)
-              },
-              /* Accepted R8A: a folder's name is ordinary shared Folder work,
-                 which Can edit and above change and nobody below does
-                 (AC-011, AC-012, AC-193). It read `isOwner`. */
-              rename:
-                gates?.identity === true
-                  ? () => {
-                      setRenaming(true)
-                    }
-                  : undefined,
-              /* The personal label, as the Library row offers it. It is
-                 arrangement rather than identity (9.6's matrix: "personal,
-                 always"), so it is the same write from either surface. */
-              move: {
-                choose: (
-                  <DropdownMenuRadioGroup
-                    value={detail?.my_shelf ?? '__none'}
-                    onValueChange={(value) => {
-                      const previous = detail?.my_shelf ?? null
-                      const next = value === '__none' ? null : value
-                      if (next === previous) return
-                      membership.mutate(
-                        { id, body: { shelf: next } },
-                        {
-                          /* A shelf move has a way back, the undo bar, like
-                             every other move. */
-                          onSuccess: () => {
-                            pushUndo(
-                              next === null
-                                ? `Took "${detail?.name ?? ''}" off ${previous ?? 'its shelf'}`
-                                : `Moved "${detail?.name ?? ''}" to ${next}`,
-                              () => {
-                                membership.mutate({ id, body: { shelf: previous } })
-                              },
-                            )
-                          },
-                        },
-                      )
-                    }}
-                  >
-                    {groupLabels.map((label) => (
-                      <DropdownMenuRadioItem key={label} value={label} closeOnClick>
-                        {label}
-                      </DropdownMenuRadioItem>
-                    ))}
-                    {groupLabels.length > 0 ? <DropdownMenuSeparator /> : null}
-                    {/* One word for the thing: the way off a shelf is not a
-                        "group". */}
-                    <DropdownMenuRadioItem value="__none" closeOnClick>
-                      Not on a shelf
-                    </DropdownMenuRadioItem>
-                  </DropdownMenuRadioGroup>
-                ),
-              },
-              'copy-link': () => {
-                /* One answer to "where does this object live", from
-                   `lib/nav-links.ts`. It was spelled inline here, on the
-                   sidebar's folder row and on the shelf page, which is three
-                   copies of one address. */
-                void navigator.clipboard.writeText(folderLink(id))
-                showToast('Link copied')
-              },
-              duplicate: () => {
-                /* Duplicated server-side; the copy is the duplicator's own
-                   private folder, and the page goes to it. */
-                duplicate.mutate(id, {
-                  onSuccess: (made) => {
-                    /* 9.6: "the bar says which happened": two sentences, read
-                       off 7.16's `shifted_days`. */
-                    /* Said where it applies: a duplicate is the structure, so
-                       every task arrives open. */
-                    showToast(
-                      made.shifted_days > 0
-                        ? `"${made.name}" made from "${detail?.name ?? ''}" with every task open, dates moved to start today`
-                        : `"${made.name}" made from "${detail?.name ?? ''}" with every task open`,
-                    )
-                    navigate(paths.folder(made.id))
-                  },
-                })
-              },
-              workflow: () => {
-                void saveAsWorkflow()
-              },
-              /* Leaving is any member's, and refused to the owner until they
-                 transfer and to the last Full-control member by the continuity
-                 invariant. Both of those are state rather than preset, and
-                 `folderGates` reads them off the roster this page already has. */
-              leave: gates?.leave === true ? askLeave : undefined,
-              /* Moving a folder to Trash is Full control's, and custody does
-                 not confer it, so an owner whose Access dropped below Full
-                 control is not offered it (AC-015). */
-              delete: gates?.trash === true ? askDelete : undefined,
-            }}
-          />
-        </WindowBarActions>
-
-        <div className="space-y-3">
-        <PageSection name="Folder header">
-          {/*
-          **The head is the shared page-head composition** (`page-cover`,
-          `page-head`, `folder-cover`), so a treatment settled once is not left
-          in each screen's keeping.
-
-          **The name is "Icon and colour for {name}"**, which AC-243 and AC-247
-          both address. Section 9 fixes no name here.
-
-          **The picker is this client's `IconPicker`.** 4.3's `icon` is a stored
-          key checked against `^[a-z0-9-]{1,40}$`, and
-          `components/page/icon-manifest.ts` is the one place this client maps a
-          stored key to a glyph, read by the sidebar, the folder marks and the
-          search results as well as by this popover. A second picker would put a
-          second glyph alphabet beside it.
-           */}
-          {/* The band is drawn full-bleed with the mark riding up over it, the
-              same geometry as every place page (`page-head.tsx`): the same
-              wrapper undoing the shell's inset, the same top padding when there
-              is no band. */}
-          {/* The horizontal half of that inset lives in `page-cover.tsx`:
-              `-mx-10` reached the shell's padding and never its
-              `--shell-content-max` cap. The top inset stays here, and follows
-              the shell's own two measures. */}
+        <div className="space-y-4">
           {hasCover ? (
             <div className="-mt-4 md:-mt-6">
-              {/* The cover is one of the 4.3 identity fields accepted R8A
-                  makes Can edit's (AC-011, AC-193), so a viewer below that
-                  bar reads the band and is offered nothing on it. */}
+              {/* A viewer below Can edit reads the band and is offered nothing
+                  on it (AC-011, AC-193). */}
               <PageCover storageName={coverKey} readOnly={gates?.identity !== true} />
             </div>
           ) : null}
-          {/* One column since the faces and Share moved to the window bar:
-              the split this header used to make had a right-hand column in
-              it, and `page-head.tsx` draws the same head without one. */}
-          <header className={`group/head ${hasCover ? '' : 'pt-2'}`}>
-            <div className="min-w-0">
-              {/*
-              The icon and the colour, two more of the five identity fields.
-              **Drawn as a plain mark rather than as a disabled trigger** for
-              a viewer below Can edit: `PageMark`'s `interactive` is what
-              gives it the hover and the pointer, and a control that looks
-              pressable and answers 403 is the thing AC-011 is about.
-              */}
-              {gates?.identity === true ? (
-                <Popover open={markOpen} onOpenChange={setMarkOpen}>
-                  <PopoverTrigger
-                    render={
-                      <PageMark
-                        icon={markIcon(detail?.icon ?? null)}
-                        hasCover={hasCover}
-                        color={detail?.color ?? IDENTITY_COLOR_FALLBACK}
-                        interactive
-                        aria-label={`Icon and colour for ${detail?.name ?? ''}`}
-                      />
-                    }
-                  />
-                  <PopoverContent align="start" className="w-auto p-0">
-                    <IconPicker
-                      icon={detail?.icon ?? null}
-                      color={detail?.color ?? null}
-                      onPick={(next) => {
-                        patch.mutate({ id, body: next })
-                      }}
-                    />
-                  </PopoverContent>
-                </Popover>
-              ) : (
-                <PageMark
-                  icon={markIcon(detail?.icon ?? null)}
-                  hasCover={hasCover}
-                  color={detail?.color ?? IDENTITY_COLOR_FALLBACK}
-                />
-              )}
+          <PageSection name="Folder header">
+            <FolderHeader
+              name={detail?.name ?? ''}
+              icon={markIcon(detail?.icon ?? null)}
+              color={detail?.color ?? IDENTITY_COLOR_FALLBACK}
+              iconKey={detail?.icon ?? null}
+              colorKey={detail?.color ?? null}
+              editable={gates?.identity === true}
+              renaming={renaming}
+              onRenamingChange={setRenaming}
+              onRename={(name) => {
+                patch.mutate({ id, body: { name } })
+              }}
+              onPickIdentity={(next) => {
+                patch.mutate({ id, body: next })
+              }}
+              storageName={coverKey}
+              progress={progressFact}
+              actions={headerActions}
+            />
+          </PageSection>
 
-              <div className="mt-1">
-                <AddCoverAction
-                  storageName={coverKey}
-                  readOnly={gates?.identity !== true}
-                />
-              </div>
-
-              {/* The count rides the title's own line rather than stacking a
-                  third block under it, which is 9.4's "the fact 'N of M done'":
-                  the fact rides the title's line; prose sits under it. */}
-              {/* On a phone the counter wraps under the name rather than
-                  cutting it to "Apart...". */}
-              <div className="mt-1.5 flex items-baseline gap-3 max-md:flex-col max-md:items-start max-md:gap-1">
-                {gates?.identity === true && renaming ? (
-                  <InlineInput
-                    key={detail?.name ?? ''}
-                    defaultValue={detail?.name ?? ''}
-                    aria-label="Folder name"
-                    maxLength={100}
-                    autoFocus
-                    onBlur={(event) => {
-                      const next = event.target.value.trim()
-                      setRenaming(false)
-                      if (next !== '' && next !== detail?.name) {
-                        patch.mutate({ id, body: { name: next } })
-                      }
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') event.currentTarget.blur()
-                      if (event.key === 'Escape') {
-                        event.currentTarget.value = detail?.name ?? ''
-                        event.currentTarget.blur()
-                      }
-                    }}
-                    className="min-w-0 text-2xl leading-8 font-semibold text-foreground"
-                  />
-                ) : (
-                  /* A heading, always: it is what a reader lands on and what
-                     AC-226 asks the imported starter's page for, and a viewer
-                     who may not rename is offered no textbox at all (AC-217:
-                     the bar is Can edit rather than ownership). */
-                  <h1
-                    onClick={
-                      gates?.identity === true
-                        ? () => {
-                            setRenaming(true)
-                          }
-                        : undefined
-                    }
-                    className={`min-w-0 max-w-full truncate text-2xl leading-8 font-semibold text-foreground max-md:whitespace-normal${
-                      gates?.identity === true ? ' cursor-text' : ''
-                    }`}
-                  >
-                    {detail?.name ?? ''}
-                  </h1>
-                )}
-                {completionTotal > 0 || recurringActive > 0 ? (
-                  <span className="flex shrink-0 items-center gap-1.5 text-xs leading-4 text-muted-foreground tabular-nums">
-                    {completionTotal > 0 ? (
-                      <span>
-                        {completionDone} of {completionTotal} done
-                      </span>
-                    ) : null}
-                    {completionTotal > 0 && recurringActive > 0 ? (
-                      <span aria-hidden="true">·</span>
-                    ) : null}
-                    {recurringActive > 0 ? (
-                      <span
-                        className="inline-flex items-center gap-0.5"
-                        title="Recurring Tasks are not counted in the total"
-                      >
-                        <Repeat2 className="size-3" strokeWidth={1.75} aria-hidden="true" />
-                        {recurringActive} recurring
-                      </span>
-                    ) : null}
-                  </span>
-                ) : null}
-              </div>
-
-              {/* 9.6's editable description. **It was "any member's", on
-                  9.6's role matrix ("the page: blocks, cover, icon, colour,
-                  description, yes for both roles; the event log says who"),
-                  and accepted #209 R8A overturns that half of the matrix**:
-                  Can view is read only, and a folder's description is shared
-                  Folder work. AC-011 refuses it below Can edit on the wire,
-                  so the field is a paragraph there rather than a textarea
-                  that loses what was typed into it. It reads and writes 4.3's
-                  column through `lib/page-identity.ts`'s folder half, which is
-                  why the lifted field needs nothing of its own here. */}
-              <PageDescription
-                storageName={coverKey}
-                label="Folder description"
-                offer={pristine}
-                readOnly={gates?.identity !== true}
-              />
-            </div>
-          </header>
-        </PageSection>
-
-        {facets.data ? (
-          <FolderFacetNavigator
-            facets={isDefault
-              ? facetRows.filter((facet) => facet.kind !== 'consultation')
-              : facetRows}
-            activeId={activeFacet?.id ?? ''}
-            capabilities={facetCapabilities}
-            page={page.data}
-            onSelect={selectFacet}
-            onCreate={createFolderFacet}
-            onCreateWorkSection={createWorkSection}
-            onReorder={reorderFolderFacets}
-            onRename={renameFolderFacet}
-            onHide={hideFolderFacet}
-            onDelete={removeFolderFacet}
-            onShare={exposeFolderFacet}
-            controls={activeFacet?.kind === 'main' || activeFacet?.kind === 'work'
-              ? <PlaceControls place={place} />
-              : undefined}
-          />
-        ) : (
-          <p role={facets.isError ? 'alert' : 'status'} className="text-sm text-muted-foreground">
-            {facets.isError ? 'Could not load facets. Reload to try again.' : 'Loading facets…'}
-          </p>
-        )}
+          {facets.data ? (
+            <FolderTabs
+              facets={facetRows}
+              activeId={activeFacet?.id ?? ''}
+              onSelect={selectFacet}
+            />
+          ) : facets.isError ? (
+            <p role="alert" className="text-sm text-muted-foreground">
+              Could not load this folder’s tabs. Reload to try again.
+            </p>
+          ) : null}
         </div>
 
-        {activeFacet?.kind === 'main' ? <div className="mt-7 space-y-7">
-          {/*
-          The open list and the page's blocks are one body, not two regions with
-          a hole between them.
+        {listFacet ? (
+          <div className="-mb-4 mt-2 flex justify-end">
+            <FolderViewMenu
+              mode={place.mode}
+              onMode={place.setMode}
+              showCompleted={showCompleted}
+              onShowCompleted={changeShowCompleted}
+            />
+          </div>
+        ) : null}
 
-          They stack at 8px because the insertion lines carry the separation
-          between blocks, so the stack's own gap is small; two 24px gaps in a
-          row read as a hole. A larger gap here would put the first insertion
-          line visibly apart from anything above it. The 28px stays where it is
-          the separation between the body and Done.
-           */}
-          <div className="space-y-2">
+        {activeFacet?.kind === 'main' ? (
+          <div className="mt-2 space-y-2">
             <PageSection name="All open tasks">
               <PageBody
                 query={open}
@@ -1639,34 +1160,34 @@ export function FolderPage({
                 truncated={open.data?.truncated ?? false}
               >
                 {place.mode === 'board' ? (
-                  /* The board is the shared `views/TaskBoard.tsx` and not a
-                     second one, so a change to it reaches here and every place
-                     page together (AC-259). */
+                  /* The shared `views/TaskBoard.tsx`, so a change to it reaches
+                     here and every place page together (AC-259). */
                   <TaskBoard
                     place={place}
-                    columns={boardWithDone}
+                    columns={showCompleted ? boardWithDone : boardColumns}
                     context={context}
                     actions={actions}
                   />
                 ) : visible.length === 0 && openRows.length > 0 ? (
-                  <p className="h-[var(--control-height)] px-2 text-sm leading-[var(--control-height)] text-[var(--color-graphite-500)]">
+                  <p className="px-2 py-1.5 text-sm text-muted-foreground">
                     {FILTER_NARROWED_EMPTY}
                   </p>
                 ) : isNarrowed(place.filter) || place.filter.sort !== 'manual' || place.groupBy !== 'none' ? (
                   <div className="space-y-3">
-                    <p className="text-sm text-muted-foreground">This is a Task view. Return to the unfiltered manual list to edit writing and group placement.</p>
                     {boardColumns.map((group) => <div key={group.key}>
                       {place.groupBy !== 'none' ? <h2 className="mb-2 text-sm font-semibold">{group.name}</h2> : null}
                       <TaskRows tasks={group.rows} context={context} actions={actions} onAsk={confirm.ask} arrangement={{ arrangeable: false }} />
                     </div>)}
                   </div>
                 ) : (
-                  <Suspense fallback={<p role="status">Loading writing…</p>}>
+                  <Suspense fallback={null}>
                   {sectionChipStyle === '' ? null : <style>{sectionChipStyle}</style>}
-                  {page.data ? <FolderCanvas
+                  {page.data && completedReady ? <FolderCanvas
                     key={id}
                     page={page.data}
                     tasks={openRows}
+                    completed={completedRows}
+                    showCompleted={showCompleted}
                     folderId={id}
                     context={context}
                     actions={actions}
@@ -1676,63 +1197,23 @@ export function FolderPage({
                       place.filter.sort === 'manual' &&
                       place.groupBy === 'none'
                     }
-                  /> : <p role={page.isError ? 'alert' : 'status'}>{page.isError ? 'Could not load writing. Reload to try again.' : 'Loading writing…'}</p>}
+                  /> : page.isError ? <p role="alert" className="text-sm text-muted-foreground">Could not load writing. Reload to try again.</p> : null}
                   </Suspense>
                 )}
               </PageBody>
             </PageSection>
             {/* #214: the documents that link to this Folder. Absent while none do. */}
             <ReferencedFrom kind="folder" id={id} className="mt-2" />
-
           </div>
-
-          {/* Q7 hides the third section while it is empty; the control is
-              rendered on the folder's own completed count. Not while the board
-              is up, whose Done column is the same rows. And "Done", not
-              "Completed": one word for the finished pile everywhere. */}
-          {(detail?.counts.completed ?? 0) === 0 || place.mode === 'board' ? null : (
-            <CollapsibleSection
-              name="Done"
-              count={detail?.counts.completed ?? 0}
-              defaultOpen={false}
-              onOpenChange={setCompletedOpen}
-            >
-              {completedDays.map((day) => (
-                <PageSection
-                  key={day.date}
-                  name={formatDayHeading(day.date, basis.today)}
-                  heading={formatDayHeading(day.date, basis.today)}
-                  tone="day"
-                >
-                  <TaskRows
-                    tasks={day.rows}
-                    context={context}
-                    actions={actions}
-                    onAsk={confirm.ask}
-                  />
-                </PageSection>
-              ))}
-              <MorePages query={completed} />
-            </CollapsibleSection>
-          )}
-
-          {/* The conversation's foot home: a closed section at the page's
-              foot (9.6). Its other home is the side panel below. */}
-          {conversationHome === 'foot' && !isDefault ? (
-            <CollapsibleSection
-              name="Conversation"
-              defaultOpen={false}
-              onOpenChange={setFootThreadOpen}
-            >
-              {threadSurface}
-            </CollapsibleSection>
-          ) : null}
-        </div> : activeFacet ? (
+        ) : activeFacet ? (
           <FacetContent
             facet={activeFacet}
             folderId={id}
             folderPage={page.data}
             tasks={openRows}
+            completed={completedRows}
+            completedReady={completedReady}
+            showCompleted={showCompleted}
             context={context}
             actions={actions}
             onAsk={confirm.ask}
@@ -1749,6 +1230,23 @@ export function FolderPage({
         ) : null}
       </PageBody>
 
+      {facets.data ? (
+        <FolderTabsDialog
+          open={tabsOpen}
+          onOpenChange={setTabsOpen}
+          facets={isDefault ? facetRows.filter((facet) => facet.kind !== 'consultation') : facetRows}
+          capabilities={facetCapabilities}
+          page={page.data}
+          onCreate={createFolderFacet}
+          onReorder={reorderFolderFacets}
+          onRename={renameFolderFacet}
+          onHide={hideFolderFacet}
+          onDelete={removeFolderFacet}
+          onShare={exposeFolderFacet}
+        />
+      ) : null}
+      <FolderCoverDialog storageName={coverKey} open={coverOpen} onOpenChange={setCoverOpen} />
+
       {sharing && detail !== undefined ? (
         <FolderSharingPanel
           folder={detail}
@@ -1760,40 +1258,6 @@ export function FolderPage({
         />
       ) : null}
 
-      {/*
-      The conversation's panel home, which takes room from the page rather than
-      covering it.
-
-      It publishes its width to `components/right-edge.tsx` and the shell pads
-      the page body by it, which is the whole mechanism. The sheet is still a
-      sheet, so the escape key, the focus trap and the close control are the
-      primitive's; the page underneath it is narrower and readable rather than
-      hidden, which is the one thing a side-by-side view exists for.
-       */}
-      <Sheet
-        open={conversationPanelOpen}
-        onOpenChange={setPanelOpen}
-        /*
-        Non-modal. A modal sheet makes the document beneath it inert and hides
-        it behind a backdrop, so a panel sitting over the page would hide the
-        row the task came from, and reserving room on the right would be
-        decoration, since the page it uncovered could be neither read nor
-        touched. So the backdrop goes and the page stays live. What is kept is
-        everything else the primitive gives a sheet, the escape key, the focus
-        handling and the close control.
-        */
-        modal={false}
-      >
-        <SheetContent side="right" className="w-[380px]" overlayClassName="hidden">
-          <SheetHeader>
-            <SheetTitle>Conversation</SheetTitle>
-            <SheetDescription>{detail?.name}</SheetDescription>
-          </SheetHeader>
-          <PageSection name="Conversation">
-            <div className="overflow-y-auto px-4 pb-4">{threadSurface}</div>
-          </PageSection>
-        </SheetContent>
-      </Sheet>
 
       {/*
       9.6's History, as a sheet that groups by day and puts the actor on every
@@ -1922,6 +1386,9 @@ function FacetContent({
   folderId,
   folderPage,
   tasks,
+  completed,
+  completedReady,
+  showCompleted,
   context,
   actions,
   onAsk,
@@ -1933,6 +1400,9 @@ function FacetContent({
   readonly folderId: string
   readonly folderPage: PageView | undefined
   readonly tasks: readonly Parameters<typeof TaskRows>[0]['tasks'][number][]
+  readonly completed: readonly Parameters<typeof TaskRows>[0]['tasks'][number][]
+  readonly completedReady: boolean
+  readonly showCompleted: boolean
   readonly context: RowContext
   readonly actions: ReturnType<typeof useRowActions>
   readonly onAsk: (message: string, action: () => void) => void
@@ -1949,11 +1419,11 @@ function FacetContent({
   if (facet.kind === 'purpose' || facet.kind === 'results') {
     const purpose = facet.kind === 'purpose'
     return (
-      <div className="mt-7">
+      <div className="mt-2">
         {document.data ? (
           <>
             {document.data.items.length === 0 ? (
-              <p className="mb-3 px-2 text-xs leading-5 text-muted-foreground">
+              <p className="mb-3 text-sm text-muted-foreground">
                 {purpose
                   ? 'Describe why this work exists, what it aims to achieve, or what should guide it.'
                   : 'Record what actually happened: outcomes, findings, evaluations, and partial or unsuccessful results.'}
@@ -1972,26 +1442,74 @@ function FacetContent({
     const ids = new Set(focused?.items.map((item) => item.id) ?? [])
     const focusedTasks = tasks.filter((task) => ids.has(task.id))
     return (
-      <div className="mt-6 space-y-3">
-        <div className="flex items-center justify-between gap-3 border-b border-[var(--color-graphite-100)] pb-2.5 text-xs text-muted-foreground">
-          <span>This is the live section from Main. Changes here update the same Tasks and writing.</span>
-          <Button variant="ghost" size="sm" onClick={onOpenMain}>Open in Main</Button>
-        </div>
-        {focused ? (
+      <div className="mt-2 space-y-3">
+        <p className="text-xs text-muted-foreground">
+          The same section as on Main.{' '}
+          <button type="button" onClick={onOpenMain} className="underline-offset-2 hover:text-foreground hover:underline">
+            Open Main
+          </button>
+        </p>
+        {focused && completedReady ? (
           <Suspense fallback={<p role="status">Loading section…</p>}>
-            <FolderCanvas key={`${folderId}:${facet.id}`} page={folderPage!} tasks={focusedTasks} folderId={folderId} workRootId={facet.h1_block_id ?? undefined} context={context} actions={actions} onAsk={onAsk} arrangeable />
+            <FolderCanvas key={`${folderId}:${facet.id}`} page={folderPage!} tasks={focusedTasks} completed={completed} showCompleted={showCompleted} folderId={folderId} workRootId={facet.h1_block_id ?? undefined} context={context} actions={actions} onAsk={onAsk} arrangeable />
           </Suspense>
         ) : <p role="status">Loading section…</p>}
       </div>
     )
   }
   return (
-    <div className="mt-7">
+    <div className="mt-2">
       {document.data ? (
         <Suspense fallback={<p role="status">Loading writing…</p>}>
           <FolderCanvas key={`${folderId}:${facet.id}`} page={document.data} tasks={[]} folderId={folderId} facetId={facet.id} context={context} actions={actions} onAsk={onAsk} arrangeable />
         </Suspense>
       ) : <p role={document.isError ? 'alert' : 'status'}>{document.isError ? 'Could not load this facet. Reload to try again.' : 'Loading writing…'}</p>}
     </div>
+  )
+}
+
+/**
+ * The list's one "View" menu, a word at its top-right: list or board, and
+ * whether finished Tasks show. Filters and grouping are not offered here; a
+ * narrowing remembered from before still shows as chips in the window bar,
+ * where it can be cleared.
+ */
+function FolderViewMenu({
+  mode,
+  onMode,
+  showCompleted,
+  onShowCompleted,
+}: {
+  readonly mode: ViewMode
+  readonly onMode: (next: ViewMode) => void
+  readonly showCompleted: boolean
+  readonly onShowCompleted: (next: boolean) => void
+}): React.JSX.Element {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger render={<Button variant="ghost" className="text-muted-foreground" />}>
+        View
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-44">
+        <DropdownMenuRadioGroup
+          value={mode}
+          onValueChange={(value) => {
+            onMode(value as ViewMode)
+          }}
+        >
+          <DropdownMenuRadioItem value="list">List</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="board">Board</DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuCheckboxItem
+          checked={showCompleted}
+          onCheckedChange={(checked) => {
+            onShowCompleted(checked)
+          }}
+        >
+          Show completed
+        </DropdownMenuCheckboxItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

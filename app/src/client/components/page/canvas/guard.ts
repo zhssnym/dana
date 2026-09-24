@@ -20,8 +20,9 @@ export function installCanvasGuard(editor: CanvasEditor, explain: (message: stri
     /*
     The guard reads the document, not the screen, so the refusal also points
     at what it refused for: each Task block the gesture would have removed is
-    outlined for a moment (#314). A finished Task draws a slim "Completed Task"
-    line (`CanvasTask.tsx`), so the outline always has something to land on.
+    outlined for a moment (#314). A finished Task draws its own row, checked and
+    muted (`CanvasTask.tsx`), so the outline has something to land on unless
+    "Show completed" has hidden it.
     */
     const removed = removedCanvasTasks(before, after)
     const failure = removed.length > 0

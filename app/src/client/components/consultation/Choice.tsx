@@ -1,7 +1,7 @@
 /*
 Consultation's one either/or control: the Discussion list's state filter and
 the Resolve dialog's "how to record it" both draw it. The selected option is a
-plain sheet on the graphite track, with no shadow under it.
+plain sheet on a muted track, with no shadow under it.
 */
 import { cn } from '../ui/utils.js'
 
@@ -22,7 +22,7 @@ export function Choice<T extends string>({
     <div
       role="radiogroup"
       aria-label={label}
-      className={cn('flex gap-0.5 rounded-md bg-[var(--color-graphite-100)] p-0.5', className)}
+      className={cn('flex gap-0.5 rounded-md bg-muted p-0.5', className)}
     >
       {options.map((option) => (
         <button
@@ -32,10 +32,10 @@ export function Choice<T extends string>({
           aria-checked={value === option.value}
           onClick={() => onSelect(option.value)}
           className={cn(
-            'h-6 flex-1 rounded-sm px-2.5 text-xs font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)]',
+            'h-6 flex-1 rounded-sm px-2.5 text-xs font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring',
             value === option.value
-              ? 'bg-[var(--color-graphite-0)] text-[var(--color-graphite-900)]'
-              : 'text-[var(--color-graphite-500)] hover:text-[var(--color-graphite-800)]',
+              ? 'bg-background text-foreground'
+              : 'text-muted-foreground hover:text-foreground',
           )}
         >
           {option.label}
