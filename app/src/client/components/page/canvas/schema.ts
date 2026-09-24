@@ -105,53 +105,64 @@ function mediaSpec<T>(spec: T, accept: readonly string[]): T {
   } as unknown as T
 }
 
-const audio = mediaSpec(defaultBlockSpecs.audio, AUDIO_MIMES)
-const video = mediaSpec(defaultBlockSpecs.video, VIDEO_MIMES)
-
-/* Issue #267: a picture whose file was reclaimed arrives with no url, which the
-   stock block draws as the same empty frame as one never filled. `reclaimedAt`
+/* Issue #267: a media block whose file was reclaimed arrives with no url, which
+   the stock block draws as the same empty frame as one never filled. `reclaimedAt`
    (hydrated from `file_reclaimed_at`, never saved) swaps that frame for a notice
    that says what happened, with the two ways out: pick a new file (clearing the
-   notice shows the ordinary upload state) or remove the block. */
-const stockImage = mediaSpec(defaultBlockSpecs.image, RASTER_MIMES)
-const image = {
-  ...stockImage,
-  config: { ...stockImage.config, propSchema: { ...stockImage.config.propSchema, reclaimedAt: { default: '' } } },
-  implementation: {
-    ...stockImage.implementation,
-    render: (function (block, editor) {
-      const reclaimedAt = (block.props as { reclaimedAt?: string }).reclaimedAt ?? ''
-      if (reclaimedAt === '' || block.props.url !== '') return stockImage.implementation.render.call(this, block, editor)
-      const dom = document.createElement('div')
-      dom.className = 'dana-reclaimed-image'
-      dom.contentEditable = 'false'
-      dom.setAttribute('role', 'group')
-      const date = new Date(reclaimedAt)
-      const message = document.createElement('p')
-      message.textContent = `This picture was deleted on ${Number.isNaN(date.getTime()) ? 'an earlier date' : date.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}.`
-      dom.setAttribute('aria-label', message.textContent)
-      dom.appendChild(message)
-      if (block.props.caption) {
-        const caption = document.createElement('p')
-        caption.className = 'dana-reclaimed-image-caption'
-        caption.textContent = block.props.caption
-        dom.appendChild(caption)
-      }
-      const actions = document.createElement('div')
-      const button = (label: string, run: () => void): void => {
-        const element = document.createElement('button')
-        element.type = 'button'
-        element.textContent = label
-        element.addEventListener('click', (event) => { event.preventDefault(); run() })
-        actions.appendChild(element)
-      }
-      button('Choose a new picture', () => { (editor as unknown as CanvasEditor).updateBlock(block.id, { props: { reclaimedAt: '' } }) })
-      button('Remove', () => { const canvas = editor as unknown as CanvasEditor; const own = canvas.getBlock(block.id); if (own) removeCanvasBlocks(canvas, [own]) })
-      dom.appendChild(actions)
-      return { dom }
-    }) as typeof stockImage.implementation.render,
-  },
+   notice shows the ordinary upload state) or remove the block. A picture had it
+   first; file, audio and video carry the same notice, and the adapter keeps
+   every reclaimed one in the saved document rather than dropping it. */
+type MediaRender = (this: unknown, block: { id: string; props: { url: string; caption?: string } }, editor: unknown) => { dom: HTMLElement }
+type WithReclaimedAt<T extends { config: { propSchema: object } }> = Omit<T, 'config'> & {
+  config: Omit<T['config'], 'propSchema'> & { propSchema: T['config']['propSchema'] & { reclaimedAt: { default: '' } } }
 }
+function withReclaimNotice<T extends { config: { propSchema: object } }>(spec: T, noun: string): WithReclaimedAt<T> {
+  const typed = spec as unknown as { config: { propSchema: Record<string, unknown> }; implementation: { render: MediaRender } }
+  const stockRender = typed.implementation.render
+  return {
+    ...typed,
+    config: { ...typed.config, propSchema: { ...typed.config.propSchema, reclaimedAt: { default: '' } } },
+    implementation: {
+      ...typed.implementation,
+      render: function (block, editor) {
+        const reclaimedAt = (block.props as { reclaimedAt?: string }).reclaimedAt ?? ''
+        if (reclaimedAt === '' || block.props.url !== '') return stockRender.call(this, block, editor)
+        const dom = document.createElement('div')
+        dom.className = 'dana-reclaimed-image'
+        dom.contentEditable = 'false'
+        dom.setAttribute('role', 'group')
+        const date = new Date(reclaimedAt)
+        const message = document.createElement('p')
+        message.textContent = `This ${noun} was deleted on ${Number.isNaN(date.getTime()) ? 'an earlier date' : date.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}.`
+        dom.setAttribute('aria-label', message.textContent)
+        dom.appendChild(message)
+        if (block.props.caption) {
+          const caption = document.createElement('p')
+          caption.className = 'dana-reclaimed-image-caption'
+          caption.textContent = block.props.caption
+          dom.appendChild(caption)
+        }
+        const actions = document.createElement('div')
+        const button = (label: string, run: () => void): void => {
+          const element = document.createElement('button')
+          element.type = 'button'
+          element.textContent = label
+          element.addEventListener('click', (event) => { event.preventDefault(); run() })
+          actions.appendChild(element)
+        }
+        button(`Choose a new ${noun}`, () => { (editor as CanvasEditor).updateBlock(block.id, { props: { reclaimedAt: '' } }) })
+        button('Remove', () => { const canvas = editor as CanvasEditor; const own = canvas.getBlock(block.id); if (own) removeCanvasBlocks(canvas, [own]) })
+        dom.appendChild(actions)
+        return { dom }
+      } satisfies MediaRender,
+    },
+  } as unknown as WithReclaimedAt<T>
+}
+
+const audio = withReclaimNotice(mediaSpec(defaultBlockSpecs.audio, AUDIO_MIMES), 'file')
+const video = withReclaimNotice(mediaSpec(defaultBlockSpecs.video, VIDEO_MIMES), 'file')
+const file = withReclaimNotice(defaultBlockSpecs.file, 'file')
+const image = withReclaimNotice(mediaSpec(defaultBlockSpecs.image, RASTER_MIMES), 'picture')
 
 /** Restricted vocabulary, projected to Dana records by the persistence adapter. */
 export const canvasSchema = BlockNoteSchema.create({
@@ -165,7 +176,7 @@ export const canvasSchema = BlockNoteSchema.create({
     callout: createCanvasCallout(),
     codeBlock: defaultBlockSpecs.codeBlock,
     image,
-    file: defaultBlockSpecs.file,
+    file,
     audio,
     video,
     danaTask: createCanvasTaskSpec(),

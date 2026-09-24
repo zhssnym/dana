@@ -18,7 +18,9 @@ import { startAuthTestApp } from '../support/auth-harness.js'
 import type { AuthTestApp } from '../support/auth-harness.js'
 import { Cast, createFolder, expectStatus } from '../support/folders-harness.js'
 import type { Actor } from '../support/folders-harness.js'
-import { at, compose, put, readPage } from '../support/workflow-page-harness.js'
+import { folderToWorkflowFile } from '../../src/shared/workflows.js'
+import type { PageView } from '../../src/shared/pages.js'
+import { asFile, at, compose, importWorkflowOk, put, readPage } from '../support/workflow-page-harness.js'
 
 let app: AuthTestApp
 const cast = new Cast(['owner'], 'ac1008')
@@ -69,5 +71,47 @@ describe('AC-1008 a diagram round-trips as its source', () => {
     const copyId = ((await copy.json()) as { id: string }).id
     const copied = (await readPage(owner, copyId)).blocks.filter((b) => b.kind === 'diagram')
     expect(copied.map((b) => b.text)).toEqual([SOURCE])
+  })
+
+  test('a diagram on the Purpose page survives a workflow export and import', async () => {
+    const [owner] = (await cast.of(app)) as [Actor]
+    const folderId = await createFolder(owner, 'ac1008 purpose map')
+    const purposeOf = async (id: string): Promise<string> => {
+      const listed = await owner.browser.json(`/folders/${id}/facets`, 'GET')
+      expectStatus(listed, 200, 'the owner lists the facets (7.27)')
+      const facet = (listed.json() as { facets: { id: string; kind: string }[] }).facets.find(
+        (f) => f.kind === 'purpose',
+      )
+      expect(facet, 'every Folder has a native Purpose facet').toBeDefined()
+      return facet!.id
+    }
+    const readPurpose = async (id: string, facetId: string): Promise<PageView> => {
+      const read = await owner.browser.json(`/folders/${id}/facets/${facetId}/page`, 'GET')
+      expectStatus(read, 200, 'the owner reads the Purpose page')
+      return read.json() as PageView
+    }
+    const facetId = await purposeOf(folderId)
+    const diagram = randomUUID()
+    const base = await readPurpose(folderId, facetId)
+    const saved = await owner.browser.json(`/folders/${folderId}/facets/${facetId}/page/actions`, 'POST', {
+      action: 'document_transaction',
+      mutation_id: randomUUID(),
+      base_revision: base.revision as string,
+      operations: [put(diagram, 'diagram', SOURCE), { op: 'set_outline', items: [at(diagram)] }],
+    })
+    expectStatus(saved, 200, 'a diagram saves on the Purpose page')
+    const purposePage = await readPurpose(folderId, facetId)
+    const page = await readPage(owner, folderId)
+    const exported = folderToWorkflowFile('ac1008 purpose map', [], page.blocks, page, [], {
+      display_name: null,
+      page: purposePage,
+    })
+    const blocks = exported.file.folders[0]?.purpose?.blocks ?? []
+    expect(blocks, 'the Purpose diagram is carried, not silently skipped').toEqual([
+      { kind: 'diagram', text: SOURCE },
+    ])
+    const importedId = await importWorkflowOk(owner, asFile(exported))
+    const imported = await readPurpose(importedId, await purposeOf(importedId))
+    expect(imported.blocks.map((b) => [b.kind, b.text])).toEqual([['diagram', SOURCE]])
   })
 })

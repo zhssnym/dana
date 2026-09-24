@@ -60,6 +60,9 @@ export function hydrateCanvas(page: PageView, columnWidth: number): CanvasInput[
     block: PageView['blocks'][number],
   ): Record<string, string | number | boolean | undefined> => ({
     url: block.file_id ? `/api/v1/files/${block.file_id}` : '',
+    // A stored file/audio/video with no file was reclaimed (7.19): keep it as a
+    // notice, never as the empty upload placeholder the save drops.
+    reclaimedAt: block.file_id ? '' : block.file_reclaimed_at ?? 'earlier',
     name: block.kind === 'file' ? (block.file_name ?? 'File') : '',
     caption: '',
     showPreview: true,
@@ -341,15 +344,22 @@ export function dehydrateCanvas(
         (block.type === 'file' ||
           block.type === 'audio' ||
           block.type === 'video') &&
-        block.props.url === ''
+        block.props.url === '' &&
+        ((block.props as { reclaimedAt?: string }).reclaimedAt ?? '') === ''
 
       /*
        * File/audio/video are invalid on the wire without a file id. Their
        * empty editor block is only the local file-picker placeholder, so do
        * not put it in the durable outline until a file has actually uploaded.
        * Image is different by contract: an empty image placeholder is allowed.
+       * A reclaimed one (file deleted, `reclaimedAt` set) is not a placeholder:
+       * it is saved back as the server holds it, file_id null, so it is never
+       * deleted by the next autosave. Either way its children are kept.
        */
-      if (unuploadedRequiredMedia) continue
+      if (unuploadedRequiredMedia) {
+        visit(block.children, sectionParent, null)
+        continue
+      }
 
       result.items.push({
         kind: task ? 'task' : 'block',
