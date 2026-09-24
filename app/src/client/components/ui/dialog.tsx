@@ -33,7 +33,7 @@ function DialogContent({ className, ...props }: DialogPrimitive.Popup.Props) {
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 w-[min(420px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 rounded-lg bg-popover p-5 text-sm text-popover-foreground shadow-md outline-none motion-float",
+          "fixed top-1/2 left-1/2 z-50 w-[min(420px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 rounded-xl bg-popover p-5 text-sm text-popover-foreground shadow-md outline-none motion-float",
           className,
         )}
         {...props}
