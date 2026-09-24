@@ -224,7 +224,9 @@ recurring" on a Folder and on each of its Sections.
 `recurrence_rule` is null. Every occurrence of a recurring Task is its own row
 (8.4 generates a successor on completion), so counting them would grow the
 denominator forever; they are left out of it and reported apart as
-`recurring_active`, the recurring occurrences still pending. Abandoned Tasks
+`recurring_active`, the recurring occurrences still pending. A completed
+occurrence has handed its rule to its successor (8.5) and is known by the
+`series_id` it keeps; it counts nowhere. Abandoned Tasks
 sit in neither `done` nor `total`, as `counts` already treats them (8.11), and
 trashed Tasks count nowhere.
 

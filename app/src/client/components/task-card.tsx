@@ -40,9 +40,11 @@ import {
   Plus,
   Repeat2,
   UserRound,
+  Workflow,
   X,
   type LucideIcon,
 } from "../lib/icons.js"
+import { TaskDependencies } from "./task-dependencies.js"
 import { useEffect, useRef, useState, type ReactNode } from "react"
 
 import {
@@ -2086,6 +2088,17 @@ export function TaskCard({
       />
 
       {order.map((key) => blocks[key])}
+
+      {/* #225: absent-looking until used; `task-dependencies.tsx` carries why. */}
+      <TaskDependencies
+        taskId={task.id}
+        folderId={task.folder?.id}
+        section={(badge, body) => (
+          <Disclosure icon={Workflow} label="Dependencies" badge={badge}>
+            {body}
+          </Disclosure>
+        )}
+      />
 
       {/* Comments, pinned after the content blocks and outside their order.
           Steps, Notes and Attachments are what the task IS and may be arranged;

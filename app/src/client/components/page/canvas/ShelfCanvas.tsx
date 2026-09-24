@@ -28,6 +28,7 @@ import '@blocknote/shadcn/style.css'
 
 import type { PageView } from '../../../../shared/pages.js'
 import { getPageResponse } from '../../../../shared/pages.js'
+import { AUDIO_MIMES, RASTER_MIMES, VIDEO_MIMES } from '../../../../shared/files.js'
 import { getPlain, mutateApi, uploadFile } from '../../../api/http.js'
 import { queryKeys } from '../../../api/keys.js'
 import { FolderPlus, Plus } from '../../../lib/icons.js'
@@ -37,6 +38,7 @@ import { cn } from '../../ui/utils.js'
 import { markIcon } from '../icon-manifest.js'
 import { CanvasErrorBoundary } from './CanvasErrorBoundary.js'
 import { CanvasFolderProvider } from './CanvasFolder.js'
+import type { CanvasMediaKind, CanvasUploadedFile } from './CanvasFilePanel.js'
 import type { CanvasFolderRow } from './CanvasFolder.js'
 import { CanvasSurface } from './CanvasSurface.js'
 import { canvasSchema } from './schema.js'
@@ -140,19 +142,26 @@ function ShelfEditor({ shelfId, page, initialPage, folders, addableFolders, fold
     return [...drawn, ...missing]
   }, [initialPage, width])
 
+  // A Shelf is nobody's Folder: its media is the person's own (7.15, #220).
+  async function uploadCanvasFile(kind: CanvasMediaKind, file: File): Promise<CanvasUploadedFile> {
+    try {
+      const uploaded = await uploadFile(kind, null, file)
+      return { url: `/api/v1/files/${uploaded.id}`, name: file.name }
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : 'The file could not be uploaded. Try again.')
+      throw failure
+    }
+  }
   const editor = useCreateBlockNote({
     schema: canvasSchema,
     initialContent: initial.length ? initial : [{ id: crypto.randomUUID(), type: 'paragraph', content: '' }],
     pasteHandler: ({ editor: current, event, defaultPasteHandler }) => pasteIntoCanvas(current, event, setError) ?? defaultPasteHandler({ plainTextAsMarkdown: false }),
     uploadFile: async (file) => {
-      try {
-        // A Shelf is nobody's Folder: its picture is the person's own (7.15).
-        const uploaded = await uploadFile('image', null, file)
-        return { url: `/api/v1/files/${uploaded.id}`, name: file.name }
-      } catch (failure) {
-        setError(failure instanceof Error ? failure.message : 'The image could not be uploaded. Try again.')
-        throw failure
-      }
+      const mime = file.type
+      const kind: CanvasMediaKind = (RASTER_MIMES as readonly string[]).includes(mime) ? 'image'
+        : (AUDIO_MIMES as readonly string[]).includes(mime) ? 'audio'
+          : (VIDEO_MIMES as readonly string[]).includes(mime) ? 'video' : 'file'
+      return uploadCanvasFile(kind, file)
     },
   })
   const projection = (current: readonly CanvasBlock[]): CanvasDocument => flat(dehydrateCanvas(current, width, NO_REFS))
@@ -202,6 +211,12 @@ function ShelfEditor({ shelfId, page, initialPage, folders, addableFolders, fold
   // The Folder-row guard. Runs beside the canvas's own (`installCanvasGuard`).
   useEffect(() => editor.onBeforeChange(({ tr }) => {
     if (!tr.docChanged) return
+    const nested = (blocks: readonly OutlineBlock[]): boolean => blocks.some((block) =>
+      (block.type !== 'heading' && block.children.length > 0) || nested(block.children))
+    if (nested(fragmentToBlocks<typeof canvasSchema.blockSchema, typeof canvasSchema.inlineContentSchema, typeof canvasSchema.styleSchema>(tr.doc.content))) {
+      setNotice('A shelf keeps its lists flat: nested list items are not supported here.')
+      return false
+    }
     const before = folderIdsOf(fragmentToBlocks<typeof canvasSchema.blockSchema, typeof canvasSchema.inlineContentSchema, typeof canvasSchema.styleSchema>(tr.before.content))
     const after = folderIdsOf(fragmentToBlocks<typeof canvasSchema.blockSchema, typeof canvasSchema.inlineContentSchema, typeof canvasSchema.styleSchema>(tr.doc.content))
     const had = new Set(before)
@@ -320,6 +335,7 @@ function ShelfEditor({ shelfId, page, initialPage, folders, addableFolders, fold
         folderRefs={NO_REFS}
         label="Shelf writing and folders"
         flatGroups
+        onUploadFile={uploadCanvasFile}
         onRemoveFolder={(folderId) => { void remove(folderId) }}
         extraSlashItems={[folderSlash]}
       />
