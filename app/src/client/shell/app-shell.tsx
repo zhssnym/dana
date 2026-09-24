@@ -53,7 +53,6 @@ import { PanelLeft, RefreshCw, Search } from '../lib/icons.js'
 import { ApiError } from '../api/http.js'
 import {
   useCreateFolder,
-  useImportWorkflowFile,
   usePatchBundle,
   useUpdateMyMembership,
 } from '../api/mutations.js'
@@ -83,14 +82,13 @@ import { InviteGate } from '../pages/InviteGate.js'
 import { useUpdateAffordance } from '../pwa/useUpdateAffordance.js'
 import { paths } from '../routes.js'
 import { ToastRegion } from '../state/ToastRegion.js'
-import { showToast } from '../state/toasts.js'
 import { AppSidebar } from './app-sidebar.js'
 import { useFolderGroupActions } from './folder-groups.js'
 import { OfflineBanner } from './OfflineBanner.js'
 import { UndoBar } from '../components/undo-bar.js'
 import { useAppearance } from './appearance.js'
 import { signOut } from './session.js'
-import { prepareWorkflowImport } from './workflow-import.js'
+import { useWorkflowFileImport } from './workflow-import.js'
 import { mirroredTheme } from '../lib/theme.js'
 import { onOpenNewFolder, openSearch } from './overlays.js'
 import { useModalOpen, useRightEdge } from '../components/right-edge.js'
@@ -121,10 +119,6 @@ const NO_FOLDERS: readonly Folder[] = []
 /** And for the shelves the Library reads. */
 const NO_SHELVES: readonly Shelf[] = []
 
-/* What 9.1's Import says when the file is not a workflow at all. Section 9
-   names no string for this, so it is this file's, written in the register the
-   other client-side refusals use: what happened, and nothing about JSON. */
-const WORKFLOW_UNREADABLE = "That file isn't a workflow Dana can read."
 
 /** 10.6's update copy, transcribed. AC-100 addresses it by this name. */
 const UPDATE_AVAILABLE = 'Update available, reload'
@@ -257,73 +251,9 @@ export function AppShell(): React.JSX.Element {
     },
   )
 
-  /*
-  9.1's "Import (a workflow file)", the footer's third act, wired here because
-  the mutation belongs to the shell and the control belongs to the sidebar.
-
-  **The envelope is the client's and every field and cap is the server's.**
-  JSON that is not recognisably a Dana workflow is refused here. Everything
-  inside that envelope reaches 7.16, including an over-cap title or malformed
-  repeat, so its existing 422 can name the field instead of this surface
-  misidentifying an honest file as unreadable.
-  */
-  const importWorkflow = useImportWorkflowFile()
-  const importFile = (file: File): void => {
-    void file.text().then(
-      (text) => {
-        let parsed: unknown
-        try {
-          parsed = JSON.parse(text)
-        } catch {
-          showToast(WORKFLOW_UNREADABLE)
-          return
-        }
-        const taken = new Set((folders.data ?? []).map((folder) => folder.name))
-        const prepared = prepareWorkflowImport(parsed, taken)
-        if (prepared === null) {
-          showToast(WORKFLOW_UNREADABLE)
-          return
-        }
-        importWorkflow.mutate(prepared.body, {
-          onSuccess: (made) => {
-            const first = made.folders[0]
-            const success =
-              made.folders.length === 1 && first !== undefined
-                ? `Imported "${first.name}" with ${String(prepared.taskCount)} task${prepared.taskCount === 1 ? '' : 's'}`
-                : `Imported ${String(made.folders.length)} folders with ${String(prepared.taskCount)} task${prepared.taskCount === 1 ? '' : 's'}`
-            /*
-            What the file itself recorded as left behind (#185).
-
-            **This is a different sentence from the one above it and is not
-            folded into it.** "Some unsupported content was skipped" is about
-            what *this* import could not read. A placeholder is a loss the
-            export already made deliberately and wrote down: the person who
-            saved the file was told at the time, and the person importing it is
-            usually somebody else who was told nothing. Reading the placeholders
-            and saying nothing would waste the only thing they are for.
-
-            The wording is the export toast's: a `folder_ref` is in this count
-            because it names a `folders` row of the account that wrote the file,
-            exactly as a picture names a `files` row.
-            */
-            const left =
-              prepared.omittedCount === 0
-                ? ''
-                : ` ${String(prepared.omittedCount)} ${prepared.omittedCount === 1 ? 'picture, file or folder link was' : 'pictures, files or folder links were'} not included in this file.`
-            showToast(
-              prepared.skippedContent
-                ? `${success}. Some unsupported content was skipped.${left}`
-                : `${success}${left === '' ? '' : `.${left}`}`,
-            )
-            if (first !== undefined) void navigate(paths.folder(first.id))
-          },
-        })
-      },
-      () => {
-        showToast(WORKFLOW_UNREADABLE)
-      },
-    )
-  }
+  /* 9.1's "Import (a workflow file)": the whole flow, progress line to landing
+     on the imported folder, is `workflow-import.ts`'s. */
+  const importFile = useWorkflowFileImport()
 
   // 9.1's two view preferences, read once at the first render so the sidebar
   // paints at the width the viewer left it at rather than jumping to it.

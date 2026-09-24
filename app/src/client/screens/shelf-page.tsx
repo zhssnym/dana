@@ -12,11 +12,12 @@ The shelf page, bound through the adapter seam. What is worth knowing:
 - **The header is two rows**: mark, name and the one "…" menu; then the
   description. No Add cover control and no activity line: a cover already
   chosen still draws, and what happened to the shelf is the menu's History.
-- **`InlineInput`'s rename commits on Enter as well as blur**, 9.10's inline
+- **Rename lives in the title only**: no "Rename shelf" in either menu.
+  `InlineInput`'s rename commits on Enter as well as blur, 9.10's inline
   rename being what AC-203 and the sidebar dialog both expect of a field.
 */
 
-import { useRef, useState } from "react"
+import { useState } from "react"
 import type { ReactNode } from "react"
 
 import { IconPicker as FolderIconPicker } from "../components/page/IconPicker.js"
@@ -66,9 +67,6 @@ export function ShelfPage({
   const Mark = markIcon(identity.glyph ?? null)
 
   const [historyOpen, setHistoryOpen] = useState(false)
-  /* Rename is a field on this page, so the menu item puts the cursor in it,
-     the same arrangement the folder page uses. */
-  const renameRef = useRef<HTMLInputElement>(null)
 
   return (
     <div className="flex min-h-full w-full max-w-[720px] flex-col">
@@ -114,7 +112,6 @@ export function ShelfPage({
           </Popover>
 
           <InlineInput
-            ref={renameRef}
             key={name}
             defaultValue={name}
             aria-label="Shelf name"
@@ -142,7 +139,6 @@ export function ShelfPage({
             width="w-52"
             handlers={{
               history: () => setHistoryOpen(true),
-              rename: () => renameRef.current?.focus(),
               "copy-link": onCopyLink,
               duplicate: onDuplicate,
               workflow: onSaveWorkflow,
