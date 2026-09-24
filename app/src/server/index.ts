@@ -796,16 +796,23 @@ export function createApp(options: AppOptions = {}): express.Express {
     so the landing page never draws for someone with a session (issue #326).
     Ahead of express.static, which would otherwise answer / with index.html. A
     query string keeps the page, as the client's own check does. no-store, so
-    no browser keeps the 302 past a sign-out.
+    no browser keeps the 302 past a sign-out, and a failed session lookup
+    serves the page rather than a 500: / is public.
     */
     if (options.dbClient !== undefined) {
       const attach = attachSession(options.dbClient.db)
-      app.get('/', attach, (req: Request, res: Response, next: NextFunction) => {
-        if (sessionOf(req) === undefined || req.originalUrl !== '/') {
+      app.get('/', (req: Request, res: Response, next: NextFunction) => {
+        if (req.originalUrl !== '/') {
           next()
           return
         }
-        res.set('Cache-Control', 'no-store').redirect(302, '/app')
+        attach(req, res, (error?: unknown) => {
+          if (error === undefined && sessionOf(req) !== undefined) {
+            res.set('Cache-Control', 'no-store').redirect(302, '/app')
+            return
+          }
+          next()
+        })
       })
     }
     app.use(express.static(options.clientDist))
