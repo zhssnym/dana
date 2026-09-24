@@ -31,7 +31,7 @@ editor never writes it.
 */
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { BlockNoteSchema, createHeadingBlockSpec, defaultBlockSpecs, defaultInlineContentSpecs, defaultStyleSpecs } from '@blocknote/core'
+import { BlockNoteSchema, createExtension, createHeadingBlockSpec, defaultBlockSpecs, defaultInlineContentSpecs, defaultStyleSpecs } from '@blocknote/core'
 import type { PartialBlock } from '@blocknote/core'
 import { en } from '@blocknote/core/locales'
 import { BlockNoteView } from '@blocknote/shadcn'
@@ -52,6 +52,7 @@ import type { CanvasMediaKind } from './CanvasFilePanel.js'
 import { baselineOf, contentOf, richRuns } from './adapters.js'
 import type { CanvasDocument, CanvasRecord } from './adapters.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
+import { openByDefault, toggleClosed } from './schema.js'
 import { danaLinkInlineSpec } from '../../links/dana-link-chip.js'
 import { DanaLinkSuggestions } from '../../links/dana-link-picker.js'
 import { CanvasSlashMenu, blockMenuTargets } from './slash-items.js'
@@ -66,11 +67,28 @@ import type { TreeBlock } from './turn-into.js'
 import { validateCanvasOutline } from './outline.js'
 import './canvas.css'
 
-/* A toggle heading opens by default, like the Folder canvas's toggles, so what
-   is written under it shows; the fold is kept per block in `toggle-<id>`. */
+/* A toggle heading opens by default and keeps its fold as the Folder canvas's
+   toggles do (`openByDefault`, `toggle-<id>`), and Enter at the end of an open
+   one starts its first child, as in Notion. */
 const stockHeading = createHeadingBlockSpec({ levels: [1, 2, 3], defaultLevel: 1, allowToggleHeadings: true })
 const taskHeading = {
   ...stockHeading,
+  extensions: [...(stockHeading.extensions ?? []), createExtension({
+    key: 'task-toggle-heading-enter',
+    keyboardShortcuts: {
+      Enter: ({ editor }) => {
+        const { selection } = editor.prosemirrorState
+        const block = editor.getTextCursorPosition().block
+        if (block.type !== 'heading' || block.props.isToggleable !== true || toggleClosed(block.id) || !selection.empty || selection.$from.parentOffset !== selection.$from.parent.content.size) return false
+        const id = crypto.randomUUID()
+        editor.transact(() => {
+          editor.updateBlock(block, { children: [{ id, type: 'paragraph', content: '' }, ...block.children] })
+          editor.setTextCursorPosition(id)
+        })
+        return true
+      },
+    },
+  })],
   config: {
     ...stockHeading.config,
     propSchema: { ...stockHeading.config.propSchema, presentation: { default: false } },
@@ -78,10 +96,7 @@ const taskHeading = {
   implementation: {
     ...stockHeading.implementation,
     render: (function (block, editor) {
-      try {
-        if (block.props.isToggleable === true && window.localStorage.getItem(`toggle-${block.id}`) === null) window.localStorage.setItem(`toggle-${block.id}`, 'true')
-      } catch { /* preference storage can be unavailable */ }
-      return stockHeading.implementation.render.call(this, block, editor)
+      return openByDefault(block.id, () => stockHeading.implementation.render.call(this, block, editor))
     }) as typeof stockHeading.implementation.render,
   },
 }

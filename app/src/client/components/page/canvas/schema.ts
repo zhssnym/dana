@@ -29,10 +29,10 @@ needs no key: the key is seeded for upstream's render and removed after it,
 and only closed toggles ('false') stay stored. Storage can be blocked, which
 reads as open.
 */
-function toggleClosed(id: string): boolean {
+export function toggleClosed(id: string): boolean {
   try { return window.localStorage.getItem(`toggle-${id}`) === 'false' } catch { return false }
 }
-function openByDefault<T>(id: string, render: () => T): T {
+export function openByDefault<T>(id: string, render: () => T): T {
   const key = `toggle-${id}`
   try { if (window.localStorage.getItem(key) === null) window.localStorage.setItem(key, 'true') } catch { /* storage unavailable */ }
   const result = render()
