@@ -42,6 +42,7 @@ vi.mock('./CanvasMarquee.js', () => ({ CanvasMarquee: () => null }))
 vi.mock('./CanvasTask.js', () => ({ useCanvasTaskDelete: () => null }))
 vi.mock('./slash-items.js', async (importOriginal) => ({ ...(await importOriginal<object>()), CanvasSlashMenu: () => null }))
 vi.mock('./guard.js', () => ({ installCanvasGuard: () => () => {} }))
+vi.mock('./mentions.js', () => ({ MentionSuggestions: () => null }))
 vi.mock('./commands.js', () => ({
   bindTaskCommand: () => () => {},
   headingOneContext: () => undefined,

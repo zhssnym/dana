@@ -13,6 +13,7 @@ import { createCanvasParagraph } from './CanvasParagraph.js'
 import { createCanvasDiagramSpec } from './CanvasDiagram.js'
 import { createTaskAtCursor, removeCanvasBlocks, removeEmptyBeforeHeading } from './commands.js'
 import { danaLinkInlineSpec } from '../../links/dana-link-chip.js'
+import { mentionInlineSpec } from './mentions.js'
 import { canvasMarkdownShortcuts, withoutInputRules } from './markdown.js'
 
 // The vocabulary only, derived from the one ceiling rather than restated beside it.
@@ -247,7 +248,7 @@ export const canvasSchema = BlockNoteSchema.create({
     diagram: createCanvasDiagramSpec(),
   },
   // A Dana Link (#223) is a chip; `adapters.ts` stores it as an href run.
-  inlineContentSpecs: { ...defaultInlineContentSpecs, danaLink: danaLinkInlineSpec },
+  inlineContentSpecs: { ...defaultInlineContentSpecs, danaLink: danaLinkInlineSpec, mention: mentionInlineSpec },
   styleSpecs: { bold: defaultStyleSpecs.bold, italic: defaultStyleSpecs.italic },
 })
 

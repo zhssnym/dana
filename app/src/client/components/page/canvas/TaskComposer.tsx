@@ -49,7 +49,7 @@ import { baselineOf, contentOf, richRuns } from './adapters.js'
 import type { CanvasDocument, CanvasRecord } from './adapters.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
 import { danaLinkInlineSpec } from '../../links/dana-link-chip.js'
-import { DanaLinkSuggestions } from '../../links/dana-link-picker.js'
+import { MentionSuggestions, mentionInlineSpec } from './mentions.js'
 import { CanvasSlashMenu, blockMenuTargets } from './slash-items.js'
 import { CanvasWriter } from './saving.js'
 import { NOT_SAVED, RecoveryNotice, SaveFailure } from './SaveFailure.js'
@@ -77,7 +77,7 @@ export const taskSchema = BlockNoteSchema.create({
   },
   // Dana Link chips (#223): a Task document is a backlink source, and chips
   // are written back as href runs by `richRuns`, as on the Folder canvas.
-  inlineContentSpecs: { ...defaultInlineContentSpecs, danaLink: danaLinkInlineSpec },
+  inlineContentSpecs: { ...defaultInlineContentSpecs, danaLink: danaLinkInlineSpec, mention: mentionInlineSpec },
   styleSpecs: { bold: defaultStyleSpecs.bold, italic: defaultStyleSpecs.italic },
 })
 type TaskBlock = typeof taskSchema.Block
@@ -383,7 +383,7 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
         {folderId === null ? null : <FilePanelController filePanel={(props) => <CanvasFilePanel {...props} onUpload={(kind: CanvasMediaKind, file: File) => upload(kind, folderId, file)} />} />}
         <SideMenuController sideMenu={BlockSideMenu} floatingUIOptions={blockSidePosition} />
         <CanvasSlashMenu editor={editor as unknown as CanvasEditor} context={{ surface: 'task', media: folderId !== null }} />
-        <DanaLinkSuggestions editor={editor as unknown as CanvasEditor} />
+        <MentionSuggestions editor={editor as unknown as CanvasEditor} folderId={folderId} />
         <CanvasMarquee />
       </BlockNoteView>
       <div aria-hidden="true" className="dana-canvas-tail dana-canvas-tail-short" onMouseDown={writeBelow} />

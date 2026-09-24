@@ -831,6 +831,47 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
       { name: 'notifications_unread_idx', unique: false, columns: ['user_id'], partial: true },
     ],
   },
+  /* Migration 0041 (Wave 2, W-D): one row per (source, person) told about an
+     @mention, so a re-save never notifies twice. */
+  mention_notices: {
+    primaryKey: { name: 'mention_notices_pkey', columns: ['id'] },
+    uniques: [],
+    checks: [
+      { name: 'mention_notices_one_source_check', columns: ['block_id', 'comment_id'] },
+    ],
+    foreignKeys: [
+      {
+        name: 'mention_notices_block_id_fkey',
+        columns: ['block_id'],
+        references: { table: 'page_blocks', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+      {
+        name: 'mention_notices_comment_id_fkey',
+        columns: ['comment_id'],
+        references: { table: 'comments', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+      {
+        name: 'mention_notices_event_id_fkey',
+        columns: ['event_id'],
+        references: { table: 'events', columns: ['id'] },
+        onDelete: 'set null',
+      },
+      {
+        name: 'mention_notices_user_id_fkey',
+        columns: ['user_id'],
+        references: { table: 'users', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+    ],
+    indexes: [
+      { name: 'mention_notices_block_user_idx', unique: true, columns: ['block_id', 'user_id'], partial: true },
+      { name: 'mention_notices_comment_user_idx', unique: true, columns: ['comment_id', 'user_id'], partial: true },
+      { name: 'mention_notices_event_id_idx', unique: false, columns: ['event_id'], partial: true },
+      { name: 'mention_notices_user_id_idx', unique: false, columns: ['user_id'], partial: false },
+    ],
+  },
   comments: {
     primaryKey: { name: 'comments_pkey', columns: ['id'] },
     uniques: [],

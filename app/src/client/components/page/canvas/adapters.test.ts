@@ -7,7 +7,7 @@ skipped media block may take its children with it.
 import { describe, expect, test } from 'vitest'
 
 import type { PageView } from '../../../../shared/pages.js'
-import { canvasOperations, dehydrateCanvas, documentOf, hydrateCanvas } from './adapters.js'
+import { canvasOperations, contentOf, dehydrateCanvas, documentOf, hydrateCanvas, richRuns } from './adapters.js'
 import type { CanvasBlock } from './schema.js'
 
 const FILE = '11111111-1111-4111-8111-111111111111'
@@ -45,5 +45,18 @@ describe('reclaimed media survives autosave', () => {
     const after = dehydrateCanvas(blocks, 600, new Map())
     expect(after.items.map((item) => item.id)).toEqual([TEXT])
     expect(after.blocks.map((block) => block.id)).toEqual([TEXT])
+  })
+})
+
+/* Wave 2 (W-D), data loss: a person mention is its own run, and text typed
+   after it must not be folded into it (it would become part of the name and
+   leave the paragraph). */
+describe('a person mention round-trips as its own run', () => {
+  test('text after a mention stays outside it', () => {
+    const person = '33333333-3333-4333-8333-333333333333'
+    const stored = { version: 1 as const, runs: [{ text: 'Over to ' }, { text: '@Bilal Khan', mention: { user_id: person } }, { text: ' today' }] }
+    const content = contentOf('Over to @Bilal Khan today', stored)
+    expect(Array.isArray(content) && content[1]).toEqual({ type: 'mention', props: { userId: person, label: '@Bilal Khan' } })
+    expect(richRuns({ content } as unknown as CanvasBlock)).toEqual(stored.runs)
   })
 })

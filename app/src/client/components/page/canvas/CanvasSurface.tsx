@@ -27,7 +27,7 @@ import { BlockSelectionStyle, useBlockAnchor, useBlockSelectionKeys } from './bl
 import { backspaceToText, contains, simulateNest, TEXT_TYPES, TURN_TARGETS } from './turn-into.js'
 import type { TreeBlock } from './turn-into.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
-import { DanaLinkSuggestions } from '../../links/dana-link-picker.js'
+import { MentionSuggestions } from './mentions.js'
 import { useCanvasTaskDelete } from './CanvasTask.js'
 import './canvas.css'
 
@@ -54,6 +54,7 @@ export function CanvasSurface({
   onRemoveFolder,
   flatGroups = false,
   placeholder,
+  peopleFolderId,
   onNotice,
 }: {
   readonly editor: CanvasEditor
@@ -75,6 +76,8 @@ export function CanvasSurface({
   /** What an empty page says (see canvas.css: BlockNote's own placeholder
    * decoration does not reach Dana's paragraph node view). */
   readonly placeholder?: string
+  /** Whose members the `@` menu offers (Wave 2); none offers pages only. */
+  readonly peopleFolderId?: string
   /** Where a refused gesture's sentence goes: the page's one save line
    * (`SaveFailure`), so a canvas never draws a second status line. */
   readonly onNotice: (message: string) => void
@@ -216,7 +219,7 @@ export function CanvasSurface({
         />
         <SideMenuController sideMenu={BlockSideMenu} floatingUIOptions={blockSidePosition} />
         <CanvasSlashMenu editor={editor} context={slashContext} />
-        {editable ? <DanaLinkSuggestions editor={editor} /> : null}
+        {editable ? <MentionSuggestions editor={editor} folderId={peopleFolderId} /> : null}
         <CanvasMarquee />
       </BlockNoteView>
       {editable ? <div aria-hidden="true" className="dana-canvas-tail" onMouseDown={writeBelow} /> : null}

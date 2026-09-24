@@ -6,7 +6,7 @@ import type { CanvasBlock, canvasSchema } from './schema.js'
 import { danaLinkOf } from '../../links/dana-link.js'
 
 export type CanvasInput = PartialBlock<typeof canvasSchema.blockSchema, typeof canvasSchema.inlineContentSchema, typeof canvasSchema.styleSchema>
-export interface RichRun { text: string; bold?: boolean; italic?: boolean; href?: string }
+export interface RichRun { text: string; bold?: boolean; italic?: boolean; href?: string; mention?: { user_id: string } }
 export interface CanvasRecord {
   id: string
   block_kind: PageBlockKind
@@ -31,6 +31,7 @@ export function contentOf(text: string | null, rich?: { version: 1; runs: RichRu
     const node = { type: 'text' as const, text: run.text, styles: { ...(run.bold ? { bold: true } : {}), ...(run.italic ? { italic: true } : {}) } }
     // A run whose href is a Dana Link draws as a live chip (#223); its text
     // rides along as the label a save writes back.
+    if (run.mention) return { type: 'mention' as const, props: { userId: run.mention.user_id, label: run.text } }
     if (run.href && danaLinkOf(run.href) !== null) return { type: 'danaLink' as const, props: { href: run.href, label: run.text } }
     return run.href ? { type: 'link' as const, href: run.href, content: [node] } : node
   })
@@ -265,13 +266,15 @@ export function richRuns(block: CanvasBlock): RichRun[] {
       if (!text) return
       const run: RichRun = { text, ...(styles.bold ? { bold: true } : {}), ...(styles.italic ? { italic: true } : {}), ...(href ? { href } : {}) }
       const last = runs.at(-1)
-      if (last && last.bold === run.bold && last.italic === run.italic && last.href === run.href) last.text += text
+      if (last && last.mention === undefined && last.bold === run.bold && last.italic === run.italic && last.href === run.href) last.text += text
       else runs.push(run)
     }
     if (inline.type === 'text') append(inline.text, inline.styles)
     else if (inline.type === 'link') for (const text of inline.content) append(text.text, text.styles, inline.href)
     // Its own run, never merged into a neighbour, so two chips stay two.
     else if (inline.type === 'danaLink') runs.push({ text: inline.props.label || 'Link', href: inline.props.href })
+    // A person mention (Wave 2): its own run, like a chip.
+    else if (inline.type === 'mention' && inline.props.userId) runs.push({ text: inline.props.label || '@', mention: { user_id: inline.props.userId } })
   }
   return runs
 }

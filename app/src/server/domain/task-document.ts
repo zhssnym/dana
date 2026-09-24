@@ -49,6 +49,7 @@ import type { Executor } from '../database.js'
 import { documentHash } from './document-hash.js'
 import { fileReclaimedAt } from './pages.js'
 import { initialKeys } from './fractional-index.js'
+import { syncMentions } from './mentions.js'
 
 /** 4.17's paragraph ceiling and 4.5's notes ceiling, in code points, which is
  * what Postgres's `char_length` counts. */
@@ -502,6 +503,7 @@ export async function applyTaskDocumentLocked(
            WHERE page_blocks.task_id = ${taskId}::uuid`,
     )
   }
+  await syncMentions(tx, { pageFolderId: folderId, actorId: viewerId, blockIds: writes.keys(), refuse: (m) => new TaskDocumentRefusal('invalid', m, 'rich_content') })
   const keys = initialKeys(outline.length)
   for (const [index, item] of outline.entries()) {
     await tx.execute(
