@@ -58,7 +58,8 @@ export function FocusGroup({
     },
   })
   return (
-    <SidebarGroup className="px-2 pt-(--space-group) pb-0">
+    /* The sidebar's first group: it starts at the top, with no gap above it. */
+    <SidebarGroup className="px-2 pt-0 pb-0">
       <div className="flex h-(--shell-sidebar-row-height) items-center pr-1 pl-2">
         <h2 className="min-w-0 flex-1 truncate text-xs font-medium text-muted-foreground">Focus</h2>
         {offers.length === 0 ? null : (
