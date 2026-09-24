@@ -2,7 +2,7 @@
    halfway through. The sensor reads indoors; next it goes outside. */
 import type { SampleFolder } from '../content.js'
 
-const STATION = 'Balcony weather station'
+const STATION = 'Weather station'
 const SHIELD = 'Radiation shield'
 
 const station: SampleFolder = {

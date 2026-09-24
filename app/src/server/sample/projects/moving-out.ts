@@ -1,10 +1,10 @@
-/* Move into my own flat: Maya leaves the flat she shares with Sara on
+/* Moving out: Maya leaves the flat she shares with Sara on
    Hornsgatan for a one-room flat of her own in Midsommarkransen. The shared
    lease ends in three weeks, so everything here runs to that date. */
 import type { SampleFolder } from '../content.js'
 
 const MOVING: SampleFolder = {
-  name: 'Move into my own flat',
+  name: 'Moving out',
   icon: 'house',
   color: '#C8893A',
   cover: 'colour-yellow',
@@ -234,7 +234,7 @@ const MOVING: SampleFolder = {
 
 const VIEWINGS: SampleFolder = {
   name: 'Flat viewings',
-  parent: 'Move into my own flat',
+  parent: 'Moving out',
   icon: 'key',
   color: '#C8893A',
   description: 'The three flats I saw, and why I chose Tellusborgsvägen.',
@@ -275,7 +275,7 @@ const VIEWINGS: SampleFolder = {
 
 const MOVE_DAY: SampleFolder = {
   name: 'Move day',
-  parent: 'Move into my own flat',
+  parent: 'Moving out',
   icon: 'truck',
   color: '#C8893A',
   description: 'Saturday: one van, four people, two trips.',

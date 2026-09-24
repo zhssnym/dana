@@ -1,7 +1,7 @@
 /* Maya's race: the Stockholm half marathon, trained for over twelve weeks. */
 import type { SampleFolder } from '../content.js'
 
-const RACE = 'Run the Stockholm half marathon'
+const RACE = 'Half marathon'
 const RACE_WEEK = 'Race week'
 
 export const HALF_MARATHON: readonly SampleFolder[] = [

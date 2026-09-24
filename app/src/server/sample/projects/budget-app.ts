@@ -3,7 +3,7 @@
 import type { SampleFolder } from '../content.js'
 import { WEEKLY } from './helpers.js'
 
-const POCKET = 'Ship Pocket, a tiny budgeting app'
+const POCKET = 'Pocket app'
 
 export const BUDGET_APP: readonly SampleFolder[] = [
   {

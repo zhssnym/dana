@@ -1,8 +1,8 @@
-/* Sara's 30th: a surprise weekend on Utö, planned with Lucía. Sara is not a
+/* Sara's 30th on Utö, planned with Lucía. Sara is not a
    member: the whole page is a secret from her. */
 import type { SampleFolder } from '../content.js'
 
-const NAME = "Sara's 30th: a surprise weekend"
+const NAME = "Sara's 30th"
 const SCHEDULE = 'Weekend schedule'
 
 const TOP: SampleFolder = {

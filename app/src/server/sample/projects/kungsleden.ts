@@ -2,7 +2,7 @@
 import type { SampleFolder } from '../content.js'
 
 const kungsleden: SampleFolder = {
-  name: 'Hike the Kungsleden',
+  name: 'Kungsleden hike',
   icon: 'mountain',
   color: '#3F8F6B',
   cover: 'colour-grey',
@@ -255,7 +255,7 @@ const kungsleden: SampleFolder = {
 
 const dayByDay: SampleFolder = {
   name: 'Day by day',
-  parent: 'Hike the Kungsleden',
+  parent: 'Kungsleden hike',
   icon: 'route',
   color: '#3F8F6B',
   description: 'The seven stages, hut to hut.',

@@ -1,8 +1,8 @@
-/* Learn why sourdough works: the finished project. Every task is done, the
+/* Sourdough: the finished project. Every task is done, the
    Results are written, and the one thread closed with a decision. */
 import type { SampleFolder } from '../content.js'
 
-const PROJECT = 'Learn why sourdough works'
+const PROJECT = 'Sourdough'
 
 export const SOURDOUGH: readonly SampleFolder[] = [
   {
