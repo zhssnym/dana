@@ -24,7 +24,7 @@ import { isSectionHeading, shelfOutlineFailure, validateCanvasOutline } from './
 import { BlockMenuContext, BlockSideMenu, blockSidePosition, duplicateBlocks, pageTheme, turnBlocksInto } from './BlockSideMenu.js'
 import type { BlockMenuModel } from './BlockSideMenu.js'
 import { BlockSelectionStyle, useBlockAnchor, useBlockSelectionKeys } from './block-selection.js'
-import { contains, simulateNest, TEXT_TYPES, TURN_TARGETS } from './turn-into.js'
+import { backspaceToText, contains, simulateNest, TEXT_TYPES, TURN_TARGETS } from './turn-into.js'
 import type { TreeBlock } from './turn-into.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
 import { DanaLinkSuggestions } from '../../links/dana-link-picker.js'
@@ -156,8 +156,10 @@ export function CanvasSurface({
   Enter on an empty list item nested under a block steps out a level (at the
   root or directly in a Section, BlockNote's own Enter makes it text).
   Backspace at the start of a block: such a nested list item steps out; any
-  other kind turns into text, its children kept (text holds them) unless it
-  was a Section; text merges (BlockNote's).
+  other kind turns into text, its children kept (text holds them), unless the
+  result is a shape the canvas refuses or the block is a Section holding
+  content (then nothing happens, so a Section never dissolves by accident);
+  text merges (BlockNote's).
   */
   const onKeyDownCapture = (event: React.KeyboardEvent): void => {
     if (event.metaKey || event.ctrlKey || event.altKey) return
@@ -177,6 +179,8 @@ export function CanvasSurface({
       if (inList) { stop(); editor.unnestBlock(); return }
       if (block.type === 'paragraph' || !TEXT_TYPES.has(block.type)) return
       stop()
+      const next = backspaceToText(editor.document as unknown as TreeBlock[], block as unknown as TreeBlock)
+      if (next === null || !admits(next)) return
       turnBlocksInto(editor, [block.id], TURN_TARGETS[0]!, undefined)
       editor.setTextCursorPosition(block.id, 'start')
     }

@@ -53,6 +53,7 @@ import {
   isHideableFacetKind,
   isNativeFacetKind,
   isRenameableFacetKind,
+  NATIVE_TAB_ORDER,
 } from '../../shared/facets.js'
 import type { Facet, FacetKind } from '../../shared/facets.js'
 import type {
@@ -791,6 +792,48 @@ export async function setFacetOrder(
  * PUT /folders/:id/facets/my-order
  * ------------------------------------------------------------------ */
 
+/**
+ * Re-keys an untouched Folder's built-ins (all four shown, at Main `a0`,
+ * Purpose `a1`, Consultation `a2`, Results `a3`: the client's `untouched()`
+ * over the visible tabs) in the order
+ * the client draws them, below every other row, so the stored order becomes
+ * the drawn one without moving anything anybody sees. A no-op otherwise.
+ */
+async function materialiseUntouchedOrder(tx: Executor, folderId: string): Promise<void> {
+  const rows = await rowsOf(
+    tx,
+    sql`SELECT id, kind, owner_id, position, hidden, deleted_at FROM folder_facets
+         WHERE folder_id = ${folderId}::uuid
+         ORDER BY position ASC, id ASC
+         FOR UPDATE`,
+  )
+  /* The tab row asks `untouched()` of its visible tabs only, so a hidden
+     built-in already means "stored order" there, and must here too. */
+  const native = (kind: string) =>
+    rows.find((row) => row.owner_id === null && String(row.kind) === kind && row.deleted_at === null && row.hidden !== true)
+  const creation: Record<string, string> = { main: 'a0', purpose: 'a1', consultation: 'a2', results: 'a3' }
+  if (!Object.entries(creation).every(([kind, key]) => native(kind) !== undefined && String(native(kind)!.position) === key)) return
+  const natives = NATIVE_TAB_ORDER.map((kind) => native(kind)!)
+  const nativeIds = new Set(natives.map((row) => String(row.id)))
+  const others = rows.filter((row) => !nativeIds.has(String(row.id)))
+  let upper: string | null = others.length === 0 ? null : String(others[0]!.position)
+  const keys: string[] = []
+  if (upper === null) {
+    keys.push(...initialKeys(natives.length + 1).slice(1))
+  } else {
+    for (let index = 0; index < natives.length; index += 1) {
+      upper = keyBetween(null, upper)
+      keys.unshift(upper)
+    }
+  }
+  for (const [index, row] of natives.entries()) {
+    await tx.execute(
+      sql`UPDATE folder_facets SET position = ${keys[index] as string}, updated_at = now()
+           WHERE id = ${String(row.id)}::uuid`,
+    )
+  }
+}
+
 export interface FacetPlacement {
   facetId: string
   afterFacetId: string | null
@@ -808,9 +851,18 @@ export interface FacetPlacement {
  * Another member's facet id answers **404** rather than 403, which is 10.2's
  * grammar for a row whose existence the caller may not learn.
  *
- * `after_facet_id: null` means "first among the facets after Main". Main is
- * first for everybody by 7.27's read order, so "before Main" is not a place
- * this route can be asked for.
+ * `after_facet_id: null` means "before the first facet the caller can see":
+ * the front of the row. Main no longer stands first (round 2), so null is not
+ * "after Main".
+ *
+ * **An untouched Folder is materialised first.** While the built-ins hold
+ * their creation keys the client draws them in `NATIVE_TAB_ORDER`, not in
+ * stored order, and would go on doing so after this route re-keyed only a
+ * private row -- the dragged tab would snap back. So the built-ins are
+ * first re-keyed, in that drawn order, below every other row of the Folder
+ * (every member's private rows included). Every other key is kept, so what
+ * each member sees is exactly what they saw; the Folder simply stops being
+ * "untouched", and the drop lands where it was made.
  */
 export async function setMyFacetOrder(
   db: Db,
@@ -824,6 +876,7 @@ export async function setMyFacetOrder(
            WHERE folder_id = ${folderId}::uuid AND owner_id = ${viewerId}::uuid
            FOR UPDATE`,
     )
+    await materialiseUntouchedOrder(tx, folderId)
     const visible = await rowsOf(
       tx,
       facetSelect(viewerId, folderId, sql` AND f.deleted_at IS NULL`),
@@ -852,11 +905,10 @@ export async function setMyFacetOrder(
     for (const placement of placements) {
       const from = sequence.indexOf(placement.facetId)
       if (from >= 0) sequence.splice(from, 1)
-      const anchor =
+      const at =
         placement.afterFacetId === null
-          ? String(main.id)
-          : placement.afterFacetId
-      const at = sequence.indexOf(anchor)
+          ? -1
+          : sequence.indexOf(placement.afterFacetId)
       sequence.splice(at + 1, 0, placement.facetId)
     }
 
@@ -864,7 +916,7 @@ export async function setMyFacetOrder(
        bound at its stored key; a private row takes a key strictly between that
        bound and the **next shared row's** key, which is what makes a run of
        several private facets between two shared ones come out in order. */
-    let lower: string = String(main.position)
+    let lower: string | null = null
     for (const [index, id] of sequence.entries()) {
       const row = byId.get(id)
       if (row === undefined) continue
@@ -885,7 +937,7 @@ export async function setMyFacetOrder(
          this one does not lock against reading. Appending above the bound is
          the recoverable answer, and it keeps this facet after the thing it was
          placed after, which is what the caller asked for. */
-      const key = upper !== null && upper > lower ? keyBetween(lower, upper) : keyBetween(lower, null)
+      const key: string = upper !== null && (lower === null || upper > lower) ? keyBetween(lower, upper) : keyBetween(lower, null)
       await tx.execute(
         sql`UPDATE folder_facets SET position = ${key}, updated_at = now()
              WHERE id = ${id}::uuid AND owner_id = ${viewerId}::uuid`,
