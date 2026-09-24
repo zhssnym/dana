@@ -39,14 +39,17 @@ import type { Db } from '../../../db/client.js'
 import type { DocumentOperation } from '../../shared/pages.js'
 import { parseDanaLink, referencePath } from '../../shared/references.js'
 import type { ReferenceKind } from '../../shared/references.js'
-import { readWorkflowPage } from '../../shared/workflows.js'
+import {
+  readWorkflowPage,
+  workflowDependencyEdges,
+} from '../../shared/workflows.js'
 import type {
   ImportWorkflowBody,
   ImportWorkflowTask,
 } from '../../shared/workflows.js'
 import type { ObjectStore } from '../files/store.js'
-import { inTransaction, rowsOf } from '../database.js'
-import type { Executor } from '../database.js'
+import { inTransaction, pairSet, rowsOf } from '../database.js'
+import type { Executor, IdPair } from '../database.js'
 import { recordEvent } from './events.js'
 import { createNativeFacets } from './facets.js'
 import { recordAccessTransition } from './folder-access.js'
@@ -60,6 +63,7 @@ import {
   createWorkflowFolderLabels,
 } from './labels.js'
 import { upsertReminder } from './tasks.js'
+import { copyTaskDocument } from './task-document.js'
 import { positionAtSectionEnd, seededItems } from './page-order.js'
 import { initialKeys } from './fractional-index.js'
 import { copyDependenciesWithin } from './task-dependencies.js'
@@ -438,6 +442,19 @@ export async function duplicateFolder(
                         ${Number(step.position)})`,
           )
         }
+        /* #221: the Task's document travels with it. A media block's file is
+           copied into the new folder once, through the same map the page's
+           own assets use, and a quota refusal rolls the whole copy back. */
+        await copyTaskDocument(tx, String(task.id), newTaskId, async (originalFile) => {
+          const known = copiedFiles.get(originalFile)
+          if (known !== undefined) return known
+          const held = await copyPageFile(tx, store, viewerId, originalFile, copyId)
+          if (held.kind === 'quota_exceeded') throw new QuotaRefusal()
+          if (held.kind !== 'copied') return null
+          copiedObjects.push(held.id)
+          copiedFiles.set(originalFile, held.id)
+          return held.id
+        })
       }
 
       /*
@@ -446,6 +463,9 @@ export async function duplicateFolder(
       that identity rather than minting another facet. Blocks and files are
       independent copies, while Dana Links are remapped only for targets this
       duplicate already has an identity map for.
+      #213: Results is deliberately not copied. It records the source
+      Folder's actual outcomes, not reusable intent, so the copy's native
+      Results stays empty under its default name (7.16).
       */
       const purposeRows = await rowsOf(
         tx,
@@ -791,6 +811,9 @@ export async function duplicateTask(
     maker and with its conversation left behind, and it arrives wearing the
     same Labels the original wore.
     */
+    /* #221: the Task's document travels with its notes, which is its
+       projection. Same folder, so a media block names the same file. */
+    await copyTaskDocument(tx, source.id, newId)
     await copyTaskLabelsForDuplicate(tx, viewerId, source.id, newId)
     await recordEvent(tx, {
       actorId: viewerId,
@@ -837,6 +860,9 @@ export async function importWorkflow(
     }
 
     const created: Array<{ id: string; name: string }> = []
+    /** The file's task keys (#207) onto the ids this import minted, across
+     * every folder of the file, because a dependency may cross Folders. */
+    const taskIdOfKey = new Map<string, string>()
     /* Indexed, because `createWorkflowFolderLabels` needs to be able to say
        *which* folder of the file the database refused a vocabulary for, and
        the path it answers with — `folders.<n>.labels` — is the one
@@ -953,6 +979,7 @@ export async function importWorkflow(
         )
         const taskId = String(madeTask[0]?.id)
         madeTaskIds.push(taskId)
+        if (task.key !== undefined) taskIdOfKey.set(task.key, taskId)
         const sourceTaskId=folder.document?.task_ids[taskIndex]
         if(sourceTaskId!==undefined)taskMap.set(sourceTaskId,taskId)
         for (const [index, step] of (task.steps ?? []).entries()) {
@@ -1206,6 +1233,33 @@ export async function importWorkflow(
         detail: 'imported from a workflow file',
       })
       created.push({ id: folderId, name: folder.name })
+    }
+    /*
+    The file's internal dependencies, after every Task of every folder exists
+    (#207), in this same transaction so that work whose ordering did not arrive
+    is never a half-made import. `workflowDependencyEdges` keeps only edges
+    whose both ends the file declares, and the schema has already refused a
+    duplicated key, a self-dependency and a cycle, so every edge here is one
+    the live endpoint would admit. No other edge can reach a Task minted three
+    statements ago, which is why the file's own graph is the whole graph.
+    */
+    const edges = workflowDependencyEdges(file.folders).flatMap(
+      ([dependentKey, blockerKey]): IdPair[] => {
+        const dependent = taskIdOfKey.get(dependentKey)
+        const blocker = taskIdOfKey.get(blockerKey)
+        return dependent === undefined || blocker === undefined ? [] : [[dependent, blocker]]
+      },
+    )
+    // One statement for every edge (at most WORKFLOW_DEPENDENCY_CAP), not one
+    // round trip each; `pairSet`'s columns are named for a copy, and here
+    // `old_id` is the dependent and `new_id` the blocker.
+    if (edges.length > 0) {
+      await tx.execute(
+        sql`INSERT INTO task_dependencies
+              (dependent_task_id, blocking_task_id, created_by)
+            SELECT e.old_id, e.new_id, ${viewerId}::uuid FROM ${pairSet(edges)} e
+            ON CONFLICT ON CONSTRAINT task_dependencies_pair_key DO NOTHING`,
+      )
     }
     return { kind: 'imported', folders: created } as const
   }).catch(async(error:unknown)=>{

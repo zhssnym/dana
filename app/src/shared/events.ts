@@ -50,6 +50,9 @@ export interface NotificationLine {
   created_at: string
   /** The task a comment subject sits on, null otherwise (polish, search F3). */
   task_id: string | null
+  /** The Discussion a comment subject sits in, null otherwise (issue #320).
+   * Optional in the type so older fixtures compile; the server answers it. */
+  discussion_id?: string | null
   event: EventLine
 }
 
@@ -125,6 +128,7 @@ export const notificationLine = z.object({
   read_at: z.string().nullable(),
   created_at: z.string(),
   task_id: z.uuid().nullable(),
+  discussion_id: z.uuid().nullable().optional(),
   event: eventLine,
 })
 

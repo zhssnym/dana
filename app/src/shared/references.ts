@@ -17,7 +17,8 @@ be tempted by one of them:
   **same answer** — 404, no label, no folder, no dates, no assignee, nothing
   that separates the two (spec 7.0, 10.2);
 - the grammar is closed. #223 began with Task, Folder and Shelf; #211 adds the
-  stable native Purpose facet through the generic `facet` kind. A further kind
+  stable native Purpose facet through the generic `facet` kind; #320 adds a
+  Discussion and an Outcome of a Folder's Consultation. A further kind
   becomes referenceable by joining `REFERENCE_KINDS`, `KIND_SEGMENT` and the
   server resolver together — which is the extensibility this grammar provides.
 
@@ -37,23 +38,37 @@ import { searchQ } from './views.js'
 
 /** The closed reference set. #223's first three are followed by #211's
  * generic facet route; the server currently resolves that fourth kind only for
- * native Purpose. A kind belongs here only once it has stable identity and a
+ * native Purpose and, since #213, native Results. A kind belongs here only once it has stable identity and a
  * stable client route. */
-export const REFERENCE_KINDS = ['task', 'folder', 'shelf', 'facet'] as const
+export const REFERENCE_KINDS = [
+  'task',
+  'folder',
+  'shelf',
+  'facet',
+  'discussion',
+  'outcome',
+] as const
 export type ReferenceKind = (typeof REFERENCE_KINDS)[number]
 
 export const referenceKind = z.enum(REFERENCE_KINDS, {
-  error: 'must be one of task, folder, shelf or facet',
+  error: 'must be one of task, folder, shelf, facet, discussion or outcome',
 })
 
 /** The client route segment each kind is addressed by, which is the plural
  * the SPA uses: `/app/tasks/:id`, `/app/folders/:id`, `/app/shelves/:id`,
- * and `/app/facets/:id`. */
+ * `/app/facets/:id`, and #320's `/app/discussions/:id` and
+ * `/app/outcomes/:id`. An Outcome has its own address, rather than a fragment
+ * on its Discussion's, because it is append-only and so a stable target in its
+ * own right: an old Outcome's link keeps naming exactly what it said after a
+ * later one becomes current, and the client opens it as its parent Discussion
+ * focused on that Outcome. */
 const KIND_SEGMENT: Record<ReferenceKind, string> = {
   task: 'tasks',
   folder: 'folders',
   shelf: 'shelves',
   facet: 'facets',
+  discussion: 'discussions',
+  outcome: 'outcomes',
 }
 
 const KIND_OF_SEGMENT = new Map<string, ReferenceKind>(

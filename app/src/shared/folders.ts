@@ -216,6 +216,36 @@ It is not nullable, because a Folder object only exists for somebody who is in
 the folder, and INV-10 plus migration 0023 put a preset on every membership
 row there is.
 */
+/*
+Finite Task progress (issue #205), the truth behind "17/22 done · ↻ 3
+recurring" on a Folder and on each of its Sections.
+
+`done` and `total` count **one-off** Tasks only: a Task whose
+`recurrence_rule` is null. Every occurrence of a recurring Task is its own row
+(8.4 generates a successor on completion), so counting them would grow the
+denominator forever; they are left out of it and reported apart as
+`recurring_active`, the recurring occurrences still pending. Abandoned Tasks
+sit in neither `done` nor `total`, as `counts` already treats them (8.11), and
+trashed Tasks count nowhere.
+
+This lives beside `counts` rather than replacing it: `counts` is what the
+deployed client draws, so it stays exactly as it was.
+*/
+export const taskProgress = z.object({
+  done: z.int().nonnegative(),
+  total: z.int().nonnegative(),
+  recurring_active: z.int().nonnegative(),
+})
+export type TaskProgress = z.infer<typeof taskProgress>
+
+/* One Section's progress: the Tasks whose `section_block_id` is that section
+   block. Sections do not roll up into one another; a Task counts toward the
+   one Section it sits in, and toward the Folder. */
+export const sectionProgress = taskProgress.extend({
+  section_block_id: z.uuid(),
+})
+export type SectionProgress = z.infer<typeof sectionProgress>
+
 export const folder = z.object({
   id: z.uuid(),
   name: folderName,
@@ -226,6 +256,10 @@ export const folder = z.object({
     pending: z.int().nonnegative(),
     completed: z.int().nonnegative(),
   }),
+  /* Finite progress (issue #205): one-off Tasks only. `counts` above stays
+     for the clients already deployed; see `taskProgress`. Optional because a
+     client reading an older server must not need it. */
+  progress: taskProgress.optional(),
   my_shelf: shelfName.nullable(),
   my_color: hexColor.nullable(),
   /* The viewer's own Access preset (issue #228). It sits with the other two `my_` fields because it is the
@@ -343,6 +377,10 @@ export type GetFoldersResponse = z.infer<typeof getFoldersResponse>
  * panel already renders.
  */
 export const getFolderResponse = folder.extend({
+  /* Issue #205: one entry per Section block in the folder, zeros included,
+     in no promised order (the client keys by `section_block_id`). Only the
+     single read carries it; GET /folders does not. Optional, additive. */
+  section_progress: z.array(sectionProgress).optional(),
   members: z.array(folderMember),
   pending_invites: z.array(folderPendingInvite),
 })

@@ -78,6 +78,7 @@ import type { Db } from '../../../db/client.js'
 import type {
   DependencyState,
   DependencyTaskSummary,
+  FolderDependencyEdge,
   TaskDependencies,
   TaskDependencyEdge,
 } from '../../shared/task-dependencies.js'
@@ -484,4 +485,42 @@ export async function copyDependenciesWithin(
     copied += 1
   }
   return copied
+}
+
+/**
+ * `GET /folders/:id/dependencies`: the Folder's internal edges, in one
+ * statement. The caller has already resolved the Folder through `accessOf`,
+ * which is membership of a live Folder, and that is all `accessibleTask`
+ * asks of a live Task inside it — so both ends of every row returned are
+ * Tasks the viewer can read, and no redaction is owed.
+ *
+ * **Both ends are joined to this Folder**, and that is the whole security
+ * content of the query: an edge with one end elsewhere names a Task the
+ * viewer may not be able to read, which `readTaskDependencies` redacts and
+ * this read therefore simply never returns. A trashed Task at either end is
+ * left out for the same reason `GET /tasks/:id` answers 404 for it.
+ */
+export async function readFolderDependencies(
+  executor: Executor,
+  folderId: string,
+): Promise<FolderDependencyEdge[]> {
+  const rows = await rowsOf(
+    executor,
+    sql`SELECT d.id, d.dependent_task_id, d.blocking_task_id
+        FROM task_dependencies d
+        JOIN tasks dependent
+          ON dependent.id = d.dependent_task_id
+         AND dependent.folder_id = ${folderId}
+         AND dependent.deleted_at IS NULL
+        JOIN tasks blocker
+          ON blocker.id = d.blocking_task_id
+         AND blocker.folder_id = ${folderId}
+         AND blocker.deleted_at IS NULL
+        ORDER BY d.created_at ASC, d.id ASC`,
+  )
+  return rows.map((row) => ({
+    id: String(row.id),
+    dependent_task_id: String(row.dependent_task_id),
+    blocking_task_id: String(row.blocking_task_id),
+  }))
 }

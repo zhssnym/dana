@@ -27,6 +27,7 @@ import { expect } from 'vitest'
 import type { Db } from '../../db/client.js'
 import { folderToWorkflowFile } from '../../src/shared/workflows.js'
 import type { WorkflowExport } from '../../src/shared/workflows.js'
+import { getFolderDependenciesResponse } from '../../src/shared/task-dependencies.js'
 import type {
   DocumentBlockKind,
   DocumentOperation,
@@ -150,8 +151,19 @@ export async function savedWorkflow(
     expectStatus(read, 200, 'GET /tasks/:id must answer the detail (7.6)')
     details.push(read.json() as TaskDetail)
   }
+  const waits = await actor.browser.json(`/folders/${folderId}/dependencies`, 'GET')
+  expectStatus(waits, 200, 'GET /folders/:id/dependencies must answer (7.25)')
+  const { dependencies } = getFolderDependenciesResponse.parse(waits.json())
   const labels = await listLabels(actor, { scope: 'folder', folder_id: folderId })
-  return folderToWorkflowFile(name, details, page.blocks, page, labels)
+  return folderToWorkflowFile(
+    name,
+    details,
+    page.blocks,
+    page,
+    labels,
+    undefined,
+    dependencies,
+  )
 }
 
 /** The file as it travels: JSON on a disk, not an object in this process. */

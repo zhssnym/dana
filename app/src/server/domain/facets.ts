@@ -29,7 +29,7 @@ owner_id = <viewer>)` clause written **inside the FROM clause** of every read,
 so a query that forgot the gate would return nothing rather than somebody
 else's writing.
 
-**A document-bearing facet uses 4.17's `page_blocks` scoped by `facet_id`.** #210 began with blank facets; #211 adds native Purpose.
+**A document-bearing facet uses 4.17's `page_blocks` scoped by `facet_id`.** #210 began with blank facets; #211 adds native Purpose; #213 adds native Results on the same terms.
 `applyFacetDocument` below is a facet-scoped sibling of
 `domain/page-document.ts`'s `applyDocument` rather than a parameterization of
 it, and that is a decision worth stating. The folder page's applier carries
@@ -49,6 +49,7 @@ import type { Db } from '../../../db/client.js'
 import {
   DEFAULT_FACET_NAMES,
   isBlankFacetKind,
+  isDocumentNativeFacetKind,
   isHideableFacetKind,
   isNativeFacetKind,
   isRenameableFacetKind,
@@ -62,6 +63,7 @@ import type {
 } from '../../shared/pages.js'
 import type { TrashedFacet } from '../../shared/trash.js'
 import { isListKind } from '../../shared/page-document.js'
+import { fileReclaimedAt } from './pages.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { documentHash } from './document-hash.js'
@@ -1228,6 +1230,7 @@ function facetBlockFromRow(row: Record<string, unknown>): PageBlock {
     file_id: nullableString(row.file_id),
     file_width: nullableInt(row.file_width),
     file_height: nullableInt(row.file_height),
+    file_reclaimed_at: fileReclaimedAt(row),
     ref_folder_id: null,
     width_pct: row.width_pct === null || row.width_pct === undefined ? null : Number(row.width_pct),
     updated_at: toIso(row.updated_at),
@@ -1262,7 +1265,7 @@ export async function facetPageView(
     const blocks = await rowsOf(
       tx,
       sql`SELECT b.id, b.kind, b.position, b.page_position, b.checked,
-                 b.list_parent_block_id, b.rich_content, b.text, b.file_id, b.width_pct, b.updated_at,
+                 b.list_parent_block_id, b.rich_content, b.text, b.file_id, b.width_pct, b.updated_at, b.file_reclaimed_at,
                  f.width AS file_width, f.height AS file_height
             FROM page_blocks b
             LEFT JOIN files f ON f.id = b.file_id
@@ -1611,7 +1614,11 @@ export async function applyFacetDocument(
                SET kind = EXCLUDED.kind, text = EXCLUDED.text,
                    rich_content = EXCLUDED.rich_content,
                    file_id = EXCLUDED.file_id, width_pct = EXCLUDED.width_pct,
-                   checked = EXCLUDED.checked, updated_at = now()`,
+                   checked = EXCLUDED.checked,
+                   file_reclaimed_at = CASE
+                     WHEN EXCLUDED.file_id IS NULL AND EXCLUDED.kind = page_blocks.kind
+                     THEN page_blocks.file_reclaimed_at END,
+                   updated_at = now()`,
       )
     }
     /* **`AND facet_id` here is the same belt-and-braces the DELETE two loops
@@ -1635,11 +1642,14 @@ export async function applyFacetDocument(
     }
 
     const committed = await facetDocumentMetadata(tx, facetId)
+    // An object, not an array: only an array-valued receipt marks the Folder
+    // page itself as on the document path (pages.ts), and a facet document's
+    // write must not shut the deployed client's legacy Folder page writer.
     await tx.execute(
       sql`INSERT INTO page_document_receipts
             (actor_id, folder_id, mutation_id, payload_hash, committed_revision, created_task_ids)
           VALUES (${viewerId}::uuid, ${folderId}::uuid, ${body.mutation_id}::uuid,
-                  ${hash}, ${committed.revision}, ${JSON.stringify([])}::jsonb)`,
+                  ${hash}, ${committed.revision}, ${JSON.stringify({ facet_id: facetId })}::jsonb)`,
     )
     const view = await facetPageViewIn(tx, facetId)
     return {
@@ -1659,7 +1669,7 @@ async function facetPageViewIn(tx: Executor, facetId: string): Promise<PageView>
   const blocks = await rowsOf(
     tx,
     sql`SELECT b.id, b.kind, b.position, b.page_position, b.checked,
-               b.list_parent_block_id, b.rich_content, b.text, b.file_id, b.width_pct, b.updated_at,
+               b.list_parent_block_id, b.rich_content, b.text, b.file_id, b.width_pct, b.updated_at, b.file_reclaimed_at,
                f.width AS file_width, f.height AS file_height
           FROM page_blocks b
           LEFT JOIN files f ON f.id = b.file_id
@@ -1700,7 +1710,7 @@ async function facetPageGateIn(
     facet === null ||
     !visibleTo(facet, facts.actorId) ||
     facet.deletedAt !== null ||
-    !(isBlankFacetKind(facet.kind) || facet.kind === 'purpose')
+    !(isBlankFacetKind(facet.kind) || isDocumentNativeFacetKind(facet.kind))
   ) {
     return notFound
   }
