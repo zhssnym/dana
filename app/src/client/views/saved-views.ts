@@ -26,11 +26,10 @@ import { definitionPage } from './filter.js'
  * Where a saved view opens: the place-page it was made on, carrying its id.
  *
  * A definition naming no page, or naming one this client no longer has, falls
- * back to All, which is the page that locks nothing and can therefore honestly
- * draw any filter (9.5).
+ * back to Today, the page the app lands on.
  */
 export function savedViewPath(view: SavedView): string {
   const named = definitionPage(view.definition)
-  const place = named !== null && named in PLACES ? PLACES[named as PlaceKey] : PLACES.all
+  const place = named !== null && named in PLACES ? PLACES[named as PlaceKey] : PLACES.today
   return `${place.path}?view=${view.id}`
 }

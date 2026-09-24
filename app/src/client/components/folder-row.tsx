@@ -162,7 +162,7 @@ export function FolderRow({
         title={name}
         onClick={onSelect}
         className={cn(
-          'h-8 gap-2 rounded-md px-2 text-sm font-normal text-muted-foreground hover:bg-sidebar-accent hover:text-foreground group-hover/folder-row:bg-sidebar-accent data-active:bg-sidebar-accent data-active:font-medium data-active:text-foreground',
+          'h-(--shell-sidebar-row-height) gap-2 rounded-md px-2 text-sm font-normal text-muted-foreground hover:bg-sidebar-accent hover:text-foreground group-hover/folder-row:bg-sidebar-accent data-active:bg-sidebar-accent data-active:font-medium data-active:text-foreground',
           nested && 'pl-7',
           hasActions && 'pr-8',
         )}

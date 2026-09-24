@@ -101,7 +101,7 @@ function subjectPath(row: NotificationLine): string {
          its conversation by the query the page reads. */
       if (row.task_id !== null) return `${paths.task(row.task_id)}?${CONVERSATION_PARAM}=open`
       return event.folder_id === null
-        ? paths.desk
+        ? paths.today
         : `${paths.folder(event.folder_id)}?${CONVERSATION_PARAM}=open`
   }
 }

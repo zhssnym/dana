@@ -33,6 +33,7 @@ import { CalendarCheck2 } from '../lib/icons.js'
 import { useMyDayView } from '../api/queries.js'
 import { QuickAdd } from '../components/quick-add.js'
 import { SampleStrip } from '../onboarding/SampleStrip.js'
+import { StarterOffer, useMayBeFresh } from '../onboarding/StarterOffer.js'
 import { groupRows } from '../views/grouping.js'
 import { PLACES } from '../views/place-pages.js'
 import { PlaceChrome, PlaceHead, usePlace } from '../views/usePlace.js'
@@ -51,6 +52,8 @@ export function TodayPage(): React.JSX.Element {
   const actions = useRowActions()
   const confirm = useConfirm()
   const basis = useRowBasis()
+  /* 9.13's first-run offer sits under Today's list, where /app lands a new person. */
+  const mayBeFresh = useMayBeFresh()
 
   const carried = view.data?.carried ?? []
   const today = view.data?.today ?? []
@@ -180,6 +183,7 @@ export function TodayPage(): React.JSX.Element {
           )}
         </div>
       </PageBody>
+      {mayBeFresh ? <StarterOffer /> : null}
 
       <ConfirmDialog pending={confirm.pending} onClose={confirm.close} />
     </div>

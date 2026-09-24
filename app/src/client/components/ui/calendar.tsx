@@ -1,24 +1,4 @@
-/*
-A month grid, and the list of times that sits beside it.
-
-The version this replaces was a bare seven-column grid of 12px numbers with
-blank cells for the days before the first, which is the shape a date picker
-had in about 2009. It also never showed which day was selected, because it
-read the day out of a label with `/d+/`, a regular expression matching the
-letter d rather than a digit, so the highlight had nothing to land on.
-
-What makes this one feel built rather than assembled: days are 32px targets
-instead of 24px, the month always draws six full weeks so the popover never
-changes height as you page through it, the days either side of the month are
-drawn rather than left as holes, today is marked whether or not it is
-selected, and the grid is a roving-tabindex composite so the arrow keys walk
-it the way every other calendar a person has used does.
-
-Colour follows the contract rather than this session's taste: selection is
-graphite, like every other selected thing in the lab, and today is cobalt,
-which is one of the jobs DES-016 gave the accent. V7 is where the rest of
-cobalt's jobs land.
-*/
+/* A month grid (six weeks, roving tabindex) and the time row beside it. */
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { ChevronLeft, ChevronRight } from "../../lib/icons.js"
@@ -35,7 +15,7 @@ import {
 import { cn } from "./utils.js"
 
 const FOCUS =
-  "outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)] focus-visible:ring-offset-1"
+  "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
 
 const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]
 const MONTHS = [
@@ -56,10 +36,7 @@ export function sameDay(a: Date | null | undefined, b: Date | null | undefined) 
   )
 }
 
-/* Six weeks, always, starting on the Monday on or before the first. A grid
-   that grows a row in March and loses it again in April makes the popover
-   jump under the pointer, which is the sort of small wrongness that reads as
-   cheap without anybody being able to say why. */
+/* Six weeks, always, from the Monday on or before the first. */
 function monthGrid(year: number, month: number) {
   const first = new Date(year, month, 1)
   const lead = (first.getDay() + 6) % 7
@@ -71,19 +48,7 @@ function monthGrid(year: number, month: number) {
   })
 }
 
-/*
-Range mode, added at F5 for the filter's date axis (DES-153: "real date
-ranges, not only any / with / without / overdue").
-
-The grid stays one calendar rather than becoming two. A range is drawn, not
-modelled: `range` says which two days are the ends and the grid washes what
-lies between them, while `onSelect` still reports one day and the caller
-decides whether that day just became the start or the end. A month grid that
-knew about ranges would need to know about half-open ones, about a second
-click that lands before the first, and about which end a re-click moves, all
-of which are the caller's question, and all of which are already answered
-where the filter's state lives.
-*/
+/* Range mode draws the span; the caller decides which end a click sets (DES-153). */
 export function Calendar({
   selected,
   range,
@@ -99,8 +64,7 @@ export function Calendar({
 }) {
   const anchor = selected ?? today
   const [view, setView] = useState({ year: anchor.getFullYear(), month: anchor.getMonth() })
-  /* The day the arrow keys are currently on. Roving, so the grid is one tab
-     stop rather than forty-two. */
+  /* Roving cursor: the grid is one tab stop. */
   const [cursor, setCursor] = useState<Date>(anchor)
   const gridRef = useRef<HTMLDivElement>(null)
   const moved = useRef(false)
@@ -134,7 +98,7 @@ export function Calendar({
           aria-label="Previous month"
           onClick={() => shiftMonth(-1)}
           className={cn(
-            "flex size-7 items-center justify-center rounded-md text-[var(--color-graphite-500)] transition-colors duration-[var(--duration-fast)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)]",
+            "flex size-7 items-center justify-center rounded-sm text-muted-foreground transition-colors duration-[var(--duration-fast)] hover:bg-accent hover:text-foreground",
             FOCUS,
           )}
         >
@@ -142,7 +106,7 @@ export function Calendar({
         </button>
         <span
           aria-live="polite"
-          className="text-[13px] leading-5 font-medium text-[var(--color-graphite-800)]"
+          className="text-sm font-medium text-foreground"
         >
           {MONTHS[view.month]} {view.year}
         </span>
@@ -151,7 +115,7 @@ export function Calendar({
           aria-label="Next month"
           onClick={() => shiftMonth(1)}
           className={cn(
-            "flex size-7 items-center justify-center rounded-md text-[var(--color-graphite-500)] transition-colors duration-[var(--duration-fast)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)]",
+            "flex size-7 items-center justify-center rounded-sm text-muted-foreground transition-colors duration-[var(--duration-fast)] hover:bg-accent hover:text-foreground",
             FOCUS,
           )}
         >
@@ -163,7 +127,7 @@ export function Calendar({
         {WEEKDAYS.map((day) => (
           <span
             key={day}
-            className="flex h-7 items-center justify-center text-[11px] leading-4 font-medium text-[var(--color-graphite-400)]"
+            className="flex h-7 items-center justify-center text-xs font-medium text-quiet-foreground"
           >
             {day}
           </span>
@@ -194,8 +158,7 @@ export function Calendar({
           const isSelected = sameDay(date, selected) || isEnd
           const isToday = sameDay(date, today)
           const isCursor = sameDay(date, cursor)
-          /* Strictly between the two ends: washed, not filled, so the ends
-             stay the thing the eye lands on. */
+          /* Strictly between the ends: washed, not filled. */
           const isBetween =
             !isEnd &&
             Boolean(range?.from && range?.to) &&
@@ -207,14 +170,14 @@ export function Calendar({
               role="gridcell"
               className={cn(
                 "flex justify-center",
-                isBetween && "bg-[var(--color-graphite-100)]",
+                isBetween && "bg-primary/10",
                 sameDay(date, range?.from) &&
                   range?.to &&
-                  "rounded-l-md bg-gradient-to-r from-transparent from-50% to-[var(--color-graphite-100)] to-50%",
+                  "rounded-l-sm bg-gradient-to-r from-transparent from-50% to-primary/10 to-50%",
                 sameDay(date, range?.to) &&
                   range?.from &&
                   !sameDay(range.from, range.to) &&
-                  "rounded-r-md bg-gradient-to-l from-transparent from-50% to-[var(--color-graphite-100)] to-50%",
+                  "rounded-r-sm bg-gradient-to-l from-transparent from-50% to-primary/10 to-50%",
               )}
             >
               <button
@@ -230,26 +193,24 @@ export function Calendar({
                   onSelect(date)
                 }}
                 className={cn(
-                  "relative flex size-8 items-center justify-center rounded-md text-[13px] leading-5 tabular-nums transition-[background-color,color] duration-[var(--duration-fast)] ease-[var(--ease-standard)]",
+                  "relative flex size-8 items-center justify-center rounded-sm text-sm tabular-nums transition-[background-color,color] duration-[var(--duration-fast)] ease-[var(--ease-standard)]",
                   FOCUS,
                   isSelected
-                    ? "bg-[var(--color-graphite-900)] font-medium text-white"
+                    ? "bg-primary font-medium text-primary-foreground"
                     : outside
-                      ? "text-[var(--color-graphite-300)] hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-500)]"
-                      : "text-[var(--color-graphite-700)] hover:bg-[var(--color-graphite-100)]",
-                  isToday && !isSelected && "font-semibold text-[var(--color-dana-accent-700)]",
+                      ? "text-quiet-foreground hover:bg-accent hover:text-muted-foreground"
+                      : "text-foreground hover:bg-accent",
+                  isToday && !isSelected && "font-semibold text-primary",
                 )}
               >
                 {date.getDate()}
-                {/* Today keeps a mark of its own even while selected, so the
-                    dot answers "where is today" and the fill answers "what
-                    did I pick" without the two ever needing the same pixel. */}
+                {/* Today keeps its dot even while selected. */}
                 {isToday ? (
                   <span
                     aria-hidden="true"
                     className={cn(
                       "absolute bottom-1 size-1 rounded-full",
-                      isSelected ? "bg-white/70" : "bg-[var(--color-dana-accent-600)]",
+                      isSelected ? "bg-primary-foreground/70" : "bg-primary",
                     )}
                   />
                 ) : null}
@@ -263,33 +224,13 @@ export function Calendar({
 }
 
 /* ----------------------------------------------------------------- time -- */
-/*
-A time, in as little room as a time needs, rebuilt 2026-08-18 after Imran said
-the panel was cluttered.
-
-The version before this stood two sixty-row scrolling columns permanently open
-beside the calendar. Everything reachable, nothing hidden, and a popover you
-had to look at twice to find the four characters you came for. The mistake was
-treating "reach every minute" as "show every minute".
-
-So the field is the resting state: two segments you can type into, and the AM
-and PM pair when the preference asks for them. Clicking a segment opens that
-segment's list underneath, and only that one. The lists are grids rather than
-columns because twenty-four things in four rows can be read at a glance where
-twenty-four things in a column cannot, and because a grid of sixty minutes is
-ten rows instead of a scroll with no end in sight.
-
-Every hour and every minute is still reachable, by typing or by opening the
-grid. What changed is that neither is in the way until it is wanted.
-*/
+/* A time: typed segments at rest, each opening its own grid on click. */
 
 function pad(value: number) {
   return String(value).padStart(2, "0")
 }
 
-/* One typed segment of the clock. It commits on a valid number, steps on the
-   arrow keys, and opens its own grid when clicked, so the same control is
-   both ways of answering rather than two controls sitting side by side. */
+/* One typed segment: commits valid numbers, steps on arrows, opens its grid. */
 function Segment({
   value,
   min,
@@ -330,16 +271,15 @@ function Segment({
       }}
       onFocus={(event) => event.currentTarget.select()}
       className={cn(
-        "w-8 rounded-md bg-transparent py-0.5 text-center text-[14px] leading-5 font-medium tabular-nums text-[var(--color-graphite-900)] transition-colors duration-[var(--duration-fast)]",
+        "w-8 rounded-sm bg-transparent py-0.5 text-center text-sm font-medium tabular-nums text-foreground transition-colors duration-[var(--duration-fast)]",
         FOCUS,
-        open ? "bg-[var(--color-graphite-100)]" : "hover:bg-[var(--color-graphite-100)]",
+        open ? "bg-accent" : "hover:bg-accent",
       )}
     />
   )
 }
 
-/* The grid a segment opens. Six columns, because that divides both
-   twenty-four and sixty and lands the numbers in tidy rows either way. */
+/* Six columns divide both 24 and 60. */
 function NumberGrid({
   values,
   active,
@@ -363,7 +303,7 @@ function NumberGrid({
       ref={boxRef}
       role="listbox"
       aria-label={label}
-      className="mt-1.5 grid max-h-[136px] grid-cols-6 gap-0.5 overflow-y-auto rounded-md bg-[var(--color-graphite-25)] p-1"
+      className="mt-1.5 grid max-h-[136px] grid-cols-6 gap-0.5 overflow-y-auto rounded-sm bg-muted p-1"
     >
       {values.map((value) => {
         const on = active === value
@@ -376,11 +316,11 @@ function NumberGrid({
             data-active={on}
             onClick={() => onPick(value)}
             className={cn(
-              "rounded py-1 text-center text-[12px] leading-4 tabular-nums transition-colors duration-[var(--duration-fast)]",
+              "rounded-sm py-1 text-center text-xs tabular-nums transition-colors duration-[var(--duration-fast)]",
               FOCUS,
               on
-                ? "bg-[var(--color-graphite-900)] font-medium text-white"
-                : "text-[var(--color-graphite-700)] hover:bg-[var(--color-graphite-200)]",
+                ? "bg-primary font-medium text-primary-foreground"
+                : "text-foreground hover:bg-accent",
             )}
           >
             {pad(value)}
@@ -405,16 +345,10 @@ export function TimeRow({
   const clock = parseTime(value)
   const [open, setOpen] = useState<"hour" | "minute" | null>(null)
 
-  /* With nothing set the controls still have to stand somewhere, and 09:00 is
-     the assumption. Showing it never commits it, opening a picker must not
-     quietly give a task a time it did not have. */
+  /* 09:00 is shown, never committed, when nothing is set. */
   const shown: Clock = clock ?? { hour: 9, minute: 0 }
 
-  /* Each control changes one half of the clock and keeps the other, so it
-     needs the value as it is now rather than as it was when the handler was
-     made. Two commits inside one turn, an hour and a minute chosen faster
-     than React re-renders, would otherwise see the second overwrite the
-     first with a stale hour, and the hour would silently revert. */
+  /* Live ref so two fast commits in one turn don't overwrite each other. */
   const live = useRef<Clock>(shown)
   if (clock) live.current = clock
 
@@ -435,18 +369,18 @@ export function TimeRow({
   const period = periodOf(shown.hour)
 
   return (
-    <div className="border-t border-[var(--color-graphite-200)] pt-2">
+    <div className="border-t border-border pt-2">
       <div className="flex items-center gap-2">
-        <span className="flex-1 text-[12px] leading-4 font-medium text-[var(--color-graphite-500)]">
+        <span className="flex-1 text-xs font-medium text-muted-foreground">
           Time
         </span>
 
         <div
           className={cn(
-            "flex items-center gap-0.5 rounded-md border px-1 py-0.5",
+            "flex items-center gap-0.5 rounded-sm border border-input px-1 py-0.5",
             clock
-              ? "border-[var(--color-graphite-300)] bg-card"
-              : "border-dashed border-[var(--color-graphite-300)] bg-[var(--color-graphite-25)]",
+              ? "bg-background"
+              : "bg-muted",
           )}
         >
           <Segment
@@ -464,7 +398,7 @@ export function TimeRow({
           />
           <span
             aria-hidden="true"
-            className="text-[14px] leading-5 text-[var(--color-graphite-400)]"
+            className="text-sm text-quiet-foreground"
           >
             :
           </span>
@@ -478,7 +412,7 @@ export function TimeRow({
             onCommit={(next) => commit({ minute: next })}
           />
           {twelve ? (
-            <div className="ml-1 flex overflow-hidden rounded-[5px] ring-1 ring-[var(--color-graphite-200)]">
+            <div className="ml-1 flex overflow-hidden rounded-sm bg-muted">
               {(["AM", "PM"] as const).map((option) => (
                 <button
                   key={option}
@@ -488,11 +422,11 @@ export function TimeRow({
                     commit({ hour: to24Hour(to12Hour(live.current.hour), option) })
                   }
                   className={cn(
-                    "px-1.5 py-0.5 text-[11px] leading-4 font-medium transition-colors duration-[var(--duration-fast)]",
+                    "px-1.5 py-0.5 text-xs font-medium transition-colors duration-[var(--duration-fast)]",
                     FOCUS,
                     period === option
-                      ? "bg-[var(--color-graphite-900)] text-white"
-                      : "bg-card text-[var(--color-graphite-500)] hover:bg-[var(--color-graphite-100)]",
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-accent",
                   )}
                 >
                   {option}
@@ -509,11 +443,11 @@ export function TimeRow({
             onClear()
           }}
           className={cn(
-            "shrink-0 rounded-md px-2 py-1 text-[12px] leading-4 transition-colors duration-[var(--duration-fast)]",
+            "shrink-0 rounded-sm px-2 py-1 text-xs transition-colors duration-[var(--duration-fast)]",
             FOCUS,
             clock
-              ? "text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-100)]"
-              : "bg-[var(--color-graphite-100)] font-medium text-[var(--color-graphite-800)]",
+              ? "text-muted-foreground hover:bg-accent"
+              : "bg-accent font-medium text-foreground",
           )}
         >
           None

@@ -25,18 +25,8 @@ import {
   ArrowRight,
   CalendarDays,
   Search,
-  SunMedium,
-  UserRoundCheck,
   X,
 } from "../lib/icons.js"
-import type { LucideIcon } from "../lib/icons.js"
-
-/** The glyphs the sidebar gives the three lists, so search shows the same row. */
-const LIST_GLYPHS: Record<string, LucideIcon> = {
-  Today: SunMedium,
-  Upcoming: CalendarDays,
-  Assigned: UserRoundCheck,
-}
 
 import { Button } from "./ui/button.js"
 import {
@@ -358,7 +348,7 @@ export function SearchOverlay({
                             {item.kind === "page" || item.kind === "shelf" ? (
                               (() => {
                                 const Glyph =
-                                  item.kind === "shelf" ? Folders : (LIST_GLYPHS[item.title] ?? pageGlyph(item.title))
+                                  item.kind === "shelf" ? Folders : pageGlyph(item.title)
                                 return Glyph ? (
                                   <Glyph
                                     className="size-4 shrink-0 text-muted-foreground"

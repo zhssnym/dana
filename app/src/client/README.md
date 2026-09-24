@@ -49,12 +49,12 @@ what it is for.
 components take rows as props and callbacks as props.
 
 ```tsx
-export function ImportantPage() {
-  const view = useImportantView()
+export function ScheduledPage() {
+  const view = usePlannedView()
   const me = useMe()
   const actions = useRowActions()
   return (
-    <PageBody query={view} isEmpty={(view.data?.rows.length ?? 0) === 0} emptyCopy={IMPORTANT_EMPTY}>
+    <PageBody query={view} isEmpty={(view.data?.rows.length ?? 0) === 0} emptyCopy={PLANNED_EMPTY}>
       <TaskList tasks={view.data?.rows ?? []} viewerId={me.data?.user.id ?? null} {...actions} />
     </PageBody>
   )
@@ -62,8 +62,7 @@ export function ImportantPage() {
 ```
 
 The rule exists because a component that fetches is a component that cannot be
-rendered twice on one page, and 9.5's All page renders other pages' regions
-inside itself. Stated precisely: **a component that observes a query may be
+rendered twice on one page. Stated precisely: **a component that observes a query may be
 mounted once and only by a page that cannot render it twice; everything else
 takes rows as props.** `PlannedCalendar` calls the Q3C hook itself for that
 reason (the range it asks for is the range its own grid laid out), and a
@@ -382,11 +381,6 @@ The surfaces of 9.4 and 9.5 and the machinery they share.
 | Today (9.4) | `pages/TodayPage.tsx` | Q1 and Q1R | list, board | the floating button |
 | Scheduled | `pages/ScheduledPage.tsx` | Q3, Q3C | list, board, calendar | its list foot, dated today |
 | Assignments | `pages/AssignmentsPage.tsx` | Q5, composed | list, board | the floating button |
-| Important | `pages/ImportantPage.tsx` | Q4 | list, board | the floating button |
-| All | `pages/AllPage.tsx` | Q5, and Q6 collapsed | list, board | its undated half |
-| Done | `pages/DonePage.tsx` | Q6 | list, board | nothing (9.5) |
-| Abandoned | `pages/AbandonedPage.tsx` | Q5, narrowed by status | list, board | nothing (9.5) |
-| Anytime | `pages/AnytimePage.tsx` | Q2, ungrouped | list, board | its list foot, undated |
 
 The folder page (9.6) is a place-page too; `views/place-pages.ts` says what it
 supplies of its own.
@@ -407,7 +401,7 @@ end and the tab's controls at its right, so a place-page renders into both;
 `WindowBarActions` and `WindowBarLead` take which slot, so the registration,
 the subscription and the absent-before-mount case are written once.
 
-**Q6 pages are one hook body for one order.** `useDoneView` and
+**Q6 readers are one hook body for one order.** `useDoneView` and
 `useFolderCompletedTasks` are both `useInfiniteQuery` over the same shape,
 because section 6 defines Q7's third section as "Q6 predicate, order, and
 pagination, folder_id = F" and 7.10's cursor kind names the order it pages
@@ -428,8 +422,7 @@ response reports, and each is argued at its call site.
   that takes the successor branch, and 5.1 defines that branch by a pending
   sibling. 8.5 moves the rule onto the successor and 5.1's exhausted-series
   clause leaves it on the last row, so a completed row has a successor exactly
-  when it carries a `series_id` and no rule. `pages/DonePage.tsx` and
-  `components/task-editing.tsx` read it that way; asking whether the task
+  when it carries a `series_id` and no rule. `components/task-editing.tsx` reads it that way; asking whether the task
   "repeats" gets "no" from the one row where the confirm is owed. A field
   saying whether the branch applies would let the client stop.
 - **9.4's un-pull control is hidden when the row also qualifies

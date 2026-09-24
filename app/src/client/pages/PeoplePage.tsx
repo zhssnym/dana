@@ -18,13 +18,12 @@ sending and the day it is answered. Folder-scoped invites stay the sharing
 panel's; the filter below is what keeps one row from appearing on two
 surfaces.
 */
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 
-import { Mail, UserPlus, UsersRound } from 'lucide-react'
+import { Mail } from 'lucide-react'
 
 import { useCancelInvite, useCreateInvite, useRemoveConnection, useResendInvite } from '../api/mutations.js'
 import { useConnections, useSentInvites } from '../api/queries.js'
-import { PageHeading } from '../components/page-head.js'
 import { Avatar, AvatarFallback } from '../components/ui/avatar.js'
 import { Button } from '../components/ui/button.js'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog.js'
@@ -33,6 +32,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/toolti
 import { formatCompactDate, formatRelativeDay } from '../parts/format-dates.js'
 import { presenterToday, initialsOf } from '../parts/presenters.js'
 import { PageBody } from '../components/page/PageStates.js'
+import { Screen, ScreenSection } from '../components/settings/screen.js'
 import { PersonFace } from '../components/person-face.js'
 
 /** 9.8, verbatim: the confirm before a roster entry is removed. */
@@ -53,195 +53,169 @@ export function PeoplePage(): React.JSX.Element {
   const disconnect = useRemoveConnection()
   const [email, setEmail] = useState('')
   const [removing, setRemoving] = useState<string | null>(null)
+  const field = useRef<HTMLInputElement>(null)
 
   const today = presenterToday()
   const trimmed = email.trim()
-  const submittable = trimmed !== '' && !invite.isPending
 
   /* Bare invites only: a folder invite's home is 9.6's sharing panel. */
   const pendingBare = (sent.data ?? []).filter(
     (row) => row.status === 'pending' && row.folder_id === null,
   )
+  const connected = connections.data ?? []
+  /* "No one yet" is true only when nobody is connected *and* nobody is
+     waiting on an answer; a pending invite is someone. */
+  const nobody = connected.length === 0 && pendingBare.length === 0
 
   function sendInvite(): void {
-    if (!submittable) return
+    /* The button stays pressable: an empty press puts you in the field
+       rather than being a grey button that does nothing. */
+    if (trimmed === '') {
+      field.current?.focus()
+      return
+    }
+    if (invite.isPending) return
     setEmail('')
     invite.mutate({ email: trimmed })
   }
 
   return (
-    <div className="space-y-7">
-      <PageHeading
-        icon={UsersRound}
-        title="People"
-        description="Connections for quick folder sharing"
-      />
+    <Screen title="People" description="People you can share folders with.">
+      <form
+        className="flex gap-2 pb-8"
+        onSubmit={(event) => {
+          event.preventDefault()
+          sendInvite()
+        }}
+      >
+        <Input
+          ref={field}
+          aria-label="Invite by email"
+          type="email"
+          placeholder="name@example.com"
+          value={email}
+          disabled={invite.isPending}
+          className="h-8 flex-1"
+          onChange={(event) => {
+            setEmail(event.target.value)
+          }}
+        />
+        <Button type="submit" className="h-8 px-3">
+          Invite
+        </Button>
+      </form>
 
-      <div className="max-w-[820px] space-y-8">
-        <section aria-labelledby="invite-person-heading">
-          <div className="flex items-start gap-3">
-            <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[var(--color-graphite-100)] text-[var(--color-graphite-600)]">
-              <UserPlus className="size-[18px]" strokeWidth={1.75} aria-hidden="true" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <h2 id="invite-person-heading" className="text-sm font-semibold text-foreground">
-                Invite someone
-              </h2>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                Connect without sharing a folder yet.
-              </p>
-              <form
-                className="mt-3 flex max-w-[560px] gap-2"
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  sendInvite()
-                }}
-              >
-                <Input
-                  aria-label="Invite by email"
-                  type="email"
-                  placeholder="name@example.com"
-                  value={email}
-                  disabled={invite.isPending}
-                  className="h-[var(--control-height)] flex-1 bg-white px-3 md:text-sm"
-                  onChange={(event) => {
-                    setEmail(event.target.value)
-                  }}
-                />
+      {pendingBare.length === 0 ? null : (
+        <ScreenSection
+          id="pending-invitations-heading"
+          title={
+            <>
+              Invited <span className="font-normal text-muted-foreground">{pendingBare.length}</span>
+            </>
+          }
+        >
+          <ul role="list">
+            {pendingBare.map((row) => {
+              const resendAllowed = Date.now() - Date.parse(row.last_sent_at) >= DAY_MS
+              const resendButton = (
                 <Button
-                  type="submit"
-                  disabled={!submittable}
-                  className="h-[var(--control-height)] bg-[var(--color-graphite-800)] px-4 text-sm text-white hover:bg-[var(--color-graphite-700)]"
+                  variant="ghost"
+                  disabled={!resendAllowed || resend.isPending}
+                  onClick={() => {
+                    resend.mutate(row.id)
+                  }}
                 >
-                  Send invite
+                  Resend
                 </Button>
-              </form>
-            </div>
-          </div>
-        </section>
+              )
+              return (
+                <li key={row.id} className="flex min-h-12 items-center gap-3 py-1.5">
+                  <Avatar className="size-8">
+                    <AvatarFallback className="bg-muted text-muted-foreground">
+                      <Mail className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm text-foreground">{row.email}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Sent {formatRelativeDay(row.last_sent_at, today)}
+                    </p>
+                  </div>
+                  {resendAllowed ? (
+                    resendButton
+                  ) : (
+                    <Tooltip>
+                      <TooltipTrigger render={<span className="inline-flex" />}>
+                        {resendButton}
+                      </TooltipTrigger>
+                      <TooltipContent>{RESENT_RECENTLY}</TooltipContent>
+                    </Tooltip>
+                  )}
+                  <Button
+                    variant="ghost"
+                    disabled={cancel.isPending}
+                    onClick={() => {
+                      cancel.mutate(row.id)
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </li>
+              )
+            })}
+          </ul>
+        </ScreenSection>
+      )}
 
-        <section aria-labelledby="connections-heading" className="border-t border-border pt-6">
-          <h2 id="connections-heading" className="mb-2 text-sm font-semibold text-foreground">
-            Connections{' '}
-            <span className="font-normal text-muted-foreground">
-              {connections.data === undefined ? '' : connections.data.length}
-            </span>
-          </h2>
-          <PageBody
-            query={connections}
-            isEmpty={(connections.data?.length ?? 0) === 0}
-            emptyCopy="No one yet. Invite someone by email to share a folder with them."
-            emptyIcon={UsersRound}
+      <PageBody query={connections} isEmpty={false} emptyCopy="">
+        {nobody ? (
+          <p className="text-sm text-muted-foreground">
+            No one yet. Invite someone by email to share folders with them.
+          </p>
+        ) : connected.length === 0 ? null : (
+          <ScreenSection
+            id="connections-heading"
+            title={
+              <>
+                Connected <span className="font-normal text-muted-foreground">{connected.length}</span>
+              </>
+            }
           >
             <ul role="list">
-              {(connections.data ?? []).map((entry) => (
-                <li
-                  key={entry.user.id}
-                  className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-1 rounded-lg px-2 py-1.5 hover:bg-[var(--color-graphite-50)]"
-                >
-                  {/* polish round-2: the connection's own picture, which 7.3's
-                      element has carried beside the name since 4.1. The tinted
-                      disc is the fallback and no longer the only thing this
-                      roster could draw. */}
+              {connected.map((entry) => (
+                <li key={entry.user.id} className="flex min-h-12 items-center gap-3 py-1.5">
                   <PersonFace
                     name={entry.user.display_name ?? entry.user.email}
                     initials={initialsOf(entry.user.display_name ?? entry.user.email)}
                     image={entry.user.avatar_url}
-                    className="size-9"
+                    className="size-8"
                   />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-foreground">
+                    <p className="truncate text-sm text-foreground">
                       {entry.user.display_name ?? entry.user.email}
                     </p>
-                    <p className="truncate text-xs text-muted-foreground">{entry.user.email}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {entry.user.email} · since {formatCompactDate(entry.connected_at.slice(0, 10))}
+                    </p>
                   </div>
-                  <span className="text-xs text-muted-foreground">
-                    Connected {formatCompactDate(entry.connected_at.slice(0, 10))}
-                  </span>
                   {/* 9.8: "roster list with remove control". Either side may
                       call it (7.3), so it is offered on every row. */}
                   <Button
-                    variant="outline"
-                    className="h-8 px-3 text-xs"
+                    variant="ghost"
+                    className="text-muted-foreground"
+                    aria-label={`Remove connection with ${entry.user.display_name ?? entry.user.email}`}
                     onClick={() => {
                       setRemoving(entry.user.id)
                     }}
                   >
-                    Remove connection
+                    Remove
                   </Button>
                 </li>
               ))}
             </ul>
-          </PageBody>
-        </section>
-
-        {pendingBare.length === 0 ? null : (
-          <section aria-labelledby="pending-invitations-heading" className="border-t border-border pt-6">
-            <h2
-              id="pending-invitations-heading"
-              className="mb-2 text-sm font-semibold text-foreground"
-            >
-              Pending invitations{' '}
-              <span className="font-normal text-muted-foreground">{pendingBare.length}</span>
-            </h2>
-            <ul role="list">
-              {pendingBare.map((row) => {
-                const resendAllowed = Date.now() - Date.parse(row.last_sent_at) >= DAY_MS
-                const resendButton = (
-                  <Button
-                    variant="ghost"
-                    className="h-8 px-3 text-xs"
-                    disabled={!resendAllowed || resend.isPending}
-                    onClick={() => {
-                      resend.mutate(row.id)
-                    }}
-                  >
-                    Resend
-                  </Button>
-                )
-                return (
-                  <li
-                    key={row.id}
-                    className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-1 rounded-lg px-2 py-1.5 hover:bg-[var(--color-graphite-50)]"
-                  >
-                    <Avatar className="size-9">
-                      <AvatarFallback className="bg-[var(--color-graphite-100)] text-[var(--color-graphite-500)]">
-                        <Mail className="size-4" strokeWidth={1.75} aria-hidden="true" />
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-foreground">{row.email}</p>
-                      <p className="text-xs text-muted-foreground">
-                        Sent {formatRelativeDay(row.last_sent_at, today)}
-                      </p>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      className="h-8 px-3 text-xs"
-                      disabled={cancel.isPending}
-                      onClick={() => {
-                        cancel.mutate(row.id)
-                      }}
-                    >
-                      Cancel
-                    </Button>
-                    {resendAllowed ? (
-                      resendButton
-                    ) : (
-                      <Tooltip>
-                        <TooltipTrigger render={<span className="inline-flex" />}>
-                          {resendButton}
-                        </TooltipTrigger>
-                        <TooltipContent>{RESENT_RECENTLY}</TooltipContent>
-                      </Tooltip>
-                    )}
-                  </li>
-                )
-              })}
-            </ul>
-          </section>
+          </ScreenSection>
         )}
-      </div>
+      </PageBody>
 
       {removing === null ? null : (
         <ConfirmDialog
@@ -256,6 +230,6 @@ export function PeoplePage(): React.JSX.Element {
           }}
         />
       )}
-    </div>
+    </Screen>
   )
 }

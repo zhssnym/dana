@@ -26,7 +26,6 @@ import type { ReactElement } from 'react'
 import { Link, useNavigate } from 'react-router'
 import type { LucideIcon } from '../lib/icons.js'
 import {
-  CalendarDays,
   ChevronRight,
   FolderPlus,
   Folders,
@@ -34,9 +33,7 @@ import {
   Plus,
   Search,
   Settings,
-  SunMedium,
   Trash2,
-  UserRoundCheck,
   UsersRound,
   Workflow,
 } from '../lib/icons.js'
@@ -76,7 +73,7 @@ import { useDuplicateFolder } from '../api/mutations.js'
 import { folderGates } from '../lib/folder-authority.js'
 import { folderRowDisplay, initialsOf, shelfMark } from '../parts/presenters.js'
 import { folderLink, shelfLink } from '../lib/nav-links.js'
-import { paths } from '../routes.js'
+import { navPages, paths } from '../routes.js'
 import { NotificationsBell } from '../components/notifications-bell.js'
 import { PersonFace } from '../components/person-face.js'
 import { SidebarResizeHandle } from './SidebarResizeHandle.js'
@@ -101,14 +98,10 @@ import type { Shelf } from '../../shared/shelves.js'
 
 /** The one row treatment every sidebar entry shares. */
 export const SIDEBAR_ROW =
-  'h-8 gap-2 rounded-md px-2 text-sm font-normal text-muted-foreground hover:bg-sidebar-accent hover:text-foreground data-active:bg-sidebar-accent data-active:font-medium data-active:text-foreground [&_svg]:!size-4 [&_svg]:shrink-0'
+  'h-(--shell-sidebar-row-height) gap-2 rounded-md px-2 text-sm font-normal text-muted-foreground hover:bg-sidebar-accent hover:text-foreground data-active:bg-sidebar-accent data-active:font-medium data-active:text-foreground [&_svg]:!size-4 [&_svg]:shrink-0'
 
-/** The three cross-project lists, under the names the sidebar gives them. */
-const LISTS: readonly { name: string; path: string; icon: LucideIcon }[] = [
-  { name: 'Today', path: paths.today, icon: SunMedium },
-  { name: 'Upcoming', path: paths.scheduled, icon: CalendarDays },
-  { name: 'Assigned', path: paths.assignments, icon: UserRoundCheck },
-]
+/** The three cross-project lists: `routes.ts` owns their names, paths and marks. */
+const LISTS: readonly { name: string; path: string; icon: LucideIcon }[] = navPages
 
 const IS_MAC =
   typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
@@ -421,7 +414,7 @@ function FolderGroupBlock({
             event.preventDefault()
             menuTrigger.current?.click()
           }}
-          className="group/folder-group relative flex h-8 items-center gap-1 rounded-md pr-8 pl-1 text-sm text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+          className="group/folder-group relative flex h-(--shell-sidebar-row-height) items-center gap-1 rounded-md pr-8 pl-1 text-sm text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
         >
           {drag.proposal === null ? null : (
             <span className="pointer-events-none absolute top-1/2 right-2 z-40 -translate-y-1/2 rounded-sm bg-foreground px-2 py-0.5 text-xs whitespace-nowrap text-background">
@@ -765,7 +758,7 @@ function AccountMenu({
       <DropdownMenuTrigger
         render={
           <SidebarMenuButton
-            className={cn(SIDEBAR_ROW, 'h-9 text-foreground')}
+            className={cn(SIDEBAR_ROW, 'h-8 text-foreground')}
             aria-label="Account"
           >
             <PersonFace
@@ -882,7 +875,7 @@ export function AppSidebar({
                   {IS_MAC ? '⌘K' : 'Ctrl K'}
                 </kbd>
               </SidebarMenuButton>
-              <SidebarTrigger className="size-8 shrink-0 rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-foreground [&_svg]:!size-4" />
+              <SidebarTrigger className="size-(--shell-sidebar-row-height) shrink-0 rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-foreground [&_svg]:!size-4" />
             </SidebarMenuItem>
           )}
           <SidebarMenuItem>
