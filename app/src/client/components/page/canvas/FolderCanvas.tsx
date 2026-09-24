@@ -48,7 +48,20 @@ function PersistedCanvas({ page, initialPage, folderId, facetId, workRootId, tas
   const queryClient = useQueryClient()
   const host = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState<number | null>(null)
+  const [reloadNote, setReloadNote] = useState('')
   useEffect(() => { setWidth(host.current?.clientWidth || 600) }, [])
+  // A page without a revision cannot be written safely: every save would carry
+  // no base and the server could not refuse a stale write. Say so and offer a
+  // reload instead of crashing the canvas or guessing a base.
+  const pageKey = facetId === undefined ? queryKeys.folderPage(folderId) : queryKeys.facetPage(folderId, facetId)
+  if (!initialPage.revision) return <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+    This page opened without its version, so writing is paused to keep your page safe. Nothing was changed.
+    <Button variant="outline" onClick={() => { setReloadNote('Loading…'); void queryClient.invalidateQueries({ queryKey: pageKey }).then(() => {
+      const latest = queryClient.getQueryData<PageView>(pageKey)
+      if (latest?.revision) onCheckpoint(latest)
+      else setReloadNote('The page still has no version. Try again in a moment.')
+    }) }}>Load the page again</Button>{reloadNote}
+  </div>
   return <div ref={host} className="min-w-0">{width === null ? <p role="status">Loading writing…</p> : <CanvasSession {...{ page, initialPage, folderId, facetId, workRootId, tasks, context, actions, onAsk, arrangeable, onCheckpoint }} width={width} onSaved={(next) => {
     queryClient.setQueryData(facetId === undefined ? queryKeys.folderPage(folderId) : queryKeys.facetPage(folderId, facetId), next)
   }} />}</div>
@@ -65,6 +78,7 @@ function CanvasSession({ page, initialPage, folderId, facetId, workRootId, tasks
   const [taskAt, setTaskAt] = useState<string | null>(null)
   const [title, setTitle] = useState('')
   const [creating, setCreating] = useState(false)
+  const [taskError, setTaskError] = useState('')
   const [recovery, setRecovery] = useState(false)
   const [previousDraft, setPreviousDraft] = useState<string | null>(null)
   const editorPage = useMemo(() => workRootId === undefined ? initialPage : workPageOf(initialPage, workRootId), [initialPage, workRootId])
@@ -153,12 +167,15 @@ function CanvasSession({ page, initialPage, folderId, facetId, workRootId, tasks
     return workRootId === undefined ? lossless : mergeWorkDocument(page, workRootId, lossless)
   }
   const empty = { blocks: [], items: [] }
-  const firstProjection = initial.length
+  // Projected once, at mount: on later renders the live document may hold an
+  // unsaveable block (an external image) and projecting it here would throw
+  // during render and take the whole canvas down.
+  const firstProjection = (): CanvasDocument => initial.length
     ? projection(editor.document)
     : workRootId === undefined
       ? empty
       : mergeWorkDocument(initialPage, workRootId, empty)
-  const [writer] = useState(() => new CanvasWriter(firstProjection, initialPage.revision!,
+  const [writer] = useState(() => new CanvasWriter(firstProjection(), initialPage.revision ?? '',
     (body) => mutateApi(getPageResponse, { method: 'POST', path: `${documentPath}/actions`, body }),
     () => {
       render((value) => value + 1)
@@ -215,10 +232,12 @@ function CanvasSession({ page, initialPage, folderId, facetId, workRootId, tasks
     } catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not reload the page.') }
   }
   async function createTask(): Promise<void> {
-    if (!taskAt || !title.trim() || writer.state === 'failed') return
+    if (!taskAt || !title.trim()) return
+    if (writer.state === 'failed') { setTaskError(taskBlocked); return }
     setCreating(true)
+    setTaskError('')
     await writer.flush()
-    if (writer.state !== 'saved') { setCreating(false); return }
+    if (writer.state !== 'saved') { setCreating(false); setTaskError(taskBlocked); return }
     const id = crypto.randomUUID()
     const replace = (blocks: readonly CanvasInput[]): CanvasInput[] => blocks.flatMap((block) => {
       if (block.id === taskAt) {
@@ -230,15 +249,27 @@ function CanvasSession({ page, initialPage, folderId, facetId, workRootId, tasks
     const proposal = replace(editor.document)
     // Serialize with the schema's complete block shape; no temporary Task row or
     // simulated mutable Task record is put into the live editor before commit.
-    const temporary = BlockNoteEditor.create({ schema: canvasSchema, initialContent: proposal })
+    let temporary: ReturnType<typeof BlockNoteEditor.create> | null = null
+    let drafted: CanvasDocument
     try {
-      writer.change(dehydrateCanvas(temporary.document, width, folderRefs))
-      await writer.flush({ id, title: title.trim() })
-    } finally { temporary.unmount(); setCreating(false); setTaskAt(null) }
+      temporary = BlockNoteEditor.create({ schema: canvasSchema, initialContent: proposal })
+      drafted = dehydrateCanvas(temporary.document, width, folderRefs)
+    } catch (failure) {
+      // Nothing was sent; keep the dialog open so the title is not lost.
+      setTaskError(failure instanceof Error ? failure.message : 'Could not prepare this Task for saving.')
+      setCreating(false)
+      return
+    } finally { temporary?.unmount() }
+    writer.change(drafted)
+    // A failed send is reported by the save status below, whose Retry save
+    // re-sends this exact request, Task included.
+    try { await writer.flush({ id, title: title.trim() }) } finally { setCreating(false); setTaskAt(null) }
   }
+  const taskBlocked = 'Your writing has not saved, so a Task cannot be created yet. Close this, then use Retry save or Download writing below.'
   function askTask(target?: CanvasBlock): void {
     const block = target ?? editor.getTextCursorPosition().block
     setTaskAt(block.id)
+    setTaskError(writer.state === 'failed' ? taskBlocked : '')
     setTitle(block.type === 'paragraph' ? richRuns(block).map((run) => run.text).join('') : '')
   }
   const feedback = error || (writer.state === 'failed' ? writer.error instanceof Error ? writer.error.message : 'Could not save. Your writing is retained.' : '')
@@ -278,7 +309,8 @@ function CanvasSession({ page, initialPage, folderId, facetId, workRootId, tasks
     <Dialog open={taskAt !== null} onOpenChange={(open) => { if (!open && !creating) setTaskAt(null) }}>
       <DialogContent><DialogHeader><DialogTitle>Create Task</DialogTitle><DialogDescription>The Task keeps this position. Document undo starts a new history after creation; Task actions remain in its own menu.</DialogDescription></DialogHeader>
         <Input aria-label="Task title" value={title} maxLength={500} onChange={(event) => setTitle(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void createTask() }} />
-        <DialogFooter><Button variant="ghost" onClick={() => setTaskAt(null)} disabled={creating}>Cancel</Button><Button variant="commit" onClick={() => { void createTask() }} disabled={creating || !title.trim()}>Create Task</Button></DialogFooter>
+        {taskError ? <p role="alert" className="text-sm text-destructive">{taskError}</p> : null}
+        <DialogFooter><Button variant="ghost" onClick={() => setTaskAt(null)} disabled={creating}>Cancel</Button><Button variant="commit" onClick={() => { void createTask() }} disabled={creating || !title.trim() || writer.state === 'failed'}>Create Task</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   </>
