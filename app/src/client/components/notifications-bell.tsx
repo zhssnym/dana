@@ -238,6 +238,7 @@ export function NotificationsBell({
               >
                 <PersonFace
                   className="mt-0.5 shrink-0"
+                  id={row.event.actor_id}
                   name={actor}
                   initials={initialsOf(actor)}
                   image={person?.image ?? null}

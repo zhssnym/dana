@@ -164,12 +164,18 @@ this for the name alone, and the unit tests pin the two-key answer. Absent and
 null are the same answer here, which is the disc.
 */
 export function personDisplay(person: {
+  id?: string
   display_name: string | null
   avatar_url?: string | null
 }): AssigneeDisplay {
   const name = person.display_name ?? DELETED_USER
   const image = person.avatar_url ?? null
-  return { initials: initialsOf(name), name, ...(image === null ? {} : { image }) }
+  return {
+    ...(person.id === undefined ? {} : { id: person.id }),
+    initials: initialsOf(name),
+    name,
+    ...(image === null ? {} : { image }),
+  }
 }
 
 /* ------------------------------------------------------------------ *
@@ -431,8 +437,10 @@ export interface InviteRowDisplay {
   readonly id: string
   /** 9.8's row sentence, which is also how a test tells two rows apart. */
   readonly sentence: string
-  /** The inviter's display name, which is what the disc's tint is a function
-      of (`parts/person-tint.ts`) and what the sentence already names. */
+  /** The inviter's user id, which their face is a function of
+      (`parts/person-tint.ts`), so it matches the face they wear elsewhere. */
+  readonly inviterId?: string
+  /** The inviter's display name, which the sentence names. */
   readonly inviter: string
   /** The inviter's initials, for the row's avatar. */
   readonly initials: string
@@ -457,7 +465,7 @@ export interface InviteRowDisplay {
  */
 export function inviteRowDisplay(invite: {
   id: string
-  inviter: { display_name: string | null; avatar_url?: string | null }
+  inviter: { id?: string; display_name: string | null; avatar_url?: string | null }
   folder_name: string | null
 }): InviteRowDisplay {
   const who = invite.inviter.display_name ?? 'Someone'
@@ -465,6 +473,7 @@ export function inviteRowDisplay(invite: {
   return {
     id: invite.id,
     sentence: `${who} invited you to ${invite.folder_name ?? 'connect'}`,
+    ...(invite.inviter.id === undefined ? {} : { inviterId: invite.inviter.id }),
     inviter: who,
     initials: initialsOf(who),
     ...(image === null ? {} : { image }),

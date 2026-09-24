@@ -138,7 +138,7 @@ function ViewerRow() {
       >
         {/* e9-avatars: the one face, so the preview shows the default
             face until a picture is uploaded (the Google one is not drawn). */}
-        <PersonFace name={viewer.name} image={viewer.image ?? null} className="size-10 data-[size=sm]:size-10" />
+        <PersonFace id={viewer.id} name={viewer.name} image={viewer.image ?? null} className="size-10 data-[size=sm]:size-10" />
         <span className="absolute inset-0 flex items-center justify-center rounded-full bg-foreground/50 opacity-0 transition-opacity group-hover/pic:opacity-100">
           <ImagePlus className="size-4 text-background" strokeWidth={1.75} aria-hidden="true" />
         </span>

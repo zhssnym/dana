@@ -8,7 +8,7 @@ it is; what a surface offers is what its server stores:
 - `document` (Purpose, Results): flat headings; no Task, no Section.
 - `plain` (a facet with no headings).
 - `shelf`: one flat heading level, nothing nests (so no toggle list).
-- `task`: the Task composer's own schema (no to-do, callout, divider, toggle).
+- `task`: the Task composer's own schema (to-do, callout and divider; no toggle).
 
 Typed turn-into: `/turn h1`, `/turn toggle`, `/turnbullet` convert the block
 the cursor is in, keeping its text, and its children where the target holds

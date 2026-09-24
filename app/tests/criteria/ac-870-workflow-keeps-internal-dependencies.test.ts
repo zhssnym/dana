@@ -12,7 +12,9 @@ is exactly an import that answers 201 with the ordering silently gone.
 AC-871: a hand-written file is read by the same rule. An edge naming a key
 the file does not declare is skipped (external dependencies are excluded, not
 refused), an edge between two folders of one file travels, and a file whose
-edges form a cycle is refused 422 naming the field before anything is written.
+edges form a cycle is refused 422 naming the field before anything is written. Its Tasks are
+created in the file's order: each takes its own `created_at`, so no list falls
+back to a random id to order two Tasks of one import.
 
 The edges are bounded (reviewer finding on the M1 swarm): a file naming more
 than 5000 dependencies in all, or one Task naming more than 100, is refused
@@ -129,6 +131,25 @@ describe('AC-871 a hand-written file is read by the same rule', () => {
       (folder) => folder.id,
     )
     expect(await edgesIn(made)).toEqual(['ac871 B <- ac871 A', 'ac871 C <- ac871 B'])
+  })
+
+  test("the Tasks are created in the file's order, never tied on created_at", async () => {
+    const [, reader] = (await cast.of(app)) as [Actor, Actor]
+    const titles = Array.from({ length: 12 }, (_, i) => `ac871 order ${String(i).padStart(2, '0')}`)
+    const response = await importWorkflow(reader, {
+      dana: 'workflow',
+      version: 1,
+      folders: [{ name: 'ac871 order', tasks: titles.map((title) => ({ title })) }],
+    })
+    expectStatus(response, 201, 'the file imports (7.16)')
+    const [made] = (response.json() as { folders: { id: string }[] }).folders
+    const found = await rows(
+      app.db,
+      sql`SELECT title, created_at FROM tasks WHERE folder_id = ${made?.id}::uuid
+          ORDER BY created_at, id`,
+    )
+    expect(found.map((row) => String(row.title))).toEqual(titles)
+    expect(new Set(found.map((row) => String(row.created_at))).size, 'no two Tasks share an instant').toBe(titles.length)
   })
 
   test('a cycle is refused 422 before anything is written', async () => {
