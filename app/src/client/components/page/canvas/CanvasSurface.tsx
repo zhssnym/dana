@@ -19,7 +19,7 @@ import {
 import { installCanvasGuard } from './guard.js'
 import { bindTaskCommand, removeCanvasBlocks } from './commands.js'
 import { CanvasSlashMenu } from './slash-items.js'
-import { validateCanvasOutline } from './outline.js'
+import { isSectionHeading, shelfOutlineFailure, validateCanvasOutline } from './outline.js'
 import { BlockMenuContext, BlockSideMenu, blockSidePosition, duplicateBlocks, pageTheme, turnBlocksInto } from './BlockSideMenu.js'
 import type { BlockMenuModel } from './BlockSideMenu.js'
 import { BlockSelectionStyle, useBlockAnchor, useBlockSelectionKeys } from './block-selection.js'
@@ -34,9 +34,15 @@ type HeadingMode = 'section' | 'document' | 'none'
 const TASK_OR_FOLDER: ReadonlySet<string> = new Set(['danaTask', 'danaFolder'])
 const LIST_TYPES: ReadonlySet<string> = new Set(['bulletListItem', 'numberedListItem', 'checkListItem', 'toggleListItem'])
 
-/** A Shelf keeps one heading level and flat lists (ShelfCanvas's own guard). */
+/** A Shelf keeps one heading level: its headings are stored flat and group
+ * by position (`ShelfCanvas`). Blocks nest under blocks there as anywhere. */
 function flatShelfFailure(blocks: readonly TreeBlock[]): boolean {
-  return blocks.some((block) => (block.type === 'heading' ? block.props.level !== 1 || flatShelfFailure(block.children) : block.children.length > 0))
+  return shelfOutlineFailure(blocks)
+}
+
+/** A folder reference is drawn as text but stored as `folder_ref`, which holds nothing. */
+function referenceHolds(blocks: readonly TreeBlock[], folderRefs: ReadonlyMap<string, string>): boolean {
+  return blocks.some((block) => (block.children.length > 0 && folderRefs.has(block.id)) || referenceHolds(block.children, folderRefs))
 }
 
 /** Visual editor host. The caller owns hydration, uploads, Task actions and durable saving. */
@@ -96,7 +102,7 @@ export function CanvasSurface({
   // What this canvas's structure admits: the persisted outline's rules, and a
   // Shelf's flat ones. A refused shape is never offered (menu) or attempted (Tab).
   const admits = useCallback((document: readonly TreeBlock[]): boolean =>
-    validateCanvasOutline(document) === null && !(flatGroups && flatShelfFailure(document)), [flatGroups])
+    validateCanvasOutline(document) === null && !(flatGroups && flatShelfFailure(document)) && !referenceHolds(document, folderRefs), [flatGroups, folderRefs])
   const headingToggles = headingMode === 'section'
   const remove = useCallback((ids: readonly string[]): void => {
     removeCanvasBlocks(editor, ids.flatMap((id) => { const block = editor.getBlock(id); return block === undefined ? [] : [block] }))
@@ -112,6 +118,8 @@ export function CanvasSurface({
       const document = editor.document as unknown as TreeBlock[]
       return TURN_TARGETS.filter((target) => {
         if (target.type === 'heading' && (headingMode === 'none' || (flatGroups && target.level !== 1))) return false
+        // A toggle heading is a document's (Purpose, Results); Work's headings fold as Sections.
+        if (target.toggle === true && headingMode !== 'document') return false
         return admits(simulate(document, block.id, target, headingMode === 'none' ? undefined : headingToggles))
       })
     },
@@ -138,14 +146,18 @@ export function CanvasSurface({
   useBlockAnchor(editor, true)
   const scope = `dana-canvas-${useId().replace(/[^a-zA-Z0-9]/g, '')}`
 
-  // Tab nests only where the result is a shape this canvas can keep; elsewhere
-  // it does nothing rather than refuse out loud. Code keeps its own Tab.
+  // Tab nests any block under the block above it (0038), only where the
+  // result is a shape this canvas can keep; elsewhere it does nothing rather
+  // than refuse out loud. Code keeps its own Tab. Shift-Tab is BlockNote's
+  // own un-nest, which lifts any block a level (the blocks after it in its
+  // parent follow as its children); the canvas guard refuses a shape it
+  // cannot keep.
   /*
-  Enter on an empty nested list item steps out a level (at the root,
-  BlockNote's own Enter makes it text). Backspace at the start of a block:
-  a nested list item steps out; any other kind turns into text, its children
-  lifted after it when text cannot hold them; text merges (BlockNote's). A
-  nested item never turns into text in place, a shape the canvas cannot keep.
+  Enter on an empty list item nested under a block steps out a level (at the
+  root or directly in a Section, BlockNote's own Enter makes it text).
+  Backspace at the start of a block: such a nested list item steps out; any
+  other kind turns into text, its children kept (text holds them) unless it
+  was a Section; text merges (BlockNote's).
   */
   const onKeyDownCapture = (event: React.KeyboardEvent): void => {
     if (event.metaKey || event.ctrlKey || event.altKey) return
@@ -153,7 +165,8 @@ export function CanvasSurface({
     if (!selection.empty || editor.domElement === undefined || !editor.domElement.contains(event.target as Node)) return
     const block = editor.getTextCursorPosition().block
     const stop = (): void => { event.preventDefault(); event.stopPropagation() }
-    const inList = LIST_TYPES.has(block.type) && LIST_TYPES.has(editor.getParentBlock(block.id)?.type ?? '')
+    const parent = editor.getParentBlock(block.id)
+    const inList = LIST_TYPES.has(block.type) && parent !== undefined && !isSectionHeading(parent)
     if (event.key === 'Tab' && !event.shiftKey) {
       if (block.type === 'codeBlock') return
       const next = simulateNest(editor.document as unknown as TreeBlock[], block.id)

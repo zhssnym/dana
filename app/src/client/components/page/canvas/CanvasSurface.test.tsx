@@ -61,14 +61,14 @@ function paragraph(id: string, text: string): CanvasBlock {
   }
 }
 
-function draw(block: CanvasBlock, folderRefs: ReadonlyMap<string, string>, onCreateTask: (block?: CanvasBlock) => void): void {
+function draw(block: CanvasBlock, folderRefs: ReadonlyMap<string, string>, onCreateTask: (block?: CanvasBlock) => void, headingMode?: 'section' | 'document'): void {
   state.selectedId = block.id
   state.editor = {
     document: [block],
     getBlock: (id: string) => id === block.id ? block : undefined,
     getTextCursorPosition: () => ({ block }),
   } as unknown as CanvasEditor
-  render(<CanvasSurface editor={state.editor} onChange={() => {}} onCreateTask={onCreateTask} folderRefs={folderRefs} onUploadFile={() => Promise.reject(new Error("no uploads here"))} />)
+  render(<CanvasSurface editor={state.editor} onChange={() => {}} onCreateTask={onCreateTask} folderRefs={folderRefs} onUploadFile={() => Promise.reject(new Error("no uploads here"))} headingMode={headingMode} />)
 }
 
 describe('Turn into › Task from the canvas block menu', () => {
@@ -115,5 +115,13 @@ describe('the block menu', () => {
     expect(names.filter((name) => /Move|Remove heading|Continue after/.test(name ?? ''))).toEqual([])
     // A root paragraph cannot become Heading 2: the outline would refuse it.
     expect(names).not.toContain('Heading 2')
+    // Work's headings are Sections, which fold already: no toggle heading here.
+    expect(names.filter((name) => name?.startsWith('Toggle heading'))).toEqual([])
+  })
+
+  test('a document page offers the three toggle headings beside the flat ones', () => {
+    draw(paragraph('prose', 'Words'), new Map(), vi.fn(), 'document')
+    const names = screen.getAllByRole('button').map((button) => button.textContent)
+    expect(names).toEqual(expect.arrayContaining(['Heading 2', 'Toggle heading 1', 'Toggle heading 2', 'Toggle heading 3']))
   })
 })

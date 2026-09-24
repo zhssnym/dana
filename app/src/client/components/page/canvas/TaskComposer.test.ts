@@ -52,7 +52,7 @@ describe('Task composer', () => {
     expect(canvasOperations(baseline, dehydrateTask(editor.document, 600, stored)).filter((op) => op.op !== 'set_outline')).toEqual([])
   })
 
-  test('AC-997 converting a drawn kind to text is written, and an indented block is written flat with its words', () => {
+  test('AC-997 converting a drawn kind to text is written, and an indented block is written nested under the block above it', () => {
     const editor = editorOf(stored)
     const baseline = baselineOf(stored, dehydrateTask(editor.document, 600, stored))
     editor.updateBlock(id(3), { type: 'paragraph' })
@@ -60,8 +60,22 @@ describe('Task composer', () => {
     const after = dehydrateTask(editor.document, 600, stored)
     const ops = canvasOperations(baseline, after)
     expect(ops.find((op) => op.op === 'put_block' && op.id === id(3))).toMatchObject({ block_kind: 'paragraph', text: 'first' })
-    expect(after.items.every((item) => item.list_parent_block_id === null && item.section_block_id === null)).toBe(true)
+    expect(after.items.find((item) => item.id === id(20))).toMatchObject({ list_parent_block_id: id(5), section_block_id: null })
+    expect(after.items.filter((item) => item.id !== id(20)).every((item) => item.list_parent_block_id === null && item.section_block_id === null)).toBe(true)
     expect(after.blocks.find((b) => b.id === id(20))?.text).toBe('nested words')
+    // It reopens where it was written.
+    const reopened = editorOf({ ...stored, blocks: [...stored.blocks, block(20, 'paragraph', 'nested words', { list_parent_block_id: id(5) })], items: after.items.map((item) => ({ kind: 'block' as const, id: item.id })) } as PageView)
+    expect(reopened.getBlock(id(5))?.children.map((child) => child.id)).toEqual([id(20)])
+  })
+
+  test('a toggle heading keeps its fold and its children across a save and a reload', () => {
+    const page = { ...stored, blocks: [block(1, 'heading2', 'Folded', { toggleable: true }), block(2, 'bullet', 'inside', { list_parent_block_id: id(1) })], items: [{ kind: 'block' as const, id: id(1) }, { kind: 'block' as const, id: id(2) }] } as PageView
+    const editor = editorOf(page)
+    expect(editor.document[0]?.props).toMatchObject({ level: 2, isToggleable: true })
+    const drawn = dehydrateTask(editor.document, 600, page)
+    expect(drawn.blocks[0]).toMatchObject({ block_kind: 'heading2', toggleable: true })
+    expect(drawn.items.map((item) => item.list_parent_block_id)).toEqual([null, id(1)])
+    expect(canvasOperations(baselineOf(page, drawn), dehydrateTask(editor.document, 600, page)).filter((op) => op.op !== 'set_outline')).toEqual([])
   })
 
   test('AC-998 merging a conflicted draft into the latest copy removes nothing from either', () => {

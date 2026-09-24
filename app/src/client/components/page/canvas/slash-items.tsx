@@ -5,10 +5,14 @@ it is; what a surface offers is what its server stores:
 
 - `work` (Folder Main): headings are Sections, so "Heading n" and "Toggle
   heading n" are one thing there (a Section folds); Task is offered.
-- `document` (Purpose, Results): flat headings; no Task, no Section.
+- `document` (Purpose, Results): flat headings, and toggle headings 1-3 (a
+  heading that folds the blocks nested under it); no Task, no Section.
 - `plain` (a facet with no headings).
-- `shelf`: one flat heading level, nothing nests (so no toggle list).
-- `task`: the Task composer's own schema (no to-do, callout, divider, toggle).
+- `shelf`: one heading level, stored flat; no toggle list.
+- `task`: the Task composer's own schema (no to-do, callout, divider, toggle
+  list), with toggle headings as on a document.
+
+Every surface nests any block under a writing block (0038); Tab does it.
 
 Typed turn-into: `/turn h1`, `/turn toggle`, `/turnbullet` convert the block
 the cursor is in, keeping its text, and its children where the target holds
@@ -23,8 +27,8 @@ import { SuggestionMenu, insertOrUpdateBlockForSlashMenu } from '@blocknote/core
 import { CheckCircle2, FileText, Image as ImageIcon, Lightbulb, Network } from '../../../lib/icons.js'
 import { linkSlashItem } from '../../links/dana-link-picker.js'
 import { ancestorsOf, insertCanvasHeading, sectionContext } from './commands.js'
-import { TOGGLE_SURFACES, bindCanvasSurface, surfaceOf } from './markdown.js'
-import { validateCanvasOutline } from './outline.js'
+import { TOGGLE_HEADING_SURFACES, TOGGLE_SURFACES, bindCanvasSurface, surfaceOf } from './markdown.js'
+import { shelfOutlineFailure, validateCanvasOutline } from './outline.js'
 import { TEXT_TYPES, TURN_TARGETS, isCurrent, simulate } from './turn-into.js'
 import { turnBlocksInto } from './BlockSideMenu.js'
 import type { TreeBlock, TurnKey, TurnTarget } from './turn-into.js'
@@ -59,6 +63,9 @@ const TURN_ALIASES: Record<TurnKey, readonly string[]> = {
   h1: ['h1', '#', 'heading 1', 'title'],
   h2: ['h2', '##', 'heading 2', 'subheading'],
   h3: ['h3', '###', 'heading 3'],
+  th1: ['toggle heading 1', 'toggle h1', 'toggleh1'],
+  th2: ['toggle heading 2', 'toggle h2', 'toggleh2'],
+  th3: ['toggle heading 3', 'toggle h3', 'toggleh3'],
   todo: ['todo', 'to-do', 'checkbox', 'checklist', '[]'],
   toggle: ['toggle', '>', 'collapsible', 'details'],
   bullet: ['bullet', 'bulleted', 'ul', '-', '*', 'unordered'],
@@ -72,14 +79,16 @@ const TURN_ICONS: Record<string, string> = {
   toggleListItem: 'toggle_list', quote: 'quote', codeBlock: 'code_block',
 }
 
-/** How a surface stores a heading: a Section (`true`), flat (`false`), or a
- * schema with no such prop (the Task composer, `undefined`). */
-function headingTogglesOf(surface: CanvasSurfaceKind): boolean | undefined {
-  return surface === 'work' || surface === 'shelf' ? true : surface === 'task' ? undefined : false
+/** How a surface stores a heading: a Section (`true`) or a presentation
+ * heading (`false`; the Task composer's headings are presentation too). */
+function headingTogglesOf(surface: CanvasSurfaceKind): boolean {
+  return surface === 'work' || surface === 'shelf'
 }
 
-/** A Shelf keeps everything flat but its headings (`ShelfCanvas`'s own guard). */
-const flatFailure = (blocks: readonly TreeBlock[]): boolean => blocks.some((block) => (block.type !== 'heading' && block.children.length > 0) || flatFailure(block.children))
+/** Every heading as a presentation heading (the Task surface's only kind). */
+function presentationOnly(blocks: readonly TreeBlock[]): TreeBlock[] {
+  return blocks.map((block) => ({ ...block, props: block.type === 'heading' ? { ...block.props, presentation: true } : block.props, children: presentationOnly(block.children) }))
+}
 
 /** The targets this block may become here: offered only when the result is a shape the page stores. */
 export function turnTargetsFor(editor: AnyEditor, block: TreeBlock): TurnTarget[] {
@@ -91,9 +100,12 @@ export function turnTargetsFor(editor: AnyEditor, block: TreeBlock): TurnTarget[
     if (!has(editor, target.type) || isCurrent(block, target)) return false
     if (target.type === 'heading' && (surface === 'plain' || (surface === 'shelf' && target.level !== 1))) return false
     if (target.type === 'toggleListItem' && !TOGGLE_SURFACES.has(surface)) return false
-    if (surface === 'task') return true
-    const next = simulate(document, block.id, target, toggles)
-    return validateCanvasOutline(next) === null && !(surface === 'shelf' && flatFailure(next))
+    if (target.toggle === true && !TOGGLE_HEADING_SURFACES.has(surface)) return false
+    const simulated = simulate(document, block.id, target, toggles)
+    // A Task has no Sections: a heading pasted in with a fold but no
+    // `presentation` (HTML <details>) is still a presentation heading there.
+    const next = surface === 'task' ? presentationOnly(simulated) : simulated
+    return validateCanvasOutline(next) === null && !(surface === 'shelf' && shelfOutlineFailure(next))
   })
 }
 
@@ -104,7 +116,7 @@ function turnItems(editor: AnyEditor): Item[] {
   const work = surfaceOf(editor) === 'work'
   return turnTargetsFor(editor, block).map((target) => ({
     title: target.title,
-    aliases: [...TURN_ALIASES[target.key], ...(work && target.level !== undefined ? [`toggle h${target.level}`, `toggleh${target.level}`, `toggle heading ${target.level}`] : [])],
+    aliases: [...TURN_ALIASES[target.key], ...(work && target.level !== undefined && target.toggle !== true ? [`toggle h${target.level}`, `toggleh${target.level}`, `toggle heading ${target.level}`] : [])],
     icon: target.type === 'callout' ? <Lightbulb size={16} /> : iconOf(target.type === 'heading' ? (target.level === 1 ? 'heading' : `heading_${target.level}`) : TURN_ICONS[target.type] ?? ''),
     group: 'Turn into',
     onItemClick: () => { turnBlocksInto(editor, [block.id], target, headingTogglesOf(surfaceOf(editor))) },
@@ -143,7 +155,13 @@ export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item
     add('Basic blocks', 'Heading 1', ['h1', '#', 'title', 'heading'], insert('heading', { level: 1, isToggleable: true }), headingIcon(1))
   } else if (surface !== 'plain') {
     for (const level of [1, 2, 3] as const) {
-      add('Basic blocks', `Heading ${level}`, [`h${level}`, '#'.repeat(level), 'title', 'heading'], insert('heading', surface === 'task' ? { level } : { level, isToggleable: false }), headingIcon(level))
+      add('Basic blocks', `Heading ${level}`, [`h${level}`, '#'.repeat(level), 'title', 'heading'], insert('heading', { level, isToggleable: false, presentation: false }), headingIcon(level))
+    }
+    // A heading that folds the blocks nested under it (stored with `toggleable`).
+    if (TOGGLE_HEADING_SURFACES.has(surface)) {
+      for (const level of [1, 2, 3] as const) {
+        add('Basic blocks', `Toggle heading ${level}`, [`toggle heading ${level}`, `toggle h${level}`, `toggleh${level}`, 'toggle', 'collapsible'], insert('heading', { level, isToggleable: true, presentation: true }), headingIcon(level))
+      }
     }
   }
   if (has(editor, 'toggleListItem') && TOGGLE_SURFACES.has(surface)) add('Basic blocks', 'Toggle list', ['toggle', '>', 'collapsible', 'details'], insert('toggleListItem'), byKey('toggle_list')?.icon)

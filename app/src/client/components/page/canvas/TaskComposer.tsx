@@ -5,14 +5,19 @@ canvas, against `GET/PUT /tasks/:id/document` (7.16's document transaction over
 the Task's own blocks, `server/domain/task-document.ts`).
 
 **Vocabulary.** What a Task document admits and this editor can draw:
-paragraph, heading 1-3 (`heading1..3`, never a Main Section), bullet,
-numbered, quote, code, and image/file/audio/video from the Task's Folder.
-The server refuses Task rows, Sections, folder references and nested list
-items, so none is offered: there is no Task command, headings do not fold
-content under them, and a block the person indents is written flat — its words
-kept, its indent not. A stored `callout` or `checklist` (neither is offered
-here; a Task's checkable work is its Steps) is drawn as a paragraph and keeps
-its kind across a save, by id, tick included.
+paragraph, heading 1-3 (`heading1..3`, never a Main Section) and toggle
+heading 1-3 (a heading that folds the blocks nested under it, stored with
+`toggleable`), bullet, numbered, quote, code, and image/file/audio/video from
+the Task's Folder. The server refuses Task rows, Sections and folder
+references, so none is offered: there is no Task command. Since 0038 a Task
+document nests like every home: Tab puts a block under the writing block above
+it (text, a heading, a list item, a quote), written as its
+`list_parent_block_id`, and Shift-Tab takes it out again. Here a heading's
+`isToggleable` simply is the toggle, there being no Sections; `presentation`
+rides along only so the shared canvas helpers read it as a presentation
+heading. A stored `callout` or `checklist` (neither is offered here; a Task's
+checkable work is its Steps) is drawn as a paragraph and keeps its kind across
+a save, by id, tick included.
 
 **Nothing typed is dropped.** Every change is mirrored to
 `sessionStorage['dana-task-draft:<task>']` until the server acknowledges it. A
@@ -55,13 +60,35 @@ import { NOT_SAVED, SaveFailure } from './SaveFailure.js'
 import { BlockMenuContext, BlockSideMenu, blockSidePosition, duplicateBlocks, pageTheme, turnBlocksInto } from './BlockSideMenu.js'
 import type { BlockMenuModel } from './BlockSideMenu.js'
 import { BlockSelectionStyle, useBlockAnchor, useBlockSelectionKeys } from './block-selection.js'
-import { TEXT_TYPES, TURN_TARGETS } from './turn-into.js'
+import { simulateNest, TEXT_TYPES, TURN_TARGETS } from './turn-into.js'
+import type { TreeBlock } from './turn-into.js'
+import { validateCanvasOutline } from './outline.js'
 import './canvas.css'
+
+/* A toggle heading opens by default, like the Folder canvas's toggles, so what
+   is written under it shows; the fold is kept per block in `toggle-<id>`. */
+const stockHeading = createHeadingBlockSpec({ levels: [1, 2, 3], defaultLevel: 1, allowToggleHeadings: true })
+const taskHeading = {
+  ...stockHeading,
+  config: {
+    ...stockHeading.config,
+    propSchema: { ...stockHeading.config.propSchema, presentation: { default: false } },
+  },
+  implementation: {
+    ...stockHeading.implementation,
+    render: (function (block, editor) {
+      try {
+        if (block.props.isToggleable === true && window.localStorage.getItem(`toggle-${block.id}`) === null) window.localStorage.setItem(`toggle-${block.id}`, 'true')
+      } catch { /* preference storage can be unavailable */ }
+      return stockHeading.implementation.render.call(this, block, editor)
+    }) as typeof stockHeading.implementation.render,
+  },
+}
 
 export const taskSchema = BlockNoteSchema.create({
   blockSpecs: {
     paragraph: defaultBlockSpecs.paragraph,
-    heading: createHeadingBlockSpec({ levels: [1, 2, 3], defaultLevel: 1, allowToggleHeadings: false }),
+    heading: taskHeading,
     bulletListItem: defaultBlockSpecs.bulletListItem,
     numberedListItem: defaultBlockSpecs.numberedListItem,
     quote: defaultBlockSpecs.quote,
@@ -86,27 +113,42 @@ const fileIdOf = (url: string): string | null => /(?:^|\/)api\/v1\/files\/([0-9a
 const draftKey = (taskId: string): string => `dana-task-draft:${taskId}`
 const recoveredKey = (taskId: string): string => `dana-task-recovered:${taskId}`
 
+/** The stored document as editor blocks, each nested block under its parent. */
 export function hydrateTask(page: PageView, width: number): TaskInput[] {
   const records = new Map(page.blocks.map((block) => [block.id, block]))
-  return page.items.flatMap((item): TaskInput[] => {
+  const nodes = new Map<string, TaskInput>()
+  const root: TaskInput[] = []
+  for (const item of page.items) {
     const b = records.get(item.id)
-    if (b === undefined || item.kind !== 'block') return []
-    const content = contentOf(b.text, b.rich_content)
-    const previewWidth = width * (b.width_pct ?? 100) / 100
-    switch (b.kind) {
-      case 'heading1': case 'heading2': case 'heading3':
-        return [{ id: b.id, type: 'heading', props: { level: Number(b.kind.slice(-1)) as 1 | 2 | 3 }, content }]
-      case 'bullet': return [{ id: b.id, type: 'bulletListItem', content }]
-      case 'numbered': return [{ id: b.id, type: 'numberedListItem', content }]
-      case 'quote': return [{ id: b.id, type: 'quote', content }]
-      case 'code': return [{ id: b.id, type: 'codeBlock', content: b.text ?? '' }]
-      case 'image': return [{ id: b.id, type: 'image', props: { url: fileUrl(b.file_id), caption: b.text ?? '', previewWidth } }]
-      case 'video': return [{ id: b.id, type: 'video', props: { url: fileUrl(b.file_id), caption: b.text ?? '', previewWidth } }]
-      case 'audio': return [{ id: b.id, type: 'audio', props: { url: fileUrl(b.file_id), caption: b.text ?? '' } }]
-      case 'file': return [{ id: b.id, type: 'file', props: { url: fileUrl(b.file_id), name: b.text || 'File' } }]
-      default: return [{ id: b.id, type: 'paragraph', content }]
-    }
-  })
+    if (b === undefined || item.kind !== 'block') continue
+    const node = { ...drawTask(b, width), children: [] as TaskInput[] } as TaskInput
+    nodes.set(b.id, node)
+    // A parent precedes its children (the server's outline rule); one that
+    // cannot be found keeps the block at the root rather than losing it.
+    const parent = b.list_parent_block_id === null ? undefined : nodes.get(b.list_parent_block_id)
+    if (parent === undefined) root.push(node)
+    else parent.children!.push(node)
+  }
+  return root
+}
+
+function drawTask(b: PageView['blocks'][number], width: number): TaskInput {
+  const content = contentOf(b.text, b.rich_content)
+  const previewWidth = width * (b.width_pct ?? 100) / 100
+  const toggle = b.toggleable === true
+  switch (b.kind) {
+    case 'heading1': case 'heading2': case 'heading3':
+      return { id: b.id, type: 'heading', props: { level: Number(b.kind.slice(-1)) as 1 | 2 | 3, isToggleable: toggle, presentation: toggle }, content }
+    case 'bullet': return { id: b.id, type: 'bulletListItem', content }
+    case 'numbered': return { id: b.id, type: 'numberedListItem', content }
+    case 'quote': return { id: b.id, type: 'quote', content }
+    case 'code': return { id: b.id, type: 'codeBlock', content: b.text ?? '' }
+    case 'image': return { id: b.id, type: 'image', props: { url: fileUrl(b.file_id), caption: b.text ?? '', previewWidth } }
+    case 'video': return { id: b.id, type: 'video', props: { url: fileUrl(b.file_id), caption: b.text ?? '', previewWidth } }
+    case 'audio': return { id: b.id, type: 'audio', props: { url: fileUrl(b.file_id), caption: b.text ?? '' } }
+    case 'file': return { id: b.id, type: 'file', props: { url: fileUrl(b.file_id), name: b.text || 'File' } }
+    default: return { id: b.id, type: 'paragraph', content }
+  }
 }
 
 const KIND: Record<TaskBlock['type'], PageBlockKind> = {
@@ -114,12 +156,19 @@ const KIND: Record<TaskBlock['type'], PageBlockKind> = {
   quote: 'quote', codeBlock: 'code', image: 'image', file: 'file', audio: 'audio', video: 'video',
 }
 
-/** Flat by construction: a Task document refuses nesting, so an indented
- * block is written as the next sibling with every word it holds. */
+/** What may hold nested blocks here (the server's `NEST_PARENT_KINDS` this
+ * schema can draw; a kept callout or checklist is drawn as a paragraph). */
+const NEST_PARENTS: ReadonlySet<string> = new Set(['paragraph', 'heading', 'bulletListItem', 'numberedListItem', 'quote'])
+
+/**
+ * Nested as drawn: a block indented under another is written with that block
+ * as its `list_parent_block_id`. Children of a block that holds nothing (code,
+ * media; Tab never puts them there) are written beside it, every word kept.
+ */
 export function dehydrateTask(blocks: readonly TaskBlock[], width: number, stored?: PageView): CanvasDocument {
   const kept = new Map((stored?.blocks ?? []).filter((b) => KEPT_KINDS.has(b.kind)).map((b) => [b.id, b]))
   const result: CanvasDocument = { blocks: [], items: [] }
-  const visit = (list: readonly TaskBlock[]): void => {
+  const visit = (list: readonly TaskBlock[], parent: string | null): void => {
     for (const block of list) {
       const runs = richRuns(block as unknown as CanvasBlock)
       const text = runs.map((run) => run.text).join('')
@@ -133,18 +182,19 @@ export function dehydrateTask(blocks: readonly TaskBlock[], width: number, store
           text: block.type === 'file' ? (block.props.caption || block.props.name || null) : block.props.caption,
           rich_content: null, file_id: fileId, ref_folder_id: null, checked: null,
           width_pct: sized ? Math.max(25, Math.min(100, Math.round(((block.props as { previewWidth?: number }).previewWidth || width) / width * 100))) : null,
+          toggleable: null,
         }
       } else {
         const kind: PageBlockKind = block.type === 'heading' ? `heading${block.props.level}` as PageBlockKind : KIND[block.type]
         const keep = block.type === 'paragraph' ? kept.get(block.id) : undefined
-        record = { id: block.id, block_kind: keep?.kind ?? kind, text, rich_content: kind === 'code' ? null : { version: 1, runs }, file_id: null, ref_folder_id: null, width_pct: null, checked: keep?.checked ?? null }
+        record = { id: block.id, block_kind: keep?.kind ?? kind, text, rich_content: kind === 'code' ? null : { version: 1, runs }, file_id: null, ref_folder_id: null, width_pct: null, checked: keep?.checked ?? null, toggleable: block.type === 'heading' && block.props.isToggleable === true ? true : null }
       }
       result.blocks.push(record)
-      result.items.push({ kind: 'block', id: block.id, section_block_id: null, list_parent_block_id: null })
-      visit(block.children)
+      result.items.push({ kind: 'block', id: block.id, section_block_id: null, list_parent_block_id: parent })
+      visit(block.children, NEST_PARENTS.has(block.type) ? block.id : parent)
     }
   }
-  visit(blocks)
+  visit(blocks, null)
   return result
 }
 
@@ -172,6 +222,12 @@ export function mergeDraft(current: readonly TaskBlock[], draft: readonly TaskBl
 
 /** The kinds a Task's body holds (its schema, less media), for Turn into. */
 const TASK_TURN_TARGETS = TURN_TARGETS.filter((target) => ['paragraph', 'heading', 'bulletListItem', 'numberedListItem', 'quote', 'codeBlock'].includes(target.type))
+
+/** Every heading here is a presentation heading, whatever a paste set its
+ * `isToggleable` to, so the shared outline never reads one as a Section. */
+function asPresentation(blocks: readonly TreeBlock[]): TreeBlock[] {
+  return blocks.map((block) => ({ ...block, props: block.type === 'heading' ? { ...block.props, isToggleable: false } : block.props, children: asPresentation(block.children) }))
+}
 
 function download(name: string, content: string): void {
   const url = URL.createObjectURL(new Blob([content], { type: 'application/json' }))
@@ -263,7 +319,8 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
   // The same gutter and block menu as the Folder canvas (`BlockSideMenu`).
   const menu = useMemo<BlockMenuModel>(() => ({
     targets: (block) => TEXT_TYPES.has(block.type) ? TASK_TURN_TARGETS : [],
-    turnInto: (ids, target) => { turnBlocksInto(editor, ids, target, undefined) },
+    // A Task's headings are presentation headings (`false`), toggle headings included.
+    turnInto: (ids, target) => { turnBlocksInto(editor, ids, target, false) },
     canDuplicate: () => true,
     duplicate: (ids) => { duplicateBlocks(editor, ids) },
     removal: (_block, ids) => ({ label: 'Delete', run: () => { editor.removeBlocks([...ids]) } }),
@@ -272,6 +329,17 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
   useBlockSelectionKeys(editor, selectionActions)
   useBlockAnchor(editor, true)
   const scope = `dana-canvas-${useId().replace(/[^a-zA-Z0-9]/g, '')}`
+  /* Tab nests the block under the one above it (BlockNote's own nest) only
+     where the Task document stores that shape; elsewhere it does nothing.
+     Code keeps its own Tab; Shift-Tab is BlockNote's un-nest. */
+  function onKeyDownCapture(event: React.KeyboardEvent): void {
+    if (event.key !== 'Tab' || event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return
+    if (!editor.prosemirrorState.selection.empty || editor.domElement === undefined || !editor.domElement.contains(event.target as Node)) return
+    const block = editor.getTextCursorPosition().block
+    if (block.type === 'codeBlock') return
+    const next = simulateNest(editor.document as unknown as TreeBlock[], block.id)
+    if (next === null || validateCanvasOutline(asPresentation(next)) !== null) { event.preventDefault(); event.stopPropagation() }
+  }
   function writeBelow(event: React.MouseEvent): void {
     if (event.button !== 0) return
     event.preventDefault()
@@ -371,7 +439,7 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
     </div> : null}
     <BlockMenuContext.Provider value={menu}>
     <BlockSelectionStyle editor={editor} scope={scope} />
-    <div className={`dana-writing-canvas dana-task-composer ${scope} min-w-0`}>
+    <div onKeyDownCapture={onKeyDownCapture} className={`dana-writing-canvas dana-task-composer ${scope} min-w-0`}>
       <BlockNoteView editor={editor} theme={pageTheme()}
         formattingToolbar={false} slashMenu={false} sideMenu={false} filePanel={false} onChange={changed} aria-label="Task writing">
         <FormattingToolbarController formattingToolbar={CanvasFormattingToolbar} />

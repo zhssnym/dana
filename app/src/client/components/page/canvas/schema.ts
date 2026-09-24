@@ -34,6 +34,9 @@ const groupHeading = {
         const { selection } = editor.prosemirrorState
         const block = editor.getTextCursorPosition().block
         // Let BlockNote handle selections, mid-title splitting and ordinary prose.
+        // Any heading that folds takes this path: a Section, and a toggle
+        // heading (Notion's Enter at the end of an open toggle heading starts
+        // its first child); a flat presentation heading is ordinary prose.
         if (block.type !== 'heading' || block.props.isToggleable === false || !selection.empty || selection.$from.parentOffset !== selection.$from.parent.content.size) return false
         // Upstream splitting transfers children to the new paragraph. Dana's group
         // membership must survive, so use its public subtree insertion operation.
@@ -55,7 +58,14 @@ const groupHeading = {
   })],
   config: {
     ...heading.config,
-    propSchema: { ...heading.config.propSchema, isToggleable: { default: true } },
+    /*
+    A heading is a Work Section unless it says otherwise (`isSectionHeading`):
+    `isToggleable: false` is a flat presentation heading, and
+    `isToggleable: true, presentation: true` a toggle heading, a presentation
+    heading that folds the blocks nested under it (stored heading1-3 with
+    `toggleable`, migration 0038). `presentation` is never stored itself.
+    */
+    propSchema: { ...heading.config.propSchema, isToggleable: { default: true }, presentation: { default: false } },
   },
   implementation: {
     ...heading.implementation,
