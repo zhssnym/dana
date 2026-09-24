@@ -37,7 +37,13 @@ export function isOwnPicture(image: string | null | undefined): image is string 
 }
 
 export interface PersonFaceProps {
-  /** The person's display name, which is what the default face is a function of. */
+  /**
+   * The person's user id, which the default face is a function of. Pass it
+   * wherever the surface holds one: a face keyed by name is a second face for
+   * the same person on every surface that keys by id.
+   */
+  readonly id?: string | null | undefined
+  /** The person's display name: the face's key only where no id is held. */
   readonly name: string
   /**
    * Kept for the call sites' contract; the initials disc is retired, so it is
@@ -55,6 +61,7 @@ export interface PersonFaceProps {
 }
 
 export function PersonFace({
+  id,
   name,
   image = null,
   dense = false,
@@ -71,7 +78,7 @@ export function PersonFace({
     >
       {own ? <AvatarImage src={image} alt="" /> : null}
       <AvatarFallback className="overflow-hidden bg-transparent">
-        <DefaultAvatar name={name} />
+        <DefaultAvatar id={id} name={name} />
       </AvatarFallback>
     </Avatar>
   )
@@ -97,6 +104,8 @@ the person's stored picture, drawn only when it is their own upload, and
 their default face otherwise.
 */
 export interface Person {
+  /** The user id the default face is keyed by, where the surface has it. */
+  readonly id?: string | undefined
   readonly initials: string
   readonly name: string
   readonly image?: string
@@ -113,6 +122,7 @@ export function Face({
 }): React.JSX.Element {
   return (
     <PersonFace
+      id={person.id}
       name={person.name}
       initials={person.initials}
       image={person.image ?? null}

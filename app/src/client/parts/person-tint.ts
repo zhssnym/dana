@@ -1,58 +1,50 @@
 /*
 A person's colour, decided once for the whole product.
 
-The designer's `person-face.tsx` states the rule and the reason: "the tint is
-deterministic and comes from `task-model`, so one person is the same colour on
-every surface and no surface owns another's copy. It introduces no new colour:
-these are the ten folder swatches the tokens have carried since v1 (W1, one
-palette serves the whole product)."
+The tint is deterministic, so one person is the same colour on every surface
+and no surface owns another's copy. It introduces no new colour: these are
+the identity row's eight, the palette a folder's mark already draws from.
 
-**Why this is a function of the name and not a column.** Nothing in section 4
+**Why this is a function of the person and not a column.** Nothing in section 4
 gives a person a colour, and nothing should: a tint is recognition rather than
-data, so it must be derivable by any surface holding a name, including the ones
-that hold only a name, which the task row's assignee chip and the People
-screen's roster both do. A stored colour would need a write path, a default,
+data, so it must be derivable by any surface holding the person: from their user
+id, and from the name only on a surface that holds nothing else. A stored colour would need a write path, a default,
 and a rule for two people who picked the same one.
 
 **It lives in `parts/` for `identity-colors.ts`'s recorded reason.** No ramp
 step is spelled outside `components/ui/` and no literal colour appears
 anywhere under `components/` or `lib/`, so a palette
 that must name swatches belongs beside the other one that does. The values are
-token references and never hex: unlike a folder's colour, which is data on the
-wire and must be a stable literal (4.3's CHECK), a person's tint is chosen by
-this client at render time and should follow the viewer's colourway.
+the identity row's hex, each already held to 3:1 against both themes' page.
 
 The hash is the prototype's own, transcribed rather than improved, because the
 only property either version has to have is that it is the same everywhere and
-spreads a roster over the ten.
+spreads a roster over the eight.
 */
+import { IDENTITY_COLOR_FALLBACK, IDENTITY_COLORS } from './identity-colors.js'
 
 /**
- * The ten folder swatches, in the prototype's order.
+ * The identity row's eight colours (`identity-colors.ts`), the same eight a
+ * folder's mark offers, so a person and a folder draw from one palette.
  *
- * Graphite is deliberately not among them: it is what an *unset* identity
- * draws as (`identity-colors.ts`), and a person whose tint happened to land on
- * it would read as a person with no colour rather than as one with that one.
+ * Until 2026-09-24 this was the old ten folder swatches, whose muted greens and
+ * blues read as one teal across a roster. The eight are distinct at a glance
+ * and each holds 3:1 against both themes' page, which is the bar a face needs.
  */
-const PERSON_TINTS = [
-  '--color-folder-cobalt',
-  '--color-folder-fern',
-  '--color-folder-plum',
-  '--color-folder-teal',
-  '--color-folder-clay',
-  '--color-folder-violet',
-  '--color-folder-sky',
-  '--color-folder-ochre',
-  '--color-folder-rose',
-  '--color-folder-olive',
-] as const
+const PERSON_TINTS = IDENTITY_COLORS.map(([, hex]) => hex)
 
-export function personTint(name: string): string {
+/**
+ * A person's colour, from the key their face is a function of: their user id
+ * wherever the surface holds one, their display name only where it does not.
+ * The id is the key because a name is not one person (two can share it, one
+ * can change it), and a face that changed with a rename is two faces.
+ */
+export function personTint(key: string): string {
   let hash = 0
-  for (let index = 0; index < name.length; index += 1) {
-    hash = (hash * 31 + name.charCodeAt(index)) % 100000
+  for (let index = 0; index < key.length; index += 1) {
+    hash = (hash * 31 + key.charCodeAt(index)) % 100000
   }
-  return `var(${PERSON_TINTS[hash % PERSON_TINTS.length] ?? PERSON_TINTS[0]})`
+  return PERSON_TINTS[hash % PERSON_TINTS.length] ?? PERSON_TINTS[0] ?? IDENTITY_COLOR_FALLBACK
 }
 
 /**
@@ -76,8 +68,8 @@ export interface PersonFacePaint {
   readonly paper: string
 }
 
-export function personFacePaint(name: string): PersonFacePaint {
-  const ink = personTint(name)
+export function personFacePaint(key: string): PersonFacePaint {
+  const ink = personTint(key)
   return {
     ink,
     ground: `color-mix(in oklab, ${ink} 22%, var(--color-graphite-0))`,
@@ -91,10 +83,10 @@ export function personFacePaint(name: string): PersonFacePaint {
  * expression, glasses), so two people sharing a colour still differ in form.
  * FNV-1a, because the tint's hash is too small to split into more choices.
  */
-export function personShapeSeed(name: string): number {
+export function personShapeSeed(key: string): number {
   let hash = 0x811c9dc5
-  for (let index = 0; index < name.length; index += 1) {
-    hash ^= name.charCodeAt(index)
+  for (let index = 0; index < key.length; index += 1) {
+    hash ^= key.charCodeAt(index)
     hash = Math.imul(hash, 0x01000193) >>> 0
   }
   return hash
