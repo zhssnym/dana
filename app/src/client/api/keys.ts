@@ -68,14 +68,10 @@ export const queryKeys = {
 
   /** One Discussion (7.27's GET /discussions/:id). */
   discussion: (id: string) => ['discussions', id] as const,
-  /** A Discussion's input rounds, newest first (7.29, #321). */
-  inputRounds: (discussionId: string) =>
-    ['discussions', discussionId, 'input-rounds'] as const,
   /* 7.28's Consultation (#320). The list is keyed by its filter so an open
      and a resolved list are separate pages of the cache. */
   discussions: (folderId: string, state: string, q: string) =>
     ['folders', folderId, 'discussions', state, q] as const,
-  discussionOutcomes: (id: string) => ['discussions', id, 'outcomes'] as const,
   discussionThread: (id: string) => ['discussions', id, 'thread'] as const,
   outcome: (id: string) => ['outcomes', id] as const,
 
