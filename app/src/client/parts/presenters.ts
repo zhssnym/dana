@@ -655,6 +655,7 @@ export type TaskRowDisplay = Pick<
   | 'createdBy'
   | 'pulled'
   | 'invitePending'
+  | 'blockedBy'
   | 'steps'
   | 'recurrence'
 >
@@ -775,6 +776,8 @@ export function taskRowDisplay(task: TaskCard, context: RowContext): TaskRowDisp
       task.pulled &&
       !qualifiesAutomatically(task, viewerId, today),
     invitePending: task.pending_invite_email ?? undefined,
+    // #225: 7.25's unfinished-blocker count; the row draws nothing at 0.
+    blockedBy: task.blocked_by_count ?? 0,
     /*
     9.5's from half, drawn where the page asks for it.
 
