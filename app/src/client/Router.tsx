@@ -23,6 +23,7 @@ import { LandingPage } from './pages/LandingPage.js'
 import { LegalPage } from './pages/LegalPage.js'
 import { NotFoundPage } from './pages/NotFoundPage.js'
 import { ScheduledPage } from './pages/ScheduledPage.js'
+import { FocusListPage } from './pages/FocusListPage.js'
 import { SettingsPage } from './pages/SettingsPage.js'
 import { ShelfPage } from './pages/ShelfPage.js'
 import { TaskPage } from './pages/TaskPage.js'
@@ -57,6 +58,7 @@ export function Router(): React.JSX.Element {
           <Route path="today" element={<TodayPage />} />
           <Route path="scheduled" element={<ScheduledPage />} />
           <Route path="assignments" element={<AssignmentsPage />} />
+          <Route path="lists/:list" element={<FocusListPage />} />
           <Route path="desk" element={<DeskRedirect />} />
           <Route path="trash" element={<TrashPage />} />
           <Route path="folders/:id" element={<FolderPage />} />

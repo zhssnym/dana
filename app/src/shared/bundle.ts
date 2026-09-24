@@ -68,6 +68,23 @@ export type CalendarZoom = (typeof CALENDAR_ZOOMS)[number]
  */
 export const DEFAULT_CALENDAR_ZOOM: CalendarZoom = 'month'
 
+/**
+ * The lists the sidebar's Focus heading can hold (round 8), in the order the
+ * "+" offers them. The first three are the defaults. `focus_lists` stores the
+ * viewer's chosen keys in their order; a key left out is a hidden list.
+ */
+export const FOCUS_LISTS = [
+  'today',
+  'scheduled',
+  'assignments',
+  'important',
+  'overdue',
+  'undated',
+  'open',
+] as const
+export type FocusListKey = (typeof FOCUS_LISTS)[number]
+export const DEFAULT_FOCUS_LISTS: readonly FocusListKey[] = ['today', 'scheduled', 'assignments']
+
 export const patchSettingsBody = z.object({
   theme: z.enum(['system', 'light', 'dark']).optional(),
   row_density: z.enum(['comfortable', 'compact']).optional(),
@@ -86,6 +103,7 @@ export const patchSettingsBody = z.object({
   pinned_views: z.array(z.enum(NATIVE_VIEWS)).max(NATIVE_VIEWS.length).optional(),
   sidebar_order: z.array(z.uuid()).max(300).optional(),
   arrangements: z.record(z.uuid(), z.string().max(40)).optional(),
+  focus_lists: z.array(z.enum(FOCUS_LISTS)).max(FOCUS_LISTS.length).optional(),
 })
 export type PatchSettingsBody = z.infer<typeof patchSettingsBody>
 
@@ -101,6 +119,7 @@ export interface SettingsBundle {
   pinned_views: string[]
   sidebar_order: string[]
   arrangements: Record<string, string>
+  focus_lists: FocusListKey[]
 }
 
 /* ------------------------------------------------------------------ *
@@ -143,6 +162,7 @@ export const settingsBundle = z.object({
   pinned_views: z.array(z.string()),
   sidebar_order: z.array(z.string()),
   arrangements: z.record(z.string(), z.string()),
+  focus_lists: z.array(z.enum(FOCUS_LISTS)),
 })
 export const getSettingsResponse = settingsBundle
 export type GetSettingsResponse = z.infer<typeof settingsBundle>

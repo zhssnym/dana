@@ -100,6 +100,8 @@ import {
 } from './preferences.js'
 import type { Folder } from '../../shared/folders.js'
 import type { Shelf } from '../../shared/shelves.js'
+import { DEFAULT_FOCUS_LISTS } from '../../shared/bundle.js'
+import type { FocusListKey } from './focus-lists.js'
 
 /** The prefix 9.1's routes table gives a folder page. */
 const FOLDER_PREFIX = '/app/folders/'
@@ -333,6 +335,13 @@ export function AppShell(): React.JSX.Element {
   useEffect(() => {
     if (storedOrder !== undefined) setSidebarOrder((held) => held ?? storedOrder)
   }, [storedOrder])
+  /* The Focus lists (round 8), held the same way: the sidebar's answer now,
+     the write its record. */
+  const [focusLists, setFocusLists] = useState<readonly FocusListKey[] | null>(null)
+  const storedFocus = bundle.data?.focus_lists
+  useEffect(() => {
+    if (storedFocus !== undefined) setFocusLists((held) => held ?? storedFocus)
+  }, [storedFocus])
 
   /*
   The one line that fights the distribution, and the reason is in
@@ -450,6 +459,11 @@ export function AppShell(): React.JSX.Element {
             onSidebarOrderChange={(ids) => {
               setSidebarOrder(ids)
               patchBundle.mutate({ sidebar_order: [...ids] })
+            }}
+            focusLists={focusLists ?? (bundle.isSuccess ? [] : DEFAULT_FOCUS_LISTS)}
+            onFocusListsChange={(next) => {
+              setFocusLists(next)
+              patchBundle.mutate({ focus_lists: [...next] })
             }}
             groups={groups.actions}
             activeFolderId={activeFolderId}

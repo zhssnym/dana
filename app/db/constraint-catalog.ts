@@ -752,6 +752,8 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
          line as a name over a column; AC-380 is what sees the expression. */
       { name: 'user_settings_calendar_zoom_check', columns: ['calendar_zoom'] },
       { name: 'user_settings_clock_check', columns: ['clock'] },
+      /* Migration 0050: the Focus lists, an ordered array of list keys. */
+      { name: 'user_settings_focus_lists_array_check', columns: ['focus_lists'] },
       { name: 'user_settings_pinned_views_array_check', columns: ['pinned_views'] },
       { name: 'user_settings_row_density_check', columns: ['row_density'] },
       { name: 'user_settings_sidebar_order_array_check', columns: ['sidebar_order'] },

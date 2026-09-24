@@ -24,6 +24,7 @@ export type PlaceKey =
   | 'scheduled'
   | 'assignments'
   | 'folder'
+  | 'focus'
 
 /** Where a page's always-visible capture point is, or that it has none. */
 export type CaptureKind = 'inline' | 'none'
@@ -121,6 +122,27 @@ export const PLACES: Record<PlaceKey, PlaceSpine> = {
     capture: 'inline',
     boardAxis: 'section',
   },
+  /*
+  A Focus list the viewer added (round 8). Its name and path are each list's
+  own (`shell/focus-lists.ts`); it has no capture, since a filter such as
+  Overdue has no value a new task could be given to land in it.
+  */
+  focus: {
+    key: 'focus',
+    name: 'List',
+    path: '',
+    icon: Layers3,
+    views: LIST_AND_BOARD,
+    groups: [
+      { value: 'none', label: 'None' },
+      { value: 'folder', label: 'Page' },
+      { value: 'person', label: 'Person' },
+      { value: 'date', label: 'Date' },
+    ],
+    completed: false,
+    capture: 'none',
+    boardAxis: 'folder',
+  },
 }
 
 /**
@@ -187,6 +209,7 @@ function placeDefaults(place: PlaceKey, today: string): CaptureDefaults {
     /* Assigned: 7.6 defaults `assignee_id` to the caller, so the task lands under "You". */
     case 'assignments':
     case 'folder':
+    case 'focus':
       return { due_date: null, important: false, pullIntoToday: false }
   }
 }
