@@ -179,8 +179,8 @@ export function dehydrateCanvas(blocks: readonly CanvasBlock[], columnWidth: num
            structured carry below argues at length. On `main` those runs
            survived and the relation did not, which is this loss pointed the
            other way. AC-665 pins it, with two runs and a style. */
-        const reference = block.type === 'paragraph' ? folderRefs.get(block.id) ?? null : null
-        result.blocks.push({ id: block.id, block_kind: block.type === 'heading' ? 'section' : image ? 'image' : reference !== null ? 'folder_ref' : 'paragraph', text: image ? block.props.caption : runs.map((run) => run.text).join(''), rich_content: image || reference !== null ? null : { version: 1, runs }, file_id: fileId, ref_folder_id: reference, width_pct: image ? Math.max(25, Math.min(100, Math.round((block.props.previewWidth || columnWidth) / columnWidth * 100))) : null, checked: null })
+        const reference = block.type === 'danaFolder' ? block.props.folderId || null : block.type === 'paragraph' ? folderRefs.get(block.id) ?? null : null
+        result.blocks.push({ id: block.id, block_kind: block.type === 'heading' ? 'section' : image ? 'image' : reference !== null ? 'folder_ref' : 'paragraph', text: image ? block.props.caption : block.type === 'danaFolder' ? null : runs.map((run) => run.text).join(''), rich_content: image || reference !== null ? null : { version: 1, runs }, file_id: fileId, ref_folder_id: reference, width_pct: image ? Math.max(25, Math.min(100, Math.round((block.props.previewWidth || columnWidth) / columnWidth * 100))) : null, checked: null })
       }
       visit(block.children, block.type === 'heading' ? block.id : parent)
     }

@@ -96,3 +96,5 @@ while it holds a real `page_position`.
 @media (max-width: 480px) {
   .dana-writing-canvas { padding-left: calc(var(--spacing) * 14); }
 }
+/* A Shelf's Folder row is a row, not a link inside prose (#221). */
+.dana-writing-canvas a[data-canvas-folder-id] { text-decoration: none; color: inherit; }

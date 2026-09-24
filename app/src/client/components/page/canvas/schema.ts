@@ -3,6 +3,7 @@ import { BlockNoteSchema, createExtension, createHeadingBlockSpec, defaultBlockS
 import { MAX_SECTION_DEPTH } from '../../../../shared/page-document.js'
 
 import { createCanvasTaskSpec } from './CanvasTask.js'
+import { createCanvasFolderSpec } from './CanvasFolder.js'
 import { createCanvasParagraph } from './CanvasParagraph.js'
 import { createTaskAtCursor, removeEmptyBeforeHeading } from './commands.js'
 
@@ -84,6 +85,8 @@ export const canvasSchema = BlockNoteSchema.create({
     heading: groupHeading,
     image: defaultBlockSpecs.image,
     danaTask: createCanvasTaskSpec(),
+    // A Shelf's native Folder row (#221); only the Shelf canvas inserts one.
+    danaFolder: createCanvasFolderSpec(),
   },
   styleSpecs: { bold: defaultStyleSpecs.bold, italic: defaultStyleSpecs.italic },
 })

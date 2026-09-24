@@ -20,7 +20,7 @@ export function validateCanvasOutline(blocks: readonly OutlineBlock[]): string |
         const failure = visit(item.children, item.props.level)
         if (failure !== null) return failure
       } else {
-        if (!['paragraph', 'image', 'danaTask'].includes(item.type)) return 'This block type is not supported in the canvas.'
+        if (!['paragraph', 'image', 'danaTask', 'danaFolder'].includes(item.type)) return 'This block type is not supported in the canvas.'
         if (item.children.length > 0) return 'Only headings can contain other items.'
         if (item.type === 'danaTask') {
           const taskId = item.props.taskId
