@@ -21,7 +21,7 @@ Two columns per row, because a one-row board is too short.
 
 import { useEffect, useRef, useState, type ReactNode } from "react"
 
-import { Plus, Star } from "../lib/icons.js"
+import { Plus, Repeat2, Star } from "../lib/icons.js"
 import { InlineInput } from "./ui/inline-field.js"
 import { Face } from "./person-face.js"
 import {
@@ -64,13 +64,10 @@ export interface BoardColumn {
 
 export type BoardTone = "grey" | "blue" | "green"
 
-/* The pill's two values per tone, the Notion-matched pairs tokens.css already
-   carries for both themes. */
-const TONE: Record<BoardTone, string> = {
-  grey: "bg-[var(--color-graphite-100)] text-[var(--color-graphite-700)]",
-  blue: "bg-[var(--color-info-100)] text-[var(--color-info-700)]",
-  green: "bg-[var(--color-success-100)] text-[var(--color-success-700)]",
-}
+/* Round 4: the status pills stay but go muted. One neutral pill for every
+   tone; the column's position and name say which status it is, so colour is
+   saved for the rare thing that matters (a late date). */
+const PILL = "rounded-full bg-muted px-2 py-0.5 text-muted-foreground"
 
 /* -------------------------------------------------------------- capture, */
 
@@ -104,7 +101,11 @@ export function BoardQuickAdd({
         aria-label={label}
         onClick={() => setEditing(true)}
         className={cn(
-          "flex h-8 w-full items-center gap-1.5 rounded-md px-2 text-sm text-muted-foreground transition-colors hover:bg-hover hover:text-foreground",
+          "flex h-[var(--control-height)] w-full items-center gap-1.5 rounded-md px-2 text-sm text-muted-foreground transition-colors hover:bg-hover hover:text-foreground",
+          /* Quiet until wanted: shown on the column's hover or focus, always on
+             touch, and always in an empty column, where it is the only thing
+             to do (the column passes `data-empty`). */
+          "opacity-0 group-hover/column:opacity-100 focus-visible:opacity-100 group-data-[empty]/column:opacity-100 [@media(hover:none)]:opacity-100",
           T_FAST,
           FOCUS,
         )}
@@ -140,10 +141,8 @@ export function BoardQuickAdd({
           setTitle("")
         }
       }}
-      className={cn(
-        "h-9 w-full rounded-md border border-border bg-background px-2.5 text-sm outline-none",
-        "placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/30",
-      )}
+      /* One focus style only: the inline field's own ring. */
+      className="mx-0 h-[var(--control-height)] w-full px-2 text-sm"
     />
   )
 }
@@ -225,6 +224,8 @@ function BoardCard({
 
   const showDue = Boolean(task.due) && !given?.due
   const showFace = Boolean(task.assignee) && !given?.assignee
+  const steps = task.steps && task.steps.total > 0 ? task.steps : undefined
+  const late = Boolean(task.due?.overdue) && !given?.overdue
   const drag = wiring.dragState
   const carried = Boolean(drag?.isActive) && !drag?.isSettling
 
@@ -319,7 +320,7 @@ function BoardCard({
         ) : null}
         <span
           className={cn(
-            "min-w-0 flex-1 text-sm font-medium text-foreground",
+            "min-w-0 flex-1 text-sm text-foreground",
             (done || task.status === "abandoned") && "text-muted-foreground",
             /* Where the column already says Done, a completed title needs no
                strike; an abandoned one keeps it, to tell the two apart. */
@@ -343,39 +344,42 @@ function BoardCard({
             "flex size-5 shrink-0 items-center justify-center rounded transition-opacity",
             T_FAST,
             FOCUS,
-            task.important && !given?.important
-              ? "text-foreground opacity-100"
-              : task.important
-                ? "text-muted-foreground opacity-100"
-                : "text-muted-foreground opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100 hover:text-foreground",
+            /* The star in the lighter tone, so it never competes with the title. */
+            task.important
+              ? "text-quiet-foreground opacity-100"
+              : "text-muted-foreground opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100 hover:text-foreground [@media(hover:none)]:invisible",
           )}
         >
           <Star
             className={cn(
               "size-4 data-[size=sm]:size-4",
-              task.important && !given?.important && "fill-current",
+              task.important && "[&_svg]:fill-current",
             )}
             strokeWidth={1.75}
             aria-hidden="true"
           />
         </button>
       </span>
-      {(showDue || showFace) && !done ? (
-        <span className={cn("mt-1 flex items-center gap-2", checkbox && "pl-7")}>
+      {/* The row's meta, in the row's order and colours: date (late in the
+          danger colour), steps done/total, the repeat glyph, then the face. */}
+      {(showDue || showFace || steps || task.recurrence) && !done ? (
+        <span className={cn("mt-1 flex items-center gap-3 text-xs text-muted-foreground", checkbox && "pl-7")}>
           {showDue && task.due ? (
-            <span
-              className={cn(
-                "text-xs",
-                task.due.overdue && !given?.overdue
-                  ? "font-medium text-[var(--color-danger-700)]"
-                  : "text-muted-foreground",
-              )}
-            >
+            <span className={cn("whitespace-nowrap", late && "text-destructive")}>
+              {late ? <span className="sr-only">Overdue, </span> : null}
               {task.due.label}
             </span>
           ) : null}
+          {steps ? (
+            <span className="whitespace-nowrap tabular-nums" title={`${steps.complete} of ${steps.total} steps done`}>
+              {steps.complete}/{steps.total}
+            </span>
+          ) : null}
+          {task.recurrence ? (
+            <Repeat2 className="size-3.5" strokeWidth={1.75} aria-label="Repeats" />
+          ) : null}
           {showFace && task.assignee ? (
-            <Face person={task.assignee} className="ml-auto" />
+            <Face person={task.assignee} className="ml-auto size-5 data-[size=sm]:size-5" />
           ) : null}
         </span>
       ) : null}
@@ -460,7 +464,7 @@ export function TaskBoard({
   }
 
   return (
-    <div className={cn("grid items-start gap-3 pb-4", grid)}>
+    <div className={cn("grid gap-3 pb-4", grid)}>
       {columns.map((column) => (
         /*
         9.1's regions rule makes a board column "a named region, named by its
@@ -473,15 +477,16 @@ export function TaskBoard({
           key={column.key}
           aria-label={column.label}
           data-board-column={column.key}
+          data-empty={column.tasks.length === 0 ? "" : undefined}
           ref={(node) => {
             if (node) zones.current.set(column.key, node)
             else zones.current.delete(column.key)
             columnRef?.(column)(node)
           }}
-          /* No fill, only a faint outline: the cards are the content and the
-             column is the frame around them. The height is the drop target's,
-             kept where columns sit side by side and dropped where they stack. */
-          className="flex flex-col rounded-lg border border-border p-2 sm:min-h-[280px]"
+          /* Round 4: the cards carry the structure, so the column draws no
+             frame of its own, and an empty column stays as short as its
+             heading and its "New task" rather than standing full height. */
+          className="group/column flex flex-col"
         >
           <div className="group/col mb-1 flex h-7 items-center gap-1.5 px-1">
             {columnLead?.(column)}
@@ -489,9 +494,7 @@ export function TaskBoard({
             <span
               className={cn(
                 "min-w-0 truncate text-xs font-medium",
-                column.tone
-                  ? cn("rounded-full px-2 py-0.5", TONE[column.tone])
-                  : "text-muted-foreground",
+                column.tone ? PILL : "text-muted-foreground",
               )}
             >
               {column.label}
