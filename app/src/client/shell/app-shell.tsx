@@ -81,6 +81,7 @@ import { browserTimezone } from '../api/tz.js'
 import { setViewerTimezone } from '../lib/viewer.js'
 import { ToastRegion } from '../state/ToastRegion.js'
 import { AppSidebar } from './app-sidebar.js'
+import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip.js'
 import { useFolderGroupActions } from './folder-groups.js'
 import { OfflineBanner } from './OfflineBanner.js'
 import { UndoBar } from '../components/undo-bar.js'
@@ -133,7 +134,12 @@ function TopBar({ onOpenSearch }: { readonly onOpenSearch: () => void }): React.
     return (
       <div className="flex shrink-0 items-center">
         {state === 'expanded' ? null : (
-          <SidebarTrigger size="icon" className="ml-0.5 shrink-0 text-muted-foreground" />
+          <Tooltip>
+            <TooltipTrigger
+              render={<SidebarTrigger size="icon" className="ml-2 shrink-0 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground" />}
+            />
+            <TooltipContent side="bottom">Expand sidebar</TooltipContent>
+          </Tooltip>
         )}
         <div className="min-w-0 flex-1">
           <WindowBar />
