@@ -31,7 +31,6 @@ every file. It answers `width` and `height` beside them (issue #27), which is
 what `attachmentOf` turns into the reservation issue #108 asked for. The write
 half is one file per comment, as 7.14 writes it.
 */
-import { useMemo } from 'react'
 
 import type { CommentFile, CommentLine } from '../../shared/comments.js'
 import { useMe } from '../api/queries.js'
@@ -402,22 +401,4 @@ export function applyThreadChange(
     const likeNow = likedByMe(entry.comment)
     if (likeNow !== likedByMe(was.comment)) writers.like(id, likeNow)
   }
-}
-
-/**
- * The thread a surface draws, memoised on what it is built from.
- *
- * `now` is read once per render of the page rather than per comment, so every
- * elapsed phrase on one screen is measured from the same instant.
- */
-export function useConceptThread(
-  lines: readonly CommentLine[] | undefined,
-  viewerId: string | null,
-  personOf: PersonResolver,
-  may: ThreadAuthority = AUTHORSHIP_ALONE,
-): ConceptComment[] {
-  return useMemo(
-    () => toConceptComments(lines ?? [], viewerId, personOf, Date.now(), may),
-    [lines, viewerId, personOf, may],
-  )
 }

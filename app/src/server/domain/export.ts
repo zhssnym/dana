@@ -87,6 +87,7 @@ import type {
 import type { FacetKind } from '../../shared/facets.js'
 import { idSet, rowsOf } from '../database.js'
 import { listViews, readBundle } from './bundle.js'
+import { postContentOrNull } from './comments.js'
 import { resolveFacetName } from './facets.js'
 import { listPlaceCovers } from './covers.js'
 import { listPlaceDescriptions } from './place-descriptions.js'
@@ -701,7 +702,7 @@ export async function exportForViewer(
   const commentRows = await rowsOf(
     db,
     sql`SELECT c.id, c.folder_id, c.task_id, c.discussion_id, c.parent_id,
-               c.body,
+               c.body, c.content,
                c.created_at, c.edited_at
         FROM comments c
         WHERE c.author_id = ${viewerId}
@@ -981,6 +982,7 @@ export async function exportForViewer(
       discussion_id: nullableString(row.discussion_id),
       parent_id: nullableString(row.parent_id),
       body: nullableString(row.body),
+      content: postContentOrNull(row.content),
       created_at: toIso(row.created_at),
       edited_at: nullableIso(row.edited_at),
       files: truncation

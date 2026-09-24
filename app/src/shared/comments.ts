@@ -10,6 +10,7 @@ comment names the rows that already exist. So this body carries no bytes and
 needs no size limit of its own; the only number it enforces is 10.3's count.
 */
 import { z } from 'zod'
+import { richContent } from './rich-content.js'
 
 /**
  * 10.3's "Files per comment | 10". The number lives here so the schema, the
@@ -17,6 +18,128 @@ import { z } from 'zod'
  * constant rather than three literals that can drift apart.
  */
 export const COMMENT_FILE_CAP = 10
+
+/*
+A post's content (Wave 2, W-C: Discussion threads). A post is written in the
+same editor as a page, so its content is a small block tree in the page's own
+vocabulary: rich text is `richContent`, a code block is plain `text`, a
+checklist item carries `checked`, a media block names one `file_id`. Pages-only
+kinds are not here: no Section, no Task, no folder/page reference, no diagram.
+
+**`body` is derived from this, never sent beside it.** The server writes the
+plain text of every block (`postPlainText`), clipped to 4000 characters, into
+`comments.body`, so search, notifications, snippets and every reader that
+predates posts keep working. A comment written before posts has `content`
+NULL and its `body` is the whole post, drawn as text.
+
+**A media block may only name one of the same comment's own `file_ids`.** The
+file is the comment's attachment row; the block only says where it sits in
+the writing. A block naming any other file is refused (422) before a write,
+because otherwise a post could display a file its author cannot read.
+
+The database says the same thing in `comments_content_check` (migration 0040):
+version 1, `blocks` an array, at most 256 KiB serialized.
+*/
+export const POST_CONTENT_VERSION = 1
+export const MAX_POST_BLOCKS = 500
+export const MAX_POST_DEPTH = 12
+export const MAX_POST_BYTES = 256 * 1024
+export const POST_RICH_KINDS = ['paragraph','heading1','heading2','heading3','bullet','numbered','checklist','toggle','quote','callout'] as const
+export const POST_MEDIA_KINDS = ['image','file','audio','video'] as const
+export const POST_BLOCK_KINDS = [...POST_RICH_KINDS,'code','divider',...POST_MEDIA_KINDS] as const
+export type PostBlockKind = (typeof POST_BLOCK_KINDS)[number]
+
+export interface PostBlock {
+  kind: PostBlockKind
+  /** Rich-text kinds only. */
+  rich_content?: z.infer<typeof richContent>
+  /** `code` only: the code, plain. */
+  text?: string
+  /** `checklist` only. */
+  checked?: boolean
+  /** Media kinds only: one of this comment's own `file_ids`. */
+  file_id?: string
+  /** Nested blocks (list items, toggles, quotes...). */
+  children?: PostBlock[]
+}
+
+const isRichKind = (kind: string): boolean => (POST_RICH_KINDS as readonly string[]).includes(kind)
+const isMediaPostKind = (kind: string): boolean => (POST_MEDIA_KINDS as readonly string[]).includes(kind)
+
+export const postBlock: z.ZodType<PostBlock> = z.lazy(() =>
+  z
+    .object({
+      kind: z.enum(POST_BLOCK_KINDS),
+      rich_content: richContent.optional(),
+      text: z.string().max(4000).optional(),
+      checked: z.boolean().optional(),
+      file_id: z.uuid().optional(),
+      children: z.array(postBlock).max(MAX_POST_BLOCKS).optional(),
+    })
+    .catchall(z.never())
+    .superRefine((block, ctx) => {
+      if (block.rich_content !== undefined && !isRichKind(block.kind)) ctx.addIssue({ code: 'custom', message: `a ${block.kind} block carries no rich text`, path: ['rich_content'] })
+      if (block.text !== undefined && block.kind !== 'code') ctx.addIssue({ code: 'custom', message: 'only a code block carries text', path: ['text'] })
+      if (block.checked !== undefined && block.kind !== 'checklist') ctx.addIssue({ code: 'custom', message: 'only a checklist item is checked', path: ['checked'] })
+      if (isMediaPostKind(block.kind) !== (block.file_id !== undefined)) ctx.addIssue({ code: 'custom', message: 'a media block names exactly one file, and nothing else does', path: ['file_id'] })
+    })
+    .transform(({ kind, rich_content, text, checked, file_id, children }) => ({
+      kind,
+      ...(rich_content === undefined ? {} : { rich_content }),
+      ...(text === undefined ? {} : { text }),
+      ...(checked === undefined ? {} : { checked }),
+      ...(file_id === undefined ? {} : { file_id }),
+      ...(children === undefined || children.length === 0 ? {} : { children }),
+    })),
+)
+
+/** Walks every block, depth first, in reading order. */
+export function walkPostBlocks(blocks: readonly PostBlock[], visit: (block: PostBlock, depth: number) => void, depth = 0): void {
+  for (const block of blocks) {
+    visit(block, depth)
+    if (block.children) walkPostBlocks(block.children, visit, depth + 1)
+  }
+}
+
+export const postContent = z
+  .object({
+    version: z.literal(POST_CONTENT_VERSION, { error: `must be ${String(POST_CONTENT_VERSION)}` }),
+    blocks: z.array(postBlock).max(MAX_POST_BLOCKS),
+  })
+  .catchall(z.never())
+  .superRefine((value, ctx) => {
+    let count = 0
+    let deepest = 0
+    walkPostBlocks(value.blocks, (_block, depth) => { count += 1; deepest = Math.max(deepest, depth) })
+    if (count > MAX_POST_BLOCKS) ctx.addIssue({ code: 'custom', message: `a post holds at most ${String(MAX_POST_BLOCKS)} blocks`, path: ['blocks'] })
+    if (deepest >= MAX_POST_DEPTH) ctx.addIssue({ code: 'custom', message: `blocks nest at most ${String(MAX_POST_DEPTH)} deep`, path: ['blocks'] })
+    if (new TextEncoder().encode(JSON.stringify(value)).length > MAX_POST_BYTES) ctx.addIssue({ code: 'custom', message: 'This post is too large.', path: ['blocks'] })
+  })
+  .transform(({ version, blocks }) => ({ version, blocks: [...blocks] }))
+export type PostContent = z.infer<typeof postContent>
+
+/** The file ids a post's media blocks name, in reading order. */
+export function postFileIds(content: PostContent): string[] {
+  const ids: string[] = []
+  walkPostBlocks(content.blocks, (block) => { if (block.file_id !== undefined) ids.push(block.file_id) })
+  return ids
+}
+
+/**
+ * The plain text of a post: one line per block that has words, runs joined,
+ * trimmed, clipped to 4000 characters (`comments_body_length_check`). Empty
+ * string when the post has no words (pictures only), which the server stores
+ * as a NULL body.
+ */
+export function postPlainText(content: PostContent): string {
+  const lines: string[] = []
+  walkPostBlocks(content.blocks, (block) => {
+    const words = block.rich_content ? block.rich_content.runs.map((run) => run.text).join('') : (block.text ?? '')
+    if (words.trim().length > 0) lines.push(words)
+  })
+  const text = lines.join('\n').trim()
+  return text.length > 4000 ? text.slice(0, 4000) : text
+}
 
 /*
 The write half, widened from one file to ten on 2026-09-03 (issue #22).
@@ -45,6 +168,9 @@ being careful about.
 export const postCommentBody = z
   .object({
     body: z.string().min(1).max(4000).optional(),
+    /** A post written in the editor (W-C). The server derives `body` from
+     * it; the two are never sent together. */
+    content: postContent.optional(),
     parent_id: z.uuid().optional(),
     /** The one-file spelling 7.14 names. Equivalent to a `file_ids`
      * of one, and never sent beside it. */
@@ -77,8 +203,13 @@ export const postCommentBody = z
     { error: 'must not name the same file twice', path: ['file_ids'] },
   )
   .refine(
+    (comment) => comment.body === undefined || comment.content === undefined,
+    { error: 'cannot be sent beside body; the server derives body from content', path: ['content'] },
+  )
+  .refine(
     (comment) =>
       comment.body !== undefined ||
+      comment.content !== undefined ||
       comment.file_id !== undefined ||
       (comment.file_ids?.length ?? 0) > 0,
     { message: 'body: a comment carries words or a file, at least one' },
@@ -139,6 +270,9 @@ only place that knows what the comment already holds.
 export const patchCommentBody = z
   .object({
     body: z.string().min(1).max(4000).optional(),
+    /** The post's whole new content (W-C); only its author may send it. The
+     * server derives `body` from it; never sent beside `body`. */
+    content: postContent.optional(),
     /** The full new set, up to 10.3's cap, in the order they are to be
      * attached. Omitted leaves the attachments alone. */
     file_ids: z
@@ -167,7 +301,11 @@ export const patchCommentBody = z
     { error: 'must not name the same file twice', path: ['file_ids'] },
   )
   .refine(
-    (patch) => patch.body !== undefined || patch.file_ids !== undefined,
+    (patch) => patch.body === undefined || patch.content === undefined,
+    { error: 'cannot be sent beside body; the server derives body from content', path: ['content'] },
+  )
+  .refine(
+    (patch) => patch.body !== undefined || patch.content !== undefined || patch.file_ids !== undefined,
     { message: 'body: an edit changes the words, the attachments, or both' },
   )
 export type PatchCommentBody = z.infer<typeof patchCommentBody>
@@ -200,6 +338,10 @@ export interface CommentLine {
   parent_id: string | null
   author_id: string
   body: string | null
+  /** The post's editor content (W-C); null for a comment written before
+   * posts, whose `body` is then the whole post. Optional in the type only
+   * so older fixtures compile: the server always answers it. */
+  content?: PostContent | null
   /** The whole reaction set is one count (DES-146). */
   likes: number
   /** Whether the viewer is inside that count. */
@@ -226,6 +368,7 @@ export const commentLine = z.object({
   parent_id: z.uuid().nullable(),
   author_id: z.uuid(),
   body: z.string().nullable(),
+  content: postContent.nullable().optional(),
   likes: z.number().int(),
   liked: z.boolean(),
   files: z.array(

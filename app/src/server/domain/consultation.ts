@@ -140,6 +140,29 @@ function discussionFromRow(row: Record<string, unknown>): Discussion {
   }
 }
 
+/** The list row's thread summary (W-C): how many posts, the newest one, and
+ * its distinct authors, most recent first, at most five. */
+function threadSummaryFromRow(
+  row: Record<string, unknown>,
+): Pick<Discussion, 'post_count' | 'last_post' | 'participant_ids'> {
+  const ids: unknown =
+    typeof row.participant_ids === 'string'
+      ? JSON.parse(row.participant_ids)
+      : row.participant_ids
+  return {
+    post_count: Number(row.post_count ?? 0),
+    last_post:
+      row.lp_author_id === null || row.lp_author_id === undefined
+        ? null
+        : {
+            author_id: String(row.lp_author_id),
+            preview: String(row.lp_preview ?? ''),
+            created_at: toIso(row.lp_created_at),
+          },
+    participant_ids: Array.isArray(ids) ? ids.map(String) : [],
+  }
+}
+
 function outcomeFromRow(
   row: Record<string, unknown>,
   currentOutcomeId: string | null,
@@ -345,13 +368,42 @@ export async function listDiscussions(
       ? sql``
       : sql` AND (d.title ILIKE ${likePattern(query.q)}
                   OR d.context ILIKE ${likePattern(query.q)})`
+  /* The page is cut first, then each of its rows gains the thread summary
+     (W-C) through three LATERAL reads over `comments_discussion_thread_idx`,
+     so the summary costs one query for the page and nothing per Discussion
+     outside it. Comments are hard-deleted, so every row counted is live. */
   const rows = await rowsOf(
     db,
-    sql`SELECT ${DISCUSSION_COLUMNS} FROM ${DISCUSSION_FROM}
-         WHERE d.folder_id = ${facts.folderId}::uuid
-           AND d.trashed_at IS NULL${state}${search}${after}
-         ORDER BY d.last_activity_at DESC, d.id DESC
-         LIMIT ${query.limit + 1}`,
+    sql`WITH page AS (
+          SELECT ${DISCUSSION_COLUMNS} FROM ${DISCUSSION_FROM}
+           WHERE d.folder_id = ${facts.folderId}::uuid
+             AND d.trashed_at IS NULL${state}${search}${after}
+           ORDER BY d.last_activity_at DESC, d.id DESC
+           LIMIT ${query.limit + 1})
+        SELECT page.*, pc.post_count,
+               lp.author_id AS lp_author_id, lp.preview AS lp_preview,
+               lp.created_at AS lp_created_at, pp.ids AS participant_ids
+          FROM page
+          LEFT JOIN LATERAL (
+            SELECT count(*)::int AS post_count FROM comments c
+             WHERE c.discussion_id = page.id) pc ON true
+          LEFT JOIN LATERAL (
+            SELECT c.author_id, left(coalesce(c.body, ''), 140) AS preview,
+                   c.created_at
+              FROM comments c
+             WHERE c.discussion_id = page.id
+             ORDER BY c.created_at DESC, c.id DESC
+             LIMIT 1) lp ON true
+          LEFT JOIN LATERAL (
+            SELECT coalesce(json_agg(a.author_id ORDER BY a.last_at DESC, a.author_id),
+                            '[]'::json) AS ids
+              FROM (SELECT c.author_id, max(c.created_at) AS last_at
+                      FROM comments c
+                     WHERE c.discussion_id = page.id
+                     GROUP BY c.author_id
+                     ORDER BY last_at DESC, c.author_id
+                     LIMIT 5) a) pp ON true
+         ORDER BY page.last_activity_at DESC, page.id DESC`,
   )
   const page = rows.slice(0, query.limit)
   const last = page[page.length - 1]
@@ -362,7 +414,13 @@ export async function listDiscussions(
           id: String(last.id),
         })
       : null
-  return ok({ discussions: page.map(discussionFromRow), next_cursor: nextCursor })
+  return ok({
+    discussions: page.map((row) => ({
+      ...discussionFromRow(row),
+      ...threadSummaryFromRow(row),
+    })),
+    next_cursor: nextCursor,
+  })
 }
 
 /* ------------------------------------------------------------------ *
@@ -526,7 +584,8 @@ export async function updateDiscussion(
 /**
  * `POST /discussions/:id/resolve`: a new Outcome, made current, and the
  * Discussion resolved, in one transaction (#320 "resolve + Outcome creation is
- * atomic"; `discussions_resolution_check` makes the halves inseparable).
+ * atomic"). Since Wave 2 (decision 3) `{}` resolves with no Outcome: the
+ * thread is closed without a decision, `current_outcome_id` stays NULL.
  *
  * `source_comment_id` must be a comment **of this Discussion**; anything else
  * -- another Discussion's comment, a Task's, another Folder's, or no comment
@@ -580,19 +639,23 @@ export async function resolveDiscussion(
         statement = snapshot
       }
     }
-    if (statement === undefined) {
-      return invalid('statement', 'an Outcome needs a statement or a source comment')
-    }
 
-    const inserted = await rowsOf(
-      tx,
-      sql`INSERT INTO discussion_outcomes
-            (discussion_id, statement, actor_id, source_comment_id)
-          VALUES (${discussionId}::uuid, ${statement}, ${viewerId}::uuid,
-                  ${sourceCommentId})
-          RETURNING id`,
-    )
-    const outcomeId = String(inserted[0]?.id)
+    /* Wave 2 decision 3 ("Close thread"): neither a statement nor a source
+       comment closes the Discussion with no Outcome at all -- no row, and
+       `current_outcome_id` NULL, which 0040's widened
+       `discussions_resolution_check` admits for a resolved row. */
+    let outcomeId: string | null = null
+    if (statement !== undefined) {
+      const inserted = await rowsOf(
+        tx,
+        sql`INSERT INTO discussion_outcomes
+              (discussion_id, statement, actor_id, source_comment_id)
+            VALUES (${discussionId}::uuid, ${statement}, ${viewerId}::uuid,
+                    ${sourceCommentId})
+            RETURNING id`,
+      )
+      outcomeId = String(inserted[0]?.id)
+    }
     await tx.execute(
       sql`UPDATE discussions
              SET state = 'resolved', resolved_at = now(),

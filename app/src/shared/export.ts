@@ -34,6 +34,7 @@ import { z } from 'zod'
 import { richContent } from './page-document.js'
 
 import { CALENDAR_ZOOMS } from './bundle.js'
+import { postContent } from './comments.js'
 
 /** The document's self-description, so a reader can tell what it is holding
  * before it parses anything else. */
@@ -403,6 +404,10 @@ export const exportComment = z.object({
   discussion_id: z.uuid().nullable(),
   parent_id: z.uuid().nullable(),
   body: z.string().nullable(),
+  /** The post's editor content (W-C), as stored; null for a plain-text
+   * comment, whose `body` is then the whole of it. `body` is always the
+   * plain text of `content` when both are present. */
+  content: postContent.nullable(),
   created_at: z.string(),
   edited_at: z.string().nullable(),
   files: z.array(exportFile),
