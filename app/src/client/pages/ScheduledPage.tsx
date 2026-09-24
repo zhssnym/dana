@@ -6,25 +6,17 @@ of date, and shows finished dated work as a plain "Done" group at the end.
 */
 import { CalendarDays } from '../lib/icons.js'
 
-import type { TaskCard } from '../../shared/tasks.js'
-import {
-  mergeCompletedDays,
-  useDoneView,
-  usePlannedView,
-  useMultiMemberFolderIds,
-} from '../api/queries.js'
+import { usePlannedView, useMultiMemberFolderIds } from '../api/queries.js'
 import { PlannedCalendar } from '../components/calendar/index.js'
-import { QuickAdd } from '../components/quick-add.js'
+import { NEW_TASK_ROW_PHONE, QuickAdd } from '../components/quick-add.js'
 import { groupRows } from '../views/grouping.js'
 import { ladderRungs } from '../views/ladder.js'
 import { PLACES } from '../views/place-pages.js'
+import { DoneGroup } from '../views/DoneGroup.js'
 import { PlaceGroup, PlaceHead, usePlace } from '../views/usePlace.js'
-import type { Place } from '../views/usePlace.js'
 import { isScheduled } from '../parts/schedule.js'
-import type { RowContext } from '../parts/presenters.js'
 import { useRowActions } from '../parts/useRowActions.js'
-import type { RowActions } from '../parts/useRowActions.js'
-import { MorePages, PageBody } from '../components/page/PageStates.js'
+import { PageBody } from '../components/page/PageStates.js'
 import { PLANNED_EMPTY } from './empty-states.js'
 import { ConfirmDialog, TaskRows, useConfirm, useRowBasis } from './task-rows.js'
 
@@ -81,47 +73,19 @@ export function ScheduledPage(): React.JSX.Element {
               </div>
             </PageBody>
             <QuickAdd
+              className={NEW_TASK_ROW_PHONE}
               onAdd={(title) => {
                 place.capture(title)
               }}
             />
           </div>
           {place.filter.showCompleted ? (
-            <DoneGroup place={place} context={context} actions={actions} onAsk={confirm.ask} />
+            <DoneGroup place={place} context={context} actions={actions} onAsk={confirm.ask} keep={isScheduled} />
           ) : null}
         </>
       )}
 
       <ConfirmDialog pending={confirm.pending} onClose={confirm.close} />
     </div>
-  )
-}
-
-/*
-Finished dated work, read from Q6 (`/views/done`) only while Show completed is
-on, and narrowed here to what has a date. Q6 pages by 50 over everything the
-viewer finished, so "Show more" reaches older rows.
-*/
-function DoneGroup({
-  place,
-  context,
-  actions,
-  onAsk,
-}: {
-  readonly place: Place
-  readonly context: RowContext
-  readonly actions: RowActions
-  readonly onAsk: (question: string, act: () => void) => void
-}): React.JSX.Element | null {
-  const completed = useDoneView(true)
-  const done: readonly TaskCard[] = mergeCompletedDays(completed.data?.pages).flatMap((day) =>
-    day.rows.filter(isScheduled),
-  )
-  if (done.length === 0 && !completed.hasNextPage) return null
-  return (
-    <PlaceGroup name="Done" heading="Done">
-      <TaskRows tasks={place.narrow(done)} context={context} actions={actions} onAsk={onAsk} />
-      <MorePages query={completed} />
-    </PlaceGroup>
   )
 }

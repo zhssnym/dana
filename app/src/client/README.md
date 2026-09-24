@@ -298,7 +298,6 @@ region it sits in is what tells two instances apart.
 | Global search control | `Search` | button |
 | The avatar menu | `Account` | button |
 | The app name | its own text, `Dana` | link to `/app` |
-| Floating add button | `Add task` | button |
 | The sidebar's rail control | `Collapse sidebar`, `Expand sidebar` | button |
 | The sidebar's resize handle | `Resize sidebar` | separator |
 | Update affordance | `Update available, reload` | button |
@@ -318,7 +317,7 @@ task surface would have two elements answering to "Important".
 
 **Settled.** `shell/overlays.ts` is how the chrome asks for the surfaces it does
 not build: the search control and the Ctrl+K and `/` shortcuts call
-`openSearch()`. There is no task form: `N`, the phone's floating "Add task"
+`openSearch()`. There is no task form: `N`
 and a calendar day each lead to an inline "New task" line. `components/task-open.ts`'s
 `openTask(taskId, { upcoming })` carries an identity and no defaults, because a
 row, a calendar cell and a search result each open a task that exists; the

@@ -3,15 +3,17 @@ Assigned, at /app/assignments: every open task the viewer can read, grouped by
 person with "You" first and "Unassigned" last. Not a query of its own (section
 6's preamble): a client-side grouping over Q5. The "New task" row assigns to
 the viewer, which 7.6 does by default. "From" on a row names the creator,
-since Dana records no assigner.
+since Dana records no assigner. "Show completed" brings abandoned rows back in
+place and adds a "Done" group of finished work.
 */
 import { UserRoundCheck } from '../lib/icons.js'
 
 import { useAllView, useMultiMemberFolderIds } from '../api/queries.js'
-import { QuickAdd } from '../components/quick-add.js'
+import { NEW_TASK_ROW_PHONE, QuickAdd } from '../components/quick-add.js'
 import { groupRows } from '../views/grouping.js'
 import { PLACES } from '../views/place-pages.js'
 import { TaskBoard } from '../views/TaskBoard.js'
+import { DoneGroup } from '../views/DoneGroup.js'
 import { PlaceGroup, PlaceHead, usePlace } from '../views/usePlace.js'
 import { useRowActions } from '../parts/useRowActions.js'
 import { PageBody } from '../components/page/PageStates.js'
@@ -76,10 +78,16 @@ export function AssignmentsPage(): React.JSX.Element {
             </div>
           </PageBody>
           <QuickAdd
+            className={NEW_TASK_ROW_PHONE}
             onAdd={(title) => {
               place.capture(title)
             }}
           />
+          {place.filter.showCompleted ? (
+            <div className="mt-6">
+              <DoneGroup place={place} context={context} actions={actions} onAsk={confirm.ask} />
+            </div>
+          ) : null}
         </div>
       )}
       <ConfirmDialog pending={confirm.pending} onClose={confirm.close} />

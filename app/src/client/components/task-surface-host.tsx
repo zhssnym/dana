@@ -13,7 +13,7 @@ replacing rather than pushing when a panel is already open so that walking
 down a list does not fill the history; on a phone it navigates to the page.
 
 **There is no create form.** A task is made inline (the "New task" row, which
-`N`, the phone's "Add task" and a calendar day all lead to); an unsaved task
+`N` and a calendar day both lead to); an unsaved task
 has no panel.
 
 **9.5's upcoming banner keeps its one path**: a calendar ghost opens the
