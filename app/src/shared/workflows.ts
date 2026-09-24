@@ -85,7 +85,8 @@ import {
   RICH_TEXT_BLOCK_KINDS,
   documentOperation,
   documentOutlineItem,
-  isListKind,
+  mayNestUnder,
+  TOGGLE_CHILD_KINDS,
   richContent,
 } from './page-document.js'
 import type { PageView, PageBlock } from './pages.js'
@@ -256,10 +257,12 @@ export const WORKFLOW_PAGE_BLOCK_KINDS = [
   'bullet',
   'numbered',
   'checklist',
+  'toggle',
   'quote',
   'callout',
   'code',
   'diagram',
+  'divider',
 ] as const
 export type WorkflowPageBlockKind = (typeof WORKFLOW_PAGE_BLOCK_KINDS)[number]
 
@@ -358,11 +361,25 @@ const pageContentBlock = z
         message: "A heading's Section is its level, so it names none.",
       })
     }
-    if (block.list_parent !== undefined && !isListKind(block.kind)) {
+    if (
+      block.list_parent !== undefined &&
+      !(TOGGLE_CHILD_KINDS as readonly string[]).includes(block.kind)
+    ) {
       ctx.addIssue({
         code: 'custom',
         path: ['list_parent'],
-        message: 'Only a bullet, numbered or checklist item is a nested list item.',
+        message: 'Only a list item, or writing inside a toggle, is nested.',
+      })
+    }
+    if (
+      block.kind === 'divider' &&
+      ((block.text !== null && block.text !== undefined && block.text !== '') ||
+        (block.rich_content !== null && block.rich_content !== undefined))
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['text'],
+        message: 'A divider carries no text.',
       })
     }
   })
@@ -429,10 +446,12 @@ export const WORKFLOW_PURPOSE_BLOCK_KINDS = [
   'bullet',
   'numbered',
   'checklist',
+  'toggle',
   'quote',
   'callout',
   'code',
   'diagram',
+  'divider',
 ] as const
 export type WorkflowPurposeBlockKind =
   (typeof WORKFLOW_PURPOSE_BLOCK_KINDS)[number]
@@ -476,11 +495,25 @@ const purposeContentBlock = z
         message: 'Only a checklist item is checked or unchecked.',
       })
     }
-    if (block.list_parent !== undefined && !isListKind(block.kind)) {
+    if (
+      block.list_parent !== undefined &&
+      !(TOGGLE_CHILD_KINDS as readonly string[]).includes(block.kind)
+    ) {
       ctx.addIssue({
         code: 'custom',
         path: ['list_parent'],
-        message: 'Only a bullet, numbered or checklist item is a nested list item.',
+        message: 'Only a list item, or writing inside a toggle, is nested.',
+      })
+    }
+    if (
+      block.kind === 'divider' &&
+      ((block.text !== null && block.text !== undefined && block.text !== '') ||
+        (block.rich_content !== null && block.rich_content !== undefined))
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['text'],
+        message: 'A divider carries no text.',
       })
     }
   })
@@ -509,7 +542,7 @@ export const workflowPurpose = z
         block.list_parent >= index ||
         parent === undefined ||
         parent.kind === 'omitted' ||
-        !isListKind(parent.kind)
+        !mayNestUnder(block.kind, parent.kind)
       ) {
         ctx.addIssue({
           code: 'custom',
@@ -615,12 +648,12 @@ export function readWorkflowPage(
         target === undefined ||
         target.kind === 'task' ||
         target.kind === 'omitted' ||
-        !isListKind(target.kind)
+        !mayNestUnder(block.kind, target.kind)
       ) {
         issues.push({
           path: [index, 'list_parent'],
           message:
-            'A list item nests under a bullet, numbered or checklist item written above it',
+            'A list item nests under a list item written above it, and other writing only under a toggle',
         })
         return
       }

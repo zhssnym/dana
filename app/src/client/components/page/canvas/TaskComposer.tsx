@@ -29,12 +29,11 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { BlockNoteSchema, createHeadingBlockSpec, defaultBlockSpecs, defaultInlineContentSpecs, defaultStyleSpecs } from '@blocknote/core'
 import type { PartialBlock } from '@blocknote/core'
-import { filterSuggestionItems } from '@blocknote/core/extensions'
 import { en } from '@blocknote/core/locales'
 import { BlockNoteView } from '@blocknote/shadcn'
 import {
   FilePanelController, FormattingToolbarController, SideMenuController,
-  SuggestionMenuController, getDefaultReactSlashMenuItems, useCreateBlockNote,
+  useCreateBlockNote,
 } from '@blocknote/react'
 import '@blocknote/shadcn/style.css'
 import type { PageBlockKind, PageView } from '../../../../shared/pages.js'
@@ -50,7 +49,8 @@ import { baselineOf, contentOf, richRuns } from './adapters.js'
 import type { CanvasDocument, CanvasRecord } from './adapters.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
 import { danaLinkInlineSpec } from '../../links/dana-link-chip.js'
-import { DanaLinkSuggestions, linkSlashItem } from '../../links/dana-link-picker.js'
+import { DanaLinkSuggestions } from '../../links/dana-link-picker.js'
+import { CanvasSlashMenu } from './slash-items.js'
 import { CanvasWriter } from './saving.js'
 import { NOT_SAVED, SaveFailure } from './SaveFailure.js'
 import { BlockMenuContext, BlockSideMenu, blockSidePosition, duplicateBlocks, pageTheme, turnBlocksInto } from './BlockSideMenu.js'
@@ -82,7 +82,6 @@ type TaskInput = PartialBlock<typeof taskSchema.blockSchema, typeof taskSchema.i
 
 /** Stored kinds this editor draws as a paragraph and keeps, with their tick. */
 const KEPT_KINDS: ReadonlySet<string> = new Set(['callout', 'checklist'])
-const SLASH_KEYS = ['paragraph', 'heading', 'heading_2', 'bullet_list', 'numbered_list', 'quote', 'code_block', 'image', 'file']
 const fileUrl = (id: string | null): string => id === null ? '' : `/api/v1/files/${id}`
 const fileIdOf = (url: string): string | null => /(?:^|\/)api\/v1\/files\/([0-9a-f-]{36})$/i.exec(url)?.[1] ?? null
 const draftKey = (taskId: string): string => `dana-task-draft:${taskId}`
@@ -379,13 +378,7 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
         <FormattingToolbarController formattingToolbar={CanvasFormattingToolbar} />
         {folderId === null ? null : <FilePanelController filePanel={(props) => <CanvasFilePanel {...props} onUpload={(kind: CanvasMediaKind, file: File) => upload(kind, folderId, file)} />} />}
         <SideMenuController sideMenu={BlockSideMenu} floatingUIOptions={blockSidePosition} />
-        <SuggestionMenuController triggerCharacter="/" getItems={async (query) => filterSuggestionItems(
-          getDefaultReactSlashMenuItems(editor)
-            .filter((item) => 'key' in item && SLASH_KEYS.includes(String(item.key)) && (folderId !== null || !['image', 'file', 'audio', 'video'].includes(String(item.key))))
-            .map((item) => ({ ...item, ...('key' in item && item.key === 'paragraph' ? { title: 'Text' } : {}), size: 'small' as const }))
-            .concat({ ...linkSlashItem(editor as unknown as CanvasEditor), size: 'small' as const })
-            .map((item) => ({ ...item, group: 'Basic blocks' })),
-          query)} />
+        <CanvasSlashMenu editor={editor as unknown as CanvasEditor} context={{ surface: 'task', media: folderId !== null }} />
         <DanaLinkSuggestions editor={editor as unknown as CanvasEditor} />
         <CanvasMarquee />
       </BlockNoteView>

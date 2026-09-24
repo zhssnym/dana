@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm'
 import type { Executor } from '../database.js'
 import { rowsOf } from '../database.js'
 import type { DocumentTransaction, DocumentOperation, DocumentOutlineItem } from '../../shared/pages.js'
-import { BLOCK_FILE_KINDS, MAX_SECTION_DEPTH, isListKind, isMediaKind, isPresentationHeadingKind } from '../../shared/page-document.js'
+import { BLOCK_FILE_KINDS, MAX_SECTION_DEPTH, TOGGLE_CHILD_KINDS, isListKind, isMediaKind, isPresentationHeadingKind, mayNestUnder } from '../../shared/page-document.js'
 import { initialKeys } from './fractional-index.js'
 import { createTaskIn } from './tasks.js'
 import { positionedItems } from './page-order.js'
@@ -108,9 +108,10 @@ export async function applyDocument(tx:Executor,viewerId:string,folderId:string,
   */
   const listParent=item.list_parent_block_id
   if(listParent!==null){
-   if(item.kind!=='block'||block===undefined||!isListKind(block.block_kind))throw new DocumentRefusal('not_convertible','Only a bullet, numbered or checklist item is a nested list item.')
+   if(item.kind!=='block'||block===undefined||!(TOGGLE_CHILD_KINDS as readonly string[]).includes(block.block_kind))throw new DocumentRefusal('not_convertible','Only a list item, or writing inside a toggle, is nested.')
    const parentBlock=blocks.get(listParent)
-   if(parentBlock===undefined||!isListKind(parentBlock.block_kind))throw new DocumentRefusal('not_convertible','A list item nests under another list item of this page.')
+   // A list item nests under a list item; under a toggle, writing nests too.
+   if(parentBlock===undefined||!mayNestUnder(block.block_kind,parentBlock.block_kind))throw new DocumentRefusal('not_convertible','A list item nests under another list item of this page, and other writing only under a toggle.')
    if(!seen.has(listParent))throw new DocumentRefusal('not_convertible','A list parent must precede the items nested under it.')
    if(listParents.get(listParent)!==item.section_block_id)throw new DocumentRefusal('not_convertible',"A nested list item belongs to its list parent's Section.")
   }
@@ -204,7 +205,7 @@ export async function applyDocument(tx:Executor,viewerId:string,folderId:string,
     `file_id: null` whenever its caption changes, and must not erase the only
     record that a picture was there — and clears once the block gets a file or
     becomes another kind. */
- for(const block of blocks.values())if(changed.has(block.id))await tx.execute(sql`INSERT INTO page_blocks (id,folder_id,kind,position,text,rich_content,file_id,ref_folder_id,width_pct,checked) VALUES (${block.id}::uuid,${folderId}::uuid,${block.block_kind},0,${block.text},${block.rich_content === null ? null : JSON.stringify(block.rich_content)}::jsonb,${block.file_id}::uuid,${block.ref_folder_id}::uuid,${block.width_pct},${block.checked}) ON CONFLICT (id) DO UPDATE SET kind=EXCLUDED.kind,text=EXCLUDED.text,rich_content=EXCLUDED.rich_content,file_id=EXCLUDED.file_id,ref_folder_id=EXCLUDED.ref_folder_id,width_pct=EXCLUDED.width_pct,checked=EXCLUDED.checked,file_reclaimed_at=CASE WHEN EXCLUDED.file_id IS NULL AND EXCLUDED.kind=page_blocks.kind THEN page_blocks.file_reclaimed_at END,list_parent_block_id=CASE WHEN EXCLUDED.kind IN ('bullet','numbered','checklist') THEN page_blocks.list_parent_block_id ELSE NULL END,updated_at=now()`)
+ for(const block of blocks.values())if(changed.has(block.id))await tx.execute(sql`INSERT INTO page_blocks (id,folder_id,kind,position,text,rich_content,file_id,ref_folder_id,width_pct,checked) VALUES (${block.id}::uuid,${folderId}::uuid,${block.block_kind},0,${block.text},${block.rich_content === null ? null : JSON.stringify(block.rich_content)}::jsonb,${block.file_id}::uuid,${block.ref_folder_id}::uuid,${block.width_pct},${block.checked}) ON CONFLICT (id) DO UPDATE SET kind=EXCLUDED.kind,text=EXCLUDED.text,rich_content=EXCLUDED.rich_content,file_id=EXCLUDED.file_id,ref_folder_id=EXCLUDED.ref_folder_id,width_pct=EXCLUDED.width_pct,checked=EXCLUDED.checked,file_reclaimed_at=CASE WHEN EXCLUDED.file_id IS NULL AND EXCLUDED.kind=page_blocks.kind THEN page_blocks.file_reclaimed_at END,list_parent_block_id=CASE WHEN EXCLUDED.kind IN ('bullet','numbered','checklist','toggle','paragraph','quote','callout','code','divider') THEN page_blocks.list_parent_block_id ELSE NULL END,updated_at=now()`)
  for(const task of created){const result=await createTaskIn(tx,viewerId,{folder_id:folderId,title:task.title},{id:task.id,pagePosition:'a0'});if(result.kind!=='created')throw new DocumentRefusal('not_convertible','Task creation was refused.')}
  const keys=initialKeys(outline.length)
  // List parentage is structure, so a save that only re-nests a list item must

@@ -7,7 +7,7 @@ simulated document before the item is shown, so a refused conversion is
 never offered rather than offered and then explained.
 */
 
-export type TurnKey = 'text' | 'h1' | 'h2' | 'h3' | 'todo' | 'bullet' | 'numbered' | 'quote' | 'callout' | 'code'
+export type TurnKey = 'text' | 'h1' | 'h2' | 'h3' | 'todo' | 'toggle' | 'bullet' | 'numbered' | 'quote' | 'callout' | 'code'
 
 export interface TurnTarget {
   readonly key: TurnKey
@@ -22,6 +22,8 @@ export const TURN_TARGETS: readonly TurnTarget[] = [
   { key: 'h2', title: 'Heading 2', type: 'heading', level: 2 },
   { key: 'h3', title: 'Heading 3', type: 'heading', level: 3 },
   { key: 'todo', title: 'To-do list', type: 'checkListItem' },
+  // A toggle holds writing as well as list items (`TOGGLE_CHILD_KINDS`, 0037).
+  { key: 'toggle', title: 'Toggle list', type: 'toggleListItem' },
   { key: 'bullet', title: 'Bulleted list', type: 'bulletListItem' },
   { key: 'numbered', title: 'Numbered list', type: 'numberedListItem' },
   { key: 'quote', title: 'Quote', type: 'quote' },
@@ -31,7 +33,7 @@ export const TURN_TARGETS: readonly TurnTarget[] = [
 
 /** Kinds made of one run of text, the only ones that can be turned into another. */
 export const TEXT_TYPES: ReadonlySet<string> = new Set(TURN_TARGETS.map((target) => target.type))
-const LIST_TYPES: ReadonlySet<string> = new Set(['bulletListItem', 'numberedListItem', 'checkListItem'])
+const LIST_TYPES: ReadonlySet<string> = new Set(['bulletListItem', 'numberedListItem', 'checkListItem', 'toggleListItem'])
 
 export interface TreeBlock {
   readonly id: string

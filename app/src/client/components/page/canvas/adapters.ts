@@ -138,6 +138,15 @@ export function hydrateCanvas(page: PageView, columnWidth: number): CanvasInput[
         content: contentOf(block.text, block.rich_content),
         children: [],
       }
+    } else if (block.kind === 'toggle') {
+      node = {
+        id: block.id,
+        type: 'toggleListItem',
+        content: contentOf(block.text, block.rich_content),
+        children: [],
+      }
+    } else if (block.kind === 'divider') {
+      node = { id: block.id, type: 'divider', children: [] }
     } else if (block.kind === 'quote') {
       node = {
         id: block.id,
@@ -218,7 +227,8 @@ export function hydrateCanvas(page: PageView, columnWidth: number): CanvasInput[
       if (
         listParent?.type !== 'bulletListItem' &&
         listParent?.type !== 'numberedListItem' &&
-        listParent?.type !== 'checkListItem'
+        listParent?.type !== 'checkListItem' &&
+        listParent?.type !== 'toggleListItem'
       ) {
         throw new CanvasHydrationError(
           'The page has an invalid list. Its content has been preserved; reload before editing.',
@@ -311,6 +321,8 @@ export function folderRefsOf(page: PageView): ReadonlyMap<string, string> {
   return new Map(page.blocks.flatMap((block) => block.kind === 'folder_ref' && block.ref_folder_id !== null ? [[block.id, block.ref_folder_id] as const] : []))
 }
 
+const TOGGLE_CHILD_TYPES: ReadonlySet<string> = new Set(['paragraph', 'quote', 'callout', 'codeBlock', 'divider'])
+
 /**
  * Per-record projection, independent of the editor's JSON serialization.
  *
@@ -331,6 +343,7 @@ export function dehydrateCanvas(
     children: readonly CanvasBlock[],
     sectionParent: string | null,
     listParent: string | null,
+    listParentIsToggle = false,
   ): void {
     for (const block of children) {
       const task = block.type === 'danaTask'
@@ -339,7 +352,10 @@ export function dehydrateCanvas(
       const listKind =
         block.type === 'bulletListItem' ||
         block.type === 'numberedListItem' ||
-        block.type === 'checkListItem'
+        block.type === 'checkListItem' ||
+        block.type === 'toggleListItem'
+      // A toggle holds writing as well as list items (`TOGGLE_CHILD_KINDS`).
+      const nested = listKind || (listParentIsToggle && TOGGLE_CHILD_TYPES.has(block.type))
       const unuploadedRequiredMedia =
         (block.type === 'file' ||
           block.type === 'audio' ||
@@ -365,7 +381,7 @@ export function dehydrateCanvas(
         kind: task ? 'task' : 'block',
         id: task ? block.props.taskId : block.id,
         section_block_id: sectionParent,
-        list_parent_block_id: listKind ? listParent : null,
+        list_parent_block_id: nested ? listParent : null,
       })
 
       if (!task) {
@@ -389,6 +405,7 @@ export function dehydrateCanvas(
         } else if (block.type === 'bulletListItem') blockKind = 'bullet'
         else if (block.type === 'numberedListItem') blockKind = 'numbered'
         else if (block.type === 'checkListItem') blockKind = 'checklist'
+        else if (block.type === 'toggleListItem') blockKind = 'toggle'
         else if (block.type === 'quote') blockKind = 'quote'
         else if (block.type === 'callout') blockKind = 'callout'
         else if (block.type === 'codeBlock') blockKind = 'code'
@@ -451,7 +468,8 @@ export function dehydrateCanvas(
             : null
 
         // #222: a diagram is its source text; no rich content, file or width.
-        if (block.type === 'diagram') result.blocks.push({ id: block.id, block_kind: 'diagram', text: block.props.source, rich_content: null, file_id: null, ref_folder_id: null, width_pct: null, checked: null })
+        if (block.type === 'divider') result.blocks.push({ id: block.id, block_kind: 'divider', text: null, rich_content: null, file_id: null, ref_folder_id: null, width_pct: null, checked: null })
+        else if (block.type === 'diagram') result.blocks.push({ id: block.id, block_kind: 'diagram', text: block.props.source, rich_content: null, file_id: null, ref_folder_id: null, width_pct: null, checked: null })
         else result.blocks.push({
           id: block.id,
           block_kind: blockKind,
@@ -468,7 +486,7 @@ export function dehydrateCanvas(
       if (groupHeading) {
         visit(block.children, block.id, null)
       } else if (listKind) {
-        visit(block.children, sectionParent, block.id)
+        visit(block.children, sectionParent, block.id, block.type === 'toggleListItem')
       } else {
         visit(block.children, sectionParent, null)
       }

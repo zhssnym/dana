@@ -71,13 +71,6 @@ export function useBlockSelection(editor: AnyEditor): readonly string[] {
   return useSyncExternalStore((listener) => onBlockSelection(editor, listener), () => blockSelection(editor))
 }
 
-/* Cmd/Ctrl+/ on a selection opens Turn into; the canvas's marquee layer draws it. */
-const turnIntoOpeners = new WeakMap<object, () => void>()
-export function onTurnIntoRequest(editor: AnyEditor, open: () => void): () => void {
-  turnIntoOpeners.set(editor, open)
-  return () => { if (turnIntoOpeners.get(editor) === open) turnIntoOpeners.delete(editor) }
-}
-
 /** The tint for the selected blocks, scoped to this editor's own root. */
 export function BlockSelectionStyle({ editor, scope }: { readonly editor: AnyEditor; readonly scope: string }): React.JSX.Element | null {
   const ids = useBlockSelection(editor)
@@ -130,8 +123,8 @@ function nestSelection(editor: AnyEditor, view: EditorView, ids: readonly string
 /*
 The canvas's one key handler for block selection (window, capture phase, so
 it runs before the editor's own keys):
-- with blocks selected: Backspace/Delete remove them, Mod+D duplicates, Mod+/
-  opens Turn into, Tab/Shift-Tab nest and un-nest, Mod+A picks every block,
+- with blocks selected: Backspace/Delete remove them, Mod+D duplicates,
+  Tab/Shift-Tab nest and un-nest, Mod+A picks every block,
   Esc clears and leaves the editor (the next Esc reaches a peek), a typed
   character is swallowed, and any other plain key drops the selection;
 - in text: Esc picks the current block (unless the / menu is open), Mod+A
@@ -141,7 +134,8 @@ A click anywhere but a menu, the gutter or a Shift-click drops the selection.
 export function useBlockSelectionKeys(editor: AnyEditor, actions: BlockSelectionActions): void {
   useEffect(() => {
     function onKey(event: KeyboardEvent): void {
-      if (event.isComposing) return
+      // A synthetic key (the drag closing the handle menu) is not the user's.
+      if (event.isComposing || !event.isTrusted) return
       const view = viewOf(editor)
       if (view === undefined || !view.editable) return
       const ids = blockSelection(editor)
@@ -186,7 +180,6 @@ export function useBlockSelectionKeys(editor: AnyEditor, actions: BlockSelection
         if (ids.every((id) => editor.getBlock(id) !== undefined)) setBlockSelection(editor, ids)
         return
       }
-      if (mod && (key === '/' || event.code === 'Slash')) { stop(); turnIntoOpeners.get(editor)?.(); return }
       if (mod && key.toLowerCase() === 'a' && !event.shiftKey) { stop(); setBlockSelection(editor, editor.document.map((block) => block.id)); return }
       if (key === 'Tab' && !mod && !event.altKey) { stop(); nestSelection(editor, view, ids, event.shiftKey ? 'out' : 'in', actions.admits); return }
       if (['Shift', 'Control', 'Meta', 'Alt'].includes(key) || mod) return // copy, cut, undo keep their meaning
@@ -196,7 +189,7 @@ export function useBlockSelectionKeys(editor: AnyEditor, actions: BlockSelection
     function onPointer(event: PointerEvent): void {
       if (event.shiftKey || blockSelection(editor).length === 0) return
       const target = event.target as Element | null
-      if (target?.closest('[role="menu"], .bn-side-menu, [data-dana-marquee-menu]')) return
+      if (target?.closest('[role="menu"], .bn-side-menu')) return
       clearBlockSelection(editor)
     }
     window.addEventListener('keydown', onKey, true)

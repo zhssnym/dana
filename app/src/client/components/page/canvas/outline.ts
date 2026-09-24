@@ -17,7 +17,11 @@ const LIST_TYPES = new Set([
   'bulletListItem',
   'numberedListItem',
   'checkListItem',
+  'toggleListItem',
 ])
+
+/** What a toggle may hold beside list items (the server's `TOGGLE_CHILD_KINDS`). */
+const TOGGLE_CHILD_TYPES = new Set(['paragraph', 'quote', 'callout', 'codeBlock', 'divider'])
 
 const LEAF_TYPES = new Set([
   'paragraph',
@@ -31,6 +35,7 @@ const LEAF_TYPES = new Set([
   'danaTask',
   'danaFolder',
   'diagram',
+  'divider',
 ])
 
 export function validateCanvasOutline(
@@ -43,6 +48,7 @@ export function validateCanvasOutline(
     items: readonly OutlineBlock[],
     parentLevel: number,
     insideList: boolean,
+    insideToggle = false,
   ): string | null {
     for (const item of items) {
       if (blockIds.has(item.id)) {
@@ -72,13 +78,13 @@ export function validateCanvasOutline(
       }
 
       if (LIST_TYPES.has(item.type)) {
-        const failure = visit(item.children, parentLevel, true)
+        const failure = visit(item.children, parentLevel, true, item.type === 'toggleListItem')
         if (failure !== null) return failure
         continue
       }
 
-      if (insideList) {
-        return 'Only list items can be nested inside a list item.'
+      if (insideList && !(insideToggle && TOGGLE_CHILD_TYPES.has(item.type))) {
+        return insideToggle ? 'A toggle holds text, lists, quotes, callouts, code and dividers.' : 'Only list items can be nested inside a list item.'
       }
       if (!LEAF_TYPES.has(item.type)) {
         return 'This block type is not supported in the canvas.'

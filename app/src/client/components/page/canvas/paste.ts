@@ -50,6 +50,17 @@ export function normalizeCanvasPaste(
         ),
       }
     }
+    if (block.type === 'toggleListItem') {
+      return {
+        id,
+        type: 'toggleListItem',
+        content: block.content,
+        children: block.children.map((child) =>
+          structured(child, crypto.randomUUID()),
+        ),
+      }
+    }
+    if (block.type === 'divider') return { id, type: 'divider', children: [] }
     if (block.type === 'quote') {
       return {
         id,

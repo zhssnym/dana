@@ -1,6 +1,6 @@
 /*
 Notion's marquee (rubber band) block selection, for every BlockNote canvas.
-Mount once inside a `BlockNoteView`, within its `BlockMenuContext`:
+Mount once inside a `BlockNoteView`:
 `<CanvasMarquee />`.
 
 - Mouse-down in empty page space or the side margins (never in text) and
@@ -9,27 +9,21 @@ Mount once inside a `BlockNoteView`, within its `BlockMenuContext`:
 - A plain click in a side margin puts the caret on that line, as the editor
   would have.
 - Shift-click on a block extends a block selection to it.
-- Cmd/Ctrl+/ on a selection opens the block menu's Turn into for all of them.
 
 The selection itself, its tint and its keys are `block-selection.ts`; this
-file is only the pointer and the Turn into popover. One set of document
+file is only the pointer. One set of document
 listeners serves every mounted canvas, and a gesture goes to the canvas whose
 page area holds it (the innermost, then the nearest).
 */
-import { useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { createPortal, flushSync } from 'react-dom'
+import { useEffect } from 'react'
+import { flushSync } from 'react-dom'
 import { useBlockNoteEditor } from '@blocknote/react'
 import type { BlockNoteEditor } from '@blocknote/core'
 import { FormattingToolbarExtension } from '@blocknote/core/extensions'
 import { Selection, TextSelection } from 'prosemirror-state'
 import type { EditorView } from 'prosemirror-view'
-import { blockSelection, clearBlockSelection, onTurnIntoRequest, setBlockSelection } from './block-selection.js'
-import { BlockMenuContext } from './BlockSideMenu.js'
-import type { BlockMenuModel } from './BlockSideMenu.js'
-import { beforeBlockSelection, blockPositions, isBlockSelection } from './marquee.js'
-import { isCurrent } from './turn-into.js'
-import type { TreeBlock, TurnTarget } from './turn-into.js'
-import { Check } from '../../../lib/icons.js'
+import { blockSelection, clearBlockSelection, setBlockSelection } from './block-selection.js'
+import { beforeBlockSelection, isBlockSelection } from './marquee.js'
 import './marquee.css'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- both canvas schemas pass through here
@@ -39,7 +33,7 @@ interface Instance { readonly editor: AnyEditor }
 
 const instances = new Set<Instance>()
 /* Chrome that owns its own clicks: never a marquee. */
-const KEEP = '[data-dana-marquee-menu], .bn-side-menu, .bn-drag-handle-menu, .bn-suggestion-menu, .bn-formatting-toolbar, [role="menu"], [data-radix-popper-content-wrapper]'
+const KEEP = '.bn-side-menu, .bn-drag-handle-menu, .bn-suggestion-menu, .bn-formatting-toolbar, [role="menu"], [data-radix-popper-content-wrapper]'
 const INTERACTIVE = 'input, textarea, select, button, a[href], label, summary, [role="button"], [role="tab"], [role="menuitem"], [role="checkbox"], [role="switch"], [role="slider"], [contenteditable="true"], [contenteditable=""], [draggable="true"]'
 const DRAG_THRESHOLD = 4
 const EDGE = 48
@@ -289,7 +283,17 @@ function onDragStart(event: DragEvent): void {
   const target = event.target instanceof Element ? event.target : null
   if (target?.closest('.bn-side-menu') === null || target === null) return
   document.body.classList.add('dana-block-dragging')
-  const end = (): void => { document.body.classList.remove('dana-block-dragging'); window.removeEventListener('dragend', end, true); window.removeEventListener('drop', end, true) }
+  /* Hidden while the drag lasts (closing it then would unfreeze the gutter
+     and cancel the drag), and closed for real once it ends: the menu
+     dismisses on Escape, which the selection's keys ignore as untrusted. */
+  const end = (): void => {
+    window.removeEventListener('dragend', end, true)
+    window.removeEventListener('drop', end, true)
+    window.setTimeout(() => {
+      for (const menu of document.querySelectorAll<HTMLElement>('.dana-block-menu')) menu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      document.body.classList.remove('dana-block-dragging')
+    }, 0)
+  }
   window.addEventListener('dragend', end, true)
   window.addEventListener('drop', end, true)
 }
@@ -311,87 +315,9 @@ function listen(): () => void {
   }
 }
 
-/* ---- Turn into, for the whole selection: the block menu's own kinds and act ---- */
-
-/** The kinds every selected block may become here (the block menu's rules). */
-function sharedTargets(editor: AnyEditor, model: BlockMenuModel, ids: readonly string[]): { blocks: TreeBlock[]; targets: readonly TurnTarget[] } {
-  const blocks = ids.flatMap((id) => { const block = editor.getBlock(id) as TreeBlock | undefined; return block === undefined ? [] : [block] })
-  let targets: readonly TurnTarget[] | null = null
-  for (const block of blocks) {
-    const own = model.targets(block)
-    if (own.length === 0) continue // a Task, a Folder row, an image: it stays what it is
-    targets = targets === null ? own : targets.filter((target) => own.some((other) => other.key === target.key))
-  }
-  return { blocks, targets: targets ?? [] }
-}
-
-function TurnIntoMenu({ editor, model, ids, at, onClose }: {
-  readonly editor: AnyEditor
-  readonly model: BlockMenuModel
-  readonly ids: readonly string[]
-  readonly at: { readonly left: number; readonly top: number }
-  readonly onClose: (refocus: boolean) => void
-}): React.JSX.Element {
-  const { blocks, targets } = useMemo(() => sharedTargets(editor, model, ids), [editor, model, ids])
-  const [active, setActive] = useState(0)
-  const menu = useRef<HTMLDivElement>(null)
-  useEffect(() => { menu.current?.focus({ preventScroll: true }) }, [])
-  useEffect(() => {
-    const away = (event: MouseEvent): void => {
-      if (!(event.target instanceof Node) || !menu.current?.contains(event.target)) onClose(false)
-    }
-    document.addEventListener('mousedown', away, true)
-    return () => document.removeEventListener('mousedown', away, true)
-  }, [onClose])
-  const choose = (target: TurnTarget | undefined): void => {
-    if (target === undefined) return
-    model.turnInto(ids, target)
-    // The blocks stay picked, as they were when the menu opened.
-    if (ids.every((id) => editor.getBlock(id) !== undefined)) setBlockSelection(editor, ids)
-    onClose(true)
-  }
-  const text = blocks.filter((block) => model.targets(block).length > 0)
-  return (
-    <div
-      ref={menu}
-      data-dana-marquee-menu=""
-      role="menu"
-      aria-label="Turn into"
-      tabIndex={-1}
-      className="bn-menu-dropdown dana-block-menu fixed z-50 outline-none"
-      style={{ left: at.left, top: at.top }}
-      onKeyDown={(event) => {
-        event.stopPropagation()
-        if (event.key === 'Escape') { event.preventDefault(); onClose(true) }
-        else if (event.key === 'ArrowDown') { event.preventDefault(); setActive((index) => (index + 1) % targets.length) }
-        else if (event.key === 'ArrowUp') { event.preventDefault(); setActive((index) => (index - 1 + targets.length) % targets.length) }
-        else if (event.key === 'Enter') { event.preventDefault(); choose(targets[active]) }
-      }}
-    >
-      <p className="px-2 pb-1 pt-1.5 text-xs text-muted-foreground">Turn into</p>
-      {targets.map((target, index) => (
-        <div
-          key={target.key}
-          role="menuitem"
-          tabIndex={-1}
-          data-highlighted={index === active ? '' : undefined}
-          className="bn-menu-item flex cursor-default items-center justify-between gap-6 rounded-sm px-2 data-[highlighted]:bg-accent"
-          onMouseEnter={() => setActive(index)}
-          onClick={() => choose(target)}
-        >
-          {target.title}
-          {text.length > 0 && text.every((block) => isCurrent(block, target)) ? <Check size={14} /> : null}
-        </div>
-      ))}
-    </div>
-  )
-}
-
-/** Marquee selection and Cmd/Ctrl+/ Turn into for the enclosing `BlockNoteView`'s editor. */
-export function CanvasMarquee(): React.JSX.Element | null {
+/** Marquee selection for the enclosing `BlockNoteView`'s editor. */
+export function CanvasMarquee(): null {
   const editor = useBlockNoteEditor() as unknown as AnyEditor
-  const model = useContext(BlockMenuContext)
-  const [menu, setMenu] = useState<{ ids: readonly string[]; left: number; top: number } | null>(null)
   useEffect(() => {
     const instance: Instance = { editor }
     instances.add(instance)
@@ -406,29 +332,12 @@ export function CanvasMarquee(): React.JSX.Element | null {
     // Closed and unmounted before the selection changes, so its buttons never
     // read a block selection as text.
     if (toolbar !== undefined) toolbarClosers.set(editor, () => { if (toolbar.state) flushSync(() => toolbar.setState(false)) })
-    const offTurnInto = onTurnIntoRequest(editor, () => {
-      const view = viewOf(editor)
-      const ids = blockSelection(editor)
-      const first = ids[0]
-      if (view === undefined || first === undefined || model === null) return
-      if (sharedTargets(editor, model, ids).targets.length === 0) return
-      const found = blockPositions(view.state.doc).get(first)
-      const dom = found === undefined ? null : view.nodeDOM(found.pos)
-      const content = dom instanceof HTMLElement ? dom.querySelector('.bn-block-content') ?? dom : view.dom
-      const box = content.getBoundingClientRect()
-      setMenu({ ids, left: Math.max(8, Math.min(box.left, window.innerWidth - 240)), top: Math.max(8, Math.min(box.bottom + 4, window.innerHeight - 380)) })
-    })
     return () => {
-      offTurnInto()
       toolbarClosers.delete(editor)
       unsubscribe?.()
       instances.delete(instance)
       stop()
     }
-  }, [editor, model])
-  if (menu === null || model === null) return null
-  return createPortal(<TurnIntoMenu editor={editor} model={model} ids={menu.ids} at={menu} onClose={(refocus) => {
-    setMenu(null)
-    if (refocus) viewOf(editor)?.focus()
-  }} />, document.body)
+  }, [editor])
+  return null
 }
