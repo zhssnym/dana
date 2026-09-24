@@ -488,3 +488,16 @@ button:not(:disabled),
   --tw-ring-shadow: 0 0 #0000 !important;
   --tw-ring-offset-shadow: 0 0 #0000 !important;
 }
+
+/* ---- r9-caret: the writing canvas reads as Notion's. Body text on a canvas
+   is 16px on a 24px line (app chrome stays 14px); with 4px above and below,
+   a text block is still one 32px --row-height, the same pitch as a Task row.
+   The empty-line hint is a quieter grey than muted text. */
+:root {
+  --text-editor-size: 16px;
+  --text-editor-line: 24px;
+  --text-placeholder: #a5a29a;
+}
+[data-theme="dark"] {
+  --text-placeholder: #5f5f5d;
+}

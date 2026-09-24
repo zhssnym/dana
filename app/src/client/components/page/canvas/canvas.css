@@ -255,7 +255,7 @@
 
 
 /* ---- r4-editor: one hint at a time. While the page is being written in,
-   only the focused empty block says anything ("Type '/' for commands"; a
+   only the focused empty block says anything ("Press '/' for commands"; a
    heading or list says what it is); every other empty block is blank, as in
    Notion. The empty page's own line above shows only while nothing is focused.
    BlockNote marks the focused empty block `data-is-empty-and-focused`: on the
@@ -263,7 +263,7 @@
 .dana-writing-canvas .bn-editor .bn-block-content[data-content-type]:has(.ProseMirror-trailingBreak:only-child)::after { content: none; }
 .dana-writing-canvas .bn-editor.ProseMirror-focused [data-is-empty-and-focused] > .bn-block-content[data-content-type]:has(.ProseMirror-trailingBreak:only-child),
 .dana-writing-canvas .bn-editor.ProseMirror-focused .bn-block-content[data-content-type][data-is-empty-and-focused]:has(.ProseMirror-trailingBreak:only-child) {
-  --dana-hint: "Type '/' for commands";
+  --dana-hint: "Press '/' for commands";
 }
 .dana-writing-canvas .bn-editor.ProseMirror-focused .bn-block-content[data-content-type='heading'][data-is-empty-and-focused]:has(.ProseMirror-trailingBreak:only-child) { --dana-hint: "Heading"; }
 .dana-writing-canvas .bn-editor.ProseMirror-focused .bn-block-content:is([data-content-type='bulletListItem'], [data-content-type='numberedListItem'], [data-content-type='checkListItem'], [data-content-type='toggleListItem'])[data-is-empty-and-focused]:has(.ProseMirror-trailingBreak:only-child) { --dana-hint: "List"; }
@@ -312,7 +312,7 @@
 /* ---- r5-discuss: the post composer's one hint. The composer
    (`thread/PostEditor.tsx`) says only its own words ("Write a reply…",
    "Write the first post…", from `--dana-canvas-placeholder`), focused or
-   not, and only while it is empty: the page's "Type '/' for commands" and
+   not, and only while it is empty: the page's "Press '/' for commands" and
    its heading/list hints are the page's, not a message box's. A 1px start
    inset keeps the hint's first letter out of the scroller's clip on phones,
    where the canvas's own left padding is zeroed. */
@@ -365,3 +365,18 @@
 .dana-writing-canvas [data-canvas-task-id] button[aria-label="Mark as not done"] + span {
   margin-inline-start: calc(var(--checkbox-size) + var(--spacing) * 2 - var(--control-height));
 }
+
+/* ---- r9-caret: Notion's writing line. Canvas body text is 16px on a 24px
+   line (headings keep their own sizes), the caret is the text's own colour,
+   and the empty-line hint is the quieter placeholder grey. Still one
+   --row-height per one-line block: (32 - 24) / 2 = 4px above and below. */
+.dana-writing-canvas .bn-editor { caret-color: var(--text); }
+.dana-writing-canvas:not(.dana-post-editor) .bn-editor {
+  font-size: var(--text-editor-size);
+  line-height: var(--text-editor-line);
+}
+.dana-writing-canvas:not(.dana-post-editor) .bn-block-content:is([data-content-type='paragraph'], [data-content-type='bulletListItem'], [data-content-type='numberedListItem'], [data-content-type='checkListItem'], [data-content-type='toggleListItem'], [data-content-type='quote']) {
+  padding-block: calc((var(--row-height) - var(--text-editor-line)) / 2);
+}
+.dana-writing-canvas .bn-editor .bn-inline-content:has(.ProseMirror-trailingBreak:only-child)::before,
+.dana-writing-canvas .bn-block-content:has(.ProseMirror-trailingBreak:only-child)::after { color: var(--text-placeholder); }
