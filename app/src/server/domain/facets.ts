@@ -62,7 +62,7 @@ import type {
   PageView,
 } from '../../shared/pages.js'
 import type { TrashedFacet } from '../../shared/trash.js'
-import { isListKind } from '../../shared/page-document.js'
+import { TOGGLE_CHILD_KINDS, mayNestUnder } from '../../shared/page-document.js'
 import { fileReclaimedAt } from './pages.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
@@ -1514,10 +1514,10 @@ export async function applyFacetDocument(
         const itemKind = writes.get(item.id)?.block_kind ?? storedKinds.get(item.id)
         const parentKind =
           writes.get(item.listParent)?.block_kind ?? storedKinds.get(item.listParent)
-        if (itemKind === undefined || !isListKind(itemKind)) {
+        if (itemKind === undefined || !(TOGGLE_CHILD_KINDS as readonly string[]).includes(itemKind)) {
           throw new FacetDocumentRefusal(
             'invalid',
-            'only a bullet, numbered or checklist item is a nested list item',
+            'only a list item, or writing inside a toggle, is nested',
             'list_parent_block_id',
           )
         }
@@ -1525,11 +1525,11 @@ export async function applyFacetDocument(
           !blocks.has(item.listParent) ||
           !seen.has(item.listParent) ||
           parentKind === undefined ||
-          !isListKind(parentKind)
+          !mayNestUnder(itemKind, parentKind)
         ) {
           throw new FacetDocumentRefusal(
             'invalid',
-            'a list item nests under an earlier list item of this facet document',
+            'a list item nests under an earlier list item of this facet document, and other writing only under a toggle',
             'list_parent_block_id',
           )
         }

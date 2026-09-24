@@ -239,6 +239,13 @@
       "when": 1790900000000,
       "tag": "0034_diagram_block",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1791000000000,
+      "tag": "0035_toggle_and_divider_blocks",
+      "breakpoints": true
     }
   ]
 }

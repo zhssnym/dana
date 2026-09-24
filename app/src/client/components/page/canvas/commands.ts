@@ -87,30 +87,38 @@ export function removeEmptyBeforeHeading(editor: CanvasEditor, key: 'Backspace' 
   return true
 }
 
-/** Only insert new children; never adopt existing following content by proximity. */
-export function insertCanvasHeading(editor: CanvasEditor, level: 1 | 2): void {
+/** The Section of this level that holds the cursor (or is the cursor's block). */
+export function sectionContext(editor: CanvasEditor, level: number): CanvasBlock | undefined {
+  const current = editor.getTextCursorPosition().block
+  return [...ancestorsOf(editor.document, current.id) ?? [], current]
+    .find((block) => block.type === 'heading' && block.props.isToggleable !== false && block.props.level === level)
+}
+
+/** Only insert new children; never adopt existing following content by proximity.
+ * A Heading 2 needs a Heading 1 around the cursor, a Heading 3 a Heading 2. */
+export function insertCanvasHeading(editor: CanvasEditor, level: 1 | 2 | 3): void {
   const current = editor.getTextCursorPosition().block
   const parents = ancestorsOf(editor.document, current.id) ?? []
-  const group = headingOneContext(editor)
-  if (level === 2 && group === undefined) return
+  const group = level === 1 ? undefined : sectionContext(editor, level - 1)
+  if (level > 1 && group === undefined) return
   const id = crypto.randomUUID()
   const created = { id, type: 'heading' as const, props: { level, isToggleable: true }, content: '' }
   // At a valid destination inherit upstream empty-line replacement and cursor handling.
   // Only crossing a Dana group boundary needs the structural path below.
   const parent = parents.at(-1)
   if ((level === 1 && parent === undefined) ||
-    (level === 2 && parent?.type === 'heading' && parent.props.level === 1)) {
+    (level > 1 && parent?.type === 'heading' && parent.props.isToggleable !== false && parent.props.level === level - 1)) {
     insertOrUpdateBlockForSlashMenu(editor, { type: 'heading', props: { level, isToggleable: true } })
     editor.focus()
     return
   }
   editor.transact(() => {
-    if (level === 2 && group !== undefined) {
+    if (group !== undefined) {
       if (current.id === group.id) {
         editor.updateBlock(group, { children: [created, ...group.children] })
       } else {
-        const subgroup = parents.find((block) => block.type === 'heading' && block.props.level === 2)
-        editor.insertBlocks([created], subgroup ?? current, 'after')
+        const sibling = parents.find((block) => block.type === 'heading' && block.props.level === level)
+        editor.insertBlocks([created], sibling ?? current, 'after')
       }
     } else {
       editor.insertBlocks([created], parents[0] ?? current, 'after')

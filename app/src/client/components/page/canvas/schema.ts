@@ -13,6 +13,7 @@ import { createCanvasParagraph } from './CanvasParagraph.js'
 import { createCanvasDiagramSpec } from './CanvasDiagram.js'
 import { createTaskAtCursor, removeCanvasBlocks, removeEmptyBeforeHeading } from './commands.js'
 import { danaLinkInlineSpec } from '../../links/dana-link-chip.js'
+import { canvasMarkdownShortcuts, withoutInputRules } from './markdown.js'
 
 // The vocabulary only, derived from the one ceiling rather than restated beside it.
 // A Section's level is its depth in the persisted outline, so the editor must be able
@@ -22,7 +23,8 @@ const headingLevels = Array.from({ length: MAX_SECTION_DEPTH }, (_, index) => in
 const heading = createHeadingBlockSpec({ levels: headingLevels, defaultLevel: 1, allowToggleHeadings: true })
 const groupHeading = {
   ...heading,
-  extensions: [...heading.extensions ?? [], createExtension({
+  // Upstream's `#` rules would open a Section anywhere; Dana's are by surface (`markdown.ts`).
+  extensions: [...withoutInputRules(heading.extensions, () => true), canvasMarkdownShortcuts, createExtension({
     key: 'canvas-heading-enter',
     keyboardShortcuts: {
       'Mod-Enter': ({ editor }): boolean => createTaskAtCursor(editor as CanvasEditor),
@@ -167,6 +169,41 @@ const video = withReclaimNotice(mediaSpec(defaultBlockSpecs.video, VIDEO_MIMES),
 const file = withReclaimNotice(defaultBlockSpecs.file, 'file')
 const image = withReclaimNotice(mediaSpec(defaultBlockSpecs.image, RASTER_MIMES), 'picture')
 
+/* A toggle opens by default, like a Section, so what is written under it goes
+   inside: Enter at the end of an open toggle's title starts its first child
+   (upstream starts a sibling toggle, which stays the closed toggle's Enter). */
+const upstreamToggle = defaultBlockSpecs.toggleListItem
+const toggleList = {
+  ...upstreamToggle,
+  extensions: [createExtension({
+    key: 'canvas-toggle-enter',
+    keyboardShortcuts: {
+      Enter: ({ editor }) => {
+        const { selection } = editor.prosemirrorState
+        const block = editor.getTextCursorPosition().block
+        if (block.type !== 'toggleListItem' || !selection.empty || selection.$from.parentOffset !== selection.$from.parent.content.size) return false
+        if (!Array.isArray(block.content) || block.content.length === 0) return false
+        if (window.localStorage.getItem(`toggle-${block.id}`) === 'false') return false
+        const id = crypto.randomUUID()
+        editor.transact(() => {
+          editor.updateBlock(block, { children: [{ id, type: 'paragraph', content: '' }, ...block.children] })
+          editor.setTextCursorPosition(id)
+        })
+        return true
+      },
+    },
+  }), ...upstreamToggle.extensions ?? []],
+  implementation: {
+    ...upstreamToggle.implementation,
+    render: (function (block, editor) {
+      try {
+        if (window.localStorage.getItem(`toggle-${block.id}`) === null) window.localStorage.setItem(`toggle-${block.id}`, 'true')
+      } catch { /* preference storage can be unavailable */ }
+      return upstreamToggle.implementation.render.call(this, block, editor)
+    }) as typeof upstreamToggle.implementation.render,
+  },
+}
+
 /** Restricted vocabulary, projected to Dana records by the persistence adapter. */
 export const canvasSchema = BlockNoteSchema.create({
   blockSpecs: {
@@ -175,7 +212,10 @@ export const canvasSchema = BlockNoteSchema.create({
     bulletListItem: defaultBlockSpecs.bulletListItem,
     numberedListItem: defaultBlockSpecs.numberedListItem,
     checkListItem: defaultBlockSpecs.checkListItem,
-    quote: defaultBlockSpecs.quote,
+    // `> ` is a toggle (`markdown.ts`); `" ` stays upstream's quote rule.
+    quote: { ...defaultBlockSpecs.quote, extensions: withoutInputRules(defaultBlockSpecs.quote.extensions, (find) => find.source === '^>\\s$') },
+    toggleListItem: toggleList,
+    divider: defaultBlockSpecs.divider,
     callout: createCanvasCallout(),
     codeBlock: defaultBlockSpecs.codeBlock,
     image,
