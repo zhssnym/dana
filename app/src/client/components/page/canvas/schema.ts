@@ -8,7 +8,7 @@ import { createCanvasTaskSpec } from './CanvasTask.js'
 import { createCanvasFolderSpec } from './CanvasFolder.js'
 import { createCanvasParagraph } from './CanvasParagraph.js'
 import { createCanvasDiagramSpec } from './CanvasDiagram.js'
-import { createTaskAtCursor, removeEmptyBeforeHeading } from './commands.js'
+import { createTaskAtCursor, removeCanvasBlocks, removeEmptyBeforeHeading } from './commands.js'
 import { danaLinkInlineSpec } from '../../links/dana-link-chip.js'
 
 // The vocabulary only, derived from the one ceiling rather than restated beside it.
@@ -146,7 +146,7 @@ const image = {
         actions.appendChild(element)
       }
       button('Choose a new picture', () => { (editor as unknown as CanvasEditor).updateBlock(block.id, { props: { reclaimedAt: '' } }) })
-      button('Remove', () => { (editor as unknown as CanvasEditor).removeBlocks([block.id]) })
+      button('Remove', () => { const canvas = editor as unknown as CanvasEditor; const own = canvas.getBlock(block.id); if (own) removeCanvasBlocks(canvas, [own]) })
       dom.appendChild(actions)
       return { dom }
     }) as typeof stockImage.implementation.render,

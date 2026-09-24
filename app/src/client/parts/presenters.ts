@@ -33,6 +33,7 @@ import type { LucideIcon } from '../lib/icons.js'
 import { paths } from '../routes.js'
 import type { Folder } from '../../shared/folders.js'
 import type { TaskCard } from '../../shared/tasks.js'
+import { parseRecurrenceRule } from '../../shared/recurrence.js'
 import type { FolderGroupOption } from '../components/folder-group-dialog.js'
 import type { FolderRowProps } from '../components/folder-row.js'
 import type { TaskRowProps } from '../components/task-row.js'
@@ -814,6 +815,15 @@ export function taskRowDisplay(task: TaskCard, context: RowContext): TaskRowDisp
        weekly task. The card cannot know the rule from a row (7.0 puts it on the
        detail alone), so the word is the fact the row does carry: that it
        repeats. */
-    recurrence: task.is_recurring ? 'Repeats' : undefined,
+    recurrence: task.is_recurring ? repeatWord(task.recurrence_rule) : undefined,
   }
+}
+
+/* The frequency the card's rule names, in the word `task-row.tsx` maps back to
+   a repeat unit; "Repeats" when the rule cannot be read, which names no unit
+   and so never claims one. */
+const REPEAT_WORDS = { DAILY: 'Daily', WEEKLY: 'Weekly', MONTHLY: 'Monthly', YEARLY: 'Yearly' } as const
+function repeatWord(rule: string | null): string {
+  const parsed = rule === null ? null : parseRecurrenceRule(rule)
+  return parsed !== null && parsed.ok ? REPEAT_WORDS[parsed.rule.freq] : 'Repeats'
 }

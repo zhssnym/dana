@@ -1,0 +1,114 @@
+.dana-writing-canvas .bn-container {
+  --bn-colors-editor-text: var(--foreground);
+  --bn-colors-editor-background: var(--background);
+  --bn-colors-menu-text: var(--popover-foreground);
+  --bn-colors-menu-background: var(--popover);
+  --bn-colors-tooltip-text: var(--popover-foreground);
+  --bn-colors-tooltip-background: var(--popover);
+  --bn-colors-hovered-text: var(--accent-foreground);
+  --bn-colors-hovered-background: var(--accent);
+  --bn-colors-selected-text: var(--primary-foreground);
+  --bn-colors-selected-background: var(--primary);
+  --bn-colors-disabled-text: var(--muted-foreground);
+  --bn-colors-disabled-background: var(--muted);
+  --bn-colors-border: var(--border);
+  --bn-colors-side-menu: var(--muted-foreground);
+  --bn-font-family: var(--font-family-sans);
+}
+.dana-writing-canvas .bn-editor { padding: 0; background: transparent; }
+.dana-writing-canvas .bn-editor { font-family: var(--font-family-sans); font-size: var(--text-body-size); line-height: var(--text-body-line); }
+/* A Section's content is indented under its heading, so what sits after the
+   last Section reads as outside it rather than as more of it. */
+.dana-writing-canvas .bn-block:has(> .bn-block-content[data-content-type='heading']) > .bn-block-group {
+  margin-inline-start: calc(var(--spacing) * 6);
+}
+.dana-writing-canvas [data-content-type='heading'] .bn-inline-content {
+  font-family: var(--font-family-sans);
+  font-weight: var(--font-weight-semibold);
+}
+/* BlockNote omits data-level for the default H1 value. */
+.dana-writing-canvas [data-content-type='heading'] {
+  --level: var(--text-xl);
+  font-size: var(--text-xl);
+  line-height: var(--text-xl--line-height);
+}
+.dana-writing-canvas [data-content-type='heading'][data-level='2'] {
+  --level: var(--text-heading-size);
+  font-size: var(--text-heading-size);
+  line-height: var(--text-heading-line);
+}
+.dana-writing-canvas [data-content-type='heading'][data-level='3'] {
+  --level: var(--text-body-size);
+  font-size: var(--text-body-size);
+  line-height: var(--text-body-line);
+}
+.dana-writing-canvas .bn-side-menu button svg,
+.dana-writing-canvas .bn-toggle-button svg {
+  width: var(--icon-size-compact);
+  height: var(--icon-size-compact);
+}
+.dana-writing-canvas .bn-side-menu .bn-button {
+  color: var(--color-graphite-300);
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+.dana-writing-canvas .bn-side-menu { gap: calc(var(--spacing) * 1); }
+.dana-writing-canvas .bn-side-menu .bn-button:hover {
+  background: transparent;
+  color: var(--muted-foreground);
+}
+.dana-writing-canvas .bn-toggle-wrapper { position: relative; }
+.dana-writing-canvas .bn-toggle-button {
+  position: absolute;
+  right: calc(100% + var(--spacing) * 2);
+  color: var(--muted-foreground);
+}
+.dana-writing-canvas .dana-callout {
+  display: flex;
+  min-height: var(--control-height);
+  align-items: flex-start;
+  border-left: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--muted);
+  padding: calc(var(--spacing) * 2) calc(var(--spacing) * 3);
+}
+.dana-writing-canvas [data-content-type='codeBlock'] {
+  font-size: var(--text-sm);
+}
+.dana-writing-canvas [data-content-type='danaTask'] > div,
+.dana-writing-canvas [data-canvas-task-id] { width: 100%; min-width: 0; }
+/* A finished Task's slim line (#315) and the guard's refusal outline (#314). */
+.dana-writing-canvas [data-canvas-task-done] { padding-block: 2px; }
+.dana-writing-canvas [data-canvas-task-done] a { color: var(--muted-foreground); text-decoration: none; }
+.dana-writing-canvas [data-canvas-task-done] a:hover { text-decoration: underline; }
+.dana-writing-canvas [data-canvas-task-refused] { outline: 2px solid var(--destructive); outline-offset: 2px; border-radius: 4px; }
+.dana-writing-canvas .bn-drag-handle-menu { font-size: var(--text-body-size); line-height: var(--text-body-line); }
+.dana-writing-canvas img { max-width: 100%; height: auto; }
+@media (max-width: 480px) {
+  .dana-writing-canvas { padding-left: calc(var(--spacing) * 14); }
+}
+/* Issue #267: a picture whose file was reclaimed, told apart from an empty frame. */
+.dana-writing-canvas .dana-reclaimed-image {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--spacing) * 2);
+  width: 100%;
+  padding: calc(var(--spacing) * 4);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  color: var(--muted-foreground);
+}
+.dana-writing-canvas .dana-reclaimed-image p { margin: 0; }
+.dana-writing-canvas .dana-reclaimed-image p:first-child { color: var(--foreground); }
+.dana-writing-canvas .dana-reclaimed-image-caption { font-style: italic; }
+.dana-writing-canvas .dana-reclaimed-image div { display: flex; gap: calc(var(--spacing) * 3); }
+.dana-writing-canvas .dana-reclaimed-image button {
+  color: var(--foreground);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.dana-writing-canvas .dana-reclaimed-image button:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+/* A Shelf's Folder row is a row, not a link inside prose (#221). */
+.dana-writing-canvas a[data-canvas-folder-id] { text-decoration: none; color: inherit; }
