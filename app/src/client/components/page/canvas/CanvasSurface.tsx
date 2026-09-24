@@ -25,6 +25,7 @@ import {
 import { installCanvasGuard } from './guard.js'
 import { ancestorsOf, bindTaskCommand, continueAfterGroup, headingOneContext, insertCanvasHeading, insertDocumentHeading, moveCanvasBlock, removeHeadingKeepingContent } from './commands.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
+import { DanaLinkSuggestions, linkSlashItem } from '../../links/dana-link-picker.js'
 import './canvas.css'
 import {
   ArrowDown,
@@ -342,11 +343,15 @@ export function CanvasSurface({
             },
             aliases: ['todo'], group: 'Basic blocks',
           })
+          // "Link to…" (#223) sits after the Task item.
+          const task = core.findIndex((item) => item.title === 'Task')
+          core.splice(task < 0 ? core.length : task + 1, 0, linkSlashItem(editor))
           /* One group: the default heading items carry 'Headings' between
              'Basic blocks' items, and BlockNote keys groups by name, so two
              'Basic blocks' runs render a duplicate key and an empty header. */
           return filterSuggestionItems(core.map((item) => ({ ...item, group: 'Basic blocks', size: 'small' as const })), query)
         }} />
+        {editable ? <DanaLinkSuggestions editor={editor} /> : null}
       </BlockNoteView>
       <p role="status" aria-live="polite" className="min-h-6 px-2 text-sm text-muted-foreground">{feedback}</p>
     </div>

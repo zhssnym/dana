@@ -71,4 +71,9 @@ export const queryKeys = {
   /** A Discussion's input rounds, newest first (7.29, #321). */
   inputRounds: (discussionId: string) =>
     ['discussions', discussionId, 'input-rounds'] as const,
+
+  /** A Dana Link chip's live label (#223), and a target's "Referenced from"
+   * list (#214). Read by `components/links/`. */
+  reference: (kind: string, id: string) => ['references', kind, id] as const,
+  backlinks: (kind: string, id: string) => ['backlinks', kind, id] as const,
 } as const
