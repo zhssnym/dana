@@ -20,27 +20,6 @@ carries them, in `ConfirmDialog.tsx`, and are exact there.
 export const ABANDON_CONFIRM =
   'Abandon this task? It stops appearing in Today but stays everywhere else.'
 
-/**
- * 9.3: delete, which 9.4 also puts in a row's overflow menu. The task moves to
- * Trash, where it stays for thirty days, so the sentence does not say it cannot
- * be undone.
- */
-export const DELETE_TASK_CONFIRM = 'Move this task to Trash? It stays there for 30 days.'
-
-/**
- * The same confirmation for a selection. 9.3 writes the singular; this keeps
- * 9.3's shape and changes only its count.
- */
-export function deleteTasksConfirm(count: number): string {
-  return `Move ${count} tasks to Trash? They stay there for 30 days.`
-}
-
-/** The two controls of the task's delete confirms, naming what each does. */
-export const DELETE_CONFIRM_LABEL = 'Delete'
-export function keepLabel(count: number): string {
-  return count === 1 ? 'Keep it' : 'Keep them'
-}
-
 /** 9.1's control table: every row's and every form's overflow menu. */
 export const MORE_ACTIONS = 'More actions'
 

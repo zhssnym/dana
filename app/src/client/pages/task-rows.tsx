@@ -37,13 +37,7 @@ import {
 } from '../components/task-row.js'
 import type { BulkDate } from '../components/task-row.js'
 import { ConfirmDialog as UiConfirmDialog } from '../components/ui/ConfirmDialog.js'
-import {
-  ABANDON_CONFIRM,
-  DELETE_CONFIRM_LABEL,
-  DELETE_TASK_CONFIRM,
-  deleteTasksConfirm,
-  keepLabel,
-} from '../components/ui/copy.js'
+import { ABANDON_CONFIRM } from '../components/ui/copy.js'
 import { folderDisplay, presenterToday, taskRowDisplay } from '../parts/presenters.js'
 import type { RowContext } from '../parts/presenters.js'
 import { isScheduled } from '../parts/schedule.js'
@@ -297,13 +291,8 @@ export function TaskRows({
             })
           }}
           onDelete={() => {
-            onAsk(
-              DELETE_TASK_CONFIRM,
-              () => {
-                actions.onDelete(row.card)
-              },
-              { confirmLabel: DELETE_CONFIRM_LABEL, cancelLabel: keepLabel(1) },
-            )
+            /* One delete everywhere: Trash, with Undo, never a confirm. */
+            actions.onDelete(row.card)
           }}
         />
       )}
@@ -462,18 +451,11 @@ function useListActs(
         })
       }
     },
-    /* Behind the same confirmation a row's delete carries, in its plural. */
+    /* One act, one undo entry for the whole batch; no confirm, as a row's. */
     onDelete: (ids) => {
       const going = pick(ids)
       if (going.length === 0) return
-      /* One act, one undo entry for the whole batch. */
-      onAsk(
-        going.length === 1 ? DELETE_TASK_CONFIRM : deleteTasksConfirm(going.length),
-        () => {
-          actions.onDeleteMany(going)
-        },
-        { confirmLabel: DELETE_CONFIRM_LABEL, cancelLabel: keepLabel(going.length) },
-      )
+      actions.onDeleteMany(going)
     },
   }
 }
