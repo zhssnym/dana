@@ -188,7 +188,8 @@ for the duplicate finds it named as one.
 const SHARING_PANEL_WIDTH = 440
 
 /* A page's three views, in the tab row's toggle order. */
-const FOLDER_VIEWS: readonly FolderView[] = ['freeform', 'linear', 'board']
+/* Linear is hidden for now (its code stays); a stored 'linear' opens as Freeform. */
+const FOLDER_VIEWS: readonly FolderView[] = ['freeform', 'board']
 const VIEW_ICONS = { freeform: ListIcon, linear: GitCommitVertical, board: SquareKanban } as const
 
 /**
@@ -245,7 +246,8 @@ export function FolderPage({
   const [search, setSearch] = useSearchParams()
   /* Linear, Board or Freeform: this device's choice for every page, kept apart
      from the place pages' layout. `?mode=` seeds it, as it seeds theirs. */
-  const [folderView, setFolderView] = useFolderView()
+  const [storedView, setFolderView] = useFolderView()
+  const folderView: FolderView = storedView === 'linear' ? 'freeform' : storedView
   const seededView = modeFromSearch(search.toString())
   useEffect(() => {
     if (seededView !== null) writeFolderView(folderViewOf(seededView))
