@@ -343,7 +343,6 @@ export function FolderPage({
   const detail = folder.data
   const scheduled = open.data?.scheduled ?? []
   const unscheduled = open.data?.unscheduled ?? []
-  const bothEmpty = scheduled.length === 0 && unscheduled.length === 0
   /*
   The folder's own composed sequence, which is `GET /page`'s `items` and not
   Q7's two arrays.
