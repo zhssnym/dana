@@ -91,15 +91,20 @@ function isFrozen(row: Record<string, unknown>): boolean {
 }
 
 /**
- * The Folder's open, untrashed "General discussion", created if there is
- * none, with every stray Folder-level comment (`task_id` and
+ * The Folder's open, untrashed General discussion (`is_general`), created if
+ * there is none, with every stray Folder-level comment (`task_id` and
  * `discussion_id` both null) filed under it. Legacy writes only.
+ *
+ * It is found by the `is_general` flag and never by its title: a rename
+ * through PATCH /discussions/:id moves nothing, and another Discussion
+ * titled "General discussion" is an ordinary Discussion.
  *
  * The Folder row is locked first (`FOR NO KEY UPDATE`, which the comment
  * and discussion inserts' own key checks do not conflict with) so two
- * concurrent legacy posts cannot each create one. The row created has
+ * concurrent legacy posts cannot each create one; the partial unique index
+ * `discussions_one_open_general_key` is the backstop. The row created has
  * 0029's backfill shape: that title, `created_by` the Folder owner as
- * provenance, state open.
+ * provenance, state open, `is_general` true.
  *
  * A resolved or trashed General discussion is left exactly as it is and a
  * fresh open one is made beside it: the deployed client has no way to
@@ -118,17 +123,14 @@ async function openGeneralDiscussion(
     tx,
     sql`SELECT id FROM discussions
         WHERE folder_id = ${folderId}::uuid
-          AND title = ${GENERAL_DISCUSSION_TITLE}
-          AND state = 'open' AND trashed_at IS NULL
-        ORDER BY created_at ASC, id ASC
-        LIMIT 1`,
+          AND is_general AND state = 'open' AND trashed_at IS NULL`,
   )
   let discussionId = found[0]?.id
   if (discussionId === undefined) {
     const made = await rowsOf(
       tx,
-      sql`INSERT INTO discussions (folder_id, title, created_by)
-          SELECT f.id, ${GENERAL_DISCUSSION_TITLE}, f.owner_id
+      sql`INSERT INTO discussions (folder_id, title, created_by, is_general)
+          SELECT f.id, ${GENERAL_DISCUSSION_TITLE}, f.owner_id, true
             FROM folders f WHERE f.id = ${folderId}::uuid
           RETURNING id`,
     )
@@ -137,24 +139,37 @@ async function openGeneralDiscussion(
   if (discussionId === undefined) {
     throw new Error(`folder ${folderId} vanished under its own row lock`)
   }
-  await tx.execute(
-    sql`UPDATE comments SET discussion_id = ${String(discussionId)}::uuid
-        WHERE folder_id = ${folderId}::uuid
-          AND task_id IS NULL AND discussion_id IS NULL`,
+  /* Strays exist only from before 0029's route change or a write that raced
+     it, so almost always there are none: ask first, from
+     `comments_unfiled_folder_idx`, rather than run an UPDATE on every post. */
+  const strays = await rowsOf(
+    tx,
+    sql`SELECT EXISTS (
+          SELECT 1 FROM comments
+           WHERE folder_id = ${folderId}::uuid
+             AND task_id IS NULL AND discussion_id IS NULL) AS found`,
   )
+  if (strays[0]?.found === true) {
+    await tx.execute(
+      sql`UPDATE comments SET discussion_id = ${String(discussionId)}::uuid
+          WHERE folder_id = ${folderId}::uuid
+            AND task_id IS NULL AND discussion_id IS NULL`,
+    )
+  }
   return String(discussionId)
 }
 
 /** The legacy Folder thread's membership test, for the read and for a
  * legacy reply's parent: a Folder-level comment in any untrashed General
- * discussion of the Folder, or a stray one no Discussion holds yet. */
+ * discussion (`is_general`) of the Folder, or a stray one no Discussion
+ * holds yet. */
 function inLegacyThread(folderId: string): ReturnType<typeof sql> {
   return sql`c.task_id IS NULL AND (
       c.discussion_id IS NULL
       OR c.discussion_id IN (
         SELECT d.id FROM discussions d
         WHERE d.folder_id = ${folderId}::uuid
-          AND d.title = ${GENERAL_DISCUSSION_TITLE}
+          AND d.is_general
           AND d.trashed_at IS NULL))`
 }
 

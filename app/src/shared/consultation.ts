@@ -33,7 +33,9 @@ export const DISCUSSION_CONTEXT_MAX = 4000
 /** `discussion_outcomes_statement_length_check`: 1..4000 after trimming,
  * 4000 so that `Use as outcome` can snapshot any comment whole. */
 export const OUTCOME_STATEMENT_MAX = 4000
-/** The title migration 0029 gave each Folder's migrated conversation. */
+/** The title migration 0029 gave each Folder's migrated conversation, and
+ * the legacy post gives the one it creates. Display only: which Discussion
+ * is the General one is `is_general`, never this title. */
 export const GENERAL_DISCUSSION_TITLE = 'General discussion'
 
 export const DISCUSSION_LIST_LIMIT_DEFAULT = 50
@@ -77,6 +79,11 @@ export const discussionSchema = z.object({
   updated_at: z.string(),
   /** Non-null when the Discussion is in Trash. */
   trashed_at: z.string().nullable(),
+  /** The Folder's General discussion: the thread the pre-Consultation client
+   * reads and writes as the Folder conversation (4.31). A flag, not the
+   * title, so renaming it changes nothing. Resolving or trashing it needs
+   * Full control. */
+  is_general: z.boolean(),
 })
 export type Discussion = z.infer<typeof discussionSchema>
 
