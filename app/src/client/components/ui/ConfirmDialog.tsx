@@ -26,17 +26,19 @@ separates the two paths: without it, confirming would also fire `onCancel`
 when the close settles, and a caller cannot be asked to tolerate both
 callbacks for one press.
 */
-import { useRef } from 'react'
+import { useId, useRef, useState } from 'react'
 
 import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
+  AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
 } from './alert-dialog.js'
+import { Input } from './input.js'
 
 /** 9.1's control table, and not the caller's to change. */
 const CONTINUE = 'Continue'
@@ -55,6 +57,15 @@ interface ConfirmDialogProps {
    */
   readonly confirmLabel?: string
   readonly cancelLabel?: string
+  /** One muted sentence under the message, for what the title cannot say. */
+  readonly description?: string
+  /**
+   * r5: an irreversible act (deleting the account) asks the person to type
+   * this word first; Continue stays disabled until it matches exactly.
+   */
+  readonly requireText?: string
+  /** False for a confirm that destroys nothing: Continue is neutral. */
+  readonly destructive?: boolean
 }
 
 export function ConfirmDialog({
@@ -63,8 +74,14 @@ export function ConfirmDialog({
   onCancel,
   confirmLabel = CONTINUE,
   cancelLabel = CANCEL,
+  description,
+  requireText,
+  destructive = true,
 }: ConfirmDialogProps): React.JSX.Element {
   const decided = useRef(false)
+  const [typed, setTyped] = useState('')
+  const typedId = useId()
+  const blocked = requireText !== undefined && typed !== requireText
 
   return (
     <AlertDialog
@@ -76,11 +93,27 @@ export function ConfirmDialog({
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{message}</AlertDialogTitle>
+          {description ? <AlertDialogDescription>{description}</AlertDialogDescription> : null}
         </AlertDialogHeader>
+        {requireText !== undefined ? (
+          <div className="flex flex-col gap-1">
+            <label htmlFor={typedId} className="text-xs text-muted-foreground">
+              Type {requireText} to confirm
+            </label>
+            <Input
+              id={typedId}
+              value={typed}
+              onChange={(event) => setTyped(event.target.value)}
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </div>
+        ) : null}
         <AlertDialogFooter>
           <AlertDialogCancel>{cancelLabel}</AlertDialogCancel>
           <AlertDialogAction
-            destructive
+            destructive={destructive}
+            disabled={blocked}
             onClick={() => {
               decided.current = true
               onContinue()

@@ -34,6 +34,9 @@ is the one shared dialog every confirmation uses and the copy module.
 import '../../styles/tokens.css'
 
 export { ConfirmDialog } from './ConfirmDialog.js'
+export { Row, RowGroup } from './row.js'
+export { Segmented, type SegmentedOption } from './segmented.js'
+export { Tab, TabList, Tabs, type TabItem } from './tabs.js'
 export {
   ABANDONED_CHIP,
   ABANDON_CONFIRM,
