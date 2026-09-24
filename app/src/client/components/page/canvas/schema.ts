@@ -4,6 +4,7 @@ import { MAX_SECTION_DEPTH } from '../../../../shared/page-document.js'
 
 import { createCanvasTaskSpec } from './CanvasTask.js'
 import { createCanvasParagraph } from './CanvasParagraph.js'
+import { createCanvasDiagramSpec } from './CanvasDiagram.js'
 import { createTaskAtCursor, removeEmptyBeforeHeading } from './commands.js'
 
 // The vocabulary only, derived from the one ceiling rather than restated beside it.
@@ -84,6 +85,7 @@ export const canvasSchema = BlockNoteSchema.create({
     heading: groupHeading,
     image: defaultBlockSpecs.image,
     danaTask: createCanvasTaskSpec(),
+    diagram: createCanvasDiagramSpec(),
   },
   styleSpecs: { bold: defaultStyleSpecs.bold, italic: defaultStyleSpecs.italic },
 })

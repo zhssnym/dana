@@ -21,7 +21,9 @@ export function normalizeCanvasPaste(blocks: readonly CanvasBlock[], parentLevel
           top.children!.push(subgroup)
         }
       } else {
-        const node: CanvasInput = block.type === 'image'
+        const node: CanvasInput = block.type === 'diagram'
+          ? { id, type: 'diagram', props: { source: block.props.source }, children: [] }
+          : block.type === 'image'
           ? /^\/api\/v1\/files\/[0-9a-f-]{36}$/i.test(block.props.url)
             ? { ...block, id, children: [] }
             : { id, type: 'paragraph', content: block.props.caption || block.props.url || 'Image: upload this file to Dana.' }

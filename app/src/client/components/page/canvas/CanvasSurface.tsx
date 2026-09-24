@@ -8,7 +8,7 @@ import {
   getDefaultReactSlashMenuItems,
 } from '@blocknote/react'
 import type { DefaultReactSuggestionItem } from '@blocknote/react'
-import { filterSuggestionItems, SideMenuExtension } from '@blocknote/core/extensions'
+import { filterSuggestionItems, insertOrUpdateBlockForSlashMenu, SideMenuExtension } from '@blocknote/core/extensions'
 import { CanvasFormattingToolbar } from './CanvasFormattingToolbar.js'
 import {
   AlertDialog,
@@ -24,7 +24,7 @@ import { installCanvasGuard } from './guard.js'
 import { ancestorsOf, bindTaskCommand, continueAfterGroup, headingOneContext, insertCanvasHeading, moveCanvasBlock, removeHeadingKeepingContent } from './commands.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
 import './canvas.css'
-import { ArrowDown, CheckCircle2, X } from '../../../lib/icons.js'
+import { ArrowDown, CheckCircle2, Network, X } from '../../../lib/icons.js'
 
 const CommandContext = createContext<{ task?: (block?: CanvasBlock) => void; explain: (message: string) => void }>({ explain: () => {} })
 
@@ -144,6 +144,13 @@ export function CanvasSurface({ editor, onChange, onCreateTask, folderRefs, allo
               onItemClick: () => insertCanvasHeading(editor, 2),
             })
           }
+          // Straight after Text (and Task, spliced in at 1 below), so the
+          // menu's 'Basic blocks' group stays one run ahead of Headings.
+          core.splice(1, 0, {
+            title: 'Diagram', subtext: 'Boxes and arrows from text', icon: <Network size={16} />,
+            onItemClick: () => { insertOrUpdateBlockForSlashMenu(editor, { type: 'diagram' }) },
+            aliases: ['flowchart', 'mermaid', 'chart'], group: 'Basic blocks',
+          })
           if (onCreateTask !== undefined) core.splice(1, 0, {
             title: 'Task', subtext: 'A Dana Task', icon: <CheckCircle2 size={16} />,
             /*

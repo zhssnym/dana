@@ -58,6 +58,7 @@ export function hydrateCanvas(page: PageView, columnWidth: number): CanvasInput[
       levels.set(block.id, level)
       nodes.set(block.id, { id: block.id, type: 'heading', props: { level, isToggleable: true }, content: contentOf(block.text, block.rich_content), children: [] })
     } else if (block.kind === 'image') nodes.set(block.id, { id: block.id, type: 'image', props: { url: block.file_id ? `/api/v1/files/${block.file_id}` : '', caption: block.text ?? '', previewWidth: columnWidth * (block.width_pct ?? 100) / 100 }, children: [] })
+    else if (block.kind === 'diagram') nodes.set(block.id, { id: block.id, type: 'diagram', props: { source: block.text ?? '' }, children: [] })
     else if (block.kind === 'folder_ref') nodes.set(block.id, { id: block.id, type: 'paragraph', content: [{ type: 'link', href: `/app/folders/${block.ref_folder_id ?? ''}`, content: block.text ?? 'Open folder' }], children: [] })
     else nodes.set(block.id, { id: block.id, type: 'paragraph', content: contentOf(block.text, block.rich_content), children: [] })
   }
@@ -180,7 +181,9 @@ export function dehydrateCanvas(blocks: readonly CanvasBlock[], columnWidth: num
            survived and the relation did not, which is this loss pointed the
            other way. AC-665 pins it, with two runs and a style. */
         const reference = block.type === 'paragraph' ? folderRefs.get(block.id) ?? null : null
-        result.blocks.push({ id: block.id, block_kind: block.type === 'heading' ? 'section' : image ? 'image' : reference !== null ? 'folder_ref' : 'paragraph', text: image ? block.props.caption : runs.map((run) => run.text).join(''), rich_content: image || reference !== null ? null : { version: 1, runs }, file_id: fileId, ref_folder_id: reference, width_pct: image ? Math.max(25, Math.min(100, Math.round((block.props.previewWidth || columnWidth) / columnWidth * 100))) : null, checked: null })
+        // #222: a diagram is its source text; no rich content, file or width.
+        if (block.type === 'diagram') result.blocks.push({ id: block.id, block_kind: 'diagram', text: block.props.source, rich_content: null, file_id: null, ref_folder_id: null, width_pct: null, checked: null })
+        else result.blocks.push({ id: block.id, block_kind: block.type === 'heading' ? 'section' : image ? 'image' : reference !== null ? 'folder_ref' : 'paragraph', text: image ? block.props.caption : runs.map((run) => run.text).join(''), rich_content: image || reference !== null ? null : { version: 1, runs }, file_id: fileId, ref_folder_id: reference, width_pct: image ? Math.max(25, Math.min(100, Math.round((block.props.previewWidth || columnWidth) / columnWidth * 100))) : null, checked: null })
       }
       visit(block.children, block.type === 'heading' ? block.id : parent)
     }
