@@ -144,6 +144,7 @@ export function FolderTabs({
   onHide,
   onShare,
   onDelete,
+  trailing,
 }: {
   /** The page, so the Discussion tab can weigh its name when a thread is unread (r7). */
   readonly folderId?: string
@@ -166,6 +167,8 @@ export function FolderTabs({
   readonly onShare?: (facet: Facet) => void
   /** Delete a custom tab. */
   readonly onDelete?: (facet: Facet) => void
+  /** Drawn at the row's far right (Work's view toggles). */
+  readonly trailing?: React.ReactNode
 }): React.JSX.Element | null {
   const ordered = tabOrder(facets)
   /* Ordered over every tab, then filtered: a hidden built-in is not a reorder. */
@@ -530,6 +533,7 @@ export function FolderTabs({
           <Plus strokeWidth={1.75} aria-hidden="true" />
         </Button>
       ) : null}
+      {trailing === undefined ? null : <div className="ms-auto mb-1 shrink-0 self-center">{trailing}</div>}
       <DropdownMenu
         open={menu !== null}
         onOpenChange={(open) => {

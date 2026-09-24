@@ -576,6 +576,8 @@ export const SendHorizontal = icon(Lu.SendHorizontal, Anim.SendHorizontalIcon)
 
 export const LayoutGrid = icon(Lu.LayoutGrid, Anim.LayoutGridIcon)
 export const List = icon(Lu.List, Anim.ListIcon)
+export const GitCommitVertical = icon(Lu.GitCommitVertical, null)
+export const SquareKanban = icon(Lu.SquareKanban, null)
 
 /* ─── Surfaces and structure (the critique round) ──────────────────────── */
 

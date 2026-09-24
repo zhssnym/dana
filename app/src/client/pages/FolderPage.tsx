@@ -128,16 +128,10 @@ import {
 } from '../components/ui/dialog.js'
 import {
   DropdownMenuCheckboxItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
 } from '../components/ui/dropdown-menu.js'
 /* The empty-state icon goes to `PageBody`, whose `StateIcon` is typed on the
    raw lucide component. */
-import { Folder as FolderIcon, LayoutGrid } from '../lib/icons.js'
+import { Folder as FolderIcon, GitCommitVertical, List as ListIcon, SquareKanban } from '../lib/icons.js'
 
 import type { RowContext } from '../parts/presenters.js'
 import { useRowActions } from '../parts/useRowActions.js'
@@ -193,8 +187,9 @@ for the duplicate finds it named as one.
 */
 const SHARING_PANEL_WIDTH = 440
 
-/* A page's three views, in the "…" menu's View order. */
-const FOLDER_VIEWS: readonly FolderView[] = ['linear', 'board', 'freeform']
+/* A page's three views, in the tab row's toggle order. */
+const FOLDER_VIEWS: readonly FolderView[] = ['freeform', 'linear', 'board']
+const VIEW_ICONS = { freeform: ListIcon, linear: GitCommitVertical, board: SquareKanban } as const
 
 /**
  * 9.6's leave confirm, verbatim and one sentence (AC-183 turns on both).
@@ -933,8 +928,6 @@ export function FolderPage({
   const listFacet = activeFacet?.kind === 'main' || activeFacet?.kind === 'work'
   const viewMenu = listFacet ? (
     <FolderViewMenu
-      view={folderView}
-      onView={setFolderView}
       showCompleted={showCompleted}
       onShowCompleted={changeShowCompleted}
     />
@@ -1073,6 +1066,7 @@ export function FolderPage({
               onHide={hideFolderFacet}
               onDelete={removeFolderFacet}
               onShare={exposeFolderFacet}
+              trailing={activeFacet?.kind === 'main' ? <FolderViewToggle view={folderView} onView={setFolderView} /> : undefined}
             />
           ) : facets.isError ? (
             <p role="alert" className="text-sm text-muted-foreground">
@@ -1379,50 +1373,72 @@ function FacetContent({
 }
 
 /**
- * The page's "…" View submenu: the view (Linear, Board, Freeform, stored as
- * `dana.folder-view` through `useFolderView`), then "Show completed". There is
- * no switcher on the page itself.
+ * Work's view, as icon toggles at the far right of the tab row: one Tab stop,
+ * arrow keys move and choose (a radio group). Stored as `dana.folder-view`
+ * through `useFolderView`.
  */
-function FolderViewMenu({
+function FolderViewToggle({
   view,
   onView,
-  showCompleted,
-  onShowCompleted,
 }: {
   readonly view: FolderView
   readonly onView: (next: FolderView) => void
+}): React.JSX.Element {
+  const move = (event: React.KeyboardEvent<HTMLDivElement>): void => {
+    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key]
+    if (step === undefined) return
+    event.preventDefault()
+    const next = FOLDER_VIEWS[(FOLDER_VIEWS.indexOf(view) + step + FOLDER_VIEWS.length) % FOLDER_VIEWS.length]
+    if (next !== undefined) onView(next)
+    event.currentTarget.querySelector<HTMLElement>(`[data-view="${next}"]`)?.focus()
+  }
+  return (
+    <div role="radiogroup" aria-label="View" className="flex items-center gap-0.5" onKeyDown={move}>
+      {FOLDER_VIEWS.map((choice) => {
+        const Icon = VIEW_ICONS[choice]
+        const current = choice === view
+        return (
+          <button
+            key={choice}
+            type="button"
+            role="radio"
+            data-view={choice}
+            aria-checked={current}
+            aria-label={VIEW_LABELS[choice]}
+            title={VIEW_LABELS[choice]}
+            tabIndex={current ? 0 : -1}
+            onClick={() => {
+              onView(choice)
+            }}
+            className={`inline-flex size-7 items-center justify-center rounded-md ${current ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            <Icon className="size-4" strokeWidth={1.75} aria-hidden="true" />
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+/**
+ * The page's "…" "Show completed" item; the view itself is the tab row's
+ * toggles.
+ */
+function FolderViewMenu({
+  showCompleted,
+  onShowCompleted,
+}: {
   readonly showCompleted: boolean
   readonly onShowCompleted: (next: boolean) => void
 }): React.JSX.Element {
   return (
-    <DropdownMenuSub>
-      <DropdownMenuSubTrigger>
-        <LayoutGrid className="size-4" strokeWidth={1.75} aria-hidden="true" />
-        View
-      </DropdownMenuSubTrigger>
-      <DropdownMenuSubContent className="w-44">
-        <DropdownMenuRadioGroup
-          value={view}
-          onValueChange={(next: FolderView) => {
-            onView(next)
-          }}
-        >
-          {FOLDER_VIEWS.map((choice) => (
-            <DropdownMenuRadioItem key={choice} value={choice}>
-              {VIEW_LABELS[choice]}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuCheckboxItem
-          checked={showCompleted}
-          onCheckedChange={(checked) => {
-            onShowCompleted(checked)
-          }}
-        >
-          Show completed
-        </DropdownMenuCheckboxItem>
-      </DropdownMenuSubContent>
-    </DropdownMenuSub>
+    <DropdownMenuCheckboxItem
+      checked={showCompleted}
+      onCheckedChange={(checked) => {
+        onShowCompleted(checked)
+      }}
+    >
+      Show completed
+    </DropdownMenuCheckboxItem>
   )
 }
