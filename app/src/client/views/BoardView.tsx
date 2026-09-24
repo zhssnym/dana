@@ -15,7 +15,7 @@ looks like nothing was ever finished, so completed cards always show there;
 abandoned ones join them only when the page shows completed work, which is
 where 9.5 keeps them reachable.
 
-**Every column ends with "New task"** (round 3), and a task added there lands
+**Every column ends with "New task"** (round 3; round 4 shows it on hover, on touch, and in an empty column), and a task added there lands
 in that column: Not started is a plain create, In progress starts it today (the
 board's own rule below), Done creates it and then completes it. The words are
 "New task", not Notion's "New page": in Dana a page is a document and this row
