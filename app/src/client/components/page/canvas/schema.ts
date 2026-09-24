@@ -77,12 +77,57 @@ const groupHeading = {
   },
 }
 
+/* Issue #267: a picture whose file was reclaimed arrives with no url, which the
+   stock block draws as the same empty frame as one never filled. `reclaimedAt`
+   (hydrated from `file_reclaimed_at`, never saved) swaps that frame for a notice
+   that says what happened, with the two ways out: pick a new file (clearing the
+   notice shows the ordinary upload state) or remove the block. */
+const stockImage = defaultBlockSpecs.image
+const image = {
+  ...stockImage,
+  config: { ...stockImage.config, propSchema: { ...stockImage.config.propSchema, reclaimedAt: { default: '' } } },
+  implementation: {
+    ...stockImage.implementation,
+    render: (function (block, editor) {
+      const reclaimedAt = (block.props as { reclaimedAt?: string }).reclaimedAt ?? ''
+      if (reclaimedAt === '' || block.props.url !== '') return stockImage.implementation.render.call(this, block, editor)
+      const dom = document.createElement('div')
+      dom.className = 'dana-reclaimed-image'
+      dom.contentEditable = 'false'
+      dom.setAttribute('role', 'group')
+      const date = new Date(reclaimedAt)
+      const message = document.createElement('p')
+      message.textContent = `This picture was deleted on ${Number.isNaN(date.getTime()) ? 'an earlier date' : date.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}.`
+      dom.setAttribute('aria-label', message.textContent)
+      dom.appendChild(message)
+      if (block.props.caption) {
+        const caption = document.createElement('p')
+        caption.className = 'dana-reclaimed-image-caption'
+        caption.textContent = block.props.caption
+        dom.appendChild(caption)
+      }
+      const actions = document.createElement('div')
+      const button = (label: string, run: () => void): void => {
+        const element = document.createElement('button')
+        element.type = 'button'
+        element.textContent = label
+        element.addEventListener('click', (event) => { event.preventDefault(); run() })
+        actions.appendChild(element)
+      }
+      button('Choose a new picture', () => { (editor as unknown as CanvasEditor).updateBlock(block.id, { props: { reclaimedAt: '' } }) })
+      button('Remove', () => { (editor as unknown as CanvasEditor).removeBlocks([block.id]) })
+      dom.appendChild(actions)
+      return { dom }
+    }) as typeof stockImage.implementation.render,
+  },
+}
+
 /** Restricted vocabulary, projected to Dana records by the persistence adapter. */
 export const canvasSchema = BlockNoteSchema.create({
   blockSpecs: {
     paragraph: createCanvasParagraph(),
     heading: groupHeading,
-    image: defaultBlockSpecs.image,
+    image,
     danaTask: createCanvasTaskSpec(),
   },
   styleSpecs: { bold: defaultStyleSpecs.bold, italic: defaultStyleSpecs.italic },

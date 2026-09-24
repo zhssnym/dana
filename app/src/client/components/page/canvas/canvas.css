@@ -96,3 +96,25 @@ while it holds a real `page_position`.
 @media (max-width: 480px) {
   .dana-writing-canvas { padding-left: calc(var(--spacing) * 14); }
 }
+/* Issue #267: a picture whose file was reclaimed, told apart from an empty frame. */
+.dana-writing-canvas .dana-reclaimed-image {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--spacing) * 2);
+  width: 100%;
+  padding: calc(var(--spacing) * 4);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  color: var(--muted-foreground);
+}
+.dana-writing-canvas .dana-reclaimed-image p { margin: 0; }
+.dana-writing-canvas .dana-reclaimed-image p:first-child { color: var(--foreground); }
+.dana-writing-canvas .dana-reclaimed-image-caption { font-style: italic; }
+.dana-writing-canvas .dana-reclaimed-image div { display: flex; gap: calc(var(--spacing) * 3); }
+.dana-writing-canvas .dana-reclaimed-image button {
+  color: var(--foreground);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.dana-writing-canvas .dana-reclaimed-image button:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
