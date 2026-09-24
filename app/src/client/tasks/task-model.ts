@@ -288,6 +288,9 @@ export interface ConceptTask {
      behind it. A count that cannot be wrong is better than a count. */
   steps?: ConceptStep[]
   attachments?: Attachment[]
+  /* The Labels the viewer can see on this task (#226), personal then folder,
+     archived ones left out. Read-only here: the panel shows them when set. */
+  labels?: { id: string; name: string }[]
   /* Which unit a recurrence counts in. */
   repeatUnit?: 'day' | 'week' | 'month' | 'year'
   recurrence?: boolean

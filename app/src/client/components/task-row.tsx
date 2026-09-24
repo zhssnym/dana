@@ -31,7 +31,6 @@ import {
   Folder,
   FolderInput,
   FolderPlus,
-  Fullscreen,
   SquareSquare,
   ListChecks,
   MoreHorizontal,
@@ -61,7 +60,6 @@ import {
   DestinationChoice,
   MenuHeading,
   Reveal,
-  TaskCard,
   newFolderChoice,
 } from "./task-card.js"
 import { FolderMark, useFolderMark } from "./folder-mark.js"
@@ -86,12 +84,11 @@ import {
 } from "./ui/copy.js"
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover.js"
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip.js"
-import { ActionStrip, type ViewStripOption } from "./view-strip.js"
+import { type ViewStripOption } from "./view-strip.js"
 import { useRowDensity, type RowDensity } from "../lib/row-density.js"
 import { usePeopleLibrary } from "../lib/people-library.js"
 import { useTaskWriter } from "../tasks/task-writer.js"
 import { useTaskEditing } from "./task-editing.js"
-import { setTaskOpen } from "../lib/task-surface-preference.js"
 import {
   repeatShort,
   stepCount,
@@ -2219,64 +2216,14 @@ export function useCardWiring(props: TaskRowProps) {
   return { task, patch, patchSteps, steps, counts, cardHandlers }
 }
 
-/* The row's own view strip: one quiet trigger among the actions, opening the
-   horizontal icon row of the six ways a task can be held. Icons only, labels on
-   hover, the rule for every view switcher. */
-function OpenInControl({
-  onPick,
-  placement = "row",
-}: {
-  onPick: (mode: TaskOpenMode) => void
-  /* In the row the control hides until hover, like every row action; in the
-     card's footer it is always visible, like every footer action. Same
-     control, two homes. */
-  placement?: "row" | "footer"
-}) {
-  return (
-    <Popover>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <PopoverTrigger
-              render={
-                <button
-                  type="button"
-                  aria-label="Open in…"
-                  onClick={(event) => event.stopPropagation()}
-                  className={cn(
-                    "flex items-center justify-center rounded-md transition-[opacity,background-color,color]",
-                    T_FAST,
-                    FOCUS,
-                    placement === "row"
-                      ? "size-7 text-[var(--color-graphite-600)] opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100 data-popup-open:opacity-100 hover:bg-[var(--color-graphite-200)] hover:text-[var(--color-graphite-800)]"
-                      : "size-7 text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)] data-popup-open:bg-[var(--color-graphite-100)]",
-                  )}
-                >
-                  <Fullscreen className="size-4 data-[size=sm]:size-4" strokeWidth={1.75} aria-hidden="true" />
-                </button>
-              }
-            />
-          }
-        />
-        <TooltipContent side="top">Open in…</TooltipContent>
-      </Tooltip>
-      <PopoverContent align="end" className="w-auto p-1">
-        <ActionStrip
-          ariaLabel="Open this task in"
-          options={TASK_OPEN_OPTIONS}
-          onSelect={(key) => onPick(key as TaskOpenMode)}
-        />
-      </PopoverContent>
-    </Popover>
-  )
-}
-
 export function TaskRow(props: TaskRowProps) {
   /* The height is a person's setting, and the one exception is a surface
      showing them both, the state sheet draws one row at each density beside
      the other, which is a thing no reader of the setting can do. */
   const density = props.density ?? useRowDensity()
-  const [open, setOpen] = useState(props.defaultOpen ?? false)
+  /* r4-panel: a task opens in its one home, the side panel
+     (`task-surface.tsx`); the row no longer expands in place. */
+  const open = false
   /*
   The row reads 7.6's detail while it is open, so the inline card shows the same
   steps, notes and reminder the dialog shows, rather than titles invented from
@@ -2293,7 +2240,7 @@ export function TaskRow(props: TaskRowProps) {
   )
   const fetched = expanded.concept ?? undefined
   const rowWriter = useTaskWriter()
-  const { task, patch, counts, cardHandlers } = useCardWiring(
+  const { task, patch, counts } = useCardWiring(
     fetched === undefined
       ? props
       : {
@@ -2330,12 +2277,6 @@ export function TaskRow(props: TaskRowProps) {
     return () => onRegisterOpen(null)
   }, [onRegisterOpen, onOpen])
 
-  /* Choosing where a task opens updates the person's account preference, so
-     the next task uses the same surface on this device and every other one. */
-  function openIn(mode: TaskOpenMode) {
-    setTaskOpen(mode === "right" ? "panel" : mode)
-    props.onOpen?.(mode)
-  }
 
   const given = props.given ?? {}
   /*
@@ -2775,7 +2716,6 @@ export function TaskRow(props: TaskRowProps) {
          routes are enough; a third icon in the row's gutter would crowd it. */
       extra={
         <>
-          <ExpandButton open={open} onToggle={() => setOpen((value) => !value)} />
           {props.id ? (
             <HistorySheet
               kind="task"
@@ -2790,22 +2730,10 @@ export function TaskRow(props: TaskRowProps) {
     />
   )
 
-  const card = (
-    <TaskCard
-      task={task}
-      patch={patch}
-      {...cardHandlers}
-      openIn={
-        props.onOpen ? <OpenInControl onPick={openIn} placement="footer" /> : undefined
-      }
-      onClose={() => setOpen(false)}
-    />
-  )
-
   return (
     <ExpandShell
       open={open}
-      card={card}
+      card={null}
       itemRef={props.itemRef}
       drag={props.listProps}
       isSelected={props.isSelected}

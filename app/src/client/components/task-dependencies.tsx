@@ -1,10 +1,9 @@
 /*
 The card's Dependencies block (#225), over 7.25's three endpoints.
 
-**Minimal by default.** A task with no dependency draws two quiet actions,
-"Depends on…" and "Blocks…", and no heading: a folder that never uses the
-feature should not feel heavier because it exists. Once an edge exists, or the
-person opens the picker, it becomes an ordinary card block.
+**Absent by default.** A task with no dependency draws nothing at all: the
+panel's "Add property" menu offers "Dependency", which opens this block on its
+picker (`opening`). Once an edge exists it is an ordinary panel section.
 
 **One relation, two doors.** "Depends on…" posts to this task naming the pick;
 "Blocks…" posts to the pick naming this task, which is 7.25's own reversal.
@@ -16,7 +15,7 @@ Only tasks are offered, and only ones not already related.
 **A refusal is said where the person is looking.** The server's 422 (self,
 cycle) is re-worded here and suppressed as a toast (`INLINE_VALIDATION_META`).
 */
-import { useMemo, useState, type ReactNode } from "react"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
 
 import { useFolderOpenTasks, useReferenceSearch, useTaskDependencies } from "../api/queries.js"
 import { useAddTaskDependency, useRemoveTaskDependency } from "../api/mutations.js"
@@ -52,36 +51,38 @@ function refusalOf(error: unknown, mode: Mode): string {
   return "Couldn't add the dependency. Try again."
 }
 
-export function TaskDependencies({
-  taskId,
-  folderId,
-  section,
-}: {
+interface DependenciesProps {
   taskId: string
   folderId: string | undefined
   /* The card's own block chrome, handed in so this file needs nothing from
      `task-card.tsx` and the two never import each other. */
   section: (badge: string | undefined, body: ReactNode) => ReactNode
-}) {
-  /* A lab fixture's id is its title; only a real task has a relation. */
-  if (!UUID.test(taskId)) return null
-  return <Dependencies taskId={taskId} folderId={folderId} section={section} />
+  /** "Add property → Dependency" was chosen: open on the picker. */
+  opening?: boolean
+  /** The block went back to having nothing to show. */
+  onIdle?: () => void
 }
 
-function Dependencies({
-  taskId,
-  folderId,
-  section,
-}: {
-  taskId: string
-  folderId: string | undefined
-  section: (badge: string | undefined, body: ReactNode) => ReactNode
-}) {
+/** Whether a task id is one the server can hold a relation for. */
+export function isRelatableTask(taskId: string): boolean {
+  return UUID.test(taskId)
+}
+
+export function TaskDependencies(props: DependenciesProps) {
+  /* A lab fixture's id is its title; only a real task has a relation. */
+  if (!UUID.test(props.taskId)) return null
+  return <Dependencies {...props} />
+}
+
+function Dependencies({ taskId, folderId, section, opening = false, onIdle }: DependenciesProps) {
   const read = useTaskDependencies(taskId)
   const add = useAddTaskDependency()
   const remove = useRemoveTaskDependency()
-  const [mode, setMode] = useState<Mode | null>(null)
+  const [mode, setMode] = useState<Mode | null>(opening ? "depends_on" : null)
   const [refusal, setRefusal] = useState<string | null>(null)
+  useEffect(() => {
+    if (opening) setMode("depends_on")
+  }, [opening])
 
   const dependsOn = read.data?.depends_on ?? []
   const blocks = read.data?.blocks ?? []
@@ -154,10 +155,12 @@ function Dependencies({
     )
 
   const empty = dependsOn.length === 0 && blocks.length === 0
-  if (empty && mode === null) {
-    /* Nothing yet: two quiet actions, no heading, no block. */
-    return <div className="-ml-1.5">{actions}</div>
-  }
+  const idle = empty && mode === null
+  useEffect(() => {
+    if (idle && read.data !== undefined) onIdle?.()
+  }, [idle, read.data, onIdle])
+  /* Nothing yet: no heading, no block, no actions. */
+  if (idle) return null
 
   const activeBlockers = dependsOn.filter(
     (edge) => edge.state === "active" || edge.state === "unresolved",

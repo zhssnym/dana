@@ -109,94 +109,77 @@ const T_FAST = "duration-[var(--duration-fast)] ease-[var(--ease-standard)]"
 const FOCUS =
   "outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)] focus-visible:ring-offset-1"
 
-/* A chip that opens a panel rather than a list. Same anatomy as PropChip so
-   the strip reads as one row of equals. */
 /*
-**The chip announces its field.**
+**A property row that opens a panel rather than a list.**
 
-9.3 puts the strip's five chips in its field table by field, and 9.1's
-addressing paragraph makes every control it names reachable by role and by name:
-a chip is a button whose accessible name is the field and then the value, "Due
-date 3 Sep". A strip whose chips did not say which field they were would be five
-values and no questions.
+The task panel's properties block is a stack of quiet rows, a muted name and
+its value, each shown only once it is set. A row whose value is a day, a time
+or a rule opens the whole control for that fact; choosing commits and closes.
 
-So the field's name is a **visually hidden run before the value** rather than an
-`aria-label`. A label overrides the content, so a chip labelled "Due date" would
-answer to that name while showing something else, and a test could not read the
-value off it. The order matters, because tests match the field as a prefix and
-read the value as the tail. And the glyph stays `aria-hidden`, so a glyph swap
-is never a rename.
+The field's name is the visible label *and* the start of the button's name, so
+a reader hears "Date Tomorrow" and a test can address the row by its field.
 
-The tooltip stays, because a tooltip is for the eye and this run is for the
-reader; a tooltip is not an accessible name.
+`defaultOpen` is for a row that "Add property" has just revealed: it appears
+already asking its question. `onOpenChange` lets the block hide the row again
+when it was dismissed without an answer.
 */
-export function PickerChip({
-  icon: Icon,
+export function PropertyPicker({
+  label,
   value,
-  tooltip,
-  field,
-  muted = false,
-  color,
-  disabled = false,
+  empty = false,
+  tone,
+  defaultOpen = false,
+  onOpenChange,
   children,
 }: {
-  icon: LucideIcon
+  label: string
   value: string
-  tooltip: string
-  /* 9.3's own name for the field, announced before the value. It defaults to
-     the tooltip, which is that name for the three chips the card draws today,
-     and is a prop rather than the tooltip outright so a caller whose tooltip
-     is a sentence can still say which field it is. */
-  field?: string
-  muted?: boolean
-  color?: string
-  /* Reminder and repeat stay visible but inoperable until the task has a due
-     date. Their position immediately after the due-date control communicates
-     the dependency without adding a permanent instruction below the strip. */
-  disabled?: boolean
+  /** The row has no value yet; the value is drawn muted. */
+  empty?: boolean
+  /** A late date says so in the danger ink. */
+  tone?: "danger"
+  defaultOpen?: boolean
+  onOpenChange?: (open: boolean) => void
   children: ReactNode
 }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(defaultOpen)
+  function change(next: boolean) {
+    setOpen(next)
+    onOpenChange?.(next)
+  }
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={change}>
       <PopoverTrigger
         render={
           <button
             type="button"
-            title={tooltip}
-            disabled={disabled}
             onClick={(event) => event.stopPropagation()}
-            className={cn("rounded-md disabled:pointer-events-none", FOCUS)}
+            className={cn(PROPERTY_ROW, FOCUS)}
           >
+            <span className={PROPERTY_LABEL}>{label}</span>
             <span
               className={cn(
-                "inline-flex h-6 shrink-0 items-center gap-1.5 rounded-md border border-transparent px-1.5 text-[12px] leading-4 transition-[background-color,border-color]",
-                T_FAST,
-                "hover:border-[var(--color-graphite-300)] hover:bg-card data-popup-open:border-[var(--color-graphite-300)] data-popup-open:bg-card",
-                muted
-                  ? "text-[var(--color-graphite-500)]"
-                  : "text-[var(--color-graphite-800)]",
-                disabled && "opacity-50",
+                "min-w-0 truncate",
+                empty ? "text-muted-foreground" : "text-foreground",
+                tone === "danger" && "text-destructive",
               )}
             >
-              <Icon
-                className="size-3.5 shrink-0"
-                style={color ? { color } : undefined}
-                strokeWidth={1.75}
-                aria-hidden="true"
-              />
-              <span className="sr-only">{field ?? tooltip}</span>
-              <span className="truncate">{value}</span>
+              {value}
             </span>
           </button>
         }
       />
       <PopoverContent align="start" className="w-auto p-2">
-        <PickerClose value={() => setOpen(false)}>{children}</PickerClose>
+        <PickerClose value={() => change(false)}>{children}</PickerClose>
       </PopoverContent>
     </Popover>
   )
 }
+
+/** One row of the task panel's properties block: the name, then the value. */
+export const PROPERTY_ROW =
+  "grid h-8 w-full grid-cols-[6rem_minmax(0,1fr)] items-center gap-2 rounded-sm px-2 text-left text-sm transition-colors duration-100 hover:bg-accent data-popup-open:bg-accent"
+export const PROPERTY_LABEL = "truncate text-muted-foreground"
 
 /* One choice in a picker, shaped like a menu item rather than a pill: full
    width, on its own line, with the value it resolves to on the right where a

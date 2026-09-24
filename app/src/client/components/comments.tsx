@@ -101,11 +101,6 @@ import {
 } from "./ui/dropdown-menu.js"
 import { Button } from "./ui/button.js"
 import {
-  Bubble,
-  BubbleContent,
-  BubbleReactions,
-} from "./ui/bubble.js"
-import {
   Message,
   MessageAvatar,
   MessageContent,
@@ -387,8 +382,12 @@ function Composer({
   voice = false,
   maxFiles = 1,
   disabled = false,
+  attach = true,
 }: {
   placeholder: string
+  /* Whether the "+" (file, link, mention) is drawn. The task panel keeps a
+     task's files in its one Attachments section, so its thread passes false. */
+  attach?: boolean
   autoFocus?: boolean
   /* A caller that returns a promise gets the typed text back if it rejects:
      the composer clears at once, and a refused post (a Discussion resolved
@@ -636,7 +635,7 @@ function Composer({
           The `+` stays on the left and holds what you can *attach*: a file, a
           link, a person to mention.
            */}
-          {disabled ? null : (
+          {disabled || !attach ? null : (
           <InputGroupAddon align="inline-start">
             <DropdownMenu>
               <DropdownMenuTrigger
@@ -841,11 +840,6 @@ function CommentRow({
     setEditing(false)
   }
 
-  /* My own messages sit on the right, the way every conversation surface people
-     already use draws them: the face moves to the right edge, the header and
-     body anchor right, and the hover actions mirror to the message's inner
-     side. Everyone else stays on the left. */
-  const mine = Boolean(comment.mine)
 
   return (
     /*
@@ -855,7 +849,7 @@ function CommentRow({
     every part reads it from there, so alignment is a property of the turn
     rather than a rule every span has to remember.
     */
-    <Message align={mine ? "end" : "start"} className="group/comment px-1 py-1.5">
+    <Message align="start" className="group/comment px-1 py-1.5">
       <MessageAvatar>
         <Face person={comment.author} dense={isReply} />
       </MessageAvatar>
@@ -895,7 +889,7 @@ function CommentRow({
                  reads as the message and pushes the reply into a footnote. */
               "mt-1 flex max-w-[min(22rem,80%)] items-center gap-1.5 border-[var(--color-graphite-300)] text-[12px] leading-4 text-[var(--color-graphite-500)]",
               /* Author, then what they said, on either side. */
-              mine ? "border-r-2 pr-2" : "border-l-2 pl-2",
+              "border-l-2 pl-2",
             )}
           >
             <span className="shrink-0 font-medium text-[var(--color-graphite-600)]">
@@ -939,50 +933,38 @@ function CommentRow({
           /* The actions sit level with the message, on its outer side, rather
              than on the name-and-time line, where they would float above the
              thing they act on. */
-          <span className={cn("flex max-w-full items-center gap-1", mine && "flex-row-reverse")}>
-          {/* Whose message this is, said in tone rather than in colour: mine
-             sits on graphite-900 with light text, everyone else's on the
-             graphite-50 wash. No hue enters the thread, cobalt stays the
-             interaction colour, and a message is not an interaction.
-
-             The corner nearest its own author tightens to 4px. It is the one
-             detail that makes a container read as *spoken by* somebody rather
-             than as a box, and it costs a single class. */}
-          {/* Tone, never hue, which is exactly the split `Bubble`'s two
-              variants carry, so the rule lives in the primitive instead of in a
-              ternary here. */}
-          <Bubble variant={mine ? "default" : "muted"} className="mt-0.5">
-            <BubbleContent>{comment.body}</BubbleContent>
+          <span className="flex max-w-full items-start gap-1">
+          {/* Plain text on the page, every author alike: a thread is
+              something people read, not a stack of containers. Who said it is
+              the name above; nothing is filled, nothing is inverted. */}
+          <span className="mt-0.5 flex min-w-0 flex-1 flex-col gap-1">
+            <span className="whitespace-pre-wrap break-words text-sm text-foreground">
+              {comment.body}
+            </span>
             {comment.reactions?.length ? (
-              <BubbleReactions
+              <span
+                className="flex flex-wrap gap-1"
                 aria-label={comment.reactions
                   .map((r) => `${r.count} like${r.count === 1 ? "" : "s"}`)
                   .join(", ")}
               >
                 {comment.reactions.map((reaction) => (
-                  /* A reaction is a toggle, so it is the system's button
-                     pressed or not, rather than a pill with its own two
-                     states hand-written beside every other pill. */
                   <Button
                     key={reaction.emoji}
-                    variant={mine ? "outline" : reaction.mine ? "secondary" : "outline"}
+                    variant={reaction.mine ? "secondary" : "ghost"}
                     size="xs"
                     aria-pressed={reaction.mine || undefined}
                     disabled={(comment.likeable ?? true) === false}
                     onClick={() => onUpdate(toggleReaction(comment, reaction.emoji))}
-                    className={cn(
-                      "rounded-full tabular-nums",
-                      mine &&
-                        "border-white/25 bg-white/10 text-[var(--color-graphite-0)] hover:bg-white/20",
-                    )}
+                    className="tabular-nums text-muted-foreground"
                   >
                     <ThumbsUp className={cn(reaction.mine && "fill-current")} strokeWidth={1.75} aria-hidden="true" />
                     {reaction.count}
                   </Button>
                 ))}
-              </BubbleReactions>
+              </span>
             ) : null}
-          </Bubble>
+          </span>
             <span
               className={cn(
                 "flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/comment:opacity-100 focus-within:opacity-100",
@@ -1047,8 +1029,11 @@ export function CommentsThread({
   layout = "block",
   canComment = true,
   closedReason,
+  attachments = true,
 }: {
   comments: ConceptComment[]
+  /** Whether the composer offers to attach a file or a link. */
+  attachments?: boolean
   /* May return a promise; a top-level post that rejects gives the composer
      its text back. */
   onChange: (next: ConceptComment[]) => void | Promise<unknown>
@@ -1156,6 +1141,7 @@ export function CommentsThread({
               {replyingTo === comment.id ? (
                 <div className="py-1 pr-1">
                   <Composer
+                    attach={attachments}
                     placeholder={`Reply to ${comment.author.name}`}
                     autoFocus
                     onCancel={() => setReplyingTo(null)}
@@ -1182,6 +1168,7 @@ export function CommentsThread({
 
   const composer = (
     <Composer
+      attach={attachments}
       disabled={!canComment || closedReason !== undefined}
       placeholder={
         closedReason !== undefined
