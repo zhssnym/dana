@@ -7,6 +7,7 @@ import { initialKeys } from './fractional-index.js'
 import { createTaskIn } from './tasks.js'
 import { positionedItems } from './page-order.js'
 import { recordEvent } from './events.js'
+import { syncMentions } from './mentions.js'
 
 type BlockOp = Extract<DocumentOperation,{op:'put_block'}>
 /* `documentHash` moved to `document-hash.ts` with issue #230 and is re-exported
@@ -213,6 +214,7 @@ export async function applyDocument(tx:Executor,viewerId:string,folderId:string,
  // accepted and the nesting silently not written.
  const structureChanged=outline.length!==previousOutline.length || outline.some((item,index)=>{const prior=previousOutline[index];return prior?.id!==item.id||prior.kind!==item.kind||prior.sectionBlockId!==item.section_block_id||prior.listParentBlockId!==item.list_parent_block_id||prior.pagePosition===null})
  if(structureChanged)for(const [index,item] of outline.entries())await tx.execute(item.kind==='block'?sql`UPDATE page_blocks SET page_position=${keys[index]},position=${index},section_block_id=${item.section_block_id}::uuid,list_parent_block_id=${item.list_parent_block_id}::uuid WHERE id=${item.id}::uuid`:sql`UPDATE tasks SET page_position=${keys[index]},section_block_id=${item.section_block_id}::uuid WHERE id=${item.id}::uuid`)
+ await syncMentions(tx,{pageFolderId:folderId,actorId:viewerId,blockIds:changed,refuse:m=>new DocumentRefusal('not_convertible',m,'rich_content')})
  const named=await rowsOf(tx,sql`SELECT name FROM folders WHERE id=${folderId}::uuid`)
  await recordEvent(tx,{actorId:viewerId,verb:'edited',subjectKind:'folder',subjectId:folderId,subjectName:String(named[0]?.name??''),folderId,detail:'edited the page'})
  const committed=await documentMetadata(tx,folderId)

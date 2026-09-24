@@ -332,6 +332,13 @@ export const USER_CASCADE_DISPOSALS: readonly UserCascadeDisposal[] = [
     why: "4.24's Personal Label is one person's own catalog, private to them, carrying a name, a colour and a description they wrote. Scoped by owner_user_id, which is NOT NULL on a Personal Label and NULL on every Folder Label, so it reaches exactly the personal catalog and no shared one. A Folder Label in a folder the account owned goes at step 3 through labels_folder_id_fkey, a cascade off a real DELETE that does fire, and the assignment rows follow this one: task_personal_labels and folder_personal_labels key onto labels(id, owner_user_id) ON DELETE CASCADE.",
   },
   {
+    fk: 'mention_notices_user_id_fkey',
+    table: 'mention_notices',
+    disposition: 'deleted',
+    where: 'step 6c, in this file',
+    why: "Wave 2's @mention ledger: a row only records that this account was already told about one mention, so it is this account's own notification state and means nothing once the account is gone. The mention itself is a run in someone else's writing and stays there, as their authored text.",
+  },
+  {
     fk: 'notifications_user_id_fkey',
     table: 'notifications',
     disposition: 'deleted',
@@ -396,7 +403,7 @@ export const USER_CASCADE_DISPOSALS: readonly UserCascadeDisposal[] = [
  * returns. Nothing here reads or writes the sessions table, and nothing here
  * scrubs the user row: after this function the account still exists, owns no
  * folder, holds no membership, appears on no roster, offers no pending
- * invite, and holds no row in any of step 6c's nine personal tables.
+ * invite, and holds no row in any of step 6c's ten personal tables.
  */
 export async function deleteAccountData(
   tx: Executor,
@@ -524,7 +531,7 @@ export async function deleteAccountData(
   /*
   6c. The personal-rows sweep (issue #253, 2026-09-20).
 
-  Nine tables whose only tie to this account is a column declared
+  Ten tables whose only tie to this account is a column declared
   `REFERENCES users(id) ON DELETE CASCADE`. Reading the schema, none of them
   belongs in this function — the cascade says the rows leave with the user.
   **It never fires.** Step 7 scrubs the users row rather than deleting it, so
@@ -536,7 +543,7 @@ export async function deleteAccountData(
   Written as one statement per table rather than a loop over names: the
   guard reads this source for `DELETE FROM <table>`, and a table swept by an
   interpolated identifier would be invisible to it and to grep alike. The
-  order is alphabetical and carries no meaning, none of the nine referencing
+  order is alphabetical and carries no meaning, none of the ten referencing
   another; `shelves` cascades its page blocks and `labels` its assignment
   rows in task_personal_labels and folder_personal_labels, both of which are
   cascades off a real DELETE and do fire.
@@ -549,6 +556,10 @@ export async function deleteAccountData(
     await rowsOf(
       tx,
       sql`DELETE FROM labels WHERE owner_user_id = ${userId} RETURNING 1 AS one`,
+    ),
+    await rowsOf(
+      tx,
+      sql`DELETE FROM mention_notices WHERE user_id = ${userId} RETURNING 1 AS one`,
     ),
     await rowsOf(
       tx,
@@ -603,9 +614,9 @@ export interface AccountDeletionCounts {
   myDayEntries: number
   /** Files rows step 3's cascades dropped plus the rows step 6a deleted. */
   files: number
-  /** Step 6c's total across its nine tables: the rows fourteen inert
+  /** Step 6c's total across its ten tables: the rows fourteen inert
    * cascades promised to take and did not (issue #253). One number rather
-   * than nine, because the deletion log's question is whether the sweep ran
+   * than ten, because the deletion log's question is whether the sweep ran
    * and reached something, not which table held what. */
   personalRows: number
   /** The collected object ids: the caller removes each from the store after

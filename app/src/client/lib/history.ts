@@ -79,6 +79,7 @@ const VERB_LABEL: Record<HistoryVerb, string> = {
   removed: 'Removed',
   deleted: 'Deleted',
   left: 'Left',
+  mentioned: 'Mentioned',
 }
 
 /**
@@ -132,6 +133,7 @@ const STORY_VERB: Record<HistoryVerb, string> = {
   removed: 'removed it',
   deleted: 'deleted it',
   left: 'left it',
+  mentioned: 'mentioned someone',
 }
 
 export function storyFor(event: Pick<HistoryEvent, 'verb' | 'detail' | 'actor'>): string {
@@ -159,6 +161,8 @@ const VERB_PAST: Record<HistoryVerb, string> = {
   removed: 'removed',
   deleted: 'deleted',
   left: 'left',
+  // Never listed (the history reads leave it out); here for the Record's sake.
+  mentioned: 'mentioned',
 }
 
 const THING: Record<HistorySubjectKind, string> = {

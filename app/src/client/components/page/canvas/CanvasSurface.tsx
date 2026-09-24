@@ -26,7 +26,7 @@ import { BlockSelectionStyle, useBlockAnchor, useBlockSelectionKeys } from './bl
 import { contains, simulate, simulateNest, TEXT_TYPES, TURN_TARGETS } from './turn-into.js'
 import type { TreeBlock } from './turn-into.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
-import { DanaLinkSuggestions } from '../../links/dana-link-picker.js'
+import { MentionSuggestions } from './mentions.js'
 import './canvas.css'
 
 type HeadingMode = 'section' | 'document' | 'none'
@@ -52,6 +52,7 @@ export function CanvasSurface({
   onRemoveFolder,
   flatGroups = false,
   placeholder,
+  peopleFolderId,
 }: {
   readonly editor: CanvasEditor
   readonly onChange: (editor: CanvasEditor) => void
@@ -72,6 +73,8 @@ export function CanvasSurface({
   /** What an empty page says (see canvas.css: BlockNote's own placeholder
    * decoration does not reach Dana's paragraph node view). */
   readonly placeholder?: string
+  /** Whose members the `@` menu offers (Wave 2); none offers pages only. */
+  readonly peopleFolderId?: string
 }): React.JSX.Element {
   const [feedback, setFeedback] = useState('')
   const [referenceToConvert, setReferenceToConvert] = useState<CanvasBlock | null>(null)
@@ -210,7 +213,7 @@ export function CanvasSurface({
         />
         <SideMenuController sideMenu={BlockSideMenu} floatingUIOptions={blockSidePosition} />
         <CanvasSlashMenu editor={editor} context={slashContext} />
-        {editable ? <DanaLinkSuggestions editor={editor} /> : null}
+        {editable ? <MentionSuggestions editor={editor} folderId={peopleFolderId} /> : null}
       </BlockNoteView>
       {editable ? <div aria-hidden="true" className="dana-canvas-tail" onMouseDown={writeBelow} /> : null}
       <p role="status" aria-live="polite" className="min-h-6 px-2 text-sm text-muted-foreground">{feedback}</p>

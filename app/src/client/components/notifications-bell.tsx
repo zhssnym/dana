@@ -79,6 +79,7 @@ const VERB_SENTENCE: Record<string, string> = {
   removed: 'removed',
   deleted: 'deleted',
   left: 'left',
+  mentioned: 'mentioned',
 }
 
 /**
@@ -121,6 +122,13 @@ export const CONVERSATION_PARAM = 'conversation'
 function sentenceOf(row: NotificationLine): { readonly act: string; readonly quote: string | null } {
   const event = row.event
   const detail = event.detail ?? ''
+  // Wave 2 (W-D): only the person named ever holds this row. A post quotes
+  // its own words; a page or a Task is named.
+  if (event.verb === 'mentioned') {
+    return event.subject_kind === 'comment'
+      ? { act: 'mentioned you', quote: event.subject_name }
+      : { act: `mentioned you in "${event.subject_name}"`, quote: null }
+  }
   if (event.subject_kind === 'comment') {
     return { act: detail.startsWith('commented') ? detail : 'commented', quote: event.subject_name }
   }

@@ -68,6 +68,7 @@ import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { documentHash } from './document-hash.js'
 import { recordEvent } from './events.js'
+import { syncMentions } from './mentions.js'
 import { mayPerform, presetOf } from './folder-access.js'
 import type { FolderActorFacts } from './folder-access.js'
 import { initialKeys, keyBetween } from './fractional-index.js'
@@ -1648,6 +1649,7 @@ export async function applyFacetDocument(
                    updated_at = now()`,
       )
     }
+    await syncMentions(tx, { pageFolderId: folderId, actorId: viewerId, blockIds: writes.keys(), refuse: (m) => new FacetDocumentRefusal('invalid', m, 'rich_content') })
     /* **`AND facet_id` here is the same belt-and-braces the DELETE two loops
        above carries, and it is unreachable today for the same reason.** Every
        id in `outline` was checked against `blocks` a hundred lines up, and

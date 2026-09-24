@@ -408,6 +408,7 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
         onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) settleDraftTask() }}
       >
       <CanvasSurface
+        peopleFolderId={folderId}
         placeholder={placeholder}
         editor={editor}
         onChange={changed}
