@@ -108,8 +108,9 @@ export const PLACES: Record<PlaceKey, PlaceSpine> = {
     name: 'Folder',
     path: '',
     icon: Layers3,
-    /* A page's tasks also draw as the Linear thread (round 2). */
-    views: ['list', 'linear', 'board'],
+    /* A page picks Linear, Board or Freeform with its own switcher and its
+       own stored choice (`useFolderView`), never this layout (round 5). */
+    views: ['list'],
     groups: [
       { value: 'none', label: 'None' },
       { value: 'person', label: 'Person' },

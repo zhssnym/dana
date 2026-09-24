@@ -17,8 +17,7 @@ null, and a column with nothing to write takes no drop and offers no quick-add.
 The board runs its drag through `TaskList`, which hands each row its state
 directly.
 */
-import { QuickAdd } from '../components/quick-add.js'
-import { TaskBoard as PrototypeBoard } from '../components/task-board.js'
+import { BoardQuickAdd, TaskBoard as PrototypeBoard } from '../components/task-board.js'
 import type { BoardColumn, BoardTask } from '../components/task-board.js'
 import type { TaskRowProps } from '../components/task-row.js'
 import { taskRowDisplay } from '../parts/presenters.js'
@@ -154,10 +153,12 @@ export function TaskBoard({
       }}
       quickAdd={(column) => {
         const group = byKey.get(column.key)
-        if (group === undefined || group.capture === null) return null
+        if (group === undefined || group.capture === null || group.done === true) return null
         if (place.spine.capture === 'none') return null
         return (
-          <QuickAdd
+          /* The one board "New task", the same as a page's board. */
+          <BoardQuickAdd
+            label={`New task in ${column.label}`}
             onAdd={(title) => {
               place.capture(title, group.capture ?? undefined)
             }}

@@ -12,6 +12,7 @@ import { useCreateTask, usePullIntoMyDay } from '../api/mutations.js'
 import { useMe } from '../api/queries.js'
 import { presenterToday } from '../parts/presenters.js'
 import { ViewMenu } from './FilterControl.js'
+import { ViewSwitch } from './ViewSwitch.js'
 import { sortRows } from './filter.js'
 import type { GroupBy, PageFilter } from './filter.js'
 import { usePageFilter } from './filter-store.js'
@@ -73,10 +74,12 @@ export function usePlace(
 
   const seedMode = modeFromSearch(search.toString())
   useEffect(() => {
-    if (seedMode === null) return
+    /* Only a layout this page offers is seeded here; a folder page seeds its
+       own view (`useFolderView`). */
+    if (seedMode === null || !spine.views.includes(seedMode)) return
     if (modeFromSearch(liveSearch().toString()) !== seedMode) return
     writeViewMode(seedMode)
-  }, [seedMode])
+  }, [seedMode, spine.views])
 
   /* A grouping this page does not offer (left over from another client) is
      the page's own arrangement, never an invisible one. */
@@ -134,18 +137,20 @@ export function PlaceFilterChips(_props: { readonly place: Place }): null {
   return null
 }
 
-/** The View menu, for a page that places it itself. */
+/** The layout switcher (where the page has more than one) and the View menu. */
 export function PlaceControls({ place }: { readonly place: Place }): React.JSX.Element {
   return (
-    <ViewMenu
-      views={place.spine.views}
-      groups={place.spine.groups}
-      completed={place.spine.completed}
-      filter={place.filter}
-      onChange={place.setFilter}
-      mode={place.mode}
-      onModeChange={place.setMode}
-    />
+    <div className="flex items-center gap-2">
+      {place.spine.views.length > 1 ? (
+        <ViewSwitch choices={place.spine.views} value={place.mode} onChange={place.setMode} />
+      ) : null}
+      <ViewMenu
+        groups={place.spine.groups}
+        completed={place.spine.completed}
+        filter={place.filter}
+        onChange={place.setFilter}
+      />
+    </div>
   )
 }
 

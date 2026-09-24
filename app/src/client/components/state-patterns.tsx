@@ -159,7 +159,7 @@ export function SystemToast({
 
 function SkeletonRow({ short = false }: { short?: boolean }) {
   return (
-    <div className="grid min-h-[var(--task-row-height)] grid-cols-[var(--control-height)_minmax(0,1fr)_7.5rem] items-center gap-2 rounded-md px-1">
+    <div className="grid min-h-[var(--row-height)] grid-cols-[var(--control-height)_minmax(0,1fr)_7.5rem] items-center gap-2 rounded-md px-1">
       <div className="flex size-[var(--control-height)] items-center justify-center">
         <Skeleton className="size-[var(--checkbox-size)] rounded-sm" />
       </div>

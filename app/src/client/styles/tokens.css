@@ -261,7 +261,6 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --shell-pagebar-height: 28px;
   --shell-windowbar-height: 36px;
   --task-form-property-row-height: 32px;
-  --task-row-height: 36px;
   --checkbox-size: 16px;
   --switch-width: 32px;
   --switch-height: 18px;

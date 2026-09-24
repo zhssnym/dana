@@ -7,7 +7,6 @@ adds drag, the hold that makes a folder of two tasks, and Shift/Cmd-click
 selection with its labelled bar. `useCardWiring` is shared with the task panel.
 */
 
-import { Face } from "./person-face.js"
 import { InlineInput } from "./ui/inline-field.js"
 import {
   FolderPlus,
@@ -53,7 +52,8 @@ import {
 import { useSortableList } from "../lib/use-sortable-list.js"
 import type { SortableItemState } from "../lib/use-sortable-list.js"
 import { cn } from "./ui/utils.js"
-import { TaskMeta } from "./task-meta.js"
+import { RowMeta } from "./task-meta.js"
+import { CheckMark } from "./ui/checkbox.js"
 
 /* --------------------------------------------------------------- motion, */
 
@@ -272,7 +272,7 @@ export function PendingPanel({
             aria-label="Folder name"
             className={cn(
               "mt-2.5 h-9 w-full rounded-sm border border-border bg-background px-2.5 text-sm text-foreground outline-none",
-              "placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/30",
+              "placeholder:text-muted-foreground focus-visible:border-primary",
             )}
           />
 
@@ -530,8 +530,9 @@ export function useRowSelection({
 
 /* --------------------------------------------------------------- pieces, */
 
-export const FOCUS =
-  "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+/* Empty on purpose (round 5): the app has one focus style, drawn globally
+   (SYSTEM.md), so nothing adds its own. Kept for the files that import it. */
+export const FOCUS = ""
 
 export function Check({
   task,
@@ -560,36 +561,7 @@ export function Check({
       }}
       className={cn("flex size-[var(--control-height)] items-center justify-center rounded-sm", FOCUS)}
     >
-      <span
-        className={cn(
-          "flex size-[var(--checkbox-size)] items-center justify-center rounded-sm border transition-[background-color,border-color,transform] active:scale-90",
-          T_FAST,
-          done
-            ? "border-primary bg-primary"
-            : "border-muted-foreground/50 bg-background hover:border-muted-foreground",
-          task.abandoned && !done && "opacity-60",
-        )}
-      >
-        {/* The tick is drawn rather than switched on: a 20-unit dash offset
-            retracting to zero over --duration-base. It is the one flourish on
-            the page, and it is on the one action people take most. */}
-        <svg viewBox="0 0 20 20" className="size-3" aria-hidden="true">
-          <path
-            d="M4 10.5 L8.2 14.5 L16 5.8"
-            fill="none"
-            className="stroke-primary-foreground"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            style={{
-              strokeDasharray: 20,
-              strokeDashoffset: done ? 0 : 20,
-              transition:
-                "stroke-dashoffset var(--duration-base) var(--ease-enter)",
-            }}
-          />
-        </svg>
-      </span>
+      <CheckMark checked={done} className={cn("active:scale-90", !done && "hover:border-muted-foreground", task.abandoned && !done && "opacity-60")} />
     </button>
   )
 }
@@ -1392,35 +1364,8 @@ export function TaskRow(props: TaskRowProps) {
   }, [onRegisterOpen, onOpen])
 
   const given = props.given ?? {}
-  /* The folder the row was told, never a guess: see `given` on the props. */
-  const folderName = given.folder ? undefined : task.folder?.name?.trim()
-  const due = !given.due ? task.due : undefined
   const struck = Boolean(task.abandoned)
   const finished = Boolean(task.done) || struck
-
-  /* Between the date and the counts: what this list has not already said. */
-  const extras: ReactNode[] = []
-  if (folderName) {
-    extras.push(
-      <span key="folder" className="min-w-0 max-w-[10rem] truncate max-md:hidden">
-        {folderName}
-      </span>,
-    )
-  }
-  if ((props.blockedBy ?? 0) > 0 && !finished) {
-    extras.push(
-      <span key="blocked" className="shrink-0 whitespace-nowrap">
-        Blocked
-      </span>,
-    )
-  }
-  if (task.assignee && !given.assignee) {
-    extras.push(
-      <span key="assignee" className="flex shrink-0 items-center" title={task.assignee.name}>
-        <Face person={task.assignee} className="size-5 data-[size=sm]:size-5" />
-      </span>,
-    )
-  }
 
   const row = (
     <div
@@ -1438,7 +1383,7 @@ export function TaskRow(props: TaskRowProps) {
           : undefined
       }
       className={cn(
-        "group/row grid h-[var(--task-row-height)] w-full grid-cols-[var(--control-height)_minmax(0,1fr)_auto] items-center rounded-sm pr-1 text-sm transition-colors",
+        "group/row grid h-[var(--row-height)] w-full grid-cols-[var(--control-height)_minmax(0,1fr)_auto] items-center rounded-sm pr-1 text-sm transition-colors",
         T_FAST,
         !props.isSelected && "hover:bg-muted",
         props.onOpen && "cursor-pointer",
@@ -1455,20 +1400,23 @@ export function TaskRow(props: TaskRowProps) {
       >
         {task.title || <span className="text-muted-foreground">Untitled task</span>}
       </span>
-      <TaskMeta
+      <RowMeta
         className="max-w-[60vw] pl-3 md:max-w-none"
-        due={due}
-        overdueGiven={given.overdue}
-        steps={counts ?? undefined}
-        recurrence={task.recurrence ? repeatShort(task) : undefined}
-        extras={extras}
-        star={{
+        source={{
+          ...(task.due === undefined ? {} : { due: task.due }),
+          ...(task.folder === undefined ? {} : { folder: task.folder }),
+          ...(task.assignee === undefined ? {} : { assignee: task.assignee }),
+          ...(counts === null ? {} : { steps: counts }),
+          ...(task.recurrence ? { recurrence: repeatShort(task) } : {}),
+          blockedBy: props.blockedBy ?? 0,
+          finished,
           important: Boolean(task.important),
-          tooltip: props.importantTooltip,
-          onToggle: () => {
-            patch(task.id, { important: !task.important })
-            props.onToggleImportant?.()
-          },
+          ...(props.importantTooltip === undefined ? {} : { importantTooltip: props.importantTooltip }),
+        }}
+        given={given}
+        onToggleImportant={() => {
+          patch(task.id, { important: !task.important })
+          props.onToggleImportant?.()
         }}
       />
     </div>
