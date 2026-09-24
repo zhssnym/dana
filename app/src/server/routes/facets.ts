@@ -55,7 +55,7 @@ import {
   facetPageView,
   listFacets,
   patchFacet,
-  purposeFacetFolderId,
+  nativeDocumentFacetFolderId,
   restoreFacet,
   setFacetOrder,
   setMyFacetOrder,
@@ -451,14 +451,14 @@ export function createFacetsRouter(options: FacetsRouterOptions = {}): Router {
   )
 
   /* ---------------------------------------------------------------- *
-   * Stable Purpose navigation
+   * Stable Purpose / Results navigation
    * ---------------------------------------------------------------- */
 
   /**
-   * The canonical Dana Link is /app/facets/:id, but the actual Purpose
-   * workspace is a facet of its Folder. Return only that routing fact.
+   * The canonical Dana Link is /app/facets/:id, but the actual Purpose or
+   * Results workspace is a facet of its Folder. Return only that routing fact.
    *
-   * The first read identifies a live native Purpose and nothing else. The
+   * The first read identifies a live native Purpose or Results and nothing else. The
    * second is the explicit Folder membership gate required of every
    * id-bearing route: an inaccessible Purpose and a missing one therefore
    * leave through the identical 404, and hiding the Purpose is irrelevant.
@@ -471,7 +471,7 @@ export function createFacetsRouter(options: FacetsRouterOptions = {}): Router {
       if (db === null) return
       const facetId = parsedId(res, req.params.id)
       if (facetId === null) return
-      const folderId = await purposeFacetFolderId(db, facetId)
+      const folderId = await nativeDocumentFacetFolderId(db, facetId)
       if (
         folderId === null ||
         (await accessOf(db, viewer(req), folderId)) === null
