@@ -127,17 +127,12 @@ import {
 } from '../components/ui/dialog.js'
 import {
   DropdownMenuCheckboxItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
 } from '../components/ui/dropdown-menu.js'
-import { Eye } from '../lib/icons.js'
 /* The empty-state icon goes to `PageBody`, whose `StateIcon` is typed on the
    raw lucide component. */
 import { Folder as FolderIcon } from 'lucide-react'
+import { cn } from '../components/ui/utils.js'
 
 import type { RowContext } from '../parts/presenters.js'
 import { useRowActions } from '../parts/useRowActions.js'
@@ -576,24 +571,9 @@ export function FolderPage({
   const completionTotal =
     progress?.total ??
     (detail?.counts.completed ?? 0) + (detail?.counts.pending ?? 0)
-  /* Each Section's own "done/total" rides its heading on the canvas. The
-     canvas is BlockNote's document, whose headings are not ours to render,
-     so the chip is a pseudo-element keyed by the block id: never editable,
-     never saved, and no edit to the canvas itself. Ids are zod-checked uuids
-     and the text is digits, so nothing in the rule is user-authored. */
-  const sectionChips = (detail?.section_progress ?? [])
-    .filter((entry) => entry.total > 0 || entry.recurring_active > 0)
-    .map((entry) => {
-      const parts = [
-        entry.total > 0 ? `${entry.done}/${entry.total}` : '',
-        entry.recurring_active > 0 ? `↻ ${entry.recurring_active}` : '',
-      ].filter((part) => part !== '')
-      return `.dana-writing-canvas .bn-block[data-id="${entry.section_block_id}"] > .bn-block-content[data-content-type='heading']::after{content:"${parts.join(' · ')}"}`
-    })
-  const sectionChipStyle =
-    sectionChips.length === 0
-      ? ''
-      : `.dana-writing-canvas .bn-block-content[data-content-type='heading']::after{margin-inline-start:calc(var(--spacing) * 2);align-self:center;flex-shrink:0;font-size:var(--text-xs);line-height:var(--text-xs--line-height);font-weight:var(--font-weight-normal);color:var(--muted-foreground);font-variant-numeric:tabular-nums;user-select:none;pointer-events:none} ${sectionChips.join(' ')}`
+  /* No per-Section "done/total": Sections never fold, and a count beside
+     every heading repeated what the page's own progress and the rows say
+     (round 4, Freeform view). */
 
   /**
    * Who a comment's author is, off the members already read; a face the roster
@@ -1024,13 +1004,10 @@ export function FolderPage({
 
   const progressFact =
     completionTotal > 0 ? `${String(completionDone)} of ${String(completionTotal)} done` : null
-  /* Work and a section's tab are lists; "View ›" belongs to them alone, and
-     lives in the page's "…" rather than taking a place on screen. */
+  /* Work and a section's tab are lists; "Show completed" belongs to them. */
   const listFacet = activeFacet?.kind === 'main' || activeFacet?.kind === 'work'
   const viewMenu = listFacet ? (
     <FolderViewMenu
-      mode={place.mode}
-      onMode={place.setMode}
       showCompleted={showCompleted}
       onShowCompleted={changeShowCompleted}
     />
@@ -1175,6 +1152,9 @@ export function FolderPage({
 
         {activeFacet?.kind === 'main' ? (
           <div className="mt-2 space-y-2">
+            <div className="flex justify-end">
+              <ViewSwitch mode={place.mode} onMode={place.setMode} />
+            </div>
             <PageSection name="All open tasks">
               <PageBody
                 query={open}
@@ -1223,7 +1203,6 @@ export function FolderPage({
                   </div>
                 ) : (
                   <Suspense fallback={null}>
-                  {sectionChipStyle === '' ? null : <style>{sectionChipStyle}</style>}
                   {page.data && completedReady ? <FolderCanvas
                     key={id}
                     page={page.data}
@@ -1510,52 +1489,84 @@ function FacetContent({
 }
 
 /**
- * "View ›", the first item of the page's "…": the page's tasks as List (the
- * canvas), Linear or Board, and whether finished Tasks show. Filters and
- * grouping are not offered here; a narrowing remembered from before still
- * shows as chips in the window bar, where it can be cleared.
+ * The page's "…" keeps only "Show completed"; the view itself is chosen on
+ * the page, by `ViewSwitch` (round 4).
  */
 function FolderViewMenu({
-  mode,
-  onMode,
   showCompleted,
   onShowCompleted,
 }: {
-  readonly mode: ViewMode
-  readonly onMode: (next: ViewMode) => void
   readonly showCompleted: boolean
   readonly onShowCompleted: (next: boolean) => void
 }): React.JSX.Element {
   return (
     <>
-      <DropdownMenuSub>
-        <DropdownMenuSubTrigger>
-          <Eye className="size-4" strokeWidth={1.75} aria-hidden="true" />
-          View
-        </DropdownMenuSubTrigger>
-        <DropdownMenuSubContent className="w-44">
-          <DropdownMenuRadioGroup
-            value={mode}
-            onValueChange={(value) => {
-              onMode(value as ViewMode)
-            }}
-          >
-            <DropdownMenuRadioItem value="list" closeOnClick>List</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="linear" closeOnClick>Linear</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="board" closeOnClick>Board</DropdownMenuRadioItem>
-          </DropdownMenuRadioGroup>
-          <DropdownMenuSeparator />
-          <DropdownMenuCheckboxItem
-            checked={showCompleted}
-            onCheckedChange={(checked) => {
-              onShowCompleted(checked)
-            }}
-          >
-            Show completed
-          </DropdownMenuCheckboxItem>
-        </DropdownMenuSubContent>
-      </DropdownMenuSub>
+      <DropdownMenuCheckboxItem
+        checked={showCompleted}
+        onCheckedChange={(checked) => {
+          onShowCompleted(checked)
+        }}
+      >
+        Show completed
+      </DropdownMenuCheckboxItem>
       <DropdownMenuSeparator />
     </>
+  )
+}
+
+/* Labels only: the stored values ('list' is Freeform) never change. */
+const VIEW_CHOICES: readonly { readonly value: ViewMode; readonly label: string }[] = [
+  { value: 'linear', label: 'Linear' },
+  { value: 'board', label: 'Board' },
+  { value: 'list', label: 'Freeform' },
+]
+
+/**
+ * Linear · Board · Freeform, on the page above the tasks: one click, always
+ * visible, the current one in the foreground. Arrow keys move between them.
+ */
+function ViewSwitch({
+  mode,
+  onMode,
+}: {
+  readonly mode: ViewMode
+  readonly onMode: (next: ViewMode) => void
+}): React.JSX.Element {
+  return (
+    <div role="radiogroup" aria-label="View" className="flex items-center gap-0.5">
+      {VIEW_CHOICES.map((choice, index) => {
+        const current = choice.value === mode
+        return (
+          <button
+            key={choice.value}
+            type="button"
+            role="radio"
+            aria-checked={current}
+            tabIndex={current ? 0 : -1}
+            onClick={() => {
+              onMode(choice.value)
+            }}
+            onKeyDown={(event) => {
+              const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0
+              if (step === 0) return
+              event.preventDefault()
+              const next = VIEW_CHOICES[(index + step + VIEW_CHOICES.length) % VIEW_CHOICES.length]
+              if (next === undefined) return
+              onMode(next.value)
+              const group = event.currentTarget.parentElement
+              requestAnimationFrame(() => {
+                group?.querySelector<HTMLButtonElement>('[aria-checked="true"]')?.focus()
+              })
+            }}
+            className={cn(
+              'h-[var(--control-height)] rounded-sm px-2 text-xs transition-colors',
+              current ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {choice.label}
+          </button>
+        )
+      })}
+    </div>
   )
 }

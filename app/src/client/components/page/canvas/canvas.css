@@ -250,3 +250,8 @@
 .dana-writing-canvas .bn-block:has(> .bn-block-content[data-dana-section]) > .bn-block-group {
   margin-inline-start: 0;
 }
+/* r4-freeform: a Section's heading and spacing already group its tasks, so
+   BlockNote's nesting guide is not drawn beside them. */
+.dana-writing-canvas .bn-block:has(> .bn-block-content[data-dana-section]) > .bn-block-group > .bn-block-outer::before {
+  display: none;
+}

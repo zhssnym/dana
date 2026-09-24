@@ -119,10 +119,10 @@ function ResolvedTask({ taskId, bridge }: { readonly taskId: string; readonly br
   })
   /* Finished means completed or abandoned: both hide with "Show completed". */
   if (known !== undefined && known.status !== 'abandoned' && (listed !== undefined || (completedListed === undefined && known.status !== 'completed'))) {
-    return <div data-canvas-task-id={taskId} className="min-w-0 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" contentEditable={false} {...opener(known)}>{row(known)}</div>
+    return <div data-canvas-task-id={taskId} className="min-w-0 rounded-sm" contentEditable={false} {...opener(known)}>{row(known)}</div>
   }
   if (known !== undefined) {
-    return <div data-canvas-task-id={taskId} data-canvas-task-done="" className="min-w-0 rounded-sm text-muted-foreground opacity-60 outline-none focus-visible:ring-2 focus-visible:ring-ring" contentEditable={false} {...opener(known)}>{row(known)}</div>
+    return <div data-canvas-task-id={taskId} data-canvas-task-done="" className="min-w-0 rounded-sm text-muted-foreground opacity-60" contentEditable={false} {...opener(known)}>{row(known)}</div>
   }
   if (detail.isError) {
     return <div data-canvas-task-id={taskId} className="min-w-0 text-sm text-muted-foreground" contentEditable={false}>Task unavailable</div>
