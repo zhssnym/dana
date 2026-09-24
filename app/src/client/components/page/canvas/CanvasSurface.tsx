@@ -22,7 +22,7 @@ import { pendingPages } from './adapters.js'
 import { publishedFolders } from '../../../lib/folder-library.js'
 import { pushUndo, undoLabel } from '../../../shell/undo.js'
 import { bindTaskCommand, removeCanvasBlocks } from './commands.js'
-import { CanvasSlashMenu, blockMenuTargets } from './slash-items.js'
+import { CanvasSlashMenu, blockMenuTargets, headingTogglesFor } from './slash-items.js'
 import { isSectionHeading, shelfOutlineFailure, validateCanvasOutline } from './outline.js'
 import { BlockMenuContext, BlockSideMenu, blockSidePosition, duplicateBlocks, pageTheme, turnBlocksInto } from './BlockSideMenu.js'
 import type { BlockMenuModel } from './BlockSideMenu.js'
@@ -114,7 +114,6 @@ export function CanvasSurface({
   // Shelf's flat ones. A refused shape is never offered (menu) or attempted (Tab).
   const admits = useCallback((document: readonly TreeBlock[]): boolean =>
     validateCanvasOutline(document) === null && !(flatGroups && flatShelfFailure(document)) && !referenceHolds(document, folderRefs), [flatGroups, folderRefs])
-  const headingToggles = headingMode === 'section'
   const deleteTask = useCanvasTaskDelete()
   const remove = useCallback((ids: readonly string[]): void => {
     removeCanvasBlocks(editor, ids.flatMap((id) => { const block = editor.getBlock(id); return block === undefined ? [] : [block] }))
@@ -149,7 +148,7 @@ export function CanvasSurface({
   }, [editor])
   const menu = useMemo<BlockMenuModel>(() => ({
     targets: (block) => blockMenuTargets(editor, block),
-    turnInto: (ids, target) => { turnBlocksInto(editor, ids, target, headingMode === 'none' ? undefined : headingToggles) },
+    turnInto: (ids, target) => { turnBlocksInto(editor, ids, target, headingMode === 'none' ? undefined : (block) => headingTogglesFor(editor, block, target)) },
     extraTarget: (block) => block.type === 'paragraph' && onCreateTask !== undefined
       ? { title: 'Task', run: () => { requestTask(editor.getBlock(block.id) ?? undefined) } }
       : null,
@@ -173,7 +172,7 @@ export function CanvasSurface({
       }
       return { label: 'Delete', run: () => { remove(ids) } }
     },
-  }), [editor, headingMode, headingToggles, onCreateTask, requestTask, duplicate, onRemoveFolder, remove, deleteTask, trashPage])
+  }), [editor, headingMode, onCreateTask, requestTask, duplicate, onRemoveFolder, remove, deleteTask, trashPage])
   const selectionActions = useMemo(() => ({ remove, duplicate, admits }), [remove, duplicate, admits])
   useBlockSelectionKeys(editor, selectionActions)
   useBlockAnchor(editor, true)

@@ -20,6 +20,7 @@ import type { CanvasBlock, CanvasEditor } from './schema.js'
 import { baselineOf, dehydrateCanvas, pendingPages, folderRefsOf, hydrateCanvas, mergeWorkDocument, richRuns, workPageOf } from './adapters.js'
 import type { CanvasDocument, CanvasInput } from './adapters.js'
 import { CanvasWriter } from './saving.js'
+import { isSectionHeading } from './outline.js'
 import { NOT_SAVED, RecoveryNotice, SaveFailure } from './SaveFailure.js'
 import { pasteIntoCanvas } from './paste.js'
 import type { TaskRows } from '../../../pages/task-rows.js'
@@ -103,7 +104,9 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
     if (workRootId === undefined) return hydrated
     const shift = (blocks: CanvasInput[]): CanvasInput[] => blocks.map((block) => {
       const children = block.children ? shift(block.children) : []
-      if (block.type === 'heading') {
+      // A Section's level is its depth, one deeper in the window; a
+      // presentation heading keeps the level it is stored with.
+      if (block.type === 'heading' && isSectionHeading({ type: block.type, props: (block.props ?? {}) as Record<string, unknown> })) {
         return {
           ...block,
           props: { ...block.props, level: Math.min(3, Number(block.props?.level ?? 1) + 1) as 1 | 2 | 3 },

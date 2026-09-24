@@ -3,9 +3,10 @@ The one slash menu, for every canvas: a Folder's Work, Purpose and Results, a
 Task body and a Shelf. Each canvas renders `<CanvasSlashMenu>` with the surface
 it is; what a surface offers is what its server stores:
 
-- `work` (Folder Main): headings are Sections, so "Heading n" and "Toggle
-  heading n" are one thing there (a Section folds); Task and Page (a
-  sub-page, Wave 2) are offered. Purpose and Results are facet documents,
+- `work` (Folder Main): "Heading n" is a Section (it groups Tasks, and folds)
+  where a Section of that level stands, and a presentation heading anywhere
+  else; "Toggle heading n" is a presentation heading that folds, as on a
+  document. Task and Page (a sub-page, Wave 2) are offered. Purpose and Results are facet documents,
   where the server stores no page, so Page is Work's alone.
 - `document` (Purpose, Results): flat headings, and toggle headings 1-3 (a
   heading that folds the blocks nested under it); no Task, no Section.
@@ -63,8 +64,7 @@ const has = (editor: AnyEditor, type: string): boolean => type in editor.schema.
 
 /* The targets are the block menu's own (`turn-into.ts`), so the typed `/turn …`
    list and the ⋮⋮ menu's Turn into cannot disagree; only the words that find
-   each one live here. On Work a heading is a Section, which folds, so "toggle
-   h1" finds Heading 1 there. */
+   each one live here. */
 const TURN_ALIASES: Record<TurnKey, readonly string[]> = {
   text: ['text', 'paragraph', 'plain', 'p'],
   h1: ['h1', '#', 'heading 1', 'title'],
@@ -92,6 +92,18 @@ function headingTogglesOf(surface: CanvasSurfaceKind): boolean {
   return surface === 'work' || surface === 'shelf'
 }
 
+/**
+ * How `block` becomes `target` here: `true` a Section, `false` a presentation
+ * heading, `undefined` where the surface has one kind. A Work heading is a
+ * Section where one of that level stands, and a presentation heading elsewhere.
+ */
+export function headingTogglesFor(editor: AnyEditor, block: TreeBlock, target: TurnTarget): boolean {
+  const surface = surfaceOf(editor)
+  if (surface !== 'work' || target.type !== 'heading' || target.toggle === true) return headingTogglesOf(surface)
+  const section = simulate(editor.document as unknown as TreeBlock[], block.id, target, true)
+  return validateCanvasOutline(section) === null
+}
+
 /** Every heading as a presentation heading (the Task surface's only kind). */
 function presentationOnly(blocks: readonly TreeBlock[]): TreeBlock[] {
   return blocks.map((block) => ({ ...block, props: block.type === 'heading' ? { ...block.props, presentation: true } : block.props, children: presentationOnly(block.children) }))
@@ -101,9 +113,9 @@ function presentationOnly(blocks: readonly TreeBlock[]): TreeBlock[] {
 export function turnTargetsFor(editor: AnyEditor, block: TreeBlock): TurnTarget[] {
   if (!TEXT_TYPES.has(block.type) && block.type !== 'toggleListItem') return []
   const surface = surfaceOf(editor)
-  const toggles = headingTogglesOf(surface)
   const document = editor.document as unknown as TreeBlock[]
   return TURN_TARGETS.filter((target) => {
+    const toggles = headingTogglesFor(editor, block, target)
     if (!has(editor, target.type) || isCurrent(block, target)) return false
     if (target.type === 'heading' && (surface === 'plain' || (surface === 'shelf' && target.level !== 1))) return false
     if (target.type === 'toggleListItem' && !TOGGLE_SURFACES.has(surface)) return false
@@ -139,15 +151,14 @@ function turnItems(editor: AnyEditor): Item[] {
     blocks.some((block) => !isCurrent(block, target)))
   const defaults = getDefaultReactSlashMenuItems(editor)
   const iconOf = (key: string): JSX.Element | undefined => defaults.find((item) => 'key' in item && item.key === key)?.icon
-  const work = surfaceOf(editor) === 'work'
   return targets.map((target) => ({
     title: target.title,
-    aliases: [...TURN_ALIASES[target.key], ...(work && target.level !== undefined && target.toggle !== true ? [`toggle h${target.level}`, `toggleh${target.level}`, `toggle heading ${target.level}`] : [])],
+    aliases: [...TURN_ALIASES[target.key]],
     icon: target.type === 'callout' ? <Lightbulb size={16} /> : iconOf(target.type === 'heading' ? (target.level === 1 ? 'heading' : `heading_${target.level}`) : TURN_ICONS[target.type] ?? ''),
     group: 'Turn into',
     onItemClick: () => {
       turnScope.delete(editor)
-      turnBlocksInto(editor, blocks.map((block) => block.id), target, headingTogglesOf(surfaceOf(editor)))
+      turnBlocksInto(editor, blocks.map((block) => block.id), target, (block) => headingTogglesFor(editor, block, target))
       if (scope !== undefined && scope.every((id) => editor.getBlock(id) !== undefined)) setBlockSelection(editor, scope)
     },
   }))
@@ -177,9 +188,12 @@ export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item
     const cursor = editor.getTextCursorPosition().block
     const inside = (ancestorsOf(editor.document, cursor.id) ?? []).some((block) => block.type !== 'heading')
     for (const level of [1, 2, 3] as const) {
-      if (inside || (level > 1 && sectionContext(editor, level - 1) === undefined)) continue
-      // A Work heading is a Section, and a Section folds: both names reach it.
-      add('Basic blocks', `Heading ${level}`, [`h${level}`, '#'.repeat(level), 'title', 'section', `toggle heading ${level}`, `toggle h${level}`], () => { insertCanvasHeading(editor, level) }, headingIcon(level))
+      // A Section where one of this level stands; a presentation heading elsewhere.
+      const section = !inside && (level === 1 || sectionContext(editor, level - 1) !== undefined)
+      add('Basic blocks', `Heading ${level}`, [`h${level}`, '#'.repeat(level), 'title', 'heading', ...(section ? ['section'] : [])], section ? () => { insertCanvasHeading(editor, level) } : insert('heading', { level, isToggleable: false, presentation: false }), headingIcon(level))
+    }
+    for (const level of [1, 2, 3] as const) {
+      add('Basic blocks', `Toggle heading ${level}`, [`toggle heading ${level}`, `toggle h${level}`, `toggleh${level}`, 'toggle', 'collapsible'], insert('heading', { level, isToggleable: true, presentation: true }), headingIcon(level))
     }
   } else if (surface === 'shelf') {
     add('Basic blocks', 'Heading 1', ['h1', '#', 'title', 'heading'], insert('heading', { level: 1, isToggleable: true }), headingIcon(1))
@@ -280,12 +294,45 @@ export function slashItemsFor(editor: AnyEditor, context: SlashContext, query: s
 
 /* ------------------------------------------------------------ menu */
 
-/** BlockNote's own menu, saying "No results" (it closes after a few more keys). */
+/*
+A query that matches nothing says "No results" (one muted row) and keeps the
+menu open while the person may still be mistyping; it closes after a space or
+NO_RESULT_KEYS more keys. BlockNote closes its own menu three keys after the
+last query that had rows, which read as a menu closing on its own, so a miss
+answers one marker row (never picked: Enter closes the menu, keeping the
+text) and the closing is ours.
+*/
+const NO_RESULT_KEYS = 5
+const NO_RESULTS = 'No results'
+const misses = new WeakMap<object, number>()
+
+function isNoResults(item: DefaultReactSuggestionItem): boolean {
+  return (item as { noResults?: boolean }).noResults === true
+}
+
+function withNoResults(editor: AnyEditor, query: string, items: DefaultReactSuggestionItem[]): DefaultReactSuggestionItem[] {
+  if (items.length > 0 || query.trim() === '') { misses.delete(editor); return items }
+  const first = misses.get(editor) ?? query.length
+  misses.set(editor, Math.min(first, query.length))
+  if (query.endsWith(' ') || query.length - first >= NO_RESULT_KEYS) {
+    misses.delete(editor)
+    editor.getExtension(SuggestionMenu)?.closeMenu()
+    return []
+  }
+  return [{ title: NO_RESULTS, onItemClick: () => {}, size: 'small', noResults: true } as DefaultReactSuggestionItem]
+}
+
+/** BlockNote's own menu, grouped, saying "No results" for a miss. */
 function CanvasSuggestionList(props: SuggestionMenuProps<DefaultReactSuggestionItem>): JSX.Element {
   const Components = useComponentsContext()!
   const { items, selectedIndex, onItemClick, loadingState } = props
   const rows: JSX.Element[] = []
   let group: string | undefined
+  if (items.length === 1 && isNoResults(items[0]!)) {
+    return <Components.SuggestionMenu.Root id="bn-suggestion-menu" className="bn-suggestion-menu dana-slash-menu">
+      <Components.SuggestionMenu.EmptyItem className="bn-suggestion-menu-item text-muted-foreground">{NO_RESULTS}</Components.SuggestionMenu.EmptyItem>
+    </Components.SuggestionMenu.Root>
+  }
   items.forEach((item, index) => {
     if (item.group !== undefined && item.group !== group) {
       group = item.group
@@ -314,6 +361,14 @@ export function CanvasSlashMenu({ editor, context }: { readonly editor: AnyEdito
   useEffect(() => bindCanvasSurface(editor, surface), [editor, surface])
   useEffect(() => {
     const open = (event: KeyboardEvent): void => {
+      // Enter on "No results" closes the menu and keeps what was typed.
+      if (event.key === 'Enter' && misses.has(editor) && editor.getExtension(SuggestionMenu)?.store.state?.show === true) {
+        event.preventDefault()
+        event.stopPropagation()
+        misses.delete(editor)
+        editor.getExtension(SuggestionMenu)?.closeMenu()
+        return
+      }
       if (event.key !== '/' || !(event.metaKey || event.ctrlKey) || event.altKey) return
       const picked = blockSelection(editor)
       if (picked.length > 0) {
@@ -338,6 +393,7 @@ export function CanvasSlashMenu({ editor, context }: { readonly editor: AnyEdito
     const menus = editor.getExtension(SuggestionMenu)?.store
     const offMenus = menus?.subscribe(({ currentVal }) => {
       if (currentVal?.show === true) return
+      misses.delete(editor)
       window.setTimeout(() => {
         const scope = turnScope.get(editor)
         turnScope.delete(editor)
@@ -347,8 +403,8 @@ export function CanvasSlashMenu({ editor, context }: { readonly editor: AnyEdito
     document.addEventListener('keydown', open, true)
     return () => { offMenus?.(); document.removeEventListener('keydown', open, true) }
   }, [editor])
-  const getItems = useMemo(() => async (query: string) => slashItemsFor(editor, context, query), [editor, context])
-  const getTurnItems = useMemo(() => async (query: string) => filterSlashItems(turnItems(editor), query), [editor])
+  const getItems = useMemo(() => async (query: string) => withNoResults(editor, query, slashItemsFor(editor, context, query)), [editor, context])
+  const getTurnItems = useMemo(() => async (query: string) => withNoResults(editor, query, filterSlashItems(turnItems(editor), query)), [editor])
   return <>
     <SuggestionMenuController triggerCharacter="/" getItems={getItems} suggestionMenuComponent={CanvasSuggestionList} />
     <SuggestionMenuController triggerCharacter={TURN_TRIGGER} getItems={getTurnItems} suggestionMenuComponent={CanvasSuggestionList} />

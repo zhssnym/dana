@@ -315,3 +315,28 @@ test('a page block leaves only with trash_page, keeps its kind, and lives only o
  expect(made.rows).toEqual([])
  await unchanged('after the other homes refused')
 })
+
+test('a folder page stores presentation headings beside its Sections: flat, toggleable, and never a Section parent',async()=>{
+ const [owner]=await cast.of(app) as [Actor,Actor]
+ const folder=await createFolder(owner,'work headings');const url=`/folders/${folder}/page/actions`
+ const s=randomUUID(),h3=randomUUID(),th=randomUUID(),p=randomUUID(),root=randomUUID()
+ const outline=[at(s),at(h3,null,s),at(th,null,s),at(p,th,s),at(root)]
+ const wrote=await transact(owner,url,(await read(owner,folder)).revision!,[put(s,'section','Launch'),put(h3,'heading3','Notes'),put(th,'heading1','Details',{toggleable:true}),put(p,'paragraph','folded'),put(root,'heading2','Root heading'),{op:'set_outline',items:outline}])
+ expectStatus(wrote,200,'Heading 3 and a toggle heading inside a Section, a heading at the root')
+ const page=await read(owner,folder)
+ const by=new Map(page.blocks.map(b=>[b.id,b]))
+ expect([by.get(h3)?.kind,by.get(th)?.kind,by.get(root)?.kind]).toEqual(['heading3','heading1','heading2'])
+ expect([by.get(h3)?.section_block_id,by.get(th)?.section_block_id,by.get(root)?.section_block_id]).toEqual([s,s,null])
+ expect(by.get(th)?.toggleable).toBe(true)
+ expect(by.get(h3)?.toggleable??null).toBeNull()
+ expect(by.get(p)?.list_parent_block_id).toBe(th)
+ // A presentation heading groups nothing: content naming it as its Section is refused before writes.
+ const before=page.revision
+ const x=randomUUID()
+ const r=await transact(owner,url,before!,[put(x,'paragraph','astray'),{op:'set_outline',items:[...outline,at(x,null,h3)]}])
+ expect(r.status).toBe(422)
+ expect((await read(owner,folder)).revision).toBe(before)
+ // Only a heading folds, on Main as anywhere.
+ const bad=await transact(owner,url,before!,[put(p,'paragraph','folds?',{toggleable:true}),{op:'set_outline',items:outline}])
+ expect(bad.status).toBe(422)
+})

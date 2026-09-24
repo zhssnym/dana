@@ -106,17 +106,45 @@ function scrollerBox(scroller: HTMLElement): { top: number; bottom: number; left
   return scroller.getBoundingClientRect()
 }
 
-/** Blocks whose own row (not their children's) meets the band vertically. */
+/** A block's own row: its content line, never the children nested under it. */
+const OWN_ROW = ':scope > .bn-block > .bn-block-content, :scope > .bn-block > .react-renderer > .bn-block-content'
+
+/** How far the band must reach into a row to pick it: a graze of its edge does not. */
+const REACH = 6
+
+/** The block rows enclosing `outer`, nearest first. */
+function enclosing(outer: HTMLElement, root: HTMLElement): HTMLElement[] {
+  const chain: HTMLElement[] = []
+  for (let node = outer.parentElement?.closest<HTMLElement>('.bn-block-outer[data-id]'); node !== null && node !== undefined && root.contains(node); node = node.parentElement?.closest<HTMLElement>('.bn-block-outer[data-id]')) chain.push(node)
+  return chain
+}
+
+/**
+ * The blocks the band picks: those whose own row (never their children's) it
+ * reaches into. A block selection is one run of siblings, so picks at two
+ * depths lift to their common level; a pick is dropped rather than lifted
+ * into an ancestor whose own row the band did not touch. So three paragraphs
+ * after a Section's last Task are those three, never the Section with its
+ * Tasks (whose box holds the Task the band grazed).
+ */
 function hitIds(view: EditorView, top: number, bottom: number): string[] {
-  const hits: string[] = []
+  const hits: HTMLElement[] = []
   for (const outer of view.dom.querySelectorAll<HTMLElement>('.bn-block-outer[data-id]')) {
-    const box = outer.getBoundingClientRect()
-    if (box.height === 0) continue // inside a closed toggle
-    const group = outer.querySelector<HTMLElement>(':scope > .bn-block > .bn-block-group')
-    const rowBottom = group !== null && group.getBoundingClientRect().height > 0 ? group.getBoundingClientRect().top : box.bottom
-    if (box.top < bottom && rowBottom > top) hits.push(outer.getAttribute('data-id')!)
+    const row = outer.querySelector<HTMLElement>(OWN_ROW)?.getBoundingClientRect()
+    if (row === undefined || row.height === 0) continue // inside a closed toggle
+    const reach = Math.min(REACH, row.height / 4)
+    if (Math.min(row.bottom, bottom) - Math.max(row.top, top) >= reach || (top >= row.top && bottom <= row.bottom)) hits.push(outer)
   }
-  return hits
+  const picked = new Set(hits)
+  const chains = hits.map((outer) => enclosing(outer, view.dom))
+  // The deepest block holding every pick (none: the page).
+  const common = chains[0]?.find((candidate) => chains.every((chain) => chain.includes(candidate)))
+  const kept = hits.filter((outer, index) => {
+    const chain = chains[index]!
+    const below = common === undefined ? chain : chain.slice(0, chain.indexOf(common))
+    return below.every((ancestor) => picked.has(ancestor))
+  })
+  return (kept.length > 0 ? kept : hits).map((outer) => outer.getAttribute('data-id')!)
 }
 
 function tick(): void {

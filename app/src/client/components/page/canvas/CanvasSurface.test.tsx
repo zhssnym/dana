@@ -122,10 +122,10 @@ describe('the block menu', () => {
     expect(names).toEqual(expect.arrayContaining(['Text', 'Heading 1', 'Bulleted list', 'Task', 'Copy link to block', 'Delete']))
     expect(names.some((name) => name?.startsWith('Duplicate'))).toBe(true)
     expect(names.filter((name) => /Move|Remove heading|Continue after/.test(name ?? ''))).toEqual([])
-    // A root paragraph cannot become Heading 2: the outline would refuse it.
-    expect(names).not.toContain('Heading 2')
-    // Work's headings are Sections, which fold already: no toggle heading here.
-    expect(names.filter((name) => name?.startsWith('Toggle heading'))).toEqual([])
+    // Every heading Work stores: Heading 1 a Section here; Heading 2 and 3 a
+    // presentation heading (no Section of theirs stands at the root); and the
+    // three toggle headings, which fold without grouping Tasks.
+    expect(names).toEqual(expect.arrayContaining(['Heading 1', 'Heading 2', 'Heading 3', 'Toggle heading 1', 'Toggle heading 2', 'Toggle heading 3']))
   })
 
   test('a document page offers the three toggle headings beside the flat ones', () => {
