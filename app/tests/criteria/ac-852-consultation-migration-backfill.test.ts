@@ -134,7 +134,9 @@ beforeAll(async () => {
 
   // Now 0029, from the real folder, over the populated database.
   await migrate(db, { migrationsFolder })
-})
+  /* Building PGlite through 29 migrations takes seconds on its own, and the
+     parallel suite on the CI runner pushes it past vitest's 10 s default. */
+}, 60_000)
 
 afterAll(async () => {
   await pglite.close()
