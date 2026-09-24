@@ -28,7 +28,7 @@ export const MAX_SECTION_DEPTH = 3
  * decision 6), and `page_blocks_rich_content_check` says the same thing in the
  * database.
  */
-export const LIST_BLOCK_KINDS = ['bullet','numbered','checklist'] as const
+export const LIST_BLOCK_KINDS = ['bullet','numbered','checklist','toggle'] as const
 export type ListBlockKind = (typeof LIST_BLOCK_KINDS)[number]
 export const STRUCTURED_BLOCK_KINDS = [...LIST_BLOCK_KINDS,'quote','callout','code'] as const
 /** #211: document headings are authored structure, never Main Work Sections. */
@@ -50,7 +50,7 @@ export const isPresentationHeadingKind = (kind:string):kind is PresentationHeadi
 export const MEDIA_BLOCK_KINDS = ['image','file','audio','video'] as const
 export type MediaBlockKind = (typeof MEDIA_BLOCK_KINDS)[number]
 export const isMediaKind = (kind:string):kind is MediaBlockKind => (MEDIA_BLOCK_KINDS as readonly string[]).includes(kind)
-export const DOCUMENT_BLOCK_KINDS = ['section','paragraph',...PRESENTATION_HEADING_KINDS,'image','folder_ref',...STRUCTURED_BLOCK_KINDS,'file','audio','video','diagram'] as const
+export const DOCUMENT_BLOCK_KINDS = ['section','paragraph',...PRESENTATION_HEADING_KINDS,'image','folder_ref',...STRUCTURED_BLOCK_KINDS,'file','audio','video','diagram','divider'] as const
 export type DocumentBlockKind = (typeof DOCUMENT_BLOCK_KINDS)[number]
 /**
  * The kinds that persist a dragged width (4.17's `width_pct`, 25 to 100).
@@ -115,6 +115,18 @@ export const RICH_TEXT_BLOCK_KINDS = ['section','paragraph',...PRESENTATION_HEAD
 /** The one test for "may this take part in list nesting", written once. */
 export const isListKind = (kind:string):kind is ListBlockKind => (LIST_BLOCK_KINDS as readonly string[]).includes(kind)
 /**
+ * A toggle is a list item that also holds writing. A list item nests under a
+ * list item (a toggle included), as #219 has it; and under a `toggle`, and
+ * under nothing else, a paragraph, a quote, a callout, a code block or a
+ * divider may nest too, through the same `list_parent_block_id`. The database
+ * says the same thing in `page_blocks_list_parent_kind_check` (0037).
+ */
+export const TOGGLE_CHILD_KINDS = ['paragraph',...LIST_BLOCK_KINDS,'quote','callout','code','divider'] as const
+export type ToggleChildKind = (typeof TOGGLE_CHILD_KINDS)[number]
+/** The one test for "may a block of `childKind` nest under one of `parentKind`". */
+export const mayNestUnder = (childKind:string,parentKind:string):boolean =>
+ (isListKind(childKind)&&isListKind(parentKind)) || (parentKind==='toggle'&&(TOGGLE_CHILD_KINDS as readonly string[]).includes(childKind))
+/**
  * An outline item carries both parent relations, and they are independent.
  * `section_block_id` is Work grouping: which Section this block or Task belongs
  * to. `list_parent_block_id` is writing structure: which list item this list
@@ -153,6 +165,9 @@ export const documentOperation = z.discriminatedUnion('op',[
   // #222: a diagram is its source text alone; the picture is derived on read.
   if(b.block_kind==='diagram'&&(b.file_id!==null||b.ref_folder_id!==null))ctx.addIssue({code:'custom',path:['file_id'],message:'A diagram carries no file and no folder reference.'})
   if(isMediaKind(b.block_kind)&&b.ref_folder_id!==null)ctx.addIssue({code:'custom',path:['ref_folder_id'],message:'A media block carries no folder reference.'})
+  // A divider is a rule and nothing else: no text, no rich content, no file,
+  // no folder reference and no width.
+  if(b.block_kind==='divider'&&((b.text!==null&&b.text!=='')||b.rich_content!==null||b.file_id!==null||b.ref_folder_id!==null||b.width_pct!==null))ctx.addIssue({code:'custom',path:['text'],message:'A divider carries no text, no file, no folder reference and no width.'})
   if((b.block_kind==='file'||b.block_kind==='audio'||b.block_kind==='video')&&((b.text!==null&&b.text!=='')||b.rich_content!==null))ctx.addIssue({code:'custom',path:['text'],message:'A file, audio or video block carries no text of its own.'})
   /*
   4.17: a media block **references one stored file by `file_id`**. Until this

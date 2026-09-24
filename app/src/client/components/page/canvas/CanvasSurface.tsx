@@ -1,11 +1,8 @@
 import { useCallback, useEffect, useId, useMemo, useState } from 'react'
 import { BlockNoteView } from '@blocknote/shadcn'
 import {
-  FilePanelController, FormattingToolbarController, SuggestionMenuController, SideMenuController,
-  getDefaultReactSlashMenuItems,
+  FilePanelController, FormattingToolbarController, SideMenuController,
 } from '@blocknote/react'
-import type { DefaultReactSuggestionItem } from '@blocknote/react'
-import { filterSuggestionItems, insertOrUpdateBlockForSlashMenu } from '@blocknote/core/extensions'
 import { CanvasFilePanel } from './CanvasFilePanel.js'
 import type { CanvasMediaKind, CanvasUploadedFile } from './CanvasFilePanel.js'
 import { CanvasFormattingToolbar } from './CanvasFormattingToolbar.js'
@@ -20,7 +17,8 @@ import {
   AlertDialogTitle,
 } from '../../ui/alert-dialog.js'
 import { installCanvasGuard } from './guard.js'
-import { bindTaskCommand, headingOneContext, insertCanvasHeading, insertDocumentHeading, removeCanvasBlocks } from './commands.js'
+import { bindTaskCommand, removeCanvasBlocks } from './commands.js'
+import { CanvasSlashMenu } from './slash-items.js'
 import { validateCanvasOutline } from './outline.js'
 import { BlockMenuContext, BlockSideMenu, blockSidePosition, duplicateBlocks, pageTheme, turnBlocksInto } from './BlockSideMenu.js'
 import type { BlockMenuModel } from './BlockSideMenu.js'
@@ -28,21 +26,13 @@ import { BlockSelectionStyle, useBlockAnchor, useBlockSelectionKeys } from './bl
 import { contains, simulate, simulateNest, TEXT_TYPES, TURN_TARGETS } from './turn-into.js'
 import type { TreeBlock } from './turn-into.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
-import { DanaLinkSuggestions, linkSlashItem } from '../../links/dana-link-picker.js'
+import { DanaLinkSuggestions } from '../../links/dana-link-picker.js'
 import './canvas.css'
-import {
-  CheckCircle2,
-  FileText,
-  Image as ImageIcon,
-  ListPlus,
-  Network,
-  Quote,
-} from '../../../lib/icons.js'
 
 type HeadingMode = 'section' | 'document' | 'none'
 
 const TASK_OR_FOLDER: ReadonlySet<string> = new Set(['danaTask', 'danaFolder'])
-const LIST_TYPES: ReadonlySet<string> = new Set(['bulletListItem', 'numberedListItem', 'checkListItem'])
+const LIST_TYPES: ReadonlySet<string> = new Set(['bulletListItem', 'numberedListItem', 'checkListItem', 'toggleListItem'])
 
 /** A Shelf keeps one heading level and flat lists (ShelfCanvas's own guard). */
 function flatShelfFailure(blocks: readonly TreeBlock[]): boolean {
@@ -61,7 +51,6 @@ export function CanvasSurface({
   label,
   onRemoveFolder,
   flatGroups = false,
-  extraSlashItems,
   placeholder,
 }: {
   readonly editor: CanvasEditor
@@ -80,7 +69,6 @@ export function CanvasSurface({
   /** A Shelf stores its headings flat, content belonging by position: one
    * heading level, and no "out of group" gestures a reload would undo. */
   readonly flatGroups?: boolean
-  readonly extraSlashItems?: readonly DefaultReactSuggestionItem[]
   /** What an empty page says (see canvas.css: BlockNote's own placeholder
    * decoration does not reach Dana's paragraph node view). */
   readonly placeholder?: string
@@ -93,6 +81,10 @@ export function CanvasSurface({
     if (folderRefs.has(target.id)) setReferenceToConvert(target)
     else onCreateTask?.(block)
   }, [editor, folderRefs, onCreateTask])
+  const slashContext = useMemo(() => ({
+    surface: headingMode === 'document' ? 'document' as const : headingMode === 'none' ? 'plain' as const : flatGroups ? 'shelf' as const : 'work' as const,
+    onCreateTask: onCreateTask === undefined ? undefined : () => { onCreateTask() },
+  }), [headingMode, flatGroups, onCreateTask])
   useEffect(() => installCanvasGuard(editor, setFeedback), [editor])
   useEffect(() => onCreateTask ? bindTaskCommand(editor, requestTask) : undefined, [editor, onCreateTask, requestTask])
   useEffect(() => {
@@ -217,90 +209,7 @@ export function CanvasSurface({
           )}
         />
         <SideMenuController sideMenu={BlockSideMenu} floatingUIOptions={blockSidePosition} />
-        <SuggestionMenuController triggerCharacter="/" getItems={async (query) => {
-          const defaults = getDefaultReactSlashMenuItems(editor)
-          const byKey = (
-            key: string,
-          ): DefaultReactSuggestionItem | undefined =>
-            defaults.find((item) => 'key' in item && item.key === key)
-          // A fresh item from a default one: its icon and aliases, our words, no badge.
-          const from = (
-            item: DefaultReactSuggestionItem,
-            title: string,
-            onItemClick: () => void = item.onItemClick,
-          ): DefaultReactSuggestionItem => ({
-            title,
-            onItemClick,
-            aliases: item.aliases ?? [],
-            icon: item.icon,
-            group: 'Basic blocks',
-          })
-          const paragraph = byKey('paragraph')
-          const heading = byKey('heading')
-          const block = (
-            title: string,
-            type: 'bulletListItem' | 'numberedListItem' | 'quote' | 'diagram' | 'image' | 'file',
-            icon: React.JSX.Element,
-            aliases: string[],
-          ): DefaultReactSuggestionItem => ({
-            title,
-            aliases,
-            group: 'Basic blocks',
-            icon,
-            onItemClick: () =>
-              insertOrUpdateBlockForSlashMenu(editor, { type }),
-          })
-
-          /* In this order: Text, Heading, Subheading, Task,
-             Bulleted list, Numbered list, Quote, Image, File, Diagram,
-             Link to…. Checklist, Callout, Code, Audio and Video stay in the
-             schema so existing blocks render; they are not offered here. */
-          const core: DefaultReactSuggestionItem[] = []
-          if (paragraph !== undefined) core.push(from(paragraph, 'Text'))
-          if (headingMode === 'section' && heading !== undefined) {
-            core.push(from(heading, 'Heading', () => insertCanvasHeading(editor, 1)))
-            if (!flatGroups && headingOneContext(editor) !== undefined) {
-              core.push(from(byKey('heading_2') ?? heading, 'Subheading', () => insertCanvasHeading(editor, 2)))
-            }
-          } else if (headingMode === 'document' && heading !== undefined) {
-            core.push(
-              from(heading, 'Heading', () => insertDocumentHeading(editor, 1)),
-              from(byKey('heading_2') ?? heading, 'Subheading', () => insertDocumentHeading(editor, 2)),
-            )
-          }
-          if (onCreateTask !== undefined) core.push({
-            title: 'Task', icon: <CheckCircle2 size={16} />,
-            /*
-            The arrow wrapper is load-bearing. `SuggestionMenuController` calls
-            `item.onItemClick(editor)` although the type says `() => void`
-            (read off `@blocknote/react`'s built dist), so `onItemClick:
-            onCreateTask` handed the editor to a handler whose first parameter
-            is an optional block: it read `.id` as `undefined` and the dialog's
-            button then did nothing at all (#204, live 2026-09-17 to 09-20,
-            #234 cause 4; AC-166 reaches it). The type cannot catch this, so
-            any handler put here needs the same arrow.
-            */
-            onItemClick: () => {
-              onCreateTask()
-            },
-            aliases: ['todo', 'to-do'], group: 'Basic blocks',
-          })
-          core.push(
-            block('Bulleted list', 'bulletListItem', <ListPlus size={16} />, ['bullet', 'unordered list', 'ul']),
-            block('Numbered list', 'numberedListItem', <ListPlus size={16} />, ['numbered', 'ordered list', 'ol']),
-            block('Quote', 'quote', <Quote size={16} />, ['blockquote']),
-            // The spec's two media items: an empty block is a quiet "Add an image" / "Add a file" row.
-            block('Image', 'image', <ImageIcon size={16} />, ['picture', 'photo', 'img']),
-            block('File', 'file', <FileText size={16} />, ['attachment', 'document', 'upload']),
-            block('Diagram', 'diagram', <Network size={16} />, ['flowchart', 'mermaid', 'chart']),
-            { ...linkSlashItem(editor), subtext: undefined },
-          )
-          core.push(...extraSlashItems ?? [])
-          /* One group: the default heading items carry 'Headings' between
-             'Basic blocks' items, and BlockNote keys groups by name, so two
-             'Basic blocks' runs render a duplicate key and an empty header. */
-          return filterSuggestionItems(core.map((item) => ({ ...item, group: 'Basic blocks', size: 'small' as const })), query)
-        }} />
+        <CanvasSlashMenu editor={editor} context={slashContext} />
         {editable ? <DanaLinkSuggestions editor={editor} /> : null}
       </BlockNoteView>
       {editable ? <div aria-hidden="true" className="dana-canvas-tail" onMouseDown={writeBelow} /> : null}

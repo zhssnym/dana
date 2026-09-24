@@ -38,6 +38,7 @@ vi.mock('@blocknote/core/extensions', () => ({
   SuggestionMenu: {},
 }))
 vi.mock('./CanvasFormattingToolbar.js', () => ({ CanvasFormattingToolbar: () => null }))
+vi.mock('./slash-items.js', () => ({ CanvasSlashMenu: () => null }))
 vi.mock('./guard.js', () => ({ installCanvasGuard: () => () => {} }))
 vi.mock('./commands.js', () => ({
   bindTaskCommand: () => () => {},

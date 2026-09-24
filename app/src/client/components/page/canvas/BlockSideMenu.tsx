@@ -215,7 +215,9 @@ export function turnBlocksInto(editor: AnyEditor, ids: readonly string[], target
       if (lifted.length === 0) {
         editor.updateBlock(id, update as never)
       } else {
-        editor.updateBlock(id, { ...update, children: [] } as never)
+        // Upstream ignores `children: []`, so the lifted children leave first (e3).
+        editor.removeBlocks(lifted.map((child) => child.id))
+        editor.updateBlock(id, update as never)
         editor.insertBlocks(lifted as never, id, 'after')
       }
     }
