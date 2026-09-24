@@ -46,7 +46,8 @@ vi.mock('./mentions.js', () => ({ MentionSuggestions: () => null }))
 vi.mock('./commands.js', () => ({
   bindTaskCommand: () => () => {},
   headingOneContext: () => undefined,
-  insertCanvasHeading: () => {},
+  placeSection: () => false,
+  sectionPlace: () => null,
   removeCanvasBlocks: () => {},
 }))
 

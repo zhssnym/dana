@@ -166,7 +166,12 @@ function Block({
     case 'heading1':
     case 'heading2':
     case 'heading3': {
-      const size = block.kind === 'heading1' ? 'text-lg' : block.kind === 'heading2' ? 'text-base' : 'text-sm'
+      // The editor's own three steps (canvas.css), so a post reads as written.
+      const size = block.kind === 'heading1'
+        ? 'text-[length:var(--text-h1-size)] leading-[var(--text-h1-line)]'
+        : block.kind === 'heading2'
+          ? 'text-[length:var(--text-h2-size)] leading-[var(--text-h2-line)]'
+          : 'text-[length:var(--text-h3-size)] leading-[var(--text-h3-line)]'
       return (
         <div>
           <p role="heading" aria-level={Number(block.kind.slice(-1)) + 2} className={cn('pt-1 font-semibold', size)}>

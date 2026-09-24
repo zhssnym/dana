@@ -40,8 +40,8 @@ import type { LucideIcon } from '../../../lib/icons.js'
 import './slash-menu.css'
 import { linkSlashItem } from '../../links/dana-link-picker.js'
 import { folderMark } from '../../../parts/presenters.js'
-import { pendingPages } from './adapters.js'
-import { ancestorsOf, insertCanvasHeading, sectionContext } from './commands.js'
+import { openOnCreate, pendingPages } from './adapters.js'
+import { placeSection, sectionPlace } from './commands.js'
 import { TOGGLE_HEADING_SURFACES, TOGGLE_SURFACES, bindCanvasSurface, surfaceOf } from './markdown.js'
 import { shelfOutlineFailure, validateCanvasOutline } from './outline.js'
 import { TEXT_TYPES, TURN_TARGETS, isCurrent, simulate } from './turn-into.js'
@@ -203,12 +203,21 @@ export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item
 
   // Headings, by what the surface stores.
   if (surface === 'work') {
-    const cursor = editor.getTextCursorPosition().block
-    const inside = (ancestorsOf(editor.document, cursor.id) ?? []).some((block) => block.type !== 'heading')
+    const canvas = editor
+    const cursor = canvas.getTextCursorPosition().block
+    // The line as it will be once the menu clears its `/query`: empty, it
+    // becomes the Section; written, the Section follows it.
+    const written = Array.isArray(cursor.content) ? cursor.content.map((run) => run.type === 'text' ? run.text : '*').join('') : '*'
+    const empty = written.replace(/\/[^/]*$/, '').trim() === ''
     for (const level of [1, 2, 3] as const) {
-      // A Section where one of this level stands; a presentation heading elsewhere.
-      const section = !inside && (level === 1 || sectionContext(editor, level - 1) !== undefined)
-      add('Basic blocks', `Heading ${level}`, [`h${level}`, '#'.repeat(level), 'title', 'heading', ...(section ? ['section'] : [])], section ? () => { insertCanvasHeading(editor, level) } : insert('heading', { level, isToggleable: false, presentation: false }), kindIcon('heading', level), { hint: '#'.repeat(level) })
+      // A Section where one of this level may stand, exactly as `#` makes one
+      // (`markdown.ts`); a presentation heading elsewhere.
+      const section = sectionPlace(canvas.document, cursor, level, !empty) !== null
+      add('Basic blocks', `Heading ${level}`, [`h${level}`, '#'.repeat(level), 'title', 'heading', ...(section ? ['section'] : [])], section ? () => {
+        // The query is already cleared: an empty line becomes the Section.
+        const block = canvas.getTextCursorPosition().block
+        placeSection(canvas, block, level, Array.isArray(block.content) && block.content.length === 0)
+      } : insert('heading', { level, isToggleable: false, presentation: false }), kindIcon('heading', level), { hint: '#'.repeat(level) })
     }
   } else if (surface === 'shelf') {
     add('Basic blocks', 'Heading 1', ['h1', '#', 'title', 'heading'], insert('heading', { level: 1, isToggleable: true }), kindIcon('heading', 1), { hint: '#' })
@@ -250,12 +259,14 @@ export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item
   */
   if (surface === 'work' && onCreateTask !== undefined) add('Dana', 'Task', ['task', 'todo', 'to-do', 'checkbox', 'action'], () => { onCreateTask() }, glyph(CheckCircle2))
   /* A sub-page: its folder is created by the next save (`create_page`), with
-     the title the sidebar gives a new page, and the row opens it. */
+     the title the sidebar gives a new page, and then opens with that title
+     selected to be typed over (`FolderCanvas`), as Notion opens a new page. */
   if (surface === 'work' && has(editor, 'danaPage')) {
     const PageIcon = folderMark(undefined).icon
     add('Dana', 'Page', ['page', 'subpage', 'sub-page'], () => {
       const folderId = crypto.randomUUID()
       pendingPages.set(folderId, NEW_PAGE_TITLE)
+      openOnCreate.add(folderId)
       const current = editor.getTextCursorPosition().block
       const empty = current.type === 'paragraph' && Array.isArray(current.content) && current.content.length === 0 && current.children.length === 0
       // A fresh block id: a block the page already stored cannot become a page.

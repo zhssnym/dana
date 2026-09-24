@@ -608,6 +608,10 @@ export function baselineOf(page: PageView, projected: CanvasDocument): CanvasDoc
  */
 export const pendingPages = new Map<string, string>()
 
+/** Sub-pages `/page` just made, to open once the save has created them: as in
+ * Notion, the new page opens with its title selected (as the sidebar's "+"). */
+export const openOnCreate = new Set<string>()
+
 /**
  * Wave 2: a `page` block new to the document whose folder `/page` is still
  * holding is created with it (`create_page`, never `put_block`); any other new

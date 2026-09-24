@@ -95,6 +95,16 @@ function ResolvedTask({ taskId, bridge }: { readonly taskId: string; readonly br
      checkbox, star or another control, or Enter on the focused row. */
   const opener = (task: TaskCard) => ({
     tabIndex: 0,
+    /* A click that opens the Task must not also pick its block: ProseMirror
+       makes a click on this uneditable row a node selection, whose box then
+       showed through the peek's scrim and stayed after it closed. A handled
+       mousedown is one ProseMirror ignores; React's capture phase runs before
+       the editor's own listener. Controls keep their own press. */
+    onMouseDownCapture: (event: React.MouseEvent<HTMLDivElement>) => {
+      if ((event.target as HTMLElement).closest('button, a, input, [role="checkbox"], [role="menuitem"]')) return
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey) return
+      event.preventDefault()
+    },
     onClick: (event: React.MouseEvent<HTMLDivElement>) => {
       if ((event.target as HTMLElement).closest('button, a, input, [role="checkbox"], [role="menuitem"]')) return
       if (event.metaKey || event.ctrlKey || event.shiftKey) return

@@ -1,6 +1,6 @@
 import { createExtension } from '@blocknote/core'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
-import { ancestorsOf } from './commands.js'
+import { ancestorsOf, placeSection, sectionPlace } from './commands.js'
 import { MAX_SECTION_DEPTH } from '../../../../shared/page-document.js'
 import { isSectionHeading } from './outline.js'
 
@@ -55,10 +55,19 @@ export function headingFor(editor: CanvasEditor, block: CanvasBlock, level: 1 | 
   if (surface === 'shelf') return { level: 1, isToggleable: true, presentation: false }
   if (surface === 'plain') return null
   // Work: a Section where one of this level stands, otherwise a presentation
-  // heading of the level asked for (writing; it groups nothing).
+  // heading of the level asked for (writing; it groups nothing). One that
+  // must step out of a Section first is `placeSection`'s (the `#` rule below).
   return workHeadingLevel(editor, block) === level
     ? { level, isToggleable: true, presentation: false }
     : { level, isToggleable: false, presentation: false }
+}
+
+/** Work's `#` where the Section must step out of the one it is typed in (a
+ * Heading 1 typed inside a Section): the same Section `/heading 1` makes. */
+function stepsOut(editor: CanvasEditor, block: CanvasBlock, level: 1 | 2 | 3): boolean {
+  if (surfaceOf(editor) !== 'work') return false
+  const place = sectionPlace(editor.document, block, level)
+  return place !== null && level <= place.length
 }
 
 /**
@@ -70,12 +79,46 @@ export function headingFor(editor: CanvasEditor, block: CanvasBlock, level: 1 | 
  */
 export const canvasMarkdownShortcuts = createExtension({
   key: 'dana-markdown-shortcuts',
+  keyboardShortcuts: {
+    // The `#` that steps out of a Section, at once where the key is known (a
+    // hardware keyboard); the input rule below is the fallback.
+    ' ': ({ editor }): boolean => {
+      const canvas = editor as CanvasEditor
+      const { selection } = canvas.prosemirrorState
+      if (!selection.empty) return false
+      const hashes = /^(#{1,3})$/.exec(selection.$from.parent.textContent.slice(0, selection.$from.parentOffset))?.[1]
+      const block = canvas.getTextCursorPosition().block
+      const level = hashes?.length as 1 | 2 | 3 | undefined
+      if (level === undefined || block.type !== 'paragraph' || !stepsOut(canvas, block, level)) return false
+      const [first, ...rest] = Array.isArray(block.content) ? block.content : []
+      if (first?.type !== 'text') return false
+      const text = first.text.slice(level)
+      return placeSection(canvas, block, level, true, (text === '' ? rest : [{ ...first, text }, ...rest]) as CanvasBlock['content'])
+    },
+  },
   inputRules: [
     ...([1, 2, 3] as const).map((level) => ({
       find: new RegExp(`^(#{${level}})\\s$`),
       replace({ editor }: { editor: unknown }) {
         const canvas = editor as CanvasEditor
-        const heading = headingFor(canvas, canvas.getTextCursorPosition().block, level)
+        const block = canvas.getTextCursorPosition().block
+        if (stepsOut(canvas, block, level)) {
+          // A rule changes only its own block, and the guard refuses a
+          // Section nested out of order, so the move runs once the typed
+          // space has landed: the `#`s and the space are dropped from the text.
+          window.setTimeout(() => {
+            const typed = canvas.getBlock(block.id)
+            const [first, ...rest] = Array.isArray(typed?.content) ? typed.content : []
+            if (typed === undefined || first?.type !== 'text' || !first.text.startsWith(`${'#'.repeat(level)} `)) return
+            const text = first.text.slice(level + 1)
+            // Keys that landed first (an Enter) keep their line.
+            const cursor = canvas.getTextCursorPosition().block.id
+            placeSection(canvas, typed, level, true, (text === '' ? rest : [{ ...first, text }, ...rest]) as CanvasBlock['content'])
+            if (cursor !== typed.id && canvas.getBlock(cursor) !== undefined) canvas.setTextCursorPosition(cursor, 'end')
+          }, 0)
+          return undefined
+        }
+        const heading = headingFor(canvas, block, level)
         return heading === null ? undefined : { type: 'heading', props: heading }
       },
     })),

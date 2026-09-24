@@ -3,6 +3,7 @@ import { useCreateBlockNote } from '@blocknote/react'
 import { BlockNoteEditor } from '@blocknote/core'
 import { en } from '@blocknote/core/locales'
 import { useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router'
 import '@blocknote/shadcn/style.css'
 import type { PageView } from '../../../../shared/pages.js'
 import { AUDIO_MIMES, RASTER_MIMES, VIDEO_MIMES } from '../../../../shared/files.js'
@@ -10,6 +11,8 @@ import { getPageResponse } from '../../../../shared/pages.js'
 import { documentTransaction } from '../../../../shared/page-document.js'
 import { getPlain, mutateApi, uploadFile as uploadDanaFile } from '../../../api/http.js'
 import { queryKeys } from '../../../api/keys.js'
+import { paths } from '../../../routes.js'
+import { FOLDER_ACTION_PARAM } from '../../../shell/app-sidebar.js'
 import { Button } from '../../ui/button.js'
 import { CanvasErrorBoundary } from './CanvasErrorBoundary.js'
 import { CanvasTaskProvider } from './CanvasTask.js'
@@ -17,7 +20,7 @@ import { CanvasSurface } from './CanvasSurface.js'
 import type { CanvasMediaKind, CanvasUploadedFile } from './CanvasFilePanel.js'
 import { canvasSchema } from './schema.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
-import { baselineOf, dehydrateCanvas, pendingPages, folderRefsOf, hydrateCanvas, mergeWorkDocument, richRuns, workPageOf } from './adapters.js'
+import { baselineOf, dehydrateCanvas, openOnCreate, pendingPages, folderRefsOf, hydrateCanvas, mergeWorkDocument, richRuns, workPageOf } from './adapters.js'
 import type { CanvasDocument, CanvasInput } from './adapters.js'
 import { CanvasWriter } from './saving.js'
 import { isSectionHeading } from './outline.js'
@@ -235,6 +238,9 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
       ? empty
       : mergeWorkDocument(initialPage, workRootId, empty)
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
+  const navigateRef = useRef(navigate)
+  navigateRef.current = navigate
   const [writer] = useState(() => new CanvasWriter(firstProjection(), initialPage.revision ?? '',
     (body) => mutateApi(getPageResponse, { method: 'POST', path: `${documentPath}/actions`, body }),
     () => {
@@ -252,7 +258,13 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
          go only once that list has the page, so its row never blinks. */
       const created = operations.flatMap((op) => op.op === 'create_page' ? [op.id] : [])
       if (created.length > 0 || operations.some((op) => op.op === 'trash_page' || (op.op === 'put_block' && op.block_kind === 'page'))) {
-        void queryClient.invalidateQueries({ queryKey: queryKeys.folders(), exact: true }).finally(() => { for (const id of created) pendingPages.delete(id) })
+        void queryClient.invalidateQueries({ queryKey: queryKeys.folders(), exact: true }).finally(() => {
+          for (const id of created) pendingPages.delete(id)
+          // `/page` opens what it made, its title selected to be typed over.
+          const opened = created.find((id) => openOnCreate.has(id))
+          for (const id of created) openOnCreate.delete(id)
+          if (opened !== undefined) void navigateRef.current(`${paths.folder(opened)}?${FOLDER_ACTION_PARAM}=rename`)
+        })
       }
     },
   ))
