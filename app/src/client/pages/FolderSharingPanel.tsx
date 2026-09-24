@@ -3,10 +3,10 @@
 ported from the designer's `src/components/sharing-panel.tsx`
 onto our mutations:
 
-  "member list with joined dates and remove controls per the 5.4 matrix;
-  roster picker ('Share with someone you're connected to'); email field
-  ('Invite by email'); pending invites list with exact email, sent time,
-  Cancel, Resend (disabled within 24 hours, tooltip 'Resent recently')."
+  member list with remove controls per the 5.4 matrix; one "Name or email"
+  field whose Add adds a connection by name or invites an email address;
+  pending invites list with exact email, sent time, Cancel, Resend (disabled
+  within 24 hours, tooltip 'Resent recently').
 
 **It is his 440px sheet and it is still a named region.** 9.1's sections table
 carries "Sharing panel" for this page and says so in its own words: the panel
@@ -43,9 +43,10 @@ rather than left to be discovered, and it is not this change's to build.
   row: the owner's membership is not another member's to end (the route
   answers "The folder's owner cannot be removed"), and the owner's own exit is
   R6's transfer-then-leave, which 9.6 puts in the header's overflow menu.
-- **The roster picker offers connections who are not already members.** 5.3
+- **The field suggests connections who are not already members.** 5.3
   refuses an add for a non-connection (422) and for an existing member (409),
-  and 7.3's roster is what the picker is built from.
+  and 7.3's roster is what the suggestions are built from. Anything else with
+  an "@" in it is sent as a folder invite.
 - **Resend is disabled inside 24 hours**, with 9.6's own tooltip. 7.5 answers
   429 for the same window; disabling is the convenience and the 429 is the
   rule.
@@ -74,14 +75,11 @@ panel is mounted only while the person has opened it, so the reads it consumes
 are the page's whether it is open or not.
 */
 import { useState } from 'react'
-import { Mail, UserPlus, UsersRound } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
 
 import type { GetConnectionsResponse } from '../../shared/connections.js'
 import type { GetFolderResponse } from '../../shared/folders.js'
 import { folderInviteBody } from '../api/folder-invite.js'
 import {
-  useAddFolderMember,
   useCancelInvite,
   useCreateInvite,
   useRemoveFolderMember,
@@ -90,7 +88,6 @@ import {
 import { Avatar, AvatarFallback } from '../components/ui/avatar.js'
 import { Button } from '../components/ui/button.js'
 import { Input } from '../components/ui/input.js'
-import { Combobox } from '../components/ui/combobox.js'
 import {
   Sheet,
   SheetContent,
@@ -105,7 +102,7 @@ import {
 } from '../components/ui/tooltip.js'
 import { mayDraw } from '../lib/folder-authority.js'
 import type { FolderViewerFacts } from '../lib/folder-authority.js'
-import { formatCompactDate, formatRelativeDay } from '../parts/format-dates.js'
+import { formatRelativeDay } from '../parts/format-dates.js'
 import { initialsOf, presenterToday } from '../parts/presenters.js'
 import { ConfirmDialog, useConfirm } from './task-rows.js'
 import { PersonFace } from '../components/person-face.js'
@@ -113,11 +110,8 @@ import { PersonFace } from '../components/person-face.js'
 /** 9.1's sections table for this page. */
 const SHARING_PANEL = 'Sharing panel'
 
-/** 9.6, the roster picker's own label. */
-const ROSTER_PICKER = "Share with someone you're connected to"
-
-/** 9.6, the email field's label, and 9.3's word for the same act. */
-const INVITE_BY_EMAIL = 'Invite by email'
+/** 9.6: the one field that adds a person, by name or by email. */
+const NAME_OR_EMAIL = 'Name or email'
 
 /** 9.6: the tooltip on a resend refused inside the 24 hour window. */
 const RESENT_RECENTLY = 'Resent recently'
@@ -149,20 +143,8 @@ function removeMemberConfirm(who: string, folder: string): string {
   )
 }
 
-/** His section heading: a glyph, then the words, in the panel's quiet register. */
-function PanelHeading({
-  icon: Icon,
-  children,
-}: {
-  readonly icon: LucideIcon
-  readonly children: string
-}): React.JSX.Element {
-  return (
-    <div className="mb-2 flex items-center gap-2">
-      <Icon className="size-4 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
-      <h3 className="text-sm font-semibold">{children}</h3>
-    </div>
-  )
+function PanelHeading({ children }: { readonly children: string }): React.JSX.Element {
+  return <h3 className="mb-1 text-xs font-medium text-muted-foreground">{children}</h3>
 }
 
 export function FolderSharingPanel({
@@ -185,27 +167,51 @@ export function FolderSharingPanel({
   const mayRemove = viewer !== null && mayDraw(viewer, 'member.remove')
   const mayAdd = viewer !== null && mayDraw(viewer, 'member.add')
   const mayInvite = viewer !== null && mayDraw(viewer, 'invite.create')
-  const addMember = useAddFolderMember()
   const removeMember = useRemoveFolderMember()
   const invite = useCreateInvite()
   const cancel = useCancelInvite()
   const resend = useResendInvite()
   const confirm = useConfirm()
-  const [picked, setPicked] = useState('')
-  const [email, setEmail] = useState('')
+  const [entry, setEntry] = useState('')
 
   const memberIds = new Set(folder.members.map((member) => member.user.id))
-  const invitable = (connections ?? []).filter((entry) => !memberIds.has(entry.user.id))
+  const invitable = (connections ?? []).filter((row) => !memberIds.has(row.user.id))
+  const typed = entry.trim().toLowerCase()
+  /* Connections whose name or email holds what is typed. */
+  const suggestions = !mayAdd || typed === ''
+    ? []
+    : invitable
+        .filter(
+          (row) =>
+            (row.user.display_name ?? '').toLowerCase().includes(typed) ||
+            row.user.email.toLowerCase().includes(typed),
+        )
+        .slice(0, 5)
+  /* Exactly one person by that name or address, which Add then adds. */
+  const exact = suggestions.filter(
+    (row) =>
+      (row.user.display_name ?? '').toLowerCase() === typed ||
+      row.user.email.toLowerCase() === typed,
+  )
+  const known = exact.length === 1 ? exact[0] : undefined
+  const pending = invite.isPending
+  const canSubmit =
+    !pending && (known !== undefined || (mayInvite && typed.includes('@')))
 
-  function sendInvite(): void {
-    const trimmed = email.trim()
-    if (trimmed === '') return
-    setEmail('')
+  /* A person, known or not, is added by address: 7.5 turns a folder invite to
+     a connected address into an instant share, so one call serves both. */
+  function addByEmail(email: string): void {
+    setEntry('')
     // The folder rides the body, which is what makes this an invite to this
     // folder rather than the bare one the People screen sends, and what turns
     // a connected address into 7.5's instant share instead of its 409.
     // A folder invite must also name its Access; folderInviteBody says which.
-    invite.mutate(folderInviteBody(trimmed, folder.id))
+    invite.mutate(folderInviteBody(email, folder.id))
+  }
+
+  function submit(): void {
+    if (!canSubmit) return
+    addByEmail(known !== undefined ? known.user.email : entry.trim())
   }
 
   return (
@@ -263,15 +269,61 @@ export function FolderSharingPanel({
           </SheetHeader>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+            {mayAdd || mayInvite ? (
+              <div className="mb-6">
+                <div className="flex gap-2">
+                  <Input
+                    aria-label={NAME_OR_EMAIL}
+                    value={entry}
+                    disabled={pending}
+                    placeholder={NAME_OR_EMAIL}
+                    autoComplete="off"
+                    className="h-[var(--control-height)] text-sm md:text-sm"
+                    onChange={(event) => {
+                      setEntry(event.target.value)
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== 'Enter') return
+                      event.preventDefault()
+                      submit()
+                    }}
+                  />
+                  <Button disabled={!canSubmit} onClick={submit}>
+                    Add
+                  </Button>
+                </div>
+                {suggestions.length === 0 ? null : (
+                  <ul role="list" aria-label="Connections" className="mt-1">
+                    {suggestions.map((row) => {
+                      const name = row.user.display_name ?? row.user.email
+                      return (
+                        <li key={row.user.id}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              addByEmail(row.user.email)
+                            }}
+                            className="flex h-[var(--row-height)] w-full items-center gap-2 rounded-md px-2 text-left text-sm hover:bg-accent"
+                          >
+                            <span className="truncate">{name}</span>
+                            <span className="truncate text-xs text-muted-foreground">{row.user.email}</span>
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </div>
+            ) : null}
             <div>
-              <PanelHeading icon={UsersRound}>Members</PanelHeading>
+              <PanelHeading>Members</PanelHeading>
               <ul role="list" className="space-y-0.5">
                 {folder.members.map((member) => {
                   const name = member.user.display_name ?? 'Someone'
                   return (
                     <li
                       key={member.user.id}
-                      className="flex min-h-14 items-center gap-3 rounded-md px-2 hover:bg-muted"
+                      className="flex min-h-10 items-center gap-3 rounded-md px-2"
                     >
                       {/* polish round-2: the member's own picture, which
                           7.4's members element carries; the tint stands in
@@ -283,22 +335,14 @@ export function FolderSharingPanel({
                         image={member.user.avatar_url}
                         className="size-8"
                       />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="truncate text-sm font-medium text-foreground">{name}</p>
-                          {member.is_owner ? <span className="text-xs text-muted-foreground">Owner</span> : null}
-                        </div>
-                        {/* "joined dates": the membership row's own timestamp.
-                            The format is the design's, so the value is
-                            rendered as 7.4 carries it. */}
-                        <p className="text-xs text-muted-foreground">
-                          Joined {formatCompactDate(member.joined_at.slice(0, 10))}
-                        </p>
+                      <div className="flex min-w-0 flex-1 items-center gap-2">
+                        <p className="truncate text-sm font-medium text-foreground">{name}</p>
+                        {member.is_owner ? <span className="text-xs text-muted-foreground">Owner</span> : null}
                       </div>
                       {mayRemove && !member.is_owner ? (
                         <Button
-                          variant="outline"
-                          className="h-8 px-3 text-xs"
+                          variant="ghost"
+                          className="text-muted-foreground"
                           onClick={() => {
                             confirm.ask(removeMemberConfirm(name, folder.name), () => {
                               removeMember.mutate({
@@ -317,77 +361,14 @@ export function FolderSharingPanel({
               </ul>
             </div>
 
-            {mayAdd ? (
-            <div className="mt-7">
-              <PanelHeading icon={UserPlus}>{ROSTER_PICKER}</PanelHeading>
-              <div className="flex gap-2">
-                <Combobox
-                  aria-label={ROSTER_PICKER}
-                  value={picked}
-                  disabled={addMember.isPending}
-                  className="min-w-0 flex-1"
-                  placeholder="Choose a person"
-                  options={invitable.map((entry) => ({
-                    value: entry.user.id,
-                    label: entry.user.display_name ?? entry.user.email,
-                  }))}
-                  onValueChange={setPicked}
-                />
-                <Button
-                  variant="commit"
-                  disabled={picked === '' || addMember.isPending}
-                  onClick={() => {
-                    const userId = picked
-                    setPicked('')
-                    if (userId === '') return
-                    addMember.mutate({ folderId: folder.id, userId })
-                  }}
-                >
-                  Add
-                </Button>
-              </div>
-            </div>
-            ) : null}
-
-            {mayInvite ? (
-            <div className="mt-7">
-              <PanelHeading icon={Mail}>{INVITE_BY_EMAIL}</PanelHeading>
-              <div className="flex gap-2">
-                <Input
-                  type="email"
-                  aria-label={INVITE_BY_EMAIL}
-                  value={email}
-                  disabled={invite.isPending}
-                  placeholder="name@example.com"
-                  className="h-[var(--control-height)] text-sm md:text-sm"
-                  onChange={(event) => {
-                    setEmail(event.target.value)
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key !== 'Enter') return
-                    event.preventDefault()
-                    sendInvite()
-                  }}
-                />
-                <Button
-                  variant="commit"
-                  disabled={!email.includes('@') || invite.isPending}
-                  onClick={sendInvite}
-                >
-                  Send invite
-                </Button>
-              </div>
-            </div>
-            ) : null}
-
             {folder.pending_invites.length === 0 ? null : (
-              <div className="mt-7">
-                <h3 className="mb-2 text-sm font-semibold">Pending invites</h3>
+              <div className="mt-6">
+                <PanelHeading>Pending invites</PanelHeading>
                 <ul role="list" className="space-y-1">
                   {folder.pending_invites.map((row) => (
                     <li
                       key={row.id}
-                      className="flex min-h-14 items-center gap-3 rounded-md px-2 hover:bg-muted"
+                      className="flex min-h-14 items-center gap-3 rounded-md px-2"
                     >
                       <Avatar className="size-8">
                         <AvatarFallback className="text-xs">@</AvatarFallback>
@@ -405,7 +386,7 @@ export function FolderSharingPanel({
                           draws it; the email beside it says which invite. */}
                       <Button
                         variant="ghost"
-                        className="h-8 px-2 text-xs text-muted-foreground"
+                        className="text-muted-foreground"
                         onClick={() => {
                           cancel.mutate(row.id)
                         }}
@@ -415,7 +396,6 @@ export function FolderSharingPanel({
                       {resendable(row.last_sent_at) ? (
                         <Button
                           variant="ghost"
-                          className="h-8 px-2 text-xs"
                           onClick={() => {
                             resend.mutate(row.id)
                           }}
@@ -427,7 +407,7 @@ export function FolderSharingPanel({
                           <TooltipTrigger
                             render={
                               <span tabIndex={0} className="inline-flex">
-                                <Button variant="ghost" className="h-8 px-2 text-xs" disabled>
+                                <Button variant="ghost" disabled>
                                   Resend
                                 </Button>
                               </span>

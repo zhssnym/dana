@@ -93,7 +93,7 @@ function BlockMenu({ block }: { readonly block: TreeBlock }): React.JSX.Element 
       </Item>
       {removal === null ? null : 'note' in removal
         ? <p className="px-2 py-1.5 text-xs text-muted-foreground">{removal.note}</p>
-        : <Item className="bn-menu-item" onClick={removal.run}><span className="flex flex-1 items-center gap-2"><MenuIcon icon={Trash2} />{removal.label}</span></Item>}
+        : <Item className="bn-menu-item dana-menu-danger" onClick={removal.run}><span className="flex flex-1 items-center gap-2"><MenuIcon icon={Trash2} />{removal.label}</span></Item>}
     </Components.Generic.Menu.Dropdown>
   )
 }

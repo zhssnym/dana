@@ -306,7 +306,8 @@ export function useWorkflowFileImport(): (file: File, parentId?: string) => void
         unreadable()
         return
       }
-      const taken = new Set((folders.data ?? []).map((folder) => folder.name))
+      // A name clashes only with the pages it will sit beside.
+      const taken = new Set((folders.data ?? []).filter((folder) => (folder.parent_folder_id ?? undefined) === parentId).map((folder) => folder.name))
       const prepared = prepareWorkflowImport(parsed, taken)
       if (prepared === null) {
         unreadable()

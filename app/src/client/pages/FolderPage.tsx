@@ -81,6 +81,7 @@ import {
   useCreateTask,
   useCreateFacet,
   useDeleteFacet,
+  useRestoreFacet,
   useDeleteFolder,
   useLeaveFolder,
   useDuplicateFolder,
@@ -125,13 +126,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../components/ui/dialog.js'
-import {
-  DropdownMenuCheckboxItem,
-  DropdownMenuSeparator,
-} from '../components/ui/dropdown-menu.js'
+import { DropdownMenuCheckboxItem } from '../components/ui/dropdown-menu.js'
 /* The empty-state icon goes to `PageBody`, whose `StateIcon` is typed on the
    raw lucide component. */
 import { Folder as FolderIcon } from 'lucide-react'
+import { CheckCircle2 } from '../lib/icons.js'
 import { cn } from '../components/ui/utils.js'
 
 import type { RowContext } from '../parts/presenters.js'
@@ -153,7 +152,7 @@ import { FOLDER_ACTION_PARAM } from '../shell/app-sidebar.js'
 import { useReserveRightEdge } from '../components/right-edge.js'
 import { pushUndo, undoLabel } from '../shell/undo.js'
 import { usePageImport } from '../shell/workflow-import.js'
-import { FolderTabs, FolderTabsDialog } from '../components/folder-facets.js'
+import { FolderTabs } from '../components/folder-facets.js'
 import type { CreateFacetInput, FacetCapabilities } from '../components/folder-facets.js'
 import { PageSection } from '../components/page/PageSection.js'
 import { groupRows, LOOSE } from '../views/grouping.js'
@@ -280,7 +279,11 @@ export function FolderPage({
   /* Set as this page is trashed: its reads stop, so the delete's
      invalidation refetches none of them against a 404 while the page is
      still mounted, the navigation away not yet committed. */
-  const [leaving, setLeaving] = useState(false)
+  /* The page being left (deleted): nothing of it stays mounted. Keyed by id,
+     because a delete lands on the parent page, which this same component
+     draws without remounting. */
+  const [leftId, setLeftId] = useState<string | null>(null)
+  const leaving = leftId === id
   const folder = useFolder(id, !leaving)
   /* Everything else waits for the folder itself: a link the viewer may not
      open is one quiet 404, not one per read. */
@@ -303,6 +306,7 @@ export function FolderPage({
   const createFacet = useCreateFacet()
   const patchFacet = usePatchFacet()
   const deleteFacet = useDeleteFacet()
+  const restoreFacet = useRestoreFacet()
   const putFacetOrder = usePutFacetOrder()
   const putMyFacetOrder = usePutMyFacetOrder()
   const shareFacet = useShareFacet()
@@ -314,7 +318,6 @@ export function FolderPage({
   const [deleteAsk, setDeleteAsk] = useState(false)
   // 9.6's inline rename: the title is a heading until this is true.
   const [renaming, setRenaming] = useState(false)
-  const [tabsOpen, setTabsOpen] = useState(false)
   const [coverOpen, setCoverOpen] = useState(false)
   /* The View menu's "Show completed", remembered on this device for every
      folder. A new key, so no existing preference moves. */
@@ -604,12 +607,14 @@ export function FolderPage({
     /* 9.6: to Trash for every member at once, the undo bar, no
        confirmation. The inverse is 7.13's restore. */
     const name = detail?.name ?? ''
-    setLeaving(true)
+    setLeftId(id)
     /* Leave first: the delete's invalidation would otherwise refetch every
        read of this page against a folder that now answers 404. The promise
        outlives this page, which a mutate() callback would not; a failure is
        the mutation cache's toast. */
-    navigate(paths.today)
+    // Lands on the page it sat in, as in Notion; a top-level page on Today.
+    const parent = detail?.parent_folder_id
+    navigate(parent ? paths.folder(parent) : paths.today)
     remove.mutateAsync(id).then(
       () => {
         pushUndo(undoLabel('Deleted', name), () => {
@@ -649,17 +654,16 @@ export function FolderPage({
     })
   }
 
+  /* Like every delete: to Trash at once, with Undo. */
   function removeFolderFacet(facet: Facet): void {
-    confirm.ask(
-      `Delete ${facet.name}? It will wait in Trash for 30 days.`,
-      () => deleteFacet.mutate({ folderId: id, facetId: facet.id }, {
-        onSuccess: () => {
-          if (mainFacet) selectFacet(mainFacet)
-        },
-      }),
-      /* The button says what pressing it does, not 9.1's generic Continue. */
-      { confirmLabel: 'Delete tab', cancelLabel: 'Cancel' },
-    )
+    deleteFacet.mutate({ folderId: id, facetId: facet.id }, {
+      onSuccess: () => {
+        if (mainFacet) selectFacet(mainFacet)
+        pushUndo(undoLabel('Deleted', facet.name), () => {
+          restoreFacet.mutate(facet.id, { onSuccess: () => { void cache.invalidateQueries({ queryKey: queryKeys.folderFacets(id) }) } })
+        })
+      },
+    })
   }
 
   function exposeFolderFacet(facet: Facet): void {
@@ -876,8 +880,9 @@ export function FolderPage({
       saved.withheldTasks === 0
         ? ''
         : ` ${String(saved.withheldTasks)} completed ${saved.withheldTasks === 1 ? 'task is' : 'tasks are'} not included.`
+    // What a template is, said where it is made rather than found on import.
     showToast(
-      `Exported "${detail?.name ?? 'Page'}".${missing}${finished}`,
+      `Exported "${detail?.name ?? 'Page'}" as a template: its writing, Purpose and open tasks, without dates, people, Results or the discussion.${missing}${finished}`,
     )
   }
 
@@ -972,8 +977,7 @@ export function FolderPage({
     } else if (action === 'cover') {
       if (gates?.identity === true) setCoverOpen(true)
       else refuse('folder.profile.edit')
-    } else if (action === 'tabs') setTabsOpen(true)
-    else if (action === 'transfer') {
+    } else if (action === 'transfer') {
       if (gates?.transferOwnership === true) setTransferOpen(true)
     } else if (action === 'history') setHistoryOpen(true)
     else if (action === 'workflow') void saveAsWorkflow()
@@ -1044,7 +1048,6 @@ export function FolderPage({
           history: () => {
             setHistoryOpen(true)
           },
-          tabs: () => setTabsOpen(true),
           'copy-link': () => {
             void navigator.clipboard.writeText(folderLink(id))
           },
@@ -1122,6 +1125,9 @@ export function FolderPage({
               onPickIdentity={(next) => {
                 patch.mutate({ id, body: next })
               }}
+              onRemoveIcon={() => {
+                patch.mutate({ id, body: { icon: null } })
+              }}
               progress={progressFact}
               actions={headerActions}
               coverKey={coverKey}
@@ -1130,7 +1136,7 @@ export function FolderPage({
 
           {facets.data ? (
             <FolderTabs
-              facets={facetRows}
+              facets={isDefault ? facetRows.filter((facet) => facet.kind !== 'consultation') : facetRows}
               activeId={activeFacet?.id ?? ''}
               onSelect={selectFacet}
               canMove={(facet) => {
@@ -1141,7 +1147,9 @@ export function FolderPage({
               capabilities={facetCapabilities}
               onAdd={(name) => createFolderFacet({ kind: 'shared_blank', name })}
               onRename={renameFolderFacet}
+              onHide={hideFolderFacet}
               onDelete={removeFolderFacet}
+              onShare={exposeFolderFacet}
             />
           ) : facets.isError ? (
             <p role="alert" className="text-sm text-muted-foreground">
@@ -1197,7 +1205,7 @@ export function FolderPage({
                 ) : isNarrowed(place.filter) || place.filter.sort !== 'manual' || place.groupBy !== 'none' ? (
                   <div className="space-y-3">
                     {boardColumns.map((group) => <div key={group.key}>
-                      {place.groupBy !== 'none' ? <h2 className="mb-2 text-sm font-semibold">{group.name}</h2> : null}
+                      {place.groupBy !== 'none' ? <h2 className="mb-2 text-sm font-medium">{group.name}</h2> : null}
                       <TaskRows tasks={group.rows} context={context} actions={actions} onAsk={confirm.ask} arrangement={{ arrangeable: false }} />
                     </div>)}
                   </div>
@@ -1251,20 +1259,6 @@ export function FolderPage({
         ) : null}
       </PageBody>
 
-      {facets.data ? (
-        <FolderTabsDialog
-          open={tabsOpen}
-          onOpenChange={setTabsOpen}
-          facets={isDefault ? facetRows.filter((facet) => facet.kind !== 'consultation') : facetRows}
-          capabilities={facetCapabilities}
-          page={page.data}
-          onCreate={createFolderFacet}
-          onRename={renameFolderFacet}
-          onHide={hideFolderFacet}
-          onDelete={removeFolderFacet}
-          onShare={exposeFolderFacet}
-        />
-      ) : null}
       <FolderCoverDialog storageName={coverKey} open={coverOpen} onOpenChange={setCoverOpen} />
 
       {sharing && detail !== undefined ? (
@@ -1442,13 +1436,6 @@ function FacetContent({
       <div className="mt-2">
         {document.data ? (
           <>
-            {document.data.items.length === 0 ? (
-              <p className="mb-3 text-sm text-muted-foreground">
-                {purpose
-                  ? 'Describe why this work exists, what it aims to achieve, or what should guide it.'
-                  : 'Record what actually happened: outcomes, findings, evaluations, and partial or unsuccessful results.'}
-              </p>
-            ) : null}
             <Suspense fallback={<p role="status" className="sr-only">Loading writing…</p>}>
               <FolderCanvas key={`${folderId}:${facet.id}`} page={document.data} tasks={[]} folderId={folderId} facetId={facet.id} presentationHeadings context={context} actions={actions} onAsk={onAsk} arrangeable={sharedPageEditable} />
             </Suspense>
@@ -1507,9 +1494,9 @@ function FolderViewMenu({
           onShowCompleted(checked)
         }}
       >
+        <CheckCircle2 className="size-4" strokeWidth={1.75} aria-hidden="true" />
         Show completed
       </DropdownMenuCheckboxItem>
-      <DropdownMenuSeparator />
     </>
   )
 }

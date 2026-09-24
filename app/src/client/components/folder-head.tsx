@@ -18,7 +18,7 @@ it), and only while the page has none; once there is a cover the band's own
 picker changes or removes it. `FolderCoverDialog` below is kept for the
 sidebar's `?folder-action=cover` link.
 */
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 
 import type { LucideIcon } from '../lib/icons.js'
 import {
@@ -36,8 +36,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog.js
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover.js'
 import { cn } from './ui/utils.js'
 
-const FIELD =
-  'min-w-0 rounded-sm bg-transparent outline-none focus-visible:ring-2 focus-visible:ring-ring'
+const FIELD = 'min-w-0 rounded-md bg-transparent outline-none'
 
 export function FolderHeader({
   name,
@@ -50,6 +49,7 @@ export function FolderHeader({
   onRenamingChange,
   onRename,
   onPickIdentity,
+  onRemoveIcon,
   progress,
   actions,
   coverKey,
@@ -65,6 +65,8 @@ export function FolderHeader({
   readonly onRenamingChange: (next: boolean) => void
   readonly onRename: (next: string) => void
   readonly onPickIdentity: (next: { icon?: string; color?: string }) => void
+  /** Clears the icon back to the plain page glyph; without it the picker offers no Remove. */
+  readonly onRemoveIcon?: () => void
   /** "3 of 7 done", or null when the folder has no finite work. */
   readonly progress: string | null
   readonly actions: React.ReactNode
@@ -72,6 +74,9 @@ export function FolderHeader({
   readonly coverKey?: string
 }): React.JSX.Element {
   const [markOpen, setMarkOpen] = useState(false)
+  /* Where a click on the heading landed, as a text offset, so the field opens
+     with the caret there; null (the `?folder-action=rename` path) selects all. */
+  const caretAt = useRef<number | null>(null)
   const glyph = (
     <Icon className="size-7" style={{ color }} strokeWidth={1.5} aria-hidden="true" />
   )
@@ -95,18 +100,23 @@ export function FolderHeader({
                 <button
                   type="button"
                   aria-label={`Icon and colour for ${name}`}
-                  className="-ml-1 flex size-9 shrink-0 items-center justify-center rounded-md outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+                  className="mt-1 flex size-[var(--control-height)] shrink-0 items-center justify-center rounded-md hover:bg-accent"
                 />
               }
             >
               {glyph}
             </PopoverTrigger>
             <PopoverContent align="start" className="w-auto p-0">
-              <IconPicker icon={iconKey} color={colorKey} onPick={onPickIdentity} />
+              <IconPicker
+                icon={iconKey}
+                color={colorKey}
+                onPick={onPickIdentity}
+                {...(onRemoveIcon === undefined ? {} : { onRemove: () => { onRemoveIcon(); setMarkOpen(false) } })}
+              />
             </PopoverContent>
           </Popover>
         ) : (
-          <span className="-ml-1 flex size-9 shrink-0 items-center justify-center">{glyph}</span>
+          <span className="mt-1 flex size-[var(--control-height)] shrink-0 items-center justify-center">{glyph}</span>
         )}
         {editable && renaming ? (
           /* A textarea sized to its content, so a long name wraps while it is
@@ -118,7 +128,13 @@ export function FolderHeader({
             maxLength={100}
             rows={1}
             autoFocus
-            onFocus={(event) => event.currentTarget.select()}
+            data-focus="self"
+            onFocus={(event) => {
+              const at = caretAt.current
+              caretAt.current = null
+              if (at === null) event.currentTarget.select()
+              else event.currentTarget.setSelectionRange(at, at)
+            }}
             onBlur={(event) => {
               const next = event.target.value.replace(/\s+/g, ' ').trim()
               onRenamingChange(false)
@@ -139,28 +155,53 @@ export function FolderHeader({
             }}
             className={cn(
               FIELD,
-              'flex-1 resize-none overflow-hidden [field-sizing:content] break-words text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-bold text-foreground',
+              'flex-1 resize-none overflow-hidden [field-sizing:content] break-words text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-semibold text-foreground',
             )}
           />
         ) : (
           /* A heading, always, and the click is the rename (AC-226, AC-217). */
           <h1
-            onClick={editable ? () => onRenamingChange(true) : undefined}
+            onClick={
+              editable
+                ? (event) => {
+                    caretAt.current = caretOffset(event.currentTarget, event.clientX, event.clientY)
+                    onRenamingChange(true)
+                  }
+                : undefined
+            }
             className={cn(
-              'min-w-0 flex-1 break-words [overflow-wrap:anywhere] text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-bold text-foreground',
+              'min-w-0 flex-1 break-words [overflow-wrap:anywhere] text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-semibold text-foreground',
               editable ? 'cursor-text' : '',
             )}
           >
             {name}
           </h1>
         )}
-        <div className="flex shrink-0 items-center gap-1">{actions}</div>
+        <div className="mt-1 flex shrink-0 items-center gap-1">{actions}</div>
       </div>
       {progress === null ? null : (
-        <p className="pl-9 text-sm text-muted-foreground tabular-nums max-md:pl-0">{progress}</p>
+        <p className="pl-9 text-xs text-muted-foreground tabular-nums">{progress}</p>
       )}
     </header>
   )
+}
+
+/* The text offset under a point inside `heading`, or its end. */
+function caretOffset(heading: HTMLElement, x: number, y: number): number {
+  const length = heading.textContent?.length ?? 0
+  let node: Node | null = null
+  let offset = length
+  if (typeof document.caretPositionFromPoint === 'function') {
+    const position = document.caretPositionFromPoint(x, y)
+    node = position?.offsetNode ?? null
+    offset = position?.offset ?? length
+  } else if (typeof document.caretRangeFromPoint === 'function') {
+    const range = document.caretRangeFromPoint(x, y)
+    node = range?.startContainer ?? null
+    offset = range?.startOffset ?? length
+  }
+  if (node === null || !heading.contains(node)) return length
+  return Math.min(offset, length)
 }
 
 /* The first editable body after the header (the Work editor), caret at its
@@ -186,9 +227,8 @@ function focusBodyAfter(header: HTMLElement): void {
 }
 
 /**
- * The cover's one home, opened from the folder's "…": images only. The
- * gallery tier (gradients and marks) is not offered; a folder already wearing
- * one keeps it until it is changed or removed here.
+ * The cover picker for the sidebar's `?folder-action=cover` link: images
+ * only (the colours are one press away on the page's own "Add cover").
  */
 export function FolderCoverDialog({
   storageName,

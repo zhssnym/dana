@@ -75,7 +75,7 @@ function Tab({
       aria-selected={selected}
       tabIndex={selected ? 0 : -1}
       data-slot="tab"
-      data-selected={selected ? "" : undefined}
+      data-selected={selected ? "true" : undefined}
       className={cn(
         "-mb-px inline-flex h-[var(--control-height)] shrink-0 items-center gap-1.5 border-b-2 border-transparent text-sm font-medium whitespace-nowrap text-muted-foreground select-none hover:text-foreground disabled:pointer-events-none disabled:opacity-50 data-selected:border-foreground data-selected:text-foreground [&_svg]:size-4 [&_svg]:shrink-0",
         className

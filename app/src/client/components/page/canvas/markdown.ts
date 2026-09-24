@@ -1,6 +1,6 @@
 import { createExtension } from '@blocknote/core'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
-import { ancestorsOf, placeSection, sectionPlace } from './commands.js'
+import { ancestorsOf, createTaskAtCursor, hasTaskCommand, placeSection, sectionPlace } from './commands.js'
 import { MAX_SECTION_DEPTH } from '../../../../shared/page-document.js'
 import { isSectionHeading } from './outline.js'
 
@@ -74,7 +74,7 @@ function stepsOut(editor: CanvasEditor, block: CanvasBlock, level: 1 | 2 | 3): b
  * Notion's markdown shortcuts, by surface: `#`/`##`/`###` + space headings,
  * `>` + space a toggle (a quote where no toggle list is offered), `"` + space a quote
  * (upstream's rule, kept), `---` a divider, ``` a code block. `-`/`*`/`+`,
- * `1.` and `[]` are upstream's own rules. Upstream's `#`, `>` and `---` rules
+ * `1.` are upstream's own rules; `[]` makes a Task (below). Upstream's `#`, `>` and `---` rules
  * are stripped from their specs (`schema.ts`) so these are the only ones.
  */
 export const canvasMarkdownShortcuts = createExtension({
@@ -142,6 +142,18 @@ export const canvasMarkdownShortcuts = createExtension({
           if (next !== undefined) canvas.setTextCursorPosition(next, 'start')
         }, 0)
         return { type: 'divider', props: {}, content: [] }
+      },
+    },
+    {
+      // `[] ` or `[ ] ` makes a Task where Tasks are made (Work): the line
+      // becomes the Task being titled, or, with words after the caret, that
+      // Task at once. Elsewhere the brackets stay text.
+      find: /^\[ ?\]\s$/,
+      replace({ editor }: { editor: unknown }) {
+        const canvas = editor as CanvasEditor
+        if (!hasTaskCommand(canvas)) return undefined
+        window.setTimeout(() => { createTaskAtCursor(canvas) }, 0)
+        return { type: 'paragraph', props: {} }
       },
     },
     {

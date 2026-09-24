@@ -28,7 +28,7 @@ import { PLACE_DESCRIPTION_MAX } from "../../shared/place-descriptions.js"
 import { AlignLeft, type LucideIcon } from "../lib/icons.js"
 import { resolveCover } from "./folder-cover.js"
 import { AddCoverAction, PageCover } from "./page-cover.js"
-import { FOCUS, T_FAST } from "./task-row.js"
+import { T_FAST } from "./task-row.js"
 import { InlineTextarea } from "./ui/inline-field.js"
 /* Covers are read from 7.19 keyed by 4.20's place, through
    `lib/page-identity.js`; its two names are aliased on import. */
@@ -79,8 +79,7 @@ export function pageBodyClass(className?: string) {
 /*
 The mark itself, one definition.
 
-The mark has no container: a soft radial scrim over a cover, nothing at all on a
-bare page. It is a component so every page draws the same mark, and the two call
+The mark has no container, over a cover or not. It is a component so every page draws the same mark, and the two call
 sites differ in the one way they honestly differ: a folder's mark is a control
 that opens the icon picker, a system page's is not a control at all and is
 therefore not a button. Everything else, the geometry included, is written once
@@ -89,12 +88,7 @@ here:
 - **It grows over a cover rather than shrinking**, 32px bare to 40px plated. A
   cover is the one place identity has competition and the one place it should be
   loudest.
-- **The scrim is the plate's replacement.** A dark glyph on a dark photograph is
-  what a container would solve, and the answer is to give the mark ground rather
-  than a fence, the same trick a caption over an image uses. On a bare page
-  there is nothing to separate from and the scrim is simply absent.
-- **A control says so on hover**, with a disc that reads on both grounds,
-  painted over the scrim rather than under it.
+- **A control says so on hover**, with a disc.
 */
 export function PageMark({
   icon: Icon,
@@ -113,12 +107,6 @@ export function PageMark({
 } & Omit<ComponentPropsWithoutRef<"button">, "color">) {
   const body = (
     <>
-      {hasCover ? (
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute -inset-2 rounded-full bg-[radial-gradient(closest-side,var(--background)_35%,color-mix(in_oklab,var(--background)_70%,transparent)_65%,transparent_100%)]"
-        />
-      ) : null}
       {interactive ? (
         <span
           aria-hidden="true"
@@ -146,7 +134,7 @@ export function PageMark({
   if (!interactive) return <div className={shape}>{body}</div>
 
   return (
-    <button type="button" className={cn("group/mark rounded-full", shape, FOCUS)} {...rest}>
+    <button type="button" className={cn("group/mark rounded-full", shape)} {...rest}>
       {body}
     </button>
   )
@@ -399,7 +387,6 @@ export function PageDescription({
         className={cn(
           "-mx-1 mt-1 flex h-6 items-center gap-1.5 rounded-md px-1 text-xs leading-5 text-quiet-foreground transition-[opacity,background-color,color]",
           T_FAST,
-          FOCUS,
           "hover:bg-accent hover:text-muted-foreground",
           offer ? "opacity-100" : "opacity-0 group-hover/head:opacity-100 focus-visible:opacity-100",
         )}
@@ -427,7 +414,7 @@ export function PageDescription({
       className={cn(
         "-mx-1 mt-1 block w-[calc(100%+0.5rem)] max-w-xl resize-none rounded-md bg-transparent px-1 py-0.5 text-xs leading-5 text-muted-foreground outline-none transition-colors [field-sizing:content]",
         T_FAST,
-        "placeholder:text-quiet-foreground hover:bg-accent focus:bg-card focus:ring-1 focus:ring-ring",
+        "placeholder:text-quiet-foreground hover:bg-accent focus:bg-card",
       )}
     />
   )

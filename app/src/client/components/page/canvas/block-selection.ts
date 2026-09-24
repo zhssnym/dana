@@ -24,7 +24,7 @@ API for other units:
 import { createElement, useEffect, useSyncExternalStore } from 'react'
 import type { BlockNoteEditor } from '@blocknote/core'
 import { SuggestionMenu } from '@blocknote/core/extensions'
-import { TextSelection } from 'prosemirror-state'
+import { NodeSelection, TextSelection } from 'prosemirror-state'
 import type { EditorView } from 'prosemirror-view'
 import { clearBlocks, selectBlocks, selectedBlocks } from './marquee.js'
 import { simulateNest } from './turn-into.js'
@@ -297,6 +297,15 @@ export function useBlockSelectionKeys(editor: AnyEditor, actions: BlockSelection
           if (oneBlock && !whole && $from.parent.content.size > 0) {
             view.dispatch(view.state.tr.setSelection(TextSelection.create(doc, $from.start(), $from.end())))
           } else setBlockSelection(editor, editor.document.map((block) => block.id))
+          return
+        }
+        /* A Task row, image or divider arrived at by the keys is already
+           wearing the selection tint (a node selection): Esc there is the
+           second Esc, not a first one that changes nothing on screen. */
+        if (key === 'Escape' && !mod && !event.shiftKey && view.state.selection instanceof NodeSelection && view.state.selection.node.isBlock) {
+          stop()
+          view.dispatch(view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(view.state.selection.from), -1)))
+          view.dom.blur()
           return
         }
         if (key === 'Escape' && !mod && !event.shiftKey && !editor.getExtension(SuggestionMenu)?.shown() && currentBlockId(view) !== null) {

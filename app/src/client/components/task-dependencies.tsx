@@ -35,7 +35,7 @@ export const BLOCKED_BY_HEADING = "Blocked by"
 export const BLOCKS_HEADING = "Blocks"
 
 const QUIET_BUTTON =
-  "inline-flex h-6 items-center gap-1.5 rounded-md px-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+  "inline-flex h-6 items-center gap-1.5 rounded-md px-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 
 /** Why an add was refused, in words for the person rather than the field. */
 function refusalOf(error: unknown, mode: Mode): string {
@@ -394,7 +394,7 @@ function DependencyPicker({
             onCancel()
           }
         }}
-        className="h-7 w-full rounded bg-transparent px-1.5 text-xs text-foreground outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
+        className="h-7 w-full rounded bg-transparent px-1.5 text-xs text-foreground outline-none placeholder:text-muted-foreground"
       />
       {refusal ? (
         <p role="alert" className="px-1.5 text-xs leading-4 text-destructive">

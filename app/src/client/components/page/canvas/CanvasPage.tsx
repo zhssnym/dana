@@ -44,7 +44,7 @@ export function CanvasPage({ folderId }: { readonly folderId: string }): React.J
         event.preventDefault()
         void navigate(path)
       }}
-      className={`${ROW} transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring`}
+      className={`${ROW} transition-colors hover:bg-muted`}
     >
       <mark.icon className="size-4 shrink-0" style={{ color: mark.color }} strokeWidth={1.75} aria-hidden="true" />
       <span className="min-w-0 truncate text-sm text-foreground">{folder.name}</span>

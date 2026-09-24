@@ -35,7 +35,6 @@ import { UPCOMING_OCCURRENCE } from './task-copy.js'
 import { surfaceTask, useTaskEditing } from './task-editing.js'
 import { ConfirmDialog } from './ui/ConfirmDialog.js'
 import {
-  ABANDON_CONFIRM,
   DELETE_CONFIRM_LABEL,
   DELETE_TASK_CONFIRM,
   keepLabel,
@@ -166,16 +165,8 @@ export function TaskSurfaceHost(): ReactNode {
   }
 
   const task = {
+    /* Abandon is not offered here: Status carries it. */
     ...surfaceTask(taskId, editing.concept),
-    onAbandon: () => {
-      setPending({
-        message: ABANDON_CONFIRM,
-        run: () => {
-          acts.onAbandon(detail)
-          close()
-        },
-      })
-    },
     onDelete: () => {
       setPending({
         message: DELETE_TASK_CONFIRM,
