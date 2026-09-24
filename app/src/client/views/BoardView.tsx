@@ -13,11 +13,17 @@ the undo bar reach a drop exactly as they reach a row's box.
 **Done keeps its cards.** A board whose Done column is empty is a board that
 looks like nothing was ever finished, so completed cards always show there;
 abandoned ones join them only when the page shows completed work, which is
-where 9.5 keeps them reachable. No column offers a quick-add: this view is for
-moving work, and the page's own editor is where tasks are written.
+where 9.5 keeps them reachable.
+
+**Every column ends with "New task"** (round 3), and a task added there lands
+in that column: Not started is a plain create, In progress starts it today (the
+board's own rule below), Done creates it and then completes it. The words are
+"New task", not Notion's "New page": in Dana a page is a document and this row
+makes a task. The columns are the status, so cards carry no completion box.
 */
-import { TaskBoard as PrototypeBoard } from '../components/task-board.js'
-import type { BoardColumn, BoardTask } from '../components/task-board.js'
+import { BoardQuickAdd, TaskBoard as PrototypeBoard } from '../components/task-board.js'
+import type { BoardColumn, BoardTask, BoardTone } from '../components/task-board.js'
+import { useCreateTask, useTransitionTask } from '../api/mutations.js'
 import { taskRowDisplay } from '../parts/presenters.js'
 import type { RowContext } from '../parts/presenters.js'
 import type { RowActions } from '../parts/useRowActions.js'
@@ -25,10 +31,14 @@ import type { TaskCard } from '../../shared/tasks.js'
 
 export type BoardStatus = 'not_started' | 'in_progress' | 'done'
 
-const COLUMNS: readonly { readonly key: BoardStatus; readonly label: string }[] = [
-  { key: 'not_started', label: 'Not started' },
-  { key: 'in_progress', label: 'In progress' },
-  { key: 'done', label: 'Done' },
+const COLUMNS: readonly {
+  readonly key: BoardStatus
+  readonly label: string
+  readonly tone: BoardTone
+}[] = [
+  { key: 'not_started', label: 'Not started', tone: 'grey' },
+  { key: 'in_progress', label: 'In progress', tone: 'blue' },
+  { key: 'done', label: 'Done', tone: 'green' },
 ]
 
 /**
@@ -44,6 +54,7 @@ export function boardStatusOf(task: TaskCard, today: string): BoardStatus {
 }
 
 export function BoardView({
+  folderId,
   tasks,
   completed,
   showCompleted,
@@ -51,6 +62,8 @@ export function BoardView({
   context,
   actions,
 }: {
+  /* The page new tasks are added to. */
+  readonly folderId: string
   readonly tasks: readonly TaskCard[]
   readonly completed: readonly TaskCard[]
   readonly showCompleted: boolean
@@ -63,10 +76,28 @@ export function BoardView({
   )
   const all: readonly TaskCard[] = [...tasks, ...finished]
   const byId = new Map(all.map((task) => [task.id, task]))
+  const create = useCreateTask()
+  const transition = useTransitionTask()
+
+  function add(title: string, status: BoardStatus): void {
+    create.mutate(
+      {
+        title,
+        folder_id: folderId,
+        ...(status === 'in_progress' ? { start_date: today } : {}),
+      },
+      {
+        onSuccess: (made) => {
+          if (status === 'done') transition.mutate({ id: made.id, event: 'complete' })
+        },
+      },
+    )
+  }
 
   const mapped: BoardColumn[] = COLUMNS.map((column) => ({
     key: column.key,
     label: column.label,
+    tone: column.tone,
     /* Finished cards strike through and drop their details: the board's own
        contract for its `done` flag, as `views/TaskBoard.tsx` sets it. */
     ...(column.key === 'done' ? { done: true, quiet: true } : {}),
@@ -131,7 +162,13 @@ export function BoardView({
         if (started) actions.onMoveToColumn(task, { start_date: null })
         return true
       }}
-      quickAdd={() => null}
+      checkbox={false}
+      quickAdd={(column) => (
+        <BoardQuickAdd
+          label={`New task in ${column.label}`}
+          onAdd={(title) => add(title, column.key as BoardStatus)}
+        />
+      )}
     />
   )
 }

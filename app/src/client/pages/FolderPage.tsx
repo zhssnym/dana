@@ -1209,7 +1209,7 @@ export function FolderPage({
                 /* A board whose Done column holds finished work is not an empty
                    page: the last open task completed by a drop must not take
                    the board with it. */
-                isEmpty={place.mode !== 'list' && bothEmpty && completedDays.length === 0}
+                isEmpty={place.mode !== 'list' && place.mode !== 'board' && bothEmpty && completedDays.length === 0}
                 emptyCopy={FOLDER_EMPTY}
                 emptyIcon={FolderIcon}
                 truncated={open.data?.truncated ?? false}
@@ -1218,6 +1218,7 @@ export function FolderPage({
                   /* A page's Board is by status, Not started · In progress ·
                      Done, and a drop changes it (round 2). */
                   <BoardView
+                    folderId={id}
                     tasks={visible}
                     completed={completedRows}
                     showCompleted={showCompleted}
