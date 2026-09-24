@@ -72,8 +72,17 @@ export const discussionSchema = z.object({
   resolved_at: z.string().nullable(),
   resolved_by: z.uuid().nullable(),
   current_outcome_id: z.uuid().nullable(),
-  /** The current Outcome inline, so a list row can show it; null when open. */
+  /** The current Outcome inline, so a list row can show it; null when open
+   * or closed without a decision. */
   current_outcome: outcomeSchema.nullable(),
+  /** Thread summary for the list row (W-C). Optional in the schema so
+   * responses other than the list may omit it. */
+  post_count: z.number().int().optional(),
+  /** The newest post: its author, a plain-text preview (<= 140 chars, empty
+   * for a pictures-only post) and when. Null when the thread has no posts. */
+  last_post: z.object({ author_id: z.uuid(), preview: z.string(), created_at: z.string() }).nullable().optional(),
+  /** Distinct post authors, most recent first, at most 5. */
+  participant_ids: z.array(z.uuid()).optional(),
   last_activity_at: z.string(),
   created_at: z.string(),
   updated_at: z.string(),
@@ -126,7 +135,8 @@ export const updateDiscussionBody = z
 export type UpdateDiscussionBody = z.infer<typeof updateDiscussionBody>
 
 /**
- * Resolve, which always records a new current Outcome.
+ * Resolve ("Close thread"). Records a new current Outcome when a statement
+ * or a source comment is sent; `{}` closes without one (Wave 2 decision 3).
  *
  * - `Record outcome`: send `statement`.
  * - `Use as outcome`: send `source_comment_id`; the server snapshots that
@@ -139,10 +149,9 @@ export const resolveDiscussionBody = z
     statement: z.string().trim().min(1).max(OUTCOME_STATEMENT_MAX).optional(),
     source_comment_id: z.uuid().optional(),
   })
-  .refine(
-    (body) => body.statement !== undefined || body.source_comment_id !== undefined,
-    { error: 'an Outcome needs a statement or a source comment', path: ['statement'] },
-  )
+  /* Wave 2 decision 3: a thread may close without a decision. `{}` closes it
+     with no Outcome (current_outcome_id NULL, which 0040's widened
+     `discussions_resolution_check` admits). */
 export type ResolveDiscussionBody = z.infer<typeof resolveDiscussionBody>
 
 /** "Record outcome" is the resolve body: an Outcome is only ever created by
