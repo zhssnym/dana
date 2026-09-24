@@ -9,8 +9,11 @@ today, and every line can be pressed. Each line names the module that binds it:
 - N (or C) puts the cursor in the page's "New task" row, `components/quick-add.tsx`.
 - Ctrl+Z takes back the last act inside the undo window, `shell/app-shell.tsx`
   under 9.1's undo bar.
-- Enter opens the focused task row (`components/task-row.tsx`) and commits a
-  "New task" row (`components/quick-add.tsx`).
+- In a task list (Today, Upcoming, Assigned, a page's Linear and Board) the
+  arrows move between tasks, Enter opens the focused task and Space completes
+  it (`components/row-keys.ts`, the rows in `task-row.tsx`, `task-board.tsx`
+  and `views/LinearView.tsx`). Enter also commits a "New task" row
+  (`components/quick-add.tsx`).
 - Escape closes the open thing: a "New task" row, a dialog through the
   primitive, and a held drag row through `lib/use-sortable-list.ts`.
 - The arrows move the cursor through search's results,
@@ -46,9 +49,10 @@ const SHORTCUTS: readonly { readonly keys: readonly string[]; readonly what: str
   { keys: ['/'], what: 'Search, when you are not typing' },
   { keys: ['N'], what: 'New task in this list' },
   { keys: ['MOD', 'Z'], what: 'Undo the last thing you did' },
+  { keys: ['↑', '↓'], what: 'Move through tasks or search results' },
   { keys: ['Enter'], what: 'Open the selected task, or add what you typed' },
+  { keys: ['Space'], what: 'Complete the selected task' },
   { keys: ['Esc'], what: 'Close what is open' },
-  { keys: ['↑', '↓'], what: 'Move through search results' },
   { keys: ['?'], what: 'This list' },
 ]
 

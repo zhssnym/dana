@@ -1,5 +1,5 @@
 /*
-The foot of a milestone in the queue: type a step, Enter adds it (not started)
+The foot of a milestone in the queue: type a task, Enter adds it (not started)
 and keeps the caret here for the next one, Esc clears.
 */
 import { useState } from 'react'
@@ -28,8 +28,8 @@ export function NewStep(props: {
       <input
         type="text"
         value={draft}
-        aria-label="New step"
-        placeholder="New step"
+        aria-label="New task"
+        placeholder="New task"
         onChange={(event) => setDraft(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === 'Enter' && !event.nativeEvent.isComposing) {

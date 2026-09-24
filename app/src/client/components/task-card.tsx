@@ -188,7 +188,7 @@ function StepTitle({
       <InlineInput
         autoFocus
         value={draft}
-        aria-label="Step name"
+        aria-label="Subtask name"
         onFocus={(event) => event.currentTarget.select()}
         onClick={(event) => event.stopPropagation()}
         onPointerDown={(event) => event.stopPropagation()}
@@ -248,7 +248,7 @@ function StepList({
   onIdle,
 }: {
   task: ConceptTask
-  /* "Add property" > Steps: the list opens already asking for the first. */
+  /* "Add property" > Subtasks: the list opens already asking for the first. */
   startAdding?: boolean
   /* The field closed; the caller hides an empty list again. */
   onIdle?: () => void
@@ -272,7 +272,7 @@ function StepList({
   const stepDrag = useSortableList({
     count: task.steps?.length ?? 0,
     onReorder: (from, to) => moveStep(task.id, from, to),
-    describe: (index) => task.steps?.[index]?.title ?? "Step",
+    describe: (index) => task.steps?.[index]?.title ?? "Subtask",
   })
   const steps = task.steps ?? []
 
@@ -316,7 +316,7 @@ function StepList({
             <span className="flex size-5 shrink-0 items-center justify-center">
               <Checkbox
                 checked={Boolean(step.done)}
-                aria-label={`Mark step ${step.done ? "not done" : "done"}`}
+                aria-label={`Mark subtask ${step.done ? "not done" : "done"}`}
                 onClick={(event) => event.stopPropagation()}
                 onCheckedChange={() => toggleStep(task.id, i)}
               />
@@ -377,8 +377,8 @@ function StepList({
           <InlineInput
             autoFocus
             value={newStep}
-            aria-label="New step"
-            placeholder="Type a step"
+            aria-label="New subtask"
+            placeholder="Type a subtask"
             onClick={(event) => event.stopPropagation()}
             onPointerDown={(event) => event.stopPropagation()}
             onChange={(event) => setNewStep(event.target.value)}
@@ -411,7 +411,7 @@ function StepList({
           />
         </div>
       ) : (
-        <EmptyAction label="Add a step" onSelect={() => setAdding(true)} />
+        <EmptyAction label="Add subtask" onSelect={() => setAdding(true)} />
       )}
     </div>
   )
@@ -895,7 +895,7 @@ export function TaskCard({
       ? [{ key: "assignee", label: CHIP_ASSIGNEE, icon: UserRound, onSelect: () => setAdding("assignee") }]
       : []),
     ...(steps.length === 0 && adding !== "steps"
-      ? [{ key: "steps", label: "Steps", icon: ListPlus, onSelect: () => setAdding("steps") }]
+      ? [{ key: "steps", label: "Subtasks", icon: ListPlus, onSelect: () => setAdding("steps") }]
       : []),
     ...(relatable && deps.data !== undefined && !hasDeps && !depOpening
       ? [{ key: "dependency", label: "Dependency", icon: Workflow, onSelect: () => setDepOpening(true) }]
@@ -1034,7 +1034,7 @@ export function TaskCard({
       ) : null}
 
       {steps.length > 0 || adding === "steps" ? (
-        <Section title="Steps" {...(counts ? { badge: `${counts.done}/${counts.total}` } : {})}>
+        <Section title="Subtasks" {...(counts ? { badge: `${counts.done}/${counts.total}` } : {})}>
           <StepList
             task={task}
             startAdding={adding === "steps"}

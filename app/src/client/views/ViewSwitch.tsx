@@ -1,8 +1,7 @@
 /*
-The one view switcher (round 5): the app's `Segmented` control, always visible,
-one click, arrow keys move between views. A page shows it for Linear · Board ·
-Freeform; Upcoming for List · Calendar; Assigned for List · Board. Today has
-one layout and no switcher.
+The view names, and the page's view switcher. Upcoming (List · Calendar) and
+Assigned (List · Board) choose their layout in the View menu
+(`FilterControl.tsx`), not on screen; Today has one layout.
 
 One name per view, here and nowhere else. "List" is a place page's plain list
 and "Freeform" is a page's writing canvas: two different things, two names.

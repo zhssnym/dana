@@ -23,6 +23,7 @@ import { useRowActions } from '../parts/useRowActions.js'
 import { PageBody } from '../components/page/PageStates.js'
 import { MY_DAY_EMPTY } from './empty-states.js'
 import { ConfirmDialog, TaskRows, useConfirm, useRowBasis } from './task-rows.js'
+import { useRowKeys } from '../components/row-keys.js'
 
 const SPINE = PLACES.today
 
@@ -31,6 +32,8 @@ export function TodayPage(): React.JSX.Element {
   const actions = useRowActions()
   const confirm = useConfirm()
   const basis = useRowBasis()
+  /* One Tab stop for the page's rows; arrows, Enter and Space (`row-keys.ts`). */
+  const keys = useRowKeys<HTMLDivElement>()
   /* 9.13's first-run offer takes the place of Today's empty state. */
   const mayBeFresh = useMayBeFresh()
 
@@ -43,8 +46,15 @@ export function TodayPage(): React.JSX.Element {
   const context = { ...basis, showPullMarker: true }
   const showDone = place.filter.showCompleted && recap.length > 0
 
-  const rows = (tasks: readonly TaskCard[]): React.JSX.Element => (
-    <TaskRows tasks={place.narrow(tasks)} context={context} actions={actions} onAsk={confirm.ask} />
+  /* `day`: under the "Today" heading a row keeps only its time, as on Upcoming. */
+  const rows = (tasks: readonly TaskCard[], day = false): React.JSX.Element => (
+    <TaskRows
+      tasks={place.narrow(tasks)}
+      context={context}
+      actions={actions}
+      onAsk={confirm.ask}
+      {...(day ? { given: { day: true } } : {})}
+    />
   )
 
   const total = open.length + recap.length
@@ -90,7 +100,7 @@ export function TodayPage(): React.JSX.Element {
                 name="Today"
                 {...(carried.length === 0 && reasons === 0 ? {} : { heading: 'Today' })}
               >
-                {rows(dueToday)}
+                {rows(dueToday, true)}
               </PlaceGroup>
             )}
             {started.length === 0 ? null : (
@@ -110,7 +120,7 @@ export function TodayPage(): React.JSX.Element {
   )
 
   return (
-    <div className="space-y-6">
+    <div ref={keys} className="space-y-6">
       <SampleStrip />
       <PlaceHead
         place={place}

@@ -10,7 +10,7 @@ like a GitHub issue's timeline.
   add one, press the node when it is done. Overdue first, then by start.
 - **Future** - the queue, grouped by section as milestones. The first
   milestone with work in it is open, the rest are one line with their count.
-  "Start" moves a step into the present; "New step" adds to a milestone.
+  "Start" moves a step into the present; "New task" adds to a milestone.
 
 The line carries progress: solid accent wherever the work has reached (past
 and present), a faint dotted line through what has not started. Clicking a
@@ -27,6 +27,7 @@ import { taskRowDisplay } from '../parts/presenters.js'
 import { RowMeta } from '../components/task-meta.js'
 import { formatDay, formatDayInline } from '../lib/dates.js'
 import { NewStep } from './linear/NewStep.js'
+import { useRowKeys } from '../components/row-keys.js'
 import { Subtasks } from './linear/Subtasks.js'
 import { futureMilestones, pageRank, pastOrder, presentOrder, startDay } from './linear/stage.js'
 import type { Milestone } from './linear/stage.js'
@@ -90,6 +91,8 @@ export function LinearView(props: {
   const [doneAtOpen] = useState(() => new Set(completed.map((t) => t.id)))
 
   const rank = useMemo(() => pageRank(page), [page])
+  /* One Tab stop for the view; arrows move, Enter opens, Space completes. */
+  const keys = useRowKeys<HTMLDivElement>()
 
   /* Past, oldest first, so the story runs down into the present. The same
      order the Board's Done column uses. */
@@ -162,8 +165,25 @@ export function LinearView(props: {
     </button>
   )
 
+  /* A row's keyboard contract (`row-keys.ts`), and `data-task-id` so the peek
+     steps through the rows in the order drawn here. */
+  const rowKeys = (task: TaskCard, complete: () => void) => ({
+    'data-row-key': '',
+    'data-task-id': task.id,
+    onKeyDown: (event: React.KeyboardEvent<HTMLElement>) => {
+      if (event.target !== event.currentTarget) return
+      if (event.key === 'Enter') {
+        event.preventDefault()
+        actions.onOpenTask(task)
+      } else if (event.key === ' ') {
+        event.preventDefault()
+        complete()
+      }
+    },
+  })
+
   return (
-    <div className="pb-2">
+    <div ref={keys} className="pb-2">
       {hasPast && (
         <section aria-label="Done">
           <ol role="list" className="flex flex-col">
@@ -188,6 +208,7 @@ export function LinearView(props: {
               return (
                 <li
                   key={task.id}
+                  {...rowKeys(task, () => (abandoned ? actions.onRestore(task) : actions.onToggleComplete(task)))}
                   className={cn('relative flex h-[var(--row-height)] items-center gap-2 rounded-md pr-1.5 transition-colors hover:bg-muted/60', MOTION)}
                 >
                   <Line above={index === 0 && !showEarlier ? null : 'reached'} below="reached" />
@@ -241,7 +262,10 @@ export function LinearView(props: {
                 above={index === 0 && !hasPast ? null : 'reached'}
                 below={index < present.length - 1 ? 'reached' : 'ahead'}
               />
-              <div className={cn('flex h-[var(--row-height)] items-center gap-2 rounded-md pr-1.5 transition-colors hover:bg-muted/60', MOTION)}>
+              <div
+                {...rowKeys(task, () => actions.onToggleComplete(task))}
+                className={cn('flex h-[var(--row-height)] items-center gap-2 rounded-md pr-1.5 transition-colors hover:bg-muted/60', MOTION)}
+              >
                 <button
                   type="button"
                   aria-label={`Complete ${task.title}`}
@@ -324,6 +348,7 @@ export function LinearView(props: {
                     {group.tasks.map((task) => (
                       <li
                         key={task.id}
+                        {...rowKeys(task, () => actions.onToggleComplete(task))}
                         className={cn('group/step group/row relative flex h-[var(--row-height)] items-center gap-2 rounded-md pr-1.5 transition-colors hover:bg-muted/60', MOTION)}
                       >
                         <Line above="ahead" below="ahead" />

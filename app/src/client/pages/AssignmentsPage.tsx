@@ -19,6 +19,7 @@ import { useRowActions } from '../parts/useRowActions.js'
 import { PageBody } from '../components/page/PageStates.js'
 import { ASSIGNMENTS_EMPTY } from './empty-states.js'
 import { ConfirmDialog, TaskRows, useConfirm, useRowBasis } from './task-rows.js'
+import { useRowKeys } from '../components/row-keys.js'
 
 const SPINE = PLACES.assignments
 
@@ -27,6 +28,8 @@ export function AssignmentsPage(): React.JSX.Element {
   const actions = useRowActions()
   const confirm = useConfirm()
   const basis = useRowBasis()
+  /* One Tab stop for the page's rows; arrows, Enter and Space (`row-keys.ts`). */
+  const keys = useRowKeys<HTMLDivElement>()
   const multiMemberFolderIds = useMultiMemberFolderIds()
 
   const data = view.data
@@ -43,7 +46,7 @@ export function AssignmentsPage(): React.JSX.Element {
   const groups = groupRows(place.narrow(rows), axis, place.today, place.viewerId)
 
   return (
-    <div className="space-y-6">
+    <div ref={keys} className="space-y-6">
       <PlaceHead place={place} />
       {place.mode === 'board' ? (
         <PageBody

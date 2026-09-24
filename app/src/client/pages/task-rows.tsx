@@ -192,9 +192,9 @@ export function TaskRows({
   /**
    * What the heading above these rows already says: `day` when it names the
    * one day every row is due (Today, Tomorrow, Saturday), so a row keeps only
-   * its time; `overdue` when it says every row is late.
+   * its time.
    */
-  readonly given?: { readonly day?: boolean; readonly overdue?: boolean }
+  readonly given?: { readonly day?: boolean }
 }): React.JSX.Element {
   const acts = useListActs(tasks, actions, onAsk, arrangement?.arrangeable ?? false)
   /*
@@ -264,10 +264,9 @@ export function TaskRows({
           and the board's axis pass, so the context's silence is handed to the
           row in that word rather than by a second display flag.
           */
-          given={{
-            ...(context.showFolder === false ? { folder: true } : {}),
-            ...(given?.overdue === true ? { overdue: true } : {}),
-          }}
+          /* Overdue stays in the late ink even under an "Overdue" heading:
+             the colour means late on every screen. */
+          given={context.showFolder === false ? { folder: true } : {}}
           /*
           The row is told its folder even where the page has already said it:
           `given` silences the chip, but the card the chevron opens still names

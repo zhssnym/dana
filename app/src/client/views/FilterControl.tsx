@@ -1,7 +1,7 @@
 /*
-The one "View" menu a list carries: Group by, Sort and Show completed, each
-offered only where the page can honour it. It narrows nothing. The layout is
-chosen by the page's own switcher (`ViewSwitch`), not in here.
+The one "View" menu a list carries: Layout, Group by, Sort and Show completed,
+each offered only where the page can honour it. It narrows nothing. There is no
+on-screen switcher: the layout is chosen here too.
 */
 import { Button } from '../components/ui/button.js'
 import {
@@ -17,6 +17,8 @@ import {
 } from '../components/ui/dropdown-menu.js'
 import type { PageFilter, SortBy } from './filter.js'
 import type { GroupChoice } from './place-pages.js'
+import type { ViewMode } from './view-mode.js'
+import { VIEW_LABELS } from './ViewSwitch.js'
 
 const SORTS: readonly { readonly value: SortBy; readonly label: string }[] = [
   { value: 'manual', label: 'Manual' },
@@ -63,11 +65,18 @@ function Choice<T extends string>({
 }
 
 export function ViewMenu({
+  layouts = [],
+  layout,
+  onLayout,
   groups,
   completed,
   filter,
   onChange,
 }: {
+  /** The page's layouts; a page with one has no Layout item. */
+  readonly layouts?: readonly ViewMode[]
+  readonly layout?: ViewMode
+  readonly onLayout?: (next: ViewMode) => void
   readonly groups: readonly GroupChoice[]
   /** Whether the page has completed tasks to show. */
   readonly completed: boolean
@@ -82,6 +91,14 @@ export function ViewMenu({
         View
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-52">
+        {layouts.length > 1 && layout !== undefined && onLayout !== undefined ? (
+          <Choice
+            label="Layout"
+            value={layout}
+            choices={layouts.map((value) => ({ value, label: VIEW_LABELS[value] }))}
+            onChange={onLayout}
+          />
+        ) : null}
         {groups.length > 1 ? (
           <Choice
             label="Group by"

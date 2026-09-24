@@ -166,7 +166,6 @@ export function BoardView({
         if (started) actions.onMoveToColumn(task, { start_date: null })
         return true
       }}
-      checkbox={false}
       quickAdd={(column) =>
         column.key === 'done' ? null : (
           <BoardQuickAdd

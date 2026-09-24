@@ -213,11 +213,11 @@ export function PendingPanel({
     pending.kind === "merge"
       ? pending.titles
       : pending.kind === "promote"
-        ? [`${pending.steps} step${pending.steps === 1 ? "" : "s"} become tasks`]
+        ? [`${pending.steps} subtask${pending.steps === 1 ? "" : "s"} become tasks`]
         : pending.kind === "folder-for"
           ? [`${pending.ids.length} task${pending.ids.length === 1 ? "" : "s"}`]
           : [
-              `${pending.indices.length} step${
+              `${pending.indices.length} subtask${
                 pending.indices.length === 1 ? " becomes a task" : "s become tasks"
               }`,
             ]
@@ -1067,6 +1067,19 @@ export function TaskRow(props: TaskRowProps) {
     <div
       /* r3-peek: the peek steps through rows in the order they are drawn. */
       data-task-id={props.id}
+      /* The keyboard path (`row-keys.ts`): a list page makes this row its one
+         Tab stop; Enter opens the task and Space completes it. */
+      data-row-key=""
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return
+        if (event.key === "Enter") {
+          event.preventDefault()
+          props.onOpen?.()
+        } else if (event.key === " ") {
+          event.preventDefault()
+          patch(task.id, { done: !task.done })
+        }
+      }}
       onClick={
         /* Where no drag engine tracks the row (a board card, say); inside a
            list the engine resolves the tap. */

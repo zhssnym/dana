@@ -7,7 +7,7 @@ section 9's rule is "design may restyle, not reword", so a paraphrase here is
 a specification change nobody recorded.
 
 Two of these are names rather than copy, and 9.1's control table fixes them:
-"Save" for the form's commit control and "Add step" for the steps editor's
+"Save" for the form's commit control and "Add subtask" for the subtasks editor's
 append control. They sit here because this directory renders them and because
 the table's own paragraph warns that three of its eight names begin with
 "add"; a loose spelling puts the collision straight back.
@@ -26,7 +26,7 @@ export function tooLong(limit: number): string {
 }
 
 /** 9.3's cap notice. */
-export const STEP_CAP_NOTICE = 'Limit 50 steps'
+export const STEP_CAP_NOTICE = 'Limit 50 subtasks'
 
 /** 9.3: the assignee dropdown's last entry, which opens the sharing flow. */
 export const INVITE_BY_EMAIL = 'Invite by email'

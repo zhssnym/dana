@@ -24,6 +24,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react"
 import { Plus } from "../lib/icons.js"
 import { InlineInput } from "./ui/inline-field.js"
 import { CheckMark } from "./ui/checkbox.js"
+import { useRowKeys } from "./row-keys.js"
 import { RowMeta } from "./task-meta.js"
 import {
   T_FAST,
@@ -165,16 +166,12 @@ function BoardCard({
   done,
   given,
   wiring,
-  checkbox,
   onOpen,
   onCheck,
   onStar,
 }: {
   task: BoardTask
   done: boolean
-  /* Whether the card carries its own completion box. A status board's
-     columns already are the status, so its cards do not. */
-  checkbox: boolean
   /* What the board and the page have already said, the same contract the row
      reads. It reaches here because a card is the row's kin. */
   given?: TaskRowProps["given"]
@@ -223,11 +220,17 @@ function BoardCard({
       reason: this is what the list holds and what the drag engine moves.
       */
       role="listitem"
-      tabIndex={0}
+      /* The keyboard path (`row-keys.ts`): the board is one Tab stop, the
+         arrows move between cards, Enter opens and Space completes. */
+      data-row-key=""
       onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
+        if (event.target !== event.currentTarget) return
+        if (event.key === "Enter") {
           event.preventDefault()
           onOpen()
+        } else if (event.key === " ") {
+          event.preventDefault()
+          onCheck()
         }
       }}
       style={{
@@ -249,28 +252,25 @@ function BoardCard({
       )}
     >
       <span className="flex items-start gap-2">
-        {checkbox ? (
-          <button
-            type="button"
-            role="checkbox"
-            aria-checked={done}
-            aria-label={done ? `Reopen ${task.title}` : `Complete ${task.title}`}
-            onClick={(event) => {
-              event.stopPropagation()
-              onCheck()
-            }}
-            className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-sm"
-          >
-            <CheckMark checked={done} />
-          </button>
-        ) : null}
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={done}
+          aria-label={done ? `Reopen ${task.title}` : `Complete ${task.title}`}
+          onClick={(event) => {
+            event.stopPropagation()
+            onCheck()
+          }}
+          className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-sm"
+        >
+          <CheckMark checked={done} />
+        </button>
         <span
           className={cn(
             "min-w-0 flex-1 text-sm text-foreground",
             (done || task.status === "abandoned") && "text-muted-foreground",
-            /* Where the column already says Done, a completed title needs no
-               strike; an abandoned one keeps it, to tell the two apart. */
-            ((done && checkbox) || task.status === "abandoned") &&
+            /* Every card carries its box, on a page's board and Assigned's alike. */
+            (done || task.status === "abandoned") &&
               "line-through decoration-muted-foreground",
           )}
         >
@@ -282,7 +282,7 @@ function BoardCard({
           deadline is spent, so it drops its date, as a finished row does. */}
       {hasMeta ? (
         <RowMeta
-          className={cn("-mb-1 mt-0.5 w-full justify-between", checkbox && "pl-7")}
+          className={"-mb-1 mt-0.5 w-full justify-between pl-7"}
           source={{
             ...(task.due === undefined ? {} : { due: task.due }),
             ...(task.folder === undefined ? {} : { folder: task.folder }),
@@ -330,7 +330,6 @@ export function TaskBoard({
   columnRef,
   footer,
   quickAdd,
-  checkbox = true,
   grid = "grid-cols-2",
 }: {
   columns: BoardColumn[]
@@ -358,10 +357,9 @@ export function TaskBoard({
   footer?: ReactNode
   /* The column grid: two by default; a page's status board is three across. */
   grid?: string
-  /* Whether cards carry a completion box; off where the columns are status. */
-  checkbox?: boolean
 }) {
   const zones = useRef(new Map<string, HTMLElement>())
+  const keys = useRowKeys<HTMLDivElement>()
 
   /*
   A column is as short as its cards (`items-start`), so a release anywhere
@@ -384,7 +382,7 @@ export function TaskBoard({
   }
 
   return (
-    <div className={cn("grid items-start gap-3 pb-4", grid)}>
+    <div ref={keys} className={cn("grid items-start gap-3 pb-4", grid)}>
       {columns.map((column) => (
         /*
         9.1's regions rule makes a board column "a named region, named by its
@@ -460,7 +458,6 @@ export function TaskBoard({
                   done={done}
                   given={given}
                   wiring={wiring}
-                  checkbox={checkbox}
                   onOpen={() => onOpenTask(task.id)}
                   onCheck={() => onToggleComplete(task.id, !done)}
                   onStar={() => onToggleImportant(task.id)}

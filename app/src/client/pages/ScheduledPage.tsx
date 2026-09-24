@@ -19,6 +19,7 @@ import { useRowActions } from '../parts/useRowActions.js'
 import { PageBody } from '../components/page/PageStates.js'
 import { PLANNED_EMPTY } from './empty-states.js'
 import { ConfirmDialog, TaskRows, useConfirm, useRowBasis } from './task-rows.js'
+import { useRowKeys } from '../components/row-keys.js'
 
 const SPINE = PLACES.scheduled
 
@@ -27,6 +28,8 @@ export function ScheduledPage(): React.JSX.Element {
   const actions = useRowActions()
   const confirm = useConfirm()
   const basis = useRowBasis()
+  /* One Tab stop for the page's rows; arrows, Enter and Space (`row-keys.ts`). */
+  const keys = useRowKeys<HTMLDivElement>()
   const multiMemberFolderIds = useMultiMemberFolderIds()
 
   const rows = view.data?.rows ?? []
@@ -40,7 +43,7 @@ export function ScheduledPage(): React.JSX.Element {
       : groupRows(narrowed, place.groupBy, place.today, place.viewerId)
 
   return (
-    <div className="space-y-6">
+    <div ref={keys} className="space-y-6">
       <PlaceHead place={place} />
 
       {place.mode === 'calendar' ? (
@@ -65,10 +68,9 @@ export function ScheduledPage(): React.JSX.Element {
                     <TaskRows
                       tasks={group.rows}
                       /* What the date heading says, a row does not repeat: under
-                         "Tomorrow" a row keeps only its time, under "Overdue" its
-                         date loses the late colour the heading already carries. */
+                         "Tomorrow" a row keeps only its time. Overdue dates stay red. */
                       {...(place.groupBy === 'none'
-                        ? { given: { day: 'date' in group && group.date !== null, overdue: group.key === 'overdue' } }
+                        ? { given: { day: 'date' in group && group.date !== null } }
                         : {})}
                       context={context}
                       actions={actions}

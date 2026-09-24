@@ -12,7 +12,6 @@ import { useCreateTask, usePullIntoMyDay } from '../api/mutations.js'
 import { useMe } from '../api/queries.js'
 import { presenterToday } from '../parts/presenters.js'
 import { ViewMenu } from './FilterControl.js'
-import { ViewSwitch } from './ViewSwitch.js'
 import { sortRows } from './filter.js'
 import type { GroupBy, PageFilter } from './filter.js'
 import { usePageFilter } from './filter-store.js'
@@ -132,20 +131,18 @@ export function PlaceFilterChips(_props: { readonly place: Place }): null {
   return null
 }
 
-/** The layout switcher (where the page has more than one) and the View menu. */
+/** The View menu: layout (where the page has more than one), grouping, sort, Show completed. */
 export function PlaceControls({ place }: { readonly place: Place }): React.JSX.Element {
   return (
-    <div className="flex items-center gap-2">
-      {place.spine.views.length > 1 ? (
-        <ViewSwitch choices={place.spine.views} value={place.mode} onChange={place.setMode} />
-      ) : null}
-      <ViewMenu
-        groups={place.spine.groups}
-        completed={place.spine.completed}
-        filter={place.filter}
-        onChange={place.setFilter}
-      />
-    </div>
+    <ViewMenu
+      layouts={place.spine.views}
+      layout={place.mode}
+      onLayout={place.setMode}
+      groups={place.spine.groups}
+      completed={place.spine.completed}
+      filter={place.filter}
+      onChange={place.setFilter}
+    />
   )
 }
 
@@ -169,7 +166,7 @@ export function PlaceHead({
         </h1>
         {bare ? null : <PlaceControls place={place} />}
       </div>
-      {fact === undefined ? null : <p className="mt-1 text-sm text-muted-foreground">{fact}</p>}
+      {fact === undefined ? null : <p className="mt-1 text-xs text-muted-foreground">{fact}</p>}
     </header>
   )
 }

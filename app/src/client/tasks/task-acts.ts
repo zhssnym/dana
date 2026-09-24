@@ -126,7 +126,7 @@ export function moveStepsOut(
           chosen.map((step) => mutateApi(null, { method: 'DELETE', path: `/steps/${step.id}` })),
         ).then(() => {
           settle()
-          showToast(`Moved ${plural(chosen.length, 'step')} to "${made.title}"`)
+          showToast(`Moved ${plural(chosen.length, 'subtask')} to "${made.title}"`)
         }),
       )
       .catch((error: unknown) => showToast(writeFailureMessage(error)))
@@ -156,7 +156,7 @@ export function moveStepsOut(
       showToast(
         chosen.length === 1
           ? `"${chosen[0]?.title ?? ''}" is now a task in "${where}"`
-          : `${chosen.length} steps are now tasks in "${where}"`,
+          : `${chosen.length} subtasks are now tasks in "${where}"`,
       )
     })
     .catch((error: unknown) => showToast(writeFailureMessage(error)))

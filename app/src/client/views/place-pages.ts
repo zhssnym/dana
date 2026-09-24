@@ -63,7 +63,8 @@ export const PLACES: Record<PlaceKey, PlaceSpine> = {
     icon: SunMedium,
     views: ['list'],
     groups: [
-      { value: 'none', label: 'None' },
+      /* Today's own groups: Carried over, Today, In progress, Added to Today. */
+      { value: 'none', label: 'When' },
       { value: 'folder', label: 'Page' },
     ],
     completed: true,
