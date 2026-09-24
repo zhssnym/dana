@@ -45,9 +45,9 @@ illustration rather than by sentence.
 A signed-in visitor goes to `/app` (AC-956, issue #326): `dana.so` and its
 bookmarks otherwise offered "Sign in" over a live 30-day session, and the click
 went round Google for nothing. The check is the `/me` read `main.tsx` already
-prefetches, so it costs no request, and only a 200 moves anyone: a 401, an
-offline or a slow answer keeps the page. A query string keeps it too, so
-`?signin=failed` still says its sentence and `/?about` shows a signed-in
+prefetches, so the load costs no extra request, and only a 200 moves anyone:
+a 401, an offline or a slow answer keeps the page. A query string keeps it too,
+so `?signin=failed` still says its sentence and `/?about` shows a signed-in
 person the page.
 */
 import {
