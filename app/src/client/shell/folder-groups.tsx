@@ -62,13 +62,13 @@ import type { Shelf } from '../../shared/shelves.js'
 
 /** 9.1, normative: the confirm a group deletion carries. */
 export function deleteGroupConfirm(folderCount: number): string {
-  /* The one word is shelf, and what "folders keep their tasks" means to a
-     person is that they come off the shelf and stay. The sentence names the
+  /* A shelf is a "collection" on screen, and what "folders keep their tasks" means to a
+     person is that they leave the collection and stay. The sentence names the
      shelf rather than leaning on a pronoun, and its count agrees with a shelf
      holding one folder. */
   return (
-    `Delete shelf? ${String(folderCount)} folder${folderCount === 1 ? '' : 's'} keep ` +
-    'their tasks and come off the shelf.'
+    `Delete collection? ${String(folderCount)} folder${folderCount === 1 ? '' : 's'} keep ` +
+    'their tasks and leave the collection.'
   )
 }
 
@@ -192,7 +192,7 @@ export function useFolderGroupActions(
           onSuccess: () => {
             pushUndo(
               label === null
-                ? `Took "${folder.name}" off ${previous ?? 'its shelf'}`
+                ? `Took "${folder.name}" out of ${previous ?? 'its collection'}`
                 : `Moved "${folder.name}" to ${label}`,
               () => {
                 relabel.mutate({ id: folder.id, body: { shelf: previous } })
