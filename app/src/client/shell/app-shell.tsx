@@ -63,6 +63,7 @@ import {
   usePendingInvites,
   useShelves,
   useTask,
+  useDiscussion,
 } from '../api/queries.js'
 import { NewFolderDialog } from '../components/index.js'
 import { SearchOverlay } from '../components/search/index.js'
@@ -176,7 +177,11 @@ and the fixed places are their names. Nothing is drawn for a route with no
 name of its own (a redirect on its way somewhere).
 */
 function TopTrail(): React.JSX.Element {
-  const { pathname } = useLocation()
+  const { pathname, search } = useLocation()
+  /* r4 discuss: an open thread is `?discussion=<id>` on its page; the trail
+     names it, and the page's crumb leads back to the thread list. */
+  const discussionId = pathname.startsWith(FOLDER_PREFIX) ? new URLSearchParams(search).get('discussion') : null
+  const discussion = useDiscussion(discussionId ?? '', discussionId !== null)
   const taskId = pathname.startsWith(TASK_PREFIX) ? pathname.slice(TASK_PREFIX.length) : null
   const task = useTask(taskId)
   const shelfId = pathname.startsWith(SHELF_PREFIX) ? pathname.slice(SHELF_PREFIX.length) : null
@@ -184,7 +189,18 @@ function TopTrail(): React.JSX.Element {
 
   let trail: React.JSX.Element | null = null
   if (pathname.startsWith(FOLDER_PREFIX)) {
-    trail = <BreadcrumbTrail folderId={pathname.slice(FOLDER_PREFIX.length)} />
+    const list = new URLSearchParams(search)
+    list.delete('discussion')
+    list.delete('outcome')
+    if (!list.has('facet')) list.set('conversation', 'open')
+    trail = (
+      <BreadcrumbTrail
+        folderId={pathname.slice(FOLDER_PREFIX.length)}
+        {...(discussionId === null
+          ? {}
+          : { current: discussion.data?.title ?? '', folderTo: `${pathname}?${list.toString()}` })}
+      />
+    )
   } else if (taskId !== null) {
     trail = task.data === undefined ? null : (
       <BreadcrumbTrail folderId={task.data.folder.id} current={task.data.title} />

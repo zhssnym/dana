@@ -628,9 +628,10 @@ export function usePlaceDescriptions(
 }
 
 /** GET /discussions/:id (7.27): one Discussion, for its Folder id and state. */
-export function useDiscussion(id: string): UseQueryResult<Discussion> {
+export function useDiscussion(id: string, enabled = true): UseQueryResult<Discussion> {
   return useQuery({
     queryKey: queryKeys.discussion(id),
     queryFn: () => getPlain(discussionSchema, `/discussions/${id}`),
+    enabled,
   })
 }

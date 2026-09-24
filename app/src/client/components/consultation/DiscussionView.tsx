@@ -1,19 +1,19 @@
 /*
-One thread (W-C; #212, #320): its title, its posts, and the reply composer
-always at the bottom.
+One thread (W-C; #212, #320; r4): one quiet line on top — the title, a
+"Closed" label only when it applies, and a "…" menu for the rare acts — then
+the posts, then the reply composer. The top bar's breadcrumb leads back to
+the list, so the thread draws no back button of its own.
 
-"Close thread" asks one optional line, "What was decided?": empty closes the
-thread without a decision (Wave 2 decision 3), words record it, and the
-decision sits under the header as "Decided", with who and when. A closed or
-trashed thread takes no writes (the server answers 409 `discussion_frozen`),
-so its composer becomes a quiet "Closed by X · when · Reopen" line and no post
-offers anything.
+"Close thread…" asks one optional line, "What was decided?": empty closes the
+thread without a decision (Wave 2 decision 3). A closed or trashed thread
+takes no writes (the server answers 409 `discussion_frozen`), so its composer
+becomes one short note — who closed it, when, the decision if any, Reopen.
 
 Which acts are drawn is `discussionPowers`; none of it is authorization. The
 General discussion is the folder's own conversation, so it is never offered
 Move to Trash here (the route still decides).
 */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import {
   useDiscussionThread,
@@ -25,8 +25,9 @@ import {
 } from '../../api/consultation.js'
 import { ApiError } from '../../api/http.js'
 import { useDiscussion } from '../../api/queries.js'
+import { markDiscussionSeen } from '../../lib/discussion-seen.js'
 import { folderGates } from '../../lib/folder-authority.js'
-import { ArrowLeft, MoreHorizontal } from '../../lib/icons.js'
+import { MoreHorizontal } from '../../lib/icons.js'
 import type { PersonResolver, ThreadAuthority } from '../../lib/thread.js'
 import { formatAgo } from '../../parts/format-dates.js'
 import { DISCUSSION_TITLE_MAX, OUTCOME_STATEMENT_MAX } from '../../../shared/consultation.js'
@@ -36,23 +37,10 @@ import { ThreadPosts } from '../thread/ThreadPosts.js'
 import { Button } from '../ui/button.js'
 import { ConfirmDialog } from '../ui/ConfirmDialog.js'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu.js'
-import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover.js'
 import type { ConsultationViewer } from './authority.js'
 import { discussionPowers } from './authority.js'
 
 const NO_POWERS = { edit: false, resolve: false, reopen: false, trash: false, comment: false } as const
-const QUIET =
-  'rounded-sm text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring'
-
-function BackButton({ onBack }: { readonly onBack: () => void }): React.JSX.Element {
-  return (
-    <button type="button" onClick={onBack} className={`${QUIET} inline-flex items-center gap-1`}>
-      <ArrowLeft className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
-      Threads
-    </button>
-  )
-}
-
 export function DiscussionView(props: {
   readonly discussionId: string
   readonly folderId: string
@@ -61,28 +49,22 @@ export function DiscussionView(props: {
   readonly justStarted: boolean
   readonly onBack: () => void
 }): React.JSX.Element {
-  const { discussionId, onBack } = props
+  const { discussionId } = props
   const discussion = useDiscussion(discussionId)
 
   if (discussion.isPending) {
     return (
-      <div className="space-y-3">
-        <BackButton onBack={onBack} />
-        <SkeletonList />
-      </div>
+      <SkeletonList />
     )
   }
   if (discussion.isError) {
     const gone = discussion.error instanceof ApiError && discussion.error.status === 404
     return (
-      <div className="space-y-3">
-        <BackButton onBack={onBack} />
-        {gone ? (
-          <p className="text-sm text-muted-foreground">This thread is in Trash or no longer exists.</p>
-        ) : (
-          <InlineError onRetry={() => void discussion.refetch()} />
-        )}
-      </div>
+      gone ? (
+        <p className="text-sm text-muted-foreground">This thread is in Trash or no longer exists.</p>
+      ) : (
+        <InlineError onRetry={() => void discussion.refetch()} />
+      )
     )
   }
   return <ThreadBody {...props} discussion={discussion.data} onRefused={() => void discussion.refetch()} />
@@ -105,6 +87,8 @@ function ThreadBody(props: {
   const trash = useTrashDiscussion()
   const postComment = usePostDiscussionComment()
   const [confirmTrash, setConfirmTrash] = useState(false)
+  const [closing, setClosing] = useState(false)
+  useEffect(() => { markDiscussionSeen(d.id) }, [d.id, d.last_activity_at])
 
   const comments = thread.data?.comments
   /* Unshared: every post is the creator's and it has never been decided.
@@ -139,62 +123,46 @@ function ThreadBody(props: {
 
   return (
     <div className="min-w-0 space-y-4">
-      <BackButton onBack={onBack} />
-
-      <header className="space-y-1">
-        <div className="flex min-w-0 items-start gap-2">
-          <Title discussion={d} editable={powers.edit} />
-          {powers.resolve || trashable ? (
-            <div className="ml-auto flex shrink-0 items-center gap-1">
-              {powers.resolve ? <CloseThread discussion={d} /> : null}
-              {trashable ? (
-                <DropdownMenu>
-                  <DropdownMenuTrigger
-                    render={
-                      <button
-                        type="button"
-                        aria-label="Thread actions"
-                        className="flex size-7 items-center justify-center rounded-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-                      />
-                    }
-                  >
-                    <MoreHorizontal className="size-4" strokeWidth={1.75} aria-hidden="true" />
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem variant="destructive" onClick={() => { setConfirmTrash(true) }}>
-                      Move to Trash
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+      <header className="flex min-w-0 items-center gap-2">
+        <Title discussion={d} editable={powers.edit} />
+        {trashed || d.state === 'resolved' ? (
+          <span className="shrink-0 text-xs text-muted-foreground">{trashed ? 'In Trash' : 'Closed'}</span>
+        ) : null}
+        {powers.resolve || (powers.reopen && d.state === 'resolved') || trashable ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <button
+                  type="button"
+                  aria-label="Thread actions"
+                  className="ml-auto flex size-7 shrink-0 items-center justify-center rounded-sm text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                />
+              }
+            >
+              <MoreHorizontal className="size-4" strokeWidth={1.75} aria-hidden="true" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {powers.resolve ? (
+                <DropdownMenuItem onClick={() => { setClosing(true) }}>Close thread…</DropdownMenuItem>
               ) : null}
-            </div>
-          ) : null}
-        </div>
-        {/* Inline flow, not a wrapping flex row: on a phone the words wrap
-            after the pill instead of the pill sitting alone on its line. */}
-        <p className="min-w-0 text-sm text-muted-foreground">
-          <StatePill trashed={trashed} closed={d.state === 'resolved'} />
-          <span>
-            {d.is_general
-              ? 'This page’s own conversation'
-              : `${personOf(d.created_by).name} started this ${formatAgo(d.created_at, now)}`}
-            {comments !== undefined ? ` · ${String(comments.length)} ${comments.length === 1 ? 'post' : 'posts'}` : ''}
-          </span>
-        </p>
-        {d.context !== null && d.context !== '' ? (
-          <p className="pt-1 text-sm break-words whitespace-pre-wrap text-muted-foreground">{d.context}</p>
+              {powers.reopen && d.state === 'resolved' ? (
+                <DropdownMenuItem disabled={reopen.isPending} onClick={() => { reopen.mutate(d.id) }}>
+                  Reopen thread
+                </DropdownMenuItem>
+              ) : null}
+              {trashable ? (
+                <DropdownMenuItem variant="destructive" onClick={() => { setConfirmTrash(true) }}>
+                  Move to Trash
+                </DropdownMenuItem>
+              ) : null}
+            </DropdownMenuContent>
+          </DropdownMenu>
         ) : null}
       </header>
-
-      {outcome !== null ? (
-        <section aria-label="Decision" className="space-y-0.5 border-l-2 border-success-600 pl-3">
-          <p className="text-xs font-medium text-muted-foreground">Decided</p>
-          <p className="text-sm break-words whitespace-pre-wrap text-foreground">{outcome.statement}</p>
-          <p className="text-xs text-muted-foreground">
-            {personOf(outcome.actor_id).name} · {formatAgo(outcome.created_at, now)}
-          </p>
-        </section>
+      {d.context !== null && d.context !== '' ? (
+        <p className="-mt-2 text-sm break-words whitespace-pre-wrap text-muted-foreground">{d.context}</p>
       ) : null}
+      {closing ? <CloseThread discussion={d} onDone={() => { setClosing(false) }} /> : null}
 
       <ThreadPosts
         folderId={folderId}
@@ -211,11 +179,14 @@ function ThreadBody(props: {
         {...(frozen
           ? {
               closed: (
-                <p className="border-t border-border pt-3 text-sm text-muted-foreground">
+                <p className="text-sm text-muted-foreground">
                   {trashed
-                    ? 'In Trash'
-                    : `Closed${closedBy !== null ? ` by ${personOf(closedBy).name}` : ''}${closedAt !== null ? ` · ${formatAgo(closedAt, now)}` : ''}`}
-                  {powers.reopen ? (
+                    ? 'This thread is in Trash.'
+                    : `Closed${closedBy !== null ? ` by ${personOf(closedBy).name}` : ''}${closedAt !== null ? ` ${formatAgo(closedAt, now)}` : ''}`}
+                  {!trashed && outcome !== null && outcome.statement !== '' ? (
+                    <span className="text-foreground"> — {outcome.statement}</span>
+                  ) : null}
+                  {powers.reopen && !trashed ? (
                     <>
                       {' · '}
                       <button
@@ -250,21 +221,11 @@ function ThreadBody(props: {
   )
 }
 
-/** Open, Closed or In Trash, as GitHub marks an issue. */
-function StatePill({ trashed, closed }: { readonly trashed: boolean; readonly closed: boolean }): React.JSX.Element {
-  const tone = trashed || closed ? 'bg-muted text-muted-foreground' : 'bg-success-100 text-success-700'
-  return (
-    <span className={`mr-2 inline-block rounded-full px-2 align-middle text-xs font-medium whitespace-nowrap ${tone}`}>
-      {trashed ? 'In Trash' : closed ? 'Closed' : 'Open'}
-    </span>
-  )
-}
-
 /** The title; those who may edit it click it to rename (Enter saves, Escape leaves). */
 function Title({ discussion: d, editable }: { readonly discussion: Discussion; readonly editable: boolean }): React.JSX.Element {
   const update = useUpdateDiscussion()
   const [draft, setDraft] = useState<string | null>(null)
-  const heading = 'min-w-0 flex-1 text-xl font-semibold break-words text-foreground'
+  const heading = 'min-w-0 truncate text-base font-semibold break-words text-foreground'
 
   if (draft === null) {
     return editable ? (
@@ -298,7 +259,7 @@ function Title({ discussion: d, editable }: { readonly discussion: Discussion; r
       value={draft}
       maxLength={DISCUSSION_TITLE_MAX}
       disabled={update.isPending}
-      className="min-w-0 flex-1 rounded-sm bg-transparent text-xl font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="min-w-0 flex-1 rounded-sm bg-transparent text-base font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
       onChange={(event) => { setDraft(event.target.value) }}
       onBlur={save}
       onKeyDown={(event) => {
@@ -314,52 +275,40 @@ function Title({ discussion: d, editable }: { readonly discussion: Discussion; r
   )
 }
 
-/** "Close thread": one optional line, then Close. */
-function CloseThread({ discussion: d }: { readonly discussion: Discussion }): React.JSX.Element {
+/** "Close thread…": one optional line under the title, then Enter. Escape leaves it open. */
+function CloseThread({ discussion: d, onDone }: { readonly discussion: Discussion; readonly onDone: () => void }): React.JSX.Element {
   const resolve = useResolveDiscussion()
-  const [open, setOpen] = useState(false)
   const [statement, setStatement] = useState('')
-  const close = (): void => {
-    const decided = statement.trim()
-    resolve.mutate(
-      { id: d.id, body: decided === '' ? {} : { statement: decided } },
-      {
-        onSuccess: () => {
-          setOpen(false)
-          setStatement('')
-        },
-      },
-    )
-  }
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger render={<Button type="button" variant="ghost" size="sm" className="text-muted-foreground" />}>
-        Close thread
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-72 space-y-2 p-3">
-        <form
-          className="space-y-2"
-          onSubmit={(event) => {
+    <form
+      className="flex min-w-0 items-center gap-2"
+      onSubmit={(event) => {
+        event.preventDefault()
+        const decided = statement.trim()
+        resolve.mutate({ id: d.id, body: decided === '' ? {} : { statement: decided } }, { onSuccess: onDone })
+      }}
+    >
+      <input
+        aria-label="What was decided?"
+        placeholder="What was decided? (optional)"
+        autoFocus
+        value={statement}
+        maxLength={OUTCOME_STATEMENT_MAX}
+        className="h-7 min-w-0 flex-1 rounded-md border border-border bg-background px-2 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-ring"
+        onChange={(event) => { setStatement(event.target.value) }}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
             event.preventDefault()
-            close()
-          }}
-        >
-          <input
-            aria-label="What was decided?"
-            placeholder="What was decided? (optional)"
-            autoFocus
-            value={statement}
-            maxLength={OUTCOME_STATEMENT_MAX}
-            className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-ring"
-            onChange={(event) => { setStatement(event.target.value) }}
-          />
-          <div className="flex justify-end">
-            <Button type="submit" variant="commit" size="sm" disabled={resolve.isPending}>
-              Close
-            </Button>
-          </div>
-        </form>
-      </PopoverContent>
-    </Popover>
+            onDone()
+          }
+        }}
+      />
+      <Button type="button" variant="ghost" size="sm" onClick={onDone}>
+        Cancel
+      </Button>
+      <Button type="submit" variant="outline" size="sm" disabled={resolve.isPending}>
+        Close thread
+      </Button>
+    </form>
   )
 }

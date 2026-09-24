@@ -133,10 +133,13 @@ function Separator({ phoneHidden }: { readonly phoneHidden: boolean }): React.JS
 export function BreadcrumbTrail({
   folderId,
   current,
+  folderTo,
   className,
 }: {
   readonly folderId: string | null
   readonly current?: string | null
+  /** Where `folderId`'s own crumb leads when it is not the default page (a thread's list). */
+  readonly folderTo?: string
   readonly className?: string
 }): React.JSX.Element | null {
   const { pathname } = useLocation()
@@ -207,7 +210,7 @@ export function BreadcrumbTrail({
                 </span>
               ) : (
                 <Link
-                  to={paths.folder(crumb.id ?? '')}
+                  to={folderTo !== undefined && crumb.id === folderId ? folderTo : paths.folder(crumb.id ?? '')}
                   /* The page already under a peek: going to it closes the
                      peek without stacking a second entry for the same page. */
                   replace={paths.folder(crumb.id ?? '') === pathname}

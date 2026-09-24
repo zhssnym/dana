@@ -3,9 +3,11 @@ How a thread's posts sit on screen (r3 discuss): Slack's grouping, pure.
 
 A post **starts a group** — face, name and time drawn — unless the post
 before it is by the same author (by id, never by name: every unknown author
-answers "Someone"), on the same local day, less than five minutes earlier, and
-neither of the two is a reply. Anything else draws only the text, under the
-group's head. A new local day draws a divider first and always starts a group.
+answers "Someone"), on the same local day, less than five minutes earlier, and the
+post is not itself a reply (a reply carries its own reference line).
+Anything else draws only the text, under the
+group's head. A new local day always starts a group, and draws a divider first only when
+the thread spans more than one day (r4: a one-day thread needs no dates).
 
 Days and clock times are the browser's local ones: the thread is read where
 the reader is.
@@ -40,6 +42,8 @@ export function localClock(instant: string): string {
 /** Posts in order (oldest first), each told whether it heads a group and whether a day divider precedes it. */
 export function placePosts(posts: readonly CommentLine[]): PlacedPost[] {
   const placed: PlacedPost[] = []
+  const days = new Set(posts.map((line) => localDay(line.created_at)))
+  const dated = days.size > 1
   let previous: CommentLine | null = null
   let previousDay: string | null = null
   for (const line of posts) {
@@ -50,9 +54,8 @@ export function placePosts(posts: readonly CommentLine[]): PlacedPost[] {
       !newDay &&
       previous.author_id === line.author_id &&
       line.parent_id === null &&
-      previous.parent_id === null &&
       Date.parse(line.created_at) - Date.parse(previous.created_at) < GROUP_WINDOW_MS
-    placed.push({ line, head: !joins, day: newDay ? day : null })
+    placed.push({ line, head: !joins, day: newDay && dated ? day : null })
     previous = line
     previousDay = day
   }
