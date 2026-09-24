@@ -155,6 +155,7 @@ import { Folder as FolderIcon } from 'lucide-react'
 import {
   MessageSquare,
   PanelRight,
+  Repeat2,
   Share2,
   UserRoundCheck,
 } from '../lib/icons.js'
@@ -646,8 +647,33 @@ export function FolderPage({
      the owner's delete dialog asks: somebody to hand it to is not the same as
      somebody who is in it. */
   const others = otherMembers(members, basis.viewerId)
+  /* Issue #205: finite progress counts one-off Tasks only, so a recurring
+     Task's endless occurrences never grow the denominator; they are named
+     apart as "N recurring". `counts` is the fallback for an older server. */
+  const progress = detail?.progress
+  const completionDone = progress?.done ?? detail?.counts.completed ?? 0
   const completionTotal =
+    progress?.total ??
     (detail?.counts.completed ?? 0) + (detail?.counts.pending ?? 0)
+  const recurringActive = progress?.recurring_active ?? 0
+  /* Each Section's own "done/total" rides its heading on the canvas. The
+     canvas is BlockNote's document, whose headings are not ours to render,
+     so the chip is a pseudo-element keyed by the block id: never editable,
+     never saved, and no edit to the canvas itself. Ids are zod-checked uuids
+     and the text is digits, so nothing in the rule is user-authored. */
+  const sectionChips = (detail?.section_progress ?? [])
+    .filter((entry) => entry.total > 0 || entry.recurring_active > 0)
+    .map((entry) => {
+      const parts = [
+        entry.total > 0 ? `${entry.done}/${entry.total}` : '',
+        entry.recurring_active > 0 ? `↻ ${entry.recurring_active}` : '',
+      ].filter((part) => part !== '')
+      return `.dana-writing-canvas .bn-block[data-id="${entry.section_block_id}"] > .bn-block-content[data-content-type='heading']::after{content:"${parts.join(' · ')}"}`
+    })
+  const sectionChipStyle =
+    sectionChips.length === 0
+      ? ''
+      : `.dana-writing-canvas .bn-block-content[data-content-type='heading']::after{margin-inline-start:calc(var(--spacing) * 2);align-self:center;flex-shrink:0;font-size:var(--text-xs);line-height:var(--text-xs--line-height);font-weight:var(--font-weight-normal);color:var(--muted-foreground);font-variant-numeric:tabular-nums;user-select:none;pointer-events:none} ${sectionChips.join(' ')}`
   /* The description is offered at rest on a folder nobody has dressed, where a
      hidden affordance is one nobody discovers. */
   const pristine =
@@ -1511,9 +1537,25 @@ export function FolderPage({
                     {detail?.name ?? ''}
                   </h1>
                 )}
-                {completionTotal > 0 ? (
-                  <span className="shrink-0 text-xs leading-4 text-muted-foreground tabular-nums">
-                    {detail?.counts.completed ?? 0} of {completionTotal} done
+                {completionTotal > 0 || recurringActive > 0 ? (
+                  <span className="flex shrink-0 items-center gap-1.5 text-xs leading-4 text-muted-foreground tabular-nums">
+                    {completionTotal > 0 ? (
+                      <span>
+                        {completionDone} of {completionTotal} done
+                      </span>
+                    ) : null}
+                    {completionTotal > 0 && recurringActive > 0 ? (
+                      <span aria-hidden="true">·</span>
+                    ) : null}
+                    {recurringActive > 0 ? (
+                      <span
+                        className="inline-flex items-center gap-0.5"
+                        title="Recurring Tasks are not counted in the total"
+                      >
+                        <Repeat2 className="size-3" strokeWidth={1.75} aria-hidden="true" />
+                        {recurringActive} recurring
+                      </span>
+                    ) : null}
                   </span>
                 ) : null}
               </div>
@@ -1612,6 +1654,7 @@ export function FolderPage({
                   </div>
                 ) : (
                   <Suspense fallback={<p role="status">Loading writing…</p>}>
+                  {sectionChipStyle === '' ? null : <style>{sectionChipStyle}</style>}
                   {page.data ? <FolderCanvas
                     key={id}
                     page={page.data}
