@@ -65,6 +65,7 @@ import type { DbClient } from '../../../db/client.js'
 import type { ObjectStore } from '../files/store.js'
 import { pruneExpiredSessions } from '../auth/index.js'
 import { reclaimUnwornPictures } from '../domain/files.js'
+import { destroyDiscussions } from '../domain/consultation.js'
 import { destroyFacets } from '../domain/facets.js'
 import { destroyFolders, destroyTasks, removeObjects } from '../domain/trash.js'
 import { SWEEP_BATCH, inTransaction, rowsOf } from '../database.js'
@@ -454,10 +455,23 @@ export function createReminderPass(deps: ReminderPassDeps): ReminderPass {
            LIMIT ${SWEEP_BATCH}
            FOR UPDATE SKIP LOCKED`,
     )
+    /* The fourth Trash kind (issue #320): a trashed Discussion, on the same
+       window, through `domain/consultation.ts`'s own 11.7 collection. Unlike a
+       facet it does collect files: its comments cascade with it, and their
+       uploads had no other reference. */
+    const discussionPurge = await destroyDiscussions(
+      db,
+      sql`SELECT id FROM discussions
+           WHERE trashed_at < now() - interval '30 days'
+           LIMIT ${SWEEP_BATCH}
+           FOR UPDATE SKIP LOCKED`,
+    )
+    await removeObjects(deps.fileStore, discussionPurge.fileIds)
     const purgedTrash =
       folderPurge.folderIds.length +
       taskPurge.taskIds.length +
-      facetPurge.length
+      facetPurge.length +
+      discussionPurge.discussionIds.length
     const purgedEvents = (
       await rowsOf(
         db,

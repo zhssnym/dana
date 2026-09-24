@@ -35,6 +35,7 @@ import type { ObjectStore } from '../files/store.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
+import { trashedDiscussions } from './consultation.js'
 import { trashedFacets } from './facets.js'
 import { mayPerform, presetOf } from './folder-access.js'
 import type { FolderActorFacts } from './folder-access.js'
@@ -103,8 +104,12 @@ export async function trashView(
      text at read time -- and that rule must have exactly one implementation or
      a Trash row will one day say a different word from the tab it came from. */
   const facets = await trashedFacets(db, viewerId)
+  /* The fourth kind (issue #320), read by `domain/consultation.ts` for the
+     same one-implementation reason. */
+  const discussions = await trashedDiscussions(db, viewerId)
   return {
     facets,
+    discussions,
     tasks: tasks.map((row): TrashedTask => ({
       id: String(row.id),
       title: String(row.title),

@@ -106,6 +106,7 @@ import {
   STUB_PHOTO_ID,
   makeComment,
   makeDependency,
+  makeDiscussion,
   makeFacet,
   makeFile,
   makeInvite,
@@ -120,6 +121,7 @@ import {
   makeTask,
   memoryFileStore,
   startUpstreamStub,
+  trashDiscussion,
   trashFacet,
   trashFolder,
   trashTask,
@@ -317,6 +319,8 @@ type ResourceId =
      through a Discussion route, so the comment routes' rows stand on their
      own. */
   | 'generalDiscussionId'
+  /* Issue #320: a trashed Discussion, for the Trash pair (7.28). */
+  | 'trashedDiscussionId'
 
 interface Fixtures extends Record<ResourceId, string> {
   owner: Actor
@@ -396,6 +400,13 @@ async function fixturesOf(): Promise<Fixtures> {
   const trashedFacetId = await makeFacet(owner, folderId, 'ac397 doomed facet')
   await trashFacet(owner, folderId, trashedFacetId)
 
+  const trashedDiscussionId = await makeDiscussion(
+    owner,
+    folderId,
+    'ac397 doomed discussion',
+  )
+  await trashDiscussion(owner, trashedDiscussionId)
+
   /* A Discussion written straight to the table: the input-round routes are
      what this sweep measures, and they need only the row. The round is
      opened through its own route, as its owner. */
@@ -457,6 +468,7 @@ async function fixturesOf(): Promise<Fixtures> {
     outcomeId,
     generalDiscussionId,
     inputRoundId,
+    trashedDiscussionId,
   }
   return fixtures
 }
@@ -1934,6 +1946,138 @@ const TABLE = new Map<string, Row>([
     },
   ],
   /* -------------------------------------------------------------- *
+   * Consultation (7.28, issue #320)
+   * -------------------------------------------------------------- */
+  /*
+  Every `/discussions/:id` route resolves the Discussion to its Folder and
+  asks `accessOf` before reading a body, so a stranger is 404 whatever they
+  send. `fx.member` holds Can edit, which every Discussion act below Full
+  control admits, so the one member row is the permanent delete.
+  */
+  [
+    'GET /api/v1/folders/:id/discussions',
+    {
+      attempt: (fx) => ({ path: `/folders/${fx.folderId}/discussions` }),
+      stranger: {
+        expected: 404,
+        rule: "7.28 and 10.2: the Consultation list is `discussion.read`'s, and a non-member sees nothing of the Folder",
+      },
+    },
+  ],
+  [
+    'POST /api/v1/folders/:id/discussions',
+    {
+      attempt: (fx) => ({
+        path: `/folders/${fx.folderId}/discussions`,
+        body: { title: 'ac397 intruder' },
+      }),
+      stranger: {
+        expected: 404,
+        rule: "7.28 and 10.2: starting a Discussion in somebody else's Folder is 404 and never 403",
+      },
+    },
+  ],
+  [
+    'GET /api/v1/discussions/:id',
+    {
+      attempt: (fx) => ({ path: `/discussions/${fx.discussionId}` }),
+      stranger: {
+        expected: 404,
+        rule: "7.28 and 10.2: a Discussion is readable by its Folder's members only, and a refusal must not confirm it exists",
+      },
+    },
+  ],
+  [
+    'PATCH /api/v1/discussions/:id',
+    {
+      attempt: (fx) => ({
+        path: `/discussions/${fx.discussionId}`,
+        body: { title: 'ac397 renamed' },
+      }),
+      stranger: {
+        expected: 404,
+        rule: '7.28: existence before the body, so a non-member is 404 on the edit',
+      },
+    },
+  ],
+  [
+    'DELETE /api/v1/discussions/:id',
+    {
+      attempt: (fx) => ({ path: `/discussions/${fx.discussionId}` }),
+      stranger: {
+        expected: 404,
+        rule: "7.28 and 7.13: a non-member cannot move somebody else's Discussion to Trash, and is told nothing about it",
+      },
+    },
+  ],
+  [
+    'POST /api/v1/discussions/:id/resolve',
+    {
+      attempt: (fx) => ({
+        path: `/discussions/${fx.discussionId}/resolve`,
+        body: { statement: 'ac397 intruder outcome' },
+      }),
+      stranger: {
+        expected: 404,
+        rule: '7.28: resolving records an Outcome in the Folder, so a non-member is 404 before the body is read',
+      },
+    },
+  ],
+  [
+    'POST /api/v1/discussions/:id/reopen',
+    {
+      attempt: (fx) => ({ path: `/discussions/${fx.discussionId}/reopen`, body: {} }),
+      stranger: {
+        expected: 404,
+        rule: '7.28: reopening is a Discussion act, 404 to a non-member',
+      },
+    },
+  ],
+  [
+    'GET /api/v1/discussions/:id/outcomes',
+    {
+      attempt: (fx) => ({ path: `/discussions/${fx.discussionId}/outcomes` }),
+      stranger: {
+        expected: 404,
+        rule: '7.28: Outcome history is read with its Discussion, by members only',
+      },
+    },
+  ],
+  [
+    'GET /api/v1/outcomes/:id',
+    {
+      attempt: (fx) => ({ path: `/outcomes/${fx.outcomeId}` }),
+      stranger: {
+        expected: 404,
+        rule: "7.28 and #320: an Outcome's direct route is exactly as visible as its Discussion, and inaccessible is indistinguishable from nonexistent",
+      },
+    },
+  ],
+  [
+    'POST /api/v1/discussions/:id/restore',
+    {
+      attempt: (fx) => ({ path: `/discussions/${fx.trashedDiscussionId}/restore` }),
+      stranger: {
+        expected: 404,
+        rule: '7.13 and 7.28: access to a trashed row is by membership at read time, so a non-member is 404',
+      },
+    },
+  ],
+  [
+    'DELETE /api/v1/trash/discussions/:id',
+    {
+      attempt: (fx) => ({ path: `/trash/discussions/${fx.trashedDiscussionId}` }),
+      stranger: {
+        expected: 404,
+        rule: '7.13 and 7.28: a non-member sees nothing in Trash either',
+      },
+      member: {
+        expected: 403,
+        rule: '#320 and 7.28: permanently deleting a Discussion is `discussion.purge`, Full control, and `fx.member` holds Can edit',
+      },
+    },
+  ],
+  /* -------------------------------------------------------------- *
    * Consultation input rounds (issue #321)
    *
    * Every route resolves the Discussion's Folder membership first, inside
@@ -2305,6 +2449,11 @@ describe('AC-397 every id-bearing route refuses a stranger', () => {
       what: 'the outcome, as a Dana Link',
       path: `/references/outcome/${fx.outcomeId}`,
       holds: fx.outcomeId,
+    }),
+    trashedDiscussionId: (fx) => ({
+      what: 'the trashed discussion',
+      path: '/trash',
+      holds: fx.trashedDiscussionId,
     }),
     inputRoundId: (fx) => ({
       what: 'the input round, through its discussion',

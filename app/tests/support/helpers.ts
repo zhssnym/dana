@@ -394,6 +394,21 @@ export async function cleanupUsers(
   const blocking = await blockingColumnsOnUsers(db)
 
   for (const id of userIds) {
+    /* Issue #320: a departing account's Outcome row goes with its actor
+       (`discussion_outcomes.actor_id` is NOT NULL), but it may be the
+       *current* Outcome of a Discussion that survives, and
+       `discussions_current_outcome_fkey` then refuses the delete. The one
+       way through that changes nothing but the pointer is the product's own
+       reopen: back to open, the pointer cleared, which
+       `discussions_resolution_check` requires as one write. */
+    await db.execute(
+      sql`UPDATE discussions
+             SET state = 'open', resolved_at = NULL, resolved_by = NULL,
+                 current_outcome_id = NULL
+           WHERE current_outcome_id IN (
+                   SELECT o.id FROM discussion_outcomes o
+                    WHERE o.actor_id = ${id})`,
+    )
     for (const reference of blocking) {
       const target = sql.raw(
         `"${reference.table_schema}"."${reference.table_name}"`,
