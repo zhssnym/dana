@@ -382,8 +382,15 @@ export function FolderPage({
   const [panelOpen, setPanelOpen] = useState(arrivingAtThread)
 
   const connections = useConnections()
+  /* Desk, the account's default folder, has no page-level conversation
+     (issue #195): its Tasks carry their own threads, and a thread on the
+     person's own landing page is nobody's conversation. Every home of the
+     folder thread below is gated on this; comments already there stay in the
+     data and in exports. */
+  const deskHasNoThread = folder.data?.is_default === true
   const threadOpen =
-    conversationHome === 'foot' ? footThreadOpen : panelOpen
+    !deskHasNoThread &&
+    (conversationHome === 'foot' ? footThreadOpen : panelOpen)
 
   /*
   9.6's two right-edge panels take room rather than covering. Each publishes its
@@ -397,7 +404,8 @@ export function FolderPage({
   which a dialog answers better; the conversation and the sharing panel are the
   two you work beside.
   */
-  const conversationPanelOpen = conversationHome === 'panel' && panelOpen
+  const conversationPanelOpen =
+    !deskHasNoThread && conversationHome === 'panel' && panelOpen
   useReserveRightEdge(CONVERSATION_PANEL_WIDTH, conversationPanelOpen)
   useReserveRightEdge(SHARING_PANEL_WIDTH, sharing)
   const thread = useThread(id, null, threadOpen)
@@ -569,7 +577,12 @@ export function FolderPage({
   */
   const facts = viewerFacts(detail, members, basis.viewerId)
   const gates = facts === null ? null : folderGates(facts)
-  const facetRows = facets.data?.facets ?? []
+  /* Desk's Consultation facet is its page-level conversation, which Desk does
+     not have (issue #195). It stays in the data, counted as hidden so the
+     shared reorder below still names every row, and is left off the strip. */
+  const facetRows = (facets.data?.facets ?? []).map((facet) =>
+    isDefault && facet.kind === 'consultation' ? { ...facet, hidden: true } : facet,
+  )
   const requestedFacetId = search.get('facet')
   const mainFacet = facetRows.find((facet) => facet.kind === 'main')
   const purposeFacet = facetRows.find((facet) => facet.kind === 'purpose')
@@ -1172,7 +1185,7 @@ export function FolderPage({
         <WindowBarActions order={2}>
           {/* The conversation's opener when its home is the panel; the foot
               section is its own opener otherwise. */}
-          {conversationHome === 'panel' ? (
+          {conversationHome === 'panel' && !isDefault ? (
             <Button
               variant="ghost"
               size="icon"
@@ -1527,7 +1540,9 @@ export function FolderPage({
 
         {facets.data ? (
           <FolderFacetNavigator
-            facets={facetRows}
+            facets={isDefault
+              ? facetRows.filter((facet) => facet.kind !== 'consultation')
+              : facetRows}
             activeId={activeFacet?.id ?? ''}
             capabilities={facetCapabilities}
             page={page.data}
@@ -1650,7 +1665,7 @@ export function FolderPage({
 
           {/* The conversation's foot home: a closed section at the page's
               foot (9.6). Its other home is the side panel below. */}
-          {conversationHome === 'foot' ? (
+          {conversationHome === 'foot' && !isDefault ? (
             <CollapsibleSection
               name="Conversation"
               defaultOpen={false}
