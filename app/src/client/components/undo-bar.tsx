@@ -12,11 +12,9 @@ clears the stack: Ctrl/Cmd+Z still reaches the act afterwards.
 
 import { useEffect, useState } from 'react'
 
-import { RotateCcw } from '../lib/icons.js'
 import { undoLast, undoShortcutApplies, UNDO_WINDOW_MS, useUndoStack } from '../shell/undo.js'
 import { NOTICE, NOTICE_BUTTON } from '../state/ToastRegion.js'
 import { Button } from './ui/button.js'
-import { cn } from './ui/utils.js'
 
 export function UndoBar(): React.JSX.Element | null {
   const stack = useUndoStack()
@@ -56,12 +54,12 @@ export function UndoBar(): React.JSX.Element | null {
       <span className="truncate">{top.label}</span>
       <Button
         variant="ghost"
-        className={cn('shrink-0', NOTICE_BUTTON)}
+        size="sm"
+        className={NOTICE_BUTTON}
         onClick={() => {
           undoLast()
         }}
       >
-        <RotateCcw className="size-3.5" strokeWidth={2} aria-hidden="true" />
         Undo
       </Button>
     </div>

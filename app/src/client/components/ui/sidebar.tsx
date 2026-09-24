@@ -6,7 +6,7 @@ import { useRender } from "@base-ui/react/use-render"
 import { cva, type VariantProps } from "class-variance-authority"
 
 import { useIsMobile } from "./use-mobile.js"
-import { COLLAPSE_SIDEBAR, EXPAND_SIDEBAR } from "./copy.js"
+import { CLOSE_SIDEBAR, COLLAPSE_SIDEBAR, EXPAND_SIDEBAR } from "./copy.js"
 import { cn } from "./utils.js"
 import { Button } from "./button.js"
 import { Input } from "./input.js"
@@ -292,14 +292,14 @@ function Sidebar({
   )
 }
 
-/* State-specific names, "Collapse sidebar" / "Expand sidebar" (9.1, AC-182); callers may override aria-label. */
+/* State-specific names, "Collapse sidebar" / "Expand sidebar" (9.1, AC-182), and "Close sidebar" on a phone, where it closes the drawer; callers may override aria-label. */
 function SidebarTrigger({
   className,
   onClick,
   ...props
 }: React.ComponentProps<typeof Button>) {
-  const { state, toggleSidebar } = useSidebar()
-  const name = state === "expanded" ? COLLAPSE_SIDEBAR : EXPAND_SIDEBAR
+  const { isMobile, state, toggleSidebar } = useSidebar()
+  const name = isMobile ? CLOSE_SIDEBAR : state === "expanded" ? COLLAPSE_SIDEBAR : EXPAND_SIDEBAR
 
   return (
     <Button

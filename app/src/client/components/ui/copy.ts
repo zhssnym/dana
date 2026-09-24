@@ -38,6 +38,8 @@ export const MARK_AS_NOT_DONE = 'Mark as not done'
  */
 export const COLLAPSE_SIDEBAR = 'Collapse sidebar'
 export const EXPAND_SIDEBAR = 'Expand sidebar'
+/** The same control on a phone, where the sidebar is a drawer and it closes it. */
+export const CLOSE_SIDEBAR = 'Close sidebar'
 
 /**
  * 9.1's inline state copy: the line a page shows beside a read that failed, and

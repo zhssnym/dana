@@ -4,7 +4,7 @@
 **This file owns the route wiring and server reads.** The visible layout is
 `components/settings-page-content.tsx`, which receives what it needs instead of
 opening a second settings query inside presentation code. What the page adds is
-the sample workspace's confirm and 7.1's `DELETE /me`, whose body carries the
+7.1's `DELETE /me`, whose body carries the
 literal the person typed and after which there is nothing left to navigate a
 signed-in client to.
 */
@@ -14,7 +14,7 @@ import { mutateApi } from '../api/http.js'
 import { useBundle } from '../api/queries.js'
 import { SettingsPageContent } from '../components/settings-page-content.js'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog.js'
-import { SAMPLE_COPY, useSampleActs } from '../onboarding/sample.js'
+import { useSampleActs } from '../onboarding/sample.js'
 import { paths } from '../routes.js'
 
 export function SettingsPage(): React.JSX.Element {
@@ -36,7 +36,7 @@ export function SettingsPage(): React.JSX.Element {
                 folders: sample.counts?.folders ?? 0,
               }
         }
-        onRemoveSample={sample.askRemove}
+        onRemoveSample={sample.remove}
         onRestoreSample={sample.restore}
         previewState={bundle.isPending ? 'loading' : bundle.isError ? 'error' : null}
         onDeleteAccount={() => setDeleting(true)}
@@ -61,13 +61,6 @@ export function SettingsPage(): React.JSX.Element {
               window.location.assign(paths.landing)
             })
           }}
-        />
-      ) : null}
-      {sample.confirming ? (
-        <ConfirmDialog
-          message={SAMPLE_COPY.confirm}
-          onContinue={sample.remove}
-          onCancel={sample.cancelRemove}
         />
       ) : null}
     </>

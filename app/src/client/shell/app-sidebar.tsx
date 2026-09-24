@@ -76,7 +76,6 @@ import {
   useRestoreFolder,
 } from '../api/mutations.js'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog.js'
-import { Separator } from '../components/ui/separator.js'
 import { leaveFolderConfirm } from '../lib/object-acts.js'
 import { showToast } from '../state/toasts.js'
 import { pushUndo, undoLabel } from './undo.js'
@@ -217,6 +216,141 @@ function writePageFolds(folded: ReadonlySet<string>): void {
   } catch {
     /* A browser that keeps nothing still folds for this session. */
   }
+}
+
+/*
+The Library's keyboard path: one Tab stop for the whole tree (roving
+tabindex), the arrows between rows. A row is a page's link or a collection
+heading's link (its fold, for a bare label). The row's other buttons (fold,
+"+", "…") stay for the pointer and leave the Tab order; Shift+F10 opens the
+"…". `folder-row.tsx` draws the page rows, so their tabindex is set here on
+the DOM, again whenever rows mount.
+*/
+const TREE_ROW = '[data-page-row] > a, [data-tree-row]'
+
+function pageRowLink(root: ParentNode, id: string): HTMLElement | null {
+  return root.querySelector<HTMLElement>(`[data-page-row="${CSS.escape(id)}"] > a`)
+}
+
+function useLibraryKeys(tree: PageTree, mayRename: (id: string) => boolean, startRename: (id: string) => void): {
+  readonly ref: React.RefObject<HTMLDivElement | null>
+  readonly onKeyDown: (event: React.KeyboardEvent) => void
+  readonly onFocus: (event: React.FocusEvent) => void
+  readonly onBlur: (event: React.FocusEvent) => void
+} {
+  const ref = useRef<HTMLDivElement>(null)
+  /* The row that last held focus, while focus is inside the tree. */
+  const focused = useRef<HTMLElement | null>(null)
+
+  const rows = useCallback((): HTMLElement[] => {
+    const root = ref.current
+    if (root === null) return []
+    return [...root.querySelectorAll<HTMLElement>(TREE_ROW)].filter(
+      (row) => row.getClientRects().length > 0,
+    )
+  }, [])
+
+  const sync = useCallback((): void => {
+    const root = ref.current
+    if (root === null) return
+    const all = rows()
+    const held = focused.current
+    const stop =
+      (held !== null && all.includes(held) ? held : null) ??
+      all.find((row) => row.getAttribute('aria-current') === 'page') ??
+      all[0]
+    for (const row of root.querySelectorAll<HTMLElement>(TREE_ROW)) {
+      const want = row === stop ? 0 : -1
+      if (row.tabIndex !== want) row.tabIndex = want
+    }
+    for (const inner of root.querySelectorAll<HTMLElement>('[data-page-row] button')) {
+      if (inner.tabIndex !== -1) inner.tabIndex = -1
+    }
+  }, [rows])
+
+  /* Every render, and whenever a row mounts on its own (a fold, the "+"). */
+  useEffect(() => {
+    sync()
+  })
+  useEffect(() => {
+    const root = ref.current
+    if (root === null) return
+    const observer = new MutationObserver(sync)
+    observer.observe(root, { childList: true, subtree: true })
+    return () => {
+      observer.disconnect()
+    }
+  }, [sync])
+
+  const onFocus = (event: React.FocusEvent): void => {
+    const target = event.target as HTMLElement
+    if (!target.matches(TREE_ROW)) return
+    focused.current = target
+    sync()
+  }
+  const onBlur = (event: React.FocusEvent): void => {
+    if (ref.current?.contains(event.relatedTarget) === true) return
+    focused.current = null
+    sync()
+  }
+
+  const onKeyDown = (event: React.KeyboardEvent): void => {
+    const row = event.target as HTMLElement
+    if (!row.matches(TREE_ROW) || event.altKey || event.ctrlKey || event.metaKey) return
+    const all = rows()
+    const index = all.indexOf(row)
+    if (index === -1) return
+    const pageId = row.parentElement?.getAttribute('data-page-row') ?? null
+    const head = pageId === null ? row.closest<HTMLElement>('[data-shelf-head]') : null
+    /* The fold: a page's chevron, or a collection heading's trigger. */
+    const fold =
+      pageId !== null
+        ? row.parentElement?.querySelector<HTMLElement>(':scope > [data-fold]')
+        : head?.querySelector<HTMLElement>('[aria-expanded]')
+    const open = fold?.getAttribute('aria-expanded')
+    const go = (next: HTMLElement | null | undefined): void => {
+      next?.focus()
+    }
+    switch (event.key) {
+      case 'ArrowDown':
+        go(all[index + 1])
+        break
+      case 'ArrowUp':
+        go(all[index - 1])
+        break
+      case 'Home':
+        go(all[0])
+        break
+      case 'End':
+        go(all.at(-1))
+        break
+      case 'ArrowRight':
+        if (open === 'false') fold?.click()
+        else if (open === 'true') go(all[index + 1])
+        break
+      case 'ArrowLeft': {
+        if (open === 'true') {
+          fold?.click()
+          break
+        }
+        const parent = pageId === null ? null : (tree.parent.get(pageId) ?? null)
+        go(
+          parent !== null && ref.current !== null
+            ? pageRowLink(ref.current, parent)
+            : row.closest('[data-shelf]')?.querySelector<HTMLElement>('[data-tree-row]'),
+        )
+        break
+      }
+      case 'F2':
+        if (pageId !== null && mayRename(pageId)) startRename(pageId)
+        break
+      default:
+        return
+    }
+    event.preventDefault()
+  }
+
+  return { ref, onKeyDown, onFocus, onBlur }
 }
 
 /** What the drop key says to the engine: the tree answers this point. */
@@ -417,6 +551,12 @@ function usePageTreeValue({
     rename: (folder, name) => {
       setRenaming(null)
       if (name !== null) renameFolder.mutate({ id: folder.id, body: { name } })
+      /* The field unmounts with focus in it: hand focus back to the row,
+         unless the rename ended because focus went somewhere else. */
+      requestAnimationFrame(() => {
+        const at = document.activeElement
+        if (at === null || at === document.body) pageRowLink(document, folder.id)?.focus()
+      })
     },
     trash: (folder) => {
       /* An owner with other members is asked whether to hand it on first;
@@ -653,6 +793,14 @@ function SidebarFolderRow({
          by role, each run here. The page's own "…" keeps History, Tabs…,
          Import… and Export. */
       acts={{
+        /* In the menu as well as on the hover "+", which is out of the Tab
+           order: this is the keyboard's way to it (Shift+F10). */
+        'add-page':
+          gates.identity && !folder.is_default
+            ? () => {
+                pages.addInside(folder)
+              }
+            : undefined,
         rename: gates.identity
           ? () => {
               pages.startRename(folder.id)
@@ -772,6 +920,7 @@ function FolderGroupBlock({
   return (
     <section
       aria-label={group.label}
+      data-shelf=""
       ref={sectionRef}
       className={cn(
         'relative rounded-md',
@@ -799,6 +948,7 @@ function FolderGroupBlock({
       <Collapsible open={open} onOpenChange={setOpen}>
         <div
           {...grip(drag.handleProps)}
+          data-shelf-head=""
           onContextMenu={(event) => {
             event.preventDefault()
             menuTrigger.current?.click()
@@ -813,6 +963,8 @@ function FolderGroupBlock({
           <CollapsibleTrigger
             aria-label={`Show the pages in ${group.label}`}
             data-no-drag
+            /* A bare label has no page: its fold is the heading's one stop. */
+            {...(group.shelf === null ? { 'data-tree-row': '' } : { tabIndex: -1 })}
             className="relative flex size-6 shrink-0 items-center justify-center rounded-sm outline-none hover:bg-sidebar-accent"
           >
             <Glyph
@@ -836,6 +988,7 @@ function FolderGroupBlock({
             <Link
               to={paths.shelf(group.shelf.id)}
               data-no-drag
+              data-tree-row=""
               className="flex h-full min-w-0 flex-1 items-center rounded-sm outline-none"
             >
               <span className="truncate">{group.label}</span>
@@ -871,6 +1024,7 @@ function FolderGroupBlock({
                   variant="ghost"
                   size="icon"
                   ref={menuTrigger}
+                  tabIndex={-1}
                   className="size-6 rounded-sm text-muted-foreground opacity-0 group-hover/folder-group:opacity-100 hover:bg-sidebar-accent hover:text-foreground focus-visible:opacity-100 data-popup-open:opacity-100 [@media(hover:none)]:opacity-100"
                   aria-label={MORE_ACTIONS}
                   data-no-drag
@@ -1252,6 +1406,14 @@ export function AppSidebar({
     groups: groupActions,
     activeId: activeFolderId,
   })
+  const libraryKeys = useLibraryKeys(
+    pageTree.tree,
+    (id) => {
+      const folder = pageTree.tree.byId.get(id)
+      return folder !== undefined && mayEditPage(folder)
+    },
+    pageTree.startRename,
+  )
 
   return (
     <Sidebar
@@ -1265,23 +1427,37 @@ export function AppSidebar({
     >
       {/* Solid and above the list, so nothing scrolling in the list shows
           through the head; the list below is the one scroll container. */}
-      <SidebarHeader className="relative z-40 h-(--shell-windowbar-height) shrink-0 justify-center bg-sidebar px-2 py-0">
+      <SidebarHeader
+        className={cn(
+          'relative z-40 shrink-0 justify-center bg-sidebar py-0',
+          isMobile ? 'h-12 px-1' : 'h-(--shell-windowbar-height) px-2',
+        )}
+      >
         {/* One line: Search, the bell, collapse. On a phone the phone bar holds
-            the one search entry, so the line keeps only the two buttons. */}
-        <div className="flex items-center gap-0.5">
+            the one search entry, so the line keeps only the two buttons, at
+            the phone bar's size. */}
+        <div className={cn('flex items-center', isMobile ? 'gap-1' : 'gap-0.5')}>
           {isMobile ? <span className="min-w-0 flex-1" /> : <SearchField onOpen={onOpenSearch} />}
-          <NotificationsBell />
+          <NotificationsBell className={isMobile ? 'size-10 [&_svg]:size-5' : undefined} />
           <SidebarTrigger
-            /* On a phone it closes the drawer, and says so. */
-            {...(isMobile ? { 'aria-label': 'Close', title: 'Close' } : {})}
-            className="size-(--control-height) shrink-0 rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-foreground [&_svg]:!size-4"
+            className={cn(
+              'shrink-0 rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-foreground',
+              isMobile ? 'size-10 [&_svg]:!size-5' : 'size-(--control-height) [&_svg]:!size-4',
+            )}
           />
         </div>
       </SidebarHeader>
-      <Separator className="mx-3 data-horizontal:w-auto" />
 
-      <SidebarContent className="pt-2 pb-2" onContextMenu={openGroundMenu}>
-        <SidebarGroup className="px-2 py-0">
+      <SidebarContent className="pt-0 pb-2" onContextMenu={openGroundMenu}>
+        {/* Focus and Library: one heading style and one gap above each
+            heading, the head row included; the heading row keeps room for a
+            "+" as Library's has. */}
+        <SidebarGroup className="px-2 pt-(--space-group) pb-0">
+          <div className="flex h-(--shell-sidebar-row-height) items-center pr-1 pl-2">
+            <h2 className="min-w-0 flex-1 truncate text-xs font-medium text-muted-foreground">
+              Focus
+            </h2>
+          </div>
           <SidebarGroupContent>
             <SidebarMenu>
               {LISTS.map((page) => (
@@ -1297,7 +1473,13 @@ export function AppSidebar({
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup className="px-2 pt-(--space-group) pb-0">
+        <SidebarGroup
+          ref={libraryKeys.ref}
+          onKeyDown={libraryKeys.onKeyDown}
+          onFocus={libraryKeys.onFocus}
+          onBlur={libraryKeys.onBlur}
+          className="px-2 pt-(--space-group) pb-0"
+        >
           <div className="flex h-(--shell-sidebar-row-height) items-center pr-1 pl-2">
             <h2 className="min-w-0 flex-1 truncate text-xs font-medium text-muted-foreground">
               Library

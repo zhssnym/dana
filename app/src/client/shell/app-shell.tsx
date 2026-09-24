@@ -76,7 +76,9 @@ import {
 } from '../components/ui/sidebar.js'
 import { InviteGate } from '../pages/InviteGate.js'
 import { useUpdateAffordance } from '../pwa/useUpdateAffordance.js'
-import { navPages, paths } from '../routes.js'
+import { paths } from '../routes.js'
+import { browserTimezone } from '../api/tz.js'
+import { setViewerTimezone } from '../lib/viewer.js'
 import { ToastRegion } from '../state/ToastRegion.js'
 import { AppSidebar } from './app-sidebar.js'
 import { useFolderGroupActions } from './folder-groups.js'
@@ -129,7 +131,7 @@ function TopBar({ onOpenSearch }: { readonly onOpenSearch: () => void }): React.
     return (
       <div className="flex shrink-0 items-center">
         {state === 'expanded' ? null : (
-          <SidebarTrigger size="icon" className="ml-2 shrink-0 text-muted-foreground" />
+          <SidebarTrigger size="icon" className="ml-0.5 shrink-0 text-muted-foreground" />
         )}
         <div className="min-w-0 flex-1">
           <WindowBar />
@@ -165,7 +167,6 @@ function TopBar({ onOpenSearch }: { readonly onOpenSearch: () => void }): React.
 }
 
 const TASK_PREFIX = '/app/tasks/'
-const SHELF_PREFIX = '/app/shelves/'
 
 /*
 The window bar's left end: the history arrows, then where this route sits.
@@ -181,9 +182,6 @@ function TopTrail(): React.JSX.Element {
   const discussion = useDiscussion(discussionId ?? '', discussionId !== null)
   const taskId = pathname.startsWith(TASK_PREFIX) ? pathname.slice(TASK_PREFIX.length) : null
   const task = useTask(taskId)
-  const shelfId = pathname.startsWith(SHELF_PREFIX) ? pathname.slice(SHELF_PREFIX.length) : null
-  const shelves = useShelves(shelfId !== null)
-  const { isMobile } = useSidebar()
 
   let trail: React.JSX.Element | null = null
   if (pathname.startsWith(FOLDER_PREFIX)) {
@@ -203,18 +201,9 @@ function TopTrail(): React.JSX.Element {
     trail = task.data === undefined ? null : (
       <BreadcrumbTrail folderId={task.data.folder.id} current={task.data.title} />
     )
-  } else {
-    const place =
-      shelfId !== null
-        ? shelves.data?.find((shelf) => shelf.id === shelfId)?.name
-        : pathname.startsWith(paths.settings)
-          ? 'Settings'
-          : pathname === paths.trash
-            ? 'Trash'
-            : navPages.find((page) => page.path === pathname)?.name
-    /* A phone drops the crumb on a top-level place: its title already says it. */
-    trail = place === undefined || isMobile ? null : <BreadcrumbTrail folderId={null} current={place} />
   }
+  /* A top-level place (Today, Settings, Trash, a collection) has no crumb:
+     its title already says where you are, and saying it twice is noise. */
   return (
     <WindowBarLead>
       <HistoryArrows />
@@ -248,9 +237,31 @@ function UpdateChrome({
   )
 }
 
+/* Once per device: an account still on the column's default zone (UTC) takes
+   the browser's, so Settings and reminders start from where the person is.
+   A zone the person chose is never overwritten: only UTC is the default, and
+   the flag keeps a deliberate UTC from being undone twice. */
+const TIMEZONE_DEFAULTED_KEY = 'dana.timezone.defaulted'
+
+function useDefaultTimezone(stored: string | undefined): void {
+  useEffect(() => {
+    if (stored !== 'UTC') return
+    const zone = browserTimezone()
+    if (zone === 'UTC') return
+    try {
+      if (window.localStorage.getItem(TIMEZONE_DEFAULTED_KEY) === '1') return
+      window.localStorage.setItem(TIMEZONE_DEFAULTED_KEY, '1')
+    } catch {
+      return
+    }
+    setViewerTimezone(zone)
+  }, [stored])
+}
+
 export function AppShell(): React.JSX.Element {
   const location = useLocation()
   const me = useMe()
+  useDefaultTimezone(me.data?.user.timezone)
   /*
   The bundle of 4.19 rather than 7.2's settings.
 
@@ -471,7 +482,6 @@ export function AppShell(): React.JSX.Element {
             <TopBar onOpenSearch={openSearch} />
             <TopTrail />
             <UpdateChrome showUpdate={update.showUpdate} onUpdate={update.applyUpdate} />
-            <OfflineBanner />
             {/* The one region that scrolls. */}
             <div data-shell-scroll className="min-h-0 flex-1 overflow-y-auto">
               <div className="mx-auto w-full max-w-[var(--shell-content-max)] px-4 py-4 md:px-10 md:py-6">
@@ -487,8 +497,10 @@ export function AppShell(): React.JSX.Element {
           {groups.dialogs}
         </SidebarProvider>
       </div>
-      {/* The one notice column: toasts and the undo bar, bottom-centre. */}
+      {/* The one notice column: toasts, the offline notice and the undo bar,
+          bottom-centre. */}
       <ToastRegion clearsCapture={false}>
+        <OfflineBanner />
         <UndoBar />
       </ToastRegion>
       {/* 9.3's form, mounted once and last, for the reason in this file's

@@ -14,7 +14,6 @@ import { useNavigate } from 'react-router'
 
 import { useImportWorkflow } from '../api/mutations.js'
 import { useAllView, useFolders } from '../api/queries.js'
-import { Button } from '../components/ui/button.js'
 import { Row } from '../components/ui/row.js'
 import { paths } from '../routes.js'
 
@@ -36,7 +35,8 @@ function readDismissed(): boolean {
   }
 }
 
-function writeDismissed(): void {
+/** Answers the offer for this device: "No thanks", or removing the sample. */
+export function dismissStarters(): void {
   try {
     window.localStorage.setItem(DISMISSED_KEY, '1')
   } catch {
@@ -52,8 +52,17 @@ export function useMayBeFresh(): boolean {
   return list.length === 1 && list[0]?.is_default === true
 }
 
-/** The offer when the account is fresh and has not dismissed it; otherwise `fallback`. */
-export function StarterOffer({ fallback }: { readonly fallback: ReactNode }): React.JSX.Element {
+/**
+ * The offer when the account is fresh and has not dismissed it, after `lead`
+ * (the page's own "New task", which comes first); otherwise `fallback`.
+ */
+export function StarterOffer({
+  lead,
+  fallback,
+}: {
+  readonly lead: ReactNode
+  readonly fallback: ReactNode
+}): React.JSX.Element {
   const navigate = useNavigate()
   const importWorkflow = useImportWorkflow()
   const [dismissed, setDismissed] = useState(readDismissed)
@@ -77,34 +86,37 @@ export function StarterOffer({ fallback }: { readonly fallback: ReactNode }): Re
   }
 
   return (
-    <section aria-labelledby="starter-offer-heading" className="flex flex-col gap-[var(--space-row)]">
-      <h2 id="starter-offer-heading" className="px-2 pb-1 text-sm font-section text-foreground">
-        {COPY.heading}
-      </h2>
-      {STARTERS.map((starter) => (
+    <div className="space-y-[var(--space-group)]">
+      {lead}
+      <section
+        aria-labelledby="starter-offer-heading"
+        className="-mx-0.5 flex flex-col gap-[var(--space-row)]"
+      >
+        <h2 id="starter-offer-heading" className="px-2 pb-1 text-sm font-section text-foreground">
+          {COPY.heading}
+        </h2>
+        {STARTERS.map((starter) => (
+          <Row
+            key={starter.id}
+            aria-disabled={importWorkflow.isPending}
+            label={starter.label}
+            description={starter.summary}
+            onClick={() => {
+              choose(starter)
+            }}
+          />
+        ))}
+        {/* A row action like any other: 2px under the rows, not set apart. */}
         <Row
-          key={starter.id}
           aria-disabled={importWorkflow.isPending}
-          label={starter.label}
-          description={starter.summary}
+          label={<span className="text-muted-foreground">{COPY.dismiss}</span>}
           onClick={() => {
-            choose(starter)
-          }}
-        />
-      ))}
-      <div className="pt-2">
-        <Button
-          variant="ghost"
-          className="text-muted-foreground"
-          disabled={importWorkflow.isPending}
-          onClick={() => {
-            writeDismissed()
+            if (importWorkflow.isPending) return
+            dismissStarters()
             setDismissed(true)
           }}
-        >
-          {COPY.dismiss}
-        </Button>
-      </div>
-    </section>
+        />
+      </section>
+    </div>
   )
 }

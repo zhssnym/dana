@@ -31,7 +31,7 @@ export interface UndoEntry {
   /**
    * What happened, in the past tense and in a person's words.
    *
-   * 9.1 gives the form by example, `Deleted "{title}"`: the act named, with
+   * 9.1 gives the form by example, `Deleted “{title}”`: the act named, with
    * the thing it acted on quoted, so the bar says which of five completions
    * a press is about to reverse. A permanently docked control never can.
    */
@@ -127,5 +127,5 @@ export function undoShortcutApplies(target: EventTarget | null): boolean {
  * the section's.
  */
 export function undoLabel(verb: string, title: string): string {
-  return `${verb} "${title}"`
+  return `${verb} “${title}”`
 }
