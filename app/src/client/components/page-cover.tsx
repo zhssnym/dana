@@ -302,6 +302,10 @@ export function AddCoverAction({
             type="button"
             className={cn(
               "-ml-1.5 flex h-6 items-center gap-1 rounded-md px-1.5 text-xs leading-4 text-quiet-foreground transition-[opacity,background-color,color] hover:bg-accent hover:text-muted-foreground",
+              /* A touch screen has no hover to reveal it by, so it does not
+                 sit on every page there; it appears once the page's heading
+                 is in use (its icon, title or menu tapped). */
+              "[@media(hover:none)]:hidden [@media(hover:none)]:group-focus-within/head:flex",
               T_FAST,
               FOCUS,
             )}

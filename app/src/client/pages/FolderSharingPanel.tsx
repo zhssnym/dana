@@ -258,7 +258,7 @@ export function FolderSharingPanel({
           <SheetHeader className="border-b border-border px-5 py-4 pr-16">
             <SheetTitle className="text-base font-semibold">Share {folder.name}</SheetTitle>
             <SheetDescription>
-              Members can view and manage every task in this folder.
+              Members can view and manage every task in this page.
             </SheetDescription>
           </SheetHeader>
 

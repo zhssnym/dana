@@ -256,10 +256,12 @@ function BoardCard({
         }
       }}
       style={{
-        /* The carried card tracks the pointer exactly; the ones making space
+        /* The carried card tracks the pointer exactly, across columns too; the ones making space
            for it ease. Same arrangement as the row's ExpandShell. */
         transform:
-          drag && drag.offset !== 0 ? `translate3d(0, ${drag.offset}px, 0)` : undefined,
+          drag && (drag.offset !== 0 || (drag.crossOffset ?? 0) !== 0)
+            ? `translate3d(${drag.crossOffset ?? 0}px, ${drag.offset}px, 0)`
+            : undefined,
         transition: carried
           ? "box-shadow var(--duration-fast) var(--ease-standard)"
           : "transform var(--duration-base) var(--ease-enter), box-shadow var(--duration-base) var(--ease-enter)",
@@ -503,6 +505,7 @@ export function TaskBoard({
           <TaskList
             className="gap-1.5"
             tasks={column.tasks}
+            followAcross
             onTaskOpen={onOpenTask}
             onDropAt={(taskId, point) => {
               const landing = columnAt(point)

@@ -677,6 +677,8 @@ export function FolderPage({
           if (mainFacet) selectFacet(mainFacet)
         },
       }),
+      /* The button says what pressing it does, not 9.1's generic Continue. */
+      { confirmLabel: 'Delete tab', cancelLabel: 'Cancel' },
     )
   }
 
