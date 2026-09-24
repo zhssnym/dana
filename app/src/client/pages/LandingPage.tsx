@@ -1,8 +1,8 @@
 /*
 9.2's public page, at `/`.
 
-**Calm and short**: one headline, one sentence, one sign-in control, the line
-9.2 spells under it, and a footer. No product mockups: pictures of screens drift
+**Calm and short**: one headline, one paragraph, one sign-in control, a
+personal note with the support address, and Privacy · Terms. No product mockups: pictures of screens drift
 from the screens, and a landing page that pictures an app Dana no longer draws is
 the claim rule failing by illustration. No rotating words, no scroll-in.
 
@@ -33,8 +33,6 @@ import { browserTimezone } from '../api/tz.js'
 import { Button } from '../components/ui/button.js'
 import { paths } from '../routes.js'
 import { SUPPORT_EMAIL } from '../../shared/support.js'
-/* The public family's brand link, shared with the legal pages. */
-import { DanaIdentity } from './dana-identity.js'
 
 function GoogleGlyph(): React.JSX.Element {
   return (
@@ -65,51 +63,47 @@ export function LandingPage(): React.JSX.Element {
     new URLSearchParams(window.location.search).get('signin') === 'failed'
 
   return (
-    <div className="flex min-h-svh flex-col bg-background text-foreground">
-      <header className="mx-auto w-full max-w-[672px] px-4 py-5">
-        <DanaIdentity />
-      </header>
+    <main className="flex min-h-svh items-center bg-background px-4 py-16 text-foreground">
+      <div className="mx-auto w-full max-w-[520px]">
+        <h1 className="text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-title text-balance">
+          All your projects, in one quiet place.
+        </h1>
+        <p className="mt-4 text-sm text-muted-foreground">
+          Create a project, write down what it&apos;s for, break it into tasks, and track them
+          until they&apos;re done. Share it with the people you work with and talk it through in
+          threads right next to the work. Dana is Notion&apos;s editor, GitHub Issues&apos; tasks
+          and Slack&apos;s conversations, in one calm app.
+        </p>
 
-      <main className="flex flex-1 items-center px-4 pb-16">
-        <div className="mx-auto w-full max-w-[640px]">
-          <h1 className="text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-title text-balance">
-            Your projects, in one quiet place.
-          </h1>
-          <p className="mt-4 text-sm text-muted-foreground">
-            Each project is a page: writing and tasks you work through, shared with the
-            people doing it.
+        {signInFailed ? (
+          <p role="status" className="mt-6 text-sm text-destructive">
+            Something went wrong. Nothing was saved. Try again.
           </p>
+        ) : null}
 
-          {signInFailed ? (
-            <p role="status" className="mt-6 text-sm text-destructive">
-              Something went wrong. Nothing was saved. Try again.
-            </p>
-          ) : null}
+        <Button className="mt-8 h-10 gap-3 px-4 text-sm" render={<a href={signInHref} />}>
+          <GoogleGlyph />
+          Continue with Google
+        </Button>
 
-          <Button className="mt-8 h-10 gap-3 px-4 text-sm" render={<a href={signInHref} />}>
-            <GoogleGlyph />
-            Continue with Google
-          </Button>
-          {/* The one string 9.2 spells, written as that section spells it. */}
-          <p className="mt-3 text-xs text-muted-foreground">
-            Dana requests only your Google profile and email for sign-in, sharing, and invitations.
-          </p>
-        </div>
-      </main>
+        <p className="mt-12 text-xs text-muted-foreground">
+          Dana is in beta and I&apos;m building it myself. If you try it, I&apos;d really like to
+          hear what works and what doesn&apos;t:{' '}
+          <a href={`mailto:${SUPPORT_EMAIL}`} className="rounded-sm underline hover:text-foreground">
+            {SUPPORT_EMAIL}
+          </a>
+        </p>
 
-      <footer className="mx-auto flex w-full max-w-[672px] flex-wrap items-center gap-x-5 gap-y-2 px-4 py-6 text-xs text-muted-foreground">
-        {/* Computed, so the line does not go stale on 1 January. */}
-        <span>© {String(new Date().getFullYear())} Dana Inc · Canada</span>
-        <a href="/privacy" className="rounded-sm hover:text-foreground">
-          Privacy
-        </a>
-        <a href="/terms" className="rounded-sm hover:text-foreground">
-          Terms
-        </a>
-        <a href={`mailto:${SUPPORT_EMAIL}`} className="rounded-sm hover:text-foreground">
-          Have a question?
-        </a>
-      </footer>
-    </div>
+        <p className="mt-6 text-xs text-muted-foreground">
+          <a href="/privacy" className="rounded-sm hover:text-foreground">
+            Privacy
+          </a>
+          <span aria-hidden="true"> · </span>
+          <a href="/terms" className="rounded-sm hover:text-foreground">
+            Terms
+          </a>
+        </p>
+      </div>
+    </main>
   )
 }

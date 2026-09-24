@@ -64,6 +64,7 @@ const PAGE_COPY = {
         body: [
           'Dana runs on rented infrastructure and uses a small set of service providers: hosting for the application and its database, an email service that delivers invitations and reminders, an error-reporting service that receives technical failure reports with your content removed, and a log service that keeps operational events for 30 days. Task content and invitation addresses are excluded from error reports and logs.',
           'Google handles sign-in. Dana never sees your password.',
+          'Dana requests only your Google profile and email for sign-in, sharing, and invitations.',
         ],
       },
       {
