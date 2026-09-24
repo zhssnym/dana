@@ -42,9 +42,15 @@ desktop floor on `document.body`, so there is nothing to undo.
 pictures screens the product does not draw is the claim rule failing by
 illustration rather than by sentence.
 
-This page renders whether or not there is a session. A client that redirected
-signed-in visitors away from `/` would hide the only surface an unauthenticated
-person ever sees from everyone who could check it.
+A signed-in visitor goes to `/app` (AC-956, issue #326): `dana.so` and its
+bookmarks otherwise offered "Sign in" over a live 30-day session, and the click
+went round Google for nothing. The server answers a signed-in `/` with a 302
+before this page is sent (`server/index.ts`), so in production nothing here
+draws; this check is the fallback for Vite's dev server, which the server never
+sees. It is the `/me` read `main.tsx` already prefetches, so the load costs no
+extra request, and only a 200 moves anyone: a 401, an offline or a slow answer
+keeps the page. A query string keeps it too, on both sides, so `?signin=failed`
+still says its sentence and `/?about` shows a signed-in person the page.
 */
 import {
   useEffect,
@@ -55,9 +61,11 @@ import {
   type ReactNode,
 } from 'react'
 
+import { useMe } from '../api/queries.js'
 import { browserTimezone } from '../api/tz.js'
 import { Button } from '../components/ui/button.js'
 import { DanaMark } from '../components/dana-mark.js'
+import { paths } from '../routes.js'
 /* The public family's header control, shared so the legal pages wear the same
    one rather than a second copy of it. */
 import { DanaIdentity } from './dana-identity.js'
@@ -703,6 +711,12 @@ function WorkflowDemo(): React.JSX.Element {
 
 export function LandingPage(): React.JSX.Element {
   const [heroWordIndex, setHeroWordIndex] = useState(0)
+  const signedIn = useMe().isSuccess
+  useEffect(() => {
+    if (signedIn && window.location.search === '') {
+      window.location.replace(paths.desk)
+    }
+  }, [signedIn])
   const signInHref = `/api/v1/auth/google?tz=${encodeURIComponent(browserTimezone())}`
   /*
   The callback's failure marker (auth/pages.ts): every refusal that is not the

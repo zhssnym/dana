@@ -9,7 +9,7 @@ import { pino } from 'pino'
 
 import { createDbClient } from '../../db/client.js'
 import type { DbClient } from '../../db/client.js'
-import { createAuthRouter } from './auth/index.js'
+import { attachSession, createAuthRouter, sessionOf } from './auth/index.js'
 import type { AuthConfig } from './auth/index.js'
 import { canonicalHostRedirect, canonicalOriginOf } from './http/canonical-host.js'
 import { errorBody } from './http/errors.js'
@@ -792,6 +792,30 @@ export function createApp(options: AppOptions = {}): express.Express {
   // instead, proxying /api here.
   if (options.clientDist !== undefined) {
     const clientIndex = path.join(options.clientDist, 'index.html')
+    /*
+    AC-956: a signed-in visit to a bare / goes to /app before any page is sent,
+    so the landing page never draws for someone with a session (issue #326).
+    Ahead of express.static, which would otherwise answer / with index.html. A
+    query string keeps the page, as the client's own check does. no-store, so
+    no browser keeps the 302 past a sign-out, and a failed session lookup
+    serves the page rather than a 500: / is public.
+    */
+    if (options.dbClient !== undefined) {
+      const attach = attachSession(options.dbClient.db)
+      app.get('/', (req: Request, res: Response, next: NextFunction) => {
+        if (req.originalUrl !== '/') {
+          next()
+          return
+        }
+        attach(req, res, (error?: unknown) => {
+          if (error === undefined && sessionOf(req) !== undefined) {
+            res.set('Cache-Control', 'no-store').redirect(302, '/app')
+            return
+          }
+          next()
+        })
+      })
+    }
     app.use(express.static(options.clientDist))
     app.get('/{*splat}', (_req: Request, res: Response) => {
       res.sendFile(clientIndex)

@@ -109,6 +109,31 @@ Y." If skipping it is clearly safe, do the cheaper thing and say so. If it is no
 call is Imran's or Hassan's, ask. A dumb rule is a bug in this file; report it like one.
 Rules nobody challenges only grow.
 
+## Quiet: how Dana looks
+
+Calm and plain. Space, not decoration. The interface makes room for the content; it is not
+there to be looked at. More options is not winning: a setting that reaches the same result
+two ways is one way too many. Cut before you add — if a control is not clearly needed, it
+does not ship. What each screen must contain is in `docs/spec/09-ui`; this is how it
+should feel.
+
+Values live in `app/src/client/styles/tokens.css` and nowhere else. Read them before you
+write a colour, size, space or radius, never write a raw one, and never introduce a second
+palette in a component or a document. Both themes always exist and follow the system
+setting. No gradients, no decorative shadows, no glow.
+
+Boldness goes in one place. One element carries the screen and everything around it stays
+quiet; if two things compete for attention, one of them is decoration, so remove it.
+Structure has to mean something: a border, a number or a label is there to say something
+about the content, not to fill space. Motion only answers an action; nothing moves on its
+own. Copy is design too — plain verbs, sentence case, no marketing voice, and a button says
+exactly what pressing it does.
+
+What this rules out by name: identical rounded cards everywhere, the same soft shadow under
+each one, tracked-out all-caps labels, gradient washes, arrows glued to buttons, and walls
+of options nobody asked for. A screen that could belong to any AI-generated app is wrong
+even when every test passes.
+
 ## Things that fail silently
 
 Each of these passes every test when wrong. Details in `docs/troubleshooting.md`.
