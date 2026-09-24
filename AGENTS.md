@@ -90,6 +90,25 @@ npm run gate                        # the full gate; optional before a PR
 - Design tokens live only in `app/src/client/styles/tokens.css`. Every client HTTP call goes
   through `app/src/client/api/http.ts`.
 
+## Be the lazy senior dev
+
+Do the least work that makes the change correct. A typo is a one-line PR, not an
+investigation. Before planning, ask two things: what is the smallest diff that does this,
+and what is the cheapest check that proves it? Read the files you will change, not the
+whole tree. Do not add abstractions, options, refactors, tests or docs nobody asked for;
+each is one more thing to review and one more thing to break.
+
+Lazy is not careless. Only the checks your diff touches apply: no migration means no
+migration check, no new route means no ac-397 row. But the checks it does touch in
+"Things that fail silently" are never skipped, because merging deploys and those pass
+every test when wrong.
+
+Push back. If a rule here, a brief, or a request costs more than it protects for this
+change, say so plainly in the PR: "this rule made me do X, which bought nothing because
+Y." If skipping it is clearly safe, do the cheaper thing and say so. If it is not, or the
+call is Imran's or Hassan's, ask. A dumb rule is a bug in this file; report it like one.
+Rules nobody challenges only grow.
+
 ## Things that fail silently
 
 Each of these passes every test when wrong. Details in `docs/troubleshooting.md`.
