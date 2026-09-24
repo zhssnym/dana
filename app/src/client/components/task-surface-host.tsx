@@ -1,16 +1,20 @@
 /*
-The one place a task is opened (REDESIGN-SPEC "Open a task").
+The one place a task is opened (ROUND2-SPEC "Task").
 
-**The address is the state.** An open task is `?task=<id>` on whatever page is
-showing, so the panel survives a reload, Back closes it, and the list under it
-is the list the person was on. `/app/tasks/:id` is the shareable address:
-`pages/TaskPage.tsx` answers it on a desktop by redirecting to the task's
-folder with this parameter, and on a phone by being the task's full page.
+**Where** is the person's choice, Settings > Appearance > "Open tasks in":
+Side peek (the default), Center peek or Full page. A phone always opens the
+full page.
 
-**Opening** is `openTask(id)` (`components/task-open.ts`), raised by a row, the
-calendar, search and a dependency link. On a desktop it writes the parameter,
-replacing rather than pushing when a panel is already open so that walking
-down a list does not fill the history; on a phone it navigates to the page.
+**The address is the state.** An open peek is `?task=<id>` on whatever page is
+showing, so it survives a reload, Back closes it, and the list under it is the
+list the person was on. `/app/tasks/:id` is the full page and the shareable
+address (`pages/TaskPage.tsx`).
+
+**Opening** is `openTask(id)` (`components/task-open.ts`), raised by a list
+row, a canvas task block, a board card, the calendar, search and a dependency
+link. For a peek it writes the parameter, replacing rather than pushing when a
+peek is already open so that walking down a list does not fill the history;
+for the full page, or on a phone, it navigates to the page.
 
 **There is no create form.** A task is made inline (the "New task" row, which
 `N` and a calendar day both lead to); an unsaved task
@@ -36,7 +40,8 @@ import {
   keepLabel,
 } from './ui/copy.js'
 import { TaskWriter } from '../tasks/task-writer.js'
-import { TaskPanel } from './task-surface.js'
+import { TaskCenterPeek, TaskPanel } from './task-surface.js'
+import { useTaskOpenPreference } from '../lib/task-surface-preference.js'
 
 /** The search parameter an open task rides. */
 export const TASK_PARAM = 'task'
@@ -79,6 +84,9 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
   const editing = useTaskEditing(taskId === '' ? null : taskId)
   const acts = useRowActions()
   const [pending, setPending] = useState<PendingAct | null>(null)
+  const mode = useTaskOpenPreference()
+  const modeRef = useRef(mode)
+  modeRef.current = mode
 
   /* Read inside the listeners, which are attached once. */
   const locationRef = useRef(location)
@@ -88,7 +96,7 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
 
   useEffect(() => {
     function open(id: string, upcoming: boolean): void {
-      if (isPhoneWidth()) {
+      if (isPhoneWidth() || modeRef.current === 'tab') {
         void navigateRef.current(paths.task(id), { state: { upcomingTask: upcoming } })
         return
       }
@@ -130,6 +138,14 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
      filled itself in afterwards would show an empty title first. */
   const detail = editing.detail
   if (editing.concept === null || detail === undefined) return null
+
+  function openFull(): void {
+    if (taskId === null) return
+    setPending(null)
+    /* The peek's own history entry becomes the page, so Back from the page
+       lands on the list rather than on the peek it grew out of. */
+    void navigate(paths.task(taskId), { replace: state?.taskPanel === true })
+  }
 
   function close(): void {
     setPending(null)
@@ -185,7 +201,11 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
           {UPCOMING_OCCURRENCE}
         </p>
       ) : null}
-      <TaskPanel task={task} onClose={close} />
+      {mode === 'dialog' ? (
+        <TaskCenterPeek task={task} onClose={close} onOpenFull={openFull} />
+      ) : (
+        <TaskPanel task={task} onClose={close} onOpenFull={openFull} />
+      )}
     </TaskWriter>
   )
 }

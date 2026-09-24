@@ -25,7 +25,8 @@ import { linkSlashItem } from '../../links/dana-link-picker.js'
 import { ancestorsOf, insertCanvasHeading, sectionContext } from './commands.js'
 import { TOGGLE_SURFACES, bindCanvasSurface, surfaceOf } from './markdown.js'
 import { validateCanvasOutline } from './outline.js'
-import { TEXT_TYPES, TURN_TARGETS, conversionOf, isCurrent, simulate } from './turn-into.js'
+import { TEXT_TYPES, TURN_TARGETS, isCurrent, simulate } from './turn-into.js'
+import { turnBlocksInto } from './BlockSideMenu.js'
 import type { TreeBlock, TurnKey, TurnTarget } from './turn-into.js'
 import type { CanvasSurfaceKind } from './markdown.js'
 import type { CanvasEditor } from './schema.js'
@@ -96,21 +97,6 @@ export function turnTargetsFor(editor: AnyEditor, block: TreeBlock): TurnTarget[
   })
 }
 
-/** Convert a block in place, keeping its text, and its children where the target holds them. */
-export function turnBlockInto(editor: AnyEditor, id: string, target: TurnTarget): void {
-  const block = editor.getBlock(id) as TreeBlock | undefined
-  if (block === undefined || isCurrent(block, target)) return
-  const { update, lifted } = conversionOf(block, target, headingTogglesOf(surfaceOf(editor)))
-  editor.transact(() => {
-    // Upstream ignores `children: []`, so what the target cannot hold leaves first.
-    if (lifted.length > 0) editor.removeBlocks(lifted.map((child) => child.id))
-    editor.updateBlock(id, update as never)
-    if (lifted.length > 0) editor.insertBlocks(lifted as never, id, 'after')
-    editor.setTextCursorPosition(id, 'end')
-  })
-  editor.focus()
-}
-
 function turnItems(editor: AnyEditor): Item[] {
   const block = editor.getTextCursorPosition().block as unknown as TreeBlock
   const defaults = getDefaultReactSlashMenuItems(editor)
@@ -121,7 +107,7 @@ function turnItems(editor: AnyEditor): Item[] {
     aliases: [...TURN_ALIASES[target.key], ...(work && target.level !== undefined ? [`toggle h${target.level}`, `toggleh${target.level}`, `toggle heading ${target.level}`] : [])],
     icon: target.type === 'callout' ? <Lightbulb size={16} /> : iconOf(target.type === 'heading' ? (target.level === 1 ? 'heading' : `heading_${target.level}`) : TURN_ICONS[target.type] ?? ''),
     group: 'Turn into',
-    onItemClick: () => { turnBlockInto(editor, block.id, target) },
+    onItemClick: () => { turnBlocksInto(editor, [block.id], target, headingTogglesOf(surfaceOf(editor))) },
   }))
 }
 

@@ -241,6 +241,13 @@
       "breakpoints": true
     },
     {
+      "idx": 36,
+      "version": "7",
+      "when": 1791100000000,
+      "tag": "0036_task_open_side_peek",
+      "breakpoints": true
+    },
+    {
       "idx": 37,
       "version": "7",
       "when": 1791200000000,
