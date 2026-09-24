@@ -28,9 +28,7 @@ one ships: `GET /api/v1/me/export` is 7.22 and the Settings row reaches it. **A
 page carrying that sentence with no control behind it would break the rule**, so
 the two are never separated.
 */
-import { Link } from 'react-router'
 
-import { DanaIdentity } from './dana-identity.js'
 
 /** The approved copy, section by section, in its own order. */
 const PAGE_COPY = {
@@ -82,7 +80,7 @@ const PAGE_COPY = {
       },
       {
         heading: 'Questions',
-        body: ['Write to hassan.k.shahir@gmail.com and a person will answer.'],
+        body: ['Write to hassan.k.shahir [at] gmail [dot] com and a person will answer.'],
       },
     ],
   },
@@ -129,7 +127,7 @@ const PAGE_COPY = {
       },
       {
         heading: 'Questions',
-        body: ['Write to hassan.k.shahir@gmail.com and a person will answer.'],
+        body: ['Write to hassan.k.shahir [at] gmail [dot] com and a person will answer.'],
       },
     ],
   },
@@ -142,10 +140,6 @@ export function LegalPage({ page }: { readonly page: LegalPageName }): React.JSX
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto flex max-w-[720px] flex-col px-4 py-5 sm:px-8">
-        <header className="flex items-center">
-          <DanaIdentity />
-        </header>
-
         <main className="mt-12">
           <h1 className="text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-bold text-foreground">
             {copy.title}
@@ -170,22 +164,6 @@ export function LegalPage({ page }: { readonly page: LegalPageName }): React.JSX
           </div>
         </main>
 
-        {/* The footer, which is how a reader of one page reaches the other
-            without going back through the landing. Its year is computed here
-            rather than written, which is the landing footer's own note: the
-            line must not go stale on 1 January. */}
-        <footer className="mt-16 flex items-center gap-5 border-t border-border pt-6 text-xs text-muted-foreground">
-          <span>© {String(new Date().getFullYear())} Dana</span>
-          <Link
-            to="/privacy"
-            className="rounded-sm hover:text-foreground"
-          >
-            Privacy
-          </Link>
-          <Link to="/terms" className="rounded-sm hover:text-foreground">
-            Terms
-          </Link>
-        </footer>
       </div>
     </div>
   )

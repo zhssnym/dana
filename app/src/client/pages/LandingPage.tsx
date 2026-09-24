@@ -32,7 +32,7 @@ import { useMe } from '../api/queries.js'
 import { browserTimezone } from '../api/tz.js'
 import { Button } from '../components/ui/button.js'
 import { paths } from '../routes.js'
-import { SUPPORT_EMAIL } from '../../shared/support.js'
+import { ObfuscatedEmail } from '../components/obfuscated-email.js'
 
 function GoogleGlyph(): React.JSX.Element {
   return (
@@ -87,11 +87,9 @@ export function LandingPage(): React.JSX.Element {
         </Button>
 
         <p className="mt-12 text-xs text-muted-foreground">
-          Dana is in beta and I&apos;m building it myself. If you try it, I&apos;d really like to
-          hear what works and what doesn&apos;t:{' '}
-          <a href={`mailto:${SUPPORT_EMAIL}`} className="rounded-sm underline hover:text-foreground">
-            {SUPPORT_EMAIL}
-          </a>
+          Dana is in beta as of October 2026. If you try it, we&apos;d really like to hear what
+          works and what doesn&apos;t:{' '}
+          <ObfuscatedEmail className="rounded-sm underline hover:text-foreground" />
         </p>
 
         <p className="mt-6 text-xs text-muted-foreground">
