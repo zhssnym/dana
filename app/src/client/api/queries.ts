@@ -493,18 +493,20 @@ export function useShelf(id: string, enabled = true): UseQueryResult<Shelf> {
 }
 
 /** A folder page's block list (7.16, 4.17), which 9.6 draws. */
-export function useFolderPage(id: string): UseQueryResult<GetPageResponse> {
+export function useFolderPage(id: string, enabled = true): UseQueryResult<GetPageResponse> {
   return useQuery({
     queryKey: queryKeys.folderPage(id),
     queryFn: () => getPlain(getPageResponse, `/folders/${id}/page`),
+    enabled,
   })
 }
 
 /** 7.27's canonical facet sequence. The client renders this order verbatim. */
-export function useFolderFacets(id: string): UseQueryResult<GetFacetsResponse> {
+export function useFolderFacets(id: string, enabled = true): UseQueryResult<GetFacetsResponse> {
   return useQuery({
     queryKey: queryKeys.folderFacets(id),
     queryFn: () => getPlain(getFacetsResponse, `/folders/${id}/facets`),
+    enabled,
   })
 }
 

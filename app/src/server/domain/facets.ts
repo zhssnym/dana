@@ -794,9 +794,9 @@ export async function setFacetOrder(
  * ------------------------------------------------------------------ */
 
 /**
- * Re-keys an untouched Folder's built-ins (all four shown, at Main `a0`,
- * Purpose `a1`, Consultation `a2`, Results `a3`: the client's `untouched()`
- * over the visible tabs) in the order
+ * Re-keys an untouched Folder's built-ins (each at its creation key, Main
+ * `a0`, Purpose `a1`, Consultation `a2`, Results `a3`, hidden ones included:
+ * the client's `untouched()`) in the order
  * the client draws them, below every other row, so the stored order becomes
  * the drawn one without moving anything anybody sees. A no-op otherwise.
  */
@@ -808,13 +808,15 @@ async function materialiseUntouchedOrder(tx: Executor, folderId: string): Promis
          ORDER BY position ASC, id ASC
          FOR UPDATE`,
   )
-  /* The tab row asks `untouched()` of its visible tabs only, so a hidden
-     built-in already means "stored order" there, and must here too. */
+  /* The tab row asks `untouched()` of every tab, hidden ones included (a
+     hidden built-in is not a reorder), and an absent built-in does not count
+     against it; Main must stand at `a0`. The same rule here. */
   const native = (kind: string) =>
-    rows.find((row) => row.owner_id === null && String(row.kind) === kind && row.deleted_at === null && row.hidden !== true)
+    rows.find((row) => row.owner_id === null && String(row.kind) === kind && row.deleted_at === null)
   const creation: Record<string, string> = { main: 'a0', purpose: 'a1', consultation: 'a2', results: 'a3' }
-  if (!Object.entries(creation).every(([kind, key]) => native(kind) !== undefined && String(native(kind)!.position) === key)) return
-  const natives = NATIVE_TAB_ORDER.map((kind) => native(kind)!)
+  if (native('main') === undefined) return
+  if (!Object.entries(creation).every(([kind, key]) => native(kind) === undefined || String(native(kind)!.position) === key)) return
+  const natives = NATIVE_TAB_ORDER.map((kind) => native(kind)).filter((row) => row !== undefined)
   const nativeIds = new Set(natives.map((row) => String(row.id)))
   const others = rows.filter((row) => !nativeIds.has(String(row.id)))
   let upper: string | null = others.length === 0 ? null : String(others[0]!.position)
