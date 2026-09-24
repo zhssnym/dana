@@ -254,7 +254,12 @@ export function ThreadPosts({
   if (loading) return <SkeletonList />
 
   return (
-    <div className="min-w-0 space-y-3">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      {/* The history scrolls in its own region when the caller gives the
+          thread a height (a Discussion fills the screen); its posts sit at
+          the bottom, just above the composer, as Slack's do. */}
+      <div data-thread-history className="-mx-2 min-h-0 flex-1 overflow-y-auto px-2">
+      <div className="flex min-h-full flex-col justify-end pt-3">
       {posts.length > 0 ? (
         <ol className="-mx-2 min-w-0" aria-label="Posts">
           {placed.map(({ line, head, day, quote }) => {
@@ -431,12 +436,16 @@ export function ThreadPosts({
           })}
         </ol>
       ) : null}
+      <div ref={end} aria-hidden="true" className="h-px scroll-mb-24" />
+      </div>
+      </div>
 
-      {/* Held at the bottom of the view while the composer is below it. */}
+      {/* The composer stays at the bottom of the screen while the history scrolls. */}
+      <div className="sticky bottom-0 z-10 shrink-0 bg-background pt-3">
       {unseen !== null ? (
         <button
           type="button"
-          className="sticky bottom-2 z-10 mx-auto flex w-fit items-center gap-1 rounded-md border border-border bg-background px-2 py-0.5 text-xs text-muted-foreground outline-none hover:text-foreground"
+          className="absolute -top-5 left-1/2 z-10 flex -translate-x-1/2 w-fit items-center gap-1 rounded-md border border-border bg-background px-2 py-0.5 text-xs text-muted-foreground outline-none hover:text-foreground"
           onClick={() => {
             const id = unseen
             setUnseen(null)
@@ -493,7 +502,7 @@ export function ThreadPosts({
       ) : posts.length === 0 ? (
         <p className="text-sm text-muted-foreground">No posts yet.</p>
       ) : null}
-      <div ref={end} aria-hidden="true" />
+      </div>
 
       {deleting !== null ? (
         <ConfirmDialog

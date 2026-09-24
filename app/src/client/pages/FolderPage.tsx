@@ -435,6 +435,8 @@ export function FolderPage({
     (facet) => facet.id === requestedFacetId && (!facet.hidden || facet.kind === 'purpose' || facet.kind === 'results' || linkedConsultation(facet)),
   ) ?? facetRows.find(linkedConsultation) ?? mainFacet
 
+  const threadOpen = activeFacet?.kind === 'consultation' && search.get('discussion') !== null
+
   const selectFacet = useCallback((facet: Facet): void => {
     setSearch((current) => {
       const next = new URLSearchParams(current)
@@ -1017,7 +1019,9 @@ export function FolderPage({
             remembered for this folder can always be seen and cleared. */}
         <PlaceFilterChips place={place} />
 
-        <div className="space-y-4">
+        {/* An open thread is its own page (r9): the breadcrumb names it and
+            its head is the thread's, so the page's head and tabs step aside. */}
+        <div className={threadOpen ? 'hidden' : 'space-y-4'}>
           {hasCover ? (
             <div className="-mt-4 md:-mt-6">
               {/* A viewer below Can edit reads the band and is offered nothing
