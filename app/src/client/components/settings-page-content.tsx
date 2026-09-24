@@ -52,7 +52,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from './ui/alert-dialog.js'
-import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar.js'
+import { isOwnPicture, PersonFace } from './person-face.js'
 import { Button } from './ui/button.js'
 import { Combobox } from './ui/combobox.js'
 import { Input } from './ui/input.js'
@@ -133,15 +133,12 @@ function ViewerRow() {
       <button
         type="button"
         onClick={() => fileInput.current?.click()}
-        aria-label={viewer.image ? 'Change your picture' : 'Add a picture'}
+        aria-label={isOwnPicture(viewer.image) ? 'Change your picture' : 'Add a picture'}
         className="group/pic relative block shrink-0 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
       >
-        <Avatar className="size-10">
-          {viewer.image ? <AvatarImage src={viewer.image} alt="" /> : null}
-          <AvatarFallback className="bg-muted text-xs text-muted-foreground">
-            {viewer.initials}
-          </AvatarFallback>
-        </Avatar>
+        {/* e9-avatars: the one face, so the preview shows the default
+            face until a picture is uploaded (the Google one is not drawn). */}
+        <PersonFace name={viewer.name} image={viewer.image ?? null} className="size-10 data-[size=sm]:size-10" />
         <span className="absolute inset-0 flex items-center justify-center rounded-full bg-foreground/50 opacity-0 transition-opacity group-hover/pic:opacity-100">
           <ImagePlus className="size-4 text-background" strokeWidth={1.75} aria-hidden="true" />
         </span>
@@ -158,7 +155,7 @@ function ViewerRow() {
         {/* 7.1 has no write for the name: it is Google's, and the line says so. */}
         <p className="truncate text-xs text-muted-foreground">{viewer.email} · from Google</p>
       </div>
-      {viewer.image ? (
+      {isOwnPicture(viewer.image) ? (
         <Button variant="ghost" onClick={() => clearViewerImage()}>
           Remove picture
         </Button>
