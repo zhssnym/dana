@@ -3,14 +3,16 @@ A Task's Discussion tab (W-C): the task's comments as a thread, in the same
 post list and composer as a folder's threads (`ThreadPosts`).
 
 The read is `useThread(folder, task)`, the one `task-editing.tsx` already
-holds for the card's Attachments block (one cache entry, one poll). Who wrote
+holds for the card's Attachments block (one cache entry), polled every few
+seconds while this tab is open (`useTaskThreadLive`). Who wrote
 what is resolved off the roster the card already reads; what this viewer may
 do is the folder row's gates (`lib/folder-authority.ts`), as everywhere else.
 */
 import { useCallback, useMemo } from 'react'
 
 import { usePostComment } from '../../api/mutations.js'
-import { useConnections, useFolders, useMe, useThread } from '../../api/queries.js'
+import { useTaskThreadLive } from '../../api/consultation.js'
+import { useConnections, useFolders, useMe } from '../../api/queries.js'
 import { folderGates } from '../../lib/folder-authority.js'
 import type { ThreadAuthority } from '../../lib/thread.js'
 import { ThreadPosts } from './ThreadPosts.js'
@@ -18,7 +20,7 @@ import { ThreadPosts } from './ThreadPosts.js'
 const NOTHING: ThreadAuthority = { moderate: false, mutateOwnComment: false, likeComment: false, createComment: false }
 
 export function TaskThread({ taskId, folderId }: { readonly taskId: string; readonly folderId: string | null }): React.JSX.Element {
-  const thread = useThread(folderId ?? '', taskId, folderId !== null)
+  const thread = useTaskThreadLive(folderId, taskId)
   const me = useMe()
   const connections = useConnections()
   const folders = useFolders()

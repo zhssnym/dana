@@ -83,6 +83,10 @@ export const discussionSchema = z.object({
   last_post: z.object({ author_id: z.uuid(), preview: z.string(), created_at: z.string() }).nullable().optional(),
   /** Distinct post authors, most recent first, at most 5. */
   participant_ids: z.array(z.uuid()).optional(),
+  /** When this viewer last opened the thread (PUT /discussions/:id/read);
+   * null when they never have. Carried by the list and GET /discussions/:id;
+   * other responses omit it. */
+  read_at: z.string().nullable().optional(),
   last_activity_at: z.string(),
   created_at: z.string(),
   updated_at: z.string(),

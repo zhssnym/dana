@@ -394,42 +394,10 @@ export function AppShell(): React.JSX.Element {
     : null
 
 
-  /*
-  9.8's invite gate, in place of the application at every /app path while Q12 is
-  non-empty.
-
-  This component is where it goes because this component is what /app renders,
-  so "every /app path" and "in place of the application" are one condition and
-  one return rather than a rule each page has to remember.
-
-  **The condition is a non-empty answer and never a pending read.** A gate that
-  waited for `/invites/pending` before rendering anything would be a client that
-  shows nothing until the network answers, and 10.6 opens every /app path from
-  the cached shell with no network at all; AC-091 and AC-160 read the sidebar's
-  page links there. So a read in flight, a read that failed and an empty answer
-  all render the application, which is also the only one of the four that a
-  person with no invite can ever observe. The cost is that an account holding an
-  invite sees the shell for as long as that read takes, and `main.tsx` starts it
-  before this component mounts for exactly that reason.
-
-  The returned tree carries no chrome except the two global states; see
-  `pages/InviteGate.tsx` for why those two and not the rest.
-  */
   // F-8's other half: while the document load above is in flight, the shell
   // must not mount its pages, whose reads would each earn the same 401.
   if (signedOut) {
     return <></>
-  }
-
-  if ((invites.data?.length ?? 0) > 0) {
-    return (
-      <>
-        <OfflineBanner />
-        <InviteGate invites={invites.data ?? []} />
-        {/* No capture button on the gate, so the toast keeps the corner. */}
-        <ToastRegion clearsCapture={false} />
-      </>
-    )
   }
 
   return (
@@ -542,6 +510,11 @@ export function AppShell(): React.JSX.Element {
             {/* The one region that scrolls. */}
             <div data-shell-scroll className="min-h-0 flex-1 overflow-y-auto">
               <div className="mx-auto w-full max-w-[var(--shell-content-max)] px-4 py-4 md:px-10 md:py-6">
+                {/* 9.8: pending invites sit above every /app page; a read in
+                    flight, a failed read and an empty answer all draw nothing. */}
+                {(invites.data?.length ?? 0) > 0 ? (
+                  <InviteGate invites={invites.data ?? []} />
+                ) : null}
                 <Outlet />
               </div>
             </div>

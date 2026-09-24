@@ -35,6 +35,7 @@ import type { CommentFile, PostContent } from '../../../shared/comments.js'
 import { uploadFile } from '../../api/http.js'
 import { SendHorizontal } from '../../lib/icons.js'
 import { Button } from '../ui/button.js'
+import { cn } from '../ui/utils.js'
 import { MentionSuggestions } from '../page/canvas/mentions.js'
 import { pageTheme } from '../page/canvas/BlockSideMenu.js'
 import { CanvasFilePanel } from '../page/canvas/CanvasFilePanel.js'
@@ -154,13 +155,23 @@ export default function PostEditor({
     if (content === null) return
     setBusy(true)
     setError('')
+    /* A new post leaves the composer the moment it is sent, as in Slack, so
+       whatever is typed while it is on its way stays and is never wiped (r5).
+       A refusal puts the sent words back ahead of anything typed since. */
+    const sent = editing ? null : editor.document
+    if (sent !== null) {
+      editor.replaceBlocks(editor.document, [{ type: 'paragraph' }])
+      setEmpty(true)
+    }
     try {
       await onSubmit(content)
-      if (initial === undefined) {
-        editor.replaceBlocks(editor.document, [{ type: 'paragraph' }])
-        setEmpty(true)
-      }
     } catch (failure) {
+      if (sent !== null) {
+        const first = editor.document[0]
+        if (read() === null || first === undefined) editor.replaceBlocks(editor.document, sent)
+        else editor.insertBlocks(sent, first, 'before')
+        setEmpty(false)
+      }
       setError(failure instanceof Error ? failure.message : 'Not posted. Try again.')
     } finally {
       setBusy(false)
@@ -203,11 +214,17 @@ export default function PostEditor({
         }
       }}
     >
-      <div className="min-w-0 rounded-lg border border-border bg-background focus-within:border-ring">
+      <div
+        className={cn(
+          'min-w-0 rounded-lg border border-border bg-background focus-within:border-ring',
+          /* A new post's Send sits at the end of the writing, not on a row of its own. */
+          !editing && 'flex items-end gap-1 pr-1',
+        )}
+      >
         {/* The padding lives here: canvas.css zeroes the canvas's own left padding on phones. */}
-        <div className="min-w-0 px-3 pt-2">
+        <div className={cn('min-w-0 px-3', editing ? 'pt-2' : 'flex-1 py-1.5')}>
           <div
-            className="dana-writing-canvas dana-post-editor max-h-[60vh] min-h-10 min-w-0 overflow-y-auto"
+            className="dana-writing-canvas dana-post-editor max-h-[60vh] min-w-0 overflow-y-auto"
             /* BlockNote's placeholder never reaches the canvas paragraph; canvas.css draws this one. */
             style={{ '--dana-canvas-placeholder': JSON.stringify(placeholder) } as React.CSSProperties}
           >
@@ -234,18 +251,16 @@ export default function PostEditor({
             </BlockNoteView>
           </div>
         </div>
-        <div className="flex items-center justify-end gap-2 px-2 pb-2">
-          {error !== '' ? <p role="alert" className="mr-auto min-w-0 px-1 text-xs text-destructive">{error}</p> : null}
-          {onCancel !== undefined ? (
-            <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
-              Cancel
-            </Button>
-          ) : null}
-          {editing ? (
+        {editing ? (
+          <div className="flex items-center justify-end gap-2 px-2 pb-2">
+            {error !== '' ? <p role="alert" className="mr-auto min-w-0 px-1 text-xs text-destructive">{error}</p> : null}
+            {onCancel !== undefined ? (
+              <Button type="button" variant="ghost" onClick={onCancel}>
+                Cancel
+              </Button>
+            ) : null}
             <Button
               type="button"
-              variant="commit"
-              size="sm"
               disabled={busy || empty}
               title={sendTitle}
               onClick={() => {
@@ -254,12 +269,14 @@ export default function PostEditor({
             >
               {submitLabel}
             </Button>
-          ) : (
+          </div>
+        ) : (
+          <div className="shrink-0 py-1">
             <Button
               type="button"
-              variant="commit"
-              size="icon-sm"
-              disabled={busy || empty}
+              variant="ghost"
+              size="icon"
+              disabled={empty}
               aria-label={submitLabel}
               title={sendTitle}
               onClick={() => {
@@ -267,11 +284,11 @@ export default function PostEditor({
               }}
             >
               <SendHorizontal strokeWidth={1.75} aria-hidden="true" />
-              <span className="sr-only">{submitLabel}</span>
             </Button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
+      {!editing && error !== '' ? <p role="alert" className="mt-1 px-1 text-xs text-destructive">{error}</p> : null}
     </div>
   )
 }

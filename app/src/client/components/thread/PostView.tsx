@@ -91,7 +91,7 @@ export function PostView({
       {overflows || open ? (
         <button
           type="button"
-          className="mt-1 rounded-sm text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          className="mt-1 rounded-sm text-xs text-muted-foreground outline-none hover:text-foreground"
           onClick={() => {
             setOpen((value) => !value)
           }}
@@ -194,7 +194,7 @@ function Block({
     case 'toggle':
       return (
         <details open className="group/toggle">
-          <summary className="cursor-pointer rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <summary className="cursor-pointer rounded-sm outline-none">
             <Runs rich={block.rich_content} />
           </summary>
           <Children block={block} files={files} />
@@ -341,7 +341,7 @@ function FileLink({ id, name, meta }: { readonly id: string; readonly name: stri
       href={fileSrc(id)}
       target="_blank"
       rel="noreferrer"
-      className="inline-flex max-w-full min-w-0 items-center gap-2 rounded-md border border-border px-2 py-1.5 text-xs outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+      className="inline-flex max-w-full min-w-0 items-center gap-2 rounded-md border border-border px-2 py-1.5 text-xs outline-none hover:bg-muted"
     >
       <FileText className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
       <span className="min-w-0 truncate text-foreground">{name}</span>

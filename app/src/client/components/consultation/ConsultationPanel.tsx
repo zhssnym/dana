@@ -33,8 +33,13 @@ export function ConsultationPanel({
       setSearch((current) => {
         const next = new URLSearchParams(current)
         next.delete('outcome')
-        if (id === null) next.delete('discussion')
-        else next.set('discussion', id)
+        if (id === null) {
+          next.delete('discussion')
+          /* A thread reached by its bare address (`?discussion=`, from a
+             notification or a link) is on this tab only because of that
+             param; its list stays here by the address the breadcrumb uses. */
+          if (!next.has('facet')) next.set('conversation', 'open')
+        } else next.set('discussion', id)
         return next
       })
     },

@@ -375,7 +375,10 @@ export async function listDiscussions(
   const rows = await rowsOf(
     db,
     sql`WITH page AS (
-          SELECT ${DISCUSSION_COLUMNS} FROM ${DISCUSSION_FROM}
+          SELECT ${DISCUSSION_COLUMNS}, r.read_at AS viewer_read_at
+            FROM ${DISCUSSION_FROM}
+            LEFT JOIN discussion_reads r
+              ON r.discussion_id = d.id AND r.user_id = ${facts.actorId}::uuid
            WHERE d.folder_id = ${facts.folderId}::uuid
              AND d.trashed_at IS NULL${state}${search}${after}
            ORDER BY d.last_activity_at DESC, d.id DESC
@@ -418,6 +421,7 @@ export async function listDiscussions(
     discussions: page.map((row) => ({
       ...discussionFromRow(row),
       ...threadSummaryFromRow(row),
+      read_at: isoOrNull(row.viewer_read_at),
     })),
     next_cursor: nextCursor,
   })
@@ -481,7 +485,58 @@ export async function readDiscussion(
   if (facts === null) return notFound
   const decision = mayPerform(facts, 'discussion.read')
   if (!decision.allowed) return forbidden(decision.reason)
-  return ok(discussion)
+  const read = await rowsOf(
+    db,
+    sql`SELECT read_at FROM discussion_reads
+         WHERE discussion_id = ${discussionId}::uuid
+           AND user_id = ${viewerId}::uuid`,
+  )
+  return ok({ ...discussion, read_at: isoOrNull(read[0]?.read_at) })
+}
+
+/**
+ * `PUT /discussions/:id/read`: the viewer has opened the thread now. Upserts
+ * their `discussion_reads` row and, in the same transaction, marks read their
+ * unread notifications about posts in this Discussion, so opening the thread
+ * clears the bell for it. No event: reading is not an act the history keeps.
+ * The route has already resolved existence and membership; a trashed
+ * Discussion, or one gone since, is `not_found`.
+ */
+export async function markDiscussionRead(
+  db: Db,
+  viewerId: string,
+  discussionId: string,
+): Promise<ConsultationOutcome<null>> {
+  return inTransaction(db, async (tx) => {
+    const found = await rowsOf(
+      tx,
+      sql`SELECT folder_id FROM discussions
+           WHERE id = ${discussionId}::uuid AND trashed_at IS NULL`,
+    )
+    const folderId = found[0]?.folder_id
+    if (folderId === undefined) return notFound
+    const facts = await folderActorFacts(tx, viewerId, String(folderId))
+    if (facts === null) return notFound
+    const decision = mayPerform(facts, 'discussion.read')
+    if (!decision.allowed) return forbidden(decision.reason)
+    await tx.execute(
+      sql`INSERT INTO discussion_reads (discussion_id, user_id, read_at)
+          VALUES (${discussionId}::uuid, ${viewerId}::uuid, now())
+          ON CONFLICT (discussion_id, user_id)
+          DO UPDATE SET read_at = excluded.read_at`,
+    )
+    await tx.execute(
+      sql`UPDATE notifications n SET read_at = now()
+            FROM events e, comments c
+           WHERE n.user_id = ${viewerId}::uuid
+             AND n.read_at IS NULL
+             AND e.id = n.event_id
+             AND e.subject_kind = 'comment'
+             AND c.id = e.subject_id
+             AND c.discussion_id = ${discussionId}::uuid`,
+    )
+    return ok(null)
+  })
 }
 
 /** `GET /discussions/:id/outcomes`: every Outcome, newest first, current or
