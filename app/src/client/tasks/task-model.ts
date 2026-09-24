@@ -305,9 +305,6 @@ export interface ConceptTask {
   pulled?: boolean
   important?: boolean
   abandoned?: boolean
-  /* When the task was started: a pending task with a start is In progress
-     (Status's middle state, and the Board's middle column). */
-  startedAt?: string | null
   notes?: string
   /* The conversation about the task, pinned after the content blocks and
      outside their order: commentary is not content. */

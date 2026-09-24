@@ -355,7 +355,7 @@ export async function taskView(
                t.completed_at, t.completed_by,
                cb.id AS creator_id, cb.display_name AS creator_display_name,
                cb.avatar_url AS creator_avatar_url,
-               t.started_at, t.created_at, t.updated_at,
+               t.created_at, t.updated_at,
                f.id AS folder_id, f.name AS folder_name,
                f.is_default AS folder_is_default,
                a.id AS assignee_id, a.display_name AS assignee_display_name,
@@ -431,7 +431,6 @@ export async function taskView(
     /* Issue #225's row counts, through the batch `readCards` uses with a
        list of one, so a row replaced by a write's response counts the same. */
     ...(await taskDependencyCountsOf(executor, viewerId, taskId)),
-    started_at: row.started_at == null ? null : toIso(row.started_at),
     created_at: toIso(row.created_at),
     updated_at: toIso(row.updated_at),
     notes: nullableString(row.notes),
@@ -1049,8 +1048,7 @@ async function patchTaskIn(
       patch.start_date !== undefined ||
       patch.due_date !== undefined ||
       patch.due_time !== undefined ||
-      patch.recurrence_rule !== undefined ||
-      patch.started_at !== undefined
+      patch.recurrence_rule !== undefined
     ) {
       acts.push('task.edit')
     }
@@ -1248,11 +1246,6 @@ async function patchTaskIn(
     */
     if (patch.start_date !== undefined) {
       sets.push(sql`start_date = ${patch.start_date}::date`)
-    }
-    /* The Board's In progress (4.5): a plain edit of the row, never a status
-       transition, so it is written here and 8.3's endpoints leave it alone. */
-    if (patch.started_at !== undefined) {
-      sets.push(sql`started_at = ${patch.started_at}::timestamptz`)
     }
     if (clearing) {
       sets.push(sql`due_date = NULL`)

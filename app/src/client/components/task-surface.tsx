@@ -269,8 +269,8 @@ export function TaskView({
        share one measure. The page scrolls, not an inner box. */
     return (
       <div className={pageBodyClass("pb-24 max-md:px-4")}>
-        {header}
-        <div className="pt-6 max-md:pt-2">{body}</div>
+        <div className="pt-4 max-md:pt-0">{header}</div>
+        <div className="pt-2">{body}</div>
       </div>
     )
   }

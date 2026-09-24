@@ -72,8 +72,6 @@ export const TASK_CARD_KEYS = [
   'pulled',
   'section_block_id',
   'start_date',
-  /* The Board's In progress (4.5, AC-1012), sent by every producer. */
-  'started_at',
   'status',
   'steps_done',
   'steps_total',
@@ -231,7 +229,6 @@ export function expectTaskCardShape(value: unknown, source: string): void {
   // invites this derivation reads; a shape judge cannot know which email a
   // particular card should carry, so this stays a type check.
   expectStringOrNull(card.pending_invite_email, `${source}.pending_invite_email`)
-  expectInstantOrNull(card.started_at, `${source}.started_at`)
   expectInstantOrNull(card.created_at, `${source}.created_at`)
   expectInstantOrNull(card.updated_at, `${source}.updated_at`)
   expect(card.created_at, `${source}.created_at must not be null`).not.toBeNull()

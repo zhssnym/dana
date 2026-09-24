@@ -63,7 +63,10 @@ import {
 } from "./task-pickers.js"
 import { CommentsThread } from "./comments.js"
 import { usePeopleLibrary } from "../lib/people-library.js"
-import { useMultiMemberFolderIds, useTaskDependencies } from "../api/queries.js"
+import { useMultiMemberFolderIds, useTask, useTaskDependencies } from "../api/queries.js"
+import { useUpdateTask } from "../api/mutations.js"
+import { presenterToday } from "../parts/presenters.js"
+import { boardStatusOf, type BoardStatus } from "../views/BoardView.js"
 import {
   CHIP_ASSIGNEE,
   CHIP_FOLDER,
@@ -793,22 +796,16 @@ function MenuRow({
 
 /* ----------------------------------------------------------------- status */
 
-type StatusKey = "not-started" | "in-progress" | "done"
+type StatusKey = BoardStatus
 
 const STATUS_LABEL: Record<StatusKey | "abandoned", string> = {
-  "not-started": "Not started",
-  "in-progress": "In progress",
+  not_started: "Not started",
+  in_progress: "In progress",
   done: "Done",
   abandoned: "Abandoned",
 }
 
-function statusOf(task: ConceptTask): StatusKey | "abandoned" {
-  if (task.abandoned) return "abandoned"
-  if (task.done) return "done"
-  return task.startedAt ? "in-progress" : "not-started"
-}
-
-/* The three states as one small mark: an empty ring, a half-filled ring, a
+/* The three states as one small mark: a dashed ring, a half-filled ring, a
    filled check. Abandoned is a ring with a stroke through it. */
 export function StatusMark({ status, className }: { status: StatusKey | "abandoned"; className?: string }) {
   return (
@@ -817,7 +814,7 @@ export function StatusMark({ status, className }: { status: StatusKey | "abandon
       aria-hidden="true"
       className={cn(
         "size-3.5 shrink-0",
-        status === "not-started" || status === "abandoned" ? "text-muted-foreground" : "text-primary",
+        status === "not_started" || status === "abandoned" ? "text-muted-foreground" : "text-primary",
         className,
       )}
     >
@@ -828,8 +825,8 @@ export function StatusMark({ status, className }: { status: StatusKey | "abandon
         </>
       ) : (
         <>
-          <circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray={status === "not-started" ? "2.4 1.8" : undefined} />
-          {status === "in-progress" ? <path d="M8 3.5a4.5 4.5 0 0 1 0 9z" fill="currentColor" /> : null}
+          <circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray={status === "not_started" ? "2.4 1.8" : undefined} />
+          {status === "in_progress" ? <path d="M8 3.5a4.5 4.5 0 0 1 0 9z" fill="currentColor" /> : null}
           {status === "abandoned" ? <path d="M4.5 11.5 11.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /> : null}
         </>
       )}
@@ -838,10 +835,13 @@ export function StatusMark({ status, className }: { status: StatusKey | "abandon
 }
 
 /*
-Status, the first property: Not started, In progress, Done. In progress is a
-pending task with a start (`started_at`); Done is the completion verb, so a
-series still generates its next occurrence exactly once. An abandoned task
-says so and any choice restores it first.
+Status, the first property: Not started, In progress, Done. The Board's own
+rule (`boardStatusOf` in `views/BoardView.tsx`), so the page and the Board can
+never disagree: a pending task whose start date is today or earlier is In
+progress. Choosing In progress starts it today (or on its due day when that is
+earlier, since the server holds start <= due); Not started clears the start;
+Done is the completion verb, so a series still generates its next occurrence
+exactly once. An abandoned task says so, and any choice restores it first.
 */
 function StatusRow({
   task,
@@ -850,7 +850,9 @@ function StatusRow({
   task: ConceptTask
   patch: (id: string, fields: Partial<ConceptTask>) => void
 }) {
-  const current = statusOf(task)
+  const card = useTask(task.id).data
+  const update = useUpdateTask()
+  const today = presenterToday()
   /* Abandoned to Done is two verbs in order (restore, then complete); the
      second waits for the first to land. */
   const [completeAfterRestore, setCompleteAfterRestore] = useState(false)
@@ -860,29 +862,28 @@ function StatusRow({
     patch(task.id, { done: true })
   }, [completeAfterRestore, task.abandoned, task.id, patch])
 
+  if (card === undefined) return null
+  const current: StatusKey | "abandoned" = task.abandoned ? "abandoned" : boardStatusOf(card, today)
+  const started = card.start_date !== null && card.start_date <= today
+
   function choose(next: StatusKey) {
-    if (next === current) return
-    if (task.abandoned) {
-      if (next === "done") {
+    if (card === undefined || next === current) return
+    if (next === "done") {
+      if (task.abandoned) {
         setCompleteAfterRestore(true)
         patch(task.id, { abandoned: false })
-        return
-      }
-      patch(task.id, {
-        abandoned: false,
-        ...(next === "in-progress" && !task.startedAt ? { startedAt: new Date().toISOString() } : {}),
-        ...(next === "not-started" && task.startedAt ? { startedAt: null } : {}),
-      })
+      } else patch(task.id, { done: true })
       return
     }
-    if (next === "done") {
-      patch(task.id, { done: true })
-      return
+    /* Out of Done first: an abandoned task is restored, a completed one
+       uncompleted, as a Board drop does. */
+    if (task.abandoned) patch(task.id, { abandoned: false })
+    else if (task.done) patch(task.id, { done: false })
+    if (next === "in_progress" && !started) {
+      const day = card.due_date !== null && card.due_date < today ? card.due_date : today
+      update.mutate({ id: task.id, body: { start_date: day } })
     }
-    patch(task.id, {
-      ...(task.done ? { done: false } : {}),
-      startedAt: next === "in-progress" ? (task.startedAt ?? new Date().toISOString()) : null,
-    })
+    if (next === "not_started" && started) update.mutate({ id: task.id, body: { start_date: null } })
   }
 
   return (
@@ -895,7 +896,7 @@ function StatusRow({
         </>
       }
     >
-      {(["not-started", "in-progress", "done"] as const).map((key) => (
+      {(["not_started", "in_progress", "done"] as const).map((key) => (
         <DropdownMenuItem key={key} onClick={() => choose(key)}>
           <StatusMark status={key} />
           <span className="flex-1">{STATUS_LABEL[key]}</span>

@@ -1,0 +1,21 @@
+-- 0036: user_settings.task_open defaults to 'panel' again, reversing 0010.
+--
+-- The client now reads the column as "Open tasks in": 'panel' is Side peek
+-- (the spec's default), 'dialog' Center peek, 'tab' Full page. The build
+-- before this migration ignored the column and always opened the side panel,
+-- so every account's lived experience is 'panel' whatever its row says, and
+-- 0010's 'dialog' (the default plus its UPDATE of every 'panel' row) was never
+-- something anybody saw. Moving the default and the 'dialog' rows to 'panel'
+-- keeps what each person sees today exactly as it is on the day the column
+-- starts to be honoured. No constraint or index changes, so AC-001's catalog
+-- is untouched: a column default lives in pg_attrdef, not pg_constraint.
+--
+-- What it costs: 'dialog' cannot be told apart from 0010's default, so a
+-- person who deliberately chose Dialog is reset to Side peek and has to
+-- choose Center peek once. 'tab' is deliberately not touched: it is only
+-- ever an explicit choice.
+--
+-- Forward only; the UPDATE is not reversible and no down migration exists.
+ALTER TABLE user_settings ALTER COLUMN task_open SET DEFAULT 'panel';
+--> statement-breakpoint
+UPDATE user_settings SET task_open = 'panel' WHERE task_open = 'dialog';
