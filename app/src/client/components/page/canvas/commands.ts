@@ -87,45 +87,83 @@ export function removeEmptyBeforeHeading(editor: CanvasEditor, key: 'Backspace' 
   return true
 }
 
-/** The Section of this level that holds the cursor (or is the cursor's block). */
-export function sectionContext(editor: CanvasEditor, level: number): CanvasBlock | undefined {
-  const current = editor.getTextCursorPosition().block
-  return [...ancestorsOf(editor.document, current.id) ?? [], current]
-    .find((block) => block.type === 'heading' && isSectionHeading(block) && block.props.level === level)
+/**
+ * The Sections around the place a Work Section of `level` would take, or null
+ * where none may stand: every block around it is a Section (none under a
+ * list, a toggle or a presentation heading), and `level` is at most one below
+ * the innermost (a Heading 3 needs a Heading 2 around it). `inside`: the place
+ * is the block's first child (a new line under a Section's own heading line).
+ * A level at or above the innermost is the same place after stepping out.
+ */
+export function sectionPlace(document: readonly CanvasBlock[], block: CanvasBlock, level: 1 | 2 | 3, inside = false): CanvasBlock[] | null {
+  const ancestors = ancestorsOf(document, block.id)
+  if (ancestors === null) return null
+  const chain = inside && isSectionHeading(block) ? [...ancestors, block] : ancestors
+  if (chain.some((item) => !isSectionHeading(item))) return null
+  return level <= chain.length + 1 ? chain : null
 }
 
-/** Only insert new children; never adopt existing following content by proximity.
- * A Heading 2 needs a Heading 1 around the cursor, a Heading 3 a Heading 2. */
-export function insertCanvasHeading(editor: CanvasEditor, level: 1 | 2 | 3): void {
-  const current = editor.getTextCursorPosition().block
-  const parents = ancestorsOf(editor.document, current.id) ?? []
-  const group = level === 1 ? undefined : sectionContext(editor, level - 1)
-  if (level > 1 && group === undefined) return
-  const id = crypto.randomUUID()
-  const created = { id, type: 'heading' as const, props: { level, isToggleable: true }, content: '' }
-  // At a valid destination inherit upstream empty-line replacement and cursor handling.
-  // Only crossing a Dana group boundary needs the structural path below.
-  const parent = parents.at(-1)
-  if ((level === 1 && parent === undefined) ||
-    (level > 1 && parent?.type === 'heading' && isSectionHeading(parent) && parent.props.level === level - 1)) {
-    insertOrUpdateBlockForSlashMenu(editor, { type: 'heading', props: { level, isToggleable: true } })
+/**
+ * Work's "Heading n", from `/` and from `#`: a Section where the block stands
+ * on screen. `convert` turns the block itself into it (its text kept);
+ * otherwise an empty one follows the block's line. Where a Section of that
+ * level cannot nest there (a Heading 1 inside a Section), it steps out to its
+ * level and takes what followed along, so nothing moves on screen. What would
+ * not fit under it (a Heading 3 under a new Heading 1) stays where it was.
+ * Returns false where no Section of `level` stands here.
+ */
+export function placeSection(editor: CanvasEditor, block: CanvasBlock, level: 1 | 2 | 3, convert: boolean, content?: CanvasBlock['content']): boolean {
+  const inside = !convert && isSectionHeading(block)
+  const chain = sectionPlace(editor.document, block, level, inside)
+  if (chain === null) return false
+  const props = { level, isToggleable: true, presentation: false }
+  const id = convert ? block.id : crypto.randomUUID()
+  const text = content ?? (convert ? block.content : [])
+  if (level === chain.length + 1) {
+    editor.transact(() => {
+      if (convert) editor.updateBlock(block, { type: 'heading', props, content: text } as never)
+      else if (inside && block.children[0] !== undefined) editor.insertBlocks([{ id, type: 'heading', props, content: '' } as never], block.children[0], 'before')
+      else if (inside) editor.updateBlock(block, { children: [{ id, type: 'heading', props, content: '' }] } as never)
+      else editor.insertBlocks([{ id, type: 'heading', props, content: '' } as never], block, 'after')
+      editor.setTextCursorPosition(id, 'end')
+    })
     editor.focus()
-    return
+    return true
   }
-  editor.transact(() => {
-    if (group !== undefined) {
-      if (current.id === group.id) {
-        editor.updateBlock(group, { children: [created, ...group.children] })
-      } else {
-        const sibling = parents.find((block) => block.type === 'heading' && block.props.level === level)
-        editor.insertBlocks([created], sibling ?? current, 'after')
-      }
-    } else {
-      editor.insertBlocks([created], parents[0] ?? current, 'after')
+  // What followed the place, level by level from the innermost Section out.
+  const trailingAt = (from: number, to: number): CanvasBlock[] => {
+    const out: CanvasBlock[] = []
+    for (let k = from; k >= to; k -= 1) {
+      const children = chain[k]!.children
+      const after = k === chain.length - 1 ? (inside ? null : block.id) : chain[k + 1]!.id
+      out.push(...children.slice(after === null ? 0 : children.findIndex((child) => child.id === after) + 1))
     }
-    editor.setTextCursorPosition(id)
+    return out
+  }
+  const own = convert ? block.children : []
+  const anchor = chain[level - 1]!
+  const heading = (children: readonly CanvasBlock[]) => ({ id, type: 'heading' as const, props, content: text, children: [...own, ...children] })
+  const moved = (children: readonly CanvasBlock[]): CanvasBlock[] => {
+    const leaving = new Set([...(convert ? [block.id] : []), ...children.map((child) => child.id)])
+    const walk = (items: readonly CanvasBlock[]): CanvasBlock[] => items.flatMap((item) => {
+      if (leaving.has(item.id)) return []
+      const next = { ...item, children: walk(item.children) }
+      return item.id === anchor.id ? [next, heading(children) as unknown as CanvasBlock] : [next]
+    })
+    return walk(editor.document)
+  }
+  // Everything that followed, where it fits under the new Section; else only
+  // what followed at its own level, which always fits.
+  const all = trailingAt(chain.length - 1, level - 1)
+  const adopted = validateCanvasOutline(moved(all)) === null ? all : trailingAt(level - 1, level - 1)
+  editor.transact(() => {
+    const leaving = [...(convert ? [block.id] : []), ...adopted.map((child) => child.id)]
+    if (leaving.length > 0) editor.removeBlocks(leaving)
+    editor.insertBlocks([heading(adopted) as never], anchor, 'after')
+    editor.setTextCursorPosition(id, 'end')
   })
   editor.focus()
+  return true
 }
 
 /** A presentation heading changes typography only. It never opens a Work group. */

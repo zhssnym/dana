@@ -16,7 +16,8 @@ import { useBlockNoteEditor, useComponentsContext, useExtension, useExtensionSta
 import { blockLink, blockSelection, setBlockSelection } from './block-selection.js'
 import { conversionOf, isCurrent, withoutIds } from './turn-into.js'
 import type { TreeBlock, TurnTarget } from './turn-into.js'
-import { Check, GripVertical, Plus } from '../../../lib/icons.js'
+import { Check, Copy, GripVertical, Link2, Plus, Repeat2, Trash2 } from '../../../lib/icons.js'
+import type { LucideIcon } from '../../../lib/icons.js'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- both canvas schemas pass through here
 export type AnyEditor = BlockNoteEditor<any, any, any>
@@ -49,6 +50,11 @@ function actingOn(editor: AnyEditor, id: string): readonly string[] {
   return selected.includes(id) ? selected : [id]
 }
 
+/** A row's icon, drawn as the page "…" menu draws its own (`object-menu.tsx`). */
+function MenuIcon({ icon: Icon }: { readonly icon: LucideIcon }): React.JSX.Element {
+  return <Icon className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
+}
+
 function BlockMenu({ block }: { readonly block: TreeBlock }): React.JSX.Element {
   const editor = useBlockNoteEditor() as AnyEditor
   const Components = useComponentsContext()!
@@ -64,7 +70,7 @@ function BlockMenu({ block }: { readonly block: TreeBlock }): React.JSX.Element 
         <Components.Generic.Menu.Root position="right" sub={true}>
           <Components.Generic.Menu.Trigger sub={true}>
             <Item className="bn-menu-item" subTrigger={true}>
-              <span className="flex-1">Turn into</span>
+              <span className="flex flex-1 items-center gap-2"><MenuIcon icon={Repeat2} />Turn into</span>
             </Item>
           </Components.Generic.Menu.Trigger>
           <Components.Generic.Menu.Dropdown sub={true} className="bn-menu-dropdown dana-block-menu">
@@ -79,15 +85,15 @@ function BlockMenu({ block }: { readonly block: TreeBlock }): React.JSX.Element 
       ) : null}
       {model.canDuplicate(block) ? (
         <Item className="bn-menu-item" onClick={() => { model.duplicate(ids) }}>
-          <span className="flex flex-1 items-center justify-between gap-6">Duplicate<span className="text-xs text-muted-foreground">{MOD}D</span></span>
+          <span className="flex flex-1 items-center gap-2"><MenuIcon icon={Copy} /><span className="flex-1">Duplicate</span><span className="text-xs text-muted-foreground">{MOD}D</span></span>
         </Item>
       ) : null}
       <Item className="bn-menu-item" onClick={() => { void navigator.clipboard?.writeText(blockLink(block.id)) }}>
-        <span>Copy link to block</span>
+        <span className="flex flex-1 items-center gap-2"><MenuIcon icon={Link2} />Copy link to block</span>
       </Item>
       {removal === null ? null : 'note' in removal
         ? <p className="px-2 py-1.5 text-xs text-muted-foreground">{removal.note}</p>
-        : <Item className="bn-menu-item" onClick={removal.run}><span>{removal.label}</span></Item>}
+        : <Item className="bn-menu-item" onClick={removal.run}><span className="flex flex-1 items-center gap-2"><MenuIcon icon={Trash2} />{removal.label}</span></Item>}
     </Components.Generic.Menu.Dropdown>
   )
 }

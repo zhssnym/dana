@@ -26,21 +26,31 @@
   font-family: var(--font-family-sans);
   font-weight: var(--font-weight-semibold);
 }
-/* BlockNote omits data-level for the default H1 value. */
+/* BlockNote omits data-level for the default H1 value. Three clear steps,
+   as in Notion (tokens.css), on every canvas: Work, Purpose, Results, a
+   Task's notes, a collection page and a post. */
 .dana-writing-canvas [data-content-type='heading'] {
-  --level: var(--text-xl);
-  font-size: var(--text-xl);
-  line-height: var(--text-xl--line-height);
+  --level: var(--text-h1-size);
+  font-size: var(--text-h1-size);
+  line-height: var(--text-h1-line);
 }
 .dana-writing-canvas [data-content-type='heading'][data-level='2'] {
-  --level: var(--text-heading-size);
-  font-size: var(--text-heading-size);
-  line-height: var(--text-heading-line);
+  --level: var(--text-h2-size);
+  font-size: var(--text-h2-size);
+  line-height: var(--text-h2-line);
 }
 .dana-writing-canvas [data-content-type='heading'][data-level='3'] {
-  --level: var(--text-body-size);
+  --level: var(--text-h3-size);
+  font-size: var(--text-h3-size);
+  line-height: var(--text-h3-line);
+}
+/* An open toggle heading with nothing inside: a quiet body-size line, not
+   heading-size text (upstream sets 16px). */
+.dana-writing-canvas .bn-toggle-add-block-button {
   font-size: var(--text-body-size);
   line-height: var(--text-body-line);
+  font-weight: var(--font-weight-regular);
+  color: var(--muted-foreground);
 }
 .dana-writing-canvas .bn-side-menu button svg,
 .dana-writing-canvas .bn-toggle-button svg {
