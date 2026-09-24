@@ -68,7 +68,7 @@ General discussion. The foot section and the side panel it could move to are
 gone; a notification arriving with `?conversation=open` lands on Consultation.
 
 **The "…" is the folder menu, the one list** (`lib/object-acts.ts`): History,
-Rename, Move to shelf, Cover…, Tabs…, Copy link, Duplicate, Save as workflow,
+Rename, Move to…, Move to collection, Cover…, Tabs…, Copy link, Duplicate, Save as workflow,
 then Transfer/Leave/Delete by role, exactly what the Library row's "…" and its
 right-click draw, with this page's own "View ›" above them (through `extra`),
 less Rename, whose home here is the title.
@@ -110,7 +110,8 @@ import { queryKeys } from '../api/keys.js'
 import { showToast } from '../state/toasts.js'
 const FolderCanvas = lazy(() => import('../components/page/canvas/FolderCanvas.js'))
 import { PageCover } from '../components/page-cover.js'
-import { usePageHasCover } from '../components/page-head.js'
+import { PageBreadcrumbs, usePageHasCover } from '../components/page-head.js'
+import { MovePageDialog } from '../components/move-page-dialog.js'
 import { FolderCoverDialog, FolderHeader } from '../components/folder-head.js'
 import { markIcon } from '../components/page/icon-manifest.js'
 import { FOLDER_PREFIX } from '../lib/page-identity.js'
@@ -316,6 +317,7 @@ export function FolderPage({
   const [renaming, setRenaming] = useState(false)
   const [tabsOpen, setTabsOpen] = useState(false)
   const [coverOpen, setCoverOpen] = useState(false)
+  const [movePageOpen, setMovePageOpen] = useState(false)
   /* The View menu's "Show completed", remembered on this device for every
      folder. A new key, so no existing preference moves. */
   const [showCompleted, setShowCompleted] = useState(readShowCompleted)
@@ -563,7 +565,7 @@ export function FolderPage({
      the owner's delete dialog asks: somebody to hand it to is not the same as
      somebody who is in it. */
   const others = otherMembers(members, basis.viewerId)
-  /* "Move to shelf", the viewer's own placement (4.18), off the Library's
+  /* "Move to collection" (a shelf, on screen a Collection), the viewer's own placement (4.18), off the Library's
      reads so the submenu offers what the sidebar's does. */
   const libraryFolders = useFolders()
   const shelves = useShelves()
@@ -582,7 +584,7 @@ export function FolderPage({
       {
         onSuccess: () => {
           pushUndo(
-            label === null ? `Took "${name}" off ${previous ?? 'its shelf'}` : `Moved "${name}" to ${label}`,
+            label === null ? `Took "${name}" off ${previous ?? 'its collection'}` : `Moved "${name}" to ${label}`,
             () => {
               relabel.mutate({ id, body: { shelf: previous } })
             },
@@ -1076,6 +1078,10 @@ export function FolderPage({
           history: () => {
             setHistoryOpen(true)
           },
+          /* Edit rights on the page (the location route's own bar), and never
+             Desk, which the schema keeps at the top level. */
+          'move-page':
+            gates?.identity === true && !isDefault ? () => setMovePageOpen(true) : undefined,
           move:
             isDefault || myFolderRow === undefined
               ? undefined
@@ -1132,6 +1138,7 @@ export function FolderPage({
             </div>
           ) : null}
           <PageSection name="Folder header">
+            <PageBreadcrumbs ancestors={detail?.ancestors} />
             <FolderHeader
               name={detail?.name ?? ''}
               icon={markIcon(detail?.icon ?? null)}
@@ -1283,6 +1290,11 @@ export function FolderPage({
         />
       ) : null}
       <FolderCoverDialog storageName={coverKey} open={coverOpen} onOpenChange={setCoverOpen} />
+      <MovePageDialog
+        open={movePageOpen}
+        onOpenChange={setMovePageOpen}
+        page={{ id, name: detail?.name ?? '' }}
+      />
 
       {sharing && detail !== undefined ? (
         <FolderSharingPanel

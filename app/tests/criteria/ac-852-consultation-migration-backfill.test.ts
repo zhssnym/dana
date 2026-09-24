@@ -234,14 +234,38 @@ describe('AC-853 the 0029 schema refuses what #320 forbids', () => {
     )
   })
 
-  test('resolved requires a current Outcome of the same Discussion', async () => {
+  /* Widened by 0040 (Wave 2 decision 3): a resolved Discussion may have no
+     Outcome, a thread closed without a decision. An open one still never has
+     one, resolved still means resolved_at, and a current Outcome is still one
+     of the Discussion's own. */
+  test('open never has a current Outcome, resolved needs resolved_at, and the Outcome is its own', async () => {
+    const [own] = await rows(
+      db,
+      sql`INSERT INTO discussion_outcomes (discussion_id, statement, actor_id)
+          SELECT id, 'own', ${ids.owner}::uuid FROM discussions WHERE folder_id = ${ids.withThread}::uuid
+          RETURNING id`,
+    )
     await expectRejectedBy(
       () =>
         db.execute(sql`
-          UPDATE discussions SET state = 'resolved', resolved_at = now()
+          UPDATE discussions SET current_outcome_id = ${String(own?.id)}::uuid
            WHERE folder_id = ${ids.withThread}::uuid`),
       'discussions_resolution_check',
     )
+    await expectRejectedBy(
+      () =>
+        db.execute(sql`
+          UPDATE discussions SET state = 'resolved'
+           WHERE folder_id = ${ids.withThread}::uuid`),
+      'discussions_resolution_check',
+    )
+    // 0040: closed without a decision is admitted, and reopens.
+    await db.execute(sql`
+      UPDATE discussions SET state = 'resolved', resolved_at = now()
+       WHERE folder_id = ${ids.withThread}::uuid`)
+    await db.execute(sql`
+      UPDATE discussions SET state = 'open', resolved_at = NULL
+       WHERE folder_id = ${ids.withThread}::uuid`)
     const [other] = await rows(
       db,
       sql`INSERT INTO discussion_outcomes (discussion_id, statement, actor_id)

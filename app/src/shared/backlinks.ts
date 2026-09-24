@@ -25,13 +25,14 @@ open is the same 404 a missing one is.
 import { z } from 'zod'
 
 /** Where the referencing text lives: a page document (a Folder's page, a
- * Shelf's page, a Facet's page or a Task's document) or a member's
- * Responsibility document. */
-export const BACKLINK_SURFACES = ['page', 'responsibility'] as const
+ * Shelf's page, a Facet's page or a Task's document), a member's
+ * Responsibility document, or the posts of a thread (W-C: a Discussion's
+ * posts, or a Task's comments, written in the editor). */
+export const BACKLINK_SURFACES = ['page', 'responsibility', 'post'] as const
 export type BacklinkSurface = (typeof BACKLINK_SURFACES)[number]
 
 /** The object that owns the referencing document. */
-export const BACKLINK_HOMES = ['folder', 'shelf', 'facet', 'task'] as const
+export const BACKLINK_HOMES = ['folder', 'shelf', 'facet', 'task', 'discussion'] as const
 export type BacklinkHome = (typeof BACKLINK_HOMES)[number]
 
 /** The most referencing documents one read answers. A backlink panel lists
@@ -44,7 +45,8 @@ export const backlink = z.object({
   surface: z.enum(BACKLINK_SURFACES),
   /** `folder` for a Folder page and for a Responsibility document, `shelf`
    * for a Shelf page, `facet` for a Facet page, `task` for a Task document
-   * (#221). A reader must tolerate a home it does not know. */
+   * (#221) and for a Task's posts, `discussion` for a Discussion's posts
+   * (W-C). A reader must tolerate a home it does not know. */
   home: z.enum(BACKLINK_HOMES),
   /** The id of the home: a folder, shelf, facet or task id. */
   home_id: z.uuid(),
@@ -54,10 +56,13 @@ export const backlink = z.object({
   folder_id: z.uuid().nullable(),
   /** The member whose Responsibility document holds the link; null on a page. */
   member_id: z.uuid().nullable(),
-  /** The home's live name, as its own read answers it. */
+  /** The home's live name, as its own read answers it (a Discussion's or a
+   * Task's title for posts). */
   label: z.string(),
   /** The blocks of a page document that carry the link, in document order.
-   * Empty for a Responsibility document, whose blocks have no stable ids. */
+   * Empty for a Responsibility document, whose blocks have no stable ids. For
+   * surface `post`, the ids of the posts (comments) that carry it, oldest
+   * first. */
   block_ids: z.array(z.uuid()),
 })
 export type Backlink = z.infer<typeof backlink>

@@ -34,10 +34,10 @@ about what the press does, and each act that opens a confirmation or a picker
 rather than acting carries one. 9.1 carries the rule beneath its names table.
 AC-217, AC-246, AC-180 and AC-183 read them.
 
-**The folder's move is "Move to shelf".** 9.6 fixes the string, "a member's
-personal shelf placement is 'Move to shelf' on the row"; the Library's groups
-are the viewer's shelves, so the act and the thing it moves a folder onto carry
-one name.
+**The folder's shelf move is "Move to collection".** Shelves are called
+Collections on screen (wave 2, Hassan's decision 2); the identifiers keep the
+old word. The act and the thing it moves a folder onto carry one name. "Move
+to…" is the other move: into another page, in the page tree.
 
 There is no "Label and colour": the name collides with a shelf, and the mark on
 the page already opens the picker. An overflow menu is for what is *not* on the
@@ -86,6 +86,9 @@ export type ActKey =
   | 'open'
   | 'history'
   | 'rename'
+  /* Wave 2's page tree: put this page under another page, or back at the top
+     level. The folder page's "…" opens `components/move-page-dialog.tsx`. */
+  | 'move-page'
   | 'move'
   /* A folder's cover picture and its tabs: the folder page owns both dialogs,
      so the Library row reaches them through `?folder-action=`. */
@@ -166,7 +169,8 @@ const OBJECT_ACTS: Record<ObjectKind, readonly ActSpec[]> = {
   folder: [
     { key: 'history', label: 'History', icon: History, group: 1 },
     { key: 'rename', label: 'Rename', icon: Pencil, group: 2 },
-    { key: 'move', label: 'Move to shelf', icon: FolderInput, group: 2 },
+    { key: 'move-page', label: 'Move to…', icon: FolderInput, group: 2 },
+    { key: 'move', label: 'Move to collection', icon: Folders, group: 2 },
     { key: 'cover', label: 'Cover…', icon: Image, group: 2 },
     { key: 'tabs', label: 'Tabs…', icon: Layers3, group: 2 },
     { key: 'copy-link', label: 'Copy link', icon: Link2, group: 3 },
@@ -180,9 +184,9 @@ const OBJECT_ACTS: Record<ObjectKind, readonly ActSpec[]> = {
     { key: 'delete', label: 'Delete folder…', icon: Trash2, group: 5, destructive: true },
   ],
   shelf: [
-    { key: 'open', label: 'Open shelf', icon: OpenInNewTab, group: 1 },
+    { key: 'open', label: 'Open collection', icon: OpenInNewTab, group: 1 },
     { key: 'history', label: 'History', icon: History, group: 1 },
-    { key: 'rename', label: 'Rename shelf', icon: Pencil, group: 2 },
+    { key: 'rename', label: 'Rename collection', icon: Pencil, group: 2 },
     /* 9.10: "the page's address is still copyable, an address not being an
        invitation". A shelf is private by construction, so a link opens nothing
        for whoever receives it; the act is copying an address, which is what
@@ -190,7 +194,7 @@ const OBJECT_ACTS: Record<ObjectKind, readonly ActSpec[]> = {
     { key: 'copy-link', label: 'Copy link', icon: Link2, group: 3 },
     { key: 'duplicate', label: 'Duplicate', icon: Copy, group: 3 },
     { key: 'workflow', label: 'Save as workflow', icon: Workflow, group: 3 },
-    { key: 'delete', label: 'Delete shelf…', icon: Trash2, group: 5, destructive: true },
+    { key: 'delete', label: 'Delete collection…', icon: Trash2, group: 5, destructive: true },
   ],
 }
 

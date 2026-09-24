@@ -12,7 +12,7 @@ The shelf page, bound through the adapter seam. What is worth knowing:
 - **The header is two rows**: mark, name and the one "…" menu; then the
   description. No Add cover control and no activity line: a cover already
   chosen still draws, and what happened to the shelf is the menu's History.
-- **Rename lives in the title only**: no "Rename shelf" in either menu.
+- **Rename lives in the title only**: no "Rename collection" in either menu.
   `InlineInput`'s rename commits on Enter as well as blur, 9.10's inline
   rename being what AC-203 and the sidebar dialog both expect of a field.
 */
@@ -98,7 +98,7 @@ export function ShelfPage({
             <PopoverContent align="start" className="w-auto p-0">
               {/* Seam 4. */}
               <FolderIconPicker
-                subject="Shelf"
+                subject="Collection"
                 icon={identity.glyph ?? null}
                 color={identity.color ?? null}
                 onPick={(next) =>
@@ -114,7 +114,7 @@ export function ShelfPage({
           <InlineInput
             key={name}
             defaultValue={name}
-            aria-label="Shelf name"
+            aria-label="Collection name"
             onBlur={(event) => {
               const next = event.target.value.trim()
               /* The name is the membership label, so the rename is the
@@ -164,7 +164,7 @@ export function ShelfPage({
         <InlineTextarea
           key={identity.description ?? ""}
           defaultValue={identity.description ?? ""}
-          placeholder="What this shelf is for"
+          placeholder="What this collection is for"
           aria-label="Description"
           rows={1}
           onBlur={(event) =>

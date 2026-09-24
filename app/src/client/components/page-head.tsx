@@ -23,6 +23,7 @@ a number to fill it.
 */
 
 import { useState, type ComponentPropsWithoutRef, type ReactNode } from "react"
+import { Link } from "react-router"
 
 import { PLACE_DESCRIPTION_MAX } from "../../shared/place-descriptions.js"
 import { AlignLeft, type LucideIcon } from "../lib/icons.js"
@@ -37,6 +38,56 @@ import {
   usePageIdentity as useFolderIdentity,
 } from "../lib/page-identity.js"
 import { cn } from "./ui/utils.js"
+import { paths } from "../routes.js"
+
+/*
+Where a page sits in the page tree, one quiet line above its title.
+
+The server walks the ancestors and cuts the walk at the first page this viewer
+is not a member of, so everything drawn here is already something they may
+read: nothing is inferred and nothing is filled in. A root page, or a page
+whose parent the viewer cannot see, draws nothing at all.
+
+**A long trail keeps its ends.** The root says which tree this is and the
+nearest parent says where you are; the middle is the least informative part,
+so it is what folds into "…".
+*/
+export function crumbTrail<T>(crumbs: readonly T[], keep = 4): (T | null)[] {
+  if (crumbs.length <= keep) return [...crumbs]
+  return [crumbs[0] as T, null, ...crumbs.slice(crumbs.length - (keep - 2))]
+}
+
+export function PageBreadcrumbs({
+  ancestors,
+  className,
+}: {
+  readonly ancestors: readonly { readonly id: string; readonly name: string }[] | undefined
+  readonly className?: string
+}): React.JSX.Element | null {
+  if (ancestors === undefined || ancestors.length === 0) return null
+  const trail = crumbTrail(ancestors)
+  return (
+    <nav aria-label="Breadcrumb" className={cn("min-w-0 text-xs text-muted-foreground", className)}>
+      <ol className="flex min-w-0 items-center gap-1">
+        {trail.map((crumb, index) => (
+          <li key={crumb?.id ?? `gap-${index}`} className="flex min-w-0 items-center gap-1">
+            {index > 0 ? <span aria-hidden="true">/</span> : null}
+            {crumb === null ? (
+              <span title={ancestors.slice(1, ancestors.length - 2).map((a) => a.name).join(" / ")}>…</span>
+            ) : (
+              <Link
+                to={paths.folder(crumb.id)}
+                className={cn("max-w-48 truncate rounded-sm hover:text-foreground", FOCUS)}
+              >
+                {crumb.name}
+              </Link>
+            )}
+          </li>
+        ))}
+      </ol>
+    </nav>
+  )
+}
 
 /*
 Whether this page is currently wearing a cover, the header needs it, because a

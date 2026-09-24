@@ -32,6 +32,14 @@ import { useFolders, useSearch, useShelves } from '../api/queries.js'
 import { folderMark, shelfMark } from '../parts/presenters.js'
 import { navPages, paths } from '../routes.js'
 import type { SearchResultItem } from '../components/search-overlay.js'
+import { crumbTrail } from '../components/page-head.js'
+
+/* Wave 2: a hit's place in the page tree as one muted line, "Root / … /
+   Parent", already cut by the server where the viewer's access ends. */
+function trailHint(crumbs: readonly { readonly name: string }[] | undefined): string | null {
+  if (crumbs === undefined || crumbs.length === 0) return null
+  return crumbTrail(crumbs).map((crumb) => crumb?.name ?? '…').join(' / ')
+}
 
 /** Q8's floor, which the endpoint refuses below. */
 export const MIN_QUERY = 2
@@ -86,7 +94,7 @@ export function useSearchAnswer(query: string, open: boolean): SearchAnswer {
       kind: 'folder',
       id: hit.id,
       title: hit.name,
-      hint: 'Folder',
+      hint: trailHint(hit.breadcrumbs) ?? 'Folder',
       color: folderMark(byId.get(hit.id)).color,
     }))
     const foundShelves: SearchResultItem[] = (data.shelves ?? []).map((hit) => {
@@ -95,7 +103,7 @@ export function useSearchAnswer(query: string, open: boolean): SearchAnswer {
         kind: 'shelf',
         id: hit.id,
         title: hit.name,
-        hint: 'Shelf',
+        hint: 'Collection',
         ...(shelf === undefined ? {} : { color: shelfMark(shelf).color }),
       }
     })
@@ -110,7 +118,10 @@ export function useSearchAnswer(query: string, open: boolean): SearchAnswer {
         kind: 'page',
         id: home?.path ?? paths.today,
         title: hit.text,
-        hint: home?.name === undefined ? 'Page' : `On ${home.name}`,
+        hint: (() => {
+          const trail = trailHint(hit.breadcrumbs) ?? home?.name
+          return trail === undefined ? 'Page' : `On ${trail}`
+        })(),
       }
     })
     /* The places are findable by typing too, not only offered before anything

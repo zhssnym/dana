@@ -94,7 +94,7 @@ export function FolderGroupDialog({
     const nextName = name.trim()
 
     if (!nextName) {
-      setError('Give the shelf a name')
+      setError('Give the collection a name')
       return
     }
     if (nextName.length > 40) {
@@ -108,7 +108,7 @@ export function FolderGroupDialog({
         label.toLocaleLowerCase() !== (currentLabel ?? '').toLocaleLowerCase(),
     )
     if (duplicate) {
-      setError('That shelf already exists. Move folders onto it instead.')
+      setError('That collection already exists. Move folders into it instead.')
       return
     }
 
@@ -127,17 +127,17 @@ export function FolderGroupDialog({
             <div className="mb-2 flex size-9 items-center justify-center rounded-lg bg-accent text-section-foreground">
               <Folders className="size-5" strokeWidth={1.75} aria-hidden="true" />
             </div>
-            {/* One word, shelf, from the foot button
+            {/* One word, collection, from the foot button
                 through this dialog to the row's menu. */}
             <DialogTitle>
-              {mode === 'rename' ? 'Rename shelf' : 'New shelf'}
+              {mode === 'rename' ? 'Rename collection' : 'New collection'}
             </DialogTitle>
-            {/* An empty shelf is legal and AC-313 names one, so the create
+            {/* An empty collection is legal and AC-313 names one, so the create
                 sentence must not ask for at least one folder. */}
             <DialogDescription>
               {mode === 'rename'
-                ? 'Shelves are yours alone: renaming one changes nothing for other members.'
-                : 'A shelf holds folders, and is yours alone. Put folders on it now or drag them on later.'}
+                ? 'Collections are yours alone: renaming one changes nothing for other members.'
+                : 'A collection holds pages, and is yours alone. Add pages now or drag them in later.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -147,7 +147,7 @@ export function FolderGroupDialog({
                 htmlFor="folder-group-name"
                 className="mb-1.5 block text-xs font-medium text-section-foreground"
               >
-                Shelf name
+                Collection name
               </label>
               <Input
                 ref={inputRef}
@@ -236,7 +236,7 @@ export function FolderGroupDialog({
               type="submit"
               className="h-[var(--control-height)] px-3"
             >
-              {mode === 'rename' ? 'Rename shelf' : 'Create shelf'}
+              {mode === 'rename' ? 'Rename collection' : 'Create collection'}
             </Button>
           </DialogFooter>
         </form>

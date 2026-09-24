@@ -1,14 +1,13 @@
 /*
-The Consultation facet (#212, #320): a Folder's Discussions, and one open
-Discussion at a time.
+The Discussion tab (#212, #320; W-C): a Folder's threads, and one open thread
+at a time.
 
-Which one is open is the URL's (`?discussion=<id>`, and `&outcome=<id>` when a
-Dana Link to an Outcome brought the person here), so a Discussion is
-addressable, the browser's Back returns to the list, and
-`/app/discussions/:id` and `/app/outcomes/:id` (ConsultationLinkPage) resolve
-to this same place.
+Which one is open is the URL's (`?discussion=<id>`), so a thread is
+addressable, the browser's Back returns to the list, and `/app/discussions/:id`
+and `/app/outcomes/:id` (ConsultationLinkPage) resolve to this same place. A
+thread just started from the list opens with its composer focused.
 */
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { useSearchParams } from 'react-router'
 
 import type { PersonResolver } from '../../lib/thread.js'
@@ -27,7 +26,7 @@ export function ConsultationPanel({
 }): React.JSX.Element {
   const [search, setSearch] = useSearchParams()
   const discussionId = search.get('discussion')
-  const focusOutcomeId = search.get('outcome')
+  const [started, setStarted] = useState<string | null>(null)
 
   const open = useCallback(
     (id: string | null): void => {
@@ -45,7 +44,16 @@ export function ConsultationPanel({
   return (
     <div className="mt-6">
       {discussionId === null ? (
-        <DiscussionList folderId={folderId} viewer={viewer} onOpen={(id) => open(id)} />
+        <DiscussionList
+          folderId={folderId}
+          viewer={viewer}
+          personOf={personOf}
+          onOpen={(id) => { open(id) }}
+          onStarted={(id) => {
+            setStarted(id)
+            open(id)
+          }}
+        />
       ) : (
         <DiscussionView
           key={discussionId}
@@ -53,8 +61,8 @@ export function ConsultationPanel({
           folderId={folderId}
           viewer={viewer}
           personOf={personOf}
-          focusOutcomeId={focusOutcomeId}
-          onBack={() => open(null)}
+          justStarted={started === discussionId}
+          onBack={() => { open(null) }}
         />
       )}
     </div>

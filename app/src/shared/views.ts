@@ -588,9 +588,15 @@ variant this file exists to refuse.
 /** 7.18's additive result kinds. Each entry carries its kind's
  * identity and enough to route; a client that ignores the new keys sees
  * exactly the v1 response. */
+/* Wave 2: a hit's place in the page tree, root first, as the viewer may see
+   it (cut at the first ancestor they are not a member of). For a folder hit
+   it is that folder's ancestors; for a page hit, the ancestors of its folder
+   followed by the folder itself. Optional and additive. */
+export const searchCrumb = z.object({ id: z.uuid(), name: z.string() })
 export const searchFolderHit = z.object({
   id: z.uuid(),
   name: z.string(),
+  breadcrumbs: z.array(searchCrumb).optional(),
 })
 export const searchShelfHit = z.object({
   id: z.uuid(),
@@ -601,6 +607,7 @@ export const searchPageHit = z.object({
   folder_id: z.uuid().nullable(),
   shelf_id: z.uuid().nullable(),
   text: z.string(),
+  breadcrumbs: z.array(searchCrumb).optional(),
 })
 
 export const getSearchResponse = z.object({
