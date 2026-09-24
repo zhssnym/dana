@@ -68,12 +68,23 @@ export function LandingPage(): React.JSX.Element {
         <h1 className="text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-title text-balance">
           All your projects, in one quiet place.
         </h1>
-        <p className="mt-4 text-sm text-muted-foreground">
-          Create a project, write down what it&apos;s for, break it into tasks, and track them
-          until they&apos;re done. Share it with the people you work with and talk it through in
-          threads right next to the work. Dana is Notion&apos;s editor, GitHub Issues&apos; tasks
-          and Slack&apos;s conversations, in one calm app.
-        </p>
+        <div className="mt-4 flex flex-col gap-3 text-sm text-muted-foreground">
+          <p>
+            Create a project, write down what it&apos;s for, break it into tasks, and track them
+            until they&apos;re done. Share it with the people you work with, and talk it through in
+            threads right next to the work.
+          </p>
+          <p>
+            But what is Dana? Imagine taking Notion&apos;s editor, GitHub&apos;s issues and
+            Slack&apos;s threads, and trimming them down to what a person needs to finish a project
+            without drowning in bloat. That&apos;s Dana. And it&apos;s free, by the way.
+          </p>
+          <p>
+            Dana is in beta as of October 2026. If you try it, I&apos;d really like to hear what
+            works and what doesn&apos;t:{' '}
+            <ObfuscatedEmail className="rounded-sm underline hover:text-foreground" />
+          </p>
+        </div>
 
         {signInFailed ? (
           <p role="status" className="mt-6 text-sm text-destructive">
@@ -85,12 +96,6 @@ export function LandingPage(): React.JSX.Element {
           <GoogleGlyph />
           Continue with Google
         </Button>
-
-        <p className="mt-12 text-xs text-muted-foreground">
-          Dana is in beta as of October 2026. If you try it, we&apos;d really like to hear what
-          works and what doesn&apos;t:{' '}
-          <ObfuscatedEmail className="rounded-sm underline hover:text-foreground" />
-        </p>
 
         <p className="mt-6 text-xs text-muted-foreground">
           <a href="/privacy" className="rounded-sm hover:text-foreground">
