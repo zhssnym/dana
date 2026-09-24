@@ -44,11 +44,13 @@ illustration rather than by sentence.
 
 A signed-in visitor goes to `/app` (AC-956, issue #326): `dana.so` and its
 bookmarks otherwise offered "Sign in" over a live 30-day session, and the click
-went round Google for nothing. The check is the `/me` read `main.tsx` already
-prefetches, so the load costs no extra request, and only a 200 moves anyone:
-a 401, an offline or a slow answer keeps the page. A query string keeps it too,
-so `?signin=failed` still says its sentence and `/?about` shows a signed-in
-person the page.
+went round Google for nothing. The server answers a signed-in `/` with a 302
+before this page is sent (`server/index.ts`), so in production nothing here
+draws; this check is the fallback for Vite's dev server, which the server never
+sees. It is the `/me` read `main.tsx` already prefetches, so the load costs no
+extra request, and only a 200 moves anyone: a 401, an offline or a slow answer
+keeps the page. A query string keeps it too, on both sides, so `?signin=failed`
+still says its sentence and `/?about` shows a signed-in person the page.
 */
 import {
   useEffect,
