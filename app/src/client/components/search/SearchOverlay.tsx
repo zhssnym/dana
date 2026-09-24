@@ -30,9 +30,9 @@ control is "Close search", which collides with nothing.
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 
-import { onOpenSearch } from '../../shell/overlays.js'
+import { onOpenSearch, openShortcuts } from '../../shell/overlays.js'
 import { paths } from '../../routes.js'
-import { placeItems } from '../../lib/search-items.js'
+import { SHORTCUTS_RESULT, placeItems } from '../../lib/search-items.js'
 import { openTask } from '../task-open.js'
 import { SearchOverlay as LiftedSearchOverlay } from '../search-overlay.js'
 
@@ -59,7 +59,8 @@ export function SearchOverlay(): React.JSX.Element {
       }}
       items={places}
       onOpenResult={(id, kind) => {
-        if (kind === 'task') openTask(id)
+        if (id === SHORTCUTS_RESULT) openShortcuts()
+        else if (kind === 'task') openTask(id)
         else if (kind === 'folder') void navigate(paths.folder(id))
         else if (kind === 'shelf') void navigate(paths.shelf(id))
         else void navigate(id)

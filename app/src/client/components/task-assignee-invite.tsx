@@ -66,7 +66,7 @@ export function TaskAssigneeInvite({
        the pending invite. Said here too, because the person who just sent it
        is looking at this and not at the row behind it. */
     return (
-      <p className="px-1.5 py-1 text-[12px] leading-4 text-[var(--color-info-700)]">
+      <p className="px-1.5 py-1 text-xs leading-4 text-[var(--color-info-700)]">
         {`Invite pending: ${sent}`}
       </p>
     )
@@ -87,14 +87,14 @@ export function TaskAssigneeInvite({
           event.preventDefault()
           send()
         }}
-        className="h-7 border-0 bg-[var(--color-graphite-50)] px-2 text-[13px] shadow-none"
+        className="h-7 border-0 bg-accent px-2 text-sm shadow-none"
       />
       <Button
         type="button"
         variant="ghost"
         disabled={invite.isPending}
         onClick={send}
-        className="h-7 px-2.5 text-xs hover:bg-[var(--color-graphite-100)]"
+        className="h-7 px-2.5 text-xs hover:bg-accent"
       >
         Send
       </Button>

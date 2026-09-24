@@ -50,7 +50,7 @@ function TooltipContent({
         <TooltipPrimitive.Popup
           data-slot="tooltip-content"
           className={cn(
-            "z-50 inline-flex w-fit max-w-xs items-center gap-1.5 rounded-sm bg-[var(--color-graphite-900)] px-2 py-1 text-xs text-white has-data-[slot=kbd]:pr-1 **:data-[slot=kbd]:rounded-sm motion-float",
+            "z-50 inline-flex w-fit max-w-xs items-center gap-1.5 rounded-sm bg-foreground px-2 py-1 text-xs text-background has-data-[slot=kbd]:pr-1 **:data-[slot=kbd]:rounded-sm motion-float",
             className
           )}
           {...props}

@@ -680,7 +680,7 @@ export function Actions({
                 */
                 aria-label={RESTORE}
                 className={cn(
-                  "flex size-7 items-center justify-center rounded-md text-[var(--color-graphite-600)] opacity-0 transition-[opacity,background-color,color] group-hover/row:opacity-100 group-focus-within/row:opacity-100 hover:bg-[var(--color-graphite-200)] hover:text-[var(--color-graphite-800)]",
+                  "flex size-7 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-[opacity,background-color,color] group-hover/row:opacity-100 group-focus-within/row:opacity-100 hover:bg-accent hover:text-foreground",
                   T_FAST,
                   FOCUS,
                 )}
@@ -723,7 +723,7 @@ export function Actions({
            decision and arrives as this prop. */
         title={importantTooltip ?? (task.important ? "Important" : "Mark as important")}
         className={cn(
-          "flex size-7 items-center justify-center rounded-md transition-[opacity,background-color] hover:bg-[var(--color-graphite-200)] active:scale-90",
+          "flex size-7 items-center justify-center rounded-md transition-[opacity,background-color] hover:bg-accent active:scale-90",
           T_FAST,
           FOCUS,
           task.important
@@ -747,8 +747,8 @@ export function Actions({
             "size-[18px] transition-[transform,color]",
             T_FAST,
             task.important && !quietStar
-              ? "scale-110 fill-current text-[var(--color-graphite-900)]"
-              : "text-[var(--color-graphite-600)]",
+              ? "scale-110 fill-current text-foreground"
+              : "text-muted-foreground",
           )}
           strokeWidth={1.75}
           aria-hidden="true"
@@ -777,7 +777,7 @@ export function Actions({
                name "More actions". */
             aria-label="More actions"
             className={cn(
-              "flex size-7 items-center justify-center rounded-md text-[var(--color-graphite-600)] transition-[opacity,background-color] hover:bg-[var(--color-graphite-200)] data-popup-open:opacity-100",
+              "flex size-7 items-center justify-center rounded-md text-muted-foreground transition-[opacity,background-color] hover:bg-accent data-popup-open:opacity-100",
               T_FAST,
               FOCUS,
               persistent

@@ -48,7 +48,7 @@ import { cn } from "./ui/utils.js"
 
 const T_FAST = "duration-[var(--duration-fast)] ease-[var(--ease-standard)]"
 const FOCUS =
-  "outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)] focus-visible:ring-offset-1"
+  "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
 
 /* ------------------------------------------------- colour & gradient tier -- */
 
@@ -244,7 +244,7 @@ export function resolveCover(
       backgroundImage: `url("${key.slice("link:".length)}")`,
       backgroundSize: "cover",
       backgroundPosition: `center ${position}%`,
-      backgroundColor: "var(--color-graphite-100)",
+      backgroundColor: "var(--muted)",
     }
   }
   const swatch = [...GRADIENTS, ...MARKS].find((cover) => cover.key === key)
@@ -279,8 +279,8 @@ function Swatch({
         T_FAST,
         FOCUS,
         selected
-          ? "border-transparent ring-2 ring-[var(--color-graphite-700)]"
-          : "border-[var(--color-graphite-200)] hover:border-[var(--color-graphite-400)]",
+          ? "border-transparent ring-2 ring-foreground"
+          : "border-border hover:border-input",
       )}
       style={{ backgroundImage: css, backgroundSize: "cover", backgroundPosition: "center" }}
     />
@@ -289,7 +289,7 @@ function Swatch({
 
 function SectionLabel({ children }: { children: string }) {
   return (
-    <p className="px-0.5 pt-3 pb-1.5 text-[12px] leading-4 font-medium text-[var(--color-graphite-500)] first:pt-0">
+    <p className="px-0.5 pt-3 pb-1.5 text-xs font-medium text-muted-foreground first:pt-0">
       {children}
     </p>
   )
@@ -370,7 +370,7 @@ export function FolderCoverPicker({
       {/* The tab row, with Remove at its far end, the Notion arrangement,
           in Dana's chrome: a hairline under the row, the active tab marked
           by ink rather than a pill. */}
-      <div className="flex items-center gap-0.5 border-b border-[var(--color-graphite-100)] px-2 pt-1.5">
+      <div className="flex items-center gap-0.5 border-b border-border px-2 pt-1.5">
         {(
           [
             ["gallery", "Gallery"],
@@ -389,12 +389,12 @@ export function FolderCoverPicker({
             aria-pressed={tab === key}
             onClick={() => setTab(key)}
             className={cn(
-              "-mb-px h-8 border-b-2 px-2.5 text-[12px] leading-4 font-medium transition-colors",
+              "-mb-px h-8 border-b-2 px-2.5 text-xs font-medium transition-colors",
               T_FAST,
               FOCUS,
               tab === key
-                ? "border-[var(--color-graphite-800)] text-[var(--color-graphite-800)]"
-                : "border-transparent text-[var(--color-graphite-500)] hover:text-[var(--color-graphite-700)]",
+                ? "border-foreground text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground",
             )}
           >
             {label}
@@ -405,7 +405,7 @@ export function FolderCoverPicker({
             type="button"
             onClick={onRemove}
             className={cn(
-              "mb-1 ml-auto flex h-6 items-center gap-1 rounded-md px-2 text-[12px] leading-4 text-[var(--color-graphite-500)] transition-colors hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-700)]",
+              "mb-1 ml-auto flex h-6 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
               T_FAST,
               FOCUS,
             )}
@@ -453,7 +453,7 @@ export function FolderCoverPicker({
               event.preventDefault()
               takeFile(event.dataTransfer.files)
             }}
-            className="flex h-32 flex-col items-center justify-center gap-1.5 rounded-md border border-dashed border-[var(--color-graphite-300)] bg-[var(--color-graphite-25)]"
+            className="flex h-32 flex-col items-center justify-center gap-1.5 rounded-md border border-dashed border-input bg-muted"
           >
             <input
               ref={fileInput}
@@ -469,7 +469,7 @@ export function FolderCoverPicker({
               type="button"
               onClick={() => fileInput.current?.click()}
               className={cn(
-                "flex h-8 items-center gap-1.5 rounded-md border border-[var(--color-graphite-300)] bg-card px-3 text-[12px] leading-4 font-medium text-[var(--color-graphite-700)] transition-colors hover:bg-[var(--color-graphite-50)]",
+                "flex h-8 items-center gap-1.5 rounded-md border border-input bg-card px-3 text-xs font-medium text-foreground transition-colors hover:bg-accent",
                 T_FAST,
                 FOCUS,
               )}
@@ -477,7 +477,7 @@ export function FolderCoverPicker({
               <ImageIcon className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={1.75} aria-hidden="true" />
               Choose an image
             </button>
-            <p className="text-[11px] leading-4 text-[var(--color-graphite-400)]">
+            <p className="text-xs text-muted-foreground">
               {/* The tab says what is true of this caller. */}
               {onUpload ? "or drop one here" : "or drop one here · kept for this session only"}
             </p>
@@ -502,14 +502,14 @@ export function FolderCoverPicker({
               placeholder="Paste an image link"
               aria-label="Cover image link"
               className={cn(
-                "h-8 min-w-0 flex-1 rounded-md border border-[var(--color-graphite-300)] bg-card px-2 text-[13px] leading-5 outline-none",
-                "placeholder:text-[var(--color-graphite-400)] focus-visible:border-[var(--color-dana-accent-600)] focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-100)]",
+                "h-8 min-w-0 flex-1 rounded-md border border-input bg-card px-2 text-sm outline-none",
+                "placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30",
               )}
             />
             <button
               type="submit"
               className={cn(
-                "h-8 shrink-0 rounded-md bg-[var(--color-graphite-900)] px-3 text-[12px] leading-4 font-medium text-white transition-colors hover:bg-[var(--color-graphite-800)]",
+                "h-8 shrink-0 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90",
                 T_FAST,
                 FOCUS,
               )}
@@ -530,26 +530,26 @@ export function FolderCoverPicker({
             >
               <div
                 className={cn(
-                  "flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-md border border-[var(--color-graphite-300)] bg-card px-2 transition-colors",
+                  "flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-md border border-input bg-card px-2 transition-colors",
                   T_FAST,
-                  "focus-within:border-[var(--color-dana-accent-600)] focus-within:ring-2 focus-within:ring-[var(--color-dana-accent-100)]",
+                  "focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/30",
                 )}
               >
-                <Search className="size-3.5 shrink-0 text-[var(--color-graphite-400)]" strokeWidth={1.75} aria-hidden="true" />
+                <Search className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
                 <Input bare
                   value={photoQuery}
                   autoFocus
                   onChange={(event) => setPhotoQuery(event.target.value)}
                   placeholder="Search openly licensed photos"
                   aria-label="Search openly licensed photos"
-                  className="min-w-0 flex-1 bg-transparent text-[13px] leading-5 outline-none placeholder:text-[var(--color-graphite-400)]"
+                  className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
                 />
               </div>
               <button
                 type="submit"
                 disabled={photoLoading || !photoQuery.trim()}
                 className={cn(
-                  "flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-[var(--color-graphite-900)] px-3 text-[12px] leading-4 font-medium text-white transition-colors hover:bg-[var(--color-graphite-800)] disabled:pointer-events-none disabled:opacity-40",
+                  "flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-40",
                   T_FAST,
                   FOCUS,
                 )}
@@ -562,7 +562,7 @@ export function FolderCoverPicker({
             </form>
 
             {photoError ? (
-              <p className="px-0.5 py-1 text-[12px] leading-4 text-[var(--color-graphite-500)]">
+              <p className="px-0.5 py-1 text-xs text-muted-foreground">
                 {photoError}
               </p>
             ) : null}
@@ -582,25 +582,25 @@ export function FolderCoverPicker({
                       else onPick(`link:${photo.url}`)
                     }}
                     className={cn(
-                      "h-16 rounded-md border bg-[var(--color-graphite-100)] bg-cover bg-center transition-shadow",
+                      "h-16 rounded-md border bg-muted bg-cover bg-center transition-shadow",
                       T_FAST,
                       FOCUS,
                       value === `link:${photo.url}`
-                        ? "border-transparent ring-2 ring-[var(--color-graphite-700)]"
-                        : "border-[var(--color-graphite-200)] hover:border-[var(--color-graphite-400)]",
+                        ? "border-transparent ring-2 ring-foreground"
+                        : "border-border hover:border-input",
                     )}
                     style={{ backgroundImage: `url("${photo.thumb}")` }}
                   />
                 ))}
               </div>
             ) : !photoSearched && !photoError ? (
-              <p className="px-0.5 py-4 text-center text-[12px] leading-4 text-[var(--color-graphite-400)]">
+              <p className="px-0.5 py-4 text-center text-xs text-muted-foreground">
                 Search Openverse for an openly licensed cover ,
                 “mountains”, “linen”, “night sky”…
               </p>
             ) : null}
 
-            <p className="px-0.5 pt-2 text-[11px] leading-4 text-[var(--color-graphite-400)]">
+            <p className="px-0.5 pt-2 text-xs text-muted-foreground">
               Openverse · openly licensed images · loaded over the network, so
               the offline share build shows a plain ground instead
             </p>

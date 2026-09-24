@@ -12,17 +12,14 @@ import {
   useTimeFormat,
   type Clock,
 } from "../../lib/time-format.js"
+import { MONTHS_FULL, formatDate, weekdayName } from "../../lib/dates.js"
+import { isoDay } from "../../tasks/task-model.js"
 import { cn } from "./utils.js"
 
 const FOCUS =
   "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
 
 const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]
-const MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-]
-
 function startOfDayLocal(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate())
 }
@@ -108,7 +105,7 @@ export function Calendar({
           aria-live="polite"
           className="text-sm font-medium text-foreground"
         >
-          {MONTHS[view.month]} {view.year}
+          {MONTHS_FULL[view.month]} {view.year}
         </span>
         <button
           type="button"
@@ -186,7 +183,7 @@ export function Calendar({
                 tabIndex={isCursor ? 0 : -1}
                 aria-current={isToday ? "date" : undefined}
                 aria-pressed={isSelected}
-                aria-label={date.toDateString()}
+                aria-label={`${weekdayName(isoDay(date))} ${formatDate(isoDay(date), "")}`}
                 onClick={() => {
                   setCursor(date)
                   if (outside) setView({ year: date.getFullYear(), month: date.getMonth() })

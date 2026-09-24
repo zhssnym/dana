@@ -103,14 +103,14 @@ export function PageMark({
       {hasCover ? (
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute -inset-2 rounded-full bg-[radial-gradient(closest-side,var(--color-graphite-0)_35%,color-mix(in_oklab,var(--color-graphite-0)_70%,transparent)_65%,transparent_100%)]"
+          className="pointer-events-none absolute -inset-2 rounded-full bg-[radial-gradient(closest-side,var(--background)_35%,color-mix(in_oklab,var(--background)_70%,transparent)_65%,transparent_100%)]"
         />
       ) : null}
       {interactive ? (
         <span
           aria-hidden="true"
           className={cn(
-            "pointer-events-none absolute inset-0 rounded-full bg-[var(--color-graphite-100)] opacity-0 transition-opacity group-hover/mark:opacity-100 group-focus-visible/mark:opacity-100",
+            "pointer-events-none absolute inset-0 rounded-full bg-accent opacity-0 transition-opacity group-hover/mark:opacity-100 group-focus-visible/mark:opacity-100",
             T_FAST,
           )}
         />
@@ -125,7 +125,7 @@ export function PageMark({
   )
 
   const shape = cn(
-    "relative flex shrink-0 items-center justify-center text-[var(--color-graphite-800)]",
+    "relative flex shrink-0 items-center justify-center text-foreground",
     hasCover ? "z-40 -ml-1.5 -mt-9 size-14" : "-ml-1.5 size-10",
     className,
   )
@@ -372,7 +372,7 @@ export function PageDescription({
        there is nothing to read. */
     if (!value) return null
     return (
-      <p className="-mx-1 mt-1 max-w-xl px-1 py-0.5 text-[12px] leading-5 whitespace-pre-wrap text-[var(--color-graphite-600)]">
+      <p className="-mx-1 mt-1 max-w-xl px-1 py-0.5 text-xs leading-5 whitespace-pre-wrap text-muted-foreground">
         {value}
       </p>
     )
@@ -384,10 +384,10 @@ export function PageDescription({
         type="button"
         onClick={() => setEditing(true)}
         className={cn(
-          "-mx-1 mt-1 flex h-6 items-center gap-1.5 rounded-md px-1 text-[12px] leading-5 text-[var(--color-graphite-400)] transition-[opacity,background-color,color]",
+          "-mx-1 mt-1 flex h-6 items-center gap-1.5 rounded-md px-1 text-xs leading-5 text-quiet-foreground transition-[opacity,background-color,color]",
           T_FAST,
           FOCUS,
-          "hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-600)]",
+          "hover:bg-accent hover:text-muted-foreground",
           offer ? "opacity-100" : "opacity-0 group-hover/head:opacity-100 focus-visible:opacity-100",
         )}
       >
@@ -412,9 +412,9 @@ export function PageDescription({
       autoFocus={editing}
       onBlur={(event) => commit(event.target.value)}
       className={cn(
-        "-mx-1 mt-1 block w-[calc(100%+0.5rem)] max-w-xl resize-none rounded-md bg-transparent px-1 py-0.5 text-[12px] leading-5 text-[var(--color-graphite-600)] outline-none transition-colors [field-sizing:content]",
+        "-mx-1 mt-1 block w-[calc(100%+0.5rem)] max-w-xl resize-none rounded-md bg-transparent px-1 py-0.5 text-xs leading-5 text-muted-foreground outline-none transition-colors [field-sizing:content]",
         T_FAST,
-        "placeholder:text-[var(--color-graphite-400)] hover:bg-[var(--color-graphite-50)] focus:bg-card focus:ring-1 focus:ring-[var(--color-dana-accent-600)]",
+        "placeholder:text-quiet-foreground hover:bg-accent focus:bg-card focus:ring-1 focus:ring-ring",
       )}
     />
   )

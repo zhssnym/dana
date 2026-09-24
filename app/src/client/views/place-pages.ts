@@ -195,15 +195,3 @@ function placeDefaults(place: PlaceKey, today: string): CaptureDefaults {
       return { due_date: null, important: false, pullIntoToday: false }
   }
 }
-
-/** The same defaults as the task surface takes them, for the floating button. */
-export function surfaceDefaults(
-  place: PlaceKey,
-  today: string,
-): { due_date: string | null; important: boolean } {
-  const defaults = placeDefaults(place, today)
-  return {
-    due_date: defaults.due_date ?? null,
-    important: defaults.important ?? false,
-  }
-}

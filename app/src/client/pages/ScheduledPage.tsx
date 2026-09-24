@@ -52,7 +52,11 @@ export function ScheduledPage(): React.JSX.Element {
       <PlaceHead place={place} />
 
       {place.mode === 'calendar' ? (
-        <PlannedCalendar />
+        <PlannedCalendar
+          onCreate={(title, date) => {
+            place.capture(title, { due_date: date })
+          }}
+        />
       ) : (
         <>
           <div>

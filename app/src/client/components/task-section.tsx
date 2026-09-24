@@ -37,7 +37,7 @@ import { cn } from "./ui/utils.js"
 
 const T_FAST = "duration-[var(--duration-fast)] ease-[var(--ease-standard)]"
 const FOCUS =
-  "outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)] focus-visible:ring-offset-1"
+  "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
 
 export function TaskSection({
   id,
@@ -92,7 +92,7 @@ export function TaskSection({
         <div className="group/section mb-2 flex h-8 items-center gap-1.5 border-b border-border">
           <CollapsibleTrigger
             className={cn(
-              "-ml-1.5 flex size-6 shrink-0 items-center justify-center rounded-md text-[var(--color-graphite-400)] transition-[background-color,color] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-700)]",
+              "-ml-1.5 flex size-6 shrink-0 items-center justify-center rounded-md text-quiet-foreground transition-[background-color,color] hover:bg-accent hover:text-section-foreground",
               T_FAST,
               FOCUS,
             )}
@@ -108,7 +108,7 @@ export function TaskSection({
           {avatar ?? null}
           {!avatar && Icon ? (
             <Icon
-              className="size-4 shrink-0 text-[var(--color-graphite-500)]"
+              className="size-4 shrink-0 text-muted-foreground"
               style={iconColor ? { color: iconColor } : undefined}
               strokeWidth={1.75}
               aria-hidden="true"
@@ -141,7 +141,7 @@ export function TaskSection({
           </h2>
 
           {typeof count === "number" ? (
-            <span className="shrink-0 text-[12px] leading-4 text-[var(--color-graphite-400)] tabular-nums">
+            <span className="shrink-0 text-xs leading-4 text-quiet-foreground tabular-nums">
               {count}
             </span>
           ) : null}
@@ -183,7 +183,7 @@ export function CompletedSection({
     <Collapsible open={open} onOpenChange={setOpen}>
       <CollapsibleTrigger
         className={cn(
-          "group/done flex h-[var(--control-height)] w-full items-center gap-1.5 rounded-md px-2 text-[13px] font-semibold text-[var(--color-graphite-600)] transition-colors hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-800)]",
+          "group/done flex h-[var(--control-height)] w-full items-center gap-1.5 rounded-md px-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
           T_FAST,
           "focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:outline-none",
         )}

@@ -1,41 +1,20 @@
 /*
-The seam between the global chrome and the two overlays this session does not
-build.
-
-9.1 puts the search control and the floating add button in the chrome, which
-is this role's; 9.3's task form and 9.9's search overlay are the Complex
-Interaction engineer's, and that session runs after this one. Without a seam
-the chrome would either have to import surfaces that do not exist or the
-overlays would have to reach up into the chrome and re-render it.
+The seam between the global chrome and the overlays it opens (search, the
+keyboard shortcuts sheet, New folder). Without a seam the chrome would either
+have to import those surfaces or they would have to reach up into the chrome
+and re-render it.
 
 So the chrome asks and something answers. Nothing in this file knows what an
-overlay is: `openTaskForm` carries the entry-point defaults of 9.3, which are
-the chrome's to decide because 9.3's table keys them by where the person
-clicked, and the form's to honour.
+overlay is. (There is no task form any more: a task is made in the list's own
+"New task" row.)
 
 The idiom is `state/toasts.ts` again, and for the same reason: a subscribable
 module rather than a context, so a control anywhere in the chrome can raise
 one without the two being in the same tree.
 */
 
-/** 9.3's entry-point defaults, as the table keys them. */
-export interface TaskFormDefaults {
-  readonly due_date?: string | null
-  readonly important?: boolean
-  readonly folder_id?: string
-  /** The page section whose writing line opened the form. It is already a
-      field on the existing task-create contract; carrying it here keeps the
-      task in the place where the person invoked the composer. */
-  readonly section_block_id?: string | null
-  /* polish: taskrow F3. What the quick-add held when "Open full form" was
-     pressed, so the surface opens on that title rather than a blank one. */
-  readonly title?: string
-}
-
-type TaskFormListener = (defaults: TaskFormDefaults) => void
 type SearchListener = () => void
 
-const taskFormListeners = new Set<TaskFormListener>()
 const searchListeners = new Set<SearchListener>()
 
 /*
@@ -45,7 +24,7 @@ The New folder dialog, asked for from a page.
 it makes lands on that shelf; the dialog that does this is the shell's, mounted
 once for the reason its own comment gives (a dialog inside the thing that
 opens it is unmounted by the refetch its own write causes). The same idiom as
-the two above: the page asks, the shell answers, and neither imports the
+search below: the page asks, the shell answers, and neither imports the
 other. `label` is the shelf the new folder is filed under, or null for one
 made from nowhere in particular.
 */
@@ -63,14 +42,21 @@ export function onOpenNewFolder(listener: NewFolderListener): () => void {
   }
 }
 
-export function openTaskForm(defaults: TaskFormDefaults): void {
-  for (const listener of taskFormListeners) listener(defaults)
+/*
+The keyboard shortcuts sheet: `?` opens it, and so does "Keyboard shortcuts"
+in search. The shell mounts it once, before any key can be pressed at a page.
+*/
+type ShortcutsListener = () => void
+const shortcutsListeners = new Set<ShortcutsListener>()
+
+export function openShortcuts(): void {
+  for (const listener of shortcutsListeners) listener()
 }
 
-export function onOpenTaskForm(listener: TaskFormListener): () => void {
-  taskFormListeners.add(listener)
+export function onOpenShortcuts(listener: ShortcutsListener): () => void {
+  shortcutsListeners.add(listener)
   return () => {
-    taskFormListeners.delete(listener)
+    shortcutsListeners.delete(listener)
   }
 }
 
@@ -111,7 +97,8 @@ export function onOpenSearch(listener: SearchListener): () => void {
 }
 
 /**
- * 9.1's two shortcuts for the search control, attached to the document.
+ * 9.1's two shortcuts for the search control, and `?` for the shortcuts
+ * sheet, attached to the document.
  *
  * Installed from `main.tsx` at module scope rather than from a component
  * effect, so the window is listening from the moment the bundle runs instead
@@ -135,6 +122,15 @@ export function installSearchShortcut(target: Document): () => void {
     if (!globalThis.location.pathname.startsWith('/app')) return
     const ctrlK = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k'
     const slash = event.key === '/' && !isTyping(event.target)
+    const help =
+      event.key === '?' && !event.ctrlKey && !event.metaKey && !event.altKey && !isTyping(event.target)
+    if (help) {
+      /* A dialog already open owns the keyboard. */
+      if (target.querySelector('[aria-modal="true"], [role="dialog"]') !== null) return
+      event.preventDefault()
+      openShortcuts()
+      return
+    }
     if (!ctrlK && !slash) return
     event.preventDefault()
     openSearch()

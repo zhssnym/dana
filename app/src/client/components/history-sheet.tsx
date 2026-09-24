@@ -40,27 +40,27 @@ import {
   useHistory,
   whenFor,
 } from "../lib/history.js"
+import { formatClockTime, formatDay, type TimeFormat } from "../lib/dates.js"
+import { useTimeFormat } from "../lib/time-format.js"
+import { isoDay } from "../tasks/task-model.js"
 
-const MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-]
-
-/* Which day an event belongs to, as the heading a person would write. */
-function dayOf(at: number, now = Date.now()) {
-  const date = new Date(at)
-  const today = new Date(now)
-  const midnight = (d: Date) =>
-    new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
-  const days = Math.round((midnight(today) - midnight(date)) / 86_400_000)
-  if (days === 0) return "Today"
-  if (days === 1) return "Yesterday"
-  return `${date.getDate()} ${MONTHS[date.getMonth()]}`
+/* The instant's civil day on this machine's clock, as `lib/dates.ts` reads it. */
+function civilOf(at: number) {
+  return isoDay(new Date(at))
 }
 
-function timeOf(at: number) {
+/* Which day an event belongs to, as the heading a person would write:
+   "Today", "Yesterday", then "24 Sep", or "24 Sep 2025" in another year. */
+function dayOf(at: number, now = Date.now()) {
+  return formatDay(civilOf(at), civilOf(now))
+}
+
+/* The wall clock on the viewer's own 12/24-hour setting. */
+function timeOf(at: number, clock: TimeFormat) {
   const date = new Date(at)
-  return `${date.getHours()}:${`${date.getMinutes()}`.padStart(2, "0")}`
+  const hh = String(date.getHours()).padStart(2, "0")
+  const mm = String(date.getMinutes()).padStart(2, "0")
+  return formatClockTime(`${hh}:${mm}`, clock)
 }
 
 export function HistorySheet({
@@ -84,6 +84,7 @@ export function HistorySheet({
      carries the measurement, which is one `GET /events` per row on a page of
      closed sheets. */
   const events = useHistory(kind, subject, open, scope)
+  const clock = useTimeFormat()
 
   /* Grouped in render order rather than sorted into a map, because the events
      already arrive newest-first and a heading is simply the point where the
@@ -114,7 +115,7 @@ export function HistorySheet({
               "heading" in row ? (
                 <p
                   key={`${row.heading}-${index}`}
-                  className="px-1 pt-3 pb-1 text-[12px] leading-4 font-medium text-[var(--color-graphite-500)] first:pt-0"
+                  className="px-1 pt-3 pb-1 text-xs font-medium text-muted-foreground first:pt-0"
                 >
                   {row.heading}
                 </p>
@@ -124,15 +125,15 @@ export function HistorySheet({
                   className="flex items-baseline gap-3 rounded-md px-1 py-1.5"
                 >
                   <span
-                    className="w-10 shrink-0 text-[12px] leading-5 text-[var(--color-graphite-400)] tabular-nums"
+                    className={`${clock === "12" ? "w-16" : "w-10"} shrink-0 text-xs leading-5 text-muted-foreground tabular-nums`}
                     title={whenFor(row.event.at)}
                   >
-                    {timeOf(row.event.at)}
+                    {timeOf(row.event.at, clock)}
                   </span>
                   {/* polish: pagehead F4, folderpage F3. One sentence with
                       the actor in it, rather than a verb column and an actor
                       column that read "Edited edited the page". */}
-                  <span className="min-w-0 flex-1 text-[13px] leading-5 text-[var(--color-graphite-700)]">
+                  <span className="min-w-0 flex-1 text-sm text-foreground">
                     {sentenceOf(row.event, { kind, subject })}
                   </span>
                 </div>
@@ -142,7 +143,7 @@ export function HistorySheet({
         ) : (
           /* Nothing recorded is a real answer, and a different one from "this
              is new", a fixture task has existed since before the log did. */
-          <p className="py-6 text-center text-[13px] leading-5 text-[var(--color-graphite-500)]">
+          <p className="py-6 text-center text-sm text-muted-foreground">
             Nothing has happened to this yet.
           </p>
         )}

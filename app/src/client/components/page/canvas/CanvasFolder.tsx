@@ -44,12 +44,12 @@ function CanvasFolder({ folderId }: { readonly folderId: string }): React.JSX.El
       onClick={(event) => { event.preventDefault(); bridge.open(folderId) }}
       className={cn(
         'flex min-h-11 w-full items-center gap-3 rounded-md px-2 text-left no-underline outline-none transition-colors',
-        'hover:bg-[var(--color-graphite-50)] focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)]',
+        'hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring',
       )}
     >
       <Glyph className="size-4 shrink-0" style={{ color: folder.color }} strokeWidth={1.75} aria-hidden="true" />
-      <span className="min-w-0 flex-1 truncate text-[length:var(--text-body-size)] leading-5 text-[var(--color-graphite-800)]">{folder.name}</span>
-      {folder.pending ? <span className="shrink-0 text-[length:var(--text-meta-size)] leading-4 text-[var(--color-graphite-500)] tabular-nums">{folder.pending}</span> : null}
+      <span className="min-w-0 flex-1 truncate text-[length:var(--text-body-size)] leading-5 text-foreground">{folder.name}</span>
+      {folder.pending ? <span className="shrink-0 text-[length:var(--text-meta-size)] leading-4 text-muted-foreground tabular-nums">{folder.pending}</span> : null}
     </a>
   )
 }

@@ -86,7 +86,7 @@ function StarterCard({
       onClick={() => {
         onChoose(starter)
       }}
-      className="flex h-auto min-h-32 flex-col items-start justify-start gap-2 rounded-[14px] p-4 text-left whitespace-normal"
+      className="flex h-auto min-h-32 flex-col items-start justify-start gap-2 rounded-lg p-4 text-left whitespace-normal"
     >
       <span className="text-sm font-semibold">{starter.label}</span>
       <span className="text-xs leading-5 font-normal text-muted-foreground">
@@ -138,7 +138,7 @@ export function StarterOffer(): React.JSX.Element | null {
       aria-labelledby="starter-offer-heading"
       className="mx-auto w-full max-w-[var(--shell-content-max)] px-6 pb-10"
     >
-      <div className="rounded-[18px] bg-muted/50 p-5 sm:p-6">
+      <div className="rounded-lg bg-muted/50 p-5 sm:p-6">
         <h2 id="starter-offer-heading" className="text-base font-semibold tracking-[-0.02em]">
           {COPY.heading}
         </h2>

@@ -6,9 +6,6 @@ Always an input, drawn as a row in the checkbox column so it lines up with the
 rows above it. Enter creates and keeps focus for the next; Escape leaves.
 Pressing N or C anywhere on the page, when not typing, focuses the first one
 on screen (`useNewTaskShortcut`, installed once however many are mounted).
-
-`folderName` and `onOpenFullForm` are accepted from old call sites and unused:
-there is no full form to escalate to.
 */
 import { useEffect, useState } from 'react'
 import { Plus } from 'lucide-react'
@@ -22,10 +19,8 @@ export function QuickAdd({
   onAdd,
   className,
 }: {
-  folderName?: string
   label?: string
   onAdd: (title: string) => void
-  onOpenFullForm?: (title: string) => void
   className?: string
 }) {
   const [title, setTitle] = useState('')
@@ -101,13 +96,19 @@ function onKey(event: KeyboardEvent): void {
   if (isTyping(event.target)) return
   /* An open dialog or menu owns the keyboard. */
   if (document.querySelector('[aria-modal="true"], [role="alertdialog"], [role="menu"], [role="listbox"]') !== null) return
+  if (focusNewTaskRow()) event.preventDefault()
+}
+
+/** Focuses the first "New task" row on screen; false when the page has none.
+    The shortcut and the phone's floating "Add task" both land here. */
+export function focusNewTaskRow(): boolean {
   const field = [...document.querySelectorAll<HTMLInputElement>('input[data-new-task]')].find(
     (candidate) => candidate.offsetParent !== null,
   )
-  if (field === undefined) return
-  event.preventDefault()
-  field.scrollIntoView({ block: 'nearest' })
+  if (field === undefined) return false
+  field.scrollIntoView({ block: 'center' })
   field.focus()
+  return true
 }
 
 /** The page-wide N / C shortcut, live while at least one new-task row is mounted. */

@@ -49,7 +49,7 @@ type IconKey = keyof typeof FOLDER_ICONS
 /** The heading above a block of choices, in both tabs. */
 function SectionLabel({ children }: { children: string }): React.JSX.Element {
   return (
-    <p className="px-1 pt-2.5 pb-1.5 text-[12px] leading-4 font-medium text-muted-foreground first:pt-0">
+    <p className="px-1 pt-2.5 pb-1.5 text-xs leading-4 font-medium text-muted-foreground first:pt-0">
       {children}
     </p>
   )
@@ -143,7 +143,7 @@ export function IconPicker({
               setPreview(null)
             }}
             className={cn(
-              '-mb-px h-8 border-b-2 px-2.5 text-[12px] leading-4 font-medium transition-colors',
+              '-mb-px h-8 border-b-2 px-2.5 text-xs leading-4 font-medium transition-colors',
               T_FAST,
               FOCUS,
               tab === key
@@ -160,7 +160,7 @@ export function IconPicker({
         <>
           {/* The label names what the pointer is over, so choosing is reading
               one word rather than decoding a hundred small drawings. */}
-          <p className="px-1 pb-1.5 text-[12px] leading-4 font-medium text-muted-foreground">
+          <p className="px-1 pb-1.5 text-xs leading-4 font-medium text-muted-foreground">
             {shownLabel}
           </p>
           <div
@@ -183,7 +183,7 @@ export function IconPicker({
               }}
               placeholder="Search icons"
               aria-label={`Search ${subject.toLowerCase()} icons`}
-              className="min-w-0 flex-1 bg-transparent text-[13px] leading-5 outline-none placeholder:text-muted-foreground"
+              className="min-w-0 flex-1 bg-transparent text-sm leading-5 outline-none placeholder:text-muted-foreground"
             />
           </div>
 
@@ -199,7 +199,7 @@ export function IconPicker({
             }}
           >
             {sections.length === 0 ? (
-              <p className="px-1 py-4 text-center text-[12px] leading-4 text-muted-foreground">
+              <p className="px-1 py-4 text-center text-xs leading-4 text-muted-foreground">
                 No icon matches “{query.trim()}”.
               </p>
             ) : (

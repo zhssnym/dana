@@ -1,12 +1,8 @@
 /*
 The edit arm of the overlay seam.
 
-`shell/overlays.ts` carries `openTaskForm(defaults)`, which is a creation with
-9.3's entry-point defaults and no task identity, and `src/client/README.md`
-marks the question of what the seam grows into as this role's call. This is
-the answer: a second, narrower bus in this directory rather than a widened one
-in the chrome's, so the shell keeps the file it wrote and the surface that
-consumes both keeps them in one place.
+`shell/overlays.ts` is the chrome's bus; this is a second, narrower one in
+this directory, so the surface that consumes it keeps it in one place.
 
 Two callers exist and neither is chrome. A task row opens the task it draws
 (9.5: "click on any row opens the task", and 9.4's overflow "edit"), and both

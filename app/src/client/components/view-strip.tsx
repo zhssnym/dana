@@ -18,7 +18,7 @@ import { cn } from "./ui/utils.js"
 
 const T_FAST = "duration-[var(--duration-fast)] ease-[var(--ease-standard)]"
 const FOCUS =
-  "outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)] focus-visible:ring-offset-1"
+  "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
 
 export interface ViewStripOption<T extends string> {
   key: T
@@ -60,12 +60,12 @@ export function ViewStrip<T extends string>({
       className={cn(
         "flex h-7 items-center gap-0.5 rounded-md",
         collapse
-          ? "group/views border border-transparent p-0.5 transition-[border-color] hover:border-[var(--color-graphite-200)] focus-within:border-[var(--color-graphite-200)]"
+          ? "group/views border border-transparent p-0.5 transition-[border-color] hover:border-border focus-within:border-border"
           : /* polish: pagehead F1, places F5. A resting strip is a segmented
                control: bordered, every option drawn, the current one on the
                wash. Nothing widens on hover; `collapse` is kept for any
                surface that still asks for it. */
-            "border border-[var(--color-graphite-200)] bg-card p-0.5",
+            "border border-border bg-card p-0.5",
         T_FAST,
       )}
     >
@@ -87,17 +87,17 @@ export function ViewStrip<T extends string>({
                     onSelect(key)
                   }}
                   className={cn(
-                    "flex items-center justify-center overflow-hidden rounded-[4px] transition-[width,opacity,background-color,color] disabled:pointer-events-none disabled:opacity-35",
+                    "flex items-center justify-center overflow-hidden rounded-sm transition-[width,opacity,background-color,color] disabled:pointer-events-none disabled:opacity-35",
                     T_FAST,
                     FOCUS,
                     collapse ? "h-full" : "h-full w-7",
                     collapse
                       ? current
-                        ? "w-7 opacity-100 text-[var(--color-graphite-800)] group-hover/views:bg-[var(--color-graphite-100)] group-focus-within/views:bg-[var(--color-graphite-100)]"
-                        : "w-0 opacity-0 text-[var(--color-graphite-500)] group-hover/views:w-7 group-hover/views:opacity-100 group-focus-within/views:w-7 group-focus-within/views:opacity-100 hover:text-[var(--color-graphite-800)]"
+                        ? "w-7 opacity-100 text-foreground group-hover/views:bg-accent group-focus-within/views:bg-accent"
+                        : "w-0 opacity-0 text-muted-foreground group-hover/views:w-7 group-hover/views:opacity-100 group-focus-within/views:w-7 group-focus-within/views:opacity-100 hover:text-foreground"
                       : current
-                        ? "bg-[var(--color-graphite-100)] text-[var(--color-graphite-800)]"
-                        : "text-[var(--color-graphite-500)] hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-800)]",
+                        ? "bg-accent text-foreground"
+                        : "text-muted-foreground hover:bg-accent hover:text-foreground",
                   )}
                 >
                   <Icon className="size-3.5 shrink-0 data-[size=sm]:size-3.5" strokeWidth={1.75} aria-hidden="true" />
@@ -140,7 +140,7 @@ export function ActionStrip({
                   onSelect(key)
                 }}
                 className={cn(
-                  "flex size-7 items-center justify-center rounded-md text-[var(--color-graphite-600)] transition-[background-color,color] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)]",
+                  "flex size-7 items-center justify-center rounded-md text-muted-foreground transition-[background-color,color] hover:bg-accent hover:text-foreground",
                   T_FAST,
                   FOCUS,
                 )}
