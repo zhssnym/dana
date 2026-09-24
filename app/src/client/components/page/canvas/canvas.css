@@ -55,7 +55,7 @@
 }
 .dana-writing-canvas .bn-side-menu { gap: calc(var(--spacing) * 1); }
 .dana-writing-canvas .bn-side-menu .bn-button:hover {
-  background: transparent;
+  background: var(--accent);
   color: var(--muted-foreground);
 }
 .dana-writing-canvas .bn-toggle-wrapper { position: relative; }
@@ -143,3 +143,41 @@
   font-style: normal;
   pointer-events: none;
 }
+/* Block selection (`block-selection.ts`): a block picked by its handle or the
+   marquee is tinted, never outlined. Spec: #2383e2 at 14% light, 24% dark. */
+.dana-writing-canvas { --dana-block-selection: color-mix(in srgb, var(--accent-color) 14%, transparent); }
+.dark .dana-writing-canvas,
+[data-theme="dark"] .dana-writing-canvas { --dana-block-selection: color-mix(in srgb, var(--accent-color) 24%, transparent); }
+/* The gutter: "+" and ⋮⋮ fade in on hover, 24px targets, quiet until pointed at. */
+.dana-writing-canvas .bn-side-menu { animation: dana-gutter-in 120ms ease-out; }
+@keyframes dana-gutter-in { from { opacity: 0; } to { opacity: 1; } }
+.dana-writing-canvas .bn-side-menu .bn-button {
+  width: calc(var(--spacing) * 6);
+  height: calc(var(--spacing) * 6);
+  min-width: 0;
+  padding: 0;
+  border-radius: var(--radius-sm);
+}
+.dana-writing-canvas .bn-side-menu .dana-drag-handle { cursor: grab; }
+/* The block menu: Notion's rows and elevation, the popover surface. */
+.dana-block-menu {
+  min-width: calc(var(--spacing) * 56);
+  padding: calc(var(--spacing) * 1);
+  border: 0;
+  border-radius: var(--radius-md, var(--radius));
+  background: var(--popover);
+  color: var(--popover-foreground);
+  box-shadow: var(--shadow-float);
+  font-size: var(--text-sm);
+}
+.dana-block-menu .bn-menu-item,
+.dana-block-menu [role="menuitem"] {
+  min-height: calc(var(--spacing) * 7);
+  padding-block: 0;
+  padding-inline: calc(var(--spacing) * 2);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+}
+/* Space below the last block: a click there writes on (CanvasSurface). */
+.dana-canvas-tail { min-height: calc(var(--spacing) * 16); cursor: text; }
+.dana-canvas-tail-short { min-height: calc(var(--spacing) * 8); }
