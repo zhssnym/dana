@@ -1,34 +1,29 @@
 /*
-A path under /app that 9.1's route table does not name.
+A path 9.1's route table does not name, inside /app or outside it.
 
-It renders inside the chrome rather than replacing it, which is the same rule
-the 404 of an inaccessible folder follows: the shell survives, so the person
-can navigate away from a page they cannot see. The treatment is the shared
-empty-state vocabulary, so a wrong URL and an empty list read as the same kind
-of quiet answer; the sentence stays one text run.
+Inside /app it renders within the chrome, so the shell survives; outside it
+there is no sidebar to point at. Either way the page says the one thing it
+knows and offers one way on: Today for a signed-in person, the front page for
+anyone else. Whether there is a session is the `/me` read `main.tsx` already
+prefetches, so the answer costs no request.
 */
+import { Link } from 'react-router'
 
-import { Compass } from 'lucide-react'
-
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-} from '../components/ui/empty.js'
+import { useMe } from '../api/queries.js'
+import { paths } from '../routes.js'
 
 export function NotFoundPage(): React.JSX.Element {
+  const signedIn = useMe().isSuccess
   return (
-    <Empty className="min-h-72">
-      <EmptyMedia className="text-[var(--color-graphite-400)]">
-        <Compass className="size-9" strokeWidth={1.6} aria-hidden="true" />
-      </EmptyMedia>
-      <EmptyHeader>
-        <h1 className="text-base leading-6 font-semibold text-foreground">Not found</h1>
-        <EmptyDescription className="max-w-[54ch] text-sm leading-5 text-muted-foreground">
-          That page does not exist. Everything Dana has is in the sidebar.
-        </EmptyDescription>
-      </EmptyHeader>
-    </Empty>
+    <div className="flex min-h-72 flex-col items-center justify-center gap-2 px-4 py-16 text-center">
+      <h1 className="text-base font-semibold text-foreground">Not found</h1>
+      <p className="text-sm text-muted-foreground">That page does not exist.</p>
+      <Link
+        to={signedIn ? paths.today : paths.landing}
+        className="mt-2 rounded-md text-sm text-primary underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/30"
+      >
+        {signedIn ? 'Go to Today' : 'Go to Dana'}
+      </Link>
+    </div>
   )
 }
