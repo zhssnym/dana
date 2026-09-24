@@ -24,7 +24,7 @@ API for other units:
 import { createElement, useEffect, useSyncExternalStore } from 'react'
 import type { BlockNoteEditor } from '@blocknote/core'
 import { SuggestionMenu } from '@blocknote/core/extensions'
-import { NodeSelection, TextSelection } from 'prosemirror-state'
+import { NodeSelection, Selection, TextSelection } from 'prosemirror-state'
 import type { EditorView } from 'prosemirror-view'
 import { clearBlocks, selectBlocks, selectedBlocks } from './marquee.js'
 import { simulateNest } from './turn-into.js'
@@ -115,7 +115,15 @@ function isMod(event: KeyboardEvent): boolean {
 
 /** Nothing selected and the caret gone: a node selection keeps its tint even blurred, so it becomes a text one first. */
 function dropNodeSelection(view: EditorView): void {
-  if (view.state.selection instanceof NodeSelection) view.dispatch(view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(view.state.selection.from), -1)))
+  const { selection, doc } = view.state
+  if (selection instanceof NodeSelection) {
+    /* TextSelection.near falls back to a node selection when no text is near,
+       which kept the tint: search text only. */
+    const text = Selection.findFrom(doc.resolve(selection.from), -1, true) ?? Selection.findFrom(doc.resolve(selection.to), 1, true)
+    /* A page of nothing but atoms (sub-page rows) has no text anywhere: a
+       collapsed cursor beside the row is the only way to let go of it. */
+    view.dispatch(view.state.tr.setSelection(text ?? TextSelection.create(doc, selection.from)))
+  }
   view.dom.blur()
   const active = document.activeElement
   if (active instanceof HTMLElement && view.dom.contains(active)) active.blur()
