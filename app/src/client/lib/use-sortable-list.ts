@@ -92,6 +92,12 @@ export interface SortableItemState {
    */
   offset: number
   /**
+   * Pixels across the list's axis, for the carried item only, and only when
+   * the caller asked for `followAcross`: a board card leaves its column with
+   * the pointer rather than sliding up and down inside it. Zero otherwise.
+   */
+  crossOffset: number
+  /**
    * True for the one frame band after release, while the row travels to its
    * new slot. Transforms transition during it and snap instantly otherwise.
    */
@@ -104,6 +110,7 @@ const RESTING: SortableItemState = {
   isDwelling: false,
   isArmed: false,
   offset: 0,
+  crossOffset: 0,
   isSettling: false,
 }
 
@@ -142,6 +149,8 @@ interface DragSnapshot {
    * one. Null means the proposal is an ordinary slot in this list.
    */
   into: string | null
+  /** Pixels the pointer has travelled across the axis; 0 unless `followAcross`. */
+  cross: number
 }
 
 const NO_DRAG: DragSnapshot = {
@@ -151,6 +160,7 @@ const NO_DRAG: DragSnapshot = {
   dwellAt: null,
   armed: false,
   into: null,
+  cross: 0,
 }
 
 /* ------------------------------------------------------------ geometry -- */
@@ -333,6 +343,12 @@ export interface UseSortableListOptions {
    * and what it did is allowed to change the world.
    */
   onOver?: (from: number, point: { x: number; y: number }) => string | null
+  /**
+   * The carried item follows the pointer across the axis too (`crossOffset`),
+   * for a list whose items can leave it for a neighbour beside it: a board
+   * column. Off by default, where sideways travel means nothing.
+   */
+  followAcross?: boolean
 }
 
 export interface SortableList {
@@ -372,6 +388,7 @@ export function useSortableList({
   describe,
   onDropAt,
   onOver,
+  followAcross = false,
 }: UseSortableListOptions): SortableList {
   /* The one place the axis is read as a coordinate. Everything downstream
      works in "along the list" and "across it", so the arithmetic below is
@@ -417,6 +434,7 @@ export function useSortableList({
   const crossScroller = useRef<HTMLElement | null>(null)
   const pointerY = useRef(0)
   const pointerX = useRef(0)
+  const originAcross = useRef(0)
   /* Where the drag began and where it last stood still, both measured along
      the list's axis, which is the only coordinate the arithmetic needs. */
   const origin = useRef(0)
@@ -598,12 +616,15 @@ export function useSortableList({
       const delta = position - origin.current
       const over = proposedSlot(delta, from)
       const into = onOver ? onOver(from, { x: event.clientX, y: event.clientY }) : null
+      const cross = followAcross
+        ? across({ x: event.clientX, y: event.clientY }) - originAcross.current
+        : 0
 
       /* Travelling cancels any dwell and restores the reorder proposal. */
       if (Math.abs(position - stillAlong.current) > STILL_PX) {
         stillAlong.current = position
         stillAt.current = event.timeStamp
-        apply({ ...live.current, delta, over, into, dwellAt: null, armed: false })
+        apply({ ...live.current, delta, over, into, cross, dwellAt: null, armed: false })
         return
       }
 
@@ -611,12 +632,12 @@ export function useSortableList({
          already "in there", and a ring closing on top of it would be two
          answers to one gesture. */
       if (into !== null) {
-        apply({ ...live.current, delta, over, into, dwellAt: null, armed: false })
+        apply({ ...live.current, delta, over, into, cross, dwellAt: null, armed: false })
         return
       }
 
       if (!onDwell) {
-        apply({ ...live.current, delta, over, into })
+        apply({ ...live.current, delta, over, into, cross })
         return
       }
 
@@ -629,13 +650,14 @@ export function useSortableList({
         delta !== live.current.delta ||
         over !== live.current.over ||
         into !== live.current.into ||
+        cross !== live.current.cross ||
         dwellAt !== live.current.dwellAt ||
         armed !== live.current.armed
       ) {
-        apply({ ...live.current, delta, over, into, dwellAt, armed })
+        apply({ ...live.current, delta, over, into, cross, dwellAt, armed })
       }
     },
-    [along, apply, dwellMs, itemUnderPointer, onDwell, onOver, proposedSlot],
+    [across, along, apply, dwellMs, followAcross, itemUnderPointer, onDwell, onOver, proposedSlot],
   )
 
   /* The dwell has to arm on a pointer that has stopped moving, and a pointer
@@ -759,6 +781,7 @@ export function useSortableList({
 
       onLift?.()
       origin.current = along({ x: startX, y: startY })
+      originAcross.current = across({ x: startX, y: startY })
       pointerY.current = startY
       pointerX.current = startX
       stillAlong.current = origin.current
@@ -772,11 +795,12 @@ export function useSortableList({
         dwellAt: null,
         armed: false,
         into: null,
+        cross: 0,
       })
       stopFrame()
       frame.current = requestAnimationFrame(followEdges)
     },
-    [along, apply, axis, edgesOf, followEdges, onLift, stopFrame],
+    [across, along, apply, axis, edgesOf, followEdges, onLift, stopFrame],
   )
 
   /*
@@ -990,7 +1014,7 @@ export function useSortableList({
       if (settlingFrom !== null) {
         return { ...RESTING, isSettling: true, isActive: index === settlingFrom }
       }
-      const { from, over, delta, dwellAt, armed, into } = drag
+      const { from, over, delta, dwellAt, armed, into, cross } = drag
       if (from < 0) return RESTING
       const measured = metrics.current
 
@@ -1001,6 +1025,7 @@ export function useSortableList({
           isDwelling: dwellAt !== null,
           isArmed: armed,
           offset: delta,
+          crossOffset: cross,
           isSettling: false,
         }
       }
@@ -1021,6 +1046,7 @@ export function useSortableList({
         isDwelling: target && !armed,
         isArmed: target && armed,
         offset,
+        crossOffset: 0,
         isSettling: false,
       }
     },

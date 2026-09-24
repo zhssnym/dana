@@ -34,6 +34,7 @@ import { z } from 'zod'
 import { richContent } from './page-document.js'
 
 import { CALENDAR_ZOOMS } from './bundle.js'
+import { postContent } from './comments.js'
 
 /** The document's self-description, so a reader can tell what it is holding
  * before it parses anything else. */
@@ -115,7 +116,16 @@ open with an export change on it, checked at the time of writing.
 **6 to 7 on 2026-09-24, for issue #221.** Every task gains `document`, the
 Task's own blocks. Read the next number off the open branches, as above.
 */
-export const EXPORT_VERSION = 7
+/*
+**7 to 8 on 2026-09-24, wave 2 (pages in pages).** Every folder gains
+`parent_folder_id`, null when the parent is not in this document. A `page`
+block (a child page's home in its parent's document) names its page in
+`ref_folder_id`, null likewise when that page is not in this document; blocks
+also gain 0038's `toggleable`. Workflow files record a `page` block as
+omitted, as they do a `folder_ref` (see WORKFLOW_OMITTED_BLOCK_KINDS). Read the next number off
+the open branches, as above.
+*/
+export const EXPORT_VERSION = 8
 
 /**
  * 10.3's "List responses capped at 1000 rows with truncated flag", applied
@@ -242,6 +252,8 @@ export const exportBlock = z.object({
   file_id: z.uuid().nullable(),
   ref_folder_id: z.uuid().nullable(),
   width_pct: z.number().int().nullable(),
+  /** 0038's toggle heading: true when a heading folds its children. */
+  toggleable: z.boolean().nullable(),
   updated_at: z.string(),
 })
 export type ExportBlock = z.infer<typeof exportBlock>
@@ -299,6 +311,9 @@ export const exportFolder = z.object({
   id: z.uuid(),
   name: z.string(),
   is_default: z.boolean(),
+  /** Version 8: the page this one sits under, when that page is in this
+   * document too; null for a root or a parent the export does not carry. */
+  parent_folder_id: z.uuid().nullable(),
   icon: z.string().nullable(),
   color: z.string().nullable(),
   description: z.string().nullable(),
@@ -403,6 +418,10 @@ export const exportComment = z.object({
   discussion_id: z.uuid().nullable(),
   parent_id: z.uuid().nullable(),
   body: z.string().nullable(),
+  /** The post's editor content (W-C), as stored; null for a plain-text
+   * comment, whose `body` is then the whole of it. `body` is always the
+   * plain text of `content` when both are present. */
+  content: postContent.nullable(),
   created_at: z.string(),
   edited_at: z.string().nullable(),
   files: z.array(exportFile),
@@ -495,6 +514,7 @@ export const exportSettings = z.object({
   pinned_views: z.array(z.string()),
   sidebar_order: z.array(z.string()),
   arrangements: z.record(z.string(), z.string()),
+  focus_lists: z.array(z.string()),
   show_important: z.boolean(),
   show_all: z.boolean(),
   show_done: z.boolean(),

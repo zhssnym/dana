@@ -107,11 +107,26 @@ export const isRenameableFacetKind = (kind: string): boolean =>
  * text answers the empty string rather than a name nobody chose.
  */
 export const DEFAULT_FACET_NAMES: Readonly<Record<NativeFacetKind, string>> = {
-  main: 'Main',
+  /* Round 2's page tabs read intro, work, conclusion: Purpose, Work, Results,
+     Discussion. These are display names only; the stored kinds stay `main`
+     and `consultation`, which every route, row and address still carries. */
+  main: 'Work',
   purpose: 'Purpose',
-  consultation: 'Consultation',
+  consultation: 'Discussion',
   results: 'Results',
 }
+
+/**
+ * The order a page draws its tabs in: intro, work, conclusion, conversation,
+ * then the custom tabs in their stored order. Display only; the stored order
+ * (Main first, `PUT /facets/order`) is unchanged.
+ */
+export const NATIVE_TAB_ORDER: readonly NativeFacetKind[] = [
+  'purpose',
+  'main',
+  'results',
+  'consultation',
+]
 
 /** 4.30's `folder_facets_display_name_length_check`, which is 4.17's heading
  * ceiling one table over. */
@@ -211,7 +226,8 @@ export type PatchFacetBody = z.infer<typeof patchFacetBody>
  * 7.16's `set_outline` is: no partial order and no merge. It carries every
  * facet of the Folder that every member can see, in the sequence they will
  * see it in. A private id in it is 422 -- a private facet's place is its
- * owner's and is written through `my-order` -- and Main not first is 422.
+ * owner's and is written through `my-order`. Main may stand anywhere: tabs
+ * are dragged freely on the row (round 2).
  */
 export const putFacetOrderBody = z.object({
   order: z.array(z.uuid()).min(1).max(200),
@@ -223,8 +239,8 @@ export type PutFacetOrderBody = z.infer<typeof putFacetOrderBody>
  * nothing else. Another member's id answers 404, which is 10.2's grammar for
  * a row the caller cannot see the existence of.
  *
- * `after_facet_id: null` means "first among the facets after Main", Main
- * being first for everybody by 7.27's read order.
+ * `after_facet_id: null` means "before the first facet the caller can see":
+ * the front of the row (Main no longer stands first).
  */
 export const putMyFacetOrderBody = z.object({
   placements: z

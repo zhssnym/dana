@@ -17,7 +17,11 @@ content, with the same predicate the source's own page read applies:
   active. 7.4's `responsibility.read` is `can_view`, which every member holds;
 - a Task document (#221): a membership of the Task's live Folder and the Task
   not trashed (`accessibleTask`'s predicate, which `GET /tasks/:id/document`
-  applies).
+  applies);
+- a thread's posts (W-C): `comments.content`, a membership of the live Folder
+  and the post's Discussion not in Trash (`discussion.read` is Can view, which
+  every member holds) or its Task not trashed. One row per thread, the post
+  ids in `block_ids`. A plain-text comment (`content` NULL) holds no links.
 
 Inside that scope a cheap `LIKE` on the target's uuid narrows the rows, and
 the real match is `parseDanaLink` over every `href` in the stored JSON — the
@@ -237,6 +241,39 @@ export async function backlinksOf(
       memberId: String(row.member_id),
       label: String(row.label),
       blockId: null,
+    })
+  }
+
+  const postRows = await rowsOf(
+    executor,
+    sql`SELECT c.id, c.content, c.folder_id,
+               COALESCE(d.id, t.id) AS home_id,
+               CASE WHEN d.id IS NOT NULL THEN 'discussion' ELSE 'task' END AS home,
+               COALESCE(d.title, t.title) AS label
+          FROM comments c
+          JOIN folders fo ON fo.id = c.folder_id AND fo.deleted_at IS NULL
+          JOIN folder_members m
+            ON m.folder_id = c.folder_id AND m.user_id = ${viewerId}
+          LEFT JOIN discussions d
+            ON d.id = c.discussion_id AND d.trashed_at IS NULL
+          LEFT JOIN tasks t
+            ON t.id = c.task_id AND t.deleted_at IS NULL
+         WHERE c.content IS NOT NULL
+           AND c.content::text LIKE ${pattern}
+           AND (d.id IS NOT NULL OR t.id IS NOT NULL)
+         ORDER BY c.created_at ASC, c.id ASC
+         LIMIT ${SCAN_BOUND}`,
+  )
+  for (const row of postRows) {
+    if (!documentReferences(row.content, target, origin)) continue
+    hits.push({
+      surface: 'post',
+      home: row.home === 'discussion' ? 'discussion' : 'task',
+      homeId: String(row.home_id),
+      folderId: String(row.folder_id),
+      memberId: null,
+      label: String(row.label),
+      blockId: String(row.id),
     })
   }
 

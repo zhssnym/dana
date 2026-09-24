@@ -1,42 +1,18 @@
 /*
-The view strip's remembered choice: one preference, across every place-page.
-
-9.1: "The chosen view is one client-side preference across pages; a page not
-offering the remembered view falls back to list without forgetting it.
-`?mode=` names a view in the URL."
-
-Three things that sentence decides and this file implements.
-
-**One key, not one per page.** A person who works in boards works in boards,
-and a preference stored per page would make the same choice seven times. So
-the store holds one value and every page reads it.
-
-**Falling back is not forgetting.** `effectiveMode` resolves the remembered
-value against what a page offers and answers list when the page cannot draw
-it; the stored value is untouched, so leaving Scheduled in calendar mode,
-visiting Today, and coming back finds the calendar again. A client that wrote
-the fallback back would lose the choice on the first visit to a page that
-cannot honour it.
-
-**`?mode=` is a seed rather than a second record.** A link may name a view,
-and when one does the value is written to the store and the store answers
-every reader afterwards. The alternative, letting the URL win for as long as
-it is in the address bar, would leave the strip unable to change the mode it
-is showing without also rewriting the address, which is two records of one
-fact and 9.1's own reason for one preference.
-
-`localStorage` rather than the session, which is the split `preferences.ts`
-and `filter-store.ts` already draw between them: a preference is kept and
-working state is not.
+The place pages' layout (List, Board, Calendar, as each offers): one remembered
+preference across Today, Upcoming and Assigned, in localStorage. A page that
+cannot draw the remembered layout shows a list without forgetting it; `?mode=`
+seeds the preference. A folder page's view (Linear, Board, Freeform) is its
+own preference, below.
 */
 import { useCallback, useSyncExternalStore } from 'react'
 
 /** 9.1's three views. List is the ground and every page offers it. */
-export type ViewMode = 'list' | 'board' | 'calendar'
+export type ViewMode = 'list' | 'linear' | 'board' | 'calendar'
 
 const MODE_KEY = 'dana.view-mode'
 
-const MODES: readonly ViewMode[] = ['list', 'board', 'calendar']
+const MODES: readonly ViewMode[] = ['list', 'linear', 'board', 'calendar']
 
 function isMode(value: string | null): value is ViewMode {
   return value !== null && (MODES as readonly string[]).includes(value)
@@ -66,11 +42,6 @@ export function writeViewMode(mode: ViewMode): void {
     // As above.
   }
   for (const listener of listeners) listener()
-}
-
-/** The remembered value, unresolved. Only `effectiveMode` should show it. */
-export function readViewMode(): ViewMode {
-  return load()
 }
 
 /**
@@ -115,4 +86,72 @@ export function useViewMode(
     writeViewMode(next)
   }, [])
   return [effectiveMode(remembered, offered), set]
+}
+
+/* ----------------------------------------------------------- folder view -- */
+
+/*
+A page's own view (round 5): Linear, Board or Freeform. Stored apart from the
+place pages' layout, so choosing Board on a page no longer turns Assigned into
+a board, and choosing Calendar on Upcoming no longer drops every page back to
+Freeform. A new key; `dana.view-mode` keeps its meaning for the place pages.
+Its first read takes the old key's value once as the default (list is
+Freeform), so nobody's current choice moves.
+*/
+export type FolderView = 'linear' | 'board' | 'freeform'
+
+const FOLDER_VIEW_KEY = 'dana.folder-view'
+const FOLDER_VIEWS: readonly FolderView[] = ['linear', 'board', 'freeform']
+
+function isFolderView(value: string | null): value is FolderView {
+  return value !== null && (FOLDER_VIEWS as readonly string[]).includes(value)
+}
+
+/** A place-page layout read as a page's view: list is Freeform. */
+export function folderViewOf(mode: ViewMode | null): FolderView {
+  return mode === 'linear' || mode === 'board' ? mode : 'freeform'
+}
+
+let folderCached: FolderView | null = null
+const folderListeners = new Set<() => void>()
+
+function loadFolderView(): FolderView {
+  if (folderCached !== null) return folderCached
+  let view: FolderView = 'freeform'
+  try {
+    const stored = window.localStorage.getItem(FOLDER_VIEW_KEY)
+    if (isFolderView(stored)) view = stored
+    else {
+      const old = window.localStorage.getItem(MODE_KEY)
+      view = folderViewOf(isMode(old) ? old : null)
+      window.localStorage.setItem(FOLDER_VIEW_KEY, view)
+    }
+  } catch {
+    // Storage refused; the session still has a view.
+  }
+  folderCached = view
+  return view
+}
+
+export function writeFolderView(view: FolderView): void {
+  folderCached = view
+  try {
+    window.localStorage.setItem(FOLDER_VIEW_KEY, view)
+  } catch {
+    // As above.
+  }
+  for (const listener of folderListeners) listener()
+}
+
+function subscribeFolder(listener: () => void): () => void {
+  folderListeners.add(listener)
+  return () => {
+    folderListeners.delete(listener)
+  }
+}
+
+/** The view every page draws its tasks in, and its setter. */
+export function useFolderView(): [FolderView, (next: FolderView) => void] {
+  const view = useSyncExternalStore(subscribeFolder, loadFolderView, () => 'freeform' as FolderView)
+  return [view, writeFolderView]
 }

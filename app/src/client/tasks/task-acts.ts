@@ -32,32 +32,25 @@ is the hold with one task in it, and a step's move out of its task is the
 promote endpoint, a one-way promotion given an address.
 */
 
-import { folder as folderSchema } from '../../shared/folders.js'
 import { taskDetail } from '../../shared/tasks.js'
 import { getPlain, mutateApi, requestTimezone } from '../api/http.js'
 import { queryClient, writeFailureMessage } from '../api/queryClient.js'
 import { pushUndo, undoLabel } from '../shell/undo.js'
 import { showToast } from '../state/toasts.js'
-import { defaultFolderDescription } from '../lib/folder-description.js'
 import { folderLibrary } from '../lib/folder-library.js'
 import { taskLink } from '../lib/nav-links.js'
 import type { ConceptStep } from './task-model.js'
 
 /**
- * Copy a task's address, and say so.
- *
- * The notice is named, unlike a folder's: you copy a folder's link from its own
- * page and a task's from a list of twenty, and "Link copied" there does not say
- * which.
+ * Copy a task's address, silently: a copy is not an event worth a notice.
  *
  * The clipboard write is fire and forget and its rejection is swallowed. A
  * browser refuses it when the document is not focused, which is a state the
  * person is already looking at, and an error toast about a copy that did not
  * happen is a second thing to dismiss.
  */
-export function copyTaskLink(taskId: string, title: string): void {
+export function copyTaskLink(taskId: string): void {
   void navigator.clipboard?.writeText(taskLink(taskId)).catch(() => {})
-  showToast(`Link to "${title}" copied`)
 }
 
 function settle(): void {
@@ -88,50 +81,6 @@ export function duplicateTask(taskId: string, title: string): void {
         void mutateApi(null, { method: 'DELETE', path: `/tasks/${copy.id}` }).then(settle)
       })
     })
-    .catch((error: unknown) => showToast(writeFailureMessage(error)))
-}
-
-/**
- * "Make this a folder…": a folder named after the task, and the task moved into
- * it, the hold with one task in it (`pages/task-rows.tsx`'s `onMerge`). The
- * undo moves the task back and leaves the folder, exactly as the hold's does:
- * the folder is a thing the person now has, not a side effect to unwind.
- *
- * The task is read first, for the folder the undo returns it to: a row on a
- * folder page draws no folder chip and so holds no folder id, and one read is
- * cheaper than a prop threaded through every list.
- *
- * **The folder is made in one request**, for the reason `api/mutations.ts`
- * gives at `useCreateFolder`: this act is the hold with one task in it, and the
- * same composition AC-279 counts on the wire. The default description rides
- * that one POST (7.4; issues #21 and #70, AC-377).
- */
-export function makeFolderOfTask(taskId: string, title: string): void {
-  const folderName = title.slice(0, 100)
-  void getPlain(taskDetail, `/tasks/${taskId}`)
-    .then((task) =>
-      mutateApi(folderSchema, {
-        method: 'POST',
-        path: '/folders',
-        body: { name: folderName, description: defaultFolderDescription(folderName) },
-      }).then((made) =>
-        mutateApi(null, {
-          method: 'PATCH',
-          path: `/tasks/${taskId}`,
-          body: { folder_id: made.id },
-        }).then(() => {
-          settle()
-          showToast(`Moved "${title}" to "${made.name}"`)
-          pushUndo(undoLabel('Moved', title), () => {
-            void mutateApi(null, {
-              method: 'PATCH',
-              path: `/tasks/${taskId}`,
-              body: { folder_id: task.folder.id },
-            }).then(settle)
-          })
-        }),
-      ),
-    )
     .catch((error: unknown) => showToast(writeFailureMessage(error)))
 }
 
@@ -177,7 +126,7 @@ export function moveStepsOut(
           chosen.map((step) => mutateApi(null, { method: 'DELETE', path: `/steps/${step.id}` })),
         ).then(() => {
           settle()
-          showToast(`Moved ${plural(chosen.length, 'step')} to "${made.title}"`)
+          showToast(`Moved ${plural(chosen.length, 'subtask')} to "${made.title}"`)
         }),
       )
       .catch((error: unknown) => showToast(writeFailureMessage(error)))
@@ -207,7 +156,7 @@ export function moveStepsOut(
       showToast(
         chosen.length === 1
           ? `"${chosen[0]?.title ?? ''}" is now a task in "${where}"`
-          : `${chosen.length} steps are now tasks in "${where}"`,
+          : `${chosen.length} subtasks are now tasks in "${where}"`,
       )
     })
     .catch((error: unknown) => showToast(writeFailureMessage(error)))

@@ -120,9 +120,11 @@ export function SidebarResizeHandle({
       aria-valuemax={SIDEBAR_MAX_WIDTH}
       aria-valuenow={value === null ? undefined : Math.round(value)}
       aria-valuetext={value === null ? undefined : `${Math.round(value)} pixels`}
-      tabIndex={0}
+      /* Out of the Tab order: a pointer control. A press still focuses it, so
+         the arrows and Home/End resize after a click. */
+      tabIndex={-1}
       title={RESIZE_SIDEBAR}
-      className="absolute inset-y-0 -right-1 z-30 hidden w-2 cursor-col-resize touch-none outline-none group-data-[collapsible=icon]:hidden md:block after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-transparent hover:after:bg-[var(--color-graphite-300)] focus-visible:after:bg-[var(--color-dana-accent-600)]"
+      className="absolute inset-y-0 -right-1 z-30 hidden w-2 cursor-col-resize touch-none outline-none md:block after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-transparent hover:after:bg-border focus-visible:after:bg-ring"
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={finishPointerResize}

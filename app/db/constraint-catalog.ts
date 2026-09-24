@@ -133,6 +133,15 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
       { name: 'folders_cover_preset_format_check', columns: ['cover_preset'] },
       { name: 'folders_description_length_check', columns: ['description'] },
       { name: 'folders_name_length_check', columns: ['name'] },
+      /* Migration 0039 (wave 2, pages in pages): the page tree. A sibling
+         key in the tasks.position shape; a page is never its own parent; a
+         default folder is always a root; only a trashed row carries the
+         page it was trashed with. Cycles and depth are enforced by the move
+         transaction under an advisory lock, not by a CHECK. */
+      { name: 'folders_child_position_format_check', columns: ['child_position'] },
+      { name: 'folders_parent_not_self_check', columns: ['id', 'parent_folder_id'] },
+      { name: 'folders_default_is_root_check', columns: ['is_default', 'parent_folder_id'] },
+      { name: 'folders_trashed_with_check', columns: ['deleted_at', 'trashed_with_folder_id'] },
     ],
     foreignKeys: [
       {
@@ -147,10 +156,38 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
         references: { table: 'users', columns: ['id'] },
         onDelete: 'restrict',
       },
+      /* Migration 0039: SET NULL both, so purging a parent turns surviving
+         children into roots and purging a trash initiator never dangles. */
+      {
+        name: 'folders_parent_folder_id_fkey',
+        columns: ['parent_folder_id'],
+        references: { table: 'folders', columns: ['id'] },
+        onDelete: 'set null',
+      },
+      {
+        name: 'folders_trashed_with_folder_id_fkey',
+        columns: ['trashed_with_folder_id'],
+        references: { table: 'folders', columns: ['id'] },
+        onDelete: 'set null',
+      },
     ],
     indexes: [
       { name: 'folders_one_default_per_owner_idx', unique: true, columns: ['owner_id'], partial: true },
       { name: 'folders_deleted_at_idx', unique: false, columns: ['deleted_at'], partial: true },
+      /* Migration 0039: one parent's children in sibling order, and one
+         trash initiator's trashed-with set. */
+      {
+        name: 'folders_parent_child_position_idx',
+        unique: false,
+        columns: ['parent_folder_id', 'child_position', 'id'],
+        partial: true,
+      },
+      {
+        name: 'folders_trashed_with_folder_id_idx',
+        unique: false,
+        columns: ['trashed_with_folder_id'],
+        partial: true,
+      },
     ],
   },
   folder_members: {
@@ -715,6 +752,8 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
          line as a name over a column; AC-380 is what sees the expression. */
       { name: 'user_settings_calendar_zoom_check', columns: ['calendar_zoom'] },
       { name: 'user_settings_clock_check', columns: ['clock'] },
+      /* Migration 0050: the Focus lists, an ordered array of list keys. */
+      { name: 'user_settings_focus_lists_array_check', columns: ['focus_lists'] },
       { name: 'user_settings_pinned_views_array_check', columns: ['pinned_views'] },
       { name: 'user_settings_row_density_check', columns: ['row_density'] },
       { name: 'user_settings_sidebar_order_array_check', columns: ['sidebar_order'] },
@@ -794,11 +833,54 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
       { name: 'notifications_unread_idx', unique: false, columns: ['user_id'], partial: true },
     ],
   },
+  /* Migration 0041 (Wave 2, W-D): one row per (source, person) told about an
+     @mention, so a re-save never notifies twice. */
+  mention_notices: {
+    primaryKey: { name: 'mention_notices_pkey', columns: ['id'] },
+    uniques: [],
+    checks: [
+      { name: 'mention_notices_one_source_check', columns: ['block_id', 'comment_id'] },
+    ],
+    foreignKeys: [
+      {
+        name: 'mention_notices_block_id_fkey',
+        columns: ['block_id'],
+        references: { table: 'page_blocks', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+      {
+        name: 'mention_notices_comment_id_fkey',
+        columns: ['comment_id'],
+        references: { table: 'comments', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+      {
+        name: 'mention_notices_event_id_fkey',
+        columns: ['event_id'],
+        references: { table: 'events', columns: ['id'] },
+        onDelete: 'set null',
+      },
+      {
+        name: 'mention_notices_user_id_fkey',
+        columns: ['user_id'],
+        references: { table: 'users', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+    ],
+    indexes: [
+      { name: 'mention_notices_block_user_idx', unique: true, columns: ['block_id', 'user_id'], partial: true },
+      { name: 'mention_notices_comment_user_idx', unique: true, columns: ['comment_id', 'user_id'], partial: true },
+      { name: 'mention_notices_event_id_idx', unique: false, columns: ['event_id'], partial: true },
+      { name: 'mention_notices_user_id_idx', unique: false, columns: ['user_id'], partial: false },
+    ],
+  },
   comments: {
     primaryKey: { name: 'comments_pkey', columns: ['id'] },
     uniques: [],
     checks: [
       { name: 'comments_body_length_check', columns: ['body'] },
+      // Migration 0040 (W-C): a post's block tree, version 1, <= 256 KiB.
+      { name: 'comments_content_check', columns: ['content'] },
       // Migration 0029 (#320): never both Task- and Discussion-scoped.
       { name: 'comments_one_scope_check', columns: ['discussion_id', 'task_id'] },
     ],
@@ -823,10 +905,12 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
         onDelete: 'cascade',
       },
       {
+        // Migration 0047: a reply outlives the post it answered; deleting
+        // the parent nulls parent_id rather than taking others' words.
         name: 'comments_parent_id_fkey',
         columns: ['parent_id'],
         references: { table: 'comments', columns: ['id'] },
-        onDelete: 'cascade',
+        onDelete: 'set null',
       },
       {
         name: 'comments_task_scope_fkey',
@@ -872,6 +956,7 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
     checks: [
       { name: 'discussions_context_length_check', columns: ['context'] },
       {
+        // Widened by 0040: a resolved Discussion may have no Outcome.
         name: 'discussions_resolution_check',
         columns: ['current_outcome_id', 'resolved_at', 'state'],
       },
@@ -1071,6 +1156,52 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
     ],
     indexes: [],
   },
+  // Migration 0048: when each person last opened each Discussion.
+  discussion_reads: {
+    primaryKey: { name: 'discussion_reads_pkey', columns: ['discussion_id', 'user_id'] },
+    uniques: [],
+    checks: [],
+    foreignKeys: [
+      {
+        name: 'discussion_reads_discussion_id_fkey',
+        columns: ['discussion_id'],
+        references: { table: 'discussions', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+      {
+        name: 'discussion_reads_user_id_fkey',
+        columns: ['user_id'],
+        references: { table: 'users', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+    ],
+    indexes: [
+      { name: 'discussion_reads_user_id_idx', unique: false, columns: ['user_id'], partial: false },
+    ],
+  },
+  // Migration 0049: when each person last opened each task's thread.
+  task_thread_reads: {
+    primaryKey: { name: 'task_thread_reads_pkey', columns: ['task_id', 'user_id'] },
+    uniques: [],
+    checks: [],
+    foreignKeys: [
+      {
+        name: 'task_thread_reads_task_id_fkey',
+        columns: ['task_id'],
+        references: { table: 'tasks', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+      {
+        name: 'task_thread_reads_user_id_fkey',
+        columns: ['user_id'],
+        references: { table: 'users', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+    ],
+    indexes: [
+      { name: 'task_thread_reads_user_id_idx', unique: false, columns: ['user_id'], partial: false },
+    ],
+  },
   comment_likes: {
     primaryKey: { name: 'comment_likes_pkey', columns: ['comment_id', 'user_id'] },
     uniques: [],
@@ -1179,9 +1310,12 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
          refuse). A list parent belongs
          only to a list item on a folder page, and never to itself. */
       { name: 'page_blocks_checked_kind_check', columns: ['checked', 'kind'] },
+      /* Migration 0038 (wave 2, W-B) re-added this under the same name as the
+         general block parent: any kind but a Section, on every home, never
+         itself. The home columns left the expression, so the list shrinks. */
       {
         name: 'page_blocks_list_parent_kind_check',
-        columns: ['facet_id', 'folder_id', 'id', 'kind', 'list_parent_block_id'],
+        columns: ['id', 'kind', 'list_parent_block_id'],
       },
       /* Migration 0027 (#210) dropped and re-added this under the same name
          over `num_nonnulls(folder_id, shelf_id, facet_id) = 1`, so the
@@ -1203,6 +1337,9 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
         columns: ['folder_id', 'section_block_id'],
       },
       { name: 'page_blocks_text_length_check', columns: ['kind', 'text'] },
+      /* Migration 0038 (wave 2, W-B): a toggle heading, and only a
+         presentation heading, folds its children. */
+      { name: 'page_blocks_toggleable_kind_check', columns: ['kind', 'toggleable'] },
       /* Migration 0024 (#220) widened both of these in place and moved
          neither: `page_blocks_kind_check` above gained `file`, `audio` and
          `video`, and the width check below gained `video` beside `image`,
@@ -1211,6 +1348,10 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
          unchanged and only a behavioural case can see the difference. */
       { name: 'page_blocks_width_pct_kind_check', columns: ['kind', 'width_pct'] },
       { name: 'page_blocks_width_pct_range_check', columns: ['width_pct'] },
+      /* Migration 0039 (wave 2): `page_blocks_kind_check` gained `page` in
+         place; a page block lives in a folder's document and names its
+         child page through `ref_folder_id`. */
+      { name: 'page_blocks_page_kind_check', columns: ['folder_id', 'kind', 'ref_folder_id'] },
     ],
     foreignKeys: [
       /* Migration 0027 (#210): the third home. CASCADE because a facet's
@@ -1328,6 +1469,13 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
         name: 'page_blocks_task_page_position_idx',
         unique: false,
         columns: ['task_id', 'page_position', 'id'],
+        partial: true,
+      },
+      /* Migration 0039: a page has at most one home block. */
+      {
+        name: 'page_blocks_page_home_idx',
+        unique: true,
+        columns: ['ref_folder_id'],
         partial: true,
       },
     ],

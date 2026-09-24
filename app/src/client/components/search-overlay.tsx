@@ -1,38 +1,25 @@
 /*
-9.9's search overlay, bound to data through `lib/search-items.ts`. The seams
-are marked `Seam` in the body.
-
-1. **Imports are this client's relative ESM paths** (11.4).
-2. **The results come from `useSearchAnswer`**, which answers the places
-   when nothing is typed and 7.18 otherwise, title matches first, with its
-   own `pending` and `failed` states. `items` stays a prop for the places,
-   which the shell supplies from 9.1's page block.
-3. **`pageGlyph` and `FolderMark` are this client's**, through
-   `lib/nav-model.ts` and `components/folder-mark.tsx`.
-
-What the overlay decides is unchanged and its reasons are in the comments
-below: four kinds, grouped by kind with status deciding the order inside
-Tasks and a badge on each row rather than a heading over each status; the
-places offered before anything is typed; a title match above a body match.
-AC-156 and AC-258 read the badge and the order.
+9.9's search overlay, in one file: the shell's opener and router wiring
+(`SearchOverlay`) over the dialog (`SearchDialog`). Results come from
+`lib/search-items.ts`; with nothing typed it offers the viewer's pages in
+Library order and the shortcuts sheet under Help.
 */
-import { Input } from "./ui/input.js"
-import { FolderMark } from "./folder-mark.js"
-import { pageGlyph } from "../lib/nav-model.js"
-import { Folders } from "../lib/icons.js"
-import { useEffect, useRef, useState, type KeyboardEvent } from "react"
-import {
-  ArrowRight,
-  CalendarDays,
-  Search,
-  X,
-} from "../lib/icons.js"
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
+import { useNavigate } from "react-router"
 
-import { Badge } from "./ui/badge.js"
-import { Button } from "./ui/button.js"
+import { Input } from "./ui/input.js"
+import { pageGlyph } from "../lib/nav-model.js"
+import {
+  CalendarDays,
+  CheckCircle2,
+  FileText,
+  Folders,
+  Keyboard,
+  Search,
+  type LucideIcon,
+} from "../lib/icons.js"
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
   DialogHeader,
@@ -40,54 +27,77 @@ import {
 } from "./ui/dialog.js"
 import { Skeleton } from "./ui/skeleton.js"
 import { cn } from "./ui/utils.js"
-/* Seam 2. */
-import { useSearchAnswer } from "../lib/search-items.js"
+import { SHORTCUTS_RESULT, useSearchAnswer } from "../lib/search-items.js"
+import { formatDay } from "../lib/dates.js"
+import { todayInBrowserZone } from "../api/tz.js"
+import { useBundle, useFolders, useShelves } from "../api/queries.js"
+import { folderMark } from "../parts/presenters.js"
+import { markIcon } from "./page/icon-manifest.js"
+import { buildTree } from "../shell/page-tree.js"
+import { arrangeColumn } from "../shell/library-order.js"
+import { onOpenSearch, openShortcuts } from "../shell/overlays.js"
+import { paths } from "../routes.js"
+import { openTask } from "./task-open.js"
 
 export type SearchResultStatus = "pending" | "abandoned" | "completed"
 
-/*
-What search can find: four kinds, which is every kind Dana has that you can
-go to. Folders by name, pages by name, and the words written on a folder page
-are all findable, not only tasks.
-*/
+/* Four kinds: every kind Dana has that you can go to. */
 export type SearchResultKind = "task" | "folder" | "shelf" | "page"
 
 export type SearchResultItem = {
   kind: SearchResultKind
   id: string
   title: string
-  /* Everything else this result should match on, joined: a task's notes and
-     step titles, a folder's prose and description. Searching a title alone is
-     what made a paragraph you wrote unfindable. */
+  /* Everything else this result should match on, joined. */
   haystack?: string
-  /* The second line: a task's folder, a folder's shelf, a page's question. */
+  /* A task's folder, a page's place in the page tree. */
   hint?: string
   status?: SearchResultStatus
   folder?: { name: string; color: string }
   dueDate?: string
   /* A folder's own colour, for its mark. */
   color?: string
+  /* The glyph a folder's owner chose; absent means the plain page glyph. */
+  icon?: LucideIcon
 }
 
 const statusOrder: SearchResultStatus[] = ["pending", "abandoned", "completed"]
 
-/*
-Grouped by **kind**, and the ordering inside Tasks is by status.
+/* Kind decides the headings; status decides the order inside Tasks. A folder
+   is a page on screen, so both sit under Pages. */
+type SearchGroup = "task" | "page" | "shelf" | "help"
 
-Grouping by status at the top level was right while tasks were the only thing
-search could return. With three kinds it would have made "Pending", "Abandoned",
-"Completed", "Folders" and "Pages" peers: two classification schemes presented
-as one list.
-So kind decides the headings, and status decides the order within Tasks, where
-each row wears its own badge anyway.
-*/
-const kindOrder: SearchResultKind[] = ["task", "folder", "shelf", "page"]
+const groupOrder: SearchGroup[] = ["task", "page", "shelf", "help"]
 
-const kindLabels: Record<SearchResultKind, string> = {
+const groupLabels: Record<SearchGroup, string> = {
   task: "Tasks",
-  folder: "Folders",
-  shelf: "Shelves",
   page: "Pages",
+  shelf: "Collections",
+  help: "Help",
+}
+
+function groupOf(item: SearchResultItem): SearchGroup {
+  if (item.id === SHORTCUTS_RESULT) return "help"
+  if (item.kind === "task") return "task"
+  if (item.kind === "shelf") return "shelf"
+  return "page"
+}
+
+/* With nothing typed: this many of the viewer's pages, in Library order. */
+const RECENT_LIMIT = 8
+
+const SHORTCUTS_ITEM: SearchResultItem = {
+  kind: "page",
+  id: SHORTCUTS_RESULT,
+  title: "Keyboard shortcuts",
+}
+
+function resultGlyph(item: SearchResultItem): LucideIcon {
+  if (item.kind === "task") return CheckCircle2
+  if (item.kind === "shelf") return Folders
+  if (item.id === SHORTCUTS_RESULT) return Keyboard
+  if (item.kind === "page") return pageGlyph(item.title) ?? FileText
+  return item.icon ?? FileText
 }
 
 const statusLabels: Record<SearchResultStatus, string> = {
@@ -96,72 +106,64 @@ const statusLabels: Record<SearchResultStatus, string> = {
   completed: "Completed",
 }
 
-function formatDueDate(value: string) {
-  const date = new Date(`${value}T00:00:00Z`)
-  return new Intl.DateTimeFormat("en-CA", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  }).format(date)
-}
-
 function StatusBadge({ status }: { status: SearchResultStatus }) {
-  /* polish: search F8. Pending is the ordinary state and a chip saying so on
-     twelve of fourteen rows says nothing; it is announced, not drawn, so the
-     row still reads its status to a screen reader (and to AC-156, AC-258)
-     while only Completed and Abandoned wear a visible chip. */
+  /* Pending is announced, not drawn: a word saying "ordinary" says nothing. */
   if (status === "pending") return <span className="sr-only">{statusLabels[status]}</span>
   return (
-    <Badge
-      variant="secondary"
-      className={cn(
-        "h-5 rounded-full border px-2 text-[0.625rem] font-medium",
-        status === "abandoned" &&
-          "border-[var(--color-warning-200)] bg-[var(--color-warning-100)] text-[var(--color-warning-700)]",
-        status === "completed" &&
-          "border-[var(--color-success-200)] bg-[var(--color-success-100)] text-[var(--color-success-700)]",
-      )}
-    >
+    <span className="shrink-0 text-xs font-normal text-muted-foreground">
       {statusLabels[status]}
-    </Badge>
+    </span>
   )
 }
 
 function SearchSkeleton() {
   return (
-    <div className="space-y-2 px-3 py-4" aria-label="Searching">
+    <div className="flex flex-col gap-[var(--space-row)]" aria-label="Searching">
       {[0, 1, 2].map((item) => (
-        <div key={item} className="flex h-12 items-center gap-3 px-2">
+        <div
+          key={item}
+          className="flex h-[var(--row-height)] items-center gap-[var(--space-inline)] px-2"
+        >
           <Skeleton className="size-4 rounded-sm" />
-          <div className="min-w-0 flex-1 space-y-2">
-            <Skeleton className="h-3.5 w-[44%]" />
-            <Skeleton className="h-2.5 w-[24%]" />
-          </div>
-          <Skeleton className="h-5 w-16 rounded-full" />
+          <Skeleton className="h-3.5 w-[44%]" />
         </div>
       ))}
     </div>
   )
 }
 
-export function SearchOverlay({
+/* The viewer's pages as the Library orders them, capped. */
+function useLibraryPages(open: boolean): SearchResultItem[] {
+  const folders = useFolders().data
+  const shelves = useShelves(open).data
+  const order = useBundle().data?.sidebar_order
+  return useMemo(() => {
+    if (folders === undefined) return []
+    const roots = buildTree(folders).roots
+    return arrangeColumn(roots, order ?? [], shelves ?? [])
+      .flatMap((entry) => (entry.kind === "folder" ? [entry.folder] : entry.folders))
+      .slice(0, RECENT_LIMIT)
+      .map((folder): SearchResultItem => ({
+        kind: "folder",
+        id: folder.id,
+        title: folder.name,
+        color: folderMark(folder).color,
+        ...(folder.icon == null ? {} : { icon: markIcon(folder.icon) }),
+      }))
+  }, [folders, shelves, order])
+}
+
+function SearchDialog({
   open,
   onOpenChange,
-  items,
-  initialQuery = "",
-  previewState,
   onOpenResult,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  items: SearchResultItem[]
-  initialQuery?: string
-  previewState?: string | null
   onOpenResult: (id: string, kind: SearchResultKind) => void
 }) {
-  const [query, setQuery] = useState(initialQuery)
-  const [debouncedQuery, setDebouncedQuery] = useState(initialQuery.trim())
+  const [query, setQuery] = useState("")
+  const [debouncedQuery, setDebouncedQuery] = useState("")
   const [searching, setSearching] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -179,7 +181,7 @@ export function SearchOverlay({
       return
     }
 
-    setSearching(trimmed.length >= 2)
+    setSearching(trimmed.length > 0)
     const timeout = window.setTimeout(() => {
       setDebouncedQuery(trimmed)
       setSearching(false)
@@ -189,27 +191,16 @@ export function SearchOverlay({
     return () => window.clearTimeout(timeout)
   }, [query, debouncedQuery])
 
-  /*
-  Seam 2. An empty box offers the places rather than nothing.
-
-  `Ctrl/Cmd+K` is a palette, and a palette that shows a blank panel until you
-  have typed two characters is one you have to already know the answer to.
-  The pages are few and fixed, so they cost one glance and turn the control
-  into a way of *getting somewhere* as well as a way of finding something.
-
-  A title match ranks above a body match, because somebody typing *venue*
-  means the thing called venue before the thing that mentions it;
-  `useSearchAnswer` does the matching over 7.18, and the places come from
-  `items` when nothing is typed.
-  */
+  /* A title match ranks above a body match; `useSearchAnswer` does that. */
   const answer = useSearchAnswer(debouncedQuery, open)
+  const libraryPages = useLibraryPages(open)
   const results =
-    debouncedQuery.trim().length < 2 ? items.filter((item) => item.kind === "page") : answer.results
+    debouncedQuery === "" ? [...libraryPages, SHORTCUTS_ITEM] : answer.results
 
-  const groupedResults = kindOrder.map((kind) => ({
-    kind,
+  const groupedResults = groupOrder.map((group) => ({
+    kind: group,
     rows:
-      kind === "task"
+      group === "task"
         ? results
             .filter((result) => result.kind === "task")
             .sort(
@@ -217,14 +208,12 @@ export function SearchOverlay({
                 statusOrder.indexOf(a.status ?? "pending") -
                 statusOrder.indexOf(b.status ?? "pending"),
             )
-        : results.filter((result) => result.kind === kind),
+        : results.filter((result) => groupOf(result) === group),
   }))
   const orderedResults = groupedResults.flatMap((group) => group.rows)
 
   function openResult(item: SearchResultItem) {
     onOpenChange(false)
-    /* The surface decides what opening one means: a task into its surface, a
-       folder or a page by navigating. Search's job ends at saying which. */
     onOpenResult(item.id, item.kind)
   }
 
@@ -250,17 +239,18 @@ export function SearchOverlay({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="top-[12vh] w-[min(680px,calc(100vw-32px))] translate-y-0 overflow-hidden rounded-[var(--radius-xl)] p-0 shadow-[var(--elevation-2)]">
+      {/* Full screen below md; a floating panel from md up. */}
+      <DialogContent className="flex flex-col overflow-hidden p-0 max-md:inset-0 max-md:h-dvh max-md:w-full max-md:translate-x-0 max-md:translate-y-0 max-md:rounded-none max-md:shadow-none md:top-[12vh] md:w-[calc(100vw-2rem)] md:max-w-xl md:translate-y-0 md:rounded-lg">
         <DialogHeader className="sr-only">
           <DialogTitle>Search Dana</DialogTitle>
           <DialogDescription>
-            Search the tasks, folders and pages you can access.
+            Search the tasks and pages you can access.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex h-14 items-center gap-3 border-b border-border px-4">
+        <div className="flex items-center gap-[var(--space-inline)] border-b border-border px-4 py-[var(--space-inline)]">
           <Search
-            className="size-5 shrink-0 text-[var(--color-graphite-500)]"
+            className="size-4 shrink-0 text-muted-foreground"
             strokeWidth={1.75}
             aria-hidden="true"
           />
@@ -277,130 +267,73 @@ export function SearchOverlay({
                 ? `dana-search-result-${orderedResults[activeIndex]?.id}`
                 : undefined
             }
-            className="h-10 min-w-0 flex-1 bg-transparent text-[15px] font-medium text-foreground outline-none placeholder:text-[var(--color-graphite-400)]"
-          />
-          {/* polish: search F7. The ESC key cap that sat here read as a button
-              and was not one; the footer's hints are where the keys live, so
-              Esc joins them there and the × is the one close control. */}
-          <DialogClose
-            render={
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-10 shrink-0 text-[var(--color-graphite-500)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)]"
-                aria-label="Close search"
-              >
-                <X className="size-[18px]" strokeWidth={1.75} aria-hidden="true" />
-              </Button>
-            }
+            className="h-[var(--row-height)] min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
           />
         </div>
 
-        <div id="dana-search-results" className="max-h-[500px] min-h-40 overflow-y-auto p-2">
-          {/* Seam 2: the read's own states beside the lab's preview ones. */}
-          {searching || answer.pending || previewState === "loading" ? (
+        <div
+          id="dana-search-results"
+          className="overflow-y-auto p-2 max-md:flex-1 md:max-h-[60vh]"
+        >
+          {searching || answer.pending ? (
             <SearchSkeleton />
-          ) : answer.failed || previewState === "error" ? (
-            <div className="flex min-h-40 items-center justify-center px-6 text-center">
-              <div>
-                <p className="text-sm font-medium text-foreground">Something went wrong.</p>
-                <p className="mt-1 text-xs text-muted-foreground">Try searching again.</p>
-              </div>
-            </div>
+          ) : answer.failed ? (
+            <p className="px-2 py-1 text-sm text-muted-foreground">
+              Something went wrong. Try searching again.
+            </p>
           ) : results.length === 0 ? (
-            <div className="flex min-h-40 items-center justify-center px-6 text-center">
-              <div>
-                <Search
-                  className="mx-auto size-6 text-[var(--color-graphite-400)]"
-                  strokeWidth={1.75}
-                  aria-hidden="true"
-                />
-                <p className="mt-3 text-sm text-muted-foreground">
-                  No matches for that search.
-                </p>
-              </div>
-            </div>
+            <p className="px-2 py-1 text-sm text-muted-foreground">No matches for that search.</p>
           ) : (
-            <div className="space-y-2">
+            <div className="flex flex-col gap-[var(--space-inline)]">
               {groupedResults.map((group) =>
                 group.rows.length > 0 ? (
                   <section key={group.kind} aria-labelledby={`search-${group.kind}`}>
                     <h3
                       id={`search-${group.kind}`}
-                      className="flex h-7 items-center px-2 text-[0.625rem] font-semibold tracking-[0.08em] text-[var(--color-graphite-500)] uppercase"
+                      className="flex h-[var(--control-height)] items-center px-2 text-xs font-medium text-muted-foreground"
                     >
-                      {kindLabels[group.kind]}
-                      <span className="ml-1.5 tabular-nums">{group.rows.length}</span>
+                      {groupLabels[group.kind]}
                     </h3>
-                    <div className="space-y-0.5">
+                    <div className="flex flex-col gap-[var(--space-row)]">
                       {group.rows.map((item) => {
                         resultIndex += 1
                         const itemIndex = resultIndex
                         const active = activeIndex === itemIndex
+                        const Glyph = resultGlyph(item)
                         return (
                           <button
                             key={item.id}
                             id={`dana-search-result-${item.id}`}
                             type="button"
+                            data-focus="self"
                             onMouseEnter={() => setActiveIndex(itemIndex)}
                             onClick={() => openResult(item)}
                             className={cn(
-                              "group flex min-h-14 w-full items-center gap-3 rounded-lg px-3 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/30",
-                              active
-                                ? "bg-[var(--color-graphite-100)]"
-                                : "hover:bg-[var(--color-graphite-50)]",
+                              "flex h-[var(--row-height)] w-full items-center gap-[var(--space-inline)] rounded-md px-2 text-left text-sm font-normal text-foreground outline-none",
+                              active && "bg-selected font-medium",
                             )}
                           >
-                            {/* Each result wears the mark of what it is: a
-                                task wears its folder's, a folder wears its
-                                own, and a page wears the glyph the sidebar
-                                gives it, all from the one resolver, so a
-                                folder found by searching looks like the same
-                                folder in the sidebar. */}
-                            {item.kind === "page" || item.kind === "shelf" ? (
-                              (() => {
-                                const Glyph =
-                                  item.kind === "shelf" ? Folders : pageGlyph(item.title)
-                                return Glyph ? (
-                                  <Glyph
-                                    className="size-4 shrink-0 text-[var(--color-graphite-500)]"
-                                    strokeWidth={1.75}
-                                    aria-hidden="true"
-                                  />
-                                ) : null
-                              })()
-                            ) : (
-                              <FolderMark
-                                name={item.folder?.name ?? item.title}
-                                color={item.folder?.color ?? item.color ?? "var(--color-graphite-900)"}
-                                className="size-4 shrink-0"
-                              />
-                            )}
-                            <span className="min-w-0 flex-1">
-                              <span className="block truncate text-sm font-medium text-[var(--color-graphite-800)]">
-                                {item.title}
-                              </span>
-                              {item.hint ? (
-                                <span className="mt-0.5 block truncate text-xs text-[var(--color-graphite-500)]">
-                                  {item.hint}
-                                </span>
-                              ) : null}
-                            </span>
-                            {item.dueDate ? (
-                              <span className="flex shrink-0 items-center gap-1 text-xs text-[var(--color-graphite-500)]">
-                                <CalendarDays className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
-                                {formatDueDate(item.dueDate)}
-                              </span>
-                            ) : null}
-                            {item.status ? <StatusBadge status={item.status} /> : null}
-                            <ArrowRight
-                              className={cn(
-                                "size-4 shrink-0 text-[var(--color-graphite-500)] transition-opacity",
-                                active ? "opacity-100" : "opacity-0",
-                              )}
+                            <Glyph
+                              className="size-4 shrink-0 text-muted-foreground"
+                              style={item.kind === "folder" && item.color ? { color: item.color } : undefined}
                               strokeWidth={1.75}
                               aria-hidden="true"
                             />
+                            <span className="min-w-0 truncate">{item.title}</span>
+                            {item.hint ? (
+                              <span className="min-w-0 flex-1 truncate text-xs font-normal text-muted-foreground">
+                                {item.hint}
+                              </span>
+                            ) : (
+                              <span className="flex-1" />
+                            )}
+                            {item.dueDate ? (
+                              <span className="flex shrink-0 items-center gap-1 text-xs font-normal text-muted-foreground">
+                                <CalendarDays className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
+                                {formatDay(item.dueDate, todayInBrowserZone())}
+                              </span>
+                            ) : null}
+                            {item.status ? <StatusBadge status={item.status} /> : null}
                           </button>
                         )
                       })}
@@ -411,19 +344,38 @@ export function SearchOverlay({
             </div>
           )}
         </div>
-
-        <footer className="flex min-h-10 items-center border-t border-border bg-[var(--color-graphite-25)] px-4 text-xs text-[var(--color-graphite-500)]">
-          <span>Showing matches from every folder you can access.</span>
-          <span className="ml-auto hidden items-center gap-2 sm:flex" aria-hidden="true">
-            <kbd className="rounded border border-[var(--color-graphite-200)] bg-white px-1.5 py-0.5 text-[0.625rem]">↑↓</kbd>
-            Navigate
-            <kbd className="rounded border border-[var(--color-graphite-200)] bg-white px-1.5 py-0.5 text-[0.625rem]">↵</kbd>
-            Open
-            <kbd className="rounded border border-[var(--color-graphite-200)] bg-white px-1.5 py-0.5 text-[0.625rem]">Esc</kbd>
-            Close
-          </span>
-        </footer>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/* Opened through `shell/overlays.ts`. The input gives up focus before the
+   dialog closes, because that seam refuses "/" while an input is focused. */
+export function SearchOverlay(): React.JSX.Element {
+  const [open, setOpen] = useState(false)
+  const navigate = useNavigate()
+
+  useEffect(() => onOpenSearch(() => setOpen(true)), [])
+
+  return (
+    <SearchDialog
+      /* Remounted per opening, so the query and the cursor start empty. */
+      key={open ? "open" : "closed"}
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) {
+          const active = document.activeElement
+          if (active instanceof HTMLElement) active.blur()
+        }
+        setOpen(next)
+      }}
+      onOpenResult={(id, kind) => {
+        if (id === SHORTCUTS_RESULT) openShortcuts()
+        else if (kind === "task") openTask(id)
+        else if (kind === "folder") void navigate(paths.folder(id))
+        else if (kind === "shelf") void navigate(paths.shelf(id))
+        else void navigate(id)
+      }}
+    />
   )
 }

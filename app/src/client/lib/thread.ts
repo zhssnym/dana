@@ -31,37 +31,13 @@ every file. It answers `width` and `height` beside them (issue #27), which is
 what `attachmentOf` turns into the reservation issue #108 asked for. The write
 half is one file per comment, as 7.14 writes it.
 */
-import { useMemo } from 'react'
 
 import type { CommentFile, CommentLine } from '../../shared/comments.js'
-import { useMe } from '../api/queries.js'
 import { measuredRatio } from './page-images.js'
 import { formatAgo } from '../parts/format-dates.js'
 import { initialsOf } from '../parts/presenters.js'
 
 import type { Attachment, ConceptComment } from '../tasks/task-model.js'
-
-/** The `Person` shape, which is what a `Face` takes. */
-export interface ThreadPerson {
-  readonly initials: string
-  readonly name: string
-  readonly image?: string
-}
-
-/**
- * Who is writing, for the composer's own face and for a comment made in this
- * session.
- *
- * The session is the honest answer and is already in the cache on every page.
- * The picture comes with it, `/me` carrying `avatar_url`, so the one face on
- * the screen that is certainly yours can be your photograph.
- */
-export function useViewerPerson(): ThreadPerson {
-  const me = useMe()
-  const name = me.data?.user.display_name ?? 'You'
-  const image = me.data?.user.avatar_url ?? null
-  return { initials: initialsOf(name), name, ...(image === null ? {} : { image }) }
-}
 
 /** 7.15's serving path, which the browser sends the session cookie for, this
  *  being one origin (11.1). */
@@ -213,6 +189,7 @@ function conceptOf(
   return {
     id: line.id,
     author: {
+      id: line.author_id,
       initials: initialsOf(author.name),
       name: author.name,
       ...(author.image === undefined ? {} : { image: author.image }),
@@ -394,22 +371,4 @@ export function applyThreadChange(
     const likeNow = likedByMe(entry.comment)
     if (likeNow !== likedByMe(was.comment)) writers.like(id, likeNow)
   }
-}
-
-/**
- * The thread a surface draws, memoised on what it is built from.
- *
- * `now` is read once per render of the page rather than per comment, so every
- * elapsed phrase on one screen is measured from the same instant.
- */
-export function useConceptThread(
-  lines: readonly CommentLine[] | undefined,
-  viewerId: string | null,
-  personOf: PersonResolver,
-  may: ThreadAuthority = AUTHORSHIP_ALONE,
-): ConceptComment[] {
-  return useMemo(
-    () => toConceptComments(lines ?? [], viewerId, personOf, Date.now(), may),
-    [lines, viewerId, personOf, may],
-  )
 }

@@ -1,7 +1,8 @@
 /*
 9.1's offline banner: global, persistent while offline, copy normative.
 
-One instance, in the shell, above the outlet. It is global rather than per
+One instance, in the shell's notice column (`state/ToastRegion.tsx`), where
+it reads as one more notice that does not expire. It is global rather than per
 page because 10.6's fallback opens every /app path from the cached shell, and
 a banner rendered by a page would be missing on exactly the pages a person
 reaches while the connection is down.
@@ -24,5 +25,5 @@ import { useOnline } from '../state/useOnline.js'
 export function OfflineBanner(): React.JSX.Element | null {
   const online = useOnline()
   if (online) return null
-  return <OfflineBannerCard className="rounded-none border-x-0 border-t-0" />
+  return <OfflineBannerCard />
 }

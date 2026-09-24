@@ -1,35 +1,15 @@
 /*
-The place-pages of 9.4 and 9.5, as one table: what each one is, which views it
-can honestly draw, where it captures, and what a task made on it carries.
+The place-pages as one table: what each is called, which layouts and groupings
+its View menu offers, and what a task made on it carries. Capture defaults are
+decided here once, so a task made on a page appears on that page.
 
-**Capture defaults are decided once.** If the floating button, the quick-add and
-the board column each decided the defaults for themselves, a task made on Today
-might never appear on Today. 9.1's own sentence is the test: "every capture
-creates the task with the entry defaults of 9.3 for where it stands, so a task
-made on a page appears on that page."
-
-**Which views a page offers is a rule and not a preference.** A page either pins
-a value on an axis or spans it, and arranging by an axis the page has pinned
-gives one group, which is a list wearing a different control: a calendar of
-Today is a single cell. So the calendar belongs to Scheduled alone, because
-having a date is what puts a task there; list is the ground and is offered
-everywhere; and board is offered wherever a page can be grouped, which is
-everywhere, because the folder is the one categorical value every task always
-has.
-
-**The capture column is 9.1's list read as a list.** "The floating 'Add task'
-button appears only on the pages with no capture affordance of their own, Today,
-Important, and Assignments, and never on Done or Abandoned." AC-096 reads that
-as three presences against seven absences.
+Keys and paths are the server's and the router's (`scheduled`, `assignments`);
+only the names on screen are the redesign's ("Upcoming", "Assigned").
 */
 import type { LucideIcon } from '../lib/icons.js'
 import {
-  Ban,
   CalendarDays,
-  CalendarX,
-  CheckCircle2,
   Layers3,
-  Star,
   SunMedium,
   UserRoundCheck,
 } from '../lib/icons.js'
@@ -39,48 +19,38 @@ import type { Schedule } from '../parts/schedule.js'
 import type { GroupBy } from './filter.js'
 import type { ViewMode } from './view-mode.js'
 
-/**
- * The place-pages this table draws.
- *
- * **`folder` is one of them.** 9.6 asks the folder page for a view strip, a
- * window-bar filter and a board, "the filter of 9.1 narrows the page without
- * touching its arrangement", so a folder page is a place-page in every sense
- * this table means.
- *
- * What stays 9.6's is everything that needs the folder's own id: its capture
- * writes that folder, its filter is remembered per folder rather than per kind,
- * and its head is the identity head. `usePlace` takes those as options for that
- * reason, and the spine below carries only what is true of every folder page.
- */
 export type PlaceKey =
   | 'today'
   | 'scheduled'
   | 'assignments'
-  | 'important'
-  | 'all'
-  | 'done'
-  | 'abandoned'
-  | 'anytime'
   | 'folder'
+  | 'focus'
 
-/** Where a page's one always-visible capture point is, or that it has none. */
-export type CaptureKind = 'floating' | 'inline' | 'none'
+/** Where a page's always-visible capture point is, or that it has none. */
+export type CaptureKind = 'inline' | 'none'
+
+/** One Group by choice. `none` is the page's own arrangement, named for it. */
+export interface GroupChoice {
+  readonly value: GroupBy
+  readonly label: string
+}
 
 export interface PlaceSpine {
   readonly key: PlaceKey
-  /** 9.1's page block name, which is what a criterion addresses. */
+  /** The name on screen. */
   readonly name: string
   readonly path: string
-  /** The page's question, drawn as the head's prose line. */
-  readonly question: string
+  /** A page's one-line prose, where it still draws one. */
+  readonly question?: string
   readonly icon: LucideIcon
+  /** The View menu's Layout choices; a page with one has no Layout item. */
   readonly views: readonly ViewMode[]
+  /** The View menu's Group by choices; empty means no Group by item. */
+  readonly groups: readonly GroupChoice[]
+  /** Whether the page has completed tasks to show. */
+  readonly completed: boolean
   readonly capture: CaptureKind
-  /**
-   * What a board groups by when nobody has said: the page's own spine where the
-   * page spans a categorical axis, which is Assignments and people; and the
-   * folder everywhere else.
-   */
+  /** What a board groups by when Group by is the page's own arrangement. */
   readonly boardAxis: Exclude<GroupBy, 'none'>
 }
 
@@ -91,177 +61,107 @@ export const PLACES: Record<PlaceKey, PlaceSpine> = {
     key: 'today',
     name: 'Today',
     path: paths.today,
-    question: 'Keep today clear and focus on what matters now.',
     icon: SunMedium,
-    views: LIST_AND_BOARD,
-    capture: 'floating',
+    views: ['list'],
+    groups: [
+      /* Today's own groups: Carried over, Today, In progress, Added to Today. */
+      { value: 'none', label: 'When' },
+      { value: 'folder', label: 'Page' },
+    ],
+    completed: true,
+    capture: 'inline',
     boardAxis: 'folder',
   },
   scheduled: {
     key: 'scheduled',
-    name: 'Scheduled',
+    name: 'Upcoming',
     path: paths.scheduled,
-    question: 'See what is coming and when it needs your attention.',
     icon: CalendarDays,
-    views: ['list', 'board', 'calendar'],
+    views: ['list', 'calendar'],
+    groups: [
+      { value: 'none', label: 'Date' },
+      { value: 'folder', label: 'Page' },
+    ],
+    completed: true,
     capture: 'inline',
     boardAxis: 'folder',
   },
   assignments: {
     key: 'assignments',
-    name: 'Assignments',
+    name: 'Assigned',
     path: paths.assignments,
-    question: 'See who is carrying each task.',
     icon: UserRoundCheck,
     views: LIST_AND_BOARD,
-    capture: 'floating',
+    groups: [
+      { value: 'none', label: 'Person' },
+      { value: 'folder', label: 'Page' },
+    ],
+    completed: true,
+    capture: 'inline',
     boardAxis: 'person',
   },
-  important: {
-    key: 'important',
-    name: 'Important',
-    path: paths.important,
-    question: 'Keep the tasks that matter most close at hand.',
-    icon: Star,
-    views: LIST_AND_BOARD,
-    capture: 'floating',
-    boardAxis: 'folder',
-  },
-  all: {
-    key: 'all',
-    name: 'All',
-    path: paths.all,
-    question: 'See every task together, including finished work.',
-    icon: Layers3,
-    views: LIST_AND_BOARD,
-    capture: 'inline',
-    boardAxis: 'folder',
-  },
-  done: {
-    key: 'done',
-    name: 'Done',
-    path: paths.done,
-    question: 'Look back on everything you have completed.',
-    icon: CheckCircle2,
-    /*
-    List and board. Done draws the one `TaskRow`, so its board is the shared
-    `views/TaskBoard.tsx` with a column per completion day, every card finished.
-    A day is a relation rather than a value, so no column captures and no drop
-    lands, `grouping.ts`'s own rule for Overdue.
-    */
-    views: LIST_AND_BOARD,
-    capture: 'none',
-    boardAxis: 'folder',
-  },
-  abandoned: {
-    key: 'abandoned',
-    name: 'Abandoned',
-    path: paths.abandoned,
-    question: 'Keep track of what you chose not to continue.',
-    icon: Ban,
-    views: LIST_AND_BOARD,
-    capture: 'none',
-    boardAxis: 'folder',
-  },
-  anytime: {
-    key: 'anytime',
-    name: 'Anytime',
-    path: paths.anytime,
-    question: 'Keep undated tasks ready for whenever the time is right.',
-    icon: CalendarX,
-    views: LIST_AND_BOARD,
-    capture: 'inline',
-    boardAxis: 'folder',
-  },
   /*
-  The folder page (9.6).
-
-  **Its board never groups by folder**: a page either pins a value on an axis or
-  spans it, and arranging by an axis the page has pinned gives one group, which
-  is a list wearing a different control. A folder page has pinned the folder, so
-  a board grouped by it is one column.
-
-  **Its name, question, path and capture are placeholders and are never read.**
-  The folder page draws 9.6's identity head rather than a place head, its
-  address carries an id this table cannot know, and its capture is the quick-add
-  that writes its own folder. `usePlace` takes the capture as an option and the
-  page supplies its own; these three fields are here because the shape requires
-  them, and a reader should not go looking for where they are used.
+  The folder page. Its name, path and capture are placeholders: it draws its own
+  head, its address carries an id, and it supplies its own capture. It never
+  groups by folder, and its board's columns are its sections.
   */
   folder: {
     key: 'folder',
-    name: 'Folder',
+    name: 'Page',
     path: '',
-    question: '',
+    icon: Layers3,
+    /* A page picks Linear, Board or Freeform with its own switcher and its
+       own stored choice (`useFolderView`), never this layout (round 5). */
+    views: ['list'],
+    groups: [
+      { value: 'none', label: 'None' },
+      { value: 'person', label: 'Person' },
+      { value: 'date', label: 'Date' },
+    ],
+    completed: true,
+    capture: 'inline',
+    boardAxis: 'section',
+  },
+  /*
+  A Focus list the viewer added (round 8). Its name and path are each list's
+  own (`shell/focus-lists.ts`); it has no capture, since a filter such as
+  Overdue has no value a new task could be given to land in it.
+  */
+  focus: {
+    key: 'focus',
+    name: 'List',
+    path: '',
     icon: Layers3,
     views: LIST_AND_BOARD,
-    capture: 'inline',
-    /*
-    **The folder board's columns are its sections**: sections are the page's
-    unfiltered arrangement and the date board is one of the filter's group-by
-    values. So this is the axis the page opens on and `filter.groupBy` still
-    overrides it, exactly as it does on every other place page.
-    */
-    boardAxis: 'section',
+    groups: [
+      { value: 'none', label: 'None' },
+      { value: 'folder', label: 'Page' },
+      { value: 'person', label: 'Person' },
+      { value: 'date', label: 'Date' },
+    ],
+    completed: false,
+    capture: 'none',
+    boardAxis: 'folder',
   },
 }
 
-/** The place a path is, or null where the path is not a place-page. */
-export function placeAt(pathname: string): PlaceSpine | null {
-  for (const spine of Object.values(PLACES)) {
-    if (spine.path === pathname) return spine
-  }
-  return null
-}
-
 /**
- * A column's own value, which a capture inside it writes over the page's
- * defaults: capture in a column means capture with that column's value. A
- * column that is a relation rather than a value carries none, and Overdue is
- * that case.
+ * A board column's own value, which a capture inside it writes over the page's
+ * defaults. A column that is a relation rather than a value (Overdue) has none.
  */
 export interface ColumnValue {
   readonly folder_id?: string
   readonly assignee_id?: string | null
   readonly due_date?: string | null
-  /**
-   * 4.5's start date, added for issue #216 and written by a **drop** alone.
-   *
-   * A date column's value is a day and its capture writes that day as a due
-   * date, a new task having no Schedule to keep. A task dropped into the
-   * column has one, and Q3C says a Start-only task's drag moves its Start
-   * Date, so `TaskBoard`'s `scheduleLanding` swaps the field for that row and
-   * this is the field it swaps to. Nothing captures it: `captureDefaults`
-   * below reads folder, due date and assignee and deliberately not this.
-   */
+  /** Written by a drop alone (issue #216); a capture never writes it. */
   readonly start_date?: string | null
-  /**
-   * 4.5's section.
-   *
-   * Null is the loose list, which is 9.6's own name for the tasks under no
-   * section, and is a value rather than an absence: dropping a card out of a
-   * section has to write something.
-   */
+  /** Null is the loose list, which a drop out of a section writes. */
   readonly section_block_id?: string | null
 }
 
 /**
- * The value a **drop** writes, which is the column's value with a date column's
- * day moved onto the end of the Schedule that row actually carries, or null
- * where the drop is refused.
- *
- * Q3C (issue #216): "Dragging moves a Due-only task's Due Date, a Start-only
- * task's Start Date, and a Start+Due range whole." The third is unbuilt, so a
- * pair is refused rather than half-moved - writing one end of a span resizes
- * work the person was carrying with nothing on screen saying so.
- *
- * Only the date axis is touched. A folder, person or section column writes a
- * field the Schedule has nothing to do with, and passing those through
- * unchanged is what keeps this one rule about one axis.
- *
- * A **capture** does not go through here and should not: a task typed into a
- * day column is new and has no Schedule to keep, so the column's day is its
- * deadline, which is what `captureDefaults` below writes.
+ * What a drop writes: a date column's day lands on the end of the Schedule the
+ * row carries (Q3C), and a Start+Due pair is refused rather than half-moved.
  */
 export function scheduleLanding(
   task: Schedule,
@@ -275,30 +175,16 @@ export function scheduleLanding(
   return { ...rest, start_date: day }
 }
 
-/** What a capture writes: the POST body fragment, and Today's own extra act. */
 export interface CaptureDefaults {
   readonly folder_id?: string
   readonly due_date?: string | null
   readonly important?: boolean
   readonly assignee_id?: string | null
-  /**
-   * Today's spine is a Today entry, and no field of 7.6's body writes one, so
-   * the capture posts the task and then pulls it (7.8). This is the flag that
-   * says so, and the reason AC-221 looks for the row on Today after a reload
-   * rather than only inside the column it was typed in.
-   */
+  /** Today's capture posts the task and then pulls it into Today (7.8). */
   readonly pullIntoToday: boolean
 }
 
-/**
- * 9.3's entry table, keyed by the page a person is standing on.
- *
- * The rows this returns are that table's, and the ones it does not return are
- * the ones another surface owns: a calendar cell passes its own day, a folder
- * page passes its own folder, and a section passes both. What is fixed here is
- * the page's part, and a column's value is layered over it: the page's own
- * entry defaults ride underneath.
- */
+/** 9.3's entry defaults for the page a person is on, a column's value over them. */
 export function captureDefaults(
   place: PlaceKey,
   today: string,
@@ -315,60 +201,15 @@ export function captureDefaults(
 
 function placeDefaults(place: PlaceKey, today: string): CaptureDefaults {
   switch (place) {
-    /* Today: dated today, and the membership its spine actually is. */
     case 'today':
       return { due_date: today, important: false, pullIntoToday: true }
-    /* Scheduled: dated today, which is the only thing that keeps a task made
-       here on the page it was made on (Q3 admits dated rows only). */
+    /* Dated today, or the task would vanish from Upcoming, which holds dated rows only. */
     case 'scheduled':
       return { due_date: today, important: false, pullIntoToday: false }
-    /* Important: the flag, and no date, because starring is not scheduling. */
-    case 'important':
-      return { due_date: null, important: true, pullIntoToday: false }
-    /* Assignments: assigned to the viewer. 7.6 defaults `assignee_id` to the
-       caller when a body carries none, and Desk is single-member so the
-       forcing lands on them either way, which is why this row writes no
-       assignee of its own rather than restating the server's rule. */
+    /* Assigned: 7.6 defaults `assignee_id` to the caller, so the task lands under "You". */
     case 'assignments':
-      return { due_date: null, important: false, pullIntoToday: false }
-    /* All and Anytime: Desk and undated, 9.3's first row. Done and Abandoned
-       capture nowhere and never reach this, and the branch is here rather
-       than thrown from because an unreachable throw is a crash waiting for a
-       future page. */
-    case 'all':
-    case 'anytime':
-    case 'done':
-    case 'abandoned':
-      return { due_date: null, important: false, pullIntoToday: false }
-    /* A folder page's capture is the page's own, because the one thing it
-       writes is a folder id this table cannot know. `usePlace` takes it as an
-       option and the folder page supplies it, so this branch is reached only
-       by a board column's capture on that page, whose column value rides over
-       it. Undated and unstarred is 9.3's first row, which is the right floor
-       for it. */
     case 'folder':
+    case 'focus':
       return { due_date: null, important: false, pullIntoToday: false }
-  }
-}
-
-/**
- * The same defaults as the task surface takes them, for the floating button.
- *
- * The surface is opened rather than posted to, so the membership half cannot
- * ride along: the pull needs the id of a task that does not exist yet, and
- * the surface is the Complex Interaction engineer's. It costs nothing on the
- * three pages the button is on: Today's date and the viewer's own assignment
- * put the task on Today by 6 Q1's automatic clause, which is why AC-093 reads
- * the date here and AC-221 reads the membership at the capture that can write
- * it.
- */
-export function surfaceDefaults(
-  place: PlaceKey,
-  today: string,
-): { due_date: string | null; important: boolean } {
-  const defaults = placeDefaults(place, today)
-  return {
-    due_date: defaults.due_date ?? null,
-    important: defaults.important ?? false,
   }
 }

@@ -39,6 +39,7 @@ grows a sixteenth that nothing here names — over `SET NULL` as well as
 `CASCADE`, there being none of the former today and that being the reason to
 enumerate it rather than to wait for one.
 */
+import { notSamplePerson } from '../sample/people.js'
 import { sql } from 'drizzle-orm'
 
 import { deleteFolderRow, runRClean, transferOwnership } from './folders.js'
@@ -325,11 +326,25 @@ export const USER_CASCADE_DISPOSALS: readonly UserCascadeDisposal[] = [
     why: "A like carries no text and names nobody on the wire: commentSelect answers a count and the viewer's own bit, and 4.15 calls it the whole reaction set. It is therefore not one of 8.10's three surviving references, and it is the same shape as my_day_entries and connections, which this transaction already deletes — a per-person marker on a shared object. What a remaining member sees change is one number on a comment.",
   },
   {
+    fk: 'discussion_reads_user_id_fkey',
+    table: 'discussion_reads',
+    disposition: 'deleted',
+    where: 'step 6c, in this file',
+    why: "Migration 0048's read marker: when this account last opened a Discussion. It is this account's own unread state, carries no text, and means nothing once the account is gone; nobody else ever reads it.",
+  },
+  {
     fk: 'labels_owner_user_id_fkey',
     table: 'labels',
     disposition: 'deleted',
     where: 'step 6c, in this file',
     why: "4.24's Personal Label is one person's own catalog, private to them, carrying a name, a colour and a description they wrote. Scoped by owner_user_id, which is NOT NULL on a Personal Label and NULL on every Folder Label, so it reaches exactly the personal catalog and no shared one. A Folder Label in a folder the account owned goes at step 3 through labels_folder_id_fkey, a cascade off a real DELETE that does fire, and the assignment rows follow this one: task_personal_labels and folder_personal_labels key onto labels(id, owner_user_id) ON DELETE CASCADE.",
+  },
+  {
+    fk: 'mention_notices_user_id_fkey',
+    table: 'mention_notices',
+    disposition: 'deleted',
+    where: 'step 6c, in this file',
+    why: "Wave 2's @mention ledger: a row only records that this account was already told about one mention, so it is this account's own notification state and means nothing once the account is gone. The mention itself is a run in someone else's writing and stays there, as their authored text.",
   },
   {
     fk: 'notifications_user_id_fkey',
@@ -351,6 +366,13 @@ export const USER_CASCADE_DISPOSALS: readonly UserCascadeDisposal[] = [
     disposition: 'deleted',
     where: 'step 6c, in this file',
     why: "4.18's shelf is one person's own grouping and nobody else can read it (AC-366), and it carries a name and a description the person wrote. The page blocks hanging on it go with it by page_blocks_shelf_id_fkey, which is a cascade off a real DELETE and does fire.",
+  },
+  {
+    fk: 'task_thread_reads_user_id_fkey',
+    table: 'task_thread_reads',
+    disposition: 'deleted',
+    where: 'step 6c, in this file',
+    why: "Migration 0049's read marker: when this account last opened a task's thread. The same shape as discussion_reads: this account's own unread state, carrying no text, meaning nothing once the account is gone, and read by nobody else.",
   },
   {
     fk: 'user_page_covers_user_id_fkey',
@@ -396,7 +418,7 @@ export const USER_CASCADE_DISPOSALS: readonly UserCascadeDisposal[] = [
  * returns. Nothing here reads or writes the sessions table, and nothing here
  * scrubs the user row: after this function the account still exists, owns no
  * folder, holds no membership, appears on no roster, offers no pending
- * invite, and holds no row in any of step 6c's nine personal tables.
+ * invite, and holds no row in any of step 6c's eleven personal tables.
  */
 export async function deleteAccountData(
   tx: Executor,
@@ -426,7 +448,8 @@ export async function deleteAccountData(
     sql`SELECT id FROM folders f
         WHERE f.owner_id = ${userId} AND NOT f.is_default
           AND EXISTS (SELECT 1 FROM folder_members m
-                       WHERE m.folder_id = f.id AND m.user_id <> ${userId})`,
+                       WHERE m.folder_id = f.id AND m.user_id <> ${userId}
+                         AND ${notSamplePerson(sql`m.user_id`)})`,
   )
   for (const row of transferable) {
     await transferOwnership(tx, String(row.id), userId)
@@ -524,7 +547,7 @@ export async function deleteAccountData(
   /*
   6c. The personal-rows sweep (issue #253, 2026-09-20).
 
-  Nine tables whose only tie to this account is a column declared
+  Ten tables whose only tie to this account is a column declared
   `REFERENCES users(id) ON DELETE CASCADE`. Reading the schema, none of them
   belongs in this function — the cascade says the rows leave with the user.
   **It never fires.** Step 7 scrubs the users row rather than deleting it, so
@@ -536,7 +559,7 @@ export async function deleteAccountData(
   Written as one statement per table rather than a loop over names: the
   guard reads this source for `DELETE FROM <table>`, and a table swept by an
   interpolated identifier would be invisible to it and to grep alike. The
-  order is alphabetical and carries no meaning, none of the nine referencing
+  order is alphabetical and carries no meaning, none of the eleven referencing
   another; `shelves` cascades its page blocks and `labels` its assignment
   rows in task_personal_labels and folder_personal_labels, both of which are
   cascades off a real DELETE and do fire.
@@ -548,7 +571,15 @@ export async function deleteAccountData(
     ),
     await rowsOf(
       tx,
+      sql`DELETE FROM discussion_reads WHERE user_id = ${userId} RETURNING 1 AS one`,
+    ),
+    await rowsOf(
+      tx,
       sql`DELETE FROM labels WHERE owner_user_id = ${userId} RETURNING 1 AS one`,
+    ),
+    await rowsOf(
+      tx,
+      sql`DELETE FROM mention_notices WHERE user_id = ${userId} RETURNING 1 AS one`,
     ),
     await rowsOf(
       tx,
@@ -561,6 +592,10 @@ export async function deleteAccountData(
     await rowsOf(
       tx,
       sql`DELETE FROM shelves WHERE user_id = ${userId} RETURNING 1 AS one`,
+    ),
+    await rowsOf(
+      tx,
+      sql`DELETE FROM task_thread_reads WHERE user_id = ${userId} RETURNING 1 AS one`,
     ),
     await rowsOf(
       tx,
@@ -603,9 +638,9 @@ export interface AccountDeletionCounts {
   myDayEntries: number
   /** Files rows step 3's cascades dropped plus the rows step 6a deleted. */
   files: number
-  /** Step 6c's total across its nine tables: the rows fourteen inert
+  /** Step 6c's total across its eleven tables: the rows fourteen inert
    * cascades promised to take and did not (issue #253). One number rather
-   * than nine, because the deletion log's question is whether the sweep ran
+   * than ten, because the deletion log's question is whether the sweep ran
    * and reached something, not which table held what. */
   personalRows: number
   /** The collected object ids: the caller removes each from the store after

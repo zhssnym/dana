@@ -589,6 +589,23 @@ const TABLE = new Map<string, Row>([
     },
   ],
   [
+    'PATCH /api/v1/folders/:id/location',
+    {
+      /* Wave 2's page-tree move. To the top level, so the path id is the only
+         id in play: the body ids (`parent_folder_id`, `after_id`) are
+         invisible to this sweep and are AC-1016's. No member variant:
+         `fx.member` holds Can edit, which is what a move needs. */
+      attempt: (fx) => ({
+        path: `/folders/${fx.folderId}/location`,
+        body: { parent_folder_id: null },
+      }),
+      stranger: {
+        expected: 404,
+        rule: 'wave 2: moving a page edits it, and a non-member sees nothing, so 404 before the body is read',
+      },
+    },
+  ],
+  [
     'PATCH /api/v1/folders/:id/my-membership',
     {
       attempt: (fx) => ({
@@ -838,6 +855,19 @@ const TABLE = new Map<string, Row>([
       stranger: {
         expected: 404,
         rule: '7.16: the act reads the whole folder, so it is gated exactly as reading it is',
+      },
+    },
+  ],
+  [
+    'POST /api/v1/folders/:id/import',
+    {
+      attempt: (fx) => ({
+        path: `/folders/${fx.folderId}/import?tz=UTC`,
+        body: { dana: 'workflow', version: 1, folders: [{ name: 'cannot land here' }] },
+      }),
+      stranger: {
+        expected: 404,
+        rule: 'wave 2 and 7.16: importing into a page adds sub-pages to it, a page edit, so a non-member cannot name the page',
       },
     },
   ],
@@ -2052,6 +2082,26 @@ const TABLE = new Map<string, Row>([
       stranger: {
         expected: 404,
         rule: '7.28: reopening is a Discussion act, 404 to a non-member',
+      },
+    },
+  ],
+  [
+    'PUT /api/v1/discussions/:id/read',
+    {
+      attempt: (fx) => ({ path: `/discussions/${fx.discussionId}/read` }),
+      stranger: {
+        expected: 404,
+        rule: "7.28: a read marker is a member's own state on a Discussion they can see, so a non-member is 404 and no row is written",
+      },
+    },
+  ],
+  [
+    'PUT /api/v1/tasks/:id/thread/read',
+    {
+      attempt: (fx) => ({ path: `/tasks/${fx.taskId}/thread/read` }),
+      stranger: {
+        expected: 404,
+        rule: "7.14: a task thread's read marker is a member's own state on a thread they can read, so a non-member is 404, as on every /tasks/:id route, and no row is written",
       },
     },
   ],

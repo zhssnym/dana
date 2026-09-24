@@ -20,7 +20,7 @@ function AlertDialogOverlay({
     <AlertDialogPrimitive.Backdrop
       data-slot="alert-dialog-overlay"
       className={cn(
-        "fixed inset-0 z-[90] bg-black/25 transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0",
+        "fixed inset-0 z-[90] bg-scrim motion-fade",
         className,
       )}
       {...props}
@@ -38,7 +38,7 @@ function AlertDialogContent({
       <AlertDialogPrimitive.Popup
         data-slot="alert-dialog-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-[100] grid w-[min(420px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg bg-popover p-5 text-popover-foreground shadow-[var(--elevation-2)] ring-1 ring-foreground/10 outline-none transition duration-150 data-ending-style:scale-95 data-ending-style:opacity-0 data-starting-style:scale-95 data-starting-style:opacity-0",
+          "fixed top-1/2 left-1/2 z-[100] grid w-[min(400px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 gap-5 rounded-xl bg-popover p-5 text-sm text-popover-foreground shadow-md outline-none motion-float",
           className,
         )}
         {...props}
@@ -60,7 +60,7 @@ function AlertDialogFooter({
 }: React.ComponentProps<"div">) {
   return (
     <div
-      className={cn("flex justify-end gap-2", className)}
+      className={cn("flex justify-end gap-1", className)}
       {...props}
     />
   )
@@ -72,7 +72,7 @@ function AlertDialogTitle({
 }: AlertDialogPrimitive.Title.Props) {
   return (
     <AlertDialogPrimitive.Title
-      className={cn("text-base font-semibold text-foreground", className)}
+      className={cn("text-sm font-semibold text-foreground", className)}
       {...props}
     />
   )
@@ -97,10 +97,7 @@ function AlertDialogCancel({
   return (
     <AlertDialogPrimitive.Close
       render={<Button type="button" variant="ghost" />}
-      className={cn(
-        "h-[var(--control-height)] px-4 text-sm hover:bg-[var(--color-graphite-100)]",
-        className,
-      )}
+      className={cn("h-[var(--control-height)] px-3", className)}
       {...props}
     />
   )
@@ -113,19 +110,15 @@ function AlertDialogAction({
 }: AlertDialogPrimitive.Close.Props & { destructive?: boolean }) {
   return (
     <AlertDialogPrimitive.Close
+      /* r5: the one danger style is Button's destructive variant (danger
+         ink on a hairline), never a filled red button. */
       render={
         <Button
           type="button"
           variant={destructive ? "destructive" : "default"}
         />
       }
-      className={cn(
-        "h-[var(--control-height)] px-4 text-sm",
-        destructive
-          ? "bg-[var(--color-danger-100)] text-destructive hover:bg-[var(--color-danger-200)]"
-          : "bg-[var(--color-graphite-900)] text-white hover:bg-[var(--color-graphite-800)]",
-        className,
-      )}
+      className={cn("h-[var(--control-height)] px-3", className)}
       {...props}
     />
   )

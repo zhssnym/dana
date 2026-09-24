@@ -1,35 +1,4 @@
-/*
-10.6's update rule, from the page's side: "new versions activate on next load;
-when detected mid-session, an unobtrusive 'Update available, reload'
-affordance appears; no forced reload."
 
-**A recorded deviation in mechanism, not in behavior.** 11.4 names
-vite-plugin-pwa "with the prompt-for-update registration flow
-(virtual:pwa-register with onNeedRefresh)". The plugin is still what builds the
-service worker and the manifest, configured in vite.config.ts. What this file
-does not do is import `virtual:pwa-register`, and the reason is the ownership
-boundary rather than a preference: that module exists only while the plugin is
-configured, a static import of it fails the build outright, and this package's
-gate has to be green on a tree where the plugin is not wired yet. A computed
-specifier would dodge the build and then fail at runtime for the same reason it
-dodged it, because Vite would no longer rewrite it.
-
-So the flow below is the flow the virtual module implements, against the same
-generated worker: register, watch for a worker that installs while one is
-already controlling the page, tell nobody to reload, and hand the waiting
-worker a SKIP_WAITING message only when the person asks. Escalated to the
-Steward with the recommendation that 11.4's parenthesis be read as naming the
-flow rather than the import; if the ruling goes the other way, the swap is
-this file and nothing else.
-
-**Nothing here calls skipWaiting on its own.** That is the half of 10.6 worth
-a criterion: a worker that activates itself takes the page out from under
-whatever the person was typing, and it is one line shorter than one that does
-not.
-*/
-
-/** 10.6's affordance copy, verbatim. Design may restyle, not reword. */
-export const UPDATE_AVAILABLE = 'Update available, reload'
 
 /** The path the built worker is served from, and the scope it needs. */
 const SCRIPT_URL = '/sw.js'

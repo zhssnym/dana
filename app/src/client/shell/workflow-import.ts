@@ -23,6 +23,12 @@ claim being repaid rather than merely made: #185 made every export version 4,
 and a picker still carrying its own literal would have refused every file this
 product writes.
 */
+import { useNavigate } from 'react-router'
+
+import { useImportWorkflowFile } from '../api/mutations.js'
+import { useFolders } from '../api/queries.js'
+import { paths } from '../routes.js'
+import { dismissToast, showToast, toastSnapshot } from '../state/toasts.js'
 import {
   WORKFLOW_FILE_VERSIONS,
   importWorkflowBody,
@@ -33,7 +39,6 @@ import type { ImportWorkflowBody } from '../../shared/workflows.js'
 export interface PreparedWorkflowImport {
   readonly body: Record<string, unknown>
   readonly skippedContent: boolean
-  readonly taskCount: number
   /**
    * How many `omitted` placeholders the file carried (#185, and the
    * adversarial review of it).
@@ -200,26 +205,6 @@ function skippedByNormalization(
 }
 
 /**
- * How many Tasks the import is about to make, which is what the toast says.
- *
- * **Both arrangements, because both are current.** A version 1 to 3 folder
- * lists its work under `tasks`; a version 4 folder writes each Task as a block
- * of its page, at the position it sits in (#185). Counting only the first would
- * have told every person importing a file this product now writes that their
- * folder arrived with no work in it.
- */
-function taskCount(folders: unknown[]): number {
-  return folders.reduce<number>((sum, folder) => {
-    if (!isRecord(folder)) return sum
-    const listed = Array.isArray(folder.tasks) ? folder.tasks.length : 0
-    const page = pageBlocks(folder).filter(
-      (block) => isRecord(block) && block.kind === 'task',
-    ).length
-    return sum + listed + page
-  }, 0)
-}
-
-/**
  * How many placeholders the file recorded, which is what the toast says about
  * the exporting side's own losses (#185).
  *
@@ -283,7 +268,91 @@ export function prepareWorkflowImport(
     body,
     skippedContent:
       canonical.success && skippedByNormalization(value, canonical.data),
-    taskCount: taskCount(folders ?? []),
     omittedCount: omittedCount(folders ?? []),
+  }
+}
+
+/* What Import says when the file is not a workflow at all: what happened, and
+   nothing about JSON. */
+export const WORKFLOW_UNREADABLE = "Dana can't read that file."
+
+/**
+ * The whole of "Import workflow…" after the file chooser closes, as one flow:
+ * one quiet "Importing …" line while the file is read and sent, then the
+ * imported folder opens with a one-line result, or one clear error. The
+ * endpoint's own failure toast (a 422 names its field) is the error line; the
+ * progress line is withdrawn either way so it never outlives the request.
+ */
+export function useWorkflowFileImport(): (file: File, parentId?: string) => void {
+  const navigate = useNavigate()
+  const folders = useFolders()
+  const importWorkflow = useImportWorkflowFile()
+  return (file: File, parentId?: string): void => {
+    const progress = `Importing ${file.name}…`
+    showToast(progress)
+    const done = (): void => {
+      const line = toastSnapshot().find((toast) => toast.message === progress)
+      if (line !== undefined) dismissToast(line.id)
+    }
+    const unreadable = (): void => {
+      done()
+      showToast(WORKFLOW_UNREADABLE)
+    }
+    void file.text().then((text) => {
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(text)
+      } catch {
+        unreadable()
+        return
+      }
+      // A name clashes only with the pages it will sit beside.
+      const taken = new Set((folders.data ?? []).filter((folder) => (folder.parent_folder_id ?? undefined) === parentId).map((folder) => folder.name))
+      const prepared = prepareWorkflowImport(parsed, taken)
+      if (prepared === null) {
+        unreadable()
+        return
+      }
+      importWorkflow.mutate({ body: prepared.body, ...(parentId === undefined ? {} : { parentId }) }, {
+        onSettled: done,
+        onSuccess: (made) => {
+          const first = made.folders[0]
+          /* Landing on the imported folder is the success; a toast is kept
+             only for what did not come with it. What the file itself recorded
+             as left behind (#185) is a different sentence from "unsupported
+             content was skipped": a placeholder is a loss the export made on
+             purpose, and the importer was told nothing about it. */
+          const notes = [
+            prepared.skippedContent ? 'Some unsupported content was skipped.' : '',
+            prepared.omittedCount === 0
+              ? ''
+              : `${String(prepared.omittedCount)} ${prepared.omittedCount === 1 ? 'picture, file or page link was' : 'pictures, files or page links were'} not included in this file.`,
+          ].filter((note) => note !== '')
+          if (notes.length > 0) showToast(notes.join(' '))
+          if (first !== undefined) void navigate(paths.folder(first.id))
+        },
+      })
+    }, unreadable)
+  }
+}
+
+/**
+ * The page "…" menu's Import…: choose a Dana file and import it into the page
+ * `parentId`, its pages arriving as that page's sub-pages in one transaction
+ * (`POST /folders/:id/import`). Called from the menu item's press, so the
+ * chooser opens inside the user's gesture.
+ */
+export function usePageImport(): (parentId?: string) => void {
+  const importFile = useWorkflowFileImport()
+  /* No parent: the sidebar's right-click Import, into the Library's top level. */
+  return (parentId?: string): void => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.json,application/json'
+    input.addEventListener('change', () => {
+      const file = input.files?.[0]
+      if (file !== undefined) importFile(file, parentId)
+    })
+    input.click()
   }
 }

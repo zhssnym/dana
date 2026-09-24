@@ -87,6 +87,7 @@ import type {
 import type { FacetKind } from '../../shared/facets.js'
 import { idSet, rowsOf } from '../database.js'
 import { listViews, readBundle } from './bundle.js'
+import { postContentOrNull } from './comments.js'
 import { resolveFacetName } from './facets.js'
 import { listPlaceCovers } from './covers.js'
 import { listPlaceDescriptions } from './place-descriptions.js'
@@ -251,6 +252,7 @@ function blockFrom(row: Record<string, unknown>): ExportBlock {
     file_id: nullableString(row.file_id),
     ref_folder_id: nullableString(row.ref_folder_id),
     width_pct: nullableInt(row.width_pct),
+    toggleable: row.toggleable === true ? true : null,
     updated_at: toIso(row.updated_at),
   }
 }
@@ -400,7 +402,7 @@ export async function exportForViewer(
     db,
     sql`SELECT f.id, f.name, f.is_default, f.icon, f.color, f.description,
                f.cover_file_id, f.cover_preset, f.cover_focal_y,
-               f.created_at, f.deleted_at,
+               f.created_at, f.deleted_at, f.parent_folder_id,
                m.shelf_name AS my_shelf, m.color AS my_color
         FROM folders f
         LEFT JOIN folder_members m
@@ -443,7 +445,7 @@ export async function exportForViewer(
     cappedPerParent(
       sql`b.id, b.folder_id, b.kind, b.position, b.text, b.file_id,
           b.ref_folder_id, b.width_pct, b.updated_at, b.rich_content, b.section_block_id,
-          b.list_parent_block_id, b.checked, b.page_position`,
+          b.list_parent_block_id, b.checked, b.page_position, b.toggleable`,
       sql`FROM page_blocks b
           JOIN folders f ON f.id = b.folder_id AND f.owner_id = ${viewerId}
           WHERE b.folder_id IN ${idSet(folderIds)}`,
@@ -534,7 +536,7 @@ export async function exportForViewer(
     cappedPerParent(
       sql`b.id, b.task_id, b.kind, b.position, b.text, b.file_id,
           b.ref_folder_id, b.width_pct, b.updated_at, b.rich_content, b.section_block_id,
-          b.list_parent_block_id, b.checked, b.page_position`,
+          b.list_parent_block_id, b.checked, b.page_position, b.toggleable`,
       sql`FROM page_blocks b
           JOIN tasks t ON t.id = b.task_id
           JOIN folders f ON f.id = t.folder_id
@@ -701,7 +703,7 @@ export async function exportForViewer(
   const commentRows = await rowsOf(
     db,
     sql`SELECT c.id, c.folder_id, c.task_id, c.discussion_id, c.parent_id,
-               c.body,
+               c.body, c.content,
                c.created_at, c.edited_at
         FROM comments c
         WHERE c.author_id = ${viewerId}
@@ -809,7 +811,7 @@ export async function exportForViewer(
     cappedPerParent(
       sql`b.id, b.shelf_id, b.kind, b.position, b.text, b.file_id,
           b.ref_folder_id, b.width_pct, b.updated_at, b.rich_content, b.section_block_id,
-          b.list_parent_block_id, b.checked, b.page_position`,
+          b.list_parent_block_id, b.checked, b.page_position, b.toggleable`,
       sql`FROM page_blocks b
           JOIN shelves s ON s.id = b.shelf_id AND s.user_id = ${viewerId}
           WHERE b.shelf_id IN ${idSet(
@@ -865,7 +867,7 @@ export async function exportForViewer(
             sql`b.id, b.facet_id, b.kind, b.position, b.text, b.file_id,
                 b.ref_folder_id, b.width_pct, b.updated_at, b.rich_content,
                 b.section_block_id, b.list_parent_block_id, b.checked,
-                b.page_position`,
+                b.page_position, b.toggleable`,
             /* **The scope, restated in this statement's own FROM clause.**
                `facets` above was already gathered under exactly this
                predicate, so the `IN` list alone would be correct -- and that
@@ -912,12 +914,19 @@ export async function exportForViewer(
   // tasksByFolder was built above, the per-folder cap already taken, because
   // the step statement had to be handed the surviving ids.
 
+  const exportedFolderIds = new Set(folderIds)
   const exportedFolders: ExportFolder[] = folders.map((row) => {
     const id = String(row.id)
+    const parentId = nullableString(row.parent_folder_id)
     return {
       id,
       name: String(row.name),
       is_default: row.is_default === true,
+      /* Version 8 (wave 2): the page tree, as far as this document reaches.
+         A parent that is not in it (somebody else's page, or cut by the row
+         cap) is null, so the export never names a page it does not carry. */
+      parent_folder_id:
+        parentId !== null && exportedFolderIds.has(parentId) ? parentId : null,
       icon: nullableString(row.icon),
       color: nullableString(row.color),
       description: nullableString(row.description),
@@ -953,7 +962,16 @@ export async function exportForViewer(
       ),
       blocks: truncation
         .apply('folders.blocks', blocksByFolder.get(id) ?? [])
-        .map(blockFrom),
+        .map(blockFrom)
+        /* A `page` block names a sub-page, and like `parent_folder_id` it
+           names one this document carries or nothing (version 8). */
+        .map((block) =>
+          block.kind === 'page' &&
+          block.ref_folder_id !== null &&
+          !exportedFolderIds.has(block.ref_folder_id)
+            ? { ...block, ref_folder_id: null }
+            : block,
+        ),
       labels: truncation
         .apply('folders.labels', labelsByFolder.get(id) ?? [])
         .map(labelFrom),
@@ -981,6 +999,7 @@ export async function exportForViewer(
       discussion_id: nullableString(row.discussion_id),
       parent_id: nullableString(row.parent_id),
       body: nullableString(row.body),
+      content: postContentOrNull(row.content),
       created_at: toIso(row.created_at),
       edited_at: nullableIso(row.edited_at),
       files: truncation

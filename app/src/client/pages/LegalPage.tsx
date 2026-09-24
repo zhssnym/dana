@@ -28,9 +28,7 @@ one ships: `GET /api/v1/me/export` is 7.22 and the Settings row reaches it. **A
 page carrying that sentence with no control behind it would break the rule**, so
 the two are never separated.
 */
-import { Link } from 'react-router'
 
-import { DanaIdentity } from './dana-identity.js'
 
 /** The approved copy, section by section, in its own order. */
 const PAGE_COPY = {
@@ -64,6 +62,7 @@ const PAGE_COPY = {
         body: [
           'Dana runs on rented infrastructure and uses a small set of service providers: hosting for the application and its database, an email service that delivers invitations and reminders, an error-reporting service that receives technical failure reports with your content removed, and a log service that keeps operational events for 30 days. Task content and invitation addresses are excluded from error reports and logs.',
           'Google handles sign-in. Dana never sees your password.',
+          'Dana requests only your Google profile and email for sign-in, sharing, and invitations.',
         ],
       },
       {
@@ -81,7 +80,7 @@ const PAGE_COPY = {
       },
       {
         heading: 'Questions',
-        body: ['Write to support.danadana@gmail.com and a person will answer.'],
+        body: ['Write to hassan.k.shahir [at] gmail [dot] com and a person will answer.'],
       },
     ],
   },
@@ -128,7 +127,7 @@ const PAGE_COPY = {
       },
       {
         heading: 'Questions',
-        body: ['Write to support.danadana@gmail.com and a person will answer.'],
+        body: ['Write to hassan.k.shahir [at] gmail [dot] com and a person will answer.'],
       },
     ],
   },
@@ -139,27 +138,23 @@ export type LegalPageName = keyof typeof PAGE_COPY
 export function LegalPage({ page }: { readonly page: LegalPageName }): React.JSX.Element {
   const copy = PAGE_COPY[page]
   return (
-    <div className="min-h-screen bg-[var(--color-graphite-25)] text-[var(--color-graphite-800)]">
-      <div className="mx-auto flex max-w-[640px] flex-col px-6 py-10">
-        <header className="flex items-center">
-          <DanaIdentity />
-        </header>
-
+    <div className="min-h-screen bg-background text-foreground">
+      <div className="mx-auto flex max-w-[720px] flex-col px-4 py-5 sm:px-8">
         <main className="mt-12">
-          <h1 className="text-[28px] leading-9 font-semibold text-[var(--color-graphite-900)]">
+          <h1 className="text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-bold text-foreground">
             {copy.title}
           </h1>
-          <p className="mt-2 text-[13px] text-[var(--color-graphite-500)]">{copy.updated}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{copy.updated}</p>
 
           <div className="mt-10 flex flex-col gap-8">
             {copy.sections.map((section) => (
               <section key={section.heading}>
-                <h2 className="text-[16px] leading-6 font-semibold text-[var(--color-graphite-900)]">
+                <h2 className="text-sm font-semibold text-foreground">
                   {section.heading}
                 </h2>
                 <div className="mt-2 flex flex-col gap-2.5">
                   {section.body.map((paragraph) => (
-                    <p key={paragraph} className="text-[14px] leading-[22px]">
+                    <p key={paragraph} className="text-sm">
                       {paragraph}
                     </p>
                   ))}
@@ -169,22 +164,6 @@ export function LegalPage({ page }: { readonly page: LegalPageName }): React.JSX
           </div>
         </main>
 
-        {/* The footer, which is how a reader of one page reaches the other
-            without going back through the landing. Its year is computed here
-            rather than written, which is the landing footer's own note: the
-            line must not go stale on 1 January. */}
-        <footer className="mt-16 flex items-center gap-5 border-t border-[var(--color-graphite-200)] pt-6 text-xs text-[var(--color-graphite-500)]">
-          <span>© {String(new Date().getFullYear())} Dana</span>
-          <Link
-            to="/privacy"
-            className="rounded-sm hover:text-[var(--color-graphite-800)]"
-          >
-            Privacy
-          </Link>
-          <Link to="/terms" className="rounded-sm hover:text-[var(--color-graphite-800)]">
-            Terms
-          </Link>
-        </footer>
       </div>
     </div>
   )

@@ -271,14 +271,14 @@ export type PostInvitesConversionResponse = z.infer<
 
 /*
 GET /invites/pending, 7.5 field for field: [{id, inviter:
-{display_name, avatar_url}, folder_name or null, created_at}]. It backs the
+{id, display_name, avatar_url}, folder_name or null, created_at}]. It backs the
 login surface, which Q12 answers by the viewer's lowercased email.
 
-The inviter carries no id, and that is 7.5's choice rather than an omission
-here: 7.0's person shape has three keys and 7.4's members element
-uses all three, while this element enumerates two. A recipient reading an
-invite has no claim on the inviter's id, which addresses nothing they may
-call.
+The inviter is 7.0's whole person shape (2026-09-24). Their id addresses
+nothing a recipient may call; it is here because a person's default face is a
+function of their id (`client/parts/person-tint.ts`), and an inviter drawn from
+their name would wear a different face at the gate than on every surface the
+recipient reaches after accepting.
 
 folder_name is null for a bare invite, which is the discriminator this whole
 surface turns on, and it reuses the
@@ -291,6 +291,7 @@ list already took.
 export const pendingInvite = z.object({
   id: uuid,
   inviter: z.object({
+    id: uuid,
     display_name: z.string().nullable(),
     avatar_url: z.string().nullable(),
   }),

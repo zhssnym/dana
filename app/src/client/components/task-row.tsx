@@ -1,54 +1,17 @@
 /*
-The task row: the single line that stands for a task in a list, and the card it
-opens. The previous row survives in `task-row-baseline.tsx` as the concept lab's
-control.
+The task row and the list around it.
 
-What the row is:
-
-- **Two densities, one component.** Two lines is the default; the preference
-  lives in `lib/row-density.ts`. The rule that keeps this affordable is written
-  there and matters more than anything in this file: *the two densities may
-  differ in height and in where the details sit, and in nothing else.*
-- **It expands in place.** The chevron opens `TaskCard` inside the row rather
-  than sending anybody to a sheet.
-- **A bare task costs one line, not two.**
-- **The details are the controls that change them.** The due and repeat chips
-  open the same pickers the card opens, so the pickers exist once.
-- **Renaming happens in the row.**
+One line, one layout (the stored row-height preference is no longer read):
+checkbox, title, muted meta, star. Pressing the row opens the task; the list
+adds drag, the hold that makes a folder of two tasks, and Shift/Cmd-click
+selection with its labelled bar. `useCardWiring` is shared with the task panel.
 */
 
 import { InlineInput } from "./ui/inline-field.js"
-import { Face } from "./person-face.js"
-import { IconAction } from "./icon-action.js"
 import {
-  ArrowUpRight,
-  Ban,
-  CalendarDays,
-  Check as CheckIcon,
-  ChevronDown,
-  ChevronRight,
-  Copy,
-  Folder,
-  FolderInput,
   FolderPlus,
-  Fullscreen,
-  SquareSquare,
-  ListChecks,
-  MoreHorizontal,
-  PanelRight,
-  SunMedium,
-  Repeat2,
-  RotateCcw,
-  Star,
-  Trash2,
-  UserPlus,
-  UserRound,
-  Workflow,
-  X,
-  type LucideIcon,
 } from "../lib/icons.js"
 import {
-  Fragment,
   useEffect,
   useRef,
   useState,
@@ -57,16 +20,8 @@ import {
   type ReactNode,
 } from "react"
 
-import {
-  DestinationChoice,
-  MenuHeading,
-  Reveal,
-  TaskCard,
-  newFolderChoice,
-} from "./task-card.js"
-import { FolderMark, useFolderMark } from "./folder-mark.js"
+import { FolderMark } from "./folder-mark.js"
 import { folderLibrary } from "../lib/folder-library.js"
-import { DuePanel, RepeatPanel } from "./task-pickers.js"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -74,24 +29,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu.js"
-import { ObjectMenu } from "./object-menu.js"
-import { HistorySheet } from "./history-sheet.js"
-import { copyTaskLink, duplicateTask, makeFolderOfTask, moveStepsOut } from "../tasks/task-acts.js"
+import { moveStepsOut } from "../tasks/task-acts.js"
 import type { StepDestination } from "../tasks/task-acts.js"
-import {
-  COMPLETE_TASK,
-  MARK_AS_NOT_DONE,
-  REMOVE_FROM_TODAY,
-  RESTORE,
-} from "./ui/copy.js"
-import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover.js"
-import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip.js"
-import { ActionStrip, type ViewStripOption } from "./view-strip.js"
-import { useRowDensity, type RowDensity } from "../lib/row-density.js"
-import { usePeopleLibrary } from "../lib/people-library.js"
+import { COMPLETE_TASK, MARK_AS_NOT_DONE } from "./ui/copy.js"
 import { useTaskWriter } from "../tasks/task-writer.js"
-import { useTaskEditing } from "./task-editing.js"
-import { setTaskOpen } from "../lib/task-surface-preference.js"
 import {
   repeatShort,
   stepCount,
@@ -102,234 +43,8 @@ import {
 import { useSortableList } from "../lib/use-sortable-list.js"
 import type { SortableItemState } from "../lib/use-sortable-list.js"
 import { cn } from "./ui/utils.js"
-
-/* --------------------------------------------------------------- state, */
-
-/* Each concept gets its own copy of the sample, so completing a task in one
-   concept does not quietly change the list somebody is comparing it against.
-   The lab's per-concept Reset remounts the block, which is why nothing here
-   needs a reset of its own. */
-export function useTaskList(initial: ConceptTask[]) {
-  const [tasks, setTasks] = useState<ConceptTask[]>(() =>
-    initial.map((t) => ({ ...t, steps: t.steps?.map((s) => ({ ...s })) })),
-  )
-
-  function patch(id: string, fields: Partial<ConceptTask>) {
-    setTasks((list) => list.map((t) => (t.id === id ? { ...t, ...fields } : t)))
-  }
-
-  /* Reorder by dropping one row on another. The dropped row lands where the
-     target was, which is what people expect from a list and is not what a
-     naive swap does. */
-  function reorder(fromId: string, toId: string) {
-    setTasks((list) => {
-      const from = list.findIndex((t) => t.id === fromId)
-      const to = list.findIndex((t) => t.id === toId)
-      if (from < 0 || to < 0 || from === to) return list
-      const next = [...list]
-      const [moved] = next.splice(from, 1)
-      next.splice(to, 0, moved!)
-      return next
-    })
-  }
-
-  /* Two tasks become a folder: both are moved into it, neither is destroyed.
-     The reversible version of the idea, and the one worth drawing first. */
-  function groupIntoFolder(ids: string[], name: string) {
-    setTasks((list) =>
-      list.map((t) =>
-        ids.includes(t.id)
-          ? { ...t, folder: { name, color: "var(--color-folder-sky)" } }
-          : t,
-      ),
-    )
-  }
-
-  /* A task becomes a folder and its steps become the tasks inside it. This one
-     destroys the original, which is exactly why it is drawn: seeing one row
-     turn into four is the fastest way to judge whether that is a good idea. */
-  function taskToFolder(id: string) {
-    setTasks((list) => {
-      const at = list.findIndex((t) => t.id === id)
-      if (at < 0) return list
-      const source = list[at]!
-      const folder = { name: source.title, color: "var(--color-folder-sky)" }
-      const promoted: ConceptTask[] = (source.steps ?? []).map((step, i) => ({
-        id: `${source.id}-promoted-${i}`,
-        title: step.title,
-        done: step.done,
-        folder,
-        due: source.due,
-        assignee: source.assignee,
-      }))
-      const next = [...list]
-      next.splice(at, 1, ...promoted)
-      return next
-    })
-  }
-
-  function moveStep(id: string, from: number, to: number) {
-    setTasks((list) =>
-      list.map((t) => {
-        if (t.id !== id || !t.steps) return t
-        if (to < 0 || to >= t.steps.length || from === to) return t
-        const steps = [...t.steps]
-        const [moved] = steps.splice(from, 1)
-        steps.splice(to, 0, moved!)
-        return { ...t, steps }
-      }),
-    )
-  }
-
-  /*
-  One verb, and the destination decides the result.
-
-  A step moved into a folder becomes a task, because a folder holds tasks. The
-  same steps moved into a task stay steps, because that is what a task holds.
-  Nothing here is a separate "promote" command; level is a consequence of where
-  a thing ends up.
-  */
-  function moveStepsTo(
-    id: string,
-    indices: number[],
-    destination: { kind: "new-task" } | { kind: "folder"; name: string; color: string },
-  ) {
-    setTasks((list) => {
-      const at = list.findIndex((t) => t.id === id)
-      const source = list[at]
-      if (at < 0 || !source?.steps) return list
-
-      const taken = indices.map((i) => source.steps![i]!).filter(Boolean)
-      if (taken.length === 0) return list
-      const kept = source.steps.filter((_, i) => !indices.includes(i))
-      const next = [...list]
-      next[at] = { ...source, steps: kept }
-
-      if (destination.kind === "new-task") {
-        /* Into a task: they stay steps. The new task is unnamed on purpose,
-           every row on this page renames in place, so the person names it
-           where they are rather than in a dialog first. */
-        next.splice(at + 1, 0, {
-          id: `${id}-extracted-${kept.length}-${taken.length}`,
-          title: "New task",
-          folder: source.folder,
-          due: source.due,
-          steps: taken,
-        })
-        return next
-      }
-
-      /* Into a folder: each becomes a task of its own. */
-      const promoted: ConceptTask[] = taken.map((step, i) => ({
-        id: `${id}-moved-${destination.name}-${kept.length}-${i}`,
-        title: step.title,
-        done: step.done,
-        folder: { name: destination.name, color: destination.color },
-      }))
-      next.splice(at + 1, 0, ...promoted)
-      return next
-    })
-  }
-
-  function duplicateTasks(ids: string[]) {
-    setTasks((list) => {
-      const next: ConceptTask[] = []
-      list.forEach((t) => {
-        next.push(t)
-        if (ids.includes(t.id)) {
-          next.push({
-            ...t,
-            id: `${t.id}-copy-${next.length}`,
-            title: `${t.title} (copy)`,
-            steps: t.steps?.map((step) => ({ ...step })),
-          })
-        }
-      })
-      return next
-    })
-  }
-
-  function removeTasks(ids: string[]) {
-    setTasks((list) => list.filter((t) => !ids.includes(t.id)))
-  }
-
-  function patchMany(ids: string[], fields: Partial<ConceptTask>) {
-    setTasks((list) =>
-      list.map((t) => (ids.includes(t.id) ? { ...t, ...fields } : t)),
-    )
-  }
-
-  function duplicateSteps(id: string, indices: number[]) {
-    setTasks((list) =>
-      list.map((t) => {
-        if (t.id !== id || !t.steps) return t
-        const steps: ConceptStep[] = []
-        t.steps.forEach((step, i) => {
-          steps.push(step)
-          if (indices.includes(i)) steps.push({ ...step, done: false })
-        })
-        return { ...t, steps }
-      }),
-    )
-  }
-
-  function removeSteps(id: string, indices: number[]) {
-    setTasks((list) =>
-      list.map((t) =>
-        t.id === id && t.steps
-          ? { ...t, steps: t.steps.filter((_, i) => !indices.includes(i)) }
-          : t,
-      ),
-    )
-  }
-
-  function setStepsDone(id: string, indices: number[], done: boolean) {
-    setTasks((list) =>
-      list.map((t) =>
-        t.id === id && t.steps
-          ? {
-              ...t,
-              steps: t.steps.map((step, i) =>
-                indices.includes(i) ? { ...step, done } : step,
-              ),
-            }
-          : t,
-      ),
-    )
-  }
-
-  function toggleStep(id: string, index: number) {
-    setTasks((list) =>
-      list.map((t) =>
-        t.id === id && t.steps
-          ? {
-              ...t,
-              steps: t.steps.map((s, i) =>
-                i === index ? { ...s, done: !s.done } : s,
-              ),
-            }
-          : t,
-      ),
-    )
-  }
-
-  return {
-    tasks,
-    patch,
-    toggleStep,
-    moveStep,
-    moveStepsTo,
-    reorder,
-    groupIntoFolder,
-    taskToFolder,
-    duplicateTasks,
-    removeTasks,
-    patchMany,
-    duplicateSteps,
-    removeSteps,
-    setStepsDone,
-  }
-}
+import { RowMeta } from "./task-meta.js"
+import { CheckMark } from "./ui/checkbox.js"
 
 /* --------------------------------------------------------------- motion, */
 
@@ -386,11 +101,11 @@ export function MergeBadge({ armed }: { armed: boolean }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-2 rounded-full py-1 pr-3 pl-1 shadow-[var(--elevation-1)] transition-[background-color,box-shadow,transform]",
+        "inline-flex items-center gap-2 rounded-full py-1 pr-3 pl-1 transition-[background-color,transform]",
         T_FAST,
         armed
-          ? "scale-[1.03] bg-[var(--color-dana-accent-600)] text-white"
-          : "bg-card text-[var(--color-dana-accent-800)] ring-1 ring-[var(--color-dana-accent-200)]",
+          ? "scale-[1.03] bg-primary text-primary-foreground"
+          : "bg-background text-primary ring-1 ring-border",
       )}
     >
       <span className="relative flex size-6 shrink-0 items-center justify-center">
@@ -410,7 +125,7 @@ export function MergeBadge({ armed }: { armed: boolean }) {
               r={radius}
               fill="none"
               strokeWidth="2"
-              className="stroke-[var(--color-dana-accent-100)]"
+              className="stroke-border"
             />
             <circle
               cx="12"
@@ -419,7 +134,7 @@ export function MergeBadge({ armed }: { armed: boolean }) {
               fill="none"
               strokeWidth="2"
               strokeLinecap="round"
-              className="stroke-[var(--color-dana-accent-600)]"
+              className="stroke-primary"
               style={{
                 strokeDasharray: circumference,
                 strokeDashoffset: grown ? 0 : circumference,
@@ -431,14 +146,14 @@ export function MergeBadge({ armed }: { armed: boolean }) {
         <FolderPlus
           className={cn(
             "size-3.5",
-            armed ? "text-white" : "text-[var(--color-dana-accent-600)]",
+            armed ? "text-primary-foreground" : "text-primary",
           )}
           strokeWidth={2}
           aria-hidden="true"
         />
       </span>
-      <span className="text-[12px] leading-4 font-medium whitespace-nowrap">
-        {armed ? "Release to make a folder" : "Hold to make a folder"}
+      <span className="text-xs font-medium whitespace-nowrap">
+        {armed ? "Release to make a page" : "Hold to make a page"}
       </span>
     </span>
   )
@@ -465,7 +180,7 @@ export type PendingAction =
    replaces. Nothing starts disabled. */
 export function suggestFolderName(pending: PendingAction) {
   if (pending.kind === "promote") return pending.title
-  if (pending.kind !== "merge") return "New folder"
+  if (pending.kind !== "merge") return "New page"
 
   /* The longest word both titles share, if there is one. "Book the venue" and
      "Pay the venue deposit" are obviously a venue folder, and a person who is
@@ -479,7 +194,7 @@ export function suggestFolderName(pending: PendingAction) {
   const first = words(pending.titles[0] ?? "")
   const shared = words(pending.titles[1] ?? "").filter((word) => first.includes(word))
   const best = shared.sort((a, b) => b.length - a.length)[0]
-  return best ? best.charAt(0).toUpperCase() + best.slice(1) : "New folder"
+  return best ? best.charAt(0).toUpperCase() + best.slice(1) : "New page"
 }
 
 export function PendingPanel({
@@ -498,11 +213,11 @@ export function PendingPanel({
     pending.kind === "merge"
       ? pending.titles
       : pending.kind === "promote"
-        ? [`${pending.steps} step${pending.steps === 1 ? "" : "s"} become tasks`]
+        ? [`${pending.steps} subtask${pending.steps === 1 ? "" : "s"} become tasks`]
         : pending.kind === "folder-for"
           ? [`${pending.ids.length} task${pending.ids.length === 1 ? "" : "s"}`]
           : [
-              `${pending.indices.length} step${
+              `${pending.indices.length} subtask${
                 pending.indices.length === 1 ? " becomes a task" : "s become tasks"
               }`,
             ]
@@ -510,26 +225,26 @@ export function PendingPanel({
   return (
     <div
       className={cn(
-        "mb-2 overflow-hidden rounded-lg bg-card shadow-[var(--elevation-2)] ring-1 ring-[var(--color-dana-accent-200)]",
+        "mb-2 overflow-hidden rounded-md bg-background ring-1 ring-border",
         T_BASE,
       )}
     >
       <div className="flex items-start gap-3 px-3 pt-3">
         {/* The folder mark, the same one the dwell badge closes its ring
             around, so the gesture and its panel are visibly one thing. */}
-        <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-dana-accent-50)]">
+        <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-muted">
           <FolderPlus
-            className="size-4 text-[var(--color-dana-accent-600)]"
+            className="size-4 text-primary"
             strokeWidth={2}
             aria-hidden="true"
           />
         </span>
 
         <div className="min-w-0 flex-1">
-          <p className="text-[14px] leading-5 font-medium text-[var(--color-graphite-900)]">
-            {destroys ? "Turn this task into a folder" : "New folder"}
+          <p className="text-sm font-medium text-foreground">
+            {destroys ? "Turn this task into a page" : "New page"}
           </p>
-          <p className="mt-0.5 text-[12px] leading-4 text-[var(--color-graphite-500)]">
+          <p className="mt-0.5 text-xs text-muted-foreground">
             {destroys
               ? "The task itself stops existing. This cannot be undone from here."
               : "Nothing is changed except where these live."}
@@ -544,11 +259,11 @@ export function PendingPanel({
               if (event.key === "Enter" && name.trim()) onConfirm(name.trim())
               if (event.key === "Escape") onCancel()
             }}
-            placeholder="Folder name"
-            aria-label="Folder name"
+            placeholder="Page name"
+            aria-label="Page name"
             className={cn(
-              "mt-2.5 h-9 w-full rounded-md border border-[var(--color-graphite-300)] bg-card px-2.5 text-[14px] leading-5 text-[var(--color-graphite-900)] outline-none",
-              "placeholder:text-[var(--color-graphite-400)] focus-visible:border-[var(--color-dana-accent-600)] focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-100)]",
+              "mt-2.5 h-9 w-full rounded-sm border border-border bg-background px-2.5 text-sm text-foreground outline-none",
+              "placeholder:text-muted-foreground focus-visible:border-primary",
             )}
           />
 
@@ -559,11 +274,11 @@ export function PendingPanel({
             {going.map((line, index) => (
               <li
                 key={`${line}-${index}`}
-                className="flex items-center gap-2 text-[13px] leading-5 text-[var(--color-graphite-600)]"
+                className="flex items-center gap-2 text-sm text-muted-foreground"
               >
                 <span
                   aria-hidden="true"
-                  className="ml-1 size-1.5 shrink-0 rounded-full bg-[var(--color-graphite-300)]"
+                  className="ml-1 size-1.5 shrink-0 rounded-full bg-border"
                 />
                 <span className="truncate">{line}</span>
               </li>
@@ -572,14 +287,13 @@ export function PendingPanel({
         </div>
       </div>
 
-      <div className="mt-3 flex items-center justify-end gap-1 bg-[var(--color-graphite-25)] px-3 py-2">
+      <div className="mt-3 flex items-center justify-end gap-1 bg-muted px-3 py-2">
         <button
           type="button"
           onClick={onCancel}
           className={cn(
-            "rounded-md px-3 py-1.5 text-[13px] leading-5 text-[var(--color-graphite-600)] transition-colors hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-900)]",
+            "rounded-sm px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-background hover:text-foreground",
             T_FAST,
-            FOCUS,
           )}
         >
           Cancel
@@ -589,13 +303,12 @@ export function PendingPanel({
           disabled={!name.trim()}
           onClick={() => onConfirm(name.trim())}
           className={cn(
-            "inline-flex items-center gap-1.5 rounded-md bg-[var(--color-graphite-900)] px-3 py-1.5 text-[13px] leading-5 font-medium text-white transition-[background-color,transform] hover:bg-[var(--color-graphite-800)] active:scale-95 disabled:pointer-events-none disabled:opacity-40",
+            "inline-flex items-center gap-1.5 rounded-sm bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-[background-color,transform] hover:bg-primary/90 active:scale-95 disabled:pointer-events-none disabled:opacity-40",
             T_FAST,
-            FOCUS,
           )}
         >
           <FolderPlus className="size-3.5" strokeWidth={2} aria-hidden="true" />
-          {destroys ? "Convert" : "Create folder"}
+          {destroys ? "Convert" : "Create page"}
         </button>
       </div>
     </div>
@@ -607,64 +320,45 @@ export function PendingPanel({
    every concept, for the same reason renaming does, a comparison should
    measure the row, not which concept got the better drag. */
 /*
-Selecting task rows, with the same gesture the steps use.
+Selecting task rows: Shift-click or Cmd/Ctrl-click a row to add it, and while
+a selection is held a plain click adds or removes too. Escape, "Clear", or
+emptying the selection leaves. The bar says every act in words.
 
-Press and hold a row to start, tap to add, Escape or the cross to leave, and
-emptying the selection leaves by itself. Holding one gesture across both
-levels is the point: a person learns it once in a card and it already works in
-the list, which is the only reason a hidden gesture is affordable at all.
-
-Dragging is suspended while selecting, because press-and-hold and press-and-
-drag begin identically and the list cannot serve both at once. That is a real
-cost of this choice and it is worth naming: you cannot reorder while you have
-a selection.
+Dragging is suspended while selecting, because the list cannot serve both.
 */
+export type BulkDate = "today" | "tomorrow" | "next-week" | null
+
 export function useRowSelection({
   onMove,
   onNewFolder,
   onBulk,
-  onDuplicate,
+  onDate,
   onDelete,
 }: {
-  /* The choice carries 7.4's id, which is what a PATCH /tasks/:id body names a
-     folder by; `lib/folder-library.ts` rides it on every entry the menu below
-     draws. */
+  /* The choice carries the folder id a PATCH /tasks/:id body names it by. */
   onMove: (ids: string[], folder: { id: string; name: string; color: string }) => void
   onNewFolder: (ids: string[]) => void
   onBulk: (ids: string[], fields: Partial<ConceptTask>) => void
-  /* Optional, and the bar draws no Duplicate when it is absent: a control with
-     no act behind it is the one thing the bar must not offer,
-     `object-acts.ts`'s own rule for a menu. Every list in the app supplies it
-     through `tasks/task-acts.ts`. */
+  /* Absent in a list with nowhere to write a date; the bar then offers none. */
+  onDate?: (ids: string[], when: BulkDate) => void
+  /* Accepted from old call sites; the bar no longer offers Duplicate. */
   onDuplicate?: (ids: string[]) => void
   onDelete: (ids: string[]) => void
 }) {
   const [selecting, setSelecting] = useState(false)
   const [selected, setSelected] = useState<string[]>([])
-  const pressTimer = useRef<number | null>(null)
-  const longPressAt = useRef(0)
-  const lastCount = useRef(0)
+  /* A modified press is a selection, never a tap that opens the task. The
+     drag engine reports the tap on pointerup, before the click lands. */
+  const modifiedPress = useRef(false)
 
   useEffect(() => {
     if (!selecting) return
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        setSelecting(false)
-        setSelected([])
-      }
+      if (e.key === "Escape") exit()
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
   }, [selecting])
-
-  function clearPress() {
-    if (pressTimer.current !== null) {
-      window.clearTimeout(pressTimer.current)
-      pressTimer.current = null
-    }
-  }
-
-  useEffect(() => clearPress, [])
 
   function exit() {
     setSelecting(false)
@@ -673,198 +367,156 @@ export function useRowSelection({
 
   function toggle(id: string) {
     setSelected((current) => {
-      const next = current.includes(id)
-        ? current.filter((x) => x !== id)
-        : [...current, id]
-      if (next.length === 0) setSelecting(false)
-      else lastCount.current = next.length
+      const next = current.includes(id) ? current.filter((x) => x !== id) : [...current, id]
+      setSelecting(next.length > 0)
       return next
     })
   }
 
-  /* Handlers for one row. Spread alongside the drag props, which the caller
-     drops while `selecting` is true. */
+  const modified = (event: { shiftKey: boolean; metaKey: boolean; ctrlKey: boolean }) =>
+    event.shiftKey || event.metaKey || event.ctrlKey
+
   function selectProps(id: string) {
     return {
-      onPointerDown: () => {
-        if (selecting) return
-        clearPress()
-        pressTimer.current = window.setTimeout(() => {
-          longPressAt.current = Date.now()
-          lastCount.current = 1
-          setSelecting(true)
-          setSelected([id])
-        }, 400)
+      onPointerDown: (event?: ReactPointerEvent) => {
+        modifiedPress.current = event !== undefined && modified(event)
       },
-      onPointerUp: clearPress,
-      onPointerLeave: clearPress,
-      onClick: () => {
-        /* Same timestamp guard as the steps: the click that belongs to the
-           press just made is ignored, and any later tap counts. */
-        if (selecting && Date.now() - longPressAt.current > 300) toggle(id)
+      /* Shift-click would otherwise extend a text selection across the rows. */
+      onMouseDown: (event: ReactMouseEvent) => {
+        if (modified(event)) event.preventDefault()
+      },
+      onClick: (event: ReactMouseEvent) => {
+        if ((event.target as HTMLElement).closest('button, a, input, [role="checkbox"]')) return
+        if (modified(event)) {
+          event.preventDefault()
+          toggle(id)
+          return
+        }
+        if (selecting) toggle(id)
       },
     }
   }
 
-  /*
-  The selection bar's controls.
+  /* Read once by the list's opener: true when the press it is about to treat
+     as a tap was a modified one. */
+  function takeModifiedPress() {
+    const was = modifiedPress.current
+    modifiedPress.current = false
+    return was
+  }
 
-  "Move to…" alone was not enough, and the reason is worth stating: a selection
-  is a held intention, and the whole value of holding it is doing something to
-  all of it at once. Offering exactly one verb makes the person leave the mode
-  and repeat themselves for everything else they wanted.
+  const count = selected.length
+  const act = cn(
+    "h-7 rounded-sm px-2 text-sm whitespace-nowrap text-foreground transition-colors hover:bg-muted data-popup-open:bg-muted",
+    T_FAST,
+  )
 
-  The set is what a to-do list can actually do to several tasks at once,
-  complete them, star them, pull them into My Day, move them, copy them, delete
-  them, rather than a set chosen to fill a bar. Anything Dana cannot do in
-  bulk is deliberately absent.
-
-  Delete sits last, after a divider, and is the only control that colours on
-  hover. It is the one action here that loses work.
-  */
   const bar = (
-    <Reveal open={selecting}>
-      <div className="mb-2 flex items-center gap-1 rounded-md bg-[var(--color-dana-accent-50)] px-2 py-1.5">
+    selecting ? (
+      <div
+        role="toolbar"
+        aria-label="Selected tasks"
+        /* Floating, so selecting never pushes the list it is selecting from. */
+        className="fixed inset-x-0 bottom-6 z-40 mx-auto flex w-fit max-w-[calc(100vw-2rem)] animate-in max-md:bottom-20 items-center gap-1 rounded-md border border-border bg-background px-2 py-1 shadow-[var(--elevation-2)] duration-150 fade-in-0 slide-in-from-bottom-1"
+      >
+        <span className="mr-2 px-1 text-sm whitespace-nowrap text-muted-foreground">
+          {count} selected
+        </span>
         <button
           type="button"
-          onClick={exit}
-          aria-label="Leave selection"
-          className={cn(
-            "flex size-6 items-center justify-center rounded text-[var(--color-dana-accent-800)] transition-colors hover:bg-[var(--color-dana-accent-100)]",
-            T_FAST,
-            FOCUS,
-          )}
-        >
-          <X className="size-4 data-[size=sm]:size-4" strokeWidth={2} aria-hidden="true" />
-        </button>
-        <span className="mr-auto text-[12px] leading-4 font-medium text-[var(--color-dana-accent-800)]">
-          {selected.length || lastCount.current} selected
-        </span>
-
-        <IconAction
-          icon={CheckIcon}
-          label="Mark complete"
+          className={act}
           onClick={() => {
             onBulk(selected, { done: true })
             exit()
           }}
-        />
-        <IconAction
-          icon={Star}
-          label="Mark important"
-          onClick={() => {
-            onBulk(selected, { important: true })
-            exit()
-          }}
-        />
-        <IconAction
-          icon={SunMedium}
-          /* The page is called Today everywhere else. */
-          label="Add to Today"
-          onClick={() => {
-            onBulk(selected, { pulled: true })
-            exit()
-          }}
-        />
-
+        >
+          Complete
+        </button>
         <DropdownMenu>
-          {/* Named on hover like its five neighbours. */}
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <DropdownMenuTrigger
-                  render={
-                    <button
-                      type="button"
-                      aria-label="Move to a folder"
-                      className={cn(
-                        "flex size-7 items-center justify-center rounded-md text-[var(--color-graphite-600)] transition-[background-color,color] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)] data-popup-open:bg-[var(--color-graphite-100)]",
-                        T_FAST,
-                        FOCUS,
-                      )}
-                    >
-                      <FolderInput className="size-4 data-[size=sm]:size-4" strokeWidth={1.75} aria-hidden="true" />
-                    </button>
-                  }
-                />
-              }
-            />
-            <TooltipContent side="top">Move to a folder</TooltipContent>
-          </Tooltip>
-          <DropdownMenuContent align="end" className="min-w-[16rem]">
-            <MenuHeading>
-              Move {selected.length} task{selected.length === 1 ? "" : "s"} to
-            </MenuHeading>
+          <DropdownMenuTrigger render={<button type="button" className={act} />}>
+            Move
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-[14rem]">
             {folderLibrary().map((f) => (
               <DropdownMenuItem
                 key={f.name}
-                label={f.name}
                 onClick={() => {
                   onMove(selected, f)
                   exit()
                 }}
               >
-                <DestinationChoice
-                  icon={Folder}
-                  color={f.color}
-                  name={f.name}
-                  detail="Keeps everything else as it is"
-                />
+                <FolderMark name={f.name} color={f.color} />
+                {f.name}
               </DropdownMenuItem>
             ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                label="New folder"
-                onClick={() => {
-                  onNewFolder(selected)
-                  exit()
-                }}
-              >
-                <DestinationChoice
-                  icon={FolderPlus}
-                  name="New folder…"
-                  detail="Name it, and they move into it"
-                />
-              </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => {
+                onNewFolder(selected)
+                exit()
+              }}
+            >
+              <FolderPlus />
+              New folder…
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-
-        {/* See `onDuplicate` above. */}
-        {onDuplicate ? (
-          <IconAction
-            icon={Copy}
-            label="Duplicate"
-            onClick={() => {
-              onDuplicate(selected)
-              exit()
-            }}
-          />
+        {onDate ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger render={<button type="button" className={act} />}>
+              Date
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {(
+                [
+                  ["today", "Today"],
+                  ["tomorrow", "Tomorrow"],
+                  ["next-week", "Next week"],
+                  [null, "No date"],
+                ] as const
+              ).map(([when, label]) => (
+                <DropdownMenuItem
+                  key={label}
+                  onClick={() => {
+                    onDate(selected, when)
+                    exit()
+                  }}
+                >
+                  {label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         ) : null}
-        <span
-          aria-hidden="true"
-          className="mx-0.5 h-4 w-px bg-[var(--color-dana-accent-200)]"
-        />
-        <IconAction
-          icon={Trash2}
-          label="Delete"
-          tone="danger"
+        <button
+          type="button"
+          className={cn(act, "hover:text-destructive")}
           onClick={() => {
             onDelete(selected)
             exit()
           }}
-        />
+        >
+          Delete
+        </button>
+        <button type="button" className={cn(act, "text-muted-foreground")} onClick={exit}>
+          Clear
+        </button>
       </div>
-    </Reveal>
+    ) : null
   )
 
-  return { selecting, selected, selectProps, clearPress, bar }
+  return {
+    selecting,
+    selected,
+    selectProps,
+    takeModifiedPress,
+    /* Nothing to cancel any more; kept so the drag engine's lift hook stays wired. */
+    clearPress: () => {},
+    bar,
+  }
 }
 
 /* --------------------------------------------------------------- pieces, */
-
-export const META = "text-xs text-[var(--color-graphite-600)]"
-export const FOCUS =
-  "outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)] focus-visible:ring-offset-1"
 
 export function Check({
   task,
@@ -891,611 +543,12 @@ export function Check({
         e.stopPropagation()
         onToggle()
       }}
-      className={cn("flex size-10 items-center justify-center rounded-md", FOCUS)}
+      className="flex size-[var(--control-height)] items-center justify-center rounded-sm"
     >
-      <span
-        className={cn(
-          "flex size-5 items-center justify-center rounded-[4px] border transition-[background-color,border-color,transform] active:scale-90",
-          T_FAST,
-          done
-            ? "border-[var(--color-success-600)] bg-[var(--color-success-600)]"
-            : "border-input bg-background hover:border-[var(--color-graphite-500)]",
-          task.abandoned && !done && "opacity-60",
-        )}
-      >
-        {/* The tick is drawn rather than switched on: a 20-unit dash offset
-            retracting to zero over --duration-base. It is the one flourish on
-            the page, and it is on the one action people take most. */}
-        <svg viewBox="0 0 20 20" className="size-3.5 data-[size=sm]:size-3.5" aria-hidden="true">
-          <path
-            d="M4 10.5 L8.2 14.5 L16 5.8"
-            fill="none"
-            className="stroke-[var(--color-graphite-0)]"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            style={{
-              strokeDasharray: 20,
-              strokeDashoffset: done ? 0 : 20,
-              transition:
-                "stroke-dashoffset var(--duration-base) var(--ease-enter)",
-            }}
-          />
-        </svg>
-      </span>
+      <CheckMark checked={done} className={cn("active:scale-90", !done && "hover:border-muted-foreground", task.abandoned && !done && "opacity-60")} />
     </button>
   )
 }
-
-/*
-The title, and it is the same component in every concept on this page.
-
-Editing a task's name where it sits started as concept J's idea, and the
-moment it existed it stopped being an argument for J: renaming in place is
-simply better than renaming in a sheet, and a concept that lacked it would
-lose for a reason that has nothing to do with what it is actually proposing.
-So it is baseline here, along with the drawn tick, the drawn strike, the
-reserved action gutter and the tooltip on a truncated title.
-
-This is the method rather than a courtesy. If concepts differ in polish, a
-comparison measures polish. Hold everything constant except the one bet each
-concept is making, and the comparison measures the bet.
-
-The strike is a line that draws itself left to right rather than a
-text-decoration that blinks into being. Same reason as the tick.
-*/
-export function TaskTitle({
-  task,
-  onRename,
-  className,
-  truncate = true,
-  heading = false,
-  selecting = false,
-}: {
-  task: ConceptTask
-  onRename: (title: string) => void
-  className?: string
-  truncate?: boolean
-  /* An open row is the card's heading and takes the heading step of the type
-     scale; closed, it is a list item and stays at body size. */
-  heading?: boolean
-  /*
-  Whether the list around this row is choosing rows.
-
-  While it is, the title is text rather than a control, and the reason is the
-  400 ms hold that starts the selection: `useRowSelection`'s `selectProps`
-  arms on the row's pointerdown and does not care what the press landed on,
-  so a hold that begins on the title selects the row and the release would
-  then also open the rename field. The row's own `onTap` guard is the same
-  shape, "a press that became a selection is not a tap"; this is that
-  sentence for the one control the press can land inside.
-  */
-  selecting?: boolean
-}) {
-  /*
-  **A row never auto-edits.** A row is rendered wherever the task appears, so an
-  untitled task that opened its own field would turn *every* list containing it
-  into a list with a stray empty input, and because the flag initialises once,
-  the field would never recover even after the name was typed elsewhere.
-
-  Landing in the field is the *surface's* job, because the surface is the one
-  thing that opens once, deliberately, at the moment of creation, see
-  `PageTitle` in task-surface.tsx. A row just draws what is there, and draws an
-  untitled task as untitled.
-  */
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(task.title)
-  /* Where the press landed, so the click can tell a tap from a drag that
-     ended back over the button; see the onClick below. */
-  const pressAt = useRef<{ x: number; y: number } | null>(null)
-  const struck = Boolean(task.done) || Boolean(task.abandoned)
-
-  /* w-fit rather than w-full, because the strike-through is drawn as a rule
-     across this box and a full-width box strikes a line across empty space to
-     the right of a short title. max-w-full keeps truncation working. */
-  const metrics = cn(
-    "block w-fit max-w-full min-w-0",
-    heading ? "text-[16px] leading-6" : "text-[14px] leading-5",
-    truncate && "truncate",
-    className,
-  )
-
-  if (editing) {
-    return (
-      <InlineInput
-        autoFocus
-        value={draft}
-        /* Select on entry, so a rename is type-over rather than
-           position-the-caret-then-select-then-type. Renaming is usually
-           replacing, and the keyboard should assume the usual case. */
-        onFocus={(e) => e.currentTarget.select()}
-        onClick={(e) => e.stopPropagation()}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={() => {
-          onRename(draft.trim() || task.title)
-          setEditing(false)
-        }}
-        onKeyDown={(e) => {
-          /* stopPropagation because these rows live inside clickable
-             containers and, in the shipping app, under a global key handler.
-             Enter must commit a rename, never also open the task. */
-          if (e.key === "Enter" || e.key === "Escape") {
-            e.preventDefault()
-            e.stopPropagation()
-          }
-          if (e.key === "Enter") {
-            onRename(draft.trim() || task.title)
-            setEditing(false)
-          }
-          if (e.key === "Escape") {
-            setDraft(task.title)
-            setEditing(false)
-          }
-        }}
-        className={cn(
-          metrics,
-          /* The field, unlike the label, takes the whole column: you are
-             typing into it, so the room is worth more than the tidiness. */
-          "-mx-1 w-full max-w-none rounded-[4px] bg-background px-1 text-[var(--color-graphite-800)] outline-none ring-2 ring-[var(--color-dana-accent-600)]",
-        )}
-        aria-label="Task title"
-      />
-    )
-  }
-
-  /*
-  **The title renames in the row.**
-
-  **9.4's "a click on any row opens that task" means the row and not its
-  title.** The title is the one part of the row that does something else, the
-  way a chip does: the due chip opens the due picker and the folder chip opens
-  the folder menu, and neither of those opens the task either. The gesture that
-  opens a task from its title is a press anywhere else on the row, or the
-  chevron, which is one target away. The mechanism is `use-sortable-list`'s own:
-  `surfaceProps` withholds the row's *tap* from a pointerdown that starts on a
-  `button`, so the row cannot both rename and open — but the title carries
-  `data-drag-through`, so the same press still arms the row's lift. A still
-  press is the title's click and renames; four pixels of travel is the row's
-  drag. The onClick below reads the travel back off the pointer stream and
-  declines the rename after a drag, because a drag released over the button
-  still ends in a click.
-
-  **What this costs is addressing.** A browser test that opens a task by
-  pressing its title text lands in a rename field instead. And a button whose
-  accessible name is the task's own title makes a loose row-scoped locator
-  ambiguous, because Playwright matches a name as a substring.
-  */
-  /* Text while the list is choosing rows, so the press reaches the row's own
-     selection handler and nothing about that mode changes; see `selecting`. */
-  const Label = selecting ? "span" : "button"
-  const control = selecting
-    ? {}
-    : ({
-        type: "button",
-        /* Drag passes through: the row's lift arms on this press too, and a
-           still press is what renames. See the header note above. */
-        "data-drag-through": true,
-        onPointerDown: (event: ReactPointerEvent) => {
-          pressAt.current = { x: event.clientX, y: event.clientY }
-        },
-        /* The press starts the rename and goes no further: the row's opener
-           is resolved on the pointer stream rather than on the click, so what
-           actually keeps the two apart is `surfaceProps`' button check above,
-           and this stops a screen that wired an ordinary click handler. A
-           click whose pointer travelled was a drag that happened to end over
-           the button, and a drag is not a request to rename. */
-        onClick: (event: ReactMouseEvent) => {
-          event.stopPropagation()
-          const from = pressAt.current
-          pressAt.current = null
-          if (
-            from &&
-            (Math.abs(event.clientX - from.x) >= 4 ||
-              Math.abs(event.clientY - from.y) >= 4)
-          ) {
-            return
-          }
-          setDraft(task.title)
-          setEditing(true)
-        },
-      } as const)
-
-  const button = (
-    <Label
-      {...control}
-      className={cn(
-        metrics,
-        "relative -mx-1 rounded-[4px] px-1 text-left transition-colors",
-        selecting || "cursor-text hover:bg-[var(--color-graphite-200)]",
-        FOCUS,
-        T_FAST,
-        /*
-        **The strike is the text's own.** 9.5 renders an abandoned row "faded
-        and struck", and AC-097 reads that off the title's computed
-        `textDecorationLine`. An absolutely positioned span drawn across the
-        button would be a real strike, but would leave `textDecorationLine`
-        reading `none`, so nothing about the row's appearance would tell a
-        reader, a screen reader included, that the text is struck.
-
-        `text-decoration-color` animates, so the line still arrives rather than
-        appearing: transparent at rest, the current colour when struck. It fades
-        rather than sweeping left to right; two mechanisms for one line would
-        draw two strikes of different lengths on one title.
-
-        The screen reader gains nothing from a decoration either way, which is
-        why the Abandoned chip beside it is the non-colour cue section 9 asks
-        for.
-        */
-        struck
-          ? "text-[var(--color-graphite-500)] line-through decoration-current"
-          : "text-[var(--color-graphite-800)] line-through decoration-transparent",
-        "transition-[color,background-color,text-decoration-color]",
-        T_BASE,
-      )}
-    >
-      {task.title || (
-        <span className="text-[var(--color-graphite-400)]">Untitled task</span>
-      )}
-    </Label>
-  )
-
-  /* A truncated title is unreadable, and every concept but J truncates. The
-     tooltip is the cheapest possible repair and belongs to all of them. */
-  if (!truncate) return button
-
-  return (
-    <Tooltip>
-      <TooltipTrigger render={button} />
-      <TooltipContent side="top">{task.title}</TooltipContent>
-    </Tooltip>
-  )
-}
-
-export function FolderBit({ folder }: { folder: NonNullable<ConceptTask["folder"]> }) {
-  return (
-    <span className="inline-flex shrink-0 items-center gap-2">
-      {/* The chosen glyph, like every other place a folder is named. */}
-      <FolderMark name={folder.name} color={folder.color} />
-      <span className="truncate">{folder.name}</span>
-    </span>
-  )
-}
-
-export function DueBit({ due }: { due: NonNullable<ConceptTask["due"]> }) {
-  return (
-    <span
-      className={cn(
-        "inline-flex min-w-[5.5rem] shrink-0 items-center justify-end gap-1.5",
-        due.overdue && "font-medium text-[var(--color-danger-700)]",
-      )}
-    >
-      {/* No glyph, in either state. It used to grow a circle-alert when late,
-          which said in a picture what the danger red and the word "Overdue"
-          beside it already say twice, and it made the trailing column change
-          shape with the task's state, so the eye could not learn where the
-          date lives. Colour and copy carry lateness; the field stays itself. */}
-      {due.label}
-    </span>
-  )
-}
-
-
-export function PersonBit({
-  assignee,
-}: {
-  assignee: NonNullable<ConceptTask["assignee"]>
-}) {
-  return (
-    <span className="inline-flex shrink-0 items-center gap-2">
-      <Face person={assignee} />
-      <span className="truncate">{assignee.name.split(" ")[0]}</span>
-    </span>
-  )
-}
-
-export function ExpandButton({
-  open,
-  onToggle,
-}: {
-  open: boolean
-  onToggle: () => void
-}) {
-  return (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation()
-        onToggle()
-      }}
-      aria-expanded={open}
-      aria-label={open ? "Collapse this task" : "Expand this task"}
-      className={cn(
-        "flex size-7 items-center justify-center rounded-md text-[var(--color-graphite-600)] transition-[background-color,opacity] hover:bg-[var(--color-graphite-200)]",
-        T_FAST,
-        FOCUS,
-        open ? "opacity-100" : "opacity-40 group-hover/row:opacity-100",
-      )}
-    >
-      <ChevronDown
-        className={cn("size-[18px] transition-transform", T_BASE, open && "rotate-180")}
-        strokeWidth={1.75}
-        aria-hidden="true"
-      />
-    </button>
-  )
-}
-
-/* The action gutter. Reserved rather than revealed, so hovering a row never
-   moves its neighbour's metadata; only opacity travels. */
-export function Actions({
-  task,
-  onStar,
-  onMakeFolder,
-  onNewFolderFor,
-  onRestore,
-  onOpenIn,
-  onPull,
-  onUnpull,
-  onMoveToFolder,
-  onAbandon,
-  onDelete,
-  onHistory,
-  onCopyLink,
-  onDuplicate,
-  extra,
-  importantTooltip,
-  quietStar = false,
-  /* A page shows its controls; a row reveals them on hover. */
-  persistent = false,
-}: {
-  task: ConceptTask
-  onStar: () => void
-  onMakeFolder?: () => void
-  /* Make a folder and put this task in it. Different from `onMakeFolder`,
-     which turns the task itself into one, the menu offers both and they must
-     not share a handler. */
-  onNewFolderFor?: () => void
-  onRestore?: () => void
-  /*
-  The star, at rest, on a page the star defines.
-
-  Every row on Important wears a filled star, so the star distinguishes nothing
-  there. It keeps its place and its press, because it is also the only way a
-  task leaves that page; what it drops is the fill.
-  */
-  quietStar?: boolean
-  /* 6 Q4's outward tooltip, which replaces the tooltip alone and never the
-     accessible name. Supplied by the page layer on Important and nowhere else;
-     see the star below. */
-  importantTooltip?: string
-  onOpenIn?: (mode: TaskOpenMode) => void
-  /* Today membership, one of the pair at a time. */
-  onPull?: () => void
-  onUnpull?: () => void
-  onMoveToFolder?: (folder: { name: string; color: string }) => void
-  onAbandon?: () => void
-  onDelete?: () => void
-  onHistory?: () => void
-  onCopyLink?: () => void
-  onDuplicate?: () => void
-  extra?: ReactNode
-  persistent?: boolean
-}) {
-  return (
-    <span className="flex shrink-0 items-center justify-end gap-0.5">
-      {/* An abandoned task is not a dead one, and the row has to say so.
-          Restore appears on hover in the trailing slot rather than living only
-          in the overflow, because a person looking at a struck-through row is
-          usually deciding whether to bring it back and should not have to open
-          a menu to find out that they can.
-
-          It is the one action that appears *because* of a state rather than
-          being present on every row, which is why it leads the gutter: the
-          things that are always there keep their positions behind it. */}
-      {task.abandoned && onRestore ? (
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onRestore()
-                }}
-                /*
-                9.5's name, which is the word and not the task: "Restore", per
-                9.1's names table.
-
-                A row-scoped locator matches a name by substring, so a control
-                carrying the task's own title would answer to every word in it.
-                */
-                aria-label={RESTORE}
-                className={cn(
-                  "flex size-7 items-center justify-center rounded-md text-[var(--color-graphite-600)] opacity-0 transition-[opacity,background-color,color] group-hover/row:opacity-100 group-focus-within/row:opacity-100 hover:bg-[var(--color-graphite-200)] hover:text-[var(--color-graphite-800)]",
-                  T_FAST,
-                  FOCUS,
-                )}
-              >
-                <RotateCcw className="size-4" strokeWidth={1.75} aria-hidden="true" />
-              </button>
-            }
-          />
-          <TooltipContent side="top">Restore</TooltipContent>
-        </Tooltip>
-      ) : null}
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation()
-          onStar()
-        }}
-        aria-pressed={Boolean(task.important)}
-        /*
-        9.1's two names, and the tooltip comes apart from them.
-
-        **The names are 9.5's and 9.1's**, "Important" when on and "Mark as
-        important" when off.
-
-        **The name is content and never an `aria-label`.** A label is a *label*,
-        and the suite addresses 9.3's fields by label, so a page holding a
-        starred row with the surface open would have two elements answering to
-        one name. The glyph stays `aria-hidden`, so a glyph swap is never a
-        rename.
-
-        **And the tooltip is a separate string**, which 6 Q4 requires: on
-        Important it turns outward, "Also in Scheduled, due 3 Sep", while the
-        name has to keep saying what pressing the control does. Driving both
-        attributes off one string would rename the control the moment the
-        tooltip points outward. It is a `title` as well as a styled tooltip
-        because a tooltip that exists only while it is open cannot be read.
-        */
-        /* Off Important the tooltip is the name, 9.5: "the star's two names are
-           9.1's". On Important it turns outward, which is the page layer's
-           decision and arrives as this prop. */
-        title={importantTooltip ?? (task.important ? "Important" : "Mark as important")}
-        className={cn(
-          "flex size-7 items-center justify-center rounded-md transition-[opacity,background-color] hover:bg-[var(--color-graphite-200)] active:scale-90",
-          T_FAST,
-          FOCUS,
-          task.important
-            ? "opacity-100"
-            : /* Visible at rest where there is no hover to reveal it. */
-                "opacity-0 group-hover/row:opacity-70 group-focus-within/row:opacity-100 hover:!opacity-100 max-md:opacity-70 [@media(hover:none)]:opacity-70",
-        )}
-      >
-        {/*
-        Filled or not, and never gold, so the star looks the same across the
-        shell. Important is a binary and a filled star says it; a second signal
-        on the same fact is one more hue in a product whose palette is one
-        accent and graphite. So the star is graphite in both states and the fill
-        is the whole difference.
-         */}
-        <span className="sr-only">
-          {task.important ? "Important" : "Mark as important"}
-        </span>
-        <Star
-          className={cn(
-            "size-[18px] transition-[transform,color]",
-            T_FAST,
-            task.important && !quietStar
-              ? "scale-110 fill-current text-[var(--color-graphite-900)]"
-              : "text-[var(--color-graphite-600)]",
-          )}
-          strokeWidth={1.75}
-          aria-hidden="true"
-        />
-      </button>
-      {/*
-      The row's menu comes from the contract, so a task can be copied, linked,
-      duplicated or asked about its history exactly as a folder can; the acts
-      live in `lib/object-acts`.
-
-      The trigger keeps its own styling, because hover-reveal is the row's
-      business and not the contract's: a gutter of permanent icons would shout
-      down the titles, while a page has no row to hover and shows its controls.
-      That is what `persistent` decides, and it is why the trigger is passed
-      rather than left to `ObjectMenu`'s default.
-       */}
-      <ObjectMenu
-        kind="task"
-        name={task.title}
-        width="w-56"
-        trigger={
-          <button
-            type="button"
-            onClick={(e) => e.stopPropagation()}
-            /* Spec 9.1's names table gives a task row's overflow menu the
-               name "More actions". */
-            aria-label="More actions"
-            className={cn(
-              "flex size-7 items-center justify-center rounded-md text-[var(--color-graphite-600)] transition-[opacity,background-color] hover:bg-[var(--color-graphite-200)] data-popup-open:opacity-100",
-              T_FAST,
-              FOCUS,
-              persistent
-                ? "opacity-100"
-                : /* Visible at rest where there is no hover to reveal it. */
-                "opacity-0 group-hover/row:opacity-70 group-focus-within/row:opacity-100 hover:!opacity-100 max-md:opacity-70 [@media(hover:none)]:opacity-70",
-            )}
-          >
-            <MoreHorizontal className="size-[18px]" strokeWidth={1.75} aria-hidden="true" />
-          </button>
-        }
-        handlers={{
-          open: onOpenIn
-            ? {
-                choose: TASK_OPEN_OPTIONS.map(({ key, label, icon: Icon }) => (
-                  <DropdownMenuItem
-                    key={key}
-                    className="whitespace-nowrap"
-                    onClick={() => onOpenIn(key)}
-                  >
-                    <Icon />
-                    {label}
-                  </DropdownMenuItem>
-                )),
-              }
-            : undefined,
-          history: onHistory,
-          pull: onPull && !task.pulled ? onPull : undefined,
-          unpull: onUnpull && task.pulled ? onUnpull : undefined,
-          move: onMoveToFolder
-            ? {
-                /*
-                The person's real folders: `folderLibrary()` is the one answer.
-
-                **And it ends in New folder**, because "none of these" is a real
-                answer to "where does this go", and a menu that cannot express
-                it sends you elsewhere to do the obvious thing.
-                */
-                choose: (
-                  <>
-                    {folderLibrary().map((folder) => (
-                      <DropdownMenuItem
-                        key={folder.name}
-                        className="whitespace-nowrap"
-                        onClick={() => onMoveToFolder(folder)}
-                      >
-                        <FolderMark name={folder.name} color={folder.color} />
-                        {folder.name}
-                      </DropdownMenuItem>
-                    ))}
-                    {onNewFolderFor ? (
-                      <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="whitespace-nowrap"
-                          onClick={onNewFolderFor}
-                        >
-                          <FolderPlus />
-                          New folder…
-                        </DropdownMenuItem>
-                      </>
-                    ) : null}
-                  </>
-                ),
-              }
-            : undefined,
-          "make-folder": onMakeFolder,
-          "copy-link": onCopyLink,
-          duplicate: onDuplicate,
-          /* Abandon and Restore are the same slot seen from two states, so
-             only one is ever supplied, which is how an act with no handler
-             stays out of the menu without anybody writing a condition. */
-          abandon: onAbandon && !task.abandoned ? onAbandon : undefined,
-          restore: onRestore && task.abandoned ? onRestore : undefined,
-          delete: onDelete,
-        }}
-      />
-      {extra}
-    </span>
-  )
-}
-
-export /* The trailing column keeps a gutter of its own, so the expand chevron does not
-   sit hard against the row's right edge. */
-const ROW =
-  "group/row grid h-11 w-full grid-cols-[40px_minmax(0,1fr)_auto] items-center rounded-md pr-2 transition-colors"
-export const ROW_HOVER = "hover:bg-[var(--color-graphite-100)]"
 
 export function rowProps(
   surface: { onPointerDown: (event: ReactPointerEvent) => void },
@@ -1504,8 +557,10 @@ export function rowProps(
   return {
     ...select,
     onPointerDown: (event: ReactPointerEvent) => {
+      select.onPointerDown(event)
+      /* A modified press selects; it must not also arm a drag. */
+      if (event.shiftKey || event.metaKey || event.ctrlKey) return
       surface.onPointerDown(event)
-      select.onPointerDown()
     },
   }
 }
@@ -1589,42 +644,15 @@ export function ExpandShell({
         zIndex: isActive ? 30 : undefined,
       }}
       className={cn(
-        "relative rounded-lg border",
-        open
-          /* Padding rather than margin. The breathing room an open card needs is
-             between its own border and the row inside it, and padding is the
-             one spacing property a list container cannot reach, `space-y-*`
-             and even a flex `gap` govern margins, and both outranked every
-             margin form tried here, inline included. */
-          ? "py-1.5 border-[var(--color-graphite-300)] bg-card shadow-[var(--elevation-1)]"
-          : "border-transparent",
-        isSelected &&
-          "border-[var(--color-dana-accent-200)] bg-[var(--color-dana-accent-100)]",
-        /* Picked up: opaque, lifted, still completely legible. The version
-           this replaces faded the row to 40%, which hid the one thing the
-           person was actually moving. */
-        isActive &&
-          "cursor-grabbing border-[var(--color-graphite-300)] bg-card shadow-[var(--elevation-2)]",
-        /* Resting on a row is a proposal rather than a drop target, so it is
-           a quiet tint that the closing ring explains. Armed is a different
-           signal rather than a louder one: the ring is what changed, and the
-           row only confirms it.
-
-           Rings rather than borders, because a border changes the box and
-           every row in the list would shift by a pixel as the proposal moved
-           from one to the next. */
-        isDwelling &&
-          !isArmed &&
-          "bg-[var(--color-dana-accent-50)] ring-1 ring-[var(--color-dana-accent-200)]",
-        isArmed && "bg-[var(--color-dana-accent-50)] ring-2 ring-[var(--color-dana-accent-600)]",
-        /* The row being carried says where it is going too. It settles very
-           slightly smaller once the folder is armed, which is what going
-           inside something looks like. */
-        isActive && isArmed && "ring-2 ring-[var(--color-dana-accent-600)]",
+        "relative rounded-sm",
+        isSelected && "bg-primary/10",
+        isActive && "cursor-grabbing bg-background shadow-[var(--elevation-2)]",
+        isDwelling && !isArmed && "bg-muted ring-1 ring-border",
+        isArmed && "bg-muted ring-2 ring-primary",
       )}
     >
       {row}
-      <Reveal open={open}>{card}</Reveal>
+      {open ? card : null}
       {/* The badge rides the row being carried, not the row underneath it.
 
           On the target it would be invisible: the carried row sits at z-30
@@ -1655,196 +683,11 @@ export function ExpandShell({
       It rides the carried row for the reason the comment above gives.
        */}
       {proposal === undefined ? null : (
-        <span className="pointer-events-none absolute top-1/2 right-2 z-40 -translate-y-1/2 rounded-full bg-[var(--color-graphite-900)] px-2 py-0.5 text-[0.625rem] font-medium whitespace-nowrap text-[var(--color-graphite-50)]">
+        <span className="pointer-events-none absolute top-1/2 right-2 z-40 -translate-y-1/2 rounded-sm bg-foreground px-2 py-0.5 text-xs whitespace-nowrap text-background">
           {proposal}
         </span>
       )}
     </div>
-  )
-}
-
-export function Chip({
-  children,
-  tone = "neutral",
-}: {
-  children: ReactNode
-  tone?: "neutral" | "danger"
-}) {
-  return (
-    <span
-      className={cn(
-        "inline-flex h-6 shrink-0 items-center gap-1.5 rounded-md border border-transparent px-1.5 transition-[background-color,border-color]",
-        T_FAST,
-        "hover:border-[var(--color-graphite-300)] hover:bg-card data-popup-open:border-[var(--color-graphite-300)] data-popup-open:bg-card",
-        tone === "danger" && "font-medium text-[var(--color-danger-700)]",
-      )}
-    >
-      {children}
-    </span>
-  )
-}
-
-/* The same chip anatomy as ChipMenu, opening a panel instead of a list: the
-   pickers built for the card open from the folded row too, so there is one
-   picker for a date wherever it is opened from. The trigger is a button, so the
-   row's drag surface ignores a press that lands here and the two gestures never
-   compete. */
-export function ChipPicker({
-  label,
-  children,
-  panel,
-}: {
-  label: string
-  children: ReactNode
-  panel: ReactNode
-}) {
-  return (
-    <Popover>
-      <PopoverTrigger
-        render={
-          <button
-            type="button"
-            onClick={(event) => event.stopPropagation()}
-            aria-label={label}
-            className={cn("rounded-md", FOCUS)}
-          >
-            {children}
-          </button>
-        }
-      />
-      <PopoverContent align="start" className="w-auto p-2">
-        {panel}
-      </PopoverContent>
-    </Popover>
-  )
-}
-
-export interface ChipMenuItem {
-  key: string
-  label: ReactNode
-  onSelect: () => void
-  /* Puts a hairline above the item: the way *out* of a list, no folder, nobody,
-     is not another member of it, and every menu in Dana that offers one sets it
-     apart the same way. */
-  separated?: boolean
-}
-
-export function ChipMenu({
-  label,
-  children,
-  items,
-}: {
-  label: string
-  children: ReactNode
-  items: ChipMenuItem[]
-}) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <button
-            type="button"
-            onClick={(e) => e.stopPropagation()}
-            aria-label={label}
-            className={cn("rounded-md", FOCUS)}
-          >
-            {children}
-          </button>
-        }
-      />
-      <DropdownMenuContent align="end">
-        {items.map((item) => (
-          <Fragment key={item.key}>
-            {item.separated ? <DropdownMenuSeparator /> : null}
-            <DropdownMenuItem onClick={item.onSelect}>{item.label}</DropdownMenuItem>
-          </Fragment>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-}
-
-/* A chip on the two-line row's detail line: the same anatomy as the card's,
-   sized for metadata rather than body text. `interactive` is false for the
-   facts you cannot change from a row, a step count, an attachment count, a
-   note, so nothing offers an edit it cannot perform. */
-export function DetailChip({
-  children,
-  tone = "neutral",
-  interactive = true,
-  title,
-}: {
-  children: ReactNode
-  tone?: "neutral" | "danger"
-  interactive?: boolean
-  /* What a compressed chip stands for, one hover away; the steps ratio is the
-     case. */
-  title?: string
-}) {
-  return (
-    <span
-      title={title}
-      className={cn(
-        "inline-flex h-5 min-w-0 shrink-0 items-center rounded border border-transparent px-1 transition-[background-color,border-color]",
-        T_FAST,
-        interactive &&
-          "hover:border-[var(--color-graphite-300)] hover:bg-card data-popup-open:border-[var(--color-graphite-300)] data-popup-open:bg-card",
-        tone === "danger" && "font-medium text-[var(--color-danger-700)]",
-      )}
-    >
-      {children}
-    </span>
-  )
-}
-
-export function DetailWord({
-  icon: Icon,
-  children,
-  color,
-  tone = "neutral",
-}: {
-  icon: LucideIcon
-  children: ReactNode
-  color?: string
-  tone?: "neutral" | "danger"
-}) {
-  return (
-    <span
-      className={cn(
-        "inline-flex min-w-0 shrink-0 items-center gap-1.5",
-        tone === "danger" && "font-medium text-[var(--color-danger-700)]",
-      )}
-    >
-      <Icon
-        className={cn("size-3.5 shrink-0", !color && "text-[var(--color-graphite-400)]")}
-        style={color ? { color } : undefined}
-        strokeWidth={1.75}
-        aria-hidden="true"
-      />
-      {children}
-    </span>
-  )
-}
-
-/* A folder's detail word, resolving the glyph and colour its owner chose rather
-   than drawing the generic mark. Its own component because `DetailWord` takes
-   an icon as a prop and identity has to be *looked up*, which is a hook, which
-   cannot happen inside a prop expression. */
-function FolderDetailWord({
-  name,
-  color,
-}: {
-  /* A name rather than the task's folder object, because the mark is resolved
-     by name against the folder list. The caller has already decided there is
-     a folder to draw; see `folderName` in the row. */
-  name: string
-  color?: string
-}) {
-  const mark = useFolderMark(name, color)
-  return (
-    <DetailWord icon={mark.Icon} color={mark.color}>
-      <span className="truncate">{name}</span>
-    </DetailWord>
   )
 }
 
@@ -1862,33 +705,11 @@ edits on top.
 */
 
 export type TaskStatus = "pending" | "completed" | "abandoned"
-export type TaskRowVisualState = "default" | "hover" | "focus" | "selected"
 
 /* Where a task can be held once it leaves the list, the surface's five
    modes plus the tab strip. Owned here because the row is where the choice
    is offered; the surface imports it. */
 export type TaskOpenMode = "dialog" | "right" | "tab"
-
-/* The open-in choices, said in icons, labels on hover, the same strip
-   grammar the conversation's homes use. */
-/* Three homes. Full screen is what a tab already gives with a way back, a
-   second sidebar edge is a mirror nobody asked for, and floating is the dialog
-   with worse ergonomics. Three destinations a person can hold in their head
-   beats six they have to read. */
-/*
-Where a task can open. One array, read by two controls: the row's "Open in…"
-submenu and the surface's own view strip, so the two cannot offer different
-places or name them differently.
-
-**The labels are parallel nouns**, each completing the menu heading "Open in…",
-and each still stands alone as the strip's tooltip.
-*/
-export const TASK_OPEN_OPTIONS: ViewStripOption<TaskOpenMode>[] = [
-  { key: "dialog", label: "Dialog", icon: SquareSquare },
-  /* "Panel", the word Settings uses for the same home. */
-  { key: "right", label: "Panel", icon: PanelRight },
-  { key: "tab", label: "New tab", icon: ArrowUpRight },
-]
 
 export interface TaskRowProps {
   id?: string
@@ -1945,7 +766,7 @@ export interface TaskRowProps {
   status?: TaskStatus
   important?: boolean
   importantTooltip?: string
-  assignee?: { initials: string; name: string; image?: string }
+  assignee?: { initials: string; name: string; image?: string; id?: string }
   pulled?: boolean
   steps?: { complete: number; total: number }
   recurrence?: string
@@ -1991,9 +812,6 @@ export interface TaskRowProps {
   createdBy?: string
   /* What a release would do, drawn on the row being carried. See `ExpandShell`. */
   proposal?: string
-  /* Overrides the person's own row height. Only the state sheet passes it,
-     and only because showing both is its whole job. */
-  density?: RowDensity
   completionPreview?: boolean
   collapsing?: boolean
   /* Open the task somewhere other than in place: the row's own view strip
@@ -2219,110 +1037,21 @@ export function useCardWiring(props: TaskRowProps) {
   return { task, patch, patchSteps, steps, counts, cardHandlers }
 }
 
-/* The row's own view strip: one quiet trigger among the actions, opening the
-   horizontal icon row of the six ways a task can be held. Icons only, labels on
-   hover, the rule for every view switcher. */
-function OpenInControl({
-  onPick,
-  placement = "row",
-}: {
-  onPick: (mode: TaskOpenMode) => void
-  /* In the row the control hides until hover, like every row action; in the
-     card's footer it is always visible, like every footer action. Same
-     control, two homes. */
-  placement?: "row" | "footer"
-}) {
-  return (
-    <Popover>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <PopoverTrigger
-              render={
-                <button
-                  type="button"
-                  aria-label="Open in…"
-                  onClick={(event) => event.stopPropagation()}
-                  className={cn(
-                    "flex items-center justify-center rounded-md transition-[opacity,background-color,color]",
-                    T_FAST,
-                    FOCUS,
-                    placement === "row"
-                      ? "size-7 text-[var(--color-graphite-600)] opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100 data-popup-open:opacity-100 hover:bg-[var(--color-graphite-200)] hover:text-[var(--color-graphite-800)]"
-                      : "size-7 text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)] data-popup-open:bg-[var(--color-graphite-100)]",
-                  )}
-                >
-                  <Fullscreen className="size-4 data-[size=sm]:size-4" strokeWidth={1.75} aria-hidden="true" />
-                </button>
-              }
-            />
-          }
-        />
-        <TooltipContent side="top">Open in…</TooltipContent>
-      </Tooltip>
-      <PopoverContent align="end" className="w-auto p-1">
-        <ActionStrip
-          ariaLabel="Open this task in"
-          options={TASK_OPEN_OPTIONS}
-          onSelect={(key) => onPick(key as TaskOpenMode)}
-        />
-      </PopoverContent>
-    </Popover>
-  )
-}
+/*
+The row: one line, 32–36px. Checkbox · title · muted meta on the right (date,
+folder where the page spans folders, assignee face, steps n/m, repeat glyph),
+then the star, which shows on hover and whenever it is set.
 
+Clicking anywhere on the row opens the task; the checkbox and the star are the
+only controls inside it. No chevron, no row "…", no rename in the row: those
+live in the task's own panel (the redesign's control map). Shift/Cmd-click
+selects, see `useRowSelection`.
+*/
 export function TaskRow(props: TaskRowProps) {
-  /* The height is a person's setting, and the one exception is a surface
-     showing them both, the state sheet draws one row at each density beside
-     the other, which is a thing no reader of the setting can do. */
-  const density = props.density ?? useRowDensity()
-  const [open, setOpen] = useState(props.defaultOpen ?? false)
-  /*
-  The row reads 7.6's detail while it is open, so the inline card shows the same
-  steps, notes and reminder the dialog shows, rather than titles invented from
-  the list card's step count. A surface hands `detail` in already and reads
-  nothing.
-  */
-  /* Through the same hook the dialog and the task's page use, so the inline
-     card carries the task's conversation too: without it the Comments block
-     showed no count and an empty thread, and a comment written there reached
-     nothing. Comment and attachment writes go to that hook's thread path;
-     every other field keeps the row's own write path. */
-  const expanded = useTaskEditing(
-    open && props.detail === undefined && props.id !== undefined ? props.id : null,
-  )
-  const fetched = expanded.concept ?? undefined
-  const rowWriter = useTaskWriter()
-  const { task, patch, counts, cardHandlers } = useCardWiring(
-    fetched === undefined
-      ? props
-      : {
-          ...props,
-          detail: { ...fetched, ...props.detail },
-          onPatch: (fields) => {
-            const { comments, attachments, ...rest } = fields
-            if (comments !== undefined) expanded.write(fetched.id, { comments })
-            if (attachments !== undefined) expanded.write(fetched.id, { attachments })
-            if (Object.keys(rest).length === 0) return
-            if (props.onPatch) props.onPatch(rest)
-            else if (rowWriter && props.id) rowWriter(props.id, rest)
-          },
-        },
-  )
-  /*
-  The assignee menu's roster is the folder's members: 4.4's membership, because
-  10.2 refuses an assignee who is not a member and 9.3's field table says "the
-  target folder's members", so the folder has to reach the call. Hoisted here
-  rather than read at the chip, whose body is a callback a hook cannot sit in.
-  `lib/people-library.ts` carries the rest of the reasoning.
-  */
-  const roster = usePeopleLibrary(props.folder?.id ?? null)
+  const { task, patch, counts } = useCardWiring(props)
 
-  /* The row tells its list how to open it, and the list's drag engine calls
-     back on a tap. This is what makes tap-to-open a property of the row
-     rather than something each screen has to remember to wire, the folder
-     page never passed the list an opener, so the behaviour existed on six
-     pages and not the seventh. Registering from here, it cannot. */
+  /* The row tells its list how to open it; the list's drag engine calls back
+     on a tap, so tap-to-open is the row's property rather than each screen's. */
   const { onRegisterOpen, onOpen } = props
   useEffect(() => {
     if (!onRegisterOpen) return
@@ -2330,482 +1059,83 @@ export function TaskRow(props: TaskRowProps) {
     return () => onRegisterOpen(null)
   }, [onRegisterOpen, onOpen])
 
-  /* Choosing where a task opens updates the person's account preference, so
-     the next task uses the same surface on this device and every other one. */
-  function openIn(mode: TaskOpenMode) {
-    setTaskOpen(mode === "right" ? "panel" : mode)
-    props.onOpen?.(mode)
-  }
-
   const given = props.given ?? {}
-  /*
-  **The chip names the folder the row was told, and invents none.**
+  const struck = Boolean(task.abandoned)
+  const finished = Boolean(task.done) || struck
 
-  **Dana has no unfiled task**: 4.5 makes `tasks.folder_id` NOT NULL and 7.0
-  answers every card a folder stub. So an absent folder here never means "filed
-  nowhere", it means "the surface drawing this row did not pass one", and the
-  two are indistinguishable inside an `undefined`. `given.folder` is how a list
-  says "this page has already named the folder", and `pages/task-rows.tsx` sends
-  it; this is the other half, and it holds for a call site nobody has written
-  yet.
-
-  **Why silence rather than a guess.** The chip is not a label: it is a
-  `ChipMenu` whose items move the task, so a chip naming a folder the task is
-  not in invites somebody to correct it and moves their work out of the folder
-  they were standing in. A row that says nothing about a folder it was not told
-  costs a fact; a row that says the wrong one costs the task.
-  */
-  const folderName = given.folder ? undefined : task.folder?.name?.trim()
-  const showDue = Boolean(task.due) && !given.due
-
-  /*
-  The detail strip, as a list rather than as branches.
-
-  The row's state-chip and assignee slots are open sets: work may one day be
-  assigned to "a person, an AI agent, or both", with states like "waiting,
-  working, blocked, ready for review".
-
-  As a list, each concern is structural: **the order is data**, **suppression is
-  declared** beside the chip it suppresses, **`bare` is derived** from what is
-  actually showing, and adding "blocked" is one entry.
-
-  It is deliberately *not* populated with those states. Dana has two, pulled
-  into Today, and abandoned, and drawing "waiting" or "ready for review" now
-  would be inventing product rather than shaping a slot for it.
-  */
-  interface RowChip {
-    key: string
-    /* The `given` fact that silences this chip, when there is one: the page has
-       already said it. */
-    given?: keyof NonNullable<TaskRowProps["given"]>
-    shown: boolean
-    /* Built on demand, so the condition in `shown` is also the one that
-       narrows the values the body reads. */
-    body: () => ReactNode
-  }
-
-  const rowChips: RowChip[] = [
-    {
-      key: "due",
-      given: "due",
-      shown: showDue && Boolean(task.due),
-      body: () =>
-        !task.due ? null : (
-
-        <ChipPicker label="Due date" panel={<DuePanel task={task} patch={patch} />}>
-          {/* Late is a warning, and a warning that is true of every row on the
-              block has stopped warning anybody, so inside "Carried over" the
-              date keeps its words and drops its red. Elsewhere it keeps
-              both. */}
-          <DetailChip tone={task.due.overdue && !given.overdue ? "danger" : "neutral"}>
-            {/* One glyph for the due field whatever its state; the tone says
-                late. */}
-            <DetailWord
-              icon={CalendarDays}
-              tone={task.due.overdue && !given.overdue ? "danger" : "neutral"}
-            >
-              {task.due.label}
-            </DetailWord>
-          </DetailChip>
-        </ChipPicker>
-      ),
-    },
-    {
-      key: "folder",
-      given: "folder",
-      shown: Boolean(folderName),
-      body: () =>
-        !folderName ? null : (
-
-        <ChipMenu
-          label="Folder"
-          /* The person's real folders (see lib/folder-library.ts), and "New
-             folder…" last, so the menu can always reach a folder that does not
-             exist yet. Every folder list ends there. */
-          items={folderLibrary()
-            .map((folder) => ({
-              key: folder.name,
-              label: (
-                <span className="inline-flex items-center gap-2">
-                  {/* The folder's own mark, so the menu you pick from and the
-                      chip you picked show the same thing. */}
-                  <FolderMark
-                    name={folder.name}
-                    color={folder.color}
-                    className="size-4 data-[size=sm]:size-4"
-                  />
-                  {folder.name}
-                </span>
-              ),
-              onSelect: () => patch(task.id, { folder }),
-            }))
-            .concat(
-              props.onNewFolder ? [newFolderChoice(props.onNewFolder)] : [],
-            )}
-        >
-          <DetailChip>
-            {/* The row wears the folder's chosen glyph and colour, not the
-                generic mark, as the sidebar does. */}
-            <FolderDetailWord name={folderName} color={task.folder?.color} />
-          </DetailChip>
-        </ChipMenu>
-      ),
-    },
-    {
-      key: "section",
-      shown: Boolean(props.section),
-      body: () => (
-
-        <DetailChip>
-          <span className="inline-flex min-w-0 items-center gap-0.5">
-            {/* A chevron rather than a second glyph: the mark before it
-                already said "folder", and what this adds is depth, not a
-                different kind of thing. */}
-            <ChevronRight
-              className="size-3 shrink-0 text-[var(--color-graphite-400)]"
-              strokeWidth={2}
-              aria-hidden="true"
-            />
-            <span className="truncate">{props.section}</span>
-          </span>
-        </DetailChip>
-      ),
-    },
-    {
-      key: "assignee",
-      given: "assignee",
-      shown: Boolean(task.assignee) && !given.assignee,
-      body: () =>
-        !task.assignee ? null : (
-
-        <ChipMenu
-          label="Assignee"
-          /*
-          The real roster, and a way back out of it.
-
-          The names match the People screen, and **Unassigned** is always
-          offered, so a row that takes an assignee can let one go.
-
-          Unassigned goes last, after a separator, exactly where "New folder…"
-          sits on the folder menu: the way out of a list belongs at its end.
-          */
-          items={roster
-            .map((person): ChipMenuItem => ({
-              key: person.name,
-              label: (
-                <span className="inline-flex items-center gap-2">
-                  <Face person={person} className="size-4 data-[size=sm]:size-4" />
-                  {person.name}
-                </span>
-              ),
-              onSelect: () => patch(task.id, { assignee: person }),
-            }))
-            .concat([
-              {
-                key: "__unassigned",
-                separated: true,
-                label: (
-                  <span className="inline-flex items-center gap-2">
-                    <UserRound className="size-4 data-[size=sm]:size-4" strokeWidth={1.75} />
-                    Unassigned
-                  </span>
-                ),
-                /* `null` and not `undefined`, issue #169: the card's copy of
-                   this menu sent nothing at all for years because undefined
-                   is "this field was not touched". Both menus say clear the
-                   same way. `tasks/task-model.ts` carries the three values. */
-                onSelect: () => patch(task.id, { assignee: null }),
-              },
-            ])}
-        >
-          <DetailChip>
-            <span className="inline-flex min-w-0 shrink-0 items-center gap-1.5">
-              <Face person={task.assignee} className="size-3.5 data-[size=sm]:size-3.5" />
-              <span className="truncate">{task.assignee.name}</span>
-            </span>
-          </DetailChip>
-        </ChipMenu>
-      ),
-    },
-    {
-      key: "steps",
-      shown: Boolean(counts),
-      body: () =>
-        !counts ? null : (
-
-        /* The ratio is legible at 12px beside its glyph, and the words it
-           stands for are one hover away rather than spent on width the row does
-           not have. */
-        <DetailChip
-          interactive={false}
-          title={`${counts.done} of ${counts.total} steps done`}
-        >
-          <DetailWord icon={ListChecks}>
-            {counts.done}/{counts.total}
-          </DetailWord>
-        </DetailChip>
-      ),
-    },
-    {
-      key: "repeat",
-      shown: Boolean(task.recurrence),
-      body: () => (
-
-        <ChipPicker label="Repeat" panel={<RepeatPanel task={task} patch={patch} />}>
-          <DetailChip>
-            <DetailWord icon={Repeat2}>{repeatShort(task)}</DetailWord>
-          </DetailChip>
-        </ChipPicker>
-      ),
-    },
-    /* The state family, and the two members Dana actually has. A third
-       arrives as a third entry here and nowhere else. */
-    {
-      key: "state:today",
-      shown: Boolean(task.pulled),
-      /*
-      **The My Day chip is 9.4's un-pull control where a page supplies one.**
-
-      9.4: "a row whose inclusion came from an entry carries the un-pull
-      control", named "Remove from Today" by 9.1's table, and its own
-      parenthesis says the control is "absent when the row also qualifies
-      automatically", which `parts/presenters.ts` already decides and passes as
-      `pulled`.
-
-      The chip is the right home rather than a second control beside it. It
-      already says the one fact the act is about, and a chip that says "My Day"
-      next to a button that removes from My Day is the same fact twice. Where no
-      handler is supplied the chip is just a chip, which is
-      `lib/object-acts.ts`'s rule one component down.
-      */
-      body: () =>
-        !props.onRemoveFromMyDay ? (
-
-        <DetailChip interactive={false}>
-          <DetailWord icon={SunMedium}>My Day</DetailWord>
-        </DetailChip>
-      ) : (
-        <DetailChip>
-          <button
-            type="button"
-            aria-label={REMOVE_FROM_TODAY}
-            onClick={(event) => {
-              event.stopPropagation()
-              props.onRemoveFromMyDay?.()
-            }}
-            className={cn("flex items-center", FOCUS)}
-          >
-            <DetailWord icon={SunMedium}>My Day</DetailWord>
-          </button>
-        </DetailChip>
-      ),
-    },
-    {
-      key: "state:abandoned",
-      shown: Boolean(task.abandoned),
-      body: () => (
-
-        <DetailChip interactive={false}>
-          <DetailWord icon={Ban}>Abandoned</DetailWord>
-        </DetailChip>
-      ),
-    },
-    /*
-    **Two adornments section 9 specifies.**
-
-    9.8's last sentence is normative on one of them, "rows and the form show
-    'Invite pending: sara@example.com' while an assignment-invite is
-    outstanding", filled by 7.4's `pending_invite_email`. The other is section
-    6's Q3 chip, a null assignee in a folder holding more than one member, which
-    `parts/presenters.ts` derives from the folder table the chrome already
-    holds.
-
-    **They are chips of this strip rather than badges beside it**, because the
-    rule for the two densities is that the details may differ in where they sit
-    "and in nothing else", and a badge outside the strip is a detail the
-    one-line row has nowhere to put. The words section 9 writes do not move.
-    */
-    /* #225's compact indicator: only while something unfinished is in the way,
-       and only on a row that is itself still open. The names live in the card. */
-    {
-      key: "blocked",
-      shown: (props.blockedBy ?? 0) > 0 && !task.done && !task.abandoned,
-      body: () => (
-
-        <DetailChip
-          interactive={false}
-          title={
-            props.blockedBy === 1
-              ? "Waiting on 1 unfinished task"
-              : `Waiting on ${props.blockedBy ?? 0} unfinished tasks`
-          }
-        >
-          <DetailWord icon={Workflow}>
-            {`Blocked · ${props.blockedBy ?? 0}`}
-          </DetailWord>
-        </DetailChip>
-      ),
-    },
-    {
-      key: "invite-pending",
-      shown: Boolean(props.invitePending),
-      body: () =>
-        !props.invitePending ? null : (
-
-        <DetailChip interactive={false}>
-          <DetailWord icon={UserPlus}>
-            Invite pending: {props.invitePending}
-          </DetailWord>
-        </DetailChip>
-      ),
-    },
-    {
-      key: "unassigned",
-      shown: Boolean(props.unassigned) && !given.assignee,
-      body: () => (
-
-        <DetailChip interactive={false}>
-          <DetailWord icon={UserRound}>Unassigned</DetailWord>
-        </DetailChip>
-      ),
-    },
-    /*
-    **Assignments' from half, a third adornment section 9 specifies.**
-
-    9.5 is normative and in terms: "the 'from' half of a row names the creator,
-    Dana recording no assigner." The created-by axis in `views/filter.ts` is the
-    other way to reach the same fact.
-
-    **A chip of this strip rather than a badge beside it**, for the density rule
-    above. **And drawn only where a page asks for it**, because a creator on
-    every row of every page is the row repeating what nobody asked;
-    `parts/presenters.ts` fills it from `context.showCreator`, and Assignments
-    is the one page that passes it, which is the same per-list decision `given`
-    is.
-    */
-    {
-      key: "created-by",
-      shown: Boolean(props.createdBy),
-      body: () =>
-        !props.createdBy ? null : (
-
-        <DetailChip interactive={false}>
-          <DetailWord icon={UserRound}>From {props.createdBy}</DetailWord>
-        </DetailChip>
-      ),
-    },
-  ]
-
-  const visibleChips = rowChips.filter((chip) => chip.shown)
-
-  /* Derived rather than restated. The hand-written version listed nine
-     conditions and had already fallen out of step with the chips it was
-     describing, it still counted `notes` and `attachments`, which have not
-     been chips since the card took them. */
-  const bare = visibleChips.length === 0
-
-  const details = (
+  const row = (
     <div
-      hidden={bare}
-      className="-ml-1 flex min-w-0 items-center gap-1 overflow-hidden text-[12px] leading-4 text-[var(--color-graphite-500)]"
-    >
-      {visibleChips.map((chip) => (
-        <Fragment key={chip.key}>{chip.body()}</Fragment>
-      ))}
-    </div>
-  )
-
-  const [historyOpen, setHistoryOpen] = useState(false)
-  const actions = (
-    <Actions
-      task={task}
-      onStar={() => {
-        patch(task.id, { important: !task.important })
-        props.onToggleImportant?.()
+      /* r3-peek: the peek steps through rows in the order they are drawn. */
+      data-task-id={props.id}
+      /* The keyboard path (`row-keys.ts`): a list page makes this row its one
+         Tab stop; Enter opens the task and Space completes it. */
+      data-row-key=""
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return
+        if (event.key === "Enter") {
+          event.preventDefault()
+          props.onOpen?.()
+        } else if (event.key === " ") {
+          event.preventDefault()
+          patch(task.id, { done: !task.done })
+        }
       }}
-      onRestore={task.abandoned ? () => patch(task.id, { abandoned: false }) : undefined}
-      quietStar={given.important}
-      importantTooltip={props.importantTooltip}
-      /* No "Open in…" in the row menu: the title opens the task where the
-         person last chose, the chevron expands it in place, and the expanded
-         card's footer is where the surface is chosen. */
-      onOpenIn={undefined}
-      /* The page's own act where it has one (Today's rows, with its undo), the
-         writer's pull otherwise. Absent without an id, the row lab's case. */
-      onPull={props.id ? () => patch(task.id, { pulled: true }) : undefined}
-      onUnpull={
-        props.id
-          ? () => {
-              if (props.onRemoveFromMyDay) props.onRemoveFromMyDay()
-              else patch(task.id, { pulled: false })
+      onClick={
+        /* Where no drag engine tracks the row (a board card, say); inside a
+           list the engine resolves the tap. */
+        props.onOpen && !props.listProps
+          ? (event) => {
+              const target = event.target as HTMLElement
+              if (target.closest('button, a, input, [role="checkbox"]')) return
+              props.onOpen?.()
             }
           : undefined
       }
-      onMoveToFolder={(folder) => patch(task.id, { folder })}
-      onNewFolderFor={props.onNewFolder}
-      onAbandon={props.onAbandon}
-      onDelete={props.onDelete}
-      /*
-      Two of the three new acts need nothing from the screen.
-
-      A row knows its own id, so it can copy its own link and open its own
-      history without a prop threaded through ten call sites, and the object
-      contract's rule is that a surface supplies what it can *do*, not what it
-      can ask somebody else to do. Duplicate is the exception and stays a prop,
-      because adding a task is the shell's business: the row would have nowhere
-      to put the copy.
-
-      All three are absent without an id, which is the row lab and the concept
-      screens. That is the safety property doing its job rather than a special
-      case: no id, no handler, no menu item.
-      */
-      onHistory={props.id ? () => setHistoryOpen(true) : undefined}
-      onCopyLink={props.id ? () => copyTaskLink(props.id!, task.title) : undefined}
-      /*
-      **Duplicate and "Make this a folder…"** are performed by
-      `tasks/task-acts.ts` the way it performs Copy link, from the row's own id
-      (`POST /tasks/:id/duplicate`), so no screen threads a prop. Both are
-      absent without an id, which is the row lab and the concept screens: no id,
-      no handler, no menu item.
-      */
-      onDuplicate={props.id ? () => duplicateTask(props.id!, task.title) : undefined}
-      onMakeFolder={props.id ? () => makeFolderOfTask(props.id!, task.title) : undefined}
-      /* No standalone "Open in…" here: the card's footer carries it once the
-         row is open, and the overflow carries it while the row is shut. Two
-         routes are enough; a third icon in the row's gutter would crowd it. */
-      extra={
-        <>
-          <ExpandButton open={open} onToggle={() => setOpen((value) => !value)} />
-          {props.id ? (
-            <HistorySheet
-              kind="task"
-              subject={props.id}
-              name={task.title}
-              open={historyOpen}
-              onOpenChange={setHistoryOpen}
-            />
-          ) : null}
-        </>
-      }
-    />
-  )
-
-  const card = (
-    <TaskCard
-      task={task}
-      patch={patch}
-      {...cardHandlers}
-      openIn={
-        props.onOpen ? <OpenInControl onPick={openIn} placement="footer" /> : undefined
-      }
-      onClose={() => setOpen(false)}
-    />
+      className={cn(
+        "group/row grid h-[var(--row-height)] w-full grid-cols-[var(--control-height)_minmax(0,1fr)_auto] items-center rounded-sm pr-1 text-sm transition-colors",
+        T_FAST,
+        !props.isSelected && "hover:bg-muted",
+        props.onOpen && "cursor-pointer",
+      )}
+    >
+      <Check task={task} onToggle={() => patch(task.id, { done: !task.done })} />
+      <span
+        title={task.title}
+        className={cn(
+          "min-w-0 truncate",
+          finished ? "text-muted-foreground" : "text-foreground",
+          struck && "line-through",
+        )}
+      >
+        {task.title || <span className="text-muted-foreground">Untitled task</span>}
+      </span>
+      <RowMeta
+        className="max-w-[60vw] pl-3 md:max-w-none"
+        source={{
+          ...(task.due === undefined ? {} : { due: task.due }),
+          ...(task.folder === undefined ? {} : { folder: task.folder }),
+          ...(task.assignee === undefined ? {} : { assignee: task.assignee }),
+          ...(counts === null ? {} : { steps: counts }),
+          ...(task.recurrence ? { recurrence: repeatShort(task) } : {}),
+          blockedBy: props.blockedBy ?? 0,
+          finished,
+          important: Boolean(task.important),
+          ...(props.importantTooltip === undefined ? {} : { importantTooltip: props.importantTooltip }),
+        }}
+        given={given}
+        onToggleImportant={() => {
+          patch(task.id, { important: !task.important })
+          props.onToggleImportant?.()
+        }}
+      />
+    </div>
   )
 
   return (
     <ExpandShell
-      open={open}
-      card={card}
+      open={false}
+      card={null}
+      row={row}
       itemRef={props.itemRef}
       drag={props.listProps}
       isSelected={props.isSelected}
@@ -2815,81 +1145,6 @@ export function TaskRow(props: TaskRowProps) {
       isSettling={props.dragState?.isSettling}
       offset={props.dragState?.offset}
       proposal={props.proposal}
-      row={
-        density === "one" ? (
-          <div className={cn(ROW, !open && ROW_HOVER)}>
-            <Check task={task} onToggle={() => patch(task.id, { done: !task.done })} />
-            <TaskTitle
-              task={task}
-              onRename={(title) => patch(task.id, { title })}
-              truncate
-              heading={open}
-              selecting={props.selecting ?? false}
-              className={cn(T_BASE, open ? "font-semibold" : "font-medium")}
-            />
-            <span className="flex items-center gap-1">
-              {details}
-              {actions}
-            </span>
-          </div>
-        ) : (
-          <div
-            /*
-            The row body opens the task. Everything inside the row that *does*
-            something is a real control, the checkbox, the title's rename
-            button, every chip, the star, the overflow, the chevron, so the
-            guard is one `closest` rather than a `stopPropagation` on each,
-            which would be a rule every future control has to remember.
-            Whitespace opens; a control does its own job.
-
-            It opens rather than expands, and that is the point: expanding is
-            the chevron's, and the two are different intentions. Where it opens
-            is the remembered preference, so this respects a choice the person
-            already made instead of imposing the dialog.
-            */
-            onClick={
-              /* Only where no drag engine is tracking the row, a board card,
-                 say. Inside a list the tap is resolved by the engine, and two
-                 paths to one action is how they drift apart. */
-              props.onOpen && !props.listProps
-                ? (event) => {
-                    const target = event.target as HTMLElement
-                    if (
-                      target.closest(
-                        'button, a, input, textarea, [role="menuitem"], [role="checkbox"], [contenteditable="true"]',
-                      )
-                    ) {
-                      return
-                    }
-                    props.onOpen?.()
-                  }
-                : undefined
-            }
-            className={cn(
-              "group/row grid w-full grid-cols-[40px_minmax(0,1fr)_auto] items-center rounded-md pr-2 transition-[background-color,height]",
-              T_BASE,
-              /* A bare task costs one line, not two. */
-              bare ? "h-11" : "h-16",
-              !open && ROW_HOVER,
-              props.onOpen && !open && "cursor-pointer",
-            )}
-          >
-            <Check task={task} onToggle={() => patch(task.id, { done: !task.done })} />
-            <div className="flex min-w-0 flex-col gap-1">
-              <TaskTitle
-                task={task}
-                onRename={(title) => patch(task.id, { title })}
-                truncate={false}
-                heading={open}
-                selecting={props.selecting ?? false}
-                className={cn(T_BASE, open ? "font-semibold" : "font-medium")}
-              />
-              {details}
-            </div>
-            {actions}
-          </div>
-        )
-      }
     />
   )
 }
@@ -2915,6 +1170,8 @@ export interface TaskListWiring {
     isArmed: boolean
     isSettling: boolean
     offset: number
+    /* Sideways travel of the carried row, when the list follows across. */
+    crossOffset?: number
   }
   /*
   What a release would do, for a list that drags into a container.
@@ -2948,10 +1205,11 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
   reorderable = true,
   onDropAt,
   onOver,
+  followAcross = false,
   onDragStateChange,
   onMerge,
   onBulk,
-  onDuplicate,
+  onDate,
   onDelete,
   onMove,
   onTaskOpen,
@@ -3010,12 +1268,16 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
      because the words are the only thing the row draws and a key would need a
      second prop to translate. See `proposal` on `TaskListWiring`. */
   onOver?: (taskId: string, point: { x: number; y: number }) => string | null
+  /* The carried row follows the pointer sideways too (`crossOffset`), for a
+     board, whose cards leave their column for the one beside it. */
+  followAcross?: boolean
   /* Whether a row in this list is currently being carried. A page with
      sections needs it: the place to drop a task that belongs to none of them
      only has to exist while something is in the air. Pass a stable setter. */
   onDragStateChange?: (dragging: boolean) => void
   onMerge?: (ids: string[], name: string) => void
   onBulk?: (ids: string[], fields: Partial<ConceptTask>) => void
+  onDate?: (ids: string[], when: BulkDate) => void
   onDuplicate?: (ids: string[]) => void
   onDelete?: (ids: string[]) => void
   /* The id rides along; see `useRowSelection`. */
@@ -3131,6 +1393,7 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
       }
     },
     describe: (index) => ordered[index]?.title ?? "Task",
+    followAcross,
   })
 
   /* Each row registers how to open itself; the drag engine calls into this
@@ -3141,9 +1404,7 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
     onMove: (ids, folder) => onMove?.(ids, folder),
     onNewFolder: (ids) => setPending({ kind: "folder-for", ids }),
     onBulk: (ids, fields) => onBulk?.(ids, fields),
-    /* Passed through as given rather than wrapped, so a lab with no
-       duplicate act gets a bar with no Duplicate control. */
-    onDuplicate,
+    onDate,
     onDelete: (ids) => onDelete?.(ids),
   })
   const selection = sharedSelection ?? localSelection
@@ -3197,7 +1458,7 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
     /* The container is a list: a `listitem` needs a `list` to be an item of,
        and 9.1's roles table fixes both ends of that. See the comment over
        `ExpandShell` above. */
-    <div role="list" className={cn("flex flex-col gap-0.5", className)}>
+    <div role="list" className={cn("flex flex-col", className)}>
       {selectionChrome ? selection.bar : null}
       {pending ? (
         <PendingPanel
@@ -3231,7 +1492,7 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
                    caller extends. */
                 drag.surfaceProps(index, () => {
                   /* See `selectingNow` above. */
-                  if (selectingNow.current) return
+                  if (selectingNow.current || selection.takeModifiedPress()) return
                   openers.current.get(task.id)?.()
                 }),
                 selection.selectProps(task.id),

@@ -210,17 +210,16 @@ export async function acceptInviteOk(
 
 export interface PendingInviteElement {
   id: string
-  inviter: { display_name: unknown; avatar_url: unknown }
+  inviter: { id: unknown; display_name: unknown; avatar_url: unknown }
   folder_name: string | null
   created_at: unknown
 }
 
 /**
  * GET /invites/pending asserted: the login surface, scoped to the caller's
- * email. Element shape is 7.5's, exact: {id, inviter: {display_name,
- * avatar_url}, folder_name or null, created_at}. The inviter person here
- * deliberately carries no id, unlike 7.0's person shape: 7.5 enumerates two
- * keys, and a recipient has no claim to more.
+ * email. Element shape is 7.5's, exact: {id, inviter: {id, display_name,
+ * avatar_url}, folder_name or null, created_at}. The inviter is 7.0's person
+ * shape, the id keying their default face (2026-09-24).
  */
 export async function invitesPending(
   actor: Actor,
@@ -248,8 +247,8 @@ export async function invitesPending(
     const inviter = asRecord(element.inviter, `${where}.inviter`)
     expectExactKeys(
       inviter,
-      ['avatar_url', 'display_name'],
-      `${where}.inviter, which 7.5 gives exactly display_name and avatar_url`,
+      ['avatar_url', 'display_name', 'id'],
+      `${where}.inviter, which 7.5 gives as 7.0's person shape`,
     )
     expect(typeof element.id, `${where}.id must be a string`).toBe('string')
     expect(

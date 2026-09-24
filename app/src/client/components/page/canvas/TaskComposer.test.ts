@@ -31,8 +31,10 @@ const stored: PageView = {
     block(7, 'image', 'caption', { file_id: file, width_pct: 50 }),
     block(8, 'file', 'report.pdf', { file_id: id(98) }),
     block(9, 'callout', 'careful'),
+    block(10, 'checklist', 'ticked', { checked: true }),
+    block(11, 'divider', null),
   ],
-  items: Array.from({ length: 9 }, (_, i) => ({ kind: 'block' as const, id: id(i + 1) })),
+  items: Array.from({ length: 11 }, (_, i) => ({ kind: 'block' as const, id: id(i + 1) })),
 } as PageView
 const editorOf = (page: PageView): typeof taskSchema.BlockNoteEditor =>
   BlockNoteEditor.create({ schema: taskSchema, initialContent: hydrateTask(page, 600) })
@@ -40,28 +42,52 @@ const editorOf = (page: PageView): typeof taskSchema.BlockNoteEditor =>
 describe('Task composer', () => {
   test('AC-996 every stored kind and every character survives an untouched open, and an open writes nothing', () => {
     const editor = editorOf(stored)
-    const drawn = dehydrateTask(editor.document, 600, stored)
+    const drawn = dehydrateTask(editor.document, 600)
     const baseline = baselineOf(stored, drawn)
     expect(baseline.blocks.map((b) => [b.block_kind, b.text, b.file_id])).toEqual([
       ['paragraph', 'Legacy line one\nLegacy line two', null], ['heading2', 'Plan', null], ['bullet', 'first', null],
       ['numbered', 'second', null], ['quote', 'said', null], ['code', 'x = 1', null], ['image', 'caption', file],
-      ['file', 'report.pdf', id(98)], ['callout', 'careful', null],
+      ['file', 'report.pdf', id(98)], ['callout', 'careful', null], ['checklist', 'ticked', null],
+      ['divider', null, null],
     ])
+    expect(baseline.blocks[9]?.checked).toBe(true)
     expect(baseline.blocks[1]?.rich_content?.runs).toEqual([{ text: 'Plan', bold: true }])
     expect(baseline.blocks[6]?.width_pct).toBe(50)
-    expect(canvasOperations(baseline, dehydrateTask(editor.document, 600, stored)).filter((op) => op.op !== 'set_outline')).toEqual([])
+    expect(canvasOperations(baseline, dehydrateTask(editor.document, 600)).filter((op) => op.op !== 'set_outline')).toEqual([])
   })
 
-  test('AC-997 converting a drawn kind to text is written, and an indented block is written flat with its words', () => {
+  test('AC-997 converting a drawn kind to text is written, and an indented block is written nested under the block above it', () => {
     const editor = editorOf(stored)
-    const baseline = baselineOf(stored, dehydrateTask(editor.document, 600, stored))
+    const baseline = baselineOf(stored, dehydrateTask(editor.document, 600))
     editor.updateBlock(id(3), { type: 'paragraph' })
     editor.updateBlock(id(5), { children: [{ id: id(20), type: 'paragraph', content: 'nested words' }] })
-    const after = dehydrateTask(editor.document, 600, stored)
+    const after = dehydrateTask(editor.document, 600)
     const ops = canvasOperations(baseline, after)
     expect(ops.find((op) => op.op === 'put_block' && op.id === id(3))).toMatchObject({ block_kind: 'paragraph', text: 'first' })
-    expect(after.items.every((item) => item.list_parent_block_id === null && item.section_block_id === null)).toBe(true)
+    expect(after.items.find((item) => item.id === id(20))).toMatchObject({ list_parent_block_id: id(5), section_block_id: null })
+    expect(after.items.filter((item) => item.id !== id(20)).every((item) => item.list_parent_block_id === null && item.section_block_id === null)).toBe(true)
     expect(after.blocks.find((b) => b.id === id(20))?.text).toBe('nested words')
+    // It reopens where it was written.
+    const reopened = editorOf({ ...stored, blocks: [...stored.blocks, block(20, 'paragraph', 'nested words', { list_parent_block_id: id(5) })], items: after.items.map((item) => ({ kind: 'block' as const, id: item.id })) } as PageView)
+    expect(reopened.getBlock(id(5))?.children.map((child) => child.id)).toEqual([id(20)])
+  })
+
+  test('AC-1082 an empty File block (the picker placeholder) is not written, so the rest of the note still saves', () => {
+    const page = { ...stored, blocks: [block(1, 'paragraph', 'kept')], items: [{ kind: 'block' as const, id: id(1) }] } as PageView
+    const editor = editorOf(page)
+    editor.insertBlocks([{ type: 'file' }], editor.document[0]!, 'after')
+    const drawn = dehydrateTask(editor.document, 600)
+    expect(drawn.blocks.map((b) => b.block_kind)).toEqual(['paragraph'])
+  })
+
+  test('a toggle heading keeps its fold and its children across a save and a reload', () => {
+    const page = { ...stored, blocks: [block(1, 'heading2', 'Folded', { toggleable: true }), block(2, 'bullet', 'inside', { list_parent_block_id: id(1) })], items: [{ kind: 'block' as const, id: id(1) }, { kind: 'block' as const, id: id(2) }] } as PageView
+    const editor = editorOf(page)
+    expect(editor.document[0]?.props).toMatchObject({ level: 2, isToggleable: true })
+    const drawn = dehydrateTask(editor.document, 600)
+    expect(drawn.blocks[0]).toMatchObject({ block_kind: 'heading2', toggleable: true })
+    expect(drawn.items.map((item) => item.list_parent_block_id)).toEqual([null, id(1)])
+    expect(canvasOperations(baselineOf(page, drawn), dehydrateTask(editor.document, 600)).filter((op) => op.op !== 'set_outline')).toEqual([])
   })
 
   test('AC-998 merging a conflicted draft into the latest copy removes nothing from either', () => {

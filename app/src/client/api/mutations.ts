@@ -21,42 +21,33 @@ the request carries. They are not view endpoints, so `mutateApi` does not add tz
 for them; each call site that needs one asks for it, and the two that do are the
 ones section 7 names.
 */
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { UseMutationResult } from '@tanstack/react-query'
 
-import { inputRoundSchema } from '../../shared/consultation-input.js'
-import type {
-  InputRound,
-  OpenInputRoundBody,
-  PutInputResponseBody,
-} from '../../shared/consultation-input.js'
 
 import {
   deleteFolderResponse,
   folder,
+  patchFolderLocationResponse,
   patchFolderMyMembershipResponse,
   patchFolderResponse,
-  postFolderMembersResponse,
   transferOwnershipResponse,
 } from '../../shared/folders.js'
 import type {
   DeleteFolderResponse,
   Folder,
-  FolderMember,
   PatchFolderBody,
+  PatchFolderLocationBody,
   PatchFolderMyMembershipBody,
   PostFoldersBody,
   TransferOwnershipResponse,
 } from '../../shared/folders.js'
-import { getSettingsResponse, savedView } from '../../shared/bundle.js'
+import { getSettingsResponse } from '../../shared/bundle.js'
 import { SAMPLE_KEPT_HEADER, sampleStatus } from '../../shared/sample.js'
 import type { SampleStatus } from '../../shared/sample.js'
 import type {
   GetSettingsResponse,
   PatchSettingsBody,
-  PatchViewBody,
-  PostViewBody,
-  SavedView,
 } from '../../shared/bundle.js'
 import {
   acceptInviteResponse,
@@ -100,8 +91,6 @@ import {
 } from '../../shared/events.js'
 import { duplicateFolderResponse } from '../../shared/folders.js'
 import type { DuplicateFolderResponse } from '../../shared/folders.js'
-import { getPageResponse } from '../../shared/pages.js'
-import type { GetPageResponse, PageActionBody, PutPageBody } from '../../shared/pages.js'
 import {
   facet,
   getFacetsResponse,
@@ -120,7 +109,7 @@ import type {
   PutMyFacetOrderBody,
 } from '../../shared/facets.js'
 import { shelf } from '../../shared/shelves.js'
-import type { PatchShelfBody, PostShelvesBody, Shelf } from '../../shared/shelves.js'
+import type { PatchShelfBody, Shelf } from '../../shared/shelves.js'
 
 import {
   importWorkflowResponse,
@@ -133,7 +122,10 @@ import type {
 
 import { defaultFolderDescription } from '../lib/folder-description.js'
 import { mutateApi, requestTimezone } from './http.js'
-import { INLINE_VALIDATION_META, VALIDATION_ERROR_TOAST_META } from './queryClient.js'
+import { INLINE_VALIDATION_META, INVALIDATES_META, VALIDATION_ERROR_TOAST_META } from './queryClient.js'
+import type { InvalidatesMeta } from './queryClient.js'
+import type { GetThreadResponse } from '../../shared/comments.js'
+import { queryKeys } from './keys.js'
 import { taskDependencyEdge } from '../../shared/task-dependencies.js'
 import type { TaskDependencyEdge } from '../../shared/task-dependencies.js'
 
@@ -288,13 +280,6 @@ export function useUpdateStep(): UseMutationResult<TaskDetail, Error, PatchStepV
   })
 }
 
-export function useDeleteStep(): UseMutationResult<void, Error, string> {
-  return useMutation({
-    mutationFn: (stepId: string) =>
-      mutateApi(null, { method: 'DELETE', path: `/steps/${stepId}` }),
-  })
-}
-
 /**
  * DELETE /folders/:id, behind 9.6's confirm.
  *
@@ -303,9 +288,48 @@ export function useDeleteStep(): UseMutationResult<void, Error, string> {
  * rather than discarded, even though nothing renders it yet.
  */
 export function useDeleteFolder(): UseMutationResult<DeleteFolderResponse, Error, string> {
+  const client = useQueryClient()
   return useMutation({
-    mutationFn: (id: string) =>
-      mutateApi(deleteFolderResponse, { method: 'DELETE', path: `/folders/${id}` }),
+    mutationFn: async (id: string) => {
+      const deleted = await mutateApi(deleteFolderResponse, {
+        method: 'DELETE',
+        path: `/folders/${id}`,
+      })
+      /* Dropped before the cache's blanket invalidation runs, so nothing
+         refetches a folder that now answers 404 (the page being left may
+         still be mounted while the navigation commits). A restore reads
+         them afresh. */
+      client.removeQueries({
+        predicate: ({ queryKey }) =>
+          (queryKey[0] === 'folders' && queryKey[1] === id) ||
+          (queryKey[0] === 'backlinks' && queryKey[2] === id),
+      })
+      return deleted
+    },
+  })
+}
+
+/**
+ * PATCH /folders/:id/location (wave 2 page tree): move a page under another
+ * page, or to the root with `parent_folder_id: null`. The server refuses a
+ * cycle or a tree deeper than 20 with 422. Invalidation is queryClient.ts's,
+ * like every mutation here.
+ */
+export interface MoveFolderVariables {
+  readonly id: string
+  readonly body: PatchFolderLocationBody
+}
+
+export function useMoveFolder(): UseMutationResult<Folder, Error, MoveFolderVariables> {
+  return useMutation({
+    mutationFn: ({ id, body }: MoveFolderVariables) =>
+      mutateApi(patchFolderLocationResponse, {
+        method: 'PATCH',
+        path: `/folders/${id}/location`,
+        body,
+      }),
+    // A cycle or a too-deep tree is the server's 422 sentence, shown as is.
+    meta: { [VALIDATION_ERROR_TOAST_META]: true },
   })
 }
 
@@ -354,27 +378,6 @@ export function useUpdateMyMembership(): UseMutationResult<
         method: 'PATCH',
         path: `/folders/${id}/my-membership`,
         body,
-      }),
-  })
-}
-
-/** POST /folders/:id/members, the roster picker of 9.6's sharing panel. */
-export interface AddFolderMemberVariables {
-  readonly folderId: string
-  readonly userId: string
-}
-
-export function useAddFolderMember(): UseMutationResult<
-  FolderMember,
-  Error,
-  AddFolderMemberVariables
-> {
-  return useMutation({
-    mutationFn: ({ folderId, userId }: AddFolderMemberVariables) =>
-      mutateApi(postFolderMembersResponse, {
-        method: 'POST',
-        path: `/folders/${folderId}/members`,
-        body: { user_id: userId },
       }),
   })
 }
@@ -617,49 +620,6 @@ export function useRestoreFolder(): UseMutationResult<Folder, Error, string> {
   })
 }
 
-/* ------------------------------------------------------------------ *
- * Pages, shelves, notifications, comments
- * ------------------------------------------------------------------ */
-
-export interface PutPageVariables {
-  readonly id: string
-  readonly body: PutPageBody
-}
-
-/**
- * PUT /folders/:id/page (7.16): the block list whole, LWW per block.
- *
- * A stale write answers 409 carrying 5.1's copy, which the mutation cache
- * already raises as the toast 9.1 names for it; the page that issued the write
- * refetches at its own call site so the winning state replaces the stale one on
- * screen, both halves of "handled visibly", without this hook growing either.
- */
-export function usePutFolderPage(): UseMutationResult<
-  GetPageResponse,
-  Error,
-  PutPageVariables
-> {
-  return useMutation({
-    mutationFn: ({ id, body }: PutPageVariables) =>
-      mutateApi(getPageResponse, { method: 'PUT', path: `/folders/${id}/page`, body }),
-  })
-}
-
-export function useFolderPageAction(): UseMutationResult<
-  GetPageResponse,
-  Error,
-  { readonly id: string; readonly body: PageActionBody }
-> {
-  return useMutation({
-    mutationFn: ({ id, body }) =>
-      mutateApi(getPageResponse, {
-        method: 'POST',
-        path: `/folders/${id}/page/actions`,
-        body,
-      }),
-  })
-}
-
 export function useCreateFacet(): UseMutationResult<
   Facet,
   Error,
@@ -749,32 +709,10 @@ export function useDeleteFacet(): UseMutationResult<
   })
 }
 
-export function useFacetPageAction(): UseMutationResult<
-  GetPageResponse,
-  Error,
-  { readonly folderId: string; readonly facetId: string; readonly body: PageActionBody }
-> {
-  return useMutation({
-    mutationFn: ({ folderId, facetId, body }) =>
-      mutateApi(getPageResponse, {
-        method: 'POST',
-        path: `/folders/${folderId}/facets/${facetId}/page/actions`,
-        body,
-      }),
-  })
-}
-
 export function useRestoreFacet(): UseMutationResult<Facet, Error, string> {
   return useMutation({
     mutationFn: (id: string) =>
       mutateApi(facet, { method: 'POST', path: `/facets/${id}/restore` }),
-  })
-}
-
-export function useCreateShelf(): UseMutationResult<Shelf, Error, PostShelvesBody> {
-  return useMutation({
-    mutationFn: (body: PostShelvesBody) =>
-      mutateApi(shelf, { method: 'POST', path: '/shelves', body }),
   })
 }
 
@@ -856,12 +794,16 @@ export function useDuplicateFolder(): UseMutationResult<
   })
 }
 
+/** Reading a notification changes the bell and nothing else (r7). */
+const BELL_WRITE = { [INVALIDATES_META]: (() => (key) => key[0] === 'notifications') satisfies InvalidatesMeta } as const
+
 export function useMarkNotificationRead(): UseMutationResult<
   { read: true },
   Error,
   string
 > {
   return useMutation({
+    meta: BELL_WRITE,
     mutationFn: (id: string) =>
       mutateApi(postNotificationReadResponse, {
         method: 'POST',
@@ -876,12 +818,29 @@ export function useMarkAllNotificationsRead(): UseMutationResult<
   void
 > {
   return useMutation({
+    meta: BELL_WRITE,
     mutationFn: () =>
       mutateApi(postNotificationsReadAllResponse, {
         method: 'POST',
         path: '/notifications/read-all',
       }),
   })
+}
+
+/*
+Chat writes (r7) are the one exception to "a mutation invalidates nothing
+itself" (queryClient.ts `INVALIDATES_META`): a post, edit, delete or like
+refreshes the conversations and the lists of threads, not the whole app.
+*/
+const chatChanged: InvalidatesMeta = () => (key) =>
+  (key[0] === 'folders' && (key[2] === 'thread' || key[2] === 'discussions')) ||
+  (key[0] === 'discussions' && key[2] === 'thread')
+export const CHAT_WRITE = { [INVALIDATES_META]: chatChanged } as const
+
+/** A sent post joins its thread's cached read at once, before any refetch. */
+export function withPost(thread: GetThreadResponse | undefined, line: CommentLine): GetThreadResponse | undefined {
+  if (thread === undefined || thread.comments.some((c) => c.id === line.id)) return thread
+  return { ...thread, comments: [...thread.comments, line] }
 }
 
 export interface PostCommentVariables {
@@ -903,7 +862,12 @@ export function usePostComment(): UseMutationResult<
   Error,
   PostCommentVariables
 > {
+  const client = useQueryClient()
   return useMutation({
+    meta: CHAT_WRITE,
+    onSuccess: (line, { folderId, taskId }) => {
+      client.setQueryData<GetThreadResponse>(queryKeys.thread(folderId, taskId ?? null), (thread) => withPost(thread, line))
+    },
     mutationFn: ({ folderId, body, taskId }: PostCommentVariables) =>
       mutateApi(commentLine, {
         method: 'POST',
@@ -927,6 +891,7 @@ export function usePatchComment(): UseMutationResult<
   PatchCommentVariables
 > {
   return useMutation({
+    meta: CHAT_WRITE,
     mutationFn: ({ id, body }: PatchCommentVariables) =>
       mutateApi(patchCommentResponse, { method: 'PATCH', path: `/comments/${id}`, body }),
   })
@@ -940,6 +905,7 @@ export function usePatchComment(): UseMutationResult<
  */
 export function useDeleteComment(): UseMutationResult<void, Error, string> {
   return useMutation({
+    meta: CHAT_WRITE,
     mutationFn: (id: string) =>
       mutateApi(null, { method: 'DELETE', path: `/comments/${id}` }),
   })
@@ -952,6 +918,7 @@ export function useSetCommentLike(): UseMutationResult<
   { readonly id: string; readonly liked: boolean }
 > {
   return useMutation({
+    meta: CHAT_WRITE,
     mutationFn: ({ id, liked }) =>
       mutateApi(null, {
         method: liked ? 'PUT' : 'DELETE',
@@ -1050,61 +1017,24 @@ export function useImportWorkflow(): UseMutationResult<
  * fields so the endpoint can return its existing field-specific 422. A valid
  * timezone is harmless for files that need no anchor and necessary for raw
  * files whose reminder/repeat cannot be inspected without re-validating it.
+ *
+ * With `parentId` the file imports into that page: its folders become the
+ * page's sub-pages (POST /folders/:id/import).
  */
 export function useImportWorkflowFile(): UseMutationResult<
   ImportWorkflowResponse,
   Error,
-  unknown
+  { body: unknown; parentId?: string }
 > {
   return useMutation({
     meta: { [VALIDATION_ERROR_TOAST_META]: true },
-    mutationFn: (body: unknown) =>
+    mutationFn: ({ body, parentId }: { body: unknown; parentId?: string }) =>
       mutateApi(importWorkflowResponse, {
         method: 'POST',
-        path: '/workflows/import',
+        path: parentId === undefined ? '/workflows/import' : `/folders/${parentId}/import`,
         body,
         params: { tz: requestTimezone() },
       }),
-  })
-}
-
-/**
- * POST /views, the saved view of 4.19, which 9.1's "Save as view" writes.
- *
- * The definition is the filter model of `views/filter.ts`, which holds ids
- * and enums and never a display name; that is the client half of AC-209's
- * "a saved view survives a rename because it stored ids".
- */
-export function useCreateSavedView(): UseMutationResult<
-  SavedView,
-  Error,
-  PostViewBody
-> {
-  return useMutation({
-    mutationFn: (body: PostViewBody) =>
-      mutateApi(savedView, { method: 'POST', path: '/views', body }),
-  })
-}
-
-/**
- * PATCH /views/:id, which 9.7's pin list writes when a saved view's switch
- * moves.
- *
- * A saved view's pin lives on its own row rather than in `pinned_views`, which
- * 4.19 caps at the nine native keys, so the pin list writes two different
- * addresses for two kinds of row and the page is where they meet. The whole
- * body is `PatchViewBody`, not a pin flag, because the endpoint already takes
- * name and definition and a narrower hook here would be a second, smaller idea
- * of what a saved view is.
- */
-export function usePatchSavedView(): UseMutationResult<
-  SavedView,
-  Error,
-  { readonly id: string; readonly body: PatchViewBody }
-> {
-  return useMutation({
-    mutationFn: ({ id, body }) =>
-      mutateApi(savedView, { method: 'PATCH', path: `/views/${id}`, body }),
   })
 }
 
@@ -1138,62 +1068,5 @@ export function useRemoveSample(): UseMutationResult<string[], Error, void> {
 export function useRestoreSample(): UseMutationResult<SampleStatus, Error, void> {
   return useMutation({
     mutationFn: () => mutateApi(sampleStatus, { method: 'POST', path: '/sample' }),
-  })
-}
-
-/* ------------------------------------------------------------------ *
- * Consultation input rounds (7.29, #321)
- * ------------------------------------------------------------------ */
-
-/** POST /discussions/:id/input-rounds. 409 when one is already open or the
- * Discussion is resolved or in Trash; the toast carries the server's words. */
-export function useOpenInputRound(
-  discussionId: string,
-): UseMutationResult<InputRound, Error, OpenInputRoundBody> {
-  return useMutation({
-    mutationFn: (body) =>
-      mutateApi(inputRoundSchema, {
-        method: 'POST',
-        path: `/discussions/${discussionId}/input-rounds`,
-        body,
-      }),
-    meta: { [VALIDATION_ERROR_TOAST_META]: true },
-  })
-}
-
-/** POST /input-rounds/:id/close. */
-export function useCloseInputRound(): UseMutationResult<InputRound, Error, string> {
-  return useMutation({
-    mutationFn: (roundId) =>
-      mutateApi(inputRoundSchema, {
-        method: 'POST',
-        path: `/input-rounds/${roundId}/close`,
-        body: {},
-      }),
-  })
-}
-
-/** PUT /input-rounds/:id/response: submit or change the viewer's own. */
-export function usePutInputResponse(): UseMutationResult<
-  InputRound,
-  Error,
-  { readonly roundId: string; readonly body: PutInputResponseBody }
-> {
-  return useMutation({
-    mutationFn: ({ roundId, body }) =>
-      mutateApi(inputRoundSchema, {
-        method: 'PUT',
-        path: `/input-rounds/${roundId}/response`,
-        body,
-      }),
-    meta: { [VALIDATION_ERROR_TOAST_META]: true },
-  })
-}
-
-/** DELETE /input-rounds/:id/response: withdraw the viewer's own (204). */
-export function useWithdrawInputResponse(): UseMutationResult<void, Error, string> {
-  return useMutation({
-    mutationFn: (roundId) =>
-      mutateApi(null, { method: 'DELETE', path: `/input-rounds/${roundId}/response` }),
   })
 }

@@ -5,23 +5,28 @@ and `CanvasWriter`, posting 7.16's `document_transaction` to
 
 What a Shelf document is, and so what this adapter does on top of the shared one:
 
-- **Flat, belonging by position.** The Shelf route refuses `section_block_id`
-  and `list_parent_block_id`, and the legacy Shelf editor always meant "a block
-  under a heading folds with it". So a read groups each block under the section
-  before it (content before the first section stays at the root), and a write
-  sends the editor's order flat. One heading level; the surface hides the
-  gestures a reload would undo.
+- **Headings group by position; blocks nest by parent.** The Shelf route
+  refuses `section_block_id`, and the legacy Shelf editor always meant "a block
+  under a heading folds with it". So a read groups each root block under the
+  section before it (content before the first section stays at the root), and
+  a write sends the editor's order with no Section. One heading level; the
+  surface hides the gestures a reload would undo. Since 0038 a Shelf stores
+  `list_parent_block_id` like every home: any block but a heading nests under
+  a writing block (Tab), and a nested block is read back under its parent,
+  never regrouped under a heading.
+- **Folders join a Shelf elsewhere, never here**: the sidebar drag and "Move to
+  shelf" write the membership, and the arrival is placed after the content.
+  The page offers no picker of its own — one home per action.
 - **A Folder row is a `danaFolder` block** over a `folder_ref` row. Presence is
   the membership (`folder_members.shelf_name`), position is the document: a
   stored row whose folder has left the Shelf is not drawn and is deleted by the
   next save; a member with no row is drawn after the content and written by the
-  next save. A row leaves only through Remove from shelf — the guard below
+  next save. A row leaves only through Remove from collection — the guard below
   refuses a generic delete, a paste that places a folder twice, and an undo
   that would place a folder that is no longer on the Shelf.
 */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useCreateBlockNote } from '@blocknote/react'
-import type { DefaultReactSuggestionItem } from '@blocknote/react'
 import { fragmentToBlocks } from '@blocknote/core'
 import { useQueryClient } from '@tanstack/react-query'
 import '@blocknote/shadcn/style.css'
@@ -31,11 +36,6 @@ import { getPageResponse } from '../../../../shared/pages.js'
 import { AUDIO_MIMES, RASTER_MIMES, VIDEO_MIMES } from '../../../../shared/files.js'
 import { getPlain, mutateApi, uploadFile } from '../../../api/http.js'
 import { queryKeys } from '../../../api/keys.js'
-import { FolderPlus, Plus } from '../../../lib/icons.js'
-import { Button } from '../../ui/button.js'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../../ui/dropdown-menu.js'
-import { cn } from '../../ui/utils.js'
-import { markIcon } from '../icon-manifest.js'
 import { CanvasErrorBoundary } from './CanvasErrorBoundary.js'
 import { CanvasFolderProvider } from './CanvasFolder.js'
 import type { CanvasMediaKind, CanvasUploadedFile } from './CanvasFilePanel.js'
@@ -47,6 +47,7 @@ import { dehydrateCanvas, documentOf, hydrateCanvas } from './adapters.js'
 import type { CanvasDocument, CanvasInput } from './adapters.js'
 import type { OutlineBlock } from './outline.js'
 import { CanvasWriter } from './saving.js'
+import { NOT_SAVED, RecoveryNotice, SaveFailure } from './SaveFailure.js'
 import { pasteIntoCanvas } from './paste.js'
 
 interface Props {
@@ -54,13 +55,9 @@ interface Props {
   readonly page: PageView
   /** The Shelf's members, in the folder list's order. */
   readonly folders: readonly CanvasFolderRow[]
-  readonly addableFolders: readonly { id: string; name: string; color: string; icon: string | null }[]
   readonly folderHref: (folderId: string) => string
   readonly onOpenFolder: (folderId: string) => void
-  /** Files the folder on this Shelf; resolves once the membership is written. */
-  readonly onAddFolder: (folderId: string) => Promise<void>
   readonly onRemoveFolder: (folderId: string) => Promise<void>
-  readonly onCreateFolder: () => void
   /** False while the shelf or its folders refetch. A rename relabels both, and
       between the two answers the membership reads empty. */
   readonly settled: boolean
@@ -68,8 +65,12 @@ interface Props {
 
 const NO_REFS: ReadonlyMap<string, string> = new Map()
 
+/** The one error "Load latest" answers besides a failed save. */
+const CHANGED_ELSEWHERE = 'This collection changed elsewhere. Your writing is kept here. Load the latest to continue; your writing will be offered back.'
+
 /** The page as the shared hydrator reads it: stale Folder rows dropped, each
- * block grouped under the section before it. */
+ * root block grouped under the section before it, and each nested block left
+ * under its own parent (the hydrator places it by `list_parent_block_id`). */
 function positionalPage(page: PageView, members: ReadonlySet<string>): PageView {
   const byId = new Map(page.blocks.map((block) => [block.id, block]))
   const kept = new Set<string>()
@@ -81,7 +82,7 @@ function positionalPage(page: PageView, members: ReadonlySet<string>): PageView 
     if (block.kind === 'folder_ref' && (block.ref_folder_id === null || !members.has(block.ref_folder_id))) continue
     kept.add(block.id)
     if (block.kind === 'section') { section = block.id; blocks.push({ ...block, section_block_id: null, list_parent_block_id: null }) }
-    else blocks.push({ ...block, section_block_id: section, list_parent_block_id: null })
+    else blocks.push({ ...block, section_block_id: section })
   }
   return { ...page, blocks, items: page.items.filter((item) => kept.has(item.id)), task_placements: [] }
 }
@@ -93,8 +94,10 @@ function folderIdsOf(blocks: readonly OutlineBlock[]): string[] {
   ])
 }
 
+/** What a Shelf stores: no Section membership (headings group by position),
+ * and each nested block's parent. */
 function flat(document: CanvasDocument): CanvasDocument {
-  return { blocks: document.blocks, items: document.items.map((item) => ({ ...item, section_block_id: null, list_parent_block_id: null })) }
+  return { blocks: document.blocks, items: document.items.map((item) => ({ ...item, section_block_id: null })) }
 }
 
 export default function ShelfCanvas(props: Props): React.JSX.Element {
@@ -108,10 +111,10 @@ function ShelfSession(props: Props & { readonly initialPage: PageView; readonly 
   const host = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState<number | null>(null)
   useEffect(() => { setWidth(host.current?.clientWidth || 600) }, [])
-  return <div ref={host} className="min-w-0">{width === null ? <p role="status">Loading writing…</p> : <ShelfEditor {...props} width={width} />}</div>
+  return <div ref={host} className="min-w-0">{width === null ? <p role="status" className="sr-only">Loading writing…</p> : <ShelfEditor {...props} width={width} />}</div>
 }
 
-function ShelfEditor({ shelfId, page, initialPage, folders, addableFolders, folderHref, onOpenFolder, onAddFolder, onRemoveFolder, onCreateFolder, onCheckpoint, width, settled }: Props & {
+function ShelfEditor({ shelfId, page, initialPage, folders, folderHref, onOpenFolder, onRemoveFolder, onCheckpoint, width, settled }: Props & {
   readonly initialPage: PageView
   readonly onCheckpoint: (page: PageView) => void
   readonly width: number
@@ -120,9 +123,7 @@ function ShelfEditor({ shelfId, page, initialPage, folders, addableFolders, fold
   const [, render] = useState(0)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
-  const [picking, setPicking] = useState(false)
   const [previousDraft, setPreviousDraft] = useState<string | null>(null)
-  const anchor = useRef<string | null>(null)
   const memberIds = useMemo(() => new Set(folders.map((folder) => folder.id)), [folders])
   const members = useRef(memberIds)
   members.current = memberIds
@@ -142,7 +143,11 @@ function ShelfEditor({ shelfId, page, initialPage, folders, addableFolders, fold
     const placed = new Set(refs.values())
     const missing = [...members.current].filter((id) => !placed.has(id))
       .map((folderId): CanvasInput => ({ id: crypto.randomUUID(), type: 'danaFolder', props: { folderId } }))
-    return [...drawn, ...missing]
+    /* A line to write on after the last Folder row: with only rows on the
+       page there would be nowhere to put the cursor. It is stored only once
+       something is written. */
+    const all = [...drawn, ...missing]
+    return all.at(-1)?.type === 'danaFolder' ? [...all, { id: crypto.randomUUID(), type: 'paragraph' } as CanvasInput] : all
   }, [initialPage, width])
 
   // A Shelf is nobody's Folder: its media is the person's own (7.15, #220).
@@ -229,28 +234,22 @@ function ShelfEditor({ shelfId, page, initialPage, folders, addableFolders, fold
   useEffect(() => {
     if (!page.revision || page.revision === writer.revision || writer.state === 'saving') return
     if (writer.state === 'saved') onCheckpoint(page)
-    else setError('This shelf changed elsewhere. Your writing is kept here. Load the latest to continue; your writing will be offered back.')
+    else setError(CHANGED_ELSEWHERE)
   }, [page, writer, onCheckpoint])
 
   // The Folder-row guard. Runs beside the canvas's own (`installCanvasGuard`).
   useEffect(() => editor.onBeforeChange(({ tr }) => {
     if (!tr.docChanged) return
-    const nested = (blocks: readonly OutlineBlock[]): boolean => blocks.some((block) =>
-      (block.type !== 'heading' && block.children.length > 0) || nested(block.children))
-    if (nested(fragmentToBlocks<typeof canvasSchema.blockSchema, typeof canvasSchema.inlineContentSchema, typeof canvasSchema.styleSchema>(tr.doc.content))) {
-      setNotice('A shelf keeps its lists flat: nested list items are not supported here.')
-      return false
-    }
     const before = folderIdsOf(fragmentToBlocks<typeof canvasSchema.blockSchema, typeof canvasSchema.inlineContentSchema, typeof canvasSchema.styleSchema>(tr.before.content))
     const after = folderIdsOf(fragmentToBlocks<typeof canvasSchema.blockSchema, typeof canvasSchema.inlineContentSchema, typeof canvasSchema.styleSchema>(tr.doc.content))
     const had = new Set(before)
     const has = new Set(after)
     const failure = before.some((id) => !has.has(id) && !sanctioned.current.has(id))
-      ? 'A folder leaves this shelf only through Remove from shelf, in its row\'s menu. Select only the writing to delete it.'
+      ? 'A page leaves this collection only through Remove from collection, in its row\'s menu. Select only the writing to delete it.'
       : after.length !== new Set(after).size
-        ? 'A folder can be placed on a shelf once.'
+        ? 'A page can be placed in a collection once.'
         : after.some((id) => !had.has(id) && !members.current.has(id) && !sanctioned.current.has(id))
-          ? 'That folder is no longer on this shelf. Add it again with Add folder.'
+          ? 'That page is no longer in this collection. Move it here from the sidebar.'
           : null
     if (failure === null) return
     setNotice(failure)
@@ -277,15 +276,19 @@ function ShelfEditor({ shelfId, page, initialPage, folders, addableFolders, fold
     }
     return undefined
   }
-  function place(folderId: string, at: string | null): void {
+  function place(folderId: string): void {
     if (blockOf(folderId) !== undefined) return
     const row = { id: crypto.randomUUID(), type: 'danaFolder' as const, props: { folderId } }
-    const target = at === null ? undefined : editor.getBlock(at)
+    const last = editor.document.at(-1)!
+    // Before the trailing empty line, so the line to write on stays last.
+    const beforeLine = editor.document.length > 1 && last.type === 'paragraph' && richText(last) === ''
     withSanction(folderId, () => {
-      if (target === undefined) editor.insertBlocks([row], editor.document.at(-1)!, 'after')
-      else if (target.type === 'heading') editor.updateBlock(target, { children: [row, ...target.children] })
-      else if (target.type === 'paragraph' && richText(target) === '') editor.replaceBlocks([target], [row])
-      else editor.insertBlocks([row], target, 'after')
+      if (beforeLine) editor.insertBlocks([row], last, 'before')
+      else editor.insertBlocks([row, { type: 'paragraph' }], last, 'after')
+      /* An insert the person did not make leaves ProseMirror's selection on
+         the first Folder row, drawn as a box around it: park it on the
+         writing line instead, without taking focus. */
+      if (!editor.isFocused()) editor.setTextCursorPosition(editor.document.at(-1)!, 'end')
     })
   }
   function unplace(folderId: string): void {
@@ -301,23 +304,15 @@ function ShelfEditor({ shelfId, page, initialPage, folders, addableFolders, fold
      content, a departure's row goes. */
   useEffect(() => {
     if (!settled) return
-    for (const folderId of memberIds) place(folderId, null)
+    for (const folderId of memberIds) place(folderId)
     for (const folderId of folderIdsOf(editor.document)) if (!memberIds.has(folderId)) unplace(folderId)
   }, [memberIds, settled])
 
-  async function add(folderId: string): Promise<void> {
-    const at = anchor.current
-    anchor.current = null
-    try {
-      await onAddFolder(folderId)
-      place(folderId, at)
-    } catch (failure) { setError(failure instanceof Error ? failure.message : 'The folder could not be added. Try again.') }
-  }
   async function remove(folderId: string): Promise<void> {
     try {
       await onRemoveFolder(folderId)
       unplace(folderId)
-    } catch (failure) { setError(failure instanceof Error ? failure.message : 'The folder could not be removed. Try again.') }
+    } catch (failure) { setError(failure instanceof Error ? failure.message : 'The page could not be removed. Try again.') }
   }
 
   function download(content: string, name: string): void {
@@ -338,72 +333,34 @@ function ShelfEditor({ shelfId, page, initialPage, folders, addableFolders, fold
       const latest = await getPlain(getPageResponse, `/shelves/${shelfId}/page`)
       queryClient.setQueryData(queryKeys.shelfPage(shelfId), latest)
       onCheckpoint(latest)
-    } catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not reload the shelf.') }
+    } catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not reload the collection.') }
   }
 
-  const folderSlash: DefaultReactSuggestionItem = {
-    title: 'Folder', subtext: 'Place a folder on this shelf here', icon: <FolderPlus size={16} />,
-    aliases: ['shelf'], group: 'Basic blocks',
-    onItemClick: () => { anchor.current = editor.getTextCursorPosition().block.id; setPicking(true) },
-  }
   const bridge = useMemo(() => ({ byId: new Map(folders.map((folder) => [folder.id, folder])), href: folderHref, open: onOpenFolder }), [folders, folderHref, onOpenFolder])
-  const feedback = error || (writer.state === 'failed' ? writer.error instanceof Error ? writer.error.message : 'Could not save. Your writing is retained.' : '')
+  // The folder page's line: a failure only; a refused gesture's notice when nothing failed.
+  const failure = error || (writer.state === 'failed' ? NOT_SAVED : '')
   return <>
-    {previousDraft !== null ? <div role="status" className="mb-3 text-sm text-muted-foreground">
-      Unsaved writing from before is kept.
-      <Button variant="ghost" onClick={() => download(previousDraft, `dana-recovered-shelf-${shelfId}.json`)}>Download writing</Button>
-      <Button variant="ghost" onClick={() => { try { sessionStorage.removeItem(recoveredKey) } catch { /* optional */ } setPreviousDraft(null) }}>Discard</Button>
-    </div> : null}
+    {previousDraft !== null ? <RecoveryNotice
+      onDownload={() => { download(previousDraft, `dana-recovered-shelf-${shelfId}.json`) }}
+      onDiscard={() => { try { sessionStorage.removeItem(recoveredKey) } catch { /* optional */ } setPreviousDraft(null) }}
+    /> : null}
     <CanvasFolderProvider value={bridge}>
       <CanvasSurface
         editor={editor}
         onChange={changed}
         folderRefs={NO_REFS}
-        label="Shelf writing and folders"
+        label="Collection writing and pages"
         flatGroups
         onUploadFile={uploadCanvasFile}
         onRemoveFolder={(folderId) => { void remove(folderId) }}
-        extraSlashItems={[folderSlash]}
+        onNotice={setNotice}
       />
     </CanvasFolderProvider>
-    <DropdownMenu open={picking} onOpenChange={setPicking}>
-      <DropdownMenuTrigger
-        render={
-          <button
-            type="button"
-            onClick={() => { anchor.current = null }}
-            className={cn(
-              'flex h-[var(--control-height)] w-full items-center gap-3 rounded-md px-2 text-left text-sm text-[var(--color-graphite-500)] transition-colors outline-none',
-              'hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-700)]',
-              'focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)] data-popup-open:bg-[var(--color-graphite-50)]',
-            )}
-          />
-        }
-      >
-        <Plus className="size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-        Add folder
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="max-h-80 w-56 overflow-y-auto">
-        {addableFolders.map((folder) => {
-          const Glyph = markIcon(folder.icon)
-          return (
-            <DropdownMenuItem key={folder.id} onClick={() => { void add(folder.id) }}>
-              <Glyph className="size-4" style={{ color: folder.color }} />
-              <span className="truncate">{folder.name}</span>
-            </DropdownMenuItem>
-          )
-        })}
-        {addableFolders.length ? <DropdownMenuSeparator /> : null}
-        <DropdownMenuItem onClick={onCreateFolder}>
-          <FolderPlus className="size-4" />
-          New folder…
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-    <div role="status" aria-live="polite" className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-      {feedback || notice || (writer.state === 'saving' ? 'Saving…' : writer.state === 'changed' ? 'Unsaved writing' : 'Saved')}
-      {feedback ? <><Button variant="outline" onClick={() => { void writer.retry() }} disabled={!writer.pending}>Retry save</Button><Button variant="ghost" onClick={copyDraft}>Download writing</Button><Button variant="ghost" onClick={() => { void loadLatest() }}>Load latest</Button></> : null}
-    </div>
+    <SaveFailure
+      message={failure || notice || null}
+      onRetry={!error && writer.state === 'failed' && writer.pending ? () => { void writer.retry() } : undefined}
+      onLoadLatest={writer.state === 'failed' || error === CHANGED_ELSEWHERE ? () => { void loadLatest() } : undefined}
+    />
   </>
 }
 

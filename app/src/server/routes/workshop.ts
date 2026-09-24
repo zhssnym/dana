@@ -33,6 +33,7 @@ import {
 } from '../domain/acts.js'
 import { accessOf, isEligibleSuccessor } from '../domain/folders.js'
 import { mayPerform } from '../domain/folder-access.js'
+import { PAGE_TREE_EDIT_ACTION } from '../domain/page-tree.js'
 import type { FolderAction } from '../domain/folder-access.js'
 import { WorkflowLabelNameConflict } from '../domain/labels.js'
 import { today } from '../time/today.js'
@@ -737,12 +738,13 @@ export function createWorkshopRouter(
     },
   )
 
-  router.post(
-    '/workflows/import',
-    requireSession,
-    requireCsrf,
-    mutationLimit,
-    async (req: Request, res: Response) => {
+  /** POST /workflows/import and POST /folders/:id/import, one handler: the
+   * second names a page the file's folders become sub-pages of. */
+  const importFile = async (
+    req: Request,
+    res: Response,
+    parentId?: string,
+  ): Promise<void> => {
       const db = database(res)
       if (db === null) return
       const parsed = parseBody(importWorkflowBody, req, res, securityLog)
@@ -774,7 +776,7 @@ export function createWorkshopRouter(
       const store = storeOf(res)
       if(store===null)return
       let outcome
-      try { outcome = await importWorkflow(db, viewer(req), parsed, anchor, store) }
+      try { outcome = await importWorkflow(db, viewer(req), parsed, anchor, store, parentId) }
       catch(error:unknown){
         /* The one rule about a file that only the database can state: two
            Folder Label names `lower()` makes one. It reaches here as a throw
@@ -810,10 +812,52 @@ export function createWorkshopRouter(
         )
         return
       }
+      /* The parent's gate, re-read under the tree lock inside the import
+         (`createSubPage`'s terms and answers). */
+      if (outcome.kind === 'parent_not_found') {
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      if (outcome.kind === 'forbidden') {
+        sendError(res, 403, 'forbidden', outcome.reason)
+        return
+      }
+      if (outcome.kind === 'default_parent') {
+        sendError(res, 422, 'validation_failed', 'Your personal folder cannot hold sub-pages.')
+        return
+      }
+      if (outcome.kind === 'too_deep') {
+        sendError(res, 422, 'validation_failed', 'Pages can nest at most 20 deep.')
+        return
+      }
       /* Checked against the schema the client parses it with, rather
          than inlined into `res.json`, which takes `any` (#39). */
       const body: ImportWorkflowResponse = { folders: outcome.folders }
       res.status(201).json(body)
+  }
+
+  router.post(
+    '/workflows/import',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    async (req: Request, res: Response) => {
+      await importFile(req, res)
+    },
+  )
+
+  router.post(
+    '/folders/:id/import',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    async (req: Request, res: Response) => {
+      const folderId = parsedId(res, req.params.id)
+      if (folderId === null) return
+      /* 10.2 before the body is read: a stranger gets 404 whatever they
+         send. The import checks again under the tree lock. */
+      if (!(await gate(req, res, folderId, PAGE_TREE_EDIT_ACTION))) return
+      await importFile(req, res, folderId)
     },
   )
 

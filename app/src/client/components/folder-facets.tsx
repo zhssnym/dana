@@ -1,27 +1,33 @@
-import { useMemo, useState, type ReactNode } from 'react'
+/*
+A page's tabs (its facets): a row of plain text tabs and one "+", and nothing
+else. The row is the one place tabs are managed.
 
+**The row reads intro, work, conclusion** (round 2): Purpose · Work · Results ·
+Discussion, then the custom tabs in their stored order (`tabOrder`). `main` is
+named "Work" and `consultation` "Discussion" by the server's own table
+(`DEFAULT_FACET_NAMES`); the stored kinds and the stored order are unchanged,
+so the four built-in tabs keep their places and only custom tabs move.
+
+**A tab's own acts are on the tab**: right-click it (or Shift+F10 / the menu
+key) for Rename (where the server allows it), Hide (Purpose, Results,
+Discussion), Share (a private tab) and Delete (a custom tab), and nothing else.
+Work can be neither renamed nor hidden (the server answers 422), so it has no
+menu. "New tab" lives on the "+" alone. **The "+"** lists the hidden tabs to show again above
+"New tab"; with nothing hidden it goes straight to the name field. Drag, or
+Alt+←/→, reorders. Arrow keys move between tabs.
+
+**Every act is gated by the same table the routes resolve against**
+(`FacetCapabilities`, built by FolderPage from `shared/folder-actions.ts`), so
+the row offers nothing a 403 would answer.
+*/
 import type { Facet, FacetKind } from '../../shared/facets.js'
-import { isHideableFacetKind, isRenameableFacetKind } from '../../shared/facets.js'
-import type { PageView } from '../../shared/pages.js'
 import {
-  ArrowLeft,
-  CheckCircle2,
-  ChevronRight,
-  Compass,
-  Eye,
-  EyeOff,
-  FileText,
-  Heading1,
-  Layers3,
-  ListPlus,
-  Lock,
-  MessageSquare,
-  MoreHorizontal,
-  Plus,
-  Share2,
-  Trash2,
-} from '../lib/icons.js'
-import { moved, swallowNextClick, useSortableList } from '../lib/use-sortable-list.js'
+  isHideableFacetKind,
+  isRenameableFacetKind,
+  NATIVE_TAB_ORDER,
+} from '../../shared/facets.js'
+import { moved } from '../lib/use-sortable-list.js'
+import { useEffect, useRef, useState } from 'react'
 import { Button } from './ui/button.js'
 import {
   DropdownMenu,
@@ -30,10 +36,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu.js'
-import { Input } from './ui/input.js'
-import { Popover, PopoverContent, PopoverTrigger } from './ui/popover.js'
-import { Switch } from './ui/switch.js'
+import { Tab, TabList } from './ui/tabs.js'
 import { cn } from './ui/utils.js'
+import { Plus } from '../lib/icons.js'
+import { DiscussionTabName } from './consultation/DiscussionTabName.js'
 
 export interface FacetCapabilities {
   readonly createShared: boolean
@@ -52,58 +58,215 @@ export interface CreateFacetInput {
   readonly h1BlockId?: string
 }
 
-export function FolderFacetNavigator({
+/**
+ * True while a page's tabs are still in the order it was made with: the
+ * built-ins at their creation keys (`createNativeFacets`: Main `a0`, Purpose
+ * `a1`, Consultation `a2`, Results `a3`), which no written order reproduces --
+ * `PUT /facets/order` keys from `a1` on. Such a page draws the default order.
+ *
+ * Asked of every tab, hidden ones included, and a built-in that is absent does
+ * not count against it: hiding Discussion (the Desk does) is not reordering,
+ * and must not drop the row back to stored order (Work · Purpose · Results).
+ */
+const CREATION_KEYS: Readonly<Record<string, string>> = {
+  main: 'a0',
+  purpose: 'a1',
+  consultation: 'a2',
+  results: 'a3',
+}
+
+function untouched(facets: readonly Pick<Facet, 'kind' | 'position'>[]): boolean {
+  const at = (kind: FacetKind): string | undefined =>
+    facets.find((facet) => facet.kind === kind)?.position
+  return (
+    at('main') === 'a0' &&
+    Object.entries(CREATION_KEYS).every(([kind, key]) => {
+      const position = at(kind as FacetKind)
+      return position === undefined || position === key
+    })
+  )
+}
+
+/**
+ * The drawn order. **Purpose · Work · Results · Discussion is only the
+ * default**: a page nobody has reordered draws the built-ins in that order and
+ * its custom tabs after them, in their stored order; once a person drags a tab,
+ * the stored order is the order.
+ */
+export function tabOrder<T extends Pick<Facet, 'kind' | 'position'>>(facets: readonly T[]): T[] {
+  if (!untouched(facets)) return [...facets]
+  const rank = (facet: T): number => {
+    const native = NATIVE_TAB_ORDER.indexOf(facet.kind as (typeof NATIVE_TAB_ORDER)[number])
+    return native < 0 ? NATIVE_TAB_ORDER.length : native
+  }
+  return facets
+    .map((facet, index) => ({ facet, index }))
+    .sort((a, b) => rank(a.facet) - rank(b.facet) || a.index - b.index)
+    .map((entry) => entry.facet)
+}
+
+/** How long a finger rests on a tab before it lifts (touch only). */
+const LONG_PRESS_MS = 400
+/** How far a mouse moves before a press becomes a drag rather than a click. */
+const DRAG_SLOP_PX = 4
+
+interface TabDrag {
+  readonly id: string
+  readonly pointerId: number
+  readonly startX: number
+  /** The pointer's x now, for the lifted tab's offset. */
+  readonly x: number
+  /** Lifted: following the pointer. Before that it is only a press. */
+  readonly lifted: boolean
+  /** The gap the tab would land in, 0..visible.length. */
+  readonly gap: number
+}
+
+/**
+ * The tab row. Only visible facets; the active one in the foreground.
+ *
+ * **Tabs are reordered by dragging them on the row itself**, the way browser
+ * tabs are: a mouse press that moves lifts the tab, a finger lifts it after a
+ * long press; the lifted tab follows the pointer at reduced opacity and a thin
+ * accent line marks the gap it will land in. Esc puts it back. Alt+← / Alt+→
+ * on a focused tab moves it one place.
+ */
+export function FolderTabs({
+  folderId,
   facets,
   activeId,
-  capabilities,
-  page,
-  controls,
   onSelect,
-  onCreate,
-  onCreateWorkSection,
+  canMove,
   onReorder,
+  capabilities,
+  onAdd,
   onRename,
   onHide,
-  onDelete,
   onShare,
+  onDelete,
+  trailing,
 }: {
+  /** The page, so the Discussion tab can weigh its name when a thread is unread (r7). */
+  readonly folderId?: string
   readonly facets: readonly Facet[]
   readonly activeId: string
-  readonly capabilities: (facet: Facet | null) => FacetCapabilities
-  readonly page: PageView | undefined
-  readonly controls?: ReactNode
   readonly onSelect: (facet: Facet) => void
-  readonly onCreate: (input: CreateFacetInput) => void
-  readonly onCreateWorkSection: (name: string) => void
-  readonly onReorder: (dragged: Facet, orderedVisible: readonly Facet[]) => void
-  readonly onRename: (facet: Facet, name: string | null) => void
-  readonly onHide: (facet: Facet, hidden: boolean) => void
-  readonly onDelete: (facet: Facet) => void
-  readonly onShare: (facet: Facet) => void
-}): React.JSX.Element {
-  const active = facets.find((facet) => facet.id === activeId) ?? facets[0] ?? null
-  const visible = facets.filter((facet) => !facet.hidden)
-  const main = visible.find((facet) => facet.kind === 'main') ?? null
-  const movableFacets = visible.filter((facet) => facet.kind !== 'main')
-  const general = capabilities(null)
-  const [stripVisible, setStripVisible] = useState(true)
+  /** Whether this viewer may move this tab (the reorder capability). */
+  readonly canMove?: (facet: Facet) => boolean
+  /** The whole visible row in its new order, the moved tab named. */
+  readonly onReorder?: (dragged: Facet, orderedVisible: readonly Facet[]) => void
+  /** The gate for every act; absent offers no add, rename, hide or delete. */
+  readonly capabilities?: (facet: Facet | null) => FacetCapabilities
+  /** The "+": a blank shared tab with this name. */
+  readonly onAdd?: (name: string) => void
+  /** Rename in place; null gives a built-in tab its own name back. */
+  readonly onRename?: (facet: Facet, name: string | null) => void
+  /** Hide a built-in tab, or show it again from the "+". */
+  readonly onHide?: (facet: Facet, hidden: boolean) => void
+  /** Share a private tab with the page. */
+  readonly onShare?: (facet: Facet) => void
+  /** Delete a custom tab. */
+  readonly onDelete?: (facet: Facet) => void
+  /** Drawn at the row's far right (Work's view toggles). */
+  readonly trailing?: React.ReactNode
+}): React.JSX.Element | null {
+  const ordered = tabOrder(facets)
+  /* Ordered over every tab, then filtered: a hidden built-in is not a reorder. */
+  const visible = ordered.filter((facet) => !facet.hidden)
+  const [drag, setDrag] = useState<TabDrag | null>(null)
+  const dragRef = useRef<TabDrag | null>(null)
+  const rowRef = useRef<HTMLDivElement | null>(null)
+  const pressTimer = useRef<number | null>(null)
+  /* A drag's release is not also a click on the tab under it. */
+  const swallowClick = useRef(false)
+  /* The "+" field while it is open, and the tab being renamed in place. */
+  const [adding, setAdding] = useState(false)
   const [renamingId, setRenamingId] = useState<string | null>(null)
-  const [renameDraft, setRenameDraft] = useState('')
-  const sortable = useSortableList({
-    count: movableFacets.length,
-    axis: 'x',
-    onLift: swallowNextClick,
-    describe: (index) => movableFacets[index]?.name ?? 'Facet',
-    onReorder: (from, to) => {
-      const dragged = movableFacets[from]
-      if (dragged === undefined) return
-      const allowed = dragged.private
-        ? capabilities(dragged).reorderPrivate
-        : capabilities(dragged).reorderShared
-      if (!allowed) return
-      onReorder(dragged, [...(main ? [main] : []), ...moved(movableFacets, from, to)])
-    },
-  })
+  /* Right-click's menu: the tab it is for, opened where the pointer was. */
+  const [menu, setMenu] = useState<{ readonly facet: Facet; readonly x: number; readonly y: number } | null>(null)
+  /* Where focus goes when a menu closes: back to its tab, or nowhere when the
+     chosen item opened a name field that has already taken it. */
+  const menuFor = useRef<string | null>(null)
+  const fieldOpening = useRef(false)
+
+  const put = (next: TabDrag | null): void => {
+    dragRef.current = next
+    setDrag(next)
+  }
+  const clearTimer = (): void => {
+    if (pressTimer.current !== null) globalThis.clearTimeout(pressTimer.current)
+    pressTimer.current = null
+  }
+
+  /* The gap under the pointer: before the first tab whose middle is right of it. */
+  const gapAt = (x: number, held: TabDrag): number => {
+    const row = rowRef.current
+    if (row === null) return 0
+    const tabs = Array.from(row.querySelectorAll<HTMLElement>('[role="tab"]'))
+    const index = tabs.findIndex((tab) => {
+      const box = tab.getBoundingClientRect()
+      /* The lifted tab is measured where it stands, not where it is drawn. */
+      const shift = tab.id === `facet-tab-${held.id}` && held.lifted ? held.x - held.startX : 0
+      return x < box.left - shift + box.width / 2
+    })
+    return index < 0 ? tabs.length : index
+  }
+
+  const reorderTo = (facet: Facet, gap: number): void => {
+    const from = visible.findIndex((candidate) => candidate.id === facet.id)
+    if (from < 0 || onReorder === undefined) return
+    const to = gap > from ? gap - 1 : gap
+    if (to === from) return
+    onReorder(facet, moved(visible, from, to))
+  }
+
+  /* Esc cancels a lifted tab; a touch-drag must not scroll the row. */
+  useEffect(() => {
+    if (drag === null) return
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      clearTimer()
+      swallowClick.current = dragRef.current?.lifted === true
+      put(null)
+    }
+    const onTouchMove = (event: TouchEvent): void => {
+      if (dragRef.current?.lifted === true) event.preventDefault()
+    }
+    globalThis.addEventListener('keydown', onKey, true)
+    globalThis.addEventListener('touchmove', onTouchMove, { passive: false })
+    return () => {
+      globalThis.removeEventListener('keydown', onKey, true)
+      globalThis.removeEventListener('touchmove', onTouchMove)
+    }
+  }, [drag === null])
+
+  useEffect(() => clearTimer, [])
+
+  /* The current tab is never left scrolled out of a narrow row. */
+  useEffect(() => {
+    globalThis.document
+      .getElementById(`facet-tab-${activeId}`)
+      ?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [activeId])
+
+  const canAdd = onAdd !== undefined && capabilities?.(null).createShared === true
+  const mayRename = (facet: Facet): boolean =>
+    onRename !== undefined && isRenameable(facet) && capabilities?.(facet).rename === true
+  const mayHide = (facet: Facet): boolean =>
+    onHide !== undefined && isHideableFacetKind(facet.kind) && capabilities?.(facet).hide === true
+  const mayShare = (facet: Facet): boolean =>
+    onShare !== undefined && facet.private && capabilities?.(facet).share === true
+  const mayDelete = (facet: Facet): boolean =>
+    onDelete !== undefined && isCustom(facet) && capabilities?.(facet).delete === true
+  /* The tabs "+" can bring back. */
+  const showable = ordered.filter((facet) => facet.hidden && mayHide(facet))
+  const plusOffers = canAdd || showable.length > 0
+
+  /* One tab is not a choice: a page showing only Work draws no row, unless
+     the "+" is there to make or show a second. */
+  if (visible.length < 2 && !plusOffers) return null
+  const active = visible.find((facet) => facet.id === activeId) ?? visible[0]
 
   function moveFocus(facet: Facet, direction: -1 | 1): void {
     const index = visible.findIndex((candidate) => candidate.id === facet.id)
@@ -115,415 +278,365 @@ export function FolderFacetNavigator({
     })
   }
 
-  function beginRename(facet: Facet): void {
-    if (!isRenameableFacet(facet) || !capabilities(facet).rename) return
-    setRenameDraft(facet.name)
-    setRenamingId(facet.id)
+  const hasMenu = (facet: Facet): boolean =>
+    mayRename(facet) || mayHide(facet) || mayShare(facet) || mayDelete(facet)
+
+  const openMenu = (facet: Facet, x: number, y: number): void => {
+    menuFor.current = facet.id
+    fieldOpening.current = false
+    setMenu({ facet, x, y })
   }
 
-  function finishRename(facet: Facet, cancel = false): void {
-    const name = renameDraft.trim()
-    setRenamingId(null)
-    if (!cancel && name !== '' && name !== facet.name) onRename(facet, name)
+  const finalFocus = (): HTMLElement | boolean => {
+    if (fieldOpening.current) return false
+    const doc = globalThis.document
+    return (
+      doc.getElementById(`facet-tab-${menuFor.current ?? ''}`) ??
+      doc.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]') ??
+      true
+    )
   }
+
+  const startAdding = (): void => {
+    fieldOpening.current = true
+    setAdding(true)
+  }
+
+  /* What "+" offers: the hidden tabs to show again, then "New tab". */
+  const plusItems = (
+    <>
+      {showable.map((facet) => (
+        <DropdownMenuItem key={facet.id} onClick={() => onHide?.(facet, false)}>
+          Show {facet.name}
+        </DropdownMenuItem>
+      ))}
+      {showable.length > 0 && canAdd ? <DropdownMenuSeparator /> : null}
+      {canAdd ? <DropdownMenuItem onClick={startAdding}>New tab</DropdownMenuItem> : null}
+    </>
+  )
+
+  const target = menu?.facet
+  const tabActs = target !== undefined && (mayRename(target) || mayHide(target) || mayShare(target) || mayDelete(target))
 
   return (
-    <section aria-label="Folder facets" className="flex w-full min-w-0 items-center gap-1.5">
-      {stripVisible ? (
-        <>
-          <div
-            role="tablist"
-            aria-label="Folder facets"
-            className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto overflow-y-hidden py-0.5 [&::-webkit-scrollbar]:hidden"
-            style={{ scrollbarWidth: 'none' }}
-          >
-            {visible.map((facet) => {
-              const current = facet.id === active?.id
-              const sortIndex = movableFacets.findIndex((candidate) => candidate.id === facet.id)
-              const movable = sortIndex >= 0 && (facet.private
-                ? capabilities(facet).reorderPrivate
-                : capabilities(facet).reorderShared)
-              const state = sortIndex >= 0 ? sortable.itemState(sortIndex) : null
-              const sortProps = movable && sortIndex >= 0 ? sortable.surfaceProps(sortIndex) : {}
-              const Icon = facetIcon(facet)
-              return (
-                <button
-                  key={facet.id}
-                  ref={sortIndex >= 0 ? sortable.setItemRef(sortIndex) : undefined}
-                  id={`facet-tab-${facet.id}`}
-                  type="button"
-                  role="tab"
-                  aria-selected={current}
-                  aria-label={facet.private ? `${facet.name} — Private, only you` : facet.name}
-                  title={facet.private ? 'Private — only you can see this facet' : facet.name}
-                  tabIndex={current ? 0 : -1}
-                  {...sortProps}
-                  {...(movable ? { 'data-sort-handle': true, 'data-drag-through': true } : {})}
-                  onClick={() => onSelect(facet)}
-                  onDoubleClick={() => beginRename(facet)}
-                  onKeyDown={(event) => {
-                    if (movable && sortIndex >= 0) {
-                      sortable.handleProps(sortIndex).onKeyDown(event)
-                      if (event.defaultPrevented) return
+    /* The hairline is the row's, under the tabs and the "+" alike. */
+    <div className="flex min-w-0 items-end gap-2 border-b border-border">
+      <TabList
+        ref={rowRef}
+        label="Page tabs"
+        /* Padded out and pulled back: the focus outline and the underline
+           overhang the tabs, and a scroller clips whatever overhangs it. */
+        className="-my-1 -ms-1 border-b-0 py-1 ps-1 pe-3"
+      >
+        {visible.map((facet, index) => {
+          const current = facet.id === active?.id
+          const movable = onReorder !== undefined && (canMove?.(facet) ?? false)
+          const lifted = drag?.lifted === true && drag.id === facet.id
+          /* The accent line sits in the gap before this tab, or after the last. */
+          const lineBefore = drag?.lifted === true && drag.gap === index
+          const lineAfter = drag?.lifted === true && drag.gap === visible.length && index === visible.length - 1
+          if (renamingId === facet.id) {
+            return (
+              <TabNameField
+                key={facet.id}
+                initial={facet.name}
+                label={`Name of ${facet.name}`}
+                onDone={(next) => {
+                  setRenamingId(null)
+                  /* Enter or Escape left focus nowhere: give it back to the tab. */
+                  globalThis.requestAnimationFrame(() => {
+                    const doc = globalThis.document
+                    if (doc.activeElement === null || doc.activeElement === doc.body) {
+                      doc.getElementById(`facet-tab-${facet.id}`)?.focus({ preventScroll: true })
                     }
-                    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
-                    event.preventDefault()
-                    moveFocus(facet, event.key === 'ArrowLeft' ? -1 : 1)
-                  }}
-                  className={cn(
-                    'relative inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-xs outline-none transition-[background-color,color,box-shadow,transform] duration-[var(--duration-fast)] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
-                    current
-                      ? 'bg-accent font-semibold text-accent-foreground'
-                      : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
-                    state?.isActive ? 'z-10 shadow-[var(--elevation-1)]' : '',
-                  )}
-                  style={{
-                    touchAction: movable ? 'none' : undefined,
-                    transform: state && state.offset !== 0 ? `translateX(${String(state.offset)}px)` : undefined,
-                    transitionDuration: state?.isSettling ? '220ms' : undefined,
+                  })
+                  if (next === null || next === facet.name) return
+                  /* Clearing a built-in tab's name gives its own back. */
+                  if (next === '') {
+                    if (isRenameableFacetKind(facet.kind)) onRename?.(facet, null)
+                    return
+                  }
+                  onRename?.(facet, next)
+                }}
+              />
+            )
+          }
+          return (
+            <Tab
+              key={facet.id}
+              id={`facet-tab-${facet.id}`}
+              selected={current}
+              aria-label={facet.private ? `${facet.name} — Private, only you` : facet.name}
+              aria-haspopup={hasMenu(facet) ? 'menu' : undefined}
+              aria-keyshortcuts={movable ? 'Alt+ArrowLeft Alt+ArrowRight' : undefined}
+              title={facet.private ? 'Private — only you can see this tab' : undefined}
+              onClick={() => {
+                if (swallowClick.current) {
+                  swallowClick.current = false
+                  return
+                }
+                onSelect(facet)
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
+                  if (!hasMenu(facet)) return
+                  event.preventDefault()
+                  const box = event.currentTarget.getBoundingClientRect()
+                  openMenu(facet, box.left, box.bottom)
+                  return
+                }
+                if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+                event.preventDefault()
+                const direction = event.key === 'ArrowLeft' ? -1 : 1
+                if (event.altKey) {
+                  if (!movable) return
+                  /* Alt+←/→ moves the tab one place and keeps it focused. */
+                  reorderTo(facet, direction < 0 ? index - 1 : index + 2)
+                  globalThis.requestAnimationFrame(() => {
+                    globalThis.document.getElementById(`facet-tab-${facet.id}`)?.focus()
+                  })
+                  return
+                }
+                moveFocus(facet, direction)
+              }}
+              onPointerDown={(event) => {
+                if (!movable || event.button !== 0) return
+                const press: TabDrag = {
+                  id: facet.id,
+                  pointerId: event.pointerId,
+                  startX: event.clientX,
+                  x: event.clientX,
+                  lifted: false,
+                  gap: index,
+                }
+                put(press)
+                if (event.pointerType === 'touch') {
+                  const target = event.currentTarget
+                  clearTimer()
+                  pressTimer.current = globalThis.setTimeout(() => {
+                    const held = dragRef.current
+                    if (held === null || held.id !== facet.id) return
+                    try {
+                      target.setPointerCapture(held.pointerId)
+                    } catch {
+                      /* The finger already left. */
+                    }
+                    put({ ...held, lifted: true })
+                  }, LONG_PRESS_MS)
+                }
+              }}
+              onPointerMove={(event) => {
+                const held = dragRef.current
+                if (held === null || held.pointerId !== event.pointerId) return
+                if (!held.lifted) {
+                  const distance = Math.abs(event.clientX - held.startX)
+                  if (event.pointerType === 'touch') {
+                    /* Moving before the long press is a scroll, not a drag. */
+                    if (distance > 8) {
+                      clearTimer()
+                      put(null)
+                    }
+                    return
+                  }
+                  if (distance <= DRAG_SLOP_PX) return
+                  event.currentTarget.setPointerCapture(event.pointerId)
+                }
+                put({ ...held, lifted: true, x: event.clientX, gap: gapAt(event.clientX, held) })
+              }}
+              onPointerUp={(event) => {
+                clearTimer()
+                const held = dragRef.current
+                if (held === null || held.pointerId !== event.pointerId) return
+                put(null)
+                if (!held.lifted) return
+                swallowClick.current = true
+                reorderTo(facet, held.gap)
+              }}
+              onPointerCancel={() => {
+                clearTimer()
+                put(null)
+              }}
+              onLostPointerCapture={() => {
+                if (dragRef.current?.lifted === true) put(null)
+              }}
+              onContextMenu={(event) => {
+                /* A long press lifts the tab rather than opening the menu. */
+                if (dragRef.current !== null && event.nativeEvent instanceof PointerEvent && event.nativeEvent.pointerType === 'touch') {
+                  event.preventDefault()
+                  return
+                }
+                if (!hasMenu(facet)) return
+                event.preventDefault()
+                /* A keyboard's menu key reports no pointer: open under the tab. */
+                const box = event.currentTarget.getBoundingClientRect()
+                const keyboard = event.clientX === 0 && event.clientY === 0
+                openMenu(facet, keyboard ? box.left : event.clientX, keyboard ? box.bottom : event.clientY)
+              }}
+              style={{
+                ...(lifted && drag !== null ? { transform: `translateX(${String(drag.x - drag.startX)}px)` } : {}),
+                ...(movable ? { WebkitTouchCallout: 'none' } : {}),
+              }}
+              className={cn(
+                'relative focus-visible:rounded-sm focus-visible:text-foreground',
+                lifted && 'z-10 cursor-grabbing opacity-50 transition-none',
+                lineBefore &&
+                  (index === 0
+                    ? 'before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-primary'
+                    : 'before:absolute before:inset-y-1.5 before:-left-2 before:w-0.5 before:rounded-full before:bg-primary'),
+                lineAfter &&
+                  'after:absolute after:inset-y-1.5 after:-right-2 after:w-0.5 after:rounded-full after:bg-primary',
+              )}
+            >
+              {facet.kind === 'consultation' && folderId !== undefined ? (
+                <DiscussionTabName folderId={folderId} name={facet.name} />
+              ) : (
+                facet.name
+              )}
+            </Tab>
+          )
+        })}
+      </TabList>
+      {/* The "+" sits outside the scroller, so a narrow screen never clips it. */}
+      {adding ? (
+        <TabNameField
+          initial=""
+          label="New tab name"
+          placeholder="Tab name"
+          onDone={(name) => {
+            setAdding(false)
+            fieldOpening.current = false
+            if (name !== null && name !== '') onAdd?.(name)
+          }}
+        />
+      ) : showable.length > 0 ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={<Button variant="ghost" size="icon" className="shrink-0 text-muted-foreground" />}
+            aria-label="Add tab"
+            title="Add tab"
+          >
+            <Plus strokeWidth={1.75} aria-hidden="true" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-auto" finalFocus={() => !fieldOpening.current}>
+            {plusItems}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : canAdd ? (
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Add tab"
+          title="Add tab"
+          onClick={startAdding}
+          className="shrink-0 text-muted-foreground"
+        >
+          <Plus strokeWidth={1.75} aria-hidden="true" />
+        </Button>
+      ) : null}
+      {/* Always drawn, at the control height, so the row is the same height on
+          every tab whether or not the tab has anything here. */}
+      <div className="ms-auto mb-1 flex h-7 shrink-0 items-center self-center">{trailing ?? null}</div>
+      <DropdownMenu
+        open={menu !== null}
+        onOpenChange={(open) => {
+          if (!open) setMenu(null)
+        }}
+      >
+        {/* Where the right-click was: the menu opens at the pointer. */}
+        <DropdownMenuTrigger
+          nativeButton={false}
+          render={<span aria-hidden="true" tabIndex={-1} />}
+          style={{ position: 'fixed', left: menu?.x ?? 0, top: menu?.y ?? 0, width: 0, height: 0 }}
+        />
+        <DropdownMenuContent align="start" className="w-auto" finalFocus={finalFocus}>
+          {target !== undefined && tabActs ? (
+            <>
+              {mayRename(target) ? (
+                <DropdownMenuItem
+                  onClick={() => {
+                    fieldOpening.current = true
+                    setRenamingId(target.id)
                   }}
                 >
-                  <Icon className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-                  {renamingId === facet.id ? (
-                    <input
-                      value={renameDraft}
-                      autoFocus
-                      maxLength={120}
-                      aria-label="Facet name"
-                      className="h-5 w-28 rounded-sm border-0 bg-transparent p-0 text-xs font-semibold outline-none ring-0"
-                      onPointerDown={(event) => event.stopPropagation()}
-                      onClick={(event) => event.stopPropagation()}
-                      onChange={(event) => setRenameDraft(event.target.value)}
-                      onBlur={() => finishRename(facet)}
-                      onKeyDown={(event) => {
-                        event.stopPropagation()
-                        if (event.key === 'Enter') event.currentTarget.blur()
-                        if (event.key === 'Escape') finishRename(facet, true)
-                      }}
-                    />
-                  ) : (
-                    <span className="max-w-40 truncate">{facet.name}</span>
-                  )}
-                </button>
-              )
-            })}
-            <AddFacetPopover
-              canCreateShared={general.createShared}
-              canCreatePrivate={general.createPrivate}
-              page={page}
-              facets={facets}
-              onCreate={onCreate}
-              onCreateWorkSection={onCreateWorkSection}
-              onHide={onHide}
-              capabilities={capabilities}
-            />
-          </div>
-
-          {active && hasFacetActions(active) ? (
-            <FacetActions
-              facet={active}
-              capabilities={capabilities(active)}
-              onReset={() => onRename(active, null)}
-              onDelete={() => onDelete(active)}
-              onShare={() => onShare(active)}
-            />
+                  Rename
+                </DropdownMenuItem>
+              ) : null}
+              {mayShare(target) ? (
+                <DropdownMenuItem onClick={() => onShare?.(target)}>Share…</DropdownMenuItem>
+              ) : null}
+              {mayHide(target) ? (
+                <DropdownMenuItem onClick={() => onHide?.(target, true)}>Hide</DropdownMenuItem>
+              ) : null}
+              {mayDelete(target) ? (
+                <DropdownMenuItem variant="destructive" onClick={() => onDelete?.(target)}>
+                  Delete
+                </DropdownMenuItem>
+              ) : null}
+            </>
           ) : null}
-        </>
-      ) : <span className="min-w-0 flex-1" />}
-
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label={stripVisible ? 'Hide facet row' : 'Show facet row'}
-        title={stripVisible ? 'Hide facets' : 'Show facets'}
-        aria-pressed={!stripVisible}
-        className={cn(
-          'size-8 shrink-0 rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground',
-          !stripVisible ? 'bg-accent text-accent-foreground' : '',
-        )}
-        onClick={() => setStripVisible((value) => !value)}
-      >
-        {stripVisible ? <EyeOff className="size-3.5" aria-hidden="true" /> : <Eye className="size-3.5" aria-hidden="true" />}
-      </Button>
-
-      {stripVisible && controls ? <div className="flex shrink-0 items-center gap-1">{controls}</div> : null}
-      <span className="sr-only" aria-live="polite">{sortable.announcement}</span>
-    </section>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   )
 }
 
-function facetIcon(facet: Facet): typeof FileText {
-  if (facet.private) return Lock
-  switch (facet.kind) {
-    case 'main': return Layers3
-    case 'purpose': return Compass
-    case 'consultation': return MessageSquare
-    case 'results': return CheckCircle2
-    case 'work': return Heading1
-    default: return FileText
+/*
+A tab's name being typed: the "+" making a tab, or a tab renamed in place.
+Enter or leaving the field keeps it, Escape answers null (nothing changes).
+It sits where the tab text sits, at the tab's size, underlined like the current tab.
+*/
+function TabNameField({
+  initial,
+  label,
+  placeholder,
+  onDone,
+}: {
+  readonly initial: string
+  readonly label: string
+  readonly placeholder?: string
+  readonly onDone: (name: string | null) => void
+}): React.JSX.Element {
+  const [value, setValue] = useState(initial)
+  const settled = useRef(false)
+  const finish = (next: string | null): void => {
+    if (settled.current) return
+    settled.current = true
+    onDone(next === null ? null : next.replace(/\s+/g, ' ').trim())
   }
+  return (
+    <span className="-mb-px inline-flex h-[var(--control-height)] shrink-0 items-center border-b-2 border-foreground">
+      <input
+        autoFocus
+        value={value}
+        aria-label={label}
+        placeholder={placeholder}
+        maxLength={120}
+        size={Math.max(8, value.length + 1)}
+        onFocus={(event) => event.currentTarget.select()}
+        onChange={(event) => setValue(event.target.value)}
+        onBlur={() => finish(value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            event.preventDefault()
+            finish(value)
+          }
+          if (event.key === 'Escape') {
+            event.preventDefault()
+            event.stopPropagation()
+            finish(null)
+          }
+        }}
+        className="bg-transparent text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground"
+      />
+    </span>
+  )
 }
 
-function isRenameableFacet(facet: Facet): boolean {
-  return isRenameableFacetKind(facet.kind) || facet.kind.endsWith('_blank')
-}
-
-function hasFacetActions(facet: Facet): boolean {
+/** A tab someone made (not a built-in), the kind that can be deleted. */
+function isCustom(facet: Facet): boolean {
   return facet.private || facet.kind === 'work' || facet.kind.endsWith('_blank')
 }
 
-function FacetActions({ facet, capabilities, onReset, onDelete, onShare }: {
-  readonly facet: Facet
-  readonly capabilities: FacetCapabilities
-  readonly onReset: () => void
-  readonly onDelete: () => void
-  readonly onShare: () => void
-}): React.JSX.Element {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={<Button variant="ghost" size="icon-sm" aria-label={`Actions for ${facet.name}`} title="Facet actions" />}
-      >
-        <MoreHorizontal className="size-3.5" aria-hidden="true" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-44">
-        {facet.private ? (
-          <DropdownMenuItem disabled={!capabilities.share} onClick={onShare}>
-            <Share2 /> Share facet…
-          </DropdownMenuItem>
-        ) : null}
-        {isRenameableFacetKind(facet.kind) && facet.display_name !== null ? (
-          <DropdownMenuItem disabled={!capabilities.rename} onClick={onReset}>Reset name</DropdownMenuItem>
-        ) : null}
-        {facet.private || (isRenameableFacetKind(facet.kind) && facet.display_name !== null)
-          ? <DropdownMenuSeparator />
-          : null}
-        <DropdownMenuItem variant="destructive" disabled={!capabilities.delete} onClick={onDelete}>
-          <Trash2 /> Move to Trash
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-}
-
-type AddMode = 'root' | 'shared' | 'private' | 'work' | 'new-work'
-
-function AddFacetPopover({
-  canCreateShared,
-  canCreatePrivate,
-  page,
-  facets,
-  onCreate,
-  onCreateWorkSection,
-  onHide,
-  capabilities,
-}: {
-  readonly canCreateShared: boolean
-  readonly canCreatePrivate: boolean
-  readonly page: PageView | undefined
-  readonly facets: readonly Facet[]
-  readonly onCreate: (input: CreateFacetInput) => void
-  readonly onCreateWorkSection: (name: string) => void
-  readonly onHide: (facet: Facet, hidden: boolean) => void
-  readonly capabilities: (facet: Facet | null) => FacetCapabilities
-}): React.JSX.Element {
-  const [open, setOpen] = useState(false)
-  const [mode, setMode] = useState<AddMode>('root')
-  const [name, setName] = useState('')
-  const linked = new Set(facets.flatMap((facet) => facet.h1_block_id ? [facet.h1_block_id] : []))
-  const headings = useMemo(
-    () => page?.blocks.filter((block) => block.kind === 'section' && block.section_block_id === null && !linked.has(block.id)) ?? [],
-    [page, facets],
-  )
-  const rootVisible = mode === 'root' || mode === 'work' || mode === 'new-work'
-
-  function changeOpen(next: boolean): void {
-    setOpen(next)
-    if (!next) {
-      setMode('root')
-      setName('')
-    }
-  }
-
-  function createNamed(kind: 'shared_blank' | 'private_blank'): void {
-    const trimmed = name.trim()
-    if (trimmed === '') return
-    onCreate({ kind, name: trimmed })
-    changeOpen(false)
-  }
-
-  return (
-    <Popover open={open} onOpenChange={changeOpen}>
-      <PopoverTrigger
-        render={
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Add or manage facets"
-            title="Add or manage facets"
-            disabled={!canCreatePrivate && !canCreateShared}
-            className="ml-0.5 shrink-0 rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-          />
-        }
-      >
-        <Plus className="size-3.5" aria-hidden="true" />
-      </PopoverTrigger>
-      <PopoverContent align="start" className="relative w-72 overflow-visible p-1.5">
-        {rootVisible ? (
-          <>
-            <PopoverRow disabled={!canCreateShared} onMouseEnter={() => setMode('root')} onClick={() => setMode('shared')}>
-              <ListPlus className="size-4 text-muted-foreground" aria-hidden="true" />
-              <span>New facet</span>
-            </PopoverRow>
-            <PopoverRow disabled={!canCreatePrivate} onMouseEnter={() => setMode('root')} onClick={() => setMode('private')}>
-              <Lock className="size-4 text-muted-foreground" aria-hidden="true" />
-              <span>Private facet</span>
-            </PopoverRow>
-            <PopoverRow disabled={!canCreateShared} onMouseEnter={() => setMode('work')} onClick={() => setMode('work')}>
-              <Heading1 className="size-4 text-muted-foreground" aria-hidden="true" />
-              <span>Work section</span>
-              <ChevronRight className="ml-auto size-3.5 text-muted-foreground" aria-hidden="true" />
-            </PopoverRow>
-
-            {facets.length > 0 ? (
-              <div className="mt-1.5 border-t border-border pt-1.5">
-                <p className="px-2 py-1 text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">Facet library</p>
-                <div className="max-h-52 overflow-y-auto">
-                {facets.map((facet) => {
-                  const Icon = facetIcon(facet)
-                  const hideable = isHideableFacetKind(facet.kind)
-                  const lockedReason = facet.kind === 'main'
-                    ? 'Main always stays visible.'
-                    : !hideable
-                      ? 'Custom facets stay visible until moved to Trash.'
-                      : undefined
-                  return (
-                  <div key={facet.id} title={lockedReason} className="flex h-8 items-center gap-2 rounded-md px-2 text-xs text-foreground">
-                    <Icon className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
-                    <span className="min-w-0 flex-1 truncate">{facet.name}</span>
-                    <Switch
-                      aria-label={`Show ${facet.name}`}
-                      checked={!facet.hidden}
-                      disabled={!hideable || !capabilities(facet).hide}
-                      onCheckedChange={(checked) => onHide(facet, !checked)}
-                      className="h-4 w-7 p-px [&_[data-slot=switch-thumb]]:size-3.5 [&_[data-slot=switch-thumb]][data-checked]:translate-x-3"
-                    />
-                  </div>
-                  )
-                })}
-                </div>
-              </div>
-            ) : null}
-          </>
-        ) : null}
-
-        {mode === 'shared' || mode === 'private' ? (
-          <NamedFacetForm
-            title={mode === 'private' ? 'Private facet' : 'New facet'}
-            placeholder={mode === 'private' ? 'Private notes' : 'Facet name'}
-            value={name}
-            onChange={setName}
-            onBack={() => setMode('root')}
-            onCreate={() => createNamed(mode === 'private' ? 'private_blank' : 'shared_blank')}
-          />
-        ) : null}
-
-        {mode === 'work' || mode === 'new-work' ? (
-          <div className="absolute left-[calc(100%+8px)] top-0 w-72 rounded-[10px] bg-popover p-1.5 text-popover-foreground shadow-[var(--elevation-1)] ring-1 ring-border">
-            {mode === 'work' ? (
-              <>
-                <p className="border-b border-border px-2 py-2 text-xs font-semibold text-foreground">Work section</p>
-                <div className="mt-1 max-h-56 overflow-y-auto">
-              {headings.map((block) => (
-                <PopoverRow key={block.id} onClick={() => {
-                  onCreate({ kind: 'work', h1BlockId: block.id })
-                  changeOpen(false)
-                }}>
-                  <span className="truncate">{block.text || 'Untitled section'}</span>
-                </PopoverRow>
-              ))}
-              <PopoverRow onClick={() => setMode('new-work')}>
-                <Plus className="size-3.5 text-muted-foreground" aria-hidden="true" />
-                <span>Create new work section</span>
-              </PopoverRow>
-                </div>
-              </>
-            ) : (
-              <NamedFacetForm
-                title="New work section"
-                placeholder="Section name"
-                value={name}
-                onChange={setName}
-                onBack={() => setMode('work')}
-                onCreate={() => {
-                  const trimmed = name.trim()
-                  if (trimmed === '') return
-                  onCreateWorkSection(trimmed)
-                  changeOpen(false)
-                }}
-              />
-            )}
-          </div>
-        ) : null}
-      </PopoverContent>
-    </Popover>
-  )
-}
-
-function PopoverRow({ children, disabled, onClick, onMouseEnter }: {
-  readonly children: ReactNode
-  readonly disabled?: boolean
-  readonly onClick: () => void
-  readonly onMouseEnter?: () => void
-}): React.JSX.Element {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      onMouseEnter={onMouseEnter}
-      className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-xs font-medium text-foreground outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent disabled:pointer-events-none disabled:opacity-40"
-    >
-      {children}
-    </button>
-  )
-}
-
-function PopoverBack({ title, onBack }: { readonly title: string; readonly onBack: () => void }): React.JSX.Element {
-  return (
-    <div className="flex h-8 items-center border-b border-border pb-1">
-      <Button variant="ghost" size="icon-sm" aria-label="Back" onClick={onBack}>
-        <ArrowLeft className="size-3.5" aria-hidden="true" />
-      </Button>
-      <span className="text-xs font-semibold text-foreground">{title}</span>
-    </div>
-  )
-}
-
-function NamedFacetForm({ title, placeholder, value, onChange, onBack, onCreate }: {
-  readonly title: string
-  readonly placeholder: string
-  readonly value: string
-  readonly onChange: (value: string) => void
-  readonly onBack: () => void
-  readonly onCreate: () => void
-}): React.JSX.Element {
-  return (
-    <div>
-      <PopoverBack title={title} onBack={onBack} />
-      <div className="space-y-2 p-2 pt-3">
-        <Input
-          className="h-8 text-xs"
-          aria-label={title}
-          placeholder={placeholder}
-          value={value}
-          maxLength={120}
-          autoFocus
-          onChange={(event) => onChange(event.target.value)}
-          onKeyDown={(event) => { if (event.key === 'Enter') onCreate() }}
-        />
-        <Button className="w-full" size="sm" variant="commit" disabled={value.trim() === ''} onClick={onCreate}>Create</Button>
-      </div>
-    </div>
-  )
+function isRenameable(facet: Facet): boolean {
+  return isRenameableFacetKind(facet.kind) || facet.kind.endsWith('_blank')
 }

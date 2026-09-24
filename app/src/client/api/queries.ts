@@ -14,17 +14,15 @@ remembering. The split is 7.0's own: view endpoints evaluate dates and take
 tz, the roster and the folder list and settings do not and carry none.
 */
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
-import type { UseInfiniteQueryResult, UseQueryResult } from '@tanstack/react-query'
+import type { QueryClient, UseInfiniteQueryResult, UseQueryResult } from '@tanstack/react-query'
 
-import { getSettingsResponse, getViewsResponse } from '../../shared/bundle.js'
+import { getSettingsResponse } from '../../shared/bundle.js'
 import { sampleStatus } from '../../shared/sample.js'
 import type { SampleStatus } from '../../shared/sample.js'
-import type { GetSettingsResponse, GetViewsResponse } from '../../shared/bundle.js'
+import type { GetSettingsResponse } from '../../shared/bundle.js'
 import { getConnectionsResponse } from '../../shared/connections.js'
 import { discussionSchema } from '../../shared/consultation.js'
 import type { Discussion } from '../../shared/consultation.js'
-import { inputRoundListResponse } from '../../shared/consultation-input.js'
-import type { InputRoundListResponse } from '../../shared/consultation-input.js'
 import { getEventsResponse, getNotificationsResponse } from '../../shared/events.js'
 import type { GetEventsResponse, GetNotificationsResponse } from '../../shared/events.js'
 import { getThreadResponse } from '../../shared/comments.js'
@@ -59,23 +57,19 @@ import {
   getDoneResponse,
   getFolderTasksCompletedResponse,
   getFolderTasksOpenResponse,
-  getImportantResponse,
   getMyDayResponse,
   getPlannedCalendarResponse,
   getPlannedResponse,
   getSearchResponse,
-  getTasksViewResponse,
 } from '../../shared/views.js'
 import type {
   GetAllResponse,
   GetDoneResponse,
   GetFolderTasksOpenResponse,
-  GetImportantResponse,
   GetMyDayResponse,
   GetPlannedCalendarResponse,
   GetPlannedResponse,
   GetSearchResponse,
-  GetTasksViewResponse,
 } from '../../shared/views.js'
 
 import { getPlain, getView } from './http.js'
@@ -163,24 +157,10 @@ export function useMyDayView(): UseQueryResult<GetMyDayResponse> {
   })
 }
 
-export function useTasksView(): UseQueryResult<GetTasksViewResponse> {
-  return useQuery({
-    queryKey: queryKeys.view('tasks'),
-    queryFn: () => getView(getTasksViewResponse, '/views/tasks'),
-  })
-}
-
 export function usePlannedView(): UseQueryResult<GetPlannedResponse> {
   return useQuery({
     queryKey: queryKeys.view('planned'),
     queryFn: () => getView(getPlannedResponse, '/views/planned'),
-  })
-}
-
-export function useImportantView(): UseQueryResult<GetImportantResponse> {
-  return useQuery({
-    queryKey: queryKeys.view('important'),
-    queryFn: () => getView(getImportantResponse, '/views/important'),
   })
 }
 
@@ -356,6 +336,16 @@ export function usePlannedCalendarView(
  * whose eight extra fields over TaskCard are exactly what the form needs and
  * no list response carries: notes, the rule, the reminder and the steps.
  */
+/** Starts `useTask`'s read early (a row pressed or hovered), so a peek opens
+ * on data already here. Fresh reads within a few seconds are not repeated. */
+export function prefetchTask(client: QueryClient, id: string): void {
+  void client.prefetchQuery({
+    queryKey: queryKeys.task(id),
+    queryFn: () => getPlain(getTaskResponse, `/tasks/${id}`),
+    staleTime: 5_000,
+  })
+}
+
 export function useTask(id: string | null): UseQueryResult<TaskDetail> {
   return useQuery({
     queryKey: queryKeys.task(id ?? ''),
@@ -432,14 +422,6 @@ export function useSample(): UseQueryResult<SampleStatus> {
   })
 }
 
-/** The viewer's saved views (4.19), which the sidebar pins alongside natives. */
-export function useSavedViews(): UseQueryResult<GetViewsResponse> {
-  return useQuery({
-    queryKey: queryKeys.savedViews(),
-    queryFn: () => getPlain(getViewsResponse, '/views'),
-  })
-}
-
 /**
  * The viewer's shelves (7.16), the Library block's groups.
  *
@@ -513,18 +495,20 @@ export function useShelf(id: string, enabled = true): UseQueryResult<Shelf> {
 }
 
 /** A folder page's block list (7.16, 4.17), which 9.6 draws. */
-export function useFolderPage(id: string): UseQueryResult<GetPageResponse> {
+export function useFolderPage(id: string, enabled = true): UseQueryResult<GetPageResponse> {
   return useQuery({
     queryKey: queryKeys.folderPage(id),
     queryFn: () => getPlain(getPageResponse, `/folders/${id}/page`),
+    enabled,
   })
 }
 
 /** 7.27's canonical facet sequence. The client renders this order verbatim. */
-export function useFolderFacets(id: string): UseQueryResult<GetFacetsResponse> {
+export function useFolderFacets(id: string, enabled = true): UseQueryResult<GetFacetsResponse> {
   return useQuery({
     queryKey: queryKeys.folderFacets(id),
     queryFn: () => getPlain(getFacetsResponse, `/folders/${id}/facets`),
+    enabled,
   })
 }
 
@@ -563,16 +547,16 @@ export function useShelfPage(id: string): UseQueryResult<GetPageResponse> {
 /**
  * The viewer's notifications (7.12), which the 9.12 bell renders.
  *
- * `poll`: refetch-on-focus is the client's one global liveness rule, and a
- * polite poll runs only while the surface is open, so an idle Dana in a
- * background tab costs the server nothing. Thirty seconds is polite for a feed
- * whose producer is another person's hand.
+ * `poll`: the bell polls every twenty seconds while the app's tab is visible
+ * (r7: a bell that only moved on focus missed every mention), and TanStack
+ * pauses the interval in a hidden tab, so an idle Dana in a background tab
+ * costs the server nothing.
  */
 export function useNotifications(poll: boolean): UseQueryResult<GetNotificationsResponse> {
   return useQuery({
     queryKey: queryKeys.notifications(),
     queryFn: () => getPlain(getNotificationsResponse, '/notifications'),
-    refetchInterval: poll ? 30_000 : false,
+    refetchInterval: poll ? 20_000 : false,
   })
 }
 
@@ -636,28 +620,10 @@ export function usePlaceDescriptions(
 }
 
 /** GET /discussions/:id (7.27): one Discussion, for its Folder id and state. */
-export function useDiscussion(id: string): UseQueryResult<Discussion> {
+export function useDiscussion(id: string, enabled = true): UseQueryResult<Discussion> {
   return useQuery({
     queryKey: queryKeys.discussion(id),
     queryFn: () => getPlain(discussionSchema, `/discussions/${id}`),
-  })
-}
-
-/**
- * GET /discussions/:id/input-rounds (7.29): every round, newest first, at
- * most one open. Polled while a round is open, the thread's own 30 seconds,
- * so counts and other people's responses arrive without a focus change.
- */
-export function useInputRounds(
-  discussionId: string,
-): UseQueryResult<InputRoundListResponse> {
-  return useQuery({
-    queryKey: queryKeys.inputRounds(discussionId),
-    queryFn: () =>
-      getPlain(inputRoundListResponse, `/discussions/${discussionId}/input-rounds`),
-    refetchInterval: (query) =>
-      query.state.data?.input_rounds.some((r) => r.state === 'open') === true
-        ? 30_000
-        : false,
+    enabled,
   })
 }

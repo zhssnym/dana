@@ -32,6 +32,16 @@ const accepts: Record<CanvasMediaKind, string> = {
  * "Image". The selected block does know. This panel is therefore the authority
  * for explicit insertion and replacement: block kind in, matching upload kind
  * out, no extension-based reclassification.
+ *
+ * One exception, kept for pasted or dropped files: an empty File
+ * block given a raster image uploads it as an image and becomes an Image
+ * block. A block that already holds something keeps its kind on replace.
+ *
+ * It opens from the block's quiet "Add an image" / "Add a file" row (see
+ * `schema.ts`) and draws its own popover surface (`ui/popover.tsx`'s classes):
+ * BlockNote's floating wrapper has none. Upload only, no "Embed link": the
+ * adapter refuses external media URLs, and the page's connect-src cannot fetch
+ * one to upload it instead.
  */
 export function CanvasFilePanel({
   blockId,
@@ -60,7 +70,7 @@ export function CanvasFilePanel({
   const kind = block.type as CanvasMediaKind
 
   return (
-    <div className="w-72 space-y-2 p-2">
+    <div className="w-80 space-y-2 rounded-lg bg-popover p-3 text-sm text-popover-foreground shadow-md">
       <input
         ref={input}
         className="sr-only"
@@ -70,16 +80,15 @@ export function CanvasFilePanel({
           const file = event.currentTarget.files?.[0]
           event.currentTarget.value = ''
           if (file === undefined) return
+          const asImage = kind === 'file' && !block.props.url &&
+            (RASTER_MIMES as readonly string[]).includes(file.type)
           setBusy(true)
           setError('')
-          void onUpload(kind, file)
+          void onUpload(asImage ? 'image' : kind, file)
             .then((uploaded) => {
-              editor.updateBlock(blockId, {
-                props: {
-                  url: uploaded.url,
-                  name: uploaded.name,
-                },
-              })
+              const props = { url: uploaded.url, name: uploaded.name }
+              if (asImage) editor.updateBlock(blockId, { type: 'image', props })
+              else editor.updateBlock(blockId, { props })
             })
             .catch((failure: unknown) => {
               setError(
@@ -98,7 +107,7 @@ export function CanvasFilePanel({
         disabled={busy}
         onClick={() => input.current?.click()}
       >
-        {busy ? 'Uploading…' : block.props.url ? 'Replace file' : 'Choose file'}
+        {busy ? 'Uploading…' : block.props.url ? 'Replace file' : 'Upload file'}
       </Button>
       {error === '' ? null : (
         <p role="alert" className="text-xs text-destructive">

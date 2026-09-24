@@ -35,7 +35,7 @@ chose.
 import { useEffect } from 'react'
 
 import type { SettingsBundle } from '../../shared/bundle.js'
-import { mirrorTheme } from '../lib/theme.js'
+import { mirrorTheme, paintThemeColor } from '../lib/theme.js'
 
 type Theme = SettingsBundle['theme']
 type Density = SettingsBundle['row_density']
@@ -85,7 +85,9 @@ export function useAppearance(theme: Theme, density: Density, settled = true): v
     const media = win.matchMedia?.(DARK_QUERY)
 
     const apply = (): void => {
-      win.document.documentElement.setAttribute('data-theme', resolve(theme, media?.matches ?? false))
+      const resolved = resolve(theme, media?.matches ?? false)
+      win.document.documentElement.setAttribute('data-theme', resolved)
+      paintThemeColor(resolved)
     }
     apply()
     /* The bundle's value is mirrored into

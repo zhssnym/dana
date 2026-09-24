@@ -31,27 +31,20 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useCreateFolder, useOrderTask, usePullIntoMyDay, useUpdateTask } from '../api/mutations.js'
 import { useFolders, useMe } from '../api/queries.js'
 import {
-  PendingPanel,
   TaskList,
   TaskRow,
   useRowSelection,
 } from '../components/task-row.js'
-import type { PendingAction } from '../components/task-row.js'
+import type { BulkDate } from '../components/task-row.js'
 import { ConfirmDialog as UiConfirmDialog } from '../components/ui/ConfirmDialog.js'
-import {
-  ABANDON_CONFIRM,
-  DELETE_CONFIRM_LABEL,
-  DELETE_TASK_CONFIRM,
-  deleteTasksConfirm,
-  keepLabel,
-} from '../components/ui/copy.js'
+import { ABANDON_CONFIRM } from '../components/ui/copy.js'
 import { folderDisplay, presenterToday, taskRowDisplay } from '../parts/presenters.js'
 import type { RowContext } from '../parts/presenters.js'
 import { isScheduled } from '../parts/schedule.js'
 import { useTimeFormat } from '../lib/time-format.js'
 import type { TimeFormat } from '../lib/time-format.js'
 import { pushUndo, undoLabel } from '../shell/undo.js'
-import { duplicateTask } from '../tasks/task-acts.js'
+import { addDays, formatClockTime, weekStart } from '../lib/dates.js'
 import type { RowActions } from '../parts/useRowActions.js'
 import type { Folder } from '../../shared/folders.js'
 import type { TaskCard } from '../../shared/tasks.js'
@@ -177,6 +170,7 @@ export function TaskRows({
   onDropAt,
   onOver,
   onDragStateChange,
+  given,
 }: {
   readonly tasks: readonly TaskCard[]
   readonly context: RowContext
@@ -189,6 +183,12 @@ export function TaskRows({
   readonly onDropAt?: (taskId: string, point: { x: number; y: number }) => boolean
   readonly onOver?: (taskId: string, point: { x: number; y: number }) => string | null
   readonly onDragStateChange?: (dragging: boolean) => void
+  /**
+   * What the heading above these rows already says: `day` when it names the
+   * one day every row is due (Today, Tomorrow, Saturday), so a row keeps only
+   * its time.
+   */
+  readonly given?: { readonly day?: boolean }
 }): React.JSX.Element {
   const acts = useListActs(tasks, actions, onAsk, arrangement?.arrangeable ?? false)
   /*
@@ -198,29 +198,25 @@ export function TaskRows({
   without a second lookup.
   */
   const rows = useMemo(
-    () => tasks.map((task) => ({ ...taskRowDisplay(task, context), id: task.id, card: task })),
-    [tasks, context],
+    () =>
+      tasks.map((task) => {
+        const { due, ...display } = taskRowDisplay(task, context)
+        /* Under a day's own heading the row says only its time, if it has one. */
+        const time = given?.day === true ? formatClockTime(task.due_time, context.clock ?? '12') : null
+        const shown =
+          due === undefined || time === null
+            ? due
+            : time === ''
+              ? undefined
+              : { label: time, ...(due.overdue === true ? { overdue: true } : {}) }
+        return { ...display, ...(shown === undefined ? {} : { due: shown }), id: task.id, card: task }
+      }),
+    [tasks, context, given?.day],
   )
   return (
-    /*
-    9.7's row density reaching a list.
-
-    What 9.7 asks for by name is "row density (comfortable, compact)", which is
-    how close a list stands: comfortable keeps the spacing every page has,
-    compact closes it so more fits on a screen. AC-261 names the preference and
-    deliberately not the row shape.
-
-    Driven off the document attribute `shell/appearance.ts` sets rather than by
-    threading the bundle into every page, for that file's own reason: a
-    preference about how the whole document draws belongs on the document.
-
-    **The list is `TaskList`**, which is where the three behaviours that exist
-    only because rows are a list live: the drag, the 1.5 second hold that makes
-    a folder of two tasks, and press-and-hold selection with its bar. The wiring
-    is `useListActs` below, and the list carries `role="list"`.
-    */
+    /* `TaskList` owns the drag, the hold that makes a folder of two tasks,
+       and Shift/Cmd-click selection with its bar; `useListActs` performs them. */
     <TaskList
-      className="[[data-density=compact]_&]:gap-0"
       tasks={rows}
       onTaskOpen={(id) => {
         const task = tasks.find((entry) => entry.id === id)
@@ -239,7 +235,7 @@ export function TaskRows({
       onMerge={acts.onMerge}
       onBulk={acts.onBulk}
       onMove={acts.onMove}
-      onDuplicate={acts.onDuplicate}
+      onDate={acts.onDate}
       onDelete={acts.onDelete}
       renderRow={(row, wiring) => (
         <TaskRow
@@ -262,7 +258,9 @@ export function TaskRows({
           and the board's axis pass, so the context's silence is handed to the
           row in that word rather than by a second display flag.
           */
-          given={context.showFolder === false ? { folder: true } : undefined}
+          /* Overdue stays in the late ink even under an "Overdue" heading:
+             the colour means late on every screen. */
+          given={context.showFolder === false ? { folder: true } : {}}
           /*
           The row is told its folder even where the page has already said it:
           `given` silences the chip, but the card the chevron opens still names
@@ -293,13 +291,8 @@ export function TaskRows({
             })
           }}
           onDelete={() => {
-            onAsk(
-              DELETE_TASK_CONFIRM,
-              () => {
-                actions.onDelete(row.card)
-              },
-              { confirmLabel: DELETE_CONFIRM_LABEL, cancelLabel: keepLabel(1) },
-            )
+            /* One delete everywhere: Trash, with Undo, never a confirm. */
+            actions.onDelete(row.card)
           }}
         />
       )}
@@ -323,7 +316,7 @@ function useListActs(
   onMerge: (ids: string[], name: string) => void
   onBulk: (ids: string[], fields: { done?: boolean; important?: boolean; pulled?: boolean }) => void
   onMove: (ids: string[], folder: { id: string; name: string }) => void
-  onDuplicate: (ids: string[]) => void
+  onDate: (ids: string[], when: BulkDate) => void
   onDelete: (ids: string[]) => void
 } {
   const order = useOrderTask()
@@ -426,68 +419,44 @@ function useListActs(
         })
       }
     },
-    /* The bar's Duplicate, the row's own act repeated: one 7.16 copy per
-       selected task, each with its toast and its inverse. */
-    onDuplicate: (ids) => {
-      for (const task of pick(ids)) duplicateTask(task.id, task.title)
+    /* The bar's Date: one PATCH per task, one undo for the batch. A repeating
+       task keeps its date, because a rule needs one (INV-6). */
+    onDate: (ids, when) => {
+      const today = presenterToday()
+      const date =
+        when === null
+          ? null
+          : when === 'today'
+            ? today
+            : when === 'tomorrow'
+              ? addDays(today, 1)
+              : weekStart(addDays(today, 7))
+      const moving = pick(ids).filter(
+        (task) => task.due_date !== date && !(date === null && task.is_recurring),
+      )
+      for (const task of moving) {
+        update.mutate({
+          id: task.id,
+          body: date === null ? { due_date: null, due_time: null } : { due_date: date },
+        })
+      }
+      if (moving.length > 0) {
+        pushUndo(`Changed the date of ${plural(moving.length)}`, () => {
+          for (const task of moving) {
+            update.mutate({
+              id: task.id,
+              body: { due_date: task.due_date, due_time: task.due_time },
+            })
+          }
+        })
+      }
     },
-    /* Behind the same confirmation a row's delete carries, in its plural. */
+    /* One act, one undo entry for the whole batch; no confirm, as a row's. */
     onDelete: (ids) => {
       const going = pick(ids)
       if (going.length === 0) return
-      /* One act, one undo entry for the whole batch. */
-      onAsk(
-        going.length === 1 ? DELETE_TASK_CONFIRM : deleteTasksConfirm(going.length),
-        () => {
-          actions.onDeleteMany(going)
-        },
-        { confirmLabel: DELETE_CONFIRM_LABEL, cancelLabel: keepLabel(going.length) },
-      )
+      actions.onDeleteMany(going)
     },
-  }
-}
-
-/** One selection controller for the task rows separated by prose, pictures,
- * and Section headings on a composed page. The existing bulk acts still run
- * over real task rows and their existing endpoints. */
-export function useTaskRowsSelection(
-  tasks: readonly TaskCard[],
-  actions: RowActions,
-  onAsk: (message: string, run: () => void, labels?: ConfirmLabels) => void,
-): {
-  readonly selection: ReturnType<typeof useRowSelection>
-  readonly chrome: React.JSX.Element
-  readonly proposeMerge: (ids: readonly [string, string], titles: readonly [string, string]) => void
-} {
-  const acts = useListActs(tasks, actions, onAsk, false)
-  const [pending, setPending] = useState<Extract<PendingAction, { kind: 'folder-for' | 'merge' }> | null>(null)
-  const selection = useRowSelection({
-    onMove: acts.onMove,
-    onNewFolder: (ids) => setPending({ kind: 'folder-for', ids }),
-    onBulk: acts.onBulk,
-    onDuplicate: acts.onDuplicate,
-    onDelete: acts.onDelete,
-  })
-  return {
-    selection,
-    proposeMerge: (ids, titles) => {
-      setPending({ kind: 'merge', ids: [...ids], titles: [...titles] })
-    },
-    chrome: (
-      <>
-        {selection.bar}
-        {pending ? (
-          <PendingPanel
-            pending={pending}
-            onConfirm={(name) => {
-              acts.onMerge(pending.ids, name)
-              setPending(null)
-            }}
-            onCancel={() => setPending(null)}
-          />
-        ) : null}
-      </>
-    ),
   }
 }
 

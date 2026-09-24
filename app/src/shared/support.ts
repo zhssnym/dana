@@ -15,4 +15,4 @@ The client still writes the address out in four places
 from here; folding them onto this constant is a one-line import each and is
 recorded as a follow-up rather than done quietly from the backend side.
 */
-export const SUPPORT_EMAIL = 'support.danadana@gmail.com'
+export const SUPPORT_EMAIL = 'hassan.k.shahir@gmail.com'

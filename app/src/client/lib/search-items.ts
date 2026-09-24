@@ -30,12 +30,46 @@ import { useMemo } from 'react'
 
 import { useFolders, useSearch, useShelves } from '../api/queries.js'
 import { folderMark, shelfMark } from '../parts/presenters.js'
-import { NAV_PAGES, pageQuestion } from './nav-model.js'
-import { paths } from '../routes.js'
+import { markIcon } from '../components/page/icon-manifest.js'
+import type { Folder } from '../../shared/folders.js'
+import { navPages, paths } from '../routes.js'
 import type { SearchResultItem } from '../components/search-overlay.js'
+import { crumbTrail } from '../components/page-head.js'
+
+/* Wave 2: a hit's place in the page tree as one muted line, "Root / … /
+   Parent", already cut by the server where the viewer's access ends. */
+function trailHint(crumbs: readonly { readonly name: string }[] | undefined): string | null {
+  if (crumbs === undefined || crumbs.length === 0) return null
+  return crumbTrail(crumbs).map((crumb) => crumb?.name ?? '…').join(' / ')
+}
 
 /** Q8's floor, which the endpoint refuses below. */
 export const MIN_QUERY = 2
+
+/* A folder is a page on screen, so one found by search is drawn as a page:
+   the glyph its owner chose, or the plain page glyph when none was chosen
+   (the overlay draws that fallback). Never the generic folder. */
+function pageResult(folder: Folder | undefined, id: string, title: string, hint: string): SearchResultItem {
+  const mark = folderMark(folder)
+  return {
+    kind: 'folder',
+    id,
+    title,
+    hint,
+    color: mark.color,
+    ...(folder?.icon == null ? {} : { icon: markIcon(folder.icon) }),
+  }
+}
+
+/* One character is too short for Q8, which refuses it, so it filters what is
+   already in hand: the places, and the pages and collections the sidebar
+   holds, by the start of any word in the name. */
+function startsAWord(name: string, char: string): boolean {
+  return name
+    .toLocaleLowerCase()
+    .split(/\s+/)
+    .some((word) => word.startsWith(char))
+}
 
 export interface SearchAnswer {
   results: SearchResultItem[]
@@ -44,13 +78,15 @@ export interface SearchAnswer {
 }
 
 /** 9.1's page block as rows to go to. */
+/** The one command search offers besides places: the shortcuts sheet, whose
+    other door is `?`. Its id is not a path; the overlay's opener checks it. */
+export const SHORTCUTS_RESULT = '#keyboard-shortcuts'
+
 export function placeItems(): SearchResultItem[] {
-  return NAV_PAGES.map((page) => ({
-    kind: 'page',
-    id: page.path,
-    title: page.name,
-    hint: pageQuestion(page.name) ?? '',
-  }))
+  return [
+    ...navPages.map((place): SearchResultItem => ({ kind: 'page', id: place.path, title: place.name, hint: '' })),
+    { kind: 'page', id: SHORTCUTS_RESULT, title: 'Keyboard shortcuts', hint: '' },
+  ]
 }
 
 export function useSearchAnswer(query: string, open: boolean): SearchAnswer {
@@ -64,7 +100,24 @@ export function useSearchAnswer(query: string, open: boolean): SearchAnswer {
   const shelfList = shelves.data
 
   const results = useMemo((): SearchResultItem[] => {
-    if (normalized.length < MIN_QUERY) return placeItems()
+    if (normalized.length === 0) return placeItems()
+    if (normalized.length < MIN_QUERY) {
+      return [
+        ...(folderList ?? [])
+          .filter((folder) => startsAWord(folder.name, normalized))
+          .map((folder) => pageResult(folder, folder.id, folder.name, '')),
+        ...(shelfList ?? [])
+          .filter((shelf) => startsAWord(shelf.name, normalized))
+          .map((shelf): SearchResultItem => ({
+            kind: 'shelf',
+            id: shelf.id,
+            title: shelf.name,
+            hint: 'Collection',
+            color: shelfMark(shelf).color,
+          })),
+        ...placeItems().filter((place) => startsAWord(place.title, normalized)),
+      ]
+    }
     if (data === undefined) return []
     const byId = new Map((folderList ?? []).map((folder) => [folder.id, folder]))
     const shelfById = new Map((shelfList ?? []).map((shelf) => [shelf.id, shelf]))
@@ -81,20 +134,16 @@ export function useSearchAnswer(query: string, open: boolean): SearchAnswer {
         ...(row.due_date === null ? {} : { dueDate: row.due_date }),
       }
     })
-    const found: SearchResultItem[] = (data.folders ?? []).map((hit) => ({
-      kind: 'folder',
-      id: hit.id,
-      title: hit.name,
-      hint: 'Folder',
-      color: folderMark(byId.get(hit.id)).color,
-    }))
+    const found: SearchResultItem[] = (data.folders ?? []).map((hit) =>
+      pageResult(byId.get(hit.id), hit.id, hit.name, trailHint(hit.breadcrumbs) ?? 'Page'),
+    )
     const foundShelves: SearchResultItem[] = (data.shelves ?? []).map((hit) => {
       const shelf = shelfById.get(hit.id)
       return {
         kind: 'shelf',
         id: hit.id,
         title: hit.name,
-        hint: 'Shelf',
+        hint: 'Collection',
         ...(shelf === undefined ? {} : { color: shelfMark(shelf).color }),
       }
     })
@@ -107,9 +156,12 @@ export function useSearchAnswer(query: string, open: boolean): SearchAnswer {
             : null
       return {
         kind: 'page',
-        id: home?.path ?? paths.desk,
+        id: home?.path ?? paths.today,
         title: hit.text,
-        hint: home?.name === undefined ? 'Page' : `On ${home.name}`,
+        hint: (() => {
+          const trail = trailHint(hit.breadcrumbs) ?? home?.name
+          return trail === undefined ? 'Page' : `On ${trail}`
+        })(),
       }
     })
     /* The places are findable by typing too, not only offered before anything

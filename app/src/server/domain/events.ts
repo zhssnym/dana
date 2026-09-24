@@ -125,7 +125,11 @@ export interface EventList {
   truncated: boolean
 }
 
-/** 10.3's list cap, shared by the three list reads below. */
+/** 10.3's list cap, shared by the three list reads below.
+ *
+ * The two history reads leave `mentioned` out (Wave 2, W-D): its sentence is
+ * "mentioned you", true only for the person it notified, and the edit that
+ * carried the mention is already in the history as its own event. */
 const LIST_CAP = 1000
 
 export async function listFolderEvents(
@@ -136,6 +140,7 @@ export async function listFolderEvents(
     db,
     sql`SELECT ${EVENT_COLUMNS} FROM events e
         WHERE e.folder_id = ${folderId}
+          AND e.verb <> 'mentioned'
         ORDER BY e.created_at DESC, e.id DESC
         LIMIT ${LIST_CAP + 1}`,
   )
@@ -154,6 +159,7 @@ export async function listSubjectEvents(
     db,
     sql`SELECT ${EVENT_COLUMNS} FROM events e
         WHERE e.subject_kind = ${subjectKind} AND e.subject_id = ${subjectId}
+          AND e.verb <> 'mentioned'
         ORDER BY e.created_at DESC, e.id DESC
         LIMIT ${LIST_CAP + 1}`,
   )

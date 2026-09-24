@@ -44,12 +44,8 @@ export default defineConfig({
         Both rest on DES-029, approved during the design sign-off. They are
         settled values rather than an open proposal.
 
-        styles/tokens.css carries the same two as --pwa-theme-color and
-        --pwa-background-color, and the pair is deliberate rather than a
-        duplicate: a manifest is built and cannot read a stylesheet, and a
-        stylesheet is where every other colour in this client is defined. The
-        two agree today; a future approved token change moves both, and this
-        comment is here so the second one is not forgotten.
+        Both equal --bg in styles/tokens.css (light). A manifest is built and
+        cannot read a stylesheet, so a change to --bg moves these too.
         */
         theme_color: '#ffffff',
         background_color: '#ffffff',

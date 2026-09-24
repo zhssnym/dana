@@ -17,7 +17,7 @@ export class CanvasWriter {
   constructor(document: CanvasDocument, revision: string,
     private readonly send: (request: DocumentRequest) => Promise<PageView>,
     private readonly notify: () => void,
-    private readonly committed: (page: PageView, checkpoint: boolean) => void,
+    private readonly committed: (page: PageView, checkpoint: boolean, operations: DocumentRequest['operations']) => void,
   ) {
     this.acknowledged = document
     this.latest = document
@@ -60,7 +60,7 @@ export class CanvasWriter {
         const page = await this.send(pending.request)
         // No revision means no safe base for the next write; fail visibly.
         // Retry re-sends the same mutation id, which the server replays.
-        if (!page.revision) throw new Error('The page saved without a version. Retry save to confirm it.')
+        if (!page.revision) throw new Error('The page saved without a version. Retry to confirm it.')
         this.revision = page.revision
         // Re-based on what the server now holds, not on the projection that was
         // sent. The projection expresses none of the structured kinds, so a
@@ -78,7 +78,7 @@ export class CanvasWriter {
         }
         this.state = this.settled(this.latest) ? 'saved' : 'changed'
         this.error = undefined
-        this.committed(page, checkpoint)
+        this.committed(page, checkpoint, pending.request.operations)
       } catch (error) {
         this.error = error
         this.state = 'failed'

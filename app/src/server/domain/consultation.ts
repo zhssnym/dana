@@ -140,6 +140,29 @@ function discussionFromRow(row: Record<string, unknown>): Discussion {
   }
 }
 
+/** The list row's thread summary (W-C): how many posts, the newest one, and
+ * its distinct authors, most recent first, at most five. */
+function threadSummaryFromRow(
+  row: Record<string, unknown>,
+): Pick<Discussion, 'post_count' | 'last_post' | 'participant_ids'> {
+  const ids: unknown =
+    typeof row.participant_ids === 'string'
+      ? JSON.parse(row.participant_ids)
+      : row.participant_ids
+  return {
+    post_count: Number(row.post_count ?? 0),
+    last_post:
+      row.lp_author_id === null || row.lp_author_id === undefined
+        ? null
+        : {
+            author_id: String(row.lp_author_id),
+            preview: String(row.lp_preview ?? ''),
+            created_at: toIso(row.lp_created_at),
+          },
+    participant_ids: Array.isArray(ids) ? ids.map(String) : [],
+  }
+}
+
 function outcomeFromRow(
   row: Record<string, unknown>,
   currentOutcomeId: string | null,
@@ -276,6 +299,24 @@ export async function folderOfDiscussion(
 }
 
 /**
+ * The Folder a live task belongs to, for `PUT /tasks/:id/thread/read`'s 404
+ * before anything else. Null when the id names no task, or a deleted one.
+ * Like `folderOfDiscussion` it says nothing about access.
+ */
+export async function folderOfTask(
+  executor: Executor,
+  taskId: string,
+): Promise<string | null> {
+  const rows = await rowsOf(
+    executor,
+    sql`SELECT folder_id FROM tasks
+         WHERE id = ${taskId}::uuid AND deleted_at IS NULL`,
+  )
+  const row = rows[0]
+  return row === undefined ? null : String(row.folder_id)
+}
+
+/**
  * The locked Discussion and the actor's facts over its live Folder, both read
  * in `tx`. Null is 404: no such row, a trashed Folder, or no membership.
  */
@@ -345,13 +386,45 @@ export async function listDiscussions(
       ? sql``
       : sql` AND (d.title ILIKE ${likePattern(query.q)}
                   OR d.context ILIKE ${likePattern(query.q)})`
+  /* The page is cut first, then each of its rows gains the thread summary
+     (W-C) through three LATERAL reads over `comments_discussion_thread_idx`,
+     so the summary costs one query for the page and nothing per Discussion
+     outside it. Comments are hard-deleted, so every row counted is live. */
   const rows = await rowsOf(
     db,
-    sql`SELECT ${DISCUSSION_COLUMNS} FROM ${DISCUSSION_FROM}
-         WHERE d.folder_id = ${facts.folderId}::uuid
-           AND d.trashed_at IS NULL${state}${search}${after}
-         ORDER BY d.last_activity_at DESC, d.id DESC
-         LIMIT ${query.limit + 1}`,
+    sql`WITH page AS (
+          SELECT ${DISCUSSION_COLUMNS}, r.read_at AS viewer_read_at
+            FROM ${DISCUSSION_FROM}
+            LEFT JOIN discussion_reads r
+              ON r.discussion_id = d.id AND r.user_id = ${facts.actorId}::uuid
+           WHERE d.folder_id = ${facts.folderId}::uuid
+             AND d.trashed_at IS NULL${state}${search}${after}
+           ORDER BY d.last_activity_at DESC, d.id DESC
+           LIMIT ${query.limit + 1})
+        SELECT page.*, pc.post_count,
+               lp.author_id AS lp_author_id, lp.preview AS lp_preview,
+               lp.created_at AS lp_created_at, pp.ids AS participant_ids
+          FROM page
+          LEFT JOIN LATERAL (
+            SELECT count(*)::int AS post_count FROM comments c
+             WHERE c.discussion_id = page.id) pc ON true
+          LEFT JOIN LATERAL (
+            SELECT c.author_id, left(coalesce(c.body, ''), 140) AS preview,
+                   c.created_at
+              FROM comments c
+             WHERE c.discussion_id = page.id
+             ORDER BY c.created_at DESC, c.id DESC
+             LIMIT 1) lp ON true
+          LEFT JOIN LATERAL (
+            SELECT coalesce(json_agg(a.author_id ORDER BY a.last_at DESC, a.author_id),
+                            '[]'::json) AS ids
+              FROM (SELECT c.author_id, max(c.created_at) AS last_at
+                      FROM comments c
+                     WHERE c.discussion_id = page.id
+                     GROUP BY c.author_id
+                     ORDER BY last_at DESC, c.author_id
+                     LIMIT 5) a) pp ON true
+         ORDER BY page.last_activity_at DESC, page.id DESC`,
   )
   const page = rows.slice(0, query.limit)
   const last = page[page.length - 1]
@@ -362,7 +435,14 @@ export async function listDiscussions(
           id: String(last.id),
         })
       : null
-  return ok({ discussions: page.map(discussionFromRow), next_cursor: nextCursor })
+  return ok({
+    discussions: page.map((row) => ({
+      ...discussionFromRow(row),
+      ...threadSummaryFromRow(row),
+      read_at: isoOrNull(row.viewer_read_at),
+    })),
+    next_cursor: nextCursor,
+  })
 }
 
 /* ------------------------------------------------------------------ *
@@ -423,7 +503,102 @@ export async function readDiscussion(
   if (facts === null) return notFound
   const decision = mayPerform(facts, 'discussion.read')
   if (!decision.allowed) return forbidden(decision.reason)
-  return ok(discussion)
+  const read = await rowsOf(
+    db,
+    sql`SELECT read_at FROM discussion_reads
+         WHERE discussion_id = ${discussionId}::uuid
+           AND user_id = ${viewerId}::uuid`,
+  )
+  return ok({ ...discussion, read_at: isoOrNull(read[0]?.read_at) })
+}
+
+/**
+ * `PUT /discussions/:id/read`: the viewer has opened the thread now. Upserts
+ * their `discussion_reads` row and, in the same transaction, marks read their
+ * unread notifications about posts in this Discussion, so opening the thread
+ * clears the bell for it. No event: reading is not an act the history keeps.
+ * The route has already resolved existence and membership; a trashed
+ * Discussion, or one gone since, is `not_found`.
+ */
+export async function markDiscussionRead(
+  db: Db,
+  viewerId: string,
+  discussionId: string,
+): Promise<ConsultationOutcome<null>> {
+  return inTransaction(db, async (tx) => {
+    const found = await rowsOf(
+      tx,
+      sql`SELECT folder_id FROM discussions
+           WHERE id = ${discussionId}::uuid AND trashed_at IS NULL`,
+    )
+    const folderId = found[0]?.folder_id
+    if (folderId === undefined) return notFound
+    const facts = await folderActorFacts(tx, viewerId, String(folderId))
+    if (facts === null) return notFound
+    const decision = mayPerform(facts, 'discussion.read')
+    if (!decision.allowed) return forbidden(decision.reason)
+    await tx.execute(
+      sql`INSERT INTO discussion_reads (discussion_id, user_id, read_at)
+          VALUES (${discussionId}::uuid, ${viewerId}::uuid, now())
+          ON CONFLICT (discussion_id, user_id)
+          DO UPDATE SET read_at = excluded.read_at`,
+    )
+    await tx.execute(
+      sql`UPDATE notifications n SET read_at = now()
+            FROM events e, comments c
+           WHERE n.user_id = ${viewerId}::uuid
+             AND n.read_at IS NULL
+             AND e.id = n.event_id
+             AND e.subject_kind = 'comment'
+             AND c.id = e.subject_id
+             AND c.discussion_id = ${discussionId}::uuid`,
+    )
+    return ok(null)
+  })
+}
+
+/**
+ * `PUT /tasks/:id/thread/read`: the viewer has opened the task's thread now.
+ * The task-thread twin of `markDiscussionRead`: upserts their
+ * `task_thread_reads` row and, in the same transaction, marks read their
+ * unread notifications about posts in this task's thread. Whoever may read
+ * the thread may mark it, and the thread's read (`GET /folders/:id/comments
+ * ?task=`) asks only membership of the task's live Folder. A deleted task,
+ * or one gone since the route looked, is `not_found`. Answers the viewer's
+ * previous `read_at`, null when they had never opened the thread.
+ */
+export async function markTaskThreadRead(
+  db: Db,
+  viewerId: string,
+  taskId: string,
+): Promise<ConsultationOutcome<{ read_at: string | null }>> {
+  return inTransaction(db, async (tx) => {
+    const folderId = await folderOfTask(tx, taskId)
+    if (folderId === null) return notFound
+    if ((await folderActorFacts(tx, viewerId, folderId)) === null) return notFound
+    const previous = await rowsOf(
+      tx,
+      sql`SELECT read_at FROM task_thread_reads
+           WHERE task_id = ${taskId}::uuid AND user_id = ${viewerId}::uuid`,
+    )
+    await tx.execute(
+      sql`INSERT INTO task_thread_reads (task_id, user_id, read_at)
+          VALUES (${taskId}::uuid, ${viewerId}::uuid, now())
+          ON CONFLICT (task_id, user_id)
+          DO UPDATE SET read_at = excluded.read_at`,
+    )
+    await tx.execute(
+      sql`UPDATE notifications n SET read_at = now()
+            FROM events e, comments c
+           WHERE n.user_id = ${viewerId}::uuid
+             AND n.read_at IS NULL
+             AND e.id = n.event_id
+             AND e.subject_kind = 'comment'
+             AND c.id = e.subject_id
+             AND c.task_id = ${taskId}::uuid`,
+    )
+    return ok({ read_at: isoOrNull(previous[0]?.read_at) })
+  })
 }
 
 /** `GET /discussions/:id/outcomes`: every Outcome, newest first, current or
@@ -526,7 +701,8 @@ export async function updateDiscussion(
 /**
  * `POST /discussions/:id/resolve`: a new Outcome, made current, and the
  * Discussion resolved, in one transaction (#320 "resolve + Outcome creation is
- * atomic"; `discussions_resolution_check` makes the halves inseparable).
+ * atomic"). Since Wave 2 (decision 3) `{}` resolves with no Outcome: the
+ * thread is closed without a decision, `current_outcome_id` stays NULL.
  *
  * `source_comment_id` must be a comment **of this Discussion**; anything else
  * -- another Discussion's comment, a Task's, another Folder's, or no comment
@@ -580,19 +756,23 @@ export async function resolveDiscussion(
         statement = snapshot
       }
     }
-    if (statement === undefined) {
-      return invalid('statement', 'an Outcome needs a statement or a source comment')
-    }
 
-    const inserted = await rowsOf(
-      tx,
-      sql`INSERT INTO discussion_outcomes
-            (discussion_id, statement, actor_id, source_comment_id)
-          VALUES (${discussionId}::uuid, ${statement}, ${viewerId}::uuid,
-                  ${sourceCommentId})
-          RETURNING id`,
-    )
-    const outcomeId = String(inserted[0]?.id)
+    /* Wave 2 decision 3 ("Close thread"): neither a statement nor a source
+       comment closes the Discussion with no Outcome at all -- no row, and
+       `current_outcome_id` NULL, which 0040's widened
+       `discussions_resolution_check` admits for a resolved row. */
+    let outcomeId: string | null = null
+    if (statement !== undefined) {
+      const inserted = await rowsOf(
+        tx,
+        sql`INSERT INTO discussion_outcomes
+              (discussion_id, statement, actor_id, source_comment_id)
+            VALUES (${discussionId}::uuid, ${statement}, ${viewerId}::uuid,
+                    ${sourceCommentId})
+            RETURNING id`,
+      )
+      outcomeId = String(inserted[0]?.id)
+    }
     await tx.execute(
       sql`UPDATE discussions
              SET state = 'resolved', resolved_at = now(),

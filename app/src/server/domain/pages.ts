@@ -28,7 +28,8 @@ multiply no rows. Nothing about the write path knows these columns exist: the
 shape belongs to the file and a PUT that carried it would be a second record
 of one fact.
 */
-import { applyDocument, documentMetadata, DocumentRefusal } from './page-document.js'
+import { applyDocument, documentMetadata, DocumentRefusal, touchesPageTree } from './page-document.js'
+import { lockPageTree } from './page-tree.js'
 import { sql } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
@@ -96,6 +97,7 @@ function blockFromRow(row: Record<string, unknown>): PageBlock {
     page_position: nullableString(row.page_position),
     section_block_id: nullableString(row.section_block_id),
     list_parent_block_id: nullableString(row.list_parent_block_id),
+    toggleable: row.toggleable === true ? true : null,
     checked: row.checked === null || row.checked === undefined ? null : Boolean(row.checked),
     rich_content: (row.rich_content ?? null) as PageBlock["rich_content"],
     text: nullableString(row.text),
@@ -592,6 +594,9 @@ export async function actOnFolderPage(
     if (!decision.allowed) {
       return { kind: 'forbidden', reason: decision.reason }
     }
+    // A transaction that creates, trashes or re-homes a sub-page takes the
+    // tree lock before the folder row (page-tree.ts's lock order).
+    if (body.action === 'document_transaction' && touchesPageTree(body)) await lockPageTree(tx)
     await tx.execute(sql`SELECT 1 FROM folders WHERE id = ${folderId}::uuid FOR UPDATE`)
     if (body.action === 'document_transaction') {
       const mutation = await applyDocument(tx, viewerId, folderId, body)
@@ -798,6 +803,8 @@ export async function actOnFolderPage(
            which made it a gap rather than a hazard, and it existed because the
            rule was written down in three places and this was a fourth spelling
            of it. */
+        // A `page` block is its sub-page's name and nothing else (wave 2).
+        if (String(block.kind) === 'page') return { kind: 'not_convertible' }
         if (
           body.width_pct != null &&
           !(WIDTH_BLOCK_KINDS as readonly string[]).includes(String(block.kind))
@@ -898,7 +905,7 @@ async function pageViewIn(
   const rows = await rowsOf(
     tx,
     sql`SELECT b.id, b.kind, b.position, b.page_position,
-               b.section_block_id, b.list_parent_block_id, b.checked,
+               b.section_block_id, b.list_parent_block_id, b.toggleable, b.checked,
                b.text, b.rich_content, b.file_id, b.ref_folder_id,
                b.width_pct, b.updated_at, b.file_reclaimed_at,
                f.width AS file_width, f.height AS file_height, f.name AS file_name

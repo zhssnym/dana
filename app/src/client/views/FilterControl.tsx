@@ -1,900 +1,134 @@
 /*
-9.1's filter, drawn: one control on every place-page, named "Filter" by that
-section's names table, holding every axis.
-
-**The markup is the panel; the model is `views/filter.ts`'s**, predicates over
-ids, so the controls, their classes, their arrangement and their words live here
-and the state they read does not.
-
-**The panel is a page of axes rather than a page of every value.** Each axis is
-one row saying what it is set to, opening onto its values, which is the reason
-the panel fits in 292 pixels with seven axes in it. The switches and the two
-footer acts sit flat beneath them.
-
-**Nothing here fetches.** 6 Q1's closing line, "it changes no query", is true of
-every axis and not only of importance, because section 6 offers no parameter for
-any of them; AC-167 measures it by counting requests.
-
-**"Save as view" is here rather than beside the page's title** because 9.1 puts
-it here in terms, "the save-view control inside it", and because what it saves
-is exactly the state this panel holds: a view is a name over a filter. It writes
-ids, never names, which is what makes a saved view survive a rename (AC-209).
-
-**Four rules a reader might otherwise miss.** Three more sit beside the code
-they govern: the three axis labels a criterion addresses, the panel committing
-and closing, and the Due axis resting open.
-
-1. **The trigger is named "Filter" and says nothing about a count.** 9.1's names
-   table fixes "Filter" for this control, and AC-167, AC-176, AC-221, AC-228 and
-   AC-259 all address it as `{ name: 'Filter', exact: true }`. The count badge
-   beside the glyph is presentation rather than a name. A chip's own name drops
-   the word "filter" for the same reason.
-2. **A value row is an `option` in a `listbox`, not a `menuitemradio`.** Tests
-   reach a value as `getByRole('option')` or `getByRole('menuitem')`, and ARIA
-   makes `menuitemradio` neither of those. The role is the one the section's own
-   addressing paragraph makes reachable.
-3. **Saved views are 4.19's rows and not a browser store**: `POST /views` and
-   the pin list of 9.7 are behind the list, its delete control and the naming
-   form.
-4. **People are ids and the label is theirs.** `usePlace` hands this the ids its
-   rows actually name, and `UNASSIGNED` is the assignee axis's own value for
-   nobody rather than a person.
+The one "View" menu a list carries: Layout, Group by, Sort and Show completed,
+each offered only where the page can honour it. It narrows nothing. There is no
+on-screen switcher: the layout is chosen here too.
 */
-import { useState } from 'react'
-import { useSearchParams } from 'react-router'
-
-import { isoDay, parseIsoDate } from '../tasks/task-model.js'
-
-import { Calendar } from '../components/ui/calendar.js'
-import { Input } from '../components/ui/input.js'
-import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover.js'
-import { Switch } from '../components/ui/switch.js'
-import { cn } from '../components/ui/utils.js'
+import { Button } from '../components/ui/button.js'
 import {
-  ArrowDownUp,
-  Ban,
-  Bookmark,
-  CalendarDays,
-  Check,
-  ChevronRight,
-  Filter as FilterIcon,
-  Group,
-  Repeat2,
-  Star,
-  UserPlus,
-  UserRound,
-  X,
-} from '../lib/icons.js'
-import type { LucideIcon } from '../lib/icons.js'
-import {
-  ABANDONED_HIDDEN,
-  CREATED_BY,
-  IMPORTANT_ONLY,
-  REPEATING_ONLY,
-  UNASSIGNED,
-  customRangeOpen,
-  filterChips,
-  isNarrowed,
-} from './filter.js'
-import type { DueAxis, GroupBy, PageFilter, SortBy } from './filter.js'
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from '../components/ui/dropdown-menu.js'
+import type { PageFilter, SortBy } from './filter.js'
+import type { GroupChoice } from './place-pages.js'
+import type { ViewMode } from './view-mode.js'
+import { VIEW_LABELS } from './ViewSwitch.js'
 
-/** 9.1's names table. A fixed string, and the only name this control has. */
-const FILTER = 'Filter'
-/** 9.1's names table again: the save-view control inside the filter. */
-const SAVE_AS_VIEW = 'Save as view'
+const SORTS: readonly { readonly value: SortBy; readonly label: string }[] = [
+  { value: 'manual', label: 'Manual' },
+  { value: 'due', label: 'Due date' },
+  { value: 'title', label: 'Title' },
+  { value: 'created', label: 'Created' },
+]
 
-export interface FilterPerson {
-  readonly id: string
-  readonly name: string
-}
-
-/** A saved view as the panel lists it. `views/usePlace.tsx` supplies them. */
-export interface SavedViewEntry {
-  readonly id: string
-  readonly name: string
-}
-
-/*
-What the panel says a half-built range means: an open range is "from this day
-onward" rather than nothing, and `views/filter.ts` honours it that way.
-*/
-function rangeSentence(from: string | null, to: string | null): string {
-  if (from !== null && to !== null) return from === to ? from : `${from} to ${to}`
-  /* A half-built range filters nothing yet, so the sentence says what is still
-     owed rather than promising "from here on". */
-  if (from !== null) return `From ${from}. Now pick the last day.`
-  if (to !== null) return `Until ${to}. Now pick the first day.`
-  return 'Pick the first day, then the last.'
-}
-
-const CHIP_ICON: Record<string, LucideIcon> = {
-  due: CalendarDays,
-  assignees: UserRound,
-  creators: UserPlus,
-  important: Star,
-  repeating: Repeat2,
-  abandoned: Ban,
-}
-
-const T_FAST = 'duration-[var(--duration-fast)] ease-[var(--ease-standard)]'
-const FOCUS =
-  'outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)] focus-visible:ring-offset-1'
-
-/* The window bar's control tier: 28px in a 36px strip. Chrome is thin. */
-const stripButtonClass = (active: boolean): string =>
-  cn(
-    'relative flex size-7 items-center justify-center rounded-md transition-[background-color,color] disabled:pointer-events-none disabled:opacity-35',
-    T_FAST,
-    FOCUS,
-    active
-      ? 'bg-[var(--color-graphite-100)] text-[var(--color-graphite-800)]'
-      : 'text-[var(--color-graphite-500)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)]',
-  )
-
-/*
-The axis labels. Three of them are fixed by the strings the criteria address:
-AC-176 addresses two of the due axis's values exactly, and AC-228 and AC-259
-both address the group-by value as the one word "Date". Section 9 fixes none of
-the three. When changing a label, grep the string across `app/tests/` first.
-*/
-const DUE_LABEL: Record<DueAxis, string> = {
-  any: 'Any due date',
-  with: 'With a due date',
-  without: 'No due date',
-  overdue: 'Overdue',
-  today: 'Today',
-  week: 'The next 7 days',
-  month: 'The rest of this month',
-  custom: 'Custom range',
-}
-
-const GROUP_LABEL: Record<GroupBy, string> = {
-  none: 'Nothing',
-  folder: 'Folder',
-  person: 'Person',
-  /* The client's word, and the note above says why. */
-  date: 'Date',
-  /* Named for the chip and never offered as a choice; see below. */
-  section: 'Section',
-}
-
-/*
-Which axes the menu offers, which is every one except a section.
-
-Sections are a folder page's first and unfiltered arrangement and the filter is
-the thing that changes it, so `section` is a value `usePlace` falls back to and
-never one a person picks: offering it on Today would ask eight pages worth of
-tasks which of one folder page's blocks they sit under, which is a dead control
-with a menu entry.
-*/
-const GROUP_CHOICES: readonly GroupBy[] = ['none', 'folder', 'person', 'date']
-
-const SORT_LABEL: Record<SortBy, string> = {
-  manual: 'Manual',
-  due: 'Due date',
-  title: 'Title',
-  created: 'Created',
-}
-
-function SectionLabel({
-  icon: Icon,
-  children,
-}: {
-  readonly icon: LucideIcon
-  readonly children: React.ReactNode
-}): React.JSX.Element {
-  return (
-    <p className="flex items-center gap-1.5 px-1 pt-2 pb-1 text-[12px] leading-4 font-medium text-[var(--color-graphite-500)]">
-      <Icon className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={1.75} aria-hidden="true" />
-      {children}
-    </p>
-  )
-}
-
-function SectionIcon({ icon: Icon }: { readonly icon: LucideIcon }): React.JSX.Element {
-  return (
-    <Icon
-      className="size-3.5 shrink-0 text-[var(--color-graphite-500)]"
-      strokeWidth={1.75}
-      aria-hidden="true"
-    />
-  )
-}
-
-const rowClass = (selected: boolean): string =>
-  cn(
-    'flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-[13px] leading-5 transition-colors',
-    T_FAST,
-    FOCUS,
-    selected
-      ? 'bg-[var(--color-graphite-100)] text-[var(--color-graphite-900)]'
-      : 'text-[var(--color-graphite-700)] hover:bg-[var(--color-graphite-50)]',
-  )
-
-/* One of many, the axis takes exactly one value. Seam 2 is the role. */
-function FilterChoice({
-  label,
-  selected,
-  onSelect,
-  leading,
-}: {
-  readonly label: string
-  readonly selected: boolean
-  readonly onSelect: () => void
-  readonly leading?: React.ReactNode
-}): React.JSX.Element {
-  return (
-    <button
-      type="button"
-      role="option"
-      aria-selected={selected}
-      onClick={onSelect}
-      className={rowClass(selected)}
-    >
-      {leading}
-      <span className="min-w-0 flex-1 truncate">{label}</span>
-      {selected ? (
-        <Check
-          className="size-3.5 shrink-0 text-[var(--color-graphite-700)]"
-          strokeWidth={2.5}
-          aria-hidden="true"
-        />
-      ) : null}
-    </button>
-  )
-}
-
-/*
-Any of many, the axis takes a set.
-
-It is a different control from `FilterChoice` on purpose, and the difference
-is a box rather than a tick: a checkbox says "and others may also be on", a
-tick at the end of a row says "this is the one". Drawing both as a tick is how
-a person learns by pressing that the panel does not mean what it drew.
-*/
-function FilterToggle({
-  label,
-  checked,
-  onToggle,
-}: {
-  readonly label: string
-  readonly checked: boolean
-  readonly onToggle: () => void
-}): React.JSX.Element {
-  return (
-    <button
-      type="button"
-      role="option"
-      aria-selected={checked}
-      onClick={onToggle}
-      className={rowClass(checked)}
-    >
-      <span
-        aria-hidden="true"
-        className={cn(
-          'flex size-4 shrink-0 items-center justify-center rounded-[4px] border transition-colors',
-          T_FAST,
-          checked
-            ? 'border-[var(--color-graphite-900)] bg-[var(--color-graphite-900)] text-white'
-            : 'border-[var(--color-graphite-300)] bg-card',
-        )}
-      >
-        {checked ? <Check className="size-3" strokeWidth={3} /> : null}
-      </span>
-      <span className="min-w-0 flex-1 truncate">{label}</span>
-    </button>
-  )
-}
-
-function SwitchRow({
-  icon: Icon,
-  label,
-  checked,
-  onChange,
-}: {
-  readonly icon: LucideIcon
-  readonly label: string
-  readonly checked: boolean
-  readonly onChange: (next: boolean) => void
-}): React.JSX.Element {
-  return (
-    <label
-      className={cn(
-        'flex h-8 cursor-pointer items-center gap-2 rounded-md px-2 text-[13px] leading-5 text-[var(--color-graphite-700)] transition-colors hover:bg-[var(--color-graphite-50)]',
-        T_FAST,
-      )}
-    >
-      <Icon
-        className="size-3.5 shrink-0 text-[var(--color-graphite-500)]"
-        strokeWidth={1.75}
-        aria-hidden="true"
-      />
-      <span className="min-w-0 flex-1">{label}</span>
-      {/* The name is on the control rather than on the wrapping label, because
-          9.1's addressing paragraph makes a control reachable by its name and
-          a label wrapping a switch names the row, not the switch. */}
-      <Switch aria-label={label} checked={checked} onCheckedChange={onChange} />
-    </label>
-  )
-}
-
-/* An axis whose values live behind one row, so the panel is a page of axes
-   rather than a page of every value every axis has. */
-function Axis({
-  icon,
+function Choice<T extends string>({
   label,
   value,
-  defaultOpen = false,
-  children,
+  choices,
+  onChange,
 }: {
-  readonly icon: LucideIcon
   readonly label: string
-  readonly value: string
-  /*
-  The Due axis opens open; every other axis rests closed. Due is the one axis
-  every place page and the folder page share as their first question, so a panel
-  that opens on nothing makes the commonest narrowing two presses; and 9.6
-  states that question in terms as what the folder page's filter offers, "all
-  open tasks, those with a due date, and those without", which AC-176 reads by
-  opening the filter and pressing the option. The rest resting closed is what
-  keeps the panel a page of axes.
-  */
-  readonly defaultOpen?: boolean
-  readonly children: React.ReactNode
+  readonly value: T
+  readonly choices: readonly { readonly value: T; readonly label: string }[]
+  readonly onChange: (next: T) => void
 }): React.JSX.Element {
-  const [open, setOpen] = useState(defaultOpen)
-
+  const current = choices.find((choice) => choice.value === value) ?? choices[0]
   return (
-    <div>
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => {
-          setOpen((wasOpen) => !wasOpen)
-        }}
-        className={rowClass(false)}
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger className="text-sm">
+        {label}
+        <span className="ml-auto text-muted-foreground">{current?.label}</span>
+      </DropdownMenuSubTrigger>
+      <DropdownMenuSubContent className="min-w-36">
+        <DropdownMenuRadioGroup
+          value={value}
+          onValueChange={(next: unknown) => {
+            const picked = choices.find((choice) => choice.value === next)
+            if (picked !== undefined) onChange(picked.value)
+          }}
+        >
+          {choices.map((choice) => (
+            <DropdownMenuRadioItem key={choice.value} value={choice.value} className="text-sm" closeOnClick>
+              {choice.label}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuSubContent>
+    </DropdownMenuSub>
+  )
+}
+
+export function ViewMenu({
+  layouts = [],
+  layout,
+  onLayout,
+  groups,
+  completed,
+  filter,
+  onChange,
+}: {
+  /** The page's layouts; a page with one has no Layout item. */
+  readonly layouts?: readonly ViewMode[]
+  readonly layout?: ViewMode
+  readonly onLayout?: (next: ViewMode) => void
+  readonly groups: readonly GroupChoice[]
+  /** Whether the page has completed tasks to show. */
+  readonly completed: boolean
+  readonly filter: PageFilter
+  readonly onChange: (next: PageFilter) => void
+}): React.JSX.Element {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={<Button variant="ghost" className="text-sm text-muted-foreground" />}
       >
-        <SectionIcon icon={icon} />
-        <span className="shrink-0 text-[var(--color-graphite-700)]">{label}</span>
-        <span className="min-w-0 flex-1 truncate text-right text-[var(--color-graphite-500)]">
-          {value}
-        </span>
-        <ChevronRight
-          className={cn(
-            'size-3.5 shrink-0 text-[var(--color-graphite-400)] transition-transform',
-            T_FAST,
-            open && 'rotate-90',
-          )}
-          strokeWidth={2}
-          aria-hidden="true"
-        />
-      </button>
-      {open ? (
-        <div role="listbox" aria-label={label} className="pt-0.5 pb-1 pl-2">
-          {children}
-        </div>
-      ) : null}
-    </div>
-  )
-}
-
-export function FilterControl({
-  filter,
-  onChange,
-  people,
-  onSaveView,
-  savedViews = [],
-  onDeleteView,
-}: {
-  readonly filter: PageFilter
-  readonly onChange: (next: PageFilter) => void
-  /** The people this page's rows name, plus the viewer. "Unassigned" is added. */
-  readonly people: readonly FilterPerson[]
-  /** Null where saving is not offered, which is nowhere today. */
-  readonly onSaveView: ((name: string) => void) | null
-  /** 4.19's saved views made on this page, listed at the panel's head. */
-  readonly savedViews?: readonly SavedViewEntry[]
-  readonly onDeleteView?: (id: string) => void
-}): React.JSX.Element {
-  const [open, setOpen] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [, setSearch] = useSearchParams()
-  const [viewName, setViewName] = useState('')
-
-  const narrowed = isNarrowed(filter)
-  const arranged = filter.groupBy !== 'none' || filter.sort !== 'manual'
-  /* The badge counts the axes that narrow, and a custom range with a day still
-     owed narrows nothing, so it is not one of them. */
-  const count =
-    Number(filter.due !== 'any' && !customRangeOpen(filter)) +
-    Number(filter.assignees.length > 0) +
-    Number(filter.creators.length > 0) +
-    Number(filter.repeating) +
-    Number(filter.important) +
-    Number(!filter.showAbandoned)
-
-  /*
-  **The panel commits and closes.**
-
-  Choosing a due range, a grouping or a sort is one answer to one question, so
-  it is written and the panel closes the way a select does, and the chips in the
-  window bar then say what happened. The two set-valued axes are the exception,
-  and they are the exception for the reason they exist, "more than one value per
-  axis, Sara and Hassan", so their checkboxes leave the panel open until a
-  person is done with them. A switch closes for the same reason a range does,
-  being one press that settles one variable.
-
-  AC-167 reaches the important switch by pressing "Filter" before each toggle,
-  so a panel that stayed open would answer that second press by closing.
-  */
-  function commit(next: PageFilter): void {
-    onChange(next)
-    setOpen(false)
-  }
-
-  function toggleIn(axis: 'assignees' | 'creators', id: string): void {
-    const chosen = filter[axis].includes(id)
-      ? filter[axis].filter((entry) => entry !== id)
-      : [...filter[axis], id]
-    // The two set-valued axes leave the panel open.
-    onChange({ ...filter, [axis]: chosen })
-  }
-
-  const chosenLabel = (ids: readonly string[]): string =>
-    ids.length === 0 ? 'Anyone' : `${String(ids.length)} chosen`
-
-  return (
-    <Popover
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next)
-        if (!next) setSaving(false)
-      }}
-    >
-      <PopoverTrigger
-        render={
-          <button
-            type="button"
-            /* Seam 1: 9.1's name, and no count inside it. */
-            aria-label={FILTER}
-            className={cn(stripButtonClass(narrowed || arranged), count > 0 && 'w-auto gap-1.5 px-2.5')}
-          >
-            <FilterIcon
-              className="size-3.5 data-[size=sm]:size-3.5"
-              strokeWidth={1.75}
-              aria-hidden="true"
-            />
-            {count > 0 ? (
-              <span
-                aria-hidden="true"
-                className="text-[12px] leading-4 font-medium tabular-nums"
-              >
-                {count}
-              </span>
-            ) : null}
-          </button>
-        }
-      />
-      <PopoverContent align="end" className="max-h-[min(560px,70vh)] w-[292px] overflow-y-auto p-2">
-        {savedViews.length > 0 ? (
-          <>
-            <SectionLabel icon={Bookmark}>Saved views</SectionLabel>
-            {savedViews.map((view) => (
-              <div key={view.id} className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    /* Opening a saved view is a navigation rather than a
-                       filter edit: `usePlace` reads `?view=` and seeds the
-                       page's filter from 4.19's stored definition, so the
-                       address bar and the panel cannot disagree about which
-                       view is open. */
-                    setOpen(false)
-                    /*
-                    Merged into the address rather than written over it (issue
-                    #48's inventory, which named this line). It was
-                    `setSearch({ view: view.id })`, which **replaces** the
-                    whole search, so opening a saved view dropped every other
-                    parameter the page was carrying: `?conversation=open` on a
-                    folder page is the one a person would notice, the filter
-                    panel closing a conversation nobody asked it to touch.
-
-                    Read off `window.location` rather than off
-                    `useSearchParams`, for the reason `usePlace`'s `liveSearch`
-                    writes out at length: React Router's copy of the search can
-                    sit hundreds of milliseconds behind the address bar, so
-                    merging into that copy would put back parameters the
-                    address has already dropped, which is the same defect the
-                    other direction.
-                    */
-                    const next = new URLSearchParams(window.location.search)
-                    next.set('view', view.id)
-                    setSearch(next)
-                  }}
-                  className={cn(rowClass(false), 'min-w-0 flex-1')}
-                >
-                  <span className="min-w-0 flex-1 truncate">{view.name}</span>
-                </button>
-                {onDeleteView === undefined ? null : (
-                  <button
-                    type="button"
-                    aria-label={`Delete view: ${view.name}`}
-                    onClick={() => {
-                      onDeleteView(view.id)
-                    }}
-                    className={cn(
-                      'flex size-7 shrink-0 items-center justify-center rounded-md text-[var(--color-graphite-400)] transition-colors hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-700)]',
-                      T_FAST,
-                      FOCUS,
-                    )}
-                  >
-                    <X
-                      className="size-3.5 data-[size=sm]:size-3.5"
-                      strokeWidth={2}
-                      aria-hidden="true"
-                    />
-                  </button>
-                )}
-              </div>
-            ))}
-            <div className="mx-1 my-2 h-px bg-[var(--color-graphite-100)]" aria-hidden="true" />
-          </>
+        View
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        {layouts.length > 1 && layout !== undefined && onLayout !== undefined ? (
+          <Choice
+            label="Layout"
+            value={layout}
+            choices={layouts.map((value) => ({ value, label: VIEW_LABELS[value] }))}
+            onChange={onLayout}
+          />
         ) : null}
-
-        <Axis icon={CalendarDays} label="Due" value={DUE_LABEL[filter.due]} defaultOpen>
-          {(['any', 'with', 'without'] as const).map((value) => (
-            <FilterChoice
-              key={value}
-              label={DUE_LABEL[value]}
-              selected={filter.due === value}
-              onSelect={() => {
-                commit({ ...filter, due: value, from: null, to: null })
-              }}
-            />
-          ))}
-          <FilterChoice
-            label={DUE_LABEL.overdue}
-            leading={
-              <span
-                aria-hidden="true"
-                className="size-1.5 rounded-full bg-[var(--color-danger-600)]"
-              />
-            }
-            selected={filter.due === 'overdue'}
-            onSelect={() => {
-              commit({ ...filter, due: 'overdue', from: null, to: null })
+        {groups.length > 1 ? (
+          <Choice
+            label="Group by"
+            value={filter.groupBy}
+            choices={groups}
+            onChange={(groupBy) => {
+              onChange({ ...filter, groupBy })
             }}
           />
-          <div className="mx-1 my-1.5 h-px bg-[var(--color-graphite-100)]" aria-hidden="true" />
-          {(['today', 'week', 'month'] as const).map((value) => (
-            <FilterChoice
-              key={value}
-              label={DUE_LABEL[value]}
-              selected={filter.due === value}
-              onSelect={() => {
-                commit({ ...filter, due: value, from: null, to: null })
-              }}
-            />
-          ))}
-          <FilterChoice
-            label={DUE_LABEL.custom}
-            selected={filter.due === 'custom'}
-            onSelect={() => {
-              onChange({ ...filter, due: filter.due === 'custom' ? 'any' : 'custom' })
-            }}
-          />
-          {filter.due === 'custom' ? (
-            /*
-            **One calendar**, shared by the due picker, the reminder picker and
-            the filter's custom range: `components/ui/calendar.tsx`. Two date
-            fields and a month grid would be two ways to answer one question in
-            one product.
-
-            The first press opens a range and the second closes it. An open
-            range is a real state rather than a half-finished one, "from with no
-            to" meaning on or after that day, which `views/filter.ts` already
-            honours; and closing it sorts the two days, because the 20th back to
-            the 14th is a range somebody meant rather than a mistake to refuse.
-            */
-            <div className="px-1 pt-1.5">
-              <p className="pb-1.5 text-[12px] leading-4 text-[var(--color-graphite-500)]">
-                {filter.from === null && filter.to === null
-                  ? 'Pick the first day, then the last.'
-                  : rangeSentence(filter.from, filter.to)}
-              </p>
-              <Calendar
-                selected={null}
-                range={{
-                  from: filter.from === null ? null : parseIsoDate(filter.from),
-                  to: filter.to === null ? null : parseIsoDate(filter.to),
-                }}
-                onSelect={(date) => {
-                  const key = isoDay(date)
-                  const opening = filter.from !== null && filter.to === null
-                  if (!opening) {
-                    onChange({ ...filter, from: key, to: null })
-                    return
-                  }
-                  const first = filter.from ?? key
-                  const [from, to] = first <= key ? [first, key] : [key, first]
-                  onChange({ ...filter, from, to })
-                }}
-                className="w-full"
-              />
-            </div>
-          ) : null}
-        </Axis>
-
-        <Axis icon={UserRound} label="Assigned to" value={chosenLabel(filter.assignees)}>
-          {people.map((person) => (
-            <FilterToggle
-              key={person.id}
-              label={person.name}
-              checked={filter.assignees.includes(person.id)}
-              onToggle={() => {
-                toggleIn('assignees', person.id)
-              }}
-            />
-          ))}
-          <FilterToggle
-            label="Unassigned"
-            checked={filter.assignees.includes(UNASSIGNED)}
-            onToggle={() => {
-              toggleIn('assignees', UNASSIGNED)
-            }}
-          />
-        </Axis>
-
-        {/*
-        9.1's created-by axis. Beside the assignee axis rather than instead of
-        it: Dana records a creator and never an assigner, so "who made this" and
-        "who is carrying it" are two questions, and Assignments answers only the
-        second.
-
-        No "Unassigned" counterpart, and that is not an omission: 4.5 makes
-        `created_by` NOT NULL, so there is no task nobody made.
-         */}
-        <Axis icon={UserPlus} label={CREATED_BY} value={chosenLabel(filter.creators)}>
-          {people.map((person) => (
-            <FilterToggle
-              key={person.id}
-              label={person.name}
-              checked={filter.creators.includes(person.id)}
-              onToggle={() => {
-                toggleIn('creators', person.id)
-              }}
-            />
-          ))}
-        </Axis>
-
-        <div className="mx-1 my-1.5 h-px bg-[var(--color-graphite-100)]" aria-hidden="true" />
-        <SwitchRow
-          icon={Star}
-          label={IMPORTANT_ONLY}
-          checked={filter.important}
-          onChange={(important) => {
-            commit({ ...filter, important })
-          }}
-        />
-        <SwitchRow
-          icon={Repeat2}
-          label={REPEATING_ONLY}
-          checked={filter.repeating}
-          onChange={(repeating) => {
-            commit({ ...filter, repeating })
-          }}
-        />
-        <SwitchRow
-          icon={Ban}
-          label={ABANDONED_HIDDEN}
-          checked={!filter.showAbandoned}
-          onChange={(hidden) => {
-            commit({ ...filter, showAbandoned: !hidden })
-          }}
-        />
-
-        <div className="mx-1 my-1.5 h-px bg-[var(--color-graphite-100)]" aria-hidden="true" />
-        <Axis icon={Group} label="Group by" value={GROUP_LABEL[filter.groupBy]}>
-          {GROUP_CHOICES.map((key) => (
-            <FilterChoice
-              key={key}
-              label={GROUP_LABEL[key]}
-              selected={filter.groupBy === key}
-              onSelect={() => {
-                commit({ ...filter, groupBy: key })
-              }}
-            />
-          ))}
-        </Axis>
-        <Axis icon={ArrowDownUp} label="Sort by" value={SORT_LABEL[filter.sort]}>
-          {(Object.keys(SORT_LABEL) as SortBy[]).map((key) => (
-            <FilterChoice
-              key={key}
-              label={SORT_LABEL[key]}
-              selected={filter.sort === key}
-              onSelect={() => {
-                commit({ ...filter, sort: key })
-              }}
-            />
-          ))}
-        </Axis>
-
-        <div className="mx-1 my-1.5 h-px bg-[var(--color-graphite-100)]" aria-hidden="true" />
-        {onSaveView === null ? null : saving ? (
-          <form
-            className="flex items-center gap-1 px-1 pb-1"
-            onSubmit={(event) => {
-              event.preventDefault()
-              const name = viewName.trim()
-              if (name === '') return
-              onSaveView(name)
-              setViewName('')
-              setSaving(false)
-              setOpen(false)
-            }}
-          >
-            <Input
-              autoFocus
-              value={viewName}
-              maxLength={40}
-              onChange={(event) => {
-                setViewName(event.target.value)
-              }}
-              placeholder="Name this view"
-              aria-label="Name this view"
-              className={cn(
-                'h-8 min-w-0 flex-1 rounded-md border border-[var(--color-graphite-200)] bg-card px-2 text-[13px] leading-5 text-[var(--color-graphite-800)] outline-none transition-colors',
-                T_FAST,
-                'placeholder:text-[var(--color-graphite-400)] focus:border-[var(--color-dana-accent-600)] focus:ring-1 focus:ring-[var(--color-dana-accent-600)]',
-              )}
-            />
-            <button
-              type="submit"
-              className={cn(
-                'h-8 shrink-0 rounded-md bg-[var(--color-graphite-900)] px-2.5 text-[12px] leading-4 font-medium text-white transition-colors hover:bg-[var(--color-graphite-800)]',
-                T_FAST,
-                FOCUS,
-              )}
-            >
-              Save
-            </button>
-          </form>
-        ) : (
-          <button
-            type="button"
-            onClick={() => {
-              setSaving(true)
-            }}
-            disabled={!narrowed && !arranged}
-            className={cn(
-              rowClass(false),
-              'disabled:pointer-events-none disabled:text-[var(--color-graphite-300)]',
-            )}
-          >
-            <SectionIcon icon={Bookmark} />
-            <span className="min-w-0 flex-1">{SAVE_AS_VIEW}</span>
-          </button>
-        )}
-        {narrowed || arranged ? (
-          <button
-            type="button"
-            onClick={() => {
-              onChange({
-                ...filter,
-                due: 'any',
-                from: null,
-                to: null,
-                assignees: [],
-                creators: [],
-                important: false,
-                repeating: false,
-                showAbandoned: true,
-                groupBy: 'none',
-                sort: 'manual',
-              })
-            }}
-            className={cn(rowClass(false), 'text-[var(--color-graphite-500)]')}
-          >
-            <SectionIcon icon={X} />
-            <span className="min-w-0 flex-1">Clear all</span>
-          </button>
         ) : null}
-      </PopoverContent>
-    </Popover>
-  )
-}
-
-/**
- * The filter's readout, in the window bar's left end (9.1).
- *
- * One chip per axis rather than per value, and never a count alone, which 9.1
- * says in terms. The model is `views/filter.ts`'s, which is where each chip's
- * own reset lives.
- */
-export function FilterChips({
-  filter,
-  onChange,
-  people,
-}: {
-  readonly filter: PageFilter
-  readonly onChange: (next: PageFilter) => void
-  readonly people: readonly FilterPerson[]
-}): React.JSX.Element | null {
-  const named = (id: string): string =>
-    id === UNASSIGNED
-      ? 'Unassigned'
-      : (people.find((person) => person.id === id)?.name ?? 'Someone')
-  const chips = filterChips(filter, named)
-  if (chips.length === 0) return null
-  return (
-    <div className="flex min-w-0 items-center gap-1 overflow-hidden">
-      {chips.map((chip) => (
-        <button
-          key={chip.key}
-          type="button"
-          /* No word "filter" in the chip's name: AC-176 addresses the filter
-             control itself as `getByRole('button', { name: /filter/i })`, which
-             a chip carrying the word would make ambiguous; 9.1 names the chip
-             nowhere, so nothing is given up by saying the same thing without
-             that word. */
-          aria-label={`Remove ${chip.label}`}
-          onClick={() => {
-            onChange(chip.cleared)
+        <Choice
+          label="Sort"
+          value={filter.sort}
+          choices={SORTS}
+          onChange={(sort) => {
+            onChange({ ...filter, sort })
           }}
-          className={cn(
-            'group/chip flex h-6 max-w-56 shrink-0 items-center gap-1.5 rounded-full bg-[var(--color-graphite-100)] pr-1.5 pl-2 text-[12px] leading-4 text-[var(--color-graphite-700)] transition-colors',
-            T_FAST,
-            FOCUS,
-            'hover:bg-[var(--color-graphite-200)]',
-          )}
-        >
-          {(() => {
-            /* Each axis carries its own glyph: a chip is read at a glance and
-               the word after the glyph is what narrows it. The map is here
-               rather than in `filter.ts` because that module is pure and holds
-               no components, the same rule `grouping.ts` keeps. */
-            const Glyph = CHIP_ICON[chip.key] ?? CalendarDays
-            return (
-              <Glyph
-                className="size-3 shrink-0 text-[var(--color-graphite-500)]"
-                strokeWidth={2}
-                aria-hidden="true"
-              />
-            )
-          })()}
-          <span className="min-w-0 truncate">{chip.label}</span>
-          <X
-            className="size-3 shrink-0 text-[var(--color-graphite-400)] transition-colors group-hover/chip:text-[var(--color-graphite-700)]"
-            strokeWidth={2.5}
-            aria-hidden="true"
-          />
-        </button>
-      ))}
-      {chips.length > 1 ? (
-        <button
-          type="button"
-          onClick={() => {
-            onChange({
-              ...filter,
-              due: 'any',
-              from: null,
-              to: null,
-              assignees: [],
-              creators: [],
-              important: false,
-              repeating: false,
-              showAbandoned: true,
-            })
-          }}
-          className={cn(
-            'flex h-6 shrink-0 items-center rounded-full px-2 text-[12px] leading-4 text-[var(--color-graphite-500)] transition-colors hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-700)]',
-            T_FAST,
-            FOCUS,
-          )}
-        >
-          Clear all
-        </button>
-      ) : null}
-    </div>
+        />
+        {completed ? (
+          <DropdownMenuCheckboxItem
+            className="text-sm"
+            checked={filter.showCompleted}
+            onCheckedChange={(checked) => {
+              onChange({ ...filter, showCompleted: checked })
+            }}
+          >
+            Show completed
+          </DropdownMenuCheckboxItem>
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

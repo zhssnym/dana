@@ -79,6 +79,7 @@ const VERB_LABEL: Record<HistoryVerb, string> = {
   removed: 'Removed',
   deleted: 'Deleted',
   left: 'Left',
+  mentioned: 'Mentioned',
 }
 
 /**
@@ -93,7 +94,7 @@ const VERB_LABEL: Record<HistoryVerb, string> = {
 export function sentenceFor(
   event: Pick<HistoryEvent, 'name' | 'verb' | 'detail'>,
 ): string {
-  const tail = event.detail ? ` ${event.detail}` : ''
+  const tail = event.detail ? ` ${tabWords(event.detail)}` : ''
   return `${VERB_LABEL[event.verb]} “${event.name}”${tail}`
 }
 
@@ -110,7 +111,7 @@ export function verbFor(event: Pick<HistoryEvent, 'verb'>): string {
  * object.
  */
 export function lineFor(event: Pick<HistoryEvent, 'verb' | 'detail'>): string {
-  return `${VERB_LABEL[event.verb]}${event.detail ? ` ${event.detail}` : ''}`
+  return `${VERB_LABEL[event.verb]}${event.detail ? ` ${tabWords(event.detail)}` : ''}`
 }
 
 /*
@@ -119,25 +120,6 @@ completed it", "Hassan renamed it", rather than the verb's label and the
 server's detail each a sentence on its own. An edit that carries a detail says
 the detail, which is the act; one that carries none says "edited it".
 */
-const STORY_VERB: Record<HistoryVerb, string> = {
-  created: 'created it',
-  renamed: 'renamed it',
-  edited: 'edited it',
-  moved: 'moved it',
-  completed: 'completed it',
-  reopened: 'reopened it',
-  abandoned: 'abandoned it',
-  restored: 'restored it',
-  duplicated: 'duplicated it',
-  removed: 'removed it',
-  deleted: 'deleted it',
-  left: 'left it',
-}
-
-export function storyFor(event: Pick<HistoryEvent, 'verb' | 'detail' | 'actor'>): string {
-  const act = event.detail ? event.detail : STORY_VERB[event.verb]
-  return `${event.actor} ${act}`
-}
 
 /*
 4.13 writes `detail` as a lowercase predicate ("edited the page", "changed the
@@ -159,12 +141,31 @@ const VERB_PAST: Record<HistoryVerb, string> = {
   removed: 'removed',
   deleted: 'deleted',
   left: 'left',
+  // Never listed (the history reads leave it out); here for the Record's sake.
+  mentioned: 'mentioned',
 }
 
 const THING: Record<HistorySubjectKind, string> = {
   task: 'the task',
-  folder: 'the folder',
-  shelf: 'the shelf',
+  folder: 'the page',
+  shelf: 'the collection',
+}
+
+/*
+4.13's details are stored in the server's own words, and a few of those are not
+the screen's: a facet is a tab and a Folder is a page. The sample workspace's
+creation line is a bare phrase, so it is given a verb here.
+*/
+function screenWords(detail: string): string {
+  if (detail === 'part of the sample workspace') {
+    return 'created the page as part of the sample workspace'
+  }
+  return tabWords(detail)
+}
+
+function tabWords(detail: string): string {
+  return detail.replace(/\bfacets?\b/g, (word) => (word === 'facet' ? 'tab' : 'tabs'))
+    .replace(/\bthe Folder\b/g, 'the page')
 }
 
 /**
@@ -181,7 +182,7 @@ export function sentenceOf(
   about: { readonly kind: HistorySubjectKind; readonly subject: string },
 ): string {
   const own = event.kind === about.kind && event.subject === about.subject
-  const detail = event.detail ?? ''
+  const detail = screenWords(event.detail ?? '')
   const trailing = /^(from|to|dates) /.test(detail)
   const predicate = detail !== '' && !trailing && /^[a-z]/.test(detail)
   if (own) {

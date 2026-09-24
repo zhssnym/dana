@@ -33,6 +33,7 @@ import { createQueryClient, setQueryClient } from './api/queryClient.js'
 import { TooltipProvider } from './components/ui/tooltip.js'
 import { Router } from './Router.js'
 import { installSearchShortcut } from './shell/overlays.js'
+import { installNativeContextMenuGuard } from './lib/native-context-menu.js'
 import { getFoldersResponse } from '../shared/folders.js'
 import { getInvitesPendingResponse } from '../shared/invites.js'
 import { meResponse } from '../shared/me.js'
@@ -71,10 +72,14 @@ void queryClient.prefetchQuery({
   queryKey: queryKeys.me(),
   queryFn: () => getPlain(meResponse, '/me'),
 })
-void queryClient.prefetchQuery({
-  queryKey: queryKeys.folders(),
-  queryFn: () => getPlain(getFoldersResponse, '/folders'),
-})
+// Only under /app: on / (where sign-out lands) they are 401s nobody reads.
+const inApp = window.location.pathname.startsWith('/app')
+if (inApp) {
+  void queryClient.prefetchQuery({
+    queryKey: queryKeys.folders(),
+    queryFn: () => getPlain(getFoldersResponse, '/folders'),
+  })
+}
 /*
 The third, added at P8R session R10 with 9.8's invite gate.
 
@@ -88,10 +93,12 @@ no network at all. So an account holding an invite sees the shell for exactly
 as long as this read takes, and starting it before the first render is what
 makes that window as small as this client can make it.
 */
-void queryClient.prefetchQuery({
-  queryKey: queryKeys.pendingInvites(),
-  queryFn: () => getPlain(getInvitesPendingResponse, '/invites/pending'),
-})
+if (inApp) {
+  void queryClient.prefetchQuery({
+    queryKey: queryKeys.pendingInvites(),
+    queryFn: () => getPlain(getInvitesPendingResponse, '/invites/pending'),
+  })
+}
 
 const rootElement = document.getElementById('root')
 if (rootElement === null) {
@@ -121,6 +128,7 @@ reason the three chrome reads are: this module runs before the document's
 load event, and nothing about a window-level shortcut should wait on routing.
 */
 installSearchShortcut(document)
+installNativeContextMenuGuard(document)
 
 createRoot(rootElement).render(
   <StrictMode>

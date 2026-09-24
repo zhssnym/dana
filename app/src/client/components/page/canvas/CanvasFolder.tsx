@@ -12,7 +12,6 @@ export interface CanvasFolderRow {
   readonly name: string
   readonly color: string
   readonly icon: string | null
-  readonly pending: number
 }
 interface FolderBridge {
   readonly byId: ReadonlyMap<string, CanvasFolderRow>
@@ -27,14 +26,14 @@ export function CanvasFolderProvider({ value, children }: { readonly value: Fold
 }
 
 /** A native Folder row on a Shelf (`folder_ref`): placement only, the Folder's
- * membership of the Shelf stays `folder_members.shelf_name`. It opens the
- * Folder as its own tab (9.1, AC-223). */
+ * membership of the Shelf stays `folder_members.shelf_name`. Icon and name,
+ * nothing else; it opens the Folder (AC-223). */
 function CanvasFolder({ folderId }: { readonly folderId: string }): React.JSX.Element {
   const bridge = useContext(FolderContext)
   const folder = bridge?.byId.get(folderId)
   const Glyph = markIcon(folder?.icon ?? null)
   if (bridge === null || folder === undefined) {
-    return <p contentEditable={false} className="py-2 text-sm text-muted-foreground">This folder is unavailable.</p>
+    return <p contentEditable={false} className="py-2 text-sm text-muted-foreground">This page is unavailable.</p>
   }
   return (
     <a
@@ -43,13 +42,12 @@ function CanvasFolder({ folderId }: { readonly folderId: string }): React.JSX.El
       href={bridge.href(folderId)}
       onClick={(event) => { event.preventDefault(); bridge.open(folderId) }}
       className={cn(
-        'flex min-h-11 w-full items-center gap-3 rounded-md px-2 text-left no-underline outline-none transition-colors',
-        'hover:bg-[var(--color-graphite-50)] focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)]',
+        'flex h-8 w-full items-center gap-2 rounded-sm px-1 text-left no-underline outline-none transition-colors',
+        'hover:bg-muted',
       )}
     >
       <Glyph className="size-4 shrink-0" style={{ color: folder.color }} strokeWidth={1.75} aria-hidden="true" />
-      <span className="min-w-0 flex-1 truncate text-[length:var(--text-body-size)] leading-5 text-[var(--color-graphite-800)]">{folder.name}</span>
-      {folder.pending ? <span className="shrink-0 text-[length:var(--text-meta-size)] leading-4 text-[var(--color-graphite-500)] tabular-nums">{folder.pending}</span> : null}
+      <span className="min-w-0 truncate text-sm text-foreground">{folder.name}</span>
     </a>
   )
 }

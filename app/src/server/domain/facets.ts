@@ -53,6 +53,7 @@ import {
   isHideableFacetKind,
   isNativeFacetKind,
   isRenameableFacetKind,
+  NATIVE_TAB_ORDER,
 } from '../../shared/facets.js'
 import type { Facet, FacetKind } from '../../shared/facets.js'
 import type {
@@ -62,12 +63,14 @@ import type {
   PageView,
 } from '../../shared/pages.js'
 import type { TrashedFacet } from '../../shared/trash.js'
-import { isListKind } from '../../shared/page-document.js'
+import { nestingProblem } from './document-outline.js'
+import { hashableBlocks } from './document-hash.js'
 import { fileReclaimedAt } from './pages.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { documentHash } from './document-hash.js'
 import { recordEvent } from './events.js'
+import { syncMentions } from './mentions.js'
 import { mayPerform, presetOf } from './folder-access.js'
 import type { FolderActorFacts } from './folder-access.js'
 import { initialKeys, keyBetween } from './fractional-index.js'
@@ -152,11 +155,11 @@ function facetFromRow(row: Record<string, unknown>): Facet {
  * caller has already resolved folder membership, and this is the second scope
  * on top of it.
  *
- * **Main is forced first rather than trusted to be.** The shared-order write
- * refuses a list whose first entry is not Main, so Main does hold the lowest
- * shared position -- but a private facet's position is written by a different
- * route against a different rule, and #210's "Main stays first" is not a thing
- * that should depend on two routes agreeing. One `ORDER BY` clause settles it.
+ * **The stored position is the order** (round 2). Main used to be forced
+ * first here; tabs are now dragged freely on the row, so Main (shown as
+ * "Work") sits wherever a person put it. A folder nobody has reordered still
+ * holds its creation keys, Main first, and the client draws that as the default
+ * Purpose · Work · Results · Discussion.
  */
 function facetSelect(viewerId: string, folderId: string, extra: SQL = sql``): SQL {
   return sql`
@@ -167,7 +170,7 @@ function facetSelect(viewerId: string, folderId: string, extra: SQL = sql``): SQ
       LEFT JOIN page_blocks h1 ON h1.id = f.h1_block_id
      WHERE f.folder_id = ${folderId}::uuid
        AND (f.owner_id IS NULL OR f.owner_id = ${viewerId}::uuid)${extra}
-     ORDER BY (f.kind = 'main') DESC, f.position ASC, f.id ASC`
+     ORDER BY f.position ASC, f.id ASC`
 }
 
 export async function listFacets(
@@ -693,7 +696,7 @@ async function readOne(
  * The shared sequence, and **the list is the whole truth**, as 7.16's
  * `set_outline` is: no partial order and no merge. A list that omits a facet
  * every member can see is 422, a list naming one twice is 422, a list
- * carrying a private id is 422, and Main not first is 422.
+ * carrying a private id is 422. Main may stand anywhere (round 2).
  *
  * The write is one key per row from `initialKeys`, so the stored sequence
  * matches the requested one exactly rather than approximately, and the private
@@ -764,15 +767,14 @@ export async function setFacetOrder(
         'is the whole order and must carry every shared facet of this Folder',
       )
     }
-    const mainId = shared.find((row) => String(row.kind) === 'main')
-    if (mainId === undefined || order[0] !== String(mainId.id)) {
-      return invalid('order', 'Main is always first')
-    }
 
     const decision = mayPerform(facts, 'facet.reorder', { facetOwnerId: null })
     if (!decision.allowed) return { kind: 'forbidden', reason: decision.reason } as const
 
-    const keys = initialKeys(order.length)
+    /* Keys from `a1` on, never `a0`: a written order must never be mistaken
+       for the untouched creation keys (Main `a0`, Purpose `a1`, Consultation
+       `a2`, Results `a3`), which the client draws as the default order. */
+    const keys = initialKeys(order.length + 1).slice(1)
     for (const [index, id] of order.entries()) {
       await tx.execute(
         sql`UPDATE folder_facets SET position = ${keys[index] as string}, updated_at = now()
@@ -791,6 +793,50 @@ export async function setFacetOrder(
  * PUT /folders/:id/facets/my-order
  * ------------------------------------------------------------------ */
 
+/**
+ * Re-keys an untouched Folder's built-ins (each at its creation key, Main
+ * `a0`, Purpose `a1`, Consultation `a2`, Results `a3`, hidden ones included:
+ * the client's `untouched()`) in the order
+ * the client draws them, below every other row, so the stored order becomes
+ * the drawn one without moving anything anybody sees. A no-op otherwise.
+ */
+async function materialiseUntouchedOrder(tx: Executor, folderId: string): Promise<void> {
+  const rows = await rowsOf(
+    tx,
+    sql`SELECT id, kind, owner_id, position, hidden, deleted_at FROM folder_facets
+         WHERE folder_id = ${folderId}::uuid
+         ORDER BY position ASC, id ASC
+         FOR UPDATE`,
+  )
+  /* The tab row asks `untouched()` of every tab, hidden ones included (a
+     hidden built-in is not a reorder), and an absent built-in does not count
+     against it; Main must stand at `a0`. The same rule here. */
+  const native = (kind: string) =>
+    rows.find((row) => row.owner_id === null && String(row.kind) === kind && row.deleted_at === null)
+  const creation: Record<string, string> = { main: 'a0', purpose: 'a1', consultation: 'a2', results: 'a3' }
+  if (native('main') === undefined) return
+  if (!Object.entries(creation).every(([kind, key]) => native(kind) === undefined || String(native(kind)!.position) === key)) return
+  const natives = NATIVE_TAB_ORDER.map((kind) => native(kind)).filter((row) => row !== undefined)
+  const nativeIds = new Set(natives.map((row) => String(row.id)))
+  const others = rows.filter((row) => !nativeIds.has(String(row.id)))
+  let upper: string | null = others.length === 0 ? null : String(others[0]!.position)
+  const keys: string[] = []
+  if (upper === null) {
+    keys.push(...initialKeys(natives.length + 1).slice(1))
+  } else {
+    for (let index = 0; index < natives.length; index += 1) {
+      upper = keyBetween(null, upper)
+      keys.unshift(upper)
+    }
+  }
+  for (const [index, row] of natives.entries()) {
+    await tx.execute(
+      sql`UPDATE folder_facets SET position = ${keys[index] as string}, updated_at = now()
+           WHERE id = ${String(row.id)}::uuid`,
+    )
+  }
+}
+
 export interface FacetPlacement {
   facetId: string
   afterFacetId: string | null
@@ -808,9 +854,18 @@ export interface FacetPlacement {
  * Another member's facet id answers **404** rather than 403, which is 10.2's
  * grammar for a row whose existence the caller may not learn.
  *
- * `after_facet_id: null` means "first among the facets after Main". Main is
- * first for everybody by 7.27's read order, so "before Main" is not a place
- * this route can be asked for.
+ * `after_facet_id: null` means "before the first facet the caller can see":
+ * the front of the row. Main no longer stands first (round 2), so null is not
+ * "after Main".
+ *
+ * **An untouched Folder is materialised first.** While the built-ins hold
+ * their creation keys the client draws them in `NATIVE_TAB_ORDER`, not in
+ * stored order, and would go on doing so after this route re-keyed only a
+ * private row -- the dragged tab would snap back. So the built-ins are
+ * first re-keyed, in that drawn order, below every other row of the Folder
+ * (every member's private rows included). Every other key is kept, so what
+ * each member sees is exactly what they saw; the Folder simply stops being
+ * "untouched", and the drop lands where it was made.
  */
 export async function setMyFacetOrder(
   db: Db,
@@ -824,6 +879,7 @@ export async function setMyFacetOrder(
            WHERE folder_id = ${folderId}::uuid AND owner_id = ${viewerId}::uuid
            FOR UPDATE`,
     )
+    await materialiseUntouchedOrder(tx, folderId)
     const visible = await rowsOf(
       tx,
       facetSelect(viewerId, folderId, sql` AND f.deleted_at IS NULL`),
@@ -852,11 +908,10 @@ export async function setMyFacetOrder(
     for (const placement of placements) {
       const from = sequence.indexOf(placement.facetId)
       if (from >= 0) sequence.splice(from, 1)
-      const anchor =
+      const at =
         placement.afterFacetId === null
-          ? String(main.id)
-          : placement.afterFacetId
-      const at = sequence.indexOf(anchor)
+          ? -1
+          : sequence.indexOf(placement.afterFacetId)
       sequence.splice(at + 1, 0, placement.facetId)
     }
 
@@ -864,7 +919,7 @@ export async function setMyFacetOrder(
        bound at its stored key; a private row takes a key strictly between that
        bound and the **next shared row's** key, which is what makes a run of
        several private facets between two shared ones come out in order. */
-    let lower: string = String(main.position)
+    let lower: string | null = null
     for (const [index, id] of sequence.entries()) {
       const row = byId.get(id)
       if (row === undefined) continue
@@ -885,7 +940,7 @@ export async function setMyFacetOrder(
          this one does not lock against reading. Appending above the bound is
          the recoverable answer, and it keeps this facet after the thing it was
          placed after, which is what the caller asked for. */
-      const key = upper !== null && upper > lower ? keyBetween(lower, upper) : keyBetween(lower, null)
+      const key: string = upper !== null && (lower === null || upper > lower) ? keyBetween(lower, upper) : keyBetween(lower, null)
       await tx.execute(
         sql`UPDATE folder_facets SET position = ${key}, updated_at = now()
              WHERE id = ${id}::uuid AND owner_id = ${viewerId}::uuid`,
@@ -1251,6 +1306,7 @@ function facetBlockFromRow(row: Record<string, unknown>): PageBlock {
     page_position: nullableString(row.page_position),
     section_block_id: null,
     list_parent_block_id: nullableString(row.list_parent_block_id),
+    toggleable: row.toggleable === true ? true : null,
     checked: row.checked === null || row.checked === undefined ? null : Boolean(row.checked),
     rich_content: (row.rich_content ?? null) as PageBlock['rich_content'],
     text: nullableString(row.text),
@@ -1272,9 +1328,9 @@ async function facetDocumentMetadata(
   const blocks = await rowsOf(
     tx,
     sql`SELECT id, kind, text, rich_content, file_id, width_pct, checked,
-               list_parent_block_id, page_position, position
+               list_parent_block_id, page_position, position, toggleable
           FROM page_blocks WHERE facet_id = ${facetId}::uuid ORDER BY id`,
-  )
+  ).then(hashableBlocks)
   /* The facet id is inside the hash, and that is load-bearing rather than
      decorative. `page_document_receipts` is keyed (actor, folder, mutation),
      with no room for a facet, so a client that sent one mutation id to two
@@ -1293,7 +1349,7 @@ export async function facetPageView(
     const blocks = await rowsOf(
       tx,
       sql`SELECT b.id, b.kind, b.position, b.page_position, b.checked,
-                 b.list_parent_block_id, b.rich_content, b.text, b.file_id, b.width_pct, b.updated_at, b.file_reclaimed_at,
+                 b.list_parent_block_id, b.toggleable, b.rich_content, b.text, b.file_id, b.width_pct, b.updated_at, b.file_reclaimed_at,
                  f.width AS file_width, f.height AS file_height, f.name AS file_name
             FROM page_blocks b
             LEFT JOIN files f ON f.id = b.file_id
@@ -1455,6 +1511,16 @@ export async function applyFacetDocument(
           'operations',
         )
       }
+      /* Wave 2: sub-pages live in a Folder's Main document alone. Named
+         before anything else so a new op never falls into the outline
+         branch below. */
+      if (
+        op.op === 'create_page' ||
+        op.op === 'trash_page' ||
+        (op.op === 'put_block' && op.block_kind === 'page')
+      ) {
+        throw new FacetDocumentRefusal('invalid', "A page block lives only on a folder's page.", 'operations')
+      }
       if (op.op === 'put_block') {
         if (op.block_kind === 'section') {
           throw new FacetDocumentRefusal(
@@ -1510,30 +1576,6 @@ export async function applyFacetDocument(
         )
       }
       seen.add(item.id)
-      if (item.listParent !== null) {
-        const itemKind = writes.get(item.id)?.block_kind ?? storedKinds.get(item.id)
-        const parentKind =
-          writes.get(item.listParent)?.block_kind ?? storedKinds.get(item.listParent)
-        if (itemKind === undefined || !isListKind(itemKind)) {
-          throw new FacetDocumentRefusal(
-            'invalid',
-            'only a bullet, numbered or checklist item is a nested list item',
-            'list_parent_block_id',
-          )
-        }
-        if (
-          !blocks.has(item.listParent) ||
-          !seen.has(item.listParent) ||
-          parentKind === undefined ||
-          !isListKind(parentKind)
-        ) {
-          throw new FacetDocumentRefusal(
-            'invalid',
-            'a list item nests under an earlier list item of this facet document',
-            'list_parent_block_id',
-          )
-        }
-      }
     }
     if (seen.size !== blocks.size) {
       throw new FacetDocumentRefusal(
@@ -1541,6 +1583,19 @@ export async function applyFacetDocument(
         'The outline must retain every undeleted block.',
         'operations',
       )
+    }
+    // Block nesting (0038), the rule every document home shares.
+    const nesting = nestingProblem(
+      outline.map((item) => ({
+        kind: item.kind,
+        id: item.id,
+        section_block_id: null,
+        list_parent_block_id: item.listParent,
+      })),
+      (id) => (blocks.has(id) ? (writes.get(id)?.block_kind ?? storedKinds.get(id)) : undefined),
+    )
+    if (nesting !== null) {
+      throw new FacetDocumentRefusal('invalid', nesting, 'list_parent_block_id')
     }
 
     /* The file scope, asked only of the blocks this transaction writes and
@@ -1632,23 +1687,25 @@ export async function applyFacetDocument(
     for (const write of writes.values()) {
       await tx.execute(
         sql`INSERT INTO page_blocks
-              (id, facet_id, kind, position, text, rich_content, file_id, width_pct, checked)
+              (id, facet_id, kind, position, text, rich_content, file_id, width_pct, checked, toggleable)
             VALUES (${write.id}::uuid, ${facetId}::uuid, ${write.block_kind}, 0,
                     ${write.text},
                     ${write.rich_content === null ? null : JSON.stringify(write.rich_content)}::jsonb,
                     ${write.file_id}::uuid, ${write.width_pct},
-                    ${write.block_kind === 'checklist' ? (write.checked ?? false) : null})
+                    ${write.block_kind === 'checklist' ? (write.checked ?? false) : null},
+                    ${write.toggleable === true ? true : null})
             ON CONFLICT (id) DO UPDATE
                SET kind = EXCLUDED.kind, text = EXCLUDED.text,
                    rich_content = EXCLUDED.rich_content,
                    file_id = EXCLUDED.file_id, width_pct = EXCLUDED.width_pct,
-                   checked = EXCLUDED.checked,
+                   checked = EXCLUDED.checked, toggleable = EXCLUDED.toggleable,
                    file_reclaimed_at = CASE
                      WHEN EXCLUDED.file_id IS NULL AND EXCLUDED.kind = page_blocks.kind
                      THEN page_blocks.file_reclaimed_at END,
                    updated_at = now()`,
       )
     }
+    await syncMentions(tx, { pageFolderId: folderId, actorId: viewerId, blockIds: writes.keys(), refuse: (m) => new FacetDocumentRefusal('invalid', m, 'rich_content') })
     /* **`AND facet_id` here is the same belt-and-braces the DELETE two loops
        above carries, and it is unreachable today for the same reason.** Every
        id in `outline` was checked against `blocks` a hundred lines up, and
@@ -1697,7 +1754,7 @@ async function facetPageViewIn(tx: Executor, facetId: string): Promise<PageView>
   const blocks = await rowsOf(
     tx,
     sql`SELECT b.id, b.kind, b.position, b.page_position, b.checked,
-               b.list_parent_block_id, b.rich_content, b.text, b.file_id, b.width_pct, b.updated_at, b.file_reclaimed_at,
+               b.list_parent_block_id, b.toggleable, b.rich_content, b.text, b.file_id, b.width_pct, b.updated_at, b.file_reclaimed_at,
                f.width AS file_width, f.height AS file_height, f.name AS file_name
           FROM page_blocks b
           LEFT JOIN files f ON f.id = b.file_id
