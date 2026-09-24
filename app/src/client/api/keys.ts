@@ -37,6 +37,7 @@ export const queryKeys = {
   shelf: (id: string) => ['shelves', id] as const,
   folderPage: (id: string) => ['folders', id, 'page'] as const,
   folderFacets: (id: string) => ['folders', id, 'facets'] as const,
+  facetLocation: (facetId: string) => ['facets', facetId, 'location'] as const,
   facetPage: (folderId: string, facetId: string) =>
     ['folders', folderId, 'facets', facetId, 'page'] as const,
   shelfPage: (id: string) => ['shelves', id, 'page'] as const,

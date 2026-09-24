@@ -31,8 +31,8 @@ import { getPlaceDescriptionsResponse } from '../../shared/place-descriptions.js
 import type { GetPlaceDescriptionsResponse } from '../../shared/place-descriptions.js'
 import { getPageResponse } from '../../shared/pages.js'
 import type { GetPageResponse } from '../../shared/pages.js'
-import { getFacetsResponse } from '../../shared/facets.js'
-import type { GetFacetsResponse } from '../../shared/facets.js'
+import { getFacetLocationResponse, getFacetsResponse } from '../../shared/facets.js'
+import type { GetFacetLocationResponse, GetFacetsResponse } from '../../shared/facets.js'
 import type { GetConnectionsResponse } from '../../shared/connections.js'
 import { getFolderResponse, getFoldersResponse } from '../../shared/folders.js'
 import type { GetFolderResponse, GetFoldersResponse } from '../../shared/folders.js'
@@ -485,6 +485,16 @@ export function useFolderFacets(id: string): UseQueryResult<GetFacetsResponse> {
   return useQuery({
     queryKey: queryKeys.folderFacets(id),
     queryFn: () => getPlain(getFacetsResponse, `/folders/${id}/facets`),
+  })
+}
+
+/** The owning Folder needed to enter a stable /app/facets/:id Dana Link. */
+export function useFacetLocation(
+  facetId: string,
+): UseQueryResult<GetFacetLocationResponse> {
+  return useQuery({
+    queryKey: queryKeys.facetLocation(facetId),
+    queryFn: () => getPlain(getFacetLocationResponse, `/facets/${facetId}/location`),
   })
 }
 

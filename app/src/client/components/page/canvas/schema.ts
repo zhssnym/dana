@@ -1,7 +1,9 @@
 import { BlockNoteSchema, createExtension, createHeadingBlockSpec, defaultBlockSpecs, defaultStyleSpecs } from '@blocknote/core'
 
+import { AUDIO_MIMES, RASTER_MIMES, VIDEO_MIMES } from '../../../../shared/files.js'
 import { MAX_SECTION_DEPTH } from '../../../../shared/page-document.js'
 
+import { createCanvasCallout } from './CanvasCallout.js'
 import { createCanvasTaskSpec } from './CanvasTask.js'
 import { createCanvasParagraph } from './CanvasParagraph.js'
 import { createTaskAtCursor, removeEmptyBeforeHeading } from './commands.js'
@@ -24,7 +26,7 @@ const groupHeading = {
         const { selection } = editor.prosemirrorState
         const block = editor.getTextCursorPosition().block
         // Let BlockNote handle selections, mid-title splitting and ordinary prose.
-        if (block.type !== 'heading' || !selection.empty || selection.$from.parentOffset !== selection.$from.parent.content.size) return false
+        if (block.type !== 'heading' || block.props.isToggleable === false || !selection.empty || selection.$from.parentOffset !== selection.$from.parent.content.size) return false
         // Upstream splitting transfers children to the new paragraph. Dana's group
         // membership must survive, so use its public subtree insertion operation.
         if (window.localStorage.getItem(`toggle-${block.id}`) === 'false') {
@@ -77,12 +79,48 @@ const groupHeading = {
   },
 }
 
+/**
+ * Keep BlockNote's media recognition on the exact same MIME allowlists the
+ * server accepts. This makes a dropped unsupported media file fall through to
+ * the generic File block instead of drawing a player the server will refuse.
+ */
+function mediaSpec<T>(spec: T, accept: readonly string[]): T {
+  const typed = spec as unknown as {
+    implementation: {
+      meta?: Record<string, unknown>
+    }
+  }
+  return {
+    ...typed,
+    implementation: {
+      ...typed.implementation,
+      meta: {
+        ...typed.implementation.meta,
+        fileBlockAccept: [...accept],
+      },
+    },
+  } as unknown as T
+}
+
+const image = mediaSpec(defaultBlockSpecs.image, RASTER_MIMES)
+const audio = mediaSpec(defaultBlockSpecs.audio, AUDIO_MIMES)
+const video = mediaSpec(defaultBlockSpecs.video, VIDEO_MIMES)
+
 /** Restricted vocabulary, projected to Dana records by the persistence adapter. */
 export const canvasSchema = BlockNoteSchema.create({
   blockSpecs: {
     paragraph: createCanvasParagraph(),
     heading: groupHeading,
-    image: defaultBlockSpecs.image,
+    bulletListItem: defaultBlockSpecs.bulletListItem,
+    numberedListItem: defaultBlockSpecs.numberedListItem,
+    checkListItem: defaultBlockSpecs.checkListItem,
+    quote: defaultBlockSpecs.quote,
+    callout: createCanvasCallout(),
+    codeBlock: defaultBlockSpecs.codeBlock,
+    image,
+    file: defaultBlockSpecs.file,
+    audio,
+    video,
     danaTask: createCanvasTaskSpec(),
   },
   styleSpecs: { bold: defaultStyleSpecs.bold, italic: defaultStyleSpecs.italic },

@@ -201,6 +201,7 @@ import { folderToWorkflowFile } from '../../shared/workflows.js'
 import type { WorkflowDependencyEdge } from '../../shared/workflows.js'
 import { getFolderDependenciesResponse } from '../../shared/task-dependencies.js'
 import type { Facet } from '../../shared/facets.js'
+import { getPageResponse } from '../../shared/pages.js'
 import type { PageView } from '../../shared/pages.js'
 import { workPageOf } from '../components/page/canvas/adapters.js'
 
@@ -571,8 +572,9 @@ export function FolderPage({
   const facetRows = facets.data?.facets ?? []
   const requestedFacetId = search.get('facet')
   const mainFacet = facetRows.find((facet) => facet.kind === 'main')
+  const purposeFacet = facetRows.find((facet) => facet.kind === 'purpose')
   const activeFacet = facetRows.find(
-    (facet) => facet.id === requestedFacetId && !facet.hidden,
+    (facet) => facet.id === requestedFacetId && (!facet.hidden || facet.kind === 'purpose'),
   ) ?? mainFacet
 
   const selectFacet = useCallback((facet: Facet): void => {
@@ -583,6 +585,19 @@ export function FolderPage({
       return next
     }, { replace: true })
   }, [setSearch])
+
+  const sharedPageEditable =
+    facts !== null &&
+    basis.viewerId !== null &&
+    detail !== undefined &&
+    mayPerform({
+      folderId: id,
+      actorId: basis.viewerId,
+      access: facts.access,
+      isOwner: facts.isOwner,
+      isDefault: facts.isDefault,
+      name: detail.name,
+    }, 'folder.page.edit').allowed
 
   const facetCapabilities = useCallback((facet: Facet | null): FacetCapabilities => {
     if (facts === null || basis.viewerId === null || detail === undefined) {
@@ -832,6 +847,7 @@ export function FolderPage({
     let tasks: TaskDetail[]
     let labels: readonly LabelDefinition[]
     let dependencies: WorkflowDependencyEdge[]
+    let purposePage: PageView | undefined
     try {
       /* #207: the Folder's internal dependencies, read once beside the
          details, so the file keeps the ordering between the work it carries.
@@ -839,7 +855,7 @@ export function FolderPage({
          keeps only edges whose two ends it writes. Read fresh rather than
          through the cache, because no dependency write invalidates a
          folder-level key and a stale graph would write a wrong file. */
-      const [details, vocabulary, waits] = await Promise.all([
+      const [details, vocabulary, waits, purposeDocument] = await Promise.all([
         Promise.all(
           pending.map((task) =>
             cache.fetchQuery({
@@ -860,12 +876,19 @@ export function FolderPage({
           getFolderDependenciesResponse,
           `/folders/${encodeURIComponent(id)}/dependencies`,
         ),
+        purposeFacet === undefined
+          ? Promise.resolve(undefined)
+          : cache.fetchQuery({
+              queryKey: queryKeys.facetPage(id, purposeFacet.id),
+              queryFn: () => getPlain(getPageResponse, `/folders/${id}/facets/${purposeFacet.id}/page`),
+            }),
       ])
       tasks = details
       labels = labelRowsOf(vocabulary)
       dependencies = waits.dependencies
+      purposePage = purposeDocument
     } catch {
-      showToast('Could not read this folder’s tasks, so nothing was saved.')
+      showToast('Could not read this folder’s reusable content, so nothing was saved.')
       return
     }
     const saved = folderToWorkflowFile(
@@ -874,7 +897,9 @@ export function FolderPage({
       page.data?.blocks ?? [],
       page.data,
       labels,
-      undefined,
+      purposeFacet === undefined || purposePage === undefined
+        ? undefined
+        : { display_name: purposeFacet.display_name, page: purposePage },
       dependencies,
     )
     const file = JSON.stringify(saved.file, null, 2)
@@ -1644,6 +1669,7 @@ export function FolderPage({
             actions={actions}
             onAsk={confirm.ask}
             consultation={threadSurface}
+            sharedPageEditable={sharedPageEditable}
             onOpenMain={() => { if (mainFacet) selectFacet(mainFacet) }}
           />
         ) : null}
@@ -1826,6 +1852,7 @@ function FacetContent({
   actions,
   onAsk,
   consultation,
+  sharedPageEditable,
   onOpenMain,
 }: {
   readonly facet: Facet
@@ -1836,23 +1863,39 @@ function FacetContent({
   readonly actions: ReturnType<typeof useRowActions>
   readonly onAsk: (message: string, action: () => void) => void
   readonly consultation: React.ReactNode
+  readonly sharedPageEditable: boolean
   readonly onOpenMain: () => void
 }): React.JSX.Element {
   const blank = facet.kind === 'shared_blank' || facet.kind === 'private_blank'
-  const document = useFacetPage(folderId, facet.id, blank)
+  const document = useFacetPage(folderId, facet.id, blank || facet.kind === 'purpose')
 
   if (facet.kind === 'consultation') {
     return <div className="mt-7"><PageSection name="Consultation">{consultation}</PageSection></div>
   }
-  if (facet.kind === 'purpose' || facet.kind === 'results') {
-    const purpose = facet.kind === 'purpose'
+  if (facet.kind === 'purpose') {
+    return (
+      <div className="mt-7">
+        {document.data ? (
+          <>
+            {document.data.items.length === 0 ? (
+              <p className="mb-3 px-2 text-xs leading-5 text-muted-foreground">
+                Describe why this work exists, what it aims to achieve, or what should guide it.
+              </p>
+            ) : null}
+            <Suspense fallback={<p role="status">Loading writing…</p>}>
+              <FolderCanvas key={`${folderId}:${facet.id}`} page={document.data} tasks={[]} folderId={folderId} facetId={facet.id} presentationHeadings context={context} actions={actions} onAsk={onAsk} arrangeable={sharedPageEditable} />
+            </Suspense>
+          </>
+        ) : <p role={document.isError ? 'alert' : 'status'}>{document.isError ? 'Could not load Purpose. Reload to try again.' : 'Loading writing…'}</p>}
+      </div>
+    )
+  }
+  if (facet.kind === 'results') {
     return (
       <div className="mx-auto mt-10 flex min-h-64 max-w-[440px] flex-col items-center justify-center px-6 text-center">
         <h2 className="text-sm font-semibold text-[var(--color-graphite-800)]">{facet.name}</h2>
         <p className="mt-1.5 max-w-[40ch] text-xs leading-5 text-muted-foreground">
-          {purpose
-            ? 'Keep the intent behind this folder close to its tasks, notes, and decisions.'
-            : 'Bring outcomes, signals, and evidence of progress into one view.'}
+          Bring outcomes, signals, and evidence of progress into one view.
         </p>
         <span className="mt-3 text-[11px] text-[var(--color-graphite-400)]">Guided workspace coming soon</span>
       </div>
