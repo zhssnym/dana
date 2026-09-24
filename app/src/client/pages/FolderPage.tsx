@@ -1209,7 +1209,7 @@ export function FolderPage({
                 /* A board whose Done column holds finished work is not an empty
                    page: the last open task completed by a drop must not take
                    the board with it. */
-                isEmpty={place.mode !== 'list' && bothEmpty && completedDays.length === 0}
+                isEmpty={place.mode === 'board' && bothEmpty && completedDays.length === 0}
                 emptyCopy={FOLDER_EMPTY}
                 emptyIcon={FolderIcon}
                 truncated={open.data?.truncated ?? false}
@@ -1228,6 +1228,7 @@ export function FolderPage({
                 ) : place.mode === 'linear' ? (
                   page.data ? (
                     <LinearView
+                      folderId={id}
                       page={page.data}
                       tasks={visible}
                       completed={completedRows}
