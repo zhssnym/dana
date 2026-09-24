@@ -9,7 +9,6 @@ import type { ComponentProps, ReactNode } from 'react'
 
 import { ScreenHead } from '../../views/usePlace.js'
 import { Row } from '../ui/row.js'
-import { Separator } from '../ui/separator.js'
 import { cn } from '../ui/utils.js'
 
 export function Screen({
@@ -44,10 +43,10 @@ export function Screen({
 }
 
 /*
-A Settings section: a heading clearly above the rows (16/600), one hairline
-under it, then its rows. Sections stand well apart, further than rows do, so
-the page reads as a few groups rather than one list. Title, headings, rows
-and dividers share the column's two edges.
+A Settings section, after Hassan's grouped-cards reference (r12): a small
+muted label above one rounded, bordered card, its rows split by the one
+hairline. Groups stand further apart than a label from its card. An untitled
+section (Delete account) is the card alone.
 */
 export function SettingsSection({
   title,
@@ -58,34 +57,28 @@ export function SettingsSection({
   return (
     <section
       aria-label={title}
-      className={cn('flex flex-col [&+&]:mt-10', className)}
+      className={cn('flex flex-col gap-1.5 [&+&]:mt-4', className)}
       {...props}
     >
-      {/* Untitled (Delete account, last): set apart by the divider alone. */}
-      {title === undefined ? <Separator /> : (
-        <>
-          <h2 className="pb-2 text-(length:--text-heading-size) leading-(--text-heading-line) font-title text-foreground">
-            {title}
-          </h2>
-          <Separator />
-        </>
+      {title === undefined ? null : (
+        <h2 className="text-xs font-title text-muted-foreground">{title}</h2>
       )}
-      {children}
+      <div className="flex flex-col divide-y divide-border rounded-(--radius-card) border border-border">
+        {children}
+      </div>
     </section>
   )
 }
 
-/* Settings' row: the system Row at one height whether or not it carries a
-   description, its label at medium weight, on the column's edges; the
-   control stacks under the label below the `sm` breakpoint so a phone has
-   one layout. */
+/* Settings' row: the system Row inside a card, 12px in from the card's edge,
+   36px tall (44 with a description), its label at body weight. On a phone
+   too the control stays on the label's line; a description wraps instead. */
 export function StackingRow({ className, label, ...props }: ComponentProps<typeof Row>): React.JSX.Element {
   return (
     <Row
-      label={<span className="font-section">{label}</span>}
+      label={label}
       className={cn(
-        'min-h-14 px-0 py-2',
-        'max-sm:flex-wrap max-sm:[&>span:last-child:not(:first-child)]:basis-full',
+        'min-h-9 gap-4 rounded-none px-3 py-1 max-sm:gap-3',
         className,
       )}
       {...props}

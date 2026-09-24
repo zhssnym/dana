@@ -1,17 +1,18 @@
 /*
 9.7's Settings page, the presentation. The route page (`pages/SettingsPage.tsx`)
-owns the reads and the account delete; this file draws five sections in one
-column (Account, Appearance, Time, People, Data), then a quiet support line, then
-Delete account set apart at the very end, then the quiet support line. Built from
-sections of the system `Row` (`settings/screen.tsx`), neutral buttons, one danger style. Settings is the home of every
+owns the reads and the account delete; this file draws four labelled cards in
+one column (Account, Preferences, People, Data), then Delete account in a card of
+its own, then the quiet support line (Hassan's grouped-cards reference, r12).
+Built from the system `Row` inside `settings/screen.tsx`'s cards, neutral
+buttons, one danger style. Settings is the home of every
 configuration: a preference is not also toggled from a menu elsewhere.
 
 What is worth knowing:
 
 - **No view pins.** The sidebar no longer has pinnable views, so the switches
   that mirrored it are gone rather than kept as a second copy of the sidebar.
-- **Every row is a label and its control**, the control stacked under the label
-  below `sm`, one layout for every row.
+- **Every row is a label and its control** on one line, a phone included; a
+  long description wraps rather than the control.
 - **The picture is the control** for the viewer's own picture (7.15); Remove is
   offered only while there is one.
 - **"Download my data" is an anchor with `download`**, not a fetch: a navigation
@@ -73,7 +74,12 @@ function ViewerRow() {
             aria-label={isOwnPicture(viewer.image) ? 'Change your picture' : 'Add a picture'}
             className="group/pic relative block shrink-0 rounded-full"
           >
-            <PersonFace id={viewer.id} name={viewer.name} image={viewer.image ?? null} />
+            <PersonFace
+              id={viewer.id}
+              name={viewer.name}
+              image={viewer.image ?? null}
+              className="size-7 data-[size=sm]:size-7"
+            />
             <span className="absolute inset-0 flex items-center justify-center rounded-full bg-foreground/50 opacity-0 transition-opacity group-hover/pic:opacity-100">
               <ImagePlus className="size-4 text-background" strokeWidth={1.75} aria-hidden="true" />
             </span>
@@ -87,7 +93,8 @@ function ViewerRow() {
           />
         </>
       }
-      label={viewer.name}
+      className="min-h-12"
+      label={<span className="font-title">{viewer.name}</span>}
       /* 7.1 has no write for the name: it is Google's, and the line says so. */
       description={`${viewer.email} · from Google`}
       control={
@@ -148,7 +155,7 @@ export function SettingsPageContent({
             <ViewerRow />
           </SettingsSection>
 
-          <SettingsSection title="Appearance">
+          <SettingsSection title="Preferences">
             <StackingRow
               label="Theme"
               control={
@@ -185,9 +192,6 @@ export function SettingsPageContent({
                 }
               />
             )}
-          </SettingsSection>
-
-          <SettingsSection title="Time">
             <StackingRow label="Timezone" control={<TimezoneSelect />} />
             <StackingRow
               label="Clock"
@@ -238,7 +242,7 @@ export function SettingsPageContent({
             ) : null}
           </SettingsSection>
 
-          {/* Destructive, so last and set apart by the one divider. */}
+          {/* Destructive, so last and in a card of its own. */}
           <SettingsSection aria-label="Delete account">
             <StackingRow
               label="Delete account"
@@ -251,7 +255,7 @@ export function SettingsPageContent({
             />
           </SettingsSection>
 
-          <p className="mt-10 text-xs text-muted-foreground">
+          <p className="mt-4 text-xs text-muted-foreground">
             Something wrong? Write to{' '}
             <a
               href={`mailto:${SUPPORT_EMAIL}`}
@@ -291,7 +295,7 @@ function Choice({
   )
 }
 
-const PICKER = 'w-56 justify-between border border-input'
+const PICKER = 'w-(--settings-picker-width) max-sm:w-36 justify-between border border-input bg-muted'
 
 /* 7.1's PATCH /me takes a timezone. The list is the browser's own; a zone it
    does not list, which 7.2 may still have detected, is offered as the current

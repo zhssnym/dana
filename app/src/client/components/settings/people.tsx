@@ -172,7 +172,7 @@ export function PeopleSettings(): React.JSX.Element {
                 value={email}
                 autoFocus
                 disabled={invite.isPending}
-                className="w-56"
+                className="w-(--settings-picker-width) max-sm:w-36"
                 onChange={(event) => {
                   setEmail(event.target.value)
                 }}

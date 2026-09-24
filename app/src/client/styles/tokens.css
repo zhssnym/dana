@@ -240,6 +240,11 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --shell-windowbar-height: 36px;
   --checkbox-size: 16px;
   --icon-size-compact: 16px;
+  /* r12-settings: a grouped card (Settings' sections, after Hassan's
+     reference): 8px, one step softer than the 6px on its controls, so the
+     buttons inside it read as nested. Its dropdowns share one width. */
+  --radius-card: 8px;
+  --settings-picker-width: 180px;
 
   /* Read by pages/FolderSharingPanel.tsx and pages/FolderPage.tsx. */
   --sharing-panel-width: 440px;
