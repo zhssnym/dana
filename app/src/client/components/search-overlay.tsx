@@ -7,8 +7,9 @@ are marked `Seam` in the body.
    when nothing is typed and 7.18 otherwise, title matches first, with its
    own `pending` and `failed` states. `items` stays a prop for the places,
    which the shell supplies from 9.1's page block.
-3. **`pageGlyph` and `FolderMark` are this client's**, through
-   `lib/nav-model.ts` and `components/folder-mark.tsx`.
+3. **`pageGlyph` is this client's**, through `lib/nav-model.ts`. A folder is
+   a page on screen, so a folder result is drawn as a page and listed under
+   Pages.
 
 What the overlay decides is unchanged and its reasons are in the comments
 below: four kinds, grouped by kind with status deciding the order inside
@@ -17,17 +18,19 @@ places offered before anything is typed; a title match above a body match.
 AC-156 and AC-258 read the badge and the order.
 */
 import { Input } from "./ui/input.js"
-import { FolderMark } from "./folder-mark.js"
 import { pageGlyph } from "../lib/nav-model.js"
-import { Folders } from "../lib/icons.js"
 import { useEffect, useRef, useState, type KeyboardEvent } from "react"
 import {
-  ArrowRight,
   CalendarDays,
+  CheckCircle2,
+  FileText,
+  Folders,
   Keyboard,
   Search,
   X,
+  type LucideIcon,
 } from "../lib/icons.js"
+import { useIsMobile } from "./ui/use-mobile.js"
 
 import { Button } from "./ui/button.js"
 import {
@@ -69,6 +72,8 @@ export type SearchResultItem = {
   dueDate?: string
   /* A folder's own colour, for its mark. */
   color?: string
+  /* The glyph a folder's owner chose; absent means the plain page glyph. */
+  icon?: LucideIcon
 }
 
 const statusOrder: SearchResultStatus[] = ["pending", "abandoned", "completed"]
@@ -83,13 +88,32 @@ as one list.
 So kind decides the headings, and status decides the order within Tasks, where
 each row wears its own badge anyway.
 */
-const kindOrder: SearchResultKind[] = ["task", "folder", "shelf", "page"]
+/* A folder is a page on screen, so folders and pages share the one Pages
+   heading: a folder found by name first, then the places, then a page's
+   prose. `kind` still decides what opening a row does. */
+type SearchGroup = "task" | "page" | "shelf"
 
-const kindLabels: Record<SearchResultKind, string> = {
+const groupOrder: SearchGroup[] = ["task", "page", "shelf"]
+
+const groupOf: Record<SearchResultKind, SearchGroup> = {
+  task: "task",
+  folder: "page",
+  page: "page",
+  shelf: "shelf",
+}
+
+const groupLabels: Record<SearchGroup, string> = {
   task: "Tasks",
-  folder: "Folders",
-  shelf: "Collections",
   page: "Pages",
+  shelf: "Collections",
+}
+
+function resultGlyph(item: SearchResultItem): LucideIcon {
+  if (item.kind === "task") return CheckCircle2
+  if (item.kind === "shelf") return Folders
+  if (item.id === SHORTCUTS_RESULT) return Keyboard
+  if (item.kind === "page") return pageGlyph(item.title) ?? FileText
+  return item.icon ?? FileText
 }
 
 const statusLabels: Record<SearchResultStatus, string> = {
@@ -165,7 +189,7 @@ export function SearchOverlay({
       return
     }
 
-    setSearching(trimmed.length >= 2)
+    setSearching(trimmed.length > 0)
     const timeout = window.setTimeout(() => {
       setDebouncedQuery(trimmed)
       setSearching(false)
@@ -189,13 +213,16 @@ export function SearchOverlay({
   `items` when nothing is typed.
   */
   const answer = useSearchAnswer(debouncedQuery, open)
+  const isMobile = useIsMobile()
+  /* Any typed character filters; `useSearchAnswer` filters what is in hand
+     below Q8's two-character floor. */
   const results =
-    debouncedQuery.trim().length < 2 ? items.filter((item) => item.kind === "page") : answer.results
+    debouncedQuery.trim() === "" ? items.filter((item) => item.kind === "page") : answer.results
 
-  const groupedResults = kindOrder.map((kind) => ({
-    kind,
+  const groupedResults = groupOrder.map((group) => ({
+    kind: group,
     rows:
-      kind === "task"
+      group === "task"
         ? results
             .filter((result) => result.kind === "task")
             .sort(
@@ -203,7 +230,7 @@ export function SearchOverlay({
                 statusOrder.indexOf(a.status ?? "pending") -
                 statusOrder.indexOf(b.status ?? "pending"),
             )
-        : results.filter((result) => result.kind === kind),
+        : results.filter((result) => groupOf[result.kind] === group),
   }))
   const orderedResults = groupedResults.flatMap((group) => group.rows)
 
@@ -240,7 +267,7 @@ export function SearchOverlay({
         <DialogHeader className="sr-only">
           <DialogTitle>Search Dana</DialogTitle>
           <DialogDescription>
-            Search the tasks, folders and pages you can access.
+            Search the tasks, pages and collections you can access.
           </DialogDescription>
         </DialogHeader>
 
@@ -315,7 +342,7 @@ export function SearchOverlay({
                       id={`search-${group.kind}`}
                       className="flex h-7 items-center px-2 text-xs font-medium text-muted-foreground"
                     >
-                      {kindLabels[group.kind]}
+                      {groupLabels[group.kind]}
                       <span className="ml-1.5 tabular-nums">{group.rows.length}</span>
                     </h3>
                     <div className="space-y-0.5">
@@ -338,34 +365,21 @@ export function SearchOverlay({
                             )}
                           >
                             {/* Each result wears the mark of what it is: a
-                                task wears its folder's, a folder wears its
-                                own, and a page wears the glyph the sidebar
-                                gives it, all from the one resolver, so a
-                                folder found by searching looks like the same
-                                folder in the sidebar. */}
-                            {item.kind === "page" || item.kind === "shelf" ? (
-                              (() => {
-                                const Glyph =
-                                  item.kind === "shelf"
-                                    ? Folders
-                                    : item.id === SHORTCUTS_RESULT
-                                      ? Keyboard
-                                      : pageGlyph(item.title)
-                                return Glyph ? (
-                                  <Glyph
-                                    className="size-4 shrink-0 text-muted-foreground"
-                                    strokeWidth={1.75}
-                                    aria-hidden="true"
-                                  />
-                                ) : null
-                              })()
-                            ) : (
-                              <FolderMark
-                                name={item.folder?.name ?? item.title}
-                                color={item.folder?.color ?? item.color ?? "currentColor"}
-                                className="size-4 shrink-0"
-                              />
-                            )}
+                                task the task glyph, a page the glyph its
+                                owner chose or the plain page, a place the
+                                glyph the sidebar gives it. A chosen glyph
+                                keeps its colour, as in the sidebar. */}
+                            {(() => {
+                              const Glyph = resultGlyph(item)
+                              return (
+                                <Glyph
+                                  className="size-4 shrink-0 text-muted-foreground"
+                                  style={item.kind === "folder" && item.color ? { color: item.color } : undefined}
+                                  strokeWidth={1.75}
+                                  aria-hidden="true"
+                                />
+                              )
+                            })()}
                             <span className="min-w-0 flex-1">
                               <span className="block truncate text-sm font-medium text-foreground">
                                 {item.title}
@@ -383,14 +397,6 @@ export function SearchOverlay({
                               </span>
                             ) : null}
                             {item.status ? <StatusBadge status={item.status} /> : null}
-                            <ArrowRight
-                              className={cn(
-                                "size-4 shrink-0 text-muted-foreground transition-opacity",
-                                active ? "opacity-100" : "opacity-0",
-                              )}
-                              strokeWidth={1.75}
-                              aria-hidden="true"
-                            />
                           </button>
                         )
                       })}
@@ -402,16 +408,19 @@ export function SearchOverlay({
           )}
         </div>
 
-        <footer className="flex min-h-10 items-center border-t border-border bg-muted px-4 text-xs text-muted-foreground">
-          <span className="ml-auto hidden items-center gap-2 sm:flex" aria-hidden="true">
-            <kbd className="rounded-sm border border-border bg-background px-1.5 py-0.5 text-xs">↑↓</kbd>
-            Navigate
-            <kbd className="rounded-sm border border-border bg-background px-1.5 py-0.5 text-xs">↵</kbd>
-            Open
-            <kbd className="rounded-sm border border-border bg-background px-1.5 py-0.5 text-xs">Esc</kbd>
-            Close
-          </span>
-        </footer>
+        {/* Key hints are for a keyboard; a phone has none, so no footer. */}
+        {isMobile ? null : (
+          <footer className="flex min-h-10 items-center border-t border-border bg-muted px-4 text-xs text-muted-foreground">
+            <span className="ml-auto flex items-center gap-2" aria-hidden="true">
+              <kbd className="rounded-sm border border-border bg-background px-1.5 py-0.5 text-xs">↑↓</kbd>
+              Navigate
+              <kbd className="rounded-sm border border-border bg-background px-1.5 py-0.5 text-xs">↵</kbd>
+              Open
+              <kbd className="rounded-sm border border-border bg-background px-1.5 py-0.5 text-xs">Esc</kbd>
+              Close
+            </span>
+          </footer>
+        )}
       </DialogContent>
     </Dialog>
   )

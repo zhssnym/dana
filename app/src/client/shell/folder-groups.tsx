@@ -62,14 +62,13 @@ import type { Shelf } from '../../shared/shelves.js'
 
 /** 9.1, normative: the confirm a group deletion carries. */
 export function deleteGroupConfirm(folderCount: number): string {
-  /* A shelf is a "collection" on screen, and what "folders keep their tasks" means to a
-     person is that they leave the collection and stay. The sentence names the
-     shelf rather than leaning on a pronoun, and its count agrees with a shelf
-     holding one folder. */
-  return (
-    `Delete collection? ${String(folderCount)} folder${folderCount === 1 ? '' : 's'} keep ` +
-    'their tasks and leave the collection.'
-  )
+  /* A shelf is a "collection" on screen and a folder is a page, and what
+     "pages keep their tasks" means to a person is that they leave the
+     collection and stay. The sentence names the shelf rather than leaning on a
+     pronoun, and it agrees with a shelf holding one page. */
+  return folderCount === 1
+    ? 'Delete collection? 1 page keeps its tasks and leaves the collection.'
+    : `Delete collection? ${String(folderCount)} pages keep their tasks and leave the collection.`
 }
 
 /** What the sidebar needs to offer 9.1's four operations on its rows. */

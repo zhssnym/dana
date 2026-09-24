@@ -13,6 +13,7 @@ the previous person's rows, and 10.1 destroys their session, so nothing in it
 is theirs to keep.
 */
 import { mutateApi } from '../api/http.js'
+import { queryClient } from '../api/queryClient.js'
 import { clearCalendarZoomMirror } from '../lib/calendar-zoom.js'
 import { clearTaskOpenMirror } from '../lib/task-surface-preference.js'
 import { clearThemeMirror } from '../lib/theme.js'
@@ -23,6 +24,13 @@ export function signOut(): void {
   clearTaskOpenMirror()
   clearThemeMirror()
   void mutateApi(null, { method: 'POST', path: '/auth/logout' }).finally(() => {
+    /* The session is gone: nothing may refetch while the document unloads. */
+    const client = queryClient()
+    if (client !== undefined) {
+      void client.cancelQueries()
+      client.clear()
+      client.unmount()
+    }
     window.location.assign(paths.landing)
   })
 }

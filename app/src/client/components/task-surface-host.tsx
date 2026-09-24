@@ -41,7 +41,7 @@ import {
   keepLabel,
 } from './ui/copy.js'
 import { TaskWriter } from '../tasks/task-writer.js'
-import { TaskCenterPeek, TaskPanel } from './task-surface.js'
+import { TaskCenterPeek, TaskPanel, usePrefetchTaskOnIntent } from './task-surface.js'
 import { useTaskOpenPreference } from '../lib/task-surface-preference.js'
 
 /** The search parameter an open task rides. */
@@ -83,6 +83,7 @@ export function TaskSurfaceHost(): ReactNode {
   const state = (location.state ?? null) as PanelState | null
 
   const editing = useTaskEditing(taskId === '' ? null : taskId)
+  usePrefetchTaskOnIntent()
   const acts = useRowActions()
   const [pending, setPending] = useState<PendingAct | null>(null)
   const mode = useTaskOpenPreference()

@@ -63,7 +63,7 @@ import {
   SidebarTrigger,
 } from '../components/ui/sidebar.js'
 import { MORE_ACTIONS } from '../components/ui/copy.js'
-import { moveToShelfChoice, ObjectMenu } from '../components/object-menu.js'
+import { ObjectMenu } from '../components/object-menu.js'
 import { cn } from '../components/ui/utils.js'
 import { useCreateFolder, useDuplicateFolder, useMoveFolder } from '../api/mutations.js'
 import { folderGates } from '../lib/folder-authority.js'
@@ -254,6 +254,9 @@ function usePageTreeValue({
   const navigate = useNavigate()
   const move = useMoveFolder()
   const create = useCreateFolder()
+  /* Set on the press, before the mutation's own pending state has rendered:
+     a double click lands both clicks in the same frame. */
+  const creating = useRef(false)
   const tree = useMemo(() => buildTree(folders), [folders])
   const [folded, setFolded] = useState(readPageFolds)
   const [mark, setMark] = useState<TreeDrop['mark'] | null>(null)
@@ -331,10 +334,14 @@ function usePageTreeValue({
     addInside: (parent) => {
       /* One page per press: a held key or a double click must not stack
          Untitled pages while the first create is in flight. */
-      if (create.isPending) return
+      if (creating.current) return
+      creating.current = true
       create.mutate(
         { name: 'Untitled', parent_folder_id: parent.id },
         {
+          onSettled: () => {
+            creating.current = false
+          },
           onSuccess: (made) => {
             setFold(parent.id, false)
             /* Opened with its name field focused and selected, so typing
@@ -453,23 +460,16 @@ function inboxOf(folders: readonly Folder[]): Folder | null {
 }
 
 /*
-The acts a Library row can perform on its folder.
+The acts a Library row can perform on its page: the ones that make sense on a
+row (Notion's sidebar "…"). History, Tabs…, Import… and Export are the page's
+own "…", on the page.
 
-Rename, History, Save as workflow, Leave and Delete each need a surface the
-folder page already has, so the row opens the folder and asks its page to run
-the act (`?folder-action=…`), one implementation of each. Copy link and
-Duplicate need no surface and run here. `folderGates` decides which a viewer
-gets, the same call the folder page makes.
+Rename, Leave and Delete each need a surface the page already has, so the row
+opens the page and asks it to run the act (`?folder-action=…`), one
+implementation of each. Copy link and Duplicate need no surface and run here.
+`folderGates` decides which a viewer gets, the same call the page makes.
 */
-export type FolderAction =
-  | 'rename'
-  | 'history'
-  | 'cover'
-  | 'tabs'
-  | 'workflow'
-  | 'transfer'
-  | 'leave'
-  | 'delete'
+export type FolderAction = 'rename' | 'leave' | 'delete'
 
 /** The query the folder page reads to run an act the Library asked for. */
 export const FOLDER_ACTION_PARAM = 'folder-action'
@@ -553,32 +553,14 @@ function SidebarFolderRow({
       }
       dropMark={pages.mark?.rowId === folder.id ? pages.mark.kind : null}
       seeThrough={pages.mark !== null}
-      /* The same folder menu as the folder page's header "…" (one list in
-         `lib/object-acts.ts`); acts needing the page's surfaces open it with
-         `?folder-action=`. */
+      /* The row's menu: Rename, Copy link, Duplicate, then Leave or Delete
+         by role. The page's own "…" keeps History, Tabs…, Import… and Export. */
       acts={{
-        history: () => {
-          void navigate(folderActionPath(folder.id, 'history'))
-        },
         rename: gates.identity
           ? () => {
               void navigate(folderActionPath(folder.id, 'rename'))
             }
           : undefined,
-        /* The Desk folder is pinned first and never on a shelf. */
-        move: folder.is_default
-          ? undefined
-          : moveToShelfChoice(groups.labels, folder.my_shelf, (label) => {
-              groups.onMoveToGroup(folder, label)
-            }),
-        cover: gates.identity
-          ? () => {
-              void navigate(folderActionPath(folder.id, 'cover'))
-            }
-          : undefined,
-        tabs: () => {
-          void navigate(folderActionPath(folder.id, 'tabs'))
-        },
         'copy-link': () => {
           void navigator.clipboard.writeText(folderLink(folder.id))
         },
@@ -589,15 +571,6 @@ function SidebarFolderRow({
             },
           })
         },
-        workflow: () => {
-          void navigate(folderActionPath(folder.id, 'workflow'))
-        },
-        transfer:
-          gates.transferOwnership && folder.member_count > 1
-            ? () => {
-                void navigate(folderActionPath(folder.id, 'transfer'))
-              }
-            : undefined,
         leave: gates.leave
           ? () => {
               void navigate(folderActionPath(folder.id, 'leave'))
@@ -663,7 +636,7 @@ function FolderGroupBlock({
   const inner = useSortableList({
     count: group.folders.length,
     onLift: swallowNextClick,
-    describe: (index) => group.folders[index]?.name ?? 'Folder',
+    describe: (index) => group.folders[index]?.name ?? 'Page',
     onOver: (from, point) => {
       /* Onto a page, or between sub-pages: the tree answers first. */
       const folder = group.folders[from]
@@ -738,7 +711,7 @@ function FolderGroupBlock({
             </span>
           )}
           <CollapsibleTrigger
-            aria-label={`Show the folders in ${group.label}`}
+            aria-label={`Show the pages in ${group.label}`}
             data-no-drag
             className="relative flex size-6 shrink-0 items-center justify-center rounded-sm outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/30"
           >
@@ -888,7 +861,7 @@ function LibraryColumn({
     onLift: swallowNextClick,
     describe: (index) => {
       const entry = entries[index]
-      return entry === undefined ? 'Folder' : entryName(entry)
+      return entry === undefined ? 'Page' : entryName(entry)
     },
     onOver: (from, point) => {
       const entry = entries[from]
@@ -1089,13 +1062,22 @@ export function AppSidebar({
   const navigate = useNavigate()
   const create = useCreateFolder()
   /* One page per press, the row "+"'s rule: a double click must not stack
-     Untitled pages while the first create is in flight. Opened with its name
-     selected, so typing replaces "Untitled". */
+     Untitled pages while the first create is in flight. A ref and not
+     `create.isPending`, which has not rendered yet when the second click of a
+     double click arrives. Opened with its name selected, so typing replaces
+     "Untitled". */
+  const creating = useRef(false)
   const newPage = (): void => {
-    if (create.isPending) return
+    if (creating.current) return
+    creating.current = true
     create.mutate(
       { name: 'Untitled' },
-      { onSuccess: (made) => void navigate(folderActionPath(made.id, 'rename')) },
+      {
+        onSettled: () => {
+          creating.current = false
+        },
+        onSuccess: (made) => void navigate(folderActionPath(made.id, 'rename')),
+      },
     )
   }
   /* The Library draws roots; each root draws its own sub-pages. A page whose
@@ -1118,12 +1100,14 @@ export function AppSidebar({
       collapsible="offcanvas"
       inert={hidden}
       role="navigation"
-      aria-label="Pages and folders"
+      aria-label="Pages"
       /* No slide: the resize handle sets this width, and a transition would
          make the column lag the pointer. */
       className="h-full shrink-0 border-r border-border bg-sidebar transition-none"
     >
-      <SidebarHeader className="gap-2 p-2 pb-0">
+      {/* Solid and above the list, so nothing scrolling in the list shows
+          through the head; the list below is the one scroll container. */}
+      <SidebarHeader className="relative z-40 shrink-0 gap-2 bg-sidebar p-2 pb-1">
         <div className="flex items-center gap-0.5">
           <span className="min-w-0 flex-1" />
           <NotificationsBell />

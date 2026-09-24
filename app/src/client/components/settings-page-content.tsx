@@ -58,6 +58,7 @@ import { isOwnPicture, PersonFace } from './person-face.js'
 import { Button } from './ui/button.js'
 import { Combobox } from './ui/combobox.js'
 import { Input } from './ui/input.js'
+import { useIsMobile } from './ui/use-mobile.js'
 import { Skeleton } from './ui/skeleton.js'
 import { cn } from './ui/utils.js'
 
@@ -183,6 +184,8 @@ export function SettingsPageContent({
   const theme = useTheme()
   const clock = useTimeFormat()
   const taskOpen = useTaskOpenPreference()
+  /* A phone always opens a task full page, so the choice would do nothing. */
+  const phone = useIsMobile()
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleteConfirmation, setDeleteConfirmation] = useState('')
 
@@ -246,21 +249,23 @@ export function SettingsPageContent({
                 />
               }
             />
-            <Row
-              title="Open tasks in"
-              control={
-                <Segmented
-                  label="Open tasks in"
-                  value={taskOpen}
-                  options={[
-                    ['dialog', 'Center peek'],
-                    ['panel', 'Side peek'],
-                    ['tab', 'Full page'],
-                  ]}
-                  onSelect={setTaskOpen}
-                />
-              }
-            />
+            {phone ? null : (
+              <Row
+                title="Open tasks in"
+                control={
+                  <Segmented
+                    label="Open tasks in"
+                    value={taskOpen}
+                    options={[
+                      ['dialog', 'Center peek'],
+                      ['panel', 'Side peek'],
+                      ['tab', 'Full page'],
+                    ]}
+                    onSelect={setTaskOpen}
+                  />
+                }
+              />
+            )}
           </ScreenSection>
 
           <ScreenSection id="settings-time" title="Time">
@@ -306,8 +311,8 @@ export function SettingsPageContent({
                 title="Sample data"
                 description={
                   sample.present
-                    ? `${String(sample.folders)} folders and ${String(sample.tasks)} tasks to show you around. Your own work stays.`
-                    : 'Removed. Bring back the example folders and tasks.'
+                    ? `${String(sample.folders)} pages and ${String(sample.tasks)} tasks to show you around. Your own work stays.`
+                    : 'Removed. Bring back the example pages and tasks.'
                 }
                 control={
                   <Button
@@ -322,7 +327,7 @@ export function SettingsPageContent({
             ) : null}
             <Row
               title="Delete account"
-              description="Shared folders you own must be handed on or deleted first. Private folders and their tasks go with the account."
+              description="Shared pages you own must be handed on or deleted first. Private pages and their tasks go with the account."
               control={
                 <Button variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
                   Delete account
@@ -344,8 +349,8 @@ export function SettingsPageContent({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete your Dana account?</AlertDialogTitle>
             <AlertDialogDescription>
-              Shared folders you own must be handed to another member, or deleted, first — Dana will
-              tell you which ones. Private folders and their tasks are permanently deleted.
+              Shared pages you own must be handed to another member, or deleted, first — Dana will
+              tell you which ones. Private pages and their tasks are permanently deleted.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div>

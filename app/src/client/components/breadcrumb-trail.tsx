@@ -139,6 +139,7 @@ export function BreadcrumbTrail({
   readonly current?: string | null
   readonly className?: string
 }): React.JSX.Element | null {
+  const { pathname } = useLocation()
   const folder = useFolder(folderId ?? '', folderId !== null)
   const detail = folderId === null ? undefined : folder.data
 
@@ -169,7 +170,13 @@ export function BreadcrumbTrail({
           return (
             <li
               key={crumb === 'fold' ? 'fold' : `${crumb.id ?? 'current'}-${String(position)}`}
-              className={cn('flex min-w-0 items-center gap-0.5', phoneHidden && 'max-md:hidden')}
+              className={cn(
+                'flex min-w-0 items-center gap-0.5',
+                /* The current crumb wins the space: ancestors give way first,
+                   and the fold button never shrinks. */
+                crumb === 'fold' ? 'shrink-0' : position === last ? 'shrink' : 'shrink-[8]',
+                phoneHidden && 'max-md:hidden',
+              )}
             >
               {/* The first crumb a phone shows has nothing before it. */}
               {index > 0 ? <Separator phoneHidden={position === last - 1} /> : null}
@@ -195,12 +202,15 @@ export function BreadcrumbTrail({
                   </DropdownMenuContent>
                 </DropdownMenu>
               ) : position === last ? (
-                <span aria-current="page" className={cn(CRUMB, 'text-foreground')} title={crumb.name}>
+                <span aria-current="page" className={cn(CRUMB, 'max-w-none text-foreground')} title={crumb.name}>
                   <span className="truncate">{crumb.name || 'Untitled'}</span>
                 </span>
               ) : (
                 <Link
                   to={paths.folder(crumb.id ?? '')}
+                  /* The page already under a peek: going to it closes the
+                     peek without stacking a second entry for the same page. */
+                  replace={paths.folder(crumb.id ?? '') === pathname}
                   title={crumb.name}
                   className={cn(CRUMB, 'text-muted-foreground hover:bg-accent hover:text-foreground')}
                 >

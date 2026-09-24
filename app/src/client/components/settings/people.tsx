@@ -37,7 +37,7 @@ import { PersonFace } from '../person-face.js'
 
 /** 9.8, verbatim: the confirm before a roster entry is removed. */
 const REMOVE_CONNECTION =
-  "Remove connection? You can still see shared folders; you'll just need a fresh invite to share new ones."
+  "Remove connection? You can still see shared pages; you'll just need a fresh invite to share new ones."
 
 /** 9.6: the tooltip on a resend refused inside the 24 hour window. */
 const RESENT_RECENTLY = 'Resent recently'
@@ -81,7 +81,7 @@ export function PeopleSettings(): React.JSX.Element {
 
   return (
     <>
-      <p className="pb-3 text-xs text-muted-foreground">People you can share folders with.</p>
+      <p className="pb-3 text-xs text-muted-foreground">People you can share pages with.</p>
       <form
         className="flex gap-2 pb-6"
         onSubmit={(event) => {
@@ -164,7 +164,7 @@ export function PeopleSettings(): React.JSX.Element {
       <PageBody query={connections} isEmpty={false} emptyCopy="">
         {nobody ? (
           <p className="text-sm text-muted-foreground">
-            No one yet. Invite someone by email to share folders with them.
+            No one yet. Invite someone by email to share pages with them.
           </p>
         ) : connected.length === 0 ? null : (
           <PeopleGroup id="connections-heading" title="Connected" count={connected.length}>

@@ -87,7 +87,7 @@ export function FolderHeader({
           <AddCoverAction storageName={coverKey} />
         </div>
       ) : null}
-      <div className="flex min-w-0 items-center gap-2">
+      <div className="flex min-w-0 items-start gap-2">
         {editable ? (
           <Popover open={markOpen} onOpenChange={setMarkOpen}>
             <PopoverTrigger
@@ -109,33 +109,45 @@ export function FolderHeader({
           <span className="-ml-1 flex size-9 shrink-0 items-center justify-center">{glyph}</span>
         )}
         {editable && renaming ? (
-          <input
+          /* A textarea sized to its content, so a long name wraps while it is
+             edited just as the heading does; Enter never makes a newline. */
+          <textarea
             key={name}
             defaultValue={name}
-            aria-label="Folder name"
+            aria-label="Page name"
             maxLength={100}
+            rows={1}
             autoFocus
             onFocus={(event) => event.currentTarget.select()}
             onBlur={(event) => {
-              const next = event.target.value.trim()
+              const next = event.target.value.replace(/\s+/g, ' ').trim()
               onRenamingChange(false)
               if (next !== '' && next !== name) onRename(next)
             }}
             onKeyDown={(event) => {
-              if (event.key === 'Enter') event.currentTarget.blur()
+              if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+                event.preventDefault()
+                const header = event.currentTarget.closest('header')
+                event.currentTarget.blur()
+                /* Notion: Enter in the title goes on writing in the body. */
+                if (header !== null) focusBodyAfter(header)
+              }
               if (event.key === 'Escape') {
                 event.currentTarget.value = name
                 event.currentTarget.blur()
               }
             }}
-            className={cn(FIELD, 'flex-1 text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-bold text-foreground')}
+            className={cn(
+              FIELD,
+              'flex-1 resize-none overflow-hidden [field-sizing:content] break-words text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-bold text-foreground',
+            )}
           />
         ) : (
           /* A heading, always, and the click is the rename (AC-226, AC-217). */
           <h1
             onClick={editable ? () => onRenamingChange(true) : undefined}
             className={cn(
-              'min-w-0 flex-1 truncate text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-bold text-foreground',
+              'min-w-0 flex-1 break-words [overflow-wrap:anywhere] text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-bold text-foreground',
               editable ? 'cursor-text' : '',
             )}
           >
@@ -149,6 +161,28 @@ export function FolderHeader({
       )}
     </header>
   )
+}
+
+/* The first editable body after the header (the Work editor), caret at its
+   start. Nothing editable below (another tab, a viewer) leaves focus alone. */
+function focusBodyAfter(header: HTMLElement): void {
+  requestAnimationFrame(() => {
+    for (const node of document.querySelectorAll<HTMLElement>('[contenteditable="true"]')) {
+      if (!(header.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING)) continue
+      if (node.closest('[role="dialog"]') !== null) continue
+      node.focus({ preventScroll: true })
+      const selection = window.getSelection()
+      const first = node.querySelector('[contenteditable="true"] *, p, h1, h2, h3, li') ?? node
+      if (selection !== null) {
+        const range = document.createRange()
+        range.setStart(first, 0)
+        range.collapse(true)
+        selection.removeAllRanges()
+        selection.addRange(range)
+      }
+      return
+    }
+  })
 }
 
 /**

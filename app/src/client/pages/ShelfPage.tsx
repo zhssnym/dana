@@ -137,6 +137,10 @@ export function ShelfPage(): React.JSX.Element {
               setConfirmingDelete(true)
             }}
           >
+            {/* One quiet line, so an empty collection is not a bare title. */}
+            {onShelf.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No pages in this collection yet.</p>
+            ) : null}
             <Suspense fallback={<p role="status" className="sr-only">Loading writing…</p>}>
               <ShelfCanvas
                 shelfId={id}

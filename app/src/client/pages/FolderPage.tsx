@@ -1127,7 +1127,7 @@ export function FolderPage({
               <PageCover storageName={coverKey} readOnly={gates?.identity !== true} />
             </div>
           ) : null}
-          <PageSection name="Folder header">
+          <PageSection name="Page header">
             <FolderHeader
               name={detail?.name ?? ''}
               icon={markIcon(detail?.icon ?? null)}

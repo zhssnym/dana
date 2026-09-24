@@ -36,7 +36,8 @@ import { ReferencedFrom } from "./links/referenced-from.js"
 import { pageBodyClass } from "./page-head.js"
 import { openTask } from "./task-open.js"
 import { BreadcrumbTrail } from "./breadcrumb-trail.js"
-import { useTask } from "../api/queries.js"
+import { prefetchTask, useTask } from "../api/queries.js"
+import { useQueryClient } from "@tanstack/react-query"
 
 /* Page / Sub / Task, the same trail the top bar draws for a task's full page. */
 function PeekTrail({ taskId }: { taskId: string }) {
@@ -396,7 +397,13 @@ function usePeekKeys(
       const open = document.querySelectorAll(
         '[role="menu"], [role="dialog"], [role="alertdialog"], [role="listbox"]',
       )
-      for (const node of open) if (node !== self.current) return
+      for (const node of open) {
+        if (node === self.current) continue
+        /* A menu still easing out after its own Escape is already closed:
+           the next Escape is the peek's. */
+        if (node.hasAttribute("data-ending-style") || node.hasAttribute("data-closed")) continue
+        return
+      }
       closeRef.current()
     }
     /* Capture: the page under a peek (the folder canvas) stops Escape's
@@ -417,20 +424,80 @@ has no neighbours, and the arrows do not draw.
 export function usePeekSteps(taskId: string, self: React.RefObject<HTMLElement | null>): PeekSteps {
   const [steps, setSteps] = useState<PeekSteps>({ prev: null, next: null })
   useEffect(() => {
-    const ids: string[] = []
-    for (const node of document.querySelectorAll<HTMLElement>("[data-task-id]")) {
-      if (self.current?.contains(node)) continue
-      const id = node.dataset.taskId
-      if (id !== undefined && id !== "" && !ids.includes(id)) ids.push(id)
+    const read = () => {
+      const ids: string[] = []
+      for (const node of document.querySelectorAll<HTMLElement>("[data-task-id]")) {
+        if (self.current?.contains(node)) continue
+        const id = node.dataset.taskId
+        if (id !== undefined && id !== "" && !ids.includes(id)) ids.push(id)
+      }
+      const at = ids.indexOf(taskId)
+      const prev = at < 0 ? null : (ids[at - 1] ?? null)
+      const next = at < 0 ? null : (ids[at + 1] ?? null)
+      setSteps((current) =>
+        current.prev === prev && current.next === next ? current : { prev, next },
+      )
     }
-    const at = ids.indexOf(taskId)
-    setSteps(
-      at < 0
-        ? { prev: null, next: null }
-        : { prev: ids[at - 1] ?? null, next: ids[at + 1] ?? null },
-    )
+    read()
+    /* A cold load with ?task= opens the peek before the list has rendered;
+       re-read whenever rows arrive, leave or reorder. */
+    let frame = 0
+    const observer = new MutationObserver(() => {
+      if (frame !== 0) return
+      frame = requestAnimationFrame(() => {
+        frame = 0
+        read()
+      })
+    })
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["data-task-id"],
+    })
+    return () => {
+      observer.disconnect()
+      cancelAnimationFrame(frame)
+    }
   }, [taskId, self])
   return steps
+}
+
+/*
+Opening a peek waits for the task's read. Start it when a row is pressed, or
+hovered for a moment, so by the click's end the data is usually here and the
+peek opens at once. Mounted once, by the host.
+*/
+const HOVER_INTENT_MS = 120
+
+export function usePrefetchTaskOnIntent(): void {
+  const client = useQueryClient()
+  useEffect(() => {
+    let timer = 0
+    const idOf = (event: Event): string | null => {
+      const target = event.target instanceof Element ? event.target : null
+      const row = target?.closest<HTMLElement>("[data-task-id]")
+      const id = row?.dataset.taskId
+      return id === undefined || id === "" ? null : id
+    }
+    const onDown = (event: PointerEvent) => {
+      const id = idOf(event)
+      if (id !== null) prefetchTask(client, id)
+    }
+    const onOver = (event: PointerEvent) => {
+      window.clearTimeout(timer)
+      if (event.pointerType !== "mouse") return
+      const id = idOf(event)
+      if (id !== null) timer = window.setTimeout(() => prefetchTask(client, id), HOVER_INTENT_MS)
+    }
+    document.addEventListener("pointerdown", onDown, true)
+    document.addEventListener("pointerover", onOver, true)
+    return () => {
+      window.clearTimeout(timer)
+      document.removeEventListener("pointerdown", onDown, true)
+      document.removeEventListener("pointerover", onOver, true)
+    }
+  }, [client])
 }
 
 /*
@@ -568,7 +635,7 @@ export function TaskCenterPeek({
   return (
     <div
       {...motion}
-      className="fixed inset-0 z-40 flex items-start justify-center bg-black/20 pt-[6vh] pb-[4vh] motion-fade"
+      className="fixed inset-0 z-40 flex items-start justify-center bg-scrim pt-[6vh] pb-[4vh] motion-fade"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) requestClose()
       }}

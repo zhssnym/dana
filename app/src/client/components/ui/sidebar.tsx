@@ -120,6 +120,32 @@ function SidebarProvider({
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [toggleSidebar])
 
+  /*
+  Focus follows the toggle on a laptop. Collapsing makes the sidebar inert and
+  expanding unmounts the top-bar "Expand sidebar", so the pressed control
+  vanishes and focus would fall to the body. When it has (or sits in an inert
+  subtree the browser has not blurred yet), it moves to whichever toggle is now
+  showing. Focus anywhere else, an editor under Ctrl+B, is left alone. A phone's
+  sidebar is a sheet, which returns focus itself.
+  */
+  const wasOpen = React.useRef(open)
+  React.useEffect(() => {
+    if (wasOpen.current === open) return
+    wasOpen.current = open
+    if (isMobile) return
+    const active = document.activeElement
+    const lost =
+      active === null ||
+      active === document.body ||
+      !active.isConnected ||
+      active.closest("[inert]") !== null
+    if (!lost) return
+    const toggle = [
+      ...document.querySelectorAll<HTMLElement>('[data-slot="sidebar-trigger"]'),
+    ].find((element) => element.closest("[inert]") === null)
+    toggle?.focus()
+  }, [open, isMobile])
+
   // We add a state so that we can do data-state="expanded" or "collapsed".
   // This makes it easier to style the sidebar with Tailwind classes.
   const state = open ? "expanded" : "collapsed"

@@ -14,7 +14,7 @@ remembering. The split is 7.0's own: view endpoints evaluate dates and take
 tz, the roster and the folder list and settings do not and carry none.
 */
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
-import type { UseInfiniteQueryResult, UseQueryResult } from '@tanstack/react-query'
+import type { QueryClient, UseInfiniteQueryResult, UseQueryResult } from '@tanstack/react-query'
 
 import { getSettingsResponse, getViewsResponse } from '../../shared/bundle.js'
 import { sampleStatus } from '../../shared/sample.js'
@@ -336,6 +336,16 @@ export function usePlannedCalendarView(
  * whose eight extra fields over TaskCard are exactly what the form needs and
  * no list response carries: notes, the rule, the reminder and the steps.
  */
+/** Starts `useTask`'s read early (a row pressed or hovered), so a peek opens
+ * on data already here. Fresh reads within a few seconds are not repeated. */
+export function prefetchTask(client: QueryClient, id: string): void {
+  void client.prefetchQuery({
+    queryKey: queryKeys.task(id),
+    queryFn: () => getPlain(getTaskResponse, `/tasks/${id}`),
+    staleTime: 5_000,
+  })
+}
+
 export function useTask(id: string | null): UseQueryResult<TaskDetail> {
   return useQuery({
     queryKey: queryKeys.task(id ?? ''),

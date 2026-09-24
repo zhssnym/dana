@@ -89,6 +89,8 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-press: var(--press-tint);
+  /* r3-fix-shell */
+  --color-scrim: var(--scrim);
 
   /* `white` is the page colour (dark in dark mode); ink over imagery uses
      fixed-white. */
@@ -264,6 +266,8 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
 
   --dana-mark-plate: var(--color-graphite-950);
   --dana-mark-glyph: var(--color-graphite-0);
+  /* r3-fix-shell: the dim behind a center peek. */
+  --scrim: rgb(0 0 0 / 20%);
 }
 
 [data-theme="dark"] {
@@ -314,6 +318,8 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --press-tint: rgb(255 255 255 / 10%);
   --shadow-float: 0 0 0 1px rgb(255 255 255 / 6%), 0 4px 12px rgb(0 0 0 / 30%),
     0 12px 32px rgb(0 0 0 / 30%);
+  /* r3-fix-shell: a dark page needs a deeper dim to read as one. */
+  --scrim: rgb(0 0 0 / 55%);
 }
 
 /* The mark: its plate is the opposite of the page, in both themes. */
