@@ -1173,10 +1173,9 @@ export function FolderPage({
             <PageSection name="All open tasks">
               <PageBody
                 query={open}
-                /* A board whose Done column holds finished work is not an empty
-                   page: the last open task completed by a drop must not take
-                   the board with it. */
-                isEmpty={place.mode !== 'list' && place.mode !== 'board' && bothEmpty && completedDays.length === 0}
+                /* No view here draws the generic empty state: Linear and Board
+                   each end with their own add row, which an empty page needs. */
+                isEmpty={false}
                 emptyCopy={FOLDER_EMPTY}
                 emptyIcon={FolderIcon}
                 truncated={open.data?.truncated ?? false}
@@ -1196,6 +1195,7 @@ export function FolderPage({
                 ) : place.mode === 'linear' ? (
                   page.data ? (
                     <LinearView
+                      folderId={id}
                       page={page.data}
                       tasks={visible}
                       completed={completedRows}
