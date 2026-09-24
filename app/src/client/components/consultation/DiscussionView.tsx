@@ -170,9 +170,11 @@ function ThreadBody(props: {
             </div>
           ) : null}
         </div>
-        <p className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+        {/* Inline flow, not a wrapping flex row: on a phone the words wrap
+            after the pill instead of the pill sitting alone on its line. */}
+        <p className="min-w-0 text-sm text-muted-foreground">
           <StatePill trashed={trashed} closed={d.state === 'resolved'} />
-          <span className="min-w-0">
+          <span>
             {d.is_general
               ? 'This page’s own conversation'
               : `${personOf(d.created_by).name} started this ${formatAgo(d.created_at, now)}`}
@@ -252,7 +254,7 @@ function ThreadBody(props: {
 function StatePill({ trashed, closed }: { readonly trashed: boolean; readonly closed: boolean }): React.JSX.Element {
   const tone = trashed || closed ? 'bg-muted text-muted-foreground' : 'bg-success-100 text-success-700'
   return (
-    <span className={`shrink-0 rounded-full px-2 text-xs font-medium ${tone}`}>
+    <span className={`mr-2 inline-block rounded-full px-2 align-middle text-xs font-medium whitespace-nowrap ${tone}`}>
       {trashed ? 'In Trash' : closed ? 'Closed' : 'Open'}
     </span>
   )

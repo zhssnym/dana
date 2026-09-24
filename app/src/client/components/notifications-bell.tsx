@@ -101,10 +101,17 @@ function subjectPath(row: NotificationLine): string {
       /* A comment lands on its thread, opened: the task
          when it sits on one, the folder page otherwise, each told to expand
          its conversation by the query the page reads. */
-      if (row.task_id !== null) return `${paths.task(row.task_id)}?${CONVERSATION_PARAM}=open`
-      return event.folder_id === null
-        ? paths.today
-        : `${paths.folder(event.folder_id)}?${CONVERSATION_PARAM}=open`
+      /* `#post-<id>` asks the thread to bring the post into view. */
+      if (row.task_id !== null) {
+        return `${paths.task(row.task_id)}?${CONVERSATION_PARAM}=open#post-${event.subject_id}`
+      }
+      if (event.folder_id === null) return paths.today
+      /* A post in a Discussion opens that thread, not the page's list of
+         threads; the server names it (`discussion_id`, issue #320). */
+      if (row.discussion_id !== undefined && row.discussion_id !== null) {
+        return `${paths.folder(event.folder_id)}?discussion=${row.discussion_id}#post-${event.subject_id}`
+      }
+      return `${paths.folder(event.folder_id)}?${CONVERSATION_PARAM}=open`
   }
 }
 

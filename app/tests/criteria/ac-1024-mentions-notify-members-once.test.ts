@@ -52,6 +52,7 @@ afterAll(async () => {
 })
 
 interface Line {
+  discussion_id?: string | null
   event: { verb: string; subject_kind: string; subject_id: string; actor_id: string; detail: string | null }
 }
 
@@ -190,6 +191,7 @@ describe('AC-1024 mentions notify page members once', () => {
     const told = await linesAbout(reader, postId)
     expect(told.map((line) => line.event.verb), 'one notice for the post: the mention, not also commented').toEqual(['mentioned'])
     expect(told[0]?.event.detail).toBe('mentioned you in "ac1024 thread"')
+    expect(told[0]?.discussion_id, 'the bell opens this thread, so the line names it').toBe(discussionId)
     expect(await linesAbout(outsider, postId), 'a non-member is never told').toHaveLength(0)
     expect(
       await countRows(app.db, sql`SELECT count(*)::int AS n FROM mention_notices WHERE user_id = ${outsider.id}::uuid`),

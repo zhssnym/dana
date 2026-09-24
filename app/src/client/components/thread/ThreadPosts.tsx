@@ -128,6 +128,17 @@ export function ThreadPosts({
     flashTimer.current = window.setTimeout(() => { setFlash(null) }, 1600)
   }
 
+  /* Arriving at `#post-<id>` (a notification about that post) brings it into
+     view once, the same way a reply's quote line does. */
+  const arrived = useRef(false)
+  useEffect(() => {
+    if (arrived.current) return
+    const wanted = /^#post-(.+)$/.exec(window.location.hash)?.[1]
+    if (wanted === undefined || !byId.has(wanted)) return
+    arrived.current = true
+    goTo(wanted)
+  })
+
   if (failed) return <InlineError onRetry={onRetry} />
   if (loading) return <SkeletonList />
 

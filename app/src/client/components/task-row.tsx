@@ -1588,6 +1588,8 @@ export interface TaskListWiring {
     isArmed: boolean
     isSettling: boolean
     offset: number
+    /* Sideways travel of the carried row, when the list follows across. */
+    crossOffset?: number
   }
   /*
   What a release would do, for a list that drags into a container.
@@ -1621,6 +1623,7 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
   reorderable = true,
   onDropAt,
   onOver,
+  followAcross = false,
   onDragStateChange,
   onMerge,
   onBulk,
@@ -1683,6 +1686,9 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
      because the words are the only thing the row draws and a key would need a
      second prop to translate. See `proposal` on `TaskListWiring`. */
   onOver?: (taskId: string, point: { x: number; y: number }) => string | null
+  /* The carried row follows the pointer sideways too (`crossOffset`), for a
+     board, whose cards leave their column for the one beside it. */
+  followAcross?: boolean
   /* Whether a row in this list is currently being carried. A page with
      sections needs it: the place to drop a task that belongs to none of them
      only has to exist while something is in the air. Pass a stable setter. */
@@ -1805,6 +1811,7 @@ export function TaskList<T extends TaskRowProps & { id: string }>({
       }
     },
     describe: (index) => ordered[index]?.title ?? "Task",
+    followAcross,
   })
 
   /* Each row registers how to open itself; the drag engine calls into this

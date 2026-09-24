@@ -42,7 +42,7 @@ import {
 } from './ui/dropdown-menu.js'
 import { Switch } from './ui/switch.js'
 import { cn } from './ui/utils.js'
-import { Plus } from '../lib/icons.js'
+import { Pencil, Plus, Trash2 } from '../lib/icons.js'
 
 export interface FacetCapabilities {
   readonly createShared: boolean
@@ -396,7 +396,8 @@ export function FolderTabs({
               ...(movable ? { WebkitTouchCallout: 'none' } : {}),
             }}
             className={cn(
-              'relative -mb-px shrink-0 border-b-2 py-2 text-sm whitespace-nowrap outline-none transition-colors select-none focus-visible:text-foreground',
+              /* No outline-none: the global soft focus ring (FEEL) marks the tab a key reached. */
+              'relative -mb-px shrink-0 border-b-2 py-2 text-sm whitespace-nowrap select-none focus-visible:rounded-sm focus-visible:text-foreground',
               current
                 ? 'border-foreground font-medium text-foreground'
                 : 'border-transparent text-muted-foreground hover:text-foreground',
@@ -450,10 +451,14 @@ export function FolderTabs({
         />
         <DropdownMenuContent align="start" className="w-40">
           {menu !== null && mayRename(menu.facet) ? (
-            <DropdownMenuItem onClick={() => setRenamingId(menu.facet.id)}>Rename</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setRenamingId(menu.facet.id)}>
+              <Pencil className="size-4" strokeWidth={1.75} aria-hidden="true" />
+              Rename
+            </DropdownMenuItem>
           ) : null}
           {menu !== null && mayDelete(menu.facet) ? (
             <DropdownMenuItem variant="destructive" onClick={() => onDelete?.(menu.facet)}>
+              <Trash2 className="size-4" strokeWidth={1.75} aria-hidden="true" />
               Delete
             </DropdownMenuItem>
           ) : null}

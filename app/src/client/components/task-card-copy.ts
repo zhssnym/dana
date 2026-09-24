@@ -19,7 +19,7 @@ needs before the value means anything.
 
 /** The five fields of 9.3's v2 table that the header strip carries. */
 export const CHIP_DUE = 'Due date'
-export const CHIP_FOLDER = 'Folder'
+export const CHIP_FOLDER = 'Page'
 export const CHIP_ASSIGNEE = 'Assignee'
 export const CHIP_REMINDER = 'Reminder'
 export const CHIP_REPEAT = 'Repeat'

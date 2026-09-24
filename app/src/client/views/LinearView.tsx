@@ -262,17 +262,28 @@ export function LinearView(props: {
                   }
                   title={linked ? 'Unlink: this step stops waiting for the one above' : 'Link: this step waits for the one above'}
                   onClick={() => toggleLink(joint)}
+                  /* A 28px hit target around the 20px mark: easy to hit, no
+                     bigger to look at. Hidden, it takes no clicks, so it never
+                     steals the edge of a neighbouring node. */
                   className={cn(
-                    'absolute top-0 left-3 z-10 flex size-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border bg-background outline-none',
-                    'opacity-0 transition-[opacity,color,border-color]',
+                    'group/link absolute top-0 left-3 z-10 flex size-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full outline-none',
+                    'pointer-events-none opacity-0 transition-[opacity]',
                     MOTION,
-                    'group-hover/step:opacity-100 group-focus-within/step:opacity-100 hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring',
-                    linked
-                      ? 'border-primary/50 text-primary hover:border-primary'
-                      : 'border-border text-muted-foreground hover:border-quiet-foreground hover:text-foreground',
+                    'group-hover/step:pointer-events-auto group-hover/step:opacity-100 group-focus-within/step:pointer-events-auto group-focus-within/step:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring',
                   )}
                 >
-                  {linked ? <Unlink2 className="size-3" aria-hidden /> : <Link2 className="size-3" aria-hidden />}
+                  <span
+                    aria-hidden
+                    className={cn(
+                      'flex size-5 items-center justify-center rounded-full border bg-background transition-[color,border-color]',
+                      MOTION,
+                      linked
+                        ? 'border-primary/50 text-primary group-hover/link:border-primary'
+                        : 'border-border text-muted-foreground group-hover/link:border-quiet-foreground group-hover/link:text-foreground',
+                    )}
+                  >
+                    {linked ? <Unlink2 className="size-3" aria-hidden /> : <Link2 className="size-3" aria-hidden />}
+                  </span>
                 </button>
               )}
               <button
@@ -320,9 +331,15 @@ export function LinearView(props: {
                 </span>
               )}
               {display.due !== undefined && (
-                /* Muted even when late: the thread is a calm path, and the
-                   list is where lateness is flagged. */
-                <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                /* Late reads as it does on Today and in the list: red, and
+                   said, since colour alone is not. */
+                <span
+                  className={cn(
+                    'shrink-0 text-xs tabular-nums',
+                    display.due.overdue === true ? 'text-destructive' : 'text-muted-foreground',
+                  )}
+                >
+                  {display.due.overdue === true ? <span className="sr-only">Overdue, </span> : null}
                   {display.due.label}
                 </span>
               )}
