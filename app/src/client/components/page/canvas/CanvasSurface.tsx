@@ -342,7 +342,10 @@ export function CanvasSurface({
             },
             aliases: ['todo'], group: 'Basic blocks',
           })
-          return filterSuggestionItems(core.map((item) => ({ ...item, size: 'small' as const })), query)
+          /* One group: the default heading items carry 'Headings' between
+             'Basic blocks' items, and BlockNote keys groups by name, so two
+             'Basic blocks' runs render a duplicate key and an empty header. */
+          return filterSuggestionItems(core.map((item) => ({ ...item, group: 'Basic blocks', size: 'small' as const })), query)
         }} />
       </BlockNoteView>
       <p role="status" aria-live="polite" className="min-h-6 px-2 text-sm text-muted-foreground">{feedback}</p>
