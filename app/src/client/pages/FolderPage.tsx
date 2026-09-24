@@ -163,7 +163,6 @@ import type { ViewMode } from '../views/view-mode.js'
 import { isNarrowed } from '../views/filter.js'
 import { PageBody } from '../components/page/PageStates.js'
 import { SampleStrip } from '../onboarding/SampleStrip.js'
-import { StarterOffer, useMayBeFresh } from '../onboarding/StarterOffer.js'
 import { FOLDER_EMPTY } from './empty-states.js'
 import { FolderSharingPanel } from './FolderSharingPanel.js'
 import { ConfirmDialog, TaskRows, useConfirm, useRowBasis } from './task-rows.js'
@@ -446,8 +445,6 @@ export function FolderPage({
   const completedDays = mergeCompletedDays(completed.data?.pages)
   /* The finished Tasks the canvas draws in place, checked and muted. */
   const completedRows = useMemo(() => completedDays.flatMap((day) => day.rows), [completedDays])
-  /* 9.13's starter offer, beneath Desk while the account holds nothing else. */
-  const mayBeFresh = useMayBeFresh()
   /*
   The board's Done column. No section and Done are the two columns that are not
   sections: one is a place, one is a status, and both take drops. Drawn only on
@@ -1232,7 +1229,6 @@ export function FolderPage({
           />
         ) : null}
       </PageBody>
-      {isDefault && mayBeFresh ? <StarterOffer /> : null}
 
       {facets.data ? (
         <FolderTabsDialog
