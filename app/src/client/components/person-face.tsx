@@ -1,46 +1,52 @@
 /*
 A person, as a disc. One of them, for the whole product.
 
-Every surface that draws a person uses this one component, because the tint
-only means something if it is the same everywhere.
+Every surface that draws a person uses this one component, so one person
+looks the same everywhere.
 
 **Two sizes, both already in the system**:
 the product's avatar for a comment's author or a section heading, and the
-row's 16px face for a chip or a reply. Nothing introduces a size of its own,
-and that rule is why there are two and not five.
+row's 16px face for a chip or a reply. Callers widen it to 20 or 32 with a
+class; the drawing is a 32-unit grid so every one of those stays crisp.
 
-**The tint is a function of the name and lives in `parts/person-tint.ts`**,
-with the wash it is paired with. It is computed here rather than passed in,
-which is the one place this file departs from the component layer's usual
-"take props and callbacks": a pure function of a prop is not a fetch, and a
-tint every call site had to remember to pass is a tint that would go on being
-forgotten, which is the state this replaces.
+**What is drawn (2026-09-24, Hassan: "a default profile pic instead of the
+Google one")**: the person's own uploaded picture (7.15) if they have one,
+otherwise their default face from `default-avatar.tsx`. The account picture
+7.2 stored from Google's `picture` claim is still stored and still on the wire
+(nothing about the data changes) but is no longer drawn, and the initials disc
+is gone. `isOwnPicture` is the one place that tells the two apart: an upload
+is served from our own origin, the Google picture never is.
 
 **The disc is decorative and stays so.** The name beside it is what a reader
 is told; the disc carries no role and no label, because an avatar that
 announced its person a second time would double every roster row. AC-244
-names it as paint for exactly that reason, on AC-173's precedent. Neither
-criterion has a test file since the 2026-09-20 cut.
+names it as paint for exactly that reason, on AC-173's precedent.
 */
-import { personFacePaint } from '../parts/person-tint.js'
-
+import { DefaultAvatar } from './default-avatar.js'
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar.js'
 import { cn } from './ui/utils.js'
 
+/**
+ * Whether a stored picture is the person's own upload (7.15's same-origin
+ * `/api/v1/files/:id`, or the data URL shown while one is saving) rather than
+ * the account picture copied from Google at first sign-in.
+ */
+export function isOwnPicture(image: string | null | undefined): image is string {
+  if (image === null || image === undefined) return false
+  return image.startsWith('/api/v1/files/') || image.startsWith('data:image/')
+}
+
 export interface PersonFaceProps {
-  /** The person's display name, which is what the tint is a function of. */
+  /** The person's display name, which is what the default face is a function of. */
   readonly name: string
-  /** Precomputed by `parts/presenters.ts`, the one place initials are decided. */
-  readonly initials: string
   /**
-   * The person's own picture: 7.15's upload, or the account picture 7.2
-   * stored from Google at first sign-in. Null where they have neither.
-   *
-   * **It is the default and the initials are the fallback**, which the
-   * polish round of 2026-08-30 made true of the call sites as well as of
-   * this component: it had taken an image since the disc was shared and most
-   * callers passed nothing, so one person wore a photograph on a card and a
-   * coloured disc on the row beneath it. Every call site passes one now.
+   * Kept for the call sites' contract; the initials disc is retired, so it is
+   * no longer drawn.
+   */
+  readonly initials?: string
+  /**
+   * The person's stored picture: 7.15's upload, or the account picture 7.2
+   * stored from Google. Only an upload is drawn (`isOwnPicture`).
    */
   readonly image?: string | null
   /** The row's 16px face, for a chip or a reply. Default is the product's. */
@@ -50,12 +56,11 @@ export interface PersonFaceProps {
 
 export function PersonFace({
   name,
-  initials,
   image = null,
   dense = false,
   className,
 }: PersonFaceProps): React.JSX.Element {
-  const paint = personFacePaint(name)
+  const own = isOwnPicture(image)
   return (
     <Avatar
       size="sm"
@@ -64,26 +69,9 @@ export function PersonFace({
         className,
       )}
     >
-      {/*
-      `referrerPolicy="no-referrer"` because the src is one of two things and
-      the second is cross-origin: 7.15's own `/api/v1/files/:id`, or the
-      account picture 7.2 stored from Google's `picture` claim, which lives
-      on Google's user-content CDN (10.8 admits that host and no other, at
-      the polish round of 2026-08-30). A face is drawn on nearly every screen
-      in the product, so without this every list, every roster and every
-      conversation would tell Google which page of Dana the reader is
-      standing on, once per person on it. Nothing of ours depends on the
-      header: the serving route authenticates by session cookie, which an
-      image request carries same-origin regardless of this.
-      */}
-      {image === null ? null : (
-        <AvatarImage src={image} alt="" referrerPolicy="no-referrer" />
-      )}
-      <AvatarFallback
-        className={cn(dense ? 'text-[0.5rem]' : 'text-[0.625rem]', 'font-semibold')}
-        style={{ color: paint.ink, background: paint.ground }}
-      >
-        {initials}
+      {own ? <AvatarImage src={image} alt="" /> : null}
+      <AvatarFallback className="overflow-hidden bg-transparent">
+        <DefaultAvatar name={name} />
       </AvatarFallback>
     </Avatar>
   )
@@ -105,8 +93,8 @@ shapes, which is a component with two contracts and a branch that would
 outlive the reason for it.
 
 `image` is optional here and nullable there, and the two mean the same thing:
-the person's own picture, 7.15's upload or the account picture 7.2 stored
-from Google, and the tinted disc where they have neither.
+the person's stored picture, drawn only when it is their own upload, and
+their default face otherwise.
 */
 export interface Person {
   readonly initials: string

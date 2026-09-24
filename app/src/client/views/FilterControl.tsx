@@ -20,6 +20,7 @@ import type { ViewMode } from './view-mode.js'
 
 const LAYOUTS: Record<ViewMode, string> = {
   list: 'List',
+  linear: 'Linear',
   board: 'Board',
   calendar: 'Calendar',
 }

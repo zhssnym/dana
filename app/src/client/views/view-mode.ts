@@ -1,16 +1,16 @@
 /*
-The Layout choice (list, board, calendar): one remembered preference across
+The Layout choice (list, linear, board, calendar; linear is a page's own): one remembered preference across
 pages, in localStorage. A page that cannot draw the remembered layout shows a
 list without forgetting it; `?mode=` seeds the preference.
 */
 import { useCallback, useSyncExternalStore } from 'react'
 
 /** 9.1's three views. List is the ground and every page offers it. */
-export type ViewMode = 'list' | 'board' | 'calendar'
+export type ViewMode = 'list' | 'linear' | 'board' | 'calendar'
 
 const MODE_KEY = 'dana.view-mode'
 
-const MODES: readonly ViewMode[] = ['list', 'board', 'calendar']
+const MODES: readonly ViewMode[] = ['list', 'linear', 'board', 'calendar']
 
 function isMode(value: string | null): value is ViewMode {
   return value !== null && (MODES as readonly string[]).includes(value)
