@@ -242,7 +242,7 @@ describe('AC-881 to AC-885: the Task document routes', () => {
       checklist(check, 'buy milk', true),
       outline([keep, check]),
     ])
-    expect(wrote.status).toBe(200)
+    expect(wrote.status, JSON.stringify(wrote.json())).toBe(200)
     expect(await notesOf(taskId)).toBe('new text\nline two\nbuy milk')
 
     // The deployed client extends the notes: only the addition is appended.
@@ -270,6 +270,77 @@ describe('AC-881 to AC-885: the Task document routes', () => {
       'totally different',
     ])
     expect(await notesOf(taskId)).toBe('new text\nline two\nbuy milk\nand eggs\ntotally different')
+  })
+
+  test('AC-883: a legacy notes write never erases the tail of a plain document longer than the notes column', async () => {
+    const { owner, folderId } = await stage()
+    const taskId = await seedNoted(folderId, owner.id, null)
+    const view = await readDocument(owner, taskId)
+    const [a, b, c] = [randomUUID(), randomUUID(), randomUUID()]
+    const wrote = await writeDocument(owner, taskId, view.revision, [
+      paragraph(a, 'a'.repeat(4000)),
+      paragraph(b, 'b'.repeat(4000)),
+      paragraph(c, `${'c'.repeat(3990)}THE-TAIL`),
+      outline([a, b, c]),
+    ])
+    expect(wrote.status, JSON.stringify(wrote.json())).toBe(200)
+    const cut = await notesOf(taskId)
+    expect(cut?.length, 'notes is the cut projection').toBe(10000)
+
+    // The deployed textarea sends back the 10000 characters it was shown, edited at the end.
+    const written = `${(cut ?? '').slice(0, 9995)} more`
+    const patched = await owner.browser.json(`/tasks/${taskId}`, 'PATCH', { notes: written })
+    expect(patched.status).toBe(200)
+    const stored = await blocksOf(taskId)
+    expect(stored.slice(0, 3).map((row) => row.id), 'every block the document held survives').toEqual([a, b, c])
+    expect(String(stored[2]?.text).endsWith('THE-TAIL'), 'the tail past 10000 characters survives').toBe(true)
+    expect(stored.slice(3).map((row) => row.text).join('\n'), 'the written text is appended, in order').toBe(written)
+  })
+
+  test('AC-883: a legacy notes write replaces a short plain document whose text differs from notes', async () => {
+    const { owner, folderId } = await stage()
+    const taskId = await seedNoted(folderId, owner.id, null)
+    const view = await readDocument(owner, taskId)
+    const id = randomUUID()
+    const wrote = await writeDocument(owner, taskId, view.revision, [paragraph(id, 'backfilled'), outline([id])])
+    expect(wrote.status, JSON.stringify(wrote.json())).toBe(200)
+    // The deploy overlap: the old server wrote notes alone, so the document lags it.
+    await app.db.execute(sql`UPDATE tasks SET notes = 'written by the old server' WHERE id = ${taskId}::uuid`)
+
+    const patched = await owner.browser.json(`/tasks/${taskId}`, 'PATCH', { notes: 'final words' })
+    expect(patched.status).toBe(200)
+    expect((await blocksOf(taskId)).map((row) => [row.kind, row.text])).toEqual([['paragraph', 'final words']])
+    expect(await notesOf(taskId)).toBe('final words')
+  })
+
+  test("AC-883: a Task document write leaves the deployed client's legacy Folder page writer open", async () => {
+    const { owner } = await stage()
+    const folderId = await createFolder(owner, 'ac883 legacy page writer')
+    const section = async (name: string) => {
+      const page = await owner.browser.api(`/folders/${folderId}/page`)
+      expect(page.status).toBe(200)
+      const items = (page.json() as { items: unknown[] }).items
+      return owner.browser.json(`/folders/${folderId}/page/actions`, 'POST', {
+        action: 'insert_block',
+        block_kind: 'section',
+        text: name,
+        section_block_id: null,
+        after: items.at(-1) ?? null,
+        before: null,
+      })
+    }
+    const first = await section('first work'); expect(first.status, JSON.stringify(first.json())).toBe(200)
+
+    const taskId = await seedNoted(folderId, owner.id, null)
+    const view = await readDocument(owner, taskId)
+    const id = randomUUID()
+    const wrote = await writeDocument(owner, taskId, view.revision, [paragraph(id, 'edited'), outline([id])])
+    expect(wrote.status, JSON.stringify(wrote.json())).toBe(200)
+
+    expect((await section('second work')).status, 'a Task document write does not shut it').toBe(200)
+    const sections = await rows(sql`SELECT text FROM page_blocks
+                                     WHERE folder_id = ${folderId}::uuid AND kind = 'section'`)
+    expect(sections.map((row) => row.text).sort()).toEqual(['first work', 'second work'])
   })
 
   test('AC-883: a Task document refuses Task rows, Sections and nested list items with 422', async () => {
@@ -308,7 +379,7 @@ describe('AC-881 to AC-885: the Task document routes', () => {
       checklist(check, 'ticked', true),
       outline([view.blocks[0]?.id as string, check]),
     ])
-    expect(wrote.status).toBe(200)
+    expect(wrote.status, JSON.stringify(wrote.json())).toBe(200)
 
     const duplicated = await owner.browser.json(`/tasks/${taskId}/duplicate`, 'POST', {})
     expect(duplicated.status).toBe(201)

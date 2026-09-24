@@ -368,7 +368,7 @@ export async function putPage(
     }
 
     if (home.folderId !== null) {
-      const modern = await rowsOf(tx,sql`SELECT id FROM page_blocks WHERE folder_id=${home.folderId}::uuid AND (rich_content IS NOT NULL OR (kind='section' AND section_block_id IS NOT NULL) OR kind NOT IN ('section','paragraph','image','folder_ref') OR EXISTS (SELECT 1 FROM page_document_receipts r WHERE r.folder_id=page_blocks.folder_id)) LIMIT 1`)
+      const modern = await rowsOf(tx,sql`SELECT id FROM page_blocks WHERE folder_id=${home.folderId}::uuid AND (rich_content IS NOT NULL OR (kind='section' AND section_block_id IS NOT NULL) OR kind NOT IN ('section','paragraph','image','folder_ref') OR EXISTS (SELECT 1 FROM page_document_receipts r WHERE r.folder_id=page_blocks.folder_id AND jsonb_typeof(r.created_task_ids)='array')) LIMIT 1`)
       if(modern.length) return {kind:'stale',blockId:String(modern[0]?.id)} as const
     }
     /* #221, the Shelf half of the same rule. Once a Shelf has been written
@@ -596,7 +596,7 @@ export async function actOnFolderPage(
       const mutation = await applyDocument(tx, viewerId, folderId, body)
       return {kind:'written',page:{...await pageViewIn(tx,viewerId,{folderId,shelfId:null}),mutation}} as const
     }
-    const modern = await rowsOf(tx, sql`SELECT id FROM page_blocks WHERE folder_id=${folderId}::uuid AND (rich_content IS NOT NULL OR (kind='section' AND section_block_id IS NOT NULL) OR kind NOT IN ('section','paragraph','image','folder_ref') OR EXISTS (SELECT 1 FROM page_document_receipts r WHERE r.folder_id=page_blocks.folder_id)) LIMIT 1`)
+    const modern = await rowsOf(tx, sql`SELECT id FROM page_blocks WHERE folder_id=${folderId}::uuid AND (rich_content IS NOT NULL OR (kind='section' AND section_block_id IS NOT NULL) OR kind NOT IN ('section','paragraph','image','folder_ref') OR EXISTS (SELECT 1 FROM page_document_receipts r WHERE r.folder_id=page_blocks.folder_id AND jsonb_typeof(r.created_task_ids)='array')) LIMIT 1`)
     if (modern.length && body.action !== 'update_block') return {kind:'stale',blockId:folderId} as const
     const items = await seededItems(tx, folderId)
 
