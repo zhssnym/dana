@@ -20,7 +20,7 @@ export function DanaIdentity(): React.JSX.Element {
   return (
     <a
       href="/"
-      className="inline-flex items-center gap-3 rounded-md text-sm font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
+      className="inline-flex items-center gap-3 rounded-md text-sm font-semibold text-foreground outline-none"
       aria-label="Dana home"
     >
       <DanaMark className="size-7" />

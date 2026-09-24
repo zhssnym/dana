@@ -102,7 +102,7 @@ export function FolderGroupDialog({
             <div>
               <label
                 htmlFor="folder-group-name"
-                className="mb-1.5 block text-xs font-medium text-section-foreground"
+                className="mb-1.5 block text-xs font-medium text-muted-foreground"
               >
                 Collection name
               </label>

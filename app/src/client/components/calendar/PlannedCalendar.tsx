@@ -169,7 +169,7 @@ function CalendarEvent({
           : undefined
       }
       className={cn(
-        'flex w-full items-center gap-1.5 overflow-hidden rounded-sm border border-transparent bg-muted px-1.5 text-left text-foreground transition-[background-color,border-color] hover:border-border hover:bg-background focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:outline-none',
+        'flex w-full items-center gap-1.5 overflow-hidden rounded-sm border border-transparent bg-muted px-1.5 text-left text-foreground transition-[background-color,border-color] hover:border-border hover:bg-background focus-visible:outline-none',
         movable && 'cursor-grab active:cursor-grabbing',
         compact ? 'min-h-5 text-xs' : 'min-h-7 text-xs leading-4',
         completed && 'bg-background text-muted-foreground',
@@ -293,7 +293,7 @@ function DayCell({
       {onCreate === undefined ? null : (
         <button
           type="button"
-          className="absolute inset-0 z-0 rounded-none text-left outline-none transition-colors hover:bg-muted/70 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/30"
+          className="absolute inset-0 z-0 rounded-none text-left outline-none transition-colors hover:bg-muted/70"
           aria-label={`New task on ${formatDueDate(date, today)}`}
           onClick={() => {
             setDrafting(true)
@@ -358,7 +358,7 @@ function DayCell({
         {hidden > 0 ? (
           <button
             type="button"
-            className="flex h-5 items-center rounded-sm px-1.5 text-xs font-semibold text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:outline-none"
+            className="flex h-5 items-center rounded-sm px-1.5 text-xs font-semibold text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none"
             onClick={onReveal}
           >
             +{hidden} more
@@ -540,7 +540,7 @@ export function PlannedCalendar({
       <div className="overflow-hidden rounded-md border border-border bg-background">
         <div className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-b border-border bg-muted px-2 py-1.5">
           <div className="flex min-w-0 items-center gap-2">
-            <h2 className="min-w-36 truncate px-2 text-base leading-6 font-semibold text-foreground">
+            <h2 className="min-w-36 truncate px-2 text-sm leading-6 font-semibold text-foreground">
               {periodTitle(zoom, anchor, today)}
             </h2>
             <Button

@@ -218,7 +218,7 @@ export function MorePages({ query }: { readonly query: InfinitePageState }): Rea
         type="button"
         ref={button}
         variant="outline"
-        className="h-[var(--control-height)] border-border bg-white px-3 text-sm font-medium text-section-foreground shadow-none hover:bg-muted"
+        className="px-3"
         disabled={isFetchingNextPage}
         onClick={() => {
           void fetchNextPage()

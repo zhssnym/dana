@@ -267,7 +267,7 @@ function SearchDialog({
                 ? `dana-search-result-${orderedResults[activeIndex]?.id}`
                 : undefined
             }
-            className="h-[var(--row-height)] min-w-0 flex-1 bg-transparent text-base text-foreground outline-none placeholder:text-muted-foreground"
+            className="h-[var(--row-height)] min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
           />
         </div>
 

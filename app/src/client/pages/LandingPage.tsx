@@ -75,7 +75,7 @@ export function LandingPage(): React.JSX.Element {
           <h1 className="text-4xl leading-tight font-title text-balance sm:text-5xl">
             Your projects, in one quiet place.
           </h1>
-          <p className="mt-4 text-base text-muted-foreground">
+          <p className="mt-4 text-sm text-muted-foreground">
             Each project is a folder: a page of writing and tasks you work through, shared with the
             people doing it.
           </p>

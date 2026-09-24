@@ -7,9 +7,6 @@ import { MONTHS_FULL, formatDate, weekdayName } from "../../lib/dates.js"
 import { isoDay } from "../../tasks/task-model.js"
 import { cn } from "./utils.js"
 
-const FOCUS =
-  "outline-none"
-
 const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]
 function startOfDayLocal(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate())
@@ -87,7 +84,6 @@ export function Calendar({
           onClick={() => shiftMonth(-1)}
           className={cn(
             "flex size-7 items-center justify-center rounded-sm text-muted-foreground transition-colors duration-[var(--duration-fast)] hover:bg-accent hover:text-foreground",
-            FOCUS,
           )}
         >
           <ChevronLeft className="size-4" strokeWidth={1.75} aria-hidden="true" />
@@ -104,7 +100,6 @@ export function Calendar({
           onClick={() => shiftMonth(1)}
           className={cn(
             "flex size-7 items-center justify-center rounded-sm text-muted-foreground transition-colors duration-[var(--duration-fast)] hover:bg-accent hover:text-foreground",
-            FOCUS,
           )}
         >
           <ChevronRight className="size-4" strokeWidth={1.75} aria-hidden="true" />
@@ -182,7 +177,6 @@ export function Calendar({
                 }}
                 className={cn(
                   "relative flex size-8 items-center justify-center rounded-sm text-sm tabular-nums transition-[background-color,color] duration-[var(--duration-fast)] ease-[var(--ease-standard)]",
-                  FOCUS,
                   isSelected
                     ? "bg-primary font-medium text-primary-foreground"
                     : outside

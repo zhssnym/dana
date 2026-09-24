@@ -297,7 +297,7 @@ function StepList({
             }}
             className={cn(
               "group/step relative -ml-0.5 flex h-8 items-center gap-2 rounded-sm pr-1",
-              stepState.isActive ? "cursor-grabbing bg-background shadow-sm" : "hover:bg-accent",
+              stepState.isActive ? "cursor-grabbing bg-background" : "hover:bg-accent",
             )}
           >
             {/* The grip overlaps the tick's left edge on hover rather than
@@ -647,12 +647,10 @@ function AttachmentList({ files }: { files: NonNullable<ConceptTask["attachments
 
 type AddableProperty = "date" | "reminder" | "repeat" | "assignee" | "steps"
 
-/* "Due 25 Sep" → "25 Sep", "Due today 6:00 PM" → "Today 6:00 PM": the row's
-   name already says what the value is. */
 function dateWords(task: ConceptTask): string {
   if (!task.due) return "Empty"
-  const bare = task.due.label.replace(/^Overdue · /, "").replace(/^Due /, "")
-  return bare.charAt(0).toUpperCase() + bare.slice(1)
+  const label = task.due.label
+  return label.charAt(0).toUpperCase() + label.slice(1)
 }
 
 /* A menu-shaped property row (folder, assignee): same anatomy as the

@@ -113,7 +113,7 @@ function Title({
           }
         }}
         className={cn(
-          "text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-semibold hover:bg-transparent focus:bg-transparent focus:ring-0",
+          "text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-semibold hover:bg-transparent focus:bg-transparent",
           done ? "text-muted-foreground line-through" : "text-foreground",
         )}
       />

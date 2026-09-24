@@ -101,7 +101,7 @@ export function MergeBadge({ armed }: { armed: boolean }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-2 rounded-full py-1 pr-3 pl-1 shadow-[var(--elevation-1)] transition-[background-color,box-shadow,transform]",
+        "inline-flex items-center gap-2 rounded-full py-1 pr-3 pl-1 transition-[background-color,transform]",
         T_FAST,
         armed
           ? "scale-[1.03] bg-primary text-primary-foreground"
@@ -225,7 +225,7 @@ export function PendingPanel({
   return (
     <div
       className={cn(
-        "mb-2 overflow-hidden rounded-md bg-background shadow-[var(--elevation-2)] ring-1 ring-border",
+        "mb-2 overflow-hidden rounded-md bg-background ring-1 ring-border",
         T_BASE,
       )}
     >
@@ -294,7 +294,6 @@ export function PendingPanel({
           className={cn(
             "rounded-sm px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-background hover:text-foreground",
             T_FAST,
-            FOCUS,
           )}
         >
           Cancel
@@ -306,7 +305,6 @@ export function PendingPanel({
           className={cn(
             "inline-flex items-center gap-1.5 rounded-sm bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-[background-color,transform] hover:bg-primary/90 active:scale-95 disabled:pointer-events-none disabled:opacity-40",
             T_FAST,
-            FOCUS,
           )}
         >
           <FolderPlus className="size-3.5" strokeWidth={2} aria-hidden="true" />
@@ -411,7 +409,6 @@ export function useRowSelection({
   const act = cn(
     "h-7 rounded-sm px-2 text-sm whitespace-nowrap text-foreground transition-colors hover:bg-muted data-popup-open:bg-muted",
     T_FAST,
-    FOCUS,
   )
 
   const bar = (
@@ -521,10 +518,6 @@ export function useRowSelection({
 
 /* --------------------------------------------------------------- pieces, */
 
-/* Empty on purpose (round 5): the app has one focus style, drawn globally
-   (SYSTEM.md), so nothing adds its own. Kept for the files that import it. */
-export const FOCUS = ""
-
 export function Check({
   task,
   onToggle,
@@ -550,7 +543,7 @@ export function Check({
         e.stopPropagation()
         onToggle()
       }}
-      className={cn("flex size-[var(--control-height)] items-center justify-center rounded-sm", FOCUS)}
+      className="flex size-[var(--control-height)] items-center justify-center rounded-sm"
     >
       <CheckMark checked={done} className={cn("active:scale-90", !done && "hover:border-muted-foreground", task.abandoned && !done && "opacity-60")} />
     </button>
