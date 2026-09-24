@@ -593,7 +593,7 @@ const TABLE = new Map<string, Row>([
     {
       /* Wave 2's page-tree move. To the top level, so the path id is the only
          id in play: the body ids (`parent_folder_id`, `after_id`) are
-         invisible to this sweep and are AC-1014's. No member variant:
+         invisible to this sweep and are AC-1016's. No member variant:
          `fx.member` holds Can edit, which is what a move needs. */
       attempt: (fx) => ({
         path: `/folders/${fx.folderId}/location`,

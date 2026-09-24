@@ -2,19 +2,19 @@
 Wave 2, pages in pages (migration 0039): the page tree's security and
 data-loss cases.
 
-AC-1014: the tree's body ids are gated. `POST /folders { parent_folder_id }`
+AC-1016: the tree's body ids are gated. `POST /folders { parent_folder_id }`
 and `PATCH /folders/:id/location { parent_folder_id, after_id }` carry page
 ids the ac-397 sweep cannot see, so each answers 404 for a page the actor is
 not a member of, 403 below Can edit on it, and 422 for a cycle, a tree deeper
 than 20, or the default folder leaving the top level; and the values arrive
 (the stored row, the copied members, the sibling order).
 
-AC-1015: a page's parent never leaks. A member of a sub-page who is not a
+AC-1017: a page's parent never leaks. A member of a sub-page who is not a
 member of its parent sees the sub-page as a root: no parent id in GET
 /folders, no ancestors in GET /folders/:id and no parent name anywhere in its
 JSON, and no parent in a search breadcrumb.
 
-AC-1016: trashing a page takes the sub-pages its actor may trash with it,
+AC-1018: trashing a page takes the sub-pages its actor may trash with it,
 leaves the others live, lists only the initiator in that actor's Trash,
 brings the set back on restore, and takes it along on a permanent delete.
 
@@ -87,8 +87,8 @@ function move(actor: Actor, id: string, body: Record<string, unknown>) {
   return actor.browser.json(`/folders/${id}/location`, 'PATCH', body)
 }
 
-describe('AC-1014: the page tree gates its body ids and stores what arrives', () => {
-  test('AC-1014 a stranger naming somebody else\'s page as parent or neighbour gets 404', async () => {
+describe('AC-1016: the page tree gates its body ids and stores what arrives', () => {
+  test('AC-1016 a stranger naming somebody else\'s page as parent or neighbour gets 404', async () => {
     const { owner, stranger } = await actors()
     const parent = await createFolder(owner, 'tree ac1014 private parent')
     const child = await subPage(owner, parent, 'tree ac1014 private child')
@@ -113,7 +113,7 @@ describe('AC-1014: the page tree gates its body ids and stores what arrives', ()
     expect((await folderRow(mine))?.parent_folder_id).toBeNull()
   })
 
-  test('AC-1014 a sub-page stores its parent, copies the parent\'s members, and Can view may not add one', async () => {
+  test('AC-1016 a sub-page stores its parent, copies the parent\'s members, and Can view may not add one', async () => {
     const { owner, viewer } = await actors()
     const parent = await createFolder(owner, 'tree ac1014 shared parent')
     await seedMembership(app.db, parent, viewer.id, { access: 'can_view' })
@@ -144,7 +144,7 @@ describe('AC-1014: the page tree gates its body ids and stores what arrives', ()
     )
   })
 
-  test('AC-1014 a move refuses a cycle, a tree deeper than 20 and the default folder; after_id orders siblings', async () => {
+  test('AC-1016 a move refuses a cycle, a tree deeper than 20 and the default folder; after_id orders siblings', async () => {
     const { owner } = await actors()
     const top = await createFolder(owner, 'tree ac1014 top')
     const mid = await subPage(owner, top, 'tree ac1014 mid')
@@ -186,8 +186,8 @@ describe('AC-1014: the page tree gates its body ids and stores what arrives', ()
   })
 })
 
-describe('AC-1015: a parent the viewer is not a member of never reaches them', () => {
-  test('AC-1015 a sub-page member without the parent sees a root, no ancestors, and no parent in search', async () => {
+describe('AC-1017: a parent the viewer is not a member of never reaches them', () => {
+  test('AC-1017 a sub-page member without the parent sees a root, no ancestors, and no parent in search', async () => {
     const { owner, childonly } = await actors()
     const parentName = 'tree ac1015 secretparentname'
     const parent = await createFolder(owner, parentName)
@@ -230,8 +230,8 @@ describe('AC-1015: a parent the viewer is not a member of never reaches them', (
   })
 })
 
-describe('AC-1016: a page goes to Trash with the sub-pages its actor may trash', () => {
-  test('AC-1016 trash takes the set, spares the rest, restores together and purges together', async () => {
+describe('AC-1018: a page goes to Trash with the sub-pages its actor may trash', () => {
+  test('AC-1018 trash takes the set, spares the rest, restores together and purges together', async () => {
     const { owner, editor, childonly } = await actors()
     const parent = await createFolder(owner, 'tree ac1016 parent')
     const child = await subPage(owner, parent, 'tree ac1016 child')

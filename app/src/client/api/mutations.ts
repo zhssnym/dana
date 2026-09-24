@@ -330,6 +330,8 @@ export function useMoveFolder(): UseMutationResult<Folder, Error, MoveFolderVari
         path: `/folders/${id}/location`,
         body,
       }),
+    // A cycle or a too-deep tree is the server's 422 sentence, shown as is.
+    meta: { [VALIDATION_ERROR_TOAST_META]: true },
   })
 }
 
