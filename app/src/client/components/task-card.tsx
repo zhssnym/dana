@@ -61,7 +61,7 @@ import {
   ReminderPanel,
   RepeatPanel,
 } from "./task-pickers.js"
-import { CommentsThread } from "./comments.js"
+import { TaskThread } from "./thread/TaskThread.js"
 import { usePeopleLibrary } from "../lib/people-library.js"
 import { useMultiMemberFolderIds, useTask, useTaskDependencies } from "../api/queries.js"
 import { useUpdateTask } from "../api/mutations.js"
@@ -956,7 +956,10 @@ export function TaskCard({
   const attachments = task.attachments ?? []
   const labels = task.labels ?? []
   const steps = task.steps ?? []
-  const [tab, setTab] = useState<"notes" | "discussion">("notes")
+  /* `?tab=discussion` (a backlink from a post) opens on the Discussion tab. */
+  const [tab, setTab] = useState<"notes" | "discussion">(() =>
+    new URLSearchParams(globalThis.location?.search ?? "").get("tab") === "discussion" ? "discussion" : "notes",
+  )
   const comments = commentCount(task.comments)
 
   const showDate = Boolean(task.due) || adding === "date"
@@ -1261,12 +1264,7 @@ export function TaskCard({
           </div>
         ) : (
           <div role="tabpanel" id="task-tabpanel-discussion" aria-labelledby="task-tab-discussion">
-            <CommentsThread
-              comments={task.comments ?? []}
-              attachments={false}
-              canComment={task.canComment ?? true}
-              onChange={(next) => patch(task.id, { comments: next })}
-            />
+            <TaskThread taskId={task.id} folderId={task.folder?.id ?? null} />
           </div>
         )}
       </div>
