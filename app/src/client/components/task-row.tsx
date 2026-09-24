@@ -43,6 +43,7 @@ import {
   Trash2,
   UserPlus,
   UserRound,
+  Workflow,
   X,
   type LucideIcon,
 } from "../lib/icons.js"
@@ -1982,6 +1983,9 @@ export interface TaskRowProps {
   */
   unassigned?: boolean
   invitePending?: string
+  /* #225: unfinished blockers, 7.25's `blocked_by_count`. Absent or 0 draws
+     nothing, so an ordinary row carries no dependency chrome at all. */
+  blockedBy?: number
   /* 9.5's from half. The person who made this task, drawn only where the page
      asks. See the chip at the foot of `rowChips`. */
   createdBy?: string
@@ -2588,6 +2592,27 @@ export function TaskRow(props: TaskRowProps) {
     "and in nothing else", and a badge outside the strip is a detail the
     one-line row has nowhere to put. The words section 9 writes do not move.
     */
+    /* #225's compact indicator: only while something unfinished is in the way,
+       and only on a row that is itself still open. The names live in the card. */
+    {
+      key: "blocked",
+      shown: (props.blockedBy ?? 0) > 0 && !task.done && !task.abandoned,
+      body: () => (
+
+        <DetailChip
+          interactive={false}
+          title={
+            props.blockedBy === 1
+              ? "Waiting on 1 unfinished task"
+              : `Waiting on ${props.blockedBy ?? 0} unfinished tasks`
+          }
+        >
+          <DetailWord icon={Workflow}>
+            {`Blocked · ${props.blockedBy ?? 0}`}
+          </DetailWord>
+        </DetailChip>
+      ),
+    },
     {
       key: "invite-pending",
       shown: Boolean(props.invitePending),

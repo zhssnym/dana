@@ -36,6 +36,7 @@ not, and no other identifier rides the wire.
 */
 import { z } from 'zod'
 
+import { taskStatus } from './tasks.js'
 import type { TaskStatus } from './tasks.js'
 
 /*
@@ -103,6 +104,35 @@ export interface TaskDependencies {
   depends_on: TaskDependencyEdge[]
   blocks: TaskDependencyEdge[]
 }
+
+/*
+The same read as a schema, for the client, which parses every response through
+`http.ts` (#225). The interfaces above stay the server's typing; this is
+checked against them below so the two cannot drift.
+*/
+export const taskDependencyEdge = z.object({
+  id: z.string(),
+  task: z
+    .object({
+      id: z.string(),
+      title: z.string(),
+      status: taskStatus,
+      folder: z.object({ id: z.string(), name: z.string(), is_default: z.boolean() }),
+    })
+    .nullable(),
+  state: z.enum(['active', 'satisfied', 'unresolved', 'unknown']),
+  created_at: z.string(),
+})
+
+export const getTaskDependenciesResponse = z.object({
+  depends_on: z.array(taskDependencyEdge),
+  blocks: z.array(taskDependencyEdge),
+})
+
+// Compile-time only: the schema and the server's interface describe one shape.
+type _Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never
+const _responseMatches: _Same<z.infer<typeof getTaskDependenciesResponse>, TaskDependencies> = true
+void _responseMatches
 
 /*
 `GET /folders/:id/dependencies` (#207 follow-up): every edge whose **both**
