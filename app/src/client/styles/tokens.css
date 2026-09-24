@@ -1,80 +1,55 @@
 /*
-Dana's design tokens: the single file of 11.4, and the only place in this client
-where a raw colour, type size, spacing step or radius may be written. Nothing
-adjudicates a value above it, so editing one is a change to the design rather
-than a drift from it.
-
-**Two rules in this file are corrections worth knowing about**, each written at
-the lines it changes: the `dark:` variant is taught `[data-theme="dark"]` beside
-`.dark`, and Tailwind's `white` keyword is pointed at `--color-graphite-0`. Both
-are no-ops in the light colourway.
-
-**There is no viewport minimum width on `html` or `body`, and adding one is
-forbidden**: it would convert a deferral of mobile into a hard refusal to
-render, on the one surface 10.6 promises will open when installed.
-
-**Do not write that utility's literal form in any file Tailwind scans, this
-comment included.** It is a class name, so writing it anywhere the build looks
-is enough to emit the declaration it names, whatever the surrounding prose says
-about forbidding it. CSS input is not scanned as content and markdown is, which
-is a distinction no reader should have to hold, so the literal is spelled
-nowhere and this paragraph is the reason. The check that matters is the built
-output rather than the source.
-
-`--sharing-panel-width` is read by `pages/FolderSharingPanel.tsx` and by the
-right-edge reservation in `pages/FolderPage.tsx`.
-
-The control font reset sits in `@layer base` rather than unlayered, because
-unlayered CSS beats layered CSS regardless of specificity and every Tailwind
-utility lives in `@layer utilities`. The tokenized scrollbar pair is here
-because every scrolling surface gets it.
-
-**`@source` below is explicit** rather than relying on automatic detection,
-because a change to where the build runs from would otherwise empty the
-stylesheet silently, which fails as a page with correct markup and no styling at
-all.
+Dana's tokens: the only place a raw colour, size or radius is written.
+Theme is `data-theme="light|dark"` on <html> (index.html pre-paint, lib/theme.ts,
+shell/appearance.ts). Never add a viewport minimum width to html/body.
 */
 
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
-
-/*
-Inter, self-hosted. 11.4 requires this package rather than a third-party font
-link, and 10.6 is the reason: a font fetched from another origin is a request
-the service worker cannot precache, so an installed Dana would render its own
-typeface only while online.
-*/
 @import '@fontsource-variable/inter';
 
+/* Explicit, so a change of build cwd cannot silently empty the stylesheet. */
 @source '../**/*.{ts,tsx}';
 
-/*
-The `dark:` variant, taught the selector this product actually ships.
-
-Nothing in this client writes a `dark` class: the theme is `data-theme="dark"`
-on the document element, written by `shell/appearance.ts`, by `lib/theme.ts` and
-by the pre-paint script in `index.html`, and answered by the
-`[data-theme="dark"]` blocks at the foot of this file. Declared as `&:is(.dark
-*)` alone, every `dark:` utility in the product would compile to a rule that
-could never match — among them every shadcn primitive's own dark correction
-under `components/ui/`, including `avatar.tsx`'s `dark:after:mix-blend-lighten`,
-which stops an avatar's ring blending itself away on a dark ground.
-
-The attribute selector is added rather than substituted, so a surface that does
-reach for the class keeps working, and `.dark` remains what the mark's colourway
-rule below is written against.
-
-**Light mode cannot move**, which is the safety property worth stating: every
-declaration this unlocks is behind `dark:` and therefore behind a selector that
-matches nothing while the attribute reads `light`.
-*/
 @custom-variant dark (&:is(.dark *, [data-theme="dark"] *));
 
-/* Dana v1, approved light-theme tokens, including the Session 4 desktop
- * compact-control refinement.
- * Hex values are authoritative. Dark mode is intentionally out of scope.
- */
+/* Four type sizes: 12 meta, 14 body, 16 section heading, 28 page title.
+   The in-between Tailwind steps collapse onto them. */
+@theme {
+  --text-xs: 12px;
+  --text-xs--line-height: 16px;
+  --text-sm: 14px;
+  --text-sm--line-height: 20px;
+  --text-base: 14px;
+  --text-base--line-height: 20px;
+  --text-lg: 16px;
+  --text-lg--line-height: 24px;
+  --text-xl: 16px;
+  --text-xl--line-height: 24px;
+  --text-2xl: 28px;
+  --text-2xl--line-height: 36px;
+  --text-3xl: 28px;
+  --text-3xl--line-height: 36px;
+
+  /* Two radii: 4 for controls and chips, 8 for panels, menus, dialogs. */
+  --radius-xs: 4px;
+  --radius-sm: 4px;
+  --radius-md: 4px;
+  --radius-lg: 8px;
+  --radius-xl: 8px;
+  --radius-2xl: 8px;
+  --radius-3xl: 8px;
+
+  /* No shadows except one soft shadow on floating layers. */
+  --shadow-2xs: none;
+  --shadow-xs: none;
+  --shadow-sm: var(--shadow-float);
+  --shadow-md: var(--shadow-float);
+  --shadow-lg: var(--shadow-float);
+  --shadow-xl: var(--shadow-float);
+  --shadow-2xl: var(--shadow-float);
+}
 
 @theme inline {
   --font-sans: var(--font-family-sans);
@@ -82,6 +57,8 @@ matches nothing while the attribute reads `light`.
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-hover: var(--hover);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
   --color-popover: var(--popover);
@@ -111,63 +88,22 @@ matches nothing while the attribute reads `light`.
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  --radius-sm: calc(var(--radius) - 2px);
-  --radius-md: var(--radius);
-  --radius-lg: calc(var(--radius) + 4px);
-  --radius-xl: calc(var(--radius) + 8px);
-  --radius-full: 9999px;
-
-  /*
-  White, told which white it means.
-
-  Tailwind's `white` is `#fff` fixed, so `bg-white` and `text-white` would be
-  the only two colour decisions in this product that the ramp below cannot
-  reach. Every one written across the client means one of exactly two things:
-  *the sheet the work sits on* (`bg-white` on a card, a calendar frame, an
-  input, a `kbd`) or *the ink on an inverted plate* (`text-white` on
-  `bg-[var(--color-graphite-900)]`, on the accent, on a scrim). Both of those
-  are `--color-graphite-0`, which is `#ffffff` in the light colourway and
-  `#17181b` in the dark one, and `ui/bubble.tsx` writes exactly that pairing by
-  hand: `bg-[var(--color-graphite-900)] text-[var(--color-graphite-0)]`.
-
-  Without it, in dark mode: the Scheduled calendar draws a white sheet on a dark
-  page, Settings' toggles put a white thumb on a near-white track, and every
-  primary button, the toast, the undo bar, the floating add control, the
-  filter's applied chip and the search overlay's key caps put white ink on a
-  near-white plate.
-
-  **Light mode is byte-identical.** `--color-graphite-0` is `#ffffff` in the
-  light colourway and Tailwind's default is `#fff`, the same colour, so no light
-  surface changes by so much as a channel.
-
-  **Where the mapping would be wrong, `--color-fixed-white` below is the
-  answer**: a glyph drawn over *imagery* means white absolutely rather than by
-  role, because a photograph does not follow the viewer's colourway.
-  `components/task-card.tsx`'s play badge over a video thumbnail,
-  `pages/LandingPage.tsx`'s disc behind the Google mark and
-  `components/page-image.tsx`'s resize handle ride it. `--color-black` is
-  deliberately not moved for the same reason read the other way: the three modal
-  scrims are `bg-black/20`, `/25` and `/80`, and a scrim darkens what is behind
-  it in both colourways.
-  */
+  /* `white` is the page colour (dark in dark mode); ink over imagery uses
+     fixed-white. */
   --color-white: var(--color-graphite-0);
-  /* White that stays white in both colourways: only for ink over imagery. */
   --color-fixed-white: #ffffff;
 }
 
 :root {
   color-scheme: light;
 
-  /* Typography. `Inter Variable` leads the stack because that is the family
-     @fontsource-variable/inter registers; a stack opening with `Inter` would
-     never reach the face it loads. */
   --font-family-sans: "Inter Variable", Inter, ui-sans-serif, system-ui,
     -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-weight-regular: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
-  --text-title-size: 24px;
-  --text-title-line: 32px;
+  --text-title-size: 28px;
+  --text-title-line: 36px;
   --text-heading-size: 16px;
   --text-heading-line: 24px;
   --text-body-size: 14px;
@@ -175,430 +111,239 @@ matches nothing while the attribute reads `light`.
   --text-meta-size: 12px;
   --text-meta-line: 16px;
 
-  /* Graphite neutral ramp */
-  --color-graphite-0: #ffffff;
-  --color-graphite-25: #fafafb;
-  --color-graphite-50: #f4f5f6;
-  --color-graphite-100: #ebecee;
-  --color-graphite-200: #dddee2;
-  --color-graphite-300: #c6c8cd;
-  --color-graphite-400: #999ca3;
-  --color-graphite-500: #6e7076;
-  --color-graphite-600: #585a60;
-  --color-graphite-700: #44464c;
-  --color-graphite-800: #2f3136;
-  --color-graphite-900: #1b1c20;
-  --color-graphite-950: #0a0a0a;
+  /* The palette. */
+  --bg: #ffffff;
+  --surface: #f9f8f7;
+  --line: #f0efed;
+  --text: #37352f;
+  --text-muted: #787774;
+  --hover: #f1f1ef;
+  --accent-color: #2383e2;
+  --danger: #e03e3e;
 
-  /*
-  Dana cobalt: interaction only, never task status or folder identity.
+  /* Deprecated: the old graphite ramp, mapped onto the palette so remaining
+     raw uses read right. New code uses the semantic names below. */
+  --color-graphite-0: var(--bg);
+  --color-graphite-25: var(--surface);
+  --color-graphite-50: var(--hover);
+  --color-graphite-100: #ebeae8;
+  --color-graphite-200: var(--line);
+  --color-graphite-300: #e3e2e0;
+  --color-graphite-400: #a5a4a0;
+  --color-graphite-500: var(--text-muted);
+  --color-graphite-600: #696864;
+  --color-graphite-700: #4f4d48;
+  --color-graphite-800: var(--text);
+  --color-graphite-900: #2a2925;
+  --color-graphite-950: #191919;
 
-  **85% saturation**, vivid enough to read as a brand beside Tailwind's
-  `blue-600` (`hsl(221 83% 53%)`) rather than a greyed blue.
+  --color-dana-accent-50: #f2f8fd;
+  --color-dana-accent-100: #e3eefb;
+  --color-dana-accent-200: #c4dcf6;
+  --color-dana-accent-300: #9cc5f0;
+  --color-dana-accent-600: var(--accent-color);
+  --color-dana-accent-700: #1b6ec2;
+  --color-dana-accent-800: #175da3;
 
-  **The hue is Dana's.** 226 is Dana's cobalt and Tailwind's is 221; taking
-  their hue as well as their saturation would be adopting their blue rather than
-  making ours brighter.
+  --color-success-100: #edf3ec;
+  --color-success-200: #d8e8da;
+  --color-success-600: #448361;
+  --color-success-700: #386c50;
+  --color-warning-100: #fbf3db;
+  --color-warning-200: #f4e4b5;
+  --color-warning-500: #cb912f;
+  --color-warning-700: #93661a;
+  --color-danger-100: #fdebec;
+  --color-danger-200: #f8d3d4;
+  --color-danger-600: var(--danger);
+  --color-danger-700: #c43232;
+  --color-info-100: #e7f3f8;
+  --color-info-200: #cde5f0;
+  --color-info-700: #337ea9;
 
-  **And the contrast was budgeted, not spent.** Raising saturation and lightness
-  together until white-on-it just clears 4.5:1 lands around 4.55 and leaves
-  nothing in hand for a focus ring on a tinted row, or for a dimmer screen.
-  Tailwind's own 600 keeps **5.17**, so this is tuned to **5.20**: the same
-  headroom, spent on saturation instead of lightness.
-
-  The tints below it are derived from this 600, so the hover wash is a paler
-  version of this colour.
-  */
-  --color-dana-accent-50: #f3f4fa;
-  --color-dana-accent-100: #e3e7f5;
-  --color-dana-accent-200: #c3cdee;
-  --color-dana-accent-600: #335fee;
-  --color-dana-accent-700: #1346ea;
-  --color-dana-accent-800: #113cc9;
-
-  /* W1, the vision's standing constraint, written where the port will meet
-     it first: Dana has ONE accent, and this ramp is it. When AI arrives it
-     renders native, its work drawn with the same ink as a person's, marked
-     by provenance (who did this), never by a second hue. A colour that means
-     "the machine did this" is a decision this file refuses on purpose; do
-     not add a ramp for it. */
-
-  /* Semantic colors */
-  --color-success-100: #ddf2e2;
-  --color-success-200: #bfe5ca;
-  --color-success-600: #1f7a3f;
-  --color-success-700: #1a6635;
-  --color-warning-100: #faeeda;
-  --color-warning-200: #f2dcb4;
-  --color-warning-500: #b97514;
-  --color-warning-700: #8f5300;
-  --color-danger-100: #fbe5e2;
-  --color-danger-200: #f3ccc7;
-  --color-danger-600: #be372f;
-  --color-danger-700: #a32c25;
-  --color-info-100: #dff0f6;
-  --color-info-200: #c2e2ee;
-  --color-info-700: #0f6e8c;
-
-  /*
-  Folder identity swatches; always pair with a visible folder name.
-
-  **Every one holds its own hue and its own contrast.** Each swatch's lightness
-  is solved for the contrast ratio on white it is meant to have (clay 3.61, teal
-  3.41), so vividness is compared honestly: raising chroma and lightness
-  together makes every swatch "look better" on the screen it was picked on.
-
-  These ratios are allowed to sit near 3.5 because a swatch never carries
-  meaning alone: it travels with a folder name.
-
-  **One adjacency is a question rather than a coincidence**, see the note on
-  cobalt below.
-  */
+  /* Folder identity swatches; always beside a folder name. */
   --color-folder-clay: #e55939;
   --color-folder-ochre: #bd7a10;
   --color-folder-olive: #8b8b18;
   --color-folder-fern: #289d3a;
   --color-folder-teal: #189c8a;
   --color-folder-sky: #1a92d1;
-  /*
-  Cobalt sits at hue 242, off the accent's 226.
-
-  At 224, two degrees from the brand accent, the two are one colour wearing two
-  names at this saturation, and a folder whose mark is the interaction colour is
-  exactly what "identity, never interaction" exists to stop. 242 keeps the
-  saturation and the contrast of the palette, clears the accent at 226, and
-  stays clear of violet at 259. `?view=swatches` draws the comparison.
-  */
   --color-folder-cobalt: #7b77f6;
   --color-folder-violet: #9168ee;
   --color-folder-plum: #d73bc0;
   --color-folder-rose: #e5446d;
 
-  /* shadcn/ui semantic role mapping */
-  --background: var(--color-graphite-25);
-  --foreground: var(--color-graphite-800);
-  --card: var(--color-graphite-0);
-  --card-foreground: var(--color-graphite-800);
-  --popover: var(--color-graphite-0);
-  --popover-foreground: var(--color-graphite-800);
-  --primary: var(--color-dana-accent-600);
-  --primary-foreground: var(--color-graphite-0);
-  --secondary: var(--color-graphite-50);
-  --secondary-foreground: var(--color-graphite-800);
-  --muted: var(--color-graphite-50);
-  --muted-foreground: var(--color-graphite-600);
-  /* Reusable page text roles. These preserve the existing colours while
-     naming what they do instead of leaking ramp steps into components. */
+  /* Semantic roles (shadcn names). */
+  --background: var(--bg);
+  --foreground: var(--text);
+  --card: var(--bg);
+  --card-foreground: var(--text);
+  --popover: var(--bg);
+  --popover-foreground: var(--text);
+  --primary: var(--accent-color);
+  --primary-foreground: #ffffff;
+  --secondary: var(--hover);
+  --secondary-foreground: var(--text);
+  --muted: var(--surface);
+  --muted-foreground: var(--text-muted);
   --quiet-foreground: var(--color-graphite-400);
-  --supporting-foreground: var(--color-graphite-500);
+  --supporting-foreground: var(--text-muted);
   --section-foreground: var(--color-graphite-700);
-  --accent: var(--color-graphite-50);
-  --accent-foreground: var(--color-graphite-800);
-  --destructive: var(--color-danger-600);
-  --destructive-foreground: var(--color-graphite-0);
-  --border: var(--color-graphite-200);
+  --accent: var(--hover);
+  --accent-foreground: var(--text);
+  --destructive: var(--danger);
+  --destructive-foreground: #ffffff;
+  --border: var(--line);
   --input: var(--color-graphite-300);
-  --ring: var(--color-dana-accent-600);
-  /* The shell has two planes and they are told apart by tone, never by a rule:
-     the recessed plane the furniture sits on, and the white sheet the work sits
-     on. At graphite-50 the step does the job by itself; at graphite-25, one
-     percent of lightness, a hairline would have to carry the separation and
-     every panel would need one. */
-  --sidebar: var(--color-graphite-50);
-  --sidebar-foreground: var(--color-graphite-800);
-  --sidebar-primary: var(--color-dana-accent-600);
-  --sidebar-primary-foreground: var(--color-graphite-0);
-  --sidebar-accent: var(--color-graphite-50);
-  --sidebar-accent-foreground: var(--color-graphite-800);
-  --sidebar-border: var(--color-graphite-200);
-  --sidebar-ring: var(--color-dana-accent-600);
+  --ring: var(--accent-color);
+  --sidebar: var(--surface);
+  --sidebar-foreground: var(--text);
+  --sidebar-primary: var(--accent-color);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--hover);
+  --sidebar-accent-foreground: var(--text);
+  --sidebar-border: var(--line);
+  --sidebar-ring: var(--accent-color);
 
-  /* Spacing: 4px base, no half-steps */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 20px;
-  --space-6: 24px;
-  --space-8: 32px;
-  --space-10: 40px;
-  --space-12: 48px;
-  --space-16: 64px;
-
-  /* Shape */
-  --radius: 6px;
+  --radius: 4px;
   --radius-full: 9999px;
 
-  /* Elevation: borders structure pages; shadows are for floating layers */
+  /* The one shadow, for menus, popovers and dialogs. */
+  --shadow-float: 0 0 0 1px rgb(15 15 15 / 5%), 0 4px 12px rgb(15 15 15 / 8%),
+    0 12px 32px rgb(15 15 15 / 8%);
   --elevation-0: none;
-  --elevation-1: 0 1px 2px rgb(10 10 10 / 6%),
-    0 4px 16px rgb(10 10 10 / 10%);
-  --elevation-2: 0 2px 6px rgb(10 10 10 / 8%),
-    0 16px 40px rgb(10 10 10 / 16%);
+  --elevation-1: var(--shadow-float);
+  --elevation-2: var(--shadow-float);
   --focus-ring-width: 2px;
   --focus-ring-offset: 2px;
 
-  /* Motion. Six components each inventing 200ms is how a product ends up
-   * feeling almost consistent.
-   *
-   * Three durations, and the rule is what moves rather than how far. A colour
-   * or an opacity is -fast; a thing that changes size or position is -base;
-   * -slow is for a surface arriving from nowhere, and if you reach for it on a
-   * hover you have chosen wrong.
-   *
-   * Two easings. -exit is symmetric because a thing leaving should not perform;
-   * -enter overshoots very slightly so that an expanding panel settles rather
-   * than stops, which is the difference people read as "polished" without being
-   * able to name it.
-   */
   --duration-fast: 120ms;
-  --duration-base: 200ms;
-  --duration-slow: 320ms;
-  --ease-enter: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-exit: cubic-bezier(0.4, 0, 0.6, 1);
-  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration-base: 150ms;
+  --duration-slow: 200ms;
+  --ease-enter: cubic-bezier(0.2, 0, 0, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
 
-  /* Repeated control sizes: primary desktop controls are 40px; dense
-   * navigation and property rows use their own application-specific rhythm. */
-  --control-height: 40px;
-  --shell-sidebar-row-height: 32px;
-  --task-form-property-row-height: 36px;
-  --task-row-height: 44px;
-  --checkbox-size: 20px;
-  --switch-width: 40px;
-  --switch-height: 22px;
-  --avatar-size: 28px;
-  /* Three icon sizes, and the third is scoped: compact for metadata and chips,
-   * default for controls, navigation and actions, and dense for icons inside
-   * dense card metadata only, never in a row, and never away from 12px type.
-   * The test: it sits beside 12px text inside a card, and more than three of
-   * its kind are in view at once.
-   */
+  --control-height: 32px;
+  --shell-sidebar-row-height: 28px;
+  --shell-sidebar-item-height: var(--shell-sidebar-row-height);
+  --shell-sidebar-section-font-size: 12px;
+  --shell-sidebar-row-font-size: 14px;
+  --shell-sidebar-width: 240px;
+  --shell-pagebar-height: 28px;
+  --shell-windowbar-height: 36px;
+  --task-form-property-row-height: 32px;
+  --task-row-height: 36px;
+  --checkbox-size: 16px;
+  --switch-width: 32px;
+  --switch-height: 18px;
+  --avatar-size: 24px;
   --icon-size-dense: 14px;
   --icon-size-compact: 16px;
-  --icon-size-default: 20px;
+  --icon-size-default: 18px;
   --icon-stroke-width: 1.75;
 
-  /* Session 4 approved desktop shell */
-  --shell-sidebar-width: 256px;
-
-  /* The sharing panel's width, read by `pages/FolderSharingPanel.tsx` and
-   * by the right-edge reservation in `pages/FolderPage.tsx`. */
+  /* Read by pages/FolderSharingPanel.tsx and pages/FolderPage.tsx. */
   --sharing-panel-width: 440px;
-  --shell-sidebar-item-height: var(--control-height);
-  --shell-sidebar-section-font-size: 11px;
-  --shell-sidebar-row-font-size: 13px;
-  /* 28px: a thinner tab strip reads too thin, and 28px adds room without
-   * competing with the 36px window bar below it.
-   */
-  --shell-pagebar-height: 28px;
-  /* The window bar under the tabs. A token because surfaces that sit below it,
-   * the conversation panel and the task sidebars, have to know where the chrome
-   * ends.
-   */
-  --shell-windowbar-height: 36px;
-  /* The reading measure; `?measure=wide` flips it back to the wider content
-   * area.
-   */
+  --content-list: clamp(720px, 60vw, 900px);
+  --content-form: 640px;
   --shell-content-max: var(--content-list);
 
-  /* Measure tokens. A task title is a sentence, and 1120px of sentence is a
-   * stretch no typographer would set, so lists read at a narrower measure;
-   * `?measure=narrow` shows the narrow candidate over every list screen through
-   * the data-measure hook in app-shell. --content-form is the second token,
-   * reserved for the form sheet and Settings.
-   */
-  /* 720: the header feels wide at 800 once the window bar has taken its
-   * controls away.
-   */
-  /*
-  The list measure, made responsive.
-
-  720px is a reading measure, right for whether a task *title* is legible. But a
-  task row is not a paragraph: it carries a title, an information line and a
-  trailing column of controls, so it reads more like a table than like prose,
-  and a fixed measure that suits the sentence strands the row in margin.
-
-  So the column scales with the window between two honest bounds: never narrower
-  than the measure that made titles readable, never wider than the point where
-  the eye loses the line returning to the left edge. Prose inside it keeps its
-  own cap, which is what `--content-form` is for: the paragraph and the
-  description stay at a sentence's width whatever the column does.
-  */
-  --content-list: clamp(720px, 66vw, 1040px);
-  --content-form: 640px;
-
-  /* Installed light shell */
-  --pwa-theme-color: #ffffff;
-  --pwa-background-color: #ffffff;
-
-  /* The Dana mark's two colours. Previously hardcoded inside
-   * `components/dana-mark.tsx`, where they were copied from
-   * `public/dana-mark.svg`; they are here now because there are two colourways
-   * rather than one and a component picking its own hexes is how the second
-   * one drifts from the first. Hex values still match the source file. */
   --dana-mark-plate: var(--color-graphite-950);
   --dana-mark-glyph: var(--color-graphite-0);
 }
 
-/* The reversed mark, for the dark panels. A logo whose plate is graphite-950
- * disappears on a surface that is also graphite-950, which is what the dark
- * panels on the public screens would show: a bare white D with no tile under
- * it.
- *
- * `surface` names what the mark is sitting on rather than what colour it is,
- * because at a call site "this is on a dark panel" is a fact one can check and
- * "this one is the light version" is a thing one has to remember.
- *
- * The `.dark` rule makes this a colourway for dark mode rather than a second
- * asset somebody has to remember to reach for.
- */
-:root:is(.dark, .dark *),
-[data-dana-mark-surface="dark"] {
-  --dana-mark-plate: var(--color-graphite-0);
-  --dana-mark-glyph: var(--color-graphite-950);
-}
-
-/* Pinned back to the default for a mark on a light surface inside a dark
- * document, the case the cascade would otherwise get wrong. */
-[data-dana-mark-surface="light"] {
-  --dana-mark-plate: var(--color-graphite-950);
-  --dana-mark-glyph: var(--color-graphite-0);
-}
-
-/* Accessibility guardrails approved with the palette:
- * - Small text inside a tint uses graphite-600 or the relevant semantic-700.
- * - Warning is inline/badge treatment only, never an amber button with white text.
- * - Status and folder colors always travel with a text or icon cue.
- */
-
-
-/* ------------------------------------------------------------- dark mode --
- *
- * The colourway behind 9.7's theme control. A control that switches to
- * nothing is a control that lies.
- *
- * **One ramp, not a hundred edits.** Every surface draws from
- * --color-graphite-N and --color-dana-accent-N, and the shadcn mapping is
- * built on those rather than on values of its own. So a dark theme is this
- * block: re-author the two ramps, and the whole product follows.
- *
- * **The ramp is not the light one reversed.** Roles are preserved and values
- * re-authored, because dark surfaces need different spacing between steps:
- * the eye separates light greys far better than dark ones, so the low end is
- * pushed further apart than a mirror would put it.
- *
- * **Elevation inverts.** In light, a raised surface is whiter and casts a
- * shadow. In dark, a shadow on near-black is invisible, and raising something
- * means making it *lighter*. This is why --color-graphite-0, the sheet the
- * work sits on, is lighter than --color-graphite-25, the recessed plane the
- * furniture sits on: the relationship the light theme states is kept and the
- * physics is turned over. The shadows stay, dropped to a trace, because they
- * still do the job at the popover's edge where two dark planes meet.
- *
- * **The accent is lifted a full step.** Cobalt 600 carries text on white and
- * disappears on a dark plate; the dark theme's 600 is the step that clears
- * the same contrast bar against #17181b. The tints below it stop being pale
- * blues and become dark blues, since in dark a tint is a *deeper* wash rather
- * than a lighter one.
- *
- * **Still to judge by eye**: the ten folder swatches are unchanged here. They
- * are mid-tone by construction, but each must travel with a legible folder
- * name, and that is a judgement per swatch against a new ground. The same
- * goes for whether the recessed/raised step reads at all on an OLED panel.
- */
 [data-theme="dark"] {
   color-scheme: dark;
 
-  /* The ramp. 0 is still the sheet and 25 still the ground; in dark that means
-     0 is the lighter of the two. */
-  --color-graphite-0: #17181b;
-  --color-graphite-25: #0f1013;
-  --color-graphite-50: #1f2126;
-  --color-graphite-100: #272a30;
-  --color-graphite-200: #32363d;
-  --color-graphite-300: #434850;
-  --color-graphite-400: #7b7f88;
-  --color-graphite-500: #9aa0a8;
-  --color-graphite-600: #b5bac1;
-  --color-graphite-700: #cbcfd5;
-  --color-graphite-800: #e3e6ea;
-  --color-graphite-900: #f2f3f5;
+  --bg: #191919;
+  --surface: #202020;
+  --line: #2c2c2b;
+  --text: #d4d4d4;
+  --text-muted: #9b9b9b;
+  --hover: #2c2c2c;
+  --accent-color: #529cca;
+  --danger: #e06b6b;
+
+  --color-graphite-100: #333332;
+  --color-graphite-300: #3a3a39;
+  --color-graphite-400: #6f6f6e;
+  --color-graphite-600: #adadad;
+  --color-graphite-700: #bfbfbf;
+  --color-graphite-900: #e8e8e8;
   --color-graphite-950: #ffffff;
 
-  /*
-  Cobalt, lifted, at the same saturation as the light accent.
+  --color-dana-accent-50: #1d262d;
+  --color-dana-accent-100: #213141;
+  --color-dana-accent-200: #284256;
+  --color-dana-accent-300: #345873;
+  --color-dana-accent-700: #6cadd6;
+  --color-dana-accent-800: #8ec2e2;
 
-  A dark ramp derived from a greyer 600 would make the accent vivid in light and
-  washed in dark, which is the two-themes-drifting fault in its purest form.
-  Same hue, same chroma, raised until it clears 4.5:1 against the dark card.
+  --color-success-100: #1f2a23;
+  --color-success-200: #25382c;
+  --color-success-600: #6fb58e;
+  --color-success-700: #88c5a3;
+  --color-warning-100: #2d2618;
+  --color-warning-200: #3b321d;
+  --color-warning-500: #d9a54a;
+  --color-warning-700: #e3b96a;
+  --color-danger-100: #332020;
+  --color-danger-200: #452727;
+  --color-danger-700: #ec8b8b;
+  --color-info-100: #1b2a31;
+  --color-info-200: #213742;
+  --color-info-700: #6fb0d6;
 
-  The tints are washes of the ground rather than of white: in dark a tint is a
-  *deeper* colour, not a paler one.
-  */
-  /* Stepped to match the neutral hover in dark, which moves 1.10 from the card
-     (graphite-50 against graphite-0). The first pass sat at 1.06: a wash you
-     cannot see is a hover state that does not exist. */
-  --color-dana-accent-50: #121f49;
-  --color-dana-accent-100: #17285e;
-  --color-dana-accent-200: #1f347a;
-  --color-dana-accent-600: #567af1;
-  --color-dana-accent-700: #7b98f4;
-  --color-dana-accent-800: #a1b5f7;
-
-  /* The semantic four. Their 600/700 steps carry text, so they lift the same
-     way the accent does; their 100/200 steps are fills and go dark. */
-  --color-success-100: #14251a;
-  --color-success-200: #1b3524;
-  --color-success-600: #6cc98a;
-  --color-success-700: #86d6a0;
-  --color-warning-100: #2a2113;
-  --color-warning-200: #3b2e18;
-  --color-warning-500: #dfae5c;
-  --color-warning-700: #e8c27f;
-  --color-danger-100: #2b1817;
-  --color-danger-200: #3d201e;
-  --color-danger-600: #f08d84;
-  --color-danger-700: #f5a9a1;
-  --color-info-100: #12242b;
-  --color-info-200: #17333d;
-  --color-info-700: #74c4dd;
-
-  /* Dropped to a trace: on near-black a shadow does nothing but dirty the
-     edge, and the lighter plate is what says "raised" now. */
-  --elevation-1: 0 1px 2px rgb(0 0 0 / 40%);
-  --elevation-2: 0 2px 8px rgb(0 0 0 / 50%);
+  --popover: #252525;
+  --shadow-float: 0 0 0 1px rgb(255 255 255 / 6%), 0 4px 12px rgb(0 0 0 / 30%),
+    0 12px 32px rgb(0 0 0 / 30%);
 }
 
-/*
- * The mark, inverted for dark, stated by role.
- *
- * The ramp itself reverses above, so graphite-0 is the near-black sheet and
- * graphite-950 is white: a rule written as plate graphite-0, glyph graphite-950
- * would resolve to a near-black tile carrying a white D, on a near-black page,
- * and the mark would disappear into its own background.
- *
- * **A rule written in terms of a ramp cannot also be the thing that flips the
- * ramp.** Stated by role instead (the plate is the opposite of the page,
- * always) it cannot double-negate.
- */
-[data-theme="dark"] {
-  --dana-mark-plate: var(--color-graphite-950);
-  --dana-mark-glyph: var(--color-graphite-0);
+/* The mark: its plate is the opposite of the page, in both themes. */
+[data-dana-mark-surface="dark"] {
+  --dana-mark-plate: #ffffff;
+  --dana-mark-glyph: #191919;
+}
+[data-dana-mark-surface="light"] {
+  --dana-mark-plate: #191919;
+  --dana-mark-glyph: #ffffff;
 }
 
-/* Reduced motion. The tokens are collapsed at the source rather than each
- * component being asked to remember, so a transition written against
- * --duration-base simply stops moving when the operating system says so and
- * no animation can be forgotten. State still changes; only the travel is
- * removed. */
+/* Floating layers (menus, popovers, dialogs, tooltips): fade and rise 2px.
+   Base UI sets data-starting-style/data-ending-style around the transition. */
+@utility motion-float {
+  transition-property: opacity, transform;
+  transition-duration: var(--duration-base);
+  transition-timing-function: var(--ease-enter);
+  &[data-starting-style],
+  &[data-ending-style] {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  &[data-ending-style] {
+    transition-duration: var(--duration-fast);
+    transition-timing-function: var(--ease-exit);
+  }
+}
+
+/* Scrims fade only. */
+@utility motion-fade {
+  transition-property: opacity;
+  transition-duration: var(--duration-base);
+  transition-timing-function: var(--ease-enter);
+  &[data-starting-style],
+  &[data-ending-style] {
+    opacity: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   :root {
     --duration-fast: 1ms;
     --duration-base: 1ms;
     --duration-slow: 1ms;
   }
-
   *,
   *::before,
   *::after {
@@ -609,19 +354,27 @@ matches nothing while the attribute reads `light`.
   }
 }
 
-/*
-Base rules. No viewport minimum width, which is forbidden (see the header), and
-no `[data-measure]` block.
-*/
-
 @layer base {
   * {
     @apply border-border outline-ring/50;
+  }
+
+  /* In the base layer so text-size utilities on controls still win. */
+  button,
+  input,
+  textarea,
+  select {
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+    letter-spacing: inherit;
   }
 }
 
 * {
   box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-graphite-300) transparent;
 }
 
 html {
@@ -647,30 +400,6 @@ body {
   min-height: 100vh;
 }
 
-/* Controls inherit the page's font rather than the browser's.
- *
- * This lives in @layer base deliberately. Unlayered CSS beats layered CSS
- * regardless of specificity, and Tailwind 4 puts every utility in @layer
- * utilities, so an unlayered reset would silently beat every text-size utility
- * applied to a button, input, textarea or select: the class in the markup, the
- * rule in the stylesheet, and the rendered size whatever the parent happened to
- * be. Nothing warns, because the code reads as though it works.
- *
- * In @layer base the reset still does its job and a utility can override it,
- * which is what everyone writing one intends.
- */
-@layer base {
-  button,
-  input,
-  textarea,
-  select {
-    font-family: inherit;
-    font-size: inherit;
-    line-height: inherit;
-    letter-spacing: inherit;
-  }
-}
-
 button:not(:disabled),
 [role="button"]:not(:disabled) {
   cursor: pointer;
@@ -678,100 +407,49 @@ button:not(:disabled),
 
 ::selection {
   background: var(--color-dana-accent-100);
-  color: var(--color-graphite-900);
+  color: var(--foreground);
 }
 
-/* Thin tokenized scrollbars. The standard pair rather than the ::-webkit-
- * pseudo-elements: both engines honour it now, and a scrollbar drawn from the
- * ramp follows the dark colourway without a second rule. The track stays
- * transparent so the bar reads as content furniture, not chrome, a scrollbar
- * being an indicator first and a control second.
- */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: var(--color-graphite-300) transparent;
-}
-
-/* The desktop TaskForm is deliberately wider than the shadcn Sheet default so
- * its compact field rows do not collapse into a mobile-density layout. */
 [data-slot="sheet-content"].task-form-sheet {
   width: var(--task-form-width, 540px) !important;
   max-width: var(--task-form-width, 540px) !important;
 }
 
-/* Semantic sidebar type tiers intentionally override shadcn's generic
- * text-xs/text-sm menu defaults. Hierarchy comes from role, weight and color
- * without introducing unrelated font sizes between sibling rows. */
 [data-sidebar-tier="section"] {
-  font-size: var(--shell-sidebar-section-font-size);
-  font-weight: 600;
+  font-size: var(--text-meta-size);
+  font-weight: 500;
+  color: var(--muted-foreground);
 }
-
 [data-sidebar-tier="primary"],
 [data-sidebar-tier="group"],
-[data-sidebar-tier="action"] {
-  font-size: var(--shell-sidebar-row-font-size);
-  font-weight: 600;
-}
-
+[data-sidebar-tier="action"],
 [data-sidebar-tier="folder"] {
   font-size: var(--shell-sidebar-row-font-size);
   font-weight: 500;
 }
-
 [data-sidebar-tier="folder"][data-active] {
   font-weight: 600;
 }
-
-/* Rows touch structurally; their 1px top and bottom inset creates the exact
- * 2px visual separation between neighboring hover/selected surfaces. */
 [data-sidebar="menu"] {
   gap: 0;
 }
-
-/* The collapsed rail has a fractional inner width after its divider is
- * resolved. Center the complete 32px cell in that available column so every
- * glyph shares the Dana Mark's optical axis. */
-[data-collapsible="icon"][data-state="collapsed"]
-  [data-sidebar="menu-button"] {
+[data-collapsible="icon"][data-state="collapsed"] [data-sidebar="menu-button"] {
   justify-content: center;
   margin-inline: auto;
 }
 
 [data-task-form-title] {
-  font-size: 20px;
+  font-size: var(--text-heading-size);
   font-weight: 600;
-  line-height: 28px;
+  line-height: var(--text-heading-line);
 }
-
 [data-task-form-tier="disclosure"] {
-  font-size: 13px;
+  font-size: var(--text-meta-size);
   font-weight: 500;
-  line-height: 20px;
+  line-height: var(--text-meta-line);
 }
 
-/* The scrolling region is the page cover's measure: a cover extends across the
- * full page width.
- *
- * `app-shell.tsx` centres every page in a column capped at
- * `--shell-content-max`, and a cover is a band across the window rather than a
- * picture inside that column, drawn from the head, inside it. A negative margin
- * can undo the column's padding and cannot reach past its cap, so the band
- * would stop at the reading width with the ground showing on both sides.
- *
- * Declaring the scroll region a query container gives `page-cover.tsx` the one
- * number it lacked, `100cqw`: the width the column was laid out in, with the
- * sidebar, the right edge and the scrollbar already taken off. `100vw` is the
- * usual full-bleed trick and is wrong here, because it counts the sidebar and
- * AC-260's panel as page and slides the band under both.
- *
- * A declaration rather than a value, in the file 11.4 makes the single home of
- * both. The one side effect worth naming is that a query container is a
- * containing block for fixed descendants and a stacking context: the modal task
- * surface and the floating add button are mounted outside this element
- * (`app-shell.tsx`), and every overlay a page opens is portalled to the body,
- * so nothing inside it positions against the viewport.
- */
+/* A query container, so page-cover.tsx can bleed a cover to 100cqw. */
 [data-shell-scroll] {
   container-type: inline-size;
 }
