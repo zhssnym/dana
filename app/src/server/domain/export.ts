@@ -401,7 +401,7 @@ export async function exportForViewer(
     db,
     sql`SELECT f.id, f.name, f.is_default, f.icon, f.color, f.description,
                f.cover_file_id, f.cover_preset, f.cover_focal_y,
-               f.created_at, f.deleted_at,
+               f.created_at, f.deleted_at, f.parent_folder_id,
                m.shelf_name AS my_shelf, m.color AS my_color
         FROM folders f
         LEFT JOIN folder_members m
@@ -913,12 +913,19 @@ export async function exportForViewer(
   // tasksByFolder was built above, the per-folder cap already taken, because
   // the step statement had to be handed the surviving ids.
 
+  const exportedFolderIds = new Set(folderIds)
   const exportedFolders: ExportFolder[] = folders.map((row) => {
     const id = String(row.id)
+    const parentId = nullableString(row.parent_folder_id)
     return {
       id,
       name: String(row.name),
       is_default: row.is_default === true,
+      /* Version 8 (wave 2): the page tree, as far as this document reaches.
+         A parent that is not in it (somebody else's page, or cut by the row
+         cap) is null, so the export never names a page it does not carry. */
+      parent_folder_id:
+        parentId !== null && exportedFolderIds.has(parentId) ? parentId : null,
       icon: nullableString(row.icon),
       color: nullableString(row.color),
       description: nullableString(row.description),

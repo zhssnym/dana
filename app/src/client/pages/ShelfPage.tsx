@@ -184,7 +184,7 @@ export function ShelfPage(): React.JSX.Element {
         {confirmingDelete ? (
           <ConfirmDialog
             message={deleteGroupConfirm(onShelf.length)}
-            confirmLabel="Delete shelf"
+            confirmLabel="Delete collection"
             onContinue={() => {
               setConfirmingDelete(false)
               remove.mutate(id, {

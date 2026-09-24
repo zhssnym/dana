@@ -34,6 +34,7 @@ import type {
 import {
   deleteFolderResponse,
   folder,
+  patchFolderLocationResponse,
   patchFolderMyMembershipResponse,
   patchFolderResponse,
   postFolderMembersResponse,
@@ -44,6 +45,7 @@ import type {
   Folder,
   FolderMember,
   PatchFolderBody,
+  PatchFolderLocationBody,
   PatchFolderMyMembershipBody,
   PostFoldersBody,
   TransferOwnershipResponse,
@@ -306,6 +308,30 @@ export function useDeleteFolder(): UseMutationResult<DeleteFolderResponse, Error
   return useMutation({
     mutationFn: (id: string) =>
       mutateApi(deleteFolderResponse, { method: 'DELETE', path: `/folders/${id}` }),
+  })
+}
+
+/**
+ * PATCH /folders/:id/location (wave 2 page tree): move a page under another
+ * page, or to the root with `parent_folder_id: null`. The server refuses a
+ * cycle or a tree deeper than 20 with 422. Invalidation is queryClient.ts's,
+ * like every mutation here.
+ */
+export interface MoveFolderVariables {
+  readonly id: string
+  readonly body: PatchFolderLocationBody
+}
+
+export function useMoveFolder(): UseMutationResult<Folder, Error, MoveFolderVariables> {
+  return useMutation({
+    mutationFn: ({ id, body }: MoveFolderVariables) =>
+      mutateApi(patchFolderLocationResponse, {
+        method: 'PATCH',
+        path: `/folders/${id}/location`,
+        body,
+      }),
+    // A cycle or a too-deep tree is the server's 422 sentence, shown as is.
+    meta: { [VALIDATION_ERROR_TOAST_META]: true },
   })
 }
 

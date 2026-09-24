@@ -13,11 +13,18 @@ The acts are the object contract's (`lib/object-acts.ts`), drawn by
 `object-menu.tsx`; an act with no handler is not drawn, which is how the role
 split of 9.6 reaches this row without a branch. What stays here is the shelf
 picker's contents, which belong to the surface.
+
+**A page in a tree** (wave 2): `depth` indents it under its parent, and a page
+with children carries a fold. The fold is its mark turned into a chevron under
+the pointer, in the same box, the way a collection heading folds, so nothing
+shifts. The one other control is the "+" beside the "…", shown on hover or
+focus, which adds a page inside this one. `children` is the page's own rows,
+drawn inside its item so that carrying a page carries its subtree.
 */
 import { useEffect, useRef, useState } from 'react'
-import type { ReactElement } from 'react'
+import type { ReactElement, ReactNode } from 'react'
 
-import { Folder, FolderPlus } from '../lib/icons.js'
+import { ChevronRight, Folder, FolderPlus, Plus } from '../lib/icons.js'
 import type { LucideIcon } from '../lib/icons.js'
 import type { ActHandlers } from '../lib/object-acts.js'
 import { ObjectMenu } from './object-menu.js'
@@ -53,6 +60,30 @@ export interface FolderRowProps {
      handlers the folder page's header "…" passes. An act with no handler is
      not drawn. */
   acts?: ActHandlers
+  /** The page's id, marking the row for the tree's drop hit test. */
+  pageId?: string
+  /** How deep in the page tree: 0 for a root. */
+  depth?: number
+  /** Present on a page with children: whether they show, and the fold. */
+  fold?: { readonly open: boolean; readonly onToggle: () => void }
+  /** Adds a page inside this one; absent where the viewer may not. */
+  onAddInside?: () => void
+  /** What a drop here would do, drawn while a page is carried over this row. */
+  dropMark?: 'inside' | 'before' | 'after' | 'first-child' | null
+  /** Carried along under a page that is being dragged. */
+  dimmed?: boolean
+  /** The carried row, while a drop onto the tree is proposed: see-through,
+      so the highlight or line under it shows. */
+  seeThrough?: boolean
+  /** The page's own rows, drawn inside its item. */
+  children?: ReactNode
+}
+
+/* A row's indent in spacing steps: the row's own padding, or a collection's
+   step, then four steps per level of the tree. */
+function indentOf(nested: boolean, depth: number): string {
+  const steps = (nested ? 7 : 2) + depth * 4
+  return `calc(var(--spacing) * ${String(steps)})`
 }
 
 export function FolderRow({
@@ -70,6 +101,14 @@ export function FolderRow({
   proposal = null,
   onSelect,
   acts = {},
+  pageId,
+  depth = 0,
+  fold,
+  onAddInside,
+  dropMark = null,
+  dimmed = false,
+  seeThrough = false,
+  children,
 }: FolderRowProps) {
   const hasActions = Object.values(acts).some((act) => act !== undefined)
   const menuTrigger = useRef<HTMLButtonElement>(null)
@@ -104,71 +143,144 @@ export function FolderRow({
         hasActions
           ? (event) => {
               event.preventDefault()
+              /* A sub-page's row sits inside its parent's item: one menu opens. */
+              event.stopPropagation()
               menuTrigger.current?.click()
             }
           : undefined
       }
       className={cn(
-        'group/folder-row rounded-md',
+        'rounded-md',
         dragState?.isActive && 'cursor-grabbing bg-popover shadow-md ring-1 ring-border',
-        dragState?.isDwelling && 'bg-sidebar-accent ring-1 ring-ring/30',
-        dragState?.isArmed && 'bg-sidebar-accent ring-2 ring-ring',
+        dragState?.isActive && seeThrough && 'opacity-60',
         rowProps?.className,
       )}
     >
-      <SidebarMenuButton
-        render={render ?? <a href={href} />}
-        data-sidebar-tier="folder"
-        isActive={active}
-        aria-current={active ? 'page' : undefined}
-        title={name}
-        onClick={onSelect}
+      <div
+        data-page-row={pageId}
         className={cn(
-          'h-(--shell-sidebar-row-height) gap-2 rounded-md px-2 text-sm font-normal text-muted-foreground hover:bg-sidebar-accent hover:text-foreground group-hover/folder-row:bg-sidebar-accent data-active:bg-sidebar-accent data-active:font-medium data-active:text-foreground',
-          nested && 'pl-7',
-          hasActions && 'pr-8',
+          'group/folder-row relative rounded-md',
+          dimmed && 'opacity-50',
+          dragState?.isDwelling && 'bg-sidebar-accent ring-1 ring-ring/30',
+          dragState?.isArmed && 'bg-sidebar-accent ring-2 ring-ring',
+          dropMark === 'inside' && 'bg-sidebar-accent ring-1 ring-ring/40',
         )}
       >
-        <Mark className="!size-4 shrink-0" style={{ color }} strokeWidth={1.75} aria-hidden="true" />
-        <span className="min-w-0 flex-1 truncate">
-          {name}
-          {qualifier === undefined ? null : <span className="sr-only">{` ${qualifier}`}</span>}
-        </span>
-      </SidebarMenuButton>
-
-      {hasActions ? (
-        /* Opacity and never a collapsed box: a control with an empty box
-           cannot be addressed. `data-no-drag`: a press here is not the grip. */
-        <div
-          data-no-drag
-          className="absolute top-1/2 right-1 z-20 flex -translate-y-1/2 items-center opacity-0 transition-opacity duration-150 group-focus-within/folder-row:opacity-100 group-hover/folder-row:opacity-100 has-data-popup-open:opacity-100 [@media(hover:none)]:opacity-100"
+        <SidebarMenuButton
+          render={render ?? <a href={href} />}
+          data-sidebar-tier="folder"
+          isActive={active}
+          aria-current={active ? 'page' : undefined}
+          title={name}
+          onClick={onSelect}
+          style={{ paddingLeft: indentOf(nested, depth) }}
+          className={cn(
+            'h-(--shell-sidebar-row-height) gap-2 rounded-md px-2 text-sm font-normal text-muted-foreground hover:bg-sidebar-accent hover:text-foreground group-hover/folder-row:bg-sidebar-accent data-active:bg-sidebar-accent data-active:font-medium data-active:text-foreground',
+            hasActions && onAddInside !== undefined
+              ? 'pr-14'
+              : (hasActions || onAddInside !== undefined) && 'pr-8',
+          )}
         >
-          <ObjectMenu
-            kind="folder"
-            name={name}
-            align="start"
-            trigger={
+          <Mark
+            className={cn(
+              '!size-4 shrink-0',
+              fold !== undefined &&
+                'transition-opacity duration-150 group-hover/folder-row:opacity-0 [@media(hover:none)]:opacity-0',
+            )}
+            style={{ color }}
+            strokeWidth={1.75}
+            aria-hidden="true"
+          />
+          <span className="min-w-0 flex-1 truncate">
+            {name}
+            {qualifier === undefined ? null : <span className="sr-only">{` ${qualifier}`}</span>}
+          </span>
+        </SidebarMenuButton>
+
+        {fold === undefined ? null : (
+          /* Over the mark, in the same box, so nothing shifts when it shows. */
+          <button
+            type="button"
+            data-fold
+            data-no-drag
+            aria-expanded={fold.open}
+            aria-label={fold.open ? `Hide the pages in ${name}` : `Show the pages in ${name}`}
+            onClick={fold.onToggle}
+            style={{ left: `calc(${indentOf(nested, depth)} - var(--spacing))` }}
+            className="absolute top-1/2 z-20 flex size-6 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground opacity-0 outline-none group-hover/folder-row:opacity-100 hover:text-foreground focus-visible:bg-sidebar-accent focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/30 [@media(hover:none)]:opacity-100"
+          >
+            <ChevronRight
+              className={cn('size-4 transition-transform duration-150', fold.open && 'rotate-90')}
+              strokeWidth={1.75}
+              aria-hidden="true"
+            />
+          </button>
+        )}
+
+        {hasActions || onAddInside !== undefined ? (
+          /* Opacity and never a collapsed box: a control with an empty box
+             cannot be addressed. `data-no-drag`: a press here is not the grip. */
+          <div
+            data-no-drag
+            className="absolute top-1/2 right-1 z-20 flex -translate-y-1/2 items-center opacity-0 transition-opacity duration-150 group-focus-within/folder-row:opacity-100 group-hover/folder-row:opacity-100 has-data-popup-open:opacity-100 [@media(hover:none)]:opacity-100"
+          >
+            {hasActions ? (
+              <ObjectMenu
+                kind="folder"
+                name={name}
+                align="start"
+                trigger={
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    ref={menuTrigger}
+                    className="size-6 rounded-sm text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+                    aria-label={MORE_ACTIONS}
+                  />
+                }
+                handlers={acts}
+              />
+            ) : null}
+            {onAddInside === undefined ? null : (
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
-                ref={menuTrigger}
+                onClick={onAddInside}
                 className="size-6 rounded-sm text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
-                aria-label={MORE_ACTIONS}
-              />
-            }
-            handlers={acts}
-          />
-        </div>
-      ) : null}
+                aria-label="Add a page inside"
+                title="Add a page inside"
+              >
+                <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" />
+              </Button>
+            )}
+          </div>
+        ) : null}
 
-      {proposal === null ? null : (
-        <Proposal
-          text={proposal}
-          holding={dragState?.isDwelling ?? false}
-          armed={dragState?.isArmed ?? false}
-        />
-      )}
+        {dropMark === 'before' || dropMark === 'after' || dropMark === 'first-child' ? (
+          /* Where the page would land: a line at the depth it would take. */
+          <span
+            aria-hidden="true"
+            className={cn(
+              'pointer-events-none absolute right-2 z-20 h-0.5 rounded-full bg-primary',
+              dropMark === 'before' ? '-top-px' : '-bottom-px',
+            )}
+            style={{
+              left: indentOf(nested, dropMark === 'first-child' ? depth + 1 : depth),
+            }}
+          />
+        ) : null}
+
+        {proposal === null ? null : (
+          <Proposal
+            text={proposal}
+            holding={dragState?.isDwelling ?? false}
+            armed={dragState?.isArmed ?? false}
+          />
+        )}
+      </div>
+      {children}
     </SidebarMenuItem>
   )
 }

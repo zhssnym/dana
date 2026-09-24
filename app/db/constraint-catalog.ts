@@ -133,6 +133,15 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
       { name: 'folders_cover_preset_format_check', columns: ['cover_preset'] },
       { name: 'folders_description_length_check', columns: ['description'] },
       { name: 'folders_name_length_check', columns: ['name'] },
+      /* Migration 0039 (wave 2, pages in pages): the page tree. A sibling
+         key in the tasks.position shape; a page is never its own parent; a
+         default folder is always a root; only a trashed row carries the
+         page it was trashed with. Cycles and depth are enforced by the move
+         transaction under an advisory lock, not by a CHECK. */
+      { name: 'folders_child_position_format_check', columns: ['child_position'] },
+      { name: 'folders_parent_not_self_check', columns: ['id', 'parent_folder_id'] },
+      { name: 'folders_default_is_root_check', columns: ['is_default', 'parent_folder_id'] },
+      { name: 'folders_trashed_with_check', columns: ['deleted_at', 'trashed_with_folder_id'] },
     ],
     foreignKeys: [
       {
@@ -147,10 +156,38 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
         references: { table: 'users', columns: ['id'] },
         onDelete: 'restrict',
       },
+      /* Migration 0039: SET NULL both, so purging a parent turns surviving
+         children into roots and purging a trash initiator never dangles. */
+      {
+        name: 'folders_parent_folder_id_fkey',
+        columns: ['parent_folder_id'],
+        references: { table: 'folders', columns: ['id'] },
+        onDelete: 'set null',
+      },
+      {
+        name: 'folders_trashed_with_folder_id_fkey',
+        columns: ['trashed_with_folder_id'],
+        references: { table: 'folders', columns: ['id'] },
+        onDelete: 'set null',
+      },
     ],
     indexes: [
       { name: 'folders_one_default_per_owner_idx', unique: true, columns: ['owner_id'], partial: true },
       { name: 'folders_deleted_at_idx', unique: false, columns: ['deleted_at'], partial: true },
+      /* Migration 0039: one parent's children in sibling order, and one
+         trash initiator's trashed-with set. */
+      {
+        name: 'folders_parent_child_position_idx',
+        unique: false,
+        columns: ['parent_folder_id', 'child_position', 'id'],
+        partial: true,
+      },
+      {
+        name: 'folders_trashed_with_folder_id_idx',
+        unique: false,
+        columns: ['trashed_with_folder_id'],
+        partial: true,
+      },
     ],
   },
   folder_members: {
@@ -1214,6 +1251,10 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
          unchanged and only a behavioural case can see the difference. */
       { name: 'page_blocks_width_pct_kind_check', columns: ['kind', 'width_pct'] },
       { name: 'page_blocks_width_pct_range_check', columns: ['width_pct'] },
+      /* Migration 0039 (wave 2): `page_blocks_kind_check` gained `page` in
+         place; a page block lives in a folder's document and names its
+         child page through `ref_folder_id`. */
+      { name: 'page_blocks_page_kind_check', columns: ['folder_id', 'kind', 'ref_folder_id'] },
     ],
     foreignKeys: [
       /* Migration 0027 (#210): the third home. CASCADE because a facet's
@@ -1331,6 +1372,13 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
         name: 'page_blocks_task_page_position_idx',
         unique: false,
         columns: ['task_id', 'page_position', 'id'],
+        partial: true,
+      },
+      /* Migration 0039: a page has at most one home block. */
+      {
+        name: 'page_blocks_page_home_idx',
+        unique: true,
+        columns: ['ref_folder_id'],
         partial: true,
       },
     ],

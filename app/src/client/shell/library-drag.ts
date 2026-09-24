@@ -13,7 +13,9 @@ what else is on it. This file is the Library's answers, kept out of
 import type { PointerEvent as ReactPointerEvent } from 'react'
 
 import { useDropZones } from '../lib/drop-zones.js'
-import type { DropZones } from '../lib/drop-zones.js'
+import type { DropZones, Point } from '../lib/drop-zones.js'
+import { zoneAt } from './page-tree.js'
+import type { DropZone } from './page-tree.js'
 
 export type { Point, DropZones as LibraryZones } from '../lib/drop-zones.js'
 
@@ -63,6 +65,40 @@ export function grip(base: {
       base.onPointerDown(event)
     },
   }
+}
+
+/**
+ * `grip` for a sub-page's row. The row sits inside its parent's item, which is
+ * a grip of its own, so the press stops here: one press carries one page.
+ */
+export function nestedGrip(base: {
+  onPointerDown: (event: ReactPointerEvent) => void
+}): { onPointerDown: (event: ReactPointerEvent) => void } {
+  const inner = grip(base)
+  return {
+    onPointerDown: (event: ReactPointerEvent): void => {
+      event.stopPropagation()
+      inner.onPointerDown(event)
+    },
+  }
+}
+
+/**
+ * The page row under a point, and which part of it: its top quarter, its
+ * middle, or its bottom quarter (`page-tree.ts`'s `zoneAt`).
+ *
+ * The page tree's half of the hit test. A row is marked `data-page-row` by
+ * `FolderRow`; the carried row has `pointer-events: none`, so it and the
+ * subtree it carries are never what the point is over.
+ */
+export function pageRowAt(point: Point): { readonly id: string; readonly zone: DropZone } | null {
+  const row = document
+    .elementFromPoint(point.x, point.y)
+    ?.closest<HTMLElement>('[data-page-row]')
+  const id = row?.dataset.pageRow
+  if (row === null || row === undefined || id === undefined || id === '') return null
+  const box = row.getBoundingClientRect()
+  return { id, zone: zoneAt(box.top, box.bottom, point.y) }
 }
 
 /*
