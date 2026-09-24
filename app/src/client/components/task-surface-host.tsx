@@ -129,6 +129,8 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
   viewerRef.current = me.data?.user
   const createRef = useRef(create)
   createRef.current = create
+  const updateRef = useRef(update)
+  updateRef.current = update
   const taskOpenRef = useRef(taskOpenPreference)
   taskOpenRef.current = taskOpenPreference
   const navigateRef = useRef(navigate)
@@ -171,7 +173,14 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
             : { section_block_id: defaults.section_block_id }),
         },
         {
-          onSuccess: (detail) => setCreated(detail.id),
+          onSuccess: (detail) => {
+            /* Notes typed while this create was in flight are on the draft. */
+            const latest = draftRef.current?.notes
+            if (latest !== undefined && latest.trim() !== '') {
+              updateRef.current.mutate({ id: detail.id, body: { notes: latest } })
+            }
+            setCreated(detail.id)
+          },
           onError: () => {
             making.current = false
           },
