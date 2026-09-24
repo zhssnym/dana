@@ -27,7 +27,7 @@ editor never writes it.
 */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { BlockNoteSchema, createHeadingBlockSpec, defaultBlockSpecs, defaultStyleSpecs } from '@blocknote/core'
+import { BlockNoteSchema, createHeadingBlockSpec, defaultBlockSpecs, defaultInlineContentSpecs, defaultStyleSpecs } from '@blocknote/core'
 import type { PartialBlock } from '@blocknote/core'
 import { filterSuggestionItems } from '@blocknote/core/extensions'
 import { BlockNoteView } from '@blocknote/shadcn'
@@ -46,7 +46,9 @@ import { CanvasFilePanel } from './CanvasFilePanel.js'
 import type { CanvasMediaKind } from './CanvasFilePanel.js'
 import { baselineOf, contentOf, richRuns } from './adapters.js'
 import type { CanvasDocument, CanvasRecord } from './adapters.js'
-import type { CanvasBlock } from './schema.js'
+import type { CanvasBlock, CanvasEditor } from './schema.js'
+import { danaLinkInlineSpec } from '../../links/dana-link-chip.js'
+import { DanaLinkSuggestions, linkSlashItem } from '../../links/dana-link-picker.js'
 import { CanvasWriter } from './saving.js'
 import './canvas.css'
 
@@ -63,6 +65,9 @@ export const taskSchema = BlockNoteSchema.create({
     audio: defaultBlockSpecs.audio,
     video: defaultBlockSpecs.video,
   },
+  // Dana Link chips (#223): a Task document is a backlink source, and chips
+  // are written back as href runs by `richRuns`, as on the Folder canvas.
+  inlineContentSpecs: { ...defaultInlineContentSpecs, danaLink: danaLinkInlineSpec },
   styleSpecs: { bold: defaultStyleSpecs.bold, italic: defaultStyleSpecs.italic },
 })
 type TaskBlock = typeof taskSchema.Block
@@ -348,8 +353,11 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
         <SuggestionMenuController triggerCharacter="/" getItems={async (query) => filterSuggestionItems(
           getDefaultReactSlashMenuItems(editor)
             .filter((item) => 'key' in item && SLASH_KEYS.includes(String(item.key)) && (folderId !== null || !['image', 'file', 'audio', 'video'].includes(String(item.key))))
-            .map((item) => ({ ...item, ...('key' in item && item.key === 'paragraph' ? { title: 'Text' } : {}), size: 'small' as const })),
+            .map((item) => ({ ...item, ...('key' in item && item.key === 'paragraph' ? { title: 'Text' } : {}), size: 'small' as const }))
+            .concat({ ...linkSlashItem(editor as unknown as CanvasEditor), size: 'small' as const })
+            .map((item) => ({ ...item, group: 'Basic blocks' })),
           query)} />
+        <DanaLinkSuggestions editor={editor as unknown as CanvasEditor} />
       </BlockNoteView>
     </div>
     <div role="status" aria-live="polite" className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
