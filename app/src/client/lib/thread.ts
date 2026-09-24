@@ -43,6 +43,7 @@ import type { Attachment, ConceptComment } from '../tasks/task-model.js'
 
 /** The `Person` shape, which is what a `Face` takes. */
 export interface ThreadPerson {
+  readonly id?: string
   readonly initials: string
   readonly name: string
   readonly image?: string
@@ -58,9 +59,15 @@ export interface ThreadPerson {
  */
 export function useViewerPerson(): ThreadPerson {
   const me = useMe()
+  const id = me.data?.user.id
   const name = me.data?.user.display_name ?? 'You'
   const image = me.data?.user.avatar_url ?? null
-  return { initials: initialsOf(name), name, ...(image === null ? {} : { image }) }
+  return {
+    ...(id === undefined ? {} : { id }),
+    initials: initialsOf(name),
+    name,
+    ...(image === null ? {} : { image }),
+  }
 }
 
 /** 7.15's serving path, which the browser sends the session cookie for, this
@@ -213,6 +220,7 @@ function conceptOf(
   return {
     id: line.id,
     author: {
+      id: line.author_id,
       initials: initialsOf(author.name),
       name: author.name,
       ...(author.image === undefined ? {} : { image: author.image }),

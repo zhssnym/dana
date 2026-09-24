@@ -7,23 +7,22 @@ the Task's own blocks, `server/domain/task-document.ts`).
 **Vocabulary.** What a Task document admits and this editor can draw:
 paragraph, heading 1-3 (`heading1..3`, never a Main Section) and toggle
 heading 1-3 (a heading that folds the blocks nested under it, stored with
-`toggleable`), bullet, numbered, quote, code, and image/file/audio/video from
-the Task's Folder. The server refuses Task rows, Sections and folder
-references, so none is offered: there is no Task command. Since 0038 a Task
-document nests like every home: Tab puts a block under the writing block above
-it (text, a heading, a list item, a quote), written as its
-`list_parent_block_id`, and Shift-Tab takes it out again. Here a heading's
-`isToggleable` simply is the toggle, there being no Sections; `presentation`
-rides along only so the shared canvas helpers read it as a presentation
-heading. A stored `callout` or `checklist` (neither is offered here; a Task's
-checkable work is its Steps) is drawn as a paragraph and keeps its kind across
-a save, by id, tick included.
+`toggleable`), bullet, numbered, to-do (`checklist`, its tick stored), quote,
+callout, divider, code, and image/file/audio/video from the Task's Folder.
+The server refuses Task rows, Sections and folder references, so none is
+offered: there is no Task command. Since 0038 a Task document nests like every
+home: Tab puts a block under the writing block above it (text, a heading, a
+list item, a quote, a callout), written as its `list_parent_block_id`, and
+Shift-Tab takes it out again. Here a heading's `isToggleable` simply is the
+toggle, there being no Sections; `presentation` rides along only so the shared
+canvas helpers read it as a presentation heading. A to-do here is a note's
+checkbox, not a Step: it has no assignee, no due date and no place in any list.
 
 **Nothing typed is dropped.** Every change is mirrored to
 `sessionStorage['dana-task-draft:<task>']` until the server acknowledges it. A
 refused save (409 when the Task was edited elsewhere) keeps the editor and the
 draft; "Load latest" re-opens on the server's copy and moves the draft to
-`dana-task-recovered:<task>`, offered back with Merge / Download / Discard;
+`dana-task-recovered:<task>`, offered back with Download writing / Restore / Discard (Restore merges);
 merging adds the draft's blocks to the latest copy and removes nothing, so
 neither tab's writing is lost to a last write.
 
@@ -47,6 +46,7 @@ import { ApiError, getPlain, mutateApi, uploadFile } from '../../../api/http.js'
 import { Button } from '../../ui/button.js'
 import { CanvasErrorBoundary } from './CanvasErrorBoundary.js'
 import { CanvasFormattingToolbar } from './CanvasFormattingToolbar.js'
+import { CanvasMarquee } from './CanvasMarquee.js'
 import { CanvasFilePanel } from './CanvasFilePanel.js'
 import type { CanvasMediaKind } from './CanvasFilePanel.js'
 import { baselineOf, contentOf, richRuns } from './adapters.js'
@@ -54,13 +54,14 @@ import type { CanvasDocument, CanvasRecord } from './adapters.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
 import { danaLinkInlineSpec } from '../../links/dana-link-chip.js'
 import { DanaLinkSuggestions } from '../../links/dana-link-picker.js'
-import { CanvasSlashMenu } from './slash-items.js'
+import { CanvasSlashMenu, blockMenuTargets } from './slash-items.js'
 import { CanvasWriter } from './saving.js'
-import { NOT_SAVED, SaveFailure } from './SaveFailure.js'
+import { NOT_SAVED, RecoveryNotice, SaveFailure } from './SaveFailure.js'
 import { BlockMenuContext, BlockSideMenu, blockSidePosition, duplicateBlocks, pageTheme, turnBlocksInto } from './BlockSideMenu.js'
 import type { BlockMenuModel } from './BlockSideMenu.js'
+import { createCanvasCallout } from './CanvasCallout.js'
 import { BlockSelectionStyle, useBlockAnchor, useBlockSelectionKeys } from './block-selection.js'
-import { simulateNest, TEXT_TYPES, TURN_TARGETS } from './turn-into.js'
+import { simulateNest } from './turn-into.js'
 import type { TreeBlock } from './turn-into.js'
 import { validateCanvasOutline } from './outline.js'
 import './canvas.css'
@@ -91,7 +92,10 @@ export const taskSchema = BlockNoteSchema.create({
     heading: taskHeading,
     bulletListItem: defaultBlockSpecs.bulletListItem,
     numberedListItem: defaultBlockSpecs.numberedListItem,
+    checkListItem: defaultBlockSpecs.checkListItem,
     quote: defaultBlockSpecs.quote,
+    callout: createCanvasCallout(),
+    divider: defaultBlockSpecs.divider,
     codeBlock: defaultBlockSpecs.codeBlock,
     image: defaultBlockSpecs.image,
     file: defaultBlockSpecs.file,
@@ -106,12 +110,13 @@ export const taskSchema = BlockNoteSchema.create({
 type TaskBlock = typeof taskSchema.Block
 type TaskInput = PartialBlock<typeof taskSchema.blockSchema, typeof taskSchema.inlineContentSchema, typeof taskSchema.styleSchema>
 
-/** Stored kinds this editor draws as a paragraph and keeps, with their tick. */
-const KEPT_KINDS: ReadonlySet<string> = new Set(['callout', 'checklist'])
 const fileUrl = (id: string | null): string => id === null ? '' : `/api/v1/files/${id}`
 const fileIdOf = (url: string): string | null => /(?:^|\/)api\/v1\/files\/([0-9a-f-]{36})$/i.exec(url)?.[1] ?? null
 const draftKey = (taskId: string): string => `dana-task-draft:${taskId}`
 const recoveredKey = (taskId: string): string => `dana-task-recovered:${taskId}`
+
+/** The one error "Load latest" answers besides a failed save. */
+const CHANGED_ELSEWHERE = 'This task was edited elsewhere. Your writing is kept here. Load the latest to continue; your writing will be offered back.'
 
 /** The stored document as editor blocks, each nested block under its parent. */
 export function hydrateTask(page: PageView, width: number): TaskInput[] {
@@ -141,7 +146,10 @@ function drawTask(b: PageView['blocks'][number], width: number): TaskInput {
       return { id: b.id, type: 'heading', props: { level: Number(b.kind.slice(-1)) as 1 | 2 | 3, isToggleable: toggle, presentation: toggle }, content }
     case 'bullet': return { id: b.id, type: 'bulletListItem', content }
     case 'numbered': return { id: b.id, type: 'numberedListItem', content }
+    case 'checklist': return { id: b.id, type: 'checkListItem', props: { checked: b.checked === true }, content }
     case 'quote': return { id: b.id, type: 'quote', content }
+    case 'callout': return { id: b.id, type: 'callout', content }
+    case 'divider': return { id: b.id, type: 'divider' }
     case 'code': return { id: b.id, type: 'codeBlock', content: b.text ?? '' }
     case 'image': return { id: b.id, type: 'image', props: { url: fileUrl(b.file_id), caption: b.text ?? '', previewWidth } }
     case 'video': return { id: b.id, type: 'video', props: { url: fileUrl(b.file_id), caption: b.text ?? '', previewWidth } }
@@ -153,20 +161,19 @@ function drawTask(b: PageView['blocks'][number], width: number): TaskInput {
 
 const KIND: Record<TaskBlock['type'], PageBlockKind> = {
   paragraph: 'paragraph', heading: 'heading1', bulletListItem: 'bullet', numberedListItem: 'numbered',
-  quote: 'quote', codeBlock: 'code', image: 'image', file: 'file', audio: 'audio', video: 'video',
+  checkListItem: 'checklist', quote: 'quote', callout: 'callout', divider: 'divider', codeBlock: 'code', image: 'image', file: 'file', audio: 'audio', video: 'video',
 }
 
-/** What may hold nested blocks here (the server's `NEST_PARENT_KINDS` this
- * schema can draw; a kept callout or checklist is drawn as a paragraph). */
-const NEST_PARENTS: ReadonlySet<string> = new Set(['paragraph', 'heading', 'bulletListItem', 'numberedListItem', 'quote'])
+/** What may hold nested blocks here (the server's `NEST_PARENT_KINDS`). */
+const NEST_PARENTS: ReadonlySet<string> = new Set(['paragraph', 'heading', 'bulletListItem', 'numberedListItem', 'checkListItem', 'quote', 'callout'])
 
 /**
  * Nested as drawn: a block indented under another is written with that block
  * as its `list_parent_block_id`. Children of a block that holds nothing (code,
- * media; Tab never puts them there) are written beside it, every word kept.
+ * a divider, media; Tab never puts them there) are written beside it, every
+ * word kept.
  */
-export function dehydrateTask(blocks: readonly TaskBlock[], width: number, stored?: PageView): CanvasDocument {
-  const kept = new Map((stored?.blocks ?? []).filter((b) => KEPT_KINDS.has(b.kind)).map((b) => [b.id, b]))
+export function dehydrateTask(blocks: readonly TaskBlock[], width: number): CanvasDocument {
   const result: CanvasDocument = { blocks: [], items: [] }
   const visit = (list: readonly TaskBlock[], parent: string | null): void => {
     for (const block of list) {
@@ -184,10 +191,12 @@ export function dehydrateTask(blocks: readonly TaskBlock[], width: number, store
           width_pct: sized ? Math.max(25, Math.min(100, Math.round(((block.props as { previewWidth?: number }).previewWidth || width) / width * 100))) : null,
           toggleable: null,
         }
+      } else if (block.type === 'divider') {
+        record = { id: block.id, block_kind: 'divider', text: null, rich_content: null, file_id: null, ref_folder_id: null, width_pct: null, checked: null, toggleable: null }
       } else {
         const kind: PageBlockKind = block.type === 'heading' ? `heading${block.props.level}` as PageBlockKind : KIND[block.type]
-        const keep = block.type === 'paragraph' ? kept.get(block.id) : undefined
-        record = { id: block.id, block_kind: keep?.kind ?? kind, text, rich_content: kind === 'code' ? null : { version: 1, runs }, file_id: null, ref_folder_id: null, width_pct: null, checked: keep?.checked ?? null, toggleable: block.type === 'heading' && block.props.isToggleable === true ? true : null }
+        const checked = block.type === 'checkListItem' ? block.props.checked : null
+        record = { id: block.id, block_kind: kind, text, rich_content: kind === 'code' ? null : { version: 1, runs }, file_id: null, ref_folder_id: null, width_pct: null, checked, toggleable: block.type === 'heading' && block.props.isToggleable === true ? true : null }
       }
       result.blocks.push(record)
       result.items.push({ kind: 'block', id: block.id, section_block_id: null, list_parent_block_id: parent })
@@ -219,9 +228,6 @@ export function mergeDraft(current: readonly TaskBlock[], draft: readonly TaskBl
   }
   return out as TaskInput[]
 }
-
-/** The kinds a Task's body holds (its schema, less media), for Turn into. */
-const TASK_TURN_TARGETS = TURN_TARGETS.filter((target) => ['paragraph', 'heading', 'bulletListItem', 'numberedListItem', 'quote', 'codeBlock'].includes(target.type))
 
 /** Every heading here is a presentation heading, whatever a paste set its
  * `isToggleable` to, so the shared outline never reads one as a Section. */
@@ -306,8 +312,8 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
   }
   const editor = useCreateBlockNote({
     schema: taskSchema,
-    /* One quiet word where the notes go, and nothing on later empty lines. */
-    dictionary: { ...en, placeholders: { ...en.placeholders, emptyDocument: 'Notes', default: '' } },
+    /* One quiet line where the work is written (the Work tab), and nothing on later empty lines. */
+    dictionary: { ...en, placeholders: { ...en.placeholders, emptyDocument: 'Write, or type /', default: '' } },
     initialContent: initial.length ? initial : [{ id: crypto.randomUUID(), type: 'paragraph', content: '' }],
     uploadFile: folderId === null ? undefined : async (file, blockId) => {
       const type = blockId === undefined ? undefined : editorRef.current?.getBlock(blockId)?.type
@@ -318,7 +324,7 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
   editorRef.current = editor
   // The same gutter and block menu as the Folder canvas (`BlockSideMenu`).
   const menu = useMemo<BlockMenuModel>(() => ({
-    targets: (block) => TEXT_TYPES.has(block.type) ? TASK_TURN_TARGETS : [],
+    targets: (block) => blockMenuTargets(editor as unknown as CanvasEditor, block),
     // A Task's headings are presentation headings (`false`), toggle headings included.
     turnInto: (ids, target) => { turnBlocksInto(editor, ids, target, false) },
     canDuplicate: () => true,
@@ -352,7 +358,7 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
     editor.focus()
   }
   const [writer] = useState(() => {
-    const first = initial.length ? baselineOf(initialPage, dehydrateTask(editor.document, width, initialPage)) : { blocks: [], items: [] }
+    const first = initial.length ? baselineOf(initialPage, dehydrateTask(editor.document, width)) : { blocks: [], items: [] }
     const created: CanvasWriter = new CanvasWriter(first, initialPage.revision!,
       (body) => mutateApi(getPageResponse, { method: 'PUT', path: `/tasks/${taskId}/document`, body }),
       () => {
@@ -374,7 +380,7 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
     if (draft !== null) {
       try {
         const blocks = (JSON.parse(draft) as { blocks: TaskBlock[] }).blocks
-        const settled = JSON.stringify(dehydrateTask(blocks, width, initialPage)) === JSON.stringify(writer.acknowledged)
+        const settled = JSON.stringify(dehydrateTask(blocks, width)) === JSON.stringify(writer.acknowledged)
         if (!settled) held = draft
       } catch { held = draft }
     }
@@ -397,12 +403,12 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
   useEffect(() => {
     if (!latest.revision || latest.revision === writer.revision || writer.state === 'saving') return
     if (writer.state === 'saved') onCheckpoint(latest)
-    else setError('This task was edited elsewhere. Your writing is kept here. Load the latest to continue; your writing will be offered back.')
+    else setError(CHANGED_ELSEWHERE)
   }, [latest, writer, writer.state, onCheckpoint])
 
   function changed(): void {
     try {
-      writer.change(dehydrateTask(editor.document, width, latest))
+      writer.change(dehydrateTask(editor.document, width))
       setError('')
     } catch (failure) {
       // Not sendable (an embedded outside link): the writing still goes to the draft.
@@ -431,12 +437,11 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
 
   const conflict = writer.error instanceof ApiError && writer.error.status === 409
   return <>
-    {recovered !== null ? <div role="status" className="mb-2 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
-      Unsaved writing from before is kept.
-      <Button variant="outline" onClick={restore}>Merge it back in</Button>
-      <Button variant="ghost" onClick={() => download(`dana-task-writing-${taskId}.json`, recovered)}>Download writing</Button>
-      <Button variant="ghost" onClick={() => { writeStorage(recoveredKey(taskId), null); setRecovered(null) }}>Discard</Button>
-    </div> : null}
+    {recovered !== null ? <RecoveryNotice
+      onDownload={() => { download(`dana-task-writing-${taskId}.json`, recovered) }}
+      onRestore={restore}
+      onDiscard={() => { writeStorage(recoveredKey(taskId), null); setRecovered(null) }}
+    /> : null}
     <BlockMenuContext.Provider value={menu}>
     <BlockSelectionStyle editor={editor} scope={scope} />
     <div onKeyDownCapture={onKeyDownCapture} className={`dana-writing-canvas dana-task-composer ${scope} min-w-0`}>
@@ -447,6 +452,7 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
         <SideMenuController sideMenu={BlockSideMenu} floatingUIOptions={blockSidePosition} />
         <CanvasSlashMenu editor={editor as unknown as CanvasEditor} context={{ surface: 'task', media: folderId !== null }} />
         <DanaLinkSuggestions editor={editor as unknown as CanvasEditor} />
+        <CanvasMarquee />
       </BlockNoteView>
       <div aria-hidden="true" className="dana-canvas-tail dana-canvas-tail-short" onMouseDown={writeBelow} />
     </div>
@@ -454,7 +460,7 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
     <SaveFailure
       message={error || (writer.state === 'failed' ? NOT_SAVED : null)}
       onRetry={!error && writer.state === 'failed' && !conflict && writer.pending ? () => { void writer.retry() } : undefined}
-      onLoadLatest={() => { void loadLatest() }}
+      onLoadLatest={writer.state === 'failed' || error === CHANGED_ELSEWHERE ? () => { void loadLatest() } : undefined}
     />
   </>
 }

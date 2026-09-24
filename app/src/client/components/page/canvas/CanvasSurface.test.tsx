@@ -38,7 +38,9 @@ vi.mock('@blocknote/core/extensions', () => ({
   SuggestionMenu: {},
 }))
 vi.mock('./CanvasFormattingToolbar.js', () => ({ CanvasFormattingToolbar: () => null }))
-vi.mock('./slash-items.js', () => ({ CanvasSlashMenu: () => null }))
+vi.mock('./CanvasMarquee.js', () => ({ CanvasMarquee: () => null }))
+vi.mock('./CanvasTask.js', () => ({ useCanvasTaskDelete: () => null }))
+vi.mock('./slash-items.js', async (importOriginal) => ({ ...(await importOriginal<object>()), CanvasSlashMenu: () => null }))
 vi.mock('./guard.js', () => ({ installCanvasGuard: () => () => {} }))
 vi.mock('./commands.js', () => ({
   bindTaskCommand: () => () => {},
@@ -48,6 +50,7 @@ vi.mock('./commands.js', () => ({
 }))
 
 import { CanvasSurface } from './CanvasSurface.js'
+import { bindCanvasSurface } from './markdown.js'
 
 afterEach(cleanup)
 
@@ -67,8 +70,13 @@ function draw(block: CanvasBlock, folderRefs: ReadonlyMap<string, string>, onCre
     document: [block],
     getBlock: (id: string) => id === block.id ? block : undefined,
     getTextCursorPosition: () => ({ block }),
+    onSelectionChange: () => () => {},
+    onChange: () => () => {},
+    schema: { blockSchema: Object.fromEntries(['paragraph', 'heading', 'checkListItem', 'toggleListItem', 'bulletListItem', 'numberedListItem', 'quote', 'callout', 'codeBlock'].map((type) => [type, {}])) },
   } as unknown as CanvasEditor
-  render(<CanvasSurface editor={state.editor} onChange={() => {}} onCreateTask={onCreateTask} folderRefs={folderRefs} onUploadFile={() => Promise.reject(new Error("no uploads here"))} headingMode={headingMode} />)
+  // The slash menu binds the surface in the app; it is stubbed here.
+  bindCanvasSurface(state.editor, headingMode === 'document' ? 'document' : 'work')
+  render(<CanvasSurface editor={state.editor} onChange={() => {}} onCreateTask={onCreateTask} folderRefs={folderRefs} onUploadFile={() => Promise.reject(new Error("no uploads here"))} onNotice={() => {}} headingMode={headingMode} />)
 }
 
 describe('Turn into › Task from the canvas block menu', () => {

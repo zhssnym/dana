@@ -26,7 +26,7 @@ export function installCanvasGuard(editor: CanvasEditor, explain: (message: stri
     */
     const removed = removedCanvasTasks(before, after)
     const failure = removed.length > 0
-      ? 'This selection contains a Task (outlined). Select only the writing, or delete the Task from its own menu.'
+      ? 'This selection contains a Task (outlined). Select only the writing, or delete the Task from its ⋮⋮ menu.'
       : validateCanvasOutline(after)
     if (removed.length > 0) flagRefused(editor.domElement, removed)
     if (failure === null) return

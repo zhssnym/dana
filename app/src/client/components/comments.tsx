@@ -529,32 +529,12 @@ function Composer({
 
   if (recording) {
     /* Graphite, not danger: recording is an activity, not a loss, and the
-       palette's guardrails reserve danger for loss. The one red thing is the
-       dot, the universal convention, and the timer carries the state. */
+       palette's guardrails reserve danger for loss. The running timer alone
+       carries the state; nothing pulses. */
     return (
       <div className="flex h-9 items-center gap-2 rounded-md border border-border bg-muted py-1 pr-1 pl-3">
-        <span className="relative flex size-2 shrink-0" aria-hidden="true">
-          <span className="absolute inline-flex size-full animate-ping rounded-full bg-destructive opacity-50" />
-          <span className="relative inline-flex size-2 rounded-full bg-destructive" />
-        </span>
-        <span className="text-xs font-medium text-foreground tabular-nums">
+        <span className="flex-1 text-xs font-medium text-foreground tabular-nums">
           {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, "0")}
-        </span>
-        {/* Live bars: the drawn promise that something is being taken down.
-            Heights animate from a keyframe scale rather than the stream's
-            real levels, an analyser would be more machinery than the
-            question "does recording feel alive" needs answered. */}
-        <span className="flex h-5 flex-1 items-center justify-center gap-[2px] overflow-hidden" aria-hidden="true">
-          {Array.from({ length: 24 }, (_, i) => (
-            <span
-              key={i}
-              className="w-[2px] animate-pulse rounded-full bg-muted-foreground/40"
-              style={{
-                height: `${5 + ((i * 7) % 13)}px`,
-                animationDelay: `${(i % 6) * 90}ms`,
-              }}
-            />
-          ))}
         </span>
         <IconAction dense icon={X} label="Discard recording" onClick={() => endRecording(false)} />
         <Button

@@ -172,6 +172,7 @@ export function PeopleSettings(): React.JSX.Element {
               {connected.map((entry) => (
                 <li key={entry.user.id} className="flex min-h-12 items-center gap-3 py-1.5">
                   <PersonFace
+                    id={entry.user.id}
                     name={entry.user.display_name ?? entry.user.email}
                     initials={initialsOf(entry.user.display_name ?? entry.user.email)}
                     image={entry.user.avatar_url}

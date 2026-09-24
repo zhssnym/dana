@@ -154,16 +154,16 @@ export async function sentInvites(
 
 export interface PendingInviteForRecipient {
   id: string
-  inviter: { display_name: string | null; avatar_url: string | null }
+  inviter: { id: string; display_name: string | null; avatar_url: string | null }
   folder_name: string | null
   created_at: string
 }
 
 /*
 Q12, the login surface: invites addressed to the viewer's lowercased email
-with status pending. The element is 7.5's, and its inviter person
-carries exactly display_name and avatar_url: a recipient has no claim on the
-inviter's id, which addresses nothing they may call.
+with status pending. The element is 7.5's, and its inviter is 7.0's person
+shape: the id is there so the inviter's default face matches the one they
+wear everywhere else (`shared/invites.ts`).
 
 Scoped by the viewer's own address rather than by an id, because that is what
 an invite names (4.9 stores an email, not a user), and it is why an account
@@ -180,7 +180,7 @@ export async function pendingInvitesFor(
   const found = await rowsOf(
     db,
     sql`SELECT i.id, i.created_at, f.name AS folder_name,
-               u.display_name, u.avatar_url
+               u.id AS inviter_id, u.display_name, u.avatar_url
         FROM invites i
         JOIN users me ON me.id = ${viewerId}
         JOIN users u ON u.id = i.inviter_id
@@ -193,6 +193,7 @@ export async function pendingInvitesFor(
   return found.map((row) => ({
     id: String(row.id),
     inviter: {
+      id: String(row.inviter_id),
       display_name: nullableString(row.display_name),
       avatar_url: nullableString(row.avatar_url),
     },

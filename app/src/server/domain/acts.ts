@@ -34,6 +34,7 @@ is created, and what the file smuggled was never read.
 import { randomUUID } from 'node:crypto'
 
 import { sql } from 'drizzle-orm'
+import type { SQL } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
 import type { DocumentOperation } from '../../shared/pages.js'
@@ -848,6 +849,19 @@ export async function importWorkflow(
   store?: ObjectStore,
 ): Promise<ImportResult> {
   const copiedObjects:string[]=[]
+  /*
+  The import's own clock, the sample workspace's fix (`server/sample/workspace.ts`).
+  The whole import is one transaction, where `now()` is one instant, so every
+  Folder and Task it made shared a `created_at`, and every list ordering by
+  `created_at, id` fell through to the random uuid: the Tasks read in a
+  different order from the file. Each row takes its own millisecond instead, in
+  file order, within the minute before now so nothing is created in the future.
+  */
+  let tick = 0
+  const clock = (): SQL => {
+    tick += 1
+    return sql`now() - interval '60 seconds' + ${tick}::int * interval '1 millisecond'`
+  }
   return inTransaction(db, async (tx) => {
     await tx.execute(sql`SELECT 1 FROM users WHERE id = ${viewerId} FOR UPDATE`)
     const owned = await rowsOf(
@@ -871,8 +885,8 @@ export async function importWorkflow(
     for (const [folderIndex, folder] of file.folders.entries()) {
       const made = await rowsOf(
         tx,
-        sql`INSERT INTO folders (owner_id, name)
-            VALUES (${viewerId}::uuid, ${folder.name})
+        sql`INSERT INTO folders (owner_id, name, created_at)
+            VALUES (${viewerId}::uuid, ${folder.name}, ${clock()})
             RETURNING id`,
       )
       const folderId = String(made[0]?.id)
@@ -969,13 +983,13 @@ export async function importWorkflow(
           tx,
           sql`INSERT INTO tasks (folder_id, title, notes, important, due_date,
                                  recurrence_rule, series_id, assignee_id,
-                                 created_by)
+                                 created_by, created_at)
               VALUES (${folderId}::uuid, ${task.title},
                       ${task.notes ?? null}, ${task.important ?? false},
                       ${dated ? anchor : null}::date,
                       ${task.recurrence_rule ?? null},
                       ${task.recurrence_rule === undefined ? null : randomUUID()}::uuid,
-                      ${viewerId}::uuid, ${viewerId}::uuid)
+                      ${viewerId}::uuid, ${viewerId}::uuid, ${clock()})
               RETURNING id`,
         )
         const taskId = String(madeTask[0]?.id)

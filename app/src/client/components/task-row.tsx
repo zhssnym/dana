@@ -1098,7 +1098,7 @@ export interface TaskRowProps {
   status?: TaskStatus
   important?: boolean
   importantTooltip?: string
-  assignee?: { initials: string; name: string; image?: string }
+  assignee?: { initials: string; name: string; image?: string; id?: string }
   pulled?: boolean
   steps?: { complete: number; total: number }
   recurrence?: string

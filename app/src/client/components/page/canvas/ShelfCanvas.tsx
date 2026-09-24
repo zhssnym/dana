@@ -36,7 +36,6 @@ import { getPageResponse } from '../../../../shared/pages.js'
 import { AUDIO_MIMES, RASTER_MIMES, VIDEO_MIMES } from '../../../../shared/files.js'
 import { getPlain, mutateApi, uploadFile } from '../../../api/http.js'
 import { queryKeys } from '../../../api/keys.js'
-import { Button } from '../../ui/button.js'
 import { CanvasErrorBoundary } from './CanvasErrorBoundary.js'
 import { CanvasFolderProvider } from './CanvasFolder.js'
 import type { CanvasMediaKind, CanvasUploadedFile } from './CanvasFilePanel.js'
@@ -48,7 +47,7 @@ import { dehydrateCanvas, documentOf, hydrateCanvas } from './adapters.js'
 import type { CanvasDocument, CanvasInput } from './adapters.js'
 import type { OutlineBlock } from './outline.js'
 import { CanvasWriter } from './saving.js'
-import { NOT_SAVED, SaveFailure } from './SaveFailure.js'
+import { NOT_SAVED, RecoveryNotice, SaveFailure } from './SaveFailure.js'
 import { pasteIntoCanvas } from './paste.js'
 
 interface Props {
@@ -65,6 +64,9 @@ interface Props {
 }
 
 const NO_REFS: ReadonlyMap<string, string> = new Map()
+
+/** The one error "Load latest" answers besides a failed save. */
+const CHANGED_ELSEWHERE = 'This shelf changed elsewhere. Your writing is kept here. Load the latest to continue; your writing will be offered back.'
 
 /** The page as the shared hydrator reads it: stale Folder rows dropped, each
  * root block grouped under the section before it, and each nested block left
@@ -232,7 +234,7 @@ function ShelfEditor({ shelfId, page, initialPage, folders, folderHref, onOpenFo
   useEffect(() => {
     if (!page.revision || page.revision === writer.revision || writer.state === 'saving') return
     if (writer.state === 'saved') onCheckpoint(page)
-    else setError('This shelf changed elsewhere. Your writing is kept here. Load the latest to continue; your writing will be offered back.')
+    else setError(CHANGED_ELSEWHERE)
   }, [page, writer, onCheckpoint])
 
   // The Folder-row guard. Runs beside the canvas's own (`installCanvasGuard`).
@@ -338,11 +340,10 @@ function ShelfEditor({ shelfId, page, initialPage, folders, folderHref, onOpenFo
   // The folder page's line: a failure only; a refused gesture's notice when nothing failed.
   const failure = error || (writer.state === 'failed' ? NOT_SAVED : '')
   return <>
-    {previousDraft !== null ? <div role="status" className="mb-3 text-sm text-muted-foreground">
-      Unsaved writing from before is kept.
-      <Button variant="ghost" onClick={() => download(previousDraft, `dana-recovered-shelf-${shelfId}.json`)}>Download writing</Button>
-      <Button variant="ghost" onClick={() => { try { sessionStorage.removeItem(recoveredKey) } catch { /* optional */ } setPreviousDraft(null) }}>Discard</Button>
-    </div> : null}
+    {previousDraft !== null ? <RecoveryNotice
+      onDownload={() => { download(previousDraft, `dana-recovered-shelf-${shelfId}.json`) }}
+      onDiscard={() => { try { sessionStorage.removeItem(recoveredKey) } catch { /* optional */ } setPreviousDraft(null) }}
+    /> : null}
     <CanvasFolderProvider value={bridge}>
       <CanvasSurface
         editor={editor}
@@ -352,12 +353,13 @@ function ShelfEditor({ shelfId, page, initialPage, folders, folderHref, onOpenFo
         flatGroups
         onUploadFile={uploadCanvasFile}
         onRemoveFolder={(folderId) => { void remove(folderId) }}
+        onNotice={setNotice}
       />
     </CanvasFolderProvider>
     <SaveFailure
       message={failure || notice || null}
       onRetry={!error && writer.state === 'failed' && writer.pending ? () => { void writer.retry() } : undefined}
-      onLoadLatest={failure ? () => { void loadLatest() } : undefined}
+      onLoadLatest={writer.state === 'failed' || error === CHANGED_ELSEWHERE ? () => { void loadLatest() } : undefined}
     />
   </>
 }

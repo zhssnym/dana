@@ -84,6 +84,7 @@ export function InviteGate({
                 className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border py-3 last:border-b-0"
               >
                 <PersonFace
+                  id={row.inviterId}
                   name={row.inviter}
                   initials={row.initials}
                   image={row.image ?? null}

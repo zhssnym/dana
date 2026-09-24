@@ -116,7 +116,7 @@ export function ShelfPage(): React.JSX.Element {
               patch.mutate({ id, body: { name: next } })
             }}
             onCopyLink={() => {
-              copyShelfLink(id, name)
+              copyShelfLink(id)
             }}
             onDuplicate={() => {
               /*

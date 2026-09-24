@@ -4,7 +4,7 @@ the side peek, the center peek and the full page.
 
 The order is the page's (ROUND2-SPEC "Task"): one properties block (Status
 first, then the fixed set, Steps, Dependencies and Attachments only where there
-are some), then the page's two tabs, **Notes** (the task's document) and
+are some), then the page's two tabs, **Work** (the task's document) and
 **Discussion** (its comments, never on the body). Nothing here can be
 dragged or collapsed; a task is not a form somebody arranges. Every edit commits as it is made, so there is no Save
 and no footer of actions: the task's own acts live in the panel's one "…".
@@ -1207,12 +1207,12 @@ export function TaskCard({
       ) : null}
 
       {/* The page's two tabs, drawn as the folder page draws its own:
-          Notes is the task's document, Discussion its comments. */}
+          Work is the task's document, Discussion its comments. */}
       <div className="flex flex-col gap-4">
         <div role="tablist" aria-label="Task tabs" className="flex items-center gap-5 border-b border-border">
           {(
             [
-              ["notes", "Notes"],
+              ["notes", "Work"],
               ["discussion", "Discussion"],
             ] as const
           ).map(([key, name]) => (
