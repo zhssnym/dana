@@ -83,7 +83,7 @@ export function StartDiscussionDialog({
             <div>
               <label
                 htmlFor="start-discussion-title"
-                className="mb-1.5 block text-xs font-medium text-[var(--color-graphite-700)]"
+                className="mb-1.5 block text-xs font-medium text-foreground"
               >
                 Title
               </label>
@@ -101,9 +101,9 @@ export function StartDiscussionDialog({
             <div>
               <label
                 htmlFor="start-discussion-context"
-                className="mb-1.5 block text-xs font-medium text-[var(--color-graphite-700)]"
+                className="mb-1.5 block text-xs font-medium text-foreground"
               >
-                Context <span className="font-normal text-[var(--color-graphite-600)]">(optional)</span>
+                Context <span className="font-normal text-muted-foreground">(optional)</span>
               </label>
               <Textarea
                 id="start-discussion-context"
@@ -119,7 +119,7 @@ export function StartDiscussionDialog({
               {context.length >= COUNTER_FROM ? (
                 <p
                   id="start-discussion-context-count"
-                  className="mt-1 text-right text-xs text-[var(--color-graphite-600)] tabular-nums"
+                  className="mt-1 text-right text-xs text-muted-foreground tabular-nums"
                 >
                   {context.length} / {DISCUSSION_CONTEXT_MAX}
                 </p>
@@ -130,16 +130,12 @@ export function StartDiscussionDialog({
           <DialogFooter>
             <DialogClose
               render={
-                <Button type="button" variant="outline" className="h-[var(--control-height)] px-3" />
+                <Button type="button" variant="ghost" />
               }
             >
               Cancel
             </DialogClose>
-            <Button
-              type="submit"
-              disabled={!canSubmit}
-              className="h-[var(--control-height)] bg-[var(--color-graphite-900)] px-3 text-white hover:bg-[var(--color-graphite-800)]"
-            >
+            <Button type="submit" variant="commit" disabled={!canSubmit}>
               Start discussion
             </Button>
           </DialogFooter>

@@ -375,7 +375,9 @@ function WindowBarChrome({
   if (subject === null && !showUpdate) return null
   return (
     <WindowBarActions order={1}>
-      {subject === null ? null : <WindowActivity events={events} />}
+      {/* r5-folder: a folder's header says what it needs; its "Created just
+          now" line is gone (Quiet spec). History stays in the folder's "…". */}
+      {subject === null || subject.kind === 'folder' ? null : <WindowActivity events={events} />}
       {showUpdate ? (
         <Button
           variant="ghost"

@@ -87,7 +87,6 @@ import {
   useResendInvite,
 } from '../api/mutations.js'
 import { Avatar, AvatarFallback } from '../components/ui/avatar.js'
-import { Badge } from '../components/ui/badge.js'
 import { Button } from '../components/ui/button.js'
 import { Input } from '../components/ui/input.js'
 import { NativeSelect } from '../components/ui/native-select.js'
@@ -270,7 +269,7 @@ export function FolderSharingPanel({
                   return (
                     <li
                       key={member.user.id}
-                      className="flex min-h-14 items-center gap-3 rounded-md px-2 hover:bg-[var(--color-graphite-50)]"
+                      className="flex min-h-14 items-center gap-3 rounded-md px-2 hover:bg-muted"
                     >
                       {/* polish round-2: the member's own picture, which
                           7.4's members element carries; the tint stands in
@@ -284,7 +283,7 @@ export function FolderSharingPanel({
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <p className="truncate text-sm font-medium text-foreground">{name}</p>
-                          {member.is_owner ? <Badge variant="secondary">Owner</Badge> : null}
+                          {member.is_owner ? <span className="text-xs text-muted-foreground">Owner</span> : null}
                         </div>
                         {/* "joined dates": the membership row's own timestamp.
                             The format is the design's, so the value is
@@ -336,7 +335,7 @@ export function FolderSharingPanel({
                   ))}
                 </NativeSelect>
                 <Button
-                  className="h-[var(--control-height)] bg-[var(--color-graphite-900)] px-4 text-white hover:bg-[var(--color-graphite-800)]"
+                  variant="commit"
                   disabled={picked === '' || addMember.isPending}
                   onClick={() => {
                     const userId = picked
@@ -372,7 +371,7 @@ export function FolderSharingPanel({
                   }}
                 />
                 <Button
-                  className="h-[var(--control-height)] bg-[var(--color-graphite-900)] px-4 text-white hover:bg-[var(--color-graphite-800)]"
+                  variant="commit"
                   disabled={!email.includes('@') || invite.isPending}
                   onClick={sendInvite}
                 >
@@ -389,7 +388,7 @@ export function FolderSharingPanel({
                   {folder.pending_invites.map((row) => (
                     <li
                       key={row.id}
-                      className="flex min-h-14 items-center gap-3 rounded-md px-2 hover:bg-[var(--color-graphite-50)]"
+                      className="flex min-h-14 items-center gap-3 rounded-md px-2 hover:bg-muted"
                     >
                       <Avatar className="size-8">
                         <AvatarFallback className="text-xs">@</AvatarFallback>

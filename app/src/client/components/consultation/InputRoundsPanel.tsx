@@ -87,14 +87,17 @@ export function InputRoundsPanel(props: {
   discussionId: string
   frozen: boolean
   canOpen: boolean
+  /* The "Ask for input" button lives in the Discussion's action row, beside
+     Resolve and Edit; this panel draws the form it opens. */
+  asking: boolean
+  onAskingChange: (asking: boolean) => void
 }): React.JSX.Element {
-  const { discussionId, frozen, canOpen } = props
+  const { discussionId, frozen, canOpen, asking, onAskingChange: setAsking } = props
   const rounds = useInputRounds(discussionId)
   const discussion = useDiscussion(discussionId)
   const folderId = discussion.data?.folder_id ?? ''
   const folder = useFolder(folderId, folderId !== '')
   const me = useMe()
-  const [asking, setAsking] = useState(false)
   const [showPast, setShowPast] = useState(false)
 
   const myId = me.data?.user.id ?? null
@@ -119,14 +122,14 @@ export function InputRoundsPanel(props: {
 
   if (rounds.isPending) {
     return (
-      <section aria-label="Input rounds" className="text-xs text-[var(--color-graphite-600)]">
+      <section aria-label="Input rounds" className="text-xs text-muted-foreground">
         Loading input…
       </section>
     )
   }
   if (rounds.isError) {
     return (
-      <section aria-label="Input rounds" className="flex items-center gap-2 text-xs text-[var(--color-graphite-600)]">
+      <section aria-label="Input rounds" className="flex items-center gap-2 text-xs text-muted-foreground">
         {READ_FAILED}
         <Button variant="link" size="sm" onClick={() => void rounds.refetch()}>
           {TRY_AGAIN}
@@ -156,19 +159,13 @@ export function InputRoundsPanel(props: {
           onDone={() => setAsking(false)}
           onRefused={refetch}
         />
-      ) : canSteer ? (
-        <div>
-          <Button variant="outline" size="sm" onClick={() => setAsking(true)}>
-            Ask for input
-          </Button>
-        </div>
       ) : null}
 
       {past.length > 0 ? (
         <div className="flex flex-col gap-2">
           <button
             type="button"
-            className="self-start text-xs text-[var(--color-graphite-600)] hover:text-[var(--color-graphite-900)]"
+            className="self-start text-xs text-muted-foreground hover:text-foreground"
             aria-expanded={showPast}
             onClick={() => setShowPast((v) => !v)}
           >
@@ -237,7 +234,7 @@ function AskForm({
   return (
     <form
       aria-label="Ask for input"
-      className="flex flex-col gap-2 rounded-lg border border-[var(--color-graphite-200)] p-3"
+      className="flex flex-col gap-2 border-t border-border pt-3"
       onSubmit={(e) => {
         e.preventDefault()
         submit()
@@ -258,7 +255,7 @@ function AskForm({
           </Button>
         ))}
       </div>
-      <p className="text-xs text-[var(--color-graphite-600)]">{MODE_HINT[mode]}</p>
+      <p className="text-xs text-muted-foreground">{MODE_HINT[mode]}</p>
       <Textarea
         aria-label="Question"
         placeholder="What do you want input on?"
@@ -305,7 +302,7 @@ function AskForm({
               </Button>
             ) : null}
             {duplicate ? (
-              <span className="text-xs text-[var(--color-danger-600)]">Each option must be different.</span>
+              <span className="text-xs text-destructive">Each option must be different.</span>
             ) : null}
           </div>
         </div>
@@ -361,18 +358,18 @@ function RoundCard({
   return (
     <article
       aria-label={`${isOpen ? 'Open' : 'Closed'} input round: ${round.prompt}`}
-      className="flex flex-col gap-3 border-t border-[var(--color-graphite-100)] pt-3"
+      className="flex flex-col gap-3 border-t border-border pt-3"
     >
       <header className="flex flex-col gap-1">
-        <div className="flex items-center gap-2 text-xs text-[var(--color-graphite-600)]">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span>
             {MODE_LABEL[round.mode]} · {asker.name === 'You' ? 'You asked' : `${asker.name} asked`},{' '}
             {shortDate(round.created_at)}
           </span>
         </div>
-        <p className="text-sm font-medium whitespace-pre-wrap text-[var(--color-graphite-800)]">{round.prompt}</p>
+        <p className="text-sm font-medium whitespace-pre-wrap text-foreground">{round.prompt}</p>
         {closedLine !== null ? (
-          <p className="text-xs text-[var(--color-graphite-600)]">{closedLine}</p>
+          <p className="text-xs text-muted-foreground">{closedLine}</p>
         ) : null}
       </header>
 
@@ -404,7 +401,7 @@ function RoundCard({
       {isOpen && canClose ? (
         <div className="flex justify-end">
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
             disabled={close.isPending}
             onClick={() => close.mutate(round.id, { onError: onRefused })}
@@ -454,14 +451,14 @@ function ChooseBody({
                     aria-hidden
                     className={cn(
                       'size-3 shrink-0 rounded-full border',
-                      chosen ? 'border-[var(--color-dana-accent-600)] bg-[var(--color-dana-accent-600)]' : 'border-[var(--color-graphite-300)]',
+                      chosen ? 'border-primary bg-primary' : 'border-muted-foreground/50',
                     )}
                   />
                 ) : null}
-                <span className="text-sm text-[var(--color-graphite-800)]">{option.label}</span>
+                <span className="text-sm text-foreground">{option.label}</span>
               </span>
               <Faces people={people} responses={who} />
-              <span className="min-w-[4.5rem] text-right text-xs text-[var(--color-graphite-600)] tabular-nums">
+              <span className="min-w-[4.5rem] text-right text-xs text-muted-foreground tabular-nums">
                 {count} {count === 1 ? 'choice' : 'choices'}
               </span>
             </>
@@ -478,14 +475,14 @@ function ChooseBody({
                     if (!chosen) onChoose(option.id)
                   }}
                   className={cn(
-                    'flex w-full items-center gap-2 rounded-md border px-2 py-1.5 text-left transition-colors',
-                    chosen ? 'border-[var(--color-dana-accent-600)]/50 bg-[var(--color-dana-accent-600)]/5' : 'border-[var(--color-graphite-200)] hover:bg-[var(--color-graphite-50)]',
+                    'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                    chosen ? 'bg-muted' : 'hover:bg-muted',
                   )}
                 >
                   {body}
                 </button>
               ) : (
-                <div className="flex w-full items-center gap-2 rounded-md border border-[var(--color-graphite-200)]/60 px-2 py-1.5">
+                <div className="flex w-full items-center gap-2 px-2 py-1.5">
                   {body}
                 </div>
               )}
@@ -518,7 +515,7 @@ function Faces({
         return <PersonFace key={r.user_id} name={p.faceName} initials={p.initials} image={p.image} dense />
       })}
       {responses.length > 5 ? (
-        <span className="pl-1.5 text-xs text-[var(--color-graphite-600)]">+{responses.length - 5}</span>
+        <span className="pl-1.5 text-xs text-muted-foreground">+{responses.length - 5}</span>
       ) : null}
     </span>
   )
@@ -543,7 +540,7 @@ function MyWrittenResponse({
 
   if (!editing && mine !== null) {
     return (
-      <div className="flex items-center gap-2 text-xs text-[var(--color-graphite-600)]">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <span>You’ve responded.</span>
         <Button variant="link" size="sm" className="px-0" onClick={() => setEditing(true)}>
           Change
@@ -590,7 +587,7 @@ function MyWrittenResponse({
             type="button"
             role="radio"
             aria-checked={concern === 'no_concern'}
-            variant={concern === 'no_concern' ? 'secondary' : 'outline'}
+            variant={concern === 'no_concern' ? 'secondary' : 'ghost'}
             size="sm"
             onClick={() => setConcern('no_concern')}
           >
@@ -600,7 +597,7 @@ function MyWrittenResponse({
             type="button"
             role="radio"
             aria-checked={concern === 'concern'}
-            variant={concern === 'concern' ? 'secondary' : 'outline'}
+            variant={concern === 'concern' ? 'secondary' : 'ghost'}
             size="sm"
             onClick={() => setConcern('concern')}
           >
@@ -646,7 +643,7 @@ function ResponseList({
 }): React.JSX.Element {
   if (round.responses.length === 0) {
     return (
-      <p className="text-xs text-[var(--color-graphite-600)]">
+      <p className="text-xs text-muted-foreground">
         {round.state === 'open' ? 'No responses yet.' : 'No one responded.'}
       </p>
     )
@@ -660,14 +657,11 @@ function ResponseList({
             <PersonFace name={p.faceName} initials={p.initials} image={p.image} dense className="mt-0.5" />
             <div className="flex min-w-0 flex-col gap-0.5">
               <div className="flex items-center gap-2 text-xs">
-                <span className="font-medium text-[var(--color-graphite-800)]">{p.name}</span>
+                <span className="font-medium text-foreground">{p.name}</span>
                 {r.concern !== null ? (
                   <span
                     className={cn(
-                      'rounded-sm px-1.5 py-0.5',
-                      r.concern === 'concern'
-                        ? 'bg-[var(--color-danger-100)] text-[var(--color-danger-700)]'
-                        : 'bg-[var(--color-graphite-50)] text-[var(--color-graphite-600)]',
+                      r.concern === 'concern' ? 'text-destructive' : 'text-muted-foreground',
                     )}
                   >
                     {r.concern === 'concern' ? 'Concern' : 'No concern'}
@@ -675,7 +669,7 @@ function ResponseList({
                 ) : null}
               </div>
               {r.body !== null && r.body !== '' ? (
-                <p className="text-sm whitespace-pre-wrap text-[var(--color-graphite-800)]">{r.body}</p>
+                <p className="text-sm whitespace-pre-wrap text-foreground">{r.body}</p>
               ) : null}
             </div>
           </li>

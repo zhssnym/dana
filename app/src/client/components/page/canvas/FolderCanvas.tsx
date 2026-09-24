@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useCreateBlockNote } from '@blocknote/react'
 import { BlockNoteEditor } from '@blocknote/core'
+import { en } from '@blocknote/core/locales'
 import { useQueryClient } from '@tanstack/react-query'
 import '@blocknote/shadcn/style.css'
 import type { PageView } from '../../../../shared/pages.js'
@@ -10,7 +11,7 @@ import { documentTransaction } from '../../../../shared/page-document.js'
 import { getPlain, mutateApi, uploadFile as uploadDanaFile } from '../../../api/http.js'
 import { queryKeys } from '../../../api/keys.js'
 import { Button } from '../../ui/button.js'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog.js'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog.js'
 import { Input } from '../../ui/input.js'
 import { CanvasErrorBoundary } from './CanvasErrorBoundary.js'
 import { CanvasTaskProvider } from './CanvasTask.js'
@@ -35,6 +36,11 @@ interface Props extends Pick<Rows, 'tasks' | 'context' | 'actions' | 'onAsk'> {
   /** Purpose headings change document typography only; they never create Work Sections. */
   readonly presentationHeadings?: boolean
   readonly workRootId?: string
+  /** The folder's completed task cards the page already loaded; a placement
+   * found here draws as its real row, checked and muted. */
+  readonly completed?: Rows['tasks']
+  /** False hides completed placements in place (the View menu's "Show completed"). */
+  readonly showCompleted?: boolean
 }
 
 /** Reset history only at identity-changing checkpoints or explicit server reconciliation. */
@@ -45,7 +51,7 @@ export default function FolderCanvas(props: Props): React.JSX.Element {
   </CanvasErrorBoundary>
 }
 
-function PersistedCanvas({ page, initialPage, folderId, facetId, presentationHeadings, workRootId, tasks, context, actions, onAsk, arrangeable, onCheckpoint }: Props & {
+function PersistedCanvas({ page, initialPage, folderId, facetId, presentationHeadings, workRootId, tasks, completed, showCompleted, context, actions, onAsk, arrangeable, onCheckpoint }: Props & {
   readonly initialPage: PageView
   readonly onCheckpoint: (page: PageView) => void
 }): React.JSX.Element {
@@ -66,12 +72,12 @@ function PersistedCanvas({ page, initialPage, folderId, facetId, presentationHea
       else setReloadNote('The page still has no version. Try again in a moment.')
     }) }}>Load the page again</Button>{reloadNote}
   </div>
-  return <div ref={host} className="min-w-0">{width === null ? <p role="status">Loading writing…</p> : <CanvasSession {...{ page, initialPage, folderId, facetId, presentationHeadings, workRootId, tasks, context, actions, onAsk, arrangeable, onCheckpoint }} width={width} onSaved={(next) => {
+  return <div ref={host} className="min-w-0">{width === null ? <p role="status">Loading writing…</p> : <CanvasSession {...{ page, initialPage, folderId, facetId, presentationHeadings, workRootId, tasks, completed, showCompleted, context, actions, onAsk, arrangeable, onCheckpoint }} width={width} onSaved={(next) => {
     queryClient.setQueryData(facetId === undefined ? queryKeys.folderPage(folderId) : queryKeys.facetPage(folderId, facetId), next)
   }} />}</div>
 }
 
-function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadings, workRootId, tasks, context, actions, onAsk, arrangeable, onCheckpoint, width, onSaved }: Props & {
+function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadings, workRootId, tasks, completed, showCompleted = true, context, actions, onAsk, arrangeable, onCheckpoint, width, onSaved }: Props & {
   readonly initialPage: PageView
   readonly onCheckpoint: (page: PageView) => void
   readonly width: number
@@ -165,8 +171,10 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
     }
   }
 
+  const placeholder = facetId === undefined ? 'Write, or type / for a task or heading' : 'Write, or type / for a heading'
   const editor = useCreateBlockNote({
     schema: canvasSchema,
+    dictionary: { ...en, placeholders: { ...en.placeholders, emptyDocument: placeholder, default: placeholder } },
     initialContent: initial.length ? initial : [{ id: crypto.randomUUID(), type: 'paragraph', content: '' }],
     pasteHandler: ({ editor: current, event, defaultPasteHandler }) =>
       pasteIntoCanvas(
@@ -273,16 +281,20 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
       onCheckpoint(latest)
     } catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not reload the page.') }
   }
-  async function createTask(): Promise<void> {
-    if (!taskAt || !title.trim()) return
-    if (writer.state === 'failed') { setTaskError(taskBlocked); return }
+  /* Takes its block and title as arguments rather than reading state, because
+     the slash menu calls it in the same tick it would have set that state. A
+     refusal opens the dialog with the title kept, so it is never lost. */
+  async function createTask(blockId: string | null, taskTitle: string): Promise<void> {
+    if (!blockId || !taskTitle.trim()) return
+    const refuse = (message: string): void => { setTaskAt(blockId); setTitle(taskTitle); setTaskError(message) }
+    if (writer.state === 'failed') { refuse(taskBlocked); return }
     setCreating(true)
     setTaskError('')
     await writer.flush()
-    if (writer.state !== 'saved') { setCreating(false); setTaskError(taskBlocked); return }
+    if (writer.state !== 'saved') { setCreating(false); refuse(taskBlocked); return }
     const id = crypto.randomUUID()
     const replace = (blocks: readonly CanvasInput[]): CanvasInput[] => blocks.flatMap((block) => {
-      if (block.id === taskAt) {
+      if (block.id === blockId) {
         const task: CanvasInput = { id, type: 'danaTask', props: { taskId: id } }
         return block.type === 'paragraph' ? [task] : [block, task]
       }
@@ -298,33 +310,44 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
       drafted = dehydrateCanvas(temporary.document, width, folderRefs)
     } catch (failure) {
       // Nothing was sent; keep the dialog open so the title is not lost.
-      setTaskError(failure instanceof Error ? failure.message : 'Could not prepare this Task for saving.')
+      refuse(failure instanceof Error ? failure.message : 'Could not prepare this Task for saving.')
       setCreating(false)
       return
     } finally { temporary?.unmount() }
     writer.change(drafted)
-    // A failed send is reported by the save status below, whose Retry save
+    // A failed send is reported by the save status below, whose Retry
     // re-sends this exact request, Task included.
-    try { await writer.flush({ id, title: title.trim() }) } finally { setCreating(false); setTaskAt(null) }
+    try { await writer.flush({ id, title: taskTitle.trim() }) } finally { setCreating(false); setTaskAt(null) }
   }
-  const taskBlocked = 'Your writing has not saved, so a Task cannot be created yet. Close this, then use Retry save or Download writing below.'
+  const taskBlocked = 'Your writing has not saved, so a task cannot be created yet. Close this, then use Retry or Download writing below.'
+  // A paragraph with text becomes its task at once; an empty line asks for a title.
   function askTask(target?: CanvasBlock): void {
     const block = target ?? editor.getTextCursorPosition().block
+    const text = block.type === 'paragraph' ? richRuns(block).map((run) => run.text).join('') : ''
+    if (text.trim()) { void createTask(block.id, text); return }
     setTaskAt(block.id)
     setTaskError(writer.state === 'failed' ? taskBlocked : '')
-    setTitle(block.type === 'paragraph' ? richRuns(block).map((run) => run.text).join('') : '')
+    setTitle(text)
   }
   const feedback = error || (writer.state === 'failed' ? writer.error instanceof Error ? writer.error.message : 'Could not save. Your writing is retained.' : '')
   const pendingTask = writer.pending?.request.operations.some((operation) => operation.op === 'create_task') === true
+  // "Saving…" only after two seconds of continuous unsaved writing; a quick
+  // save says nothing at all, and a saved page never says "Saved".
+  const busy = writer.state === 'changed' || writer.state === 'saving'
+  const [slow, setSlow] = useState(false)
+  useEffect(() => {
+    if (!busy) return
+    const timer = window.setTimeout(() => setSlow(true), 2000)
+    return () => { window.clearTimeout(timer); setSlow(false) }
+  }, [busy])
+  const downloadDraft = (): void => {
+    if (!previousDraft) return
+    const url = URL.createObjectURL(new Blob([previousDraft], { type: 'application/json' }))
+    const link = document.createElement('a'); link.href = url; link.download = `dana-recovered-${folderId}.json`; link.click(); URL.revokeObjectURL(url)
+  }
   return <>
-    {!arrangeable ? <p className="mb-3 text-sm text-muted-foreground">Writing and movement are paused while this view is sorted, filtered or grouped. Return to manual order to edit the outline.</p> : null}
-    {recovery ? <div role="status" className="mb-3 text-sm text-muted-foreground">A writing draft from this tab is available. <Button variant="ghost" onClick={() => {
-      const saved = previousDraft
-      if (saved) {
-        const url = URL.createObjectURL(new Blob([saved], { type: 'application/json' }))
-        const link = document.createElement('a'); link.href = url; link.download = `dana-recovered-${folderId}.json`; link.click(); URL.revokeObjectURL(url)
-      }
-    }}>Download previous draft</Button><Button variant="outline" onClick={() => {
+    {!arrangeable ? <p className="mb-3 text-sm text-muted-foreground">Writing is paused while this list is filtered or sorted.</p> : null}
+    {recovery ? <div role="status" className="mb-3 flex flex-wrap items-center gap-1 text-sm text-muted-foreground">Earlier writing from this tab was not saved.<Button variant="ghost" size="sm" onClick={downloadDraft}>Download it</Button><Button variant="ghost" size="sm" onClick={() => {
       void (async () => {
         try {
           const data: unknown = JSON.parse(previousDraft ?? '{}')
@@ -332,17 +355,16 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
           if (!pending?.success) { setError('This draft has no interrupted request. Download it to keep the writing.'); return }
           const next = await mutateApi(getPageResponse, { method: 'POST', path: `/folders/${folderId}/page/actions`, body: pending.data })
           // Keep a copy of any writing made after that original request.
-          if (previousDraft) {
-            const url = URL.createObjectURL(new Blob([previousDraft], { type: 'application/json' }))
-            const link = document.createElement('a'); link.href = url; link.download = `dana-recovered-${folderId}.json`; link.click(); URL.revokeObjectURL(url)
-          }
+          downloadDraft()
           sessionStorage.removeItem(draftKey)
           onSaved(next); onCheckpoint(next)
         } catch (failure) { setError(failure instanceof Error ? failure.message : 'The interrupted save could not be recovered.') }
       })()
-    }}>Retry interrupted save</Button><Button variant="ghost" onClick={() => { sessionStorage.removeItem(draftKey); setRecovery(false) }}>Dismiss</Button></div> : null}
-    <CanvasTaskProvider tasks={tasks} context={context} actions={actions} onAsk={onAsk}>
+    }}>Retry saving it</Button><Button variant="ghost" size="sm" onClick={() => { sessionStorage.removeItem(draftKey); setRecovery(false) }}>Dismiss</Button></div> : null}
+    <CanvasTaskProvider tasks={tasks} completed={completed} context={context} actions={actions} onAsk={onAsk}>
+      <div className={showCompleted ? 'min-w-0' : 'dana-hide-completed min-w-0'}>
       <CanvasSurface
+        placeholder={placeholder}
         editor={editor}
         onChange={changed}
         onCreateTask={facetId === undefined ? askTask : undefined}
@@ -357,16 +379,21 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
         }
         editable={arrangeable && !creating && !pendingTask}
       />
+      </div>
     </CanvasTaskProvider>
-    <div role="status" aria-live="polite" className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-      {feedback || (writer.state === 'saving' ? 'Saving…' : writer.state === 'changed' ? 'Unsaved writing' : 'Saved')}
-      {feedback ? <><Button variant="outline" onClick={() => { void writer.retry() }} disabled={!writer.pending}>Retry save</Button><Button variant="ghost" onClick={copyDraft}>Download writing</Button><Button variant="ghost" onClick={() => { void loadLatest() }}>Download writing and load latest</Button></> : null}
+    <div role="status" aria-live="polite" className="flex min-h-6 flex-wrap items-center gap-1 text-xs text-muted-foreground">
+      {feedback ? <>
+        <span>{writer.state === 'failed' && !error ? 'Not saved — ' : feedback}</span>
+        {writer.pending ? <Button variant="ghost" size="sm" onClick={() => { void writer.retry() }}>Retry</Button> : null}
+        <Button variant="ghost" size="sm" onClick={copyDraft}>Download writing</Button>
+        <Button variant="ghost" size="sm" onClick={() => { void loadLatest() }}>Download writing and load latest</Button>
+      </> : busy && slow ? 'Saving…' : null}
     </div>
     <Dialog open={taskAt !== null} onOpenChange={(open) => { if (!open && !creating) setTaskAt(null) }}>
-      <DialogContent><DialogHeader><DialogTitle>Create Task</DialogTitle><DialogDescription>The Task keeps this position. Document undo starts a new history after creation; Task actions remain in its own menu.</DialogDescription></DialogHeader>
-        <Input aria-label="Task title" value={title} maxLength={500} onChange={(event) => setTitle(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void createTask() }} />
+      <DialogContent><DialogHeader><DialogTitle>New task</DialogTitle></DialogHeader>
+        <Input aria-label="Task title" placeholder="Task title" value={title} maxLength={500} onChange={(event) => setTitle(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void createTask(taskAt, title) }} />
         {taskError ? <p role="alert" className="text-sm text-destructive">{taskError}</p> : null}
-        <DialogFooter><Button variant="ghost" onClick={() => setTaskAt(null)} disabled={creating}>Cancel</Button><Button variant="commit" onClick={() => { void createTask() }} disabled={creating || !title.trim() || writer.state === 'failed'}>Create Task</Button></DialogFooter>
+        <DialogFooter><Button variant="ghost" onClick={() => setTaskAt(null)} disabled={creating}>Cancel</Button><Button variant="commit" onClick={() => { void createTask(taskAt, title) }} disabled={creating || !title.trim() || writer.state === 'failed'}>Add task</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   </>

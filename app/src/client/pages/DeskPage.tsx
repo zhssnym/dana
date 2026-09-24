@@ -28,20 +28,11 @@ state vocabulary exists to prevent.
 */
 import { useFolders } from '../api/queries.js'
 import { InlineError, SkeletonList } from '../components/state-patterns.js'
-import { SampleStrip } from '../onboarding/SampleStrip.js'
-import { StarterOffer, useMayBeFresh } from '../onboarding/StarterOffer.js'
 
 import { FolderPage } from './FolderPage.js'
 
 export function DeskPage(): React.JSX.Element {
   const folders = useFolders()
-  /*
-  9.13's offer, beneath the folder page rather than inside it: `FolderPage` stays
-  a plain folder page and this seam already exists. The cheap half of the freshness
-  test is run here so that the All view the other half needs is never mounted
-  for an account that has folders, which is every account after the first one.
-  */
-  const mayBeFresh = useMayBeFresh()
 
   if (folders.isPending) {
     return (
@@ -60,17 +51,7 @@ export function DeskPage(): React.JSX.Element {
     )
   }
 
-  return (
-    <>
-      {/* Item 60's strip, above the page while the sample is present. The
-          starter offer below it needs no change: 9.13's freshness test
-          fails while the sample's folders exist, and passes again the
-          moment removal empties the account. */}
-      <div className="px-6">
-        <SampleStrip />
-      </div>
-      <FolderPage folderId={desk.id} />
-      {mayBeFresh ? <StarterOffer /> : null}
-    </>
-  )
+  /* The sample strip and 9.13's starter offer are drawn by `FolderPage`
+     itself on the default folder, so Desk is just the folder. */
+  return <FolderPage folderId={desk.id} />
 }

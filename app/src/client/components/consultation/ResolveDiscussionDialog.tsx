@@ -114,7 +114,7 @@ export function ResolveDiscussionDialog(props: {
 
           {mode === 'write' ? (
             <div className="space-y-1">
-              <label htmlFor={statementId} className="text-xs font-medium text-[var(--color-graphite-700)]">
+              <label htmlFor={statementId} className="text-xs font-medium text-foreground">
                 Outcome
               </label>
               <Textarea
@@ -130,12 +130,12 @@ export function ResolveDiscussionDialog(props: {
                   setStatement(event.target.value)
                 }}
               />
-              <p className="text-right text-xs text-[var(--color-graphite-500)]">
+              <p className="text-right text-xs text-muted-foreground">
                 {statement.length}/{OUTCOME_STATEMENT_MAX}
               </p>
             </div>
           ) : candidates.length === 0 ? (
-            <p className="rounded-md border border-dashed border-[var(--color-graphite-200)] p-3 text-xs text-[var(--color-graphite-500)]">
+            <p className="text-xs text-muted-foreground">
               No comment with text to use yet. Write the outcome instead.
             </p>
           ) : (
@@ -145,10 +145,8 @@ export function ResolveDiscussionDialog(props: {
                 {candidates.map((comment) => (
                   <label
                     key={comment.id}
-                    className={`flex cursor-pointer gap-2 rounded-md border p-2 text-xs ${
-                      comment.id === chosenId
-                        ? 'border-[var(--color-dana-accent-600)] bg-[var(--color-dana-accent-50)]'
-                        : 'border-[var(--color-graphite-200)] hover:bg-[var(--color-graphite-50)]'
+                    className={`flex cursor-pointer gap-2 rounded-md px-2 py-1.5 text-xs ${
+                      comment.id === chosenId ? 'bg-muted' : 'hover:bg-muted'
                     }`}
                   >
                     <input
@@ -160,13 +158,13 @@ export function ResolveDiscussionDialog(props: {
                         setChosenId(comment.id)
                         setEdited(null)
                       }}
-                      className="mt-0.5 accent-[var(--color-dana-accent-600)]"
+                      className="mt-0.5 accent-primary"
                     />
                     <span className="min-w-0 flex-1">
-                      <span className="block font-medium text-[var(--color-graphite-800)]">
+                      <span className="block font-medium text-foreground">
                         {personOf(comment.author_id).name}
                       </span>
-                      <span className="line-clamp-2 break-words whitespace-pre-wrap text-[var(--color-graphite-600)]">
+                      <span className="line-clamp-2 break-words whitespace-pre-wrap text-muted-foreground">
                         {comment.body}
                       </span>
                     </span>
@@ -189,7 +187,7 @@ export function ResolveDiscussionDialog(props: {
                   <div className="space-y-1">
                     <label
                       htmlFor={statementId}
-                      className="text-xs font-medium text-[var(--color-graphite-700)]"
+                      className="text-xs font-medium text-foreground"
                     >
                       Outcome
                     </label>
@@ -203,7 +201,7 @@ export function ResolveDiscussionDialog(props: {
                         setEdited(event.target.value)
                       }}
                     />
-                    <p className="text-xs text-[var(--color-graphite-500)]">
+                    <p className="text-xs text-muted-foreground">
                       The comment stays linked as the source.
                     </p>
                   </div>

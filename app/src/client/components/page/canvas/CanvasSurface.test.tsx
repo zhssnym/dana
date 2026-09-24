@@ -64,25 +64,25 @@ function draw(block: CanvasBlock, folderRefs: ReadonlyMap<string, string>, onCre
   render(<CanvasSurface editor={state.editor} onChange={() => {}} onCreateTask={onCreateTask} folderRefs={folderRefs} onUploadFile={() => Promise.reject(new Error("no uploads here"))} />)
 }
 
-describe('Convert to Task from the canvas block menu', () => {
+describe('Turn into task from the canvas block menu', () => {
   test('a folder reference explains both removals and waits for confirmation', async () => {
     const reference = paragraph('reference', 'The studio archive')
     const onCreateTask = vi.fn()
     draw(reference, new Map([[reference.id, '00000000-0000-4000-8000-000000000001']]), onCreateTask)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Convert to Task' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Turn into task' }))
 
     const warning = screen.getByRole('alertdialog')
-    expect(within(warning).getByText('Convert this folder reference to a Task?')).toBeTruthy()
-    expect(within(warning).getByText('The reference and its relation to the folder will be removed. A Task will be created with the link text as its title.')).toBeTruthy()
+    expect(within(warning).getByText('Turn this folder link into a task?')).toBeTruthy()
+    expect(within(warning).getByText('The link to the folder is removed, and a task is made with the link text as its title.')).toBeTruthy()
     expect(onCreateTask).not.toHaveBeenCalled()
 
     fireEvent.click(within(warning).getByRole('button', { name: 'Cancel' }))
     await waitFor(() => { expect(screen.queryByRole('alertdialog')).toBeNull() })
     expect(onCreateTask).not.toHaveBeenCalled()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Convert to Task' }))
-    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Convert to Task' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Turn into task' }))
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Turn into task' }))
     expect(onCreateTask).toHaveBeenCalledTimes(1)
     expect(onCreateTask).toHaveBeenCalledWith(reference)
   })
@@ -92,7 +92,7 @@ describe('Convert to Task from the canvas block menu', () => {
     const onCreateTask = vi.fn()
     draw(prose, new Map(), onCreateTask)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Convert to Task' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Turn into task' }))
 
     expect(onCreateTask).toHaveBeenCalledWith(prose)
     expect(screen.queryByRole('alertdialog')).toBeNull()

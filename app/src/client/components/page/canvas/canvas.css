@@ -48,7 +48,7 @@
   height: var(--icon-size-compact);
 }
 .dana-writing-canvas .bn-side-menu .bn-button {
-  color: var(--color-graphite-300);
+  color: color-mix(in oklch, var(--muted-foreground), transparent 40%);
   background: transparent;
   border: 0;
   box-shadow: none;
@@ -78,10 +78,9 @@
 }
 .dana-writing-canvas [data-content-type='danaTask'] > div,
 .dana-writing-canvas [data-canvas-task-id] { width: 100%; min-width: 0; }
-/* A finished Task's slim line (#315) and the guard's refusal outline (#314). */
-.dana-writing-canvas [data-canvas-task-done] { padding-block: 2px; }
-.dana-writing-canvas [data-canvas-task-done] a { color: var(--muted-foreground); text-decoration: none; }
-.dana-writing-canvas [data-canvas-task-done] a:hover { text-decoration: underline; }
+/* A completed Task is its real row, muted in place; "Show completed" off hides
+   it (`FolderCanvas`). The guard's refusal outline (#314) follows. */
+.dana-hide-completed .bn-block-outer:has([data-canvas-task-done]) { display: none; }
 .dana-writing-canvas [data-canvas-task-refused] { outline: 2px solid var(--destructive); outline-offset: 2px; border-radius: var(--radius-sm); }
 .dana-writing-canvas .bn-drag-handle-menu { font-size: var(--text-body-size); line-height: var(--text-body-line); }
 .dana-writing-canvas img { max-width: 100%; height: auto; }
@@ -112,3 +111,13 @@
 .dana-writing-canvas .dana-reclaimed-image button:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 /* A Shelf's Folder row is a row, not a link inside prose (#221). */
 .dana-writing-canvas a[data-canvas-folder-id] { text-decoration: none; color: inherit; }
+/* The empty page's one line (Quiet spec: "Write, or type / for a task or
+   heading"). BlockNote's placeholder decoration never reaches Dana's paragraph
+   node view, so the rule is written here against the page's only block, and
+   the words come from the surface's `--dana-canvas-placeholder`. */
+.dana-writing-canvas .bn-editor > .bn-block-group > .bn-block-outer:only-child > .bn-block > .react-renderer > .bn-block-content[data-content-type='paragraph']:has(.ProseMirror-trailingBreak:only-child)::after {
+  content: var(--dana-canvas-placeholder, none);
+  color: var(--muted-foreground);
+  font-style: normal;
+  pointer-events: none;
+}

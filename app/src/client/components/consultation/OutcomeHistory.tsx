@@ -48,7 +48,7 @@ export function OutcomeHistory(props: {
         onClick={() => {
           setOpen((v) => !v)
         }}
-        className="flex items-center gap-1 rounded-md px-1 py-0.5 text-xs font-medium text-[var(--color-graphite-700)] outline-none hover:bg-[var(--color-graphite-100)] focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)]"
+        className="flex items-center gap-1 rounded-md px-1 py-0.5 text-xs font-medium text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
       >
         <ChevronRight
           className={`size-3.5 transition-transform ${open ? 'rotate-90' : ''}`}
@@ -58,7 +58,7 @@ export function OutcomeHistory(props: {
         Outcome history ({sorted.length})
       </button>
       {open ? (
-        <ol className="divide-y divide-[var(--color-graphite-100)]">
+        <ol className="divide-y divide-border">
           {sorted.map((outcome) => {
             const focused = outcome.id === focusOutcomeId
             return (
@@ -68,20 +68,20 @@ export function OutcomeHistory(props: {
                 data-focused={focused ? 'true' : undefined}
                 aria-current={focused ? 'true' : undefined}
                 className={`py-2.5 text-sm ${
-                  focused ? '-ml-3 border-l-2 border-[var(--color-graphite-900)] pl-2.5' : ''
+                  focused ? '-ml-3 border-l-2 border-foreground pl-2.5' : ''
                 }`}
               >
                 <div className="mb-1 flex flex-wrap items-center gap-2">
-                  <span className="text-xs text-[var(--color-graphite-500)]">
+                  <span className="text-xs text-muted-foreground">
                     {outcome.current ? 'Current' : 'Previous'} · {personOf(outcome.actor_id).name} · {formatAgo(outcome.created_at, now)}
                   </span>
                   {outcome.source_comment_id !== null ? (
-                    <span className="text-xs text-[var(--color-graphite-500)]">
+                    <span className="text-xs text-muted-foreground">
                       · From a comment
                     </span>
                   ) : null}
                 </div>
-                <p className="break-words whitespace-pre-wrap text-[var(--color-graphite-800)]">
+                <p className="break-words whitespace-pre-wrap text-foreground">
                   {outcome.statement}
                 </p>
               </li>

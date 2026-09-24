@@ -9,10 +9,11 @@ own routes. A resolved or trashed Discussion's thread is frozen: the server
 refuses writes with 409 `discussion_frozen`, and this view draws it read-only
 so nobody is offered a control that would be refused.
 
-Which acts are drawn is `discussionPowers`; none of it is authorization.
+Which acts are drawn is `discussionPowers`; none of it is authorization. The
+General discussion is the folder's own conversation, so it is never offered
+Move to Trash here (the route still decides).
 */
 import { useMemo, useState } from 'react'
-import { ArrowLeft } from 'lucide-react'
 
 import {
   useDiscussionOutcomes,
@@ -24,7 +25,7 @@ import {
 } from '../../api/consultation.js'
 import { ApiError, uploadFile } from '../../api/http.js'
 import { useDeleteComment, usePatchComment, useSetCommentLike } from '../../api/mutations.js'
-import { useDiscussion } from '../../api/queries.js'
+import { useDiscussion, useInputRounds } from '../../api/queries.js'
 import { folderGates } from '../../lib/folder-authority.js'
 import { applyThreadChange, commentFileKind, useConceptThread } from '../../lib/thread.js'
 import type { PersonResolver, ThreadAuthority } from '../../lib/thread.js'
@@ -57,10 +58,13 @@ const NO_POWERS = {
 
 function BackButton({ onBack }: { onBack: () => void }): React.JSX.Element {
   return (
-    <Button variant="ghost" size="sm" onClick={onBack} className="-ml-2">
-      <ArrowLeft data-icon="inline-start" strokeWidth={1.75} aria-hidden="true" />
+    <button
+      type="button"
+      onClick={onBack}
+      className="rounded-sm text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+    >
       Back to discussions
-    </Button>
+    </button>
   )
 }
 
@@ -89,7 +93,7 @@ export function DiscussionView(props: {
       <div className="space-y-3">
         <BackButton onBack={onBack} />
         {gone ? (
-          <p className="text-sm text-[var(--color-graphite-600)]">
+          <p className="text-sm text-muted-foreground">
             This discussion is in Trash or no longer exists.
           </p>
         ) : (
@@ -128,12 +132,14 @@ function DiscussionBody(props: {
   const patchComment = usePatchComment()
   const deleteComment = useDeleteComment()
   const setLike = useSetCommentLike()
+  const rounds = useInputRounds(d.id)
 
   const [editing, setEditing] = useState(false)
   const [draftTitle, setDraftTitle] = useState('')
   const [draftContext, setDraftContext] = useState('')
   const [resolving, setResolving] = useState(false)
   const [confirmTrash, setConfirmTrash] = useState(false)
+  const [asking, setAsking] = useState(false)
 
   const comments = thread.data?.comments
   /* Unshared: every comment is the creator's and there has never been an
@@ -166,6 +172,14 @@ function DiscussionBody(props: {
 
   const now = Date.now()
   const outcome = d.current_outcome
+  const trashable = powers.trash && !d.is_general
+  /* One round open at a time: the button waits until the rounds are read. */
+  const mayAsk =
+    powers.openRound &&
+    !frozen &&
+    !asking &&
+    rounds.data !== undefined &&
+    !rounds.data.input_rounds.some((r) => r.state === 'open')
 
   const startEdit = (): void => {
     setDraftTitle(d.title)
@@ -194,10 +208,10 @@ function DiscussionBody(props: {
   const titleValid = draftTitle.trim().length > 0 && draftTitle.trim().length <= DISCUSSION_TITLE_MAX
 
   return (
-    <div className="min-w-0 space-y-5">
+    <div className="min-w-0 space-y-6">
       <BackButton onBack={onBack} />
 
-      <header className="space-y-2">
+      <header className="space-y-1">
         {editing ? (
           <form
             className="space-y-2"
@@ -243,32 +257,33 @@ function DiscussionBody(props: {
           </form>
         ) : (
           <>
-            <h2 className="min-w-0 text-lg font-semibold break-words text-[var(--color-graphite-900)]">
+            <h2 className="min-w-0 text-base font-semibold break-words text-foreground">
               {d.title}
             </h2>
             {d.is_general ? (
-              <p className="text-xs text-[var(--color-graphite-500)]">
+              <p className="text-xs text-muted-foreground">
                 This holds the folder&apos;s own conversation.
               </p>
             ) : null}
-            <p className="text-xs text-[var(--color-graphite-500)]">
+            <p className="text-xs text-muted-foreground">
               {d.trashed_at !== null ? 'In Trash · ' : d.state === 'resolved' ? 'Resolved · ' : ''}
               Started by {personOf(d.created_by).name} · {formatAgo(d.created_at, now)}
             </p>
             {d.context !== null && d.context !== '' ? (
-              <p className="text-sm break-words whitespace-pre-wrap text-[var(--color-graphite-700)]">
+              <p className="pt-1 text-sm break-words whitespace-pre-wrap text-foreground">
                 {d.context}
               </p>
             ) : null}
           </>
         )}
 
-        {!editing && (powers.edit || powers.resolve || powers.reopen || powers.trash) ? (
-          <div className="flex flex-wrap gap-2 pt-1">
+        {!editing && (powers.edit || powers.resolve || powers.reopen || trashable || mayAsk) ? (
+          <div className="-ml-2 flex flex-wrap items-center gap-1 pt-2">
             {powers.resolve ? (
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
+                className="text-muted-foreground"
                 onClick={() => {
                   setResolving(true)
                 }}
@@ -278,8 +293,9 @@ function DiscussionBody(props: {
             ) : null}
             {powers.reopen ? (
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
+                className="text-muted-foreground"
                 disabled={reopen.isPending}
                 onClick={() => {
                   reopen.mutate(d.id)
@@ -289,14 +305,27 @@ function DiscussionBody(props: {
               </Button>
             ) : null}
             {powers.edit ? (
-              <Button variant="outline" size="sm" onClick={startEdit}>
+              <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={startEdit}>
                 Edit
               </Button>
             ) : null}
-            {powers.trash ? (
+            {mayAsk ? (
               <Button
                 variant="ghost"
                 size="sm"
+                className="text-muted-foreground"
+                onClick={() => {
+                  setAsking(true)
+                }}
+              >
+                Ask for input
+              </Button>
+            ) : null}
+            {trashable ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-destructive hover:text-destructive"
                 onClick={() => {
                   setConfirmTrash(true)
                 }}
@@ -311,13 +340,13 @@ function DiscussionBody(props: {
       {d.state === 'resolved' && outcome !== null ? (
         <section
           aria-label="Outcome"
-          className="border-l-2 border-[var(--color-graphite-200)] py-1 pl-4"
+          className="border-l-2 border-border py-1 pl-4"
         >
-          <h3 className="mb-1 text-xs font-medium text-[var(--color-graphite-500)]">Outcome</h3>
-          <p className="text-sm break-words whitespace-pre-wrap text-[var(--color-graphite-900)]">
+          <h3 className="mb-1 text-xs font-medium text-muted-foreground">Outcome</h3>
+          <p className="text-sm break-words whitespace-pre-wrap text-foreground">
             {outcome.statement}
           </p>
-          <p className="mt-2 text-xs text-[var(--color-graphite-600)]">
+          <p className="mt-2 text-xs text-muted-foreground">
             Recorded by {personOf(outcome.actor_id).name} · {formatAgo(outcome.created_at, now)}
             {outcome.source_comment_id !== null ? ' · From a comment' : ''}
           </p>
@@ -329,7 +358,13 @@ function DiscussionBody(props: {
         <OutcomeHistory discussionId={d.id} personOf={personOf} focusOutcomeId={focusOutcomeId} />
       ) : null}
 
-      <InputRoundsPanel discussionId={d.id} frozen={frozen} canOpen={powers.openRound} />
+      <InputRoundsPanel
+        discussionId={d.id}
+        frozen={frozen}
+        canOpen={powers.openRound}
+        asking={asking}
+        onAskingChange={setAsking}
+      />
 
       <section aria-label="Conversation" className="space-y-2">
         {thread.isError ? (
@@ -417,11 +452,7 @@ function DiscussionBody(props: {
       ) : null}
       {confirmTrash ? (
         <ConfirmDialog
-          message={
-            d.is_general
-              ? "Move the General discussion to Trash? The folder's conversation goes with it until it is restored."
-              : 'Move this discussion to Trash? It can be restored from Trash.'
-          }
+          message="Move this discussion to Trash? It can be restored from Trash."
           confirmLabel="Move to Trash"
           cancelLabel="Keep it"
           onCancel={() => {

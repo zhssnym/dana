@@ -29,17 +29,17 @@ export function moveCanvasBlock(editor: CanvasEditor, block: CanvasBlock, direct
   const moving = items[index]!
   if (direction === 'up' || direction === 'down') {
     const target = index + (direction === 'up' ? -1 : 1)
-    if (target < 0 || target >= items.length) return 'This item is already at the edge of its group.'
+    if (target < 0 || target >= items.length) return 'This is already at the edge of its section.'
     items.splice(index, 1)
     items.splice(target, 0, moving)
   } else if (direction === 'in') {
     const previous = items[index - 1]
-    if (previous?.type !== 'heading' || previous.props.isToggleable === false) return 'Move this item immediately after a work heading before moving it into that group.'
+    if (previous?.type !== 'heading' || previous.props.isToggleable === false) return 'Put this right after a heading to move it into that section.'
     if (moving.type === 'heading') moving.props.level = previous.props.level + 1
     items.splice(index, 1)
     previous.children.push(moving)
   } else {
-    if (!parent || parent.type !== 'heading' || parent.props.isToggleable === false) return 'This item is already at the page root.'
+    if (!parent || parent.type !== 'heading' || parent.props.isToggleable === false) return 'This is not inside a section.'
     const ancestors = ancestorsOf(document, parent.id) ?? []
     const destination = ancestors.at(-1)?.children ?? document
     if (moving.type === 'heading') moving.props.level = parent.props.level
