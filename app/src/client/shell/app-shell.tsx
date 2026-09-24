@@ -453,6 +453,7 @@ export function AppShell(): React.JSX.Element {
             }}
             groups={groups.actions}
             displayName={me.data?.user.display_name ?? null}
+            email={me.data?.user.email ?? null}
             avatarUrl={me.data?.user.avatar_url ?? null}
             activeFolderId={activeFolderId}
             currentPath={location.pathname}
