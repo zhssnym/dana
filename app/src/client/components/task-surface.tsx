@@ -12,13 +12,13 @@ A task's page, in the three ways it is shown (ROUND2-SPEC "Task"):
 Settings > Appearance > "Open tasks in" chooses. The peeks carry "Open as full
 page" and a close, and Escape closes them. The view is one: a header with the
 task's one "…", the title renaming in place, and `TaskCard` (properties, then
-the Notes and Discussion tabs).
+the Work and Discussion tabs).
 */
 
 import { InlineTextarea } from "./ui/inline-field.js"
 import { useEffect, useRef, useState } from "react"
 
-import { CheckCircle2, Maximize2, MoreHorizontal, X } from "../lib/icons.js"
+import { Maximize2, MoreHorizontal, X } from "../lib/icons.js"
 import { TITLE_REQUIRED, tooLong } from "./task-copy.js"
 /* 10.3's number for the field, from the shared contract rather than restated. */
 import { TASK_TITLE_LIMIT } from "../../shared/tasks.js"
@@ -27,8 +27,7 @@ import { TaskCard } from "./task-card.js"
 import { useCardWiring, type TaskRowProps } from "./task-row.js"
 import { ReservesRightEdge } from "./right-edge.js"
 import { ObjectMenu } from "./object-menu.js"
-import { DropdownMenuItem, DropdownMenuSeparator } from "./ui/dropdown-menu.js"
-import { COMPLETE_TASK, MARK_AS_NOT_DONE, MORE_ACTIONS } from "./ui/copy.js"
+import { MORE_ACTIONS } from "./ui/copy.js"
 import { copyTaskLink, duplicateTask } from "../tasks/task-acts.js"
 import { cn } from "./ui/utils.js"
 import { ReferencedFrom } from "./links/referenced-from.js"
@@ -104,7 +103,7 @@ function Title({
           }
         }}
         className={cn(
-          "text-2xl leading-8 font-semibold hover:bg-transparent focus:bg-transparent focus:ring-0",
+          "text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-bold hover:bg-transparent focus:bg-transparent focus:ring-0",
           done ? "text-muted-foreground line-through" : "text-foreground",
         )}
       />
@@ -118,21 +117,19 @@ function Title({
 }
 
 /*
-The task's one "…": complete (or not), history, copy link, duplicate, abandon
-(or restore), delete. Moving is the Folder row's, in the properties block, so
-it has one home.
+The task's one "…": history, copy link, duplicate, abandon (or restore),
+delete. Moving is the Folder row's and done is the Status row's, in the
+properties block, so each has one home.
 */
 function TaskMenu({
   task,
   id,
-  onToggleDone,
   onRestore,
   onAbandon,
   onDelete,
 }: {
   task: { title: string; done?: boolean; abandoned?: boolean }
   id: string
-  onToggleDone: () => void
   onRestore: () => void
   onAbandon?: () => void
   onDelete?: () => void
@@ -156,18 +153,9 @@ function TaskMenu({
             <MoreHorizontal className="size-4" strokeWidth={1.75} aria-hidden="true" />
           </button>
         }
-        extra={
-          <>
-            <DropdownMenuItem onClick={onToggleDone}>
-              <CheckCircle2 className="size-4" strokeWidth={1.75} aria-hidden="true" />
-              {task.done ? MARK_AS_NOT_DONE : COMPLETE_TASK}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-          </>
-        }
         handlers={{
           history: () => setHistoryOpen(true),
-          "copy-link": () => copyTaskLink(id, task.title),
+          "copy-link": () => copyTaskLink(id),
           duplicate: () => duplicateTask(id, task.title),
           abandon: onAbandon && !task.abandoned ? onAbandon : undefined,
           restore: task.abandoned ? onRestore : undefined,
@@ -228,7 +216,6 @@ export function TaskView({
       <TaskMenu
         task={task}
         id={props.id}
-        onToggleDone={() => patch(task.id, { done: !task.done })}
         onRestore={() => patch(task.id, { abandoned: false })}
         {...(props.onAbandon === undefined ? {} : { onAbandon: props.onAbandon })}
         {...(props.onDelete === undefined ? {} : { onDelete: props.onDelete })}

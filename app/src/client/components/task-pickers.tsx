@@ -318,14 +318,6 @@ export function PickerDivider() {
   return <div aria-hidden="true" className="my-1 h-px bg-border" />
 }
 
-export function PickerLabel({ children }: { children: ReactNode }) {
-  return (
-    <div className="px-2 pb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-      {children}
-    </div>
-  )
-}
-
 /* One row of short exclusive choices, behaving like a segmented control. The
    only shape left in the pickers where a pill row is still right: a
    recurrence interval and its weekdays are a set you compare at a glance,
