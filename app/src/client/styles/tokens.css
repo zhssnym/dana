@@ -501,3 +501,14 @@ button:not(:disabled),
 [data-theme="dark"] {
   --text-placeholder: #5f5f5d;
 }
+
+/* ---- r10-sbgap: sidebar rows read as Notion's. Each row is its own rounded
+   pill, 1px of margin above and below, so two lit rows never touch. Hover is
+   a lighter fill than the active row's. */
+:root {
+  --sidebar-row-gap: 1px;
+  --sidebar-row-hover: rgb(55 53 47 / 4%);
+}
+[data-theme="dark"] {
+  --sidebar-row-hover: rgb(255 255 255 / 4%);
+}

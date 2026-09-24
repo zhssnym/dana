@@ -125,7 +125,7 @@ import type { Shelf } from '../../shared/shelves.js'
 
 /** The one row treatment every sidebar entry shares. */
 export const SIDEBAR_ROW =
-  'h-(--shell-sidebar-row-height) max-md:h-(--row-height) gap-2 rounded-md px-2 text-sm font-normal text-muted-foreground hover:bg-sidebar-accent hover:text-foreground data-active:bg-sidebar-accent data-active:font-medium data-active:text-foreground [&_svg]:!size-4 [&_svg]:shrink-0'
+  'my-(--sidebar-row-gap) h-(--shell-sidebar-row-height) max-md:h-(--row-height) gap-2 rounded-md px-2 text-sm font-normal text-muted-foreground hover:bg-(--sidebar-row-hover) hover:text-foreground data-active:bg-sidebar-accent data-active:hover:bg-sidebar-accent data-active:font-normal data-active:text-foreground [&_svg]:!size-4 [&_svg]:shrink-0'
 
 
 const IS_MAC =
@@ -953,7 +953,7 @@ function FolderGroupBlock({
             event.preventDefault()
             menuTrigger.current?.click()
           }}
-          className="group/folder-group relative flex h-(--shell-sidebar-row-height) max-md:h-(--row-height) items-center gap-1 rounded-md pr-8 pl-1 text-sm text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+          className="group/folder-group relative my-(--sidebar-row-gap) flex h-(--shell-sidebar-row-height) max-md:h-(--row-height) items-center gap-1 rounded-md pr-8 pl-1 text-sm text-muted-foreground hover:bg-(--sidebar-row-hover) hover:text-foreground"
         >
           {drag.proposal === null ? null : (
             <span className="pointer-events-none absolute top-1/2 right-2 z-40 -translate-y-1/2 rounded-sm bg-foreground px-2 py-0.5 text-xs whitespace-nowrap text-background">

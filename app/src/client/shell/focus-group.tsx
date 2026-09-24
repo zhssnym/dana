@@ -30,7 +30,7 @@ import type { FocusList, FocusListKey } from './focus-lists.js'
 import { grip } from './library-drag.js'
 
 const ROW =
-  'h-(--shell-sidebar-row-height) max-md:h-(--row-height) gap-2 rounded-md px-2 pr-8 text-sm font-normal text-muted-foreground hover:bg-sidebar-accent hover:text-foreground group-hover/focus-row:bg-sidebar-accent data-active:bg-sidebar-accent data-active:font-medium data-active:text-foreground [&_svg]:!size-4 [&_svg]:shrink-0'
+  'my-(--sidebar-row-gap) h-(--shell-sidebar-row-height) max-md:h-(--row-height) gap-2 rounded-md px-2 pr-8 text-sm font-normal text-muted-foreground hover:bg-(--sidebar-row-hover) hover:text-foreground group-hover/focus-row:bg-(--sidebar-row-hover) data-active:bg-sidebar-accent data-active:hover:bg-sidebar-accent data-active:font-normal data-active:text-foreground [&_svg]:!size-4 [&_svg]:shrink-0'
 
 const ICON_BUTTON =
   'size-6 shrink-0 rounded-sm text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'

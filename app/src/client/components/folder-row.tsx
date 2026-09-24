@@ -139,6 +139,16 @@ function indentOf(nested: boolean, depth: number): string {
   return `calc(var(--spacing) * ${String(steps)})`
 }
 
+/* The name shows as a tooltip only when the row cuts it short. */
+function titleIfTruncated(name: string) {
+  return (event: React.PointerEvent<HTMLElement>): void => {
+    const label = event.currentTarget.querySelector('span.truncate')
+    const cut = label !== null && label.scrollWidth > label.clientWidth
+    if (cut) event.currentTarget.title = name
+    else event.currentTarget.removeAttribute('title')
+  }
+}
+
 export function FolderRow({
   name,
   color,
@@ -242,7 +252,7 @@ export function FolderRow({
         {renaming && onRename !== undefined ? (
           <div
             style={{ paddingLeft: indentOf(nested, depth) }}
-            className="flex h-(--shell-sidebar-row-height) items-center gap-2 rounded-md bg-sidebar-accent pr-2 max-md:h-(--row-height)"
+            className="my-(--sidebar-row-gap) flex h-(--shell-sidebar-row-height) items-center gap-2 rounded-md bg-sidebar-accent pr-2 max-md:h-(--row-height)"
           >
             <Mark className="size-4 shrink-0" style={{ color }} strokeWidth={1.75} aria-hidden="true" />
             <RenameField name={name} onRename={onRename} />
@@ -252,11 +262,11 @@ export function FolderRow({
           render={render ?? <a href={href} />}
           isActive={active}
           aria-current={active ? 'page' : undefined}
-          title={name}
+          onPointerEnter={titleIfTruncated(name)}
           onClick={onSelect}
           style={{ paddingLeft: indentOf(nested, depth) }}
           className={cn(
-            'h-(--shell-sidebar-row-height) gap-2 rounded-md px-2 text-sm font-normal max-md:h-(--row-height) text-muted-foreground hover:bg-sidebar-accent hover:text-foreground group-hover/folder-row:bg-sidebar-accent data-active:bg-sidebar-accent data-active:font-medium data-active:text-foreground',
+            'my-(--sidebar-row-gap) h-(--shell-sidebar-row-height) gap-2 rounded-md px-2 text-sm font-normal max-md:h-(--row-height) text-muted-foreground hover:bg-(--sidebar-row-hover) hover:text-foreground group-hover/folder-row:bg-(--sidebar-row-hover) data-active:bg-sidebar-accent data-active:hover:bg-sidebar-accent data-active:font-normal data-active:text-foreground',
             hasActions && addButton
               ? 'pr-14'
               : (hasActions || addButton) && 'pr-8',
