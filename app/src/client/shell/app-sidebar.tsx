@@ -5,11 +5,11 @@ Top to bottom, and nothing else (round 2, Sidebar):
 
   head row · Search · Today · Upcoming · Assigned · Library · Settings, Trash
 
-- **The head row** is the bell, a small square button with an unread dot, and
-  the collapse button, right-aligned. There is no account button: Sign out is
+- **The head row** is one line: Search, the bell (a small square button with
+  an unread dot) and the collapse button. A divider sets it apart. There is no account button: Sign out is
   in Settings › Account. The drawer on a phone draws the same row.
-- **Search** looks like the field it opens: a bordered box reading "Search"
-  with its Ctrl K / ⌘K keycap. Pressing it, or the shortcut, opens the
+- **Search** is a quiet row on that line; its Ctrl K / ⌘K keycap shows on
+  hover. Pressing it, or the shortcut, opens the
   palette (`overlays.ts`). On a phone the phone bar holds the one search
   entry, so the drawer leaves it out.
 - **Today, Upcoming, Assigned** are the only cross-project lists. Upcoming and
@@ -18,7 +18,7 @@ Top to bottom, and nothing else (round 2, Sidebar):
   one ordered column (`library-order.ts`). A row is its icon and its name; its
   "…" appears on hover in space the row already reserves, and a right-click
   opens that same menu. The Library's one "+" makes a top-level page in one
-  click; there is no menu of kinds (Import is in a page's "…").
+  click. Right-click on the sidebar's ground opens New page and Import….
 - **Pages in pages**: a root draws its sub-pages indented inside its own item
   (`page-tree.ts`), a page with children folds from its mark, and a row's
   hover "+" adds a page inside it. Dragging a page onto the middle of a row
@@ -35,6 +35,7 @@ import { Link, useNavigate } from 'react-router'
 import type { LucideIcon } from '../lib/icons.js'
 import {
   ChevronRight,
+  FolderInput,
   Folders,
   Plus,
   Search,
@@ -72,6 +73,13 @@ import { folderLink, shelfLink } from '../lib/nav-links.js'
 import { navPages, paths } from '../routes.js'
 import { NotificationsBell } from '../components/notifications-bell.js'
 import { SidebarResizeHandle } from './SidebarResizeHandle.js'
+import { usePageImport } from './workflow-import.js'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../components/ui/dropdown-menu.js'
 /* The one drag engine, and the Library's answers to the two questions it asks
    about anything outside the list it is sorting. */
 import { moved, swallowNextClick, useSortableList } from '../lib/use-sortable-list.js'
@@ -999,24 +1007,71 @@ function NewPageButton({ onNewPage }: { readonly onNewPage: () => void }): React
   )
 }
 
-/** A search field in look, a button in fact: it opens the palette. */
+/** The head row's Search: a quiet row in look, a button in fact; it opens the
+    palette. Its keycap shows only on hover, so the row stays one word. */
 function SearchField({ onOpen }: { readonly onOpen: () => void }): React.JSX.Element {
   return (
     <button
       type="button"
       onClick={onOpen}
       aria-label="Search"
-      className="flex h-7 w-full items-center gap-2 rounded-sm border border-border bg-background px-2 text-sm text-muted-foreground outline-none hover:border-ring/40 focus-visible:ring-2 focus-visible:ring-ring/30"
+      className="group/search flex h-(--shell-sidebar-row-height) min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-sm text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30"
     >
-      <Search className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-      <span className="flex-1 text-left">Search</span>
+      <Search className="size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+      <span className="min-w-0 flex-1 truncate text-left">Search</span>
       <kbd
         aria-hidden="true"
-        className="rounded-xs border border-border bg-muted px-1 font-sans text-xs leading-4 text-muted-foreground"
+        className="font-sans text-xs text-muted-foreground opacity-0 group-hover/search:opacity-100 group-focus-visible/search:opacity-100"
       >
         {IS_MAC ? '⌘K' : 'Ctrl K'}
       </kbd>
     </button>
+  )
+}
+
+/* Right-click on the sidebar's own ground (empty space, the Library heading,
+   the lists) opens this small menu at the pointer instead of the browser's.
+   A row with its own menu (a page, a collection) claims the event first. */
+function SidebarGroundMenu({
+  at,
+  onClose,
+  onNewPage,
+  onImport,
+}: {
+  readonly at: { readonly x: number; readonly y: number } | null
+  readonly onClose: () => void
+  readonly onNewPage: () => void
+  readonly onImport: () => void
+}): React.JSX.Element | null {
+  if (at === null) return null
+  return (
+    <DropdownMenu
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose()
+      }}
+    >
+      <DropdownMenuTrigger
+        nativeButton={false}
+        render={
+          <span
+            aria-hidden="true"
+            className="pointer-events-none fixed size-0"
+            style={{ left: at.x, top: at.y }}
+          />
+        }
+      />
+      <DropdownMenuContent sideOffset={0} className="w-auto min-w-40">
+        <DropdownMenuItem onClick={onNewPage}>
+          <Plus strokeWidth={1.75} aria-hidden="true" />
+          New page
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={onImport}>
+          <FolderInput strokeWidth={1.75} aria-hidden="true" />
+          Import…
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
@@ -1080,6 +1135,16 @@ export function AppSidebar({
       },
     )
   }
+  const importPage = usePageImport()
+  const [groundMenu, setGroundMenu] = useState<{ x: number; y: number } | null>(null)
+  const openGroundMenu = (event: React.MouseEvent): void => {
+    /* A row's own menu already answered; a text field keeps the browser's. */
+    if (event.defaultPrevented) return
+    const target = event.target as HTMLElement
+    if (target.closest('input, textarea, [contenteditable="true"]') !== null) return
+    event.preventDefault()
+    setGroundMenu({ x: event.clientX, y: event.clientY })
+  }
   /* The Library draws roots; each root draws its own sub-pages. A page whose
      parent this viewer cannot see is a root here (`page-tree.ts`). */
   const allFolders = folders ?? NO_FOLDERS
@@ -1107,17 +1172,18 @@ export function AppSidebar({
     >
       {/* Solid and above the list, so nothing scrolling in the list shows
           through the head; the list below is the one scroll container. */}
-      <SidebarHeader className="relative z-40 shrink-0 gap-2 bg-sidebar p-2 pb-1">
+      <SidebarHeader className="relative z-40 shrink-0 bg-sidebar p-2">
+        {/* One line: Search, the bell, collapse. On a phone the phone bar holds
+            the one search entry, so the line keeps only the two buttons. */}
         <div className="flex items-center gap-0.5">
-          <span className="min-w-0 flex-1" />
+          {isMobile ? <span className="min-w-0 flex-1" /> : <SearchField onOpen={onOpenSearch} />}
           <NotificationsBell />
           <SidebarTrigger className="size-7 shrink-0 rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-foreground [&_svg]:!size-4" />
         </div>
-        {/* On a phone the phone bar holds the one search entry. */}
-        {isMobile ? null : <SearchField onOpen={onOpenSearch} />}
       </SidebarHeader>
+      <div aria-hidden="true" className="mx-3 shrink-0 border-t border-border" />
 
-      <SidebarContent className="py-2">
+      <SidebarContent className="pt-2 pb-2" onContextMenu={openGroundMenu}>
         <SidebarGroup className="px-2 py-0">
           <SidebarGroupContent>
             <SidebarMenu>
@@ -1134,8 +1200,8 @@ export function AppSidebar({
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup className="px-2 pt-4 pb-0">
-          <div className="flex h-7 items-center pr-1 pl-2">
+        <SidebarGroup className="px-2 pt-5 pb-0">
+          <div className="flex h-(--shell-sidebar-row-height) items-center pr-1 pl-2">
             <h2 className="min-w-0 flex-1 truncate text-xs font-medium text-muted-foreground">
               Library
             </h2>
@@ -1163,7 +1229,7 @@ export function AppSidebar({
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-2">
+      <SidebarFooter className="p-2" onContextMenu={openGroundMenu}>
         <SidebarMenu>
           <NavigationRow
             name="Settings"
@@ -1179,6 +1245,17 @@ export function AppSidebar({
           />
         </SidebarMenu>
       </SidebarFooter>
+
+      <SidebarGroundMenu
+        at={groundMenu}
+        onClose={() => {
+          setGroundMenu(null)
+        }}
+        onNewPage={newPage}
+        onImport={() => {
+          importPage()
+        }}
+      />
 
       <SidebarResizeHandle
         value={sidebarWidth}

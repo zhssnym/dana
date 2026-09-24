@@ -341,9 +341,10 @@ export function useWorkflowFileImport(): (file: File, parentId?: string) => void
  * (`POST /folders/:id/import`). Called from the menu item's press, so the
  * chooser opens inside the user's gesture.
  */
-export function usePageImport(): (parentId: string) => void {
+export function usePageImport(): (parentId?: string) => void {
   const importFile = useWorkflowFileImport()
-  return (parentId: string): void => {
+  /* No parent: the sidebar's right-click Import, into the Library's top level. */
+  return (parentId?: string): void => {
     const input = document.createElement('input')
     input.type = 'file'
     input.accept = '.json,application/json'
