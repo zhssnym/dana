@@ -149,7 +149,6 @@ import { mayPerform, ruleFor } from '../../shared/folder-actions.js'
 import type { FolderAction as FolderActionName } from '../../shared/folder-actions.js'
 import { paths } from '../routes.js'
 import { FOLDER_ACTION_PARAM } from '../shell/app-sidebar.js'
-import { openTaskForm } from '../shell/overlays.js'
 import { useReserveRightEdge } from '../components/right-edge.js'
 import { pushUndo, undoLabel } from '../shell/undo.js'
 import { FolderTabs, FolderTabsDialog } from '../components/folder-facets.js'
@@ -162,7 +161,6 @@ import { PlaceFilterChips, usePlace } from '../views/usePlace.js'
 import type { ViewMode } from '../views/view-mode.js'
 import { isNarrowed } from '../views/filter.js'
 import { PageBody } from '../components/page/PageStates.js'
-import { SampleStrip } from '../onboarding/SampleStrip.js'
 import { FOLDER_EMPTY } from './empty-states.js'
 import { FolderSharingPanel } from './FolderSharingPanel.js'
 import { ConfirmDialog, TaskRows, useConfirm, useRowBasis } from './task-rows.js'
@@ -362,11 +360,11 @@ export function FolderPage({
   The folder page is a place-page (9.6).
 
   What that buys is one filter, one view strip and one board, the same three
-  every other page draws, rather than three more written here. Three things are
+  every other page draws, rather than three more written here. Two things are
   this page's own and arrive as options, each because it needs the folder's id:
   the filter is remembered per folder, since 9.1 keeps a filter "on return to
-  that page, never carried to another" and two folders are two pages; and both
-  capture points write this folder, which is 9.3's sixth entry-point row.
+  that page, never carried to another" and two folders are two pages; and the
+  capture writes this folder, which is 9.3's sixth entry-point row.
   */
   const place = usePlace(PLACES.folder, openRows, {
     filterKey: `folder:${id}`,
@@ -376,13 +374,6 @@ export function FolderPage({
         folder_id: id,
         ...(column?.due_date === undefined ? {} : { due_date: column.due_date }),
         ...(column?.assignee_id === undefined ? {} : { assignee_id: column.assignee_id }),
-      })
-    },
-    openFull: (column, title) => {
-      openTaskForm({
-        folder_id: id,
-        ...(column?.due_date === undefined ? {} : { due_date: column.due_date }),
-        ...(title === undefined || title === '' ? {} : { title }),
       })
     },
   })
@@ -1082,9 +1073,6 @@ export function FolderPage({
 
   return (
     <div className="space-y-6">
-      {/* Desk is just a folder; while the sample workspace is present it says
-          so in one quiet line above the header. */}
-      {isDefault ? <SampleStrip /> : null}
       {/* The header is the folder read, so a folder the viewer cannot see
           renders 10.2's answer here: nonexistent, never forbidden. */}
       <PageBody query={folder} isEmpty={false} emptyCopy="">
@@ -1097,7 +1085,7 @@ export function FolderPage({
             <div className="-mt-4 md:-mt-6">
               {/* A viewer below Can edit reads the band and is offered nothing
                   on it (AC-011, AC-193). */}
-              <PageCover storageName={coverKey} readOnly={gates?.identity !== true} />
+              <PageCover storageName={coverKey} readOnly={gates?.identity !== true} pickerInMenu />
             </div>
           ) : null}
           <PageSection name="Folder header">

@@ -12,10 +12,9 @@ calendar, search and a dependency link. On a desktop it writes the parameter,
 replacing rather than pushing when a panel is already open so that walking
 down a list does not fill the history; on a phone it navigates to the page.
 
-**There is no create form.** A task is made inline (the "New task" row); the
-one bus call that still arrives here with a title, `openTaskForm({ title })`,
-makes the task at once and opens it. A call with no title opens nothing: an
-unsaved task has no panel.
+**There is no create form.** A task is made inline (the "New task" row, which
+`N`, the phone's "Add task" and a calendar day all lead to); an unsaved task
+has no panel.
 
 **9.5's upcoming banner keeps its one path**: a calendar ghost opens the
 series' current occurrence, and says so to a screen reader (AC-098).
@@ -24,11 +23,8 @@ series' current occurrence, and says so to a screen reader (AC-098).
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, type Location } from 'react-router'
 
-import { useCreateTask } from '../api/mutations.js'
-import { useFolders, useMe } from '../api/queries.js'
 import { useRowActions } from '../parts/useRowActions.js'
 import { paths } from '../routes.js'
-import { onOpenTaskForm } from '../shell/overlays.js'
 import { onOpenTask } from './task-open.js'
 import { UPCOMING_OCCURRENCE } from './task-copy.js'
 import { surfaceTask, useTaskEditing } from './task-editing.js'
@@ -84,21 +80,11 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
   const acts = useRowActions()
   const [pending, setPending] = useState<PendingAct | null>(null)
 
-  const me = useMe()
-  const folders = useFolders()
-  const create = useCreateTask()
-
   /* Read inside the listeners, which are attached once. */
   const locationRef = useRef(location)
   locationRef.current = location
   const navigateRef = useRef(navigate)
   navigateRef.current = navigate
-  const foldersRef = useRef(folders.data)
-  foldersRef.current = folders.data
-  const viewerRef = useRef(me.data?.user)
-  viewerRef.current = me.data?.user
-  const createRef = useRef(create)
-  createRef.current = create
 
   useEffect(() => {
     function open(id: string, upcoming: boolean): void {
@@ -121,38 +107,8 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
 
     const offTask = onOpenTask((id, options) => open(id, options.upcoming === true))
 
-    /*
-    A title is all 7.6 needs, so a form request that carries one is a task
-    made at once and opened. One with no title has nothing to open.
-    */
-    const offForm = onOpenTaskForm((defaults) => {
-      const title = defaults.title?.trim() ?? ''
-      if (title === '') return
-      const rows = foldersRef.current ?? []
-      const fallback = rows.find((folder) => folder.is_default) ?? rows[0]
-      const chosen =
-        defaults.folder_id === undefined
-          ? fallback
-          : (rows.find((folder) => folder.id === defaults.folder_id) ?? fallback)
-      const viewer = viewerRef.current
-      createRef.current.mutate(
-        {
-          title,
-          ...(chosen === undefined ? {} : { folder_id: chosen.id }),
-          ...(viewer === undefined ? {} : { assignee_id: viewer.id }),
-          ...(defaults.important === undefined ? {} : { important: defaults.important }),
-          ...(defaults.due_date == null ? {} : { due_date: defaults.due_date }),
-          ...(defaults.section_block_id === undefined
-            ? {}
-            : { section_block_id: defaults.section_block_id }),
-        },
-        { onSuccess: (detail) => open(detail.id, false) },
-      )
-    })
-
     return () => {
       offTask()
-      offForm()
     }
   }, [])
 

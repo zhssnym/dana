@@ -11,12 +11,11 @@ import type { TaskCard } from '../../shared/tasks.js'
 import { useCreateTask, usePullIntoMyDay } from '../api/mutations.js'
 import { useMe } from '../api/queries.js'
 import { presenterToday } from '../parts/presenters.js'
-import { openTaskForm } from '../shell/overlays.js'
 import { ViewMenu } from './FilterControl.js'
 import { sortRows } from './filter.js'
 import type { GroupBy, PageFilter } from './filter.js'
 import { usePageFilter } from './filter-store.js'
-import { captureDefaults, surfaceDefaults } from './place-pages.js'
+import { captureDefaults } from './place-pages.js'
 import type { ColumnValue, PlaceSpine } from './place-pages.js'
 import { modeFromSearch, useViewMode, writeViewMode } from './view-mode.js'
 import type { ViewMode } from './view-mode.js'
@@ -46,8 +45,6 @@ export interface Place {
   readonly narrow: (rows: readonly TaskCard[]) => readonly TaskCard[]
   /** A capture at this page's entry defaults, optionally inside a column. */
   readonly capture: (title: string, column?: ColumnValue) => void
-  /** The same entry point, escalated to the task surface. */
-  readonly openFull: (column?: ColumnValue, title?: string) => void
 }
 
 /** What a folder page supplies that its spine cannot: its own id's worth. */
@@ -55,7 +52,6 @@ export interface PlaceOptions {
   /** Where the View settings are remembered, if not under the spine's key. */
   readonly filterKey?: string
   readonly capture?: (title: string, column?: ColumnValue) => void
-  readonly openFull?: (column?: ColumnValue, title?: string) => void
 }
 
 export function usePlace(
@@ -103,17 +99,6 @@ export function usePlace(
     )
   }
 
-  function openFull(column?: ColumnValue, title?: string): void {
-    const defaults = captureDefaults(spine.key, today, column)
-    const surface = surfaceDefaults(spine.key, today)
-    openTaskForm({
-      ...(title === undefined || title === '' ? {} : { title }),
-      due_date: defaults.due_date ?? surface.due_date,
-      important: defaults.important ?? surface.important,
-      ...(defaults.folder_id === undefined ? {} : { folder_id: defaults.folder_id }),
-    })
-  }
-
   return {
     spine,
     today,
@@ -125,7 +110,6 @@ export function usePlace(
     groupBy,
     narrow: (input) => sortRows(input, filter.sort),
     capture: options.capture ?? capture,
-    openFull: options.openFull ?? openFull,
   }
 }
 

@@ -141,7 +141,7 @@ function InputGroupText({ className, ...props }: React.ComponentProps<"span">) {
     <span
       data-slot="input-group-text"
       className={cn(
-        "shrink-0 text-[12px] leading-4 text-muted-foreground",
+        "shrink-0 text-xs leading-4 text-muted-foreground",
         className,
       )}
       {...props}

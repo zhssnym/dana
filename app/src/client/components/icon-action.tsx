@@ -24,7 +24,7 @@ import { cn } from "./ui/utils.js"
 
 const T_FAST = "duration-[var(--duration-fast)] ease-[var(--ease-standard)]"
 const FOCUS =
-  "outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)] focus-visible:ring-offset-1"
+  "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
 
 export function IconAction({
   icon: Icon,
@@ -64,8 +64,8 @@ export function IconAction({
               T_FAST,
               FOCUS,
               tone === "danger"
-                ? "text-[var(--color-graphite-600)] hover:bg-[var(--color-danger-100)] hover:text-[var(--color-danger-700)]"
-                : "text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)]",
+                ? "text-muted-foreground hover:bg-[var(--color-danger-100)] hover:text-[var(--color-danger-700)]"
+                : "text-muted-foreground hover:bg-accent hover:text-foreground",
             )}
           >
             <Icon

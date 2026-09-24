@@ -124,7 +124,7 @@ export function FolderGroupDialog({
       <DialogContent className="w-[min(460px,calc(100vw-32px))]">
         <form onSubmit={submit}>
           <DialogHeader>
-            <div className="mb-2 flex size-9 items-center justify-center rounded-lg bg-[var(--color-graphite-100)] text-[var(--color-graphite-700)]">
+            <div className="mb-2 flex size-9 items-center justify-center rounded-lg bg-accent text-section-foreground">
               <Folders className="size-5" strokeWidth={1.75} aria-hidden="true" />
             </div>
             {/* One word, shelf, from the foot button
@@ -145,7 +145,7 @@ export function FolderGroupDialog({
             <div>
               <label
                 htmlFor="folder-group-name"
-                className="mb-1.5 block text-xs font-medium text-[var(--color-graphite-700)]"
+                className="mb-1.5 block text-xs font-medium text-section-foreground"
               >
                 Shelf name
               </label>
@@ -166,10 +166,10 @@ export function FolderGroupDialog({
 
             {mode === 'create' ? (
               <fieldset>
-                <legend className="mb-1.5 text-xs font-medium text-[var(--color-graphite-700)]">
+                <legend className="mb-1.5 text-xs font-medium text-section-foreground">
                   Folders
                 </legend>
-                <div className="max-h-60 overflow-y-auto rounded-lg border border-border bg-[var(--color-graphite-25)] p-1">
+                <div className="max-h-60 overflow-y-auto rounded-lg border border-border bg-muted p-1">
                   {folders.map((folder) => {
                     const checked = selectedFolders.includes(folder.name)
                     const checkboxId = `folder-group-${folder.name
@@ -180,7 +180,7 @@ export function FolderGroupDialog({
                       <label
                         key={folder.name}
                         htmlFor={checkboxId}
-                        className="flex min-h-[var(--control-height)] cursor-pointer items-center gap-3 rounded-md px-2.5 text-sm text-[var(--color-graphite-800)] hover:bg-[var(--color-graphite-100)]"
+                        className="flex min-h-[var(--control-height)] cursor-pointer items-center gap-3 rounded-md px-2.5 text-sm text-foreground hover:bg-accent"
                       >
                         <Checkbox
                           id={checkboxId}
@@ -202,7 +202,7 @@ export function FolderGroupDialog({
                         />
                         <span className="min-w-0 flex-1 truncate">{folder.name}</span>
                         {folder.label ? (
-                          <span className="truncate text-xs text-[var(--color-graphite-500)]">
+                          <span className="truncate text-xs text-muted-foreground">
                             {folder.label}
                           </span>
                         ) : null}
@@ -234,7 +234,7 @@ export function FolderGroupDialog({
             </DialogClose>
             <Button
               type="submit"
-              className="h-[var(--control-height)] bg-[var(--color-graphite-900)] px-3 text-white hover:bg-[var(--color-graphite-800)]"
+              className="h-[var(--control-height)] px-3"
             >
               {mode === 'rename' ? 'Rename shelf' : 'Create shelf'}
             </Button>

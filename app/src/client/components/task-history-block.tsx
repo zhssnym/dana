@@ -26,30 +26,23 @@ excluding the account. So the fallback this criterion asserts is the seam
 module's rather than this component's, and it is asserted through a real
 deletion rather than a fixture.
 
-**The instant carries its year, and that is a decision rather than a
-default.** `formatDueDate` is the design's format and takes today as its
-second argument so that a date in this year drops the year; a creation is
-history and may be years old, so it is called with an empty today, which is
-that function's own way of saying "not this year". AC-178 reads the day and
-the year for exactly that reason. The wall clock beside it is 24-hour to
-minute precision, the corpus convention and 4.11's, formatted with a fixed
-locale because this machine's own tooling answers in French and section 9's
-copy is English.
+**The instant is the one formatter's.** `lib/dates.ts` writes the day
+("Today", "Yesterday", "24 Sep", "24 Sep 2025" in another year, so an old
+creation still carries its year) and the wall clock follows the viewer's own
+12/24-hour setting, to the minute.
 */
 
-import { formatDueDate } from '../parts/presenters.js'
+import { formatClockTime, formatDay, type TimeFormat } from '../lib/dates.js'
 import { lineFor, useHistory } from '../lib/history.js'
+import { useTimeFormat } from '../lib/time-format.js'
+import { isoDay } from '../tasks/task-model.js'
 
-/** One instant as this block writes it: the design's date, then the clock. */
-function when(at: number): string {
+/** One instant as this block writes it: the day, then the viewer's clock. */
+function when(at: number, clock: TimeFormat, now = Date.now()): string {
   const date = new Date(at)
-  const civil = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-  const clock = new Intl.DateTimeFormat('en-GB', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).format(date)
-  return `${formatDueDate(civil, '')} at ${clock}`
+  const hh = String(date.getHours()).padStart(2, '0')
+  const mm = String(date.getMinutes()).padStart(2, '0')
+  return `${formatDay(isoDay(date), isoDay(new Date(now)))} at ${formatClockTime(`${hh}:${mm}`, clock)}`
 }
 
 export function TaskHistoryBlock({
@@ -59,6 +52,7 @@ export function TaskHistoryBlock({
   readonly taskId?: string
 }): React.JSX.Element | null {
   const events = useHistory('task', taskId ?? '')
+  const clock = useTimeFormat()
   /*
   polish: taskcard F4. This block drew every event, one line each, and a
   task with twenty step edits ended in a wall of "Edited added a step by …"
@@ -87,7 +81,7 @@ export function TaskHistoryBlock({
           key={event.id}
           className="text-xs text-muted-foreground"
         >
-          {`${lineFor(event)} by ${event.actor} · ${when(event.at)}`}
+          {`${lineFor(event)} by ${event.actor} · ${when(event.at, clock)}`}
         </p>
       ))}
     </div>

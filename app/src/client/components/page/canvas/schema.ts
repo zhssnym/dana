@@ -4,6 +4,9 @@ import { AUDIO_MIMES, RASTER_MIMES, VIDEO_MIMES } from '../../../../shared/files
 import { MAX_SECTION_DEPTH } from '../../../../shared/page-document.js'
 
 import { createCanvasCallout } from './CanvasCallout.js'
+import { formatDate } from '../../../lib/dates.js'
+import { todayInBrowserZone } from '../../../api/tz.js'
+import { isoDay } from '../../../tasks/task-model.js'
 import { createCanvasTaskSpec } from './CanvasTask.js'
 import { createCanvasFolderSpec } from './CanvasFolder.js'
 import { createCanvasParagraph } from './CanvasParagraph.js'
@@ -133,7 +136,7 @@ function withReclaimNotice<T extends { config: { propSchema: object } }>(spec: T
         dom.setAttribute('role', 'group')
         const date = new Date(reclaimedAt)
         const message = document.createElement('p')
-        message.textContent = `This ${noun} was deleted on ${Number.isNaN(date.getTime()) ? 'an earlier date' : date.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}.`
+        message.textContent = `This ${noun} was deleted on ${Number.isNaN(date.getTime()) ? 'an earlier date' : formatDate(isoDay(date), todayInBrowserZone())}.`
         dom.setAttribute('aria-label', message.textContent)
         dom.appendChild(message)
         if (block.props.caption) {

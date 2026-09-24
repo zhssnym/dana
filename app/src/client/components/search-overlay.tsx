@@ -24,6 +24,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react"
 import {
   ArrowRight,
   CalendarDays,
+  Keyboard,
   Search,
   X,
 } from "../lib/icons.js"
@@ -40,7 +41,9 @@ import {
 import { Skeleton } from "./ui/skeleton.js"
 import { cn } from "./ui/utils.js"
 /* Seam 2. */
-import { useSearchAnswer } from "../lib/search-items.js"
+import { SHORTCUTS_RESULT, useSearchAnswer } from "../lib/search-items.js"
+import { formatDay } from "../lib/dates.js"
+import { todayInBrowserZone } from "../api/tz.js"
 
 export type SearchResultStatus = "pending" | "abandoned" | "completed"
 
@@ -95,14 +98,9 @@ const statusLabels: Record<SearchResultStatus, string> = {
   completed: "Completed",
 }
 
+/* "Today", "Tomorrow", "Mon", "24 Sep", "24 Sep 2027": the one formatter. */
 function formatDueDate(value: string) {
-  const date = new Date(`${value}T00:00:00Z`)
-  return new Intl.DateTimeFormat("en-CA", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  }).format(date)
+  return formatDay(value, todayInBrowserZone())
 }
 
 function StatusBadge({ status }: { status: SearchResultStatus }) {
@@ -348,7 +346,11 @@ export function SearchOverlay({
                             {item.kind === "page" || item.kind === "shelf" ? (
                               (() => {
                                 const Glyph =
-                                  item.kind === "shelf" ? Folders : pageGlyph(item.title)
+                                  item.kind === "shelf"
+                                    ? Folders
+                                    : item.id === SHORTCUTS_RESULT
+                                      ? Keyboard
+                                      : pageGlyph(item.title)
                                 return Glyph ? (
                                   <Glyph
                                     className="size-4 shrink-0 text-muted-foreground"

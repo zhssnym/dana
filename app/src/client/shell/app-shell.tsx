@@ -64,9 +64,9 @@ import {
   usePendingInvites,
   useShelves,
 } from '../api/queries.js'
-import { todayInBrowserZone } from '../api/tz.js'
 import { NewFolderDialog } from '../components/index.js'
 import { SearchOverlay } from '../components/search/index.js'
+import { ShortcutsSheet } from '../components/help-sheet.js'
 import { TaskSurfaceHost } from '../components/task-surface-host.js'
 /* The folder table published for the lifted pickers' bare `folderLibrary()`,
    mounted once here because this component is what every /app path renders. */
@@ -82,7 +82,7 @@ import {
 import { InviteGate } from '../pages/InviteGate.js'
 import { useUpdateAffordance } from '../pwa/useUpdateAffordance.js'
 import { paths } from '../routes.js'
-import { placeAt, surfaceDefaults } from '../views/place-pages.js'
+import { placeAt } from '../views/place-pages.js'
 import { effectiveMode, useViewMode } from '../views/view-mode.js'
 import type { ViewMode } from '../views/view-mode.js'
 import { ToastRegion } from '../state/ToastRegion.js'
@@ -107,7 +107,6 @@ import {
   writeSidebarCollapsed,
   writeSidebarWidth,
 } from './preferences.js'
-import type { TaskFormDefaults } from './overlays.js'
 import type { Folder } from '../../shared/folders.js'
 import type { Shelf } from '../../shared/shelves.js'
 
@@ -135,34 +134,16 @@ const WORKFLOW_UNREADABLE = "That file isn't a workflow Dana can read."
 const ALL_VIEWS: readonly ViewMode[] = ['list', 'board', 'calendar']
 
 /**
- * Where the floating button appears (on a phone only; `FloatingAddButton`
- * returns nothing on a laptop), and what it makes there.
- *
- * 9.1 puts it only on "the pages with no capture affordance of their own,
- * Today, Important, and Assignments", and never on Done or Abandoned. Every
- * other page has a quick-add row where its own list begins, so a second control
- * floating over it is two ways to do one thing, forty pixels apart.
- *
- * **And it is absent in board view**: "in board view every column captures and
- * the floating button is absent". The button is the capture point that leaves
- * wherever a capture row already exists, and a column says where the task lands
- * better than any row. The mode is read from the same store the view menu writes,
- * so the shell and the page cannot disagree about which view is showing.
- *
- * **Trash is not in the list and 9.11 is why**: "No capture anywhere on the
- * page." A deleted-things page that offers to make a new thing is offering an
- * act its own subject cannot receive.
- *
- * The defaults are 9.3's entry table, and they are `place-pages.ts`'s rather
- * than this file's, so the button, the quick-add and the board column read one
- * table.
+ * Whether the phone's floating "Add task" shows (`FloatingAddButton` returns
+ * nothing on a laptop). It focuses the page's own "New task" row, so it shows
+ * only on the places whose spine says so, and never in board view, where
+ * every column captures and a column says where the task lands better than
+ * any row. Trash is not a place: no capture there.
  */
-function floatingDefaults(pathname: string, mode: ViewMode): TaskFormDefaults | null {
+function showsFloatingAdd(pathname: string, mode: ViewMode): boolean {
   const spine = placeAt(pathname)
-  if (spine === null || spine.capture !== 'floating') return null
-  if (effectiveMode(mode, spine.views) === 'board') return null
-  const defaults = surfaceDefaults(spine.key, todayInBrowserZone())
-  return { due_date: defaults.due_date, important: defaults.important }
+  if (spine === null || spine.capture !== 'floating') return false
+  return effectiveMode(mode, spine.views) !== 'board'
 }
 
 /** 10.6's update copy, transcribed. AC-100 addresses it by this name. */
@@ -288,7 +269,7 @@ export function AppShell(): React.JSX.Element {
     if (clockPreference !== undefined) adoptClock(clockPreference)
   }, [clockPreference])
   /* The remembered view, unresolved: every mode is passed as offered so this
-     reads the store rather than a page's answer to it, and floatingDefaults
+     reads the store rather than a page's answer to it, and showsFloatingAdd
      resolves it against the page it is actually on. */
   const [remembered] = useViewMode(ALL_VIEWS)
   const groups = useFolderGroupActions(
@@ -443,7 +424,7 @@ export function AppShell(): React.JSX.Element {
     if (signedOut) window.location.replace(paths.landing)
   }, [signedOut])
 
-  const defaults = floatingDefaults(location.pathname, remembered)
+  const floating = showsFloatingAdd(location.pathname, remembered)
   /* The one write path out of a card. See the provider at this component's
      root. */
   const taskPatch = useApiTaskPatch()
@@ -525,6 +506,7 @@ export function AppShell(): React.JSX.Element {
        */}
       <div className="relative z-50">
         <SearchOverlay />
+        <ShortcutsSheet />
       </div>
       {/*
       **A modal task surface takes the page out of the document.**
@@ -616,7 +598,7 @@ export function AppShell(): React.JSX.Element {
                 <Outlet />
               </div>
             </div>
-            {defaults === null ? null : <FloatingAddButton defaults={defaults} />}
+            {floating ? <FloatingAddButton /> : null}
           </SidebarInset>
           {/* 9.1's "New folder" action, and beside it the three surfaces its
               folder groups open: the create dialog, the rename dialog and the
@@ -665,7 +647,7 @@ export function AppShell(): React.JSX.Element {
           Important and Assignments). A notice landing on the control people
           press most is the fault the undo bar's own placement avoids, and this
           is the same rule for the other corner. */}
-      <ToastRegion clearsCapture={defaults !== null} />
+      <ToastRegion clearsCapture={floating} />
       {/* 9.3's form, mounted once and last, for the reason in this file's
           header, and inside the same interim stacking wrapper the search
           overlay carries above. The Complex Interaction engineer owns both. */}

@@ -317,16 +317,15 @@ task surface would have two elements answering to "Important".
 ## The overlay seam
 
 **Settled.** `shell/overlays.ts` is how the chrome asks for the surfaces it does
-not build. The floating add button calls `openTaskForm(defaults)` with the
-entry-point defaults of 9.3; the search control and the Ctrl+K and `/`
-shortcuts call `openSearch()`. `components/task-open.ts`'s
+not build: the search control and the Ctrl+K and `/` shortcuts call
+`openSearch()`. There is no task form: `N`, the phone's floating "Add task"
+and a calendar day each lead to an inline "New task" line. `components/task-open.ts`'s
 `openTask(taskId, { upcoming })` carries an identity and no defaults, because a
 row, a calendar cell and a search result each open a task that exists; the
 `upcoming` flag is 9.5's ghost path and rides that path alone.
 
-**Settled.** The entry-point defaults are the chrome's, because 9.3's table
-keys them by where the person clicked, and they are read from one table,
-`views/place-pages.ts`.
+**Settled.** The entry-point defaults are read from one table,
+`views/place-pages.ts`, by the row that captures.
 
 **Settled.** Both surfaces are mounted once by the shell, because each opens
 over whatever page is beneath it. **The search overlay is first in document

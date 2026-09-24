@@ -40,7 +40,7 @@ import { cn } from "./ui/utils.js"
 
 const T_FAST = "duration-[var(--duration-fast)] ease-[var(--ease-standard)]"
 const FOCUS =
-  "outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)] focus-visible:ring-offset-1"
+  "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
 
 /*
 **The band is full-bleed, and the arithmetic is here rather than at the three
@@ -76,9 +76,13 @@ const FULL_BLEED = { marginInline: "calc(50% - 50cqw)" } as const
 export function PageCover({
   storageName,
   readOnly = false,
+  pickerInMenu = false,
 }: {
   storageName: string
   readOnly?: boolean
+  /** The page's "…" menu already carries "Cover…" (the folder page), so the
+      band offers only Reposition: one home for changing or removing it. */
+  pickerInMenu?: boolean
 }) {
   const identity = useFolderIdentity(storageName)
   const coverPos = identity.coverPos ?? 50
@@ -88,6 +92,9 @@ export function PageCover({
   const dragStart = useRef<{ y: number; pos: number } | null>(null)
 
   if (!cover) return null
+  const repositionable = coverRepositions(identity.cover) && coverStoresPosition(storageName)
+  /* Nothing left to offer on the band: draw only the picture. */
+  const bare = readOnly || (pickerInMenu && !repositionable)
 
   return (
     <div
@@ -140,7 +147,7 @@ export function PageCover({
       />
       {repositioning ? (
         <div className="absolute inset-x-0 top-3 flex justify-center">
-          <span className="rounded-md bg-[var(--color-graphite-900)]/80 px-2.5 py-1 text-[12px] leading-4 font-medium text-white backdrop-blur">
+          <span className="rounded-md bg-foreground/80 px-2.5 py-1 text-xs leading-4 font-medium text-background backdrop-blur">
             Drag to reposition
           </span>
         </div>
@@ -150,7 +157,7 @@ export function PageCover({
           repositioning cannot be entered any other way. Not rendered rather
           than hidden, because `hidden` and `.flex` carry the same specificity
           and the later rule wins. */}
-      {readOnly ? null : (
+      {bare ? null : (
       <div
         className={cn(
           "absolute right-4 bottom-3 flex items-center gap-1 transition-opacity",
@@ -169,7 +176,7 @@ export function PageCover({
                 setRepositioning(false)
               }}
               className={cn(
-                "flex h-7 items-center rounded-md bg-[var(--color-graphite-900)] px-2.5 text-[12px] leading-4 font-medium text-white transition-colors hover:bg-[var(--color-graphite-800)]",
+                "flex h-7 items-center rounded-md bg-foreground px-2.5 text-xs leading-4 font-medium text-background transition-colors hover:bg-foreground/90",
                 T_FAST,
                 FOCUS,
               )}
@@ -183,7 +190,7 @@ export function PageCover({
                 setRepositioning(false)
               }}
               className={cn(
-                "flex h-7 items-center rounded-md border border-[var(--color-graphite-200)] bg-card/95 px-2.5 text-[12px] leading-4 font-medium text-[var(--color-graphite-700)] backdrop-blur transition-colors hover:bg-card",
+                "flex h-7 items-center rounded-md border border-border bg-card/95 px-2.5 text-xs leading-4 font-medium text-section-foreground backdrop-blur transition-colors hover:bg-card",
                 T_FAST,
                 FOCUS,
               )}
@@ -195,16 +202,18 @@ export function PageCover({
           /* One joined group, the reference design's own arrangement:
              Change and Reposition share a border and a divider rather
              than floating as loose chips. */
-          <span className="flex h-7 items-stretch divide-x divide-[var(--color-graphite-200)] overflow-hidden rounded-md border border-[var(--color-graphite-200)] bg-card/95 shadow-[var(--elevation-1)] backdrop-blur">
+          <span className="flex h-7 items-stretch divide-x divide-border overflow-hidden rounded-md border border-border bg-card/95 shadow-[var(--elevation-1)] backdrop-blur">
+            {pickerInMenu ? null : (
+            <>
             <Popover>
               <PopoverTrigger
                 render={
                   <button
                     type="button"
                     className={cn(
-                      "flex items-center gap-1.5 px-2.5 text-[12px] leading-4 font-medium text-[var(--color-graphite-700)] transition-colors hover:bg-[var(--color-graphite-50)]",
+                      "flex items-center gap-1.5 px-2.5 text-xs leading-4 font-medium text-section-foreground transition-colors hover:bg-accent",
                       T_FAST,
-                      "outline-none focus-visible:bg-[var(--color-graphite-100)]",
+                      "outline-none focus-visible:bg-accent",
                     )}
                   >
                     <ImageIcon className="size-3.5 data-[size=sm]:size-3.5" strokeWidth={1.75} aria-hidden="true" />
@@ -237,14 +246,16 @@ export function PageCover({
               type="button"
               onClick={() => savePrototypeFolderIdentity(storageName, { cover: undefined })}
               className={cn(
-                "flex items-center px-2.5 text-[12px] leading-4 font-medium text-[var(--color-graphite-700)] transition-colors hover:bg-[var(--color-graphite-50)]",
+                "flex items-center px-2.5 text-xs leading-4 font-medium text-section-foreground transition-colors hover:bg-accent",
                 T_FAST,
-                "outline-none focus-visible:bg-[var(--color-graphite-100)]",
+                "outline-none focus-visible:bg-accent",
               )}
             >
               Remove
             </button>
-            {coverRepositions(identity.cover) && coverStoresPosition(storageName) ? (
+            </>
+            )}
+            {repositionable ? (
               <button
                 type="button"
                 onClick={() => {
@@ -252,9 +263,9 @@ export function PageCover({
                   setRepositioning(true)
                 }}
                 className={cn(
-                  "flex items-center px-2.5 text-[12px] leading-4 font-medium text-[var(--color-graphite-700)] transition-colors hover:bg-[var(--color-graphite-50)]",
+                  "flex items-center px-2.5 text-xs leading-4 font-medium text-section-foreground transition-colors hover:bg-accent",
                   T_FAST,
-                  "outline-none focus-visible:bg-[var(--color-graphite-100)]",
+                  "outline-none focus-visible:bg-accent",
                 )}
               >
                 Reposition
@@ -298,7 +309,7 @@ export function AddCoverAction({
           <button
             type="button"
             className={cn(
-              "-ml-1.5 flex h-6 items-center gap-1 rounded-md px-1.5 text-[12px] leading-4 text-[var(--color-graphite-400)] transition-[opacity,background-color,color] hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-600)]",
+              "-ml-1.5 flex h-6 items-center gap-1 rounded-md px-1.5 text-xs leading-4 text-quiet-foreground transition-[opacity,background-color,color] hover:bg-accent hover:text-muted-foreground",
               T_FAST,
               FOCUS,
             )}

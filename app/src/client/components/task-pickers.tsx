@@ -72,11 +72,29 @@ import {
   parseDueLabel,
   repeatAnchor,
   repeatSummary,
-  shortDate,
   today,
   type ConceptTask,
 } from "../tasks/task-model.js"
 import { cn } from "./ui/utils.js"
+import { formatDate, formatDay } from "../lib/dates.js"
+import { todayInBrowserZone } from "../api/tz.js"
+
+/* The day beside a preset, from the one formatter: "Sat" for "This weekend"
+   so it says which day it means, and "24 Sep" where the day word would only
+   repeat the preset's own label ("Today", "Tomorrow"). */
+function presetHint(date: Date): string {
+  const now = todayInBrowserZone()
+  const day = formatDay(isoDay(date), now)
+  return day === "Today" || day === "Tomorrow" || day === "Yesterday"
+    ? formatDate(isoDay(date), now)
+    : day
+}
+
+/* The day a reminder's words carry: "24 Sep", never a relative word, since the
+   words are kept and "Tomorrow" would be wrong by the next morning. */
+function reminderDay(date: Date): string {
+  return formatDate(isoDay(date), todayInBrowserZone())
+}
 
 /*
 **A picker closes once its question is answered.**
@@ -431,7 +449,7 @@ export function DuePanel({ task, patch }: PanelProps) {
   const at = task.reminder?.match(/(\d{1,2}:\d{2})/)?.[1] ?? null
   const setAt = (time: string) => {
     const due = task.due ? parseDueLabel(task.due.label) : null
-    patch(task.id, { reminder: due ? `${shortDate(due)} at ${time}` : `at ${time}` })
+    patch(task.id, { reminder: due ? `${reminderDay(due)} at ${time}` : `at ${time}` })
     put.mutate({ taskId: task.id, body: { offset_minutes: null, time_of_day: time } })
   }
   const clearAt = () => {
@@ -497,7 +515,7 @@ export function DuePanel({ task, patch }: PanelProps) {
             finishes
             key={preset.label}
             label={preset.label}
-            hint={shortDate(preset.date)}
+            hint={presetHint(preset.date)}
             active={sameDay(selected, preset.date)}
             onSelect={() => set(preset.date)}
           />
@@ -594,7 +612,7 @@ export function ReminderPanel({ task, patch }: PanelProps) {
      `reminderChipValue` reads back and re-clocks for the viewer. The day is
      the task's own, 4.8's time_of_day mode being a time on the due date. */
   const wordsFor = (time: string) =>
-    due ? `${shortDate(due)} at ${time}` : `at ${time}`
+    due ? `${reminderDay(due)} at ${time}` : `at ${time}`
 
   /* 4.8's two modes are exclusive and 9.3 takes the second: "one picker, a
      time on that day, writing 4.8's time_of_day mode". So the body carries a

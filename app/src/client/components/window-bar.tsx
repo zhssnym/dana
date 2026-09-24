@@ -147,7 +147,7 @@ export function WindowActivity({ events }: { events: HistoryEvent[] }) {
   */
   return (
     <span
-      className="flex h-7 items-center px-2 text-[12px] leading-4 text-[var(--color-graphite-500)]"
+      className="flex h-7 items-center px-2 text-xs leading-4 text-muted-foreground"
       title={`${verbFor(newest)} ${whenFor(newest.at).toLowerCase()} by ${newest.actor}`}
     >
       {verbFor(newest)} {agoFor(newest.at)}
@@ -165,7 +165,7 @@ export function WindowActivityPopover({ events }: { events: HistoryEvent[] }) {
         render={
           <button
             type="button"
-            className="flex h-7 items-center rounded-md px-2 text-[12px] leading-4 text-[var(--color-graphite-500)] transition-colors duration-[var(--duration-fast)] ease-[var(--ease-standard)] outline-none hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-700)] focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)]"
+            className="flex h-7 items-center rounded-md px-2 text-xs leading-4 text-muted-foreground transition-colors duration-[var(--duration-fast)] ease-[var(--ease-standard)] outline-none hover:bg-accent hover:text-section-foreground focus-visible:ring-2 focus-visible:ring-ring"
           >
             {/*
             The resting line names the act that actually happened, rather than
@@ -181,7 +181,7 @@ export function WindowActivityPopover({ events }: { events: HistoryEvent[] }) {
         }
       />
       <PopoverContent align="end" className="w-72 p-1.5">
-        <p className="px-2 pt-1 pb-1.5 text-[12px] leading-4 font-medium text-[var(--color-graphite-500)]">
+        <p className="px-2 pt-1 pb-1.5 text-xs leading-4 font-medium text-muted-foreground">
           Activity
         </p>
         {events.slice(0, 8).map((event) => (
@@ -191,13 +191,13 @@ export function WindowActivityPopover({ events }: { events: HistoryEvent[] }) {
           >
             {/* One sentence, the person first: "Hassan added a step 'Plates'",
                 from `lib/history.ts`'s `storyFor`. */}
-            <span className="min-w-0 flex-1 truncate text-[13px] leading-5 text-[var(--color-graphite-700)]">
-              <span className="font-medium text-[var(--color-graphite-900)]">
+            <span className="min-w-0 flex-1 truncate text-sm leading-5 text-section-foreground">
+              <span className="font-medium text-foreground">
                 {event.actor}
               </span>{" "}
               {storyFor(event).slice(event.actor.length + 1)}
             </span>
-            <span className="shrink-0 text-[12px] leading-4 text-[var(--color-graphite-400)]">
+            <span className="shrink-0 text-xs leading-4 text-quiet-foreground">
               {whenFor(event.at)}
             </span>
           </div>

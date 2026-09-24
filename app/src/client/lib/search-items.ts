@@ -43,8 +43,15 @@ export interface SearchAnswer {
 }
 
 /** 9.1's page block as rows to go to. */
+/** The one command search offers besides places: the shortcuts sheet, whose
+    other door is `?`. Its id is not a path; the overlay's opener checks it. */
+export const SHORTCUTS_RESULT = '#keyboard-shortcuts'
+
 export function placeItems(): SearchResultItem[] {
-  return navPages.map((place) => ({ kind: 'page', id: place.path, title: place.name, hint: '' }))
+  return [
+    ...navPages.map((place): SearchResultItem => ({ kind: 'page', id: place.path, title: place.name, hint: '' })),
+    { kind: 'page', id: SHORTCUTS_RESULT, title: 'Keyboard shortcuts', hint: '' },
+  ]
 }
 
 export function useSearchAnswer(query: string, open: boolean): SearchAnswer {

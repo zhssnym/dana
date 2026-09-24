@@ -77,7 +77,7 @@ export function NewFolderDialog({
       <DialogContent>
         <form onSubmit={submit}>
           <DialogHeader>
-            <div className="mb-2 flex size-9 items-center justify-center rounded-lg bg-[var(--color-graphite-100)] text-[var(--color-graphite-700)]">
+            <div className="mb-2 flex size-9 items-center justify-center rounded-lg bg-accent text-section-foreground">
               <FolderPlus className="size-5" strokeWidth={1.75} aria-hidden="true" />
             </div>
             <DialogTitle>New folder</DialogTitle>
@@ -89,7 +89,7 @@ export function NewFolderDialog({
           </DialogHeader>
 
           <div className="mt-4">
-            <label htmlFor="new-folder-name" className="mb-1.5 block text-xs font-medium text-[var(--color-graphite-700)]">
+            <label htmlFor="new-folder-name" className="mb-1.5 block text-xs font-medium text-section-foreground">
               Folder name
             </label>
             <Input
@@ -118,7 +118,7 @@ export function NewFolderDialog({
             >
               Cancel
             </DialogClose>
-            <Button type="submit" className="h-[var(--control-height)] bg-[var(--color-graphite-900)] px-3 text-white hover:bg-[var(--color-graphite-800)]">
+            <Button type="submit" className="h-[var(--control-height)] px-3">
               Create folder
             </Button>
           </DialogFooter>

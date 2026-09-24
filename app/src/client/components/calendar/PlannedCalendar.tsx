@@ -60,7 +60,6 @@ import { useUpdateTask } from '../../api/mutations.js'
 import { showToast } from '../../state/toasts.js'
 import { formatDueDate, presenterToday } from '../../parts/presenters.js'
 import { movableEnd } from '../../parts/schedule.js'
-import { openTaskForm } from '../../shell/overlays.js'
 import { InlineError } from '../state-patterns.js'
 import { Button } from '../ui/button.js'
 import { cn } from '../ui/utils.js'
@@ -220,6 +219,7 @@ function DayCell({
   events,
   onReveal,
   onDropTask,
+  onCreate,
 }: {
   readonly date: string
   readonly zoom: Zoom
@@ -232,8 +232,11 @@ function DayCell({
   readonly onReveal: () => void
   /** A row dropped here takes this date. */
   readonly onDropTask: (taskId: string) => void
+  /** Makes a task due on this day; absent, the cell makes nothing. */
+  readonly onCreate?: (title: string) => void
 }): React.JSX.Element {
   const [over, setOver] = useState(false)
+  const [drafting, setDrafting] = useState(false)
   /*
   The control takes the last line rather than a line of its own, so a cell
   that overflows is exactly as tall as one that does not. Reserving a line
@@ -278,22 +281,23 @@ function DayCell({
       }}
     >
       {/*
-      The whole cell opens the form at this date: 9.5's "click on empty cell
-      opens the form with that date", and 9.3's calendar row gives it that
-      date, important off and Inbox, which the form resolves from the folder
-      list as it does everywhere that table writes "Inbox". A button rather
-      than a click handler on the cell, so the affordance is reachable by
-      keyboard and announces what it does; it is painted beneath the rows, so
-      a click on a row opens that task and never the form.
+      The whole cell makes a task on this date, in place: 9.5's "click on empty
+      cell" with that date as the due date. It opens a "New task" line inside
+      the cell, the same inline row every list ends in, so there is no form to
+      leave. A button rather than a click handler on the cell, so the
+      affordance is reachable by keyboard and announces what it does; it is
+      painted beneath the rows, so a click on a row opens that task.
       */}
-      <button
-        type="button"
-        className="absolute inset-0 z-0 rounded-none text-left outline-none transition-colors hover:bg-muted/70 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/30"
-        aria-label={`Create task on ${formatDueDate(date, today)}`}
-        onClick={() => {
-          openTaskForm({ due_date: date, important: false })
-        }}
-      />
+      {onCreate === undefined ? null : (
+        <button
+          type="button"
+          className="absolute inset-0 z-0 rounded-none text-left outline-none transition-colors hover:bg-muted/70 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/30"
+          aria-label={`New task on ${formatDueDate(date, today)}`}
+          onClick={() => {
+            setDrafting(true)
+          }}
+        />
+      )}
 
       <div className="pointer-events-none relative z-10 mb-1.5 flex h-6 items-center justify-between">
         <span
@@ -340,6 +344,15 @@ function DayCell({
             }}
           />
         ))}
+        {drafting && onCreate !== undefined ? (
+          <CellDraft
+            label={`New task on ${formatDueDate(date, today)}`}
+            onAdd={onCreate}
+            onDone={() => {
+              setDrafting(false)
+            }}
+          />
+        ) : null}
         {hidden > 0 ? (
           <button
             type="button"
@@ -354,7 +367,60 @@ function DayCell({
   )
 }
 
-export function PlannedCalendar(): React.JSX.Element {
+/** The in-cell "New task" line: Enter makes it, Escape or leaving empty closes it. */
+function CellDraft({
+  label,
+  onAdd,
+  onDone,
+}: {
+  readonly label: string
+  readonly onAdd: (title: string) => void
+  readonly onDone: () => void
+}): React.JSX.Element {
+  const [title, setTitle] = useState('')
+  /* Enter, Escape and blur each end the line; only the first one counts. */
+  const ended = useRef(false)
+  function end(keep: boolean): void {
+    if (ended.current) return
+    ended.current = true
+    const next = title.trim()
+    if (keep && next !== '') onAdd(next)
+    onDone()
+  }
+  return (
+    <input
+      autoFocus
+      value={title}
+      maxLength={300}
+      placeholder="New task"
+      aria-label={label}
+      className="h-5 w-full min-w-0 rounded-sm bg-background px-1.5 text-xs text-foreground outline-none ring-1 ring-border placeholder:text-muted-foreground"
+      onChange={(event) => {
+        setTitle(event.target.value)
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault()
+          end(true)
+        } else if (event.key === 'Escape') {
+          event.preventDefault()
+          event.stopPropagation()
+          end(false)
+        }
+      }}
+      onBlur={() => {
+        end(true)
+      }}
+    />
+  )
+}
+
+export function PlannedCalendar({
+  onCreate,
+}: {
+  /** Makes a task due on the given day; the page supplies its own capture. */
+  readonly onCreate?: (title: string, date: string) => void
+} = {}): React.JSX.Element {
   const today = presenterToday()
   /*
   The zoom is the account's (#140, #142), as 9.5 says it persists.
@@ -596,6 +662,13 @@ export function PlannedCalendar(): React.JSX.Element {
                   onDropTask={(taskId) => {
                     moveTaskTo(taskId, date)
                   }}
+                  {...(onCreate === undefined
+                    ? {}
+                    : {
+                        onCreate: (title: string) => {
+                          onCreate(title, date)
+                        },
+                      })}
                 />
               ))}
             </div>

@@ -18,6 +18,9 @@ Can comment+, read here from the viewer's own `my_access` on the Folder.
 still the authority, and a refused write refetches the rounds so the screen
 catches up with whatever made it refuse (another member's round, a resolve).
 */
+import { formatDate } from '../../lib/dates.js'
+import { todayInBrowserZone } from '../../api/tz.js'
+import { isoDay } from '../../tasks/task-model.js'
 import { useState } from 'react'
 
 import { X } from 'lucide-react'
@@ -75,12 +78,11 @@ interface Person {
 
 type People = (id: string) => Person
 
+/* "24 Sep", or "24 Sep 2025" in another year: the one formatter, on this machine's day. */
 function shortDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: new Date(iso).getFullYear() === new Date().getFullYear() ? undefined : 'numeric',
-  })
+  const at = new Date(iso)
+  if (Number.isNaN(at.getTime())) return ''
+  return formatDate(isoDay(at), todayInBrowserZone())
 }
 
 export function InputRoundsPanel(props: {

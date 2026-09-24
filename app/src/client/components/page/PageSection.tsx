@@ -70,9 +70,9 @@ import { ChevronRight } from '../../lib/icons.js'
 export type HeadingTone = 'section' | 'page' | 'day'
 
 const HEADING_CLASS: Record<HeadingTone, string> = {
-  section: 'truncate text-[13px] leading-6 font-semibold text-section-foreground',
+  section: 'truncate text-sm leading-6 font-semibold text-section-foreground',
   page: 'truncate text-base leading-6 font-semibold text-foreground',
-  day: 'truncate text-[13px] leading-6 font-semibold text-section-foreground',
+  day: 'truncate text-sm leading-6 font-semibold text-section-foreground',
 }
 
 /** The band the heading sits on, the one thing the three tones differ in. */
@@ -145,7 +145,7 @@ export function PageSection({
           {count === undefined ? null : (
             <span
               aria-hidden="true"
-              className="shrink-0 text-[12px] leading-4 font-normal text-quiet-foreground tabular-nums"
+              className="shrink-0 text-xs leading-4 font-normal text-quiet-foreground tabular-nums"
             >
               {count}
             </span>
@@ -199,7 +199,7 @@ export function CollapsibleSection({
       <h2>
         <button
           type="button"
-          className="group/collapse flex h-[var(--control-height)] w-full items-center gap-1.5 rounded-md px-2 text-[13px] font-semibold text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:outline-none"
+          className="group/collapse flex h-[var(--control-height)] w-full items-center gap-1.5 rounded-md px-2 text-sm font-semibold text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:outline-none"
           aria-expanded={open}
           onClick={() => {
             const next = !open

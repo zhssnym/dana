@@ -373,9 +373,9 @@ function ShelfEditor({ shelfId, page, initialPage, folders, addableFolders, fold
             type="button"
             onClick={() => { anchor.current = null }}
             className={cn(
-              'flex h-[var(--control-height)] w-full items-center gap-3 rounded-md px-2 text-left text-sm text-[var(--color-graphite-500)] transition-colors outline-none',
-              'hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-700)]',
-              'focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)] data-popup-open:bg-[var(--color-graphite-50)]',
+              'flex h-[var(--control-height)] w-full items-center gap-3 rounded-md px-2 text-left text-sm text-muted-foreground transition-colors outline-none',
+              'hover:bg-accent hover:text-section-foreground',
+              'focus-visible:ring-2 focus-visible:ring-ring data-popup-open:bg-accent',
             )}
           />
         }

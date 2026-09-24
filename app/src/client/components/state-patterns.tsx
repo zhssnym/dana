@@ -132,12 +132,12 @@ export function SystemToast({
       role="status"
       aria-live="polite"
       className={cn(
-        'fixed z-50 flex min-h-12 w-[360px] items-center gap-3 rounded-lg bg-[var(--color-graphite-900)] px-3.5 py-2.5 text-sm text-white shadow-[var(--elevation-2)]',
+        'fixed z-50 flex min-h-12 w-[360px] items-center gap-3 rounded-lg bg-foreground px-3.5 py-2.5 text-sm text-background shadow-[var(--elevation-2)]',
         className,
       )}
     >
       <Icon
-        className="size-4 shrink-0 text-[var(--color-graphite-300)]"
+        className="size-4 shrink-0 text-background/70"
         strokeWidth={1.75}
         aria-hidden="true"
       />
@@ -146,7 +146,7 @@ export function SystemToast({
         <Button
           variant="ghost"
           size="icon-sm"
-          className="shrink-0 text-[var(--color-graphite-300)] hover:bg-white/10 hover:text-white"
+          className="shrink-0 text-background/70 hover:bg-background/10 hover:text-background"
           aria-label="Dismiss message"
           onClick={onDismiss}
         >
@@ -196,7 +196,7 @@ export function EmptyState({
     <div className="rounded-lg border border-border bg-card p-4">
       <p className="text-xs font-medium text-muted-foreground">{label}</p>
       <Empty className="min-h-36 p-6">
-        <EmptyMedia className="text-[var(--color-graphite-400)]">
+        <EmptyMedia className="text-quiet-foreground">
           <Icon className="size-8" strokeWidth={1.75} aria-hidden="true" />
         </EmptyMedia>
         <EmptyHeader>
