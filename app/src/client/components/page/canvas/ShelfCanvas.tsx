@@ -21,7 +21,7 @@ What a Shelf document is, and so what this adapter does on top of the shared one
   the membership (`folder_members.shelf_name`), position is the document: a
   stored row whose folder has left the Shelf is not drawn and is deleted by the
   next save; a member with no row is drawn after the content and written by the
-  next save. A row leaves only through Remove from shelf — the guard below
+  next save. A row leaves only through Remove from collection — the guard below
   refuses a generic delete, a paste that places a folder twice, and an undo
   that would place a folder that is no longer on the Shelf.
 */
@@ -66,7 +66,7 @@ interface Props {
 const NO_REFS: ReadonlyMap<string, string> = new Map()
 
 /** The one error "Load latest" answers besides a failed save. */
-const CHANGED_ELSEWHERE = 'This shelf changed elsewhere. Your writing is kept here. Load the latest to continue; your writing will be offered back.'
+const CHANGED_ELSEWHERE = 'This collection changed elsewhere. Your writing is kept here. Load the latest to continue; your writing will be offered back.'
 
 /** The page as the shared hydrator reads it: stale Folder rows dropped, each
  * root block grouped under the section before it, and each nested block left
@@ -245,11 +245,11 @@ function ShelfEditor({ shelfId, page, initialPage, folders, folderHref, onOpenFo
     const had = new Set(before)
     const has = new Set(after)
     const failure = before.some((id) => !has.has(id) && !sanctioned.current.has(id))
-      ? 'A folder leaves this shelf only through Remove from shelf, in its row\'s menu. Select only the writing to delete it.'
+      ? 'A folder leaves this collection only through Remove from collection, in its row\'s menu. Select only the writing to delete it.'
       : after.length !== new Set(after).size
-        ? 'A folder can be placed on a shelf once.'
+        ? 'A folder can be placed in a collection once.'
         : after.some((id) => !had.has(id) && !members.current.has(id) && !sanctioned.current.has(id))
-          ? 'That folder is no longer on this shelf. Move it here from the sidebar.'
+          ? 'That folder is no longer in this collection. Move it here from the sidebar.'
           : null
     if (failure === null) return
     setNotice(failure)
@@ -333,7 +333,7 @@ function ShelfEditor({ shelfId, page, initialPage, folders, folderHref, onOpenFo
       const latest = await getPlain(getPageResponse, `/shelves/${shelfId}/page`)
       queryClient.setQueryData(queryKeys.shelfPage(shelfId), latest)
       onCheckpoint(latest)
-    } catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not reload the shelf.') }
+    } catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not reload the collection.') }
   }
 
   const bridge = useMemo(() => ({ byId: new Map(folders.map((folder) => [folder.id, folder])), href: folderHref, open: onOpenFolder }), [folders, folderHref, onOpenFolder])
@@ -349,7 +349,7 @@ function ShelfEditor({ shelfId, page, initialPage, folders, folderHref, onOpenFo
         editor={editor}
         onChange={changed}
         folderRefs={NO_REFS}
-        label="Shelf writing and folders"
+        label="Collection writing and folders"
         flatGroups
         onUploadFile={uploadCanvasFile}
         onRemoveFolder={(folderId) => { void remove(folderId) }}

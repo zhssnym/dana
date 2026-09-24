@@ -73,7 +73,7 @@ export function CanvasSurface({
   readonly headingMode?: HeadingMode
   readonly editable?: boolean
   readonly label?: string
-  /** A Shelf's Remove from shelf, offered on its Folder rows (#221). */
+  /** A Collection's (Shelf's) Remove from collection, offered on its Folder rows (#221). */
   readonly onRemoveFolder?: (folderId: string) => void
   /** A Shelf stores its headings flat, content belonging by position: one
    * heading level, and no "out of group" gestures a reload would undo. */
@@ -131,7 +131,7 @@ export function CanvasSurface({
          the membership act and never through generic Delete. */
       if (block.type === 'danaFolder') {
         const folderId = String(block.props.folderId)
-        return onRemoveFolder ? { label: 'Remove from shelf', run: () => { onRemoveFolder(folderId) } } : null
+        return onRemoveFolder ? { label: 'Remove from collection', run: () => { onRemoveFolder(folderId) } } : null
       }
       // A Task's Delete is the task's own act: its confirmation, then undo.
       if (block.type === 'danaTask') {
