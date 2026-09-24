@@ -24,6 +24,13 @@ ones section 7 names.
 import { useMutation } from '@tanstack/react-query'
 import type { UseMutationResult } from '@tanstack/react-query'
 
+import { inputRoundSchema } from '../../shared/consultation-input.js'
+import type {
+  InputRound,
+  OpenInputRoundBody,
+  PutInputResponseBody,
+} from '../../shared/consultation-input.js'
+
 import {
   deleteFolderResponse,
   folder,
@@ -1095,5 +1102,62 @@ export function useRemoveSample(): UseMutationResult<string[], Error, void> {
 export function useRestoreSample(): UseMutationResult<SampleStatus, Error, void> {
   return useMutation({
     mutationFn: () => mutateApi(sampleStatus, { method: 'POST', path: '/sample' }),
+  })
+}
+
+/* ------------------------------------------------------------------ *
+ * Consultation input rounds (7.29, #321)
+ * ------------------------------------------------------------------ */
+
+/** POST /discussions/:id/input-rounds. 409 when one is already open or the
+ * Discussion is resolved or in Trash; the toast carries the server's words. */
+export function useOpenInputRound(
+  discussionId: string,
+): UseMutationResult<InputRound, Error, OpenInputRoundBody> {
+  return useMutation({
+    mutationFn: (body) =>
+      mutateApi(inputRoundSchema, {
+        method: 'POST',
+        path: `/discussions/${discussionId}/input-rounds`,
+        body,
+      }),
+    meta: { [VALIDATION_ERROR_TOAST_META]: true },
+  })
+}
+
+/** POST /input-rounds/:id/close. */
+export function useCloseInputRound(): UseMutationResult<InputRound, Error, string> {
+  return useMutation({
+    mutationFn: (roundId) =>
+      mutateApi(inputRoundSchema, {
+        method: 'POST',
+        path: `/input-rounds/${roundId}/close`,
+        body: {},
+      }),
+  })
+}
+
+/** PUT /input-rounds/:id/response: submit or change the viewer's own. */
+export function usePutInputResponse(): UseMutationResult<
+  InputRound,
+  Error,
+  { readonly roundId: string; readonly body: PutInputResponseBody }
+> {
+  return useMutation({
+    mutationFn: ({ roundId, body }) =>
+      mutateApi(inputRoundSchema, {
+        method: 'PUT',
+        path: `/input-rounds/${roundId}/response`,
+        body,
+      }),
+    meta: { [VALIDATION_ERROR_TOAST_META]: true },
+  })
+}
+
+/** DELETE /input-rounds/:id/response: withdraw the viewer's own (204). */
+export function useWithdrawInputResponse(): UseMutationResult<void, Error, string> {
+  return useMutation({
+    mutationFn: (roundId) =>
+      mutateApi(null, { method: 'DELETE', path: `/input-rounds/${roundId}/response` }),
   })
 }

@@ -14,8 +14,8 @@ No consultation facet found (or its read failed) still navigates, without
 */
 import { Navigate, useParams } from 'react-router'
 
-import { useDiscussion, useOutcome } from '../api/consultation.js'
-import { useFolderFacets } from '../api/queries.js'
+import { useOutcome } from '../api/consultation.js'
+import { useDiscussion, useFolderFacets } from '../api/queries.js'
 import { PageBody } from '../components/page/PageStates.js'
 import { paths } from '../routes.js'
 
@@ -44,7 +44,7 @@ function ToFolder(props: {
 
 export function DiscussionLinkPage(): React.JSX.Element {
   const { id = '' } = useParams<{ id: string }>()
-  const read = useDiscussion(id === '' ? null : id)
+  const read = useDiscussion(id)
   if (read.isPending) return <Opening />
   return (
     <PageBody query={read} isEmpty={false} emptyCopy="">

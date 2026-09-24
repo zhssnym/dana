@@ -17,7 +17,9 @@
 }
 .dana-writing-canvas .bn-editor { padding: 0; background: transparent; }
 .dana-writing-canvas .bn-editor { font-family: var(--font-family-sans); font-size: var(--text-body-size); line-height: var(--text-body-line); }
-.dana-writing-canvas .bn-block-group .bn-block-group { margin-inline-start: 0; }
+.dana-writing-canvas .bn-block:has(> .bn-block-content[data-content-type='heading']) > .bn-block-group {
+  margin-inline-start: 0;
+}
 .dana-writing-canvas [data-content-type='heading'] .bn-inline-content {
   font-family: var(--font-family-sans);
   font-weight: var(--font-weight-semibold);
@@ -32,6 +34,11 @@
   --level: var(--text-heading-size);
   font-size: var(--text-heading-size);
   line-height: var(--text-heading-line);
+}
+.dana-writing-canvas [data-content-type='heading'][data-level='3'] {
+  --level: var(--text-body-size);
+  font-size: var(--text-body-size);
+  line-height: var(--text-body-line);
 }
 .dana-writing-canvas .bn-side-menu button svg,
 .dana-writing-canvas .bn-toggle-button svg {
@@ -55,44 +62,49 @@
   right: calc(100% + var(--spacing) * 2);
   color: var(--muted-foreground);
 }
+.dana-writing-canvas .dana-callout {
+  display: flex;
+  min-height: var(--control-height);
+  align-items: flex-start;
+  border-left: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--muted);
+  padding: calc(var(--spacing) * 2) calc(var(--spacing) * 3);
+}
+.dana-writing-canvas [data-content-type='codeBlock'] {
+  font-size: var(--text-sm);
+}
 .dana-writing-canvas [data-content-type='danaTask'] > div,
 .dana-writing-canvas [data-canvas-task-id] { width: 100%; min-width: 0; }
-/*
-A Task block that draws nothing occupies nothing.
-
-`CanvasTask.tsx` marks the blank states — a finished Task, and the moment
-before the by-id read has answered. Without these two rules the block is still
-6px of blank line in the middle of the writing, because `.bn-block-content` is
-`display: flex` with `padding: 3px 0` in `@blocknote/core/dist/style.css`, and
-6px is enough to hover: the side menu came up on it, offering Move up, Move
-down, Move out of group and Move into previous group on a block nobody can see.
-
-Two rules and not one, because the padding is the parent's. `:has()` is how a
-child's state reaches it, and it is the same selector BlockNote's own
-stylesheet uses in this build. The marker is a data attribute rather than a
-class so that nothing here has to agree with a Tailwind utility list.
-
-Zero height rather than `display: none`, deliberately: the element stays in the
-box tree with its real position, which is the conservative choice next to
-ProseMirror's own measurement of block DOM, and a zero-height box takes no
-pointer events either way.
-
-Measured after the change, on the running page. The block reads
-`bn-block-outer` 0, `bn-block-content` 0, computed padding `0px`, the drawn
-Task blocks either side of it unchanged at 52 and `3px 0px`.
-
-**It can no longer be the hovered block, and that was checked by acting rather
-than by looking**, because a side menu *does* still come up when the pointer is
-at its y — a zero-height block shares that y with its neighbour. What the menu
-belongs to is the question, and "Move down" from it moved the **neighbour**.
-The same gesture over a drawn block still moves that block, past this one, so
-the collapsed block remains a real sibling in the order, which it has to be
-while it holds a real `page_position`.
-*/
-.dana-writing-canvas [data-canvas-task-blank] { height: 0; overflow: hidden; }
-.dana-writing-canvas [data-content-type='danaTask']:has(> [data-canvas-task-blank]) { padding-block: 0; }
+/* A finished Task's slim line (#315) and the guard's refusal outline (#314). */
+.dana-writing-canvas [data-canvas-task-done] { padding-block: 2px; }
+.dana-writing-canvas [data-canvas-task-done] a { color: var(--muted-foreground); text-decoration: none; }
+.dana-writing-canvas [data-canvas-task-done] a:hover { text-decoration: underline; }
+.dana-writing-canvas [data-canvas-task-refused] { outline: 2px solid var(--destructive); outline-offset: 2px; border-radius: 4px; }
 .dana-writing-canvas .bn-drag-handle-menu { font-size: var(--text-body-size); line-height: var(--text-body-line); }
 .dana-writing-canvas img { max-width: 100%; height: auto; }
 @media (max-width: 480px) {
   .dana-writing-canvas { padding-left: calc(var(--spacing) * 14); }
 }
+/* Issue #267: a picture whose file was reclaimed, told apart from an empty frame. */
+.dana-writing-canvas .dana-reclaimed-image {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--spacing) * 2);
+  width: 100%;
+  padding: calc(var(--spacing) * 4);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  color: var(--muted-foreground);
+}
+.dana-writing-canvas .dana-reclaimed-image p { margin: 0; }
+.dana-writing-canvas .dana-reclaimed-image p:first-child { color: var(--foreground); }
+.dana-writing-canvas .dana-reclaimed-image-caption { font-style: italic; }
+.dana-writing-canvas .dana-reclaimed-image div { display: flex; gap: calc(var(--spacing) * 3); }
+.dana-writing-canvas .dana-reclaimed-image button {
+  color: var(--foreground);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.dana-writing-canvas .dana-reclaimed-image button:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }

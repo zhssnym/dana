@@ -37,6 +37,7 @@ export const queryKeys = {
   shelf: (id: string) => ['shelves', id] as const,
   folderPage: (id: string) => ['folders', id, 'page'] as const,
   folderFacets: (id: string) => ['folders', id, 'facets'] as const,
+  facetLocation: (facetId: string) => ['facets', facetId, 'location'] as const,
   facetPage: (folderId: string, facetId: string) =>
     ['folders', folderId, 'facets', facetId, 'page'] as const,
   shelfPage: (id: string) => ['shelves', id, 'page'] as const,
@@ -60,11 +61,15 @@ export const queryKeys = {
    * nothing is currently wearing (#227 area 4). */
   folderLabels: (id: string) => ['folders', id, 'labels'] as const,
 
+  /** One Discussion (7.27's GET /discussions/:id). */
+  discussion: (id: string) => ['discussions', id] as const,
+  /** A Discussion's input rounds, newest first (7.29, #321). */
+  inputRounds: (discussionId: string) =>
+    ['discussions', discussionId, 'input-rounds'] as const,
   /* 7.28's Consultation (#320). The list is keyed by its filter so an open
      and a resolved list are separate pages of the cache. */
   discussions: (folderId: string, state: string, q: string) =>
     ['folders', folderId, 'discussions', state, q] as const,
-  discussion: (id: string) => ['discussions', id] as const,
   discussionOutcomes: (id: string) => ['discussions', id, 'outcomes'] as const,
   discussionThread: (id: string) => ['discussions', id, 'thread'] as const,
   outcome: (id: string) => ['outcomes', id] as const,

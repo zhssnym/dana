@@ -15,7 +15,6 @@ import { useMemo, useState } from 'react'
 import { ArrowLeft, CheckCircle2, Lock } from 'lucide-react'
 
 import {
-  useDiscussion,
   useDiscussionOutcomes,
   useDiscussionThread,
   usePostDiscussionComment,
@@ -25,6 +24,7 @@ import {
 } from '../../api/consultation.js'
 import { ApiError, uploadFile } from '../../api/http.js'
 import { useDeleteComment, usePatchComment, useSetCommentLike } from '../../api/mutations.js'
+import { useDiscussion } from '../../api/queries.js'
 import { folderGates } from '../../lib/folder-authority.js'
 import { applyThreadChange, commentFileKind, useConceptThread } from '../../lib/thread.js'
 import type { PersonResolver, ThreadAuthority } from '../../lib/thread.js'

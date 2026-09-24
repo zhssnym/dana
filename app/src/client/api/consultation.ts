@@ -77,15 +77,7 @@ export function useDiscussions(
   })
 }
 
-/** GET /discussions/:id, with `current_outcome` inline. */
-export function useDiscussion(id: string | null): UseQueryResult<Discussion> {
-  return useQuery({
-    queryKey: queryKeys.discussion(id ?? ''),
-    queryFn: () => getPlain(discussionSchema, `/discussions/${id}`),
-    enabled: id !== null,
-    refetchInterval: id !== null ? POLL_MS : false,
-  })
-}
+/* GET /discussions/:id is `useDiscussion` in queries.ts (FE06's, shared). */
 
 /** GET /discussions/:id/outcomes: every Outcome, newest first. */
 export function useDiscussionOutcomes(

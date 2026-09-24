@@ -4,9 +4,10 @@ import { BlockNoteEditor } from '@blocknote/core'
 import { useQueryClient } from '@tanstack/react-query'
 import '@blocknote/shadcn/style.css'
 import type { PageView } from '../../../../shared/pages.js'
+import { AUDIO_MIMES, RASTER_MIMES, VIDEO_MIMES } from '../../../../shared/files.js'
 import { getPageResponse } from '../../../../shared/pages.js'
 import { documentTransaction } from '../../../../shared/page-document.js'
-import { getPlain, mutateApi, uploadFile } from '../../../api/http.js'
+import { getPlain, mutateApi, uploadFile as uploadDanaFile } from '../../../api/http.js'
 import { queryKeys } from '../../../api/keys.js'
 import { Button } from '../../ui/button.js'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog.js'
@@ -14,6 +15,7 @@ import { Input } from '../../ui/input.js'
 import { CanvasErrorBoundary } from './CanvasErrorBoundary.js'
 import { CanvasTaskProvider } from './CanvasTask.js'
 import { CanvasSurface } from './CanvasSurface.js'
+import type { CanvasMediaKind, CanvasUploadedFile } from './CanvasFilePanel.js'
 import { canvasSchema } from './schema.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
 import { baselineOf, dehydrateCanvas, folderRefsOf, hydrateCanvas, mergeWorkDocument, richRuns, workPageOf } from './adapters.js'
@@ -27,9 +29,11 @@ interface Props extends Pick<Rows, 'tasks' | 'context' | 'actions' | 'onAsk'> {
   readonly page: PageView
   readonly folderId: string
   readonly arrangeable: boolean
-  /** A blank facet owns a document but no Tasks or Sections. Work facets
-   * continue to use the Folder page and never pass this id. */
+  /** A facet with its own document passes this id. Work facets continue to
+   * use the Folder page and never pass it. */
   readonly facetId?: string
+  /** Purpose headings change document typography only; they never create Work Sections. */
+  readonly presentationHeadings?: boolean
   readonly workRootId?: string
 }
 
@@ -41,7 +45,7 @@ export default function FolderCanvas(props: Props): React.JSX.Element {
   </CanvasErrorBoundary>
 }
 
-function PersistedCanvas({ page, initialPage, folderId, facetId, workRootId, tasks, context, actions, onAsk, arrangeable, onCheckpoint }: Props & {
+function PersistedCanvas({ page, initialPage, folderId, facetId, presentationHeadings, workRootId, tasks, context, actions, onAsk, arrangeable, onCheckpoint }: Props & {
   readonly initialPage: PageView
   readonly onCheckpoint: (page: PageView) => void
 }): React.JSX.Element {
@@ -49,12 +53,12 @@ function PersistedCanvas({ page, initialPage, folderId, facetId, workRootId, tas
   const host = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState<number | null>(null)
   useEffect(() => { setWidth(host.current?.clientWidth || 600) }, [])
-  return <div ref={host} className="min-w-0">{width === null ? <p role="status">Loading writing…</p> : <CanvasSession {...{ page, initialPage, folderId, facetId, workRootId, tasks, context, actions, onAsk, arrangeable, onCheckpoint }} width={width} onSaved={(next) => {
+  return <div ref={host} className="min-w-0">{width === null ? <p role="status">Loading writing…</p> : <CanvasSession {...{ page, initialPage, folderId, facetId, presentationHeadings, workRootId, tasks, context, actions, onAsk, arrangeable, onCheckpoint }} width={width} onSaved={(next) => {
     queryClient.setQueryData(facetId === undefined ? queryKeys.folderPage(folderId) : queryKeys.facetPage(folderId, facetId), next)
   }} />}</div>
 }
 
-function CanvasSession({ page, initialPage, folderId, facetId, workRootId, tasks, context, actions, onAsk, arrangeable, onCheckpoint, width, onSaved }: Props & {
+function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadings, workRootId, tasks, context, actions, onAsk, arrangeable, onCheckpoint, width, onSaved }: Props & {
   readonly initialPage: PageView
   readonly onCheckpoint: (page: PageView) => void
   readonly width: number
@@ -127,18 +131,54 @@ function CanvasSession({ page, initialPage, folderId, facetId, workRootId, tasks
      rather than `page`, and it wants a criterion: nothing in the suite makes
      `route.send` throw, so this whole path is unmeasured. */
   const folderRefs = useMemo(() => folderRefsOf(page), [page])
+  async function uploadCanvasFile(
+    kind: CanvasMediaKind,
+    file: File,
+  ): Promise<CanvasUploadedFile> {
+    try {
+      const uploaded = await uploadDanaFile(kind, folderId, file)
+      return {
+        url: `/api/v1/files/${uploaded.id}`,
+        name: file.name,
+      }
+    } catch (failure) {
+      setError(
+        failure instanceof Error
+          ? failure.message
+          : 'The file could not be uploaded. Try again.',
+      )
+      throw failure
+    }
+  }
+
   const editor = useCreateBlockNote({
     schema: canvasSchema,
     initialContent: initial.length ? initial : [{ id: crypto.randomUUID(), type: 'paragraph', content: '' }],
-    pasteHandler: ({ editor: current, event, defaultPasteHandler }) => pasteIntoCanvas(current, event, setError) ?? defaultPasteHandler({ plainTextAsMarkdown: false }),
+    pasteHandler: ({ editor: current, event, defaultPasteHandler }) =>
+      pasteIntoCanvas(
+        current,
+        event,
+        setError,
+        presentationHeadings === true,
+      ) ?? defaultPasteHandler({ plainTextAsMarkdown: false }),
+    /*
+     * BlockNote uses this path for direct drops. The schema's fileBlockAccept
+     * tables use the same shared allowlists, so an unsupported audio/video
+     * MIME falls through to File and this classification stays in lockstep.
+     * Explicit slash insertion/replacement uses CanvasFilePanel instead, where
+     * the selected block kind is known and therefore cannot be reclassified.
+     */
     uploadFile: async (file) => {
-      try {
-        const uploaded = await uploadFile('image', folderId, file)
-        return { url: `/api/v1/files/${uploaded.id}`, name: file.name }
-      } catch (failure) {
-        setError(failure instanceof Error ? failure.message : 'The image could not be uploaded. Try again.')
-        throw failure
-      }
+      const mime = file.type
+      const kind: CanvasMediaKind =
+        (RASTER_MIMES as readonly string[]).includes(mime)
+          ? 'image'
+          : (AUDIO_MIMES as readonly string[]).includes(mime)
+            ? 'audio'
+            : (VIDEO_MIMES as readonly string[]).includes(mime)
+              ? 'video'
+              : 'file'
+      return uploadCanvasFile(kind, file)
     },
   })
   // The baseline is the server's page reconciled with what this editor can draw
@@ -269,7 +309,21 @@ function CanvasSession({ page, initialPage, folderId, facetId, workRootId, tasks
       })()
     }}>Retry interrupted save</Button><Button variant="ghost" onClick={() => { sessionStorage.removeItem(draftKey); setRecovery(false) }}>Dismiss</Button></div> : null}
     <CanvasTaskProvider tasks={tasks} context={context} actions={actions} onAsk={onAsk}>
-      <CanvasSurface editor={editor} onChange={changed} onCreateTask={facetId === undefined ? askTask : undefined} folderRefs={folderRefs} allowHeadings={facetId === undefined} editable={arrangeable && !creating && !pendingTask} />
+      <CanvasSurface
+        editor={editor}
+        onChange={changed}
+        onCreateTask={facetId === undefined ? askTask : undefined}
+        folderRefs={folderRefs}
+        onUploadFile={uploadCanvasFile}
+        headingMode={
+          facetId === undefined
+            ? 'section'
+            : presentationHeadings === true
+              ? 'document'
+              : 'none'
+        }
+        editable={arrangeable && !creating && !pendingTask}
+      />
     </CanvasTaskProvider>
     <div role="status" aria-live="polite" className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
       {feedback || (writer.state === 'saving' ? 'Saving…' : writer.state === 'changed' ? 'Unsaved writing' : 'Saved')}

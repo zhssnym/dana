@@ -21,6 +21,10 @@ import { sampleStatus } from '../../shared/sample.js'
 import type { SampleStatus } from '../../shared/sample.js'
 import type { GetSettingsResponse, GetViewsResponse } from '../../shared/bundle.js'
 import { getConnectionsResponse } from '../../shared/connections.js'
+import { discussionSchema } from '../../shared/consultation.js'
+import type { Discussion } from '../../shared/consultation.js'
+import { inputRoundListResponse } from '../../shared/consultation-input.js'
+import type { InputRoundListResponse } from '../../shared/consultation-input.js'
 import { getEventsResponse, getNotificationsResponse } from '../../shared/events.js'
 import type { GetEventsResponse, GetNotificationsResponse } from '../../shared/events.js'
 import { getThreadResponse } from '../../shared/comments.js'
@@ -31,8 +35,8 @@ import { getPlaceDescriptionsResponse } from '../../shared/place-descriptions.js
 import type { GetPlaceDescriptionsResponse } from '../../shared/place-descriptions.js'
 import { getPageResponse } from '../../shared/pages.js'
 import type { GetPageResponse } from '../../shared/pages.js'
-import { getFacetsResponse } from '../../shared/facets.js'
-import type { GetFacetsResponse } from '../../shared/facets.js'
+import { getFacetLocationResponse, getFacetsResponse } from '../../shared/facets.js'
+import type { GetFacetLocationResponse, GetFacetsResponse } from '../../shared/facets.js'
 import type { GetConnectionsResponse } from '../../shared/connections.js'
 import { getFolderResponse, getFoldersResponse } from '../../shared/folders.js'
 import type { GetFolderResponse, GetFoldersResponse } from '../../shared/folders.js'
@@ -488,6 +492,16 @@ export function useFolderFacets(id: string): UseQueryResult<GetFacetsResponse> {
   })
 }
 
+/** The owning Folder needed to enter a stable /app/facets/:id Dana Link. */
+export function useFacetLocation(
+  facetId: string,
+): UseQueryResult<GetFacetLocationResponse> {
+  return useQuery({
+    queryKey: queryKeys.facetLocation(facetId),
+    queryFn: () => getPlain(getFacetLocationResponse, `/facets/${facetId}/location`),
+  })
+}
+
 /** A blank facet's own 4.17 document. Work facets use useFolderPage instead. */
 export function useFacetPage(
   folderId: string,
@@ -582,5 +596,32 @@ export function usePlaceDescriptions(
     queryKey: queryKeys.placeDescriptions(),
     queryFn: () => getPlain(getPlaceDescriptionsResponse, '/place-descriptions'),
     enabled,
+  })
+}
+
+/** GET /discussions/:id (7.27): one Discussion, for its Folder id and state. */
+export function useDiscussion(id: string): UseQueryResult<Discussion> {
+  return useQuery({
+    queryKey: queryKeys.discussion(id),
+    queryFn: () => getPlain(discussionSchema, `/discussions/${id}`),
+  })
+}
+
+/**
+ * GET /discussions/:id/input-rounds (7.29): every round, newest first, at
+ * most one open. Polled while a round is open, the thread's own 30 seconds,
+ * so counts and other people's responses arrive without a focus change.
+ */
+export function useInputRounds(
+  discussionId: string,
+): UseQueryResult<InputRoundListResponse> {
+  return useQuery({
+    queryKey: queryKeys.inputRounds(discussionId),
+    queryFn: () =>
+      getPlain(inputRoundListResponse, `/discussions/${discussionId}/input-rounds`),
+    refetchInterval: (query) =>
+      query.state.data?.input_rounds.some((r) => r.state === 'open') === true
+        ? 30_000
+        : false,
   })
 }
