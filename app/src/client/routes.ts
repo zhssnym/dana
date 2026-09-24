@@ -92,7 +92,7 @@ export const navPages = [
   },
   {
     key: 'scheduled',
-    name: 'Scheduled',
+    name: 'Upcoming',
     path: paths.scheduled,
     question: 'See what is coming and when it needs your attention.',
     icon: CalendarDays,
@@ -100,7 +100,7 @@ export const navPages = [
   },
   {
     key: 'assignments',
-    name: 'Assignments',
+    name: 'Assigned',
     path: paths.assignments,
     question: 'See who is carrying each task.',
     icon: UserRoundCheck,

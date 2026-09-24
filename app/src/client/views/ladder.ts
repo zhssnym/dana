@@ -54,7 +54,7 @@ interleave in the stream, so whichever past date is earliest opens its rung
 first. Nothing is re-sorted to tidy that, because the page is Q3's order and
 tidying it would move rows.
 */
-import { addDays, monthLabelOf, weekStart, weekdayNameOf } from '../parts/format-dates.js'
+import { addDays, formatDayHeading, formatMonthHeading, weekStart } from '../lib/dates.js'
 import { scheduleDateOf } from '../parts/schedule.js'
 import type { Schedule } from '../parts/schedule.js'
 import type { TaskCard } from '../../shared/tasks.js'
@@ -98,14 +98,14 @@ export function rungFor(due: string | null, today: string): Bucket {
   if (due === tomorrow) return { key: 'tomorrow', name: 'Tomorrow', date: tomorrow }
 
   const thisWeekEnd = addDays(weekStart(today), 6)
-  if (due <= thisWeekEnd) return { key: due, name: weekdayNameOf(due), date: due }
+  if (due <= thisWeekEnd) return { key: due, name: formatDayHeading(due, today), date: due }
 
   const nextWeekEnd = addDays(thisWeekEnd, 7)
   if (due <= nextWeekEnd) return { key: 'next-week', name: 'Next week', date: null }
 
   const month = due.slice(0, 7)
   const twelveMonths = addDays(today, 365)
-  if (due <= twelveMonths) return { key: month, name: monthLabelOf(due), date: null }
+  if (due <= twelveMonths) return { key: month, name: formatMonthHeading(due, today), date: null }
   return { key: 'later', name: 'Later', date: null }
 }
 

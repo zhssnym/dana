@@ -1,33 +1,7 @@
 /*
-The view strip's remembered choice: one preference, across every place-page.
-
-9.1: "The chosen view is one client-side preference across pages; a page not
-offering the remembered view falls back to list without forgetting it.
-`?mode=` names a view in the URL."
-
-Three things that sentence decides and this file implements.
-
-**One key, not one per page.** A person who works in boards works in boards,
-and a preference stored per page would make the same choice seven times. So
-the store holds one value and every page reads it.
-
-**Falling back is not forgetting.** `effectiveMode` resolves the remembered
-value against what a page offers and answers list when the page cannot draw
-it; the stored value is untouched, so leaving Scheduled in calendar mode,
-visiting Today, and coming back finds the calendar again. A client that wrote
-the fallback back would lose the choice on the first visit to a page that
-cannot honour it.
-
-**`?mode=` is a seed rather than a second record.** A link may name a view,
-and when one does the value is written to the store and the store answers
-every reader afterwards. The alternative, letting the URL win for as long as
-it is in the address bar, would leave the strip unable to change the mode it
-is showing without also rewriting the address, which is two records of one
-fact and 9.1's own reason for one preference.
-
-`localStorage` rather than the session, which is the split `preferences.ts`
-and `filter-store.ts` already draw between them: a preference is kept and
-working state is not.
+The Layout choice (list, board, calendar): one remembered preference across
+pages, in localStorage. A page that cannot draw the remembered layout shows a
+list without forgetting it; `?mode=` seeds the preference.
 */
 import { useCallback, useSyncExternalStore } from 'react'
 

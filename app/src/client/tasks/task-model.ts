@@ -10,6 +10,7 @@ copy of one fact would say "Weekly" about a task that repeats on weekdays.
 the join and is the only place the two vocabularies meet.
 */
 import { todayInBrowserZone } from '../api/tz.js'
+import { formatDay } from '../lib/dates.js'
 
 import type { TimeFormat } from '../lib/time-format.js'
 
@@ -93,6 +94,13 @@ and no others. A label carrying no year means the current one, which is what
 export function parseDueLabel(label: string): Date | null {
   if (/today/i.test(label)) return today()
   if (/tomorrow/i.test(label)) return addDays(today(), 1)
+  if (/yesterday/i.test(label)) return addDays(today(), -1)
+  const weekday = DAY_SHORT.findIndex((name) => label === name || label.startsWith(`${name} `))
+  if (weekday >= 0) {
+    /* `formatDay` writes a weekday only for 2–6 days ahead. */
+    const delta = (weekday - today().getDay() + 7) % 7
+    return addDays(today(), delta < 2 ? delta + 7 : delta)
+  }
   const found = label.match(/(\d{1,2})\s+([A-Za-z]{3})(?:\s+(\d{4}))?/)
   if (!found) return null
   const month = MONTH_SHORT.findIndex(
@@ -367,19 +375,12 @@ export function dayStamp(date: Date): string {
 And back out again in the same words, so a date set from the picker reads in the
 row exactly like one that was always there.
 
-**The wording is `parts/presenters.ts`'s and is restated rather than imported**:
-that module is pure and takes a `TaskCard`, and this is called with a bare
-`Date` from inside a picker that has no card yet. The three forms are 8.10's
-three cases, and AC-183 asserts the sentences.
+The words are `lib/dates.ts`'s `formatDay`, the same formatter `dueDisplay`
+uses, so a picked date and a fetched one read identically.
 */
 export function dueLabelFor(date: Date): { label: string; overdue?: boolean } {
-  const rung = dayRung(date)
-  if (rung === 'today') return { label: 'Due today' }
-  if (rung === 'tomorrow') return { label: 'Due tomorrow' }
-  if (rung === 'overdue') {
-    return { label: `Overdue · ${dayStamp(date)}`, overdue: true }
-  }
-  return { label: `Due ${dayStamp(date)}` }
+  const label = formatDay(isoDay(date), todayInBrowserZone())
+  return dayRung(date) === 'overdue' ? { label, overdue: true } : { label }
 }
 
 /* "Sat 15 Aug", the hint beside a preset, so "This weekend" says which day it

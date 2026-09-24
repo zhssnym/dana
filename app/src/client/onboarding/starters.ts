@@ -72,7 +72,7 @@ export const STARTERS: readonly [Starter, Starter, Starter] = [
             {
               kind: 'paragraph',
               text:
-                'Give any task below a due date and it appears on Scheduled. Give it ' +
+                'Give any task below a due date and it appears on Upcoming. Give it ' +
                 "today's date and it appears on Today as well. Nothing is filed twice: " +
                 'the pages are questions asked of the same tasks, not folders to sort into.',
             },
@@ -83,7 +83,7 @@ export const STARTERS: readonly [Starter, Starter, Starter] = [
             { title: 'Check passport expiry and whether you need a visa' },
             { title: 'Book the flights' },
             { title: 'Book somewhere to stay for the first two nights' },
-            { title: 'Give this task a due date, then open Scheduled to find it' },
+            { title: 'Give this task a due date, then open Upcoming to find it' },
             { title: 'Make a rough day by day list, and leave one day empty' },
             { title: 'Book the first evening meal, so arriving needs no decisions' },
             { title: 'Download offline maps and tickets' },
@@ -128,7 +128,7 @@ export const STARTERS: readonly [Starter, Starter, Starter] = [
             { title: 'Invite one person to this folder' },
             { title: 'Write down what this team is for, in one sentence' },
             { title: 'List the three things that actually matter this quarter' },
-            { title: 'Assign a task to someone else, then open Assignments to see it' },
+            { title: 'Assign a task to someone else, then open Assigned to see it' },
             { title: 'Star the one task that is genuinely urgent, then open Important' },
             { title: 'Book a weekly check in, and keep it short' },
             { title: 'Agree how a decision gets made when the two of you disagree' },
