@@ -115,8 +115,13 @@
    heading"). BlockNote's placeholder decoration never reaches Dana's paragraph
    node view, so the rule is written here against the page's only block, and
    the words come from the surface's `--dana-canvas-placeholder`. */
+.dana-writing-canvas .bn-editor > .bn-block-group > .bn-block-outer:only-child > .bn-block > .react-renderer > .bn-block-content[data-content-type='paragraph']:has(.ProseMirror-trailingBreak:only-child) {
+  position: relative;
+}
 .dana-writing-canvas .bn-editor > .bn-block-group > .bn-block-outer:only-child > .bn-block > .react-renderer > .bn-block-content[data-content-type='paragraph']:has(.ProseMirror-trailingBreak:only-child)::after {
   content: var(--dana-canvas-placeholder, none);
+  position: absolute;
+  inset-inline-start: 0;
   color: var(--muted-foreground);
   font-style: normal;
   pointer-events: none;
