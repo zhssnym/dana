@@ -60,7 +60,7 @@ export function hydrateCanvas(page: PageView, columnWidth: number): CanvasInput[
     block: PageView['blocks'][number],
   ): Record<string, string | number | boolean | undefined> => ({
     url: block.file_id ? `/api/v1/files/${block.file_id}` : '',
-    name: block.kind === 'file' ? 'File' : '',
+    name: block.kind === 'file' ? (block.file_name ?? 'File') : '',
     caption: '',
     showPreview: true,
     ...(block.kind === 'video'
@@ -180,6 +180,8 @@ export function hydrateCanvas(page: PageView, columnWidth: number): CanvasInput[
         props: mediaProps(block),
         children: [],
       } as CanvasInput
+    } else if (block.kind === 'diagram') {
+      node = { id: block.id, type: 'diagram', props: { source: block.text ?? '' }, children: [] }
     } else if (block.kind === 'folder_ref') {
       node = {
         id: block.id,
@@ -438,7 +440,9 @@ export function dehydrateCanvas(
               )
             : null
 
-        result.blocks.push({
+        // #222: a diagram is its source text; no rich content, file or width.
+        if (block.type === 'diagram') result.blocks.push({ id: block.id, block_kind: 'diagram', text: block.props.source, rich_content: null, file_id: null, ref_folder_id: null, width_pct: null, checked: null })
+        else result.blocks.push({
           id: block.id,
           block_kind: blockKind,
           text,

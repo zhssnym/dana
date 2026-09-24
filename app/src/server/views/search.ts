@@ -127,7 +127,8 @@ export async function searchView(
              the same search that finds a paragraph. An image and a folder
              reference carry a caption and a label rather than writing. */
           AND b.kind IN ('section', 'paragraph', 'bullet', 'numbered',
-                         'checklist', 'quote', 'callout', 'code')
+                         'checklist', 'quote', 'callout', 'code',
+                         'diagram')
           AND (
             (b.folder_id IS NOT NULL AND f.deleted_at IS NULL AND EXISTS (
               SELECT 1 FROM folder_members m

@@ -463,6 +463,9 @@ export const OpenInNewTab = icon(Lu.SquareArrowOutUpRight, null)
    family has no animated twin, so it is drawn plain (DES-187). */
 export const CircleQuestionMark = icon(Lu.CircleQuestionMark, null)
 export const Workflow = icon(Lu.Workflow, null)
+/* The Diagram block in the canvas `/` menu (#222). Not `Workflow`, which
+   already means a workflow file. No animated twin, so drawn plain. */
+export const Network = icon(Lu.Network, null)
 /* Hiding a view from the sidebar (DES-170). Static and animation are the
    same drawing, which is the rule the alert glyphs broke. */
 export const EyeOff = icon(Lu.EyeOff, Anim.EyeOffIcon)

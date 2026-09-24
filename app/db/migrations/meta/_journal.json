@@ -232,6 +232,13 @@
       "when": 1790800000000,
       "tag": "0033_page_block_file_reclaimed",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1790900000000,
+      "tag": "0034_diagram_block",
+      "breakpoints": true
     }
   ]
 }

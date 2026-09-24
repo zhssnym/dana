@@ -39,7 +39,6 @@ import '@blocknote/shadcn/style.css'
 import type { PageBlockKind, PageView } from '../../../../shared/pages.js'
 import { getPageResponse } from '../../../../shared/pages.js'
 import { ApiError, getPlain, mutateApi, uploadFile } from '../../../api/http.js'
-import { danaLinkInlineSpec } from '../../links/dana-link-chip.js'
 import { Button } from '../../ui/button.js'
 import { CanvasErrorBoundary } from './CanvasErrorBoundary.js'
 import { CanvasFormattingToolbar } from './CanvasFormattingToolbar.js'
@@ -47,7 +46,9 @@ import { CanvasFilePanel } from './CanvasFilePanel.js'
 import type { CanvasMediaKind } from './CanvasFilePanel.js'
 import { baselineOf, contentOf, richRuns } from './adapters.js'
 import type { CanvasDocument, CanvasRecord } from './adapters.js'
-import type { CanvasBlock } from './schema.js'
+import type { CanvasBlock, CanvasEditor } from './schema.js'
+import { danaLinkInlineSpec } from '../../links/dana-link-chip.js'
+import { DanaLinkSuggestions, linkSlashItem } from '../../links/dana-link-picker.js'
 import { CanvasWriter } from './saving.js'
 import './canvas.css'
 
@@ -64,8 +65,8 @@ export const taskSchema = BlockNoteSchema.create({
     audio: defaultBlockSpecs.audio,
     video: defaultBlockSpecs.video,
   },
-  /* A stored Dana Link run hydrates as the chip it is on every other canvas
-     (#207); without the spec `contentOf` hands this schema a node it cannot hold. */
+  // Dana Link chips (#223): a Task document is a backlink source, and chips
+  // are written back as href runs by `richRuns`, as on the Folder canvas.
   inlineContentSpecs: { ...defaultInlineContentSpecs, danaLink: danaLinkInlineSpec },
   styleSpecs: { bold: defaultStyleSpecs.bold, italic: defaultStyleSpecs.italic },
 })
@@ -352,8 +353,11 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
         <SuggestionMenuController triggerCharacter="/" getItems={async (query) => filterSuggestionItems(
           getDefaultReactSlashMenuItems(editor)
             .filter((item) => 'key' in item && SLASH_KEYS.includes(String(item.key)) && (folderId !== null || !['image', 'file', 'audio', 'video'].includes(String(item.key))))
-            .map((item) => ({ ...item, ...('key' in item && item.key === 'paragraph' ? { title: 'Text' } : {}), size: 'small' as const })),
+            .map((item) => ({ ...item, ...('key' in item && item.key === 'paragraph' ? { title: 'Text' } : {}), size: 'small' as const }))
+            .concat({ ...linkSlashItem(editor as unknown as CanvasEditor), size: 'small' as const })
+            .map((item) => ({ ...item, group: 'Basic blocks' })),
           query)} />
+        <DanaLinkSuggestions editor={editor as unknown as CanvasEditor} />
       </BlockNoteView>
     </div>
     <div role="status" aria-live="polite" className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">

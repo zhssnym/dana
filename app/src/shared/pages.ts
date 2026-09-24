@@ -144,6 +144,11 @@ export interface PageBlock {
    * Optional so an older server's response still parses.
    */
   file_reclaimed_at?: string | null
+  /** The name the file was uploaded under (`files.name`), or null. Read-only
+   * and the file's, like the dimensions: a generic File block shows it after a
+   * reload without copying it onto the block. Optional so an older server's
+   * response still parses. */
+  file_name?: string | null
   ref_folder_id: string | null
   width_pct: number | null
   updated_at: string
@@ -261,6 +266,7 @@ export const pageBlock = z.object({
   file_width: z.number().int().nullable(),
   file_height: z.number().int().nullable(),
   file_reclaimed_at: z.string().nullable().optional(),
+  file_name: z.string().nullable().optional(),
   ref_folder_id: z.uuid().nullable(),
   width_pct: z.number().int().nullable(),
   updated_at: z.string(),

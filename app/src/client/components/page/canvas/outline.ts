@@ -30,6 +30,7 @@ const LEAF_TYPES = new Set([
   'codeBlock',
   'danaTask',
   'danaFolder',
+  'diagram',
 ])
 
 export function validateCanvasOutline(

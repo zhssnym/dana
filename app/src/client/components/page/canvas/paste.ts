@@ -66,6 +66,9 @@ export function normalizeCanvasPaste(
         children: [],
       }
     }
+    if (block.type === 'diagram') {
+      return { id, type: 'diagram', props: { source: block.props.source }, children: [] }
+    }
     if (block.type === 'codeBlock') {
       return {
         id,
