@@ -56,7 +56,7 @@ export function hydrateCanvas(page: PageView, columnWidth: number): CanvasInput[
     block: PageView['blocks'][number],
   ): Record<string, string | number | boolean | undefined> => ({
     url: block.file_id ? `/api/v1/files/${block.file_id}` : '',
-    name: block.kind === 'file' ? 'File' : '',
+    name: block.kind === 'file' ? (block.file_name ?? 'File') : '',
     caption: '',
     showPreview: true,
     ...(block.kind === 'video'

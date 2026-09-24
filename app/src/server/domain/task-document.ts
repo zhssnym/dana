@@ -97,7 +97,7 @@ async function blockRows(tx: Executor, taskId: string) {
     sql`SELECT b.id, b.kind, b.position, b.page_position, b.checked,
                b.list_parent_block_id, b.rich_content, b.text, b.file_id,
                b.width_pct, b.updated_at, b.file_reclaimed_at,
-               f.width AS file_width, f.height AS file_height
+               f.width AS file_width, f.height AS file_height, f.name AS file_name
           FROM page_blocks b
           LEFT JOIN files f ON f.id = b.file_id
          WHERE b.task_id = ${taskId}::uuid
@@ -124,6 +124,7 @@ function blockFromRow(row: Record<string, unknown>): PageBlock {
     file_width: row.file_width === null || row.file_width === undefined ? null : Number(row.file_width),
     file_height: row.file_height === null || row.file_height === undefined ? null : Number(row.file_height),
     file_reclaimed_at: fileReclaimedAt(row),
+    file_name: row.file_name === null || row.file_name === undefined ? null : String(row.file_name),
     ref_folder_id: null,
     width_pct: row.width_pct === null || row.width_pct === undefined ? null : Number(row.width_pct),
     updated_at:
