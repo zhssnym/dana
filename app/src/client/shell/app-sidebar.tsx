@@ -3,15 +3,10 @@ The sidebar: the application's only chrome, and a navigation landmark.
 
 Top to bottom, and nothing else (round 2, Sidebar):
 
-  head row · Search · Today · Upcoming · Assigned · Library · Settings, Trash
+  Today · Upcoming · Assigned · Library · the foot row
 
-- **The head row** is one line: Search, the bell (a small square button with
-  an unread dot) and the collapse button. A divider sets it apart. There is no account button: Sign out is
-  in Settings › Account. The drawer on a phone draws the same row.
-- **Search** is a quiet row on that line; its Ctrl K / ⌘K keycap shows on
-  hover. Pressing it, or the shortcut, opens the
-  palette (`overlays.ts`). On a phone the phone bar holds the one search
-  entry, so the drawer leaves it out.
+Nothing sits above Focus.
+
 - **Focus** holds the cross-project lists (`focus-group.tsx`): Today,
   Upcoming and Assigned by default, plus the saved filters its "+" adds.
 - **Library**: the Desk folder first, then the viewer's shelves and folders as
@@ -23,8 +18,9 @@ Top to bottom, and nothing else (round 2, Sidebar):
   (`page-tree.ts`), a page with children folds from its mark, and a row's
   hover "+" adds a page inside it. Dragging a page onto the middle of a row
   puts it inside; between sub-pages, a line shows where it lands.
-- **The foot** is two direct rows, Settings and Trash. People is a section of
-  Settings, so the sidebar no longer links it; /app/people still answers.
+- **The foot** is one row of square icon buttons: Search (Ctrl K / ⌘K,
+  named in its tooltip), the bell, Settings, Trash, and collapse at the far
+  right. People is a section of Settings; /app/people still answers.
 
 Collapsing hides the sidebar entirely (`collapsible="offcanvas"`); the shell
 draws the one small control that brings it back.
@@ -32,7 +28,6 @@ draws the one small control that brings it back.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactElement } from 'react'
 import { Link, useNavigate } from 'react-router'
-import type { LucideIcon } from '../lib/icons.js'
 import {
   ChevronRight,
   FolderInput,
@@ -57,10 +52,7 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarHeader,
   SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
   SidebarTrigger,
 } from '../components/ui/sidebar.js'
 import { MORE_ACTIONS } from '../components/ui/copy.js'
@@ -84,6 +76,7 @@ import { folderRowDisplay, shelfMark } from '../parts/presenters.js'
 import { folderLink, shelfLink } from '../lib/nav-links.js'
 import { paths } from '../routes.js'
 import { NotificationsBell } from '../components/notifications-bell.js'
+import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip.js'
 import { SidebarResizeHandle } from './SidebarResizeHandle.js'
 import { FocusGroup } from './focus-group.js'
 import type { FocusListKey } from './focus-lists.js'
@@ -666,32 +659,6 @@ function PageDescendants({
   )
 }
 
-function NavigationRow({
-  name,
-  to,
-  icon: Icon,
-  active,
-}: {
-  readonly name: string
-  readonly to: string
-  readonly icon: LucideIcon
-  readonly active: boolean
-}): React.JSX.Element {
-  return (
-    <SidebarMenuItem>
-      <SidebarMenuButton
-        render={routerLink(to)}
-        isActive={active}
-        aria-current={active ? 'page' : undefined}
-        className={SIDEBAR_ROW}
-      >
-        <Icon strokeWidth={1.75} aria-hidden="true" />
-        <span>{name}</span>
-      </SidebarMenuButton>
-    </SidebarMenuItem>
-  )
-}
-
 function inboxOf(folders: readonly Folder[]): Folder | null {
   return folders.find((folder) => folder.is_default) ?? null
 }
@@ -1253,27 +1220,27 @@ function NewPageButton({ onNewPage }: { readonly onNewPage: () => void }): React
   )
 }
 
-/** The head row's Search: a quiet row in look, a button in fact; it opens the
-    palette. Its keycap shows only on hover, so the row stays one word. */
-function SearchField({ onOpen }: { readonly onOpen: () => void }): React.JSX.Element {
+/** The foot's one button shape: a square icon, a tint on hover, and a
+    tooltip naming it. The same class dresses the bell and the collapse. */
+export const FOOT_BUTTON =
+  'flex size-(--control-height) shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-foreground [&_svg]:!size-4'
+
+function FootTip({
+  label,
+  children,
+}: {
+  readonly label: React.ReactNode
+  readonly children: ReactElement<Record<string, unknown>>
+}): React.JSX.Element {
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      aria-label="Search"
-      className="group/search flex h-(--shell-sidebar-row-height) min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-sm text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground"
-    >
-      <Search className="size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-      <span className="min-w-0 flex-1 truncate text-left">Search</span>
-      <kbd
-        aria-hidden="true"
-        className="font-sans text-xs text-muted-foreground opacity-0 group-hover/search:opacity-100 group-focus-visible/search:opacity-100"
-      >
-        {IS_MAC ? '⌘K' : 'Ctrl K'}
-      </kbd>
-    </button>
+    <Tooltip>
+      <TooltipTrigger render={children} />
+      <TooltipContent side="top">{label}</TooltipContent>
+    </Tooltip>
   )
 }
+
+const SEARCH_KEYS = IS_MAC ? '⌘K' : 'Ctrl K'
 
 /* Right-click on the sidebar's own ground (empty space, the Library heading,
    the lists) opens this small menu at the pointer instead of the browser's.
@@ -1432,28 +1399,7 @@ export function AppSidebar({
     >
       {/* Solid and above the list, so nothing scrolling in the list shows
           through the head; the list below is the one scroll container. */}
-      <SidebarHeader
-        className={cn(
-          'relative z-40 shrink-0 justify-center bg-sidebar py-0',
-          isMobile ? 'h-12 px-1' : 'h-(--shell-windowbar-height) px-2',
-        )}
-      >
-        {/* One line: Search, the bell, collapse. On a phone the phone bar holds
-            the one search entry, so the line keeps only the two buttons, at
-            the phone bar's size. */}
-        <div className={cn('flex items-center', isMobile ? 'gap-1' : 'gap-0.5')}>
-          {isMobile ? <span className="min-w-0 flex-1" /> : <SearchField onOpen={onOpenSearch} />}
-          <NotificationsBell className={isMobile ? 'size-10 [&_svg]:size-5' : undefined} />
-          <SidebarTrigger
-            className={cn(
-              'shrink-0 rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-foreground',
-              isMobile ? 'size-10 [&_svg]:!size-5' : 'size-(--control-height) [&_svg]:!size-4',
-            )}
-          />
-        </div>
-      </SidebarHeader>
-
-      <SidebarContent className="pt-0 pb-2" onContextMenu={openGroundMenu}>
+      <SidebarContent className="pt-2 pb-2" onContextMenu={openGroundMenu}>
         {/* Focus and Library: one heading style and one gap above each
             heading; each heading's "+" adds to its own group. */}
         <FocusGroup
@@ -1498,21 +1444,41 @@ export function AppSidebar({
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-2" onContextMenu={openGroundMenu}>
-        <SidebarMenu>
-          <NavigationRow
-            name="Settings"
-            to={paths.settings}
-            icon={Settings}
-            active={currentPath.startsWith(paths.settings)}
-          />
-          <NavigationRow
-            name="Trash"
-            to={paths.trash}
-            icon={Trash2}
-            active={currentPath === paths.trash}
-          />
-        </SidebarMenu>
+      {/* The foot: one row of square icon buttons, collapse at the far
+          right. Each is its own Tab stop; Ctrl/Cmd+K still opens search. */}
+      <SidebarFooter className="border-t border-border p-2" onContextMenu={openGroundMenu}>
+        <div className="flex items-center gap-1">
+          <FootTip label={<>Search <kbd data-slot="kbd" className="font-sans opacity-70">{SEARCH_KEYS}</kbd></>}>
+            <button type="button" aria-label="Search" aria-keyshortcuts={IS_MAC ? 'Meta+K' : 'Control+K'} className={FOOT_BUTTON} onClick={onOpenSearch}>
+              <Search strokeWidth={1.75} aria-hidden="true" />
+            </button>
+          </FootTip>
+          <NotificationsBell side="top" className={FOOT_BUTTON} />
+          <FootTip label="Settings">
+            <Link
+              to={paths.settings}
+              aria-label="Settings"
+              aria-current={currentPath.startsWith(paths.settings) ? 'page' : undefined}
+              className={FOOT_BUTTON}
+            >
+              <Settings strokeWidth={1.75} aria-hidden="true" />
+            </Link>
+          </FootTip>
+          <FootTip label="Trash">
+            <Link
+              to={paths.trash}
+              aria-label="Trash"
+              aria-current={currentPath === paths.trash ? 'page' : undefined}
+              className={FOOT_BUTTON}
+            >
+              <Trash2 strokeWidth={1.75} aria-hidden="true" />
+            </Link>
+          </FootTip>
+          <span className="min-w-0 flex-1" />
+          <FootTip label={isMobile ? 'Close sidebar' : 'Collapse sidebar'}>
+            <SidebarTrigger className={FOOT_BUTTON} />
+          </FootTip>
+        </div>
       </SidebarFooter>
 
       {pageTree.leaving === null ? null : (

@@ -27,6 +27,7 @@ import {
   useMarkNotificationRead,
 } from '../api/mutations.js'
 import { useConnections, useMe, useNotifications } from '../api/queries.js'
+import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip.js'
 import {
   Popover,
   PopoverContent,
@@ -132,11 +133,11 @@ function sentenceOf(row: NotificationLine): { readonly act: string; readonly quo
 }
 
 export function NotificationsBell({
-  side = 'bottom',
+  side = 'top',
   className,
 }: {
-  /** Where the list opens: below the sidebar's head row. */
-  readonly side?: 'right' | 'bottom'
+  /** Where the list opens: above the sidebar's foot row. */
+  readonly side?: 'right' | 'bottom' | 'top'
   /** Extra classes for the square trigger. */
   readonly className?: string
 } = {}): React.JSX.Element {
@@ -197,8 +198,11 @@ export function NotificationsBell({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
+      <Tooltip>
       <PopoverTrigger
         render={
+          <TooltipTrigger
+            render={
           <button
             type="button"
             data-popup-open={open ? '' : undefined}
@@ -207,7 +211,8 @@ export function NotificationsBell({
               className,
             )}
             aria-label={bellName(unread)}
-            title="Notifications"
+          />
+            }
           />
         }
       >
@@ -219,6 +224,8 @@ export function NotificationsBell({
           />
         ) : null}
       </PopoverTrigger>
+      <TooltipContent side="top">Notifications</TooltipContent>
+      </Tooltip>
       <PopoverContent
         align="start"
         side={side}
