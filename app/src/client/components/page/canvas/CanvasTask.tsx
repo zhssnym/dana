@@ -82,6 +82,15 @@ function ResolvedTask({ taskId, bridge }: { readonly taskId: string; readonly br
       </div>
     )
   }
+  // A Task the truncated open list did not carry is unknown until its own read
+  // answers: say nothing about it rather than calling an open Task completed.
+  if (listed === undefined && detail.isLoading) {
+    return (
+      <div data-canvas-task-id={taskId} data-canvas-task-loading="" className="min-w-0 text-xs text-muted-foreground" contentEditable={false} role="status">
+        Loading Task…
+      </div>
+    )
+  }
   return (
     <div data-canvas-task-id={taskId} data-canvas-task-done="" className="min-w-0" contentEditable={false}>
       <Link to={`/app/tasks/${taskId}`} className="inline-flex items-center gap-1.5 text-xs">
