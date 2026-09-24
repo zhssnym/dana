@@ -129,10 +129,38 @@ function sendCreateOutcome(
           : 'file_id: must name a file stored in this folder.',
       )
       return
+    case 'content_file_not_attached':
+      sendContentFileNotAttached(res)
+      return
+    case 'empty':
+      sendEmptyPost(res)
+      return
     case 'created':
       res.status(201).json(outcome.comment)
       return
   }
+}
+
+/* W-C: a post's media block names a file that is not one of the same
+   comment's own attachments. Says nothing about the file itself. */
+function sendContentFileNotAttached(res: Response): void {
+  sendError(
+    res,
+    422,
+    'validation_failed',
+    "content: every picture or file in a post must be one of the comment's own file_ids.",
+  )
+}
+
+/* W-C: a post with no words and no file, which the create half has always
+   refused for a plain comment. */
+function sendEmptyPost(res: Response): void {
+  sendError(
+    res,
+    422,
+    'validation_failed',
+    'content: a comment carries words or a file, at least one.',
+  )
 }
 
 export function createConversationRouter(
@@ -348,6 +376,12 @@ export function createConversationRouter(
             'validation_failed',
             'file_ids: a comment carries words or a file, at least one; removing every attachment would leave neither.',
           )
+          return
+        case 'content_file_not_attached':
+          sendContentFileNotAttached(res)
+          return
+        case 'empty':
+          sendEmptyPost(res)
           return
         case 'gone':
           sendError(res, 404, 'not_found', 'Not found.')

@@ -1,5 +1,5 @@
 /*
-A person's default face: a small drawn character, chosen from their name.
+A person's default face: a small drawn character, chosen from their user id.
 
 Hassan's ask (2026-09-24): "every user should have a default profile pic
 instead of the Google one — nice profile-pic icons, better than Google's or
@@ -8,16 +8,16 @@ no longer drawn; a person wears this until they upload their own (7.15).
 
 **It is a generator, not a sprite sheet.** A head and shoulders in the
 person's swatch on a wash of the same hue, with one of eight hair shapes, one
-of two expressions and, for some, glasses. Ten swatches times those choices
+of two expressions and, for some, glasses. Eight colours times those choices
 spreads a team widely, and every piece is plain geometry on a 32-unit grid so
 it stays crisp at 16, 20, 24 and 32px. No external URL is involved (10.8's
 CSP), and no colour is spelled here: `parts/person-tint.ts` owns the paint.
 
-**It is chosen from the display name**, the one key every surface that draws
-a person already holds (a roster row, an assignee chip, an invite's inviter).
-It is stable across sessions and devices for the same reason the old tint
-was, and the name hash is independent of the tint's so two people who share a
-colour still differ in form.
+**It is chosen from the user id**, so one person wears one face everywhere
+however their name is spelled on a surface, and a rename changes nothing.
+The display name is the key only where a surface genuinely holds no id; the
+name hash is independent of the tint's so two people who share a colour still
+differ in form.
 
 Decorative: the name beside it is what a reader is told (AC-244).
 */
@@ -79,14 +79,19 @@ function HairTop({ style, fill }: { style: number; fill: string }): React.JSX.El
 }
 
 export function DefaultAvatar({
+  id,
   name,
   className,
 }: {
+  /** The person's user id, which the face is a function of wherever it is known. */
+  readonly id?: string | null | undefined
+  /** Their display name: the key only where no id is held. */
   readonly name: string
   readonly className?: string
 }): React.JSX.Element {
-  const paint = personFacePaint(name)
-  const seed = personShapeSeed(name)
+  const key = id ?? name
+  const paint = personFacePaint(key)
+  const seed = personShapeSeed(key)
   const hair = seed % 8
   const happy = Math.floor(seed / 8) % 2 === 1
   const glasses = Math.floor(seed / 16) % 4 === 0

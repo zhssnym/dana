@@ -239,8 +239,8 @@ export type PutFacetOrderBody = z.infer<typeof putFacetOrderBody>
  * nothing else. Another member's id answers 404, which is 10.2's grammar for
  * a row the caller cannot see the existence of.
  *
- * `after_facet_id: null` means "first among the facets after Main", Main
- * being first for everybody by 7.27's read order.
+ * `after_facet_id: null` means "before the first facet the caller can see":
+ * the front of the row (Main no longer stands first).
  */
 export const putMyFacetOrderBody = z.object({
   placements: z

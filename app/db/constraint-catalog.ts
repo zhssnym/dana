@@ -840,6 +840,8 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
     uniques: [],
     checks: [
       { name: 'comments_body_length_check', columns: ['body'] },
+      // Migration 0040 (W-C): a post's block tree, version 1, <= 256 KiB.
+      { name: 'comments_content_check', columns: ['content'] },
       // Migration 0029 (#320): never both Task- and Discussion-scoped.
       { name: 'comments_one_scope_check', columns: ['discussion_id', 'task_id'] },
     ],
@@ -913,6 +915,7 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
     checks: [
       { name: 'discussions_context_length_check', columns: ['context'] },
       {
+        // Widened by 0040: a resolved Discussion may have no Outcome.
         name: 'discussions_resolution_check',
         columns: ['current_outcome_id', 'resolved_at', 'state'],
       },

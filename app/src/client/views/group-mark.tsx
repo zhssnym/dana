@@ -52,6 +52,7 @@ export function groupHeadingMedia(
             dense disc, because a heading's mark is read before the rows under
             it. */}
         <PersonFace
+          id={mark.id}
           name={mark.name}
           initials={initialsOf(mark.name)}
           image={mark.image}

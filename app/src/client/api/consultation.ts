@@ -29,7 +29,6 @@ import type {
   CreateDiscussionBody,
   Discussion,
   DiscussionListState,
-  Outcome,
   ResolveDiscussionBody,
   UpdateDiscussionBody,
 } from '../../shared/consultation.js'
@@ -42,7 +41,6 @@ const discussionListResponse = z.object({
 })
 export type DiscussionListPage = z.infer<typeof discussionListResponse>
 
-const outcomesResponse = z.object({ outcomes: z.array(outcomeSchema) })
 const outcomeResponse = z.object({ outcome: outcomeSchema, discussion: discussionSchema })
 export type OutcomeWithDiscussion = z.infer<typeof outcomeResponse>
 
@@ -78,17 +76,6 @@ export function useDiscussions(
 }
 
 /* GET /discussions/:id is `useDiscussion` in queries.ts (FE06's, shared). */
-
-/** GET /discussions/:id/outcomes: every Outcome, newest first. */
-export function useDiscussionOutcomes(
-  id: string | null,
-): UseQueryResult<{ outcomes: Outcome[] }> {
-  return useQuery({
-    queryKey: queryKeys.discussionOutcomes(id ?? ''),
-    queryFn: () => getPlain(outcomesResponse, `/discussions/${id}/outcomes`),
-    enabled: id !== null,
-  })
-}
 
 /** GET /discussions/:id/comments: the Discussion's conversation (7.14). */
 export function useDiscussionThread(id: string | null): UseQueryResult<GetThreadResponse> {
@@ -144,7 +131,7 @@ export function useUpdateDiscussion(): UseMutationResult<
   })
 }
 
-/** Resolve with a new Outcome: `statement`, or `source_comment_id` ("Use as outcome"). */
+/** "Close thread": `{}` closes without a decision, `{ statement }` records one. */
 export function useResolveDiscussion(): UseMutationResult<
   Discussion,
   Error,

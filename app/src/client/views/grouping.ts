@@ -45,7 +45,12 @@ export type GroupMark =
   /* The person's own picture beside the name the tint is a function of,
      read off the card's `avatar_url` (4.1). Null where the person has no
      picture, which is the disc. */
-  | { readonly kind: 'person'; readonly name: string; readonly image: string | null }
+  | {
+      readonly kind: 'person'
+      readonly id: string
+      readonly name: string
+      readonly image: string | null
+    }
 
 export interface TaskGroup {
   readonly key: string
@@ -112,7 +117,7 @@ function slotFor(task: TaskCard, axis: GroupBy, today: string, viewerId: string 
         key: task.assignee.id,
         name: mine ? 'You' : who,
         capture: { assignee_id: task.assignee.id },
-        mark: { kind: 'person', name: who, image: task.assignee.avatar_url },
+        mark: { kind: 'person', id: task.assignee.id, name: who, image: task.assignee.avatar_url },
       }
     }
     case 'date': {

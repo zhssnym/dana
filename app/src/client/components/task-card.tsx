@@ -4,7 +4,7 @@ the side peek, the center peek and the full page.
 
 The order is the page's (ROUND2-SPEC "Task"): one properties block (Status
 first, then the fixed set, Steps, Dependencies and Attachments only where there
-are some), then the page's two tabs, **Notes** (the task's document) and
+are some), then the page's two tabs, **Work** (the task's document) and
 **Discussion** (its comments, never on the body). Nothing here can be
 dragged or collapsed; a task is not a form somebody arranges. Every edit commits as it is made, so there is no Save
 and no footer of actions: the task's own acts live in the panel's one "…".
@@ -61,7 +61,7 @@ import {
   ReminderPanel,
   RepeatPanel,
 } from "./task-pickers.js"
-import { CommentsThread } from "./comments.js"
+import { TaskThread } from "./thread/TaskThread.js"
 import { usePeopleLibrary } from "../lib/people-library.js"
 import { useMultiMemberFolderIds, useTask, useTaskDependencies } from "../api/queries.js"
 import { useUpdateTask } from "../api/mutations.js"
@@ -956,7 +956,10 @@ export function TaskCard({
   const attachments = task.attachments ?? []
   const labels = task.labels ?? []
   const steps = task.steps ?? []
-  const [tab, setTab] = useState<"notes" | "discussion">("notes")
+  /* `?tab=discussion` (a backlink from a post) opens on the Discussion tab. */
+  const [tab, setTab] = useState<"notes" | "discussion">(() =>
+    new URLSearchParams(globalThis.location?.search ?? "").get("tab") === "discussion" ? "discussion" : "notes",
+  )
   const comments = commentCount(task.comments)
 
   const showDate = Boolean(task.due) || adding === "date"
@@ -1207,12 +1210,12 @@ export function TaskCard({
       ) : null}
 
       {/* The page's two tabs, drawn as the folder page draws its own:
-          Notes is the task's document, Discussion its comments. */}
+          Work is the task's document, Discussion its comments. */}
       <div className="flex flex-col gap-4">
         <div role="tablist" aria-label="Task tabs" className="flex items-center gap-5 border-b border-border">
           {(
             [
-              ["notes", "Notes"],
+              ["notes", "Work"],
               ["discussion", "Discussion"],
             ] as const
           ).map(([key, name]) => (
@@ -1261,12 +1264,7 @@ export function TaskCard({
           </div>
         ) : (
           <div role="tabpanel" id="task-tabpanel-discussion" aria-labelledby="task-tab-discussion">
-            <CommentsThread
-              comments={task.comments ?? []}
-              attachments={false}
-              canComment={task.canComment ?? true}
-              onChange={(next) => patch(task.id, { comments: next })}
-            />
+            <TaskThread taskId={task.id} folderId={task.folder?.id ?? null} />
           </div>
         )}
       </div>

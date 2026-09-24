@@ -45,12 +45,15 @@ function TooltipContent({
         alignOffset={alignOffset}
         side={side}
         sideOffset={sideOffset}
-        className="isolate z-50"
+        /* Above every layer, popovers (z-70) and dialogs (z-100) included:
+           a tooltip is only ever shown for the thing under the pointer, so
+           nothing may cover it. */
+        className="isolate z-[200]"
       >
         <TooltipPrimitive.Popup
           data-slot="tooltip-content"
           className={cn(
-            "z-50 inline-flex w-fit max-w-xs items-center gap-1.5 rounded-sm bg-foreground px-2 py-1 text-xs text-background has-data-[slot=kbd]:pr-1 **:data-[slot=kbd]:rounded-sm motion-float",
+            "inline-flex w-fit max-w-xs items-center gap-1.5 rounded-sm bg-foreground px-2 py-1 text-xs text-background has-data-[slot=kbd]:pr-1 **:data-[slot=kbd]:rounded-sm motion-float",
             className
           )}
           {...props}

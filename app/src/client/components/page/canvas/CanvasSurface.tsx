@@ -6,6 +6,7 @@ import {
 import { CanvasFilePanel } from './CanvasFilePanel.js'
 import type { CanvasMediaKind, CanvasUploadedFile } from './CanvasFilePanel.js'
 import { CanvasFormattingToolbar } from './CanvasFormattingToolbar.js'
+import { CanvasMarquee } from './CanvasMarquee.js'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,15 +19,16 @@ import {
 } from '../../ui/alert-dialog.js'
 import { installCanvasGuard } from './guard.js'
 import { bindTaskCommand, removeCanvasBlocks } from './commands.js'
-import { CanvasSlashMenu } from './slash-items.js'
+import { CanvasSlashMenu, blockMenuTargets } from './slash-items.js'
 import { validateCanvasOutline } from './outline.js'
 import { BlockMenuContext, BlockSideMenu, blockSidePosition, duplicateBlocks, pageTheme, turnBlocksInto } from './BlockSideMenu.js'
 import type { BlockMenuModel } from './BlockSideMenu.js'
 import { BlockSelectionStyle, useBlockAnchor, useBlockSelectionKeys } from './block-selection.js'
-import { contains, simulate, simulateNest, TEXT_TYPES, TURN_TARGETS } from './turn-into.js'
+import { backspaceToText, contains, simulateNest, TEXT_TYPES, TURN_TARGETS } from './turn-into.js'
 import type { TreeBlock } from './turn-into.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
 import { MentionSuggestions } from './mentions.js'
+import { useCanvasTaskDelete } from './CanvasTask.js'
 import './canvas.css'
 
 type HeadingMode = 'section' | 'document' | 'none'
@@ -53,6 +55,7 @@ export function CanvasSurface({
   flatGroups = false,
   placeholder,
   peopleFolderId,
+  onNotice,
 }: {
   readonly editor: CanvasEditor
   readonly onChange: (editor: CanvasEditor) => void
@@ -75,8 +78,10 @@ export function CanvasSurface({
   readonly placeholder?: string
   /** Whose members the `@` menu offers (Wave 2); none offers pages only. */
   readonly peopleFolderId?: string
+  /** Where a refused gesture's sentence goes: the page's one save line
+   * (`SaveFailure`), so a canvas never draws a second status line. */
+  readonly onNotice: (message: string) => void
 }): React.JSX.Element {
-  const [feedback, setFeedback] = useState('')
   const [referenceToConvert, setReferenceToConvert] = useState<CanvasBlock | null>(null)
   const [theme, setTheme] = useState<'dark' | 'light'>(pageTheme)
   const requestTask = useCallback((block?: CanvasBlock): void => {
@@ -88,7 +93,7 @@ export function CanvasSurface({
     surface: headingMode === 'document' ? 'document' as const : headingMode === 'none' ? 'plain' as const : flatGroups ? 'shelf' as const : 'work' as const,
     onCreateTask: onCreateTask === undefined ? undefined : () => { onCreateTask() },
   }), [headingMode, flatGroups, onCreateTask])
-  useEffect(() => installCanvasGuard(editor, setFeedback), [editor])
+  useEffect(() => installCanvasGuard(editor, onNotice), [editor, onNotice])
   useEffect(() => onCreateTask ? bindTaskCommand(editor, requestTask) : undefined, [editor, onCreateTask, requestTask])
   useEffect(() => {
     const observer = new MutationObserver(() => setTheme(pageTheme()))
@@ -101,6 +106,7 @@ export function CanvasSurface({
   const admits = useCallback((document: readonly TreeBlock[]): boolean =>
     validateCanvasOutline(document) === null && !(flatGroups && flatShelfFailure(document)), [flatGroups])
   const headingToggles = headingMode === 'section'
+  const deleteTask = useCanvasTaskDelete()
   const remove = useCallback((ids: readonly string[]): void => {
     removeCanvasBlocks(editor, ids.flatMap((id) => { const block = editor.getBlock(id); return block === undefined ? [] : [block] }))
   }, [editor])
@@ -110,14 +116,7 @@ export function CanvasSurface({
     duplicateBlocks(editor, ids)
   }, [editor])
   const menu = useMemo<BlockMenuModel>(() => ({
-    targets: (block) => {
-      if (!TEXT_TYPES.has(block.type)) return []
-      const document = editor.document as unknown as TreeBlock[]
-      return TURN_TARGETS.filter((target) => {
-        if (target.type === 'heading' && (headingMode === 'none' || (flatGroups && target.level !== 1))) return false
-        return admits(simulate(document, block.id, target, headingMode === 'none' ? undefined : headingToggles))
-      })
-    },
+    targets: (block) => blockMenuTargets(editor, block),
     turnInto: (ids, target) => { turnBlocksInto(editor, ids, target, headingMode === 'none' ? undefined : headingToggles) },
     extraTarget: (block) => block.type === 'paragraph' && onCreateTask !== undefined
       ? { title: 'Task', run: () => { requestTask(editor.getBlock(block.id) ?? undefined) } }
@@ -131,12 +130,15 @@ export function CanvasSurface({
         const folderId = String(block.props.folderId)
         return onRemoveFolder ? { label: 'Remove from shelf', run: () => { onRemoveFolder(folderId) } } : null
       }
-      // Deleting a task is a task action, in its row's own menu (`CanvasTask.tsx`).
-      if (block.type === 'danaTask') return { note: 'Delete a task from its own menu.' }
+      // A Task's Delete is the task's own act: its confirmation, then undo.
+      if (block.type === 'danaTask') {
+        const run = deleteTask?.(String(block.props.taskId)) ?? null
+        return run === null ? null : { label: 'Delete', run }
+      }
       return { label: 'Delete', run: () => { remove(ids) } }
     },
-  }), [editor, headingMode, flatGroups, admits, headingToggles, onCreateTask, requestTask, duplicate, onRemoveFolder, remove])
-  const selectionActions = useMemo(() => ({ remove, duplicate }), [remove, duplicate])
+  }), [editor, headingMode, headingToggles, onCreateTask, requestTask, duplicate, onRemoveFolder, remove, deleteTask])
+  const selectionActions = useMemo(() => ({ remove, duplicate, admits }), [remove, duplicate, admits])
   useBlockSelectionKeys(editor, selectionActions)
   useBlockAnchor(editor, true)
   const scope = `dana-canvas-${useId().replace(/[^a-zA-Z0-9]/g, '')}`
@@ -147,7 +149,9 @@ export function CanvasSurface({
   Enter on an empty nested list item steps out a level (at the root,
   BlockNote's own Enter makes it text). Backspace at the start of a block:
   a nested list item steps out; any other kind turns into text, its children
-  lifted after it when text cannot hold them; text merges (BlockNote's). A
+  lifted after it when text cannot hold them, unless the result is a shape the
+  canvas refuses or the block is a heading holding a Section (then nothing
+  happens, so a Section never dissolves by accident); text merges (BlockNote's). A
   nested item never turns into text in place, a shape the canvas cannot keep.
   */
   const onKeyDownCapture = (event: React.KeyboardEvent): void => {
@@ -167,6 +171,8 @@ export function CanvasSurface({
       if (inList) { stop(); editor.unnestBlock(); return }
       if (block.type === 'paragraph' || !TEXT_TYPES.has(block.type)) return
       stop()
+      const next = backspaceToText(editor.document as unknown as TreeBlock[], block as unknown as TreeBlock)
+      if (next === null || !admits(next)) return
       turnBlocksInto(editor, [block.id], TURN_TARGETS[0]!, undefined)
       editor.setTextCursorPosition(block.id, 'start')
     }
@@ -202,7 +208,7 @@ export function CanvasSurface({
         slashMenu={false}
         sideMenu={false}
         filePanel={false}
-        onChange={() => { setFeedback(''); onChange(editor) }}
+        onChange={() => { onNotice(''); onChange(editor) }}
         aria-label={label ?? (onCreateTask === undefined ? 'Folder writing' : 'Folder writing and Tasks')}
       >
         <FormattingToolbarController formattingToolbar={CanvasFormattingToolbar} />
@@ -214,9 +220,9 @@ export function CanvasSurface({
         <SideMenuController sideMenu={BlockSideMenu} floatingUIOptions={blockSidePosition} />
         <CanvasSlashMenu editor={editor} context={slashContext} />
         {editable ? <MentionSuggestions editor={editor} folderId={peopleFolderId} /> : null}
+        <CanvasMarquee />
       </BlockNoteView>
       {editable ? <div aria-hidden="true" className="dana-canvas-tail" onMouseDown={writeBelow} /> : null}
-      <p role="status" aria-live="polite" className="min-h-6 px-2 text-sm text-muted-foreground">{feedback}</p>
     </div>
     <AlertDialog open={referenceToConvert !== null} onOpenChange={(open) => { if (!open) setReferenceToConvert(null) }}>
       <AlertDialogContent>
@@ -226,7 +232,7 @@ export function CanvasSurface({
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction destructive onClick={() => {
+          <AlertDialogAction onClick={() => {
             if (referenceToConvert !== null) onCreateTask?.(referenceToConvert)
           }}>Turn into task</AlertDialogAction>
         </AlertDialogFooter>

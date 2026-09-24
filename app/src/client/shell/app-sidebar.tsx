@@ -6,7 +6,7 @@ Top to bottom, and nothing else (round 2, Sidebar):
   head row · Search · Today · Upcoming · Assigned · Library · Settings, Trash
 
 - **The head row** is the account button (the viewer's face, "Dana", a
-  chevron) whose menu names the viewer and offers Settings and Sign out; then,
+  chevron) whose menu names the viewer and offers Sign out; then,
   at its right, the bell as a small square button with an unread dot, and the
   collapse button. The drawer on a phone draws the same row.
 - **Search** looks like the field it opens: a bordered box reading "Search"
@@ -44,7 +44,6 @@ import {
 } from '../lib/icons.js'
 
 import { useSidebar } from '../components/ui/sidebar.js'
-import { showToast } from '../state/toasts.js'
 import { FolderRow } from '../components/folder-row.js'
 import { Button } from '../components/ui/button.js'
 import {
@@ -299,7 +298,6 @@ function SidebarFolderRow({
         },
         'copy-link': () => {
           void navigator.clipboard.writeText(folderLink(folder.id))
-          showToast('Link copied')
         },
         duplicate: () => {
           duplicate.mutate(folder.id, {
@@ -486,7 +484,6 @@ function FolderGroupBlock({
                     ? undefined
                     : () => {
                         void navigator.clipboard?.writeText(shelfLink(shelfId))
-                        showToast('Link copied')
                       },
                 delete: () => {
                   groups.onDeleteGroup(group.label)
@@ -763,20 +760,18 @@ function LibraryPlusMenu({
 
 /**
  * The head row's account button: the viewer's face, "Dana" and a chevron.
- * Its menu names the viewer (name and email), then Settings and Sign out.
- * Named "Account".
+ * Its menu names the viewer (name and email), then Sign out. Settings is the
+ * foot's, so it has one home. Named "Account".
  */
 function AccountMenu({
   displayName,
   email,
   image = null,
-  onNavigate,
   onSignOut,
 }: {
   readonly displayName: string | null
   readonly email: string | null
   readonly image?: string | null
-  readonly onNavigate: (path: string) => void
   readonly onSignOut: () => void
 }): React.JSX.Element {
   const name = displayName ?? email ?? ''
@@ -810,10 +805,6 @@ function AccountMenu({
           </div>
         </div>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => { onNavigate(paths.settings) }}>
-          <Settings className="size-4" strokeWidth={1.75} aria-hidden="true" />
-          Settings
-        </DropdownMenuItem>
         <DropdownMenuItem onClick={onSignOut}>
           <LogOut className="size-4" strokeWidth={1.75} aria-hidden="true" />
           Sign out
@@ -888,7 +879,6 @@ export function AppSidebar({
   readonly onImportWorkflow: (file: File) => void
   readonly onSignOut: () => void
 }): React.JSX.Element {
-  const navigate = useNavigate()
   /* On a phone the sidebar is a drawer, and it closes on the navigation it was
      opened to make. */
   const { isMobile, setOpenMobile, state } = useSidebar()
@@ -917,9 +907,6 @@ export function AppSidebar({
             displayName={displayName}
             email={email}
             image={avatarUrl}
-            onNavigate={(path) => {
-              void navigate(path)
-            }}
             onSignOut={onSignOut}
           />
           <NotificationsBell />

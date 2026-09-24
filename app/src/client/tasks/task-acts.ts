@@ -44,20 +44,15 @@ import { taskLink } from '../lib/nav-links.js'
 import type { ConceptStep } from './task-model.js'
 
 /**
- * Copy a task's address, and say so.
- *
- * The notice is named, unlike a folder's: you copy a folder's link from its own
- * page and a task's from a list of twenty, and "Link copied" there does not say
- * which.
+ * Copy a task's address, silently: a copy is not an event worth a notice.
  *
  * The clipboard write is fire and forget and its rejection is swallowed. A
  * browser refuses it when the document is not focused, which is a state the
  * person is already looking at, and an error toast about a copy that did not
  * happen is a second thing to dismiss.
  */
-export function copyTaskLink(taskId: string, title: string): void {
+export function copyTaskLink(taskId: string): void {
   void navigator.clipboard?.writeText(taskLink(taskId)).catch(() => {})
-  showToast(`Link to "${title}" copied`)
 }
 
 function settle(): void {

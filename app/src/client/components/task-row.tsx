@@ -1098,7 +1098,7 @@ export interface TaskRowProps {
   status?: TaskStatus
   important?: boolean
   importantTooltip?: string
-  assignee?: { initials: string; name: string; image?: string }
+  assignee?: { initials: string; name: string; image?: string; id?: string }
   pulled?: boolean
   steps?: { complete: number; total: number }
   recurrence?: string
@@ -1403,6 +1403,8 @@ export function TaskRow(props: TaskRowProps) {
   if (due) {
     meta.push(
       <span key="due" className={cn("shrink-0 whitespace-nowrap", late && "text-destructive")}>
+        {/* Late is shown by colour alone, so it is also said. */}
+        {late ? <span className="sr-only">Overdue, </span> : null}
         {due.label}
       </span>,
     )

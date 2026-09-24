@@ -183,25 +183,38 @@
   border-radius: var(--radius-sm);
 }
 .dana-writing-canvas .bn-side-menu .dana-drag-handle { cursor: grab; }
-/* The block menu: Notion's rows and elevation, the popover surface. */
-.dana-block-menu {
+/* The block menu and the slash menu: one menu treatment, the popover surface,
+   32px rows at 14px, radius 8, the single menu shadow. */
+.dana-block-menu,
+.bn-suggestion-menu.dana-slash-menu {
   min-width: calc(var(--spacing) * 56);
   padding: calc(var(--spacing) * 1);
   border: 0;
-  border-radius: var(--radius-md, var(--radius));
+  border-radius: var(--radius-lg);
   background: var(--popover);
   color: var(--popover-foreground);
   box-shadow: var(--shadow-float);
   font-size: var(--text-sm);
 }
 .dana-block-menu .bn-menu-item,
-.dana-block-menu [role="menuitem"] {
-  min-height: calc(var(--spacing) * 7);
+.dana-block-menu [role="menuitem"],
+.dana-slash-menu .bn-suggestion-menu-item {
+  min-height: calc(var(--spacing) * 8);
+  height: auto;
   padding-block: 0;
   padding-inline: calc(var(--spacing) * 2);
   border-radius: var(--radius-sm);
   font-size: var(--text-sm);
 }
+.dana-slash-menu .bn-suggestion-menu-label {
+  padding: calc(var(--spacing) * 2) calc(var(--spacing) * 2) calc(var(--spacing) * 1);
+  font-size: var(--text-xs);
+  font-weight: 400;
+  color: var(--muted-foreground);
+}
+/* A Task on the canvas has one menu, the gutter's ⋮⋮ (Delete, Copy link):
+   the row's own "More actions" is not drawn here. */
+.dana-writing-canvas [data-canvas-task-id] button[aria-label="More actions"] { display: none; }
 /* Space below the last block: a click there writes on (CanvasSurface). */
 .dana-canvas-tail { min-height: calc(var(--spacing) * 16); cursor: text; }
 .dana-canvas-tail-short { min-height: calc(var(--spacing) * 8); }

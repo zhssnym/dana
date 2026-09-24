@@ -20,7 +20,7 @@ import type { CanvasBlock, CanvasEditor } from './schema.js'
 import { baselineOf, dehydrateCanvas, folderRefsOf, hydrateCanvas, mergeWorkDocument, richRuns, workPageOf } from './adapters.js'
 import type { CanvasDocument, CanvasInput } from './adapters.js'
 import { CanvasWriter } from './saving.js'
-import { NOT_SAVED, SaveFailure } from './SaveFailure.js'
+import { NOT_SAVED, RecoveryNotice, SaveFailure } from './SaveFailure.js'
 import { pasteIntoCanvas } from './paste.js'
 import type { TaskRows } from '../../../pages/task-rows.js'
 
@@ -49,6 +49,9 @@ export default function FolderCanvas(props: Props): React.JSX.Element {
     <PersistedCanvas key={`${props.folderId}:${checkpoint.epoch}`} {...props} initialPage={checkpoint.page} onCheckpoint={(page) => setCheckpoint((old) => ({ page, epoch: old.epoch + 1 }))} />
   </CanvasErrorBoundary>
 }
+
+/** The one error "Load latest" answers besides a failed save. */
+const CHANGED_ELSEWHERE = 'This page changed elsewhere. Your writing is kept here. Load the latest to continue; your writing will be offered back.'
 
 function PersistedCanvas({ page, initialPage, folderId, facetId, presentationHeadings, workRootId, tasks, completed, showCompleted, context, actions, onAsk, arrangeable, onCheckpoint }: Props & {
   readonly initialPage: PageView
@@ -84,6 +87,7 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
 }): React.JSX.Element {
   const [, render] = useState(0)
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
   /* The empty line "/ Task" turned into a task being titled in place: its
      block id while the person types, null otherwise. */
   const [draftTask, setDraftTask] = useState<string | null>(null)
@@ -257,7 +261,7 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
   useEffect(() => {
     if (!page.revision || page.revision === writer.revision || writer.state === 'saving') return
     if (writer.state === 'saved') onCheckpoint(page)
-    else setError('This page changed elsewhere. Your writing is kept here. Load the latest to continue; your writing will be offered back.')
+    else setError(CHANGED_ELSEWHERE)
   }, [page, writer, onCheckpoint])
 
   function changed(current: CanvasEditor): void {
@@ -377,7 +381,7 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
     }
   }
   const draftBox = `.dana-writing-canvas .bn-block[data-id="${draftTask}"] > .react-renderer > .bn-block-content`
-  const draftStyle = draftTask === null ? '' : `${draftBox}{display:flex;flex-direction:row;align-items:center} ${draftBox}::before{content:"";flex-shrink:0;width:14px;height:14px;border:1.5px solid var(--muted-foreground);border-radius:var(--radius-sm);margin-inline:calc(var(--spacing) * 2.5) calc(var(--spacing) * 2)} ${draftBox} > *{flex:1;min-width:0}${draftEmpty ? ` ${draftBox} .bn-inline-content::before{content:"Task title" !important;color:var(--muted-foreground);position:absolute;pointer-events:none}` : ''}`
+  const draftStyle = draftTask === null ? '' : `${draftBox}{display:flex;flex-direction:row;align-items:center} ${draftBox}::before{content:"";flex-shrink:0;width:var(--checkbox-size);height:var(--checkbox-size);border:1px solid color-mix(in srgb, var(--muted-foreground) 50%, transparent);border-radius:var(--radius-sm);margin-inline:calc(var(--spacing) * 2.5) calc(var(--spacing) * 2)} ${draftBox} > *{flex:1;min-width:0}${draftEmpty ? ` ${draftBox} .bn-inline-content::before{content:"Task title" !important;color:var(--muted-foreground);position:absolute;pointer-events:none}` : ''}`
   const pendingTask = writer.pending?.request.operations.some((operation) => operation.op === 'create_task') === true
   const downloadDraft = (): void => {
     if (!previousDraft) return
@@ -386,20 +390,24 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
   }
   return <>
     {!arrangeable ? <p className="mb-3 text-sm text-muted-foreground">Writing is paused while this list is filtered or sorted.</p> : null}
-    {recovery ? <div role="status" className="mb-3 flex flex-wrap items-center gap-1 text-sm text-muted-foreground">Earlier writing from this tab was not saved.<Button variant="ghost" size="sm" onClick={downloadDraft}>Download it</Button><Button variant="ghost" size="sm" onClick={() => {
-      void (async () => {
-        try {
-          const data: unknown = JSON.parse(previousDraft ?? '{}')
-          const pending = typeof data === 'object' && data !== null && 'pending' in data ? documentTransaction.safeParse(data.pending) : null
-          if (!pending?.success) { setError('This draft has no interrupted request. Download it to keep the writing.'); return }
-          const next = await mutateApi(getPageResponse, { method: 'POST', path: `/folders/${folderId}/page/actions`, body: pending.data })
-          // Keep a copy of any writing made after that original request.
-          downloadDraft()
-          sessionStorage.removeItem(draftKey)
-          onSaved(next); onCheckpoint(next)
-        } catch (failure) { setError(failure instanceof Error ? failure.message : 'The interrupted save could not be recovered.') }
-      })()
-    }}>Retry saving it</Button><Button variant="ghost" size="sm" onClick={() => { sessionStorage.removeItem(draftKey); setRecovery(false) }}>Dismiss</Button></div> : null}
+    {recovery ? <RecoveryNotice
+      onDownload={downloadDraft}
+      onRestore={() => {
+        void (async () => {
+          try {
+            const data: unknown = JSON.parse(previousDraft ?? '{}')
+            const pending = typeof data === 'object' && data !== null && 'pending' in data ? documentTransaction.safeParse(data.pending) : null
+            if (!pending?.success) { setError('This draft has no interrupted request. Download it to keep the writing.'); return }
+            const next = await mutateApi(getPageResponse, { method: 'POST', path: `/folders/${folderId}/page/actions`, body: pending.data })
+            // Keep a copy of any writing made after that original request.
+            downloadDraft()
+            sessionStorage.removeItem(draftKey)
+            onSaved(next); onCheckpoint(next)
+          } catch (failure) { setError(failure instanceof Error ? failure.message : 'The interrupted save could not be recovered.') }
+        })()
+      }}
+      onDiscard={() => { sessionStorage.removeItem(draftKey); setRecovery(false) }}
+    /> : null}
     <CanvasTaskProvider tasks={tasks} completed={completed} context={context} actions={actions} onAsk={onAsk}>
       {draftStyle === '' ? null : <style>{draftStyle}</style>}
       <div
@@ -423,13 +431,14 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
               : 'none'
         }
         editable={arrangeable && !creating && !pendingTask}
+        onNotice={setNotice}
       />
       </div>
     </CanvasTaskProvider>
     <SaveFailure
-      message={error || (writer.state === 'failed' ? NOT_SAVED : null)}
+      message={error || (writer.state === 'failed' ? NOT_SAVED : null) || notice || null}
       onRetry={!error && writer.state === 'failed' && writer.pending ? () => { void writer.retry() } : undefined}
-      onLoadLatest={() => { void loadLatest() }}
+      onLoadLatest={writer.state === 'failed' || error === CHANGED_ELSEWHERE ? () => { void loadLatest() } : undefined}
     />
   </>
 }

@@ -1,7 +1,12 @@
 /*
-Block selection: the Notion-style "this whole block is picked" state, apart
-from ProseMirror's text selection. Clicking a block's ⋮⋮ handle selects it;
-the marquee (unit e2) selects the blocks it touches through the same calls.
+Block selection: the Notion-style "these whole blocks are picked" state.
+Clicking a block's ⋮⋮ handle selects it; the marquee (`CanvasMarquee.tsx`),
+Esc and Cmd/Ctrl+A select through the same calls.
+
+There is one selection, and it is the editor's own: BlockNote's multi-block
+selection (`marquee.ts`), which is also what its handle drag moves, so a drag
+by any selected block's handle carries them all. The calls below are thin
+reads and writes of it.
 
 The tint is drawn by `BlockSelectionStyle` as a generated stylesheet keyed by
 the blocks' `data-id`, never as an attribute written into the editor's DOM,
@@ -10,97 +15,179 @@ which ProseMirror would observe and redraw away. Its colour is canvas.css's
 border or outline.
 
 API for other units:
-  setBlockSelection(editor, ids)   select exactly these block ids
-  blockSelection(editor)           the selected ids, in selection order
+  setBlockSelection(editor, ids)   select these blocks (one sibling run)
+  blockSelection(editor)           the selected ids, in document order
   clearBlockSelection(editor)
   onBlockSelection(editor, fn)     subscribe; returns the unsubscribe
 */
 import { createElement, useEffect, useSyncExternalStore } from 'react'
+import type { BlockNoteEditor } from '@blocknote/core'
+import { SuggestionMenu } from '@blocknote/core/extensions'
+import { TextSelection } from 'prosemirror-state'
+import type { EditorView } from 'prosemirror-view'
+import { clearBlocks, selectBlocks, selectedBlocks } from './marquee.js'
+import { simulateNest } from './turn-into.js'
+import type { TreeBlock } from './turn-into.js'
 
 // Any BlockNote editor: the canvas's and the Task composer's schemas differ.
-interface AnyEditor { readonly document: readonly { id: string }[] }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyEditor = BlockNoteEditor<any, any, any>
 
-interface Store { ids: readonly string[]; listeners: Set<() => void> }
-const stores = new WeakMap<object, Store>()
 const EMPTY: readonly string[] = []
+const snapshots = new WeakMap<object, readonly string[]>()
 
-function store(editor: object): Store {
-  let found = stores.get(editor)
-  if (found === undefined) { found = { ids: EMPTY, listeners: new Set() }; stores.set(editor, found) }
-  return found
+function viewOf(editor: AnyEditor): EditorView | undefined {
+  try { return editor.prosemirrorView ?? undefined } catch { return undefined }
 }
 
-export function setBlockSelection(editor: object, ids: readonly string[]): void {
-  const own = store(editor)
-  const next = [...new Set(ids)]
-  if (next.length === own.ids.length && next.every((id, index) => own.ids[index] === id)) return
-  own.ids = next.length === 0 ? EMPTY : next
-  for (const listener of own.listeners) listener()
+export function blockSelection(editor: AnyEditor): readonly string[] {
+  const view = viewOf(editor)
+  const ids = view === undefined ? EMPTY : selectedBlocks(view.state).map((block) => block.id)
+  // The same array while nothing changed (a `useSyncExternalStore` snapshot).
+  const last = snapshots.get(editor) ?? EMPTY
+  if (ids.length === last.length && ids.every((id, index) => last[index] === id)) return last
+  const next = ids.length === 0 ? EMPTY : ids
+  snapshots.set(editor, next)
+  return next
 }
-export function clearBlockSelection(editor: object): void { setBlockSelection(editor, EMPTY) }
-export function blockSelection(editor: object): readonly string[] { return store(editor).ids }
-export function onBlockSelection(editor: object, listener: () => void): () => void {
-  const own = store(editor)
-  own.listeners.add(listener)
-  return () => { own.listeners.delete(listener) }
+export function setBlockSelection(editor: AnyEditor, ids: readonly string[]): void {
+  const view = viewOf(editor)
+  if (view === undefined) return
+  if (ids.length === 0) clearBlocks(view)
+  else selectBlocks(view, ids)
 }
-export function useBlockSelection(editor: object): readonly string[] {
+export function clearBlockSelection(editor: AnyEditor): void { setBlockSelection(editor, EMPTY) }
+export function onBlockSelection(editor: AnyEditor, listener: () => void): () => void {
+  let last = blockSelection(editor)
+  const check = (): void => {
+    const next = blockSelection(editor)
+    if (next !== last) { last = next; listener() }
+  }
+  const offSelection = editor.onSelectionChange(check)
+  const offChange = editor.onChange(check)
+  return () => { offSelection(); offChange() }
+}
+export function useBlockSelection(editor: AnyEditor): readonly string[] {
   return useSyncExternalStore((listener) => onBlockSelection(editor, listener), () => blockSelection(editor))
 }
 
 /** The tint for the selected blocks, scoped to this editor's own root. */
-export function BlockSelectionStyle({ editor, scope }: { readonly editor: object; readonly scope: string }): React.JSX.Element | null {
+export function BlockSelectionStyle({ editor, scope }: { readonly editor: AnyEditor; readonly scope: string }): React.JSX.Element | null {
   const ids = useBlockSelection(editor)
   if (ids.length === 0) return null
   const selectors = ids.map((id) => `.${scope} .bn-block-outer[data-id="${CSS.escape(id)}"] > .bn-block`).join(',\n')
+  // No caret, and no text highlight over the picked blocks: they are picked whole.
   return createElement('style', null, `${selectors} { background: var(--dana-block-selection); border-radius: var(--radius-sm); }
-.${scope} .bn-editor { caret-color: transparent; }`)
+.${scope} .bn-editor { caret-color: transparent; }
+.${scope} .bn-editor ::selection { background: transparent; }`)
 }
 
 export interface BlockSelectionActions {
   /** Remove these blocks (the surface's own rule, e.g. a Task stays). */
   readonly remove: (ids: readonly string[]) => void
   readonly duplicate: (ids: readonly string[]) => void
+  /** Whether a nested shape can be kept; Tab that would break it does nothing. */
+  readonly admits?: (document: readonly TreeBlock[]) => boolean
 }
 
 function isMod(event: KeyboardEvent): boolean {
   return /Mac|iPhone|iPad/.test(navigator.platform) ? event.metaKey : event.ctrlKey
 }
 
+function currentBlockId(view: EditorView): string | null {
+  const $from = view.state.selection.$from
+  for (let depth = $from.depth; depth > 0; depth--) {
+    const node = $from.node(depth)
+    if (node.type.name === 'blockContainer' && typeof node.attrs.id === 'string') return node.attrs.id
+  }
+  return null
+}
+
+/** Tab / Shift-Tab for the whole selection, which stays selected. */
+function nestSelection(editor: AnyEditor, view: EditorView, ids: readonly string[], direction: 'in' | 'out', admits?: (document: readonly TreeBlock[]) => boolean): void {
+  if (direction === 'in') {
+    let document = editor.document as unknown as TreeBlock[]
+    for (const id of ids) {
+      const next = simulateNest(document, id)
+      if (next === null) return
+      document = next
+    }
+    if (admits !== undefined && !admits(document)) return
+    editor.nestBlock()
+  } else {
+    editor.unnestBlock()
+  }
+  selectBlocks(view, ids)
+}
+
 /*
-Keys while blocks are selected: Backspace/Delete remove them, Mod+D
-duplicates, Esc clears. Mod+D with a text cursor duplicates the cursor's
-block. A click anywhere but a menu, or any other key, drops the selection.
+The canvas's one key handler for block selection (window, capture phase, so
+it runs before the editor's own keys):
+- with blocks selected: Backspace/Delete remove them, Mod+D duplicates,
+  Tab/Shift-Tab nest and un-nest, Mod+A picks every block,
+  Esc clears and leaves the editor (the next Esc reaches a peek), a typed
+  character is swallowed, and any other plain key drops the selection;
+- in text: Esc picks the current block (unless the / menu is open), Mod+A
+  picks the block's text and then every block, Mod+D duplicates the block.
+A click anywhere but a menu, the gutter or a Shift-click drops the selection.
 */
-export function useBlockSelectionKeys(
-  editor: AnyEditor & { domElement?: HTMLElement; getTextCursorPosition: () => { block: { id: string } } },
-  actions: BlockSelectionActions,
-): void {
+export function useBlockSelectionKeys(editor: AnyEditor, actions: BlockSelectionActions): void {
   useEffect(() => {
     function onKey(event: KeyboardEvent): void {
+      // A synthetic key (the drag closing the handle menu) is not the user's.
+      if (event.isComposing || !event.isTrusted) return
+      const view = viewOf(editor)
+      if (view === undefined || !view.editable) return
       const ids = blockSelection(editor)
-      const root = editor.domElement
-      const inEditor = root !== undefined && document.activeElement !== null && root.contains(document.activeElement)
-      if (event.key.toLowerCase() === 'd' && isMod(event) && !event.shiftKey && !event.altKey) {
-        if (ids.length > 0) { event.preventDefault(); actions.duplicate(ids); return }
-        if (inEditor) { event.preventDefault(); actions.duplicate([editor.getTextCursorPosition().block.id]) }
+      const key = event.key
+      const mod = isMod(event)
+      const stop = (): void => { event.preventDefault(); event.stopPropagation() }
+      const inEditor = document.activeElement !== null && view.dom.contains(document.activeElement)
+      const onHost = event.target === view.dom
+      if (key.toLowerCase() === 'd' && mod && !event.shiftKey && !event.altKey) {
+        if (ids.length > 0) { stop(); actions.duplicate(ids); return }
+        if (inEditor) { stop(); actions.duplicate([editor.getTextCursorPosition().block.id]) }
         return
       }
-      if (ids.length === 0) return
+      if (ids.length === 0) {
+        // Only keys typed into the text itself (a field inside a block keeps its own).
+        if (!onHost) return
+        if (mod && key.toLowerCase() === 'a' && !event.shiftKey && !event.altKey) {
+          const { selection, doc } = view.state
+          const $from = selection.$from
+          const oneBlock = $from.parent.inlineContent && $from.sameParent(selection.$to)
+          const whole = oneBlock && selection.from === $from.start() && selection.to === $from.end()
+          stop()
+          if (oneBlock && !whole && $from.parent.content.size > 0) {
+            view.dispatch(view.state.tr.setSelection(TextSelection.create(doc, $from.start(), $from.end())))
+          } else setBlockSelection(editor, editor.document.map((block) => block.id))
+          return
+        }
+        if (key === 'Escape' && !mod && !event.shiftKey && !editor.getExtension(SuggestionMenu)?.shown()) {
+          const id = currentBlockId(view)
+          if (id !== null) { stop(); setBlockSelection(editor, [id]) }
+        }
+        return
+      }
       // A key inside an open menu belongs to the menu.
       if (document.activeElement?.closest('[role="menu"]')) return
-      if (event.key === 'Escape') { event.preventDefault(); clearBlockSelection(editor); return }
-      if (event.key === 'Backspace' || event.key === 'Delete') {
-        event.preventDefault()
+      if (key === 'Escape') { stop(); clearBlockSelection(editor); view.dom.blur(); return }
+      if (key === 'Backspace' || key === 'Delete') {
+        stop()
         clearBlockSelection(editor)
         actions.remove(ids)
+        // Refused (the canvas guard says why): the blocks stay picked.
+        if (ids.every((id) => editor.getBlock(id) !== undefined)) setBlockSelection(editor, ids)
         return
       }
-      if (['Shift', 'Control', 'Meta', 'Alt'].includes(event.key)) return
+      if (mod && key.toLowerCase() === 'a' && !event.shiftKey) { stop(); setBlockSelection(editor, editor.document.map((block) => block.id)); return }
+      if (key === 'Tab' && !mod && !event.altKey) { stop(); nestSelection(editor, view, ids, event.shiftKey ? 'out' : 'in', actions.admits); return }
+      if (['Shift', 'Control', 'Meta', 'Alt'].includes(key) || mod) return // copy, cut, undo keep their meaning
+      if (key.length === 1) { stop(); return } // a typed character does not replace the blocks
       clearBlockSelection(editor)
     }
     function onPointer(event: PointerEvent): void {
-      if (blockSelection(editor).length === 0) return
+      if (event.shiftKey || blockSelection(editor).length === 0) return
       const target = event.target as Element | null
       if (target?.closest('[role="menu"], .bn-side-menu')) return
       clearBlockSelection(editor)
@@ -116,7 +203,7 @@ export function blockLink(id: string): string {
   const { origin, pathname, search } = window.location
   return `${origin}${pathname}${search}#block-${id}`
 }
-export function useBlockAnchor(editor: AnyEditor & { domElement?: HTMLElement }, ready: boolean): void {
+export function useBlockAnchor(editor: AnyEditor, ready: boolean): void {
   useEffect(() => {
     if (!ready) return
     function follow(): void {
