@@ -1,19 +1,11 @@
 /*
-9.13's first-run offer, drawn on Desk beneath the folder page.
+9.13's first-run offer, drawn under Today's list, where /app lands a new person.
 
 **Fresh is two facts and a dismissal.** 9.13: the account holds no folder but
 Desk and no task anywhere. The first is `useFolders`, which the shell has
-already read to draw the sidebar. The second is the All view, and it is
-mounted here rather than in `DeskPage` so that it is requested only by an
-account that has already passed the cheap check: a person with folders never
-issues it, which is every person after their first hour.
-
-**The offer lives here and not in the folder page.** 9.13 puts it beneath
-Desk's empty state, and `FolderPage` stays a plain folder page; `DeskPage` is the seam
-that already exists between the route and that page, so the offer renders
-after it and reaches across nothing. A fresh Desk has no tasks, so the folder
-page above is showing its own empty state and this sits directly under it,
-which is what that section asks for.
+already read to draw the sidebar; the page runs that cheap half. The second is
+the All view, and it is mounted here so that it is requested only by an
+account that has already passed the cheap check.
 
 **Dismissal is local to the device**, in `localStorage`. 9.13 says a person
 who answers the offer has left first run, and the import answers it in the
@@ -54,7 +46,7 @@ function readDismissed(): boolean {
     return window.localStorage.getItem(DISMISSED_KEY) === '1'
   } catch {
     // Private modes and blocked storage throw on read. An offer that cannot
-    // remember a dismissal is better than a Desk that cannot render.
+    // remember a dismissal is better than a page that cannot render.
     return false
   }
 }
@@ -68,7 +60,7 @@ function writeDismissed(): void {
 }
 
 /**
- * The cheap half of 9.13's freshness test, and the only half `DeskPage` runs.
+ * The cheap half of 9.13's freshness test, and the only half the page runs.
  * A person with one folder that is Desk may be fresh; anyone else is not.
  */
 export function useMayBeFresh(): boolean {
@@ -109,7 +101,7 @@ export function StarterOffer(): React.JSX.Element | null {
   const importWorkflow = useImportWorkflow()
   const [dismissed, setDismissed] = useState(readDismissed)
   /*
-  The expensive half of the freshness test. `DeskPage` has already checked the
+  The expensive half of the freshness test. The page has already checked the
   cheap half, so this only ever runs for an account that has one folder and it
   is Desk.
   */

@@ -68,7 +68,7 @@ export function TaskPage(): React.JSX.Element {
        "from" (a link opened cold). */
     if (window.history.length > 1) void navigate(-1)
     else if (detail !== undefined) void navigate(paths.folder(detail.folder.id))
-    else void navigate(paths.desk)
+    else void navigate(paths.today)
   }
 
   return (

@@ -139,27 +139,27 @@ export type LegalPageName = keyof typeof PAGE_COPY
 export function LegalPage({ page }: { readonly page: LegalPageName }): React.JSX.Element {
   const copy = PAGE_COPY[page]
   return (
-    <div className="min-h-screen bg-[var(--color-graphite-25)] text-[var(--color-graphite-800)]">
-      <div className="mx-auto flex max-w-[640px] flex-col px-6 py-10">
+    <div className="min-h-screen bg-background text-foreground">
+      <div className="mx-auto flex max-w-[720px] flex-col px-4 py-5 sm:px-8">
         <header className="flex items-center">
           <DanaIdentity />
         </header>
 
         <main className="mt-12">
-          <h1 className="text-[28px] leading-9 font-semibold text-[var(--color-graphite-900)]">
+          <h1 className="text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-bold text-foreground">
             {copy.title}
           </h1>
-          <p className="mt-2 text-[13px] text-[var(--color-graphite-500)]">{copy.updated}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{copy.updated}</p>
 
           <div className="mt-10 flex flex-col gap-8">
             {copy.sections.map((section) => (
               <section key={section.heading}>
-                <h2 className="text-[16px] leading-6 font-semibold text-[var(--color-graphite-900)]">
+                <h2 className="text-base font-semibold text-foreground">
                   {section.heading}
                 </h2>
                 <div className="mt-2 flex flex-col gap-2.5">
                   {section.body.map((paragraph) => (
-                    <p key={paragraph} className="text-[14px] leading-[22px]">
+                    <p key={paragraph} className="text-sm">
                       {paragraph}
                     </p>
                   ))}
@@ -173,15 +173,15 @@ export function LegalPage({ page }: { readonly page: LegalPageName }): React.JSX
             without going back through the landing. Its year is computed here
             rather than written, which is the landing footer's own note: the
             line must not go stale on 1 January. */}
-        <footer className="mt-16 flex items-center gap-5 border-t border-[var(--color-graphite-200)] pt-6 text-xs text-[var(--color-graphite-500)]">
+        <footer className="mt-16 flex items-center gap-5 border-t border-border pt-6 text-xs text-muted-foreground">
           <span>© {String(new Date().getFullYear())} Dana</span>
           <Link
             to="/privacy"
-            className="rounded-sm hover:text-[var(--color-graphite-800)]"
+            className="rounded-sm hover:text-foreground"
           >
             Privacy
           </Link>
-          <Link to="/terms" className="rounded-sm hover:text-[var(--color-graphite-800)]">
+          <Link to="/terms" className="rounded-sm hover:text-foreground">
             Terms
           </Link>
         </footer>

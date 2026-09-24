@@ -50,7 +50,7 @@ function nextId(): string {
    is a navigation to a place, and a place is a tab. So the store always holds
    at least one, and the initial one is retargeted to wherever the first
    render actually is. */
-const first: Tab = { id: nextId(), path: paths.desk }
+const first: Tab = { id: nextId(), path: paths.today }
 let state: TabState = { tabs: [first], activeId: first.id }
 
 const listeners = new Set<() => void>()
@@ -129,7 +129,7 @@ export function openInNewTab(path: string): string {
 /** Make a tab active. Returns where the router should go. */
 export function selectTab(id: string): string {
   const tab = state.tabs.find((candidate) => candidate.id === id)
-  if (tab === undefined) return state.tabs[0]?.path ?? paths.desk
+  if (tab === undefined) return state.tabs[0]?.path ?? paths.today
   state = { ...state, activeId: id }
   publish()
   return tab.path
@@ -153,10 +153,10 @@ export function closeTab(id: string): string | null {
   if (at < 0) return null
 
   if (state.tabs.length === 1) {
-    const fresh: Tab = { id: nextId(), path: paths.desk }
+    const fresh: Tab = { id: nextId(), path: paths.today }
     state = { tabs: [fresh], activeId: fresh.id }
     publish()
-    return paths.desk
+    return paths.today
   }
 
   const tabs = state.tabs.filter((tab) => tab.id !== id)

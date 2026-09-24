@@ -21,8 +21,7 @@ a heading, a band and a paragraph to read; the heading is always drawn (AC-226).
 4.4's per-member color column is written by no surface here.
 
 **Tasks sit under their sections.** `server/views/cards.ts` projects
-`section_block_id` on the folder read, `BlocksEditor`'s `sectionExtras` hook is
-passed, each section carries its own rows and its own quick-add, and the loose
+`section_block_id` on the folder read, each section carries its own rows and its own quick-add, and the loose
 list holds exactly the tasks under no section.
 
 **This page is a place-page** (`views/place-pages.ts`). 9.6 asks for the filter
@@ -725,7 +724,7 @@ export function FolderPage({
         pushUndo(undoLabel('Deleted', name), () => {
           restore.mutate(id)
         })
-        navigate(paths.desk)
+        navigate(paths.today)
       },
     })
   }
@@ -829,7 +828,7 @@ export function FolderPage({
 
   function askLeave(): void {
     confirm.ask(leaveFolderConfirm(detail?.name ?? ''), () => {
-      leave.mutate(id, { onSuccess: () => navigate(paths.desk) })
+      leave.mutate(id, { onSuccess: () => navigate(paths.today) })
     })
   }
 

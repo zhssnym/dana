@@ -3,14 +3,7 @@ import { Input as InputPrimitive } from "@base-ui/react/input"
 
 import { cn } from "./utils.js"
 
-/*
-`bare` mirrors `Textarea`'s, and exists for the same case: a field sitting
-*inside* something that already draws the box, a search overlay's header row,
-a link picker's framed row, where a second border would be a box in a box.
-It keeps the type, the placeholder colour and the disabled behaviour and drops
-only the frame, so the two are the same control at two depths rather than one
-control and one hand-written span pretending to be one.
-*/
+/* `bare`: a field inside something that already draws the box. */
 function Input({
   className,
   type,
@@ -22,10 +15,10 @@ function Input({
       type={type}
       data-slot="input"
       className={cn(
-        "w-full min-w-0 text-sm outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-xs/relaxed file:font-medium file:text-foreground placeholder:text-muted-foreground disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-xs/relaxed",
+        "w-full min-w-0 text-sm text-foreground outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-xs file:font-medium file:text-foreground placeholder:text-quiet-foreground disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
         bare
           ? "bg-transparent"
-          : "h-7 rounded-md border border-input bg-input/20 px-2 py-0.5 transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20 dark:bg-input/30 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
+          : "h-8 px-2 rounded-sm border border-input bg-background transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20",
         className
       )}
       {...props}

@@ -415,23 +415,6 @@ export const SAMPLE_WORKSPACE: SampleWorkspace = {
 
   views: [
     {
-      name: 'Important, by folder',
-      pinned: true,
-      definition: {
-        page: 'all',
-        due: 'any',
-        from: null,
-        to: null,
-        assignees: [],
-        creators: [],
-        important: true,
-        repeating: false,
-        showAbandoned: true,
-        groupBy: 'folder',
-        sort: 'due',
-      },
-    },
-    {
       name: 'Overdue',
       pinned: false,
       definition: {

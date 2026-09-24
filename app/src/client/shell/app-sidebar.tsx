@@ -497,7 +497,7 @@ function railFolderIds(
   const open = new Set<string>()
   if (activeFolderId !== null) open.add(activeFolderId)
   for (const tab of tabs) {
-    if (tab.path === paths.desk) {
+    if (tab.path === paths.home) {
       if (defaultFolderId !== null) open.add(defaultFolderId)
     } else if (tab.path.startsWith(FOLDER_PATH)) {
       open.add(tab.path.slice(FOLDER_PATH.length))
@@ -1440,7 +1440,7 @@ function SidebarBrandHeader({
     <SidebarHeader className="p-2 pb-1">
       <div className="flex min-h-[var(--shell-sidebar-item-height)] items-center group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-1">
         <Link
-          to={paths.desk}
+          to={paths.today}
           className="flex min-w-0 items-center gap-3 rounded-md px-2 outline-none focus-visible:ring-2 focus-visible:ring-ring/30 group-data-[collapsible=icon]:size-[var(--shell-sidebar-row-height)] group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
         >
           {/* Drawn rather than fetched (AC-265). This is the one mark a person
