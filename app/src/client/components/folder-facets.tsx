@@ -9,9 +9,12 @@ named "Work" and `consultation` "Discussion" by the server's own table
 (`DEFAULT_FACET_NAMES`); the stored kinds and the stored order are unchanged,
 so the four built-in tabs keep their places and only custom tabs move.
 
-**The row under the header is only the tabs** (the Quiet spec). No icons, no
-"+", no eye, no view controls: hidden facets simply do not show, and every act
-on a tab lives in one place, the dialog. Arrow keys move between tabs.
+**The row under the header is the tabs and one quiet "+"** (round 3, Notion's
+"add a view"): the "+" becomes a name field, Enter makes a blank tab with that
+name. A tab's own acts are on the tab: right-click it for Rename (in place)
+and Delete. Drag reorders. No icons, no eye, no view controls: hidden facets
+simply do not show, and showing them again, a private tab and a tab from a
+section of Work stay in the "Tabs…" dialog. Arrow keys move between tabs.
 
 **Every act is gated by the same table the routes resolve against**
 (`FacetCapabilities`, built by FolderPage from `shared/folder-actions.ts`), so
@@ -39,6 +42,7 @@ import {
 } from './ui/dropdown-menu.js'
 import { Switch } from './ui/switch.js'
 import { cn } from './ui/utils.js'
+import { Plus } from '../lib/icons.js'
 
 export interface FacetCapabilities {
   readonly createShared: boolean
@@ -137,6 +141,10 @@ export function FolderTabs({
   onSelect,
   canMove,
   onReorder,
+  capabilities,
+  onAdd,
+  onRename,
+  onDelete,
 }: {
   readonly facets: readonly Facet[]
   readonly activeId: string
@@ -145,6 +153,14 @@ export function FolderTabs({
   readonly canMove?: (facet: Facet) => boolean
   /** The whole visible row in its new order, the moved tab named. */
   readonly onReorder?: (dragged: Facet, orderedVisible: readonly Facet[]) => void
+  /** The same gate the dialog asks; absent offers no add, rename or delete. */
+  readonly capabilities?: (facet: Facet | null) => FacetCapabilities
+  /** The "+": a blank shared tab with this name. */
+  readonly onAdd?: (name: string) => void
+  /** Rename in place; null gives a built-in tab its own name back. */
+  readonly onRename?: (facet: Facet, name: string | null) => void
+  /** Delete a custom tab (the page confirms). */
+  readonly onDelete?: (facet: Facet) => void
 }): React.JSX.Element | null {
   /* Ordered over every tab, then filtered: a hidden built-in is not a reorder. */
   const visible = tabOrder(facets).filter((facet) => !facet.hidden)
@@ -154,6 +170,11 @@ export function FolderTabs({
   const pressTimer = useRef<number | null>(null)
   /* A drag's release is not also a click on the tab under it. */
   const swallowClick = useRef(false)
+  /* The "+" field while it is open, and the tab being renamed in place. */
+  const [adding, setAdding] = useState(false)
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+  /* Right-click's menu: the tab it is for, opened where the pointer was. */
+  const [menu, setMenu] = useState<{ readonly facet: Facet; readonly x: number; readonly y: number } | null>(null)
 
   const put = (next: TabDrag | null): void => {
     dragRef.current = next
@@ -209,7 +230,15 @@ export function FolderTabs({
 
   useEffect(() => clearTimer, [])
 
-  /* One tab is not a choice: a page showing only Work draws no row. */  if (visible.length < 2) return null
+  const canAdd = onAdd !== undefined && capabilities?.(null).createShared === true
+  const mayRename = (facet: Facet): boolean =>
+    onRename !== undefined && facet.kind !== 'main' && isRenameable(facet) && capabilities?.(facet).rename === true
+  const mayDelete = (facet: Facet): boolean =>
+    onDelete !== undefined && isCustom(facet) && capabilities?.(facet).delete === true
+
+  /* One tab is not a choice: a page showing only Work draws no row, unless
+     the "+" is there to make a second. */
+  if (visible.length < 2 && !canAdd) return null
   const active = visible.find((facet) => facet.id === activeId) ?? visible[0]
 
   function moveFocus(facet: Facet, direction: -1 | 1): void {
@@ -237,6 +266,25 @@ export function FolderTabs({
         /* The accent line sits in the gap before this tab, or after the last. */
         const lineBefore = drag?.lifted === true && drag.gap === index
         const lineAfter = drag?.lifted === true && drag.gap === visible.length && index === visible.length - 1
+        if (renamingId === facet.id) {
+          return (
+            <TabNameField
+              key={facet.id}
+              initial={facet.name}
+              label={`Name of ${facet.name}`}
+              onDone={(next) => {
+                setRenamingId(null)
+                if (next === null || next === facet.name) return
+                /* Clearing a built-in tab's name gives its own back. */
+                if (next === '') {
+                  if (isRenameableFacetKind(facet.kind)) onRename?.(facet, null)
+                  return
+                }
+                onRename?.(facet, next)
+              }}
+            />
+          )
+        }
         return (
           <button
             key={facet.id}
@@ -332,7 +380,16 @@ export function FolderTabs({
             }}
             onContextMenu={(event) => {
               /* A long press lifts the tab rather than opening the menu. */
-              if (dragRef.current !== null && event.nativeEvent instanceof PointerEvent && event.nativeEvent.pointerType === 'touch') event.preventDefault()
+              if (dragRef.current !== null && event.nativeEvent instanceof PointerEvent && event.nativeEvent.pointerType === 'touch') {
+                event.preventDefault()
+                return
+              }
+              if (!mayRename(facet) && !mayDelete(facet)) return
+              event.preventDefault()
+              /* A keyboard's menu key reports no pointer: open under the tab. */
+              const box = event.currentTarget.getBoundingClientRect()
+              const keyboard = event.clientX === 0 && event.clientY === 0
+              setMenu({ facet, x: keyboard ? box.left : event.clientX, y: keyboard ? box.bottom : event.clientY })
             }}
             style={{
               ...(lifted && drag !== null ? { transform: `translateX(${String(drag.x - drag.startX)}px)` } : {}),
@@ -356,7 +413,103 @@ export function FolderTabs({
           </button>
         )
       })}
+      {canAdd ? (
+        adding ? (
+          <TabNameField
+            initial=""
+            label="New tab name"
+            placeholder="Tab name"
+            onDone={(name) => {
+              setAdding(false)
+              if (name !== null && name !== '') onAdd?.(name)
+            }}
+          />
+        ) : (
+          <button
+            type="button"
+            aria-label="Add tab"
+            title="Add tab"
+            onClick={() => setAdding(true)}
+            className="flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" />
+          </button>
+        )
+      ) : null}
+      <DropdownMenu
+        open={menu !== null}
+        onOpenChange={(open) => {
+          if (!open) setMenu(null)
+        }}
+      >
+        {/* Where the right-click was: the menu opens at the pointer. */}
+        <DropdownMenuTrigger
+          nativeButton={false}
+          render={<span aria-hidden="true" tabIndex={-1} />}
+          style={{ position: 'fixed', left: menu?.x ?? 0, top: menu?.y ?? 0, width: 0, height: 0 }}
+        />
+        <DropdownMenuContent align="start" className="w-40">
+          {menu !== null && mayRename(menu.facet) ? (
+            <DropdownMenuItem onClick={() => setRenamingId(menu.facet.id)}>Rename</DropdownMenuItem>
+          ) : null}
+          {menu !== null && mayDelete(menu.facet) ? (
+            <DropdownMenuItem variant="destructive" onClick={() => onDelete?.(menu.facet)}>
+              Delete
+            </DropdownMenuItem>
+          ) : null}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
+  )
+}
+
+/*
+A tab's name being typed: the "+" making a tab, or a tab renamed in place.
+Enter or leaving the field keeps it, Escape answers null (nothing changes).
+It sits where the tab text sits, the row's own size and baseline.
+*/
+function TabNameField({
+  initial,
+  label,
+  placeholder,
+  onDone,
+}: {
+  readonly initial: string
+  readonly label: string
+  readonly placeholder?: string
+  readonly onDone: (name: string | null) => void
+}): React.JSX.Element {
+  const [value, setValue] = useState(initial)
+  const settled = useRef(false)
+  const finish = (next: string | null): void => {
+    if (settled.current) return
+    settled.current = true
+    onDone(next === null ? null : next.replace(/\s+/g, ' ').trim())
+  }
+  return (
+    <input
+      autoFocus
+      value={value}
+      aria-label={label}
+      placeholder={placeholder}
+      maxLength={120}
+      size={Math.max(8, value.length + 1)}
+      onFocus={(event) => event.currentTarget.select()}
+      onChange={(event) => setValue(event.target.value)}
+      onBlur={() => finish(value)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault()
+          finish(value)
+        }
+        if (event.key === 'Escape') {
+          event.preventDefault()
+          event.stopPropagation()
+          finish(null)
+        }
+      }}
+      className="-mb-px shrink-0 border-b-2 border-foreground bg-transparent py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+    />
   )
 }
 
@@ -408,7 +561,7 @@ export function FolderTabsDialog({
             const caps = capabilities(facet)
             const renameable = facet.kind !== 'main' && isRenameable(facet) && caps.rename
             const hideable = isHideableFacetKind(facet.kind) && caps.hide
-            const custom = facet.private || facet.kind === 'work' || facet.kind.endsWith('_blank')
+            const custom = isCustom(facet)
             return (
               <li key={facet.id} className="flex h-9 items-center gap-2 rounded-md px-2 hover:bg-muted">
                 {renameable ? (
@@ -501,6 +654,11 @@ export function FolderTabsDialog({
       </DialogContent>
     </Dialog>
   )
+}
+
+/** A tab someone made (not a built-in), the kind that can be deleted. */
+function isCustom(facet: Facet): boolean {
+  return facet.private || facet.kind === 'work' || facet.kind.endsWith('_blank')
 }
 
 function isRenameable(facet: Facet): boolean {

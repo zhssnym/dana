@@ -1193,6 +1193,10 @@ export function FolderPage({
                 return facet.private ? caps.reorderPrivate : caps.reorderShared
               }}
               onReorder={reorderFolderFacets}
+              capabilities={facetCapabilities}
+              onAdd={(name) => createFolderFacet({ kind: 'shared_blank', name })}
+              onRename={renameFolderFacet}
+              onDelete={removeFolderFacet}
             />
           ) : facets.isError ? (
             <p role="alert" className="text-sm text-muted-foreground">
