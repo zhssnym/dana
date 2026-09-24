@@ -6,7 +6,7 @@ parent; a divider carries no text; a paragraph may not nest under a bullet.
 Data-loss class: a toggle's children are held by `list_parent_block_id`, so a
 save path that forgot a paragraph may hold one would flatten the toggle on the
 next write — the SQL upsert's `list_parent_block_id=CASE ...` and migration
-0035's `page_blocks_list_parent_kind_check` are the two places that decide it.
+0037's `page_blocks_list_parent_kind_check` are the two places that decide it.
 
 Spec: 4.17, 7.16.
 */

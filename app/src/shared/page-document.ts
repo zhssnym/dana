@@ -119,7 +119,7 @@ export const isListKind = (kind:string):kind is ListBlockKind => (LIST_BLOCK_KIN
  * list item (a toggle included), as #219 has it; and under a `toggle`, and
  * under nothing else, a paragraph, a quote, a callout, a code block or a
  * divider may nest too, through the same `list_parent_block_id`. The database
- * says the same thing in `page_blocks_list_parent_kind_check` (0035).
+ * says the same thing in `page_blocks_list_parent_kind_check` (0037).
  */
 export const TOGGLE_CHILD_KINDS = ['paragraph',...LIST_BLOCK_KINDS,'quote','callout','code','divider'] as const
 export type ToggleChildKind = (typeof TOGGLE_CHILD_KINDS)[number]

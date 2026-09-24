@@ -23,9 +23,12 @@ import { SuggestionMenu, insertOrUpdateBlockForSlashMenu } from '@blocknote/core
 import { CheckCircle2, FileText, Image as ImageIcon, Lightbulb, Network } from '../../../lib/icons.js'
 import { linkSlashItem } from '../../links/dana-link-picker.js'
 import { ancestorsOf, insertCanvasHeading, sectionContext } from './commands.js'
-import { TOGGLE_SURFACES, bindCanvasSurface, headingFor, surfaceOf, workHeadingLevel } from './markdown.js'
+import { TOGGLE_SURFACES, bindCanvasSurface, surfaceOf } from './markdown.js'
+import { validateCanvasOutline } from './outline.js'
+import { TEXT_TYPES, TURN_TARGETS, conversionOf, isCurrent, simulate } from './turn-into.js'
+import type { TreeBlock, TurnKey, TurnTarget } from './turn-into.js'
 import type { CanvasSurfaceKind } from './markdown.js'
-import type { CanvasBlock, CanvasEditor } from './schema.js'
+import type { CanvasEditor } from './schema.js'
 
 export type { CanvasSurfaceKind } from './markdown.js'
 
@@ -46,107 +49,79 @@ const has = (editor: AnyEditor, type: string): boolean => type in editor.schema.
 
 /* ------------------------------------------------------------ turn into */
 
-interface Target {
-  readonly title: string
-  readonly aliases: readonly string[]
-  readonly type: string
-  readonly level?: 1 | 2 | 3
-  readonly toggle?: boolean
+/* The targets are the block menu's own (`turn-into.ts`), so the typed `/turn …`
+   list and the ⋮⋮ menu's Turn into cannot disagree; only the words that find
+   each one live here. On Work a heading is a Section, which folds, so "toggle
+   h1" finds Heading 1 there. */
+const TURN_ALIASES: Record<TurnKey, readonly string[]> = {
+  text: ['text', 'paragraph', 'plain', 'p'],
+  h1: ['h1', '#', 'heading 1', 'title'],
+  h2: ['h2', '##', 'heading 2', 'subheading'],
+  h3: ['h3', '###', 'heading 3'],
+  todo: ['todo', 'to-do', 'checkbox', 'checklist', '[]'],
+  toggle: ['toggle', '>', 'collapsible', 'details'],
+  bullet: ['bullet', 'bulleted', 'ul', '-', '*', 'unordered'],
+  numbered: ['num', 'numbered', 'ol', '1.', 'ordered'],
+  quote: ['quote', 'blockquote', '"'],
+  callout: ['callout', 'note', 'tip'],
+  code: ['code', '```', 'snippet'],
+}
+const TURN_ICONS: Record<string, string> = {
+  paragraph: 'paragraph', bulletListItem: 'bullet_list', numberedListItem: 'numbered_list', checkListItem: 'check_list',
+  toggleListItem: 'toggle_list', quote: 'quote', codeBlock: 'code_block',
 }
 
-const LIST_TYPES = new Set(['bulletListItem', 'numberedListItem', 'checkListItem', 'toggleListItem'])
-const TOGGLE_CHILD_TYPES = new Set(['paragraph', 'quote', 'callout', 'codeBlock', 'divider', ...LIST_TYPES])
+/** How a surface stores a heading: a Section (`true`), flat (`false`), or a
+ * schema with no such prop (the Task composer, `undefined`). */
+function headingTogglesOf(surface: CanvasSurfaceKind): boolean | undefined {
+  return surface === 'work' || surface === 'shelf' ? true : surface === 'task' ? undefined : false
+}
 
-function targetsFor(editor: AnyEditor): Target[] {
+/** A Shelf keeps everything flat but its headings (`ShelfCanvas`'s own guard). */
+const flatFailure = (blocks: readonly TreeBlock[]): boolean => blocks.some((block) => (block.type !== 'heading' && block.children.length > 0) || flatFailure(block.children))
+
+/** The targets this block may become here: offered only when the result is a shape the page stores. */
+export function turnTargetsFor(editor: AnyEditor, block: TreeBlock): TurnTarget[] {
+  if (!TEXT_TYPES.has(block.type) && block.type !== 'toggleListItem') return []
   const surface = surfaceOf(editor)
-  const targets: Target[] = [{ title: 'Text', aliases: ['text', 'paragraph', 'plain', 'p'], type: 'paragraph' }]
-  if (surface !== 'plain') {
-    for (const level of surface === 'shelf' ? [1] as const : [1, 2, 3] as const) {
-      targets.push({ title: `Heading ${level}`, aliases: [`h${level}`, '#'.repeat(level), `heading ${level}`, 'title'], type: 'heading', level })
-    }
-  }
-  if (surface === 'work') {
-    for (const level of [1, 2, 3] as const) {
-      targets.push({ title: `Toggle heading ${level}`, aliases: [`toggle h${level}`, `toggleh${level}`, `toggle heading ${level}`], type: 'heading', level, toggle: true })
-    }
-  }
-  if (has(editor, 'toggleListItem') && TOGGLE_SURFACES.has(surface)) targets.push({ title: 'Toggle list', aliases: ['toggle', '>', 'collapsible', 'details'], type: 'toggleListItem' })
-  if (has(editor, 'checkListItem')) targets.push({ title: 'To-do list', aliases: ['todo', 'to-do', 'checkbox', 'checklist', '[]'], type: 'checkListItem' })
-  targets.push(
-    { title: 'Bulleted list', aliases: ['bullet', 'bulleted', 'ul', '-', '*', 'unordered'], type: 'bulletListItem' },
-    { title: 'Numbered list', aliases: ['num', 'numbered', 'ol', '1.', 'ordered'], type: 'numberedListItem' },
-    { title: 'Quote', aliases: ['quote', 'blockquote', '"'], type: 'quote' },
-  )
-  if (has(editor, 'callout')) targets.push({ title: 'Callout', aliases: ['callout', 'note', 'tip'], type: 'callout' })
-  if (has(editor, 'codeBlock')) targets.push({ title: 'Code', aliases: ['code', '```', 'snippet'], type: 'codeBlock' })
-  return targets
-}
-
-function holds(target: Target, surface: CanvasSurfaceKind, children: readonly CanvasBlock[]): boolean {
-  if (children.length === 0) return true
-  if (target.type === 'heading') return surface === 'work'
-  if (target.type === 'toggleListItem') return children.every((child) => TOGGLE_CHILD_TYPES.has(child.type))
-  if (LIST_TYPES.has(target.type)) return children.every((child) => LIST_TYPES.has(child.type))
-  return false
-}
-
-/** Lift a Section's children one level, as its heading goes. */
-function lifted(children: readonly CanvasBlock[]): CanvasBlock[] {
-  return children.map((child) => child.type === 'heading' && child.props.isToggleable !== false
-    ? { ...child, props: { ...child.props, level: Math.max(1, child.props.level - 1) as 1 | 2 | 3 }, children: lifted(child.children) }
-    : child)
+  const toggles = headingTogglesOf(surface)
+  const document = editor.document as unknown as TreeBlock[]
+  return TURN_TARGETS.filter((target) => {
+    if (!has(editor, target.type) || isCurrent(block, target)) return false
+    if (target.type === 'heading' && (surface === 'plain' || (surface === 'shelf' && target.level !== 1))) return false
+    if (target.type === 'toggleListItem' && !TOGGLE_SURFACES.has(surface)) return false
+    if (surface === 'task') return true
+    const next = simulate(document, block.id, target, toggles)
+    return validateCanvasOutline(next) === null && !(surface === 'shelf' && flatFailure(next))
+  })
 }
 
 /** Convert a block in place, keeping its text, and its children where the target holds them. */
-export function turnBlockInto(editor: AnyEditor, block: CanvasBlock, target: Target): void {
-  const surface = surfaceOf(editor)
-  let props: Record<string, unknown> = {}
-  if (target.type === 'heading') {
-    const heading = surface === 'work' ? (() => {
-      const level = workHeadingLevel(editor, block)
-      return level === null ? null : { level, isToggleable: true }
-    })() : headingFor(editor, block, target.level ?? 1)
-    if (heading === null) return
-    props = surface === 'task' ? { level: heading.level } : heading
-  }
-  const content = target.type === 'codeBlock' || block.type === 'codeBlock'
-    ? (Array.isArray(block.content) ? block.content.map((inline) => inline.type === 'text' ? inline.text : inline.type === 'link' ? inline.content.map((text) => text.text).join('') : '').join('') : '')
-    : undefined
-  const wasSection = block.type === 'heading' && block.props.isToggleable !== false
-  const keep = holds(target, surface, block.children)
+export function turnBlockInto(editor: AnyEditor, id: string, target: TurnTarget): void {
+  const block = editor.getBlock(id) as TreeBlock | undefined
+  if (block === undefined || isCurrent(block, target)) return
+  const { update, lifted } = conversionOf(block, target, headingTogglesOf(surfaceOf(editor)))
   editor.transact(() => {
-    // Upstream ignores an empty `children`, so what the target cannot hold leaves first.
-    if (!keep) editor.removeBlocks(block.children.map((child) => child.id))
-    editor.updateBlock(block, {
-      type: target.type as 'paragraph',
-      props: props as never,
-      ...(content === undefined ? {} : { content }),
-    })
-    if (!keep) editor.insertBlocks(wasSection ? lifted(block.children) : block.children, block.id, 'after')
-    editor.setTextCursorPosition(block.id, 'end')
+    // Upstream ignores `children: []`, so what the target cannot hold leaves first.
+    if (lifted.length > 0) editor.removeBlocks(lifted.map((child) => child.id))
+    editor.updateBlock(id, update as never)
+    if (lifted.length > 0) editor.insertBlocks(lifted as never, id, 'after')
+    editor.setTextCursorPosition(id, 'end')
   })
   editor.focus()
 }
 
 function turnItems(editor: AnyEditor): Item[] {
-  const block = editor.getTextCursorPosition().block
-  // Only a block of writing turns into another; a Task, a folder row or media does not.
-  if (!Array.isArray(block.content) && block.type !== 'codeBlock') return []
-  const headingDefaults = getDefaultReactSlashMenuItems(editor)
-  const iconOf = (key: string): JSX.Element | undefined => headingDefaults.find((item) => 'key' in item && item.key === key)?.icon
-  const icons: Record<string, string> = {
-    paragraph: 'paragraph', bulletListItem: 'bullet_list', numberedListItem: 'numbered_list', checkListItem: 'check_list',
-    toggleListItem: 'toggle_list', quote: 'quote', codeBlock: 'code_block',
-  }
-  return targetsFor(editor).map((target) => ({
+  const block = editor.getTextCursorPosition().block as unknown as TreeBlock
+  const defaults = getDefaultReactSlashMenuItems(editor)
+  const iconOf = (key: string): JSX.Element | undefined => defaults.find((item) => 'key' in item && item.key === key)?.icon
+  const work = surfaceOf(editor) === 'work'
+  return turnTargetsFor(editor, block).map((target) => ({
     title: target.title,
-    aliases: target.aliases.map((alias) => alias),
-    icon: target.type === 'callout' ? <Lightbulb size={16} /> : iconOf(target.type === 'heading' ? (target.level === 1 ? 'heading' : `heading_${target.level}`) : icons[target.type] ?? ''),
+    aliases: [...TURN_ALIASES[target.key], ...(work && target.level !== undefined ? [`toggle h${target.level}`, `toggleh${target.level}`, `toggle heading ${target.level}`] : [])],
+    icon: target.type === 'callout' ? <Lightbulb size={16} /> : iconOf(target.type === 'heading' ? (target.level === 1 ? 'heading' : `heading_${target.level}`) : TURN_ICONS[target.type] ?? ''),
     group: 'Turn into',
-    onItemClick: () => {
-      const current = editor.getBlock(block.id)
-      if (current !== undefined) turnBlockInto(editor, current, target)
-    },
+    onItemClick: () => { turnBlockInto(editor, block.id, target) },
   }))
 }
 

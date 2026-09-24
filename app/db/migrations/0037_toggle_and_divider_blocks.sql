@@ -1,4 +1,4 @@
--- 0035: the Toggle and Divider blocks (the Notion-style editor).
+-- 0037: the Toggle and Divider blocks (the Notion-style editor).
 --
 -- A toggle is a list item that holds writing: rich text like a bullet, the
 -- same 4000-character ceiling, and a list parent like any list item. Under a
@@ -10,7 +10,7 @@
 --
 -- Widens four named CHECKs in place, exactly as 0028 and 0034 wrote them plus
 -- the new kinds. Forward only. Re-check the journal number/when against every
--- branch that is open when this merges; 0035 / 1791000000000 was free when
+-- branch that is open when this merges; 0037 / 1791200000000 was chosen (0036 is taken by another branch) when
 -- this was built.
 ALTER TABLE page_blocks
   DROP CONSTRAINT page_blocks_kind_check,
