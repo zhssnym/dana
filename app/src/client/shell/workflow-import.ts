@@ -23,6 +23,12 @@ claim being repaid rather than merely made: #185 made every export version 4,
 and a picker still carrying its own literal would have refused every file this
 product writes.
 */
+import { useNavigate } from 'react-router'
+
+import { useImportWorkflowFile } from '../api/mutations.js'
+import { useFolders } from '../api/queries.js'
+import { paths } from '../routes.js'
+import { dismissToast, showToast, toastSnapshot } from '../state/toasts.js'
 import {
   WORKFLOW_FILE_VERSIONS,
   importWorkflowBody,
@@ -285,5 +291,74 @@ export function prepareWorkflowImport(
       canonical.success && skippedByNormalization(value, canonical.data),
     taskCount: taskCount(folders ?? []),
     omittedCount: omittedCount(folders ?? []),
+  }
+}
+
+/* What Import says when the file is not a workflow at all: what happened, and
+   nothing about JSON. */
+export const WORKFLOW_UNREADABLE = "That file isn't a workflow Dana can read."
+
+/**
+ * The whole of "Import workflow…" after the file chooser closes, as one flow:
+ * one quiet "Importing …" line while the file is read and sent, then the
+ * imported folder opens with a one-line result, or one clear error. The
+ * endpoint's own failure toast (a 422 names its field) is the error line; the
+ * progress line is withdrawn either way so it never outlives the request.
+ */
+export function useWorkflowFileImport(): (file: File) => void {
+  const navigate = useNavigate()
+  const folders = useFolders()
+  const importWorkflow = useImportWorkflowFile()
+  return (file: File): void => {
+    const progress = `Importing ${file.name}…`
+    showToast(progress)
+    const done = (): void => {
+      const line = toastSnapshot().find((toast) => toast.message === progress)
+      if (line !== undefined) dismissToast(line.id)
+    }
+    const unreadable = (): void => {
+      done()
+      showToast(WORKFLOW_UNREADABLE)
+    }
+    void file.text().then((text) => {
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(text)
+      } catch {
+        unreadable()
+        return
+      }
+      const taken = new Set((folders.data ?? []).map((folder) => folder.name))
+      const prepared = prepareWorkflowImport(parsed, taken)
+      if (prepared === null) {
+        unreadable()
+        return
+      }
+      importWorkflow.mutate(prepared.body, {
+        onSettled: done,
+        onSuccess: (made) => {
+          const first = made.folders[0]
+          const tasks = `${String(prepared.taskCount)} task${prepared.taskCount === 1 ? '' : 's'}`
+          const success =
+            made.folders.length === 1 && first !== undefined
+              ? `Imported "${first.name}" with ${tasks}`
+              : `Imported ${String(made.folders.length)} folders with ${tasks}`
+          /* What the file itself recorded as left behind (#185) is a different
+             sentence from "unsupported content was skipped": a placeholder is
+             a loss the export made on purpose, and the importer was told
+             nothing about it. */
+          const left =
+            prepared.omittedCount === 0
+              ? ''
+              : ` ${String(prepared.omittedCount)} ${prepared.omittedCount === 1 ? 'picture, file or folder link was' : 'pictures, files or folder links were'} not included in this file.`
+          showToast(
+            prepared.skippedContent
+              ? `${success}. Some unsupported content was skipped.${left}`
+              : `${success}${left === '' ? '' : `.${left}`}`,
+          )
+          if (first !== undefined) void navigate(paths.folder(first.id))
+        },
+      })
+    }, unreadable)
   }
 }
