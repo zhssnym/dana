@@ -99,10 +99,8 @@ export function validateCanvasOutline(
 }
 
 /** Document deletion cannot become an implicit Task deletion or partial save. */
-export function removesCanvasTask(
-  before: readonly OutlineBlock[],
-  after: readonly OutlineBlock[],
-): boolean {
+/** The Task ids a change would drop from the document; empty when it drops none. */
+export function removedCanvasTasks(before: readonly OutlineBlock[], after: readonly OutlineBlock[]): string[] {
   function ids(blocks: readonly OutlineBlock[]): string[] {
     return blocks.flatMap((block) => [
       ...(block.type === 'danaTask' && block.props.taskId
@@ -112,5 +110,5 @@ export function removesCanvasTask(
     ])
   }
   const remaining = new Set(ids(after))
-  return ids(before).some((id) => !remaining.has(id))
+  return ids(before).filter((id) => !remaining.has(id))
 }
