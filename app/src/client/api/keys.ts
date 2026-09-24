@@ -20,6 +20,11 @@ export const queryKeys = {
   view: (name: string) => ['views', name] as const,
   /** One task in full (7.6's GET), which the 9.3 form reads in edit mode. */
   task: (id: string) => ['tasks', id] as const,
+  /** 7.25's two projections of one task's dependency edges (#225). */
+  taskDependencies: (id: string) => ['tasks', id, 'dependencies'] as const,
+  /** 7.24's picker read, which the dependency picker reuses (#225). */
+  referenceSearch: (q: string, folder: string | null) =>
+    ['references', 'search', q, folder ?? ''] as const,
 
   /* The v2 surfaces. `bundle` is the 4.19 person's bundle at /settings, and
      it is the only settings read this client makes (issue #150): a key here

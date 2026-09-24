@@ -43,6 +43,10 @@ import type { MeResponse } from '../../shared/me.js'
 import { getShelvesResponse, shelf } from '../../shared/shelves.js'
 import type { GetShelvesResponse, Shelf } from '../../shared/shelves.js'
 import { getTaskResponse } from '../../shared/tasks.js'
+import { getTaskDependenciesResponse } from '../../shared/task-dependencies.js'
+import type { TaskDependencies } from '../../shared/task-dependencies.js'
+import { getReferenceSearchResponse } from '../../shared/references.js'
+import type { GetReferenceSearchResponse } from '../../shared/references.js'
 import { getTrashResponse } from '../../shared/trash.js'
 import type { GetTrashResponse } from '../../shared/trash.js'
 import type { TaskCard, TaskDetail } from '../../shared/tasks.js'
@@ -279,11 +283,15 @@ export function useDoneView(
   })
 }
 
-export function useFolderOpenTasks(id: string): UseQueryResult<GetFolderTasksOpenResponse> {
+export function useFolderOpenTasks(
+  id: string,
+  enabled = true,
+): UseQueryResult<GetFolderTasksOpenResponse> {
   return useQuery({
     queryKey: queryKeys.folderTasks(id, 'open'),
     queryFn: () =>
       getView(getFolderTasksOpenResponse, `/folders/${id}/tasks`, { section: 'open' }),
+    enabled,
   })
 }
 
@@ -349,6 +357,34 @@ export function useTask(id: string | null): UseQueryResult<TaskDetail> {
     queryKey: queryKeys.task(id ?? ''),
     queryFn: () => getPlain(getTaskResponse, `/tasks/${id ?? ''}`),
     enabled: id !== null,
+  })
+}
+
+/** 7.25's read of one task's dependencies, both directions (#225). */
+export function useTaskDependencies(id: string | null): UseQueryResult<TaskDependencies> {
+  return useQuery({
+    queryKey: queryKeys.taskDependencies(id ?? ''),
+    queryFn: () => getPlain(getTaskDependenciesResponse, `/tasks/${id ?? ''}/dependencies`),
+    enabled: id !== null,
+  })
+}
+
+/** 7.24's picker search; `folder` makes that Folder's matches lead. Disabled
+ * below `searchQ`'s two characters, which the server would refuse. */
+export function useReferenceSearch(
+  q: string,
+  folder: string | null,
+): UseQueryResult<GetReferenceSearchResponse> {
+  const trimmed = q.trim()
+  return useQuery({
+    queryKey: queryKeys.referenceSearch(trimmed, folder),
+    queryFn: () =>
+      getPlain(getReferenceSearchResponse, '/references/search', {
+        q: trimmed,
+        folder: folder ?? undefined,
+      }),
+    enabled: trimmed.length >= 2,
+    staleTime: 30_000,
   })
 }
 
