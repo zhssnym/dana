@@ -54,7 +54,7 @@ function TabList({
         tabs[next]?.focus()
       }}
       className={cn(
-        "flex min-w-0 items-end gap-4 overflow-x-auto border-b border-border [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        "flex min-w-0 items-end gap-4 overflow-x-auto overflow-y-hidden border-b border-border [scrollbar-width:none]! [&::-webkit-scrollbar]:hidden",
         className
       )}
       {...props}

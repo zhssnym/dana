@@ -384,3 +384,14 @@
 .dana-writing-canvas [data-canvas-task-id] button[aria-label="Mark as not done"] + span {
   margin-inline-start: calc(var(--checkbox-size) + var(--spacing) * 2 - var(--control-height));
 }
+
+/* ---- r8-taskdisc: the composer's hint sits on its line. The page's own
+   placeholder rule lifts its ::after by half a line (translateY), which cut
+   "Write the first post…" off at the top of the one-line composer. Here the
+   hint fills the paragraph's box and centres in it instead. */
+.dana-writing-canvas.dana-post-editor .bn-editor > .bn-block-group > .bn-block-outer:only-child > .bn-block > .react-renderer > .bn-block-content[data-content-type='paragraph']:has(.ProseMirror-trailingBreak:only-child)::after {
+  inset-block: 0;
+  display: flex;
+  align-items: center;
+  transform: none;
+}
