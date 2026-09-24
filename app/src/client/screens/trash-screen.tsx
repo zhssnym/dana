@@ -97,7 +97,7 @@ export function TrashScreen({
             <TrashRow
               key={item.id}
               item={item}
-              onRestore={() => onRestore(item)}
+              onRestore={item.restorable === false ? undefined : () => onRestore(item)}
               onPurge={item.purgeable ? () => setConfirming(item) : undefined}
             />
           ))}
@@ -172,7 +172,8 @@ function TrashRow({
   onPurge,
 }: {
   item: TrashItem
-  onRestore: () => void
+  /* Absent where the server says this viewer may not restore the row. */
+  onRestore: (() => void) | undefined
   /* Absent where the viewer may not destroy this row permanently: the
      control is not drawn rather than drawn to be refused. `lib/trash.ts`
      answers which, per row and per kind. */
@@ -218,9 +219,11 @@ function TrashRow({
       {/* Restore and Delete are visible at rest; a row whose only controls
           appear on hover is a row with nothing to press. */}
       <span className="flex shrink-0 items-center gap-1 opacity-80 transition-opacity duration-[var(--duration-fast)] group-hover/row:opacity-100 focus-within:opacity-100">
-        <Button variant="ghost" size="sm" onClick={onRestore}>
-          Restore
-        </Button>
+        {onRestore ? (
+          <Button variant="ghost" size="sm" onClick={onRestore}>
+            Restore
+          </Button>
+        ) : null}
         {/* Seam 2. */}
         {onPurge ? (
           <Button

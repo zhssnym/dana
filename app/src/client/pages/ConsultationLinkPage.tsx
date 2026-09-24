@@ -21,7 +21,7 @@ import { paths } from '../routes.js'
 
 function Opening(): React.JSX.Element {
   return (
-    <p role="status" className="py-6 text-[13px] leading-5 text-[var(--color-graphite-500)]">
+    <p role="status" className="py-6 text-sm text-[var(--color-graphite-500)]">
       Opening discussion…
     </p>
   )

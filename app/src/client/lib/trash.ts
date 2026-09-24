@@ -70,6 +70,9 @@ export interface TrashItem {
      two kinds**, which is why it is computed per row rather than read off a
      field: see the header. */
   purgeable: boolean
+  /* False only where the server said this viewer may not restore the row
+     (a Discussion, whose creator arm needs the server); absent means yes. */
+  restorable?: boolean
 }
 
 export const TRASH_DAYS = 30
@@ -181,6 +184,7 @@ export function useTrash(): TrashItem[] {
           at: Date.parse(discussion.deleted_at),
           from: discussion.folder_name,
           purgeable: mayPurge(discussion, 'discussion'),
+          ...(discussion.restorable === false ? { restorable: false } : {}),
         }),
       ),
     ]

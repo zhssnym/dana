@@ -12,7 +12,7 @@ so nobody is offered a control that would be refused.
 Which acts are drawn is `discussionPowers`; none of it is authorization.
 */
 import { useMemo, useState } from 'react'
-import { ArrowLeft, CheckCircle2, Lock } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 
 import {
   useDiscussionOutcomes,
@@ -36,7 +36,6 @@ import {
 import type { Discussion, UpdateDiscussionBody } from '../../../shared/consultation.js'
 import { CommentsThread } from '../comments.js'
 import { InlineError, SkeletonList } from '../state-patterns.js'
-import { Badge } from '../ui/badge.js'
 import { Button } from '../ui/button.js'
 import { ConfirmDialog } from '../ui/ConfirmDialog.js'
 import { Input } from '../ui/input.js'
@@ -90,7 +89,7 @@ export function DiscussionView(props: {
       <div className="space-y-3">
         <BackButton onBack={onBack} />
         {gone ? (
-          <p className="rounded-lg border border-border bg-card p-4 text-sm text-[var(--color-graphite-600)]">
+          <p className="text-sm text-[var(--color-graphite-600)]">
             This discussion is in Trash or no longer exists.
           </p>
         ) : (
@@ -99,7 +98,13 @@ export function DiscussionView(props: {
       </div>
     )
   }
-  return <DiscussionBody {...props} discussion={discussion.data} />
+  return (
+    <DiscussionBody
+      {...props}
+      discussion={discussion.data}
+      onRefused={() => void discussion.refetch()}
+    />
+  )
 }
 
 function DiscussionBody(props: {
@@ -109,8 +114,11 @@ function DiscussionBody(props: {
   personOf: PersonResolver
   focusOutcomeId: string | null
   onBack: () => void
+  /* A write the server refused (403, or 409 frozen): the Discussion changed
+     under us, so read it again. Only the thread is polled. */
+  onRefused: () => void
 }): React.JSX.Element {
-  const { discussion: d, folderId, viewer, personOf, focusOutcomeId, onBack } = props
+  const { discussion: d, folderId, viewer, personOf, focusOutcomeId, onBack, onRefused } = props
   const thread = useDiscussionThread(d.id)
   const outcomes = useDiscussionOutcomes(d.id)
   const update = useUpdateDiscussion()
@@ -235,27 +243,16 @@ function DiscussionBody(props: {
           </form>
         ) : (
           <>
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="min-w-0 text-lg font-semibold break-words text-[var(--color-graphite-900)]">
-                {d.title}
-              </h2>
-              {d.is_general ? <Badge variant="outline">General discussion</Badge> : null}
-              {d.trashed_at !== null ? (
-                <Badge variant="destructive">In Trash</Badge>
-              ) : d.state === 'resolved' ? (
-                <Badge className="bg-[var(--color-success-100)] text-[var(--color-success-700)]">
-                  Resolved
-                </Badge>
-              ) : (
-                <Badge variant="secondary">Open</Badge>
-              )}
-            </div>
+            <h2 className="min-w-0 text-lg font-semibold break-words text-[var(--color-graphite-900)]">
+              {d.title}
+            </h2>
             {d.is_general ? (
               <p className="text-xs text-[var(--color-graphite-500)]">
                 This holds the folder&apos;s own conversation.
               </p>
             ) : null}
             <p className="text-xs text-[var(--color-graphite-500)]">
+              {d.trashed_at !== null ? 'In Trash · ' : d.state === 'resolved' ? 'Resolved · ' : ''}
               Started by {personOf(d.created_by).name} · {formatAgo(d.created_at, now)}
             </p>
             {d.context !== null && d.context !== '' ? (
@@ -270,7 +267,7 @@ function DiscussionBody(props: {
           <div className="flex flex-wrap gap-2 pt-1">
             {powers.resolve ? (
               <Button
-                variant="commit"
+                variant="outline"
                 size="sm"
                 onClick={() => {
                   setResolving(true)
@@ -314,12 +311,9 @@ function DiscussionBody(props: {
       {d.state === 'resolved' && outcome !== null ? (
         <section
           aria-label="Outcome"
-          className="rounded-lg border border-[var(--color-success-200)] bg-[var(--color-success-100)]/40 p-4"
+          className="border-l-2 border-[var(--color-graphite-200)] py-1 pl-4"
         >
-          <h3 className="mb-1 flex items-center gap-1.5 text-[13px] font-semibold text-[var(--color-success-700)]">
-            <CheckCircle2 className="size-4" strokeWidth={1.75} aria-hidden="true" />
-            Outcome
-          </h3>
+          <h3 className="mb-1 text-xs font-medium text-[var(--color-graphite-500)]">Outcome</h3>
           <p className="text-sm break-words whitespace-pre-wrap text-[var(--color-graphite-900)]">
             {outcome.statement}
           </p>
@@ -330,24 +324,14 @@ function DiscussionBody(props: {
         </section>
       ) : null}
 
-      <OutcomeHistory discussionId={d.id} personOf={personOf} focusOutcomeId={focusOutcomeId} />
+      {/* One Outcome is the one above; the history earns its place at two. */}
+      {(outcomes.data?.outcomes.length ?? 0) >= 2 ? (
+        <OutcomeHistory discussionId={d.id} personOf={personOf} focusOutcomeId={focusOutcomeId} />
+      ) : null}
 
       <InputRoundsPanel discussionId={d.id} frozen={frozen} canOpen={powers.openRound} />
 
       <section aria-label="Conversation" className="space-y-2">
-        {frozen ? (
-          <p
-            role="note"
-            className="flex items-start gap-2 rounded-md border border-[var(--color-warning-200)] bg-[var(--color-warning-100)] px-3 py-2 text-xs text-[var(--color-warning-700)]"
-          >
-            <Lock className="mt-0.5 size-3.5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-            {d.trashed_at !== null
-              ? 'This discussion is in Trash, so its conversation is closed.'
-              : `This discussion is resolved, so its conversation is closed.${
-                  powers.reopen ? ' Reopen it to continue.' : ''
-                }`}
-          </p>
-        ) : null}
         {thread.isError ? (
           <InlineError onRetry={() => void thread.refetch()} />
         ) : thread.isPending ? (
@@ -356,11 +340,44 @@ function DiscussionBody(props: {
           <CommentsThread
             comments={conversation}
             canComment={mayConverse.createComment}
-            closedReason={frozen ? 'This conversation is closed.' : undefined}
+            closedReason={
+              !frozen
+                ? undefined
+                : d.trashed_at !== null
+                  ? 'This discussion is in Trash, so its conversation is closed.'
+                  : powers.reopen
+                    ? 'This conversation is closed. Reopen it to continue.'
+                    : 'This conversation is closed.'
+            }
             onChange={(next) => {
+              /* A post (or the upload before it) that fails rejects this, and
+                 the composer gets its text back. */
+              let posting = false
+              let settle: { ok: () => void; fail: (e: unknown) => void } | null = null
+              const posted = new Promise<void>((ok, fail) => {
+                settle = { ok, fail }
+              })
+              const refused = (error: unknown): void => {
+                if (
+                  error instanceof ApiError &&
+                  (error.status === 403 || error.status === 409)
+                ) {
+                  onRefused()
+                }
+              }
               applyThreadChange(conversation, next, {
                 post: (body) => {
-                  postComment.mutate({ discussionId: d.id, body })
+                  posting = true
+                  postComment.mutate(
+                    { discussionId: d.id, body },
+                    {
+                      onSuccess: () => settle?.ok(),
+                      onError: (error) => {
+                        refused(error)
+                        settle?.fail(error)
+                      },
+                    },
+                  )
                 },
                 edit: (commentId, body) => {
                   patchComment.mutate({ id: commentId, body: { body } })
@@ -371,9 +388,18 @@ function DiscussionBody(props: {
                 like: (commentId, liked) => {
                   setLike.mutate({ id: commentId, liked })
                 },
-                upload: (file) =>
-                  uploadFile(commentFileKind(file), folderId, file).then((stored) => stored.id),
+                upload: (file) => {
+                  posting = true
+                  return uploadFile(commentFileKind(file), folderId, file).then(
+                    (stored) => stored.id,
+                    (error: unknown) => {
+                      settle?.fail(error)
+                      throw error
+                    },
+                  )
+                },
               })
+              return posting ? posted : undefined
             }}
           />
         )}

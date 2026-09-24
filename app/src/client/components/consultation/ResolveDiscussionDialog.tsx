@@ -25,8 +25,14 @@ import {
   DialogTitle,
 } from '../ui/dialog.js'
 import { Textarea } from '../ui/textarea.js'
+import { Choice } from './Choice.js'
 
 type Mode = 'write' | 'comment'
+
+const MODES: ReadonlyArray<{ value: Mode; label: string }> = [
+  { value: 'write', label: 'Write the outcome' },
+  { value: 'comment', label: 'Use a comment' },
+]
 
 export function ResolveDiscussionDialog(props: {
   discussion: Pick<Discussion, 'id' | 'is_general'>
@@ -75,24 +81,6 @@ export function ResolveDiscussionDialog(props: {
     )
   }
 
-  const tab = (value: Mode, label: string): React.JSX.Element => (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={mode === value}
-      onClick={() => {
-        setMode(value)
-      }}
-      className={`flex-1 rounded-md px-2 py-1 text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)] ${
-        mode === value
-          ? 'bg-card text-[var(--color-graphite-900)] shadow-[var(--elevation-1)]'
-          : 'text-[var(--color-graphite-500)] hover:text-[var(--color-graphite-800)]'
-      }`}
-    >
-      {label}
-    </button>
-  )
-
   return (
     <Dialog
       open
@@ -117,14 +105,12 @@ export function ResolveDiscussionDialog(props: {
             </DialogDescription>
           </div>
 
-          <div
-            role="radiogroup"
-            aria-label="How to record the outcome"
-            className="flex gap-1 rounded-lg bg-[var(--color-graphite-100)] p-0.5"
-          >
-            {tab('write', 'Write the outcome')}
-            {tab('comment', 'Use a comment')}
-          </div>
+          <Choice
+            label="How to record the outcome"
+            value={mode}
+            options={MODES}
+            onSelect={setMode}
+          />
 
           {mode === 'write' ? (
             <div className="space-y-1">
@@ -144,12 +130,12 @@ export function ResolveDiscussionDialog(props: {
                   setStatement(event.target.value)
                 }}
               />
-              <p className="text-right text-[11px] text-[var(--color-graphite-500)]">
+              <p className="text-right text-xs text-[var(--color-graphite-500)]">
                 {statement.length}/{OUTCOME_STATEMENT_MAX}
               </p>
             </div>
           ) : candidates.length === 0 ? (
-            <p className="rounded-md border border-dashed border-border p-3 text-xs text-[var(--color-graphite-500)]">
+            <p className="rounded-md border border-dashed border-[var(--color-graphite-200)] p-3 text-xs text-[var(--color-graphite-500)]">
               No comment with text to use yet. Write the outcome instead.
             </p>
           ) : (
@@ -162,7 +148,7 @@ export function ResolveDiscussionDialog(props: {
                     className={`flex cursor-pointer gap-2 rounded-md border p-2 text-xs ${
                       comment.id === chosenId
                         ? 'border-[var(--color-dana-accent-600)] bg-[var(--color-dana-accent-50)]'
-                        : 'border-border hover:bg-[var(--color-graphite-50)]'
+                        : 'border-[var(--color-graphite-200)] hover:bg-[var(--color-graphite-50)]'
                     }`}
                   >
                     <input
@@ -217,7 +203,7 @@ export function ResolveDiscussionDialog(props: {
                         setEdited(event.target.value)
                       }}
                     />
-                    <p className="text-[11px] text-[var(--color-graphite-500)]">
+                    <p className="text-xs text-[var(--color-graphite-500)]">
                       The comment stays linked as the source.
                     </p>
                   </div>
