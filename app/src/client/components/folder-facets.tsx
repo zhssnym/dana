@@ -58,15 +58,32 @@ export interface CreateFacetInput {
 }
 
 /**
- * True while a page's tabs are still in the order it was made with: the four
+ * True while a page's tabs are still in the order it was made with: the
  * built-ins at their creation keys (`createNativeFacets`: Main `a0`, Purpose
  * `a1`, Consultation `a2`, Results `a3`), which no written order reproduces --
  * `PUT /facets/order` keys from `a1` on. Such a page draws the default order.
+ *
+ * Asked of every tab, hidden ones included, and a built-in that is absent does
+ * not count against it: hiding Discussion (the Desk does) is not reordering,
+ * and must not drop the row back to stored order (Work · Purpose · Results).
  */
+const CREATION_KEYS: Readonly<Record<string, string>> = {
+  main: 'a0',
+  purpose: 'a1',
+  consultation: 'a2',
+  results: 'a3',
+}
+
 function untouched(facets: readonly Pick<Facet, 'kind' | 'position'>[]): boolean {
   const at = (kind: FacetKind): string | undefined =>
     facets.find((facet) => facet.kind === kind)?.position
-  return at('main') === 'a0' && at('purpose') === 'a1' && at('consultation') === 'a2' && at('results') === 'a3'
+  return (
+    at('main') === 'a0' &&
+    Object.entries(CREATION_KEYS).every(([kind, key]) => {
+      const position = at(kind as FacetKind)
+      return position === undefined || position === key
+    })
+  )
 }
 
 /**
@@ -129,7 +146,8 @@ export function FolderTabs({
   /** The whole visible row in its new order, the moved tab named. */
   readonly onReorder?: (dragged: Facet, orderedVisible: readonly Facet[]) => void
 }): React.JSX.Element | null {
-  const visible = tabOrder(facets.filter((facet) => !facet.hidden))
+  /* Ordered over every tab, then filtered: a hidden built-in is not a reorder. */
+  const visible = tabOrder(facets).filter((facet) => !facet.hidden)
   const [drag, setDrag] = useState<TabDrag | null>(null)
   const dragRef = useRef<TabDrag | null>(null)
   const rowRef = useRef<HTMLDivElement | null>(null)

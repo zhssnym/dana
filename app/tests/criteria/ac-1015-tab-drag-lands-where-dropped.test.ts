@@ -45,13 +45,17 @@ async function facets(actor: Actor, folderId: string): Promise<Facet[]> {
 /**
  * The client's draw rule (`tabOrder` in `components/folder-facets.tsx`, which
  * this node-side project cannot import): built-ins still at their creation
- * keys (all shown) are drawn in `NATIVE_TAB_ORDER`, custom tabs after them in stored
- * order; otherwise the stored order is the order.
+ * keys (hidden ones included; an absent one does not count) are drawn in
+ * `NATIVE_TAB_ORDER`, custom tabs after them in stored order; otherwise the
+ * stored order is the order. Hidden tabs are then left out of the row.
  */
 function tabOrder(all: readonly Facet[]): Facet[] {
   const rows = all.filter((facet) => !facet.hidden)
-  const at = (kind: string) => rows.find((facet) => facet.kind === kind)?.position
-  const untouched = at('main') === 'a0' && at('purpose') === 'a1' && at('consultation') === 'a2' && at('results') === 'a3'
+  const at = (kind: string) => all.find((facet) => facet.kind === kind)?.position
+  const creation: Record<string, string> = { main: 'a0', purpose: 'a1', consultation: 'a2', results: 'a3' }
+  const untouched =
+    at('main') === 'a0' &&
+    Object.entries(creation).every(([kind, key]) => at(kind) === undefined || at(kind) === key)
   if (!untouched) return [...rows]
   const rank = (facet: Facet): number => {
     const native = (NATIVE_TAB_ORDER as readonly string[]).indexOf(facet.kind)
@@ -127,7 +131,7 @@ describe('AC-1015 a dragged tab lands where it was dropped', () => {
     expect(memberShared, 'every member draws the written shared order').toEqual(asked)
   }, 60_000)
 
-  test('AC-1015: with a built-in hidden the row is already stored order, and a private drag keeps it', async () => {
+  test('AC-1015: with a built-in hidden the row still draws the default order, and a private drag keeps it', async () => {
     const [owner, member] = (await cast.of(app)) as [Actor, Actor]
     const folderId = await createFolder(owner, 'ac1015 hidden')
     await connect(app.db, owner.id, member.id)
@@ -140,6 +144,7 @@ describe('AC-1015 a dragged tab lands where it was dropped', () => {
     )
     const mine = await create(owner, folderId, 'private_blank', 'Mine')
     const memberBefore = await drawn(member, folderId)
+    expect(memberBefore, 'hiding Discussion is not a reorder: Purpose · Work · Results').toEqual(['purpose', 'main', 'results'])
     expectStatus(
       await owner.browser.json(`/folders/${folderId}/facets/my-order`, 'PUT', {
         placements: [{ facet_id: mine, after_facet_id: byKind.get('purpose')! }],

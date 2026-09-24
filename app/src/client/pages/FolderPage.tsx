@@ -285,10 +285,17 @@ export function FolderPage({
   const id = folderId ?? routeId
   const navigate = useNavigate()
   const [search, setSearch] = useSearchParams()
-  const folder = useFolder(id)
-  const open = useFolderOpenTasks(id)
-  const page = useFolderPage(id)
-  const facets = useFolderFacets(id)
+  /* Set as this page is trashed: its reads stop, so the delete's
+     invalidation refetches none of them against a 404 while the page is
+     still mounted, the navigation away not yet committed. */
+  const [leaving, setLeaving] = useState(false)
+  const folder = useFolder(id, !leaving)
+  /* Everything else waits for the folder itself: a link the viewer may not
+     open is one quiet 404, not one per read. */
+  const folderOk = folder.status === 'success' && !leaving
+  const open = useFolderOpenTasks(id, folderOk)
+  const page = useFolderPage(id, folderOk)
+  const facets = useFolderFacets(id, folderOk)
   /* "Save as workflow" reads each row's 7.6 detail before it writes the
      file, through the cache the row already stores one in. */
   const cache = useQueryClient()
@@ -395,7 +402,7 @@ export function FolderPage({
      cards (and hides them with a class when "Show completed" is off), and the
      board's Done column is the same pages. One request for the first 50,
      where a by-id read per finished placement is what #312 removed. */
-  const completed = useFolderCompletedTasks(id, true)
+  const completed = useFolderCompletedTasks(id, folderOk)
   /* The canvas waits for them, so no finished placement is read by id while
      the list is still on its way. */
   const completedReady = completed.data !== undefined || completed.isError
@@ -463,7 +470,8 @@ export function FolderPage({
   viewer, and a folder's is 4.3's `cover_file_id`, shared by every member.
   */
   const coverKey = `${FOLDER_PREFIX}${id}`
-  const hasCover = usePageHasCover(coverKey)
+  /* Off once trashed: the cover read is a folder read too. */
+  const hasCover = usePageHasCover(leaving ? '' : coverKey)
 
   const isOwner = detail?.is_owner ?? false
   const isDefault = detail?.is_default ?? false
@@ -649,14 +657,20 @@ export function FolderPage({
     /* 9.6: to Trash for every member at once, the undo bar, no
        confirmation. The inverse is 7.13's restore. */
     const name = detail?.name ?? ''
-    remove.mutate(id, {
-      onSuccess: () => {
+    setLeaving(true)
+    /* Leave first: the delete's invalidation would otherwise refetch every
+       read of this page against a folder that now answers 404. The promise
+       outlives this page, which a mutate() callback would not; a failure is
+       the mutation cache's toast. */
+    navigate(paths.today)
+    remove.mutateAsync(id).then(
+      () => {
         pushUndo(undoLabel('Deleted', name), () => {
           restore.mutate(id)
         })
-        navigate(paths.today)
       },
-    })
+      () => {},
+    )
   }
 
   function createFolderFacet(input: CreateFacetInput): void {
@@ -1125,6 +1139,10 @@ export function FolderPage({
       />
     </>
   )
+
+  /* Trashed: nothing of the page stays mounted to read it again while the
+     navigation away commits. */
+  if (leaving) return <div />
 
   return (
     <div className="space-y-6">
