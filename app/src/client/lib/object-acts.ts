@@ -53,6 +53,8 @@ import {
   Folders,
   Fullscreen,
   History,
+  Image,
+  Layers3,
   Link2,
   LogOut,
   OpenInNewTab,
@@ -60,6 +62,7 @@ import {
   RotateCcw,
   SunMedium,
   Trash2,
+  UserRoundCheck,
   Workflow,
 } from './icons.js'
 import type { LucideIcon } from './icons.js'
@@ -84,6 +87,12 @@ export type ActKey =
   | 'history'
   | 'rename'
   | 'move'
+  /* A folder's cover picture and its tabs: the folder page owns both dialogs,
+     so the Library row reaches them through `?folder-action=`. */
+  | 'cover'
+  | 'tabs'
+  /* The owner's hand-on (9.6), in the leave group: it ends their custody. */
+  | 'transfer'
   | 'pull'
   | 'unpull'
   /*
@@ -147,17 +156,26 @@ const OBJECT_ACTS: Record<ObjectKind, readonly ActSpec[]> = {
     { key: 'restore', label: 'Restore', icon: RotateCcw, group: 4 },
     { key: 'delete', label: 'Delete task…', icon: Trash2, group: 5, destructive: true },
   ],
+  /*
+  **One folder menu, drawn identically in its three homes**: the folder page's
+  header "…", the Library row's "…", and a right-click on that row (which opens
+  the row's "…"). Every surface passes the same handlers, so the order below is
+  the menu; nothing arrives through `extra`. "Open in a new tab" left with the
+  tab strip.
+  */
   folder: [
-    { key: 'open', label: 'Open in a new tab', icon: OpenInNewTab, group: 1 },
     { key: 'history', label: 'History', icon: History, group: 1 },
     { key: 'rename', label: 'Rename', icon: Pencil, group: 2 },
     { key: 'move', label: 'Move to shelf', icon: FolderInput, group: 2 },
+    { key: 'cover', label: 'Cover…', icon: Image, group: 2 },
+    { key: 'tabs', label: 'Tabs…', icon: Layers3, group: 2 },
     { key: 'copy-link', label: 'Copy link', icon: Link2, group: 3 },
     { key: 'duplicate', label: 'Duplicate', icon: Copy, group: 3 },
     { key: 'workflow', label: 'Save as workflow', icon: Workflow, group: 3 },
     /* Leave and Delete are never offered together: a surface supplies the one
        its viewer's role permits (9.6's matrix), which is the contract's own
        safety property doing the permission work. */
+    { key: 'transfer', label: 'Transfer ownership…', icon: UserRoundCheck, group: 4 },
     { key: 'leave', label: 'Leave folder…', icon: LogOut, group: 4 },
     { key: 'delete', label: 'Delete folder…', icon: Trash2, group: 5, destructive: true },
   ],

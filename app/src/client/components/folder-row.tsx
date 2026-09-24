@@ -17,17 +17,12 @@ picker's contents, which belong to the surface.
 import { useEffect, useRef, useState } from 'react'
 import type { ReactElement } from 'react'
 
-import { Folder, FolderPlus, Folders } from '../lib/icons.js'
+import { Folder, FolderPlus } from '../lib/icons.js'
 import type { LucideIcon } from '../lib/icons.js'
+import type { ActHandlers } from '../lib/object-acts.js'
 import { ObjectMenu } from './object-menu.js'
 import { Button } from './ui/button.js'
 import { MORE_ACTIONS } from './ui/copy.js'
-import {
-  DropdownMenuItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuSeparator,
-} from './ui/dropdown-menu.js'
 import { SidebarMenuButton, SidebarMenuItem } from './ui/sidebar.js'
 import { cn } from './ui/utils.js'
 import { DWELL_MS } from '../lib/use-sortable-list.js'
@@ -47,8 +42,6 @@ export interface FolderRowProps {
   active?: boolean
   /** Inside a shelf: indented under its heading. */
   nested?: boolean
-  groupLabels?: readonly string[]
-  currentLabel?: string | null
   /* The drag engine's four props; absent for a row nobody is sorting. */
   itemRef?: (element: HTMLLIElement | null) => void
   rowProps?: React.ComponentProps<'li'>
@@ -56,19 +49,10 @@ export interface FolderRowProps {
   /** What a release would do, said on the carried row only. */
   proposal?: string | null
   onSelect?: () => void
-  /** "New shelf…" inside the move picker: an act on this folder's shelf. */
-  onNewGroup?: () => void
-  /* The contract's acts. Each is optional and an act with no handler is not
-     drawn. */
-  onOpenInNewTab?: () => void
-  onHistory?: () => void
-  onMoveToLabel?: (label: string | null) => void
-  onRename?: () => void
-  onCopyLink?: () => void
-  onDuplicate?: () => void
-  onSaveAsWorkflow?: () => void
-  onLeave?: () => void
-  onDelete?: () => void
+  /* The folder menu's acts, `lib/object-acts.ts`'s one folder list: the same
+     handlers the folder page's header "…" passes. An act with no handler is
+     not drawn. */
+  acts?: ActHandlers
 }
 
 export function FolderRow({
@@ -80,36 +64,14 @@ export function FolderRow({
   render,
   active = false,
   nested = false,
-  groupLabels = [],
-  currentLabel = null,
   itemRef,
   rowProps,
   dragState,
   proposal = null,
   onSelect,
-  onNewGroup,
-  onOpenInNewTab,
-  onHistory,
-  onMoveToLabel,
-  onRename,
-  onCopyLink,
-  onDuplicate,
-  onSaveAsWorkflow,
-  onLeave,
-  onDelete,
+  acts = {},
 }: FolderRowProps) {
-  const hasActions = Boolean(
-    onNewGroup ??
-      onOpenInNewTab ??
-      onHistory ??
-      onMoveToLabel ??
-      onRename ??
-      onCopyLink ??
-      onDuplicate ??
-      onSaveAsWorkflow ??
-      onLeave ??
-      onDelete,
-  )
+  const hasActions = Object.values(acts).some((act) => act !== undefined)
   const menuTrigger = useRef<HTMLButtonElement>(null)
   /*
   The carried row follows the pointer with no easing (any easing reads as lag);
@@ -195,48 +157,7 @@ export function FolderRow({
                 aria-label={MORE_ACTIONS}
               />
             }
-            handlers={{
-              open: onOpenInNewTab,
-              history: onHistory,
-              rename: onRename,
-              'copy-link': onCopyLink,
-              duplicate: onDuplicate,
-              workflow: onSaveAsWorkflow,
-              leave: onLeave,
-              delete: onDelete,
-              move:
-                onMoveToLabel === undefined
-                  ? undefined
-                  : {
-                      choose: (
-                        <DropdownMenuRadioGroup
-                          value={currentLabel ?? '__none'}
-                          onValueChange={(value) => {
-                            onMoveToLabel(value === '__none' ? null : value)
-                          }}
-                        >
-                          {groupLabels.map((label) => (
-                            <DropdownMenuRadioItem key={label} value={label} closeOnClick>
-                              {label}
-                            </DropdownMenuRadioItem>
-                          ))}
-                          <DropdownMenuSeparator />
-                          <DropdownMenuRadioItem value="__none" closeOnClick>
-                            Not on a shelf
-                          </DropdownMenuRadioItem>
-                          {onNewGroup === undefined ? null : (
-                            <>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={onNewGroup}>
-                                <Folders className="size-4" aria-hidden="true" />
-                                New shelf…
-                              </DropdownMenuItem>
-                            </>
-                          )}
-                        </DropdownMenuRadioGroup>
-                      ),
-                    },
-            }}
+            handlers={acts}
           />
         </div>
       ) : null}

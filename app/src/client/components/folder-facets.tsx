@@ -15,14 +15,15 @@ import type { Facet, FacetKind } from '../../shared/facets.js'
 import { isHideableFacetKind, isRenameableFacetKind } from '../../shared/facets.js'
 import type { PageView } from '../../shared/pages.js'
 import { moved } from '../lib/use-sortable-list.js'
-import { MoreHorizontal } from '../lib/icons.js'
+import { useState } from 'react'
+import type { ReactNode } from 'react'
+import { GripVertical } from '../lib/icons.js'
 import { Button } from './ui/button.js'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog.js'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
@@ -53,13 +54,18 @@ export function FolderTabs({
   facets,
   activeId,
   onSelect,
+  trailing,
 }: {
   readonly facets: readonly Facet[]
   readonly activeId: string
   readonly onSelect: (facet: Facet) => void
+  /** Drawn at the row's right end: the list's "View" menu, so it takes no row
+      of its own. */
+  readonly trailing?: ReactNode
 }): React.JSX.Element | null {
   const visible = facets.filter((facet) => !facet.hidden)
-  /* One tab is not a choice: a folder showing only Main draws no row. */
+  /* One tab is not a choice: a folder showing only Main draws no row (the
+     page puts "View" beside Share instead). */
   if (visible.length < 2) return null
   const active = visible.find((facet) => facet.id === activeId) ?? visible[0]
 
@@ -74,10 +80,11 @@ export function FolderTabs({
   }
 
   return (
+    <div className="flex min-w-0 items-center gap-2 border-b border-border">
     <div
       role="tablist"
       aria-label="Folder tabs"
-      className="flex min-w-0 items-center gap-5 overflow-x-auto border-b border-border [&::-webkit-scrollbar]:hidden"
+      className="flex min-w-0 flex-1 items-center gap-5 overflow-x-auto [&::-webkit-scrollbar]:hidden"
       style={{ scrollbarWidth: 'none' }}
     >
       {visible.map((facet) => {
@@ -110,13 +117,17 @@ export function FolderTabs({
         )
       })}
     </div>
+    {trailing === undefined ? null : <div className="shrink-0">{trailing}</div>}
+    </div>
   )
 }
 
 /**
- * "Tabs…": every facet, shown or hidden, in order. Each row is its name (a
- * field where it may be renamed), a Show switch where it may be hidden, and a
- * "…" for moving, sharing and deleting. "Add tab" at the foot.
+ * "Tabs…": a plain list of every facet, shown or hidden, in order. Each row is
+ * a grip to drag it (arrow keys on the grip move it too), its name (renamed in
+ * place where it may be), text actions only where they apply ("Share" on a
+ * private tab, "Delete" on a custom one) and a Show switch where it may be
+ * hidden. "Add tab" at the foot. No per-row menu.
  */
 export function FolderTabsDialog({
   open,
@@ -153,12 +164,14 @@ export function FolderTabsDialog({
       (block) => block.kind === 'section' && block.section_block_id === null && !linked.has(block.id),
     ) ?? []
 
-  function move(facet: Facet, direction: -1 | 1): void {
+  function moveTo(facet: Facet, to: number): void {
     const from = movable.findIndex((candidate) => candidate.id === facet.id)
-    const to = from + direction
-    if (from < 0 || to < 0 || to >= movable.length) return
+    if (from < 0 || to < 0 || to >= movable.length || to === from) return
     onReorder(facet, [...(main ? [main] : []), ...moved(movable, from, to)])
   }
+  /* The row being dragged, and the row it is over, by id. */
+  const [dragging, setDragging] = useState<string | null>(null)
+  const [over, setOver] = useState<string | null>(null)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -166,7 +179,7 @@ export function FolderTabsDialog({
         <DialogHeader>
           <DialogTitle>Tabs</DialogTitle>
         </DialogHeader>
-        <ul className="-mx-2">
+        <ul className="-mx-1">
           {facets.map((facet) => {
             const caps = capabilities(facet)
             const renameable = facet.kind !== 'main' && isRenameable(facet) && caps.rename
@@ -174,9 +187,54 @@ export function FolderTabsDialog({
             const index = movable.findIndex((candidate) => candidate.id === facet.id)
             const reorderable = index >= 0 && (facet.private ? caps.reorderPrivate : caps.reorderShared)
             const custom = facet.private || facet.kind === 'work' || facet.kind.endsWith('_blank')
-            const hasMenu = reorderable || (facet.private && caps.share) || (custom && caps.delete)
             return (
-              <li key={facet.id} className="flex h-9 items-center gap-2 rounded-md px-2 hover:bg-muted">
+              <li
+                key={facet.id}
+                onDragOver={(event) => {
+                  if (dragging === null || index < 0) return
+                  event.preventDefault()
+                  setOver(facet.id)
+                }}
+                onDrop={(event) => {
+                  event.preventDefault()
+                  const carried = movable.find((candidate) => candidate.id === dragging)
+                  if (carried !== undefined && index >= 0) moveTo(carried, index)
+                  setDragging(null)
+                  setOver(null)
+                }}
+                className={cn(
+                  'flex h-9 items-center gap-2 rounded-md px-1 hover:bg-muted',
+                  dragging === facet.id && 'opacity-50',
+                  over === facet.id && dragging !== facet.id && 'bg-muted',
+                )}
+              >
+                {reorderable ? (
+                  <button
+                    type="button"
+                    draggable
+                    aria-label={`Move ${facet.name}`}
+                    title="Drag to reorder"
+                    onDragStart={(event) => {
+                      event.dataTransfer.effectAllowed = 'move'
+                      event.dataTransfer.setData('text/plain', facet.id)
+                      setDragging(facet.id)
+                    }}
+                    onDragEnd={() => {
+                      setDragging(null)
+                      setOver(null)
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
+                      event.preventDefault()
+                      moveTo(facet, index + (event.key === 'ArrowUp' ? -1 : 1))
+                    }}
+                    className="flex size-6 shrink-0 cursor-grab items-center justify-center rounded-sm text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing"
+                  >
+                    <GripVertical className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                  </button>
+                ) : (
+                  <span className="size-6 shrink-0" aria-hidden="true" />
+                )}
                 {renameable ? (
                   <input
                     key={facet.name}
@@ -201,50 +259,28 @@ export function FolderTabsDialog({
                         event.currentTarget.blur()
                       }
                     }}
-                    className="h-7 min-w-0 flex-1 rounded-sm bg-transparent text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="h-7 min-w-0 flex-1 rounded-sm bg-transparent px-1 text-sm text-foreground outline-none hover:bg-background focus-visible:ring-2 focus-visible:ring-ring"
                   />
                 ) : (
-                  <span className="min-w-0 flex-1 truncate text-sm text-foreground">{facet.name}</span>
+                  <span className="min-w-0 flex-1 truncate px-1 text-sm text-foreground">{facet.name}</span>
                 )}
                 {facet.private ? <span className="shrink-0 text-xs text-muted-foreground">Private</span> : null}
+                {facet.private && caps.share ? (
+                  <button type="button" onClick={() => onShare(facet)} className="shrink-0 rounded-sm px-1 text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
+                    Share…
+                  </button>
+                ) : null}
+                {custom && caps.delete ? (
+                  <button type="button" onClick={() => onDelete(facet)} className="shrink-0 rounded-sm px-1 text-xs text-muted-foreground outline-none hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring">
+                    Delete
+                  </button>
+                ) : null}
                 {hideable ? (
                   <Switch
                     aria-label={`Show ${facet.name}`}
                     checked={!facet.hidden}
                     onCheckedChange={(checked) => onHide(facet, !checked)}
                   />
-                ) : null}
-                {hasMenu ? (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger
-                      render={<Button variant="ghost" size="icon-sm" aria-label={`Actions for ${facet.name}`} />}
-                    >
-                      <MoreHorizontal aria-hidden="true" />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-48">
-                      {reorderable ? (
-                        <>
-                          <DropdownMenuItem disabled={index === 0} onClick={() => move(facet, -1)}>
-                            Move left
-                          </DropdownMenuItem>
-                          <DropdownMenuItem disabled={index === movable.length - 1} onClick={() => move(facet, 1)}>
-                            Move right
-                          </DropdownMenuItem>
-                        </>
-                      ) : null}
-                      {facet.private && caps.share ? (
-                        <DropdownMenuItem onClick={() => onShare(facet)}>Share with the folder…</DropdownMenuItem>
-                      ) : null}
-                      {custom && caps.delete ? (
-                        <>
-                          {reorderable || (facet.private && caps.share) ? <DropdownMenuSeparator /> : null}
-                          <DropdownMenuItem variant="destructive" onClick={() => onDelete(facet)}>
-                            Delete tab…
-                          </DropdownMenuItem>
-                        </>
-                      ) : null}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
                 ) : null}
               </li>
             )

@@ -49,8 +49,7 @@ Full control*, and the picker offers exactly those. A sole owner is offered
 Delete, and Desk neither.
 
 **The overflow menu sits at the header's right, beside Share**, named "More
-actions", offering Cover… and Tabs… (this page's own) and then exactly the acts
-this viewer's Access permits: History, Copy link, Duplicate, Save as workflow to
+actions", offering exactly the acts this viewer's Access permits: History, Copy link, Duplicate, Save as workflow to
 everyone; **Delete folder at Full control, Leave
 folder to any member who is not the owner and is not the last Full control, and
 Transfer ownership to the owner alone**, all through `lib/folder-authority.ts`.
@@ -64,8 +63,11 @@ blocks at the same moment so the winning write replaces the loser on screen.
 **The folder's conversation has one home: the Consultation tab**, as its
 General discussion. The foot section and the side panel it could move to are
 gone; a notification arriving with `?conversation=open` lands on Consultation.
-Rename is the title itself and Move to shelf is the sidebar's, so neither is in
-this page's menu.
+
+**The "…" is the folder menu, the one list** (`lib/object-acts.ts`): History,
+Rename, Move to shelf, Cover…, Tabs…, Copy link, Duplicate, Save as workflow,
+then Transfer/Leave/Delete by role, exactly what the Library row's "…" and its
+right-click draw. "View" ends the tab row rather than taking a row.
 */
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -85,6 +87,7 @@ import {
   useRestoreFolder,
   useShareFacet,
   useTransferOwnership,
+  useUpdateMyMembership,
 } from '../api/mutations.js'
 import {
   mergeCompletedDays,
@@ -95,6 +98,8 @@ import {
   useFolderFacets,
   useFolderPage,
   useFacetPage,
+  useFolders,
+  useShelves,
 } from '../api/queries.js'
 import { getPlain } from '../api/http.js'
 import { queryKeys } from '../api/keys.js'
@@ -108,7 +113,8 @@ import { FOLDER_PREFIX } from '../lib/page-identity.js'
 import { IDENTITY_COLOR_FALLBACK } from '../parts/identity-colors.js'
 import { ConsultationPanel } from '../components/consultation/ConsultationPanel.js'
 import { HistorySheet } from '../components/history-sheet.js'
-import { ObjectMenu } from '../components/object-menu.js'
+import { moveToShelfChoice, ObjectMenu } from '../components/object-menu.js'
+import { folderGroupLabels } from '../parts/presenters.js'
 import { Button } from '../components/ui/button.js'
 import {
   Dialog,
@@ -123,7 +129,6 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
@@ -572,6 +577,34 @@ export function FolderPage({
      the owner's delete dialog asks: somebody to hand it to is not the same as
      somebody who is in it. */
   const others = otherMembers(members, basis.viewerId)
+  /* "Move to shelf", the viewer's own placement (4.18), off the Library's
+     reads so the submenu offers what the sidebar's does. */
+  const libraryFolders = useFolders()
+  const shelves = useShelves()
+  const relabel = useUpdateMyMembership()
+  const myFolderRow = libraryFolders.data?.find((row) => row.id === id)
+  const shelfNames = useMemo(
+    () => folderGroupLabels(libraryFolders.data ?? [], shelves.data ?? []),
+    [libraryFolders.data, shelves.data],
+  )
+  const moveToShelf = (label: string | null): void => {
+    const previous = myFolderRow?.my_shelf ?? null
+    if (previous === label) return
+    const name = detail?.name ?? ''
+    relabel.mutate(
+      { id, body: { shelf: label } },
+      {
+        onSuccess: () => {
+          pushUndo(
+            label === null ? `Took "${name}" off ${previous ?? 'its shelf'}` : `Moved "${name}" to ${label}`,
+            () => {
+              relabel.mutate({ id, body: { shelf: previous } })
+            },
+          )
+        },
+      },
+    )
+  }
   /* Issue #205: finite progress counts one-off Tasks only, so a recurring
      Task's endless occurrences never grow the denominator. The header says
      only "N of M done"; `counts` is the fallback for an older server. */
@@ -959,6 +992,12 @@ export function FolderPage({
     if (action === 'rename') {
       if (gates?.identity === true) setRenaming(true)
       else refuse('folder.profile.edit')
+    } else if (action === 'cover') {
+      if (gates?.identity === true) setCoverOpen(true)
+      else refuse('folder.profile.edit')
+    } else if (action === 'tabs') setTabsOpen(true)
+    else if (action === 'transfer') {
+      if (gates?.transferOwnership === true) setTransferOpen(true)
     } else if (action === 'history') setHistoryOpen(true)
     else if (action === 'workflow') void saveAsWorkflow()
     /* Leave is the exception and asks anyway. The two rules that refuse it
@@ -990,9 +1029,21 @@ export function FolderPage({
     completionTotal > 0 ? `${String(completionDone)} of ${String(completionTotal)} done` : null
   /* Main and a section's tab are lists; the View menu belongs to them alone. */
   const listFacet = activeFacet?.kind === 'main' || activeFacet?.kind === 'work'
+  /* "View" takes no row of its own: it ends the tab row, or, where a folder
+     shows one tab and so draws no row, sits in the header beside Share. */
+  const tabRowDrawn = facets.data !== undefined && facetRows.filter((facet) => !facet.hidden).length >= 2
+  const viewMenu = listFacet ? (
+    <FolderViewMenu
+      mode={place.mode}
+      onMode={place.setMode}
+      showCompleted={showCompleted}
+      onShowCompleted={changeShowCompleted}
+    />
+  ) : null
 
   const headerActions = (
     <>
+      {tabRowDrawn ? null : viewMenu}
       {/* 9.6's Share control, a word rather than a glyph. Withheld on a
           default folder, which INV-2 makes single-member and 5.3 refuses an
           add on. AC-162 and AC-183 reach the sharing panel through it. */}
@@ -1009,37 +1060,25 @@ export function FolderPage({
         </Button>
       )}
       {/*
-      The folder's one "…". The object's contract (`lib/object-acts.ts`) draws
-      the shared acts; Cover… and Tabs… are this page's own and come first, and
-      Transfer ownership is 9.6's act for an owner with somewhere to hand the
-      folder to. Rename is the title itself and Move to shelf the sidebar's,
-      so neither handler is passed.
+      The folder's one "…", the same list the Library row's "…" and its
+      right-click draw (`lib/object-acts.ts`), with this page's own plumbing
+      for each act.
        */}
       <ObjectMenu
         kind="folder"
         name={detail?.name ?? ''}
         align="end"
-        extra={
-          <>
-            {gates?.identity === true ? (
-              <DropdownMenuItem onClick={() => setCoverOpen(true)}>Cover…</DropdownMenuItem>
-            ) : null}
-            <DropdownMenuItem onClick={() => setTabsOpen(true)}>Tabs…</DropdownMenuItem>
-            {/* Offered whenever the folder is shared and the viewer owns it,
-                rather than only when somebody is eligible: the dialog says
-                what to do when nobody is. */}
-            {gates?.transferOwnership === true && others.length > 0 ? (
-              <DropdownMenuItem onClick={() => setTransferOpen(true)}>
-                Transfer ownership…
-              </DropdownMenuItem>
-            ) : null}
-            <DropdownMenuSeparator />
-          </>
-        }
         handlers={{
           history: () => {
             setHistoryOpen(true)
           },
+          rename: gates?.identity === true ? () => setRenaming(true) : undefined,
+          move:
+            isDefault || myFolderRow === undefined
+              ? undefined
+              : moveToShelfChoice(shelfNames, myFolderRow.my_shelf, moveToShelf),
+          cover: gates?.identity === true ? () => setCoverOpen(true) : undefined,
+          tabs: () => setTabsOpen(true),
           'copy-link': () => {
             void navigator.clipboard.writeText(folderLink(id))
             showToast('Link copied')
@@ -1062,6 +1101,13 @@ export function FolderPage({
           workflow: () => {
             void saveAsWorkflow()
           },
+          /* Offered whenever the folder is shared and the viewer owns it,
+             rather than only when somebody is eligible: the dialog says what
+             to do when nobody is. */
+          transfer:
+            gates?.transferOwnership === true && others.length > 0
+              ? () => setTransferOpen(true)
+              : undefined,
           /* Any member's, refused to the owner until they transfer and to the
              last Full-control member; `folderGates` reads both off the roster. */
           leave: gates?.leave === true ? askLeave : undefined,
@@ -1116,6 +1162,7 @@ export function FolderPage({
               facets={facetRows}
               activeId={activeFacet?.id ?? ''}
               onSelect={selectFacet}
+              trailing={viewMenu ?? undefined}
             />
           ) : facets.isError ? (
             <p role="alert" className="text-sm text-muted-foreground">
@@ -1123,17 +1170,6 @@ export function FolderPage({
             </p>
           ) : null}
         </div>
-
-        {listFacet ? (
-          <div className="-mb-4 mt-2 flex justify-end">
-            <FolderViewMenu
-              mode={place.mode}
-              onMode={place.setMode}
-              showCompleted={showCompleted}
-              onShowCompleted={changeShowCompleted}
-            />
-          </div>
-        ) : null}
 
         {activeFacet?.kind === 'main' ? (
           <div className="mt-2 space-y-2">
