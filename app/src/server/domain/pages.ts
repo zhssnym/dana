@@ -103,6 +103,7 @@ function blockFromRow(row: Record<string, unknown>): PageBlock {
     file_width: nullableInt(row.file_width),
     file_height: nullableInt(row.file_height),
     file_reclaimed_at: fileReclaimedAt(row),
+    file_name: nullableString(row.file_name),
     ref_folder_id: nullableString(row.ref_folder_id),
     width_pct: row.width_pct === null || row.width_pct === undefined ? null : Number(row.width_pct),
     updated_at: toIso(row.updated_at),
@@ -900,7 +901,7 @@ async function pageViewIn(
                b.section_block_id, b.list_parent_block_id, b.checked,
                b.text, b.rich_content, b.file_id, b.ref_folder_id,
                b.width_pct, b.updated_at, b.file_reclaimed_at,
-               f.width AS file_width, f.height AS file_height
+               f.width AS file_width, f.height AS file_height, f.name AS file_name
         FROM page_blocks b
         LEFT JOIN files f ON f.id = b.file_id
         WHERE ${homeCondition(home, viewerId)}
