@@ -771,17 +771,6 @@ export function useRestoreFacet(): UseMutationResult<Facet, Error, string> {
   })
 }
 
-export function usePutShelfPage(): UseMutationResult<
-  GetPageResponse,
-  Error,
-  PutPageVariables
-> {
-  return useMutation({
-    mutationFn: ({ id, body }: PutPageVariables) =>
-      mutateApi(getPageResponse, { method: 'PUT', path: `/shelves/${id}/page`, body }),
-  })
-}
-
 export function useCreateShelf(): UseMutationResult<Shelf, Error, PostShelvesBody> {
   return useMutation({
     mutationFn: (body: PostShelvesBody) =>

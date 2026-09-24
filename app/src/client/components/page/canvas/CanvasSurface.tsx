@@ -44,7 +44,7 @@ import {
 
 type HeadingMode = 'section' | 'document' | 'none'
 
-const CommandContext = createContext<{ task?: (block?: CanvasBlock) => void; explain: (message: string) => void; headingMode: HeadingMode }>({ explain: () => {}, headingMode: 'section' })
+const CommandContext = createContext<{ task?: (block?: CanvasBlock) => void; explain: (message: string) => void; headingMode: HeadingMode; removeFolder?: (folderId: string) => void; flat?: boolean }>({ explain: () => {}, headingMode: 'section' })
 
 function CanvasBlockMenu(): React.JSX.Element | null {
   const editor = useBlockNoteEditor() as CanvasEditor
@@ -61,11 +61,11 @@ function CanvasBlockMenu(): React.JSX.Element | null {
   const directions = commands.headingMode === 'section' ? (['up', 'down', 'out', 'in'] as const) : (['up', 'down'] as const)
   return (
     <DragHandleMenu>
-      {directions.map((direction) => <components.Generic.Menu.Item key={direction} onClick={() => commands.explain(moveCanvasBlock(editor, block, direction) ?? '')}>
+      {directions.filter((direction) => !commands.flat || (direction !== 'out' && !(direction === 'in' && block.type === 'heading'))).map((direction) => <components.Generic.Menu.Item key={direction} onClick={() => commands.explain(moveCanvasBlock(editor, block, direction) ?? '')}>
         <span>{{ up: 'Move up', down: 'Move down', out: 'Move out of group', in: 'Move into previous group' }[direction]}</span>
       </components.Generic.Menu.Item>)}
       {block.type === 'paragraph' && commands.task ? <components.Generic.Menu.Item onClick={() => commands.task?.(block)}><CheckCircle2 size={16} /><span>Convert to Task</span></components.Generic.Menu.Item> : null}
-      {group?.type === 'heading' ? (
+      {group?.type === 'heading' && !commands.flat ? (
         <components.Generic.Menu.Item onClick={() => continueAfterGroup(editor, group)}>
           <ArrowDown size={16} /><span>Continue after group</span>
         </components.Generic.Menu.Item>
@@ -74,6 +74,12 @@ function CanvasBlockMenu(): React.JSX.Element | null {
         <components.Generic.Menu.Item onClick={() => removeHeadingKeepingContent(editor, block)}>
           <X size={16} /><span>Remove heading<span className="block text-xs text-muted-foreground">Keep its Tasks and content</span></span>
         </components.Generic.Menu.Item>
+      ) : block.type === 'danaFolder' ? (
+        /* #221: a Folder row is the Shelf's membership, so it leaves through the
+           membership act and never through generic Delete. */
+        commands.removeFolder ? <components.Generic.Menu.Item onClick={() => commands.removeFolder?.(block.props.folderId)}>
+          <X size={16} /><span>Remove from shelf<span className="block text-xs text-muted-foreground">The folder itself is kept</span></span>
+        </components.Generic.Menu.Item> : null
       ) : block.type === 'danaTask' ? (
         /*
         Why a Task block has no Delete, said in words that name a control that
@@ -124,6 +130,10 @@ export function CanvasSurface({
   onUploadFile,
   headingMode = 'section',
   editable = true,
+  label,
+  onRemoveFolder,
+  flatGroups = false,
+  extraSlashItems,
 }: {
   readonly editor: CanvasEditor
   readonly onChange: (editor: CanvasEditor) => void
@@ -135,6 +145,13 @@ export function CanvasSurface({
   ) => Promise<CanvasUploadedFile>
   readonly headingMode?: HeadingMode
   readonly editable?: boolean
+  readonly label?: string
+  /** A Shelf's Remove from shelf, offered on its Folder rows (#221). */
+  readonly onRemoveFolder?: (folderId: string) => void
+  /** A Shelf stores its headings flat, content belonging by position: one
+   * heading level, and no "out of group" gestures a reload would undo. */
+  readonly flatGroups?: boolean
+  readonly extraSlashItems?: readonly DefaultReactSuggestionItem[]
 }): React.JSX.Element {
   const [feedback, setFeedback] = useState('')
   const [referenceToConvert, setReferenceToConvert] = useState<CanvasBlock | null>(null)
@@ -152,7 +169,7 @@ export function CanvasSurface({
     return () => observer.disconnect()
   }, [])
   return (
-    <CommandContext.Provider value={{ task: onCreateTask ? requestTask : undefined, explain: setFeedback, headingMode }}>
+    <CommandContext.Provider value={{ task: onCreateTask ? requestTask : undefined, explain: setFeedback, headingMode, removeFolder: onRemoveFolder, flat: flatGroups }}>
     <div className="dana-writing-canvas min-w-0">
       <BlockNoteView
         editor={editor}
@@ -163,7 +180,7 @@ export function CanvasSurface({
         sideMenu={false}
         filePanel={false}
         onChange={() => { setFeedback(''); onChange(editor) }}
-        aria-label={onCreateTask === undefined ? 'Folder writing' : 'Folder writing and Tasks'}
+        aria-label={label ?? (onCreateTask === undefined ? 'Folder writing' : 'Folder writing and Tasks')}
       >
         <FormattingToolbarController formattingToolbar={CanvasFormattingToolbar} />
         <FilePanelController
@@ -192,7 +209,7 @@ export function CanvasSurface({
               title: 'Heading 1',
               onItemClick: () => insertCanvasHeading(editor, 1),
             })
-            if (headingOneContext(editor) !== undefined) {
+            if (!flatGroups && headingOneContext(editor) !== undefined) {
               core.push({
                 ...(byKey('heading_2') ?? heading),
                 title: 'Heading 2',
@@ -346,6 +363,7 @@ export function CanvasSurface({
           // "Link to…" (#223) sits after the Task item.
           const task = core.findIndex((item) => item.title === 'Task')
           core.splice(task < 0 ? core.length : task + 1, 0, linkSlashItem(editor))
+          core.push(...extraSlashItems ?? [])
           /* One group: the default heading items carry 'Headings' between
              'Basic blocks' items, and BlockNote keys groups by name, so two
              'Basic blocks' runs render a duplicate key and an empty header. */

@@ -360,10 +360,14 @@ export function dehydrateCanvas(
         const runs = richRuns(block)
         const presentationHeading =
           block.type === 'heading' && !groupHeading
+        // A Shelf's native Folder row (#221) is a `folder_ref` by type; a
+        // paragraph is one only by the page's own map (#255).
         const reference =
-          block.type === 'paragraph'
-            ? folderRefs.get(block.id) ?? null
-            : null
+          block.type === 'danaFolder'
+            ? block.props.folderId || null
+            : block.type === 'paragraph'
+              ? folderRefs.get(block.id) ?? null
+              : null
 
         let blockKind: PageBlockKind = 'paragraph'
         if (block.type === 'heading') {
@@ -408,7 +412,9 @@ export function dehydrateCanvas(
               ? null
               : block.type === 'codeBlock'
                 ? codeText
-                : runs.map((run) => run.text).join('')
+                : block.type === 'danaFolder'
+                  ? null
+                  : runs.map((run) => run.text).join('')
         const rich =
           block.type === 'image' ||
           block.type === 'file' ||
