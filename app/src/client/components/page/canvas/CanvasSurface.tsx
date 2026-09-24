@@ -1,14 +1,11 @@
-import { createContext, useCallback, useContext, useEffect, useState } from 'react'
-import { offset } from '@floating-ui/react'
+import { useCallback, useEffect, useId, useMemo, useState } from 'react'
 import { BlockNoteView } from '@blocknote/shadcn'
 import {
-  FilePanelController, FormattingToolbarController, SuggestionMenuController, SideMenuController, SideMenu,
-  DragHandleMenu,
-  useBlockNoteEditor, useComponentsContext, useExtensionState,
+  FilePanelController, FormattingToolbarController, SuggestionMenuController, SideMenuController,
   getDefaultReactSlashMenuItems,
 } from '@blocknote/react'
 import type { DefaultReactSuggestionItem } from '@blocknote/react'
-import { filterSuggestionItems, insertOrUpdateBlockForSlashMenu, SideMenuExtension } from '@blocknote/core/extensions'
+import { filterSuggestionItems, insertOrUpdateBlockForSlashMenu } from '@blocknote/core/extensions'
 import { CanvasFilePanel } from './CanvasFilePanel.js'
 import type { CanvasMediaKind, CanvasUploadedFile } from './CanvasFilePanel.js'
 import { CanvasFormattingToolbar } from './CanvasFormattingToolbar.js'
@@ -24,7 +21,13 @@ import {
   AlertDialogTitle,
 } from '../../ui/alert-dialog.js'
 import { installCanvasGuard } from './guard.js'
-import { ancestorsOf, bindTaskCommand, continueAfterGroup, headingOneContext, insertCanvasHeading, insertDocumentHeading, moveCanvasBlock, removeCanvasBlocks, removeHeadingKeepingContent } from './commands.js'
+import { bindTaskCommand, headingOneContext, insertCanvasHeading, insertDocumentHeading, removeCanvasBlocks } from './commands.js'
+import { validateCanvasOutline } from './outline.js'
+import { BlockMenuContext, BlockSideMenu, blockSidePosition, duplicateBlocks, pageTheme, turnBlocksInto } from './BlockSideMenu.js'
+import type { BlockMenuModel } from './BlockSideMenu.js'
+import { BlockSelectionStyle, useBlockAnchor, useBlockSelectionKeys } from './block-selection.js'
+import { contains, simulate, simulateNest, TEXT_TYPES, TURN_TARGETS } from './turn-into.js'
+import type { TreeBlock } from './turn-into.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
 import { DanaLinkSuggestions, linkSlashItem } from '../../links/dana-link-picker.js'
 import './canvas.css'
@@ -39,82 +42,12 @@ import {
 
 type HeadingMode = 'section' | 'document' | 'none'
 
-const CommandContext = createContext<{ task?: (block?: CanvasBlock) => void; explain: (message: string) => void; headingMode: HeadingMode; removeFolder?: (folderId: string) => void; flat?: boolean }>({ explain: () => {}, headingMode: 'section' })
+const TASK_OR_FOLDER: ReadonlySet<string> = new Set(['danaTask', 'danaFolder'])
+const LIST_TYPES: ReadonlySet<string> = new Set(['bulletListItem', 'numberedListItem', 'checkListItem'])
 
-function CanvasBlockMenu(): React.JSX.Element | null {
-  const editor = useBlockNoteEditor() as CanvasEditor
-  const commands = useContext(CommandContext)
-  const components = useComponentsContext()!
-  const sideBlock = useExtensionState(SideMenuExtension, { editor, selector: (state) => state?.block })
-  const block = sideBlock === undefined ? undefined : editor.getBlock(sideBlock.id)
-  if (block === undefined) return null
-  const group = commands.headingMode === 'section'
-    ? block.type === 'heading' && block.props.isToggleable !== false
-      ? block
-      : (ancestorsOf(editor.document, block.id) ?? []).filter((item) => item.type === 'heading' && item.props.isToggleable !== false).at(-1)
-    : undefined
-  const directions = commands.headingMode === 'section' ? (['up', 'down', 'out', 'in'] as const) : (['up', 'down'] as const)
-  const remove = (): void => {
-    const selected = editor.getSelection()?.blocks
-    removeCanvasBlocks(editor, selected?.some((item) => item.id === block.id) ? selected : [block])
-  }
-  return (
-    <DragHandleMenu>
-      {directions.filter((direction) => !commands.flat || (direction !== 'out' && !(direction === 'in' && block.type === 'heading'))).map((direction) => <components.Generic.Menu.Item key={direction} onClick={() => commands.explain(moveCanvasBlock(editor, block, direction) ?? '')}>
-        <span>{{ up: 'Move up', down: 'Move down', out: 'Move out of section', in: 'Move into section above' }[direction]}</span>
-      </components.Generic.Menu.Item>)}
-      {block.type === 'paragraph' && commands.task ? <components.Generic.Menu.Item onClick={() => commands.task?.(block)}><span>Turn into task</span></components.Generic.Menu.Item> : null}
-      {group?.type === 'heading' && !commands.flat ? (
-        <components.Generic.Menu.Item onClick={() => continueAfterGroup(editor, group)}>
-          <span>Continue after section</span>
-        </components.Generic.Menu.Item>
-      ) : null}
-      {block.type === 'heading' && commands.headingMode === 'section' ? (
-        <components.Generic.Menu.Item onClick={() => removeHeadingKeepingContent(editor, block)}>
-          <span>Remove heading<span className="block text-xs text-muted-foreground">Keeps what is under it</span></span>
-        </components.Generic.Menu.Item>
-      ) : block.type === 'danaFolder' ? (
-        /* #221: a Folder row is the Shelf's membership, so it leaves through the
-           membership act and never through generic Delete. */
-        commands.removeFolder ? <components.Generic.Menu.Item onClick={() => commands.removeFolder?.(block.props.folderId)}>
-          <span>Remove from shelf<span className="block text-xs text-muted-foreground">The folder itself is kept</span></span>
-        </components.Generic.Menu.Item> : null
-      ) : block.type === 'danaTask' ? (
-        /*
-        A Task block has no Delete here: deleting a task is a task action, in
-        its row's own menu. Every placement, open or completed, draws its real
-        row (`CanvasTask.tsx`), so that menu is always there to point at.
-        */
-        <p className="px-3 py-2 text-sm text-muted-foreground">Delete a task from its own menu.</p>
-      ) : (
-        <components.Generic.Menu.Item onClick={remove}><span className="text-destructive">Delete</span></components.Generic.Menu.Item>
-      )}
-    </DragHandleMenu>
-  )
-}
-
-function CanvasSideMenu(): React.JSX.Element {
-  return <SideMenu dragHandleMenu={CanvasBlockMenu} />
-}
-
-// Keep BlockNote's controller; adapt its offset to the actual Dana line box.
-const canvasSidePosition = {
-  useFloatingOptions: {
-    middleware: [offset(({ elements, rects }) => {
-      const reference = elements.reference
-      const element = reference instanceof Element ? reference : reference.contextElement
-      const content = element?.querySelector('.bn-block-content') ?? element
-      const line = content?.querySelector('.bn-inline-content') ?? content
-      if (line === undefined || line === null) return { mainAxis: 8 }
-      const box = line.getBoundingClientRect()
-      const referenceBox = reference.getBoundingClientRect()
-      const style = getComputedStyle(line)
-      const lineHeight = Number.parseFloat(style.lineHeight) || box.height
-      const toggle = content?.querySelector('.bn-toggle-button')
-      const mainAxis = toggle ? referenceBox.left - toggle.getBoundingClientRect().left + 8 : 8
-      return { mainAxis, crossAxis: box.top - referenceBox.top + (lineHeight - rects.floating.height) / 2 }
-    })],
-  },
+/** A Shelf keeps one heading level and flat lists (ShelfCanvas's own guard). */
+function flatShelfFailure(blocks: readonly TreeBlock[]): boolean {
+  return blocks.some((block) => (block.type === 'heading' ? block.props.level !== 1 || flatShelfFailure(block.children) : block.children.length > 0))
 }
 
 /** Visual editor host. The caller owns hydration, uploads, Task actions and durable saving. */
@@ -155,7 +88,7 @@ export function CanvasSurface({
 }): React.JSX.Element {
   const [feedback, setFeedback] = useState('')
   const [referenceToConvert, setReferenceToConvert] = useState<CanvasBlock | null>(null)
-  const [theme, setTheme] = useState<'dark' | 'light'>(() => document.documentElement.classList.contains('dark') ? 'dark' : 'light')
+  const [theme, setTheme] = useState<'dark' | 'light'>(pageTheme)
   const requestTask = useCallback((block?: CanvasBlock): void => {
     const target = block ?? editor.getTextCursorPosition().block
     if (folderRefs.has(target.id)) setReferenceToConvert(target)
@@ -164,14 +97,107 @@ export function CanvasSurface({
   useEffect(() => installCanvasGuard(editor, setFeedback), [editor])
   useEffect(() => onCreateTask ? bindTaskCommand(editor, requestTask) : undefined, [editor, onCreateTask, requestTask])
   useEffect(() => {
-    const observer = new MutationObserver(() => setTheme(document.documentElement.classList.contains('dark') ? 'dark' : 'light'))
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+    const observer = new MutationObserver(() => setTheme(pageTheme()))
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'data-theme'] })
     return () => observer.disconnect()
   }, [])
+
+  // What this canvas's structure admits: the persisted outline's rules, and a
+  // Shelf's flat ones. A refused shape is never offered (menu) or attempted (Tab).
+  const admits = useCallback((document: readonly TreeBlock[]): boolean =>
+    validateCanvasOutline(document) === null && !(flatGroups && flatShelfFailure(document)), [flatGroups])
+  const headingToggles = headingMode === 'section'
+  const remove = useCallback((ids: readonly string[]): void => {
+    removeCanvasBlocks(editor, ids.flatMap((id) => { const block = editor.getBlock(id); return block === undefined ? [] : [block] }))
+  }, [editor])
+  const duplicate = useCallback((ids: readonly string[]): void => {
+    const blocks = ids.flatMap((id) => { const block = editor.getBlock(id) as TreeBlock | undefined; return block === undefined ? [] : [block] })
+    if (blocks.some((block) => contains(block, TASK_OR_FOLDER))) return
+    duplicateBlocks(editor, ids)
+  }, [editor])
+  const menu = useMemo<BlockMenuModel>(() => ({
+    targets: (block) => {
+      if (!TEXT_TYPES.has(block.type)) return []
+      const document = editor.document as unknown as TreeBlock[]
+      return TURN_TARGETS.filter((target) => {
+        if (target.type === 'heading' && (headingMode === 'none' || (flatGroups && target.level !== 1))) return false
+        return admits(simulate(document, block.id, target, headingMode === 'none' ? undefined : headingToggles))
+      })
+    },
+    turnInto: (ids, target) => { turnBlocksInto(editor, ids, target, headingMode === 'none' ? undefined : headingToggles) },
+    extraTarget: (block) => block.type === 'paragraph' && onCreateTask !== undefined
+      ? { title: 'Task', run: () => { requestTask(editor.getBlock(block.id) ?? undefined) } }
+      : null,
+    canDuplicate: (block) => !contains(block, TASK_OR_FOLDER),
+    duplicate,
+    removal: (block, ids) => {
+      /* #221: a Folder row is the Shelf's membership, so it leaves through
+         the membership act and never through generic Delete. */
+      if (block.type === 'danaFolder') {
+        const folderId = String(block.props.folderId)
+        return onRemoveFolder ? { label: 'Remove from shelf', run: () => { onRemoveFolder(folderId) } } : null
+      }
+      // Deleting a task is a task action, in its row's own menu (`CanvasTask.tsx`).
+      if (block.type === 'danaTask') return { note: 'Delete a task from its own menu.' }
+      return { label: 'Delete', run: () => { remove(ids) } }
+    },
+  }), [editor, headingMode, flatGroups, admits, headingToggles, onCreateTask, requestTask, duplicate, onRemoveFolder, remove])
+  const selectionActions = useMemo(() => ({ remove, duplicate }), [remove, duplicate])
+  useBlockSelectionKeys(editor, selectionActions)
+  useBlockAnchor(editor, true)
+  const scope = `dana-canvas-${useId().replace(/[^a-zA-Z0-9]/g, '')}`
+
+  // Tab nests only where the result is a shape this canvas can keep; elsewhere
+  // it does nothing rather than refuse out loud. Code keeps its own Tab.
+  /*
+  Enter on an empty nested list item steps out a level (at the root,
+  BlockNote's own Enter makes it text). Backspace at the start of a block:
+  a nested list item steps out; any other kind turns into text, its children
+  lifted after it when text cannot hold them; text merges (BlockNote's). A
+  nested item never turns into text in place, a shape the canvas cannot keep.
+  */
+  const onKeyDownCapture = (event: React.KeyboardEvent): void => {
+    if (event.metaKey || event.ctrlKey || event.altKey) return
+    const { selection } = editor.prosemirrorState
+    if (!selection.empty || editor.domElement === undefined || !editor.domElement.contains(event.target as Node)) return
+    const block = editor.getTextCursorPosition().block
+    const stop = (): void => { event.preventDefault(); event.stopPropagation() }
+    const inList = LIST_TYPES.has(block.type) && LIST_TYPES.has(editor.getParentBlock(block.id)?.type ?? '')
+    if (event.key === 'Tab' && !event.shiftKey) {
+      if (block.type === 'codeBlock') return
+      const next = simulateNest(editor.document as unknown as TreeBlock[], block.id)
+      if (next === null || !admits(next)) stop()
+    } else if (event.key === 'Enter' && !event.shiftKey) {
+      if (inList && Array.isArray(block.content) && block.content.length === 0) { stop(); editor.unnestBlock() }
+    } else if (event.key === 'Backspace' && !event.shiftKey && selection.$from.parentOffset === 0) {
+      if (inList) { stop(); editor.unnestBlock(); return }
+      if (block.type === 'paragraph' || !TEXT_TYPES.has(block.type)) return
+      stop()
+      turnBlocksInto(editor, [block.id], TURN_TARGETS[0]!, undefined)
+      editor.setTextCursorPosition(block.id, 'start')
+    }
+  }
+
+  // Clicking below the last block writes on: an empty last line is reused,
+  // otherwise a new one is made after everything.
+  const writeBelow = (event: React.MouseEvent): void => {
+    if (!editable || event.button !== 0) return
+    event.preventDefault()
+    const last = editor.document.at(-1)
+    if (last === undefined) return
+    const empty = last.type === 'paragraph' && Array.isArray(last.content) && last.content.length === 0 && last.children.length === 0
+    const target = empty ? last : editor.insertBlocks([{ type: 'paragraph' }], last, 'after')[0]
+    if (target === undefined) return
+    editor.setTextCursorPosition(target, 'end')
+    editor.focus()
+  }
+
   return (
-    <CommandContext.Provider value={{ task: onCreateTask ? requestTask : undefined, explain: setFeedback, headingMode, removeFolder: onRemoveFolder, flat: flatGroups }}>
+    <BlockMenuContext.Provider value={menu}>
+    <BlockSelectionStyle editor={editor} scope={scope} />
     <div
-      className="dana-writing-canvas min-w-0"
+      onKeyDownCapture={onKeyDownCapture}
+      className={`dana-writing-canvas ${scope} min-w-0`}
       style={placeholder === undefined ? undefined : ({ '--dana-canvas-placeholder': JSON.stringify(placeholder) } as React.CSSProperties)}
     >
       <BlockNoteView
@@ -191,7 +217,7 @@ export function CanvasSurface({
             <CanvasFilePanel {...props} onUpload={onUploadFile} />
           )}
         />
-        <SideMenuController sideMenu={CanvasSideMenu} floatingUIOptions={canvasSidePosition} />
+        <SideMenuController sideMenu={BlockSideMenu} floatingUIOptions={blockSidePosition} />
         <SuggestionMenuController triggerCharacter="/" getItems={async (query) => {
           const defaults = getDefaultReactSlashMenuItems(editor)
           const byKey = (
@@ -279,6 +305,7 @@ export function CanvasSurface({
         {editable ? <DanaLinkSuggestions editor={editor} /> : null}
         <CanvasMarquee />
       </BlockNoteView>
+      {editable ? <div aria-hidden="true" className="dana-canvas-tail" onMouseDown={writeBelow} /> : null}
       <p role="status" aria-live="polite" className="min-h-6 px-2 text-sm text-muted-foreground">{feedback}</p>
     </div>
     <AlertDialog open={referenceToConvert !== null} onOpenChange={(open) => { if (!open) setReferenceToConvert(null) }}>
@@ -295,6 +322,6 @@ export function CanvasSurface({
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
-    </CommandContext.Provider>
+    </BlockMenuContext.Provider>
   )
 }

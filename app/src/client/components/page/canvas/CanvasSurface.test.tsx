@@ -14,31 +14,37 @@ vi.mock('@blocknote/react', () => ({
   FilePanelController: () => null,
   SuggestionMenuController: () => null,
   SideMenuController: ({ sideMenu: Menu }: { sideMenu: () => React.JSX.Element }) => <Menu />,
-  SideMenu: ({ dragHandleMenu: Menu }: { dragHandleMenu: () => React.JSX.Element }) => <Menu />,
-  DragHandleMenu: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
-  RemoveBlockItem: ({ children }: { children?: React.ReactNode }) => <button>{children}</button>,
   useBlockNoteEditor: () => state.editor,
+  // The block menu drawn flat: every menu and submenu open, each item a button.
   useComponentsContext: () => ({
-    Generic: { Menu: { Item: ({ children, onClick }: { children?: React.ReactNode; onClick?: () => void }) => <button onClick={onClick}>{children}</button> } },
+    SideMenu: {
+      Root: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
+      Button: ({ label, onClick }: { label: string; onClick?: () => void }) => <button onClick={onClick}>{label}</button>,
+    },
+    Generic: { Menu: {
+      Root: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
+      Trigger: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
+      Dropdown: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
+      Item: ({ children, onClick, subTrigger }: { children?: React.ReactNode; onClick?: () => void; subTrigger?: boolean }) => subTrigger ? <span>{children}</span> : <button onClick={onClick}>{children}</button>,
+    } },
   }),
+  useExtension: () => ({ freezeMenu: () => {}, unfreezeMenu: () => {}, openSuggestionMenu: () => {} }),
   useExtensionState: () => ({ id: state.selectedId }),
   getDefaultReactSlashMenuItems: () => [],
 }))
 vi.mock('@blocknote/core/extensions', () => ({
   filterSuggestionItems: (items: unknown[]) => items,
   SideMenuExtension: {},
+  SuggestionMenu: {},
 }))
 vi.mock('./CanvasFormattingToolbar.js', () => ({ CanvasFormattingToolbar: () => null }))
 vi.mock('./CanvasMarquee.js', () => ({ CanvasMarquee: () => null }))
 vi.mock('./guard.js', () => ({ installCanvasGuard: () => () => {} }))
 vi.mock('./commands.js', () => ({
-  ancestorsOf: () => [],
   bindTaskCommand: () => () => {},
-  continueAfterGroup: () => {},
   headingOneContext: () => undefined,
   insertCanvasHeading: () => {},
-  moveCanvasBlock: () => null,
-  removeHeadingKeepingContent: () => {},
+  removeCanvasBlocks: () => {},
 }))
 
 import { CanvasSurface } from './CanvasSurface.js'
@@ -65,13 +71,13 @@ function draw(block: CanvasBlock, folderRefs: ReadonlyMap<string, string>, onCre
   render(<CanvasSurface editor={state.editor} onChange={() => {}} onCreateTask={onCreateTask} folderRefs={folderRefs} onUploadFile={() => Promise.reject(new Error("no uploads here"))} />)
 }
 
-describe('Turn into task from the canvas block menu', () => {
+describe('Turn into › Task from the canvas block menu', () => {
   test('a folder reference explains both removals and waits for confirmation', async () => {
     const reference = paragraph('reference', 'The studio archive')
     const onCreateTask = vi.fn()
     draw(reference, new Map([[reference.id, '00000000-0000-4000-8000-000000000001']]), onCreateTask)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Turn into task' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Task' }))
 
     const warning = screen.getByRole('alertdialog')
     expect(within(warning).getByText('Turn this folder link into a task?')).toBeTruthy()
@@ -82,7 +88,7 @@ describe('Turn into task from the canvas block menu', () => {
     await waitFor(() => { expect(screen.queryByRole('alertdialog')).toBeNull() })
     expect(onCreateTask).not.toHaveBeenCalled()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Turn into task' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Task' }))
     fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Turn into task' }))
     expect(onCreateTask).toHaveBeenCalledTimes(1)
     expect(onCreateTask).toHaveBeenCalledWith(reference)
@@ -93,9 +99,21 @@ describe('Turn into task from the canvas block menu', () => {
     const onCreateTask = vi.fn()
     draw(prose, new Map(), onCreateTask)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Turn into task' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Task' }))
 
     expect(onCreateTask).toHaveBeenCalledWith(prose)
     expect(screen.queryByRole('alertdialog')).toBeNull()
+  })
+})
+
+describe('the block menu', () => {
+  test('offers Turn into, Duplicate, Copy link and Delete, and no Move items', () => {
+    draw(paragraph('prose', 'Words'), new Map(), vi.fn())
+    const names = screen.getAllByRole('button').map((button) => button.textContent)
+    expect(names).toEqual(expect.arrayContaining(['Text', 'Heading 1', 'Bulleted list', 'Task', 'Copy link to block', 'Delete']))
+    expect(names.some((name) => name?.startsWith('Duplicate'))).toBe(true)
+    expect(names.filter((name) => /Move|Remove heading|Continue after/.test(name ?? ''))).toEqual([])
+    // A root paragraph cannot become Heading 2: the outline would refuse it.
+    expect(names).not.toContain('Heading 2')
   })
 })

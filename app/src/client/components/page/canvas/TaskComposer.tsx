@@ -25,7 +25,7 @@ neither tab's writing is lost to a last write.
 `tasks.notes` stays the server's plain-text projection for older clients; this
 editor never writes it.
 */
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { BlockNoteSchema, createHeadingBlockSpec, defaultBlockSpecs, defaultInlineContentSpecs, defaultStyleSpecs } from '@blocknote/core'
 import type { PartialBlock } from '@blocknote/core'
@@ -33,7 +33,7 @@ import { filterSuggestionItems } from '@blocknote/core/extensions'
 import { en } from '@blocknote/core/locales'
 import { BlockNoteView } from '@blocknote/shadcn'
 import {
-  DragHandleMenu, FilePanelController, FormattingToolbarController, RemoveBlockItem, SideMenu, SideMenuController,
+  FilePanelController, FormattingToolbarController, SideMenuController,
   SuggestionMenuController, getDefaultReactSlashMenuItems, useCreateBlockNote,
 } from '@blocknote/react'
 import '@blocknote/shadcn/style.css'
@@ -53,6 +53,10 @@ import { danaLinkInlineSpec } from '../../links/dana-link-chip.js'
 import { DanaLinkSuggestions, linkSlashItem } from '../../links/dana-link-picker.js'
 import { CanvasWriter } from './saving.js'
 import { NOT_SAVED, SaveFailure } from './SaveFailure.js'
+import { BlockMenuContext, BlockSideMenu, blockSidePosition, duplicateBlocks, pageTheme, turnBlocksInto } from './BlockSideMenu.js'
+import type { BlockMenuModel } from './BlockSideMenu.js'
+import { BlockSelectionStyle, useBlockAnchor, useBlockSelectionKeys } from './block-selection.js'
+import { TEXT_TYPES, TURN_TARGETS } from './turn-into.js'
 import './canvas.css'
 
 export const taskSchema = BlockNoteSchema.create({
@@ -168,12 +172,8 @@ export function mergeDraft(current: readonly TaskBlock[], draft: readonly TaskBl
   return out as TaskInput[]
 }
 
-function TaskBlockMenu(): React.JSX.Element {
-  return <DragHandleMenu><RemoveBlockItem>Delete</RemoveBlockItem></DragHandleMenu>
-}
-function TaskSideMenu(): React.JSX.Element {
-  return <SideMenu dragHandleMenu={TaskBlockMenu} />
-}
+/** The kinds a Task's body holds (its schema, less media), for Turn into. */
+const TASK_TURN_TARGETS = TURN_TARGETS.filter((target) => ['paragraph', 'heading', 'bulletListItem', 'numberedListItem', 'quote', 'codeBlock'].includes(target.type))
 
 function download(name: string, content: string): void {
   const url = URL.createObjectURL(new Blob([content], { type: 'application/json' }))
@@ -262,6 +262,29 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
     },
   })
   editorRef.current = editor
+  // The same gutter and block menu as the Folder canvas (`BlockSideMenu`).
+  const menu = useMemo<BlockMenuModel>(() => ({
+    targets: (block) => TEXT_TYPES.has(block.type) ? TASK_TURN_TARGETS : [],
+    turnInto: (ids, target) => { turnBlocksInto(editor, ids, target, undefined) },
+    canDuplicate: () => true,
+    duplicate: (ids) => { duplicateBlocks(editor, ids) },
+    removal: (_block, ids) => ({ label: 'Delete', run: () => { editor.removeBlocks([...ids]) } }),
+  }), [editor])
+  const selectionActions = useMemo(() => ({ remove: (ids: readonly string[]) => { editor.removeBlocks([...ids]) }, duplicate: menu.duplicate }), [editor, menu])
+  useBlockSelectionKeys(editor, selectionActions)
+  useBlockAnchor(editor, true)
+  const scope = `dana-canvas-${useId().replace(/[^a-zA-Z0-9]/g, '')}`
+  function writeBelow(event: React.MouseEvent): void {
+    if (event.button !== 0) return
+    event.preventDefault()
+    const last = editor.document.at(-1)
+    if (last === undefined) return
+    const empty = last.type === 'paragraph' && Array.isArray(last.content) && last.content.length === 0 && last.children.length === 0
+    const target = empty ? last : editor.insertBlocks([{ type: 'paragraph' }], last, 'after')[0]
+    if (target === undefined) return
+    editor.setTextCursorPosition(target, 'end')
+    editor.focus()
+  }
   const [writer] = useState(() => {
     const first = initial.length ? baselineOf(initialPage, dehydrateTask(editor.document, width, initialPage)) : { blocks: [], items: [] }
     const created: CanvasWriter = new CanvasWriter(first, initialPage.revision!,
@@ -348,12 +371,14 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
       <Button variant="ghost" onClick={() => download(`dana-task-writing-${taskId}.json`, recovered)}>Download writing</Button>
       <Button variant="ghost" onClick={() => { writeStorage(recoveredKey(taskId), null); setRecovered(null) }}>Discard</Button>
     </div> : null}
-    <div className="dana-writing-canvas dana-task-composer min-w-0">
-      <BlockNoteView editor={editor} theme={document.documentElement.classList.contains('dark') ? 'dark' : 'light'}
+    <BlockMenuContext.Provider value={menu}>
+    <BlockSelectionStyle editor={editor} scope={scope} />
+    <div className={`dana-writing-canvas dana-task-composer ${scope} min-w-0`}>
+      <BlockNoteView editor={editor} theme={pageTheme()}
         formattingToolbar={false} slashMenu={false} sideMenu={false} filePanel={false} onChange={changed} aria-label="Task writing">
         <FormattingToolbarController formattingToolbar={CanvasFormattingToolbar} />
         {folderId === null ? null : <FilePanelController filePanel={(props) => <CanvasFilePanel {...props} onUpload={(kind: CanvasMediaKind, file: File) => upload(kind, folderId, file)} />} />}
-        <SideMenuController sideMenu={TaskSideMenu} />
+        <SideMenuController sideMenu={BlockSideMenu} floatingUIOptions={blockSidePosition} />
         <SuggestionMenuController triggerCharacter="/" getItems={async (query) => filterSuggestionItems(
           getDefaultReactSlashMenuItems(editor)
             .filter((item) => 'key' in item && SLASH_KEYS.includes(String(item.key)) && (folderId !== null || !['image', 'file', 'audio', 'video'].includes(String(item.key))))
@@ -364,7 +389,9 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
         <DanaLinkSuggestions editor={editor as unknown as CanvasEditor} />
         <CanvasMarquee />
       </BlockNoteView>
+      <div aria-hidden="true" className="dana-canvas-tail dana-canvas-tail-short" onMouseDown={writeBelow} />
     </div>
+    </BlockMenuContext.Provider>
     <SaveFailure
       message={error || (writer.state === 'failed' ? NOT_SAVED : null)}
       onRetry={!error && writer.state === 'failed' && !conflict && writer.pending ? () => { void writer.retry() } : undefined}
