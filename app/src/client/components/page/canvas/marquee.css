@@ -1,0 +1,31 @@
+/* Block selection (`marquee.ts`, `CanvasMarquee.tsx`): a quiet accent tint
+   on each selected block, no border, and no text highlight or caret while
+   blocks rather than text are selected. */
+.bn-block-outer[data-dana-selected] > .bn-block {
+  background-color: color-mix(in srgb, var(--accent-color) 14%, transparent);
+  border-radius: var(--radius-sm);
+}
+.dark .bn-block-outer[data-dana-selected] > .bn-block {
+  background-color: color-mix(in srgb, var(--accent-color) 24%, transparent);
+}
+.ProseMirror[data-dana-block-selection] { caret-color: transparent; }
+.ProseMirror[data-dana-block-selection] ::selection,
+.ProseMirror[data-dana-block-selection]::selection { background: transparent; }
+/* Text formatting has nothing to act on in a block selection. */
+body:has(.ProseMirror[data-dana-block-selection]) .bn-formatting-toolbar { display: none; }
+
+.dana-marquee-rect {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 60;
+  pointer-events: none;
+  background-color: color-mix(in srgb, var(--accent-color) 10%, transparent);
+  border-radius: 2px;
+}
+body.dana-marquee-dragging,
+body.dana-marquee-dragging * {
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+}

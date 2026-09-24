@@ -12,6 +12,7 @@ import { filterSuggestionItems, insertOrUpdateBlockForSlashMenu, SideMenuExtensi
 import { CanvasFilePanel } from './CanvasFilePanel.js'
 import type { CanvasMediaKind, CanvasUploadedFile } from './CanvasFilePanel.js'
 import { CanvasFormattingToolbar } from './CanvasFormattingToolbar.js'
+import { CanvasMarquee } from './CanvasMarquee.js'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -274,6 +275,7 @@ export function CanvasSurface({
           return filterSuggestionItems(core.map((item) => ({ ...item, group: 'Basic blocks', size: 'small' as const })), query)
         }} />
         {editable ? <DanaLinkSuggestions editor={editor} /> : null}
+        <CanvasMarquee />
       </BlockNoteView>
       <p role="status" aria-live="polite" className="min-h-6 px-2 text-sm text-muted-foreground">{feedback}</p>
     </div>

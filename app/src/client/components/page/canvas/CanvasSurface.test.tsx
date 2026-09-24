@@ -29,6 +29,7 @@ vi.mock('@blocknote/core/extensions', () => ({
   SideMenuExtension: {},
 }))
 vi.mock('./CanvasFormattingToolbar.js', () => ({ CanvasFormattingToolbar: () => null }))
+vi.mock('./CanvasMarquee.js', () => ({ CanvasMarquee: () => null }))
 vi.mock('./guard.js', () => ({ installCanvasGuard: () => () => {} }))
 vi.mock('./commands.js', () => ({
   ancestorsOf: () => [],

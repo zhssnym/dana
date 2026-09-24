@@ -43,6 +43,7 @@ import { ApiError, getPlain, mutateApi, uploadFile } from '../../../api/http.js'
 import { Button } from '../../ui/button.js'
 import { CanvasErrorBoundary } from './CanvasErrorBoundary.js'
 import { CanvasFormattingToolbar } from './CanvasFormattingToolbar.js'
+import { CanvasMarquee } from './CanvasMarquee.js'
 import { CanvasFilePanel } from './CanvasFilePanel.js'
 import type { CanvasMediaKind } from './CanvasFilePanel.js'
 import { baselineOf, contentOf, richRuns } from './adapters.js'
@@ -361,6 +362,7 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
             .map((item) => ({ ...item, group: 'Basic blocks' })),
           query)} />
         <DanaLinkSuggestions editor={editor as unknown as CanvasEditor} />
+        <CanvasMarquee />
       </BlockNoteView>
     </div>
     <div role="status" aria-live="polite" className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
