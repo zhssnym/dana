@@ -146,7 +146,13 @@ export function createQueryClient(): QueryClient {
         showToast(mutationFailureMessage(error, mutation.meta))
       },
       onSuccess: () => {
-        void queryClientRef?.invalidateQueries()
+        // A Dana Link chip's label (queryKeys.reference) is left to its own
+        // staleTime: invalidating it on every save refetched one
+        // GET /references per chip on each canvas autosave.
+        void queryClientRef?.invalidateQueries({
+          predicate: (query) =>
+            !(query.queryKey[0] === 'references' && query.queryKey[1] !== 'search'),
+        })
       },
     }),
     defaultOptions: {

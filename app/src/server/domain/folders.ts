@@ -140,6 +140,15 @@ function folderFromRow(
   }
 }
 
+/**
+ * True for a Task that a later occurrence of its series superseded (8.5).
+ * A null series_id never matches, so every plain one-off passes.
+ */
+const supersededOccurrence = sql`EXISTS (
+  SELECT 1 FROM tasks s
+   WHERE s.series_id = t.series_id AND s.id <> t.id
+     AND (s.created_at, s.id) > (t.created_at, t.id))`
+
 /** One query serves the list and the single view: the membership join is
  * the scope (10.2), shelf, color and Access ride the viewer's own row (4.4),
  * and the counts are 8.11's, abandoned on neither side.
@@ -175,14 +184,17 @@ function folderSelect(viewerId: string, folderId?: string) {
         count(*) FILTER (WHERE t.status = 'completed')::int AS completed,
         -- A completed occurrence keeps its series_id and loses its rule to
         -- the successor (8.5), so a null rule alone would count every
-        -- finished occurrence as one-off and grow the total forever.
+        -- finished occurrence as one-off and grow the total forever. Only
+        -- an occurrence with a later one in its series is left out: a task
+        -- whose repeat was turned off keeps its series_id too, and it is
+        -- one-off work that must still count once done.
         count(*) FILTER (WHERE t.status = 'completed'
                            AND t.recurrence_rule IS NULL
-                           AND t.series_id IS NULL)::int AS one_off_done,
+                           AND NOT ${supersededOccurrence})::int AS one_off_done,
         count(*) FILTER (WHERE t.recurrence_rule IS NULL
                            AND (t.status = 'pending'
                                 OR (t.status = 'completed'
-                                    AND t.series_id IS NULL)))::int AS one_off_total,
+                                    AND NOT ${supersededOccurrence})))::int AS one_off_total,
         count(*) FILTER (WHERE t.status = 'pending'
                            AND t.recurrence_rule IS NOT NULL)::int AS recurring_active
         FROM tasks t
@@ -252,11 +264,11 @@ export async function sectionProgressOf(
     sql`SELECT b.id,
                count(t.id) FILTER (WHERE t.status = 'completed'
                  AND t.recurrence_rule IS NULL
-                 AND t.series_id IS NULL)::int AS one_off_done,
+                 AND NOT ${supersededOccurrence})::int AS one_off_done,
                count(t.id) FILTER (WHERE t.recurrence_rule IS NULL
                  AND (t.status = 'pending'
                       OR (t.status = 'completed'
-                          AND t.series_id IS NULL)))::int AS one_off_total,
+                          AND NOT ${supersededOccurrence})))::int AS one_off_total,
                count(t.id) FILTER (WHERE t.status = 'pending'
                  AND t.recurrence_rule IS NOT NULL)::int AS recurring_active
           FROM page_blocks b

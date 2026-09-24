@@ -140,4 +140,30 @@ describe('AC-860 finite progress excludes recurring Tasks', () => {
       body.progress,
     )
   })
+
+  test('a completed Task whose repeat was turned off still counts as done', async () => {
+    const [owner] = await cast.of(app)
+    if (owner === undefined) throw new Error('cast must produce an owner')
+    const folderId = await createFolder(owner, 'p3 ac860 repeat off')
+    const base = { folderId, createdBy: owner.id }
+    await seedTask(app.db, { ...base, status: 'completed' })
+    await seedTask(app.db, { ...base, status: 'completed' })
+    await seedTask(app.db, { ...base, status: 'pending' })
+    await seedTask(app.db, { ...base, status: 'pending' })
+    // Turning repeat off clears the rule and keeps the series_id; no later
+    // occurrence exists, so this is finished one-off work.
+    await place(
+      await seedTask(app.db, { ...base, status: 'completed', dueDate: '2026-09-23' }),
+      null,
+      sql`, series_id = ${randomUUID()}::uuid`,
+    )
+
+    const response = await owner.browser.api(`/folders/${folderId}`)
+    expectStatus(response, 200, 'GET /folders/:id must answer the folder (spec 7.4)')
+    expect((response.json() as Record<string, unknown>).progress).toEqual({
+      done: 3,
+      total: 5,
+      recurring_active: 0,
+    })
+  })
 })
