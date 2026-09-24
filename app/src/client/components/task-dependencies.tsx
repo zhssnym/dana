@@ -35,7 +35,7 @@ export const BLOCKED_BY_HEADING = "Blocked by"
 export const BLOCKS_HEADING = "Blocks"
 
 const QUIET_BUTTON =
-  "inline-flex h-6 items-center gap-1.5 rounded-md px-1.5 text-[length:var(--text-meta-size)] text-[var(--color-graphite-500)] transition-colors hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-700)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-dana-accent-600)]"
+  "inline-flex h-6 items-center gap-1.5 rounded-md px-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
 
 /** Why an add was refused, in words for the person rather than the field. */
 function refusalOf(error: unknown, mode: Mode): string {
@@ -118,7 +118,7 @@ function Dependencies({ taskId, folderId, section, opening = false, onIdle }: De
     <div className="flex flex-wrap items-center gap-0.5">
       <button
         type="button"
-        className={cn(QUIET_BUTTON, mode === "depends_on" && "bg-[var(--color-graphite-50)] text-[var(--color-graphite-700)]")}
+        className={cn(QUIET_BUTTON, mode === "depends_on" && "bg-muted text-foreground")}
         aria-expanded={mode === "depends_on"}
         onClick={() => open("depends_on")}
       >
@@ -127,7 +127,7 @@ function Dependencies({ taskId, folderId, section, opening = false, onIdle }: De
       </button>
       <button
         type="button"
-        className={cn(QUIET_BUTTON, mode === "blocks" && "bg-[var(--color-graphite-50)] text-[var(--color-graphite-700)]")}
+        className={cn(QUIET_BUTTON, mode === "blocks" && "bg-muted text-foreground")}
         aria-expanded={mode === "blocks"}
         onClick={() => open("blocks")}
       >
@@ -208,7 +208,7 @@ function EdgeList({
 }) {
   return (
     <div>
-      <div className="pb-0.5 text-[length:var(--text-meta-size)] leading-4 font-medium text-[var(--color-graphite-500)]">
+      <div className="pb-0.5 text-xs leading-4 font-medium text-muted-foreground">
         {heading}
       </div>
       <ul className="flex flex-col" aria-label={heading}>
@@ -258,45 +258,45 @@ function EdgeRow({
   const word = stateWord(edge, direction)
   const title = edge.task?.title ?? "Private task"
   return (
-    <li className="group/dep -mx-1 flex h-7 items-center gap-2 rounded-md px-1 text-[length:var(--text-meta-size)] hover:bg-[var(--color-graphite-50)]">
+    <li className="group/dep -mx-1 flex h-7 items-center gap-2 rounded-md px-1 text-xs hover:bg-accent">
       {done ? (
         <CheckCircle2
-          className="size-3.5 shrink-0 text-[var(--color-graphite-400)]"
+          className="size-3.5 shrink-0 text-muted-foreground"
           strokeWidth={1.75}
           aria-hidden="true"
         />
       ) : (
         <span
           aria-hidden="true"
-          className="mx-[3px] size-2 shrink-0 rounded-full border border-[var(--color-graphite-400)]"
+          className="mx-[3px] size-2 shrink-0 rounded-full border border-border"
         />
       )}
       {edge.task === null ? (
         /* 7.25's `unknown`: the relation exists, the far task is not the
            viewer's to see, and nothing about it is drawn beyond that. */
-        <span className="min-w-0 truncate text-[var(--color-graphite-400)] italic">{title}</span>
+        <span className="min-w-0 truncate text-muted-foreground italic">{title}</span>
       ) : (
         <button
           type="button"
           onClick={() => edge.task && openTask(edge.task.id)}
           className={cn(
-            "min-w-0 truncate text-left text-[var(--color-graphite-700)] hover:underline focus-visible:underline focus-visible:outline-none",
-            done && "text-[var(--color-graphite-500)] line-through",
+            "min-w-0 truncate text-left text-foreground hover:underline focus-visible:underline focus-visible:outline-none",
+            done && "text-muted-foreground line-through",
           )}
         >
           {title}
         </button>
       )}
       {showFolder && edge.task !== null ? (
-        <span className="shrink-0 truncate text-[var(--color-graphite-400)]">
+        <span className="shrink-0 truncate text-muted-foreground">
           {edge.task.folder.name}
         </span>
       ) : null}
       {word ? (
         <span
           className={cn(
-            "shrink-0 text-[var(--color-graphite-500)]",
-            edge.state === "unresolved" && direction === "depends_on" && "text-[var(--color-danger-700)]",
+            "shrink-0 text-muted-foreground",
+            edge.state === "unresolved" && direction === "depends_on" && "text-destructive",
           )}
         >
           {word}
@@ -307,7 +307,7 @@ function EdgeRow({
         aria-label={`Remove dependency on ${title}`}
         title="Remove"
         onClick={onRemove}
-        className="ml-auto inline-flex size-5 shrink-0 items-center justify-center rounded text-[var(--color-graphite-400)] opacity-0 transition-opacity group-hover/dep:opacity-100 hover:text-[var(--color-graphite-700)] focus-visible:opacity-100"
+        className="ml-auto inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity group-hover/dep:opacity-100 hover:text-foreground focus-visible:opacity-100"
       >
         <X className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
       </button>
@@ -360,7 +360,7 @@ function DependencyPicker({
     status = searching ? "No matching tasks." : "Type to search your tasks."
 
   return (
-    <div className="flex flex-col gap-1 rounded-md border border-[var(--color-graphite-200)] bg-card p-1.5">
+    <div className="flex flex-col gap-1 rounded-md border border-border bg-card p-1.5">
       <input
         autoFocus
         role="combobox"
@@ -394,10 +394,10 @@ function DependencyPicker({
             onCancel()
           }
         }}
-        className="h-7 w-full rounded bg-transparent px-1.5 text-[length:var(--text-meta-size)] text-[var(--color-graphite-700)] outline-none placeholder:text-[var(--color-graphite-400)] focus:ring-1 focus:ring-[var(--color-dana-accent-600)]"
+        className="h-7 w-full rounded bg-transparent px-1.5 text-xs text-foreground outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
       />
       {refusal ? (
-        <p role="alert" className="px-1.5 text-[length:var(--text-meta-size)] leading-4 text-[var(--color-danger-700)]">
+        <p role="alert" className="px-1.5 text-xs leading-4 text-destructive">
           {refusal}
         </p>
       ) : null}
@@ -412,8 +412,8 @@ function DependencyPicker({
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => onPick(candidate.id)}
             className={cn(
-              "flex h-7 cursor-pointer items-center truncate rounded px-1.5 text-[length:var(--text-meta-size)] text-[var(--color-graphite-700)]",
-              index === clamped && "bg-[var(--color-graphite-50)]",
+              "flex h-7 cursor-pointer items-center truncate rounded px-1.5 text-xs text-foreground",
+              index === clamped && "bg-muted",
             )}
           >
             {candidate.label}
@@ -421,7 +421,7 @@ function DependencyPicker({
         ))}
       </ul>
       {status ? (
-        <p className="px-1.5 pb-0.5 text-[length:var(--text-meta-size)] leading-4 text-[var(--color-graphite-400)]">{status}</p>
+        <p className="px-1.5 pb-0.5 text-xs leading-4 text-muted-foreground">{status}</p>
       ) : null}
     </div>
   )

@@ -107,7 +107,7 @@ export function usePickerClose(): () => void {
 
 const T_FAST = "duration-[var(--duration-fast)] ease-[var(--ease-standard)]"
 const FOCUS =
-  "outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)] focus-visible:ring-offset-1"
+  "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
 
 /*
 **A property row that opens a panel rather than a list.**
@@ -242,18 +242,18 @@ export function PickerOption({
         if (finishes) close()
       }}
       className={cn(
-        "flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-[13px] leading-5 transition-colors",
+        "flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-sm transition-colors",
         T_FAST,
         FOCUS,
-        "hover:bg-[var(--color-graphite-100)]",
+        "hover:bg-accent",
         active
-          ? "font-medium text-[var(--color-graphite-900)]"
-          : "text-[var(--color-graphite-700)]",
+          ? "font-medium text-foreground"
+          : "text-foreground",
       )}
     >
       {Icon ? (
         <Icon
-          className="size-4 shrink-0 text-[var(--color-graphite-400)]"
+          className="size-4 shrink-0 text-muted-foreground"
           strokeWidth={1.75}
           aria-hidden="true"
         />
@@ -275,7 +275,7 @@ export function PickerOption({
       {hint ? (
         <span
           aria-hidden="true"
-          className="shrink-0 text-[12px] leading-4 tabular-nums text-[var(--color-graphite-400)]"
+          className="shrink-0 text-xs tabular-nums text-muted-foreground"
         >
           {hint}
         </span>
@@ -284,7 +284,7 @@ export function PickerOption({
           options never reflows by a few pixels as the selection moves. */}
       <CheckIcon
         className={cn(
-          "size-3.5 shrink-0 text-[var(--color-graphite-800)] transition-opacity",
+          "size-3.5 shrink-0 text-foreground transition-opacity",
           T_FAST,
           active ? "opacity-100" : "opacity-0",
         )}
@@ -297,12 +297,12 @@ export function PickerOption({
 
 /* The hairline between a picker's easy answers and its exact ones. */
 export function PickerDivider() {
-  return <div aria-hidden="true" className="my-1 h-px bg-[var(--color-graphite-200)]" />
+  return <div aria-hidden="true" className="my-1 h-px bg-border" />
 }
 
 export function PickerLabel({ children }: { children: ReactNode }) {
   return (
-    <div className="px-2 pb-1 text-[11px] leading-4 font-medium tracking-wide text-[var(--color-graphite-400)] uppercase">
+    <div className="px-2 pb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
       {children}
     </div>
   )
@@ -325,7 +325,7 @@ export function PickerSegments({
 }) {
   return (
     <div className="flex items-center gap-2 px-2 py-1">
-      <span className="w-12 shrink-0 text-[12px] leading-4 text-[var(--color-graphite-500)]">
+      <span className="w-12 shrink-0 text-xs text-muted-foreground">
         {label}
       </span>
       <div className="flex flex-wrap gap-1">
@@ -336,12 +336,12 @@ export function PickerSegments({
             aria-pressed={active === option.key}
             onClick={() => onPick(option.key)}
             className={cn(
-              "h-7 rounded-md px-2.5 text-[12px] leading-4 transition-colors",
+              "h-7 rounded-md px-2.5 text-xs transition-colors",
               T_FAST,
               FOCUS,
               active === option.key
-                ? "bg-[var(--color-graphite-900)] font-medium text-white"
-                : "bg-[var(--color-graphite-50)] text-[var(--color-graphite-700)] hover:bg-[var(--color-graphite-100)]",
+                ? "bg-foreground font-medium text-white"
+                : "bg-muted text-foreground hover:bg-accent",
             )}
           >
             {option.label}
@@ -540,7 +540,7 @@ export function DuePanel({ task, patch }: PanelProps) {
       {task.due ? (
         <>
           <PickerDivider />
-          <label className="flex items-center gap-2 px-2 pt-1.5 text-[12px] leading-4 text-[var(--color-graphite-500)]">
+          <label className="flex items-center gap-2 px-2 pt-1.5 text-xs text-muted-foreground">
             <span className="w-10 shrink-0">Time</span>
             <input
               type="time"
@@ -551,10 +551,10 @@ export function DuePanel({ task, patch }: PanelProps) {
                 if (time === "") clearAt()
                 else setAt(time)
               }}
-              className="h-8 min-w-0 flex-1 rounded-md border border-[var(--color-graphite-300)] bg-card px-2 text-[13px] leading-5 text-[var(--color-graphite-800)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)]"
+              className="h-8 min-w-0 flex-1 rounded-md border border-border bg-card px-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
             {at === null ? null : (
-              <span className="shrink-0 text-[var(--color-graphite-400)]">
+              <span className="shrink-0 text-muted-foreground">
                 {formatTime(at, format) ?? at}
               </span>
             )}
@@ -657,7 +657,7 @@ export function ReminderPanel({ task, patch }: PanelProps) {
             if (time === "") clearAt()
             else setAt(time)
           }}
-          className="h-8 w-full rounded-md border border-[var(--color-graphite-300)] bg-card px-2 text-[13px] leading-5 text-[var(--color-graphite-800)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)]"
+          className="h-8 w-full rounded-md border border-border bg-card px-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
       </div>
     </div>
@@ -787,7 +787,7 @@ export function RepeatPanel({ task, patch }: PanelProps) {
                   row would make every other picker wider for nothing (a popover
                   is as wide as what it holds). A grid divides whatever width
                   there is, so this row cannot overflow at any panel size. */}
-              <span className="mb-1 block text-[12px] leading-4 text-[var(--color-graphite-500)]">
+              <span className="mb-1 block text-xs text-muted-foreground">
                 On
               </span>
               <div className="grid grid-cols-7 gap-1">
@@ -807,12 +807,12 @@ export function RepeatPanel({ task, patch }: PanelProps) {
                         })
                       }
                       className={cn(
-                        "flex h-7 w-full items-center justify-center rounded-full text-[11px] leading-4 transition-colors",
+                        "flex h-7 w-full items-center justify-center rounded-full text-xs transition-colors",
                         T_FAST,
                         FOCUS,
                         on
-                          ? "bg-[var(--color-graphite-900)] font-medium text-white"
-                          : "bg-[var(--color-graphite-50)] text-[var(--color-graphite-700)] hover:bg-[var(--color-graphite-100)]",
+                          ? "bg-foreground font-medium text-white"
+                          : "bg-muted text-foreground hover:bg-accent",
                       )}
                     >
                       {day.slice(0, 1)}

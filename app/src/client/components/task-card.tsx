@@ -1028,7 +1028,7 @@ export function TaskCard({
 
       {/* #221: the Task's own document, in the Folder canvas's writer. The
           plain-text notes stand in while the writer loads. */}
-      <div className="-mx-1">
+      <div>
         <Suspense
           fallback={
             task.notes ? <p className="whitespace-pre-wrap px-1 text-sm text-foreground">{task.notes}</p> : null
