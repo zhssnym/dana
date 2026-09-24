@@ -146,6 +146,8 @@
 .dana-writing-canvas .dana-reclaimed-image button:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 /* A Shelf's Folder row is a row, not a link inside prose (#221). */
 .dana-writing-canvas a[data-canvas-folder-id] { text-decoration: none; color: inherit; }
+/* So is a sub-page row (wave 2 `page` block). */
+.dana-writing-canvas a[data-canvas-page-id] { text-decoration: none; color: inherit; }
 /* BlockNote's own placeholder (the task notes' "Notes") in the same quiet
    style as the canvas's: muted, never italic. */
 .dana-writing-canvas .bn-block-content:has(.ProseMirror-trailingBreak:only-child)::after {
