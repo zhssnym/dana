@@ -30,12 +30,12 @@ second one.
   scope filter of every query.
 - **Task**: a row with a title, exactly one folder, and a status in {pending, completed,
   abandoned}.
-- **Open task**: a task whose status is pending or abandoned. Open tasks populate Anytime,
-  Scheduled, All, and Important.
+- **Open task**: a task whose status is pending or abandoned. Open tasks populate Scheduled
+  and Assignments.
 - **Home**: the view a task belongs to by derivation: Anytime when it carries neither a
   start date nor a due date, Scheduled when it carries either. Never assigned manually.
-- **View**: a page that queries tasks without being their home: Today, Assignments,
-  Important, All, Done, Abandoned. A view is pinned or unpinned per the pin list of 9.7.
+- **View**: a page that queries tasks without being their home: Today, Assignments. A
+  view is pinned or unpinned per the pin list of 9.7.
 - **Assignee**: the single member a task is assigned to, or null (unassigned). Must be a
   member of the task's folder.
 - **Step**: a checklist row inside a task: title, done flag, position. No dates, no
@@ -51,8 +51,7 @@ second one.
   complement is the Today group.
 - **Recap**: Today's collapsed section of tasks completed today.
 - **Abandoned**: the status meaning given up: excluded from Today and Done, visible faded
-  in its home, All, and Important, restorable. Abandoned is also a page of its own,
-  unpinned by default, listing exactly those rows.
+  in its home, restorable.
 - **Restore**: the transition abandoned to pending. Dates are untouched. Not to be
   confused with restoring from Trash, which returns a deleted row to whatever status it
   held.

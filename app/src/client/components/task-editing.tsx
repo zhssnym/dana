@@ -262,9 +262,7 @@ export function useTaskEditing(editing: string | null): TaskEditing {
     **The condition is not "does it repeat".** Completing a rule-carrying task
     moves the rule to the successor, so the completed occurrence carries a
     `series_id` and no rule at all: a client asking whether the task repeats
-    gets "no" from the one row where the confirm is owed. `pages/DonePage.tsx`
-    uses the same condition. One condition, two surfaces, and this is the
-    second.
+    gets "no" from the one row where the confirm is owed.
     */
     const takesSuccessor =
       fields.done === false &&

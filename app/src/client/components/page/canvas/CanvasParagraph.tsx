@@ -5,7 +5,7 @@ import { Link } from 'react-router'
 import { getFolderResponse } from '../../../../shared/folders.js'
 import { getTaskResponse } from '../../../../shared/tasks.js'
 import { ApiError, getPlain } from '../../../api/http.js'
-import { linksIn, videoTarget } from '../../../pages/composer-research-content.js'
+import { linksIn, videoTarget } from './links.js'
 
 function Reference({ href, kind, id }: { readonly href: string; readonly kind: 'folders' | 'tasks'; readonly id: string }): React.JSX.Element | null {
   const query = useQuery({

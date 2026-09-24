@@ -46,7 +46,7 @@ export function QuickAdd({
 
   return (
     <div className={className}>
-      <label className="grid h-9 w-full cursor-text grid-cols-[32px_minmax(0,1fr)] items-center rounded-sm text-sm focus-within:bg-muted hover:bg-muted">
+      <label className="grid h-[var(--task-row-height)] w-full cursor-text grid-cols-[var(--control-height)_minmax(0,1fr)] items-center rounded-sm text-sm focus-within:bg-muted hover:bg-muted">
         <span className="flex items-center justify-center text-muted-foreground" aria-hidden="true">
           <Plus className="size-4" strokeWidth={1.75} />
         </span>

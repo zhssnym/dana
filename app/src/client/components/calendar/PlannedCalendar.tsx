@@ -542,7 +542,7 @@ export function PlannedCalendar(): React.JSX.Element {
           </div>
         </div>
 
-        <div role="grid" aria-label="Scheduled calendar" className="bg-background" ref={grid}>
+        <div role="grid" aria-label="Upcoming calendar" className="bg-background" ref={grid}>
           <div
             role="row"
             className="grid border-b border-border bg-background"

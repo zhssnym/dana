@@ -1,3 +1,5 @@
+/* Links in canvas paragraph text: the addresses it carries, and whether one is a video the
+   canvas can embed. Only http(s) is ever treated as a link. */
 export interface VideoTarget {
   readonly kind: 'youtube' | 'vimeo' | 'direct'
   readonly src: string
@@ -5,7 +7,7 @@ export interface VideoTarget {
 
 const LINK_PATTERN = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<>()]+)/giu
 
-export function safeUrl(value: string): URL | null {
+function safeUrl(value: string): URL | null {
   try {
     const parsed = new URL(value)
     return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed : null
@@ -47,28 +49,4 @@ export function linksIn(text: string): readonly string[] {
   return [...text.matchAll(LINK_PATTERN)]
     .map((match) => match[2] ?? match[3])
     .filter((value): value is string => value !== undefined)
-}
-
-export function linkedParts(text: string): readonly (
-  | { readonly kind: 'text'; readonly value: string }
-  | { readonly kind: 'link'; readonly value: string; readonly href: string }
-)[] {
-  const parts: (
-    | { readonly kind: 'text'; readonly value: string }
-    | { readonly kind: 'link'; readonly value: string; readonly href: string }
-  )[] = []
-  let cursor = 0
-
-  for (const match of text.matchAll(LINK_PATTERN)) {
-    const at = match.index
-    if (at > cursor) parts.push({ kind: 'text', value: text.slice(cursor, at) })
-    const href = match[2] ?? match[3]
-    const label = match[1] ?? href
-    if (href !== undefined && label !== undefined) {
-      parts.push({ kind: 'link', value: label, href })
-    }
-    cursor = at + match[0].length
-  }
-  if (cursor < text.length) parts.push({ kind: 'text', value: text.slice(cursor) })
-  return parts.length === 0 ? [{ kind: 'text', value: text }] : parts
 }

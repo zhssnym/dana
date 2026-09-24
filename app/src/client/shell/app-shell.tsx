@@ -52,18 +52,12 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router'
 import { adoptClock } from '../lib/time-format.js'
 import type { LucideIcon } from '../lib/icons.js'
 import {
-  Ban,
   CalendarDays,
-  CalendarX,
-  CheckCircle2,
   Folder as FolderIcon,
-  LampDesk,
-  Layers3,
   PanelLeft,
   RefreshCw,
   Search,
   Settings,
-  Star,
   SunMedium,
   Trash2,
   UserRoundCheck,
@@ -199,16 +193,10 @@ function floatingDefaults(pathname: string, mode: ViewMode): TaskFormDefaults | 
 
 /** The glyph the page strip shows, which is the design's and not 9.1's. */
 const pageIcons: Record<string, LucideIcon> = {
-  [paths.desk]: LampDesk,
   [paths.today]: SunMedium,
   [paths.scheduled]: CalendarDays,
   [paths.assignments]: UserRoundCheck,
-  [paths.abandoned]: Ban,
-  [paths.anytime]: CalendarX,
   [paths.trash]: Trash2,
-  [paths.important]: Star,
-  [paths.all]: Layers3,
-  [paths.done]: CheckCircle2,
   [paths.settings]: Settings,
   [paths.people]: UsersRound,
 }
@@ -226,12 +214,6 @@ function currentPage(
   folders: readonly Folder[] | undefined,
   shelves: readonly Shelf[] | undefined,
 ): { title: string; icon: LucideIcon | undefined; iconColor: string | undefined } {
-  /* Issue #145's study is a real Dana page while Vite is serving it: it uses
-     the same tab, window bar, sidebar and content measure as every other
-     route. The branch and route are both absent from production. */
-  if (import.meta.env.MODE !== 'production' && pathname === '/app/labs/composer') {
-    return { title: 'Writing-first canvas', icon: Layers3, iconColor: undefined }
-  }
   const page = navPages.find((candidate) => pathname === candidate.path)
   if (page !== undefined) {
     return { title: page.name, icon: pageIcons[page.path], iconColor: undefined }
@@ -333,7 +315,7 @@ function PhoneBar({ onOpenSearch }: { readonly onOpenSearch: () => void }): Reac
         <PanelLeft className="!size-5" strokeWidth={1.75} aria-hidden="true" />
       </Button>
       <Link
-        to={paths.desk}
+        to={paths.today}
         className="flex min-w-0 items-center gap-2 rounded-md px-1 outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
       >
         <DanaMark className="size-6" />

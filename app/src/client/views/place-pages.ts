@@ -8,12 +8,8 @@ only the names on screen are the redesign's ("Upcoming", "Assigned").
 */
 import type { LucideIcon } from '../lib/icons.js'
 import {
-  Ban,
   CalendarDays,
-  CalendarX,
-  CheckCircle2,
   Layers3,
-  Star,
   SunMedium,
   UserRoundCheck,
 } from '../lib/icons.js'
@@ -27,11 +23,6 @@ export type PlaceKey =
   | 'today'
   | 'scheduled'
   | 'assignments'
-  | 'important'
-  | 'all'
-  | 'done'
-  | 'abandoned'
-  | 'anytime'
   | 'folder'
 
 /** Where a page's always-visible capture point is, or that it has none. */
@@ -63,13 +54,6 @@ export interface PlaceSpine {
 }
 
 const LIST_AND_BOARD: readonly ViewMode[] = ['list', 'board']
-
-const ANY_GROUP: readonly GroupChoice[] = [
-  { value: 'none', label: 'None' },
-  { value: 'folder', label: 'Folder' },
-  { value: 'person', label: 'Person' },
-  { value: 'date', label: 'Date' },
-]
 
 export const PLACES: Record<PlaceKey, PlaceSpine> = {
   today: {
@@ -113,62 +97,6 @@ export const PLACES: Record<PlaceKey, PlaceSpine> = {
     completed: false,
     capture: 'floating',
     boardAxis: 'person',
-  },
-  important: {
-    key: 'important',
-    name: 'Important',
-    path: paths.important,
-    question: 'Keep the tasks that matter most close at hand.',
-    icon: Star,
-    views: LIST_AND_BOARD,
-    groups: ANY_GROUP,
-    completed: false,
-    capture: 'floating',
-    boardAxis: 'folder',
-  },
-  all: {
-    key: 'all',
-    name: 'All',
-    path: paths.all,
-    icon: Layers3,
-    views: LIST_AND_BOARD,
-    groups: ANY_GROUP,
-    completed: false,
-    capture: 'inline',
-    boardAxis: 'folder',
-  },
-  done: {
-    key: 'done',
-    name: 'Done',
-    path: paths.done,
-    icon: CheckCircle2,
-    views: LIST_AND_BOARD,
-    groups: ANY_GROUP,
-    completed: false,
-    capture: 'none',
-    boardAxis: 'folder',
-  },
-  abandoned: {
-    key: 'abandoned',
-    name: 'Abandoned',
-    path: paths.abandoned,
-    icon: Ban,
-    views: LIST_AND_BOARD,
-    groups: ANY_GROUP,
-    completed: false,
-    capture: 'none',
-    boardAxis: 'folder',
-  },
-  anytime: {
-    key: 'anytime',
-    name: 'Anytime',
-    path: paths.anytime,
-    icon: CalendarX,
-    views: LIST_AND_BOARD,
-    groups: ANY_GROUP,
-    completed: false,
-    capture: 'inline',
-    boardAxis: 'folder',
   },
   /*
   The folder page. Its name, path and capture are placeholders: it draws its own
@@ -261,14 +189,8 @@ function placeDefaults(place: PlaceKey, today: string): CaptureDefaults {
     /* Dated today, or the task would vanish from Upcoming, which holds dated rows only. */
     case 'scheduled':
       return { due_date: today, important: false, pullIntoToday: false }
-    case 'important':
-      return { due_date: null, important: true, pullIntoToday: false }
     /* Assigned: 7.6 defaults `assignee_id` to the caller, so the task lands under "You". */
     case 'assignments':
-    case 'all':
-    case 'anytime':
-    case 'done':
-    case 'abandoned':
     case 'folder':
       return { due_date: null, important: false, pullIntoToday: false }
   }

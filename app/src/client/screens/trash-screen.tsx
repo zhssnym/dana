@@ -32,8 +32,8 @@ import {
   DialogTitle,
 } from "../components/ui/dialog.js"
 import { markIcon } from "../components/page/icon-manifest.js"
-import { PageMark } from "../components/page-head.js"
-import { CheckCircle2, Layers3, MessageSquare, Trash2 } from "../lib/icons.js"
+import { Screen } from "../components/settings/screen.js"
+import { CheckCircle2, Layers3, MessageSquare } from "../lib/icons.js"
 import {
   TRASH_DAYS,
   type TrashItem,
@@ -59,34 +59,20 @@ export function TrashScreen({
   const [confirming, setConfirming] = useState<TrashItem | "all" | null>(null)
 
   return (
-    /* The shell already insets every page; a second inset here would put
-       Trash's left edge somewhere no other page's is. The mark above the title
-       is every other page's, from `page-head.tsx`. */
-    <div className="w-full pt-2 pb-16">
-      <PageMark icon={Trash2} hasCover={false} />
-      <header className="flex items-baseline justify-between gap-4 pt-1.5 pb-6">
-        <div className="min-w-0">
-          <h1 className="text-2xl leading-8 font-semibold text-[var(--color-graphite-900)]">
-            Trash
-          </h1>
-          {/* One sentence for the rule, whether or not the page holds anything
-              (9.11). */}
-          <p className="pt-1 text-[13px] leading-5 text-[var(--color-graphite-500)]">
-            {`Deleted items are kept for ${TRASH_DAYS} days, then removed.`}
-          </p>
-        </div>
-        {/* Seam 2: only the rows the viewer owns leave under it. */}
-        {purgeable.length ? (
-          <Button
-            variant="ghost"
-            className="shrink-0 text-[var(--color-graphite-600)]"
-            onClick={() => setConfirming("all")}
-          >
+    <Screen
+      title="Trash"
+      /* One sentence for the rule, whether or not the page holds anything
+         (9.11). */
+      description={`Deleted items are kept for ${TRASH_DAYS} days, then removed.`}
+      actions={
+        /* Seam 2: only the rows the viewer owns leave under it. */
+        purgeable.length ? (
+          <Button variant="ghost" className="text-muted-foreground" onClick={() => setConfirming("all")}>
             Empty trash
           </Button>
-        ) : null}
-      </header>
-
+        ) : null
+      }
+    >
       {/* Seam 5. */}
       {state.pending ? <SkeletonList /> : null}
       {state.failed ? <InlineError onRetry={state.retry} /> : null}
@@ -109,20 +95,10 @@ export function TrashScreen({
         can delete something without losing it. Somebody who has never deleted
         anything is exactly the person who does not yet know this page exists.
         */
-        <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-[var(--color-graphite-200)] px-6 py-14 text-center">
-          <Trash2
-            className="size-5 text-[var(--color-graphite-400)]"
-            strokeWidth={1.75}
-            aria-hidden="true"
-          />
-          <p className="text-[14px] leading-5 font-medium text-[var(--color-graphite-700)]">
-            Nothing deleted
-          </p>
-          <p className="max-w-[42ch] text-[13px] leading-5 text-[var(--color-graphite-500)]">
-            Tasks, folders, facets and discussions you delete land here first, so a wrong press costs
-            a click rather than the thing itself.
-          </p>
-        </div>
+        <p className="text-sm text-muted-foreground">
+          Nothing deleted. Tasks, folders and discussions you delete wait here first, so a wrong
+          press costs a click rather than the thing itself.
+        </p>
       )}
 
       <Dialog
@@ -134,7 +110,7 @@ export function TrashScreen({
             <DialogTitle>
               {confirming === "all"
                 ? "Empty the trash?"
-                : `Delete “${confirming?.name}” for ever?`}
+                : `Delete “${confirming?.name}” forever?`}
             </DialogTitle>
             <DialogDescription>
               {confirming === "all"
@@ -157,12 +133,12 @@ export function TrashScreen({
                 else if (target !== null) void purge(target)
               }}
             >
-              Delete for ever
+              Delete forever
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </Screen>
   )
 }
 
@@ -192,49 +168,31 @@ function TrashRow({
   const left = daysLeft(item)
 
   return (
-    <li className="group/row flex items-center gap-3 border-b border-[var(--color-graphite-100)] py-3 last:border-b-0">
-      <Glyph
-        className="size-4 shrink-0 text-[var(--color-graphite-400)]"
-        strokeWidth={1.75}
-        aria-hidden="true"
-      />
+    <li className="flex min-h-12 items-center gap-3 border-b border-border py-2 last:border-b-0">
+      <Glyph className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
       <div className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-[14px] leading-5 text-[var(--color-graphite-900)]">
-          {item.name}
-        </span>
-        <span className="truncate text-[12px] leading-4 text-[var(--color-graphite-500)]">
+        <span className="truncate text-sm text-foreground">{item.name}</span>
+        <span className="truncate text-xs text-muted-foreground">
           {/* Where it goes back to, which is the question under "Restore".
               Seam 4: the actor, when 7.13 carries one. */}
           {item.from ? `${item.from} · ` : ""}
           deleted {whenFor(item.at).toLowerCase()}
           {item.actor ? ` by ${item.actor}` : ""}
+          {` · ${left} day${left === 1 ? "" : "s"} left`}
         </span>
       </div>
-      <span
-        className="shrink-0 text-[12px] leading-4 text-[var(--color-graphite-400)] tabular-nums"
-        title={`Removed for good in ${left} day${left === 1 ? "" : "s"}`}
-      >
-        {left}d left
-      </span>
-      {/* Restore and Delete are visible at rest; a row whose only controls
-          appear on hover is a row with nothing to press. */}
-      <span className="flex shrink-0 items-center gap-1 opacity-80 transition-opacity duration-[var(--duration-fast)] group-hover/row:opacity-100 focus-within:opacity-100">
+      {/* Restore and Delete forever are visible at rest; a row whose only
+          controls appear on hover is a row with nothing to press. */}
+      <span className="flex shrink-0 items-center gap-1">
         {onRestore ? (
-          <Button variant="ghost" size="sm" onClick={onRestore}>
+          <Button variant="ghost" onClick={onRestore}>
             Restore
           </Button>
         ) : null}
         {/* Seam 2. */}
         {onPurge ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-[var(--color-graphite-500)] hover:text-[var(--color-danger-600)]"
-            aria-label="Delete for ever"
-            title="Delete for ever"
-            onClick={onPurge}
-          >
-            Delete
+          <Button variant="ghost" className="text-muted-foreground hover:text-destructive" onClick={onPurge}>
+            Delete forever
           </Button>
         ) : null}
       </span>

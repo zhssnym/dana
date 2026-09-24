@@ -1,20 +1,10 @@
 /*
-The task row: the single line that stands for a task in a list, and the card it
-opens. The previous row survives in `task-row-baseline.tsx` as the concept lab's
-control.
+The task row and the list around it.
 
-What the row is:
-
-- **Two densities, one component.** Two lines is the default; the preference
-  lives in `lib/row-density.ts`. The rule that keeps this affordable is written
-  there and matters more than anything in this file: *the two densities may
-  differ in height and in where the details sit, and in nothing else.*
-- **It expands in place.** The chevron opens `TaskCard` inside the row rather
-  than sending anybody to a sheet.
-- **A bare task costs one line, not two.**
-- **The details are the controls that change them.** The due and repeat chips
-  open the same pickers the card opens, so the pickers exist once.
-- **Renaming happens in the row.**
+One line, one layout (the stored row-height preference is no longer read):
+checkbox, title, muted meta, star. Pressing the row opens the task; the list
+adds drag, the hold that makes a folder of two tasks, and Shift/Cmd-click
+selection with its labelled bar. `useCardWiring` is shared with the task panel.
 */
 
 import { Face } from "./person-face.js"
@@ -53,7 +43,6 @@ import type { StepDestination } from "../tasks/task-acts.js"
 import { COMPLETE_TASK, MARK_AS_NOT_DONE, RESTORE } from "./ui/copy.js"
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip.js"
 import { type ViewStripOption } from "./view-strip.js"
-import { type RowDensity } from "../lib/row-density.js"
 import { useTaskWriter } from "../tasks/task-writer.js"
 import {
   repeatShort,
@@ -569,11 +558,11 @@ export function Check({
         e.stopPropagation()
         onToggle()
       }}
-      className={cn("flex size-8 items-center justify-center rounded-sm", FOCUS)}
+      className={cn("flex size-[var(--control-height)] items-center justify-center rounded-sm", FOCUS)}
     >
       <span
         className={cn(
-          "flex size-4 items-center justify-center rounded-sm border transition-[background-color,border-color,transform] active:scale-90",
+          "flex size-[var(--checkbox-size)] items-center justify-center rounded-sm border transition-[background-color,border-color,transform] active:scale-90",
           T_FAST,
           done
             ? "border-primary bg-primary"
@@ -1155,9 +1144,6 @@ export interface TaskRowProps {
   createdBy?: string
   /* What a release would do, drawn on the row being carried. See `ExpandShell`. */
   proposal?: string
-  /* Overrides the person's own row height. Only the state sheet passes it,
-     and only because showing both is its whole job. */
-  density?: RowDensity
   completionPreview?: boolean
   collapsing?: boolean
   /* Open the task somewhere other than in place: the row's own view strip
@@ -1475,7 +1461,7 @@ export function TaskRow(props: TaskRowProps) {
           : undefined
       }
       className={cn(
-        "group/row grid h-9 w-full grid-cols-[32px_minmax(0,1fr)_auto] items-center rounded-sm pr-1 text-sm transition-colors",
+        "group/row grid h-[var(--task-row-height)] w-full grid-cols-[var(--control-height)_minmax(0,1fr)_auto] items-center rounded-sm pr-1 text-sm transition-colors",
         T_FAST,
         !props.isSelected && "hover:bg-muted",
         props.onOpen && "cursor-pointer",

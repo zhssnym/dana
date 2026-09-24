@@ -170,7 +170,7 @@ export function TabStrip({
           const state = drag.itemState(index)
           /* The only tab, pointing at Desk, cannot be closed to anything but
              itself, so the control that would say otherwise is not drawn. */
-          const closable = !(tabs.length === 1 && tab.path === paths.desk)
+          const closable = !(tabs.length === 1 && tab.path === paths.today)
           return (
             <div
               key={tab.id}
