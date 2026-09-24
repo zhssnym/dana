@@ -37,6 +37,7 @@ import {
   Lightbulb,
   ListChecks,
   ListPlus,
+  Network,
   Quote,
   Video,
   X,
@@ -239,6 +240,7 @@ export function CanvasSurface({
               | 'quote'
               | 'callout'
               | 'codeBlock'
+              | 'diagram'
               | 'image'
               | 'file'
               | 'audio'
@@ -298,6 +300,13 @@ export function CanvasSurface({
               <Code size={16} />,
               ['code block'],
               'Plain monospaced code',
+            ),
+            authored(
+              'Diagram',
+              'diagram',
+              <Network size={16} />,
+              ['flowchart', 'mermaid', 'chart'],
+              'Boxes and arrows from text',
             ),
             authored(
               'Image',

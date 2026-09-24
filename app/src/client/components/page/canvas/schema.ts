@@ -7,6 +7,7 @@ import { createCanvasCallout } from './CanvasCallout.js'
 import { createCanvasTaskSpec } from './CanvasTask.js'
 import { createCanvasFolderSpec } from './CanvasFolder.js'
 import { createCanvasParagraph } from './CanvasParagraph.js'
+import { createCanvasDiagramSpec } from './CanvasDiagram.js'
 import { createTaskAtCursor, removeEmptyBeforeHeading } from './commands.js'
 import { danaLinkInlineSpec } from '../../links/dana-link-chip.js'
 
@@ -170,6 +171,7 @@ export const canvasSchema = BlockNoteSchema.create({
     danaTask: createCanvasTaskSpec(),
     // A Shelf's native Folder row (#221); only the Shelf canvas inserts one.
     danaFolder: createCanvasFolderSpec(),
+    diagram: createCanvasDiagramSpec(),
   },
   // A Dana Link (#223) is a chip; `adapters.ts` stores it as an href run.
   inlineContentSpecs: { ...defaultInlineContentSpecs, danaLink: danaLinkInlineSpec },
