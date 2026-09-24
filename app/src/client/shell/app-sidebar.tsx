@@ -1280,8 +1280,14 @@ export function AppSidebar({
       </SidebarHeader>
       <Separator className="mx-3 data-horizontal:w-auto" />
 
-      <SidebarContent className="pt-2 pb-2" onContextMenu={openGroundMenu}>
-        <SidebarGroup className="px-2 py-0">
+      <SidebarContent className="pt-0 pb-2" onContextMenu={openGroundMenu}>
+        {/* Views and Library: one heading style, one gap above each heading. */}
+        <SidebarGroup className="px-2 pt-(--space-group) pb-0">
+          <div className="flex h-(--shell-sidebar-row-height) items-center pr-1 pl-2">
+            <h2 className="min-w-0 flex-1 truncate text-xs font-medium text-muted-foreground">
+              Views
+            </h2>
+          </div>
           <SidebarGroupContent>
             <SidebarMenu>
               {LISTS.map((page) => (
