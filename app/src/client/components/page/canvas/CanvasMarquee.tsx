@@ -4,8 +4,7 @@ Mount once inside a `BlockNoteView`:
 `<CanvasMarquee />`.
 
 - Mouse-down in empty page space or the side margins (never in text) and
-  drag: the blocks the dragged span touches become block-selected, their
-  tint the only thing drawn (a band over it read as a second selection). The
+  drag: a faint band; the blocks it touches become block-selected. The
   page scrolls when the pointer nears its top or bottom edge. Shift-drag adds.
 - A drag that starts in text selects text while it stays in its block; once
   it reaches another block it becomes the same block selection (no band),
@@ -93,9 +92,12 @@ interface Gesture {
   readonly base: readonly string[]
   /** The block a drag from text began in; null for a band from empty space. */
   readonly fromText: string | null
+  pointerX: number
   pointerY: number
   started: boolean
   frame: number
+  /** The band, for a drag from empty space; a drag from text draws none. */
+  rect: HTMLDivElement | null
 }
 
 let gesture: Gesture | null = null
@@ -165,6 +167,15 @@ function tick(): void {
     else scroller.scrollTop += speed
   }
   const anchorY = current.startY - scrollTopOf(scroller)
+  if (current.rect !== null) {
+    const top = Math.max(Math.min(anchorY, current.pointerY), box.top)
+    const bottom = Math.min(Math.max(anchorY, current.pointerY), box.bottom)
+    const left = Math.max(Math.min(current.startX, current.pointerX), box.left)
+    const right = Math.min(Math.max(current.startX, current.pointerX), box.right)
+    current.rect.style.transform = `translate(${left}px, ${top}px)`
+    current.rect.style.width = `${Math.max(0, right - left)}px`
+    current.rect.style.height = `${Math.max(0, bottom - top)}px`
+  }
   const hits = hitIds(view, Math.min(anchorY, current.pointerY), Math.max(anchorY, current.pointerY))
   const ids = [...new Set([...current.base, ...hits])]
   /* Against the editor's selection rather than the last one set: a
@@ -176,6 +187,7 @@ function tick(): void {
 function onMove(event: MouseEvent): void {
   const current = gesture
   if (current === null) return
+  current.pointerX = event.clientX
   current.pointerY = event.clientY
   if (!current.started) {
     const anchorY = current.startY - scrollTopOf(current.scroller)
@@ -185,6 +197,13 @@ function onMove(event: MouseEvent): void {
       if (hits.every((id) => id === current.fromText)) return
     } else if (Math.hypot(event.clientX - current.startX, event.clientY - anchorY) < DRAG_THRESHOLD) return
     current.started = true
+    if (current.fromText === null) {
+      const rect = document.createElement('div')
+      rect.className = 'dana-marquee-rect'
+      rect.setAttribute('aria-hidden', 'true')
+      document.body.appendChild(rect)
+      current.rect = rect
+    }
     document.body.classList.add('dana-marquee-dragging')
     current.frame = requestAnimationFrame(tick)
   }
@@ -199,6 +218,7 @@ function endGesture(): Gesture | null {
   window.removeEventListener('blur', onCancel)
   if (current === null) return null
   cancelAnimationFrame(current.frame)
+  current.rect?.remove()
   document.body.classList.remove('dana-marquee-dragging')
   return current
 }
@@ -290,9 +310,11 @@ function begin(instance: Instance, view: EditorView, event: MouseEvent, base: re
     instance, view, scroller, base, fromText,
     startX: event.clientX,
     startY: event.clientY + scrollTopOf(scroller),
+    pointerX: event.clientX,
     pointerY: event.clientY,
     started: false,
     frame: 0,
+    rect: null,
   }
   window.addEventListener('mousemove', onMove, true)
   window.addEventListener('mouseup', onUp, true)
