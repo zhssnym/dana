@@ -43,6 +43,7 @@ import { sql } from 'drizzle-orm'
 
 import { deleteFolderRow, runRClean, transferOwnership } from './folders.js'
 import { rowsOf } from '../database.js'
+import { blocksNamingFiles, markBlocksReclaimed } from './files.js'
 import type { Executor } from '../database.js'
 
 /**
@@ -223,6 +224,48 @@ export const USER_RESTRICT_DISPOSALS: readonly UserRestrictDisposal[] = [
     why: '7.14: authorship is provenance rather than standing authority, so a departed member keeps their old words.',
   },
   {
+    fk: 'discussions_created_by_fkey',
+    table: 'discussions',
+    disposition: 'outlives',
+    where: '',
+    why: "#320 and #228's authorship rule: a Discussion is the Folder's shared history, and who opened it is provenance that confers no standing authority once the member is gone.",
+  },
+  {
+    fk: 'discussions_resolved_by_fkey',
+    table: 'discussions',
+    disposition: 'outlives',
+    where: '',
+    why: '#320: who resolved a Discussion is part of the record of how the Folder decided, and it is not the account\'s to take with them.',
+  },
+  {
+    fk: 'discussion_outcomes_actor_id_fkey',
+    table: 'discussion_outcomes',
+    disposition: 'outlives',
+    where: '',
+    why: '#320: an Outcome is an immutable, addressable record other people link to; its actor is provenance and deleting it would rewrite what the Folder concluded.',
+  },
+  {
+    fk: 'discussion_input_rounds_created_by_fkey',
+    table: 'discussion_input_rounds',
+    disposition: 'outlives',
+    where: '',
+    why: "#321: an input round is part of its Discussion's history, and who asked for input is provenance that confers no standing authority once the member is gone.",
+  },
+  {
+    fk: 'discussion_input_rounds_closed_by_fkey',
+    table: 'discussion_input_rounds',
+    disposition: 'outlives',
+    where: '',
+    why: '#321: who closed a round is part of the record of how the Folder decided, like who resolved its Discussion.',
+  },
+  {
+    fk: 'discussion_input_responses_user_id_fkey',
+    table: 'discussion_input_responses',
+    disposition: 'outlives',
+    where: '',
+    why: "#321 \"responses freeze when the round closes\" and \"do not silently rewrite closed response history\": a departed member's response stays what the Folder heard, as their comments do (#228).",
+  },
+  {
     fk: 'files_owner_id_fkey',
     table: 'files',
     disposition: 'swept',
@@ -342,7 +385,7 @@ export const USER_CASCADE_DISPOSALS: readonly UserCascadeDisposal[] = [
     table: 'page_document_receipts',
     disposition: 'retained',
     where: '',
-    why: "Retained deliberately, and this is the one of the fifteen that is. The row holds no text: an idempotency key, a SHA-256 of a payload, a revision string and the ids of tasks that survive in the folder. It is read a second way that is not about its actor at all — pages.ts treats any receipt on a folder as the mark that the folder's document is on the document-transaction path, and refuses the legacy whole-page writer against it. Deleting a departed member's receipts could therefore take the last such mark off a folder that other people are still editing and re-open a writer that must stay shut for them. The rows are not orphaned: page_document_receipts_folder_id_fkey is a cascade off a real DELETE, so step 3 takes the receipts of every folder that dies with the account, and what is left belongs to a folder that outlives it.",
+    why: "Retained deliberately, and this is the one of the fifteen that is. The row holds no text: an idempotency key, a SHA-256 of a payload, a revision string and the ids of tasks that survive in the folder. It is read a second way that is not about its actor at all — pages.ts treats any Folder page receipt on a folder (an array-valued created_task_ids; a Task or facet document's receipt holds an object) as the mark that the folder's document is on the document-transaction path, and refuses the legacy whole-page writer against it. Deleting a departed member's receipts could therefore take the last such mark off a folder that other people are still editing and re-open a writer that must stay shut for them. The rows are not orphaned: page_document_receipts_folder_id_fkey is a cascade off a real DELETE, so step 3 takes the receipts of every folder that dies with the account, and what is left belongs to a folder that outlives it.",
   },
 ]
 
@@ -462,10 +505,18 @@ export async function deleteAccountData(
   // caller, who removes every collected id from the store only after the
   // commit, the order 7.15's delete uses, so a rollback cannot have already
   // destroyed bytes whose rows survived.
+  // Issue #267: a page block in a surviving folder that wore one of these
+  // files keeps its row and loses its reference (ON DELETE SET NULL); read
+  // them first so it reads as reclaimed rather than as a never-filled block.
+  const wearers = await blocksNamingFiles(
+    tx,
+    sql`SELECT id FROM files WHERE owner_id = ${userId}`,
+  )
   const ownedFiles = await rowsOf(
     tx,
     sql`DELETE FROM files WHERE owner_id = ${userId} RETURNING id`,
   )
+  await markBlocksReclaimed(tx, wearers)
   const fileIds = new Set<string>()
   for (const row of cascadeFiles) fileIds.add(String(row.id))
   for (const row of ownedFiles) fileIds.add(String(row.id))

@@ -45,3 +45,6 @@ what a page is called.
 | 4.28 | [`04.28-folder-responsibilities.md`](04.28-folder-responsibilities.md) | 4.28 folder_responsibilities |
 | 4.29 | [`04.29-folder-responsibility-history.md`](04.29-folder-responsibility-history.md) | 4.29 folder_responsibility_history |
 | 4.30 | [`04.30-folder-facets.md`](04.30-folder-facets.md) | 4.30 folder_facets |
+| 4.31 | [`04.31-discussions.md`](04.31-discussions.md) | 4.31 discussions |
+| 4.32 | [`04.32-discussion-outcomes.md`](04.32-discussion-outcomes.md) | 4.32 discussion_outcomes |
+| 4.33 | [`04.33-discussion-input-rounds.md`](04.33-discussion-input-rounds.md) | 4.33 discussion_input_rounds, options and responses |

@@ -67,6 +67,18 @@ export const isBlankFacetKind = (kind: string): boolean =>
   (BLANK_FACET_KINDS as readonly string[]).includes(kind)
 
 /**
+ * The natives that hold a document of their own: Purpose (#211) and Results
+ * (#213). Main's document is the Folder page; Consultation holds none yet.
+ */
+export const DOCUMENT_NATIVE_FACET_KINDS = ['purpose', 'results'] as const
+export type DocumentNativeFacetKind =
+  (typeof DOCUMENT_NATIVE_FACET_KINDS)[number]
+export const isDocumentNativeFacetKind = (
+  kind: string,
+): kind is DocumentNativeFacetKind =>
+  (DOCUMENT_NATIVE_FACET_KINDS as readonly string[]).includes(kind)
+
+/**
  * The three natives that may be hidden and restored (#210). **Main is absent
  * and its absence is the rule**, and a custom facet is absent because a
  * custom facet is deleted rather than hidden.

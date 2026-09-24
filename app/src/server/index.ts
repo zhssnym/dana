@@ -26,6 +26,7 @@ import { createDiskStore } from './files/store.js'
 import type { ObjectStore } from './files/store.js'
 import { createBundleRouter } from './routes/bundle.js'
 import { createConnectionsRouter } from './routes/connections.js'
+import { createConsultationInputRouter } from './routes/consultation-input.js'
 import { createCoverPhotosRouter } from './routes/cover-photos.js'
 import { createConversationRouter } from './routes/conversation.js'
 import {
@@ -34,6 +35,7 @@ import {
 } from './routes/csp-report.js'
 import { createEventsRouter } from './routes/events.js'
 import { createExportRouter } from './routes/export.js'
+import { createConsultationRouter } from './routes/consultation.js'
 import { createFacetsRouter } from './routes/facets.js'
 import { createFilesRouter } from './routes/files.js'
 import { createFoldersRouter } from './routes/folders.js'
@@ -41,6 +43,7 @@ import { HEALTH_PATH, healthRouter, recordDatabaseKind } from './routes/health.j
 import { createInvitesRouter } from './routes/invites.js'
 import { createLabelsRouter } from './routes/labels.js'
 import { createReferencesRouter } from './routes/references.js'
+import { createBacklinksRouter } from './routes/backlinks.js'
 import { createSampleRouter } from './routes/sample.js'
 import { createTasksRouter } from './routes/tasks.js'
 import { createTrashRouter } from './routes/trash.js'
@@ -564,7 +567,7 @@ export function createApp(options: AppOptions = {}): express.Express {
   // the pair is order-independent between themselves.
   app.use(
     '/api/v1',
-    createTasksRouter({ dbClient: options.dbClient, rateLimits, securityLog }),
+    createTasksRouter({ dbClient: options.dbClient, rateLimits, securityLog, fileStore }),
   )
 
   /*
@@ -713,6 +716,18 @@ export function createApp(options: AppOptions = {}): express.Express {
     createReferencesRouter({ dbClient: options.dbClient, rateLimits }),
   )
 
+  // "Referenced from" (issue #214): `GET /{tasks,folders,shelves,facets}/:id/backlinks`.
+  // Each is two segments past its prefix with the literal `backlinks`, a path
+  // no earlier router claims, so this mount is order-independent. It takes
+  // the app origin so an absolute same-origin Dana Link counts as one.
+  app.use(
+    '/api/v1',
+    createBacklinksRouter({
+      dbClient: options.dbClient,
+      ...(options.appOrigin === undefined ? {} : { appOrigin: options.appOrigin }),
+    }),
+  )
+
   /*
   7.27's Folder facets (issue #210). **Eleven** routes: nine under
   `/folders/:id/facets`, and `POST /facets/:id/restore` and
@@ -738,6 +753,34 @@ export function createApp(options: AppOptions = {}): express.Express {
   app.use(
     '/api/v1',
     createFacetsRouter({ dbClient: options.dbClient, rateLimits, securityLog }),
+  )
+
+  // Consultation input rounds (issue #321): `/discussions/:id/input-rounds`
+  // and `/input-rounds/:id...`. The literal `input-rounds` segment meets
+  // nothing any other router claims, so this mount is order-independent.
+  app.use(
+    '/api/v1',
+    createConsultationInputRouter({ dbClient: options.dbClient, rateLimits, securityLog }),
+  )
+
+  /*
+  7.28's Consultation (issue #320): `/folders/:id/discussions` (list, create),
+  `/discussions/:id` (read, edit, trash) with `/resolve`, `/reopen`,
+  `/outcomes` and `/restore`, `/outcomes/:id`, and `DELETE
+  /trash/discussions/:id`. Order-independent: `/folders/:id/discussions` is a
+  literal no earlier router claims, `/trash/discussions/:id` differs from the
+  other Trash deletes in its literal segment, and the `/discussions` and
+  `/outcomes` prefixes meet nothing. Comment routes inside a Discussion are
+  the conversation router's, not this one's.
+  */
+  app.use(
+    '/api/v1',
+    createConsultationRouter({
+      dbClient: options.dbClient,
+      rateLimits,
+      securityLog,
+      fileStore,
+    }),
   )
 
   app.use('/api', (_req: Request, res: Response) => {

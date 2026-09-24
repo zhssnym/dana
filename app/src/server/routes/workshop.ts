@@ -15,6 +15,7 @@ import { z } from 'zod'
 
 import type { DbClient } from '../../../db/client.js'
 import { pageActionBody, putPageBody } from '../../shared/pages.js'
+import { documentTransaction } from '../../shared/page-document.js'
 import type { TransferOwnershipResponse } from '../../shared/folders.js'
 import { patchShelfBody, postShelvesBody } from '../../shared/shelves.js'
 import type { ImportWorkflowResponse } from '../../shared/workflows.js'
@@ -36,7 +37,8 @@ import type { FolderAction } from '../domain/folder-access.js'
 import { WorkflowLabelNameConflict } from '../domain/labels.js'
 import { today } from '../time/today.js'
 import { DocumentRefusal } from '../domain/page-document.js'
-import { actOnFolderPage, pageView, putPage } from '../domain/pages.js'
+import { actOnFolderPage, actOnShelfPage, pageView, putPage } from '../domain/pages.js'
+import { ShelfDocumentRefusal } from '../domain/shelf-document.js'
 import {
   createShelf,
   deleteShelf,
@@ -593,6 +595,46 @@ export function createWorkshopRouter(
         return
       }
       res.status(200).json(outcome.page)
+    },
+  )
+
+  /* #221: the Shelf's `document_transaction`, 7.16's wire contract exactly as
+     `/folders/:id/page/actions` and the facet page take it -- the same body,
+     the same `base_revision` from `GET /shelves/:id/page`, the same 409. It
+     takes `documentTransaction` alone: the pre-canvas page actions are the
+     Folder page's legacy vocabulary and a Shelf never had them. The owner
+     check runs inside the writing transaction under the Shelf row's lock, so
+     a stranger's 404 comes from there (4.18, 10.2). */
+  router.post(
+    '/shelves/:id/page/actions',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const shelfId = parsedId(res, req.params.id)
+      if (shelfId === null) return
+      if ((await shelfView(db, viewer(req), shelfId)) === null) {
+        sendError(res, 404, 'not_found', 'Not found.')
+        return
+      }
+      const parsed = parseBody(documentTransaction, req, res, securityLog)
+      if (parsed === null) return
+      try {
+        res.status(200).json(await actOnShelfPage(db, viewer(req), shelfId, parsed))
+      } catch (error) {
+        if (!(error instanceof ShelfDocumentRefusal)) throw error
+        if (error.outcome === 'not_found') {
+          sendError(res, 404, 'not_found', error.message)
+          return
+        }
+        if (error.outcome === 'invalid') {
+          sendFieldValidationError(res, [{ field: error.field, message: error.message }])
+          return
+        }
+        sendError(res, 409, 'conflict', error.message)
+      }
     },
   )
 

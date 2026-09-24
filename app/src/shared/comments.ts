@@ -193,6 +193,10 @@ export interface CommentLine {
   id: string
   folder_id: string
   task_id: string | null
+  /** The Discussion a Folder-level comment belongs to (issue #320, 4.31);
+   * null on a Task thread. Optional in the type only so older fixtures
+   * still compile: the server always answers it. */
+  discussion_id?: string | null
   parent_id: string | null
   author_id: string
   body: string | null
@@ -218,6 +222,7 @@ export const commentLine = z.object({
   id: z.uuid(),
   folder_id: z.uuid(),
   task_id: z.uuid().nullable(),
+  discussion_id: z.uuid().nullable().optional(),
   parent_id: z.uuid().nullable(),
   author_id: z.uuid(),
   body: z.string().nullable(),
@@ -262,3 +267,12 @@ export const patchCommentResponse = z.object({
   comment: commentLine,
 })
 export type PatchCommentResponse = z.infer<typeof patchCommentResponse>
+
+/**
+ * The stable refusal code for a write to a Discussion's conversation while
+ * that Discussion is resolved or in Trash (issue #320): 409, because the
+ * request is well formed and the caller may act once the Discussion is
+ * reopened or restored. Covers new comments and replies, edits, deletes
+ * (moderation included) and likes.
+ */
+export const DISCUSSION_FROZEN = 'discussion_frozen'

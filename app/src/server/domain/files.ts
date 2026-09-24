@@ -586,6 +586,14 @@ export async function deleteFile(
   fileId: string,
 ): Promise<DeleteFileResult> {
   const outcome = await inTransaction(db, async (tx) => {
+    /* Issue #267: the blocks this file is about to be taken from, read before
+       the delete because `page_blocks_file_id_fkey`'s SET NULL erases the
+       only link. The file row is locked first so no block can come to name it
+       between this read and the delete (an inserting FK check needs a KEY
+       SHARE lock that FOR UPDATE refuses). They are marked only if the delete
+       below actually removes the row. */
+    await tx.execute(sql`SELECT id FROM files WHERE id = ${fileId} FOR UPDATE`)
+    const wearers = await blocksNamingFiles(tx, sql`${fileId}::uuid`)
     /*
     **The rule changed here, and it is the sharpest edge of #228's
     authorship rule.**
@@ -623,7 +631,10 @@ export async function deleteFile(
             )
           RETURNING f.id`,
     )
-    if (removed.length > 0) return 'deleted' as const
+    if (removed.length > 0) {
+      await markBlocksReclaimed(tx, wearers)
+      return 'deleted' as const
+    }
     const readable = await rowsOf(
       tx,
       sql`SELECT f.id FROM files f
@@ -633,6 +644,48 @@ export async function deleteFile(
   })
   if (outcome === 'deleted') await store.remove(fileId)
   return outcome
+}
+
+/*
+Issue #267: what a media block remembers when the server takes its file.
+
+`page_blocks_file_id_fkey` is ON DELETE SET NULL, so a deleted file leaves
+every block that named it with a null `file_id` — and an image block with a
+null `file_id` is also what a freshly inserted, never-filled picture saves as.
+Stored data could not tell "not chosen yet" from "was chosen and is gone", and
+only the first is safe to fill in by clicking. `page_blocks.file_reclaimed_at`
+(migration 0033) is the difference, stamped by every server path that deletes
+a file a block may still name: `deleteFile` above and account deletion's step
+6a. The 7.19 sweep and the Trash purge's comment-file victims never delete a
+referenced file (`fileIsUnreferenced()`), so they need no mark.
+
+Two halves because the mark must be taken before the delete — afterwards the
+SET NULL has erased the link — but written only once the delete succeeded.
+*/
+export async function blocksNamingFiles(
+  tx: Executor,
+  fileIds: SQL,
+): Promise<string[]> {
+  const rows = await rowsOf(
+    tx,
+    sql`SELECT id FROM page_blocks WHERE file_id IN (${fileIds}) FOR UPDATE`,
+  )
+  return rows.map((row) => String(row.id))
+}
+
+export async function markBlocksReclaimed(
+  tx: Executor,
+  blockIds: readonly string[],
+): Promise<void> {
+  if (blockIds.length === 0) return
+  await tx.execute(
+    sql`UPDATE page_blocks SET file_reclaimed_at = now()
+         WHERE file_id IS NULL
+           AND id IN (${sql.join(
+             blockIds.map((id) => sql`${id}::uuid`),
+             sql`, `,
+           )})`,
+  )
 }
 
 /**
@@ -890,6 +943,93 @@ export async function copyPageFile(
     scopeFolderId,
     String(source.kind) as FileKind,
   )
+}
+
+/*
+Issue #221's move seam: a Task's files follow the Task.
+
+A file is scoped to one Folder (`files.folder_id`): its members read it
+(`readableFileScope`) and the Folder's purge cascades it
+(`files_folder_id_fkey`), which SET NULLs every block still naming it. A Task
+moved to another Folder takes its document and its comments with it, so the
+files they name must go too, or the new Folder's members cannot open them and
+the old Folder's purge takes them from under the Task.
+
+Per file named by this Task's document blocks or its comments' attachments,
+and scoped to the Folder being left:
+
+- named by nothing else: re-scoped in place (`folder_id` updated). No bytes
+  move, no quota is spent, and the id every block holds stays true;
+- also named by something that stays (the old page, a recurrence predecessor
+  whose document was copied with the same file ids, a cover): the Task's
+  references are pointed at an independent copy in the new Folder
+  (`copyPageFile`, the duplicate's primitive), charged to the mover like any
+  copy, and the original stays where its other readers are. A source whose
+  bytes are gone is left as it is; there is nothing to carry.
+
+Called inside the move's transaction, after its refusals and before its
+writes. `copied` collects each object written so the caller can remove them
+if the transaction does not commit.
+*/
+export async function carryTaskFilesOnMove(
+  tx: Executor,
+  store: ObjectStore | undefined,
+  viewerId: string,
+  taskId: string,
+  fromFolderId: string,
+  toFolderId: string,
+  copied: string[],
+): Promise<'carried' | 'quota_exceeded'> {
+  const taskComments = sql`SELECT id FROM comments WHERE task_id = ${taskId}::uuid`
+  const named = await rowsOf(
+    tx,
+    sql`SELECT f.id FROM files f
+         WHERE f.folder_id = ${fromFolderId}::uuid
+           AND (f.id IN (SELECT file_id FROM page_blocks WHERE task_id = ${taskId}::uuid)
+                OR f.id IN (SELECT file_id FROM comment_files
+                             WHERE comment_id IN (${taskComments})))
+         ORDER BY f.id
+         FOR UPDATE`,
+  )
+  for (const row of named) {
+    const fileId = String(row.id)
+    const elsewhere = await rowsOf(
+      tx,
+      sql`SELECT (
+            EXISTS (SELECT 1 FROM page_blocks b
+                     WHERE b.file_id = ${fileId}::uuid
+                       AND b.task_id IS DISTINCT FROM ${taskId}::uuid)
+            OR EXISTS (SELECT 1 FROM comment_files cf
+                        WHERE cf.file_id = ${fileId}::uuid
+                          AND cf.comment_id NOT IN (${taskComments}))
+            OR EXISTS (SELECT 1 FROM folders fo WHERE fo.cover_file_id = ${fileId}::uuid)
+            OR EXISTS (SELECT 1 FROM shelves s WHERE s.cover_file_id = ${fileId}::uuid)
+            OR EXISTS (SELECT 1 FROM user_page_covers u WHERE u.file_id = ${fileId}::uuid)
+          ) AS shared`,
+    )
+    if (elsewhere[0]?.shared !== true) {
+      await tx.execute(
+        sql`UPDATE files SET folder_id = ${toFolderId}::uuid WHERE id = ${fileId}::uuid`,
+      )
+      continue
+    }
+    if (store === undefined) {
+      throw new Error('The application was constructed without an object store.')
+    }
+    const held = await copyPageFile(tx, store, viewerId, fileId, toFolderId)
+    if (held.kind === 'quota_exceeded') return 'quota_exceeded'
+    if (held.kind !== 'copied') continue
+    copied.push(held.id)
+    await tx.execute(
+      sql`UPDATE page_blocks SET file_id = ${held.id}::uuid
+           WHERE task_id = ${taskId}::uuid AND file_id = ${fileId}::uuid`,
+    )
+    await tx.execute(
+      sql`UPDATE comment_files SET file_id = ${held.id}::uuid
+           WHERE file_id = ${fileId}::uuid AND comment_id IN (${taskComments})`,
+    )
+  }
+  return 'carried'
 }
 
 async function coverSource(

@@ -21,10 +21,16 @@ gates and neither has an ungated read of its own:
 - a folder through `accessOf`, the same;
 - a shelf through `shelfView`, which is scoped to its owner because 4.18 makes
   a shelf private by construction;
-- a Purpose facet through a membership join on its Folder (#211), hidden state
-  deliberately irrelevant because hide is presentation rather than access.
+- a Purpose (#211) or Results (#213) facet through a membership join on its
+  Folder, hidden state
+  deliberately irrelevant because hide is presentation rather than access;
+- a Discussion or an Outcome (#320) through a membership join on the
+  Discussion's live Folder, the Discussion not trashed. Consultation is shared
+  by construction, so membership is the whole gate, and a trashed Discussion
+  takes every one of its Outcomes with it: both answer as a missing target
+  until it is restored.
 
-`resolveReference` applies those four gates. The search queries below
+`resolveReference` applies those gates. The search queries below
 repeat their access predicates rather than resolving them per row, which is the one
 place the two doors are written twice; each query carries the same membership
 join in the same position. Nothing but this paragraph holds the two doors
@@ -64,6 +70,36 @@ function summary(
   return { kind, id, label, path: referencePath(kind, id) }
 }
 
+/* The facets a `facet` reference may name: the document-bearing natives,
+   Purpose (#211) and Results (#213). Both are shared by construction
+   (`folder_facets_owner_kind_check`), so folder membership is the whole access
+   join. The label is the stored override or that kind's default name. */
+const documentNativeFacet = sql`ff.kind IN ('purpose', 'results')`
+const facetLabel = sql`COALESCE(ff.display_name,
+  CASE ff.kind WHEN 'results' THEN ${DEFAULT_FACET_NAMES.results}
+               ELSE ${DEFAULT_FACET_NAMES.purpose} END)`
+
+/* A Discussion or an Outcome the viewer may open (#320): the Discussion not
+   trashed, its Folder live, the viewer a member of it. `d` is the Discussion. */
+const discussionGate = (viewerId: string): SQL => sql`
+  JOIN folders fo ON fo.id = d.folder_id AND fo.deleted_at IS NULL
+  JOIN folder_members m ON m.folder_id = d.folder_id AND m.user_id = ${viewerId}`
+
+/** The most characters of an Outcome statement a chip draws. A statement may
+ * run to 4000 characters and a chip is one line; the full text is the
+ * Discussion's to show. */
+export const OUTCOME_LABEL_MAX = 120
+
+/** An Outcome's label: its statement on one line, cut at a code point (never
+ * inside a surrogate pair) with an ellipsis when it was longer. */
+export function outcomeLabel(statement: string): string {
+  const flat = statement.replace(/\s+/g, ' ').trim()
+  const chars = Array.from(flat)
+  return chars.length <= OUTCOME_LABEL_MAX
+    ? flat
+    : `${chars.slice(0, OUTCOME_LABEL_MAX - 1).join('').trimEnd()}…`
+}
+
 /**
  * One target, or null when the viewer cannot have it — which covers both "it
  * is not there" and "it is not yours", deliberately indistinguishably.
@@ -93,21 +129,49 @@ export async function resolveReference(
     case 'facet': {
       const found = await rowsOf(
         executor,
-        sql`SELECT ff.id,
-                   COALESCE(ff.display_name, ${DEFAULT_FACET_NAMES.purpose}) AS label
+        sql`SELECT ff.id, ${facetLabel} AS label
               FROM folder_facets ff
               JOIN folders fo
                 ON fo.id = ff.folder_id AND fo.deleted_at IS NULL
               JOIN folder_members m
                 ON m.folder_id = ff.folder_id AND m.user_id = ${viewerId}
              WHERE ff.id = ${target.id}::uuid
-               AND ff.kind = 'purpose'
+               AND ${documentNativeFacet}
                AND ff.deleted_at IS NULL`,
       )
       const row = found[0]
       return row === undefined
         ? null
         : summary('facet', String(row.id), String(row.label))
+    }
+    case 'discussion': {
+      const found = await rowsOf(
+        executor,
+        sql`SELECT d.id, d.title
+              FROM discussions d ${discussionGate(viewerId)}
+             WHERE d.id = ${target.id}::uuid AND d.trashed_at IS NULL`,
+      )
+      const row = found[0]
+      return row === undefined
+        ? null
+        : summary('discussion', String(row.id), String(row.title))
+    }
+    case 'outcome': {
+      /* Any Outcome of the Discussion, current or superseded: an old
+         Outcome's link keeps resolving to what it said (#320). */
+      const found = await rowsOf(
+        executor,
+        sql`SELECT o.id, o.statement
+              FROM discussion_outcomes o
+              JOIN discussions d
+                ON d.id = o.discussion_id AND d.trashed_at IS NULL
+              ${discussionGate(viewerId)}
+             WHERE o.id = ${target.id}::uuid`,
+      )
+      const row = found[0]
+      return row === undefined
+        ? null
+        : summary('outcome', String(row.id), outcomeLabel(String(row.statement)))
     }
   }
 }
@@ -137,23 +201,22 @@ function taskQuery(viewerId: string, pattern: string, scope: SQL): SQL {
     LIMIT ${REFERENCE_SEARCH_LIMIT}`
 }
 
-/** Native Purpose facets only. Hidden is intentionally absent from the
- * predicate: hiding a facet is presentation state, not revocation (#211). */
+/** Native Purpose (#211) and Results (#213) facets only. Hidden is
+ * intentionally absent from the predicate: hiding a facet is presentation
+ * state, not revocation (#211). */
 function purposeQuery(viewerId: string, pattern: string, scope: SQL): SQL {
   return sql`
-    SELECT ff.id,
-           COALESCE(ff.display_name, ${DEFAULT_FACET_NAMES.purpose}) AS label
+    SELECT ff.id, ${facetLabel} AS label
     FROM folder_facets ff
     JOIN folders fo
       ON fo.id = ff.folder_id AND fo.deleted_at IS NULL
     JOIN folder_members m
       ON m.folder_id = ff.folder_id AND m.user_id = ${viewerId}
-    WHERE ff.kind = 'purpose'
+    WHERE ${documentNativeFacet}
       AND ff.deleted_at IS NULL
-      AND COALESCE(ff.display_name, ${DEFAULT_FACET_NAMES.purpose}) ILIKE ${pattern}
+      AND ${facetLabel} ILIKE ${pattern}
       ${scope}
-    ORDER BY lower(COALESCE(ff.display_name, ${DEFAULT_FACET_NAMES.purpose})) ASC,
-             ff.id ASC
+    ORDER BY lower(${facetLabel}) ASC, ff.id ASC
     LIMIT ${REFERENCE_SEARCH_LIMIT}`
 }
 
@@ -215,6 +278,33 @@ export async function searchReferences(
         ORDER BY lower(f.name) ASC, f.id ASC
         LIMIT ${REFERENCE_SEARCH_LIMIT}`,
   )
+  /* Discussions matched on title, the composing Folder's first. Outcomes
+     matched on statement, and only each Discussion's current one: a
+     superseded Outcome stays resolvable by its link, but offering every
+     superseded statement to a picker would bury the answer under its drafts. */
+  /* A bare `false` would be a constant in ORDER BY, which Postgres refuses;
+     with no context the ordering simply starts at activity. */
+  const inContext =
+    folderId === undefined ? sql`` : sql`(d.folder_id = ${folderId}) DESC, `
+  const discussionRows = await rowsOf(
+    executor,
+    sql`SELECT d.id, d.title
+        FROM discussions d ${discussionGate(viewerId)}
+        WHERE d.trashed_at IS NULL AND d.title ILIKE ${pattern}
+        ORDER BY ${inContext}d.last_activity_at DESC, d.id DESC
+        LIMIT ${REFERENCE_SEARCH_LIMIT}`,
+  )
+  const outcomeRows = await rowsOf(
+    executor,
+    sql`SELECT o.id, o.statement
+        FROM discussions d
+        JOIN discussion_outcomes o ON o.id = d.current_outcome_id
+        ${discussionGate(viewerId)}
+        WHERE d.trashed_at IS NULL AND o.statement ILIKE ${pattern}
+        ORDER BY ${inContext}o.created_at DESC, o.id DESC
+        LIMIT ${REFERENCE_SEARCH_LIMIT}`,
+  )
+
   const shelfRows = await rowsOf(
     executor,
     sql`SELECT s.id, s.name
@@ -239,6 +329,12 @@ export async function searchReferences(
     ),
     ...otherPurposeRows.map((row) =>
       summary('facet', String(row.id), String(row.label)),
+    ),
+    ...discussionRows.map((row) =>
+      summary('discussion', String(row.id), String(row.title)),
+    ),
+    ...outcomeRows.map((row) =>
+      summary('outcome', String(row.id), outcomeLabel(String(row.statement))),
     ),
     ...shelfRows.map((row) =>
       summary('shelf', String(row.id), String(row.name)),

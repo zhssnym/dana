@@ -15,7 +15,7 @@ import type { SQL } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
 import type { FolderAccessPreset } from '../../shared/folder-access.js'
-import type { Folder } from '../../shared/folders.js'
+import type { Folder, SectionProgress } from '../../shared/folders.js'
 import type { LabelRef } from '../../shared/labels.js'
 import type { ResponsibilityDocument } from '../../shared/responsibility.js'
 import { inTransaction, rowsOf } from '../database.js'
@@ -119,6 +119,11 @@ function folderFromRow(
       pending: Number(row.pending),
       completed: Number(row.completed),
     },
+    progress: {
+      done: Number(row.one_off_done),
+      total: Number(row.one_off_total),
+      recurring_active: Number(row.recurring_active),
+    },
     my_shelf: nullableString(row.my_shelf),
     my_color: nullableString(row.my_color),
     my_access: myAccess,
@@ -159,14 +164,24 @@ function folderSelect(viewerId: string, folderId?: string) {
            m.access AS my_access,
            (SELECT count(*)::int FROM folder_members mm
              WHERE mm.folder_id = f.id) AS member_count,
-           (SELECT count(*)::int FROM tasks t
-             WHERE t.folder_id = f.id AND t.status = 'pending'
-               AND t.deleted_at IS NULL) AS pending,
-           (SELECT count(*)::int FROM tasks t
-             WHERE t.folder_id = f.id AND t.status = 'completed'
-               AND t.deleted_at IS NULL) AS completed
+           c.pending, c.completed, c.one_off_done, c.one_off_total,
+           c.recurring_active
     FROM folder_members m
     JOIN folders f ON f.id = m.folder_id
+    -- One pass over the folder's live tasks for all five counts (#205).
+    CROSS JOIN LATERAL (
+      SELECT
+        count(*) FILTER (WHERE t.status = 'pending')::int AS pending,
+        count(*) FILTER (WHERE t.status = 'completed')::int AS completed,
+        count(*) FILTER (WHERE t.status = 'completed'
+                           AND t.recurrence_rule IS NULL)::int AS one_off_done,
+        count(*) FILTER (WHERE t.status IN ('pending', 'completed')
+                           AND t.recurrence_rule IS NULL)::int AS one_off_total,
+        count(*) FILTER (WHERE t.status = 'pending'
+                           AND t.recurrence_rule IS NOT NULL)::int AS recurring_active
+        FROM tasks t
+       WHERE t.folder_id = f.id AND t.deleted_at IS NULL
+    ) c
     WHERE m.user_id = ${viewerId} AND f.deleted_at IS NULL${scope}
     ORDER BY f.is_default DESC, lower(f.name) ASC, f.id ASC`
 }
@@ -208,6 +223,48 @@ export async function folderView(
   if (found.length === 0) return null
   const [folder] = await withPersonalLabels(db, viewerId, found)
   return folder ?? null
+}
+
+/**
+ * Per-Section finite progress for GET /folders/:id (issue #205), the same
+ * three numbers as `Folder.progress` grouped by the section block a Task sits
+ * in. The page read only returns open Tasks, so the client cannot count done
+ * ones itself; this is the one place it can learn them.
+ *
+ * Every section block in the folder answers, zeros included. A Task counts
+ * only toward its own section, never toward an enclosing one: sections do
+ * not roll up. The join is on the folder as well as the id, so a task whose
+ * `section_block_id` still names a block of another folder counts nowhere
+ * here.
+ */
+export async function sectionProgressOf(
+  db: Executor,
+  folderId: string,
+): Promise<SectionProgress[]> {
+  const rows = await rowsOf(
+    db,
+    sql`SELECT b.id,
+               count(t.id) FILTER (WHERE t.status = 'completed'
+                 AND t.recurrence_rule IS NULL)::int AS one_off_done,
+               count(t.id) FILTER (WHERE t.status IN ('pending', 'completed')
+                 AND t.recurrence_rule IS NULL)::int AS one_off_total,
+               count(t.id) FILTER (WHERE t.status = 'pending'
+                 AND t.recurrence_rule IS NOT NULL)::int AS recurring_active
+          FROM page_blocks b
+          LEFT JOIN tasks t
+            ON t.section_block_id = b.id
+           AND t.folder_id = b.folder_id
+           AND t.deleted_at IS NULL
+         WHERE b.folder_id = ${folderId}::uuid AND b.kind = 'section'
+         GROUP BY b.id
+         ORDER BY b.id`,
+  )
+  return rows.map((row) => ({
+    section_block_id: String(row.id),
+    done: Number(row.one_off_done),
+    total: Number(row.one_off_total),
+    recurring_active: Number(row.recurring_active),
+  }))
 }
 
 /* ------------------------------------------------------------------ *

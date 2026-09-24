@@ -44,6 +44,7 @@ import type { Executor } from '../database.js'
 import { nextInstance } from './recurrence.js'
 import { copyReminderToSuccessor } from './reminder-recompute.js'
 import { today } from './today.js'
+import { copyTaskDocument } from '../domain/task-document.js'
 
 /** What generation did, for the caller that has to answer 7.6's envelope. */
 export type GenerationOutcome =
@@ -158,6 +159,10 @@ export async function generateSuccessor(
   copyReminderToSuccessor's.
   */
   await copyReminderToSuccessor(tx, request.taskId, successorId, request.at)
+
+  // #221: the successor carries the notes above, so it carries the document
+  // they are the projection of. Same folder, so media blocks share files.
+  await copyTaskDocument(tx, request.taskId, successorId)
 
 
   // 8.5: the rule lives only on the current occurrence, and the current

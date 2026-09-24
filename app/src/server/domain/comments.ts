@@ -28,6 +28,7 @@ import { sql } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
 import { attachedFileIds } from '../../shared/comments.js'
+import { GENERAL_DISCUSSION_TITLE } from '../../shared/consultation.js'
 import type {
   CommentFile,
   CommentLine,
@@ -64,12 +65,124 @@ function snippetOf(body: string | null, fileName: string | null): string {
 }
 
 /* ------------------------------------------------------------------ *
- * POST /folders/:id/comments (access resolved by the route)
+ * Which thread (issue #320)
+ * ------------------------------------------------------------------ */
+
+/**
+ * The three threads a comment can be written to.
+ *
+ * - `task`: a Task's thread, exactly as before #320 (`discussion_id` null).
+ * - `discussion`: one Discussion's conversation, `POST /discussions/:id/comments`.
+ * - `folder`: the legacy Folder thread the deployed client still posts to
+ *   and reads (`/folders/:id/comments` without `task`). It is the Folder's
+ *   "General discussion" -- migration 0029's backfill target -- and a write
+ *   there lands in the open one, created if missing.
+ */
+export type CommentThread =
+  | { kind: 'task'; taskId: string }
+  | { kind: 'discussion'; discussionId: string }
+  | { kind: 'folder' }
+
+/** A Discussion's conversation takes no writes while it is resolved or in
+ * Trash (issue #320). One predicate, so the create, edit, delete and like
+ * halves cannot disagree about what frozen means. */
+function isFrozen(row: Record<string, unknown>): boolean {
+  return row.state !== 'open' || row.trashed_at !== null
+}
+
+/**
+ * The Folder's open, untrashed General discussion (`is_general`), created if
+ * there is none, with every stray Folder-level comment (`task_id` and
+ * `discussion_id` both null) filed under it. Legacy writes only.
+ *
+ * It is found by the `is_general` flag and never by its title: a rename
+ * through PATCH /discussions/:id moves nothing, and another Discussion
+ * titled "General discussion" is an ordinary Discussion.
+ *
+ * The Folder row is locked first (`FOR NO KEY UPDATE`, which the comment
+ * and discussion inserts' own key checks do not conflict with) so two
+ * concurrent legacy posts cannot each create one; the partial unique index
+ * `discussions_one_open_general_key` is the backstop. The row created has
+ * 0029's backfill shape: that title, `created_by` the Folder owner as
+ * provenance, state open, `is_general` true.
+ *
+ * A resolved or trashed General discussion is left exactly as it is and a
+ * fresh open one is made beside it: the deployed client has no way to
+ * reopen, and refusing its every post would silence the Folder thread for
+ * everyone still on it. The legacy read keeps showing the resolved one's
+ * comments, so the old client still reads one continuous thread.
+ */
+async function openGeneralDiscussion(
+  tx: Executor,
+  folderId: string,
+): Promise<string> {
+  await tx.execute(
+    sql`SELECT id FROM folders WHERE id = ${folderId}::uuid FOR NO KEY UPDATE`,
+  )
+  const found = await rowsOf(
+    tx,
+    sql`SELECT id FROM discussions
+        WHERE folder_id = ${folderId}::uuid
+          AND is_general AND state = 'open' AND trashed_at IS NULL`,
+  )
+  let discussionId = found[0]?.id
+  if (discussionId === undefined) {
+    const made = await rowsOf(
+      tx,
+      sql`INSERT INTO discussions (folder_id, title, created_by, is_general)
+          SELECT f.id, ${GENERAL_DISCUSSION_TITLE}, f.owner_id, true
+            FROM folders f WHERE f.id = ${folderId}::uuid
+          RETURNING id`,
+    )
+    discussionId = made[0]?.id
+  }
+  if (discussionId === undefined) {
+    throw new Error(`folder ${folderId} vanished under its own row lock`)
+  }
+  /* Strays exist only from before 0029's route change or a write that raced
+     it, so almost always there are none: ask first, from
+     `comments_unfiled_folder_idx`, rather than run an UPDATE on every post. */
+  const strays = await rowsOf(
+    tx,
+    sql`SELECT EXISTS (
+          SELECT 1 FROM comments
+           WHERE folder_id = ${folderId}::uuid
+             AND task_id IS NULL AND discussion_id IS NULL) AS found`,
+  )
+  if (strays[0]?.found === true) {
+    await tx.execute(
+      sql`UPDATE comments SET discussion_id = ${String(discussionId)}::uuid
+          WHERE folder_id = ${folderId}::uuid
+            AND task_id IS NULL AND discussion_id IS NULL`,
+    )
+  }
+  return String(discussionId)
+}
+
+/** The legacy Folder thread's membership test, for the read and for a
+ * legacy reply's parent: a Folder-level comment in any untrashed General
+ * discussion (`is_general`) of the Folder, or a stray one no Discussion
+ * holds yet. */
+function inLegacyThread(folderId: string): ReturnType<typeof sql> {
+  return sql`c.task_id IS NULL AND (
+      c.discussion_id IS NULL
+      OR c.discussion_id IN (
+        SELECT d.id FROM discussions d
+        WHERE d.folder_id = ${folderId}::uuid
+          AND d.is_general
+          AND d.trashed_at IS NULL))`
+}
+
+/* ------------------------------------------------------------------ *
+ * POST /folders/:id/comments and /discussions/:id/comments (access
+ * resolved by the route)
  * ------------------------------------------------------------------ */
 
 export type CreateCommentResult =
   | { kind: 'created'; comment: CommentLine }
   | { kind: 'task_not_here' }
+  | { kind: 'discussion_not_here' }
+  | { kind: 'frozen' }
   | { kind: 'parent_not_here' }
   | { kind: 'too_deep' }
   | { kind: 'file_not_here' }
@@ -78,10 +191,11 @@ export async function createComment(
   db: Db,
   viewerId: string,
   folderId: string,
-  taskId: string | null,
+  thread: CommentThread,
   body: PostCommentBody,
 ): Promise<CreateCommentResult> {
   return inTransaction(db, async (tx) => {
+    const taskId = thread.kind === 'task' ? thread.taskId : null
     /* The task's own people, read here so the fan-out
        below can reach them: a comment on a task concerns its assignee and
        its creator whether or not either has spoken yet (4.14, "the people
@@ -104,11 +218,61 @@ export async function createComment(
       )
     }
 
+    /*
+    The Discussion this comment lands in (issue #320), null on a Task thread.
+
+    A legacy reply goes where its parent is, because a reply and its parent
+    are one conversation: if the parent sits in a General discussion that has
+    since been resolved, the reply is refused as frozen rather than filed
+    somewhere else. A legacy top-level post goes to the open General
+    discussion, made if missing.
+    */
+    let discussionId: string | null = null
+    if (thread.kind === 'discussion') {
+      discussionId = thread.discussionId
+    } else if (thread.kind === 'folder') {
+      if (body.parent_id !== undefined) {
+        const parent = await rowsOf(
+          tx,
+          sql`SELECT c.discussion_id FROM comments c
+              WHERE c.id = ${body.parent_id} AND c.folder_id = ${folderId}
+                AND ${inLegacyThread(folderId)}`,
+        )
+        const row = parent[0]
+        if (row === undefined) return { kind: 'parent_not_here' } as const
+        discussionId =
+          row.discussion_id === null
+            ? await openGeneralDiscussion(tx, folderId)
+            : String(row.discussion_id)
+      } else {
+        discussionId = await openGeneralDiscussion(tx, folderId)
+      }
+    }
+
+    /* The Discussion's row, locked for the rest of the transaction so a
+       resolve or a trash racing this post waits for it or is waited on,
+       and never lets a comment land after the Outcome was recorded. */
+    let discussionTitle: string | null = null
+    if (discussionId !== null) {
+      const found = await rowsOf(
+        tx,
+        sql`SELECT title, state, trashed_at FROM discussions
+            WHERE id = ${discussionId}::uuid AND folder_id = ${folderId}::uuid
+            FOR NO KEY UPDATE`,
+      )
+      const row = found[0]
+      if (row === undefined) return { kind: 'discussion_not_here' } as const
+      if (isFrozen(row)) return { kind: 'frozen' } as const
+      discussionTitle = String(row.title)
+    }
+
     if (body.parent_id !== undefined) {
       const parent = await rowsOf(
         tx,
         sql`SELECT parent_id,
-                   (task_id IS NOT DISTINCT FROM ${taskId}) AS same_thread
+                   (task_id IS NOT DISTINCT FROM ${taskId}
+                    AND discussion_id IS NOT DISTINCT FROM ${discussionId}::uuid)
+                     AS same_thread
             FROM comments
             WHERE id = ${body.parent_id} AND folder_id = ${folderId}`,
       )
@@ -165,12 +329,22 @@ export async function createComment(
 
     const inserted = await rowsOf(
       tx,
-      sql`INSERT INTO comments (folder_id, task_id, parent_id, author_id, body)
-          VALUES (${folderId}::uuid, ${taskId}, ${body.parent_id ?? null},
-                  ${viewerId}::uuid, ${body.body ?? null})
+      sql`INSERT INTO comments
+            (folder_id, task_id, discussion_id, parent_id, author_id, body)
+          VALUES (${folderId}::uuid, ${taskId}, ${discussionId}::uuid,
+                  ${body.parent_id ?? null}, ${viewerId}::uuid,
+                  ${body.body ?? null})
           RETURNING id, created_at`,
     )
     const commentId = String(inserted[0]?.id)
+    /* The Consultation list orders by this (issue #320), and it moves with
+       the comment, in the comment's transaction. */
+    if (discussionId !== null) {
+      await tx.execute(
+        sql`UPDATE discussions SET last_activity_at = now()
+            WHERE id = ${discussionId}::uuid`,
+      )
+    }
     /*
     One row per attachment, stamped in order.
 
@@ -201,13 +375,19 @@ export async function createComment(
       sql`SELECT DISTINCT author_id FROM comments
           WHERE folder_id = ${folderId}
             AND task_id IS NOT DISTINCT FROM ${taskId}
+            AND discussion_id IS NOT DISTINCT FROM ${discussionId}::uuid
             AND id <> ${commentId}::uuid`,
     )
     const folderRow = await rowsOf(
       tx,
       sql`SELECT name FROM folders WHERE id = ${folderId}`,
     )
-    const placeName = taskTitle ?? String(folderRow[0]?.name ?? 'a folder')
+    /* A Discussion's own route names the Discussion; the legacy Folder
+       thread keeps naming the Folder, as it always has. */
+    const placeName =
+      taskTitle ??
+      (thread.kind === 'discussion' ? discussionTitle : null) ??
+      String(folderRow[0]?.name ?? 'a folder')
     await recordEvent(tx, {
       actorId: viewerId,
       verb: 'created',
@@ -228,6 +408,7 @@ export async function createComment(
         id: commentId,
         folder_id: folderId,
         task_id: taskId,
+        discussion_id: discussionId,
         parent_id: body.parent_id ?? null,
         author_id: viewerId,
         body: body.body ?? null,
@@ -250,7 +431,8 @@ export async function createComment(
    A second copy of this projection is how the two would one day disagree
    about what a comment is. */
 function commentSelect(viewerId: string): ReturnType<typeof sql> {
-  return sql`SELECT c.id, c.folder_id, c.task_id, c.parent_id, c.author_id,
+  return sql`SELECT c.id, c.folder_id, c.task_id, c.discussion_id,
+               c.parent_id, c.author_id,
                c.body, c.created_at, c.edited_at,
                (SELECT count(*)::int FROM comment_likes l
                  WHERE l.comment_id = c.id) AS likes,
@@ -272,6 +454,7 @@ function lineFrom(row: Record<string, unknown>): CommentLine {
     id: String(row.id),
     folder_id: String(row.folder_id),
     task_id: nullableString(row.task_id),
+    discussion_id: nullableString(row.discussion_id),
     parent_id: nullableString(row.parent_id),
     author_id: String(row.author_id),
     body: nullableString(row.body),
@@ -283,17 +466,30 @@ function lineFrom(row: Record<string, unknown>): CommentLine {
   }
 }
 
+/**
+ * One thread, whole and in order. A Task thread is its `task_id`; a
+ * Discussion's is its `discussion_id`; the legacy Folder thread is every
+ * General discussion of the Folder that is not in Trash (a resolved one
+ * included, so the deployed client keeps reading one continuous history)
+ * plus any stray Folder-level comment no Discussion holds yet. Comments of
+ * any other Discussion never appear on the Folder thread (issue #320).
+ */
 export async function threadView(
   db: Db,
   viewerId: string,
   folderId: string,
-  taskId: string | null,
+  thread: CommentThread,
 ): Promise<ThreadView> {
+  const scope =
+    thread.kind === 'task'
+      ? sql`c.task_id = ${thread.taskId}::uuid`
+      : thread.kind === 'discussion'
+        ? sql`c.discussion_id = ${thread.discussionId}::uuid`
+        : inLegacyThread(folderId)
   const rows = await rowsOf(
     db,
     sql`${commentSelect(viewerId)}
-        WHERE c.folder_id = ${folderId}
-          AND c.task_id IS NOT DISTINCT FROM ${taskId}
+        WHERE c.folder_id = ${folderId} AND ${scope}
         ORDER BY c.created_at ASC, c.id ASC`,
   )
   return { comments: rows.map(lineFrom) }
@@ -407,10 +603,33 @@ export async function accessibleComment(
   }
 }
 
+/**
+ * Whether the comment's Discussion is frozen (resolved or in Trash, issue
+ * #320), read with that Discussion's row share-locked for the rest of the
+ * transaction, so a resolve or a trash cannot slip in between this answer and
+ * the write it guards. A Task comment, and a comment no Discussion holds, is
+ * never frozen.
+ */
+async function discussionFrozen(
+  tx: Executor,
+  commentId: string,
+): Promise<boolean> {
+  const found = await rowsOf(
+    tx,
+    sql`SELECT d.state, d.trashed_at
+        FROM comments c JOIN discussions d ON d.id = c.discussion_id
+        WHERE c.id = ${commentId}::uuid
+        FOR SHARE OF d`,
+  )
+  const row = found[0]
+  return row !== undefined && isFrozen(row)
+}
+
 export type EditCommentResult =
   | { kind: 'edited'; comment: CommentLine }
   | { kind: 'file_not_here' }
   | { kind: 'nothing_left' }
+  | { kind: 'frozen' }
   | { kind: 'gone' }
 
 /*
@@ -484,7 +703,15 @@ export async function editComment(
     it does better than reordering as well — the lock is held for the rest of
     the transaction, so a delete racing us blocks rather than being merely
     noticed earlier.
+
+    Issue #320 first, though: a resolved or trashed Discussion's words stay
+    as recorded. The Discussion is locked before the comment, the order
+    `createComment` takes them in (Discussion row, then the parent comment's
+    key share), so a reply and an edit racing on one thread cannot deadlock.
     */
+    if (await discussionFrozen(tx, access.id)) {
+      return { kind: 'frozen' } as const
+    }
     const present = await rowsOf(
       tx,
       sql`SELECT id FROM comments WHERE id = ${access.id}::uuid FOR UPDATE`,
@@ -570,8 +797,12 @@ export async function deleteComment(
   db: Db,
   viewerId: string,
   access: CommentAccess,
-): Promise<void> {
-  await inTransaction(db, async (tx) => {
+): Promise<'deleted' | 'frozen'> {
+  return inTransaction(db, async (tx) => {
+    /* Issue #320: moderation included. A resolved Discussion's record --
+       its Outcome may name this comment as its source -- is changed by
+       reopening it first, not by removing what was said underneath it. */
+    if (await discussionFrozen(tx, access.id)) return 'frozen' as const
     await tx.execute(
       sql`DELETE FROM comments WHERE id = ${access.id}::uuid`,
     )
@@ -584,6 +815,7 @@ export async function deleteComment(
       folderId: access.folderId,
       detail: 'removed a comment',
     })
+    return 'deleted' as const
   })
 }
 
@@ -594,21 +826,62 @@ export async function likeComment(
   db: Db,
   viewerId: string,
   commentId: string,
-): Promise<void> {
-  await db.execute(
-    sql`INSERT INTO comment_likes (comment_id, user_id)
-        VALUES (${commentId}::uuid, ${viewerId}::uuid)
-        ON CONFLICT (comment_id, user_id) DO NOTHING`,
-  )
+): Promise<'done' | 'frozen'> {
+  return inTransaction(db, async (tx) => {
+    /* Issue #320: likes freeze with the rest of the conversation. A
+       resolved Discussion is a record, and its like counts are part of
+       what it reads as. */
+    if (await discussionFrozen(tx, commentId)) return 'frozen' as const
+    await tx.execute(
+      sql`INSERT INTO comment_likes (comment_id, user_id)
+          VALUES (${commentId}::uuid, ${viewerId}::uuid)
+          ON CONFLICT (comment_id, user_id) DO NOTHING`,
+    )
+    return 'done' as const
+  })
 }
 
 export async function unlikeComment(
   db: Db,
   viewerId: string,
   commentId: string,
-): Promise<void> {
-  await db.execute(
-    sql`DELETE FROM comment_likes
-        WHERE comment_id = ${commentId} AND user_id = ${viewerId}`,
+): Promise<'done' | 'frozen'> {
+  return inTransaction(db, async (tx) => {
+    if (await discussionFrozen(tx, commentId)) return 'frozen' as const
+    await tx.execute(
+      sql`DELETE FROM comment_likes
+          WHERE comment_id = ${commentId} AND user_id = ${viewerId}`,
+    )
+    return 'done' as const
+  })
+}
+
+/* ------------------------------------------------------------------ *
+ * A Discussion, resolved for its comment routes (issue #320)
+ * ------------------------------------------------------------------ */
+
+export interface DiscussionScope {
+  id: string
+  folderId: string
+}
+
+/**
+ * The Discussion's Folder, for `/discussions/:id/comments`. No access is
+ * decided here: the route asks `accessOf` on the returned Folder, and an id
+ * naming no Discussion and a Discussion in a Folder the viewer is not in
+ * both answer 404 there. Owned by the comment routes rather than the
+ * Discussion domain so the two can land independently.
+ */
+export async function discussionScope(
+  executor: Executor,
+  discussionId: string,
+): Promise<DiscussionScope | null> {
+  const found = await rowsOf(
+    executor,
+    sql`SELECT id, folder_id FROM discussions WHERE id = ${discussionId}::uuid`,
   )
+  const row = found[0]
+  return row === undefined
+    ? null
+    : { id: String(row.id), folderId: String(row.folder_id) }
 }

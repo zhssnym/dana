@@ -797,13 +797,24 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
   comments: {
     primaryKey: { name: 'comments_pkey', columns: ['id'] },
     uniques: [],
-    checks: [{ name: 'comments_body_length_check', columns: ['body'] }],
+    checks: [
+      { name: 'comments_body_length_check', columns: ['body'] },
+      // Migration 0029 (#320): never both Task- and Discussion-scoped.
+      { name: 'comments_one_scope_check', columns: ['discussion_id', 'task_id'] },
+    ],
     foreignKeys: [
       {
         name: 'comments_author_id_fkey',
         columns: ['author_id'],
         references: { table: 'users', columns: ['id'] },
         onDelete: 'restrict',
+      },
+      {
+        // Migration 0029: a comment's Discussion is in the comment's Folder.
+        name: 'comments_discussion_scope_fkey',
+        columns: ['folder_id', 'discussion_id'],
+        references: { table: 'discussions', columns: ['folder_id', 'id'] },
+        onDelete: 'cascade',
       },
       {
         name: 'comments_folder_id_fkey',
@@ -839,7 +850,226 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
         partial: false,
       },
       { name: 'comments_parent_id_idx', unique: false, columns: ['parent_id'], partial: true },
+      {
+        name: 'comments_discussion_thread_idx',
+        unique: false,
+        columns: ['discussion_id', 'created_at'],
+        partial: true,
+      },
+      // Migration 0029: the legacy Folder thread's stray sweep (4.31).
+      {
+        name: 'comments_unfiled_folder_idx',
+        unique: false,
+        columns: ['folder_id'],
+        partial: true,
+      },
     ],
+  },
+  // Migration 0029 (#320): Consultation Discussions and their Outcomes.
+  discussions: {
+    primaryKey: { name: 'discussions_pkey', columns: ['id'] },
+    uniques: [{ name: 'discussions_folder_id_id_key', columns: ['folder_id', 'id'] }],
+    checks: [
+      { name: 'discussions_context_length_check', columns: ['context'] },
+      {
+        name: 'discussions_resolution_check',
+        columns: ['current_outcome_id', 'resolved_at', 'state'],
+      },
+      { name: 'discussions_state_check', columns: ['state'] },
+      { name: 'discussions_title_length_check', columns: ['title'] },
+    ],
+    foreignKeys: [
+      {
+        name: 'discussions_created_by_fkey',
+        columns: ['created_by'],
+        references: { table: 'users', columns: ['id'] },
+        onDelete: 'restrict',
+      },
+      {
+        // NO ACTION, not RESTRICT: the two tables reference each other and a
+        // folder purge cascades to both inside one statement.
+        name: 'discussions_current_outcome_fkey',
+        columns: ['id', 'current_outcome_id'],
+        references: { table: 'discussion_outcomes', columns: ['discussion_id', 'id'] },
+        onDelete: 'no action',
+      },
+      {
+        name: 'discussions_folder_id_fkey',
+        columns: ['folder_id'],
+        references: { table: 'folders', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+      {
+        name: 'discussions_resolved_by_fkey',
+        columns: ['resolved_by'],
+        references: { table: 'users', columns: ['id'] },
+        onDelete: 'restrict',
+      },
+    ],
+    indexes: [
+      {
+        name: 'discussions_folder_activity_idx',
+        unique: false,
+        columns: ['folder_id', 'last_activity_at', 'id'],
+        partial: true,
+        descColumns: ['last_activity_at', 'id'],
+      },
+      {
+        // At most one open, untrashed General discussion per Folder: the
+        // legacy Folder thread's write target (4.31).
+        name: 'discussions_one_open_general_key',
+        unique: true,
+        columns: ['folder_id'],
+        partial: true,
+      },
+    ],
+  },
+  discussion_outcomes: {
+    primaryKey: { name: 'discussion_outcomes_pkey', columns: ['id'] },
+    uniques: [
+      { name: 'discussion_outcomes_discussion_id_id_key', columns: ['discussion_id', 'id'] },
+    ],
+    checks: [{ name: 'discussion_outcomes_statement_length_check', columns: ['statement'] }],
+    foreignKeys: [
+      {
+        name: 'discussion_outcomes_actor_id_fkey',
+        columns: ['actor_id'],
+        references: { table: 'users', columns: ['id'] },
+        onDelete: 'restrict',
+      },
+      {
+        name: 'discussion_outcomes_discussion_id_fkey',
+        columns: ['discussion_id'],
+        references: { table: 'discussions', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+      {
+        // The Outcome is a snapshot; its source comment may go.
+        name: 'discussion_outcomes_source_comment_id_fkey',
+        columns: ['source_comment_id'],
+        references: { table: 'comments', columns: ['id'] },
+        onDelete: 'set null',
+      },
+    ],
+    indexes: [
+      {
+        name: 'discussion_outcomes_source_comment_id_idx',
+        unique: false,
+        columns: ['source_comment_id'],
+        partial: true,
+      },
+    ],
+  },
+  // Migration 0030 (#321): Consultation structured input rounds.
+  discussion_input_rounds: {
+    primaryKey: { name: 'discussion_input_rounds_pkey', columns: ['id'] },
+    uniques: [{ name: 'discussion_input_rounds_id_mode_key', columns: ['id', 'mode'] }],
+    checks: [
+      { name: 'discussion_input_rounds_close_reason_check', columns: ['close_reason'] },
+      {
+        name: 'discussion_input_rounds_closure_check',
+        columns: ['close_reason', 'closed_at', 'state'],
+      },
+      { name: 'discussion_input_rounds_mode_check', columns: ['mode'] },
+      { name: 'discussion_input_rounds_prompt_length_check', columns: ['prompt'] },
+      { name: 'discussion_input_rounds_state_check', columns: ['state'] },
+    ],
+    foreignKeys: [
+      {
+        name: 'discussion_input_rounds_closed_by_fkey',
+        columns: ['closed_by'],
+        references: { table: 'users', columns: ['id'] },
+        onDelete: 'restrict',
+      },
+      {
+        name: 'discussion_input_rounds_created_by_fkey',
+        columns: ['created_by'],
+        references: { table: 'users', columns: ['id'] },
+        onDelete: 'restrict',
+      },
+      {
+        name: 'discussion_input_rounds_discussion_id_fkey',
+        columns: ['discussion_id'],
+        references: { table: 'discussions', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+    ],
+    indexes: [
+      {
+        name: 'discussion_input_rounds_discussion_idx',
+        unique: false,
+        columns: ['discussion_id', 'created_at'],
+        partial: false,
+      },
+      {
+        // At most one open round per Discussion (#321).
+        name: 'discussion_input_rounds_one_open_key',
+        unique: true,
+        columns: ['discussion_id'],
+        partial: true,
+      },
+    ],
+  },
+  discussion_input_options: {
+    primaryKey: { name: 'discussion_input_options_pkey', columns: ['id'] },
+    uniques: [
+      { name: 'discussion_input_options_round_id_id_key', columns: ['round_id', 'id'] },
+      {
+        name: 'discussion_input_options_round_id_position_key',
+        columns: ['round_id', 'position'],
+      },
+    ],
+    checks: [
+      { name: 'discussion_input_options_label_length_check', columns: ['label'] },
+      { name: 'discussion_input_options_position_check', columns: ['position'] },
+    ],
+    foreignKeys: [
+      {
+        name: 'discussion_input_options_round_id_fkey',
+        columns: ['round_id'],
+        references: { table: 'discussion_input_rounds', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+    ],
+    indexes: [],
+  },
+  discussion_input_responses: {
+    primaryKey: { name: 'discussion_input_responses_pkey', columns: ['id'] },
+    uniques: [
+      {
+        name: 'discussion_input_responses_round_id_user_id_key',
+        columns: ['round_id', 'user_id'],
+      },
+    ],
+    checks: [
+      { name: 'discussion_input_responses_body_length_check', columns: ['body'] },
+      { name: 'discussion_input_responses_concern_check', columns: ['concern'] },
+      {
+        name: 'discussion_input_responses_shape_check',
+        columns: ['body', 'concern', 'mode', 'option_id'],
+      },
+    ],
+    foreignKeys: [
+      {
+        name: 'discussion_input_responses_option_fkey',
+        columns: ['round_id', 'option_id'],
+        references: { table: 'discussion_input_options', columns: ['round_id', 'id'] },
+        onDelete: 'cascade',
+      },
+      {
+        name: 'discussion_input_responses_round_mode_fkey',
+        columns: ['round_id', 'mode'],
+        references: { table: 'discussion_input_rounds', columns: ['id', 'mode'] },
+        onDelete: 'cascade',
+      },
+      {
+        name: 'discussion_input_responses_user_id_fkey',
+        columns: ['user_id'],
+        references: { table: 'users', columns: ['id'] },
+        onDelete: 'restrict',
+      },
+    ],
+    indexes: [],
   },
   comment_likes: {
     primaryKey: { name: 'comment_likes_pkey', columns: ['comment_id', 'user_id'] },
@@ -960,9 +1190,12 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
          old homes and a null `facet_id`, so no backfill was needed. AC-836
          is the behavioural case -- a facet's blocks carry `facet_id` and
          never `folder_id`, and no Task row ever belongs to a facet. */
+      /* Migration 0031 (#221) re-added it once more under the same name over
+         `num_nonnulls(folder_id, shelf_id, facet_id, task_id) = 1`: the
+         fourth home is a Task's document. */
       {
         name: 'page_blocks_one_home_check',
-        columns: ['facet_id', 'folder_id', 'shelf_id'],
+        columns: ['facet_id', 'folder_id', 'shelf_id', 'task_id'],
       },
       { name: 'page_blocks_page_position_format_check', columns: ['page_position'] },
       {
@@ -987,6 +1220,15 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
         name: 'page_blocks_facet_id_fkey',
         columns: ['facet_id'],
         references: { table: 'folder_facets', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+      /* Migration 0031 (#221): a Task's document. CASCADE, because purging
+         the Task takes its document; trashing it stamps `deleted_at` and
+         touches no block. */
+      {
+        name: 'page_blocks_task_id_fkey',
+        columns: ['task_id'],
+        references: { table: 'tasks', columns: ['id'] },
         onDelete: 'cascade',
       },
       {
@@ -1081,6 +1323,13 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
         columns: ['facet_id', 'page_position', 'id'],
         partial: true,
       },
+      /* Migration 0031 (#221): one Task document in page order. */
+      {
+        name: 'page_blocks_task_page_position_idx',
+        unique: false,
+        columns: ['task_id', 'page_position', 'id'],
+        partial: true,
+      },
     ],
   },
   shelves: {
@@ -1108,6 +1357,23 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
         name: 'shelves_user_id_fkey',
         columns: ['user_id'],
         references: { table: 'users', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+    ],
+    indexes: [],
+  },
+  /* Migration 0032, issue #221: the Shelf-keyed sibling of
+     page_document_receipts. No actor column, because a Shelf is one
+     person's (4.18); the receipts go with the Shelf. */
+  shelf_document_receipts: {
+    primaryKey: { name: 'shelf_document_receipts_pkey', columns: ['shelf_id', 'mutation_id'] },
+    uniques: [],
+    checks: [],
+    foreignKeys: [
+      {
+        name: 'shelf_document_receipts_shelf_id_fkey',
+        columns: ['shelf_id'],
+        references: { table: 'shelves', columns: ['id'] },
         onDelete: 'cascade',
       },
     ],

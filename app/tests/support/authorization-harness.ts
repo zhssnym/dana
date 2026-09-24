@@ -472,3 +472,55 @@ export async function trashFolder(
     'DELETE /folders/:id must trash the folder (spec 7.4, 7.13)',
   )
 }
+
+/** A Discussion in a Folder's Consultation (7.28, issue #320), started by
+ * the Folder's owner, so a member variant is somebody who is not its creator. */
+export async function makeDiscussion(
+  owner: Actor,
+  folderId: string,
+  title: string,
+): Promise<string> {
+  const made = await owner.browser.json(`/folders/${folderId}/discussions`, 'POST', {
+    title,
+  })
+  expectStatus(
+    made,
+    201,
+    'POST /folders/:id/discussions must create the discussion (spec 7.28)',
+  )
+  return idOf(made, 'the created discussion')
+}
+
+/** Resolves a Discussion with a recorded Outcome and answers the Outcome's id. */
+export async function makeOutcome(
+  owner: Actor,
+  discussionId: string,
+  statement: string,
+): Promise<string> {
+  const resolved = await owner.browser.json(
+    `/discussions/${discussionId}/resolve`,
+    'POST',
+    { statement },
+  )
+  expectStatus(
+    resolved,
+    200,
+    'POST /discussions/:id/resolve must record the outcome (spec 7.28)',
+  )
+  return String(
+    (resolved.json() as { current_outcome_id: string }).current_outcome_id,
+  )
+}
+
+/** A Discussion in the Trash, addressed by the restore and purge routes. */
+export async function trashDiscussion(
+  owner: Actor,
+  discussionId: string,
+): Promise<void> {
+  const deleted = await owner.browser.json(`/discussions/${discussionId}`, 'DELETE')
+  expectStatus(
+    deleted,
+    204,
+    'DELETE /discussions/:id must trash the discussion (spec 7.28, 7.13)',
+  )
+}
