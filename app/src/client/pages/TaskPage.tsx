@@ -92,7 +92,7 @@ export function TaskPage(): React.JSX.Element {
                     cancelLabel: keepLabel(1),
                     run: () => {
                       acts.onDelete(detail)
-                      void navigate(paths.desk)
+                      void navigate(paths.today)
                     },
                   })
                 },

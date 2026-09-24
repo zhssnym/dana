@@ -714,7 +714,7 @@ export function LandingPage(): React.JSX.Element {
   const signedIn = useMe().isSuccess
   useEffect(() => {
     if (signedIn && window.location.search === '') {
-      window.location.replace(paths.desk)
+      window.location.replace(paths.today)
     }
   }, [signedIn])
   const signInHref = `/api/v1/auth/google?tz=${encodeURIComponent(browserTimezone())}`

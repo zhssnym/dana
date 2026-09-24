@@ -39,12 +39,13 @@ test('smoke: sign in, create a task, open a folder', async ({ page }) => {
 
   await test.step('the signed-in shell renders', async () => {
     await page.goto('/app')
+    // /app lands on Today.
+    await expect(page).toHaveURL(/\/app\/today$/)
     await expect(page.getByRole('navigation').first()).toBeVisible()
   })
 
   const title = `smoke task ${Date.now()}`
   await test.step('the quick-add creates a task', async () => {
-    await page.goto('/app/anytime')
     await page.getByRole('button', { name: 'Add a task', exact: true }).first().click()
     const box = page.getByRole('textbox', { name: 'Add a task', exact: true }).first()
     await expect(box).toBeFocused()

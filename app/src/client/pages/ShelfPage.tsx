@@ -176,7 +176,7 @@ export function ShelfPage(): React.JSX.Element {
                  no confirm on it, and the way back is making it again. */
               remove.mutate(id, {
                 onSuccess: () => {
-                  void navigate(paths.desk)
+                  void navigate(paths.today)
                 },
               })
             }}
