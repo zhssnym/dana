@@ -20,7 +20,7 @@ the constant is `UNDO_WINDOW_MS` from the store rather than a literal here,
 which stops the bar and the criterion drifting apart.
 
 **Every entry has an inverse, so the Undo control is unconditional.** Acts
-with no way back, like "Link copied", are said with the toast region 9.1
+with no way back, like a move to another folder, are said with the toast region 9.1
 gives them, so `UndoEntry.undo` is required.
 
 **`fixed`, because of where this file is mounted.** The shell renders the bar

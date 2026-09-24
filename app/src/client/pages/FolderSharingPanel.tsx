@@ -275,6 +275,7 @@ export function FolderSharingPanel({
                           7.4's members element carries; the tint stands in
                           where a person has none. */}
                       <PersonFace
+                        id={member.user.id}
                         name={name}
                         initials={initialsOf(name)}
                         image={member.user.avatar_url}

@@ -21,6 +21,25 @@ import { canvasMarkdownShortcuts, withoutInputRules } from './markdown.js'
 // and the move rules that would keep it valid, are the surface's own (#218).
 const headingLevels = Array.from({ length: MAX_SECTION_DEPTH }, (_, index) => index + 1)
 const heading = createHeadingBlockSpec({ levels: headingLevels, defaultLevel: 1, allowToggleHeadings: true })
+
+/*
+Toggle state lives under BlockNote's own `toggle-<id>` keys, which it reads as
+open only when the value is 'true'. Dana opens by default, so an open toggle
+needs no key: the key is seeded for upstream's render and removed after it,
+and only closed toggles ('false') stay stored. Storage can be blocked, which
+reads as open.
+*/
+function toggleClosed(id: string): boolean {
+  try { return window.localStorage.getItem(`toggle-${id}`) === 'false' } catch { return false }
+}
+function openByDefault<T>(id: string, render: () => T): T {
+  const key = `toggle-${id}`
+  try { if (window.localStorage.getItem(key) === null) window.localStorage.setItem(key, 'true') } catch { /* storage unavailable */ }
+  const result = render()
+  try { if (window.localStorage.getItem(key) === 'true') window.localStorage.removeItem(key) } catch { /* storage unavailable */ }
+  return result
+}
+
 const groupHeading = {
   ...heading,
   // Upstream's `#` rules would open a Section anywhere; Dana's are by surface (`markdown.ts`).
@@ -37,7 +56,7 @@ const groupHeading = {
         if (block.type !== 'heading' || block.props.isToggleable === false || !selection.empty || selection.$from.parentOffset !== selection.$from.parent.content.size) return false
         // Upstream splitting transfers children to the new paragraph. Dana's group
         // membership must survive, so use its public subtree insertion operation.
-        if (window.localStorage.getItem(`toggle-${block.id}`) === 'false') {
+        if (toggleClosed(block.id)) {
           editor.transact(() => {
             const [next] = editor.insertBlocks([{ type: 'paragraph' }], block, 'after')
             editor.setTextCursorPosition(next!)
@@ -61,11 +80,7 @@ const groupHeading = {
     ...heading.implementation,
     render: (function (block, editor) {
       // Keep the complete upstream renderer and its structural CSS wrapper.
-      const key = `toggle-${block.id}`
-      try {
-        if (window.localStorage.getItem(key) === null) window.localStorage.setItem(key, 'true')
-      } catch { /* preference storage can be unavailable */ }
-      const result = heading.implementation.render.call(this, block, editor)
+      const result = openByDefault(block.id, () => heading.implementation.render.call(this, block, editor))
       const contentDOM = result.contentDOM
       const toggle = result.dom.querySelector<HTMLButtonElement>('.bn-toggle-button')
       const wrapper = result.dom.querySelector('.bn-toggle-wrapper')
@@ -190,7 +205,7 @@ const toggleList = {
         const block = editor.getTextCursorPosition().block
         if (block.type !== 'toggleListItem' || !selection.empty || selection.$from.parentOffset !== selection.$from.parent.content.size) return false
         if (!Array.isArray(block.content) || block.content.length === 0) return false
-        if (window.localStorage.getItem(`toggle-${block.id}`) === 'false') return false
+        if (toggleClosed(block.id)) return false
         const id = crypto.randomUUID()
         editor.transact(() => {
           editor.updateBlock(block, { children: [{ id, type: 'paragraph', content: '' }, ...block.children] })
@@ -203,10 +218,7 @@ const toggleList = {
   implementation: {
     ...upstreamToggle.implementation,
     render: (function (block, editor) {
-      try {
-        if (window.localStorage.getItem(`toggle-${block.id}`) === null) window.localStorage.setItem(`toggle-${block.id}`, 'true')
-      } catch { /* preference storage can be unavailable */ }
-      return upstreamToggle.implementation.render.call(this, block, editor)
+      return openByDefault(block.id, () => upstreamToggle.implementation.render.call(this, block, editor))
     }) as typeof upstreamToggle.implementation.render,
   },
 }

@@ -39,7 +39,6 @@ import type { ImportWorkflowBody } from '../../shared/workflows.js'
 export interface PreparedWorkflowImport {
   readonly body: Record<string, unknown>
   readonly skippedContent: boolean
-  readonly taskCount: number
   /**
    * How many `omitted` placeholders the file carried (#185, and the
    * adversarial review of it).
@@ -206,26 +205,6 @@ function skippedByNormalization(
 }
 
 /**
- * How many Tasks the import is about to make, which is what the toast says.
- *
- * **Both arrangements, because both are current.** A version 1 to 3 folder
- * lists its work under `tasks`; a version 4 folder writes each Task as a block
- * of its page, at the position it sits in (#185). Counting only the first would
- * have told every person importing a file this product now writes that their
- * folder arrived with no work in it.
- */
-function taskCount(folders: unknown[]): number {
-  return folders.reduce<number>((sum, folder) => {
-    if (!isRecord(folder)) return sum
-    const listed = Array.isArray(folder.tasks) ? folder.tasks.length : 0
-    const page = pageBlocks(folder).filter(
-      (block) => isRecord(block) && block.kind === 'task',
-    ).length
-    return sum + listed + page
-  }, 0)
-}
-
-/**
  * How many placeholders the file recorded, which is what the toast says about
  * the exporting side's own losses (#185).
  *
@@ -289,7 +268,6 @@ export function prepareWorkflowImport(
     body,
     skippedContent:
       canonical.success && skippedByNormalization(value, canonical.data),
-    taskCount: taskCount(folders ?? []),
     omittedCount: omittedCount(folders ?? []),
   }
 }
@@ -338,24 +316,18 @@ export function useWorkflowFileImport(): (file: File) => void {
         onSettled: done,
         onSuccess: (made) => {
           const first = made.folders[0]
-          const tasks = `${String(prepared.taskCount)} task${prepared.taskCount === 1 ? '' : 's'}`
-          const success =
-            made.folders.length === 1 && first !== undefined
-              ? `Imported "${first.name}" with ${tasks}`
-              : `Imported ${String(made.folders.length)} folders with ${tasks}`
-          /* What the file itself recorded as left behind (#185) is a different
-             sentence from "unsupported content was skipped": a placeholder is
-             a loss the export made on purpose, and the importer was told
-             nothing about it. */
-          const left =
+          /* Landing on the imported folder is the success; a toast is kept
+             only for what did not come with it. What the file itself recorded
+             as left behind (#185) is a different sentence from "unsupported
+             content was skipped": a placeholder is a loss the export made on
+             purpose, and the importer was told nothing about it. */
+          const notes = [
+            prepared.skippedContent ? 'Some unsupported content was skipped.' : '',
             prepared.omittedCount === 0
               ? ''
-              : ` ${String(prepared.omittedCount)} ${prepared.omittedCount === 1 ? 'picture, file or folder link was' : 'pictures, files or folder links were'} not included in this file.`
-          showToast(
-            prepared.skippedContent
-              ? `${success}. Some unsupported content was skipped.${left}`
-              : `${success}${left === '' ? '' : `.${left}`}`,
-          )
+              : `${String(prepared.omittedCount)} ${prepared.omittedCount === 1 ? 'picture, file or folder link was' : 'pictures, files or folder links were'} not included in this file.`,
+          ].filter((note) => note !== '')
+          if (notes.length > 0) showToast(notes.join(' '))
           if (first !== undefined) void navigate(paths.folder(first.id))
         },
       })

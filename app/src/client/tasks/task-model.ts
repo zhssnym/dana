@@ -207,7 +207,7 @@ type is here because `ConceptTask` refers to it.
 */
 export interface ConceptComment {
   id: string
-  author: { initials: string; name: string; image?: string }
+  author: { initials: string; name: string; image?: string; id?: string }
   at: string
   body?: string
   /* Reactions: the lightest way a team says "seen and agreed" without a

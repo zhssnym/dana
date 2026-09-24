@@ -8,7 +8,7 @@ it is; what a surface offers is what its server stores:
 - `document` (Purpose, Results): flat headings; no Task, no Section.
 - `plain` (a facet with no headings).
 - `shelf`: one flat heading level, nothing nests (so no toggle list).
-- `task`: the Task composer's own schema (no to-do, callout, divider, toggle).
+- `task`: the Task composer's own schema (to-do, callout and divider; no toggle).
 
 Typed turn-into: `/turn h1`, `/turn toggle`, `/turnbullet` convert the block
 the cursor is in, keeping its text, and its children where the target holds
@@ -27,6 +27,7 @@ import { TOGGLE_SURFACES, bindCanvasSurface, surfaceOf } from './markdown.js'
 import { validateCanvasOutline } from './outline.js'
 import { TEXT_TYPES, TURN_TARGETS, isCurrent, simulate } from './turn-into.js'
 import { turnBlocksInto } from './BlockSideMenu.js'
+import { blockSelection, setBlockSelection } from './block-selection.js'
 import type { TreeBlock, TurnKey, TurnTarget } from './turn-into.js'
 import type { CanvasSurfaceKind } from './markdown.js'
 import type { CanvasEditor } from './schema.js'
@@ -97,17 +98,40 @@ export function turnTargetsFor(editor: AnyEditor, block: TreeBlock): TurnTarget[
   })
 }
 
+/** The ⋮⋮ menu's Turn into: `turnTargetsFor`, plus the block's own kind (checked). */
+export function blockMenuTargets(editor: AnyEditor, block: TreeBlock): TurnTarget[] {
+  const own = turnTargetsFor(editor, block)
+  if (!TEXT_TYPES.has(block.type) && block.type !== 'toggleListItem') return own
+  return TURN_TARGETS.filter((target) => isCurrent(block, target) || own.some((allowed) => allowed.key === target.key))
+}
+
+/* Cmd/Ctrl+/ over picked blocks (`block-selection.ts`): the list is for all of
+   them, opened at the end of the first one's text, and they stay picked. */
+const turnScope = new WeakMap<object, readonly string[]>()
+
 function turnItems(editor: AnyEditor): Item[] {
-  const block = editor.getTextCursorPosition().block as unknown as TreeBlock
+  const scope = turnScope.get(editor)
+  const ids = scope ?? [editor.getTextCursorPosition().block.id]
+  const blocks = ids.flatMap((id) => { const block = editor.getBlock(id) as TreeBlock | undefined; return block !== undefined && (TEXT_TYPES.has(block.type) || block.type === 'toggleListItem') ? [block] : [] })
+  const own = blocks.map((block) => turnTargetsFor(editor, block))
+  // A kind every picked block may become (or already is), and not all already are.
+  const targets = TURN_TARGETS.filter((target) =>
+    blocks.length > 0 &&
+    blocks.every((block, index) => own[index]!.some((allowed) => allowed.key === target.key) || isCurrent(block, target)) &&
+    blocks.some((block) => !isCurrent(block, target)))
   const defaults = getDefaultReactSlashMenuItems(editor)
   const iconOf = (key: string): JSX.Element | undefined => defaults.find((item) => 'key' in item && item.key === key)?.icon
   const work = surfaceOf(editor) === 'work'
-  return turnTargetsFor(editor, block).map((target) => ({
+  return targets.map((target) => ({
     title: target.title,
     aliases: [...TURN_ALIASES[target.key], ...(work && target.level !== undefined ? [`toggle h${target.level}`, `toggleh${target.level}`, `toggle heading ${target.level}`] : [])],
     icon: target.type === 'callout' ? <Lightbulb size={16} /> : iconOf(target.type === 'heading' ? (target.level === 1 ? 'heading' : `heading_${target.level}`) : TURN_ICONS[target.type] ?? ''),
     group: 'Turn into',
-    onItemClick: () => { turnBlocksInto(editor, [block.id], target, headingTogglesOf(surfaceOf(editor))) },
+    onItemClick: () => {
+      turnScope.delete(editor)
+      turnBlocksInto(editor, blocks.map((block) => block.id), target, headingTogglesOf(surfaceOf(editor)))
+      if (scope !== undefined && scope.every((id) => editor.getBlock(id) !== undefined)) setBlockSelection(editor, scope)
+    },
   }))
 }
 
@@ -238,7 +262,7 @@ function CanvasSuggestionList(props: SuggestionMenuProps<DefaultReactSuggestionI
       onClick={() => onItemClick?.(item)}
     />)
   })
-  return <Components.SuggestionMenu.Root id="bn-suggestion-menu" className="bn-suggestion-menu">
+  return <Components.SuggestionMenu.Root id="bn-suggestion-menu" className="bn-suggestion-menu dana-slash-menu">
     {rows}
     {rows.length === 0 && loadingState !== 'loading-initial'
       ? <Components.SuggestionMenu.EmptyItem className="bn-suggestion-menu-item">No results</Components.SuggestionMenu.EmptyItem>
@@ -253,15 +277,37 @@ export function CanvasSlashMenu({ editor, context }: { readonly editor: AnyEdito
   useEffect(() => {
     const open = (event: KeyboardEvent): void => {
       if (event.key !== '/' || !(event.metaKey || event.ctrlKey) || event.altKey) return
-      const root = editor.domElement
-      if (root === undefined || !(event.target instanceof Node) || !root.contains(event.target)) return
-      const block = editor.getTextCursorPosition().block
-      if (!Array.isArray(block.content) && block.type !== 'codeBlock') return
-      event.preventDefault()
+      const picked = blockSelection(editor)
+      if (picked.length > 0) {
+        // Picked blocks: the same list, for all of them, opened at the first one's text.
+        const anchor = picked.find((id) => Array.isArray(editor.getBlock(id)?.content))
+        if (anchor === undefined) return
+        event.preventDefault()
+        event.stopPropagation()
+        turnScope.set(editor, picked)
+        editor.setTextCursorPosition(anchor, 'end')
+      } else {
+        const root = editor.domElement
+        if (root === undefined || !(event.target instanceof Node) || !root.contains(event.target)) return
+        const block = editor.getTextCursorPosition().block
+        if (!Array.isArray(block.content) && block.type !== 'codeBlock') return
+        event.preventDefault()
+        turnScope.delete(editor)
+      }
       editor.getExtension(SuggestionMenu)?.openSuggestionMenu(TURN_TRIGGER, { ignoreQueryLength: true })
     }
+    // Closed without a choice: the picked blocks are picked again.
+    const menus = editor.getExtension(SuggestionMenu)?.store
+    const offMenus = menus?.subscribe(({ currentVal }) => {
+      if (currentVal?.show === true) return
+      window.setTimeout(() => {
+        const scope = turnScope.get(editor)
+        turnScope.delete(editor)
+        if (scope !== undefined && scope.every((id) => editor.getBlock(id) !== undefined)) setBlockSelection(editor, scope)
+      }, 0)
+    })
     document.addEventListener('keydown', open, true)
-    return () => { document.removeEventListener('keydown', open, true) }
+    return () => { offMenus?.(); document.removeEventListener('keydown', open, true) }
   }, [editor])
   const getItems = useMemo(() => async (query: string) => slashItemsFor(editor, context, query), [editor, context])
   const getTurnItems = useMemo(() => async (query: string) => filterSlashItems(turnItems(editor), query), [editor])

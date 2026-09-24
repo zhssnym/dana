@@ -33,6 +33,8 @@ const MAX_EDGE = 256
 const QUALITY = 0.82
 
 export interface Viewer {
+  /* The user id, which the default face is keyed by. */
+  id?: string
   name: string
   initials: string
   email: string
@@ -51,6 +53,7 @@ export function useViewer(): Viewer {
   const email = user.email ?? ''
   const name = user.display_name ?? email
   return {
+    id: user.id,
     name,
     initials: initialsOf(name),
     email,

@@ -40,6 +40,7 @@ import {
   shuffleColor,
 } from '../../parts/identity-colors.js'
 import { Input } from '../ui/input.js'
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip.js'
 import { cn } from '../ui/utils.js'
 import { EMOJI_SECTIONS, emojiKeyOf, emojiOf } from './emoji-mark.js'
 import { FOLDER_ICONS, ICON_LABELS, ICON_SECTIONS } from './icon-manifest.js'
@@ -295,38 +296,43 @@ export function IconPicker({
             {/* The ninth cell: a new distinctive colour per press. A colour
                 worn from outside the row (a shuffle, or the old palette)
                 shows here, selected, so the current colour is always
-                visible in the one line. Its hint is a `title`, not the
-                Tooltip, whose layer (z-50) sits under this popover's (z-70). */}
-            <button
-              type="button"
-              role="option"
-              aria-selected={wornOffRow}
-              aria-label="Random colour"
-              title="Random colour"
-              onClick={() => {
-                onPick({ color: shuffleColor(color) })
-              }}
-              className={cn(
-                'flex size-6 items-center justify-center rounded-full transition-[background-color,box-shadow]',
-                T_FAST,
-                FOCUS,
-                wornOffRow
-                  ? 'ring-2 ring-foreground ring-offset-1'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-              )}
-            >
-              {wornOffRow ? (
-                <span
-                  className="flex size-4 items-center justify-center rounded-full text-background"
-                  style={{ backgroundColor: drawn }}
-                  aria-hidden="true"
-                >
-                  <Shuffle className="size-2.5" strokeWidth={2.25} aria-hidden="true" />
-                </span>
-              ) : (
-                <Shuffle className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
-              )}
-            </button>
+                visible in the one line. */}
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={wornOffRow}
+                    aria-label="Random colour"
+                    onClick={() => {
+                      onPick({ color: shuffleColor(color) })
+                    }}
+                    className={cn(
+                      'flex size-6 items-center justify-center rounded-full transition-[background-color,box-shadow]',
+                      T_FAST,
+                      FOCUS,
+                      wornOffRow
+                        ? 'ring-2 ring-foreground ring-offset-1'
+                        : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                    )}
+                  />
+                }
+              >
+                {wornOffRow ? (
+                  <span
+                    className="flex size-4 items-center justify-center rounded-full text-background"
+                    style={{ backgroundColor: drawn }}
+                    aria-hidden="true"
+                  >
+                    <Shuffle className="size-2.5" strokeWidth={2.25} aria-hidden="true" />
+                  </span>
+                ) : (
+                  <Shuffle className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
+                )}
+              </TooltipTrigger>
+              <TooltipContent>Random colour</TooltipContent>
+            </Tooltip>
           </div>
         </>
       ) : (
