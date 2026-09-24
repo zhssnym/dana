@@ -182,6 +182,33 @@ export async function listFacets(
   return rows.map(facetFromRow)
 }
 
+/**
+ * The owning Folder of one live native Purpose or Results facet, before viewer access is
+ * considered. The route that exposes this fact immediately resolves that
+ * Folder through `accessOf`; keeping the two steps separate is deliberate so
+ * the id-bearing route carries the same explicit Folder gate as every other
+ * facet read while still refusing a missing/other-kind/deleted facet alike.
+ *
+ * Hidden is deliberately absent: hide is presentation state and a valid Dana
+ * Link may still focus a hidden Purpose without changing the shared setting.
+ */
+export async function nativeDocumentFacetFolderId(
+  db: Db,
+  facetId: string,
+): Promise<string | null> {
+  const found = await rowsOf(
+    db,
+    sql`SELECT ff.folder_id
+          FROM folder_facets ff
+          JOIN folders fo ON fo.id = ff.folder_id AND fo.deleted_at IS NULL
+         WHERE ff.id = ${facetId}::uuid
+           AND ff.kind IN ('purpose', 'results')
+           AND ff.deleted_at IS NULL`,
+  )
+  const row = found[0]
+  return row === undefined ? null : String(row.folder_id)
+}
+
 /* ------------------------------------------------------------------ *
  * Creating the natives with the folder (7.4)
  * ------------------------------------------------------------------ */

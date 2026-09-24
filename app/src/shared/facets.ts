@@ -146,6 +146,17 @@ export type Facet = z.infer<typeof facet>
 export const getFacetsResponse = z.object({ facets: z.array(facet) })
 export type GetFacetsResponse = z.infer<typeof getFacetsResponse>
 
+/**
+ * The canonical Purpose facet route is stable at `/app/facets/:id`, while
+ * the actual workspace lives inside its Folder. This tiny read supplies only
+ * the routing fact needed to bridge those two addresses; it intentionally
+ * does not widen Dana Link summaries with Folder metadata.
+ */
+export const getFacetLocationResponse = z.object({
+  folder_id: z.uuid(),
+})
+export type GetFacetLocationResponse = z.infer<typeof getFacetLocationResponse>
+
 /* ------------------------------------------------------------------ *
  * The writes
  * ------------------------------------------------------------------ */

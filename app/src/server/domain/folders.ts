@@ -173,10 +173,16 @@ function folderSelect(viewerId: string, folderId?: string) {
       SELECT
         count(*) FILTER (WHERE t.status = 'pending')::int AS pending,
         count(*) FILTER (WHERE t.status = 'completed')::int AS completed,
+        -- A completed occurrence keeps its series_id and loses its rule to
+        -- the successor (8.5), so a null rule alone would count every
+        -- finished occurrence as one-off and grow the total forever.
         count(*) FILTER (WHERE t.status = 'completed'
-                           AND t.recurrence_rule IS NULL)::int AS one_off_done,
-        count(*) FILTER (WHERE t.status IN ('pending', 'completed')
-                           AND t.recurrence_rule IS NULL)::int AS one_off_total,
+                           AND t.recurrence_rule IS NULL
+                           AND t.series_id IS NULL)::int AS one_off_done,
+        count(*) FILTER (WHERE t.recurrence_rule IS NULL
+                           AND (t.status = 'pending'
+                                OR (t.status = 'completed'
+                                    AND t.series_id IS NULL)))::int AS one_off_total,
         count(*) FILTER (WHERE t.status = 'pending'
                            AND t.recurrence_rule IS NOT NULL)::int AS recurring_active
         FROM tasks t
@@ -245,9 +251,12 @@ export async function sectionProgressOf(
     db,
     sql`SELECT b.id,
                count(t.id) FILTER (WHERE t.status = 'completed'
-                 AND t.recurrence_rule IS NULL)::int AS one_off_done,
-               count(t.id) FILTER (WHERE t.status IN ('pending', 'completed')
-                 AND t.recurrence_rule IS NULL)::int AS one_off_total,
+                 AND t.recurrence_rule IS NULL
+                 AND t.series_id IS NULL)::int AS one_off_done,
+               count(t.id) FILTER (WHERE t.recurrence_rule IS NULL
+                 AND (t.status = 'pending'
+                      OR (t.status = 'completed'
+                          AND t.series_id IS NULL)))::int AS one_off_total,
                count(t.id) FILTER (WHERE t.status = 'pending'
                  AND t.recurrence_rule IS NOT NULL)::int AS recurring_active
           FROM page_blocks b

@@ -1,7 +1,7 @@
 /*
 AC-1008: a Diagram block is stored as its source text and nothing else, reads
-back byte-identical, survives the canvas's hydrate/dehydrate projection and a
-folder duplicate, and refuses a file or folder reference.
+back byte-identical, survives a folder duplicate (the canvas's hydrate/dehydrate
+half is `src/client/components/page/canvas/CanvasDiagram.test.tsx`), and refuses a file or folder reference.
 
 Data-loss class (issue #222): the diagram's one durable representation is the
 source, so a projection that dropped it — or turned it into a paragraph — would
@@ -14,8 +14,6 @@ import { randomUUID } from 'node:crypto'
 
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
-import { dehydrateCanvas, hydrateCanvas } from '../../src/client/components/page/canvas/adapters.js'
-import type { CanvasBlock } from '../../src/client/components/page/canvas/schema.js'
 import { startAuthTestApp } from '../support/auth-harness.js'
 import type { AuthTestApp } from '../support/auth-harness.js'
 import { Cast, createFolder, expectStatus } from '../support/folders-harness.js'
@@ -53,11 +51,7 @@ describe('AC-1008 a diagram round-trips as its source', () => {
     expect(read?.text).toBe(SOURCE)
     expect(read?.rich_content ?? null).toBeNull()
 
-    // The canvas projection keeps the kind and the source both ways.
-    const hydrated = hydrateCanvas(page, 600)
-    expect(hydrated).toEqual([{ id: diagram, type: 'diagram', props: { source: SOURCE }, children: [] }])
-    const projected = dehydrateCanvas(hydrated as unknown as CanvasBlock[], 600, new Map())
-    expect(projected.blocks).toEqual([{ id: diagram, block_kind: 'diagram', text: SOURCE, rich_content: null, file_id: null, ref_folder_id: null, width_pct: null, checked: null }])
+    // The canvas projection's half is `CanvasDiagram.test.tsx` (client tsconfig).
 
     // A diagram names no file and no folder.
     const refused = await owner.browser.json(`/folders/${folderId}/page/actions`, 'POST', {
