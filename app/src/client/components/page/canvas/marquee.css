@@ -7,7 +7,7 @@
   z-index: 60;
   pointer-events: none;
   background-color: color-mix(in srgb, var(--accent-color) 10%, transparent);
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
 }
 body.dana-marquee-dragging,
 body.dana-marquee-dragging * {
