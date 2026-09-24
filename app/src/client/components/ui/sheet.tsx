@@ -26,7 +26,7 @@ function SheetOverlay({ className, ...props }: SheetPrimitive.Backdrop.Props) {
     <SheetPrimitive.Backdrop
       data-slot="sheet-overlay"
       className={cn(
-        "fixed inset-0 z-50 bg-black/20 motion-fade",
+        "fixed inset-0 z-50 bg-scrim motion-fade",
         className
       )}
       {...props}
@@ -104,7 +104,7 @@ function SheetTitle({ className, ...props }: SheetPrimitive.Title.Props) {
     <SheetPrimitive.Title
       data-slot="sheet-title"
       className={cn(
-        "text-lg font-semibold text-foreground",
+        "text-sm font-semibold text-foreground",
         className
       )}
       {...props}

@@ -211,7 +211,7 @@ export function hydrateCanvas(page: PageView, columnWidth: number): CanvasInput[
           {
             type: 'link',
             href: `/app/folders/${block.ref_folder_id ?? ''}`,
-            content: block.text ?? 'Open folder',
+            content: block.text ?? 'Open page',
           },
         ],
         children: [],

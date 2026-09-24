@@ -189,7 +189,7 @@ function ThreadBody(props: {
         {renaming ? (
           <Rename discussion={d} onDone={() => { setRenaming(false) }} />
         ) : (
-          <h2 className="min-w-0 truncate text-base font-title break-words text-foreground">{d.title}</h2>
+          <h2 className="min-w-0 truncate text-sm font-title break-words text-foreground">{d.title}</h2>
         )}
         {trashed || d.state === 'resolved' ? (
           <span className="shrink-0 text-xs text-muted-foreground">{trashed ? 'In Trash' : 'Closed'}</span>
@@ -269,7 +269,7 @@ function Rename({ discussion: d, onDone }: { readonly discussion: Discussion; re
       value={draft}
       maxLength={DISCUSSION_TITLE_MAX}
       disabled={update.isPending}
-      className="min-w-0 flex-1 bg-transparent text-base font-title text-foreground outline-none"
+      className="min-w-0 flex-1 bg-transparent text-sm font-title text-foreground outline-none"
       onFocus={(event) => { event.currentTarget.select() }}
       onChange={(event) => { setDraft(event.target.value) }}
       onBlur={save}

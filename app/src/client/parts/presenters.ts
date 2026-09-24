@@ -392,42 +392,6 @@ export function folderGroupLabels(
   return [...labels].sort((a, b) => a.localeCompare(b))
 }
 
-/** What 9.6's "Label and color" dialog opens holding. */
-export interface FolderLabelFields {
-  /** The personal label, empty where the folder carries none. */
-  readonly label: string
-  /**
-   * The chosen colour as `#RRGGBB`, or undefined where none was chosen.
-   *
-   * Undefined rather than a hex of this module's own, and the distinction is
-   * 11.4's: a folder's colour is the person's runtime choice on 7.4's
-   * `my_color` and a client that supplied one from its own swatches would be
-   * telling them they picked a colour they did not. `DEFAULT_FOLDER_COLOR`
-   * above is the token a dot is *painted* with when there is no choice, which
-   * is a CSS variable and not a value a colour control can hold.
-   */
-  readonly color: string | undefined
-}
-
-/**
- * A folder as 9.6's dialog takes it: the personal label and the colour
- * together, "both being the two fields of 7.4's my-membership and neither
- * meaning anything without the other".
- *
- * The mapping is null-to-absent in both directions, which is the whole of the
- * shape: 4.4 makes each column nullable, a text box holds "" rather than null,
- * and a colour control holds a hex or nothing at all.
- */
-export function folderLabelFields(folder: {
-  my_shelf: string | null
-  my_color: string | null
-}): FolderLabelFields {
-  return {
-    label: folder.my_shelf ?? '',
-    color: folder.my_color ?? undefined,
-  }
-}
-
 /* ------------------------------------------------------------------ *
  * Invites
  * ------------------------------------------------------------------ */

@@ -18,7 +18,7 @@ function DialogBackdrop({ className, ...props }: DialogPrimitive.Backdrop.Props)
     <DialogPrimitive.Backdrop
       data-slot="dialog-backdrop"
       className={cn(
-        "fixed inset-0 z-50 bg-black/20 motion-fade",
+        "fixed inset-0 z-50 bg-scrim motion-fade",
         className,
       )}
       {...props}
@@ -53,7 +53,7 @@ function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
 function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
   return (
     <DialogPrimitive.Title
-      className={cn("text-base font-semibold text-foreground", className)}
+      className={cn("text-sm font-semibold text-foreground", className)}
       {...props}
     />
   )

@@ -127,11 +127,6 @@ export function usePlace(
   }
 }
 
-/** Nothing goes in the window bar any more; the View menu is in the header. */
-export function PlaceChrome(_props: { readonly place: Place }): null {
-  return null
-}
-
 /** Filter chips are gone: nothing narrows. Kept for the folder page's import. */
 export function PlaceFilterChips(_props: { readonly place: Place }): null {
   return null

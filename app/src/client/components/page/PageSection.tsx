@@ -70,9 +70,9 @@ import { ChevronRight } from '../../lib/icons.js'
 export type HeadingTone = 'section' | 'page' | 'day'
 
 const HEADING_CLASS: Record<HeadingTone, string> = {
-  section: 'truncate text-sm leading-6 font-medium text-section-foreground',
-  page: 'truncate text-base leading-6 font-semibold text-foreground',
-  day: 'truncate text-sm leading-6 font-medium text-section-foreground',
+  section: 'truncate text-sm leading-6 font-medium text-foreground',
+  page: 'truncate text-sm leading-6 font-semibold text-foreground',
+  day: 'truncate text-sm leading-6 font-medium text-foreground',
 }
 
 /** The band the heading sits on, the one thing the three tones differ in. */

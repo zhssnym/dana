@@ -21,7 +21,7 @@ export class CanvasErrorBoundary extends Component<Props, State> {
   }
 
   override componentDidCatch(failure: Error, info: ErrorInfo): void {
-    console.error('The folder canvas could not render.', failure, info.componentStack)
+    console.error('The page canvas could not render.', failure, info.componentStack)
   }
 
   override render(): ReactNode {

@@ -24,12 +24,6 @@ ones section 7 names.
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { UseMutationResult } from '@tanstack/react-query'
 
-import { inputRoundSchema } from '../../shared/consultation-input.js'
-import type {
-  InputRound,
-  OpenInputRoundBody,
-  PutInputResponseBody,
-} from '../../shared/consultation-input.js'
 
 import {
   deleteFolderResponse,
@@ -37,28 +31,23 @@ import {
   patchFolderLocationResponse,
   patchFolderMyMembershipResponse,
   patchFolderResponse,
-  postFolderMembersResponse,
   transferOwnershipResponse,
 } from '../../shared/folders.js'
 import type {
   DeleteFolderResponse,
   Folder,
-  FolderMember,
   PatchFolderBody,
   PatchFolderLocationBody,
   PatchFolderMyMembershipBody,
   PostFoldersBody,
   TransferOwnershipResponse,
 } from '../../shared/folders.js'
-import { getSettingsResponse, savedView } from '../../shared/bundle.js'
+import { getSettingsResponse } from '../../shared/bundle.js'
 import { SAMPLE_KEPT_HEADER, sampleStatus } from '../../shared/sample.js'
 import type { SampleStatus } from '../../shared/sample.js'
 import type {
   GetSettingsResponse,
   PatchSettingsBody,
-  PatchViewBody,
-  PostViewBody,
-  SavedView,
 } from '../../shared/bundle.js'
 import {
   acceptInviteResponse,
@@ -102,8 +91,6 @@ import {
 } from '../../shared/events.js'
 import { duplicateFolderResponse } from '../../shared/folders.js'
 import type { DuplicateFolderResponse } from '../../shared/folders.js'
-import { getPageResponse } from '../../shared/pages.js'
-import type { GetPageResponse, PageActionBody, PutPageBody } from '../../shared/pages.js'
 import {
   facet,
   getFacetsResponse,
@@ -122,7 +109,7 @@ import type {
   PutMyFacetOrderBody,
 } from '../../shared/facets.js'
 import { shelf } from '../../shared/shelves.js'
-import type { PatchShelfBody, PostShelvesBody, Shelf } from '../../shared/shelves.js'
+import type { PatchShelfBody, Shelf } from '../../shared/shelves.js'
 
 import {
   importWorkflowResponse,
@@ -290,13 +277,6 @@ export function useUpdateStep(): UseMutationResult<TaskDetail, Error, PatchStepV
   })
 }
 
-export function useDeleteStep(): UseMutationResult<void, Error, string> {
-  return useMutation({
-    mutationFn: (stepId: string) =>
-      mutateApi(null, { method: 'DELETE', path: `/steps/${stepId}` }),
-  })
-}
-
 /**
  * DELETE /folders/:id, behind 9.6's confirm.
  *
@@ -395,27 +375,6 @@ export function useUpdateMyMembership(): UseMutationResult<
         method: 'PATCH',
         path: `/folders/${id}/my-membership`,
         body,
-      }),
-  })
-}
-
-/** POST /folders/:id/members, the roster picker of 9.6's sharing panel. */
-export interface AddFolderMemberVariables {
-  readonly folderId: string
-  readonly userId: string
-}
-
-export function useAddFolderMember(): UseMutationResult<
-  FolderMember,
-  Error,
-  AddFolderMemberVariables
-> {
-  return useMutation({
-    mutationFn: ({ folderId, userId }: AddFolderMemberVariables) =>
-      mutateApi(postFolderMembersResponse, {
-        method: 'POST',
-        path: `/folders/${folderId}/members`,
-        body: { user_id: userId },
       }),
   })
 }
@@ -658,49 +617,6 @@ export function useRestoreFolder(): UseMutationResult<Folder, Error, string> {
   })
 }
 
-/* ------------------------------------------------------------------ *
- * Pages, shelves, notifications, comments
- * ------------------------------------------------------------------ */
-
-export interface PutPageVariables {
-  readonly id: string
-  readonly body: PutPageBody
-}
-
-/**
- * PUT /folders/:id/page (7.16): the block list whole, LWW per block.
- *
- * A stale write answers 409 carrying 5.1's copy, which the mutation cache
- * already raises as the toast 9.1 names for it; the page that issued the write
- * refetches at its own call site so the winning state replaces the stale one on
- * screen, both halves of "handled visibly", without this hook growing either.
- */
-export function usePutFolderPage(): UseMutationResult<
-  GetPageResponse,
-  Error,
-  PutPageVariables
-> {
-  return useMutation({
-    mutationFn: ({ id, body }: PutPageVariables) =>
-      mutateApi(getPageResponse, { method: 'PUT', path: `/folders/${id}/page`, body }),
-  })
-}
-
-export function useFolderPageAction(): UseMutationResult<
-  GetPageResponse,
-  Error,
-  { readonly id: string; readonly body: PageActionBody }
-> {
-  return useMutation({
-    mutationFn: ({ id, body }) =>
-      mutateApi(getPageResponse, {
-        method: 'POST',
-        path: `/folders/${id}/page/actions`,
-        body,
-      }),
-  })
-}
-
 export function useCreateFacet(): UseMutationResult<
   Facet,
   Error,
@@ -790,32 +706,10 @@ export function useDeleteFacet(): UseMutationResult<
   })
 }
 
-export function useFacetPageAction(): UseMutationResult<
-  GetPageResponse,
-  Error,
-  { readonly folderId: string; readonly facetId: string; readonly body: PageActionBody }
-> {
-  return useMutation({
-    mutationFn: ({ folderId, facetId, body }) =>
-      mutateApi(getPageResponse, {
-        method: 'POST',
-        path: `/folders/${folderId}/facets/${facetId}/page/actions`,
-        body,
-      }),
-  })
-}
-
 export function useRestoreFacet(): UseMutationResult<Facet, Error, string> {
   return useMutation({
     mutationFn: (id: string) =>
       mutateApi(facet, { method: 'POST', path: `/facets/${id}/restore` }),
-  })
-}
-
-export function useCreateShelf(): UseMutationResult<Shelf, Error, PostShelvesBody> {
-  return useMutation({
-    mutationFn: (body: PostShelvesBody) =>
-      mutateApi(shelf, { method: 'POST', path: '/shelves', body }),
   })
 }
 
@@ -1112,46 +1006,6 @@ export function useImportWorkflowFile(): UseMutationResult<
   })
 }
 
-/**
- * POST /views, the saved view of 4.19, which 9.1's "Save as view" writes.
- *
- * The definition is the filter model of `views/filter.ts`, which holds ids
- * and enums and never a display name; that is the client half of AC-209's
- * "a saved view survives a rename because it stored ids".
- */
-export function useCreateSavedView(): UseMutationResult<
-  SavedView,
-  Error,
-  PostViewBody
-> {
-  return useMutation({
-    mutationFn: (body: PostViewBody) =>
-      mutateApi(savedView, { method: 'POST', path: '/views', body }),
-  })
-}
-
-/**
- * PATCH /views/:id, which 9.7's pin list writes when a saved view's switch
- * moves.
- *
- * A saved view's pin lives on its own row rather than in `pinned_views`, which
- * 4.19 caps at the nine native keys, so the pin list writes two different
- * addresses for two kinds of row and the page is where they meet. The whole
- * body is `PatchViewBody`, not a pin flag, because the endpoint already takes
- * name and definition and a narrower hook here would be a second, smaller idea
- * of what a saved view is.
- */
-export function usePatchSavedView(): UseMutationResult<
-  SavedView,
-  Error,
-  { readonly id: string; readonly body: PatchViewBody }
-> {
-  return useMutation({
-    mutationFn: ({ id, body }) =>
-      mutateApi(savedView, { method: 'PATCH', path: `/views/${id}`, body }),
-  })
-}
-
 /* ------------------------------------------------------------------ *
  * The sample workspace (7.20)
  * ------------------------------------------------------------------ */
@@ -1182,62 +1036,5 @@ export function useRemoveSample(): UseMutationResult<string[], Error, void> {
 export function useRestoreSample(): UseMutationResult<SampleStatus, Error, void> {
   return useMutation({
     mutationFn: () => mutateApi(sampleStatus, { method: 'POST', path: '/sample' }),
-  })
-}
-
-/* ------------------------------------------------------------------ *
- * Consultation input rounds (7.29, #321)
- * ------------------------------------------------------------------ */
-
-/** POST /discussions/:id/input-rounds. 409 when one is already open or the
- * Discussion is resolved or in Trash; the toast carries the server's words. */
-export function useOpenInputRound(
-  discussionId: string,
-): UseMutationResult<InputRound, Error, OpenInputRoundBody> {
-  return useMutation({
-    mutationFn: (body) =>
-      mutateApi(inputRoundSchema, {
-        method: 'POST',
-        path: `/discussions/${discussionId}/input-rounds`,
-        body,
-      }),
-    meta: { [VALIDATION_ERROR_TOAST_META]: true },
-  })
-}
-
-/** POST /input-rounds/:id/close. */
-export function useCloseInputRound(): UseMutationResult<InputRound, Error, string> {
-  return useMutation({
-    mutationFn: (roundId) =>
-      mutateApi(inputRoundSchema, {
-        method: 'POST',
-        path: `/input-rounds/${roundId}/close`,
-        body: {},
-      }),
-  })
-}
-
-/** PUT /input-rounds/:id/response: submit or change the viewer's own. */
-export function usePutInputResponse(): UseMutationResult<
-  InputRound,
-  Error,
-  { readonly roundId: string; readonly body: PutInputResponseBody }
-> {
-  return useMutation({
-    mutationFn: ({ roundId, body }) =>
-      mutateApi(inputRoundSchema, {
-        method: 'PUT',
-        path: `/input-rounds/${roundId}/response`,
-        body,
-      }),
-    meta: { [VALIDATION_ERROR_TOAST_META]: true },
-  })
-}
-
-/** DELETE /input-rounds/:id/response: withdraw the viewer's own (204). */
-export function useWithdrawInputResponse(): UseMutationResult<void, Error, string> {
-  return useMutation({
-    mutationFn: (roundId) =>
-      mutateApi(null, { method: 'DELETE', path: `/input-rounds/${roundId}/response` }),
   })
 }

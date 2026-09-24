@@ -77,7 +77,6 @@ export function PostView({
           'min-w-0 space-y-1.5 text-sm break-words whitespace-pre-wrap text-foreground',
           !open && FOLD,
           !open && 'overflow-hidden',
-          !open && overflows && '[mask-image:linear-gradient(to_bottom,black_70%,transparent)]',
         )}
       >
         {content ? (

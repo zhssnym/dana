@@ -129,8 +129,7 @@ import {
 import { DropdownMenuCheckboxItem } from '../components/ui/dropdown-menu.js'
 /* The empty-state icon goes to `PageBody`, whose `StateIcon` is typed on the
    raw lucide component. */
-import { Folder as FolderIcon } from 'lucide-react'
-import { CheckCircle2 } from '../lib/icons.js'
+import { CheckCircle2, Folder as FolderIcon } from '../lib/icons.js'
 
 import type { RowContext } from '../parts/presenters.js'
 import { useRowActions } from '../parts/useRowActions.js'
@@ -617,7 +616,7 @@ export function FolderPage({
 
   function exposeFolderFacet(facet: Facet): void {
     confirm.ask(
-      `Share ${facet.name} with everyone in ${detail?.name ?? 'this folder'}? Its current writing will become visible according to Folder access.`,
+      `Share ${facet.name} with everyone in ${detail?.name ?? 'this page'}? Its current writing becomes visible to them.`,
       () => shareFacet.mutate({ folderId: id, facetId: facet.id }),
     )
   }
@@ -1102,7 +1101,7 @@ export function FolderPage({
             />
           ) : facets.isError ? (
             <p role="alert" className="text-sm text-muted-foreground">
-              Could not load this folder’s tabs. Reload to try again.
+              Could not load this page’s tabs. Reload to try again.
             </p>
           ) : null}
         </div>
@@ -1248,8 +1247,8 @@ export function FolderPage({
             <DialogTitle>Transfer ownership</DialogTitle>
             <DialogDescription>
               {successors.length === 0
-                ? `Nobody else in ${detail?.name ?? 'this folder'} has Full control, so there is nobody to hand it to yet. Give a member Full control in Share, then transfer it to them.`
-                : `Choose who owns ${detail?.name ?? 'this folder'} next. Only members who have Full control can take it on, and you stay a member.`}
+                ? `Nobody else in ${detail?.name ?? 'this page'} has Full control, so there is nobody to hand it to yet. Give a member Full control in Share, then transfer it to them.`
+                : `Choose who owns ${detail?.name ?? 'this page'} next. Only members who have Full control can take it on, and you stay a member.`}
             </DialogDescription>
           </DialogHeader>
           {successors.length === 0 ? (

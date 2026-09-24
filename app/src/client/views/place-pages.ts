@@ -64,7 +64,7 @@ export const PLACES: Record<PlaceKey, PlaceSpine> = {
     views: ['list'],
     groups: [
       { value: 'none', label: 'None' },
-      { value: 'folder', label: 'Folder' },
+      { value: 'folder', label: 'Page' },
     ],
     completed: true,
     capture: 'inline',
@@ -78,7 +78,7 @@ export const PLACES: Record<PlaceKey, PlaceSpine> = {
     views: ['list', 'calendar'],
     groups: [
       { value: 'none', label: 'Date' },
-      { value: 'folder', label: 'Folder' },
+      { value: 'folder', label: 'Page' },
     ],
     completed: true,
     capture: 'inline',
@@ -92,7 +92,7 @@ export const PLACES: Record<PlaceKey, PlaceSpine> = {
     views: LIST_AND_BOARD,
     groups: [
       { value: 'none', label: 'Person' },
-      { value: 'folder', label: 'Folder' },
+      { value: 'folder', label: 'Page' },
     ],
     completed: true,
     capture: 'inline',
@@ -105,7 +105,7 @@ export const PLACES: Record<PlaceKey, PlaceSpine> = {
   */
   folder: {
     key: 'folder',
-    name: 'Folder',
+    name: 'Page',
     path: '',
     icon: Layers3,
     /* A page picks Linear, Board or Freeform with its own switcher and its
@@ -120,14 +120,6 @@ export const PLACES: Record<PlaceKey, PlaceSpine> = {
     capture: 'inline',
     boardAxis: 'section',
   },
-}
-
-/** The place a path is, or null where the path is not a place-page. */
-export function placeAt(pathname: string): PlaceSpine | null {
-  for (const spine of Object.values(PLACES)) {
-    if (spine.path === pathname) return spine
-  }
-  return null
 }
 
 /**

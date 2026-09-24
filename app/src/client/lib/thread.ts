@@ -33,41 +33,11 @@ half is one file per comment, as 7.14 writes it.
 */
 
 import type { CommentFile, CommentLine } from '../../shared/comments.js'
-import { useMe } from '../api/queries.js'
 import { measuredRatio } from './page-images.js'
 import { formatAgo } from '../parts/format-dates.js'
 import { initialsOf } from '../parts/presenters.js'
 
 import type { Attachment, ConceptComment } from '../tasks/task-model.js'
-
-/** The `Person` shape, which is what a `Face` takes. */
-export interface ThreadPerson {
-  readonly id?: string
-  readonly initials: string
-  readonly name: string
-  readonly image?: string
-}
-
-/**
- * Who is writing, for the composer's own face and for a comment made in this
- * session.
- *
- * The session is the honest answer and is already in the cache on every page.
- * The picture comes with it, `/me` carrying `avatar_url`, so the one face on
- * the screen that is certainly yours can be your photograph.
- */
-export function useViewerPerson(): ThreadPerson {
-  const me = useMe()
-  const id = me.data?.user.id
-  const name = me.data?.user.display_name ?? 'You'
-  const image = me.data?.user.avatar_url ?? null
-  return {
-    ...(id === undefined ? {} : { id }),
-    initials: initialsOf(name),
-    name,
-    ...(image === null ? {} : { image }),
-  }
-}
 
 /** 7.15's serving path, which the browser sends the session cookie for, this
  *  being one origin (11.1). */

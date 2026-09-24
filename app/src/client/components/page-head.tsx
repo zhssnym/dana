@@ -67,15 +67,6 @@ export function usePageHasCover(storageName: string) {
   )
 }
 
-/* The reading column, one definition. The folder page's own measure, so the
-   six pages cannot drift from it by a rounding of padding. */
-export function pageBodyClass(className?: string) {
-  return cn(
-    "mx-auto w-full max-w-[var(--shell-content-max)] px-10 pb-8",
-    className,
-  )
-}
-
 /*
 The mark itself, one definition.
 
@@ -179,7 +170,7 @@ function PageHeadingStructure({
       {/* On a phone the fact wraps under the name. */}
       <div className="mt-1.5 flex items-baseline justify-between gap-6">
         <div className="flex min-w-0 items-baseline gap-3 max-md:flex-col max-md:items-start max-md:gap-1">
-          <h1 className="min-w-0 max-w-full truncate text-2xl leading-8 font-semibold text-foreground max-md:whitespace-normal">
+          <h1 className="min-w-0 max-w-full truncate text-[length:var(--text-title-size)] leading-8 font-semibold text-foreground max-md:whitespace-normal">
             {title}
           </h1>
           {fact === undefined ? null : (

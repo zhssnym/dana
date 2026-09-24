@@ -20,7 +20,7 @@ function AlertDialogOverlay({
     <AlertDialogPrimitive.Backdrop
       data-slot="alert-dialog-overlay"
       className={cn(
-        "fixed inset-0 z-[90] bg-black/20 motion-fade",
+        "fixed inset-0 z-[90] bg-scrim motion-fade",
         className,
       )}
       {...props}
@@ -72,7 +72,7 @@ function AlertDialogTitle({
 }: AlertDialogPrimitive.Title.Props) {
   return (
     <AlertDialogPrimitive.Title
-      className={cn("text-base font-semibold text-foreground", className)}
+      className={cn("text-sm font-semibold text-foreground", className)}
       {...props}
     />
   )

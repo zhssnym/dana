@@ -44,11 +44,6 @@ export function writeViewMode(mode: ViewMode): void {
   for (const listener of listeners) listener()
 }
 
-/** The remembered value, unresolved. Only `effectiveMode` should show it. */
-export function readViewMode(): ViewMode {
-  return load()
-}
-
 /**
  * The mode a page is actually in: the remembered one where the page offers
  * it, and list where it does not.

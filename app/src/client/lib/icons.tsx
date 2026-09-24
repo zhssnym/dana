@@ -426,7 +426,6 @@ export const Ban = icon(Lu.Ban, null) // animated: no ban. Abandoned is a
 export const Bell = icon(Lu.Bell, Anim.BellIcon)
 export const ArrowLeft = icon(Lu.ArrowLeft, Anim.ArrowLeftIcon)
 export const ArrowRight = icon(Lu.ArrowRight, Anim.ArrowRightIcon)
-export const CalendarCheck2 = icon(Lu.CalendarCheck, Anim.CalendarCheckIcon)
 export const CalendarClock = icon(Lu.CalendarClock, Anim.CalendarClockIcon)
 /* No date on it, the other value of the axis `CalendarDays` carries, and
    the filter's own words for it ("No due date"). Static and animation are the

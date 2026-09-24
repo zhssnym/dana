@@ -92,13 +92,6 @@ export function undoLast(): void {
   entry.undo()
 }
 
-/** Drop everything, for a surface that has invalidated what it was holding. */
-export function clearUndo(): void {
-  if (stack.length === 0) return
-  stack = []
-  publish()
-}
-
 export function useUndoStack(): readonly UndoEntry[] {
   return useSyncExternalStore(
     (notify) => {

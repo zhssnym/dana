@@ -44,7 +44,6 @@ in the words the specification chose.
 import { useMemo, useState } from 'react'
 
 import {
-  useCreateShelf,
   useDeleteShelf,
   usePatchShelf,
   useUpdateMyMembership,
@@ -75,45 +74,14 @@ export function deleteGroupConfirm(folderCount: number): string {
 export interface FolderGroupActions {
   /** Every label in use, which is what the move submenu offers. */
   readonly labels: readonly string[]
-  /** "New folder group", from the folder whose label the new group will be. */
-  readonly onNewGroup: (folder: Folder) => void
-  /**
-   * 9.1's footer act, from no folder at all.
-   *
-   * The same dialog through a third door, which is `onGroupFolders`' own
-   * argument: everything about making a shelf, the name, the validation, the
-   * folders to put on it, stays one surface. What arrives ticked is nothing,
-   * because the act was taken on nothing.
-   */
-  readonly onNewShelf: () => void
-  /**
-   * The same dialog, opened by the hold with a pair already ticked.
-   *
-   * The hold hands its pair to this dialog rather than inventing a surface, so
-   * everything about making a group, the name, the validation, adding a third
-   * folder before committing, stays one surface reached through a second door.
-   * `onNewGroup` is the same act with one folder, and both land here.
-   */
-  readonly onGroupFolders: (folders: readonly Folder[]) => void
   /** "Move to group", null being the ungrouped list rather than a group. */
-  /**
-   * "Add folder to {shelf}", on a shelf heading.
-   *
-   * It opens 9.1's New-folder dialog with the shelf already named, so the
-   * folder is created and filed in one act rather than made loose and then
-   * moved. One surface for making a folder, three doors to it, which is
-   * `onGroupFolders`' own argument one entry up.
-   */
-  readonly onAddFolderTo: (label: string) => void
   readonly onMoveToGroup: (folder: Folder, label: string | null) => void
   readonly onRenameGroup: (label: string) => void
   readonly onDeleteGroup: (label: string) => void
 }
 
 /** Which dialog the sidebar has asked for, and about what. */
-type GroupDialog =
-  | { readonly mode: 'create'; readonly folders: readonly Folder[] }
-  | { readonly mode: 'rename'; readonly label: string }
+type GroupDialog = { readonly mode: 'rename'; readonly label: string }
 
 /**
  * The four operations plus the surfaces they open.
@@ -126,20 +94,11 @@ export function useFolderGroupActions(
   folders: readonly Folder[],
   /** The viewer's shelves (7.16); a label these do not name is a bare one. */
   shelves: readonly Shelf[] = [],
-  /**
-   * How to open 9.1's New-folder dialog with a shelf already named.
-   *
-   * Passed in rather than held here, because that dialog is the shell's: it is
-   * mounted outside every row for the reason this file's own return records, a
-   * dialog inside a row being unmounted by the refetch its own write causes.
-   */
-  openNewFolderIn: (label: string) => void = () => {},
 ): {
   readonly actions: FolderGroupActions
   readonly dialogs: React.JSX.Element
 } {
   const relabel = useUpdateMyMembership()
-  const createShelf = useCreateShelf()
   const patchShelf = usePatchShelf()
   const removeShelf = useDeleteShelf()
   const confirm = useConfirm()
@@ -168,18 +127,6 @@ export function useFolderGroupActions(
 
   const actions: FolderGroupActions = {
     labels,
-    onNewGroup: (folder) => {
-      setDialog({ mode: 'create', folders: [folder] })
-    },
-    onGroupFolders: (pair) => {
-      setDialog({ mode: 'create', folders: pair })
-    },
-    onNewShelf: () => {
-      setDialog({ mode: 'create', folders: [] })
-    },
-    onAddFolderTo: (label) => {
-      openNewFolderIn(label)
-    },
     onMoveToGroup: (folder, label) => {
       /* The sidebar's move has the undo bar like the folder page's: a way back
          that is not three presses in reverse. */
@@ -223,43 +170,20 @@ export function useFolderGroupActions(
     },
   }
 
-  /*
-  The folders the open dialog is about, and the two derived props beside it.
-
-  All three are memoised because the dialog resets its own fields whenever any
-  of them changes identity, and a fresh array on every render of the shell
-  would clear a half-typed group name the next time any chrome query settled.
-  Create offers every folder a group may hold; rename offers the group's own.
-  Inbox is excluded from the first because 9.1 pins it above the groups and
-  never inside one, so a label written onto it is a membership the sidebar
-  cannot render, and offering a choice that does nothing is worse than not
-  offering it.
-  */
-  const subject = useMemo(() => {
-    if (dialog === null) return []
-    return dialog.mode === 'create'
-      ? folders.filter((folder) => !folder.is_default)
-      : folders.filter((folder) => folder.my_shelf === dialog.label)
-  }, [dialog, folders])
-  const options = useMemo(() => folderGroupOptions(subject), [subject])
-  // The folders the act was taken on arrive ticked, which is 9.1's "creating
-  // one is naming it on a folder" read literally: the label is written to what
-  // the action was taken on. That is one folder from a row's menu and two from
-  // the hold, and others may be added in the same dialog.
-  const preselected = useMemo(
-    () =>
-      dialog?.mode === 'create' ? dialog.folders.map((folder) => folder.name) : undefined,
-    [dialog],
+  /* Memoised: the dialog resets its fields whenever these change identity, so a
+     fresh array on every shell render would clear a half-typed name. */
+  const subject = useMemo(
+    () => (dialog === null ? [] : folders.filter((folder) => folder.my_shelf === dialog.label)),
+    [dialog, folders],
   )
+  const options = useMemo(() => folderGroupOptions(subject), [subject])
 
   const dialogs = (
     <>
       <FolderGroupDialog
         open={dialog !== null}
-        mode={dialog?.mode ?? 'create'}
-        currentLabel={dialog?.mode === 'rename' ? dialog.label : undefined}
+        currentLabel={dialog?.label}
         folders={options}
-        preselected={preselected}
         existingLabels={labels}
         onOpenChange={(open) => {
           if (!open) setDialog(null)
@@ -270,32 +194,12 @@ export function useFolderGroupActions(
           // keyed by an id, and that folder names are not unique.
           const ids = folderIdsForNames(folderNames, subject)
 
-          if (dialog?.mode === 'rename') {
-            const shelf = shelfNamed(dialog.label)
-            /* One request where a shelf exists: 7.16's patch rewrites every
-               matching label in the transaction that renames the row, which
-               is 4.18's "held in step" being the server's job rather than
-               this client's. The rename dialog checks the whole group, so
-               what the server relabels and what the dialog offered are the
-               same set. */
-            if (shelf !== undefined) patchShelf.mutate({ id: shelf.id, body: { name: label } })
-            else writeLabel(ids, label)
-            return
-          }
-
-          /* Creating: the shelf row first, the labels after it, because the
-             name has to exist as a shelf before it means anything as a label.
-             A name already taken answers a refusal rather than an error worth
-             raising: the shelf is already there, and what the person asked for
-             is the folders on it, which the labels below do. */
-          createShelf.mutate(
-            { name: label },
-            {
-              onSettled: () => {
-                if (ids.length > 0) writeLabel(ids, label)
-              },
-            },
-          )
+          if (dialog === null) return
+          const shelf = shelfNamed(dialog.label)
+          /* One request where a shelf exists: 7.16's patch rewrites every
+             matching label in the transaction that renames the row. */
+          if (shelf !== undefined) patchShelf.mutate({ id: shelf.id, body: { name: label } })
+          else writeLabel(ids, label)
         }}
       />
       <ConfirmDialog pending={confirm.pending} onClose={confirm.close} />

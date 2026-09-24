@@ -49,7 +49,7 @@ export function IconPicker({
   color,
   onPick,
   onRemove,
-  subject = 'Folder',
+  subject = 'Page',
 }: {
   /** The stored 4.3 key, null for unset (the plain page glyph). */
   readonly icon: string | null
@@ -58,8 +58,8 @@ export function IconPicker({
   readonly onPick: (next: { icon?: string; color?: string }) => void
   /** Clears the icon; offered only where the caller can store that. */
   readonly onRemove?: () => void
-  /** What the picker dresses, "Folder" or "Collection" (a shelf, on screen). */
-  readonly subject?: 'Folder' | 'Collection'
+  /** What the picker dresses, "Page" or "Collection" (a shelf, on screen). */
+  readonly subject?: 'Page' | 'Collection'
 }): React.JSX.Element {
   const activeKey = icon ?? 'folder'
   const wearsEmoji = emojiOf(activeKey) !== null
@@ -213,7 +213,7 @@ export function IconPicker({
                   type="button"
                   role="option"
                   aria-selected={selected}
-                  aria-label={`${name} folder color`}
+                  aria-label={`${name} page color`}
                   onClick={() => {
                     onPick({ color: hex })
                   }}

@@ -146,38 +146,6 @@ export function BoardQuickAdd({
   )
 }
 
-/*
-A new column, where a column is a thing you can make.
-
-A column on this board is a *value* of the axis it is grouped by, so whether you
-can add one is not the board's decision, it is a fact about the axis. Sections
-are things a person makes, and so are folders, so those boards offer it and say
-the name of the thing. A person is not something you create because you wanted a
-column for them, and every date already exists, so those boards do not offer it
-at all rather than offering it and refusing.
-*/
-export function BoardAddColumn({
-  label,
-  onClick,
-}: {
-  label: string
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "flex h-10 items-center justify-center gap-1.5 rounded-md border border-dashed border-border text-xs text-muted-foreground transition-colors hover:border-muted-foreground hover:text-foreground",
-        T_FAST,
-      )}
-    >
-      <Plus className="size-3.5" strokeWidth={2} aria-hidden="true" />
-      {label}
-    </button>
-  )
-}
-
 /* ---------------------------------------------------------------- card, */
 
 /*

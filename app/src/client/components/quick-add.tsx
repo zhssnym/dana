@@ -8,7 +8,7 @@ Pressing N or C anywhere on the page, when not typing, focuses the first one
 on screen (`useNewTaskShortcut`, installed once however many are mounted).
 */
 import { useEffect, useState } from 'react'
-import { Plus } from 'lucide-react'
+import { Plus } from '../lib/icons.js'
 
 import { cn } from './ui/utils.js'
 

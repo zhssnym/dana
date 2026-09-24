@@ -14,22 +14,17 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
 
 @custom-variant dark (&:is(.dark *, [data-theme="dark"] *));
 
-/* Chrome has two type sizes, 12 meta and 14 body, plus the 28 page title.
-   text-base/lg/2xl are still aliased because screens use them; the unused
-   steps are gone so a new one fails loudly. Two weights beyond body:
+/* Chrome has two type sizes, 12 meta and 14 body, plus the 28 page title
+   (--text-title-size). Every other Tailwind step is reset, so text-base/lg/xl
+   generate nothing and a stray one fails loudly. Two weights beyond body:
    font-section (500, section headings and labels) and font-title (600, the
    one thing that carries the screen: the page title). */
 @theme {
+  --text-*: initial;
   --text-xs: 12px;
   --text-xs--line-height: 16px;
   --text-sm: 14px;
   --text-sm--line-height: 20px;
-  --text-base: 14px;
-  --text-base--line-height: 20px;
-  --text-lg: 16px;
-  --text-lg--line-height: 24px;
-  --text-2xl: 28px;
-  --text-2xl--line-height: 36px;
 
   --font-weight-section: 500;
   --font-weight-title: 600;
@@ -73,7 +68,6 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --color-muted-foreground: var(--muted-foreground);
   --color-quiet-foreground: var(--quiet-foreground);
   --color-supporting-foreground: var(--supporting-foreground);
-  --color-section-foreground: var(--section-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
@@ -128,10 +122,10 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   /* r5: the one hairline, for dividers and control borders alike. */
   --line: #e9e9e7;
   --text: #37352f;
-  --text-muted: #787774;
+  --text-muted: #73726f;
   --hover: #f1f1ef;
   --accent-color: #2383e2;
-  --danger: #e03e3e;
+  --danger: #d33636;
 
   /* Deprecated: the old graphite ramp, mapped onto the palette so remaining
      raw uses read right. New code uses the semantic names below. */
@@ -182,7 +176,6 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --muted-foreground: var(--text-muted);
   --quiet-foreground: var(--color-graphite-400);
   --supporting-foreground: var(--text-muted);
-  --section-foreground: var(--color-graphite-700);
   --accent: var(--hover-tint);
   --accent-foreground: var(--text);
   --destructive: var(--danger);
@@ -202,10 +195,9 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
 
   /* The one shadow, for menus, popovers and dialogs. elevation-2 is the same
      shadow for things that really float (a dragged row, the bulk bar);
-     elevation-1 was a decorative lift on in-page things and is none. */
+     nothing in a page has a shadow. */
   --shadow-float: 0 0 0 1px rgb(15 15 15 / 5%), 0 4px 12px rgb(15 15 15 / 8%),
     0 12px 32px rgb(15 15 15 / 8%);
-  --elevation-1: none;
   --elevation-2: var(--shadow-float);
   /* Applied by the one global :focus-visible rule at the end of this file. */
   --focus-ring-width: 2px;
@@ -238,7 +230,6 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --space-row: 2px;
   --space-group: 24px;
   --shell-sidebar-row-height: 28px;
-  --shell-sidebar-row-font-size: 14px;
   --shell-sidebar-width: 240px;
   --shell-windowbar-height: 36px;
   --checkbox-size: 16px;
@@ -447,40 +438,12 @@ button:not(:disabled),
   color: var(--foreground);
 }
 
-[data-slot="sheet-content"].task-form-sheet {
-  width: var(--task-form-width, 540px) !important;
-  max-width: var(--task-form-width, 540px) !important;
-}
-
-[data-sidebar-tier="section"] {
-  font-size: var(--text-meta-size);
-  font-weight: 500;
-  color: var(--muted-foreground);
-}
-[data-sidebar-tier="primary"],
-[data-sidebar-tier="group"],
-[data-sidebar-tier="action"],
-[data-sidebar-tier="folder"] {
-  font-size: var(--shell-sidebar-row-font-size);
-  font-weight: 500;
-}
 [data-sidebar="menu"] {
   gap: 0;
 }
 [data-collapsible="icon"][data-state="collapsed"] [data-sidebar="menu-button"] {
   justify-content: center;
   margin-inline: auto;
-}
-
-[data-task-form-title] {
-  font-size: var(--text-heading-size);
-  font-weight: 600;
-  line-height: var(--text-heading-line);
-}
-[data-task-form-tier="disclosure"] {
-  font-size: var(--text-meta-size);
-  font-weight: 500;
-  line-height: var(--text-meta-line);
 }
 
 /* A query container, so page-cover.tsx can bleed a cover to 100cqw. */

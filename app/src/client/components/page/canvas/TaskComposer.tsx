@@ -296,7 +296,7 @@ export default function TaskComposer({ taskId, folderId, notes }: {
       if (window.document.activeElement instanceof HTMLElement) window.document.activeElement.blur()
     }}>
     {page === undefined || width === null
-      ? <div className="text-[length:var(--text-meta-size)] leading-5 text-section-foreground">
+      ? <div className="text-[length:var(--text-meta-size)] leading-5 text-foreground">
           {notes ? <p className="whitespace-pre-wrap">{notes}</p> : null}
           <p role="status" className={query.isError ? 'text-muted-foreground' : 'sr-only'}>
             {query.isError ? <>Couldn't open this task's writing. <Button variant="ghost" onClick={() => { void query.refetch() }}>Try again</Button></> : 'Loading writing…'}
