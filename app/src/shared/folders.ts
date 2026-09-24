@@ -86,6 +86,13 @@ what a folder made before this carried and still carries.
 export const postFoldersBody = z.object({
   name: folderName,
   description: folderDescription.nullable().optional(),
+  /* Wave 2 (pages in pages): create this page as a sub-page of that one.
+     A body id, so the ac-397 sweep never sees it: the route gates it itself
+     (404 when the viewer is not a member of the parent, 403 below edit
+     rights there) and a test proves the value arrives. The new page copies
+     the parent's members and their presets at this moment (Hassan's
+     decision 1); the creator gets full control. Absent or null is a root. */
+  parent_folder_id: z.uuid({ error: 'must be a uuid' }).nullable().optional(),
 })
 export type PostFoldersBody = z.infer<typeof postFoldersBody>
 
@@ -297,8 +304,43 @@ export const folder = z.object({
   cover_preset: z.string().nullable(),
   cover_focal_y: z.int().min(0).max(100),
   description: z.string().nullable(),
+  /* Wave 2 page tree (migration 0039). The parent as THIS viewer may see it:
+     null when the page is a root, and also null when the viewer is not a
+     member of the parent (or the parent is trashed), so an inaccessible
+     ancestor makes the child a root in that viewer's sidebar and its id
+     never leaks. `child_position` orders siblings under one parent (a
+     fractional-index key, C collation); null for roots, whose order stays
+     the viewer's own library order. Optional so an older server's answer
+     still parses. */
+  parent_folder_id: z.uuid().nullable().optional(),
+  child_position: z.string().nullable().optional(),
 })
 export type Folder = z.infer<typeof folder>
+
+/* One step of a page's breadcrumb: enough to draw and route. */
+export const folderCrumb = z.object({
+  id: z.uuid(),
+  name: z.string(),
+  icon: z.string().nullable(),
+  color: hexColor.nullable(),
+})
+export type FolderCrumb = z.infer<typeof folderCrumb>
+
+/*
+PATCH /folders/:id/location. Body { parent_folder_id, after_id? }: move a
+page under another page (null = make it a root). `after_id` names the
+sibling the page lands right after; null puts it first; absent puts it last.
+Both are body ids the ac-397 sweep cannot see, so the route gates them:
+404 when the viewer is not a member of the target parent (or of after_id's
+page), 403 below edit rights on the page or the target parent, 422 when the
+move would make a cycle or a tree deeper than 20. Answers the Folder object.
+*/
+export const patchFolderLocationBody = z.object({
+  parent_folder_id: z.uuid({ error: 'must be a uuid' }).nullable(),
+  after_id: z.uuid({ error: 'must be a uuid' }).nullable().optional(),
+})
+export type PatchFolderLocationBody = z.infer<typeof patchFolderLocationBody>
+export const patchFolderLocationResponse = folder
 
 /*
 The response side of 7.4. 7.4 fixes the Folder object, the members and
@@ -385,6 +427,12 @@ export const getFolderResponse = folder.extend({
   section_progress: z.array(sectionProgress).optional(),
   members: z.array(folderMember),
   pending_invites: z.array(folderPendingInvite),
+  /* Wave 2: the page's ancestors, root first, nearest parent last. Walked
+     upward from the parent and cut at the first ancestor the viewer is not
+     a member of (or that is trashed), so an inaccessible ancestor truncates
+     the breadcrumb and its name never reaches this viewer. Empty for a root.
+     Optional so an older server's answer still parses. */
+  ancestors: z.array(folderCrumb).optional(),
 })
 export type GetFolderResponse = z.infer<typeof getFolderResponse>
 
