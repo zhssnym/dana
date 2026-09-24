@@ -67,6 +67,9 @@ export const paths = {
   folder: (id: string) => `/app/folders/${id}`,
   shelf: (id: string) => `/app/shelves/${id}`,
   task: (id: string) => `/app/tasks/${id}`,
+  /** #320's Dana Link addresses; each redirects into its Folder's Consultation facet. */
+  discussion: (id: string) => `/app/discussions/${id}`,
+  outcome: (id: string) => `/app/outcomes/${id}`,
   trash: '/app/trash',
   settings: '/app/settings',
   people: '/app/people',

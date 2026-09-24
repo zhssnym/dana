@@ -2,13 +2,15 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import { offset } from '@floating-ui/react'
 import { BlockNoteView } from '@blocknote/shadcn'
 import {
-  FormattingToolbarController, SuggestionMenuController, SideMenuController, SideMenu,
-  DragHandleMenu, RemoveBlockItem,
+  FilePanelController, FormattingToolbarController, SuggestionMenuController, SideMenuController, SideMenu,
+  DragHandleMenu,
   useBlockNoteEditor, useComponentsContext, useExtensionState,
   getDefaultReactSlashMenuItems,
 } from '@blocknote/react'
 import type { DefaultReactSuggestionItem } from '@blocknote/react'
-import { filterSuggestionItems, SideMenuExtension } from '@blocknote/core/extensions'
+import { filterSuggestionItems, insertOrUpdateBlockForSlashMenu, SideMenuExtension } from '@blocknote/core/extensions'
+import { CanvasFilePanel } from './CanvasFilePanel.js'
+import type { CanvasMediaKind, CanvasUploadedFile } from './CanvasFilePanel.js'
 import { CanvasFormattingToolbar } from './CanvasFormattingToolbar.js'
 import {
   AlertDialog,
@@ -21,12 +23,29 @@ import {
   AlertDialogTitle,
 } from '../../ui/alert-dialog.js'
 import { installCanvasGuard } from './guard.js'
-import { ancestorsOf, bindTaskCommand, continueAfterGroup, headingOneContext, insertCanvasHeading, moveCanvasBlock, removeHeadingKeepingContent } from './commands.js'
+import { ancestorsOf, bindTaskCommand, continueAfterGroup, headingOneContext, insertCanvasHeading, insertDocumentHeading, moveCanvasBlock, removeCanvasBlocks, removeHeadingKeepingContent } from './commands.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
+import { DanaLinkSuggestions, linkSlashItem } from '../../links/dana-link-picker.js'
 import './canvas.css'
-import { ArrowDown, CheckCircle2, X } from '../../../lib/icons.js'
+import {
+  ArrowDown,
+  AudioLines,
+  CheckCircle2,
+  Code,
+  FileText,
+  Image,
+  Lightbulb,
+  ListChecks,
+  ListPlus,
+  Network,
+  Quote,
+  Video,
+  X,
+} from '../../../lib/icons.js'
 
-const CommandContext = createContext<{ task?: (block?: CanvasBlock) => void; explain: (message: string) => void }>({ explain: () => {} })
+type HeadingMode = 'section' | 'document' | 'none'
+
+const CommandContext = createContext<{ task?: (block?: CanvasBlock) => void; explain: (message: string) => void; headingMode: HeadingMode; removeFolder?: (folderId: string) => void; flat?: boolean }>({ explain: () => {}, headingMode: 'section' })
 
 function CanvasBlockMenu(): React.JSX.Element | null {
   const editor = useBlockNoteEditor() as CanvasEditor
@@ -35,22 +54,33 @@ function CanvasBlockMenu(): React.JSX.Element | null {
   const sideBlock = useExtensionState(SideMenuExtension, { editor, selector: (state) => state?.block })
   const block = sideBlock === undefined ? undefined : editor.getBlock(sideBlock.id)
   if (block === undefined) return null
-  const group = block.type === 'heading' ? block : (ancestorsOf(editor.document, block.id) ?? []).at(-1)
+  const group = commands.headingMode === 'section'
+    ? block.type === 'heading' && block.props.isToggleable !== false
+      ? block
+      : (ancestorsOf(editor.document, block.id) ?? []).filter((item) => item.type === 'heading' && item.props.isToggleable !== false).at(-1)
+    : undefined
+  const directions = commands.headingMode === 'section' ? (['up', 'down', 'out', 'in'] as const) : (['up', 'down'] as const)
   return (
     <DragHandleMenu>
-      {(['up', 'down', 'out', 'in'] as const).map((direction) => <components.Generic.Menu.Item key={direction} onClick={() => commands.explain(moveCanvasBlock(editor, block, direction) ?? '')}>
+      {directions.filter((direction) => !commands.flat || (direction !== 'out' && !(direction === 'in' && block.type === 'heading'))).map((direction) => <components.Generic.Menu.Item key={direction} onClick={() => commands.explain(moveCanvasBlock(editor, block, direction) ?? '')}>
         <span>{{ up: 'Move up', down: 'Move down', out: 'Move out of group', in: 'Move into previous group' }[direction]}</span>
       </components.Generic.Menu.Item>)}
       {block.type === 'paragraph' && commands.task ? <components.Generic.Menu.Item onClick={() => commands.task?.(block)}><CheckCircle2 size={16} /><span>Convert to Task</span></components.Generic.Menu.Item> : null}
-      {group?.type === 'heading' ? (
+      {group?.type === 'heading' && !commands.flat ? (
         <components.Generic.Menu.Item onClick={() => continueAfterGroup(editor, group)}>
           <ArrowDown size={16} /><span>Continue after group</span>
         </components.Generic.Menu.Item>
       ) : null}
-      {block.type === 'heading' ? (
+      {block.type === 'heading' && commands.headingMode === 'section' ? (
         <components.Generic.Menu.Item onClick={() => removeHeadingKeepingContent(editor, block)}>
           <X size={16} /><span>Remove heading<span className="block text-xs text-muted-foreground">Keep its Tasks and content</span></span>
         </components.Generic.Menu.Item>
+      ) : block.type === 'danaFolder' ? (
+        /* #221: a Folder row is the Shelf's membership, so it leaves through the
+           membership act and never through generic Delete. */
+        commands.removeFolder ? <components.Generic.Menu.Item onClick={() => commands.removeFolder?.(block.props.folderId)}>
+          <X size={16} /><span>Remove from shelf<span className="block text-xs text-muted-foreground">The folder itself is kept</span></span>
+        </components.Generic.Menu.Item> : null
       ) : block.type === 'danaTask' ? (
         /*
         Why a Task block has no Delete, said in words that name a control that
@@ -63,7 +93,10 @@ function CanvasBlockMenu(): React.JSX.Element | null {
         be reachable is the same defect waiting for the next change.
         */
         <p className="px-3 py-2 text-sm text-muted-foreground">Delete a Task from its own row, under More actions. A finished Task keeps its row in Done.</p>
-      ) : <RemoveBlockItem>Delete</RemoveBlockItem>}
+      ) : <components.Generic.Menu.Item onClick={() => {
+        const selected = editor.getSelection()?.blocks
+        removeCanvasBlocks(editor, selected?.some((item) => item.id === block.id) ? selected : [block])
+      }}>Delete</components.Generic.Menu.Item>}
     </DragHandleMenu>
   )
 }
@@ -93,13 +126,36 @@ const canvasSidePosition = {
 }
 
 /** Visual editor host. The caller owns hydration, uploads, Task actions and durable saving. */
-export function CanvasSurface({ editor, onChange, onCreateTask, folderRefs, allowHeadings = true, editable = true }: {
+export function CanvasSurface({
+  editor,
+  onChange,
+  onCreateTask,
+  folderRefs,
+  onUploadFile,
+  headingMode = 'section',
+  editable = true,
+  label,
+  onRemoveFolder,
+  flatGroups = false,
+  extraSlashItems,
+}: {
   readonly editor: CanvasEditor
   readonly onChange: (editor: CanvasEditor) => void
   readonly onCreateTask?: (block?: CanvasBlock) => void
   readonly folderRefs: ReadonlyMap<string, string>
-  readonly allowHeadings?: boolean
+  readonly onUploadFile: (
+    kind: CanvasMediaKind,
+    file: File,
+  ) => Promise<CanvasUploadedFile>
+  readonly headingMode?: HeadingMode
   readonly editable?: boolean
+  readonly label?: string
+  /** A Shelf's Remove from shelf, offered on its Folder rows (#221). */
+  readonly onRemoveFolder?: (folderId: string) => void
+  /** A Shelf stores its headings flat, content belonging by position: one
+   * heading level, and no "out of group" gestures a reload would undo. */
+  readonly flatGroups?: boolean
+  readonly extraSlashItems?: readonly DefaultReactSuggestionItem[]
 }): React.JSX.Element {
   const [feedback, setFeedback] = useState('')
   const [referenceToConvert, setReferenceToConvert] = useState<CanvasBlock | null>(null)
@@ -117,7 +173,7 @@ export function CanvasSurface({ editor, onChange, onCreateTask, folderRefs, allo
     return () => observer.disconnect()
   }, [])
   return (
-    <CommandContext.Provider value={{ task: onCreateTask ? requestTask : undefined, explain: setFeedback }}>
+    <CommandContext.Provider value={{ task: onCreateTask ? requestTask : undefined, explain: setFeedback, headingMode, removeFolder: onRemoveFolder, flat: flatGroups }}>
     <div className="dana-writing-canvas min-w-0">
       <BlockNoteView
         editor={editor}
@@ -126,24 +182,165 @@ export function CanvasSurface({ editor, onChange, onCreateTask, folderRefs, allo
         formattingToolbar={false}
         slashMenu={false}
         sideMenu={false}
+        filePanel={false}
         onChange={() => { setFeedback(''); onChange(editor) }}
-        aria-label="Folder writing and Tasks"
+        aria-label={label ?? (onCreateTask === undefined ? 'Folder writing' : 'Folder writing and Tasks')}
       >
         <FormattingToolbarController formattingToolbar={CanvasFormattingToolbar} />
+        <FilePanelController
+          filePanel={(props) => (
+            <CanvasFilePanel {...props} onUpload={onUploadFile} />
+          )}
+        />
         <SideMenuController sideMenu={CanvasSideMenu} floatingUIOptions={canvasSidePosition} />
         <SuggestionMenuController triggerCharacter="/" getItems={async (query) => {
           const defaults = getDefaultReactSlashMenuItems(editor)
-          const byKey = (key: string): DefaultReactSuggestionItem | undefined => defaults.find((item) => 'key' in item && item.key === key)
-          const core: DefaultReactSuggestionItem[] = defaults.filter((item) => 'key' in item && (item.key === 'paragraph' || item.key === 'image'))
-            .map((item) => 'key' in item && item.key === 'paragraph' ? { ...item, title: 'Text' } : item)
+          const byKey = (
+            key: string,
+          ): DefaultReactSuggestionItem | undefined =>
+            defaults.find((item) => 'key' in item && item.key === key)
+          const paragraph = byKey('paragraph')
           const heading = byKey('heading')
-          if (allowHeadings && heading !== undefined) {
-            core.splice(1, 0, { ...heading, title: 'Heading 1', onItemClick: () => insertCanvasHeading(editor, 1) })
-            if (headingOneContext(editor) !== undefined) core.splice(2, 0, {
-              ...byKey('heading_2') ?? heading, title: 'Heading 2', subtext: 'A subgroup inside Heading 1',
-              onItemClick: () => insertCanvasHeading(editor, 2),
+          const core: DefaultReactSuggestionItem[] = [
+            ...(paragraph === undefined
+              ? []
+              : [{ ...paragraph, title: 'Text' }]),
+          ]
+
+          if (headingMode === 'section' && heading !== undefined) {
+            core.push({
+              ...heading,
+              title: 'Heading 1',
+              onItemClick: () => insertCanvasHeading(editor, 1),
             })
+            if (!flatGroups && headingOneContext(editor) !== undefined) {
+              core.push({
+                ...(byKey('heading_2') ?? heading),
+                title: 'Heading 2',
+                subtext: 'A subgroup inside Heading 1',
+                onItemClick: () => insertCanvasHeading(editor, 2),
+              })
+            }
+          } else if (headingMode === 'document' && heading !== undefined) {
+            core.push(
+              ...([1, 2, 3] as const).map((level) => ({
+                ...(level === 1
+                  ? heading
+                  : byKey(`heading_${String(level)}`) ?? heading),
+                title: `Heading ${String(level)}`,
+                subtext: 'Document heading',
+                onItemClick: () => insertDocumentHeading(editor, level),
+              })),
+            )
           }
+
+          const authored = (
+            title: string,
+            type:
+              | 'bulletListItem'
+              | 'numberedListItem'
+              | 'checkListItem'
+              | 'quote'
+              | 'callout'
+              | 'codeBlock'
+              | 'diagram'
+              | 'image'
+              | 'file'
+              | 'audio'
+              | 'video',
+            icon: React.JSX.Element,
+            aliases: string[],
+            subtext: string,
+          ): DefaultReactSuggestionItem => ({
+            title,
+            subtext,
+            aliases,
+            group: 'Basic blocks',
+            icon,
+            onItemClick: () =>
+              insertOrUpdateBlockForSlashMenu(editor, { type }),
+          })
+
+          core.push(
+            authored(
+              'Bulleted list',
+              'bulletListItem',
+              <ListPlus size={16} />,
+              ['bullet', 'unordered list'],
+              'A simple list',
+            ),
+            authored(
+              'Numbered list',
+              'numberedListItem',
+              <ListPlus size={16} />,
+              ['numbered', 'ordered list'],
+              'An automatically numbered list',
+            ),
+            authored(
+              'Checklist',
+              'checkListItem',
+              <ListChecks size={16} />,
+              ['check', 'todo list'],
+              'Authored checklist, not a Task',
+            ),
+            authored(
+              'Quote',
+              'quote',
+              <Quote size={16} />,
+              ['blockquote'],
+              'Quoted writing',
+            ),
+            authored(
+              'Callout',
+              'callout',
+              <Lightbulb size={16} />,
+              ['note'],
+              'A neutral highlighted note',
+            ),
+            authored(
+              'Code',
+              'codeBlock',
+              <Code size={16} />,
+              ['code block'],
+              'Plain monospaced code',
+            ),
+            authored(
+              'Diagram',
+              'diagram',
+              <Network size={16} />,
+              ['flowchart', 'mermaid', 'chart'],
+              'Boxes and arrows from text',
+            ),
+            authored(
+              'Image',
+              'image',
+              <Image size={16} />,
+              ['picture', 'photo'],
+              'Upload an image',
+            ),
+            authored(
+              'File',
+              'file',
+              <FileText size={16} />,
+              ['attachment', 'document'],
+              'Upload as a downloadable file',
+            ),
+            authored(
+              'Audio',
+              'audio',
+              <AudioLines size={16} />,
+              ['sound'],
+              'Upload previewable audio',
+            ),
+            authored(
+              'Video',
+              'video',
+              <Video size={16} />,
+              ['movie'],
+              'Upload previewable video',
+            ),
+          )
+
           if (onCreateTask !== undefined) core.splice(1, 0, {
             title: 'Task', subtext: 'A Dana Task', icon: <CheckCircle2 size={16} />,
             /*
@@ -175,8 +372,16 @@ export function CanvasSurface({ editor, onChange, onCreateTask, folderRefs, allo
             },
             aliases: ['todo'], group: 'Basic blocks',
           })
-          return filterSuggestionItems(core.map((item) => ({ ...item, size: 'small' as const })), query)
+          // "Link to…" (#223) sits after the Task item.
+          const task = core.findIndex((item) => item.title === 'Task')
+          core.splice(task < 0 ? core.length : task + 1, 0, linkSlashItem(editor))
+          core.push(...extraSlashItems ?? [])
+          /* One group: the default heading items carry 'Headings' between
+             'Basic blocks' items, and BlockNote keys groups by name, so two
+             'Basic blocks' runs render a duplicate key and an empty header. */
+          return filterSuggestionItems(core.map((item) => ({ ...item, group: 'Basic blocks', size: 'small' as const })), query)
         }} />
+        {editable ? <DanaLinkSuggestions editor={editor} /> : null}
       </BlockNoteView>
       <p role="status" aria-live="polite" className="min-h-6 px-2 text-sm text-muted-foreground">{feedback}</p>
     </div>

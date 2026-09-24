@@ -870,6 +870,9 @@ export const taskCard = z.object({
   folder: taskCardFolder,
   assignee: folderMemberUser.nullable(),
   is_recurring: z.boolean(),
+  /* The rule itself rides the card so a list row can name the repeat ("Daily")
+     rather than guess one; it was TaskDetail's alone and every row said "Weekly". */
+  recurrence_rule: recurrenceRule.nullable(),
   steps_done: z.int().nonnegative(),
   steps_total: z.int().nonnegative(),
   pulled: z.boolean(),
@@ -944,7 +947,6 @@ exactly that, and never the presence of an id.
 */
 export const taskDetail = taskCard.extend({
   notes: taskNotes.nullable(),
-  recurrence_rule: recurrenceRule.nullable(),
   series_id: z.uuid().nullable(),
   reminder: taskReminder.nullable(),
   steps: z.array(taskStep),

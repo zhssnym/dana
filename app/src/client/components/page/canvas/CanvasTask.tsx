@@ -1,13 +1,20 @@
 import { createContext, useContext, useMemo } from 'react'
 import type { ReactNode } from 'react'
 import { createReactBlockSpec } from '@blocknote/react'
+import { useQueryClient } from '@tanstack/react-query'
+import { Check } from 'lucide-react'
+import { Link, useParams } from 'react-router'
 
 import { TaskRows } from '../../../pages/task-rows.js'
 import { useTask } from '../../../api/queries.js'
+import { queryKeys } from '../../../api/keys.js'
+import type { GetFolderTasksOpenResponse } from '../../../../shared/views.js'
 
 type TaskRowsProps = Parameters<typeof TaskRows>[0]
 type TaskBridge = Pick<TaskRowsProps, 'context' | 'actions' | 'onAsk'> & {
   readonly byId: ReadonlyMap<string, TaskRowsProps['tasks'][number]>
+  /** The open list was cut at Q7's cap, so an unlisted Task may still be open. */
+  readonly truncated: boolean
 }
 
 const TaskContext = createContext<TaskBridge | null>(null)
@@ -19,89 +26,51 @@ export function CanvasTaskProvider({
   readonly children: ReactNode
 }): React.JSX.Element {
   const byId = useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks])
-  const value = useMemo(() => ({ byId, context, actions, onAsk }), [byId, context, actions, onAsk])
+  for (const task of tasks) knownTitles.set(task.id, task.title)
+  /* The route's own open list, from the cache FolderPage filled: no request.
+     Unknown (not cached) reads as truncated, which keeps the by-id fallback. */
+  const { id: folderId = '' } = useParams<{ id: string }>()
+  const truncated = useQueryClient().getQueryData<GetFolderTasksOpenResponse>(queryKeys.folderTasks(folderId, 'open'))?.truncated ?? true
+  const value = useMemo(() => ({ byId, truncated, context, actions, onAsk }), [byId, truncated, context, actions, onAsk])
   return <TaskContext.Provider value={value}>{children}</TaskContext.Provider>
 }
 
 /**
- * One `danaTask` block: the open row it stands for, or its place alone.
- *
- * **A finished Task keeps its place in the document and loses its row, and
- * that is the half #204 got the wrong way round.** The comment this replaces
- * said "Completion removes the row from the open-task view, not from the
- * document", and the second clause is right: `page.items` carries every
- * undeleted task of the folder, so the block and its `page_position` survive
- * completing and un-completing, and nothing here has to preserve them. The
- * first clause is what the code did not do. The open list this canvas draws
- * inside is 9.1's "All open tasks" region, the finished pile is the Done
- * section collapsed at its foot (9.6), and a completed Task was being drawn in
- * both: the fallback below fetched it by id the moment it left the open list
- * and rendered it struck through in the body, a second or so after first
- * paint, while the Done control beside it said it was hiding one thing. Live
- * from 2026-09-17 to 2026-09-20 (#234, cause 3); AC-176 is the criterion that
- * reads it, and it read it as one title resolving in two regions.
+ * Titles the canvas has seen, for the clipboard (#316). BlockNote renders
+ * `toExternalHTML` outside this tree, so `TaskContext` is null there and the
+ * only thing it can read is module state. A Task it has never seen still
+ * copies as a working link to its own page, titled "Task".
+ */
+const knownTitles = new Map<string, string>()
+
+/**
+ * One `danaTask` block: the open row it stands for, or a slim "Completed Task"
+ * line in its place.
  *
  * **The open list is the authority for what the body draws.** `PageBody`
- * renders nothing until that query resolves, so by the time this component
- * exists `byId` is the whole open list; a block that is not in it is a Task
- * that is not open. The by-id read is kept for the two cases that are not
- * that — a Task past Q7's 1000-row cap, which is open and simply absent from
- * the page's copy of the list, and a Task that has gone since this document
- * was hydrated — and its pending state draws nothing rather than "Loading
- * Task…", because the answer it is waiting for is usually "this one belongs to
- * Done" and a line that announces a row which is not coming is worse than the
- * gap it fills.
+ * renders nothing until that query resolves, so `byId` is the whole open list
+ * and a block that is not in it is a Task that is not open. Its row belongs to
+ * Done (9.6), so the body never draws it as a row (#234, AC-176) — and it does
+ * not fetch it either (#312): one `GET /tasks/:id` per finished placement,
+ * repeated by every unfiltered invalidation, bought nothing on screen. The
+ * by-id read is kept only when the open list says it was cut at Q7's cap
+ * (`truncated`), where an unlisted Task may still be open.
  *
- * **A block that draws nothing must also occupy nothing, and `null` alone does
- * not do that.** BlockNote wraps every block in `.bn-block-content`, which its
- * own stylesheet gives `padding: 3px 0` and `display: flex`, so a React render
- * that returns `null` is still a 6px blank line sitting in the middle of the
- * writing at whatever `page_position` the Task was completed in. Measured on
- * the running page rather than reasoned about: a folder holding an open Task,
- * a finished Task and a second open Task read `bn-block-outer` heights of 52,
- * 6 and 52, and hovering the 6 raised the side menu with Move up, Move down,
- * Move out of group, Move into previous group and a line pointing at a Task
- * menu that is not drawn. So this component marks the blank states with
- * `data-canvas-task-blank`, `canvas.css` collapses that block to nothing, and
- * the three things the gap caused go with it: the hole in the prose, a side
- * menu offered on an invisible block, and Move on a block nobody can see. The
- * second and third go because a zero-height block cannot be the hovered one —
- * measured, not assumed: the menu raised at its y belongs to the neighbour it
- * shares that y with, and Move down from it moves the neighbour.
- *
- * `aria-hidden` says the same thing to a reader who is not looking: an empty
- * element announces nothing today, and the attribute is what keeps that true
- * if anything is ever put inside it.
- *
- * **What the collapse cannot reach is the guard**, which reads the document
- * rather than the screen: a drag-select across the prose either side of a
- * finished Task still spans its block, and `installCanvasGuard` still refuses
- * the whole transaction. That refusal's wording is `guard.ts`'s and had to
- * move with this, because "use its Dana menu" names a control a finished Task
- * does not draw.
+ * **The finished Task keeps a visible line, not zero height** (#315, #314,
+ * superseding #278's collapse). A zero-height block had no drag handle, so its
+ * `page_position` could not be moved, and a selection spanning it was vetoed
+ * with nothing to point at. The line is short and muted so the writing reads
+ * through it, carries BlockNote's side menu like any block, shows up in a
+ * selection, and links to the Task's own page.
  */
 function ResolvedTask({ taskId, bridge }: { readonly taskId: string; readonly bridge: TaskBridge }): React.JSX.Element {
   const listed = bridge.byId.get(taskId)
-  const detail = useTask(listed === undefined ? taskId : null)
+  const detail = useTask(listed === undefined && bridge.truncated ? taskId : null)
   const task = listed ?? detail.data
-  const finished = listed === undefined && task?.status === 'completed'
-  /* Finished, and the moment before the by-id read has answered — which is
-     usually on its way to finished, so collapsing it too is what stops the
-     writing jumping by 6px a second after first paint. */
-  const blank = finished || (task === undefined && detail.isPending)
-  return (
-    <div
-      data-canvas-task-id={taskId}
-      data-canvas-task-blank={blank ? '' : undefined}
-      aria-hidden={blank || undefined}
-      className="min-w-0"
-      contentEditable={false}
-    >
-      {blank ? null : task === undefined ? (
-        <p role="status" className="py-2 text-sm text-muted-foreground">
-          This Task is unavailable. Its place is preserved.
-        </p>
-      ) : (
+  const open = task !== undefined && (listed !== undefined || task.status !== 'completed')
+  if (open) {
+    return (
+      <div data-canvas-task-id={taskId} className="min-w-0" contentEditable={false}>
         <TaskRows
           tasks={[task]}
           context={bridge.context}
@@ -110,7 +79,24 @@ function ResolvedTask({ taskId, bridge }: { readonly taskId: string; readonly br
           arrangement={{ arrangeable: false }}
           selectionChrome={false}
         />
-      )}
+      </div>
+    )
+  }
+  // A Task the truncated open list did not carry is unknown until its own read
+  // answers: say nothing about it rather than calling an open Task completed.
+  if (listed === undefined && detail.isLoading) {
+    return (
+      <div data-canvas-task-id={taskId} data-canvas-task-loading="" className="min-w-0 text-xs text-muted-foreground" contentEditable={false} role="status">
+        Loading Task…
+      </div>
+    )
+  }
+  return (
+    <div data-canvas-task-id={taskId} data-canvas-task-done="" className="min-w-0" contentEditable={false}>
+      <Link to={`/app/tasks/${taskId}`} className="inline-flex items-center gap-1.5 text-xs">
+        <Check aria-hidden className="size-3" />
+        {detail.isError ? 'Task unavailable' : 'Completed Task'}
+      </Link>
     </div>
   )
 }
@@ -124,5 +110,10 @@ export function CanvasTask({ taskId }: { readonly taskId: string }): React.JSX.E
 
 export const createCanvasTaskSpec = createReactBlockSpec(
   { type: 'danaTask', propSchema: { taskId: { default: '' } }, content: 'none' },
-  { render: ({ block }) => <CanvasTask taskId={block.props.taskId} /> },
+  {
+    render: ({ block }) => <CanvasTask taskId={block.props.taskId} />,
+    toExternalHTML: ({ block }) => (
+      <p><a href={`${window.location.origin}/app/tasks/${block.props.taskId}`}>{knownTitles.get(block.props.taskId) ?? 'Task'}</a></p>
+    ),
+  },
 )

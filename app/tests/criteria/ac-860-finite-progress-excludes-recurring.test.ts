@@ -78,23 +78,28 @@ describe('AC-860 finite progress excludes recurring Tasks', () => {
       sql`, deleted_at = now()`,
     )
     // A recurring series: one completed occurrence and its pending successor.
+    // The completed one is stored as 8.5 leaves it, its rule handed to the
+    // successor and its series_id kept, which is the shape that grew the
+    // denominator when a null rule alone meant one-off.
     const series = randomUUID()
-    const recurring = sql`, recurrence_rule = 'FREQ=DAILY', series_id = ${series}::uuid`
-    for (const status of ['completed', 'pending'] as const) {
-      await place(
-        await seedTask(app.db, { ...base, status, dueDate: '2026-09-24' }),
-        section,
-        recurring,
-      )
-    }
+    await place(
+      await seedTask(app.db, { ...base, status: 'completed', dueDate: '2026-09-23' }),
+      section,
+      sql`, series_id = ${series}::uuid`,
+    )
+    await place(
+      await seedTask(app.db, { ...base, status: 'pending', dueDate: '2026-09-24' }),
+      section,
+      sql`, recurrence_rule = 'FREQ=DAILY', series_id = ${series}::uuid`,
+    )
 
     expect(
       await countRows(
         app.db,
         sql`SELECT count(*)::int AS n FROM tasks WHERE folder_id = ${folderId}::uuid
-              AND recurrence_rule IS NOT NULL AND section_block_id = ${section}::uuid`,
+              AND series_id IS NOT NULL AND section_block_id = ${section}::uuid`,
       ),
-      'the seed must store two recurring occurrences in the section',
+      'the seed must store two occurrences of one series in the section',
     ).toBe(2)
 
     const response = await owner.browser.api(`/folders/${folderId}`)
@@ -134,5 +139,31 @@ describe('AC-860 finite progress excludes recurring Tasks', () => {
     expect(listed?.progress, 'GET /folders carries the same Folder progress').toEqual(
       body.progress,
     )
+  })
+
+  test('a completed Task whose repeat was turned off still counts as done', async () => {
+    const [owner] = await cast.of(app)
+    if (owner === undefined) throw new Error('cast must produce an owner')
+    const folderId = await createFolder(owner, 'p3 ac860 repeat off')
+    const base = { folderId, createdBy: owner.id }
+    await seedTask(app.db, { ...base, status: 'completed' })
+    await seedTask(app.db, { ...base, status: 'completed' })
+    await seedTask(app.db, { ...base, status: 'pending' })
+    await seedTask(app.db, { ...base, status: 'pending' })
+    // Turning repeat off clears the rule and keeps the series_id; no later
+    // occurrence exists, so this is finished one-off work.
+    await place(
+      await seedTask(app.db, { ...base, status: 'completed', dueDate: '2026-09-23' }),
+      null,
+      sql`, series_id = ${randomUUID()}::uuid`,
+    )
+
+    const response = await owner.browser.api(`/folders/${folderId}`)
+    expectStatus(response, 200, 'GET /folders/:id must answer the folder (spec 7.4)')
+    expect((response.json() as Record<string, unknown>).progress).toEqual({
+      done: 3,
+      total: 5,
+      recurring_active: 0,
+    })
   })
 })

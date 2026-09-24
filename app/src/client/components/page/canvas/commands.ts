@@ -34,12 +34,12 @@ export function moveCanvasBlock(editor: CanvasEditor, block: CanvasBlock, direct
     items.splice(target, 0, moving)
   } else if (direction === 'in') {
     const previous = items[index - 1]
-    if (previous?.type !== 'heading') return 'Move this item immediately after a heading before moving it into that group.'
+    if (previous?.type !== 'heading' || previous.props.isToggleable === false) return 'Move this item immediately after a work heading before moving it into that group.'
     if (moving.type === 'heading') moving.props.level = previous.props.level + 1
     items.splice(index, 1)
     previous.children.push(moving)
   } else {
-    if (!parent || parent.type !== 'heading') return 'This item is already at the page root.'
+    if (!parent || parent.type !== 'heading' || parent.props.isToggleable === false) return 'This item is already at the page root.'
     const ancestors = ancestorsOf(document, parent.id) ?? []
     const destination = ancestors.at(-1)?.children ?? document
     if (moving.type === 'heading') moving.props.level = parent.props.level
@@ -79,7 +79,7 @@ export function removeEmptyBeforeHeading(editor: CanvasEditor, key: 'Backspace' 
   const index = siblings.findIndex((block) => block.id === current.id)
   const empty = key === 'Backspace' ? siblings[index - 1] : current
   const group = key === 'Backspace' ? current : siblings[index + 1]
-  if (group?.type !== 'heading' || empty?.type !== 'paragraph' || empty.content.length !== 0 || empty.children.length !== 0) return false
+  if (group?.type !== 'heading' || group.props.isToggleable === false || empty?.type !== 'paragraph' || empty.content.length !== 0 || empty.children.length !== 0) return false
   editor.transact(() => {
     editor.removeBlocks([empty])
     editor.setTextCursorPosition(group, 'start')
@@ -120,6 +120,15 @@ export function insertCanvasHeading(editor: CanvasEditor, level: 1 | 2): void {
   editor.focus()
 }
 
+/** A presentation heading changes typography only. It never opens a Work group. */
+export function insertDocumentHeading(editor: CanvasEditor, level: 1 | 2 | 3): void {
+  insertOrUpdateBlockForSlashMenu(editor, {
+    type: 'heading',
+    props: { level, isToggleable: false },
+  })
+  editor.focus()
+}
+
 /** Explicit touch/keyboard route after a complete subtree, including hidden children. */
 export function continueAfterGroup(editor: CanvasEditor, group: CanvasBlock): void {
   const [paragraph] = editor.insertBlocks([{ type: 'paragraph', content: '' }], group, 'after')
@@ -134,4 +143,18 @@ export function removeHeadingKeepingContent(editor: CanvasEditor, group: CanvasB
     : child)
   editor.replaceBlocks([group], children.length > 0 ? children : [{ type: 'paragraph' }])
   editor.focus()
+}
+
+/** Remove blocks without letting BlockNote refill an emptied page: it fills
+ * with the schema's first block type, a toggle heading, which saved as an
+ * empty Section. Removing everything leaves the empty paragraph instead. */
+export function removeCanvasBlocks(editor: CanvasEditor, blocks: readonly CanvasBlock[]): void {
+  const ids = new Set(blocks.map((block) => block.id))
+  const first = editor.document[0]
+  editor.transact(() => {
+    if (first !== undefined && editor.document.every((block) => ids.has(block.id))) {
+      editor.insertBlocks([{ type: 'paragraph' }], first, 'before')
+    }
+    editor.removeBlocks([...ids])
+  })
 }

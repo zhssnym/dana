@@ -137,6 +137,9 @@ export const trashedDiscussion = z.object({
   is_owner: z.boolean(),
   /** The viewer's own Access preset for that Folder. */
   my_access: folderAccessPreset,
+  /** Whether the viewer may restore it (`discussion.restore`, or its creator
+      while unshared). Absent from an older server: treat as restorable. */
+  restorable: z.boolean().optional(),
 })
 export type TrashedDiscussion = z.infer<typeof trashedDiscussion>
 

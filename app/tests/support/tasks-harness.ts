@@ -63,6 +63,7 @@ export const TASK_CARD_KEYS = [
   'id',
   'important',
   'is_recurring',
+  'recurrence_rule',
   /* Issue #226's Label projection. This list is a transcription of 7.0, and
      `expectExactKeys` is exact in both directions, so it moves in the same
      change as the spec and the server. */
@@ -78,12 +79,11 @@ export const TASK_CARD_KEYS = [
   'updated_at',
 ] as const
 
-/** What TaskDetail adds to TaskCard, spec 7.0: seven keys. */
+/** What TaskDetail adds to TaskCard, spec 7.0: six keys. */
 export const TASK_DETAIL_EXTRA_KEYS = [
   'completed_at',
   'completed_by',
   'notes',
-  'recurrence_rule',
   'reminder',
   'series_id',
   'steps',

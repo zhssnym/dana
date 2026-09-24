@@ -1,10 +1,15 @@
-import { BlockNoteSchema, createExtension, createHeadingBlockSpec, defaultBlockSpecs, defaultStyleSpecs } from '@blocknote/core'
+import { BlockNoteSchema, createExtension, createHeadingBlockSpec, defaultBlockSpecs, defaultInlineContentSpecs, defaultStyleSpecs } from '@blocknote/core'
 
+import { AUDIO_MIMES, RASTER_MIMES, VIDEO_MIMES } from '../../../../shared/files.js'
 import { MAX_SECTION_DEPTH } from '../../../../shared/page-document.js'
 
+import { createCanvasCallout } from './CanvasCallout.js'
 import { createCanvasTaskSpec } from './CanvasTask.js'
+import { createCanvasFolderSpec } from './CanvasFolder.js'
 import { createCanvasParagraph } from './CanvasParagraph.js'
-import { createTaskAtCursor, removeEmptyBeforeHeading } from './commands.js'
+import { createCanvasDiagramSpec } from './CanvasDiagram.js'
+import { createTaskAtCursor, removeCanvasBlocks, removeEmptyBeforeHeading } from './commands.js'
+import { danaLinkInlineSpec } from '../../links/dana-link-chip.js'
 
 // The vocabulary only, derived from the one ceiling rather than restated beside it.
 // A Section's level is its depth in the persisted outline, so the editor must be able
@@ -24,7 +29,7 @@ const groupHeading = {
         const { selection } = editor.prosemirrorState
         const block = editor.getTextCursorPosition().block
         // Let BlockNote handle selections, mid-title splitting and ordinary prose.
-        if (block.type !== 'heading' || !selection.empty || selection.$from.parentOffset !== selection.$from.parent.content.size) return false
+        if (block.type !== 'heading' || block.props.isToggleable === false || !selection.empty || selection.$from.parentOffset !== selection.$from.parent.content.size) return false
         // Upstream splitting transfers children to the new paragraph. Dana's group
         // membership must survive, so use its public subtree insertion operation.
         if (window.localStorage.getItem(`toggle-${block.id}`) === 'false') {
@@ -77,14 +82,110 @@ const groupHeading = {
   },
 }
 
+/**
+ * Keep BlockNote's media recognition on the exact same MIME allowlists the
+ * server accepts. This makes a dropped unsupported media file fall through to
+ * the generic File block instead of drawing a player the server will refuse.
+ */
+function mediaSpec<T>(spec: T, accept: readonly string[]): T {
+  const typed = spec as unknown as {
+    implementation: {
+      meta?: Record<string, unknown>
+    }
+  }
+  return {
+    ...typed,
+    implementation: {
+      ...typed.implementation,
+      meta: {
+        ...typed.implementation.meta,
+        fileBlockAccept: [...accept],
+      },
+    },
+  } as unknown as T
+}
+
+/* Issue #267: a media block whose file was reclaimed arrives with no url, which
+   the stock block draws as the same empty frame as one never filled. `reclaimedAt`
+   (hydrated from `file_reclaimed_at`, never saved) swaps that frame for a notice
+   that says what happened, with the two ways out: pick a new file (clearing the
+   notice shows the ordinary upload state) or remove the block. A picture had it
+   first; file, audio and video carry the same notice, and the adapter keeps
+   every reclaimed one in the saved document rather than dropping it. */
+type MediaRender = (this: unknown, block: { id: string; props: { url: string; caption?: string } }, editor: unknown) => { dom: HTMLElement }
+type WithReclaimedAt<T extends { config: { propSchema: object } }> = Omit<T, 'config'> & {
+  config: Omit<T['config'], 'propSchema'> & { propSchema: T['config']['propSchema'] & { reclaimedAt: { default: '' } } }
+}
+function withReclaimNotice<T extends { config: { propSchema: object } }>(spec: T, noun: string): WithReclaimedAt<T> {
+  const typed = spec as unknown as { config: { propSchema: Record<string, unknown> }; implementation: { render: MediaRender } }
+  const stockRender = typed.implementation.render
+  return {
+    ...typed,
+    config: { ...typed.config, propSchema: { ...typed.config.propSchema, reclaimedAt: { default: '' } } },
+    implementation: {
+      ...typed.implementation,
+      render: function (block, editor) {
+        const reclaimedAt = (block.props as { reclaimedAt?: string }).reclaimedAt ?? ''
+        if (reclaimedAt === '' || block.props.url !== '') return stockRender.call(this, block, editor)
+        const dom = document.createElement('div')
+        dom.className = 'dana-reclaimed-image'
+        dom.contentEditable = 'false'
+        dom.setAttribute('role', 'group')
+        const date = new Date(reclaimedAt)
+        const message = document.createElement('p')
+        message.textContent = `This ${noun} was deleted on ${Number.isNaN(date.getTime()) ? 'an earlier date' : date.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}.`
+        dom.setAttribute('aria-label', message.textContent)
+        dom.appendChild(message)
+        if (block.props.caption) {
+          const caption = document.createElement('p')
+          caption.className = 'dana-reclaimed-image-caption'
+          caption.textContent = block.props.caption
+          dom.appendChild(caption)
+        }
+        const actions = document.createElement('div')
+        const button = (label: string, run: () => void): void => {
+          const element = document.createElement('button')
+          element.type = 'button'
+          element.textContent = label
+          element.addEventListener('click', (event) => { event.preventDefault(); run() })
+          actions.appendChild(element)
+        }
+        button(`Choose a new ${noun}`, () => { (editor as CanvasEditor).updateBlock(block.id, { props: { reclaimedAt: '' } }) })
+        button('Remove', () => { const canvas = editor as CanvasEditor; const own = canvas.getBlock(block.id); if (own) removeCanvasBlocks(canvas, [own]) })
+        dom.appendChild(actions)
+        return { dom }
+      } satisfies MediaRender,
+    },
+  } as unknown as WithReclaimedAt<T>
+}
+
+const audio = withReclaimNotice(mediaSpec(defaultBlockSpecs.audio, AUDIO_MIMES), 'file')
+const video = withReclaimNotice(mediaSpec(defaultBlockSpecs.video, VIDEO_MIMES), 'file')
+const file = withReclaimNotice(defaultBlockSpecs.file, 'file')
+const image = withReclaimNotice(mediaSpec(defaultBlockSpecs.image, RASTER_MIMES), 'picture')
+
 /** Restricted vocabulary, projected to Dana records by the persistence adapter. */
 export const canvasSchema = BlockNoteSchema.create({
   blockSpecs: {
     paragraph: createCanvasParagraph(),
     heading: groupHeading,
-    image: defaultBlockSpecs.image,
+    bulletListItem: defaultBlockSpecs.bulletListItem,
+    numberedListItem: defaultBlockSpecs.numberedListItem,
+    checkListItem: defaultBlockSpecs.checkListItem,
+    quote: defaultBlockSpecs.quote,
+    callout: createCanvasCallout(),
+    codeBlock: defaultBlockSpecs.codeBlock,
+    image,
+    file,
+    audio,
+    video,
     danaTask: createCanvasTaskSpec(),
+    // A Shelf's native Folder row (#221); only the Shelf canvas inserts one.
+    danaFolder: createCanvasFolderSpec(),
+    diagram: createCanvasDiagramSpec(),
   },
+  // A Dana Link (#223) is a chip; `adapters.ts` stores it as an href run.
+  inlineContentSpecs: { ...defaultInlineContentSpecs, danaLink: danaLinkInlineSpec },
   styleSpecs: { bold: defaultStyleSpecs.bold, italic: defaultStyleSpecs.italic },
 })
 

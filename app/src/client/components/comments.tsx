@@ -390,7 +390,12 @@ function Composer({
 }: {
   placeholder: string
   autoFocus?: boolean
-  onSubmit: (comment: Omit<ConceptComment, "id" | "author" | "at" | "mine">) => void
+  /* A caller that returns a promise gets the typed text back if it rejects:
+     the composer clears at once, and a refused post (a Discussion resolved
+     meanwhile, #212) must not lose what was written. */
+  onSubmit: (
+    comment: Omit<ConceptComment, "id" | "author" | "at" | "mine">,
+  ) => void | Promise<unknown>
   onCancel?: () => void
   /* Seam three: B5 defers voice, so the microphone is not drawn and the
      recorder below it is kept whole for the package that lands it. */
@@ -439,9 +444,17 @@ function Composer({
     if (disabled) return
     const body = text.trim()
     if (!body && files.length === 0) return
-    onSubmit({ body: body || undefined, files: files.length ? files : undefined })
+    const sentText = text
+    const sentFiles = files
+    const sent = onSubmit({ body: body || undefined, files: files.length ? files : undefined })
     setText("")
     setFiles([])
+    if (sent !== undefined) {
+      sent.catch(() => {
+        setText((now) => (now === "" ? sentText : now))
+        setFiles((now) => (now.length === 0 ? sentFiles : now))
+      })
+    }
   }
 
   async function startRecording() {
@@ -1033,9 +1046,12 @@ export function CommentsThread({
   emptyWord = "comment",
   layout = "block",
   canComment = true,
+  closedReason,
 }: {
   comments: ConceptComment[]
-  onChange: (next: ConceptComment[]) => void
+  /* May return a promise; a top-level post that rejects gives the composer
+     its text back. */
+  onChange: (next: ConceptComment[]) => void | Promise<unknown>
   placeholder?: string
   /* Whether this viewer may write into the conversation at all
      (`comment.create`, Can comment's; issue #268).
@@ -1047,6 +1063,10 @@ export function CommentsThread({
      is the lab's answer and what every surface that has not worked out the
      viewer's Access gets. */
   canComment?: boolean
+  /* A conversation that takes no comments from anyone right now (a resolved
+     Discussion, #212): the composer is disabled and says this instead of the
+     standing sentence, which would blame the viewer's Access. */
+  closedReason?: string
   /* "comment" in a card, "message" in a chat panel, the only wording that
      differs between the surfaces. */
   emptyWord?: string
@@ -1162,13 +1182,15 @@ export function CommentsThread({
 
   const composer = (
     <Composer
-      disabled={!canComment}
+      disabled={!canComment || closedReason !== undefined}
       placeholder={
-        canComment
-          ? comments.length === 0
-            ? `Write the first ${emptyWord}`
-            : placeholder
-          : COMMENTING_NEEDS_STANDING
+        closedReason !== undefined
+          ? closedReason
+          : canComment
+            ? comments.length === 0
+              ? `Write the first ${emptyWord}`
+              : placeholder
+            : COMMENTING_NEEDS_STANDING
       }
       onSubmit={(partial) => onChange([...comments, newComment(partial)])}
     />

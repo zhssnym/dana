@@ -95,6 +95,10 @@ export function writeFailureMessage(error: unknown): string {
  * message is already written for the person to correct their input. */
 export const VALIDATION_ERROR_TOAST_META = 'validationErrorToast'
 
+/** A mutation carrying this metadata draws its own 422 inline, where the
+ * person is looking, so the toast would say the same thing twice (#225). */
+export const INLINE_VALIDATION_META = 'inlineValidation'
+
 export function mutationFailureMessage(
   error: unknown,
   meta: Readonly<Record<string, unknown>> | undefined,
@@ -132,10 +136,23 @@ export function createQueryClient(): QueryClient {
     }),
     mutationCache: new MutationCache({
       onError: (error, _variables, _onMutateResult, mutation) => {
+        if (
+          mutation.meta?.[INLINE_VALIDATION_META] === true &&
+          error instanceof ApiError &&
+          error.status === 422
+        ) {
+          return
+        }
         showToast(mutationFailureMessage(error, mutation.meta))
       },
       onSuccess: () => {
-        void queryClientRef?.invalidateQueries()
+        // A Dana Link chip's label (queryKeys.reference) is left to its own
+        // staleTime: invalidating it on every save refetched one
+        // GET /references per chip on each canvas autosave.
+        void queryClientRef?.invalidateQueries({
+          predicate: (query) =>
+            !(query.queryKey[0] === 'references' && query.queryKey[1] !== 'search'),
+        })
       },
     }),
     defaultOptions: {

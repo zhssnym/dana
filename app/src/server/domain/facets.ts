@@ -182,6 +182,33 @@ export async function listFacets(
   return rows.map(facetFromRow)
 }
 
+/**
+ * The owning Folder of one live native Purpose or Results facet, before viewer access is
+ * considered. The route that exposes this fact immediately resolves that
+ * Folder through `accessOf`; keeping the two steps separate is deliberate so
+ * the id-bearing route carries the same explicit Folder gate as every other
+ * facet read while still refusing a missing/other-kind/deleted facet alike.
+ *
+ * Hidden is deliberately absent: hide is presentation state and a valid Dana
+ * Link may still focus a hidden Purpose without changing the shared setting.
+ */
+export async function nativeDocumentFacetFolderId(
+  db: Db,
+  facetId: string,
+): Promise<string | null> {
+  const found = await rowsOf(
+    db,
+    sql`SELECT ff.folder_id
+          FROM folder_facets ff
+          JOIN folders fo ON fo.id = ff.folder_id AND fo.deleted_at IS NULL
+         WHERE ff.id = ${facetId}::uuid
+           AND ff.kind IN ('purpose', 'results')
+           AND ff.deleted_at IS NULL`,
+  )
+  const row = found[0]
+  return row === undefined ? null : String(row.folder_id)
+}
+
 /* ------------------------------------------------------------------ *
  * Creating the natives with the folder (7.4)
  * ------------------------------------------------------------------ */
@@ -1231,6 +1258,7 @@ function facetBlockFromRow(row: Record<string, unknown>): PageBlock {
     file_width: nullableInt(row.file_width),
     file_height: nullableInt(row.file_height),
     file_reclaimed_at: fileReclaimedAt(row),
+    file_name: nullableString(row.file_name),
     ref_folder_id: null,
     width_pct: row.width_pct === null || row.width_pct === undefined ? null : Number(row.width_pct),
     updated_at: toIso(row.updated_at),
@@ -1266,7 +1294,7 @@ export async function facetPageView(
       tx,
       sql`SELECT b.id, b.kind, b.position, b.page_position, b.checked,
                  b.list_parent_block_id, b.rich_content, b.text, b.file_id, b.width_pct, b.updated_at, b.file_reclaimed_at,
-                 f.width AS file_width, f.height AS file_height
+                 f.width AS file_width, f.height AS file_height, f.name AS file_name
             FROM page_blocks b
             LEFT JOIN files f ON f.id = b.file_id
            WHERE b.facet_id = ${facetId}::uuid
@@ -1670,7 +1698,7 @@ async function facetPageViewIn(tx: Executor, facetId: string): Promise<PageView>
     tx,
     sql`SELECT b.id, b.kind, b.position, b.page_position, b.checked,
                b.list_parent_block_id, b.rich_content, b.text, b.file_id, b.width_pct, b.updated_at, b.file_reclaimed_at,
-               f.width AS file_width, f.height AS file_height
+               f.width AS file_width, f.height AS file_height, f.name AS file_name
           FROM page_blocks b
           LEFT JOIN files f ON f.id = b.file_id
          WHERE b.facet_id = ${facetId}::uuid

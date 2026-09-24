@@ -38,8 +38,10 @@ import { AbandonedPage } from './pages/AbandonedPage.js'
 import { AllPage } from './pages/AllPage.js'
 import { AnytimePage } from './pages/AnytimePage.js'
 import { AssignmentsPage } from './pages/AssignmentsPage.js'
+import { DiscussionLinkPage, OutcomeLinkPage } from './pages/ConsultationLinkPage.js'
 import { DeskPage } from './pages/DeskPage.js'
 import { DonePage } from './pages/DonePage.js'
+import { FacetEntryPage } from './pages/FacetEntryPage.js'
 import { FolderPage } from './pages/FolderPage.js'
 import { ImportantPage } from './pages/ImportantPage.js'
 import { LandingPage } from './pages/LandingPage.js'
@@ -132,11 +134,18 @@ export function Router(): React.JSX.Element {
           <Route path="anytime" element={<AnytimePage />} />
           <Route path="trash" element={<TrashPage />} />
           <Route path="folders/:id" element={<FolderPage />} />
+          {/* A stable Purpose Dana Link enters through its facet identity,
+              then resolves into the owning Folder without changing hide state. */}
+          <Route path="facets/:id" element={<FacetEntryPage />} />
           {/* The S12 addresses: a shelf's page (9.10), and a task's own
               (7.17) — matched before the retired "/app/tasks" redirect
               below, which only claims the bare path. */}
           <Route path="shelves/:id" element={<ShelfPage />} />
           <Route path="tasks/:id" element={<TaskPage />} />
+          {/* #320's Dana Link addresses: each resolves its Folder and
+              replaces itself with the Consultation facet's URL state. */}
+          <Route path="discussions/:id" element={<DiscussionLinkPage />} />
+          <Route path="outcomes/:id" element={<OutcomeLinkPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="people" element={<PeoplePage />} />
           {composerExploration === null ? null : (
