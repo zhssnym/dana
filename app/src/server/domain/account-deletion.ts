@@ -39,6 +39,7 @@ grows a sixteenth that nothing here names — over `SET NULL` as well as
 `CASCADE`, there being none of the former today and that being the reason to
 enumerate it rather than to wait for one.
 */
+import { notSamplePerson } from '../sample/people.js'
 import { sql } from 'drizzle-orm'
 
 import { deleteFolderRow, runRClean, transferOwnership } from './folders.js'
@@ -447,7 +448,8 @@ export async function deleteAccountData(
     sql`SELECT id FROM folders f
         WHERE f.owner_id = ${userId} AND NOT f.is_default
           AND EXISTS (SELECT 1 FROM folder_members m
-                       WHERE m.folder_id = f.id AND m.user_id <> ${userId})`,
+                       WHERE m.folder_id = f.id AND m.user_id <> ${userId}
+                         AND ${notSamplePerson(sql`m.user_id`)})`,
   )
   for (const row of transferable) {
     await transferOwnership(tx, String(row.id), userId)

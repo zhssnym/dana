@@ -10,6 +10,7 @@ Results are discriminated unions rather than thrown statuses, so the route
 layer owns the mapping onto 7.0's taxonomy and this file stays testable
 without HTTP.
 */
+import { notSamplePerson } from '../sample/people.js'
 import { sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 
@@ -1126,7 +1127,8 @@ export async function otherMemberCount(
   const found = await rowsOf(
     db,
     sql`SELECT count(*)::int AS n FROM folder_members
-        WHERE folder_id = ${folderId} AND user_id <> ${excludingUserId}`,
+        WHERE folder_id = ${folderId} AND user_id <> ${excludingUserId}
+          AND ${notSamplePerson(sql`user_id`)}`,
   )
   return Number(found[0]?.n ?? 0)
 }
@@ -1329,6 +1331,7 @@ export async function transferOwnership(
     tx,
     sql`SELECT user_id FROM folder_members
         WHERE folder_id = ${folderId} AND user_id <> ${departingOwnerId}
+          AND ${notSamplePerson(sql`user_id`)}
         ORDER BY created_at ASC, user_id ASC
         LIMIT 1`,
   )
@@ -1576,12 +1579,14 @@ export async function ownedSharedFolders(
     sql`SELECT f.id, f.name,
                EXISTS (SELECT 1 FROM folder_members s
                         WHERE s.folder_id = f.id AND s.user_id <> ${ownerId}
+                          AND ${notSamplePerson(sql`s.user_id`)}
                           AND s.access = 'full_control') AS heir
         FROM folders f
         WHERE f.owner_id = ${ownerId} AND NOT f.is_default
           AND f.deleted_at IS NULL
           AND EXISTS (SELECT 1 FROM folder_members m
-                       WHERE m.folder_id = f.id AND m.user_id <> ${ownerId})
+                       WHERE m.folder_id = f.id AND m.user_id <> ${ownerId}
+                         AND ${notSamplePerson(sql`m.user_id`)})
         ORDER BY lower(f.name) ASC, f.id ASC`,
   )
   return found.map((row) => ({
