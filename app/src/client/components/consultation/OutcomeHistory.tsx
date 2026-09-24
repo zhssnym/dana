@@ -12,7 +12,6 @@ import { ChevronRight } from 'lucide-react'
 import { useDiscussionOutcomes } from '../../api/consultation.js'
 import { formatAgo } from '../../parts/format-dates.js'
 import type { PersonResolver } from '../../lib/thread.js'
-import { Badge } from '../ui/badge.js'
 
 export function OutcomeHistory(props: {
   discussionId: string
@@ -49,7 +48,7 @@ export function OutcomeHistory(props: {
         onClick={() => {
           setOpen((v) => !v)
         }}
-        className="flex items-center gap-1 rounded-md px-1 py-0.5 text-[13px] font-medium text-[var(--color-graphite-700)] outline-none hover:bg-[var(--color-graphite-100)] focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)]"
+        className="flex items-center gap-1 rounded-md px-1 py-0.5 text-xs font-medium text-[var(--color-graphite-700)] outline-none hover:bg-[var(--color-graphite-100)] focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)]"
       >
         <ChevronRight
           className={`size-3.5 transition-transform ${open ? 'rotate-90' : ''}`}
@@ -59,7 +58,7 @@ export function OutcomeHistory(props: {
         Outcome history ({sorted.length})
       </button>
       {open ? (
-        <ol className="space-y-2">
+        <ol className="divide-y divide-[var(--color-graphite-100)]">
           {sorted.map((outcome) => {
             const focused = outcome.id === focusOutcomeId
             return (
@@ -68,22 +67,13 @@ export function OutcomeHistory(props: {
                 ref={focused ? focusRef : undefined}
                 data-focused={focused ? 'true' : undefined}
                 aria-current={focused ? 'true' : undefined}
-                className={`rounded-lg border p-3 text-sm ${
-                  focused
-                    ? 'border-[var(--color-dana-accent-600)] bg-[var(--color-dana-accent-50)] ring-2 ring-[var(--color-dana-accent-200)]'
-                    : 'border-border bg-card'
+                className={`py-2.5 text-sm ${
+                  focused ? '-ml-3 border-l-2 border-[var(--color-graphite-900)] pl-2.5' : ''
                 }`}
               >
                 <div className="mb-1 flex flex-wrap items-center gap-2">
-                  {outcome.current ? (
-                    <Badge className="bg-[var(--color-success-100)] text-[var(--color-success-700)]">
-                      Current
-                    </Badge>
-                  ) : (
-                    <Badge variant="secondary">Previous</Badge>
-                  )}
                   <span className="text-xs text-[var(--color-graphite-500)]">
-                    {personOf(outcome.actor_id).name} · {formatAgo(outcome.created_at, now)}
+                    {outcome.current ? 'Current' : 'Previous'} · {personOf(outcome.actor_id).name} · {formatAgo(outcome.created_at, now)}
                   </span>
                   {outcome.source_comment_id !== null ? (
                     <span className="text-xs text-[var(--color-graphite-500)]">

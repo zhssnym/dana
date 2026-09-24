@@ -918,6 +918,7 @@ export async function trashedDiscussions(
   const rows = await rowsOf(
     db,
     sql`SELECT d.id, d.title, d.folder_id, d.created_by, d.trashed_at,
+               d.state, d.is_general,
                fo.name AS folder_name, m.access,
                (fo.owner_id = ${viewerId}) AS is_owner
           FROM discussions d
@@ -927,22 +928,60 @@ export async function trashedDiscussions(
          WHERE d.trashed_at IS NOT NULL
          ORDER BY d.trashed_at DESC, d.id DESC`,
   )
-  return rows.map((row): TrashedDiscussion => {
-    const access = presetOf(row.access)
-    if (access === null) {
-      throw new Error(
-        `folder_members.access holds an unknown preset for ${viewerId} in ${String(row.folder_id)}`,
+  /* `restorable` is the restore route's own decision, read without the lock:
+     a Trash row offers Restore only to a viewer the route would admit. */
+  const factsByFolder = new Map<string, FolderActorFacts | null>()
+  const listed: TrashedDiscussion[] = []
+  for (const row of rows) {
+    const folderId = String(row.folder_id)
+    if (!factsByFolder.has(folderId)) {
+      factsByFolder.set(
+        folderId,
+        await folderActorFacts(db, viewerId, folderId, { includeTrashed: true }),
       )
     }
-    return {
-      id: String(row.id),
-      title: String(row.title),
-      folder_id: String(row.folder_id),
-      folder_name: String(row.folder_name),
-      deleted_at: toIso(row.trashed_at),
-      created_by: String(row.created_by),
-      is_owner: row.is_owner === true,
-      my_access: access,
-    }
-  })
+    const facts = factsByFolder.get(folderId) ?? null
+    const restorable =
+      facts !== null &&
+      (
+        await lifecycleDecision(
+          db,
+          facts,
+          {
+            id: String(row.id),
+            folderId,
+            title: String(row.title),
+            createdBy: String(row.created_by),
+            state: row.state === 'resolved' ? 'resolved' : 'open',
+            trashed: true,
+            isGeneral: row.is_general === true,
+          },
+          'discussion.restore',
+        )
+      ).allowed
+    listed.push({ ...shapeTrashedDiscussion(row, viewerId), restorable })
+  }
+  return listed
+}
+
+function shapeTrashedDiscussion(
+  row: Record<string, unknown>,
+  viewerId: string,
+): TrashedDiscussion {
+  const access = presetOf(row.access)
+  if (access === null) {
+    throw new Error(
+      `folder_members.access holds an unknown preset for ${viewerId} in ${String(row.folder_id)}`,
+    )
+  }
+  return {
+    id: String(row.id),
+    title: String(row.title),
+    folder_id: String(row.folder_id),
+    folder_name: String(row.folder_name),
+    deleted_at: toIso(row.trashed_at),
+    created_by: String(row.created_by),
+    is_owner: row.is_owner === true,
+    my_access: access,
+  }
 }

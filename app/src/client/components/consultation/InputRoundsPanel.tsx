@@ -119,14 +119,14 @@ export function InputRoundsPanel(props: {
 
   if (rounds.isPending) {
     return (
-      <section aria-label="Input rounds" className="text-xs text-muted-foreground">
+      <section aria-label="Input rounds" className="text-xs text-[var(--color-graphite-600)]">
         Loading input…
       </section>
     )
   }
   if (rounds.isError) {
     return (
-      <section aria-label="Input rounds" className="flex items-center gap-2 text-xs text-muted-foreground">
+      <section aria-label="Input rounds" className="flex items-center gap-2 text-xs text-[var(--color-graphite-600)]">
         {READ_FAILED}
         <Button variant="link" size="sm" onClick={() => void rounds.refetch()}>
           {TRY_AGAIN}
@@ -168,7 +168,7 @@ export function InputRoundsPanel(props: {
         <div className="flex flex-col gap-2">
           <button
             type="button"
-            className="self-start text-xs text-muted-foreground hover:text-foreground"
+            className="self-start text-xs text-[var(--color-graphite-600)] hover:text-[var(--color-graphite-900)]"
             aria-expanded={showPast}
             onClick={() => setShowPast((v) => !v)}
           >
@@ -237,7 +237,7 @@ function AskForm({
   return (
     <form
       aria-label="Ask for input"
-      className="flex flex-col gap-2 rounded-lg border border-border p-3"
+      className="flex flex-col gap-2 rounded-lg border border-[var(--color-graphite-200)] p-3"
       onSubmit={(e) => {
         e.preventDefault()
         submit()
@@ -258,7 +258,7 @@ function AskForm({
           </Button>
         ))}
       </div>
-      <p className="text-xs text-muted-foreground">{MODE_HINT[mode]}</p>
+      <p className="text-xs text-[var(--color-graphite-600)]">{MODE_HINT[mode]}</p>
       <Textarea
         aria-label="Question"
         placeholder="What do you want input on?"
@@ -305,7 +305,7 @@ function AskForm({
               </Button>
             ) : null}
             {duplicate ? (
-              <span className="text-xs text-destructive">Each option must be different.</span>
+              <span className="text-xs text-[var(--color-danger-600)]">Each option must be different.</span>
             ) : null}
           </div>
         </div>
@@ -361,24 +361,18 @@ function RoundCard({
   return (
     <article
       aria-label={`${isOpen ? 'Open' : 'Closed'} input round: ${round.prompt}`}
-      className={cn(
-        'flex flex-col gap-3 rounded-lg border p-3',
-        isOpen ? 'border-border bg-card' : 'border-border/60 bg-muted/30',
-      )}
+      className="flex flex-col gap-3 border-t border-[var(--color-graphite-100)] pt-3"
     >
       <header className="flex flex-col gap-1">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span className="rounded-sm bg-muted px-1.5 py-0.5 font-medium text-foreground">
-            {MODE_LABEL[round.mode]}
-          </span>
+        <div className="flex items-center gap-2 text-xs text-[var(--color-graphite-600)]">
           <span>
-            {asker.name === 'You' ? 'You asked' : `${asker.name} asked`}, {shortDate(round.created_at)}
+            {MODE_LABEL[round.mode]} · {asker.name === 'You' ? 'You asked' : `${asker.name} asked`},{' '}
+            {shortDate(round.created_at)}
           </span>
-          {isOpen ? <span className="text-primary">Open</span> : null}
         </div>
-        <p className="text-sm font-medium whitespace-pre-wrap text-foreground">{round.prompt}</p>
+        <p className="text-sm font-medium whitespace-pre-wrap text-[var(--color-graphite-800)]">{round.prompt}</p>
         {closedLine !== null ? (
-          <p className="text-xs text-muted-foreground">{closedLine}</p>
+          <p className="text-xs text-[var(--color-graphite-600)]">{closedLine}</p>
         ) : null}
       </header>
 
@@ -460,14 +454,14 @@ function ChooseBody({
                     aria-hidden
                     className={cn(
                       'size-3 shrink-0 rounded-full border',
-                      chosen ? 'border-primary bg-primary' : 'border-input',
+                      chosen ? 'border-[var(--color-dana-accent-600)] bg-[var(--color-dana-accent-600)]' : 'border-[var(--color-graphite-300)]',
                     )}
                   />
                 ) : null}
-                <span className="text-sm text-foreground">{option.label}</span>
+                <span className="text-sm text-[var(--color-graphite-800)]">{option.label}</span>
               </span>
               <Faces people={people} responses={who} />
-              <span className="min-w-[4.5rem] text-right text-xs text-muted-foreground tabular-nums">
+              <span className="min-w-[4.5rem] text-right text-xs text-[var(--color-graphite-600)] tabular-nums">
                 {count} {count === 1 ? 'choice' : 'choices'}
               </span>
             </>
@@ -485,13 +479,13 @@ function ChooseBody({
                   }}
                   className={cn(
                     'flex w-full items-center gap-2 rounded-md border px-2 py-1.5 text-left transition-colors',
-                    chosen ? 'border-primary/50 bg-primary/5' : 'border-border hover:bg-muted/50',
+                    chosen ? 'border-[var(--color-dana-accent-600)]/50 bg-[var(--color-dana-accent-600)]/5' : 'border-[var(--color-graphite-200)] hover:bg-[var(--color-graphite-50)]',
                   )}
                 >
                   {body}
                 </button>
               ) : (
-                <div className="flex w-full items-center gap-2 rounded-md border border-border/60 px-2 py-1.5">
+                <div className="flex w-full items-center gap-2 rounded-md border border-[var(--color-graphite-200)]/60 px-2 py-1.5">
                   {body}
                 </div>
               )}
@@ -524,7 +518,7 @@ function Faces({
         return <PersonFace key={r.user_id} name={p.faceName} initials={p.initials} image={p.image} dense />
       })}
       {responses.length > 5 ? (
-        <span className="pl-1.5 text-xs text-muted-foreground">+{responses.length - 5}</span>
+        <span className="pl-1.5 text-xs text-[var(--color-graphite-600)]">+{responses.length - 5}</span>
       ) : null}
     </span>
   )
@@ -549,7 +543,7 @@ function MyWrittenResponse({
 
   if (!editing && mine !== null) {
     return (
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+      <div className="flex items-center gap-2 text-xs text-[var(--color-graphite-600)]">
         <span>You’ve responded.</span>
         <Button variant="link" size="sm" className="px-0" onClick={() => setEditing(true)}>
           Change
@@ -652,7 +646,7 @@ function ResponseList({
 }): React.JSX.Element {
   if (round.responses.length === 0) {
     return (
-      <p className="text-xs text-muted-foreground">
+      <p className="text-xs text-[var(--color-graphite-600)]">
         {round.state === 'open' ? 'No responses yet.' : 'No one responded.'}
       </p>
     )
@@ -666,14 +660,14 @@ function ResponseList({
             <PersonFace name={p.faceName} initials={p.initials} image={p.image} dense className="mt-0.5" />
             <div className="flex min-w-0 flex-col gap-0.5">
               <div className="flex items-center gap-2 text-xs">
-                <span className="font-medium text-foreground">{p.name}</span>
+                <span className="font-medium text-[var(--color-graphite-800)]">{p.name}</span>
                 {r.concern !== null ? (
                   <span
                     className={cn(
                       'rounded-sm px-1.5 py-0.5',
                       r.concern === 'concern'
-                        ? 'bg-destructive/10 text-destructive'
-                        : 'bg-muted text-muted-foreground',
+                        ? 'bg-[var(--color-danger-100)] text-[var(--color-danger-700)]'
+                        : 'bg-[var(--color-graphite-50)] text-[var(--color-graphite-600)]',
                     )}
                   >
                     {r.concern === 'concern' ? 'Concern' : 'No concern'}
@@ -681,7 +675,7 @@ function ResponseList({
                 ) : null}
               </div>
               {r.body !== null && r.body !== '' ? (
-                <p className="text-sm whitespace-pre-wrap text-foreground">{r.body}</p>
+                <p className="text-sm whitespace-pre-wrap text-[var(--color-graphite-800)]">{r.body}</p>
               ) : null}
             </div>
           </li>

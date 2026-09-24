@@ -12,7 +12,6 @@ import {
   DISCUSSION_CONTEXT_MAX,
   DISCUSSION_TITLE_MAX,
 } from '../../../shared/consultation.js'
-import { MessageSquare } from '../../lib/icons.js'
 import { Button } from '../ui/button.js'
 import {
   Dialog,
@@ -74,9 +73,6 @@ export function StartDiscussionDialog({
       <DialogContent className="w-[min(520px,calc(100vw-32px))]">
         <form onSubmit={submit}>
           <DialogHeader>
-            <div className="mb-2 flex size-9 items-center justify-center rounded-lg bg-[var(--color-graphite-100)] text-[var(--color-graphite-700)]">
-              <MessageSquare className="size-5" strokeWidth={1.75} aria-hidden="true" />
-            </div>
             <DialogTitle>Start a discussion</DialogTitle>
             <DialogDescription>
               Raise a question for this folder. People discuss it, then record the outcome.
@@ -107,7 +103,7 @@ export function StartDiscussionDialog({
                 htmlFor="start-discussion-context"
                 className="mb-1.5 block text-xs font-medium text-[var(--color-graphite-700)]"
               >
-                Context <span className="font-normal text-muted-foreground">(optional)</span>
+                Context <span className="font-normal text-[var(--color-graphite-600)]">(optional)</span>
               </label>
               <Textarea
                 id="start-discussion-context"
@@ -123,7 +119,7 @@ export function StartDiscussionDialog({
               {context.length >= COUNTER_FROM ? (
                 <p
                   id="start-discussion-context-count"
-                  className="mt-1 text-right text-xs text-muted-foreground tabular-nums"
+                  className="mt-1 text-right text-xs text-[var(--color-graphite-600)] tabular-nums"
                 >
                   {context.length} / {DISCUSSION_CONTEXT_MAX}
                 </p>
