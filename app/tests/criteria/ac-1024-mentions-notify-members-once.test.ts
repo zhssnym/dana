@@ -8,7 +8,10 @@ AC-1024: an @mention tells a page member once, and nobody else (Wave 2, W-D).
   notification, and the save answers exactly as it does for a member;
 - a mention naming no existing person is refused and writes nothing;
 - a Task document mention notifies the member with the Task as its subject;
-- account deletion (8.10 step 6c) sweeps the departed account's notice rows.
+- account deletion (8.10 step 6c) sweeps the departed account's notice rows;
+- in a thread post the same holds: a member is told once ("mentioned you in
+  <thread>") and not also sent `commented` for that post, a non-member is not
+  told, and editing the post does not tell them again.
 
 Security and data-loss class: a notice to a non-member names a page they
 cannot open; a notice per save is a flood; a row that outlives its account is
@@ -35,6 +38,7 @@ import { at, compose, put, readPage } from '../support/workflow-page-harness.js'
 
 let app: AuthTestApp
 const cast = new Cast(['owner', 'member', 'stranger'], 'ac1024')
+const threadCast = new Cast(['author', 'reader', 'outsider'], 'ac1024t')
 
 beforeAll(async () => {
   app = await startAuthTestApp()
@@ -43,11 +47,18 @@ beforeAll(async () => {
 afterAll(async () => {
   if ((app as AuthTestApp | undefined) === undefined) return
   await cast.cleanup(app.db)
+  await threadCast.cleanup(app.db)
   await app.close()
 })
 
 interface Line {
-  event: { verb: string; subject_kind: string; subject_id: string; actor_id: string }
+  event: { verb: string; subject_kind: string; subject_id: string; actor_id: string; detail: string | null }
+}
+
+async function linesAbout(actor: Actor, subjectId: string): Promise<Line[]> {
+  const response = await actor.browser.api('/notifications')
+  expect(response.status).toBe(200)
+  return (response.json() as { notifications: Line[] }).notifications.filter((line) => line.event.subject_id === subjectId)
 }
 
 async function mentionsOf(actor: Actor): Promise<Line[]> {
@@ -157,5 +168,38 @@ describe('AC-1024 mentions notify page members once', () => {
       await countRows(app.db, sql`SELECT count(*)::int AS n FROM mention_notices WHERE user_id = ${member.id}::uuid`),
       'account deletion sweeps mention_notices',
     ).toBe(0)
+  })
+
+  test('a thread post tells a member once, not a stranger, and an edit tells nobody again', async () => {
+    const [author, reader, outsider] = (await threadCast.of(app)) as [Actor, Actor, Actor]
+    await connect(app.db, author.id, reader.id)
+    const folderId = await createFolder(author, 'ac1024 thread home')
+    await addMemberOk(author, folderId, reader.id)
+    const made = await author.browser.json(`/folders/${folderId}/discussions`, 'POST', { title: 'ac1024 thread' })
+    expect(made.status).toBe(201)
+    const discussionId = String((made.json() as { id: string }).id)
+    // The reader speaks first, so they are a participant `commented` would reach.
+    const first = await reader.browser.json(`/discussions/${discussionId}/comments`, 'POST', { body: 'I am here' })
+    expect(first.status).toBe(201)
+
+    const post = (...people: string[]) => ({ version: 1, blocks: [{ kind: 'paragraph', rich_content: runs(...people) }] })
+    const posted = await author.browser.json(`/discussions/${discussionId}/comments`, 'POST', { content: post(reader.id, outsider.id) })
+    expect(posted.status).toBe(201)
+    const postId = String((posted.json() as { id: string }).id)
+
+    const told = await linesAbout(reader, postId)
+    expect(told.map((line) => line.event.verb), 'one notice for the post: the mention, not also commented').toEqual(['mentioned'])
+    expect(told[0]?.event.detail).toBe('mentioned you in "ac1024 thread"')
+    expect(await linesAbout(outsider, postId), 'a non-member is never told').toHaveLength(0)
+    expect(
+      await countRows(app.db, sql`SELECT count(*)::int AS n FROM mention_notices WHERE user_id = ${outsider.id}::uuid`),
+    ).toBe(0)
+
+    const edited = await author.browser.json(`/comments/${postId}`, 'PATCH', { content: post(reader.id) })
+    expect(edited.status).toBe(200)
+    expect((await linesAbout(reader, postId)).filter((line) => line.event.verb === 'mentioned'), 'an edit does not tell them again').toHaveLength(1)
+
+    const ghost = await author.browser.json(`/discussions/${discussionId}/comments`, 'POST', { content: post(randomUUID()) })
+    expect(ghost.status, 'a mention naming nobody is refused').toBe(422)
   })
 })

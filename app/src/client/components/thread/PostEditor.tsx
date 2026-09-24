@@ -6,7 +6,7 @@ Shelf's folder row, diagram) — the post contract (`shared/comments.ts`) has no
 kind for any of them — so the slash menu (`slash-items.tsx`, surface
 `document`: flat headings, no Task, no Section) cannot offer one. Nothing of
 the canvas is forked: the block specs, the slash menu, the formatting toolbar,
-the file panel and the Dana Link picker are the canvas's.
+the file panel and the `@` menu (people, then pages) are the canvas's.
 
 **Files.** An image pasted, dropped or picked uploads at once through
 `POST /files` (the canvas's upload), and the block holds its served URL; the
@@ -25,7 +25,7 @@ import '@blocknote/shadcn/style.css'
 import type { CommentFile, PostContent } from '../../../shared/comments.js'
 import { uploadFile } from '../../api/http.js'
 import { Button } from '../ui/button.js'
-import { DanaLinkSuggestions } from '../links/dana-link-picker.js'
+import { MentionSuggestions } from '../page/canvas/mentions.js'
 import { pageTheme } from '../page/canvas/BlockSideMenu.js'
 import { CanvasFilePanel } from '../page/canvas/CanvasFilePanel.js'
 import type { CanvasMediaKind } from '../page/canvas/CanvasFilePanel.js'
@@ -188,7 +188,7 @@ export default function PostEditor({
           <FormattingToolbarController formattingToolbar={CanvasFormattingToolbar} />
           <FilePanelController filePanel={(props) => <CanvasFilePanel {...props} onUpload={upload} />} />
           <CanvasSlashMenu editor={editor as unknown as CanvasEditor} context={SLASH} />
-          <DanaLinkSuggestions editor={editor as unknown as CanvasEditor} />
+          <MentionSuggestions editor={editor as unknown as CanvasEditor} folderId={folderId} />
         </BlockNoteView>
       </div>
       <div className="mt-2 flex items-center justify-end gap-2">

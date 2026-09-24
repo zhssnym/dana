@@ -22,26 +22,11 @@ import type { DefaultReactSuggestionItem } from '@blocknote/react'
 
 import { useFolder } from '../../../api/queries.js'
 import { PersonFace } from '../../person-face.js'
+import { MentionChip } from './mention-chip.js'
 import { atWordStart, hint, pageSuggestionItems, TRIGGER } from '../../links/dana-link-picker.js'
 import type { CanvasEditor } from './schema.js'
 
-const CHIP = 'dana-mention mx-px inline-flex max-w-[24rem] items-center gap-1 rounded-md bg-muted py-px pr-1.5 pl-0.5 align-baseline text-[length:var(--text-body-size)] leading-[1.5] text-foreground'
-
-/** The name a chip shows: the stored text without its `@`. */
-export function mentionName(label: string): string {
-  const name = label.replace(/^@/, '').trim()
-  return name === '' ? 'Someone' : name
-}
-
-export function MentionChip({ label }: { readonly label: string }): React.JSX.Element {
-  const name = mentionName(label)
-  return (
-    <span className={CHIP} contentEditable={false} data-mention="">
-      <PersonFace name={name} dense className="shrink-0" />
-      <span className="truncate">{name}</span>
-    </span>
-  )
-}
+export { MentionChip, mentionName } from './mention-chip.js'
 
 export const mentionInlineSpec = createReactInlineContentSpec(
   {

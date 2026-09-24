@@ -40,9 +40,12 @@ export interface MentionSource {
   /** A post's comment (phase 2): its `content` is read instead of blocks. */
   commentId?: string
   /** The caller's refusal, so an unknown person leaves by the caller's own
-   * door (its 422) and nothing here knows about HTTP. */
-  refuse: (message: string) => Error
+   * door (its 422) and nothing here knows about HTTP. Default: `MentionRefusal`. */
+  refuse?: (message: string) => Error
 }
+
+/** An unknown person in a post; the comment paths turn it into their 422. */
+export class MentionRefusal extends Error {}
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -90,16 +93,27 @@ interface Source {
 export async function syncMentions(tx: Executor, input: MentionSource): Promise<string[]> {
   const sources: Source[] = []
   let subject: { kind: 'folder' | 'task' | 'comment'; id: string; name: string } | null = null
+  let detail = 'mentioned you'
 
   if (input.commentId !== undefined) {
     const rows = await rowsOf(
       tx,
-      sql`SELECT c.id, c.content, c.body FROM comments c WHERE c.id = ${input.commentId}::uuid`,
+      sql`SELECT c.id, c.content, c.body, t.title AS task_title,
+                 d.title AS discussion_title, f.name AS folder_name
+            FROM comments c
+            JOIN folders f ON f.id = c.folder_id
+            LEFT JOIN tasks t ON t.id = c.task_id
+            LEFT JOIN discussions d ON d.id = c.discussion_id
+           WHERE c.id = ${input.commentId}::uuid`,
     )
     const row = rows[0]
     if (row !== undefined) {
       sources.push({ blockId: null, commentId: String(row.id), users: mentionedUserIds(row.content) })
-      subject = { kind: 'comment', id: String(row.id), name: String(row.body ?? '').slice(0, 200) }
+      const words = String(row.body ?? '')
+      subject = { kind: 'comment', id: String(row.id), name: words.length > 120 ? `${words.slice(0, 119)}…` : words }
+      // The thread's name, as the `commented` event's detail names it.
+      const place = String(row.task_title ?? row.discussion_title ?? row.folder_name ?? '')
+      detail = `mentioned you in "${place}"`.slice(0, 200)
     }
   } else {
     const ids = [...new Set(input.blockIds ?? [])]
@@ -142,7 +156,8 @@ export async function syncMentions(tx: Executor, input: MentionSource): Promise<
     (await rowsOf(tx, sql`SELECT id FROM users WHERE id IN (${list})`)).map((row) => String(row.id)),
   )
   if (everyone.some((id) => !known.has(id))) {
-    throw input.refuse('mentions a person who does not exist')
+    const message = 'mentions a person who does not exist'
+    throw input.refuse === undefined ? new MentionRefusal(message) : input.refuse(message)
   }
 
   // 2. Members only; never the actor.
@@ -189,7 +204,7 @@ export async function syncMentions(tx: Executor, input: MentionSource): Promise<
     subjectId: subject.id,
     subjectName: subject.name,
     folderId: input.pageFolderId,
-    detail: 'mentioned you',
+    detail,
     recipients: told,
   })
   await tx.execute(

@@ -135,10 +135,19 @@ function sendCreateOutcome(
     case 'empty':
       sendEmptyPost(res)
       return
+    case 'mention_unknown':
+      sendMentionUnknown(res)
+      return
     case 'created':
       res.status(201).json(outcome.comment)
       return
   }
+}
+
+/* Wave 2 (W-D): a mention naming nobody. Answered alike for a member and a
+   stranger, so it says nothing about who is on the page. */
+function sendMentionUnknown(res: Response): void {
+  sendError(res, 422, 'validation_failed', 'content: mentions a person who does not exist.')
 }
 
 /* W-C: a post's media block names a file that is not one of the same
@@ -382,6 +391,9 @@ export function createConversationRouter(
           return
         case 'empty':
           sendEmptyPost(res)
+          return
+        case 'mention_unknown':
+          sendMentionUnknown(res)
           return
         case 'gone':
           sendError(res, 404, 'not_found', 'Not found.')

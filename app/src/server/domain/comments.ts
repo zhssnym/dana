@@ -45,6 +45,7 @@ import type {
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
+import { MentionRefusal, syncMentions } from './mentions.js'
 import { presetOf } from './folder-access.js'
 import type { FolderActorFacts } from './folder-access.js'
 
@@ -223,6 +224,7 @@ export type CreateCommentResult =
   | { kind: 'file_not_here' }
   | { kind: 'content_file_not_attached' }
   | { kind: 'empty' }
+  | { kind: 'mention_unknown' }
 
 export async function createComment(
   db: Db,
@@ -421,6 +423,9 @@ export async function createComment(
       )
     }
 
+    // Wave 2 (W-D): the people this post newly mentions are told by their
+    // own `mentioned` event and left out of `commented` below.
+    const mentioned = new Set(await syncMentions(tx, { pageFolderId: folderId, actorId: viewerId, commentId }))
     // The thread's participants (4.14): everyone who has spoken in this
     // thread before this comment; recordEvent drops the actor.
     const participants = await rowsOf(
@@ -452,7 +457,7 @@ export async function createComment(
          bell reads "commented on 'Book the van'" rather than "created
          <snippet>, commented". 4.13 caps detail at 200. */
       detail: `commented on "${placeName}"`.slice(0, 200),
-      recipients: [...participants.map((row) => String(row.author_id)), ...taskPeople],
+      recipients: [...participants.map((row) => String(row.author_id)), ...taskPeople].filter((id) => !mentioned.has(id)),
     })
 
     return {
@@ -473,6 +478,9 @@ export async function createComment(
         edited_at: null,
       },
     } as const
+  }).catch((error: unknown) => {
+    if (error instanceof MentionRefusal) return { kind: 'mention_unknown' } as const
+    throw error
   })
 }
 
@@ -688,6 +696,7 @@ export type EditCommentResult =
   | { kind: 'empty' }
   | { kind: 'frozen' }
   | { kind: 'gone' }
+  | { kind: 'mention_unknown' }
 
 /*
 The author's own edit (7.14); the caller has resolved it.
@@ -867,6 +876,7 @@ export async function editComment(
     // Unreachable behind the lock above and kept as its backstop: if the row
     // ever stops being held, this answers 404 rather than "edited".
     if (updated[0] === undefined) return { kind: 'gone' } as const
+    await syncMentions(tx, { pageFolderId: access.folderId, actorId: viewerId, commentId: access.id })
 
     await recordEvent(tx, {
       actorId: viewerId,
@@ -882,6 +892,9 @@ export async function editComment(
     return comment === null
       ? ({ kind: 'gone' } as const)
       : ({ kind: 'edited', comment } as const)
+  }).catch((error: unknown) => {
+    if (error instanceof MentionRefusal) return { kind: 'mention_unknown' } as const
+    throw error
   })
 }
 

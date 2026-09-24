@@ -122,11 +122,12 @@ export const CONVERSATION_PARAM = 'conversation'
 function sentenceOf(row: NotificationLine): { readonly act: string; readonly quote: string | null } {
   const event = row.event
   const detail = event.detail ?? ''
-  // Wave 2 (W-D): only the person named ever holds this row. A post quotes
-  // its own words; a page or a Task is named.
+  // Wave 2 (W-D): only the person named ever holds this row. A post says
+  // its thread ("mentioned you in <thread>") and quotes its words; a page or
+  // a Task is named.
   if (event.verb === 'mentioned') {
     return event.subject_kind === 'comment'
-      ? { act: 'mentioned you', quote: event.subject_name }
+      ? { act: detail.startsWith('mentioned you') ? detail : 'mentioned you', quote: event.subject_name }
       : { act: `mentioned you in "${event.subject_name}"`, quote: null }
   }
   if (event.subject_kind === 'comment') {

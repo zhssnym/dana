@@ -23,6 +23,7 @@ import { queryKeys } from '../../api/keys.js'
 import { FileText } from '../../lib/icons.js'
 import { fileSrc } from '../../lib/thread.js'
 import { danaLinkOf, resolveReference } from '../links/dana-link.js'
+import { MentionChip } from '../page/canvas/mention-chip.js'
 import { cn } from '../ui/utils.js'
 
 /* About eight lines of body text before a post folds. */
@@ -226,6 +227,8 @@ function Runs({ rich }: { readonly rich: RichContent | undefined }): React.JSX.E
         let node: React.ReactNode = run.text
         if (run.bold) node = <strong className="font-semibold">{node}</strong>
         if (run.italic) node = <em>{node}</em>
+        // Wave 2 (W-D): a person mention draws the canvas's chip.
+        if (run.mention !== undefined) return <MentionChip key={index} label={run.text} />
         if (run.href !== undefined) {
           node = danaLinkOf(run.href) !== null
             ? <PostLink href={run.href} stored={run.text} />
