@@ -35,7 +35,7 @@ import type { z } from 'zod'
 
 import { errorEnvelope } from '../../shared/error-envelope.js'
 import { postAvatarResponse, postFilesResponse } from '../../shared/files.js'
-import type { PostAvatarResponse, PostFilesResponse } from '../../shared/files.js'
+import type { PostAvatarResponse, PostFilesResponse, UploadFileKind } from '../../shared/files.js'
 
 import { isOnline, reportReachable, reportUnreachable } from '../state/connectivity.js'
 
@@ -299,7 +299,7 @@ async function postMultipart(path: string, form: FormData): Promise<unknown> {
  * the only spelling 7.15 reads as "no folder".
  */
 export async function uploadFile(
-  kind: 'image' | 'file' | 'voice' | 'cover',
+  kind: UploadFileKind,
   folderId: string | null,
   file: File,
 ): Promise<PostFilesResponse> {

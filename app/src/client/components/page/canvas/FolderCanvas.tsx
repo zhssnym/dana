@@ -134,7 +134,7 @@ function CanvasSession({ page, initialPage, folderId, facetId, workRootId, tasks
     uploadFile: async (file) => {
       try {
         const uploaded = await uploadFile('image', folderId, file)
-        return { url: `/api/v1/files/${uploaded.id}`, name: file.name }
+        return { props: { url: `/api/v1/files/${uploaded.id}`, name: file.name } }
       } catch (failure) {
         setError(failure instanceof Error ? failure.message : 'The image could not be uploaded. Try again.')
         throw failure

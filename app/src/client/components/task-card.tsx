@@ -10,7 +10,7 @@ draws the control that fills it instead of drawing nothing.
 */
 
 import { Input } from "./ui/input.js"
-import { InlineInput, InlineTextarea } from "./ui/inline-field.js"
+import { InlineInput } from "./ui/inline-field.js"
 import { Face } from "./person-face.js"
 import { IconAction } from "./icon-action.js"
 import { WindowActivity } from "./window-bar.js"
@@ -43,7 +43,7 @@ import {
   X,
   type LucideIcon,
 } from "../lib/icons.js"
-import { useEffect, useRef, useState, type ReactNode } from "react"
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react"
 
 import {
   FolderMark,
@@ -97,6 +97,8 @@ import {
 import { useTimeFormat } from "../lib/time-format.js"
 import { useSortableList } from "../lib/use-sortable-list.js"
 import { cn } from "./ui/utils.js"
+
+const TaskComposer = lazy(() => import("./page/canvas/TaskComposer.js"))
 
 const T_FAST = "duration-[var(--duration-fast)] ease-[var(--ease-standard)]"
 const T_BASE = "duration-[var(--duration-base)] ease-[var(--ease-enter)]"
@@ -1857,34 +1859,12 @@ export function TaskCard({
             icon={AlignLeft}
             label="Notes"
           >
-            {/* A field, always, rather than a paragraph that turns into one.
-                The block is the note; there is nothing to reveal, and an empty
-                block is the control that fills it. It grows with its content
-                via `field-sizing-content`, so a long note is never a scrollbar
-                inside a card. */}
-            <InlineTextarea
-              value={task.notes ?? ""}
-              aria-label="Notes"
-              placeholder="Write a note"
-              rows={1}
-              onClick={(event) => event.stopPropagation()}
-              onPointerDown={(event) => event.stopPropagation()}
-              onChange={(event) => patch(task.id, { notes: event.target.value })}
-              /* Escape while writing leaves the field and nothing else; a
-                 second Escape, with nothing focused, closes the card. */
-              onKeyDown={(event) => {
-                if (event.key === "Escape") {
-                  event.preventDefault()
-                  event.stopPropagation()
-                  event.currentTarget.blur()
-                }
-              }}
-              className={cn(
-                "-mx-1 w-[calc(100%+0.5rem)] resize-none rounded-md bg-transparent px-1 py-1 text-[12px] leading-5 text-[var(--color-graphite-700)] outline-none transition-colors [field-sizing:content]",
-                T_FAST,
-                "placeholder:text-[var(--color-graphite-400)] hover:bg-[var(--color-graphite-50)] focus:bg-card focus:ring-1 focus:ring-[var(--color-dana-accent-600)]",
-              )}
-            />
+            {/* #221: the Task's own document, in the Folder canvas's writer.
+                Loaded on first open so BlockNote stays out of the row's
+                bundle; the plain-text notes stand in until it arrives. */}
+            <Suspense fallback={task.notes ? <p className="whitespace-pre-wrap text-[12px] leading-5 text-[var(--color-graphite-700)]">{task.notes}</p> : null}>
+              <TaskComposer taskId={task.id} folderId={task.folder?.id ?? null} notes={task.notes ?? null} />
+            </Suspense>
           </Disclosure>
     ),
     attachments: (

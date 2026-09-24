@@ -23,7 +23,7 @@ export class CanvasHydrationError extends Error {
   override readonly name = 'CanvasHydrationError'
 }
 
-function contentOf(text: string | null, rich?: { version: 1; runs: RichRun[] } | null): CanvasInput['content'] {
+export function contentOf(text: string | null, rich?: { version: 1; runs: RichRun[] } | null): CanvasInput['content'] {
   if (!rich) return text ?? ''
   return rich.runs.map((run) => {
     const node = { type: 'text' as const, text: run.text, styles: { ...(run.bold ? { bold: true } : {}), ...(run.italic ? { italic: true } : {}) } }
@@ -291,11 +291,11 @@ const RICH_TEXT = new Set<string>(RICH_TEXT_BLOCK_KINDS)
  * text projection on every non-image block including the ones the contract
  * refuses it on.
  */
-export function restoreCanvas(before: CanvasDocument, after: CanvasDocument): CanvasDocument {
+export function restoreCanvas(before: CanvasDocument, after: CanvasDocument, unexpressed: ReadonlySet<string> = UNEXPRESSED): CanvasDocument {
   const old = new Map(before.blocks.map((block) => [block.id, block]))
   const blocks = after.blocks.map((block) => {
     const previous = old.get(block.id)
-    return previous && block.block_kind === 'paragraph' && UNEXPRESSED.has(previous.block_kind)
+    return previous && block.block_kind === 'paragraph' && unexpressed.has(previous.block_kind)
       ? { ...block, block_kind: previous.block_kind, rich_content: RICH_TEXT.has(previous.block_kind) ? block.rich_content : null, checked: previous.checked }
       : block
   })
@@ -356,12 +356,15 @@ export function restoreCanvas(before: CanvasDocument, after: CanvasDocument): Ca
  * writer must hold at mount **and** after every commit: a baseline correct
  * once and stale afterwards loses the same page one save later.
  */
-export function baselineOf(page: PageView, projected: CanvasDocument): CanvasDocument {
-  return restoreCanvas(documentOf(page), projected)
+export function baselineOf(page: PageView, projected: CanvasDocument, unexpressed?: ReadonlySet<string>): CanvasDocument {
+  return restoreCanvas(documentOf(page), projected, unexpressed)
 }
 
-export function canvasOperations(before: CanvasDocument, after: CanvasDocument) {
-  const restored = restoreCanvas(before, after)
+/** `unexpressed` is the stored kinds this editor draws as a paragraph; an
+ * editor that draws a kind (the Task composer draws lists, quote and code)
+ * passes a smaller set, or converting one to a paragraph would be reverted. */
+export function canvasOperations(before: CanvasDocument, after: CanvasDocument, unexpressed?: ReadonlySet<string>) {
+  const restored = restoreCanvas(before, after, unexpressed)
   const old = new Map(before.blocks.map((block) => [block.id, block]))
   const ids = new Set(restored.blocks.map((block) => block.id))
   return [
