@@ -132,7 +132,6 @@ import {
 /* The empty-state icon goes to `PageBody`, whose `StateIcon` is typed on the
    raw lucide component. */
 import { Folder as FolderIcon } from 'lucide-react'
-import { cn } from '../components/ui/utils.js'
 
 import type { RowContext } from '../parts/presenters.js'
 import { useRowActions } from '../parts/useRowActions.js'
@@ -156,13 +155,13 @@ import { usePageImport } from '../shell/workflow-import.js'
 import { FolderTabs, FolderTabsDialog } from '../components/folder-facets.js'
 import type { CreateFacetInput, FacetCapabilities } from '../components/folder-facets.js'
 import { PageSection } from '../components/page/PageSection.js'
-import { groupRows, LOOSE } from '../views/grouping.js'
 import { PLACES } from '../views/place-pages.js'
 import { BoardView } from '../views/BoardView.js'
 import { LinearView } from '../views/LinearView.js'
 import { PlaceFilterChips, usePlace } from '../views/usePlace.js'
-import type { ViewMode } from '../views/view-mode.js'
-import { isNarrowed } from '../views/filter.js'
+import { folderViewOf, modeFromSearch, useFolderView, writeFolderView } from '../views/view-mode.js'
+import type { FolderView } from '../views/view-mode.js'
+import { ViewSwitch } from '../views/ViewSwitch.js'
 import { PageBody } from '../components/page/PageStates.js'
 import { FOLDER_EMPTY } from './empty-states.js'
 import { FolderSharingPanel } from './FolderSharingPanel.js'
@@ -180,19 +179,6 @@ import type { PageView } from '../../shared/pages.js'
 import { workPageOf } from '../components/page/canvas/adapters.js'
 import { ReferencedFrom } from '../components/links/referenced-from.js'
 
-/**
- * What the list says when the folder holds open tasks and the filter has
- * removed all of them.
- *
- * One sentence where the interim select had three, and that is the filter's
- * own doing rather than a simplification: a select of three options could name
- * which of the three had emptied the list, and 9.1's filter is nine axes that
- * combine, so the honest sentence says the narrowing did it and lets the chips
- * in the window bar say which narrowing. The empty *folder* is a different
- * state and keeps its own copy through `PageBody`.
- */
-const FILTER_NARROWED_EMPTY = 'No open tasks match this filter.'
-
 /*
 The width the sharing panel reserves at the right edge, restated from its
 `w-[var(--sharing-panel-width)]` (440px in `tokens.css`) because padding the
@@ -200,6 +186,9 @@ shell computes has to be a number JavaScript holds. Named so a reader looking
 for the duplicate finds it named as one.
 */
 const SHARING_PANEL_WIDTH = 440
+
+/* A page's three views, in the switcher's order (`views/ViewSwitch.tsx`). */
+const FOLDER_VIEWS: readonly FolderView[] = ['linear', 'board', 'freeform']
 
 /**
  * 9.6's leave confirm, verbatim and one sentence (AC-183 turns on both).
@@ -277,6 +266,13 @@ export function FolderPage({
   const navigate = useNavigate()
   const importFile = usePageImport()
   const [search, setSearch] = useSearchParams()
+  /* Linear, Board or Freeform: this device's choice for every page, kept apart
+     from the place pages' layout. `?mode=` seeds it, as it seeds theirs. */
+  const [folderView, setFolderView] = useFolderView()
+  const seededView = modeFromSearch(search.toString())
+  useEffect(() => {
+    if (seededView !== null) writeFolderView(folderViewOf(seededView))
+  }, [seededView])
   /* Set as this page is trashed: its reads stop, so the delete's
      invalidation refetches none of them against a 404 while the page is
      still mounted, the navigation away not yet committed. */
@@ -397,53 +393,6 @@ export function FolderPage({
      the list is still on its way. */
   const completedReady = completed.data !== undefined || completed.isError
   const visible = place.narrow(openRows)
-  /*
-  **The board's columns are the page's sections**, seeded from the blocks rather
-  than discovered from the rows, and in the page's own order.
-
-  Seeding is what makes them the page's arrangement rather than a summary of it:
-  a section nobody has filed anything under is still a column, with its own
-  capture, exactly as it is a heading with its own quick-add in the list. The
-  loose column comes first, which is where the list draws the same rows.
-
-  The other axes seed nothing and are unchanged, so the filter changing the
-  grouping is one value moving and no second board.
-  */
-  const sectionColumns = useMemo(
-    () =>
-      place.groupBy === 'section'
-        ? [
-            /* "No section" on a page with no sections reads as something
-               missing; the one column is the tasks. */
-            {
-              key: LOOSE,
-              name: (page.data?.blocks ?? []).some((block) => block.kind === 'section')
-                ? 'No section'
-                : 'Tasks',
-              mark: null,
-              capture: { section_block_id: null },
-              rows: [],
-            },
-            ...(page.data?.blocks ?? [])
-              .filter((block) => block.kind === 'section')
-              .map((block) => ({
-                key: block.id,
-                name: block.text ?? '',
-                mark: null,
-                capture: { section_block_id: block.id },
-                rows: [],
-              })),
-          ]
-        : [],
-    [place.groupBy, page.data?.blocks],
-  )
-  const boardColumns = groupRows(
-    visible,
-    place.groupBy,
-    place.today,
-    place.viewerId,
-    sectionColumns,
-  )
   const completedDays = mergeCompletedDays(completed.data?.pages)
   /* The finished Tasks the canvas draws in place, checked and muted. */
   const completedRows = useMemo(() => completedDays.flatMap((day) => day.rows), [completedDays])
@@ -1153,7 +1102,7 @@ export function FolderPage({
         {activeFacet?.kind === 'main' ? (
           <div className="mt-2 space-y-2">
             <div className="flex justify-end">
-              <ViewSwitch mode={place.mode} onMode={place.setMode} />
+              <ViewSwitch choices={FOLDER_VIEWS} value={folderView} onChange={setFolderView} />
             </div>
             <PageSection name="All open tasks">
               <PageBody
@@ -1165,11 +1114,12 @@ export function FolderPage({
                 emptyIcon={FolderIcon}
                 truncated={open.data?.truncated ?? false}
               >
-                {place.mode === 'board' ? (
+                {folderView === 'board' ? (
                   /* A page's Board is by status, Not started · In progress ·
                      Done, and a drop changes it (round 2). */
                   <BoardView
                     folderId={id}
+                    page={page.data}
                     tasks={visible}
                     completed={completedRows}
                     showCompleted={showCompleted}
@@ -1177,7 +1127,7 @@ export function FolderPage({
                     context={context}
                     actions={actions}
                   />
-                ) : place.mode === 'linear' ? (
+                ) : folderView === 'linear' ? (
                   page.data ? (
                     <LinearView
                       folderId={id}
@@ -1190,17 +1140,6 @@ export function FolderPage({
                       actions={actions}
                     />
                   ) : null
-                ) : visible.length === 0 && openRows.length > 0 ? (
-                  <p className="px-2 py-1.5 text-sm text-muted-foreground">
-                    {FILTER_NARROWED_EMPTY}
-                  </p>
-                ) : isNarrowed(place.filter) || place.filter.sort !== 'manual' || place.groupBy !== 'none' ? (
-                  <div className="space-y-3">
-                    {boardColumns.map((group) => <div key={group.key}>
-                      {place.groupBy !== 'none' ? <h2 className="mb-2 text-sm font-semibold">{group.name}</h2> : null}
-                      <TaskRows tasks={group.rows} context={context} actions={actions} onAsk={confirm.ask} arrangement={{ arrangeable: false }} />
-                    </div>)}
-                  </div>
                 ) : (
                   <Suspense fallback={null}>
                   {page.data && completedReady ? <FolderCanvas
@@ -1213,11 +1152,7 @@ export function FolderPage({
                     context={context}
                     actions={actions}
                     onAsk={confirm.ask}
-                    arrangeable={
-                      !isNarrowed(place.filter) &&
-                      place.filter.sort === 'manual' &&
-                      place.groupBy === 'none'
-                    }
+                    arrangeable
                   /> : page.isError ? <p role="alert" className="text-sm text-muted-foreground">Could not load writing. Reload to try again.</p> : null}
                   </Suspense>
                 )}
@@ -1511,62 +1446,5 @@ function FolderViewMenu({
       </DropdownMenuCheckboxItem>
       <DropdownMenuSeparator />
     </>
-  )
-}
-
-/* Labels only: the stored values ('list' is Freeform) never change. */
-const VIEW_CHOICES: readonly { readonly value: ViewMode; readonly label: string }[] = [
-  { value: 'linear', label: 'Linear' },
-  { value: 'board', label: 'Board' },
-  { value: 'list', label: 'Freeform' },
-]
-
-/**
- * Linear · Board · Freeform, on the page above the tasks: one click, always
- * visible, the current one in the foreground. Arrow keys move between them.
- */
-function ViewSwitch({
-  mode,
-  onMode,
-}: {
-  readonly mode: ViewMode
-  readonly onMode: (next: ViewMode) => void
-}): React.JSX.Element {
-  return (
-    <div role="radiogroup" aria-label="View" className="flex items-center gap-0.5">
-      {VIEW_CHOICES.map((choice, index) => {
-        const current = choice.value === mode
-        return (
-          <button
-            key={choice.value}
-            type="button"
-            role="radio"
-            aria-checked={current}
-            tabIndex={current ? 0 : -1}
-            onClick={() => {
-              onMode(choice.value)
-            }}
-            onKeyDown={(event) => {
-              const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0
-              if (step === 0) return
-              event.preventDefault()
-              const next = VIEW_CHOICES[(index + step + VIEW_CHOICES.length) % VIEW_CHOICES.length]
-              if (next === undefined) return
-              onMode(next.value)
-              const group = event.currentTarget.parentElement
-              requestAnimationFrame(() => {
-                group?.querySelector<HTMLButtonElement>('[aria-checked="true"]')?.focus()
-              })
-            }}
-            className={cn(
-              'h-[var(--control-height)] rounded-sm px-2 text-xs transition-colors',
-              current ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
-            )}
-          >
-            {choice.label}
-          </button>
-        )
-      })}
-    </div>
   )
 }

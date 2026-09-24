@@ -16,6 +16,7 @@ import {
   formatDayInline,
   formatDayTime,
   formatMonthHeading,
+  setMonthFirst,
   weekStart,
 } from './dates.js'
 
@@ -43,6 +44,19 @@ describe('formatDay', () => {
   test('inline form lowercases the relative words only', () => {
     expect(formatDayInline('2026-09-25', TODAY)).toBe('tomorrow')
     expect(formatDayInline('2026-09-28', TODAY)).toBe('Mon')
+  })
+
+  test('a month-first locale puts the month first, everywhere the date is written', () => {
+    setMonthFirst(true)
+    try {
+      expect(formatDay('2026-10-01', TODAY)).toBe('Oct 1')
+      expect(formatDay('2027-09-24', TODAY)).toBe('Sep 24, 2027')
+      expect(formatDayTime('2026-10-24', '18:00', TODAY, '12')).toBe('Oct 24 6:00 PM')
+      expect(formatDayHeading('2026-09-22', TODAY)).toBe('Sep 22')
+      expect(formatDay('2026-09-28', TODAY)).toBe('Mon')
+    } finally {
+      setMonthFirst(null)
+    }
   })
 })
 

@@ -241,7 +241,6 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --shell-sidebar-row-font-size: 14px;
   --shell-sidebar-width: 240px;
   --shell-windowbar-height: 36px;
-  --task-row-height: 36px;
   --checkbox-size: 16px;
   --icon-size-compact: 16px;
 

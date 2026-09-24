@@ -5,7 +5,8 @@ The one date formatter. Every date on screen goes through here: "Today",
 Civil YYYY-MM-DD strings only, fixed English tables rather than `Intl` (a
 French browser would otherwise say "août" beside English copy), no `Date`
 constructed, and `today` always arrives as an argument. Times belong to
-`lib/time-format.ts`; this module only joins them to a day.
+`lib/time-format.ts`; this module only joins them to a day. The one thing
+taken from the viewer's locale is the order of day and month (`isMonthFirst`).
 */
 import { formatTime } from './time-format.js'
 import type { TimeFormat } from './time-format.js'
@@ -129,6 +130,37 @@ export function weekdayName(date: string): string {
 
 /* ------------------------------------------------------------ formatters -- */
 
+let monthFirstOverride: boolean | null = null
+let monthFirstDetected: boolean | null = null
+
+/** Tests pin the order; null goes back to reading the locale. */
+export function setMonthFirst(value: boolean | null): void {
+  monthFirstOverride = value
+}
+
+/**
+ * Whether the viewer's locale writes the month before the day (en-US). Read
+ * once, in a browser only: without a document (the server, unit tests) the
+ * order is day first.
+ */
+export function isMonthFirst(): boolean {
+  if (monthFirstOverride !== null) return monthFirstOverride
+  if (monthFirstDetected !== null) return monthFirstDetected
+  let detected = false
+  if (typeof document !== 'undefined' && typeof navigator !== 'undefined') {
+    try {
+      const parts = new Intl.DateTimeFormat(navigator.language, { month: 'short', day: 'numeric' }).formatToParts(
+        new Date(2026, 8, 24),
+      )
+      detected = parts.findIndex((part) => part.type === 'month') < parts.findIndex((part) => part.type === 'day')
+    } catch {
+      detected = false
+    }
+  }
+  monthFirstDetected = detected
+  return detected
+}
+
 function sameYear(parsed: CivilDate, today: string): boolean {
   return parseCivilDate(today)?.year === parsed.year
 }
@@ -139,12 +171,18 @@ function offsetFrom(date: string, today: string): number | null {
   return daysBetween(today, date)
 }
 
-/** "24 Sep", or "24 Sep 2027" outside today's year. No relative words. */
+/**
+ * "24 Sep", or "24 Sep 2027" outside today's year; "Sep 24" and
+ * "Sep 24, 2027" where the locale puts the month first. No relative words.
+ */
 export function formatDate(date: string, today: string): string {
   const parsed = parseCivilDate(date)
   if (parsed === null) return ''
-  const base = `${String(parsed.day)} ${MONTHS_SHORT[parsed.month - 1] ?? ''}`
-  return sameYear(parsed, today) ? base : `${base} ${String(parsed.year)}`
+  const day = String(parsed.day)
+  const month = MONTHS_SHORT[parsed.month - 1] ?? ''
+  const thisYear = sameYear(parsed, today)
+  if (isMonthFirst()) return thisYear ? `${month} ${day}` : `${month} ${day}, ${String(parsed.year)}`
+  return thisYear ? `${day} ${month}` : `${day} ${month} ${String(parsed.year)}`
 }
 
 /** "Today", "Tomorrow", "Yesterday", "Mon" (2–6 days ahead), else `formatDate`. */

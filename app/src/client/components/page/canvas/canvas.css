@@ -88,6 +88,9 @@
 }
 .dana-writing-canvas [data-content-type='danaTask'] > div,
 .dana-writing-canvas [data-canvas-task-id] { width: 100%; min-width: 0; }
+/* r5-views: a Task block is one --row-height row, the same as in every list;
+   the block's own 3px padding would make it 42px apart. */
+.dana-writing-canvas .bn-block-content[data-content-type='danaTask'] { padding-block: 0; }
 /* A completed Task is its real row, muted in place; "Show completed" off hides
    it (`FolderCanvas`). The guard's refusal outline (#314) follows. */
 /* Only the placement's own block: a section heading's outer block holds its

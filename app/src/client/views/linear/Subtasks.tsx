@@ -5,9 +5,9 @@ to add one. Subtasks are read from the task only when it has any, so a page of
 plain steps costs no extra requests.
 */
 import { useState } from 'react'
-import { Check } from 'lucide-react'
 import { useTask } from '../../api/queries.js'
 import { useAddStep, useUpdateStep } from '../../api/mutations.js'
+import { CheckMark } from '../../components/ui/checkbox.js'
 import { cn } from '../../components/ui/utils.js'
 import type { TaskCard } from '../../../shared/tasks.js'
 
@@ -51,17 +51,11 @@ export function Subtasks(props: {
               onChange={(event) => toggle(step.id, event.target.checked)}
               className="peer sr-only"
             />
-            <span
-              aria-hidden
-              className={cn(
-                'flex size-3.5 shrink-0 items-center justify-center rounded-xs border',
-                MOTION,
-                'peer-focus-visible:ring-2 peer-focus-visible:ring-ring',
-                done ? 'border-primary bg-primary text-primary-foreground' : 'border-quiet-foreground',
-              )}
-            >
-              {done && <Check className="size-2.5" strokeWidth={3} />}
-            </span>
+            {/* The input is hidden; the box wears the one focus style for it. */}
+            <CheckMark
+              checked={done}
+              className="peer-focus-visible:outline-2 peer-focus-visible:outline-offset-1 peer-focus-visible:outline-(--focus-ring)"
+            />
             <span className={cn('min-w-0 truncate', done ? 'text-muted-foreground line-through' : 'text-foreground')}>
               {step.title}
             </span>
@@ -72,7 +66,7 @@ export function Subtasks(props: {
         <button
           type="button"
           onClick={props.onOpen}
-          className={cn('h-6 self-start rounded-sm px-1 text-xs text-muted-foreground hover:text-foreground', MOTION)}
+          className={cn('ml-6 h-6 self-start rounded-sm text-xs text-muted-foreground hover:text-foreground', MOTION)}
         >
           {more} more
         </button>
@@ -101,7 +95,7 @@ export function Subtasks(props: {
           if (draft.trim() === '') props.onStopAdding()
         }}
         className={cn(
-          'h-7 min-w-0 rounded-sm bg-transparent pl-5.5 text-sm text-foreground outline-none placeholder:text-quiet-foreground',
+          'h-7 min-w-0 rounded-sm bg-transparent pl-6 text-sm text-foreground outline-none placeholder:text-quiet-foreground',
         )}
       />
     </div>

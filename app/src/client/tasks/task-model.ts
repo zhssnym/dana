@@ -101,14 +101,21 @@ export function parseDueLabel(label: string): Date | null {
     const delta = (weekday - today().getDay() + 7) % 7
     return addDays(today(), delta < 2 ? delta + 7 : delta)
   }
-  const found = label.match(/(\d{1,2})\s+([A-Za-z]{3})(?:\s+(\d{4}))?/)
+  /* "24 Sep 2027", or "Sep 24, 2027" where the locale puts the month first. */
+  const dayFirst = label.match(/(\d{1,2})\s+([A-Za-z]{3})(?:\s+(\d{4}))?/)
+  const monthFirst = dayFirst ? null : label.match(/([A-Za-z]{3})\s+(\d{1,2})(?:,\s*(\d{4}))?/)
+  const found = dayFirst
+    ? { day: dayFirst[1], month: dayFirst[2], year: dayFirst[3] }
+    : monthFirst
+      ? { day: monthFirst[2], month: monthFirst[1], year: monthFirst[3] }
+      : null
   if (!found) return null
   const month = MONTH_SHORT.findIndex(
-    (name) => name.toLowerCase() === (found[2] ?? '').slice(0, 3).toLowerCase(),
+    (name) => name.toLowerCase() === (found.month ?? '').slice(0, 3).toLowerCase(),
   )
   if (month < 0) return null
-  const year = found[3] === undefined ? today().getFullYear() : Number(found[3])
-  return new Date(year, month, Number(found[1]))
+  const year = found.year === undefined ? today().getFullYear() : Number(found.year)
+  return new Date(year, month, Number(found.day))
 }
 
 /*

@@ -10,24 +10,30 @@ status, and every status write goes through the page's own acts
 (`onToggleComplete`, `onRestore`, `onMoveToColumn`), so the series confirm and
 the undo bar reach a drop exactly as they reach a row's box.
 
-**Done keeps its cards.** A board whose Done column is empty is a board that
-looks like nothing was ever finished, so completed cards always show there;
-abandoned ones join them only when the page shows completed work, which is
-where 9.5 keeps them reachable.
+**One rule and one order with Linear** (round 5): a column is a stage
+(`linear/stage.ts`: future, present, past), and each column lists its cards in
+the order Linear lists the same steps — the queue by milestone and page order,
+the present overdue first then by start, the past by when it was finished.
+"Show completed" off empties Done, as it hides Linear's past; Done still takes
+a drop.
 
-**Every column ends with "New task"** (round 3; round 4 shows it on hover, on touch, and in an empty column), and a task added there lands
-in that column: Not started is a plain create, In progress starts it today (the
-board's own rule below), Done creates it and then completes it. The words are
-"New task", not Notion's "New page": in Dana a page is a document and this row
-makes a task. The columns are the status, so cards carry no completion box.
+**Not started and In progress end with "New task"** (hover, touch, and an
+empty column show it), and a task added there lands in that column: Not
+started is a plain create, In progress starts it today. Done has none: nobody
+creates a task in order to finish it. The columns are the status, so cards
+carry no completion box.
 */
+import { useMemo } from 'react'
 import { BoardQuickAdd, TaskBoard as PrototypeBoard } from '../components/task-board.js'
 import type { BoardColumn, BoardTask, BoardTone } from '../components/task-board.js'
-import { useCreateTask, useTransitionTask } from '../api/mutations.js'
+import { useCreateTask } from '../api/mutations.js'
 import { taskRowDisplay } from '../parts/presenters.js'
 import type { RowContext } from '../parts/presenters.js'
 import type { RowActions } from '../parts/useRowActions.js'
+import type { PageView } from '../../shared/pages.js'
 import type { TaskCard } from '../../shared/tasks.js'
+import { futureMilestones, pageRank, pastOrder, presentOrder, stageOf, startDay } from './linear/stage.js'
+import type { Stage } from './linear/stage.js'
 
 export type BoardStatus = 'not_started' | 'in_progress' | 'done'
 
@@ -41,20 +47,20 @@ const COLUMNS: readonly {
   { key: 'done', label: 'Done', tone: 'green' },
 ]
 
-/**
- * Which column a task sits in. Derived until e4's server In-progress field
- * lands; swap this one function: a pending task that has started (a start
- * date on or before today) is In progress, any other pending task is Not
- * started, and a finished one — completed or abandoned — is Done.
- */
+const COLUMN_OF: Record<Stage, BoardStatus> = {
+  future: 'not_started',
+  present: 'in_progress',
+  past: 'done',
+}
+
+/** Which column a task sits in: its stage (`linear/stage.ts`), by name. */
 export function boardStatusOf(task: TaskCard, today: string): BoardStatus {
-  if (task.status !== 'pending') return 'done'
-  if (task.start_date !== null && task.start_date <= today) return 'in_progress'
-  return 'not_started'
+  return COLUMN_OF[stageOf(task, today)]
 }
 
 export function BoardView({
   folderId,
+  page,
   tasks,
   completed,
   showCompleted,
@@ -64,6 +70,8 @@ export function BoardView({
 }: {
   /* The page new tasks are added to. */
   readonly folderId: string
+  /* Its document, for the order Linear uses; absent while it loads. */
+  readonly page: PageView | undefined
   readonly tasks: readonly TaskCard[]
   readonly completed: readonly TaskCard[]
   readonly showCompleted: boolean
@@ -71,27 +79,31 @@ export function BoardView({
   readonly context: RowContext
   readonly actions: RowActions
 }): React.JSX.Element {
-  const finished = completed.filter(
-    (task) => task.status === 'completed' || (showCompleted && task.status === 'abandoned'),
-  )
-  const all: readonly TaskCard[] = [...tasks, ...finished]
-  const byId = new Map(all.map((task) => [task.id, task]))
   const create = useCreateTask()
-  const transition = useTransitionTask()
+
+  const ordered = useMemo((): Record<BoardStatus, readonly TaskCard[]> => {
+    const rank = page === undefined ? new Map<string, number>() : pageRank(page)
+    const notStarted =
+      page === undefined
+        ? tasks.filter((task) => stageOf(task, today) === 'future')
+        : futureMilestones(page, tasks, completed, today, rank).flatMap((group) => group.tasks)
+    const done = showCompleted
+      ? pastOrder(
+          completed.map((task) => ({ task })),
+          tasks.filter((task) => task.status === 'abandoned').map((task) => ({ task })),
+        ).map((row) => row.task)
+      : []
+    return { not_started: notStarted, in_progress: presentOrder(tasks, today, rank), done }
+  }, [page, tasks, completed, showCompleted, today])
+
+  const byId = new Map([...tasks, ...completed].map((task) => [task.id, task]))
 
   function add(title: string, status: BoardStatus): void {
-    create.mutate(
-      {
-        title,
-        folder_id: folderId,
-        ...(status === 'in_progress' ? { start_date: today } : {}),
-      },
-      {
-        onSuccess: (made) => {
-          if (status === 'done') transition.mutate({ id: made.id, event: 'complete' })
-        },
-      },
-    )
+    create.mutate({
+      title,
+      folder_id: folderId,
+      ...(status === 'in_progress' ? { start_date: today } : {}),
+    })
   }
 
   const mapped: BoardColumn[] = COLUMNS.map((column) => ({
@@ -101,14 +113,12 @@ export function BoardView({
     /* Finished cards strike through and drop their details: the board's own
        contract for its `done` flag, as `views/TaskBoard.tsx` sets it. */
     ...(column.key === 'done' ? { done: true, quiet: true } : {}),
-    tasks: all
-      .filter((task) => boardStatusOf(task, today) === column.key)
-      .map(
-        (task): BoardTask => ({
-          ...taskRowDisplay(task, context),
-          id: task.id,
-        }),
-      ),
+    tasks: ordered[column.key].map(
+      (task): BoardTask => ({
+        ...taskRowDisplay(task, context),
+        id: task.id,
+      }),
+    ),
   }))
 
   return (
@@ -148,27 +158,23 @@ export function BoardView({
         if (task.status === 'abandoned') actions.onRestore(task)
         else if (task.status === 'completed') actions.onToggleComplete(task)
 
-        const started = task.start_date !== null && task.start_date <= today
+        const started = stageOf({ status: 'pending', start_date: task.start_date }, today) === 'present'
         if (columnKey === 'in_progress') {
-          if (!started) {
-            /* The server holds start_date <= due_date, so an overdue task
-               starts on its due day rather than today. */
-            const day =
-              task.due_date !== null && task.due_date < today ? task.due_date : today
-            actions.onMoveToColumn(task, { start_date: day })
-          }
+          if (!started) actions.onMoveToColumn(task, { start_date: startDay(task, today) })
           return true
         }
         if (started) actions.onMoveToColumn(task, { start_date: null })
         return true
       }}
       checkbox={false}
-      quickAdd={(column) => (
-        <BoardQuickAdd
-          label={`New task in ${column.label}`}
-          onAdd={(title) => add(title, column.key as BoardStatus)}
-        />
-      )}
+      quickAdd={(column) =>
+        column.key === 'done' ? null : (
+          <BoardQuickAdd
+            label={`New task in ${column.label}`}
+            onAdd={(title) => add(title, column.key as BoardStatus)}
+          />
+        )
+      }
     />
   )
 }

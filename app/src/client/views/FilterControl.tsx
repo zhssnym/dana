@@ -1,6 +1,7 @@
 /*
-The one "View" menu a list carries: Layout, Group by, Sort and Show completed,
-each offered only where the page can honour it. It narrows nothing.
+The one "View" menu a list carries: Group by, Sort and Show completed, each
+offered only where the page can honour it. It narrows nothing. The layout is
+chosen by the page's own switcher (`ViewSwitch`), not in here.
 */
 import { Button } from '../components/ui/button.js'
 import {
@@ -16,14 +17,6 @@ import {
 } from '../components/ui/dropdown-menu.js'
 import type { PageFilter, SortBy } from './filter.js'
 import type { GroupChoice } from './place-pages.js'
-import type { ViewMode } from './view-mode.js'
-
-const LAYOUTS: Record<ViewMode, string> = {
-  list: 'List',
-  linear: 'Linear',
-  board: 'Board',
-  calendar: 'Calendar',
-}
 
 const SORTS: readonly { readonly value: SortBy; readonly label: string }[] = [
   { value: 'manual', label: 'Manual' },
@@ -70,22 +63,16 @@ function Choice<T extends string>({
 }
 
 export function ViewMenu({
-  views,
   groups,
   completed,
   filter,
   onChange,
-  mode,
-  onModeChange,
 }: {
-  readonly views: readonly ViewMode[]
   readonly groups: readonly GroupChoice[]
   /** Whether the page has completed tasks to show. */
   readonly completed: boolean
   readonly filter: PageFilter
   readonly onChange: (next: PageFilter) => void
-  readonly mode: ViewMode
-  readonly onModeChange: (next: ViewMode) => void
 }): React.JSX.Element {
   return (
     <DropdownMenu>
@@ -95,14 +82,6 @@ export function ViewMenu({
         View
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-52">
-        {views.length > 1 ? (
-          <Choice
-            label="Layout"
-            value={mode}
-            choices={views.map((view) => ({ value: view, label: LAYOUTS[view] }))}
-            onChange={onModeChange}
-          />
-        ) : null}
         {groups.length > 1 ? (
           <Choice
             label="Group by"

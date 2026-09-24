@@ -45,7 +45,8 @@ by the schedule date and a start three days spent sorts first - and 9.5 says
 in terms that "a Start Date passing is not overdue and is not styled as one",
 8.1 keeping overdue a relation to the deadline alone. So a row whose only
 date is a spent Start Date takes a rung of its own, **Started**, rather than
-a heading that calls it late. It is a relation to today rather than a day, so
+a heading that calls it late ("In progress", the one name the Board, Today and
+Linear give a started task). It is a relation to today rather than a day, so
 like Overdue it carries no date and captures nothing (DES-182).
 
 Where Started sits relative to Overdue is first appearance in Q3's order,
@@ -82,7 +83,7 @@ interface Bucket {
  * date columns - and a second spelling of the name is a second heading for
  * one bucket.
  */
-const STARTED: Bucket = { key: 'started', name: 'Started', date: null }
+const STARTED: Bucket = { key: 'started', name: 'In progress', date: null }
 
 /**
  * Which rung a date belongs on, given today.

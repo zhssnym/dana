@@ -21,11 +21,11 @@ Two columns per row, because a one-row board is too short.
 
 import { useEffect, useRef, useState, type ReactNode } from "react"
 
-import { Plus, Repeat2, Star } from "../lib/icons.js"
+import { Plus } from "../lib/icons.js"
 import { InlineInput } from "./ui/inline-field.js"
-import { Face } from "./person-face.js"
+import { CheckMark } from "./ui/checkbox.js"
+import { RowMeta } from "./task-meta.js"
 import {
-  FOCUS,
   T_FAST,
   TaskList,
   type TaskListWiring,
@@ -107,7 +107,6 @@ export function BoardQuickAdd({
              to do (the column passes `data-empty`). */
           "opacity-0 group-hover/column:opacity-100 focus-visible:opacity-100 group-data-[empty]/column:opacity-100 [@media(hover:none)]:opacity-100",
           T_FAST,
-          FOCUS,
         )}
       >
         <Plus className="size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
@@ -171,7 +170,6 @@ export function BoardAddColumn({
       className={cn(
         "flex h-10 items-center justify-center gap-1.5 rounded-md border border-dashed border-border text-xs text-muted-foreground transition-colors hover:border-muted-foreground hover:text-foreground",
         T_FAST,
-        FOCUS,
       )}
     >
       <Plus className="size-3.5" strokeWidth={2} aria-hidden="true" />
@@ -222,10 +220,18 @@ function BoardCard({
     return () => wiring.onRegisterOpen(null)
   })
 
-  const showDue = Boolean(task.due) && !given?.due
-  const showFace = Boolean(task.assignee) && !given?.assignee
-  const steps = task.steps && task.steps.total > 0 ? task.steps : undefined
-  const late = Boolean(task.due?.overdue) && !given?.overdue
+  /* Whether the meta line has anything to say. A card with nothing (no date,
+     folder, face, count, repeat or set star) is its title alone, so a board
+     of plain tasks stays compact; such a card is starred from the task. */
+  const finished = done || task.status === "abandoned"
+  const hasMeta =
+    (task.due !== undefined && !given?.due && !done) ||
+    (task.folder !== undefined && !given?.folder) ||
+    ((task.blockedBy ?? 0) > 0 && !finished) ||
+    (task.assignee !== undefined && task.assignee !== null && !given?.assignee) ||
+    (task.steps !== undefined && task.steps.total > 0) ||
+    task.recurrence !== undefined ||
+    Boolean(task.important)
   const drag = wiring.dragState
   const carried = Boolean(drag?.isActive) && !drag?.isSettling
 
@@ -269,9 +275,8 @@ function BoardCard({
         zIndex: carried ? 30 : undefined,
       }}
       className={cn(
-        "group/card relative cursor-pointer rounded-md border border-border bg-background px-2.5 py-2 transition-colors hover:bg-hover",
+        "group/row relative cursor-pointer rounded-md border border-border bg-background px-2.5 py-2 transition-colors hover:bg-hover",
         T_FAST,
-        FOCUS,
         carried && "cursor-grabbing shadow-[var(--elevation-2)]",
       )}
     >
@@ -286,36 +291,9 @@ function BoardCard({
               event.stopPropagation()
               onCheck()
             }}
-            className={cn(
-              "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded",
-              FOCUS,
-            )}
+            className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-sm"
           >
-            <span
-              className={cn(
-                "flex size-4 items-center justify-center rounded-sm border transition-[background-color,border-color]",
-                T_FAST,
-                done
-                  ? "border-primary bg-primary"
-                  : "border-input bg-background",
-              )}
-            >
-              <svg viewBox="0 0 20 20" className="size-3" aria-hidden="true">
-                <path
-                  d="M4 10.5 L8.2 14.5 L16 5.8"
-                  fill="none"
-                  className="stroke-primary-foreground"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  style={{
-                    strokeDasharray: 20,
-                    strokeDashoffset: done ? 0 : 20,
-                    transition: "stroke-dashoffset var(--duration-base) var(--ease-enter)",
-                  }}
-                />
-              </svg>
-            </span>
+            <CheckMark checked={done} />
           </button>
         ) : null}
         <span
@@ -330,58 +308,27 @@ function BoardCard({
         >
           {task.title}
         </span>
-        <button
-          type="button"
-          /* The names are 9.1's and 9.5's, "Important" when on and "Mark as
-             important" when off, the same control as the row's star. */
-          aria-label={task.important ? "Important" : "Mark as important"}
-          aria-pressed={task.important || undefined}
-          onClick={(event) => {
-            event.stopPropagation()
-            onStar()
-          }}
-          className={cn(
-            "flex size-5 shrink-0 items-center justify-center rounded transition-opacity",
-            T_FAST,
-            FOCUS,
-            /* The star in the lighter tone, so it never competes with the title. */
-            task.important
-              ? "text-quiet-foreground opacity-100"
-              : "text-muted-foreground opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100 hover:text-foreground [@media(hover:none)]:invisible",
-          )}
-        >
-          <Star
-            className={cn(
-              "size-4 data-[size=sm]:size-4",
-              task.important && "[&_svg]:fill-current",
-            )}
-            strokeWidth={1.75}
-            aria-hidden="true"
-          />
-        </button>
       </span>
-      {/* The row's meta, in the row's order and colours: date (late in the
-          danger colour), steps done/total, the repeat glyph, then the face. */}
-      {(showDue || showFace || steps || task.recurrence) && !done ? (
-        <span className={cn("mt-1 flex items-center gap-3 text-xs text-muted-foreground", checkbox && "pl-7")}>
-          {showDue && task.due ? (
-            <span className={cn("whitespace-nowrap", late && "text-destructive")}>
-              {late ? <span className="sr-only">Overdue, </span> : null}
-              {task.due.label}
-            </span>
-          ) : null}
-          {steps ? (
-            <span className="whitespace-nowrap tabular-nums" title={`${steps.complete} of ${steps.total} steps done`}>
-              {steps.complete}/{steps.total}
-            </span>
-          ) : null}
-          {task.recurrence ? (
-            <Repeat2 className="size-3.5" strokeWidth={1.75} aria-label="Repeats" />
-          ) : null}
-          {showFace && task.assignee ? (
-            <Face person={task.assignee} className="ml-auto size-5 data-[size=sm]:size-5" />
-          ) : null}
-        </span>
+      {/* The one meta line every view draws (`task-meta.tsx`): date, folder,
+          face, subtasks, repeat, then the star at its end. A finished card's
+          deadline is spent, so it drops its date, as a finished row does. */}
+      {hasMeta ? (
+        <RowMeta
+          className={cn("-mb-1 mt-0.5 w-full justify-between", checkbox && "pl-7")}
+          source={{
+            ...(task.due === undefined ? {} : { due: task.due }),
+            ...(task.folder === undefined ? {} : { folder: task.folder }),
+            ...(task.assignee === undefined ? {} : { assignee: task.assignee }),
+            ...(task.steps === undefined ? {} : { steps: { done: task.steps.complete, total: task.steps.total } }),
+            ...(task.recurrence === undefined ? {} : { recurrence: task.recurrence }),
+            blockedBy: task.blockedBy ?? 0,
+            finished,
+            important: Boolean(task.important),
+            ...(task.importantTooltip === undefined ? {} : { importantTooltip: task.importantTooltip }),
+          }}
+          given={{ ...given, ...(done ? { due: true } : {}) }}
+          onToggleImportant={onStar}
+        />
       ) : null}
       {/*
       **What a release would do, said in words.**
@@ -448,23 +395,28 @@ export function TaskBoard({
 }) {
   const zones = useRef(new Map<string, HTMLElement>())
 
+  /*
+  A column is as short as its cards (`items-start`), so a release anywhere
+  below one still lands in it: the column under the pointer's x whose top is
+  the nearest above the pointer. Side by side that is the one column in that
+  lane; stacked on a phone it is the column the pointer has scrolled into.
+  */
   function columnAt(point: { x: number; y: number }) {
+    let found: string | null = null
+    let foundTop = Number.NEGATIVE_INFINITY
     for (const [key, node] of zones.current) {
       const box = node.getBoundingClientRect()
-      if (
-        point.x >= box.left &&
-        point.x <= box.right &&
-        point.y >= box.top &&
-        point.y <= box.bottom
-      ) {
-        return key
+      if (point.x < box.left || point.x > box.right || point.y < box.top) continue
+      if (box.top > foundTop) {
+        found = key
+        foundTop = box.top
       }
     }
-    return null
+    return found
   }
 
   return (
-    <div className={cn("grid gap-3 pb-4", grid)}>
+    <div className={cn("grid items-start gap-3 pb-4", grid)}>
       {columns.map((column) => (
         /*
         9.1's regions rule makes a board column "a named region, named by its
