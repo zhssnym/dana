@@ -178,7 +178,7 @@ export function FolderSharingPanel({
       >
         <section aria-label={SHARING_PANEL} className="flex min-h-0 flex-1 flex-col">
           <SheetHeader className="border-b border-border px-5 py-4 pr-16">
-            <SheetTitle className="text-sm font-semibold">Share {folder.name}</SheetTitle>
+            <SheetTitle className="text-sm font-title">Share {folder.name}</SheetTitle>
           </SheetHeader>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">

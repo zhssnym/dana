@@ -33,7 +33,7 @@ import {
   useReopenDiscussion,
   useResolveDiscussion,
   useRestoreDiscussion,
-  useTrashDiscussion,
+  useTrashFromThread,
   useUpdateDiscussion,
 } from '../../api/consultation.js'
 import { ApiError } from '../../api/http.js'
@@ -96,7 +96,7 @@ function ThreadBody(props: {
   const { discussion: d, folderId, viewer, personOf, justStarted, onBack, onRefused } = props
   const thread = useDiscussionThread(d.id)
   const reopen = useReopenDiscussion()
-  const trash = useTrashDiscussion()
+  const trash = useTrashFromThread()
   const restore = useRestoreDiscussion()
   const postComment = usePostDiscussionComment()
   const markRead = useMarkDiscussionRead()
@@ -155,7 +155,7 @@ function ThreadBody(props: {
     /* Back to the list first, so nothing on screen reads the thread it just
        sent away; the undo bar restores it. */
     onBack()
-    trash.mutate(d.id)
+    trash(d.id)
     pushUndo(undoLabel('Moved to Trash', d.title), () => { restore.mutate(d.id) })
   }
 
@@ -189,7 +189,7 @@ function ThreadBody(props: {
         {renaming ? (
           <Rename discussion={d} onDone={() => { setRenaming(false) }} />
         ) : (
-          <h2 className="min-w-0 truncate text-base font-semibold break-words text-foreground">{d.title}</h2>
+          <h2 className="min-w-0 truncate text-base font-title break-words text-foreground">{d.title}</h2>
         )}
         {trashed || d.state === 'resolved' ? (
           <span className="shrink-0 text-xs text-muted-foreground">{trashed ? 'In Trash' : 'Closed'}</span>
@@ -269,7 +269,7 @@ function Rename({ discussion: d, onDone }: { readonly discussion: Discussion; re
       value={draft}
       maxLength={DISCUSSION_TITLE_MAX}
       disabled={update.isPending}
-      className="min-w-0 flex-1 bg-transparent text-base font-semibold text-foreground outline-none"
+      className="min-w-0 flex-1 bg-transparent text-base font-title text-foreground outline-none"
       onFocus={(event) => { event.currentTarget.select() }}
       onChange={(event) => { setDraft(event.target.value) }}
       onBlur={save}

@@ -24,6 +24,7 @@ import { Plus } from '../../lib/icons.js'
 import type { PersonResolver } from '../../lib/thread.js'
 import { formatAgo } from '../../parts/format-dates.js'
 import { InlineError } from '../state-patterns.js'
+import { Segmented } from '../ui/segmented.js'
 import { Skeleton } from '../ui/skeleton.js'
 import { cn } from '../ui/utils.js'
 import { mayStartDiscussion } from './authority.js'
@@ -34,8 +35,10 @@ type View = 'open' | 'closed'
 /** The URL's name for the Closed list; absent is Open. */
 export const THREADS_PARAM = 'threads'
 
-const TOGGLE =
-  'h-[var(--control-height)] rounded-sm text-sm outline-none transition-colors duration-[var(--duration-fast)]'
+const VIEWS = [
+  { value: 'open', label: 'Open' },
+  { value: 'closed', label: 'Closed' },
+] as const
 
 /** Someone else posted since this person last read the thread. */
 export function isUnread(d: Discussion, viewerId: string | null): boolean {
@@ -85,22 +88,7 @@ export function DiscussionList({
 
   return (
     <div className="min-w-0">
-      <div className="mb-2 flex items-center gap-4" role="group" aria-label="Show">
-        {(['open', 'closed'] as const).map((which) => {
-          const active = view === which
-          return (
-            <button
-              key={which}
-              type="button"
-              aria-pressed={active}
-              className={cn(TOGGLE, active ? 'font-medium text-foreground' : 'text-muted-foreground hover:text-foreground')}
-              onClick={() => { setView(which) }}
-            >
-              {which === 'open' ? 'Open' : 'Closed'}
-            </button>
-          )
-        })}
-      </div>
+      <Segmented label="Show" value={view} onValueChange={setView} options={VIEWS} className="mb-2" />
 
       <ul className="-mx-2 flex flex-col gap-0.5" aria-label={view === 'open' ? 'Open threads' : 'Closed threads'}>
         {shown.map((d) => (
@@ -160,7 +148,7 @@ function ThreadRow({
       className="block w-full min-w-0 rounded-md px-2 py-1.5 text-left outline-none transition-colors duration-[var(--duration-fast)] hover:bg-accent"
       onClick={() => { onOpen(d.id) }}
     >
-      <span className={cn('block truncate text-sm text-foreground', fresh ? 'font-semibold' : 'font-normal')}>{d.title}</span>
+      <span className={cn('block truncate text-sm text-foreground', fresh ? 'font-title' : 'font-normal')}>{d.title}</span>
       <span className="mt-0.5 block truncate text-xs text-muted-foreground">{meta.join(' · ')}</span>
     </button>
   )

@@ -34,6 +34,8 @@ import type {
   UpdateDiscussionBody,
 } from '../../shared/consultation.js'
 import { getPlain, mutateApi } from './http.js'
+import { mutationFailureMessage } from './queryClient.js'
+import { showToast } from '../state/toasts.js'
 import { queryKeys } from './keys.js'
 
 const discussionListResponse = z.object({
@@ -217,6 +219,31 @@ export function useTrashDiscussion(): UseMutationResult<void, Error, string> {
   return useMutation({
     mutationFn: (id) => mutateApi(null, { method: 'DELETE', path: `/discussions/${id}` }),
   })
+}
+
+/**
+ * Move to Trash from inside the thread. Not a `useMutation`: the mutation
+ * cache refetches every live query after a write, and the thread (and the
+ * breadcrumb naming it) is still on screen while the page goes back to the
+ * list, so it would ask for a Discussion that is now 404 here. Only the lists
+ * and Trash are refreshed; a refusal is toasted as any write's is.
+ */
+export function useTrashFromThread(): (id: string) => void {
+  const client = useQueryClient()
+  return useCallback(
+    (id: string) => {
+      mutateApi(null, { method: 'DELETE', path: `/discussions/${id}` }).then(
+        () => {
+          void client.invalidateQueries({
+            predicate: (query) =>
+              (query.queryKey[0] === 'folders' && query.queryKey[2] === 'discussions') || query.queryKey[0] === 'trash',
+          })
+        },
+        (error: unknown) => { showToast(mutationFailureMessage(error, undefined)) },
+      )
+    },
+    [client],
+  )
 }
 
 export function useRestoreDiscussion(): UseMutationResult<Discussion, Error, string> {
