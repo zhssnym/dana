@@ -229,3 +229,10 @@
    TaskComposer). It is the lower part of the screen, as in Notion, in every
    editor: a Task's notes live only in its peek or page, never in a list. */
 .dana-canvas-tail { min-height: max(calc(var(--spacing) * 16), 30vh); cursor: text; }
+
+/* ---- r3-slash: a Section is a plain heading (schema.ts draws it without the
+   toggle). What it holds sits at the heading's own indent, as under a Notion
+   heading; a toggle heading still indents what it folds. */
+.dana-writing-canvas .bn-block:has(> .bn-block-content[data-dana-section]) > .bn-block-group {
+  margin-inline-start: 0;
+}

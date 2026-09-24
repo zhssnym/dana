@@ -72,6 +72,14 @@ describe('Task composer', () => {
     expect(reopened.getBlock(id(5))?.children.map((child) => child.id)).toEqual([id(20)])
   })
 
+  test('AC-1082 an empty File block (the picker placeholder) is not written, so the rest of the note still saves', () => {
+    const page = { ...stored, blocks: [block(1, 'paragraph', 'kept')], items: [{ kind: 'block' as const, id: id(1) }] } as PageView
+    const editor = editorOf(page)
+    editor.insertBlocks([{ type: 'file' }], editor.document[0]!, 'after')
+    const drawn = dehydrateTask(editor.document, 600)
+    expect(drawn.blocks.map((b) => b.block_kind)).toEqual(['paragraph'])
+  })
+
   test('a toggle heading keeps its fold and its children across a save and a reload', () => {
     const page = { ...stored, blocks: [block(1, 'heading2', 'Folded', { toggleable: true }), block(2, 'bullet', 'inside', { list_parent_block_id: id(1) })], items: [{ kind: 'block' as const, id: id(1) }, { kind: 'block' as const, id: id(2) }] } as PageView
     const editor = editorOf(page)

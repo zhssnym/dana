@@ -55,7 +55,7 @@ const postSchema = BlockNoteSchema.create({
   styleSpecs: canvasSchema.styleSpecs,
 })
 
-const SLASH = { surface: 'document', media: true } as const
+const SLASH = { surface: 'post', media: true } as const
 
 /* Where Enter belongs to the editor, not to Send. */
 const ENTER_KEEPS = new Set(['bulletListItem', 'numberedListItem', 'checkListItem', 'toggleListItem', 'codeBlock'])

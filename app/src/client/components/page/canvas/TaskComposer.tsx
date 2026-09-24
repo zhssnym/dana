@@ -53,6 +53,7 @@ import { baselineOf, contentOf, richRuns } from './adapters.js'
 import type { CanvasDocument, CanvasRecord } from './adapters.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
 import { openByDefault, toggleClosed } from './schema.js'
+import { legacyCheckList } from './markdown.js'
 import { danaLinkInlineSpec } from '../../links/dana-link-chip.js'
 import { MentionSuggestions, mentionInlineSpec } from './mentions.js'
 import { CanvasSlashMenu, blockMenuTargets } from './slash-items.js'
@@ -107,7 +108,7 @@ export const taskSchema = BlockNoteSchema.create({
     heading: taskHeading,
     bulletListItem: defaultBlockSpecs.bulletListItem,
     numberedListItem: defaultBlockSpecs.numberedListItem,
-    checkListItem: defaultBlockSpecs.checkListItem,
+    checkListItem: legacyCheckList(defaultBlockSpecs.checkListItem),
     quote: defaultBlockSpecs.quote,
     callout: createCanvasCallout(),
     divider: defaultBlockSpecs.divider,
@@ -195,6 +196,13 @@ export function dehydrateTask(blocks: readonly TaskBlock[], width: number): Canv
       const runs = richRuns(block as unknown as CanvasBlock)
       const text = runs.map((run) => run.text).join('')
       let record: CanvasRecord
+      // An empty File/audio/video block is only the file picker's placeholder:
+      // the server refuses one without a file (the whole save with it), so it
+      // is not written until a file has uploaded, as on the canvas (`adapters.ts`).
+      if ((block.type === 'video' || block.type === 'audio' || block.type === 'file') && block.props.url === '') {
+        visit(block.children, parent)
+        continue
+      }
       if (block.type === 'image' || block.type === 'video' || block.type === 'audio' || block.type === 'file') {
         const fileId = fileIdOf(block.props.url)
         if (block.props.url && fileId === null) throw new Error('Upload this file to Dana before saving. Links to files elsewhere are not supported.')
@@ -469,7 +477,7 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
         <MentionSuggestions editor={editor as unknown as CanvasEditor} folderId={folderId} />
         <CanvasMarquee />
       </BlockNoteView>
-      <div aria-hidden="true" className="dana-canvas-tail dana-canvas-tail-short" onMouseDown={writeBelow} />
+      <div aria-hidden="true" className="dana-canvas-tail" onMouseDown={writeBelow} />
     </div>
     </BlockMenuContext.Provider>
     <SaveFailure

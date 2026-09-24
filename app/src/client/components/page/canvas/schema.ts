@@ -15,7 +15,8 @@ import { createCanvasDiagramSpec } from './CanvasDiagram.js'
 import { createTaskAtCursor, removeCanvasBlocks, removeEmptyBeforeHeading } from './commands.js'
 import { danaLinkInlineSpec } from '../../links/dana-link-chip.js'
 import { mentionInlineSpec } from './mentions.js'
-import { canvasMarkdownShortcuts, withoutInputRules } from './markdown.js'
+import { canvasMarkdownShortcuts, legacyCheckList, withoutInputRules } from './markdown.js'
+import { isSectionHeading } from './outline.js'
 
 // The vocabulary only, derived from the one ceiling rather than restated beside it.
 // A Section's level is its depth in the persisted outline, so the editor must be able
@@ -61,7 +62,7 @@ const groupHeading = {
         if (block.type !== 'heading' || block.props.isToggleable === false || !selection.empty || selection.$from.parentOffset !== selection.$from.parent.content.size) return false
         // Upstream splitting transfers children to the new paragraph. Dana's group
         // membership must survive, so use its public subtree insertion operation.
-        if (toggleClosed(block.id)) {
+        if (!isSectionHeading(block) && toggleClosed(block.id)) {
           editor.transact(() => {
             const [next] = editor.insertBlocks([{ type: 'paragraph' }], block, 'after')
             editor.setTextCursorPosition(next!)
@@ -91,6 +92,18 @@ const groupHeading = {
   implementation: {
     ...heading.implementation,
     render: (function (block, editor) {
+      // A Section is a plain heading on screen (Notion's Heading n): no arrow,
+      // no fold, never hidden. Its `isToggleable` marks it a Section in storage
+      // only, so upstream draws it as a flat heading. Toggle headings fold.
+      if (isSectionHeading(block)) {
+        const plain = heading.implementation.render.call(this, { ...block, props: { ...block.props, isToggleable: false } }, editor)
+        // The Section's own props, not the copy's, travel with it (a copied
+        // Section pastes as a Section): `isToggleable: true` is the default,
+        // which BlockNote writes as no attribute at all.
+        if (plain.dom instanceof HTMLElement) { plain.dom.setAttribute('data-dana-section', ''); plain.dom.removeAttribute('data-is-toggleable') }
+        if (plain.contentDOM !== undefined) plain.contentDOM.setAttribute('aria-level', String(block.props.level + 1))
+        return plain
+      }
       // Keep the complete upstream renderer and its structural CSS wrapper.
       const result = openByDefault(block.id, () => heading.implementation.render.call(this, block, editor))
       const contentDOM = result.contentDOM
@@ -242,7 +255,8 @@ export const canvasSchema = BlockNoteSchema.create({
     heading: groupHeading,
     bulletListItem: defaultBlockSpecs.bulletListItem,
     numberedListItem: defaultBlockSpecs.numberedListItem,
-    checkListItem: defaultBlockSpecs.checkListItem,
+    // Old documents' to-dos only: nothing makes a new one (`legacyCheckList`).
+    checkListItem: legacyCheckList(defaultBlockSpecs.checkListItem),
     // `> ` is a toggle (`markdown.ts`); `" ` stays upstream's quote rule.
     quote: { ...defaultBlockSpecs.quote, extensions: withoutInputRules(defaultBlockSpecs.quote.extensions, (find) => find.source === '^>\\s$') },
     toggleListItem: toggleList,

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
 
 import { validateCanvasOutline } from './outline.js'
-import { backspaceToText, conversionOf, isCurrent, simulate, simulateNest, TURN_TARGETS } from './turn-into.js'
+import { backspaceToText, conversionOf, isCurrent, simulate, simulateNest, TEXT_TYPES, TURN_TARGETS } from './turn-into.js'
 import type { TreeBlock } from './turn-into.js'
 
 const target = (key: string) => TURN_TARGETS.find((item) => item.key === key)!
@@ -40,8 +40,17 @@ describe('Turn into', () => {
 
   test('a list keeps its nested items when it becomes another list kind', () => {
     const doc = [block('a', 'bulletListItem', {}, [block('b', 'bulletListItem')])]
-    const next = simulate(doc, 'a', target('todo'), true)
-    expect(next[0]!.type).toBe('checkListItem')
+    const next = simulate(doc, 'a', target('numbered'), true)
+    expect(next[0]!.type).toBe('numberedListItem')
+    expect(next[0]!.children.map((item) => item.id)).toEqual(['b'])
+  })
+
+  test('AC-1080 a stored to-do is never offered as a target, but still turns into another kind with its nested blocks', () => {
+    expect(TURN_TARGETS.some((item) => item.type === 'checkListItem')).toBe(false)
+    expect(TEXT_TYPES.has('checkListItem')).toBe(true)
+    const doc = [block('a', 'checkListItem', { checked: true }, [block('b', 'paragraph')])]
+    const next = simulate(doc, 'a', target('bullet'), true)
+    expect(next[0]!.type).toBe('bulletListItem')
     expect(next[0]!.children.map((item) => item.id)).toEqual(['b'])
   })
 

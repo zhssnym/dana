@@ -14,7 +14,7 @@ turned into anything but a Section lifts them out after it.
 */
 import { isSectionHeading, isToggleHeading } from './outline.js'
 
-export type TurnKey = 'text' | 'h1' | 'h2' | 'h3' | 'th1' | 'th2' | 'th3' | 'todo' | 'toggle' | 'bullet' | 'numbered' | 'quote' | 'callout' | 'code'
+export type TurnKey = 'text' | 'h1' | 'h2' | 'h3' | 'th1' | 'th2' | 'th3' | 'toggle' | 'bullet' | 'numbered' | 'quote' | 'callout' | 'code'
 
 export interface TurnTarget {
   readonly key: TurnKey
@@ -34,7 +34,6 @@ export const TURN_TARGETS: readonly TurnTarget[] = [
   { key: 'th1', title: 'Toggle heading 1', type: 'heading', level: 1, toggle: true },
   { key: 'th2', title: 'Toggle heading 2', type: 'heading', level: 2, toggle: true },
   { key: 'th3', title: 'Toggle heading 3', type: 'heading', level: 3, toggle: true },
-  { key: 'todo', title: 'To-do list', type: 'checkListItem' },
   { key: 'toggle', title: 'Toggle list', type: 'toggleListItem' },
   { key: 'bullet', title: 'Bulleted list', type: 'bulletListItem' },
   { key: 'numbered', title: 'Numbered list', type: 'numberedListItem' },
@@ -43,8 +42,10 @@ export const TURN_TARGETS: readonly TurnTarget[] = [
   { key: 'code', title: 'Code', type: 'codeBlock' },
 ]
 
-/** Kinds made of one run of text, the only ones that can be turned into another. */
-export const TEXT_TYPES: ReadonlySet<string> = new Set(TURN_TARGETS.map((target) => target.type))
+/** Kinds made of one run of text, the only ones that can be turned into another.
+ * A to-do is no longer offered anywhere (Task covers it), but one already stored
+ * still turns into any of these. */
+export const TEXT_TYPES: ReadonlySet<string> = new Set([...TURN_TARGETS.map((target) => target.type), 'checkListItem'])
 
 export interface TreeBlock {
   readonly id: string
@@ -86,7 +87,7 @@ export function conversionOf(block: TreeBlock, target: TurnTarget, headingToggle
     ? target.toggle === true
       ? { level: target.level, isToggleable: true, presentation: true }
       : { level: target.level, ...(headingToggles === undefined ? {} : { isToggleable: headingToggles, presentation: false }) }
-    : target.type === 'checkListItem' ? { checked: block.type === 'checkListItem' ? block.props.checked === true : false } : {}
+    : {}
   // Code holds plain text only; leaving code, its text is ordinary runs again.
   const content = target.type === 'codeBlock' || block.type === 'codeBlock'
     ? plainText(block.content)
