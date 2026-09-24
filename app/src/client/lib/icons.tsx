@@ -516,6 +516,8 @@ export const Star = icon(Lu.Star, Anim.StarIcon)
 export const SunMedium = icon(Lu.SunMedium, Anim.SunMediumIcon)
 export const Trash2 = icon(Lu.Trash2, Anim.Trash2Icon)
 export const Undo2 = icon(Lu.Undo2, null)
+/* The icon picker's random-colour cell (e8-colors). */
+export const Shuffle = icon(Lu.Shuffle, Anim.ShuffleIcon)
 /*
 Desk's mark: a desk lamp.
 
