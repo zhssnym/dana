@@ -201,6 +201,8 @@ export function hydrateCanvas(page: PageView, columnWidth: number): CanvasInput[
       } as CanvasInput
     } else if (block.kind === 'diagram') {
       node = { id: block.id, type: 'diagram', props: { source: block.text ?? '' }, children: [] }
+    } else if (block.kind === 'page') {
+      node = { id: block.id, type: 'danaPage', props: { folderId: block.ref_folder_id ?? '' }, children: [] }
     } else if (block.kind === 'folder_ref') {
       node = {
         id: block.id,
@@ -477,6 +479,9 @@ export function dehydrateCanvas(
 
         // #222: a diagram is its source text; no rich content, file or width.
         if (block.type === 'divider') result.blocks.push({ id: block.id, block_kind: 'divider', text: null, rich_content: null, file_id: null, ref_folder_id: null, width_pct: null, checked: null, toggleable: null })
+        // Wave 2: a sub-page is its reference and nothing else, the same
+        // record `documentOf` reads, so an untouched one is never re-sent.
+        else if (block.type === 'danaPage') result.blocks.push({ id: block.id, block_kind: 'page', text: null, rich_content: null, file_id: null, ref_folder_id: block.props.folderId, width_pct: null, checked: null, toggleable: null })
         else if (block.type === 'diagram') result.blocks.push({ id: block.id, block_kind: 'diagram', text: block.props.source, rich_content: null, file_id: null, ref_folder_id: null, width_pct: null, checked: null, toggleable: null })
         else result.blocks.push({
           id: block.id,
@@ -594,13 +599,36 @@ export function baselineOf(page: PageView, projected: CanvasDocument): CanvasDoc
   return restoreCanvas(documentOf(page), projected)
 }
 
+/**
+ * Sub-pages `/page` has placed but no save has created yet: folder id to the
+ * title it will be created with. Module state, because the block carries only
+ * its folder id and the slash menu, the row and the save all need the title.
+ * An entry stays until the save that created it has landed and the folder
+ * list has it (`FolderCanvas`), so a retry re-sends the same `create_page`.
+ */
+export const pendingPages = new Map<string, string>()
+
+/**
+ * Wave 2: a `page` block new to the document whose folder `/page` is still
+ * holding is created with it (`create_page`, never `put_block`); any other new
+ * one names a trashed sub-page and restores it in place. A `page` block that
+ * leaves the document moves its sub-page to Trash in the same transaction.
+ */
 export function canvasOperations(before: CanvasDocument, after: CanvasDocument) {
   const restored = restoreCanvas(before, after)
   const old = new Map(before.blocks.map((block) => [block.id, block]))
   const ids = new Set(restored.blocks.map((block) => block.id))
   return [
-    ...before.blocks.filter((block) => !ids.has(block.id)).map((block) => ({ op: 'delete_block' as const, id: block.id })),
-    ...restored.blocks.filter((block) => JSON.stringify(old.get(block.id)) !== JSON.stringify(block)).map((block) => ({ op: 'put_block' as const, ...block })),
+    ...before.blocks.filter((block) => !ids.has(block.id)).flatMap((block) => [
+      { op: 'delete_block' as const, id: block.id },
+      ...(block.block_kind === 'page' && block.ref_folder_id !== null ? [{ op: 'trash_page' as const, folder_id: block.ref_folder_id }] : []),
+    ]),
+    ...restored.blocks.filter((block) => JSON.stringify(old.get(block.id)) !== JSON.stringify(block)).map((block) => {
+      const title = block.block_kind === 'page' && block.ref_folder_id !== null && !old.has(block.id) ? pendingPages.get(block.ref_folder_id) : undefined
+      return title !== undefined && block.ref_folder_id !== null
+        ? { op: 'create_page' as const, id: block.ref_folder_id, block_id: block.id, title }
+        : { op: 'put_block' as const, ...block }
+    }),
     { op: 'set_outline' as const, items: restored.items },
   ]
 }

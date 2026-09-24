@@ -1509,6 +1509,16 @@ export async function applyFacetDocument(
           'operations',
         )
       }
+      /* Wave 2: sub-pages live in a Folder's Main document alone. Named
+         before anything else so a new op never falls into the outline
+         branch below. */
+      if (
+        op.op === 'create_page' ||
+        op.op === 'trash_page' ||
+        (op.op === 'put_block' && op.block_kind === 'page')
+      ) {
+        throw new FacetDocumentRefusal('invalid', "A page block lives only on a folder's page.", 'operations')
+      }
       if (op.op === 'put_block') {
         if (op.block_kind === 'section') {
           throw new FacetDocumentRefusal(

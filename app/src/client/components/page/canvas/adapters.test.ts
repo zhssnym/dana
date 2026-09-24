@@ -9,7 +9,7 @@ import { BlockNoteEditor } from '@blocknote/core'
 import { describe, expect, test } from 'vitest'
 
 import type { PageView } from '../../../../shared/pages.js'
-import { CanvasHydrationError, canvasOperations, contentOf, dehydrateCanvas, documentOf, hydrateCanvas, richRuns } from './adapters.js'
+import { CanvasHydrationError, canvasOperations, contentOf, dehydrateCanvas, documentOf, hydrateCanvas, pendingPages, richRuns } from './adapters.js'
 import { canvasSchema } from './schema.js'
 import type { CanvasBlock } from './schema.js'
 
@@ -131,5 +131,57 @@ describe('nesting and toggle headings survive save and reload', () => {
   test('a block nested under a kind that holds nothing does not open', () => {
     const page = pageOf([row(uuid(1), 'code', { text: 'x' }), text(uuid(2), 'paragraph', 'child', { list_parent_block_id: uuid(1) })])
     expect(() => hydrateCanvas(page, 600)).toThrow(CanvasHydrationError)
+  })
+})
+
+/*
+Wave 2, pages in pages: a `page` block is its sub-page's reference and
+nothing else. Opened untouched it writes nothing; one `/page` placed is
+created with the document (`create_page`, never `put_block`); one removed
+moves its page to Trash in the same transaction; and one put back under its
+old id is a `put_block`, which restores the page in place.
+*/
+describe('sub-page blocks', () => {
+  const BLOCK = '44444444-4444-4444-8444-444444444444'
+  const CHILD = '55555555-5555-4555-8555-555555555555'
+  const page = {
+    revision: 'r', task_placements: [],
+    blocks: [row(BLOCK, 'page', { ref_folder_id: CHILD }), row(TEXT, 'paragraph', { text: 'after', rich_content: { version: 1, runs: [{ text: 'after' }] } })],
+    items: [{ kind: 'block', id: BLOCK }, { kind: 'block', id: TEXT }],
+  } as unknown as PageView
+  const reopen = (blocks: CanvasBlock[]) => dehydrateCanvas(blocks, 600, new Map())
+  const drawn = () => BlockNoteEditor.create({ schema: canvasSchema, initialContent: hydrateCanvas(page, 600) as never }).document as CanvasBlock[]
+
+  test('an untouched page block is byte-stable and sends nothing', () => {
+    const blocks = drawn()
+    expect(blocks[0]).toMatchObject({ id: BLOCK, type: 'danaPage', props: { folderId: CHILD } })
+    const after = reopen(blocks)
+    expect(after.blocks[0]).toEqual(documentOf(page).blocks[0])
+    expect(JSON.stringify(after.blocks[0])).toBe(JSON.stringify(documentOf(page).blocks[0]))
+    expect(canvasOperations(documentOf(page), after).filter((op) => op.op !== 'set_outline')).toEqual([])
+  })
+
+  test('a page placed by /page is created with the document', () => {
+    const fresh = '66666666-6666-4666-8666-666666666666'
+    const folder = '77777777-7777-4777-8777-777777777777'
+    pendingPages.set(folder, 'Untitled')
+    try {
+      const blocks = [...drawn(), { id: fresh, type: 'danaPage', props: { folderId: folder }, children: [] } as unknown as CanvasBlock]
+      const ops = canvasOperations(documentOf(page), reopen(blocks))
+      expect(ops.filter((op) => op.op !== 'set_outline')).toEqual([{ op: 'create_page', id: folder, block_id: fresh, title: 'Untitled' }])
+      expect(ops.at(-1)).toMatchObject({ op: 'set_outline', items: expect.arrayContaining([expect.objectContaining({ kind: 'block', id: fresh })]) })
+    } finally { pendingPages.delete(folder) }
+  })
+
+  test('a removed page block moves its page to Trash in the same transaction', () => {
+    const blocks = drawn().filter((block) => block.id !== BLOCK)
+    const ops = canvasOperations(documentOf(page), reopen(blocks))
+    expect(ops.filter((op) => op.op !== 'set_outline')).toEqual([{ op: 'delete_block', id: BLOCK }, { op: 'trash_page', folder_id: CHILD }])
+  })
+
+  test('a page block put back after its trash restores it with put_block', () => {
+    const without = { blocks: documentOf(page).blocks.filter((block) => block.id !== BLOCK), items: documentOf(page).items.filter((item) => item.id !== BLOCK) }
+    const ops = canvasOperations(without, reopen(drawn()))
+    expect(ops.filter((op) => op.op !== 'set_outline')).toEqual([{ op: 'put_block', ...documentOf(page).blocks[0] }])
   })
 })

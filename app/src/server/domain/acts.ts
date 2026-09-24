@@ -302,7 +302,9 @@ export async function duplicateFolder(
       }
 
       // Copy explicit membership and mixed placement; never infer parents from proximity.
-      const blocks = await rowsOf(tx,sql`SELECT * FROM page_blocks WHERE folder_id=${sourceFolderId}::uuid ORDER BY position,id`)
+      // Wave 2: a `page` block is its sub-page's one home and the duplicate
+      // copies this page alone, so the sub-pages keep theirs in the source.
+      const blocks = await rowsOf(tx,sql`SELECT * FROM page_blocks WHERE folder_id=${sourceFolderId}::uuid AND kind <> 'page' ORDER BY position,id`)
       const sectionMap = new Map(blocks.map(block=>[String(block.id),randomUUID()]))
       /*
       Every page asset is copied into the new folder as an independent file,

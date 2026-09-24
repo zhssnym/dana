@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { taskTitle } from './tasks.js'
+import { folderName } from './folders.js'
 import type { FileKind } from './files.js'
 
 /* `richContent` moved to `rich-content.ts` with issue #230 and is re-exported
@@ -50,7 +51,7 @@ export const isPresentationHeadingKind = (kind:string):kind is PresentationHeadi
 export const MEDIA_BLOCK_KINDS = ['image','file','audio','video'] as const
 export type MediaBlockKind = (typeof MEDIA_BLOCK_KINDS)[number]
 export const isMediaKind = (kind:string):kind is MediaBlockKind => (MEDIA_BLOCK_KINDS as readonly string[]).includes(kind)
-export const DOCUMENT_BLOCK_KINDS = ['section','paragraph',...PRESENTATION_HEADING_KINDS,'image','folder_ref',...STRUCTURED_BLOCK_KINDS,'file','audio','video','diagram','divider'] as const
+export const DOCUMENT_BLOCK_KINDS = ['section','paragraph',...PRESENTATION_HEADING_KINDS,'image','folder_ref',...STRUCTURED_BLOCK_KINDS,'file','audio','video','diagram','divider','page'] as const
 export type DocumentBlockKind = (typeof DOCUMENT_BLOCK_KINDS)[number]
 /**
  * The kinds that persist a dragged width (4.17's `width_pct`, 25 to 100).
@@ -176,6 +177,10 @@ export const documentOperation = z.discriminatedUnion('op',[
   // A divider is a rule and nothing else: no text, no rich content, no file,
   // no folder reference and no width.
   if(b.block_kind==='divider'&&((b.text!==null&&b.text!=='')||b.rich_content!==null||b.file_id!==null||b.ref_folder_id!==null||b.width_pct!==null))ctx.addIssue({code:'custom',path:['text'],message:'A divider carries no text, no file, no folder reference and no width.'})
+  // Wave 2: a `page` block stands for one sub-page of this Folder and is its
+  // name alone -- the title is the sub-page's own, read from the folder the
+  // viewer can see, never copied here. It names that page and nothing else.
+  if(b.block_kind==='page'&&(b.ref_folder_id===null||(b.text!==null&&b.text!=='')||b.rich_content!==null||b.file_id!==null||b.width_pct!==null))ctx.addIssue({code:'custom',path:['ref_folder_id'],message:'A page block names one page and carries nothing else.'})
   if((b.block_kind==='file'||b.block_kind==='audio'||b.block_kind==='video')&&((b.text!==null&&b.text!=='')||b.rich_content!==null))ctx.addIssue({code:'custom',path:['text'],message:'A file, audio or video block carries no text of its own.'})
   /*
   4.17: a media block **references one stored file by `file_id`**. Until this
@@ -205,6 +210,14 @@ export const documentOperation = z.discriminatedUnion('op',[
  }),
  z.object({op:z.literal('delete_block'),id:z.uuid()}),
  z.object({op:z.literal('create_task'),id:z.uuid(),title:taskTitle}),
+ /* Wave 2 (pages in pages), a Folder's Main document only. `create_page`
+    makes sub-page `id` under this Folder -- members and presets copied from
+    it (Hassan's decision 1) -- and its home `page` block `block_id`, which the
+    final outline must place. `trash_page` moves sub-page `folder_id` (and the
+    sub-pages its actor may trash) to Trash; the same transaction must delete
+    its `page` block, and a `page` block is never deleted without it. */
+ z.object({op:z.literal('create_page'),id:z.uuid(),block_id:z.uuid(),title:folderName}),
+ z.object({op:z.literal('trash_page'),folder_id:z.uuid()}),
  z.object({op:z.literal('set_outline'),items:z.array(documentOutlineItem).max(1500)})
 ])
 export type DocumentOperation = z.infer<typeof documentOperation>
