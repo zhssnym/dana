@@ -218,7 +218,7 @@ export default function PostEditor({
     >
       <div
         className={cn(
-          'min-w-0 rounded-lg border border-border bg-background focus-within:border-ring',
+          'min-w-0 rounded-lg border border-border bg-background focus-within:border-quiet-foreground',
           /* A new post's Send sits at the end of the writing, not on a row of its own. */
           !editing && 'flex items-end gap-1 pr-1',
         )}
