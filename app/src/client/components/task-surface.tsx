@@ -1,23 +1,24 @@
 /*
-The task's one home (REDESIGN-SPEC "Open a task", "Task panel").
+A task's page, in the three ways it is shown (ROUND2-SPEC "Task"):
 
-On a desktop a task opens in a side panel at the right edge: the page makes
-room rather than being covered, so the list the task came from stays visible
-and usable, and clicking another row swaps the panel's task. Escape or the
-close control shuts it. On a phone the same view is the whole page
-(`pages/TaskPage.tsx`).
+- **Side peek** (`TaskPanel`), the default: a panel at the right edge; the page
+  makes room rather than being covered, so the list stays visible and usable,
+  and clicking another row swaps the peek's task.
+- **Center peek** (`TaskCenterPeek`): a centered sheet, ~900px, over the
+  dimmed page.
+- **Full page** (`TaskView kind="page"`, from `pages/TaskPage.tsx`):
+  /app/tasks/:id in the app's own shell, and always so on a phone.
 
-There is no dialog, no "Open in" choice and no new-tab arm any more: one
-place, so a person never has to learn which of five a task will appear in.
-
-The view itself is small: a header carrying the task's one "…" and the close,
-the title renaming in place, and `TaskCard` for everything else.
+Settings > Appearance > "Open tasks in" chooses. The peeks carry "Open as full
+page" and a close, and Escape closes them. The view is one: a header with the
+task's one "…", the title renaming in place, and `TaskCard` (properties, then
+the Notes and Discussion tabs).
 */
 
 import { InlineTextarea } from "./ui/inline-field.js"
 import { useEffect, useRef, useState } from "react"
 
-import { CheckCircle2, MoreHorizontal, X } from "../lib/icons.js"
+import { CheckCircle2, Maximize2, MoreHorizontal, X } from "../lib/icons.js"
 import { TITLE_REQUIRED, tooLong } from "./task-copy.js"
 /* 10.3's number for the field, from the shared contract rather than restated. */
 import { TASK_TITLE_LIMIT } from "../../shared/tasks.js"
@@ -31,6 +32,7 @@ import { COMPLETE_TASK, MARK_AS_NOT_DONE, MORE_ACTIONS } from "./ui/copy.js"
 import { copyTaskLink, duplicateTask } from "../tasks/task-acts.js"
 import { cn } from "./ui/utils.js"
 import { ReferencedFrom } from "./links/referenced-from.js"
+import { pageBodyClass } from "./page-head.js"
 
 const FOCUS = "outline-none focus-visible:ring-2 focus-visible:ring-ring"
 
@@ -184,78 +186,116 @@ function TaskMenu({
 }
 
 /*
-The task as one view, the panel's body and the phone's page alike.
+The task as one page, whichever way it is shown: a side peek, a center peek or
+the full page. The header carries the task's one "…", "Open as full page" in
+the peeks, and the close.
 */
 export function TaskView({
   task: props,
   onClose,
+  onOpenFull,
+  kind = "side",
 }: {
   task: TaskRowProps & { id: string }
   /** The close control; absent draws none. */
   onClose?: () => void
+  /** "Open as full page"; absent (the full page itself) draws none. */
+  onOpenFull?: () => void
+  kind?: "side" | "center" | "page"
 }) {
   const { task, patch, cardHandlers } = useCardWiring(props)
+  const page = kind === "page"
+
+  const header = (
+    <div className={cn("flex h-12 shrink-0 items-center justify-end gap-1", page ? "-mr-2" : "px-3")}>
+      {task.abandoned ? (
+        <span className={cn("mr-auto text-xs text-muted-foreground", page ? "" : "px-3")}>Abandoned</span>
+      ) : null}
+      {onOpenFull ? (
+        <button
+          type="button"
+          aria-label="Open as full page"
+          title="Open as full page"
+          onClick={onOpenFull}
+          className={cn(
+            "flex size-8 items-center justify-center rounded-sm text-muted-foreground transition-colors duration-100 hover:bg-accent hover:text-foreground",
+            FOCUS,
+          )}
+        >
+          <Maximize2 className="size-4" strokeWidth={1.75} aria-hidden="true" />
+        </button>
+      ) : null}
+      <TaskMenu
+        task={task}
+        id={props.id}
+        onToggleDone={() => patch(task.id, { done: !task.done })}
+        onRestore={() => patch(task.id, { abandoned: false })}
+        {...(props.onAbandon === undefined ? {} : { onAbandon: props.onAbandon })}
+        {...(props.onDelete === undefined ? {} : { onDelete: props.onDelete })}
+      />
+      {onClose ? (
+        <button
+          type="button"
+          aria-label="Close task"
+          onClick={onClose}
+          className={cn(
+            "flex size-8 items-center justify-center rounded-sm text-muted-foreground transition-colors duration-100 hover:bg-accent hover:text-foreground",
+            FOCUS,
+          )}
+        >
+          <X className="size-4" strokeWidth={1.75} aria-hidden="true" />
+        </button>
+      ) : null}
+    </div>
+  )
+
+  const body = (
+    <div className="flex flex-col gap-4">
+      <Title
+        /* A different task is a fresh draft. */
+        key={props.id}
+        value={task.title}
+        done={Boolean(task.done)}
+        onRename={(title) => patch(task.id, { title })}
+      />
+      <TaskCard task={task} patch={patch} {...cardHandlers} />
+      {/* #214: the documents that link to this Task. Absent while none do. */}
+      <ReferencedFrom kind="task" id={props.id} />
+    </div>
+  )
+
+  if (page) {
+    /* The folder page's own reading column, so a task page and a folder page
+       share one measure. The page scrolls, not an inner box. */
+    return (
+      <div className={pageBodyClass("pb-24 max-md:px-4")}>
+        {header}
+        <div className="pt-6 max-md:pt-2">{body}</div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex h-12 shrink-0 items-center justify-end gap-1 px-3">
-        {task.abandoned ? (
-          <span className="mr-auto px-3 text-xs text-muted-foreground">Abandoned</span>
-        ) : null}
-        <TaskMenu
-          task={task}
-          id={props.id}
-          onToggleDone={() => patch(task.id, { done: !task.done })}
-          onRestore={() => patch(task.id, { abandoned: false })}
-          {...(props.onAbandon === undefined ? {} : { onAbandon: props.onAbandon })}
-          {...(props.onDelete === undefined ? {} : { onDelete: props.onDelete })}
-        />
-        {onClose ? (
-          <button
-            type="button"
-            aria-label="Close task"
-            onClick={onClose}
-            className={cn(
-              "flex size-8 items-center justify-center rounded-sm text-muted-foreground transition-colors duration-100 hover:bg-accent hover:text-foreground",
-              FOCUS,
-            )}
-          >
-            <X className="size-4" strokeWidth={1.75} aria-hidden="true" />
-          </button>
-        ) : null}
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-16 max-md:px-0">
-        <div className="flex flex-col gap-4">
-          <Title
-            /* A different task is a fresh draft. */
-            key={props.id}
-            value={task.title}
-            done={Boolean(task.done)}
-            onRename={(title) => patch(task.id, { title })}
-          />
-          <TaskCard task={task} patch={patch} {...cardHandlers} />
-          {/* #214: the documents that link to this Task. Absent while none do. */}
-          <ReferencedFrom kind="task" id={props.id} />
-        </div>
+      {header}
+      <div
+        className={cn(
+          "min-h-0 flex-1 overflow-y-auto pb-16",
+          kind === "center" ? "px-14 pt-2 max-md:px-4" : "px-6 max-md:px-0",
+        )}
+      >
+        {body}
       </div>
     </div>
   )
 }
 
 /*
-The side panel. It reserves its width at the right edge, so the shell's page
-narrows rather than being covered, and it slides in once, 150ms.
-
-Escape closes it, unless the key was meant for something inside: a field being
-edited, or an open menu or picker, each of which handles Escape itself.
+Escape closes a peek, unless the key was meant for something inside it: a
+field being edited, or an open menu, picker or another dialog, each of which
+handles Escape itself. The peek's own element is not "another dialog".
 */
-export function TaskPanel({
-  task,
-  onClose,
-}: {
-  task: TaskRowProps & { id: string }
-  onClose: () => void
-}) {
+function useEscapeCloses(onClose: () => void, self: React.RefObject<HTMLElement | null>) {
   const closeRef = useRef(onClose)
   closeRef.current = onClose
 
@@ -267,22 +307,97 @@ export function TaskPanel({
         const tag = target.tagName.toLowerCase()
         if (tag === "input" || tag === "textarea" || target.isContentEditable) return
       }
-      if (document.querySelector('[role="menu"], [role="dialog"], [role="listbox"]')) return
+      const open = document.querySelectorAll(
+        '[role="menu"], [role="dialog"], [role="alertdialog"], [role="listbox"]',
+      )
+      for (const node of open) if (node !== self.current) return
       closeRef.current()
     }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [])
+    /* Capture: the page under a peek (the folder canvas) stops Escape's
+       propagation for its own selection, and a peek over it must still
+       hear the key. */
+    window.addEventListener("keydown", onKey, true)
+    return () => window.removeEventListener("keydown", onKey, true)
+  }, [self])
+}
+
+/*
+Side peek: a panel at the right edge. It reserves its width, so the page
+narrows rather than being covered and the list beside it stays usable. It
+slides in once, 150ms.
+*/
+export function TaskPanel({
+  task,
+  onClose,
+  onOpenFull,
+}: {
+  task: TaskRowProps & { id: string }
+  onClose: () => void
+  onOpenFull?: () => void
+}) {
+  const self = useRef<HTMLElement>(null)
+  useEscapeCloses(onClose, self)
 
   return (
     <ReservesRightEdge width={TASK_PANEL_WIDTH}>
       <aside
+        ref={self}
         aria-label={task.title}
         style={{ width: TASK_PANEL_WIDTH }}
         className="fixed inset-y-0 right-0 z-40 flex max-w-full flex-col border-l border-border bg-background animate-in fade-in-0 slide-in-from-right-4 duration-150 ease-out"
       >
-        <TaskView key={task.id} task={task} onClose={onClose} />
+        <TaskView key={task.id} task={task} onClose={onClose} {...(onOpenFull ? { onOpenFull } : {})} />
       </aside>
     </ReservesRightEdge>
+  )
+}
+
+/** The center peek's width on a desktop. */
+export const TASK_PEEK_WIDTH = 900
+
+/*
+Center peek: the page in a centered sheet over the dimmed page. A press on the
+dimmed page, the close or Escape closes it.
+*/
+export function TaskCenterPeek({
+  task,
+  onClose,
+  onOpenFull,
+}: {
+  task: TaskRowProps & { id: string }
+  onClose: () => void
+  onOpenFull?: () => void
+}) {
+  const self = useRef<HTMLDivElement>(null)
+  useEscapeCloses(onClose, self)
+  useEffect(() => {
+    self.current?.focus({ preventScroll: true })
+  }, [])
+
+  return (
+    <div
+      className="fixed inset-0 z-40 flex items-start justify-center bg-black/20 pt-[8vh] pb-[4vh] motion-fade"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose()
+      }}
+    >
+      <div
+        ref={self}
+        role="dialog"
+        aria-modal="true"
+        aria-label={task.title}
+        tabIndex={-1}
+        style={{ width: `min(${TASK_PEEK_WIDTH}px, calc(100vw - 32px))` }}
+        className="flex h-full max-h-full flex-col overflow-hidden rounded-lg bg-background shadow-md outline-none motion-float"
+      >
+        <TaskView
+          key={task.id}
+          kind="center"
+          task={task}
+          onClose={onClose}
+          {...(onOpenFull ? { onOpenFull } : {})}
+        />
+      </div>
+    </div>
   )
 }

@@ -208,6 +208,7 @@ const CARD_COLUMNS = sql`
     t.section_block_id,
     cb.id AS creator_id, cb.display_name AS creator_display_name,
     cb.avatar_url AS creator_avatar_url,
+    t.started_at,
     t.created_at, t.updated_at`
 
 /**
@@ -313,6 +314,7 @@ function cardFromRow(
     labels,
     blocked_by_count: counts.blocked_by_count,
     blocks_count: counts.blocks_count,
+    started_at: row.started_at == null ? null : toIso(row.started_at),
     created_at: toIso(row.created_at),
     updated_at: toIso(row.updated_at),
   }

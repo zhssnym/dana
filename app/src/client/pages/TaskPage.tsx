@@ -1,25 +1,21 @@
 /*
-/app/tasks/:id, the task's own address (7.17, 9.1).
+/app/tasks/:id, the task's full page and its own address (7.17, 9.1).
 
-It is the address a copied link, a notification and a Dana Link carry, so it
-must always land somewhere true. Where it lands depends on the room there is
-(REDESIGN-SPEC "Open a task"):
+It is the address a copied link, a notification and a Dana Link carry, and
+what "Open as full page" in a peek leads to, so it is always the page itself:
+the same `TaskView` the peeks draw, in the folder page's reading column,
+inside the app's shell and sidebar. On a phone it is the only way a task
+opens, and it carries a close that goes back where the person came from.
 
-- **On a desktop** the task opens in its one home, the side panel, over the
-  task's folder: this page redirects to the folder with `?task=<id>`, which
-  `components/task-surface-host.tsx` answers.
-- **On a phone** there is no room beside a list, so this *is* the task: the
-  same `TaskView` as the panel, as the whole page, closed by going back.
-
-The 10.2 not-found discipline holds either way: an id this viewer cannot read
-renders `PageBody`'s 404 copy.
+The 10.2 not-found discipline holds: an id this viewer cannot read renders
+`PageBody`'s 404 copy.
 */
 import { useState } from 'react'
-import { Navigate, useNavigate, useParams } from 'react-router'
+import { useNavigate, useParams } from 'react-router'
 
 import { surfaceTask, useTaskEditing } from '../components/task-editing.js'
 import { TaskView } from '../components/task-surface.js'
-import { isPhoneWidth, withTask } from '../components/task-surface-host.js'
+import { isPhoneWidth } from '../components/task-surface-host.js'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog.js'
 import {
   ABANDON_CONFIRM,
@@ -53,16 +49,6 @@ export function TaskPage(): React.JSX.Element {
   const phone = mobileHook || firstPhone
   const detail = editing.detail
 
-  /* Desktop: the panel over the task's folder. */
-  if (!phone && detail !== undefined) {
-    return (
-      <Navigate
-        replace
-        to={withTask({ pathname: paths.folder(detail.folder.id), search: '' }, id)}
-      />
-    )
-  }
-
   function leave(): void {
     /* Back where the person came from, or the folder when there is no
        "from" (a link opened cold). */
@@ -93,7 +79,8 @@ export function TaskPage(): React.JSX.Element {
               />
             )}
             <TaskView
-              onClose={leave}
+              kind="page"
+              {...(phone ? { onClose: leave } : {})}
               task={{
                 ...surfaceTask(id, editing.concept),
                 /* The two acts that end a task, with the row's confirms and

@@ -1,0 +1,34 @@
+-- 0036: a task's In progress, and where a task opens by default.
+--
+-- **tasks.started_at.** The Board view reads a task in three states: Not
+-- started, In progress and Done. 4.5's status is pending | completed |
+-- abandoned and every status write goes through 8.3's transition endpoints
+-- (7.6 refuses status on PATCH with 409) so that recurrence generation stays
+-- exactly-once; a fourth status value would have to be taught to all of them.
+-- In progress is therefore not a status: it is a pending task whose
+-- started_at is set, written by an ordinary PATCH. Not started is pending
+-- with started_at null; Done is completed. No transition reads or writes the
+-- column, so a completed or abandoned task keeps whatever it held and a
+-- reopened one returns to the column it left. Nullable, no default, no
+-- constraint and no index, so AC-001's catalog is untouched.
+ALTER TABLE tasks ADD COLUMN started_at timestamptz;
+--> statement-breakpoint
+-- **user_settings.task_open defaults to 'panel' again, reversing 0010.** The
+-- client now reads the column as "Open tasks in": 'panel' is Side peek (the
+-- spec's default), 'dialog' Center peek, 'tab' Full page. The build before
+-- this migration ignored the column and always opened the side panel, so
+-- every account's lived experience is 'panel' whatever its row says, and
+-- 0010's 'dialog' (the default plus its UPDATE of every 'panel' row) was
+-- never something anybody saw. Moving the default and the 'dialog' rows to
+-- 'panel' keeps what each person sees today exactly as it is on the day the
+-- column starts to be honoured.
+--
+-- What it costs: 'dialog' cannot be told apart from 0010's default, so a
+-- person who deliberately chose Dialog is reset to Side peek and has to
+-- choose Center peek once. 'tab' is deliberately not touched: it is only
+-- ever an explicit choice.
+--
+-- Forward only; the UPDATE is not reversible and no down migration exists.
+ALTER TABLE user_settings ALTER COLUMN task_open SET DEFAULT 'panel';
+--> statement-breakpoint
+UPDATE user_settings SET task_open = 'panel' WHERE task_open = 'dialog';

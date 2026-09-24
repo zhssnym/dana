@@ -507,6 +507,10 @@ export const patchTaskBody = z
     assignee_id: uuid.nullable().optional(),
     section_block_id: uuid.nullable().optional(),
     reminder: patchReminderInput.optional(),
+    /* The Board's "In progress" (4.5): an instant sets it, null sends the task
+       back to Not started. Only meaningful while status is pending; no status
+       transition reads or writes it. */
+    started_at: z.iso.datetime().nullable().optional(),
   })
   /*
   The one INV-6 violation a PATCH body states without any help from the row:
@@ -909,6 +913,13 @@ export const taskCard = z.object({
   */
   blocked_by_count: z.int().nonnegative().optional(),
   blocks_count: z.int().nonnegative().optional(),
+  /*
+  When the task was moved to In progress, or null (4.5). The Board reads a
+  pending task with a started_at as In progress and one without as Not
+  started. Optional for blocked_by_count's reason: it was added after clients
+  shipped; every server card producer that reads the row sends it.
+  */
+  started_at: z.iso.datetime().nullable().optional(),
   created_at: z.iso.datetime(),
   updated_at: z.iso.datetime(),
 })

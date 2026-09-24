@@ -26,6 +26,7 @@ import { SUPPORT_EMAIL } from '../../shared/support.js'
 import { ImagePlus } from '../lib/icons.js'
 import { setTheme, useTheme } from '../lib/theme.js'
 import { setClock, useTimeFormat } from '../lib/time-format.js'
+import { setTaskOpen, useTaskOpenPreference } from '../lib/task-surface-preference.js'
 import {
   clearViewerImage,
   setViewerImage,
@@ -175,6 +176,7 @@ export function SettingsPageContent({
 }) {
   const theme = useTheme()
   const clock = useTimeFormat()
+  const taskOpen = useTaskOpenPreference()
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleteConfirmation, setDeleteConfirmation] = useState('')
 
@@ -216,6 +218,21 @@ export function SettingsPageContent({
                     ['dark', 'Dark'],
                   ]}
                   onSelect={setTheme}
+                />
+              }
+            />
+            <Row
+              title="Open tasks in"
+              control={
+                <Segmented
+                  label="Open tasks in"
+                  value={taskOpen}
+                  options={[
+                    ['panel', 'Side peek'],
+                    ['dialog', 'Center peek'],
+                    ['tab', 'Full page'],
+                  ]}
+                  onSelect={setTaskOpen}
                 />
               }
             />

@@ -115,6 +115,7 @@ export function toConceptTask(
     title: task.title,
     done: task.status === 'completed',
     abandoned: task.status === 'abandoned',
+    startedAt: task.started_at ?? null,
     folder: { name: folder.name, color: folder.color, id: task.folder.id },
     due: dueDisplay(task, today, clock),
     assignee,
@@ -204,6 +205,7 @@ export function conceptPatchToBody(fields: Partial<ConceptTask>): PatchTaskBody 
   if (fields.title !== undefined) body['title'] = fields.title
   if (fields.notes !== undefined) body['notes'] = fields.notes
   if (fields.important !== undefined) body['important'] = fields.important
+  if (fields.startedAt !== undefined) body['started_at'] = fields.startedAt
   if (fields.folder?.id !== undefined) body['folder_id'] = fields.folder.id
   /*
   A cleared assignee is `null` and not an absent key: 7.6 distinguishes the two,
