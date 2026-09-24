@@ -2,8 +2,9 @@
 The one place a task is opened (ROUND2-SPEC "Task").
 
 **Where** is the person's choice, Settings > Appearance > "Open tasks in":
-Side peek (the default), Center peek or Full page. A phone always opens the
-full page.
+Center peek (the default), Side peek or Full page. A phone always opens the
+full page. Sub-pages are places, not items, and navigate (Notion's rule):
+only tasks open here.
 
 **The address is the state.** An open peek is `?task=<id>` on whatever page is
 showing, so it survives a reload, Back closes it, and the list under it is the
@@ -24,7 +25,7 @@ has no panel.
 series' current occurrence, and says so to a screen reader (AC-098).
 */
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate, type Location } from 'react-router'
 
 import { useRowActions } from '../parts/useRowActions.js'
@@ -75,7 +76,7 @@ interface PendingAct {
   readonly cancelLabel?: string
 }
 
-export function TaskSurfaceHost(): React.JSX.Element | null {
+export function TaskSurfaceHost(): ReactNode {
   const location = useLocation()
   const navigate = useNavigate()
   const taskId = new URLSearchParams(location.search).get(TASK_PARAM)
@@ -85,6 +86,8 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
   const acts = useRowActions()
   const [pending, setPending] = useState<PendingAct | null>(null)
   const mode = useTaskOpenPreference()
+  /* What was last drawn, held while a stepped-to task loads. */
+  const shown = useRef<ReactNode>(null)
   const modeRef = useRef(mode)
   modeRef.current = mode
 
@@ -133,11 +136,16 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
     if (phoneOpen) void navigate(paths.task(taskId), { replace: true })
   }, [phoneOpen, taskId, navigate])
 
-  if (taskId === null || taskId === '' || phoneOpen) return null
+  if (taskId === null || taskId === '' || phoneOpen) {
+    shown.current = null
+    return null
+  }
   /* Nothing renders until the task can be drawn correctly: a panel that
-     filled itself in afterwards would show an empty title first. */
+     filled itself in afterwards would show an empty title first. Stepping to
+     the next task keeps the one on screen until the next can be drawn, so
+     the peek neither blinks nor plays its entrance again. */
   const detail = editing.detail
-  if (editing.concept === null || detail === undefined) return null
+  if (editing.concept === null || detail === undefined) return shown.current
 
   function openFull(): void {
     if (taskId === null) return
@@ -180,7 +188,7 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
     },
   }
 
-  return (
+  shown.current = (
     <TaskWriter patch={editing.write}>
       {editing.confirm}
       {pending === null ? null : (
@@ -208,4 +216,5 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
       )}
     </TaskWriter>
   )
+  return shown.current
 }

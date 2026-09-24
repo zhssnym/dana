@@ -1451,6 +1451,8 @@ export function TaskRow(props: TaskRowProps) {
 
   const row = (
     <div
+      /* r3-peek: the peek steps through rows in the order they are drawn. */
+      data-task-id={props.id}
       onClick={
         /* Where no drag engine tracks the row (a board card, say); inside a
            list the engine resolves the tap. */

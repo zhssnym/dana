@@ -1,24 +1,26 @@
 /*
 A task's page, in the three ways it is shown (ROUND2-SPEC "Task"):
 
-- **Side peek** (`TaskPanel`), the default: a panel at the right edge; the page
-  makes room rather than being covered, so the list stays visible and usable,
-  and clicking another row swaps the peek's task.
-- **Center peek** (`TaskCenterPeek`): a centered sheet, ~900px, over the
-  dimmed page.
+- **Center peek** (`TaskCenterPeek`), the default (round 3): a centered sheet,
+  ~960px, over the dimmed page, like Notion's center peek.
+- **Side peek** (`TaskPanel`): a panel at the right edge; the page makes room
+  rather than being covered, so the list stays visible and usable, and
+  clicking another row swaps the peek's task.
 - **Full page** (`TaskView kind="page"`, from `pages/TaskPage.tsx`):
   /app/tasks/:id in the app's own shell, and always so on a phone.
 
-Settings > Appearance > "Open tasks in" chooses. The peeks carry "Open as full
-page" and a close, and Escape closes them. The view is one: a header with the
+Settings > Appearance > "Open tasks in" chooses. The peeks carry ↑/↓ to step
+through the tasks listed under them (also Ctrl/Cmd+Shift+K and J, Notion's
+keys), "Open as full page" and a close; Escape closes them. Both ease in and
+out on the motion tokens rather than snapping. The view is one: a header with the
 task's one "…", the title renaming in place, and `TaskCard` (properties, then
 the Work and Discussion tabs).
 */
 
 import { InlineTextarea } from "./ui/inline-field.js"
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 
-import { Maximize2, MoreHorizontal, X } from "../lib/icons.js"
+import { ChevronDown, ChevronUp, Maximize2, MoreHorizontal, X } from "../lib/icons.js"
 import { TITLE_REQUIRED, tooLong } from "./task-copy.js"
 /* 10.3's number for the field, from the shared contract rather than restated. */
 import { TASK_TITLE_LIMIT } from "../../shared/tasks.js"
@@ -32,6 +34,7 @@ import { copyTaskLink, duplicateTask } from "../tasks/task-acts.js"
 import { cn } from "./ui/utils.js"
 import { ReferencedFrom } from "./links/referenced-from.js"
 import { pageBodyClass } from "./page-head.js"
+import { openTask } from "./task-open.js"
 
 const FOCUS = "outline-none focus-visible:ring-2 focus-visible:ring-ring"
 
@@ -173,6 +176,43 @@ function TaskMenu({
   )
 }
 
+/** The tasks before and after the open one, in the order the page shows them. */
+export interface PeekSteps {
+  readonly prev: string | null
+  readonly next: string | null
+}
+
+function HeaderButton({
+  label,
+  keys,
+  disabled,
+  onClick,
+  children,
+}: {
+  label: string
+  keys: string
+  disabled: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      aria-keyshortcuts={keys}
+      title={label}
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        "flex size-8 items-center justify-center rounded-sm text-muted-foreground transition-colors duration-100 hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40",
+        FOCUS,
+      )}
+    >
+      {children}
+    </button>
+  )
+}
+
 /*
 The task as one page, whichever way it is shown: a side peek, a center peek or
 the full page. The header carries the task's one "…", "Open as full page" in
@@ -183,6 +223,7 @@ export function TaskView({
   onClose,
   onOpenFull,
   kind = "side",
+  steps,
 }: {
   task: TaskRowProps & { id: string }
   /** The close control; absent draws none. */
@@ -190,14 +231,42 @@ export function TaskView({
   /** "Open as full page"; absent (the full page itself) draws none. */
   onOpenFull?: () => void
   kind?: "side" | "center" | "page"
+  /** A peek's neighbours in the list under it; absent draws no arrows. */
+  steps?: PeekSteps
 }) {
   const { task, patch, cardHandlers } = useCardWiring(props)
   const page = kind === "page"
 
   const header = (
     <div className={cn("flex h-12 shrink-0 items-center justify-end gap-1", page ? "-mr-2" : "px-3")}>
+      {page ? null : (
+        /* r3-peek: the breadcrumb's place (unit shell's BreadcrumbTrail, wired
+           by the lead after merge). Empty until then, and it takes the slack
+           so the controls stay at the right edge. */
+        <div data-peek-breadcrumb="" className="flex min-w-0 flex-1 items-center" />
+      )}
       {task.abandoned ? (
-        <span className={cn("mr-auto text-xs text-muted-foreground", page ? "" : "px-3")}>Abandoned</span>
+        <span className={cn("text-xs text-muted-foreground", page ? "mr-auto" : "px-2")}>Abandoned</span>
+      ) : null}
+      {steps && (steps.prev !== null || steps.next !== null) ? (
+        <>
+          <HeaderButton
+            label="Previous task"
+            keys="Control+Shift+K"
+            disabled={steps.prev === null}
+            onClick={() => steps.prev !== null && openTask(steps.prev)}
+          >
+            <ChevronUp className="size-4" strokeWidth={1.75} aria-hidden="true" />
+          </HeaderButton>
+          <HeaderButton
+            label="Next task"
+            keys="Control+Shift+J"
+            disabled={steps.next === null}
+            onClick={() => steps.next !== null && openTask(steps.next)}
+          >
+            <ChevronDown className="size-4" strokeWidth={1.75} aria-hidden="true" />
+          </HeaderButton>
+        </>
       ) : null}
       {onOpenFull ? (
         <button
@@ -281,14 +350,34 @@ export function TaskView({
 Escape closes a peek, unless the key was meant for something inside it: a
 field being edited, or an open menu, picker or another dialog, each of which
 handles Escape itself. The peek's own element is not "another dialog".
+
+Ctrl/Cmd+Shift+K and J step to the previous and next task (Notion's keys),
+from anywhere in the peek, the editor included: nothing inside claims them.
 */
-function useEscapeCloses(onClose: () => void, self: React.RefObject<HTMLElement | null>) {
+function usePeekKeys(
+  onClose: () => void,
+  self: React.RefObject<HTMLElement | null>,
+  steps: PeekSteps,
+) {
   const closeRef = useRef(onClose)
   closeRef.current = onClose
+  const stepsRef = useRef(steps)
+  stepsRef.current = steps
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
-      if (event.key !== "Escape" || event.defaultPrevented) return
+      if (event.defaultPrevented) return
+      const key = event.key.toLowerCase()
+      if ((event.ctrlKey || event.metaKey) && event.shiftKey && !event.altKey && (key === "j" || key === "k")) {
+        const to = key === "j" ? stepsRef.current.next : stepsRef.current.prev
+        /* Always ours while a peek is open: Ctrl+Shift+K must not also open
+           search, whose listener answers any Ctrl+K. */
+        event.preventDefault()
+        event.stopPropagation()
+        if (to !== null) openTask(to)
+        return
+      }
+      if (event.key !== "Escape") return
       const target = event.target
       if (target instanceof HTMLElement) {
         const tag = target.tagName.toLowerCase()
@@ -309,9 +398,96 @@ function useEscapeCloses(onClose: () => void, self: React.RefObject<HTMLElement 
 }
 
 /*
+The tasks listed under the peek, in the order they are drawn: every task row
+carries `data-task-id` (a canvas task block wraps one), so the page's own
+order is the order, whichever view drew it. Rows inside the peek are not the
+list. A task opened from somewhere that lists nothing (search, the calendar)
+has no neighbours, and the arrows do not draw.
+*/
+export function usePeekSteps(taskId: string, self: React.RefObject<HTMLElement | null>): PeekSteps {
+  const [steps, setSteps] = useState<PeekSteps>({ prev: null, next: null })
+  useEffect(() => {
+    const ids: string[] = []
+    for (const node of document.querySelectorAll<HTMLElement>("[data-task-id]")) {
+      if (self.current?.contains(node)) continue
+      const id = node.dataset.taskId
+      if (id !== undefined && id !== "" && !ids.includes(id)) ids.push(id)
+    }
+    const at = ids.indexOf(taskId)
+    setSteps(
+      at < 0
+        ? { prev: null, next: null }
+        : { prev: ids[at - 1] ?? null, next: ids[at + 1] ?? null },
+    )
+  }, [taskId, self])
+  return steps
+}
+
+/*
+**Motion.** A peek eases in and out on the floating-layer utilities
+(`motion-float`, `motion-fade` in tokens.css), which animate between
+`data-starting-style` / `data-ending-style` and rest. Base UI sets those for
+its own popups; a peek is not one, so this does the same by hand: it mounts
+"starting", rests two frames later, and on close goes "ending" and only then
+calls `onClose`, once its exit has run (or after a short fallback, since
+reduced motion or a hidden tab may never fire the end event).
+
+Focus moves into the peek and returns, on close, to what had it before.
+*/
+type Phase = "starting" | "open" | "ending"
+
+/** Longer than any exit on the motion tokens; only a missed end event waits for it. */
+const EXIT_FALLBACK_MS = 250
+
+function usePeekMotion(onClose: () => void, self: React.RefObject<HTMLElement | null>) {
+  const [phase, setPhase] = useState<Phase>("starting")
+  const closeRef = useRef(onClose)
+  closeRef.current = onClose
+  const done = useRef(false)
+
+  useEffect(() => {
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    let second = 0
+    const first = requestAnimationFrame(() => {
+      second = requestAnimationFrame(() => {
+        setPhase((current) => (current === "starting" ? "open" : current))
+      })
+    })
+    self.current?.focus({ preventScroll: true })
+    return () => {
+      cancelAnimationFrame(first)
+      cancelAnimationFrame(second)
+      if (opener?.isConnected === true) opener.focus({ preventScroll: true })
+    }
+  }, [self])
+
+  const finish = useCallback(() => {
+    if (done.current) return
+    done.current = true
+    closeRef.current()
+  }, [])
+
+  const requestClose = useCallback(() => {
+    setPhase("ending")
+  }, [])
+
+  useEffect(() => {
+    if (phase !== "ending") return
+    const fallback = window.setTimeout(finish, EXIT_FALLBACK_MS)
+    return () => window.clearTimeout(fallback)
+  }, [phase, finish])
+
+  const motion: Record<string, string> = {
+    ...(phase === "starting" ? { "data-starting-style": "" } : {}),
+    ...(phase === "ending" ? { "data-ending-style": "" } : {}),
+  }
+  return { phase, requestClose, finish, motion }
+}
+
+/*
 Side peek: a panel at the right edge. It reserves its width, so the page
 narrows rather than being covered and the list beside it stays usable. It
-slides in once, 150ms.
+slides in and out on the motion tokens.
 */
 export function TaskPanel({
   task,
@@ -323,28 +499,47 @@ export function TaskPanel({
   onOpenFull?: () => void
 }) {
   const self = useRef<HTMLElement>(null)
-  useEscapeCloses(onClose, self)
+  const { phase, requestClose, finish } = usePeekMotion(onClose, self)
+  const steps = usePeekSteps(task.id, self)
+  usePeekKeys(requestClose, self, steps)
 
   return (
     <ReservesRightEdge width={TASK_PANEL_WIDTH}>
       <aside
         ref={self}
         aria-label={task.title}
+        tabIndex={-1}
         style={{ width: TASK_PANEL_WIDTH }}
-        className="fixed inset-y-0 right-0 z-40 flex max-w-full flex-col border-l border-border bg-background animate-in fade-in-0 slide-in-from-right-4 duration-150 ease-out"
+        onAnimationEnd={(event) => {
+          if (phase === "ending" && event.target === event.currentTarget) finish()
+        }}
+        className={cn(
+          "fixed inset-y-0 right-0 z-40 flex max-w-full flex-col border-l border-border bg-background outline-none",
+          phase === "ending"
+            ? "animate-out fade-out-0 slide-out-to-right-4 fill-mode-forwards duration-(--duration-fast) ease-(--ease-exit)"
+            : "animate-in fade-in-0 slide-in-from-right-4 duration-(--duration-base) ease-(--ease-enter)",
+        )}
       >
-        <TaskView key={task.id} task={task} onClose={onClose} {...(onOpenFull ? { onOpenFull } : {})} />
+        <TaskView
+          key={task.id}
+          task={task}
+          onClose={requestClose}
+          steps={steps}
+          {...(onOpenFull ? { onOpenFull } : {})}
+        />
       </aside>
     </ReservesRightEdge>
   )
 }
 
 /** The center peek's width on a desktop. */
-export const TASK_PEEK_WIDTH = 900
+export const TASK_PEEK_WIDTH = 960
 
 /*
-Center peek: the page in a centered sheet over the dimmed page. A press on the
-dimmed page, the close or Escape closes it.
+Center peek, the default: the page in a centered sheet over the dimmed page,
+as Notion's center peek. The scrim fades; the sheet fades and rises into
+place. A press on the dimmed page, the close or Escape closes it, easing out
+first.
 */
 export function TaskCenterPeek({
   task,
@@ -356,32 +551,37 @@ export function TaskCenterPeek({
   onOpenFull?: () => void
 }) {
   const self = useRef<HTMLDivElement>(null)
-  useEscapeCloses(onClose, self)
-  useEffect(() => {
-    self.current?.focus({ preventScroll: true })
-  }, [])
+  const { phase, requestClose, finish, motion } = usePeekMotion(onClose, self)
+  const steps = usePeekSteps(task.id, self)
+  usePeekKeys(requestClose, self, steps)
 
   return (
     <div
-      className="fixed inset-0 z-40 flex items-start justify-center bg-black/20 pt-[8vh] pb-[4vh] motion-fade"
+      {...motion}
+      className="fixed inset-0 z-40 flex items-start justify-center bg-black/20 pt-[6vh] pb-[4vh] motion-fade"
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose()
+        if (event.target === event.currentTarget) requestClose()
       }}
     >
       <div
+        {...motion}
         ref={self}
         role="dialog"
         aria-modal="true"
         aria-label={task.title}
         tabIndex={-1}
         style={{ width: `min(${TASK_PEEK_WIDTH}px, calc(100vw - 32px))` }}
-        className="flex h-full max-h-full flex-col overflow-hidden rounded-lg bg-background shadow-md outline-none motion-float"
+        onTransitionEnd={(event) => {
+          if (phase === "ending" && event.target === event.currentTarget) finish()
+        }}
+        className="flex h-full max-h-full flex-col overflow-hidden rounded-lg bg-popover shadow-md outline-none motion-float"
       >
         <TaskView
           key={task.id}
           kind="center"
           task={task}
-          onClose={onClose}
+          onClose={requestClose}
+          steps={steps}
           {...(onOpenFull ? { onOpenFull } : {})}
         />
       </div>

@@ -2,8 +2,8 @@
 Where a task opens belongs to the person, not to one browser.
 
 `user_settings.task_open` is the record for Settings > Appearance > "Open
-tasks in": `panel` is Side peek (the default), `dialog` is Center peek and
-`tab` is Full page. localStorage is only its fast mirror, so the first task
+tasks in": `dialog` is Center peek (the default, migration 0046), `panel` is
+Side peek and `tab` is Full page. localStorage is only its fast mirror, so the first task
 can open in the expected place while the settings bundle is still loading.
 Once that bundle arrives it wins and refreshes the mirror, exactly like the
 theme. A phone ignores the choice: there a task is always its full page.
@@ -25,11 +25,11 @@ type StoredMode = TaskOpenMode
 
 const KEY = 'dana.taskSurface'
 
-/** Side peek, what this answers before anyone has chosen. */
-const DEFAULT = 'panel' satisfies StoredMode
+/** Center peek, what this answers before anyone has chosen. */
+const DEFAULT = 'dialog' satisfies StoredMode
 
 function fromStored(mode: string | null): StoredMode {
-  return mode === 'dialog' || mode === 'tab' ? mode : DEFAULT
+  return mode === 'panel' || mode === 'tab' ? mode : DEFAULT
 }
 
 function read(): StoredMode {
