@@ -511,7 +511,9 @@ button:not(:disabled),
 :is(input, textarea, select, [contenteditable]:not([contenteditable="false"]),
   [role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"],
   [role="option"], [data-focus="self"]):focus-visible,
-[contenteditable]:not([contenteditable="false"]) :focus-visible {
+[contenteditable]:not([contenteditable="false"])
+  :focus-visible:not(:is(a, button, [role="button"], [role="checkbox"],
+    [role="switch"], [role="radio"], [role="tab"], [role="link"])) {
   outline: none !important;
 }
 [class*="focus-within:ring"]:focus-within {
