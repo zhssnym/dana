@@ -189,6 +189,9 @@ const SHARING_PANEL_WIDTH = 440
 
 /* A page's three views, in the tab row's toggle order. */
 /* Linear is hidden for now (its code stays); a stored 'linear' opens as Freeform. */
+function shownFolderView(view: FolderView): FolderView {
+  return view === 'linear' ? 'freeform' : view
+}
 const FOLDER_VIEWS: readonly FolderView[] = ['freeform', 'board']
 const VIEW_ICONS = { freeform: ListIcon, linear: GitCommitVertical, board: SquareKanban } as const
 
@@ -247,7 +250,7 @@ export function FolderPage({
   /* Linear, Board or Freeform: this device's choice for every page, kept apart
      from the place pages' layout. `?mode=` seeds it, as it seeds theirs. */
   const [storedView, setFolderView] = useFolderView()
-  const folderView: FolderView = storedView === 'linear' ? 'freeform' : storedView
+  const folderView = shownFolderView(storedView)
   const seededView = modeFromSearch(search.toString())
   useEffect(() => {
     if (seededView !== null) writeFolderView(folderViewOf(seededView))
