@@ -1,7 +1,7 @@
 /*
 The sample workspace's words (7.20). One person's
-life, the way it would look after a few weeks of ordinary use: three shelves,
-a handful of folders under each, and enough tasks between them to reach
+life, the way it would look after a few weeks of ordinary use: three pages,
+a handful of sub-pages under each, and enough tasks between them to reach
 every view and every feature a new account is likely to wonder about.
 
 Every string the sample writes is in this file and nowhere else, so the
@@ -66,8 +66,9 @@ export interface SampleBlock {
 
 export interface SampleFolder {
   readonly name: string
-  /** The shelf it sits on, by name. */
-  readonly shelf?: string
+  /** The top-level page it is a sub-page of, by name. A trashed folder names
+   * none and stays a root. */
+  readonly parent?: string
   readonly icon?: string
   readonly color?: string
   readonly description?: string
@@ -77,7 +78,10 @@ export interface SampleFolder {
   readonly trashed?: boolean
 }
 
-export interface SampleShelf {
+/** A top-level page: an ordinary folders row whose sub-pages are the
+ * folders that name it as `parent`, so every page in the sample is the same
+ * kind of page. */
+export interface SamplePage {
   readonly name: string
   readonly icon?: string
   readonly color?: string
@@ -91,7 +95,8 @@ export interface SampleView {
 }
 
 export interface SampleWorkspace {
-  readonly shelves: readonly SampleShelf[]
+  /** Written first, in this order; their sub-pages follow. */
+  readonly pages: readonly SamplePage[]
   readonly folders: readonly SampleFolder[]
   /** Unfiled tasks, which land on Desk. */
   readonly desk: readonly SampleTask[]
@@ -99,7 +104,7 @@ export interface SampleWorkspace {
 }
 
 export const SAMPLE_WORKSPACE: SampleWorkspace = {
-  shelves: [
+  pages: [
     {
       name: 'Life',
       icon: 'house',
@@ -107,23 +112,23 @@ export const SAMPLE_WORKSPACE: SampleWorkspace = {
       description: 'Home, family, and the things that keep the week running.',
     },
     {
-      name: 'Work',
-      icon: 'laptop',
-      color: '#4A7BD0',
-      description: 'The studio, the clients, and the launch.',
-    },
-    {
       name: 'Studies',
       icon: 'book-open',
       color: '#5B9E6A',
       description: 'The design course and the reading that goes with it.',
+    },
+    {
+      name: 'Work',
+      icon: 'laptop',
+      color: '#4A7BD0',
+      description: 'The studio, the clients, and the launch.',
     },
   ],
 
   folders: [
     {
       name: 'Apartment move',
-      shelf: 'Life',
+      parent: 'Life',
       icon: 'key',
       color: '#D97757',
       description: 'Keys go back in two weeks.',
@@ -208,7 +213,7 @@ export const SAMPLE_WORKSPACE: SampleWorkspace = {
 
     {
       name: 'Home',
-      shelf: 'Life',
+      parent: 'Life',
       icon: 'house',
       blocks: [
         {
@@ -248,7 +253,7 @@ export const SAMPLE_WORKSPACE: SampleWorkspace = {
 
     {
       name: 'Website launch',
-      shelf: 'Work',
+      parent: 'Work',
       icon: 'rocket',
       color: '#4A7BD0',
       description: 'Live on the last Friday of next month.',
@@ -315,7 +320,7 @@ export const SAMPLE_WORKSPACE: SampleWorkspace = {
 
     {
       name: 'Weekly admin',
-      shelf: 'Work',
+      parent: 'Work',
       icon: 'coins',
       blocks: [
         {
@@ -338,7 +343,7 @@ export const SAMPLE_WORKSPACE: SampleWorkspace = {
 
     {
       name: 'Design course',
-      shelf: 'Studies',
+      parent: 'Studies',
       icon: 'lightbulb',
       color: '#5B9E6A',
       blocks: [
@@ -377,7 +382,7 @@ export const SAMPLE_WORKSPACE: SampleWorkspace = {
 
     {
       name: 'Reading list',
-      shelf: 'Studies',
+      parent: 'Studies',
       icon: 'book-open',
       blocks: [
         {
@@ -395,7 +400,6 @@ export const SAMPLE_WORKSPACE: SampleWorkspace = {
 
     {
       name: 'Summer trip',
-      shelf: 'Life',
       icon: 'tent',
       trashed: true,
       tasks: [{ title: 'Book the ferry' }, { title: 'Find a place near the beach' }],

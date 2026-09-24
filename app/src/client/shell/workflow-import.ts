@@ -274,7 +274,7 @@ export function prepareWorkflowImport(
 
 /* What Import says when the file is not a workflow at all: what happened, and
    nothing about JSON. */
-export const WORKFLOW_UNREADABLE = "That file isn't a workflow Dana can read."
+export const WORKFLOW_UNREADABLE = "Dana can't read that file."
 
 /**
  * The whole of "Import workflow…" after the file chooser closes, as one flow:
@@ -283,11 +283,11 @@ export const WORKFLOW_UNREADABLE = "That file isn't a workflow Dana can read."
  * endpoint's own failure toast (a 422 names its field) is the error line; the
  * progress line is withdrawn either way so it never outlives the request.
  */
-export function useWorkflowFileImport(): (file: File) => void {
+export function useWorkflowFileImport(): (file: File, parentId?: string) => void {
   const navigate = useNavigate()
   const folders = useFolders()
   const importWorkflow = useImportWorkflowFile()
-  return (file: File): void => {
+  return (file: File, parentId?: string): void => {
     const progress = `Importing ${file.name}…`
     showToast(progress)
     const done = (): void => {
@@ -312,7 +312,7 @@ export function useWorkflowFileImport(): (file: File) => void {
         unreadable()
         return
       }
-      importWorkflow.mutate(prepared.body, {
+      importWorkflow.mutate({ body: prepared.body, ...(parentId === undefined ? {} : { parentId }) }, {
         onSettled: done,
         onSuccess: (made) => {
           const first = made.folders[0]
@@ -325,12 +325,32 @@ export function useWorkflowFileImport(): (file: File) => void {
             prepared.skippedContent ? 'Some unsupported content was skipped.' : '',
             prepared.omittedCount === 0
               ? ''
-              : `${String(prepared.omittedCount)} ${prepared.omittedCount === 1 ? 'picture, file or folder link was' : 'pictures, files or folder links were'} not included in this file.`,
+              : `${String(prepared.omittedCount)} ${prepared.omittedCount === 1 ? 'picture, file or page link was' : 'pictures, files or page links were'} not included in this file.`,
           ].filter((note) => note !== '')
           if (notes.length > 0) showToast(notes.join(' '))
           if (first !== undefined) void navigate(paths.folder(first.id))
         },
       })
     }, unreadable)
+  }
+}
+
+/**
+ * The page "…" menu's Import…: choose a Dana file and import it into the page
+ * `parentId`, its pages arriving as that page's sub-pages in one transaction
+ * (`POST /folders/:id/import`). Called from the menu item's press, so the
+ * chooser opens inside the user's gesture.
+ */
+export function usePageImport(): (parentId: string) => void {
+  const importFile = useWorkflowFileImport()
+  return (parentId: string): void => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.json,application/json'
+    input.addEventListener('change', () => {
+      const file = input.files?.[0]
+      if (file !== undefined) importFile(file, parentId)
+    })
+    input.click()
   }
 }

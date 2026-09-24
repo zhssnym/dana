@@ -76,13 +76,9 @@ const FULL_BLEED = { marginInline: "calc(50% - 50cqw)" } as const
 export function PageCover({
   storageName,
   readOnly = false,
-  pickerInMenu = false,
 }: {
   storageName: string
   readOnly?: boolean
-  /** The page's "…" menu already carries "Cover…" (the folder page), so the
-      band offers only Reposition: one home for changing or removing it. */
-  pickerInMenu?: boolean
 }) {
   const identity = useFolderIdentity(storageName)
   const coverPos = identity.coverPos ?? 50
@@ -94,7 +90,7 @@ export function PageCover({
   if (!cover) return null
   const repositionable = coverRepositions(identity.cover) && coverStoresPosition(storageName)
   /* Nothing left to offer on the band: draw only the picture. */
-  const bare = readOnly || (pickerInMenu && !repositionable)
+  const bare = readOnly
 
   return (
     <div
@@ -203,8 +199,6 @@ export function PageCover({
              Change and Reposition share a border and a divider rather
              than floating as loose chips. */
           <span className="flex h-7 items-stretch divide-x divide-border overflow-hidden rounded-md border border-border bg-card/95 shadow-[var(--elevation-1)] backdrop-blur">
-            {pickerInMenu ? null : (
-            <>
             <Popover>
               <PopoverTrigger
                 render={
@@ -253,8 +247,6 @@ export function PageCover({
             >
               Remove
             </button>
-            </>
-            )}
             {repositionable ? (
               <button
                 type="button"

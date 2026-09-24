@@ -527,11 +527,24 @@ export async function createSubPage(
   })
   if (id === null) return { kind: 'folder_cap' }
   if (input.homeBlock !== false) await appendHomeBlock(tx, parentId, id)
+  await copyParentMembers(tx, actorId, parentId, id)
+  return { kind: 'created', id }
+}
 
+/** Wave 2, decision 1: the new sub-page `childId` copies `parentId`'s live
+ * members other than the actor, with their Access presets, each recorded as
+ * `member_added` by the actor. `createSubPage` and the import into a page
+ * (POST /folders/:id/import) both call it. */
+export async function copyParentMembers(
+  tx: Executor,
+  actorId: string,
+  parentId: string,
+  childId: string,
+): Promise<void> {
   const copied = await rowsOf(
     tx,
     sql`INSERT INTO folder_members (folder_id, user_id, access)
-        SELECT ${id}::uuid, m.user_id, m.access
+        SELECT ${childId}::uuid, m.user_id, m.access
           FROM folder_members m
           JOIN users u ON u.id = m.user_id AND u.deleted_at IS NULL
          WHERE m.folder_id = ${parentId}::uuid AND m.user_id <> ${actorId}::uuid
@@ -545,7 +558,7 @@ export async function createSubPage(
       )
     }
     await recordAccessTransition(tx, {
-      folderId: id,
+      folderId: childId,
       memberId: String(row.user_id),
       previousAccess: null,
       newAccess: access,
@@ -553,7 +566,6 @@ export async function createSubPage(
       transition: 'member_added',
     })
   }
-  return { kind: 'created', id }
 }
 
 /** `createSubPage` in its own transaction, for POST /folders. */

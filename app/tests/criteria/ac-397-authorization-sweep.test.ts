@@ -859,6 +859,19 @@ const TABLE = new Map<string, Row>([
     },
   ],
   [
+    'POST /api/v1/folders/:id/import',
+    {
+      attempt: (fx) => ({
+        path: `/folders/${fx.folderId}/import?tz=UTC`,
+        body: { dana: 'workflow', version: 1, folders: [{ name: 'cannot land here' }] },
+      }),
+      stranger: {
+        expected: 404,
+        rule: 'wave 2 and 7.16: importing into a page adds sub-pages to it, a page edit, so a non-member cannot name the page',
+      },
+    },
+  ],
+  [
     'POST /api/v1/folders/:id/cover/photo',
     {
       attempt: (fx) => ({
