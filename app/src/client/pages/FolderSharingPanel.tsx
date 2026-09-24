@@ -89,7 +89,7 @@ import {
 import { Avatar, AvatarFallback } from '../components/ui/avatar.js'
 import { Button } from '../components/ui/button.js'
 import { Input } from '../components/ui/input.js'
-import { NativeSelect } from '../components/ui/native-select.js'
+import { Combobox } from '../components/ui/combobox.js'
 import {
   Sheet,
   SheetContent,
@@ -318,22 +318,18 @@ export function FolderSharingPanel({
             <div className="mt-7">
               <PanelHeading icon={UserPlus}>{ROSTER_PICKER}</PanelHeading>
               <div className="flex gap-2">
-                <NativeSelect
+                <Combobox
                   aria-label={ROSTER_PICKER}
                   value={picked}
                   disabled={addMember.isPending}
                   className="min-w-0 flex-1"
-                  onChange={(event) => {
-                    setPicked(event.target.value)
-                  }}
-                >
-                  <option value="">Choose a person</option>
-                  {invitable.map((entry) => (
-                    <option key={entry.user.id} value={entry.user.id}>
-                      {entry.user.display_name ?? entry.user.email}
-                    </option>
-                  ))}
-                </NativeSelect>
+                  placeholder="Choose a person"
+                  options={invitable.map((entry) => ({
+                    value: entry.user.id,
+                    label: entry.user.display_name ?? entry.user.email,
+                  }))}
+                  onValueChange={setPicked}
+                />
                 <Button
                   variant="commit"
                   disabled={picked === '' || addMember.isPending}

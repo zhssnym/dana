@@ -70,11 +70,8 @@ export function setViewerImage(image: string): void {
   const client = queryClient()
   void fileOf(image)
     .then((file) => uploadAvatar(file))
-    .then(() => {
-      void client?.invalidateQueries()
-      /* An upload says when it has landed. */
-      showToast('Picture updated')
-    })
+    // Success says nothing: the picture itself changing is the answer.
+    .then(() => void client?.invalidateQueries())
     .catch((error: unknown) => showToast(writeFailureMessage(error)))
 }
 
@@ -92,11 +89,7 @@ export function setViewerImage(image: string): void {
 export function clearViewerImage(): void {
   const client = queryClient()
   void mutateApi(null, { method: 'DELETE', path: '/me/avatar' })
-    .then(() => {
-      void client?.invalidateQueries()
-      /* The mirror of the upload's own toast: a removal says when it landed. */
-      showToast('Picture removed')
-    })
+    .then(() => void client?.invalidateQueries())
     .catch((error: unknown) => showToast(writeFailureMessage(error)))
 }
 
