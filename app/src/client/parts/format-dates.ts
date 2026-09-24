@@ -12,7 +12,6 @@ import {
   formatDayInline,
   formatMonthHeading,
   weekStart,
-  weekdayName,
 } from '../lib/dates.js'
 
 export { addDays, dayBefore, daysBetween, formatDayHeading, formatMonthHeading, weekStart }
@@ -50,14 +49,4 @@ export function formatAgo(instant: string, now: number): string {
   const days = Math.floor(hours / 24)
   if (days < 7) return `${String(days)} day${days === 1 ? '' : 's'} ago`
   return formatDate(instant.slice(0, 10), new Date(now).toISOString().slice(0, 10))
-}
-
-/** The ladder's weekday heading: "Thursday". */
-export function weekdayNameOf(date: string): string {
-  return weekdayName(date)
-}
-
-/** A month rung's heading: "October", or "October 2027" outside today's year. */
-export function monthLabelOf(date: string, today = ''): string {
-  return formatMonthHeading(date, today)
 }

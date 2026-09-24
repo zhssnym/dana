@@ -41,7 +41,7 @@ conversation. Each of the rest is dropped here rather than half-sent, and
 `unwritten()` below names what was dropped so a caller can assert on it.
 */
 
-import { createContext, useCallback, useContext, useMemo } from 'react'
+import { createContext, useCallback, useContext } from 'react'
 import type { ReactNode } from 'react'
 
 import {
@@ -150,17 +150,4 @@ export function useApiTaskPatch(): TaskPatch {
     },
     [pull, resolveFolderId, transition, unpull, update],
   )
-}
-
-/**
- * The provider a shell mounts once, around everything that draws a card.
- *
- * Separate from `TaskWriter` above so that the component contract and this
- * client's wiring of it stay two things: a lab, a test or a preview mounts
- * `TaskWriter` with a patch of its own and never reaches the API, which is "a
- * row still wins if it is given a handler" read one level up.
- */
-export function ApiTaskWriter({ children }: { children: ReactNode }): React.JSX.Element {
-  const patch = useApiTaskPatch()
-  return useMemo(() => <TaskWriter patch={patch}>{children}</TaskWriter>, [children, patch])
 }

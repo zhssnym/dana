@@ -25,9 +25,6 @@ export const PLANNED_EMPTY =
 /** Q7, both open sections empty. */
 export const FOLDER_EMPTY = 'No tasks yet. Add one below.'
 
-/** Q8. */
-export const SEARCH_EMPTY = 'No matches for that search.'
-
 /** Not section 6's: Assignments is a composition rather than a query, so this copy is the client's own. */
 export const ASSIGNMENTS_EMPTY =
   'Nothing assigned yet. Open tasks appear here under whoever is carrying them.'

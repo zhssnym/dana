@@ -25,7 +25,6 @@ import {
   Bell,
   CalendarDays,
   FileText,
-  FolderPlus,
   GripVertical,
   Image as ImageIcon,
   Link2,
@@ -95,32 +94,6 @@ const TaskComposer = lazy(() => import("./page/canvas/TaskComposer.js"))
 /* The row's field name for the due date: the panel's word, not the chip's. */
 const DATE_LABEL = "Date"
 
-/* ------------------------------------------------------------ shared parts */
-
-/* A heading inside a menu. Deliberately not Base UI's GroupLabel, which
-   requires a Group ancestor and throws if it does not have one. */
-export function MenuHeading({ children }: { children: ReactNode }) {
-  return (
-    <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-      {children}
-    </div>
-  )
-}
-
-/* "New folder…" as the last answer to "where does this go". */
-export function newFolderChoice(onPick: () => void) {
-  return {
-    key: "__new-folder",
-    label: (
-      <span className="inline-flex items-center gap-2">
-        <FolderPlus className="size-4" strokeWidth={1.75} aria-hidden="true" />
-        New folder…
-      </span>
-    ),
-    onSelect: onPick,
-  }
-}
-
 /* The control that fills an empty block: it says the action, not the
    absence, and sits where the first item will appear. */
 export function EmptyAction({
@@ -155,33 +128,6 @@ export function EmptyAction({
       <Icon className="size-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />
       {label}
     </button>
-  )
-}
-
-export function DestinationChoice({
-  icon: Icon,
-  name,
-  detail,
-  color,
-}: {
-  icon: LucideIcon
-  name: string
-  detail: string
-  color?: string
-}) {
-  return (
-    <span className="flex min-w-0 items-center gap-2.5 py-0.5">
-      <Icon
-        className="size-4 shrink-0"
-        style={color ? { color } : undefined}
-        strokeWidth={1.75}
-        aria-hidden="true"
-      />
-      <span className="flex min-w-0 flex-col">
-        <span className="truncate text-sm text-foreground">{name}</span>
-        <span className="truncate text-xs text-muted-foreground">{detail}</span>
-      </span>
-    </span>
   )
 }
 

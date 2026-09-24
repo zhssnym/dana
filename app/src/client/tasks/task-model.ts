@@ -14,8 +14,6 @@ import { formatDay } from '../lib/dates.js'
 
 import type { TimeFormat } from '../lib/time-format.js'
 
-export { personTint } from '../parts/person-tint.js'
-
 /* ------------------------------------------------------------------ *
  * Days, and the one clock this file is allowed
  * ------------------------------------------------------------------ */
@@ -337,50 +335,6 @@ export function stepCount(task: ConceptTask): { done: number; total: number } | 
   }
 }
 
-export function commentCount(comments: ConceptComment[] | undefined): number {
-  if (!comments) return 0
-  return comments.reduce(
-    (sum, comment) => sum + 1 + (comment.replies?.length ?? 0),
-    0,
-  )
-}
-
-/* ------------------------------------------------------------------ *
- * The wording half
- * ------------------------------------------------------------------ */
-/*
-Everything that turns a field into the words a chip or a row says, here rather
-than beside the surfaces for the reason this file's header gives: one fact
-written down in two places will disagree with itself.
-
-- **`today()` is a pass-through and never a second clock.** This client's today
-  is 4.11's, evaluated in `api/tz.ts`, the only place a date is evaluated,
-  exactly as `presenterToday()` is one.
-- **There is no `firstName`.** A real client compares ids;
-  `lib/people-library.ts`'s `isSamePerson` does.
-- **`personTint` is re-exported rather than transcribed.** The colour is
-  `parts/person-tint.ts`'s, which `components/person-face.tsx` uses, and one
-  person must be one colour on every surface.
-
-**The due label is the one place two answers could exist**, so the seam is worth
-stating. `parts/presenters.ts` owns `dueDisplay`, which builds a label from
-4.11's today and 9.7's clock against 8.10's three cases, and
-`tasks/task-concept.ts` puts that label on `ConceptTask.due`. `dueLabelFor`
-below is the *inverse direction*, a date the person just picked turned back into
-the same words, and `parseDueLabel` reads those words back out for a calendar to
-highlight. They are the picker's half of one round trip and are here because
-that is where every caller of them is. What they must never become is a second
-answer to "what does this task's date say", which is `dueDisplay`'s and reaches
-a card through the mapper.
-*/
-
-/* The short absolute form, "18 Aug", which every chip, heading and range label
-   uses. The long form is the Done page's day headings, and the two are the
-   only two this product has. */
-export function dayStamp(date: Date): string {
-  return `${date.getDate()} ${MONTH_SHORT[date.getMonth()] ?? ''}`
-}
-
 /*
 And back out again in the same words, so a date set from the picker reads in the
 row exactly like one that was always there.
@@ -391,12 +345,6 @@ uses, so a picked date and a fetched one read identically.
 export function dueLabelFor(date: Date): { label: string; overdue?: boolean } {
   const label = formatDay(isoDay(date), todayInBrowserZone())
   return dayRung(date) === 'overdue' ? { label, overdue: true } : { label }
-}
-
-/* "Sat 15 Aug", the hint beside a preset, so "This weekend" says which day it
-   actually means before anybody commits to it. */
-export function shortDate(date: Date): string {
-  return `${DAY_SHORT[date.getDay()] ?? ''} ${date.getDate()} ${MONTH_SHORT[date.getMonth()] ?? ''}`
 }
 
 export function ordinal(day: number): string {
@@ -467,14 +415,6 @@ export function repeatShort(task: ConceptTask): string {
     return 'Weekdays'
   }
   return every === 1 ? 'Weekly' : `Every ${every} weeks`
-}
-
-/* The words on a due chip. One function for the same reason the repeat summary
-   is one: the row and the card both draw this, and the last time each wrote
-   its own, the row spent a day saying "Weekly" about a task that repeated on
-   weekdays. No clock here: a due date is a day. */
-export function dueChipValue(task: ConceptTask): string {
-  return task.due ? task.due.label : 'No date'
 }
 
 /* A reminder is a sentence with a time somewhere inside it rather than a time

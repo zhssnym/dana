@@ -46,11 +46,6 @@ export function settleFilter(stored: unknown): PageFilter {
   }
 }
 
-/** Nothing narrows any more; kept for the folder page's arrangement check. */
-export function isNarrowed(_filter: PageFilter): boolean {
-  return false
-}
-
 /** Rows in their page's order unless a sort was asked for. Never mutates. */
 export function sortRows(rows: readonly TaskCard[], sort: SortBy): readonly TaskCard[] {
   if (sort === 'manual') return rows
@@ -77,10 +72,4 @@ export function sortRows(rows: readonly TaskCard[], sort: SortBy): readonly Task
       })
       return copy
   }
-}
-
-/** Which place-page a saved view was made on. */
-export function definitionPage(definition: Record<string, unknown>): string | null {
-  const page = definition['page']
-  return typeof page === 'string' ? page : null
 }

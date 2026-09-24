@@ -41,30 +41,8 @@ export function keepLabel(count: number): string {
   return count === 1 ? 'Keep it' : 'Keep them'
 }
 
-/**
- * 9.4: the un-pull control on a row whose inclusion came from an entry, "the
- * control reading 'Remove from Today'" (AC-165). The constant's name matches
- * its value.
- */
-export const REMOVE_FROM_TODAY = 'Remove from Today'
-
 /** 9.1's control table: every row's and every form's overflow menu. */
 export const MORE_ACTIONS = 'More actions'
-
-/** 9.1's control table: the inline quick-add input of 9.1. */
-export const ADD_A_TASK = 'Add a task'
-
-/**
- * 9.1's control table: the quick-add's escalation control.
- *
- * A fixed string and never interpolated with the folder the quick-add sits
- * beside, which is that table's own sentence: "a name in this table is a fixed
- * string and the region rule below is what tells two instances apart".
- * Deliberately not "More options", which 9.3 spends on the task form's
- * expander; the form is a dialog over the page, so both are in one document
- * whenever the escalation is used.
- */
-export const OPEN_FULL_FORM = 'Open full form'
 
 /**
  * 9.1's control table: a task row's completion checkbox and the task form's
@@ -81,18 +59,6 @@ export const MARK_AS_NOT_DONE = 'Mark as not done'
  */
 export const COLLAPSE_SIDEBAR = 'Collapse sidebar'
 export const EXPAND_SIDEBAR = 'Expand sidebar'
-
-/**
- * 9.5: off Important the star's name is its own state, and that name is also
- * its tooltip. Two strings rather than one because the star is an icon-only
- * toggle, so each state owes a screen reader something true.
- */
-export const STAR_ON = 'Important'
-export const STAR_OFF = 'Mark as important'
-
-/** 9.5: an abandoned row's chip and its restore control. */
-export const ABANDONED_CHIP = 'Abandoned'
-export const RESTORE = 'Restore'
 
 /**
  * 9.1's inline state copy: the line a page shows beside a read that failed, and

@@ -67,15 +67,6 @@ export function usePageHasCover(storageName: string) {
   )
 }
 
-/* The reading column, one definition. The folder page's own measure, so the
-   six pages cannot drift from it by a rounding of padding. */
-export function pageBodyClass(className?: string) {
-  return cn(
-    "mx-auto w-full max-w-[var(--shell-content-max)] px-10 pb-8",
-    className,
-  )
-}
-
 /*
 The mark itself, one definition.
 

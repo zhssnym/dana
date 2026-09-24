@@ -32,8 +32,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
@@ -114,36 +112,4 @@ export function ObjectMenu({
       </DropdownMenuContent>
     </DropdownMenu>
   )
-}
-
-/**
- * The folder's "Move to collection" choices (shelves, on screen), one component for every home of the
- * folder menu (the page header's "…" and the Library row's), so the submenu
- * cannot drift between them. Making a new shelf is the Library "+" menu's.
- */
-export function moveToShelfChoice(
-  shelves: readonly string[],
-  current: string | null,
-  onMove: (shelf: string | null) => void,
-): { readonly choose: ReactNode } {
-  return {
-    choose: (
-      <DropdownMenuRadioGroup
-        value={current ?? '__none'}
-        onValueChange={(value) => {
-          onMove(value === '__none' ? null : (value as string))
-        }}
-      >
-        {shelves.map((shelf) => (
-          <DropdownMenuRadioItem key={shelf} value={shelf} closeOnClick>
-            {shelf}
-          </DropdownMenuRadioItem>
-        ))}
-        {shelves.length > 0 ? <DropdownMenuSeparator /> : null}
-        <DropdownMenuRadioItem value="__none" closeOnClick>
-          Not in a collection
-        </DropdownMenuRadioItem>
-      </DropdownMenuRadioGroup>
-    ),
-  }
 }

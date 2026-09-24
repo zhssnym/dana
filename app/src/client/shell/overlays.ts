@@ -1,6 +1,6 @@
 /*
-The seam between the global chrome and the overlays it opens (search, the
-keyboard shortcuts sheet, New folder). Without a seam the chrome would either
+The seam between the global chrome and the overlays it opens (search and the
+keyboard shortcuts sheet). Without a seam the chrome would either
 have to import those surfaces or they would have to reach up into the chrome
 and re-render it.
 
@@ -16,31 +16,6 @@ one without the two being in the same tree.
 type SearchListener = () => void
 
 const searchListeners = new Set<SearchListener>()
-
-/*
-The New folder dialog, asked for from a page.
-
-9.10's shelf page offers "New folder..." on its Add folder row, and the folder
-it makes lands on that shelf; the dialog that does this is the shell's, mounted
-once for the reason its own comment gives (a dialog inside the thing that
-opens it is unmounted by the refetch its own write causes). The same idiom as
-search below: the page asks, the shell answers, and neither imports the
-other. `label` is the shelf the new folder is filed under, or null for one
-made from nowhere in particular.
-*/
-type NewFolderListener = (label: string | null) => void
-const newFolderListeners = new Set<NewFolderListener>()
-
-export function openNewFolder(label: string | null): void {
-  for (const listener of newFolderListeners) listener(label)
-}
-
-export function onOpenNewFolder(listener: NewFolderListener): () => void {
-  newFolderListeners.add(listener)
-  return () => {
-    newFolderListeners.delete(listener)
-  }
-}
 
 /*
 The keyboard shortcuts sheet: `?` opens it, and so does "Keyboard shortcuts"

@@ -85,16 +85,6 @@ export async function pageSuggestionItems(editor: CanvasEditor, query: string, q
   })
 }
 
-export function DanaLinkSuggestions({ editor }: { readonly editor: CanvasEditor }): React.JSX.Element {
-  return (
-    <SuggestionMenuController
-      triggerCharacter={TRIGGER}
-      shouldOpen={atWordStart}
-      getItems={(query) => pageSuggestionItems(editor, query)}
-    />
-  )
-}
-
 /** The `/` menu's "Link to…": opens the same picker at the cursor. */
 export function linkSlashItem(editor: CanvasEditor): DefaultReactSuggestionItem {
   return {

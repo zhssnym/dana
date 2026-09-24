@@ -214,13 +214,6 @@ export function useReopenDiscussion(): UseMutationResult<Discussion, Error, stri
   })
 }
 
-/** DELETE /discussions/:id: to Trash, 204. */
-export function useTrashDiscussion(): UseMutationResult<void, Error, string> {
-  return useMutation({
-    mutationFn: (id) => mutateApi(null, { method: 'DELETE', path: `/discussions/${id}` }),
-  })
-}
-
 /**
  * Move to Trash from inside the thread. Not a `useMutation`: the mutation
  * cache refetches every live query after a write, and the thread (and the

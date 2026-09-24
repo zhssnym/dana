@@ -51,7 +51,6 @@ import {
   Copy,
   Download,
   FolderInput,
-  Folders,
   Fullscreen,
   History,
   Link2,
@@ -206,9 +205,6 @@ export function leaveFolderConfirm(name: string): string {
     'you becomes unassigned.'
   )
 }
-
-/** The glyph a surface's own extra item draws, so those match the contract's. */
-export const ACT_EXTRA_ICONS = { group: Folders } as const
 
 /*
 How a surface supplies an act: a function, or a submenu to choose from.

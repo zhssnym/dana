@@ -10,12 +10,6 @@ selection with its labelled bar. `useCardWiring` is shared with the task panel.
 import { InlineInput } from "./ui/inline-field.js"
 import {
   FolderPlus,
-  MoreHorizontal,
-  PanelRight,
-  RotateCcw,
-  SquareSquare,
-  Star,
-  ArrowUpRight,
 } from "../lib/icons.js"
 import {
   useEffect,
@@ -35,12 +29,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu.js"
-import { ObjectMenu } from "./object-menu.js"
 import { moveStepsOut } from "../tasks/task-acts.js"
 import type { StepDestination } from "../tasks/task-acts.js"
-import { COMPLETE_TASK, MARK_AS_NOT_DONE, RESTORE } from "./ui/copy.js"
-import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip.js"
-import { type ViewStripOption } from "./view-strip.js"
+import { COMPLETE_TASK, MARK_AS_NOT_DONE } from "./ui/copy.js"
 import { useTaskWriter } from "../tasks/task-writer.js"
 import {
   repeatShort,
@@ -566,272 +557,6 @@ export function Check({
   )
 }
 
-/* The action gutter. Reserved rather than revealed, so hovering a row never
-   moves its neighbour's metadata; only opacity travels. */
-export function Actions({
-  task,
-  onStar,
-  onMakeFolder,
-  onNewFolderFor,
-  onRestore,
-  onOpenIn,
-  onPull,
-  onUnpull,
-  onMoveToFolder,
-  onAbandon,
-  onDelete,
-  onHistory,
-  onCopyLink,
-  onDuplicate,
-  extra,
-  importantTooltip,
-  quietStar = false,
-  /* A page shows its controls; a row reveals them on hover. */
-  persistent = false,
-}: {
-  task: ConceptTask
-  onStar: () => void
-  onMakeFolder?: () => void
-  /* Make a folder and put this task in it. Different from `onMakeFolder`,
-     which turns the task itself into one, the menu offers both and they must
-     not share a handler. */
-  onNewFolderFor?: () => void
-  onRestore?: () => void
-  /*
-  The star, at rest, on a page the star defines.
-
-  Every row on Important wears a filled star, so the star distinguishes nothing
-  there. It keeps its place and its press, because it is also the only way a
-  task leaves that page; what it drops is the fill.
-  */
-  quietStar?: boolean
-  /* 6 Q4's outward tooltip, which replaces the tooltip alone and never the
-     accessible name. Supplied by the page layer on Important and nowhere else;
-     see the star below. */
-  importantTooltip?: string
-  onOpenIn?: (mode: TaskOpenMode) => void
-  /* Today membership, one of the pair at a time. */
-  onPull?: () => void
-  onUnpull?: () => void
-  onMoveToFolder?: (folder: { name: string; color: string }) => void
-  onAbandon?: () => void
-  onDelete?: () => void
-  onHistory?: () => void
-  onCopyLink?: () => void
-  onDuplicate?: () => void
-  extra?: ReactNode
-  persistent?: boolean
-}) {
-  return (
-    <span className="flex shrink-0 items-center justify-end gap-0.5">
-      {/* An abandoned task is not a dead one, and the row has to say so.
-          Restore appears on hover in the trailing slot rather than living only
-          in the overflow, because a person looking at a struck-through row is
-          usually deciding whether to bring it back and should not have to open
-          a menu to find out that they can.
-
-          It is the one action that appears *because* of a state rather than
-          being present on every row, which is why it leads the gutter: the
-          things that are always there keep their positions behind it. */}
-      {task.abandoned && onRestore ? (
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onRestore()
-                }}
-                /*
-                9.5's name, which is the word and not the task: "Restore", per
-                9.1's names table.
-
-                A row-scoped locator matches a name by substring, so a control
-                carrying the task's own title would answer to every word in it.
-                */
-                aria-label={RESTORE}
-                className={cn(
-                  "flex size-7 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-[opacity,background-color,color] group-hover/row:opacity-100 group-focus-within/row:opacity-100 hover:bg-accent hover:text-foreground",
-                  T_FAST,
-                  FOCUS,
-                )}
-              >
-                <RotateCcw className="size-4" strokeWidth={1.75} aria-hidden="true" />
-              </button>
-            }
-          />
-          <TooltipContent side="top">Restore</TooltipContent>
-        </Tooltip>
-      ) : null}
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation()
-          onStar()
-        }}
-        aria-pressed={Boolean(task.important)}
-        /*
-        9.1's two names, and the tooltip comes apart from them.
-
-        **The names are 9.5's and 9.1's**, "Important" when on and "Mark as
-        important" when off.
-
-        **The name is content and never an `aria-label`.** A label is a *label*,
-        and the suite addresses 9.3's fields by label, so a page holding a
-        starred row with the surface open would have two elements answering to
-        one name. The glyph stays `aria-hidden`, so a glyph swap is never a
-        rename.
-
-        **And the tooltip is a separate string**, which 6 Q4 requires: on
-        Important it turns outward, "Also in Scheduled, due 3 Sep", while the
-        name has to keep saying what pressing the control does. Driving both
-        attributes off one string would rename the control the moment the
-        tooltip points outward. It is a `title` as well as a styled tooltip
-        because a tooltip that exists only while it is open cannot be read.
-        */
-        /* Off Important the tooltip is the name, 9.5: "the star's two names are
-           9.1's". On Important it turns outward, which is the page layer's
-           decision and arrives as this prop. */
-        title={importantTooltip ?? (task.important ? "Important" : "Mark as important")}
-        className={cn(
-          "flex size-7 items-center justify-center rounded-md transition-[opacity,background-color] hover:bg-accent active:scale-90",
-          T_FAST,
-          FOCUS,
-          task.important
-            ? "opacity-100"
-            : /* Visible at rest where there is no hover to reveal it. */
-                "opacity-0 group-hover/row:opacity-70 group-focus-within/row:opacity-100 hover:!opacity-100 max-md:opacity-70 [@media(hover:none)]:opacity-70",
-        )}
-      >
-        {/*
-        Filled or not, and never gold, so the star looks the same across the
-        shell. Important is a binary and a filled star says it; a second signal
-        on the same fact is one more hue in a product whose palette is one
-        accent and graphite. So the star is graphite in both states and the fill
-        is the whole difference.
-         */}
-        <span className="sr-only">
-          {task.important ? "Important" : "Mark as important"}
-        </span>
-        <Star
-          className={cn(
-            "size-[18px] transition-[transform,color]",
-            T_FAST,
-            task.important && !quietStar
-              ? "scale-110 fill-current text-foreground"
-              : "text-muted-foreground",
-          )}
-          strokeWidth={1.75}
-          aria-hidden="true"
-        />
-      </button>
-      {/*
-      The row's menu comes from the contract, so a task can be copied, linked,
-      duplicated or asked about its history exactly as a folder can; the acts
-      live in `lib/object-acts`.
-
-      The trigger keeps its own styling, because hover-reveal is the row's
-      business and not the contract's: a gutter of permanent icons would shout
-      down the titles, while a page has no row to hover and shows its controls.
-      That is what `persistent` decides, and it is why the trigger is passed
-      rather than left to `ObjectMenu`'s default.
-       */}
-      <ObjectMenu
-        kind="task"
-        name={task.title}
-        width="w-56"
-        trigger={
-          <button
-            type="button"
-            onClick={(e) => e.stopPropagation()}
-            /* Spec 9.1's names table gives a task row's overflow menu the
-               name "More actions". */
-            aria-label="More actions"
-            className={cn(
-              "flex size-7 items-center justify-center rounded-md text-muted-foreground transition-[opacity,background-color] hover:bg-accent data-popup-open:opacity-100",
-              T_FAST,
-              FOCUS,
-              persistent
-                ? "opacity-100"
-                : /* Visible at rest where there is no hover to reveal it. */
-                "opacity-0 group-hover/row:opacity-70 group-focus-within/row:opacity-100 hover:!opacity-100 max-md:opacity-70 [@media(hover:none)]:opacity-70",
-            )}
-          >
-            <MoreHorizontal className="size-[18px]" strokeWidth={1.75} aria-hidden="true" />
-          </button>
-        }
-        handlers={{
-          open: onOpenIn
-            ? {
-                choose: TASK_OPEN_OPTIONS.map(({ key, label, icon: Icon }) => (
-                  <DropdownMenuItem
-                    key={key}
-                    className="whitespace-nowrap"
-                    onClick={() => onOpenIn(key)}
-                  >
-                    <Icon />
-                    {label}
-                  </DropdownMenuItem>
-                )),
-              }
-            : undefined,
-          history: onHistory,
-          pull: onPull && !task.pulled ? onPull : undefined,
-          unpull: onUnpull && task.pulled ? onUnpull : undefined,
-          move: onMoveToFolder
-            ? {
-                /*
-                The person's real folders: `folderLibrary()` is the one answer.
-
-                **And it ends in New folder**, because "none of these" is a real
-                answer to "where does this go", and a menu that cannot express
-                it sends you elsewhere to do the obvious thing.
-                */
-                choose: (
-                  <>
-                    {folderLibrary().map((folder) => (
-                      <DropdownMenuItem
-                        key={folder.name}
-                        className="whitespace-nowrap"
-                        onClick={() => onMoveToFolder(folder)}
-                      >
-                        <FolderMark name={folder.name} color={folder.color} />
-                        {folder.name}
-                      </DropdownMenuItem>
-                    ))}
-                    {onNewFolderFor ? (
-                      <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="whitespace-nowrap"
-                          onClick={onNewFolderFor}
-                        >
-                          <FolderPlus />
-                          New folder…
-                        </DropdownMenuItem>
-                      </>
-                    ) : null}
-                  </>
-                ),
-              }
-            : undefined,
-          "make-folder": onMakeFolder,
-          "copy-link": onCopyLink,
-          duplicate: onDuplicate,
-          /* Abandon and Restore are the same slot seen from two states, so
-             only one is ever supplied, which is how an act with no handler
-             stays out of the menu without anybody writing a condition. */
-          abandon: onAbandon && !task.abandoned ? onAbandon : undefined,
-          restore: onRestore && task.abandoned ? onRestore : undefined,
-          delete: onDelete,
-        }}
-      />
-      {extra}
-    </span>
-  )
-}
-
 export function rowProps(
   surface: { onPointerDown: (event: ReactPointerEvent) => void },
   select: ReturnType<ReturnType<typeof useRowSelection>["selectProps"]>,
@@ -987,33 +712,11 @@ edits on top.
 */
 
 export type TaskStatus = "pending" | "completed" | "abandoned"
-export type TaskRowVisualState = "default" | "hover" | "focus" | "selected"
 
 /* Where a task can be held once it leaves the list, the surface's five
    modes plus the tab strip. Owned here because the row is where the choice
    is offered; the surface imports it. */
 export type TaskOpenMode = "dialog" | "right" | "tab"
-
-/* The open-in choices, said in icons, labels on hover, the same strip
-   grammar the conversation's homes use. */
-/* Three homes. Full screen is what a tab already gives with a way back, a
-   second sidebar edge is a mirror nobody asked for, and floating is the dialog
-   with worse ergonomics. Three destinations a person can hold in their head
-   beats six they have to read. */
-/*
-Where a task can open. One array, read by two controls: the row's "Open in…"
-submenu and the surface's own view strip, so the two cannot offer different
-places or name them differently.
-
-**The labels are parallel nouns**, each completing the menu heading "Open in…",
-and each still stands alone as the strip's tooltip.
-*/
-export const TASK_OPEN_OPTIONS: ViewStripOption<TaskOpenMode>[] = [
-  { key: "dialog", label: "Dialog", icon: SquareSquare },
-  /* "Panel", the word Settings uses for the same home. */
-  { key: "right", label: "Panel", icon: PanelRight },
-  { key: "tab", label: "New tab", icon: ArrowUpRight },
-]
 
 export interface TaskRowProps {
   id?: string

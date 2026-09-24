@@ -8,17 +8,6 @@ file stored before those columns existed reports null indefinitely, so the
 fallback is not a stopgap.
 */
 
-/**
- * The shape a stored picture is drawn at when the wire does not say what its
- * shape is.
- *
- * Sixteen by nine is what every one of these surfaces already drew, and the
- * point of writing it once is that it must go on being what they draw. 4.16's
- * pair is nullable and no backfill has been run, so a picture uploaded before
- * migration 0009 reports null for ever; a reader that treated null as anything
- * but "unknown" would change what those pages look like today.
- */
-const FALLBACK_RATIO = 16 / 9
 
 /**
  * Width over height where 4.16 measured the picture, and undefined where it
@@ -42,25 +31,4 @@ export function measuredRatio(
   if (width === null || width === undefined || width <= 0) return undefined
   if (height === null || height === undefined || height <= 0) return undefined
   return width / height
-}
-
-/**
- * The same reading for a surface whose answer to "no shape" is already 16 by
- * 9, which is the page block and only the page block.
- *
- * **The split between this and `measuredRatio` is the whole care of issue
- * #108 and is not a stylistic one.** Null means unknown and a surface must go
- * on drawing an unknown picture exactly as it draws it today, which is a
- * different thing on the two surfaces. A page block has always reserved 16 by 9
- * for an unmeasured picture. A comment's
- * picture has never had a reservation at all: it takes its own proportion
- * once the bytes arrive, so imposing 16 by 9 on the unmeasured ones would
- * reshape every attachment posted before migration 0009, which is the
- * regression this pair exists to make impossible to write by accident.
- */
-export function reservedRatio(
-  width: number | null | undefined,
-  height: number | null | undefined,
-): number {
-  return measuredRatio(width, height) ?? FALLBACK_RATIO
 }

@@ -43,15 +43,13 @@ question 11.6's double-submit expects one answer to.
 */
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { Outlet, useLocation, useNavigate } from 'react-router'
+import { Outlet, useLocation } from 'react-router'
 import { adoptClock } from '../lib/time-format.js'
 import { PanelLeft, RefreshCw, Search } from '../lib/icons.js'
 
 import { ApiError } from '../api/http.js'
 import {
-  useCreateFolder,
   usePatchBundle,
-  useUpdateMyMembership,
 } from '../api/mutations.js'
 import {
   useBundle,
@@ -62,7 +60,6 @@ import {
   useTask,
   useDiscussion,
 } from '../api/queries.js'
-import { NewFolderDialog } from '../components/index.js'
 import { SearchOverlay } from '../components/search-overlay.js'
 import { ShortcutsSheet } from '../components/help-sheet.js'
 import { TaskSurfaceHost } from '../components/task-surface-host.js'
@@ -87,7 +84,7 @@ import { OfflineBanner } from './OfflineBanner.js'
 import { UndoBar } from '../components/undo-bar.js'
 import { useAppearance } from './appearance.js'
 import { mirroredTheme } from '../lib/theme.js'
-import { onOpenNewFolder, openSearch } from './overlays.js'
+import { openSearch } from './overlays.js'
 import { useModalOpen, useRightEdge } from '../components/right-edge.js'
 import { WindowBar, WindowBarActions, WindowBarLead } from '../components/window-bar.js'
 import { BreadcrumbTrail, HistoryArrows } from '../components/breadcrumb-trail.js'
@@ -253,7 +250,6 @@ function UpdateChrome({
 
 export function AppShell(): React.JSX.Element {
   const location = useLocation()
-  const navigate = useNavigate()
   const me = useMe()
   /*
   The bundle of 4.19 rather than 7.2's settings.
@@ -268,10 +264,6 @@ export function AppShell(): React.JSX.Element {
   /* The shelves read (7.16): the Library draws them on every page. */
   const shelves = useShelves()
   const invites = usePendingInvites()
-  const createFolder = useCreateFolder()
-  /* 4.4 makes a folder's shelf placement a membership fact, so filing a new
-     folder onto a shelf is a second write after the create. */
-  const relabelFolder = useUpdateMyMembership()
   const update = useUpdateAffordance()
   /* What an open right-edge panel has reserved. Zero when nothing is open,
      which is almost always. */
@@ -302,39 +294,12 @@ export function AppShell(): React.JSX.Element {
   useEffect(() => {
     if (clockPreference !== undefined) adoptClock(clockPreference)
   }, [clockPreference])
-  const groups = useFolderGroupActions(
-    folders.data ?? NO_FOLDERS,
-    shelves.data ?? NO_SHELVES,
-    (label) => {
-      setNewFolderIn(label)
-      setNewFolderOpen(true)
-    },
-  )
+  const groups = useFolderGroupActions(folders.data ?? NO_FOLDERS, shelves.data ?? NO_SHELVES)
 
   // 9.1's two view preferences, read once at the first render so the sidebar
   // paints at the width the viewer left it at rather than jumping to it.
   const [railOpen, setRailOpen] = useState(() => !readSidebarCollapsed())
   const [sidebarWidth, setSidebarWidth] = useState<number | null>(readSidebarWidth)
-  const [newFolderOpen, setNewFolderOpen] = useState(false)
-  /*
-  Which shelf a new folder is being made on, if any.
-
-  Null for 9.1's footer act, which is made from no shelf at all, and a label for
-  "Add folder to {shelf}" on a shelf heading. One dialog either way: the label
-  is what the folder is filed under once it exists, which is two writes because
-  4.4 makes the placement a membership fact rather than a column on the folder.
-  */
-  const [newFolderIn, setNewFolderIn] = useState<string | null>(null)
-  /* A page asking for the dialog: 9.10's shelf page, whose "New folder..."
-     files what it makes on the shelf. */
-  useEffect(
-    () =>
-      onOpenNewFolder((label) => {
-        setNewFolderIn(label)
-        setNewFolderOpen(true)
-      }),
-    [],
-  )
 
   /*
   The viewer's arrangement of the Library.
@@ -519,41 +484,6 @@ export function AppShell(): React.JSX.Element {
               </div>
             </div>
           </SidebarInset>
-          {/* 9.1's "New folder" action, and beside it the three surfaces its
-              folder groups open: the create dialog, the rename dialog and the
-              delete confirm. They are mounted here rather than inside the rows
-              that open them, because a dialog inside a row is unmounted by the
-              refetch its own write causes. */}
-          <NewFolderDialog
-            open={newFolderOpen}
-            groupLabel={newFolderIn ?? undefined}
-            onOpenChange={(next) => {
-              setNewFolderOpen(next)
-              /* The label belongs to one opening of the dialog and not to the
-                 control that opened it, so the next New folder from the footer
-                 does not inherit the last shelf somebody added to. */
-              if (!next) setNewFolderIn(null)
-            }}
-            onCreate={(name) => {
-              const label = newFolderIn
-              createFolder.mutate(
-                { name },
-                {
-                  /* Filed after it exists rather than in the same call: 7.4
-                     creates a folder and 7.4's my-membership places it, and
-                     widening the create to carry a label would be an API change
-                     for a client convenience. Then the folder opens, ready for
-                     tasks. */
-                  onSuccess: (made) => {
-                    if (label !== null) {
-                      relabelFolder.mutate({ id: made.id, body: { shelf: label } })
-                    }
-                    void navigate(paths.folder(made.id))
-                  },
-                },
-              )
-            }}
-          />
           {groups.dialogs}
         </SidebarProvider>
       </div>

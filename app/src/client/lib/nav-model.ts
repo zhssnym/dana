@@ -59,8 +59,3 @@ export function pageQuestion(name: NavPageName): string | undefined {
 export function pageGlyph(name: NavPageName): LucideIcon | undefined {
   return navPages.find((page) => page.name === name)?.icon
 }
-
-/** The page by name, for the seams that need its key or path. */
-export function navPageNamed(name: NavPageName): NavPageModel | undefined {
-  return NAV_PAGES.find((page) => page.name === name)
-}

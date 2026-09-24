@@ -120,26 +120,6 @@ completed it", "Hassan renamed it", rather than the verb's label and the
 server's detail each a sentence on its own. An edit that carries a detail says
 the detail, which is the act; one that carries none says "edited it".
 */
-const STORY_VERB: Record<HistoryVerb, string> = {
-  created: 'created it',
-  renamed: 'renamed it',
-  edited: 'edited it',
-  moved: 'moved it',
-  completed: 'completed it',
-  reopened: 'reopened it',
-  abandoned: 'abandoned it',
-  restored: 'restored it',
-  duplicated: 'duplicated it',
-  removed: 'removed it',
-  deleted: 'deleted it',
-  left: 'left it',
-  mentioned: 'mentioned someone',
-}
-
-export function storyFor(event: Pick<HistoryEvent, 'verb' | 'detail' | 'actor'>): string {
-  const act = event.detail ? screenWords(event.detail) : STORY_VERB[event.verb]
-  return `${event.actor} ${act}`
-}
 
 /*
 4.13 writes `detail` as a lowercase predicate ("edited the page", "changed the

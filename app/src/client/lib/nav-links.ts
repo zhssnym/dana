@@ -66,21 +66,3 @@ function absolute(path: string): string {
   const origin = globalThis.location?.origin
   return origin === undefined ? path : new URL(path, origin).toString()
 }
-
-/**
- * Legacy parameter navigation, read.
- *
- * A copied link or a bookmark may carry `?task=` or `?folder=`. Answering it
- * with the application's own path costs one redirect and keeps those addresses
- * alive.
- *
- * A folder parameter answers **null** rather than a path: its value is a name
- * and this module refuses to resolve a name into an id. A caller that wants
- * those folder links honoured has the folder table in hand and can look the
- * name up itself, at which point the lookup is visible where it happens.
- */
-export function parameterTarget(search: string): string | null {
-  const params = new URLSearchParams(search)
-  const task = params.get('task')
-  return task === null || task === '' ? null : paths.task(task)
-}

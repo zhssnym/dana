@@ -31,12 +31,11 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useCreateFolder, useOrderTask, usePullIntoMyDay, useUpdateTask } from '../api/mutations.js'
 import { useFolders, useMe } from '../api/queries.js'
 import {
-  PendingPanel,
   TaskList,
   TaskRow,
   useRowSelection,
 } from '../components/task-row.js'
-import type { BulkDate, PendingAction } from '../components/task-row.js'
+import type { BulkDate } from '../components/task-row.js'
 import { ConfirmDialog as UiConfirmDialog } from '../components/ui/ConfirmDialog.js'
 import {
   ABANDON_CONFIRM,
@@ -477,50 +476,6 @@ function useListActs(
         { confirmLabel: DELETE_CONFIRM_LABEL, cancelLabel: keepLabel(going.length) },
       )
     },
-  }
-}
-
-/** One selection controller for the task rows separated by prose, pictures,
- * and Section headings on a composed page. The existing bulk acts still run
- * over real task rows and their existing endpoints. */
-export function useTaskRowsSelection(
-  tasks: readonly TaskCard[],
-  actions: RowActions,
-  onAsk: (message: string, run: () => void, labels?: ConfirmLabels) => void,
-): {
-  readonly selection: ReturnType<typeof useRowSelection>
-  readonly chrome: React.JSX.Element
-  readonly proposeMerge: (ids: readonly [string, string], titles: readonly [string, string]) => void
-} {
-  const acts = useListActs(tasks, actions, onAsk, false)
-  const [pending, setPending] = useState<Extract<PendingAction, { kind: 'folder-for' | 'merge' }> | null>(null)
-  const selection = useRowSelection({
-    onMove: acts.onMove,
-    onNewFolder: (ids) => setPending({ kind: 'folder-for', ids }),
-    onBulk: acts.onBulk,
-    onDate: acts.onDate,
-    onDelete: acts.onDelete,
-  })
-  return {
-    selection,
-    proposeMerge: (ids, titles) => {
-      setPending({ kind: 'merge', ids: [...ids], titles: [...titles] })
-    },
-    chrome: (
-      <>
-        {selection.bar}
-        {pending ? (
-          <PendingPanel
-            pending={pending}
-            onConfirm={(name) => {
-              acts.onMerge(pending.ids, name)
-              setPending(null)
-            }}
-            onCancel={() => setPending(null)}
-          />
-        ) : null}
-      </>
-    ),
   }
 }
 

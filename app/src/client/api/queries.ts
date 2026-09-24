@@ -16,10 +16,10 @@ tz, the roster and the folder list and settings do not and carry none.
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import type { QueryClient, UseInfiniteQueryResult, UseQueryResult } from '@tanstack/react-query'
 
-import { getSettingsResponse, getViewsResponse } from '../../shared/bundle.js'
+import { getSettingsResponse } from '../../shared/bundle.js'
 import { sampleStatus } from '../../shared/sample.js'
 import type { SampleStatus } from '../../shared/sample.js'
-import type { GetSettingsResponse, GetViewsResponse } from '../../shared/bundle.js'
+import type { GetSettingsResponse } from '../../shared/bundle.js'
 import { getConnectionsResponse } from '../../shared/connections.js'
 import { discussionSchema } from '../../shared/consultation.js'
 import type { Discussion } from '../../shared/consultation.js'
@@ -419,14 +419,6 @@ export function useSample(): UseQueryResult<SampleStatus> {
   return useQuery({
     queryKey: queryKeys.sample(),
     queryFn: () => getPlain(sampleStatus, '/sample'),
-  })
-}
-
-/** The viewer's saved views (4.19), which the sidebar pins alongside natives. */
-export function useSavedViews(): UseQueryResult<GetViewsResponse> {
-  return useQuery({
-    queryKey: queryKeys.savedViews(),
-    queryFn: () => getPlain(getViewsResponse, '/views'),
   })
 }
 

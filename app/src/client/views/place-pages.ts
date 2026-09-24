@@ -122,14 +122,6 @@ export const PLACES: Record<PlaceKey, PlaceSpine> = {
   },
 }
 
-/** The place a path is, or null where the path is not a place-page. */
-export function placeAt(pathname: string): PlaceSpine | null {
-  for (const spine of Object.values(PLACES)) {
-    if (spine.path === pathname) return spine
-  }
-  return null
-}
-
 /**
  * A board column's own value, which a capture inside it writes over the page's
  * defaults. A column that is a relation rather than a value (Overdue) has none.

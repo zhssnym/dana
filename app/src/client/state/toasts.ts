@@ -59,10 +59,3 @@ export function dismissToast(id: number): void {
   toasts = toasts.filter((toast) => toast.id !== id)
   publish()
 }
-
-/** Test and navigation hygiene: nothing here outlives the document. */
-export function clearToasts(): void {
-  if (toasts.length === 0) return
-  toasts = []
-  publish()
-}
