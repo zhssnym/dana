@@ -20,7 +20,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 import { rows } from '../support/helpers.js'
 import { startAuthTestApp } from '../support/auth-harness.js'
 import type { AuthTestApp } from '../support/auth-harness.js'
-import { Cast, createFolder, expectStatus } from '../support/folders-harness.js'
+import { Cast, createFolder, expectStatus, seedTask } from '../support/folders-harness.js'
 import type { Actor } from '../support/folders-harness.js'
 import { uploadImageOk } from '../support/uploads-harness.js'
 import { at, compose, put, readPage } from '../support/workflow-page-harness.js'
@@ -119,5 +119,67 @@ describe('AC-905 a reclaimed picture reads as reclaimed, not as empty-new', () =
       (await readPage(owner, folderId)).blocks.find((b) => b.id === worn)
         ?.file_reclaimed_at,
     ).toBeNull()
+  })
+
+  /* The Task document (issue #221) is a fourth block home built beside this
+     one; its read and its writer follow the same rule. */
+  test('a Task document block reads as reclaimed and keeps the mark on re-save', async () => {
+    const [owner] = (await cast.of(app)) as [Actor]
+    const folderId = await createFolder(owner, 'ac905 the task album')
+    const taskId = await seedTask(app.db, { folderId, createdBy: owner.id })
+    const picture = await uploadImageOk(owner, folderId, 'ac905-task.png')
+    const worn = randomUUID()
+    const image = (text: string, fileId: string | null) => ({
+      op: 'put_block', id: worn, block_kind: 'image', text, rich_content: null,
+      file_id: fileId, ref_folder_id: null, width_pct: null, checked: null,
+    })
+    const outline = {
+      op: 'set_outline',
+      items: [{ kind: 'block', id: worn, section_block_id: null, list_parent_block_id: null }],
+    }
+    const read = async () => {
+      const response = await owner.browser.api(`/tasks/${taskId}/document`)
+      expect(response.status).toBe(200)
+      return (await response.json()) as {
+        revision: string
+        blocks: { id: string; file_id: string | null; file_reclaimed_at?: string | null }[]
+      }
+    }
+    const write = async (operations: unknown[], because: string) =>
+      expectStatus(
+        await owner.browser.json(`/tasks/${taskId}/document`, 'PUT', {
+          action: 'document_transaction',
+          mutation_id: randomUUID(),
+          base_revision: (await read()).revision,
+          operations,
+        }),
+        200,
+        because,
+      )
+
+    await write([image('ac905 task picture', picture), outline], 'the Task document composes (7.6)')
+    expect((await read()).blocks.find((b) => b.id === worn)?.file_reclaimed_at).toBeNull()
+
+    expectStatus(
+      await owner.browser.json(`/files/${picture}`, 'DELETE'),
+      204,
+      'the owner deletes the picture (7.15)',
+    )
+    const afterDelete = (await read()).blocks.find((b) => b.id === worn)
+    expect(afterDelete?.file_id).toBeNull()
+    expect(typeof afterDelete?.file_reclaimed_at).toBe('string')
+    expect((await stored(worn)).file_reclaimed_at).not.toBeNull()
+
+    await write([image('ac905 task picture, recaptioned', null), outline], 'a caption edit saves')
+    expect((await stored(worn)).file_reclaimed_at).not.toBeNull()
+    expect((await read()).blocks.find((b) => b.id === worn)?.file_reclaimed_at).toEqual(
+      afterDelete?.file_reclaimed_at,
+    )
+
+    const replacement = await uploadImageOk(owner, folderId, 'ac905-task-2.png')
+    await write([image('ac905 task picture, again', replacement), outline], 'refilling saves')
+    const refilled = await stored(worn)
+    expect(refilled.file_id).toBe(replacement)
+    expect(refilled.file_reclaimed_at).toBeNull()
   })
 })

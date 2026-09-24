@@ -261,7 +261,11 @@ export async function applyShelfDocument(
                SET kind = ${write.block_kind}, text = ${write.text},
                    rich_content = ${rich}::jsonb, file_id = ${write.file_id}::uuid,
                    ref_folder_id = ${write.ref_folder_id}::uuid, width_pct = ${write.width_pct},
-                   checked = ${write.checked}, updated_at = now()
+                   checked = ${write.checked},
+                   file_reclaimed_at = CASE
+                     WHEN ${write.file_id}::uuid IS NULL AND kind = ${write.block_kind}
+                     THEN file_reclaimed_at END,
+                   updated_at = now()
              WHERE id = ${write.id}::uuid AND shelf_id = ${shelfId}::uuid`,
       )
     } else {

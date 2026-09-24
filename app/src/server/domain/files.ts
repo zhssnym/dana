@@ -945,6 +945,93 @@ export async function copyPageFile(
   )
 }
 
+/*
+Issue #221's move seam: a Task's files follow the Task.
+
+A file is scoped to one Folder (`files.folder_id`): its members read it
+(`readableFileScope`) and the Folder's purge cascades it
+(`files_folder_id_fkey`), which SET NULLs every block still naming it. A Task
+moved to another Folder takes its document and its comments with it, so the
+files they name must go too, or the new Folder's members cannot open them and
+the old Folder's purge takes them from under the Task.
+
+Per file named by this Task's document blocks or its comments' attachments,
+and scoped to the Folder being left:
+
+- named by nothing else: re-scoped in place (`folder_id` updated). No bytes
+  move, no quota is spent, and the id every block holds stays true;
+- also named by something that stays (the old page, a recurrence predecessor
+  whose document was copied with the same file ids, a cover): the Task's
+  references are pointed at an independent copy in the new Folder
+  (`copyPageFile`, the duplicate's primitive), charged to the mover like any
+  copy, and the original stays where its other readers are. A source whose
+  bytes are gone is left as it is; there is nothing to carry.
+
+Called inside the move's transaction, after its refusals and before its
+writes. `copied` collects each object written so the caller can remove them
+if the transaction does not commit.
+*/
+export async function carryTaskFilesOnMove(
+  tx: Executor,
+  store: ObjectStore | undefined,
+  viewerId: string,
+  taskId: string,
+  fromFolderId: string,
+  toFolderId: string,
+  copied: string[],
+): Promise<'carried' | 'quota_exceeded'> {
+  const taskComments = sql`SELECT id FROM comments WHERE task_id = ${taskId}::uuid`
+  const named = await rowsOf(
+    tx,
+    sql`SELECT f.id FROM files f
+         WHERE f.folder_id = ${fromFolderId}::uuid
+           AND (f.id IN (SELECT file_id FROM page_blocks WHERE task_id = ${taskId}::uuid)
+                OR f.id IN (SELECT file_id FROM comment_files
+                             WHERE comment_id IN (${taskComments})))
+         ORDER BY f.id
+         FOR UPDATE`,
+  )
+  for (const row of named) {
+    const fileId = String(row.id)
+    const elsewhere = await rowsOf(
+      tx,
+      sql`SELECT (
+            EXISTS (SELECT 1 FROM page_blocks b
+                     WHERE b.file_id = ${fileId}::uuid
+                       AND b.task_id IS DISTINCT FROM ${taskId}::uuid)
+            OR EXISTS (SELECT 1 FROM comment_files cf
+                        WHERE cf.file_id = ${fileId}::uuid
+                          AND cf.comment_id NOT IN (${taskComments}))
+            OR EXISTS (SELECT 1 FROM folders fo WHERE fo.cover_file_id = ${fileId}::uuid)
+            OR EXISTS (SELECT 1 FROM shelves s WHERE s.cover_file_id = ${fileId}::uuid)
+            OR EXISTS (SELECT 1 FROM user_page_covers u WHERE u.file_id = ${fileId}::uuid)
+          ) AS shared`,
+    )
+    if (elsewhere[0]?.shared !== true) {
+      await tx.execute(
+        sql`UPDATE files SET folder_id = ${toFolderId}::uuid WHERE id = ${fileId}::uuid`,
+      )
+      continue
+    }
+    if (store === undefined) {
+      throw new Error('The application was constructed without an object store.')
+    }
+    const held = await copyPageFile(tx, store, viewerId, fileId, toFolderId)
+    if (held.kind === 'quota_exceeded') return 'quota_exceeded'
+    if (held.kind !== 'copied') continue
+    copied.push(held.id)
+    await tx.execute(
+      sql`UPDATE page_blocks SET file_id = ${held.id}::uuid
+           WHERE task_id = ${taskId}::uuid AND file_id = ${fileId}::uuid`,
+    )
+    await tx.execute(
+      sql`UPDATE comment_files SET file_id = ${held.id}::uuid
+           WHERE file_id = ${fileId}::uuid AND comment_id IN (${taskComments})`,
+    )
+  }
+  return 'carried'
+}
+
 async function coverSource(
   tx: Executor,
   sourceFileId: string,

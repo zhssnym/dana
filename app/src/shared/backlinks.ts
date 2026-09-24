@@ -25,12 +25,13 @@ open is the same 404 a missing one is.
 import { z } from 'zod'
 
 /** Where the referencing text lives: a page document (a Folder's page, a
- * Shelf's page or a Facet's page) or a member's Responsibility document. */
+ * Shelf's page, a Facet's page or a Task's document) or a member's
+ * Responsibility document. */
 export const BACKLINK_SURFACES = ['page', 'responsibility'] as const
 export type BacklinkSurface = (typeof BACKLINK_SURFACES)[number]
 
 /** The object that owns the referencing document. */
-export const BACKLINK_HOMES = ['folder', 'shelf', 'facet'] as const
+export const BACKLINK_HOMES = ['folder', 'shelf', 'facet', 'task'] as const
 export type BacklinkHome = (typeof BACKLINK_HOMES)[number]
 
 /** The most referencing documents one read answers. A backlink panel lists
@@ -42,12 +43,14 @@ export const BACKLINK_LIMIT = 50
 export const backlink = z.object({
   surface: z.enum(BACKLINK_SURFACES),
   /** `folder` for a Folder page and for a Responsibility document, `shelf`
-   * for a Shelf page, `facet` for a Facet page. */
+   * for a Shelf page, `facet` for a Facet page, `task` for a Task document
+   * (#221). A reader must tolerate a home it does not know. */
   home: z.enum(BACKLINK_HOMES),
-  /** The id of the home: a folder, shelf or facet id. */
+  /** The id of the home: a folder, shelf, facet or task id. */
   home_id: z.uuid(),
   /** The Folder the document belongs to: the folder itself, the facet's
-   * folder, the Responsibility's folder; null for a Shelf page. */
+   * folder, the Responsibility's folder, the Task's folder; null for a Shelf
+   * page. */
   folder_id: z.uuid().nullable(),
   /** The member whose Responsibility document holds the link; null on a page. */
   member_id: z.uuid().nullable(),

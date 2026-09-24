@@ -565,7 +565,7 @@ export function createApp(options: AppOptions = {}): express.Express {
   // the pair is order-independent between themselves.
   app.use(
     '/api/v1',
-    createTasksRouter({ dbClient: options.dbClient, rateLimits, securityLog }),
+    createTasksRouter({ dbClient: options.dbClient, rateLimits, securityLog, fileStore }),
   )
 
   /*

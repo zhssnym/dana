@@ -14,7 +14,10 @@ content, with the same predicate the source's own page read applies:
 - a Facet page: a membership of the facet's live Folder, the facet live, and
   either shared or private *to the reader* (`facetPageGateIn`'s `visibleTo`);
 - a Responsibility document: a membership of the live Folder, the document
-  active. 7.4's `responsibility.read` is `can_view`, which every member holds.
+  active. 7.4's `responsibility.read` is `can_view`, which every member holds;
+- a Task document (#221): a membership of the Task's live Folder and the Task
+  not trashed (`accessibleTask`'s predicate, which `GET /tasks/:id/document`
+  applies).
 
 Inside that scope a cheap `LIKE` on the target's uuid narrows the rows, and
 the real match is `parseDanaLink` over every `href` in the stored JSON — the
@@ -26,8 +29,8 @@ validated before it reaches the pattern, so it carries no `%` or `_`.
 the route resolves the target through `resolveReference` first and 404s a
 target the reader cannot open, before anything is scanned.
 
-When a further document home is added (a Task document, #221), it becomes a
-source by adding one scoped query below; nothing else changes.
+When a further document home is added, it becomes a source by adding one
+scoped query below; nothing else changes.
 */
 import { sql } from 'drizzle-orm'
 
@@ -179,6 +182,32 @@ export async function backlinksOf(
     hits.push({
       surface: 'page',
       home: 'facet',
+      homeId: String(row.home_id),
+      folderId: String(row.folder_id),
+      memberId: null,
+      label: String(row.label),
+      blockId: String(row.id),
+    })
+  }
+
+  const taskRows = await rowsOf(
+    executor,
+    sql`SELECT pb.id, pb.kind, pb.ref_folder_id, pb.rich_content,
+               t.id AS home_id, t.folder_id, t.title AS label
+          FROM page_blocks pb
+          JOIN tasks t ON t.id = pb.task_id AND t.deleted_at IS NULL
+          JOIN folders fo ON fo.id = t.folder_id AND fo.deleted_at IS NULL
+          JOIN folder_members m
+            ON m.folder_id = t.folder_id AND m.user_id = ${viewerId}
+         WHERE pb.rich_content::text LIKE ${pattern}
+         ORDER BY pb.page_position ASC NULLS LAST, pb.position ASC, pb.id ASC
+         LIMIT ${SCAN_BOUND}`,
+  )
+  for (const row of taskRows) {
+    if (!documentReferences(row.rich_content, target, origin)) continue
+    hits.push({
+      surface: 'page',
+      home: 'task',
       homeId: String(row.home_id),
       folderId: String(row.folder_id),
       memberId: null,

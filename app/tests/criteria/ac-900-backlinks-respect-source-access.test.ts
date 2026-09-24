@@ -182,4 +182,89 @@ describe('AC-900..902 referenced-from respects source access', () => {
     const after = await backlinks(member, `/tasks/${taskId}/backlinks`)
     expect(after.results.map((row) => row.label)).toEqual([renamed])
   })
+
+  /* A Task document (#221) is a source too, scoped by the reader's access to
+     that Task: a link in a Task document in a Folder the reader is not in is
+     absent, and the one in a shared Folder answers with `home: 'task'`. */
+  test('AC-900: a Task document source is filtered by access to its Task', async () => {
+    const { owner, member, targetFolder, privateFolder, sharedFolder } = await stage()
+    const target = await seedTask(app.db, {
+      folderId: targetFolder,
+      createdBy: owner.id,
+      title: 'ac900 task-doc target',
+    })
+    const hiddenTitle = 'ac900 owner only task'
+    const hiddenTask = await seedTask(app.db, {
+      folderId: privateFolder,
+      createdBy: owner.id,
+      title: hiddenTitle,
+    })
+    const sharedTask = await seedTask(app.db, {
+      folderId: sharedFolder,
+      createdBy: owner.id,
+      title: 'ac900 shared task',
+    })
+    const linkInTask = async (taskId: string): Promise<string> => {
+      const read = await owner.browser.json(`/tasks/${taskId}/document`, 'GET')
+      expectStatus(read, 200, 'the owner reads the Task document (spec 7.6)')
+      const blockId = randomUUID()
+      const href = `/app/tasks/${target}`
+      const written = await owner.browser.json(`/tasks/${taskId}/document`, 'PUT', {
+        action: 'document_transaction',
+        mutation_id: randomUUID(),
+        base_revision: (read.json() as PageView).revision,
+        operations: [
+          {
+            op: 'put_block',
+            id: blockId,
+            block_kind: 'paragraph',
+            text: 'depends on',
+            rich_content: { version: 1, runs: [{ text: 'depends on', href }] },
+            file_id: null,
+            ref_folder_id: null,
+            width_pct: null,
+            checked: null,
+          },
+          {
+            op: 'set_outline',
+            items: [{ kind: 'block', id: blockId, section_block_id: null, list_parent_block_id: null }],
+          },
+        ],
+      })
+      expectStatus(written, 200, 'the owner links from a Task document (spec 7.6, 7.24)')
+      return blockId
+    }
+    const hiddenBlock = await linkInTask(hiddenTask)
+    const sharedBlock = await linkInTask(sharedTask)
+
+    const stored = await countRows(
+      app.db,
+      sql`SELECT count(*)::int AS n FROM page_blocks
+           WHERE id = ${hiddenBlock}::uuid AND task_id = ${hiddenTask}::uuid
+             AND rich_content::text LIKE ${`%/app/tasks/${target}%`}`,
+    )
+    expect(stored).toBe(1)
+
+    const mine = await backlinks(owner, `/tasks/${target}/backlinks`)
+    expect(mine.results.map((row) => row.home_id).sort()).toEqual([hiddenTask, sharedTask].sort())
+
+    const theirs = await backlinks(member, `/tasks/${target}/backlinks`)
+    expect(theirs.results).toEqual([
+      {
+        surface: 'page',
+        home: 'task',
+        home_id: sharedTask,
+        folder_id: sharedFolder,
+        member_id: null,
+        label: 'ac900 shared task',
+        block_ids: [sharedBlock],
+      },
+    ])
+    expect(JSON.stringify(theirs)).not.toContain(hiddenTitle)
+    expect(JSON.stringify(theirs)).not.toContain(hiddenTask)
+
+    // A trashed Task's document stops being a source, as its own read does.
+    await app.db.execute(sql`UPDATE tasks SET deleted_at = now() WHERE id = ${sharedTask}::uuid`)
+    expect((await backlinks(member, `/tasks/${target}/backlinks`)).results).toEqual([])
+  })
 })

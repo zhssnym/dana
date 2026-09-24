@@ -57,9 +57,11 @@ import {
   today,
 } from '../time/index.js'
 import type { ReminderTrigger } from '../time/index.js'
+import type { ObjectStore } from '../files/store.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from './events.js'
+import { carryTaskFilesOnMove } from './files.js'
 import { mayPerform, presetOf } from './folder-access.js'
 import type {
   FolderAction,
@@ -860,6 +862,12 @@ export type PatchTaskResult =
   | { kind: 'section_not_here' }
   | { kind: 'reminder_refused'; refusal: ReminderRefusal }
   | { kind: 'forbidden'; reason: string }
+  /** #221: a move that had to copy a shared file into the new Folder and
+   * would take the mover past their storage quota. Nothing is written. */
+  | { kind: 'quota_exceeded' }
+
+/** Thrown inside the PATCH transaction so the whole move rolls back. */
+class MoveQuotaRefusal extends Error {}
 
 /*
 7.6's PATCH, one transaction, and every refusal returns before the first
@@ -933,6 +941,35 @@ export async function patchTask(
   viewerId: string,
   taskId: string,
   patch: PatchTaskBody,
+  store?: ObjectStore,
+): Promise<PatchTaskResult> {
+  /* Objects a move's file copies wrote; removed if the transaction does not
+     commit, so a rolled-back move leaves no unattached bytes (#128). */
+  const copiedObjects: string[] = []
+  try {
+    return await patchTaskIn(db, viewerId, taskId, patch, store, copiedObjects)
+  } catch (error: unknown) {
+    if (store !== undefined) {
+      for (const id of copiedObjects) {
+        try {
+          await store.remove(id)
+        } catch {
+          // Preserve the original error.
+        }
+      }
+    }
+    if (error instanceof MoveQuotaRefusal) return { kind: 'quota_exceeded' }
+    throw error
+  }
+}
+
+async function patchTaskIn(
+  db: Db,
+  viewerId: string,
+  taskId: string,
+  patch: PatchTaskBody,
+  store: ObjectStore | undefined,
+  copiedObjects: string[],
 ): Promise<PatchTaskResult> {
   return inTransaction(db, async (tx) => {
     /*
@@ -1252,6 +1289,19 @@ export async function patchTask(
            assignments are untouched, which is the same sentence read the
            other way: they were never the folder's. */
         await dropFolderLabelsOnMove(tx, taskId)
+        /* #221: the files the Task's document and comments name follow it,
+           or the new Folder's members could not open them and the old
+           Folder's purge would take them (`domain/files.ts` has the rule). */
+        const carried = await carryTaskFilesOnMove(
+          tx,
+          store,
+          viewerId,
+          taskId,
+          current.folderId,
+          folderId,
+          copiedObjects,
+        )
+        if (carried === 'quota_exceeded') throw new MoveQuotaRefusal()
       }
       await tx.execute(
         sql`UPDATE tasks SET ${sql.join(sets, sql`, `)}
