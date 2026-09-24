@@ -174,17 +174,7 @@
    node view, so the rule is written here against the page's only block, and
    the words come from the surface's `--dana-canvas-placeholder`. */
 .dana-writing-canvas .bn-editor:not(.ProseMirror-focused) > .bn-block-group > .bn-block-outer:only-child > .bn-block > .react-renderer > .bn-block-content[data-content-type='paragraph']:has(.ProseMirror-trailingBreak:only-child) {
-  position: relative;
-}
-.dana-writing-canvas .bn-editor:not(.ProseMirror-focused) > .bn-block-group > .bn-block-outer:only-child > .bn-block > .react-renderer > .bn-block-content[data-content-type='paragraph']:has(.ProseMirror-trailingBreak:only-child)::after {
-  content: var(--dana-canvas-placeholder, none);
-  position: absolute;
-  inset-inline-start: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--muted-foreground);
-  font-style: normal;
-  pointer-events: none;
+  --dana-hint: var(--dana-canvas-placeholder, none);
 }
 /* Block selection (`block-selection.ts`): a block picked by Esc, its handle or
    the marquee is tinted, never outlined. Spec: #2383e2 at 14% light, 24% dark.
@@ -273,23 +263,24 @@
 .dana-writing-canvas .bn-editor .bn-block-content[data-content-type]:has(.ProseMirror-trailingBreak:only-child)::after { content: none; }
 .dana-writing-canvas .bn-editor.ProseMirror-focused [data-is-empty-and-focused] > .bn-block-content[data-content-type]:has(.ProseMirror-trailingBreak:only-child),
 .dana-writing-canvas .bn-editor.ProseMirror-focused .bn-block-content[data-content-type][data-is-empty-and-focused]:has(.ProseMirror-trailingBreak:only-child) {
-  position: relative;
+  --dana-hint: "Type '/' for commands";
 }
-.dana-writing-canvas .bn-editor.ProseMirror-focused [data-is-empty-and-focused] > .bn-block-content[data-content-type]:has(.ProseMirror-trailingBreak:only-child)::after,
-.dana-writing-canvas .bn-editor.ProseMirror-focused .bn-block-content[data-content-type][data-is-empty-and-focused]:has(.ProseMirror-trailingBreak:only-child)::after {
-  content: "Type '/' for commands";
-  position: absolute;
-  inset-inline-start: 0;
-  /* On the line, whatever the block's padding (r7-editor). */
-  top: 50%;
-  transform: translateY(-50%);
+.dana-writing-canvas .bn-editor.ProseMirror-focused .bn-block-content[data-content-type='heading'][data-is-empty-and-focused]:has(.ProseMirror-trailingBreak:only-child) { --dana-hint: "Heading"; }
+.dana-writing-canvas .bn-editor.ProseMirror-focused .bn-block-content:is([data-content-type='bulletListItem'], [data-content-type='numberedListItem'], [data-content-type='checkListItem'], [data-content-type='toggleListItem'])[data-is-empty-and-focused]:has(.ProseMirror-trailingBreak:only-child) { --dana-hint: "List"; }
+/* r8-caret: every hint above is drawn here, inside the inline content the
+   caret lives in, as ProseMirror's own placeholder is: a zero-height float
+   takes no room on the line, so the hint's first letter starts exactly at the
+   caret and shares its baseline, whatever the block's padding. (Drawn on the
+   block instead, BlockNote's `margin-inline: -2px` put it 2px left.) */
+.dana-writing-canvas .bn-editor .bn-inline-content:has(.ProseMirror-trailingBreak:only-child)::before {
+  content: var(--dana-hint, none);
+  float: inline-start;
+  height: 0;
   color: var(--muted-foreground);
   font-style: normal;
   pointer-events: none;
   white-space: nowrap;
 }
-.dana-writing-canvas .bn-editor.ProseMirror-focused .bn-block-content[data-content-type='heading'][data-is-empty-and-focused]:has(.ProseMirror-trailingBreak:only-child)::after { content: "Heading"; }
-.dana-writing-canvas .bn-editor.ProseMirror-focused .bn-block-content:is([data-content-type='bulletListItem'], [data-content-type='numberedListItem'], [data-content-type='checkListItem'], [data-content-type='toggleListItem'])[data-is-empty-and-focused]:has(.ProseMirror-trailingBreak:only-child)::after { content: "List"; position: static; }
 /* A clicked image, divider, page or Task row (ProseMirror's node selection)
    wears the same soft tint as a block selection, never BlockNote's inset
    outline. */
@@ -326,22 +317,12 @@
    inset keeps the hint's first letter out of the scroller's clip on phones,
    where the canvas's own left padding is zeroed. */
 .dana-writing-canvas.dana-post-editor { padding-inline-start: 1px; }
-.dana-writing-canvas.dana-post-editor .bn-editor.ProseMirror-focused [data-is-empty-and-focused] > .bn-block-content[data-content-type]:has(.ProseMirror-trailingBreak:only-child)::after,
-.dana-writing-canvas.dana-post-editor .bn-editor.ProseMirror-focused .bn-block-content[data-content-type][data-is-empty-and-focused]:has(.ProseMirror-trailingBreak:only-child)::after {
-  content: none;
+.dana-writing-canvas.dana-post-editor .bn-editor.ProseMirror-focused [data-is-empty-and-focused] > .bn-block-content[data-content-type]:has(.ProseMirror-trailingBreak:only-child),
+.dana-writing-canvas.dana-post-editor .bn-editor.ProseMirror-focused .bn-block-content[data-content-type][data-is-empty-and-focused]:has(.ProseMirror-trailingBreak:only-child) {
+  --dana-hint: none;
 }
 .dana-writing-canvas.dana-post-editor .bn-editor > .bn-block-group > .bn-block-outer:only-child > .bn-block > .react-renderer > .bn-block-content[data-content-type='paragraph']:has(.ProseMirror-trailingBreak:only-child) {
-  position: relative;
-}
-.dana-writing-canvas.dana-post-editor .bn-editor > .bn-block-group > .bn-block-outer:only-child > .bn-block > .react-renderer > .bn-block-content[data-content-type='paragraph']:has(.ProseMirror-trailingBreak:only-child)::after {
-  content: var(--dana-canvas-placeholder, none);
-  position: absolute;
-  inset-inline-start: 0;
-  top: 0;
-  color: var(--muted-foreground);
-  font-style: normal;
-  pointer-events: none;
-  white-space: nowrap;
+  --dana-hint: var(--dana-canvas-placeholder, none);
 }
 
 /* ---- r5-page: one ink for every Delete, and the submenu chevron as quiet
@@ -383,15 +364,4 @@
 .dana-writing-canvas [data-canvas-task-id] button[aria-label="Complete task"] + span,
 .dana-writing-canvas [data-canvas-task-id] button[aria-label="Mark as not done"] + span {
   margin-inline-start: calc(var(--checkbox-size) + var(--spacing) * 2 - var(--control-height));
-}
-
-/* ---- r8-taskdisc: the composer's hint sits on its line. The page's own
-   placeholder rule lifts its ::after by half a line (translateY), which cut
-   "Write the first post…" off at the top of the one-line composer. Here the
-   hint fills the paragraph's box and centres in it instead. */
-.dana-writing-canvas.dana-post-editor .bn-editor > .bn-block-group > .bn-block-outer:only-child > .bn-block > .react-renderer > .bn-block-content[data-content-type='paragraph']:has(.ProseMirror-trailingBreak:only-child)::after {
-  inset-block: 0;
-  display: flex;
-  align-items: center;
-  transform: none;
 }
