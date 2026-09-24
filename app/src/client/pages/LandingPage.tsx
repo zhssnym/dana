@@ -32,7 +32,7 @@ import { useMe } from '../api/queries.js'
 import { browserTimezone } from '../api/tz.js'
 import { Button } from '../components/ui/button.js'
 import { paths } from '../routes.js'
-import { ObfuscatedEmail } from '../components/obfuscated-email.js'
+import { obfuscatedEmail } from '../components/obfuscated-email.js'
 
 function GoogleGlyph(): React.JSX.Element {
   return (
@@ -70,19 +70,19 @@ export function LandingPage(): React.JSX.Element {
         </h1>
         <div className="mt-4 flex flex-col gap-3 text-sm text-muted-foreground">
           <p>
-            Create a project, write down what it&apos;s for, break it into tasks, and track them
-            until they&apos;re done. Share it with the people you work with, and talk it through in
-            threads right next to the work.
+            Dana helps you plan and work on projects without juggling multiple tools. You create a
+            project, describe what you&apos;re building, break it into tasks, and keep track of
+            what&apos;s done and what&apos;s left. Add people to your projects and discuss each task
+            in a thread right next to the work itself.
           </p>
           <p>
-            But what is Dana? Imagine taking Notion&apos;s editor, GitHub&apos;s issues and
-            Slack&apos;s threads, and trimming them down to what a person needs to finish a project
-            without drowning in bloat. That&apos;s Dana. And it&apos;s free, by the way.
+            We&apos;re building Dana as a bloat-free combination of Notion, GitHub Issues, and
+            Slack, giving you the tools you need to move projects forward without drowning in
+            features you don&apos;t need.
           </p>
           <p>
             Dana is in beta as of October 2026. If you try it, I&apos;d really like to hear what
-            works and what doesn&apos;t:{' '}
-            <ObfuscatedEmail className="rounded-sm underline hover:text-foreground" />
+            works and what doesn&apos;t: {obfuscatedEmail()}
           </p>
         </div>
 
