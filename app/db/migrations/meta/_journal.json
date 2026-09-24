@@ -302,6 +302,13 @@
       "when": 1792300000000,
       "tag": "0048_discussion_reads",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1792400000000,
+      "tag": "0049_task_thread_reads",
+      "breakpoints": true
     }
   ]
 }

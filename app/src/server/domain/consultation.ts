@@ -299,6 +299,24 @@ export async function folderOfDiscussion(
 }
 
 /**
+ * The Folder a live task belongs to, for `PUT /tasks/:id/thread/read`'s 404
+ * before anything else. Null when the id names no task, or a deleted one.
+ * Like `folderOfDiscussion` it says nothing about access.
+ */
+export async function folderOfTask(
+  executor: Executor,
+  taskId: string,
+): Promise<string | null> {
+  const rows = await rowsOf(
+    executor,
+    sql`SELECT folder_id FROM tasks
+         WHERE id = ${taskId}::uuid AND deleted_at IS NULL`,
+  )
+  const row = rows[0]
+  return row === undefined ? null : String(row.folder_id)
+}
+
+/**
  * The locked Discussion and the actor's facts over its live Folder, both read
  * in `tx`. Null is 404: no such row, a trashed Folder, or no membership.
  */
@@ -536,6 +554,50 @@ export async function markDiscussionRead(
              AND c.discussion_id = ${discussionId}::uuid`,
     )
     return ok(null)
+  })
+}
+
+/**
+ * `PUT /tasks/:id/thread/read`: the viewer has opened the task's thread now.
+ * The task-thread twin of `markDiscussionRead`: upserts their
+ * `task_thread_reads` row and, in the same transaction, marks read their
+ * unread notifications about posts in this task's thread. Whoever may read
+ * the thread may mark it, and the thread's read (`GET /folders/:id/comments
+ * ?task=`) asks only membership of the task's live Folder. A deleted task,
+ * or one gone since the route looked, is `not_found`. Answers the viewer's
+ * previous `read_at`, null when they had never opened the thread.
+ */
+export async function markTaskThreadRead(
+  db: Db,
+  viewerId: string,
+  taskId: string,
+): Promise<ConsultationOutcome<{ read_at: string | null }>> {
+  return inTransaction(db, async (tx) => {
+    const folderId = await folderOfTask(tx, taskId)
+    if (folderId === null) return notFound
+    if ((await folderActorFacts(tx, viewerId, folderId)) === null) return notFound
+    const previous = await rowsOf(
+      tx,
+      sql`SELECT read_at FROM task_thread_reads
+           WHERE task_id = ${taskId}::uuid AND user_id = ${viewerId}::uuid`,
+    )
+    await tx.execute(
+      sql`INSERT INTO task_thread_reads (task_id, user_id, read_at)
+          VALUES (${taskId}::uuid, ${viewerId}::uuid, now())
+          ON CONFLICT (task_id, user_id)
+          DO UPDATE SET read_at = excluded.read_at`,
+    )
+    await tx.execute(
+      sql`UPDATE notifications n SET read_at = now()
+            FROM events e, comments c
+           WHERE n.user_id = ${viewerId}::uuid
+             AND n.read_at IS NULL
+             AND e.id = n.event_id
+             AND e.subject_kind = 'comment'
+             AND c.id = e.subject_id
+             AND c.task_id = ${taskId}::uuid`,
+    )
+    return ok({ read_at: isoOrNull(previous[0]?.read_at) })
   })
 }
 

@@ -2096,6 +2096,16 @@ const TABLE = new Map<string, Row>([
     },
   ],
   [
+    'PUT /api/v1/tasks/:id/thread/read',
+    {
+      attempt: (fx) => ({ path: `/tasks/${fx.taskId}/thread/read` }),
+      stranger: {
+        expected: 404,
+        rule: "7.14: a task thread's read marker is a member's own state on a thread they can read, so a non-member is 404, as on every /tasks/:id route, and no row is written",
+      },
+    },
+  ],
+  [
     'GET /api/v1/discussions/:id/outcomes',
     {
       attempt: (fx) => ({ path: `/discussions/${fx.discussionId}/outcomes` }),

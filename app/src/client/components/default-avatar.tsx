@@ -21,9 +21,25 @@ differ in form.
 
 Decorative: the name beside it is what a reader is told (AC-244).
 */
-import { personFacePaint, personShapeSeed } from '../parts/person-tint.js'
+import { createContext, useContext, useMemo } from 'react'
+
+import { personFacePaint, personShapeSeed, rosterTints } from '../parts/person-tint.js'
 
 import { cn } from './ui/utils.js'
+
+/*
+A page's roster (r7): inside it, faces are painted from `rosterTints`, so no
+two members of the page share a hue. Outside one, a face is its own
+`personTint`; only a clash inside a roster moves anyone.
+*/
+const RosterTintContext = createContext<ReadonlyMap<string, string> | null>(null)
+
+export function RosterTints({ ids, children }: { readonly ids: readonly string[]; readonly children: React.ReactNode }): React.JSX.Element {
+  /* Keyed by the roster's content, not the array's identity. */
+  const key = [...new Set(ids)].sort().join(',')
+  const tints = useMemo(() => rosterTints(key === '' ? [] : key.split(',')), [key])
+  return <RosterTintContext.Provider value={tints}>{children}</RosterTintContext.Provider>
+}
 
 /** Hair drawn behind the head (long hair falls behind the shoulders' line). */
 function HairBehind({ style, fill }: { style: number; fill: string }): React.JSX.Element | null {
@@ -90,7 +106,8 @@ export function DefaultAvatar({
   readonly className?: string
 }): React.JSX.Element {
   const key = id ?? name
-  const paint = personFacePaint(key)
+  const roster = useContext(RosterTintContext)
+  const paint = personFacePaint(key, id == null ? undefined : roster?.get(id))
   const seed = personShapeSeed(key)
   const hair = seed % 8
   const happy = Math.floor(seed / 8) % 2 === 1

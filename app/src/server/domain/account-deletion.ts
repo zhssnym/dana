@@ -367,6 +367,13 @@ export const USER_CASCADE_DISPOSALS: readonly UserCascadeDisposal[] = [
     why: "4.18's shelf is one person's own grouping and nobody else can read it (AC-366), and it carries a name and a description the person wrote. The page blocks hanging on it go with it by page_blocks_shelf_id_fkey, which is a cascade off a real DELETE and does fire.",
   },
   {
+    fk: 'task_thread_reads_user_id_fkey',
+    table: 'task_thread_reads',
+    disposition: 'deleted',
+    where: 'step 6c, in this file',
+    why: "Migration 0049's read marker: when this account last opened a task's thread. The same shape as discussion_reads: this account's own unread state, carrying no text, meaning nothing once the account is gone, and read by nobody else.",
+  },
+  {
     fk: 'user_page_covers_user_id_fkey',
     table: 'user_page_covers',
     disposition: 'deleted',
@@ -583,6 +590,10 @@ export async function deleteAccountData(
     await rowsOf(
       tx,
       sql`DELETE FROM shelves WHERE user_id = ${userId} RETURNING 1 AS one`,
+    ),
+    await rowsOf(
+      tx,
+      sql`DELETE FROM task_thread_reads WHERE user_id = ${userId} RETURNING 1 AS one`,
     ),
     await rowsOf(
       tx,

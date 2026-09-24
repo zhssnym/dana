@@ -1177,6 +1177,29 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
       { name: 'discussion_reads_user_id_idx', unique: false, columns: ['user_id'], partial: false },
     ],
   },
+  // Migration 0049: when each person last opened each task's thread.
+  task_thread_reads: {
+    primaryKey: { name: 'task_thread_reads_pkey', columns: ['task_id', 'user_id'] },
+    uniques: [],
+    checks: [],
+    foreignKeys: [
+      {
+        name: 'task_thread_reads_task_id_fkey',
+        columns: ['task_id'],
+        references: { table: 'tasks', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+      {
+        name: 'task_thread_reads_user_id_fkey',
+        columns: ['user_id'],
+        references: { table: 'users', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+    ],
+    indexes: [
+      { name: 'task_thread_reads_user_id_idx', unique: false, columns: ['user_id'], partial: false },
+    ],
+  },
   comment_likes: {
     primaryKey: { name: 'comment_likes_pkey', columns: ['comment_id', 'user_id'] },
     uniques: [],

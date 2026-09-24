@@ -150,7 +150,9 @@ export default function PostEditor({
   }
 
   async function submit(): Promise<void> {
-    if (busy) return
+    /* A second Enter while a post is on its way sends too (the first one's
+       words have already left the editor); only an edit waits. */
+    if (busy && editing) return
     const content = read()
     if (content === null) return
     setBusy(true)

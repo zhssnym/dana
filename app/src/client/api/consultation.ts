@@ -7,8 +7,9 @@ A file of its own rather than more lines in `queries.ts` and `mutations.ts`
 because the surface is one contract (`shared/consultation.ts`) and reads best
 beside itself; the patterns are theirs exactly. Every call goes through
 `http.ts`, every key through `keys.ts`, and every successful write is followed
-by the mutation cache's unfiltered invalidation (queryClient.ts), so nothing
-here patches the cache by hand.
+by the mutation cache's unfiltered invalidation (queryClient.ts), except a
+post, which refreshes only the conversations and lists (`CHAT_WRITE`) and
+joins its thread's cached read at once.
 
 A 409 (`discussion_frozen`, a resolved Discussion refusing an edit, a second
 open General discussion) and a 403 carry the server's own sentence, which the
@@ -23,7 +24,7 @@ import type {
 } from '@tanstack/react-query'
 import { z } from 'zod'
 
-import { commentLine, getThreadResponse } from '../../shared/comments.js'
+import { commentLine, getThreadResponse, taskThreadReadResponse } from '../../shared/comments.js'
 import type { CommentLine, GetThreadResponse, PostCommentBody } from '../../shared/comments.js'
 import { discussionSchema, outcomeSchema } from '../../shared/consultation.js'
 import type {
@@ -34,6 +35,7 @@ import type {
   UpdateDiscussionBody,
 } from '../../shared/consultation.js'
 import { getPlain, mutateApi } from './http.js'
+import { CHAT_WRITE, withPost } from './mutations.js'
 import { mutationFailureMessage } from './queryClient.js'
 import { showToast } from '../state/toasts.js'
 import { queryKeys } from './keys.js'
@@ -261,7 +263,12 @@ export function usePostDiscussionComment(): UseMutationResult<
   Error,
   { readonly discussionId: string; readonly body: PostCommentBody }
 > {
+  const client = useQueryClient()
   return useMutation({
+    meta: CHAT_WRITE,
+    onSuccess: (line, { discussionId }) => {
+      client.setQueryData<GetThreadResponse>(queryKeys.discussionThread(discussionId), (thread) => withPost(thread, line))
+    },
     mutationFn: ({ discussionId, body }) =>
       mutateApi(commentLine, {
         method: 'POST',
@@ -269,4 +276,26 @@ export function usePostDiscussionComment(): UseMutationResult<
         body,
       }),
   })
+}
+
+/**
+ * PUT /tasks/:id/thread/read: the viewer opened a task's thread. Plain
+ * `mutateApi` rather than `useMutation`, for `useMarkDiscussionRead`'s
+ * reason: the global invalidation would refetch everything on every open.
+ * Only the bell is refreshed. Resolves to the previous `read_at`, or null
+ * when there was none or the call failed.
+ */
+export function useMarkTaskThreadRead(): (taskId: string) => Promise<string | null> {
+  const client = useQueryClient()
+  return useCallback(
+    (taskId: string) =>
+      mutateApi(taskThreadReadResponse, { method: 'PUT', path: `/tasks/${taskId}/thread/read` }).then(
+        (answer) => {
+          void client.invalidateQueries({ queryKey: queryKeys.notifications() })
+          return answer.read_at
+        },
+        () => null,
+      ),
+    [client],
+  )
 }

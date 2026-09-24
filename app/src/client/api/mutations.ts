@@ -122,7 +122,10 @@ import type {
 
 import { defaultFolderDescription } from '../lib/folder-description.js'
 import { mutateApi, requestTimezone } from './http.js'
-import { INLINE_VALIDATION_META, VALIDATION_ERROR_TOAST_META } from './queryClient.js'
+import { INLINE_VALIDATION_META, INVALIDATES_META, VALIDATION_ERROR_TOAST_META } from './queryClient.js'
+import type { InvalidatesMeta } from './queryClient.js'
+import type { GetThreadResponse } from '../../shared/comments.js'
+import { queryKeys } from './keys.js'
 import { taskDependencyEdge } from '../../shared/task-dependencies.js'
 import type { TaskDependencyEdge } from '../../shared/task-dependencies.js'
 
@@ -791,12 +794,16 @@ export function useDuplicateFolder(): UseMutationResult<
   })
 }
 
+/** Reading a notification changes the bell and nothing else (r7). */
+const BELL_WRITE = { [INVALIDATES_META]: (() => (key) => key[0] === 'notifications') satisfies InvalidatesMeta } as const
+
 export function useMarkNotificationRead(): UseMutationResult<
   { read: true },
   Error,
   string
 > {
   return useMutation({
+    meta: BELL_WRITE,
     mutationFn: (id: string) =>
       mutateApi(postNotificationReadResponse, {
         method: 'POST',
@@ -811,12 +818,29 @@ export function useMarkAllNotificationsRead(): UseMutationResult<
   void
 > {
   return useMutation({
+    meta: BELL_WRITE,
     mutationFn: () =>
       mutateApi(postNotificationsReadAllResponse, {
         method: 'POST',
         path: '/notifications/read-all',
       }),
   })
+}
+
+/*
+Chat writes (r7) are the one exception to "a mutation invalidates nothing
+itself" (queryClient.ts `INVALIDATES_META`): a post, edit, delete or like
+refreshes the conversations and the lists of threads, not the whole app.
+*/
+const chatChanged: InvalidatesMeta = () => (key) =>
+  (key[0] === 'folders' && (key[2] === 'thread' || key[2] === 'discussions')) ||
+  (key[0] === 'discussions' && key[2] === 'thread')
+export const CHAT_WRITE = { [INVALIDATES_META]: chatChanged } as const
+
+/** A sent post joins its thread's cached read at once, before any refetch. */
+export function withPost(thread: GetThreadResponse | undefined, line: CommentLine): GetThreadResponse | undefined {
+  if (thread === undefined || thread.comments.some((c) => c.id === line.id)) return thread
+  return { ...thread, comments: [...thread.comments, line] }
 }
 
 export interface PostCommentVariables {
@@ -838,7 +862,12 @@ export function usePostComment(): UseMutationResult<
   Error,
   PostCommentVariables
 > {
+  const client = useQueryClient()
   return useMutation({
+    meta: CHAT_WRITE,
+    onSuccess: (line, { folderId, taskId }) => {
+      client.setQueryData<GetThreadResponse>(queryKeys.thread(folderId, taskId ?? null), (thread) => withPost(thread, line))
+    },
     mutationFn: ({ folderId, body, taskId }: PostCommentVariables) =>
       mutateApi(commentLine, {
         method: 'POST',
@@ -862,6 +891,7 @@ export function usePatchComment(): UseMutationResult<
   PatchCommentVariables
 > {
   return useMutation({
+    meta: CHAT_WRITE,
     mutationFn: ({ id, body }: PatchCommentVariables) =>
       mutateApi(patchCommentResponse, { method: 'PATCH', path: `/comments/${id}`, body }),
   })
@@ -875,6 +905,7 @@ export function usePatchComment(): UseMutationResult<
  */
 export function useDeleteComment(): UseMutationResult<void, Error, string> {
   return useMutation({
+    meta: CHAT_WRITE,
     mutationFn: (id: string) =>
       mutateApi(null, { method: 'DELETE', path: `/comments/${id}` }),
   })
@@ -887,6 +918,7 @@ export function useSetCommentLike(): UseMutationResult<
   { readonly id: string; readonly liked: boolean }
 > {
   return useMutation({
+    meta: CHAT_WRITE,
     mutationFn: ({ id, liked }) =>
       mutateApi(null, {
         method: liked ? 'PUT' : 'DELETE',

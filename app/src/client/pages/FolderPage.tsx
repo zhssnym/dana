@@ -1084,6 +1084,7 @@ export function FolderPage({
 
           {facets.data ? (
             <FolderTabs
+              folderId={id}
               facets={isDefault ? facetRows.filter((facet) => facet.kind !== 'consultation') : facetRows}
               activeId={activeFacet?.id ?? ''}
               onSelect={selectFacet}

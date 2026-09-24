@@ -38,6 +38,7 @@ import {
 import { Tab, TabList } from './ui/tabs.js'
 import { cn } from './ui/utils.js'
 import { Plus } from '../lib/icons.js'
+import { DiscussionTabName } from './consultation/DiscussionTabName.js'
 
 export interface FacetCapabilities {
   readonly createShared: boolean
@@ -130,6 +131,7 @@ interface TabDrag {
  * on a focused tab moves it one place.
  */
 export function FolderTabs({
+  folderId,
   facets,
   activeId,
   onSelect,
@@ -142,6 +144,8 @@ export function FolderTabs({
   onShare,
   onDelete,
 }: {
+  /** The page, so the Discussion tab can weigh its name when a thread is unread (r7). */
+  readonly folderId?: string
   readonly facets: readonly Facet[]
   readonly activeId: string
   readonly onSelect: (facet: Facet) => void
@@ -479,7 +483,11 @@ export function FolderTabs({
                   'after:absolute after:inset-y-1.5 after:-right-2 after:w-0.5 after:rounded-full after:bg-primary',
               )}
             >
-              {facet.name}
+              {facet.kind === 'consultation' && folderId !== undefined ? (
+                <DiscussionTabName folderId={folderId} name={facet.name} />
+              ) : (
+                facet.name
+              )}
             </Tab>
           )
         })}

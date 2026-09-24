@@ -547,16 +547,16 @@ export function useShelfPage(id: string): UseQueryResult<GetPageResponse> {
 /**
  * The viewer's notifications (7.12), which the 9.12 bell renders.
  *
- * `poll`: refetch-on-focus is the client's one global liveness rule, and a
- * polite poll runs only while the surface is open, so an idle Dana in a
- * background tab costs the server nothing. Thirty seconds is polite for a feed
- * whose producer is another person's hand.
+ * `poll`: the bell polls every twenty seconds while the app's tab is visible
+ * (r7: a bell that only moved on focus missed every mention), and TanStack
+ * pauses the interval in a hidden tab, so an idle Dana in a background tab
+ * costs the server nothing.
  */
 export function useNotifications(poll: boolean): UseQueryResult<GetNotificationsResponse> {
   return useQuery({
     queryKey: queryKeys.notifications(),
     queryFn: () => getPlain(getNotificationsResponse, '/notifications'),
-    refetchInterval: poll ? 30_000 : false,
+    refetchInterval: poll ? 20_000 : false,
   })
 }
 

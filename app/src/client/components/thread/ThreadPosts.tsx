@@ -9,7 +9,13 @@ showing in the face's gutter when the post is pointed at or tapped. A new day
 draws a divider. A reply carries one small line naming the post it answers
 (7.14 keeps one level), which scrolls there, unless it answers the post right
 above it (`grouping.ts`). A thread opens at its first post from someone else
-since the reader last read it (`openAt`), otherwise at its end.
+since the reader last read it (`openAt`), with one "New" hairline above it
+for the visit, otherwise at its end.
+
+Live (r7): a post sent here shows at once, muted until the server has it,
+and sends go out in order. While the reader is at the end, new posts keep
+the end in view; scrolled up, one quiet "New posts" line appears above the
+composer instead, and nothing moves on its own.
 
 What each post offers is `ThreadAuthority` (lib/thread.ts), which the caller
 has already multiplied by the thread's own state (a closed Discussion offers
@@ -20,11 +26,11 @@ composer is always at the bottom; Reply moves the cursor there.
 */
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 
-import { postFileIds } from '../../../shared/comments.js'
+import { postFileIds, postPlainText } from '../../../shared/comments.js'
 import type { CommentFile, CommentLine, PostCommentBody, PostContent } from '../../../shared/comments.js'
 import { useDeleteComment, usePatchComment, useSetCommentLike } from '../../api/mutations.js'
 import { formatDayHeading } from '../../lib/dates.js'
-import { MoreHorizontal, Reply, ThumbsUp } from '../../lib/icons.js'
+import { ArrowDown, MoreHorizontal, Reply, ThumbsUp } from '../../lib/icons.js'
 import type { PersonResolver, ThreadAuthority } from '../../lib/thread.js'
 import { formatTime, useTimeFormat } from '../../lib/time-format.js'
 import { initialsOf } from '../../parts/presenters.js'
@@ -80,6 +86,7 @@ export function ThreadPosts({
   may,
   closed,
   autoFocus = false,
+  focusOnLand = false,
   openAt,
   post,
   onRefused,
@@ -96,6 +103,9 @@ export function ThreadPosts({
   /** Drawn instead of the composer (a closed thread). */
   readonly closed?: React.ReactNode
   readonly autoFocus?: boolean
+  /** Put the cursor in the composer once the thread has landed at its end
+   * (a task's tab, chosen by pointer). */
+  readonly focusOnLand?: boolean
   /** Where the thread opens: after this instant (the reader's last read),
    * at the first post by someone else; null opens at the end. Absent, the
    * thread does not move (a task's tab). */
@@ -115,6 +125,13 @@ export function ThreadPosts({
   const [flash, setFlash] = useState<string | null>(null)
   const flashTimer = useRef<number | undefined>(undefined)
   useEffect(() => () => { window.clearTimeout(flashTimer.current) }, [])
+  /* Sent, not yet stored: drawn muted at the end until the server answers. */
+  const [pending, setPending] = useState<readonly CommentLine[]>([])
+  const sending = useRef<Promise<unknown>>(Promise.resolve())
+  /* Where "New" goes this visit, fixed when the thread lands. */
+  const [newFrom, setNewFrom] = useState<string | null>(null)
+  /* Posts from others that arrived while the reader was scrolled up. */
+  const [unseen, setUnseen] = useState<string | null>(null)
 
   const posts = useMemo(
     () =>
@@ -123,9 +140,12 @@ export function ThreadPosts({
       ),
     [comments],
   )
-  const placed = useMemo(() => placePosts(posts), [posts])
+  const shown = useMemo(() => (pending.length === 0 ? posts : [...posts, ...pending]), [posts, pending])
+  const placed = useMemo(() => placePosts(shown), [shown])
   const byId = useMemo(() => new Map(posts.map((line) => [line.id, line])), [posts])
   const today = localDay(new Date().toISOString())
+  /* The post clicked, whose words the banner quotes; the reply joins its
+     thread's one level (7.14), so it is sent under that post's parent. */
   const replyTarget = replyTo === null ? undefined : byId.get(replyTo)
 
   const timeOf = (instant: string): string => formatTime(localClock(instant), clock) ?? ''
@@ -161,9 +181,74 @@ export function ThreadPosts({
     if (/^#post-/.test(window.location.hash)) return
     const since = openAt === null ? Number.NaN : Date.parse(openAt)
     const first = posts.find((line) => line.author_id !== viewerId && Date.parse(line.created_at) > since)
-    if (first !== undefined) document.getElementById(`post-${first.id}`)?.scrollIntoView({ block: 'center' })
-    else end.current?.scrollIntoView({ block: 'end' })
+    if (first !== undefined) {
+      if (openAt !== null) setNewFrom(first.id)
+      document.getElementById(`post-${first.id}`)?.scrollIntoView({ block: 'center' })
+    } else {
+      end.current?.scrollIntoView({ block: 'end' })
+      if (focusOnLand) setFocus((value) => value + 1)
+    }
   })
+
+  /* Whether the end of the thread is on screen, as of the last frame. */
+  const atEnd = useRef(true)
+  useEffect(() => {
+    const marker = end.current
+    if (marker === null || typeof IntersectionObserver === 'undefined') return
+    const watch = new IntersectionObserver(([entry]) => {
+      atEnd.current = entry?.isIntersecting ?? false
+      if (atEnd.current) setUnseen(null)
+    })
+    watch.observe(marker)
+    return () => { watch.disconnect() }
+  })
+
+  /* A post that arrives after the landing: stay at the end if the reader was
+     there (or wrote it); otherwise say so once, quietly. */
+  const lastId = shown.at(-1)?.id ?? null
+  const seenLast = useRef<string | null>(null)
+  useEffect(() => {
+    const previous = seenLast.current
+    seenLast.current = lastId
+    if (previous === null || lastId === null || lastId === previous) return
+    const last = shown.at(-1)
+    const mine = last?.author_id === viewerId
+    if (atEnd.current || mine) {
+      end.current?.scrollIntoView({ block: 'end' })
+      return
+    }
+    const firstNew = shown.findIndex((line) => line.id === previous) + 1
+    const arrived = shown[firstNew]
+    if (arrived !== undefined) setUnseen((current) => current ?? arrived.id)
+  }, [lastId, shown, viewerId])
+
+  const send = (body: PostCommentBody): Promise<unknown> => {
+    /* Words only: a post with files waits for the server, which names them. */
+    const draft: CommentLine | null =
+      viewerId !== null && folderId !== null && (body.file_ids ?? []).length === 0
+        ? {
+            id: `pending-${String(Date.now())}-${String(Math.random()).slice(2, 8)}`,
+            folder_id: folderId,
+            task_id: null,
+            parent_id: body.parent_id ?? null,
+            author_id: viewerId,
+            body: body.content === undefined ? null : postPlainText(body.content),
+            content: body.content,
+            likes: 0,
+            liked: false,
+            files: [],
+            created_at: new Date().toISOString(),
+            edited_at: null,
+          }
+        : null
+    if (draft !== null) setPending((list) => [...list, draft])
+    /* One at a time, in the order they were sent. */
+    const run = sending.current.then(() => post(body))
+    sending.current = run.catch(() => undefined)
+    return run.finally(() => {
+      if (draft !== null) setPending((list) => list.filter((line) => line.id !== draft.id))
+    })
+  }
 
   if (failed) return <InlineError onRetry={onRetry} />
   if (loading) return <SkeletonList />
@@ -175,11 +260,12 @@ export function ThreadPosts({
           {placed.map(({ line, head, day, quote }) => {
             const author = personOf(line.author_id)
             const mine = line.author_id === viewerId
+            const sent = line.id.startsWith('pending-')
             const parent = line.parent_id === null ? undefined : byId.get(line.parent_id)
             const editable = mine && may.mutateOwnComment
             const deletable = (mine && may.mutateOwnComment) || may.moderate
             const fullDate = new Date(line.created_at).toLocaleString()
-            const hasBar = may.likeComment || may.createComment || editable || deletable
+            const hasBar = !sent && (may.likeComment || may.createComment || editable || deletable)
             return (
               <li key={line.id} className="min-w-0 list-none">
                 {day !== null ? (
@@ -191,14 +277,24 @@ export function ThreadPosts({
                     <span className="h-px flex-1 bg-border" aria-hidden="true" />
                   </div>
                 ) : null}
+                {newFrom === line.id ? (
+                  <div className="flex items-center gap-3 px-2 pt-2 pb-1" role="separator" aria-label="New">
+                    <span className="h-px flex-1 bg-border" aria-hidden="true" />
+                    <span className="text-xs font-medium text-muted-foreground" aria-hidden="true">New</span>
+                  </div>
+                ) : null}
                 <article
-                  id={`post-${line.id}`}
+                  id={sent ? undefined : `post-${line.id}`}
+                  aria-busy={sent || undefined}
                   tabIndex={-1}
                   aria-label={`${author.name}, ${fullDate}`}
                   className={cn(
-                    'group relative flex min-w-0 gap-2.5 rounded-md px-2 outline-none transition-colors duration-[var(--duration-base)] hover:bg-accent focus:bg-accent',
+                    'group relative flex min-w-0 gap-2.5 rounded-md px-2 outline-none transition-colors duration-[var(--duration-base)]',
+                    /* The post being edited has the editor's own frame; a tint too is a double frame. */
+                    editing !== line.id && 'hover:bg-accent focus:bg-accent',
                     head ? 'mt-1 pt-1.5 pb-0.5' : 'py-0.5',
-                    flash === line.id && 'bg-dana-accent-50',
+                    sent && 'opacity-60',
+                    flash === line.id && 'bg-selected hover:bg-selected focus:bg-selected',
                   )}
                 >
                   <div className="flex w-8 shrink-0 justify-center">
@@ -272,7 +368,7 @@ export function ThreadPosts({
                         className={cn(
                           'mt-1 mb-0.5 inline-flex items-center gap-1 rounded-full border px-2 py-px text-xs tabular-nums outline-none transition-colors duration-[var(--duration-fast)]',
                           line.liked
-                            ? 'border-dana-accent-300 bg-dana-accent-50 text-foreground'
+                            ? 'border-transparent bg-selected text-foreground'
                             : 'border-border text-muted-foreground hover:text-foreground',
                         )}
                         onClick={() => { like.mutate({ id: line.id, liked: !line.liked }) }}
@@ -302,7 +398,7 @@ export function ThreadPosts({
                           title="Reply"
                           className={BAR_BUTTON}
                           onClick={() => {
-                            setReplyTo(line.parent_id ?? line.id)
+                            setReplyTo(line.id)
                             setFocus((value) => value + 1)
                           }}
                         >
@@ -336,6 +432,22 @@ export function ThreadPosts({
         </ol>
       ) : null}
 
+      {/* Held at the bottom of the view while the composer is below it. */}
+      {unseen !== null ? (
+        <button
+          type="button"
+          className="sticky bottom-2 z-10 mx-auto flex w-fit items-center gap-1 rounded-md border border-border bg-background px-2 py-0.5 text-xs text-muted-foreground outline-none hover:text-foreground"
+          onClick={() => {
+            const id = unseen
+            setUnseen(null)
+            document.getElementById(`post-${id}`)?.scrollIntoView({ block: 'start' })
+          }}
+        >
+          New posts
+          <ArrowDown className="size-3" strokeWidth={1.75} aria-hidden="true" />
+        </button>
+      ) : null}
+
       {closed !== undefined ? (
         closed
       ) : may.createComment && folderId !== null ? (
@@ -365,9 +477,9 @@ export function ThreadPosts({
                    a refusal brings both back. */
                 const target = replyTarget
                 setReplyTo(null)
-                return post({
+                return send({
                   content,
-                  ...(target === undefined ? {} : { parent_id: target.id }),
+                  ...(target === undefined ? {} : { parent_id: target.parent_id ?? target.id }),
                   ...(postFileIds(content).length > 0 ? { file_ids: [...new Set(postFileIds(content))] } : {}),
                 }).catch((error: unknown) => {
                   if (target !== undefined) setReplyTo(target.id)
