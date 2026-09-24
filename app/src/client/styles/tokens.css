@@ -14,8 +14,11 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
 
 @custom-variant dark (&:is(.dark *, [data-theme="dark"] *));
 
-/* Four type sizes: 12 meta, 14 body, 16 section heading, 28 page title.
-   The in-between Tailwind steps collapse onto them. */
+/* Chrome has two type sizes, 12 meta and 14 body, plus the 28 page title.
+   text-base/lg/2xl are still aliased because screens use them; the unused
+   steps are gone so a new one fails loudly. Two weights beyond body:
+   font-section (500, section headings and labels) and font-title (600, the
+   one thing that carries the screen: the page title). */
 @theme {
   --text-xs: 12px;
   --text-xs--line-height: 16px;
@@ -25,12 +28,11 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --text-base--line-height: 20px;
   --text-lg: 16px;
   --text-lg--line-height: 24px;
-  --text-xl: 16px;
-  --text-xl--line-height: 24px;
   --text-2xl: 28px;
   --text-2xl--line-height: 36px;
-  --text-3xl: 28px;
-  --text-3xl--line-height: 36px;
+
+  --font-weight-section: 500;
+  --font-weight-title: 600;
 
   /* Radii: 4 for checkboxes, chips and badges; 6 for controls, rows and
      menu items; 10 for menus and popovers; 12 for dialogs and sheets. */
@@ -39,13 +41,13 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --radius-md: 6px;
   --radius-lg: 10px;
   --radius-xl: 12px;
-  --radius-2xl: 12px;
-  --radius-3xl: 12px;
 
-  /* No shadows except one soft shadow on floating layers. */
+  /* No shadows except one soft shadow on floating layers (menus, popovers,
+     dialogs, sheets: shadow-md/lg). shadow-sm was a decorative lift; it is
+     none now, like the small steps. */
   --shadow-2xs: none;
   --shadow-xs: none;
-  --shadow-sm: var(--shadow-float);
+  --shadow-sm: none;
   --shadow-md: var(--shadow-float);
   --shadow-lg: var(--shadow-float);
   --shadow-xl: var(--shadow-float);
@@ -58,7 +60,6 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --color-surface: var(--surface);
   --color-hover: var(--hover);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
@@ -82,13 +83,13 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --color-ring: var(--ring);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
   --color-sidebar-accent: var(--sidebar-accent);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-press: var(--press-tint);
+  /* r5: selection is a background tint, never a ring. */
+  --color-selected: var(--selected);
   /* r3-fix-shell */
   --color-scrim: var(--scrim);
 
@@ -103,13 +104,11 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
 
   --font-family-sans: "Inter Variable", Inter, ui-sans-serif, system-ui,
     -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  /* Read by canvas.css; components use font-section / font-title. */
   --font-weight-regular: 400;
-  --font-weight-medium: 500;
   --font-weight-semibold: 600;
   --text-title-size: 28px;
   --text-title-line: 36px;
-  --text-heading-size: 16px;
-  --text-heading-line: 24px;
   --text-body-size: 14px;
   --text-body-line: 20px;
   --text-meta-size: 12px;
@@ -126,7 +125,8 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   /* The palette. */
   --bg: #ffffff;
   --surface: #f9f8f7;
-  --line: #f0efed;
+  /* r5: the one hairline, for dividers and control borders alike. */
+  --line: #e9e9e7;
   --text: #37352f;
   --text-muted: #787774;
   --hover: #f1f1ef;
@@ -138,12 +138,10 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --color-graphite-0: var(--bg);
   --color-graphite-25: var(--surface);
   --color-graphite-50: var(--hover);
-  --color-graphite-100: #ebeae8;
   --color-graphite-200: var(--line);
   --color-graphite-300: #e3e2e0;
   --color-graphite-400: #a5a4a0;
   --color-graphite-500: var(--text-muted);
-  --color-graphite-600: #696864;
   --color-graphite-700: #4f4d48;
   --color-graphite-800: var(--text);
   --color-graphite-900: #2a2925;
@@ -151,11 +149,8 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
 
   --color-dana-accent-50: #f2f8fd;
   --color-dana-accent-100: #e3eefb;
-  --color-dana-accent-200: #c4dcf6;
   --color-dana-accent-300: #9cc5f0;
   --color-dana-accent-600: var(--accent-color);
-  --color-dana-accent-700: #1b6ec2;
-  --color-dana-accent-800: #175da3;
 
   --color-success-100: #edf3ec;
   --color-success-200: #d8e8da;
@@ -166,24 +161,11 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --color-warning-500: #cb912f;
   --color-warning-700: #93661a;
   --color-danger-100: #fdebec;
-  --color-danger-200: #f8d3d4;
   --color-danger-600: var(--danger);
   --color-danger-700: #c43232;
   --color-info-100: #e7f3f8;
   --color-info-200: #cde5f0;
   --color-info-700: #337ea9;
-
-  /* Folder identity swatches; always beside a folder name. */
-  --color-folder-clay: #e55939;
-  --color-folder-ochre: #bd7a10;
-  --color-folder-olive: #8b8b18;
-  --color-folder-fern: #289d3a;
-  --color-folder-teal: #189c8a;
-  --color-folder-sky: #1a92d1;
-  --color-folder-cobalt: #7b77f6;
-  --color-folder-violet: #9168ee;
-  --color-folder-plum: #d73bc0;
-  --color-folder-rose: #e5446d;
 
   /* Semantic roles (shadcn names). */
   --background: var(--bg);
@@ -206,12 +188,10 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --destructive: var(--danger);
   --destructive-foreground: #ffffff;
   --border: var(--line);
-  --input: var(--color-graphite-300);
+  --input: var(--line);
   --ring: var(--accent-color);
   --sidebar: var(--surface);
   --sidebar-foreground: var(--text);
-  --sidebar-primary: var(--accent-color);
-  --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: var(--hover-tint);
   --sidebar-accent-foreground: var(--text);
   --sidebar-border: var(--line);
@@ -220,14 +200,16 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --radius: 6px;
   --radius-full: 9999px;
 
-  /* The one shadow, for menus, popovers and dialogs. */
+  /* The one shadow, for menus, popovers and dialogs. elevation-2 is the same
+     shadow for things that really float (a dragged row, the bulk bar);
+     elevation-1 was a decorative lift on in-page things and is none. */
   --shadow-float: 0 0 0 1px rgb(15 15 15 / 5%), 0 4px 12px rgb(15 15 15 / 8%),
     0 12px 32px rgb(15 15 15 / 8%);
-  --elevation-0: none;
-  --elevation-1: var(--shadow-float);
+  --elevation-1: none;
   --elevation-2: var(--shadow-float);
+  /* Applied by the one global :focus-visible rule at the end of this file. */
   --focus-ring-width: 2px;
-  --focus-ring-offset: 2px;
+  --focus-ring-offset: 1px;
 
   --duration-fast: 120ms;
   --duration-base: 150ms;
@@ -246,6 +228,8 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --float-scale: 0.97;
   --float-rise: 4px;
   --focus-ring: color-mix(in oklch, var(--ring) 45%, transparent);
+  /* r5: a selected row, block or option: an accent tint behind it. */
+  --selected: color-mix(in srgb, var(--accent-color) 14%, transparent);
 
   /* r4-system: the one control height, row, and rhythm. See SYSTEM.md. */
   --control-height: 28px;
@@ -254,27 +238,16 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --space-row: 2px;
   --space-group: 24px;
   --shell-sidebar-row-height: 28px;
-  --shell-sidebar-item-height: var(--shell-sidebar-row-height);
-  --shell-sidebar-section-font-size: 12px;
   --shell-sidebar-row-font-size: 14px;
   --shell-sidebar-width: 240px;
-  --shell-pagebar-height: 28px;
   --shell-windowbar-height: 36px;
-  --task-form-property-row-height: 32px;
   --task-row-height: 36px;
   --checkbox-size: 16px;
-  --switch-width: 32px;
-  --switch-height: 18px;
-  --avatar-size: 24px;
-  --icon-size-dense: 14px;
   --icon-size-compact: 16px;
-  --icon-size-default: 18px;
-  --icon-stroke-width: 1.75;
 
   /* Read by pages/FolderSharingPanel.tsx and pages/FolderPage.tsx. */
   --sharing-panel-width: 440px;
   --content-list: clamp(720px, 60vw, 900px);
-  --content-form: 640px;
   --shell-content-max: var(--content-list);
 
   --dana-mark-plate: var(--color-graphite-950);
@@ -288,27 +261,22 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
 
   --bg: #191919;
   --surface: #202020;
-  --line: #2c2c2b;
+  --line: #333332;
   --text: #d4d4d4;
   --text-muted: #9b9b9b;
   --hover: #2c2c2c;
   --accent-color: #529cca;
   --danger: #e06b6b;
 
-  --color-graphite-100: #333332;
   --color-graphite-300: #3a3a39;
   --color-graphite-400: #6f6f6e;
-  --color-graphite-600: #adadad;
   --color-graphite-700: #bfbfbf;
   --color-graphite-900: #e8e8e8;
   --color-graphite-950: #ffffff;
 
   --color-dana-accent-50: #1d262d;
   --color-dana-accent-100: #213141;
-  --color-dana-accent-200: #284256;
   --color-dana-accent-300: #345873;
-  --color-dana-accent-700: #6cadd6;
-  --color-dana-accent-800: #8ec2e2;
 
   --color-success-100: #1f2a23;
   --color-success-200: #25382c;
@@ -319,7 +287,6 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --color-warning-500: #d9a54a;
   --color-warning-700: #e3b96a;
   --color-danger-100: #332020;
-  --color-danger-200: #452727;
   --color-danger-700: #ec8b8b;
   --color-info-100: #1b2a31;
   --color-info-200: #213742;
@@ -498,9 +465,6 @@ button:not(:disabled),
   font-size: var(--shell-sidebar-row-font-size);
   font-weight: 500;
 }
-[data-sidebar-tier="folder"][data-active] {
-  font-weight: 600;
-}
 [data-sidebar="menu"] {
   gap: 0;
 }
@@ -532,8 +496,8 @@ button:not(:disabled),
    their highlight; `data-focus="self"` opts an element out because it shows
    focus its own way (the editor's selection tint, a selected row). */
 :focus-visible {
-  outline: 2px solid var(--focus-ring) !important;
-  outline-offset: 1px !important;
+  outline: var(--focus-ring-width) solid var(--focus-ring) !important;
+  outline-offset: var(--focus-ring-offset) !important;
 }
 :focus,
 :focus-visible {
@@ -547,16 +511,12 @@ button:not(:disabled),
 :is(input, textarea, select, [contenteditable]:not([contenteditable="false"]),
   [role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"],
   [role="option"], [data-focus="self"]):focus-visible,
-[contenteditable]:not([contenteditable="false"]) :focus-visible {
+[contenteditable]:not([contenteditable="false"])
+  :focus-visible:not(:is(a, button, [role="button"], [role="checkbox"],
+    [role="switch"], [role="radio"], [role="tab"], [role="link"])) {
   outline: none !important;
 }
 [class*="focus-within:ring"]:focus-within {
   --tw-ring-shadow: 0 0 #0000 !important;
   --tw-ring-offset-shadow: 0 0 #0000 !important;
-}
-
-/* r4-system: the one divider. */
-.dana-divider {
-  border: 0;
-  border-top: 1px solid var(--line);
 }

@@ -110,18 +110,15 @@ function AlertDialogAction({
 }: AlertDialogPrimitive.Close.Props & { destructive?: boolean }) {
   return (
     <AlertDialogPrimitive.Close
+      /* r5: the one danger style is Button's destructive variant (danger
+         ink on a hairline), never a filled red button. */
       render={
         <Button
           type="button"
-          variant="default"
+          variant={destructive ? "destructive" : "default"}
         />
       }
-      className={cn(
-        "h-[var(--control-height)] px-3",
-        destructive &&
-          "bg-destructive text-destructive-foreground hover:bg-destructive/90",
-        className,
-      )}
+      className={cn("h-[var(--control-height)] px-3", className)}
       {...props}
     />
   )
