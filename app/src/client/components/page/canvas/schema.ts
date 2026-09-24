@@ -183,6 +183,7 @@ const toggleList = {
   ...upstreamToggle,
   extensions: [createExtension({
     key: 'canvas-toggle-enter',
+    runsBefore: ['toggle-list-item-shortcuts'],
     keyboardShortcuts: {
       Enter: ({ editor }) => {
         const { selection } = editor.prosemirrorState
@@ -221,7 +222,7 @@ export const canvasSchema = BlockNoteSchema.create({
     // `> ` is a toggle (`markdown.ts`); `" ` stays upstream's quote rule.
     quote: { ...defaultBlockSpecs.quote, extensions: withoutInputRules(defaultBlockSpecs.quote.extensions, (find) => find.source === '^>\\s$') },
     toggleListItem: toggleList,
-    divider: defaultBlockSpecs.divider,
+    divider: { ...defaultBlockSpecs.divider, extensions: withoutInputRules(defaultBlockSpecs.divider.extensions, () => true) },
     callout: createCanvasCallout(),
     codeBlock: defaultBlockSpecs.codeBlock,
     image,

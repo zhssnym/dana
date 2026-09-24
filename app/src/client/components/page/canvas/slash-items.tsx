@@ -115,11 +115,12 @@ export function turnBlockInto(editor: AnyEditor, block: CanvasBlock, target: Tar
   const wasSection = block.type === 'heading' && block.props.isToggleable !== false
   const keep = holds(target, surface, block.children)
   editor.transact(() => {
+    // Upstream ignores an empty `children`, so what the target cannot hold leaves first.
+    if (!keep) editor.removeBlocks(block.children.map((child) => child.id))
     editor.updateBlock(block, {
       type: target.type as 'paragraph',
       props: props as never,
       ...(content === undefined ? {} : { content }),
-      ...(keep ? {} : { children: [] }),
     })
     if (!keep) editor.insertBlocks(wasSection ? lifted(block.children) : block.children, block.id, 'after')
     editor.setTextCursorPosition(block.id, 'end')

@@ -51,9 +51,9 @@ export function headingFor(editor: CanvasEditor, block: CanvasBlock, level: 1 | 
 /**
  * Notion's markdown shortcuts, by surface: `#`/`##`/`###` + space headings,
  * `>` + space a toggle (a quote where nothing nests), `"` + space a quote
- * (upstream's rule, kept), ``` a code block. `-`/`*`/`+`, `1.`, `[]` and `---`
- * are upstream's own rules. Upstream's `#` and `>` rules are stripped from
- * the heading and quote specs (`schema.ts`) so these are the only ones.
+ * (upstream's rule, kept), `---` a divider, ``` a code block. `-`/`*`/`+`,
+ * `1.` and `[]` are upstream's own rules. Upstream's `#`, `>` and `---` rules
+ * are stripped from their specs (`schema.ts`) so these are the only ones.
  */
 export const canvasMarkdownShortcuts = createExtension({
   key: 'dana-markdown-shortcuts',
@@ -70,6 +70,22 @@ export const canvasMarkdownShortcuts = createExtension({
       find: /^>\s$/,
       replace({ editor }: { editor: unknown }) {
         return TOGGLE_SURFACES.has(surfaceOf(editor as object)) ? { type: 'toggleListItem', props: {} } : { type: 'quote', props: {} }
+      },
+    },
+    {
+      // Upstream's rule leaves the cursor on the rule itself, so what is typed next
+      // is lost; here the line after it takes the cursor, as in Notion.
+      find: /^---$/,
+      replace({ editor }: { editor: unknown }) {
+        const canvas = editor as CanvasEditor
+        if (!('divider' in canvas.schema.blockSchema)) return undefined
+        const id = canvas.getTextCursorPosition().block.id
+        window.setTimeout(() => {
+          if (canvas.getBlock(id)?.type !== 'divider') return
+          const [next] = canvas.insertBlocks([{ type: 'paragraph' }], id, 'after')
+          if (next !== undefined) canvas.setTextCursorPosition(next, 'start')
+        }, 0)
+        return { type: 'divider', props: {}, content: [] }
       },
     },
     {
