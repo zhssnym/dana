@@ -62,7 +62,7 @@ import {
 import { TaskThread } from "./thread/TaskThread.js"
 import { usePeopleLibrary } from "../lib/people-library.js"
 import { useMultiMemberFolderIds, useTask, useTaskDependencies } from "../api/queries.js"
-import { useUpdateTask } from "../api/mutations.js"
+import { useDeleteReminder, useUpdateTask } from "../api/mutations.js"
 import { presenterToday } from "../parts/presenters.js"
 import { boardStatusOf, type BoardStatus } from "../views/BoardView.js"
 import {
@@ -86,7 +86,8 @@ import {
 import { useTimeFormat } from "../lib/time-format.js"
 import { useSortableList } from "../lib/use-sortable-list.js"
 import { cn } from "./ui/utils.js"
-import { Checkbox } from "./ui/checkbox.js"
+import { Button } from "./ui/button.js"
+import { Checkbox, CheckMark } from "./ui/checkbox.js"
 import { Tab, TabList } from "./ui/tabs.js"
 
 const TaskComposer = lazy(() => import("./page/canvas/TaskComposer.js"))
@@ -712,37 +713,8 @@ const STATUS_LABEL: Record<StatusKey | "abandoned", string> = {
   abandoned: "Abandoned",
 }
 
-/* The three states as one small mark: a dashed ring, a half-filled ring, a
-   filled check. Abandoned is a ring with a stroke through it. */
-export function StatusMark({ status, className }: { status: StatusKey | "abandoned"; className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 16 16"
-      aria-hidden="true"
-      className={cn(
-        "size-3.5 shrink-0",
-        status === "not_started" || status === "abandoned" ? "text-muted-foreground" : "text-primary",
-        className,
-      )}
-    >
-      {status === "done" ? (
-        <>
-          <circle cx="8" cy="8" r="7" fill="currentColor" />
-          <path d="M5 8.3 7.1 10.3 11 6" fill="none" stroke="var(--background)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-        </>
-      ) : (
-        <>
-          <circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray={status === "not_started" ? "2.4 1.8" : undefined} />
-          {status === "in_progress" ? <path d="M8 3.5a4.5 4.5 0 0 1 0 9z" fill="currentColor" /> : null}
-          {status === "abandoned" ? <path d="M4.5 11.5 11.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /> : null}
-        </>
-      )}
-    </svg>
-  )
-}
-
 /*
-Status, the first property: Not started, In progress, Done. The Board's own
+Status, drawn as a checkbox left of the title: Not started, In progress, Done. The Board's own
 rule (`boardStatusOf` in `views/BoardView.tsx`), so the page and the Board can
 never disagree: a pending task whose start date is today or earlier is In
 progress. Choosing In progress starts it today (or on its due day when that is
@@ -751,13 +723,14 @@ Done is the completion verb, so a series still generates its next occurrence
 exactly once. Abandoned is the fourth choice; an abandoned task says so, and
 any other choice restores it first.
 */
-function StatusRow({
+export function TaskStatus({
   task,
   patch,
 }: {
   task: ConceptTask
   patch: (id: string, fields: Partial<ConceptTask>) => void
 }) {
+  const [menuOpen, setMenuOpen] = useState(false)
   const card = useTask(task.id).data
   const update = useUpdateTask()
   const today = presenterToday()
@@ -796,24 +769,91 @@ function StatusRow({
     if (next === "not_started" && started) update.mutate({ id: task.id, body: { start_date: null } })
   }
 
+  const done = current === "done"
   return (
-    <MenuRow
-      label="Status"
-      value={
-        <>
-          <StatusMark status={current} />
-          <span className="truncate">{STATUS_LABEL[current]}</span>
-        </>
-      }
+    <span className="relative flex shrink-0">
+      <button
+        type="button"
+        role="checkbox"
+        aria-checked={done}
+        aria-haspopup="menu"
+        aria-label={`Status: ${STATUS_LABEL[current]}`}
+        title="Click to complete. Right-click for every status."
+        /* A list's checkbox: a click completes, or reopens what is done. The
+           other states are one right-click (a long press on touch) away. */
+        onClick={() => choose(done || current === "abandoned" ? "not_started" : "done")}
+        onContextMenu={(event) => {
+          event.preventDefault()
+          setMenuOpen(true)
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowDown" || event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
+            event.preventDefault()
+            setMenuOpen(true)
+          }
+        }}
+        className="flex size-[var(--control-height)] items-center justify-center rounded-sm"
+      >
+        <StatusBox status={current} />
+      </button>
+      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+        <DropdownMenuTrigger
+          nativeButton={false}
+          render={<span aria-hidden="true" tabIndex={-1} className="pointer-events-none absolute inset-0" />}
+        />
+        <DropdownMenuContent align="start" className="w-auto min-w-44">
+          {(["not_started", "in_progress", "done", "abandoned"] as const).map((key) => (
+            <DropdownMenuItem key={key} onClick={() => choose(key)}>
+              <StatusBox status={key} />
+              <span className="flex-1">{STATUS_LABEL[key]}</span>
+              {key === current ? <span className="text-xs text-muted-foreground">Current</span> : null}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </span>
+  )
+}
+
+/* The status drawn as the list's checkbox: an empty box, a half-filled box
+   (in progress), a ticked box, or a box struck with a dash (abandoned). */
+export function StatusBox({ status }: { status: StatusKey | "abandoned" }) {
+  if (status === "done" || status === "not_started") return <CheckMark checked={status === "done"} />
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "flex size-[var(--checkbox-size)] shrink-0 items-center justify-center overflow-hidden rounded-xs border bg-background",
+        status === "in_progress" ? "border-primary" : "border-border",
+      )}
     >
-      {(["not_started", "in_progress", "done", "abandoned"] as const).map((key) => (
-        <DropdownMenuItem key={key} onClick={() => choose(key)}>
-          <StatusMark status={key} />
-          <span className="flex-1">{STATUS_LABEL[key]}</span>
-          {key === current ? <span className="text-xs text-muted-foreground">Current</span> : null}
-        </DropdownMenuItem>
-      ))}
-    </MenuRow>
+      {status === "in_progress" ? (
+        <span className="mr-auto h-full w-1/2 bg-primary" />
+      ) : (
+        <span className="h-0.5 w-2 rounded-full bg-muted-foreground" />
+      )}
+    </span>
+  )
+}
+
+/* A set property's row, with its own "Remove" on hover: removing clears the
+   value, and a property without a value is not drawn. */
+function Removable({ label, onRemove, children }: { label: string; onRemove: () => void; children: ReactNode }) {
+  return (
+    <div className="group/row relative">
+      {children}
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-xs"
+        aria-label={`Remove ${label.toLowerCase()}`}
+        title={`Remove ${label.toLowerCase()}`}
+        onClick={onRemove}
+        className="absolute top-1/2 right-1 -translate-y-1/2 opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100"
+      >
+        <X className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
+      </Button>
+    </div>
   )
 }
 
@@ -826,6 +866,10 @@ export function TaskCard({
   moveStep,
   moveStepsTo,
   removeSteps,
+  addOpen = false,
+  onAddOpenChange,
+  discussion = false,
+  discussSignal = 0,
 }: {
   task: ConceptTask
   patch: (id: string, fields: Partial<ConceptTask>) => void
@@ -839,6 +883,14 @@ export function TaskCard({
     destination: { kind: "new-task" } | { kind: "folder"; name: string; color: string },
   ) => void
   removeSteps: (id: string, indices: number[]) => void
+  /* The "Add property" menu, opened from the hover button, the page's "..."
+     and the ";" key (all owned by `TaskView`). */
+  addOpen?: boolean
+  onAddOpenChange?: (open: boolean) => void
+  /* Whether the Work and Discussion tabs draw: only once a discussion exists
+     or the person has just started one (`discussSignal` changes then). */
+  discussion?: boolean
+  discussSignal?: number
   /* The wiring hands every card handler over; the ones this panel no longer
      draws (bulk step acts, a new folder) are accepted and unused. */
   [unused: string]: unknown
@@ -868,6 +920,13 @@ export function TaskCard({
   const [tab, setTab] = useState<"notes" | "discussion">(() =>
     new URLSearchParams(globalThis.location?.search ?? "").get("tab") === "discussion" ? "discussion" : "notes",
   )
+
+  useEffect(() => {
+    if (discussSignal > 0) setTab("discussion")
+  }, [discussSignal])
+  const showTabs = discussion || tab === "discussion"
+  const update = useUpdateTask()
+  const dropReminder = useDeleteReminder()
 
   const showDate = Boolean(task.due) || adding === "date"
   const showReminder = Boolean(task.reminder) || adding === "reminder"
@@ -908,9 +967,18 @@ export function TaskCard({
   return (
     <div className="flex flex-col gap-6">
       {/* The properties block: quiet rows, only what is set. */}
-      <div className="-mx-2 flex flex-col">
-        <StatusRow task={task} patch={patch} />
+      <div className="group/props -mx-2 flex flex-col">
         {showDate ? (
+          <Removable
+            label={DATE_LABEL}
+            onRemove={() => {
+              /* The Date panel's own Clear: 8.4's cascade is the server's. */
+              setAdding(null)
+              if (!task.due) return
+              patch(task.id, { due: undefined, recurrence: false, reminder: undefined })
+              if (task.id !== "new") update.mutate({ id: task.id, body: { due_date: null } })
+            }}
+          >
           <PropertyPicker
             label={DATE_LABEL}
             value={dateWords(task)}
@@ -921,9 +989,19 @@ export function TaskCard({
           >
             <DuePanel task={task} patch={patch} />
           </PropertyPicker>
+          </Removable>
         ) : null}
 
         {showReminder ? (
+          <Removable
+            label={CHIP_REMINDER}
+            onRemove={() => {
+              setAdding(null)
+              if (!task.reminder) return
+              patch(task.id, { reminder: undefined })
+              dropReminder.mutate(task.id)
+            }}
+          >
           <PropertyPicker
             label={CHIP_REMINDER}
             value={task.reminder ? reminderChipValue(task, timeFormat) : "Empty"}
@@ -933,9 +1011,17 @@ export function TaskCard({
           >
             <ReminderPanel task={task} patch={patch} />
           </PropertyPicker>
+          </Removable>
         ) : null}
 
         {showRepeat ? (
+          <Removable
+            label={CHIP_REPEAT}
+            onRemove={() => {
+              setAdding(null)
+              if (task.recurrence) patch(task.id, { recurrence: false, repeatDays: [], repeatEnds: undefined })
+            }}
+          >
           <PropertyPicker
             label={CHIP_REPEAT}
             value={task.recurrence ? repeatSummary(task) : "Empty"}
@@ -945,9 +1031,17 @@ export function TaskCard({
           >
             <RepeatPanel task={task} patch={patch} />
           </PropertyPicker>
+          </Removable>
         ) : null}
 
         {showAssignee ? (
+          <Removable
+            label={CHIP_ASSIGNEE}
+            onRemove={() => {
+              setAdding(null)
+              if (task.assignee) patch(task.id, { assignee: null })
+            }}
+          >
           <MenuRow
             label={CHIP_ASSIGNEE}
             empty={!task.assignee}
@@ -983,6 +1077,7 @@ export function TaskCard({
               {UNASSIGNED}
             </DropdownMenuItem>
           </MenuRow>
+          </Removable>
         ) : null}
 
         {labels.length > 0 ? (
@@ -999,13 +1094,20 @@ export function TaskCard({
         ) : null}
 
         {addable.length > 0 ? (
-          <DropdownMenu>
+          <DropdownMenu
+            open={addOpen}
+            {...(onAddOpenChange === undefined ? {} : { onOpenChange: onAddOpenChange })}
+          >
             <DropdownMenuTrigger
               render={
                 <button
                   type="button"
+                  aria-keyshortcuts=";"
                   className={cn(
-                    "flex h-[var(--control-height)] w-full items-center gap-2 rounded-sm px-2 text-left text-sm text-muted-foreground transition-colors duration-100 hover:bg-accent hover:text-foreground data-popup-open:bg-accent",
+                    /* Shown only while the pointer is over the properties
+                       (or it has focus, or its menu is open); the "..." and
+                       ";" reach it on touch and from the keyboard. */
+                    "flex h-[var(--control-height)] w-full items-center gap-2 rounded-sm px-2 text-left text-sm text-muted-foreground opacity-0 transition-[opacity,background-color] duration-100 group-hover/props:opacity-100 focus-visible:opacity-100 hover:bg-accent hover:text-foreground data-popup-open:bg-accent data-popup-open:opacity-100",
                   )}
                 >
                   <Plus className="size-3.5" strokeWidth={2} aria-hidden="true" />
@@ -1081,6 +1183,7 @@ export function TaskCard({
       {/* The page's two tabs, drawn as the folder page draws its own:
           Work is the task's document, Discussion its comments. */}
       <div className="flex flex-col gap-4">
+        {showTabs ? (
         <TabList label="Task tabs">
           {(
             [
@@ -1106,11 +1209,12 @@ export function TaskCard({
             </Tab>
           ))}
         </TabList>
+        ) : null}
 
         {tab === "notes" ? (
           /* #221: the Task's own document, in the Folder canvas's writer. The
              plain-text notes stand in while the writer loads. */
-          <div role="tabpanel" id="task-tabpanel-notes" aria-labelledby="task-tab-notes">
+          <div {...(showTabs ? { role: "tabpanel", id: "task-tabpanel-notes", "aria-labelledby": "task-tab-notes" } : {})}>
             <Suspense
               fallback={
                 task.notes ? <p className="whitespace-pre-wrap px-1 text-sm text-foreground">{task.notes}</p> : null
