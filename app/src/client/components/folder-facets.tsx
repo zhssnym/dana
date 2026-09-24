@@ -9,9 +9,10 @@ named "Work" and `consultation` "Discussion" by the server's own table
 so the four built-in tabs keep their places and only custom tabs move.
 
 **A tab's own acts are on the tab**: right-click it (or Shift+F10 / the menu
-key) for Rename, Hide (Purpose, Results, Discussion), Share (a private tab) and
-Delete (a custom tab). Work can be neither renamed nor hidden, so its menu
-offers what "+" offers. **The "+"** lists the hidden tabs to show again above
+key) for Rename (where the server allows it), Hide (Purpose, Results,
+Discussion), Share (a private tab) and Delete (a custom tab), and nothing else.
+Work can be neither renamed nor hidden (the server answers 422), so it has no
+menu. "New tab" lives on the "+" alone. **The "+"** lists the hidden tabs to show again above
 "New tab"; with nothing hidden it goes straight to the name field. Drag, or
 Alt+←/→, reorders. Arrow keys move between tabs.
 
@@ -275,7 +276,7 @@ export function FolderTabs({
   }
 
   const hasMenu = (facet: Facet): boolean =>
-    mayRename(facet) || mayHide(facet) || mayShare(facet) || mayDelete(facet) || plusOffers
+    mayRename(facet) || mayHide(facet) || mayShare(facet) || mayDelete(facet)
 
   const openMenu = (facet: Facet, x: number, y: number): void => {
     menuFor.current = facet.id
@@ -566,10 +567,7 @@ export function FolderTabs({
                 </DropdownMenuItem>
               ) : null}
             </>
-          ) : (
-            /* Work can be neither renamed nor hidden: its menu is the "+"'s. */
-            plusItems
-          )}
+          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

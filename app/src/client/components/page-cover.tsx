@@ -184,9 +184,6 @@ export function PageCover({
                       coverPos: 50,
                     })
                   }
-                  onRemove={() =>
-                    savePrototypeFolderIdentity(storageName, { cover: undefined })
-                  }
                 />
               </PopoverContent>
             </Popover>

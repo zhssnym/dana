@@ -180,6 +180,8 @@
   content: var(--dana-canvas-placeholder, none);
   position: absolute;
   inset-inline-start: 0;
+  top: 50%;
+  transform: translateY(-50%);
   color: var(--muted-foreground);
   font-style: normal;
   pointer-events: none;
@@ -278,7 +280,9 @@
   content: "Type '/' for commands";
   position: absolute;
   inset-inline-start: 0;
-  top: 0;
+  /* On the line, whatever the block's padding (r7-editor). */
+  top: 50%;
+  transform: translateY(-50%);
   color: var(--muted-foreground);
   font-style: normal;
   pointer-events: none;
@@ -354,3 +358,29 @@
 .dana-writing-canvas [data-canvas-task-id] { --task-row-height: var(--row-height); }
 /* The divider block is the one divider: the hairline, not a second grey. */
 .dana-writing-canvas .bn-block-content[data-content-type='divider'] hr { border: 0; border-top: 1px solid var(--border); background: none; }
+/* A Task row reached by keyboard (Tab, or focus handed back when its peek
+   closes) wears the block-selection tint: the editor suppresses the global
+   outline inside its document, and a ring would stack on the row's own. */
+.dana-writing-canvas [data-canvas-task-id]:focus-visible {
+  outline: none;
+  background: var(--dana-block-selection);
+  box-shadow: 0 0 0 var(--dana-block-selection-inset-y) var(--dana-block-selection);
+}
+
+/* ---- r7-editor: Notion's to-do rhythm at Dana's body size.
+   Every one-line text block is one --row-height tall, as a Task row is, so
+   tasks, text and the empty line after them step at one pitch instead of
+   32 / 27 / 28. A Task's checkbox sits on the text's left edge (not 6px in)
+   with 8px to its title, centred on the title's first line (the row is one
+   line; both centre on it). */
+.dana-writing-canvas:not(.dana-post-editor) .bn-block-content:is([data-content-type='paragraph'], [data-content-type='bulletListItem'], [data-content-type='numberedListItem'], [data-content-type='checkListItem'], [data-content-type='toggleListItem'], [data-content-type='quote']) {
+  padding-block: calc((var(--row-height) - var(--text-body-line)) / 2);
+}
+.dana-writing-canvas [data-canvas-task-id] button[aria-label="Complete task"],
+.dana-writing-canvas [data-canvas-task-id] button[aria-label="Mark as not done"] {
+  margin-inline-start: calc((var(--checkbox-size) - var(--control-height)) / 2);
+}
+.dana-writing-canvas [data-canvas-task-id] button[aria-label="Complete task"] + span,
+.dana-writing-canvas [data-canvas-task-id] button[aria-label="Mark as not done"] + span {
+  margin-inline-start: calc(var(--checkbox-size) + var(--spacing) * 2 - var(--control-height));
+}

@@ -49,8 +49,11 @@ interface Props extends Pick<Rows, 'tasks' | 'context' | 'actions' | 'onAsk'> {
 /** Reset history only at identity-changing checkpoints or explicit server reconciliation. */
 export default function FolderCanvas(props: Props): React.JSX.Element {
   const [checkpoint, setCheckpoint] = useState<{ page: PageView; epoch: number }>({ page: props.page, epoch: 0 })
+  /* One id for this opening of the page, kept across checkpoint remounts: a
+     draft stamped with it was written by this opening, not "from before". */
+  const [opening] = useState(() => crypto.randomUUID())
   return <CanvasErrorBoundary>
-    <PersistedCanvas key={`${props.folderId}:${checkpoint.epoch}`} {...props} initialPage={checkpoint.page} onCheckpoint={(page) => setCheckpoint((old) => ({ page, epoch: old.epoch + 1 }))} />
+    <PersistedCanvas key={`${props.folderId}:${checkpoint.epoch}`} {...props} opening={opening} initialPage={checkpoint.page} onCheckpoint={(page) => setCheckpoint((old) => ({ page, epoch: old.epoch + 1 }))} />
   </CanvasErrorBoundary>
 }
 
@@ -69,7 +72,8 @@ function scrollerOf(element: Element | null): Element | null {
 
 const CHANGED_ELSEWHERE = 'This page changed elsewhere. Your writing is kept here. Load the latest to continue; your writing will be offered back.'
 
-function PersistedCanvas({ page, initialPage, folderId, facetId, presentationHeadings, workRootId, tasks, completed, showCompleted, context, actions, onAsk, arrangeable, onCheckpoint }: Props & {
+function PersistedCanvas({ page, initialPage, folderId, facetId, presentationHeadings, workRootId, tasks, completed, showCompleted, context, actions, onAsk, arrangeable, onCheckpoint, opening }: Props & {
+  readonly opening: string
   readonly initialPage: PageView
   readonly onCheckpoint: (page: PageView) => void
 }): React.JSX.Element {
@@ -90,12 +94,13 @@ function PersistedCanvas({ page, initialPage, folderId, facetId, presentationHea
       else setReloadNote('The page still has no version. Try again in a moment.')
     }) }}>Load the page again</Button>{reloadNote}
   </div>
-  return <div ref={host} className="min-w-0">{width === null ? <p role="status" className="sr-only">Loading writing…</p> : <CanvasSession {...{ page, initialPage, folderId, facetId, presentationHeadings, workRootId, tasks, completed, showCompleted, context, actions, onAsk, arrangeable, onCheckpoint }} width={width} onSaved={(next) => {
+  return <div ref={host} className="min-w-0">{width === null ? <p role="status" className="sr-only">Loading writing…</p> : <CanvasSession {...{ page, initialPage, folderId, facetId, presentationHeadings, workRootId, tasks, completed, showCompleted, context, actions, onAsk, arrangeable, onCheckpoint, opening }} width={width} onSaved={(next) => {
     queryClient.setQueryData(facetId === undefined ? queryKeys.folderPage(folderId) : queryKeys.facetPage(folderId, facetId), next)
   }} />}</div>
 }
 
-function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadings, workRootId, tasks, completed, showCompleted = true, context, actions, onAsk, arrangeable, onCheckpoint, width, onSaved }: Props & {
+function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadings, workRootId, tasks, completed, showCompleted = true, context, actions, onAsk, arrangeable, onCheckpoint, opening, width, onSaved }: Props & {
+  readonly opening: string
   readonly initialPage: PageView
   readonly onCheckpoint: (page: PageView) => void
   readonly width: number
@@ -263,7 +268,7 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
       render((value) => value + 1)
       try {
         if (writer.state === 'saved') sessionStorage.removeItem(draftKey)
-        else sessionStorage.setItem(draftKey, JSON.stringify({ folderId, revision: writer.revision, blocks: editor.document, pending: writer.pending?.request }))
+        else sessionStorage.setItem(draftKey, JSON.stringify({ folderId, opening, revision: writer.revision, blocks: editor.document, pending: writer.pending?.request }))
       } catch { /* recoverable in memory; storage is optional */ }
     },
     (next, checkpoint, operations) => {
@@ -272,7 +277,7 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
       /* A sub-page made, trashed or restored by this save: the sidebar's
          tree and every page row read the folder list. A `/page` title is let
          go only once that list has the page, so its row never blinks. */
-      // A Task made here changes the page's "3 of 7 done" (the folder list).
+      // A Task made here changes the folder list's counts.
       if (operations.some((op) => op.op === 'create_task')) void queryClient.invalidateQueries({ queryKey: queryKeys.folders(), exact: true })
       const created = operations.flatMap((op) => op.op === 'create_page' ? [op.id] : [])
       if (created.length > 0 || operations.some((op) => op.op === 'trash_page' || (op.op === 'put_block' && op.block_kind === 'page'))) {
@@ -287,8 +292,17 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
     },
   ))
   useEffect(() => {
-    try { const draft = sessionStorage.getItem(draftKey); setPreviousDraft(draft); setRecovery(draft !== null) } catch { /* storage is optional */ }
-  }, [draftKey])
+    /* Offered back only when it predates this opening of the page. A save
+       that makes a task remounts this editor while the previous one's draft
+       is still stored; that writing is the page on screen, not "from before".
+       "Load latest" stores its draft without the stamp, so it is offered. */
+    try {
+      const draft = sessionStorage.getItem(draftKey)
+      const own = draft !== null && (JSON.parse(draft) as { opening?: unknown }).opening === opening
+      setPreviousDraft(own ? null : draft)
+      setRecovery(draft !== null && !own)
+    } catch { /* storage is optional */ }
+  }, [draftKey, opening])
   useEffect(() => {
     if (writer.state === 'saved') return
     const warn = (event: BeforeUnloadEvent): void => { event.preventDefault(); event.returnValue = '' }

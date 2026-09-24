@@ -82,7 +82,6 @@ export function ShelfPage({
             ...(next.color === undefined ? {} : { color: next.color }),
           })
         }
-        progress={null}
         coverKey={key}
         actions={
           <ObjectMenu

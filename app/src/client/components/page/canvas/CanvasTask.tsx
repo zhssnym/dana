@@ -4,7 +4,6 @@ import { createReactBlockSpec } from '@blocknote/react'
 
 import { TaskRows } from '../../../pages/task-rows.js'
 import { useTask } from '../../../api/queries.js'
-import { DELETE_CONFIRM_LABEL, DELETE_TASK_CONFIRM, keepLabel } from '../../ui/copy.js'
 
 type TaskRowsProps = Parameters<typeof TaskRows>[0]
 type TaskCard = TaskRowsProps['tasks'][number]
@@ -43,7 +42,8 @@ export function useCanvasTaskDelete(): ((taskId: string) => (() => void) | null)
     const card = bridge.byId.get(taskId) ?? bridge.completedById.get(taskId)
     if (card === undefined) return null
     return () => {
-      bridge.onAsk(DELETE_TASK_CONFIRM, () => { bridge.actions.onDelete(card) }, { confirmLabel: DELETE_CONFIRM_LABEL, cancelLabel: keepLabel(1) })
+      // One delete everywhere: to Trash with Undo, no question first.
+      bridge.actions.onDelete(card)
     }
   }, [bridge])
 }
@@ -93,8 +93,17 @@ function ResolvedTask({ taskId, bridge }: { readonly taskId: string; readonly br
      inside its document), so the placement opens its Task itself, through the
      same `onOpenTask` every list row calls: a click that is not on the
      checkbox, star or another control, or Enter on the focused row. */
+  /* The row is one Tab stop: controls inside it the list makes tabbable
+     (its title, its own row) step out of the order; checkbox and star keep
+     theirs. Enter on the row opens it. */
+  const oneStop = (wrapper: HTMLDivElement | null): void => {
+    wrapper?.querySelectorAll<HTMLElement>('[tabindex="0"]').forEach((inner) => {
+      if (!inner.matches('button, a, input, [role="checkbox"]')) inner.tabIndex = -1
+    })
+  }
   const opener = (task: TaskCard) => ({
     tabIndex: 0,
+    ref: oneStop,
     /* A click that opens the Task must not also pick its block: ProseMirror
        makes a click on this uneditable row a node selection, whose box then
        showed through the peek's scrim and stayed after it closed. A handled

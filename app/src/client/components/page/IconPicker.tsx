@@ -26,6 +26,7 @@ import {
   IDENTITY_COLOR_FALLBACK,
 } from '../../parts/identity-colors.js'
 import { Button } from '../ui/button.js'
+import { Tabs } from '../ui/tabs.js'
 import { Input } from '../ui/input.js'
 import { cn } from '../ui/utils.js'
 import { EMOJI_SECTIONS, emojiKeyOf, emojiOf } from './emoji-mark.js'
@@ -89,37 +90,23 @@ export function IconPicker({
   return (
     /* 280: seven 32px cells plus room for a thin scrollbar. */
     <div className="w-[280px] max-w-full p-2">
-      <div className="-mx-2 -mt-2 mb-2 flex items-center gap-0.5 border-b border-border px-2 pt-1.5">
-        {(
-          [
-            ['icons', 'Icons'],
-            ['emoji', 'Emoji'],
-          ] as const
-        ).map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            aria-pressed={tab === key}
-            onClick={() => {
-              setTab(key)
-            }}
-            className={cn(
-              '-mb-px h-8 border-b-2 px-2.5 text-xs leading-4 font-medium transition-colors',
-              T_FAST,
-              tab === key
-                ? 'border-foreground text-foreground'
-                : 'border-transparent text-muted-foreground hover:text-foreground',
-            )}
-          >
-            {label}
-          </button>
-        ))}
+      <div className="-mx-2 -mt-2 mb-2 flex items-end gap-4 border-b border-border px-2">
+        <Tabs
+          label="Icon kind"
+          className="border-b-0"
+          value={tab}
+          onValueChange={setTab}
+          items={[
+            { value: 'icons', label: 'Icons' },
+            { value: 'emoji', label: 'Emoji' },
+          ]}
+        />
         {onRemove !== undefined && icon !== null ? (
           <Button
             variant="ghost"
             size="sm"
             onClick={onRemove}
-            className="mb-1 ml-auto text-muted-foreground"
+            className="mb-0.5 ml-auto text-muted-foreground"
           >
             <X aria-hidden="true" />
             Remove
