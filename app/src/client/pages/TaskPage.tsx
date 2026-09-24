@@ -1,27 +1,25 @@
 /*
 /app/tasks/:id, the task's own address (7.17, 9.1).
 
-9.1's roles table: the task surface is "a dialog when opened as one; a page
-when opened as a tab or by its URL". This is the URL arm, which exists
-because 9.12 makes a notification row a pointer to exactly this address, and
-an address that 404s is a bell whose rows lie.
+It is the address a copied link, a notification and a Dana Link carry, so it
+must always land somewhere true. Where it lands depends on the room there is
+(REDESIGN-SPEC "Open a task"):
 
-**The page is the editor**, so 9.3's third home, the tab, is as strong a card
-as the other two and the "Tab" setting has something honest to open. The page renders the
-same composition the dialog and the panel render, `task-surface.tsx`'s
-`TaskPage` in its window presentation, over the same editing hook the host
-uses, `components/task-editing.tsx`. One artifact, three homes (DES-117).
+- **On a desktop** the task opens in its one home, the side panel, over the
+  task's folder: this page redirects to the folder with `?task=<id>`, which
+  `components/task-surface-host.tsx` answers.
+- **On a phone** there is no room beside a list, so this *is* the task: the
+  same `TaskView` as the panel, as the whole page, closed by going back.
 
-What a reader may rely on: the title is in the document, the 10.2 not-found
-discipline holds (`PageBody` renders the 404 copy for an inaccessible id),
-and the address never server-renders anything (7.17: the SPA resolves it
-against existing reads).
+The 10.2 not-found discipline holds either way: an id this viewer cannot read
+renders `PageBody`'s 404 copy.
 */
 import { useState } from 'react'
-import { useNavigate, useParams } from 'react-router'
+import { Navigate, useNavigate, useParams } from 'react-router'
 
 import { surfaceTask, useTaskEditing } from '../components/task-editing.js'
-import { TaskPage as SurfaceTaskPage } from '../components/task-surface.js'
+import { TaskView } from '../components/task-surface.js'
+import { isPhoneWidth, withTask } from '../components/task-surface-host.js'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog.js'
 import {
   ABANDON_CONFIRM,
@@ -29,6 +27,7 @@ import {
   DELETE_TASK_CONFIRM,
   keepLabel,
 } from '../components/ui/copy.js'
+import { useIsMobile } from '../components/ui/use-mobile.js'
 import { TaskWriter } from '../tasks/task-writer.js'
 import { useRowActions } from '../parts/useRowActions.js'
 import { paths } from '../routes.js'
@@ -47,10 +46,33 @@ export function TaskPage(): React.JSX.Element {
   const acts = useRowActions()
   const navigate = useNavigate()
   const [pending, setPending] = useState<PendingAct | null>(null)
+  /* Read once synchronously for the first render (the hook answers false
+     until its effect runs), then kept live. */
+  const mobileHook = useIsMobile()
+  const [firstPhone] = useState(isPhoneWidth)
+  const phone = mobileHook || firstPhone
   const detail = editing.detail
 
+  /* Desktop: the panel over the task's folder. */
+  if (!phone && detail !== undefined) {
+    return (
+      <Navigate
+        replace
+        to={withTask({ pathname: paths.folder(detail.folder.id), search: '' }, id)}
+      />
+    )
+  }
+
+  function leave(): void {
+    /* Back where the person came from, or the folder when there is no
+       "from" (a link opened cold). */
+    if (window.history.length > 1) void navigate(-1)
+    else if (detail !== undefined) void navigate(paths.folder(detail.folder.id))
+    else void navigate(paths.today)
+  }
+
   return (
-    <div className="space-y-7">
+    <div className="flex min-h-full flex-col">
       <PageBody query={editing.query} isEmpty={false} emptyCopy="">
         {editing.concept === null || detail === undefined ? null : (
           <TaskWriter patch={editing.write}>
@@ -70,18 +92,18 @@ export function TaskPage(): React.JSX.Element {
                 {...(pending.cancelLabel === undefined ? {} : { cancelLabel: pending.cancelLabel })}
               />
             )}
-            <SurfaceTaskPage
-              inWindow
+            <TaskView
+              onClose={leave}
               task={{
                 ...surfaceTask(id, editing.concept),
-                /* The two acts that end a task, the page layer's with its
-                   confirms and its undo entries; a deleted task's page then
-                   leaves for Desk, its subject having gone to Trash. */
+                /* The two acts that end a task, with the row's confirms and
+                   undo entries; the page then leaves, its subject gone. */
                 onAbandon: () => {
                   setPending({
                     message: ABANDON_CONFIRM,
                     run: () => {
                       acts.onAbandon(detail)
+                      leave()
                     },
                   })
                 },
@@ -92,7 +114,7 @@ export function TaskPage(): React.JSX.Element {
                     cancelLabel: keepLabel(1),
                     run: () => {
                       acts.onDelete(detail)
-                      void navigate(paths.today)
+                      leave()
                     },
                   })
                 },

@@ -107,96 +107,79 @@ export function usePickerClose(): () => void {
 
 const T_FAST = "duration-[var(--duration-fast)] ease-[var(--ease-standard)]"
 const FOCUS =
-  "outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)] focus-visible:ring-offset-1"
+  "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
 
-/* A chip that opens a panel rather than a list. Same anatomy as PropChip so
-   the strip reads as one row of equals. */
 /*
-**The chip announces its field.**
+**A property row that opens a panel rather than a list.**
 
-9.3 puts the strip's five chips in its field table by field, and 9.1's
-addressing paragraph makes every control it names reachable by role and by name:
-a chip is a button whose accessible name is the field and then the value, "Due
-date 3 Sep". A strip whose chips did not say which field they were would be five
-values and no questions.
+The task panel's properties block is a stack of quiet rows, a muted name and
+its value, each shown only once it is set. A row whose value is a day, a time
+or a rule opens the whole control for that fact; choosing commits and closes.
 
-So the field's name is a **visually hidden run before the value** rather than an
-`aria-label`. A label overrides the content, so a chip labelled "Due date" would
-answer to that name while showing something else, and a test could not read the
-value off it. The order matters, because tests match the field as a prefix and
-read the value as the tail. And the glyph stays `aria-hidden`, so a glyph swap
-is never a rename.
+The field's name is the visible label *and* the start of the button's name, so
+a reader hears "Date Tomorrow" and a test can address the row by its field.
 
-The tooltip stays, because a tooltip is for the eye and this run is for the
-reader; a tooltip is not an accessible name.
+`defaultOpen` is for a row that "Add property" has just revealed: it appears
+already asking its question. `onOpenChange` lets the block hide the row again
+when it was dismissed without an answer.
 */
-export function PickerChip({
-  icon: Icon,
+export function PropertyPicker({
+  label,
   value,
-  tooltip,
-  field,
-  muted = false,
-  color,
-  disabled = false,
+  empty = false,
+  tone,
+  defaultOpen = false,
+  onOpenChange,
   children,
 }: {
-  icon: LucideIcon
+  label: string
   value: string
-  tooltip: string
-  /* 9.3's own name for the field, announced before the value. It defaults to
-     the tooltip, which is that name for the three chips the card draws today,
-     and is a prop rather than the tooltip outright so a caller whose tooltip
-     is a sentence can still say which field it is. */
-  field?: string
-  muted?: boolean
-  color?: string
-  /* Reminder and repeat stay visible but inoperable until the task has a due
-     date. Their position immediately after the due-date control communicates
-     the dependency without adding a permanent instruction below the strip. */
-  disabled?: boolean
+  /** The row has no value yet; the value is drawn muted. */
+  empty?: boolean
+  /** A late date says so in the danger ink. */
+  tone?: "danger"
+  defaultOpen?: boolean
+  onOpenChange?: (open: boolean) => void
   children: ReactNode
 }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(defaultOpen)
+  function change(next: boolean) {
+    setOpen(next)
+    onOpenChange?.(next)
+  }
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={change}>
       <PopoverTrigger
         render={
           <button
             type="button"
-            title={tooltip}
-            disabled={disabled}
             onClick={(event) => event.stopPropagation()}
-            className={cn("rounded-md disabled:pointer-events-none", FOCUS)}
+            className={cn(PROPERTY_ROW, FOCUS)}
           >
+            <span className={PROPERTY_LABEL}>{label}</span>
             <span
               className={cn(
-                "inline-flex h-6 shrink-0 items-center gap-1.5 rounded-md border border-transparent px-1.5 text-[12px] leading-4 transition-[background-color,border-color]",
-                T_FAST,
-                "hover:border-[var(--color-graphite-300)] hover:bg-card data-popup-open:border-[var(--color-graphite-300)] data-popup-open:bg-card",
-                muted
-                  ? "text-[var(--color-graphite-500)]"
-                  : "text-[var(--color-graphite-800)]",
-                disabled && "opacity-50",
+                "min-w-0 truncate",
+                empty ? "text-muted-foreground" : "text-foreground",
+                tone === "danger" && "text-destructive",
               )}
             >
-              <Icon
-                className="size-3.5 shrink-0"
-                style={color ? { color } : undefined}
-                strokeWidth={1.75}
-                aria-hidden="true"
-              />
-              <span className="sr-only">{field ?? tooltip}</span>
-              <span className="truncate">{value}</span>
+              {value}
             </span>
           </button>
         }
       />
       <PopoverContent align="start" className="w-auto p-2">
-        <PickerClose value={() => setOpen(false)}>{children}</PickerClose>
+        <PickerClose value={() => change(false)}>{children}</PickerClose>
       </PopoverContent>
     </Popover>
   )
 }
+
+/** One row of the task panel's properties block: the name, then the value. */
+export const PROPERTY_ROW =
+  "grid h-8 w-full grid-cols-[6rem_minmax(0,1fr)] items-center gap-2 rounded-sm px-2 text-left text-sm transition-colors duration-100 hover:bg-accent data-popup-open:bg-accent"
+export const PROPERTY_LABEL = "truncate text-muted-foreground"
 
 /* One choice in a picker, shaped like a menu item rather than a pill: full
    width, on its own line, with the value it resolves to on the right where a
@@ -259,18 +242,18 @@ export function PickerOption({
         if (finishes) close()
       }}
       className={cn(
-        "flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-[13px] leading-5 transition-colors",
+        "flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-sm transition-colors",
         T_FAST,
         FOCUS,
-        "hover:bg-[var(--color-graphite-100)]",
+        "hover:bg-accent",
         active
-          ? "font-medium text-[var(--color-graphite-900)]"
-          : "text-[var(--color-graphite-700)]",
+          ? "font-medium text-foreground"
+          : "text-foreground",
       )}
     >
       {Icon ? (
         <Icon
-          className="size-4 shrink-0 text-[var(--color-graphite-400)]"
+          className="size-4 shrink-0 text-muted-foreground"
           strokeWidth={1.75}
           aria-hidden="true"
         />
@@ -292,7 +275,7 @@ export function PickerOption({
       {hint ? (
         <span
           aria-hidden="true"
-          className="shrink-0 text-[12px] leading-4 tabular-nums text-[var(--color-graphite-400)]"
+          className="shrink-0 text-xs tabular-nums text-muted-foreground"
         >
           {hint}
         </span>
@@ -301,7 +284,7 @@ export function PickerOption({
           options never reflows by a few pixels as the selection moves. */}
       <CheckIcon
         className={cn(
-          "size-3.5 shrink-0 text-[var(--color-graphite-800)] transition-opacity",
+          "size-3.5 shrink-0 text-foreground transition-opacity",
           T_FAST,
           active ? "opacity-100" : "opacity-0",
         )}
@@ -314,12 +297,12 @@ export function PickerOption({
 
 /* The hairline between a picker's easy answers and its exact ones. */
 export function PickerDivider() {
-  return <div aria-hidden="true" className="my-1 h-px bg-[var(--color-graphite-200)]" />
+  return <div aria-hidden="true" className="my-1 h-px bg-border" />
 }
 
 export function PickerLabel({ children }: { children: ReactNode }) {
   return (
-    <div className="px-2 pb-1 text-[11px] leading-4 font-medium tracking-wide text-[var(--color-graphite-400)] uppercase">
+    <div className="px-2 pb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
       {children}
     </div>
   )
@@ -342,7 +325,7 @@ export function PickerSegments({
 }) {
   return (
     <div className="flex items-center gap-2 px-2 py-1">
-      <span className="w-12 shrink-0 text-[12px] leading-4 text-[var(--color-graphite-500)]">
+      <span className="w-12 shrink-0 text-xs text-muted-foreground">
         {label}
       </span>
       <div className="flex flex-wrap gap-1">
@@ -353,12 +336,12 @@ export function PickerSegments({
             aria-pressed={active === option.key}
             onClick={() => onPick(option.key)}
             className={cn(
-              "h-7 rounded-md px-2.5 text-[12px] leading-4 transition-colors",
+              "h-7 rounded-md px-2.5 text-xs transition-colors",
               T_FAST,
               FOCUS,
               active === option.key
-                ? "bg-[var(--color-graphite-900)] font-medium text-white"
-                : "bg-[var(--color-graphite-50)] text-[var(--color-graphite-700)] hover:bg-[var(--color-graphite-100)]",
+                ? "bg-foreground font-medium text-white"
+                : "bg-muted text-foreground hover:bg-accent",
             )}
           >
             {option.label}
@@ -557,7 +540,7 @@ export function DuePanel({ task, patch }: PanelProps) {
       {task.due ? (
         <>
           <PickerDivider />
-          <label className="flex items-center gap-2 px-2 pt-1.5 text-[12px] leading-4 text-[var(--color-graphite-500)]">
+          <label className="flex items-center gap-2 px-2 pt-1.5 text-xs text-muted-foreground">
             <span className="w-10 shrink-0">Time</span>
             <input
               type="time"
@@ -568,10 +551,10 @@ export function DuePanel({ task, patch }: PanelProps) {
                 if (time === "") clearAt()
                 else setAt(time)
               }}
-              className="h-8 min-w-0 flex-1 rounded-md border border-[var(--color-graphite-300)] bg-card px-2 text-[13px] leading-5 text-[var(--color-graphite-800)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)]"
+              className="h-8 min-w-0 flex-1 rounded-md border border-border bg-card px-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
             {at === null ? null : (
-              <span className="shrink-0 text-[var(--color-graphite-400)]">
+              <span className="shrink-0 text-muted-foreground">
                 {formatTime(at, format) ?? at}
               </span>
             )}
@@ -674,7 +657,7 @@ export function ReminderPanel({ task, patch }: PanelProps) {
             if (time === "") clearAt()
             else setAt(time)
           }}
-          className="h-8 w-full rounded-md border border-[var(--color-graphite-300)] bg-card px-2 text-[13px] leading-5 text-[var(--color-graphite-800)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)]"
+          className="h-8 w-full rounded-md border border-border bg-card px-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
       </div>
     </div>
@@ -804,7 +787,7 @@ export function RepeatPanel({ task, patch }: PanelProps) {
                   row would make every other picker wider for nothing (a popover
                   is as wide as what it holds). A grid divides whatever width
                   there is, so this row cannot overflow at any panel size. */}
-              <span className="mb-1 block text-[12px] leading-4 text-[var(--color-graphite-500)]">
+              <span className="mb-1 block text-xs text-muted-foreground">
                 On
               </span>
               <div className="grid grid-cols-7 gap-1">
@@ -824,12 +807,12 @@ export function RepeatPanel({ task, patch }: PanelProps) {
                         })
                       }
                       className={cn(
-                        "flex h-7 w-full items-center justify-center rounded-full text-[11px] leading-4 transition-colors",
+                        "flex h-7 w-full items-center justify-center rounded-full text-xs transition-colors",
                         T_FAST,
                         FOCUS,
                         on
-                          ? "bg-[var(--color-graphite-900)] font-medium text-white"
-                          : "bg-[var(--color-graphite-50)] text-[var(--color-graphite-700)] hover:bg-[var(--color-graphite-100)]",
+                          ? "bg-foreground font-medium text-white"
+                          : "bg-muted text-foreground hover:bg-accent",
                       )}
                     >
                       {day.slice(0, 1)}

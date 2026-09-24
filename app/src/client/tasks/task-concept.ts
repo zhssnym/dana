@@ -121,6 +121,11 @@ export function toConceptTask(
     important: task.important,
     pulled: task.pulled,
     recurrence: task.is_recurring,
+    /* Guarded: a stub card built by hand (a test, an optimistic row) may
+       carry no labels at all. */
+    labels: [...(task.labels?.personal ?? []), ...(task.labels?.folder ?? [])]
+      .filter((label) => !label.archived)
+      .map((label) => ({ id: label.id, name: label.name })),
     ...(parsed !== null && parsed.ok
       ? { repeatUnit: REPEAT_UNITS[parsed.rule.freq] }
       : {}),

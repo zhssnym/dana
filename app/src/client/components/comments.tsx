@@ -101,11 +101,6 @@ import {
 } from "./ui/dropdown-menu.js"
 import { Button } from "./ui/button.js"
 import {
-  Bubble,
-  BubbleContent,
-  BubbleReactions,
-} from "./ui/bubble.js"
-import {
   Message,
   MessageAvatar,
   MessageContent,
@@ -118,7 +113,7 @@ import { cn } from "./ui/utils.js"
 
 const T_FAST = "duration-[var(--duration-fast)] ease-[var(--ease-standard)]"
 const FOCUS =
-  "outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)] focus-visible:ring-offset-1"
+  "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
 
 
 /*
@@ -211,7 +206,7 @@ function VoiceNote({ voice }: { voice: NonNullable<ConceptComment["voice"]> }) {
 
   return (
     <span
-      className="mt-1 inline-flex h-9 items-center gap-2 rounded-full border border-[var(--color-graphite-200)] bg-card py-1 pr-3 pl-1"
+      className="mt-1 inline-flex h-9 items-center gap-2 rounded-full border border-border bg-card py-1 pr-3 pl-1"
       data-comment-voice
     >
       <Button
@@ -239,13 +234,13 @@ function VoiceNote({ voice }: { voice: NonNullable<ConceptComment["voice"]> }) {
               "w-[2px] rounded-full transition-colors",
               T_FAST,
               i < playedBars
-                ? "bg-[var(--color-graphite-800)]"
-                : "bg-[var(--color-graphite-300)]",
+                ? "bg-foreground"
+                : "bg-muted-foreground/40",
             )}
           />
         ))}
       </span>
-      <span className="text-[12px] leading-4 text-[var(--color-graphite-500)] tabular-nums">
+      <span className="text-xs text-muted-foreground tabular-nums">
         {Math.floor(voice.seconds / 60)}:{String(Math.round(voice.seconds % 60)).padStart(2, "0")}
       </span>
     </span>
@@ -302,7 +297,7 @@ function CommentFiles({ files }: { files: NonNullable<ConceptComment["files"]> }
               `lib/page-images.ts` splits the two readings for this reason.
               */
               style={file.ratio === undefined ? undefined : { aspectRatio: file.ratio }}
-              className="mt-1 max-h-64 w-full rounded-lg border border-[var(--color-graphite-200)] object-cover"
+              className="mt-1 max-h-64 w-full rounded-lg border border-border object-cover"
             />
           )
         }
@@ -312,22 +307,22 @@ function CommentFiles({ files }: { files: NonNullable<ConceptComment["files"]> }
               <img
                 src={file.preview}
                 alt=""
-                className="size-8 shrink-0 rounded-[5px] border border-[var(--color-graphite-200)] object-cover"
+                className="size-8 shrink-0 rounded-sm border border-border object-cover"
               />
             ) : (
-              <span className="flex size-8 shrink-0 items-center justify-center rounded-[5px] border border-[var(--color-graphite-200)] bg-[var(--color-graphite-50)]">
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-sm border border-border bg-muted">
                 <Icon
-                  className="size-4 text-[var(--color-graphite-500)]"
+                  className="size-4 text-muted-foreground"
                   strokeWidth={1.75}
                   aria-hidden="true"
                 />
               </span>
             )}
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm text-[var(--color-graphite-800)]">
+              <span className="block truncate text-sm text-foreground">
                 {file.name}
               </span>
-              <span className="block text-[12px] leading-4 text-[var(--color-graphite-400)]">
+              <span className="block text-xs text-muted-foreground">
                 {file.meta}
               </span>
             </span>
@@ -387,8 +382,12 @@ function Composer({
   voice = false,
   maxFiles = 1,
   disabled = false,
+  attach = true,
 }: {
   placeholder: string
+  /* Whether the "+" (file, link, mention) is drawn. The task panel keeps a
+     task's files in its one Attachments section, so its thread passes false. */
+  attach?: boolean
   autoFocus?: boolean
   /* A caller that returns a promise gets the typed text back if it rejects:
      the composer clears at once, and a refused post (a Discussion resolved
@@ -533,12 +532,12 @@ function Composer({
        palette's guardrails reserve danger for loss. The one red thing is the
        dot, the universal convention, and the timer carries the state. */
     return (
-      <div className="flex h-9 items-center gap-2 rounded-md border border-[var(--color-graphite-200)] bg-[var(--color-graphite-50)] py-1 pr-1 pl-3">
+      <div className="flex h-9 items-center gap-2 rounded-md border border-border bg-muted py-1 pr-1 pl-3">
         <span className="relative flex size-2 shrink-0" aria-hidden="true">
-          <span className="absolute inline-flex size-full animate-ping rounded-full bg-[var(--color-danger-600)] opacity-50" />
-          <span className="relative inline-flex size-2 rounded-full bg-[var(--color-danger-600)]" />
+          <span className="absolute inline-flex size-full animate-ping rounded-full bg-destructive opacity-50" />
+          <span className="relative inline-flex size-2 rounded-full bg-destructive" />
         </span>
-        <span className="text-[12px] leading-4 font-medium text-[var(--color-graphite-700)] tabular-nums">
+        <span className="text-xs font-medium text-foreground tabular-nums">
           {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, "0")}
         </span>
         {/* Live bars: the drawn promise that something is being taken down.
@@ -549,7 +548,7 @@ function Composer({
           {Array.from({ length: 24 }, (_, i) => (
             <span
               key={i}
-              className="w-[2px] animate-pulse rounded-full bg-[var(--color-graphite-400)]"
+              className="w-[2px] animate-pulse rounded-full bg-muted-foreground/40"
               style={{
                 height: `${5 + ((i * 7) % 13)}px`,
                 animationDelay: `${(i % 6) * 90}ms`,
@@ -636,7 +635,7 @@ function Composer({
           The `+` stays on the left and holds what you can *attach*: a file, a
           link, a person to mention.
            */}
-          {disabled ? null : (
+          {disabled || !attach ? null : (
           <InputGroupAddon align="inline-start">
             <DropdownMenu>
               <DropdownMenuTrigger
@@ -741,23 +740,23 @@ function Composer({
           {files.map((file, index) => (
             <span
               key={`${file.name}-${index}`}
-              className="inline-flex h-7 max-w-52 items-center gap-1.5 rounded-md border border-[var(--color-graphite-200)] bg-card px-2"
+              className="inline-flex h-7 max-w-52 items-center gap-1.5 rounded-md border border-border bg-card px-2"
             >
               {file.preview ? (
-                <img src={file.preview} alt="" className="size-4 rounded-[3px] object-cover" />
+                <img src={file.preview} alt="" className="size-4 rounded-sm object-cover" />
               ) : (
                 (() => {
                   const ChipIcon = FILE_ICON[file.kind] ?? Paperclip
                   return (
                     <ChipIcon
-                      className="size-3.5 text-[var(--color-graphite-500)]"
+                      className="size-3.5 text-muted-foreground"
                       strokeWidth={1.75}
                       aria-hidden="true"
                     />
                   )
                 })()
               )}
-              <span className="truncate text-[12px] leading-4 text-[var(--color-graphite-700)]">
+              <span className="truncate text-xs text-foreground">
                 {file.name}
               </span>
               <button
@@ -765,7 +764,7 @@ function Composer({
                 aria-label={`Remove ${file.name}`}
                 onClick={() => setFiles((current) => current.filter((_, i) => i !== index))}
                 className={cn(
-                  "flex size-4 items-center justify-center rounded text-[var(--color-graphite-400)] hover:text-[var(--color-graphite-700)]",
+                  "flex size-4 items-center justify-center rounded text-muted-foreground hover:text-foreground",
                   FOCUS,
                 )}
               >
@@ -776,7 +775,7 @@ function Composer({
         </div>
       ) : null}
       {micError ? (
-        <p className="mt-1 ml-8 text-[12px] leading-4 text-[var(--color-danger-700)]" role="alert">
+        <p className="mt-1 ml-8 text-xs text-destructive" role="alert">
           {micError}
         </p>
       ) : null}
@@ -841,11 +840,6 @@ function CommentRow({
     setEditing(false)
   }
 
-  /* My own messages sit on the right, the way every conversation surface people
-     already use draws them: the face moves to the right edge, the header and
-     body anchor right, and the hover actions mirror to the message's inner
-     side. Everyone else stays on the left. */
-  const mine = Boolean(comment.mine)
 
   return (
     /*
@@ -855,7 +849,7 @@ function CommentRow({
     every part reads it from there, so alignment is a property of the turn
     rather than a rule every span has to remember.
     */
-    <Message align={mine ? "end" : "start"} className="group/comment px-1 py-1.5">
+    <Message align="start" className="group/comment px-1 py-1.5">
       <MessageAvatar>
         <Face person={comment.author} dense={isReply} />
       </MessageAvatar>
@@ -865,7 +859,7 @@ function CommentRow({
             "edited" ride it because they are facts about the saying, not
             about what happened afterwards. */}
         <MessageHeader className="h-5">
-          <span className="font-medium text-[var(--color-graphite-700)]">
+          <span className="font-medium text-foreground">
             {comment.author.name}
           </span>
           <span>
@@ -893,12 +887,12 @@ function CommentRow({
             className={cn(
               /* Capped, because a quote wider than the thing it introduces
                  reads as the message and pushes the reply into a footnote. */
-              "mt-1 flex max-w-[min(22rem,80%)] items-center gap-1.5 border-[var(--color-graphite-300)] text-[12px] leading-4 text-[var(--color-graphite-500)]",
+              "mt-1 flex max-w-[min(22rem,80%)] items-center gap-1.5 border-border text-xs text-muted-foreground",
               /* Author, then what they said, on either side. */
-              mine ? "border-r-2 pr-2" : "border-l-2 pl-2",
+              "border-l-2 pl-2",
             )}
           >
-            <span className="shrink-0 font-medium text-[var(--color-graphite-600)]">
+            <span className="shrink-0 font-medium text-muted-foreground">
               {replyTo.author}
             </span>
             <span className="min-w-0 truncate">{replyTo.excerpt}</span>
@@ -933,56 +927,44 @@ function CommentRow({
                 setEditing(false)
               }
             }}
-            className="mt-0.5 block rounded-[14px] bg-card px-3 py-1.5 leading-5 ring-2 ring-[var(--color-dana-accent-600)]"
+            className="mt-0.5 block rounded-sm bg-card px-3 py-1.5 leading-5 ring-2 ring-ring"
           />
         ) : comment.body ? (
           /* The actions sit level with the message, on its outer side, rather
              than on the name-and-time line, where they would float above the
              thing they act on. */
-          <span className={cn("flex max-w-full items-center gap-1", mine && "flex-row-reverse")}>
-          {/* Whose message this is, said in tone rather than in colour: mine
-             sits on graphite-900 with light text, everyone else's on the
-             graphite-50 wash. No hue enters the thread, cobalt stays the
-             interaction colour, and a message is not an interaction.
-
-             The corner nearest its own author tightens to 4px. It is the one
-             detail that makes a container read as *spoken by* somebody rather
-             than as a box, and it costs a single class. */}
-          {/* Tone, never hue, which is exactly the split `Bubble`'s two
-              variants carry, so the rule lives in the primitive instead of in a
-              ternary here. */}
-          <Bubble variant={mine ? "default" : "muted"} className="mt-0.5">
-            <BubbleContent>{comment.body}</BubbleContent>
+          <span className="flex max-w-full items-start gap-1">
+          {/* Plain text on the page, every author alike: a thread is
+              something people read, not a stack of containers. Who said it is
+              the name above; nothing is filled, nothing is inverted. */}
+          <span className="mt-0.5 flex min-w-0 flex-1 flex-col gap-1">
+            <span className="whitespace-pre-wrap break-words text-sm text-foreground">
+              {comment.body}
+            </span>
             {comment.reactions?.length ? (
-              <BubbleReactions
+              <span
+                className="flex flex-wrap gap-1"
                 aria-label={comment.reactions
                   .map((r) => `${r.count} like${r.count === 1 ? "" : "s"}`)
                   .join(", ")}
               >
                 {comment.reactions.map((reaction) => (
-                  /* A reaction is a toggle, so it is the system's button
-                     pressed or not, rather than a pill with its own two
-                     states hand-written beside every other pill. */
                   <Button
                     key={reaction.emoji}
-                    variant={mine ? "outline" : reaction.mine ? "secondary" : "outline"}
+                    variant={reaction.mine ? "secondary" : "ghost"}
                     size="xs"
                     aria-pressed={reaction.mine || undefined}
                     disabled={(comment.likeable ?? true) === false}
                     onClick={() => onUpdate(toggleReaction(comment, reaction.emoji))}
-                    className={cn(
-                      "rounded-full tabular-nums",
-                      mine &&
-                        "border-white/25 bg-white/10 text-[var(--color-graphite-0)] hover:bg-white/20",
-                    )}
+                    className="tabular-nums text-muted-foreground"
                   >
                     <ThumbsUp className={cn(reaction.mine && "fill-current")} strokeWidth={1.75} aria-hidden="true" />
                     {reaction.count}
                   </Button>
                 ))}
-              </BubbleReactions>
+              </span>
             ) : null}
-          </Bubble>
+          </span>
             <span
               className={cn(
                 "flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/comment:opacity-100 focus-within:opacity-100",
@@ -1047,8 +1029,11 @@ export function CommentsThread({
   layout = "block",
   canComment = true,
   closedReason,
+  attachments = true,
 }: {
   comments: ConceptComment[]
+  /** Whether the composer offers to attach a file or a link. */
+  attachments?: boolean
   /* May return a promise; a top-level post that rejects gives the composer
      its text back. */
   onChange: (next: ConceptComment[]) => void | Promise<unknown>
@@ -1156,6 +1141,7 @@ export function CommentsThread({
               {replyingTo === comment.id ? (
                 <div className="py-1 pr-1">
                   <Composer
+                    attach={attachments}
                     placeholder={`Reply to ${comment.author.name}`}
                     autoFocus
                     onCancel={() => setReplyingTo(null)}
@@ -1182,6 +1168,7 @@ export function CommentsThread({
 
   const composer = (
     <Composer
+      attach={attachments}
       disabled={!canComment || closedReason !== undefined}
       placeholder={
         closedReason !== undefined
@@ -1206,7 +1193,7 @@ export function CommentsThread({
         <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
           <div className="flex flex-col gap-0.5">{thread}</div>
         </div>
-        <div className="shrink-0 border-t border-[var(--color-graphite-100)] px-3 py-2.5">
+        <div className="shrink-0 border-t border-border px-3 py-2.5">
           {composer}
         </div>
       </div>

@@ -81,11 +81,11 @@ export function TaskHistoryBlock({
        the footer's own `px-3` rather than the content column's `px-2`; see
        `CardFooter`. The bottom is the footer row's `py-2`, so there is none
        here. */
-    <div className="flex flex-col gap-0.5 px-3 pt-2">
+    <div className="flex flex-col gap-0.5 px-1">
       {shown.map((event) => (
         <p
           key={event.id}
-          className="text-[12px] leading-4 text-[var(--color-graphite-500)]"
+          className="text-xs text-muted-foreground"
         >
           {`${lineFor(event)} by ${event.actor} · ${when(event.at)}`}
         </p>
