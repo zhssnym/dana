@@ -75,7 +75,7 @@ type TaskInput = PartialBlock<typeof taskSchema.blockSchema, typeof taskSchema.i
 
 /** Stored kinds this editor draws as a paragraph and keeps, with their tick. */
 const KEPT_KINDS: ReadonlySet<string> = new Set(['callout', 'checklist'])
-const SLASH_KEYS = ['paragraph', 'heading', 'heading_2', 'heading_3', 'bullet_list', 'numbered_list', 'quote', 'code_block', 'image', 'file', 'audio', 'video']
+const SLASH_KEYS = ['paragraph', 'heading', 'heading_2', 'bullet_list', 'numbered_list', 'quote', 'code_block', 'image', 'file']
 const fileUrl = (id: string | null): string => id === null ? '' : `/api/v1/files/${id}`
 const fileIdOf = (url: string): string | null => /(?:^|\/)api\/v1\/files\/([0-9a-f-]{36})$/i.exec(url)?.[1] ?? null
 const draftKey = (taskId: string): string => `dana-task-draft:${taskId}`
@@ -210,7 +210,7 @@ export default function TaskComposer({ taskId, folderId, notes }: {
       if (window.document.activeElement instanceof HTMLElement) window.document.activeElement.blur()
     }}>
     {page === undefined || width === null
-      ? <div className="text-[12px] leading-5 text-[var(--color-graphite-700)]">
+      ? <div className="text-[length:var(--text-meta-size)] leading-5 text-[var(--color-graphite-700)]">
           {notes ? <p className="whitespace-pre-wrap">{notes}</p> : null}
           <p role="status" className="text-muted-foreground">
             {query.isError ? <>Couldn't open this task's writing. <Button variant="ghost" onClick={() => { void query.refetch() }}>Try again</Button></> : 'Loading writing…'}
@@ -298,8 +298,8 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
     const timer = window.setTimeout(() => { void writer.flush() }, 450)
     return () => window.clearTimeout(timer)
   }, [writer, writer.state, writer.latest])
-  // Closing the card inside the autosave delay still saves.
-  useEffect(() => () => { if (writer.state === 'changed') void writer.flush() }, [writer])
+  // Closing the card inside the autosave delay, or mid-save, still saves.
+  useEffect(() => () => { void writer.drain() }, [writer])
   useEffect(() => {
     if (!latest.revision || latest.revision === writer.revision || writer.state === 'saving') return
     if (writer.state === 'saved') onCheckpoint(latest)
@@ -341,7 +341,7 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
     {recovered !== null ? <div role="status" className="mb-2 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
       Unsaved writing from before is kept.
       <Button variant="outline" onClick={restore}>Merge it back in</Button>
-      <Button variant="ghost" onClick={() => download(`dana-task-writing-${taskId}.json`, recovered)}>Download</Button>
+      <Button variant="ghost" onClick={() => download(`dana-task-writing-${taskId}.json`, recovered)}>Download writing</Button>
       <Button variant="ghost" onClick={() => { writeStorage(recoveredKey(taskId), null); setRecovered(null) }}>Discard</Button>
     </div> : null}
     <div className="dana-writing-canvas dana-task-composer min-w-0">
@@ -364,8 +364,8 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
       {feedback || (writer.state === 'saving' ? 'Saving…' : writer.state === 'changed' ? 'Unsaved writing' : '')}
       {feedback ? <>
         {conflict || !writer.pending ? null : <Button variant="outline" onClick={() => { void writer.retry() }}>Retry save</Button>}
-        <Button variant={conflict ? 'outline' : 'ghost'} onClick={() => { void loadLatest() }}>Load latest</Button>
         <Button variant="ghost" onClick={() => download(`dana-task-writing-${taskId}.json`, JSON.stringify({ taskId, revision: writer.revision, blocks: editor.document }, null, 2))}>Download writing</Button>
+        <Button variant="ghost" onClick={() => { void loadLatest() }}>Load latest</Button>
       </> : null}
     </div>
   </>

@@ -89,6 +89,11 @@ export class CanvasWriter {
     })()
     return this.inFlight
   }
+  /** Leaving the editor: wait out a save in flight, then send what came after it. */
+  async drain(): Promise<void> {
+    await this.flush()
+    if (this.state === 'changed') await this.flush()
+  }
   async retry(): Promise<void> {
     if (this.state !== 'failed' || !this.pending) return
     this.state = 'changed'

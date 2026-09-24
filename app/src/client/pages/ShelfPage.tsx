@@ -188,6 +188,7 @@ export function ShelfPage(): React.JSX.Element {
                 folders={shelfFolders}
                 addableFolders={addable}
                 folderHref={paths.folder}
+                settled={!shelf.isFetching && !folders.isFetching}
                 onOpenFolder={(folderId) => {
                   void navigate(openInNewTab(paths.folder(folderId)))
                 }}

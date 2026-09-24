@@ -36,7 +36,7 @@ export const BLOCKED_BY_HEADING = "Blocked by"
 export const BLOCKS_HEADING = "Blocks"
 
 const QUIET_BUTTON =
-  "inline-flex h-6 items-center gap-1.5 rounded-md px-1.5 text-[12px] text-[var(--color-graphite-500)] transition-colors hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-700)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-dana-accent-600)]"
+  "inline-flex h-6 items-center gap-1.5 rounded-md px-1.5 text-[length:var(--text-meta-size)] text-[var(--color-graphite-500)] transition-colors hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-700)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-dana-accent-600)]"
 
 /** Why an add was refused, in words for the person rather than the field. */
 function refusalOf(error: unknown, mode: Mode): string {
@@ -205,7 +205,7 @@ function EdgeList({
 }) {
   return (
     <div>
-      <div className="pb-0.5 text-[11px] leading-4 font-medium text-[var(--color-graphite-500)]">
+      <div className="pb-0.5 text-[length:var(--text-meta-size)] leading-4 font-medium text-[var(--color-graphite-500)]">
         {heading}
       </div>
       <ul className="flex flex-col" aria-label={heading}>
@@ -255,7 +255,7 @@ function EdgeRow({
   const word = stateWord(edge, direction)
   const title = edge.task?.title ?? "Private task"
   return (
-    <li className="group/dep -mx-1 flex h-7 items-center gap-2 rounded-md px-1 text-[12px] hover:bg-[var(--color-graphite-50)]">
+    <li className="group/dep -mx-1 flex h-7 items-center gap-2 rounded-md px-1 text-[length:var(--text-meta-size)] hover:bg-[var(--color-graphite-50)]">
       {done ? (
         <CheckCircle2
           className="size-3.5 shrink-0 text-[var(--color-graphite-400)]"
@@ -391,10 +391,10 @@ function DependencyPicker({
             onCancel()
           }
         }}
-        className="h-7 w-full rounded bg-transparent px-1.5 text-[12px] text-[var(--color-graphite-700)] outline-none placeholder:text-[var(--color-graphite-400)] focus:ring-1 focus:ring-[var(--color-dana-accent-600)]"
+        className="h-7 w-full rounded bg-transparent px-1.5 text-[length:var(--text-meta-size)] text-[var(--color-graphite-700)] outline-none placeholder:text-[var(--color-graphite-400)] focus:ring-1 focus:ring-[var(--color-dana-accent-600)]"
       />
       {refusal ? (
-        <p role="alert" className="px-1.5 text-[12px] leading-4 text-[var(--color-danger-700)]">
+        <p role="alert" className="px-1.5 text-[length:var(--text-meta-size)] leading-4 text-[var(--color-danger-700)]">
           {refusal}
         </p>
       ) : null}
@@ -409,7 +409,7 @@ function DependencyPicker({
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => onPick(candidate.id)}
             className={cn(
-              "flex h-7 cursor-pointer items-center truncate rounded px-1.5 text-[12px] text-[var(--color-graphite-700)]",
+              "flex h-7 cursor-pointer items-center truncate rounded px-1.5 text-[length:var(--text-meta-size)] text-[var(--color-graphite-700)]",
               index === clamped && "bg-[var(--color-graphite-50)]",
             )}
           >
@@ -418,7 +418,7 @@ function DependencyPicker({
         ))}
       </ul>
       {status ? (
-        <p className="px-1.5 pb-0.5 text-[12px] leading-4 text-[var(--color-graphite-400)]">{status}</p>
+        <p className="px-1.5 pb-0.5 text-[length:var(--text-meta-size)] leading-4 text-[var(--color-graphite-400)]">{status}</p>
       ) : null}
     </div>
   )
