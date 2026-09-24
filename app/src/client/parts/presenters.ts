@@ -383,14 +383,13 @@ export function folderDisplay(
 /** The display half of a sidebar folder row; the rest is the shell's. */
 export type FolderRowDisplay = Pick<
   FolderRowProps,
-  'name' | 'color' | 'icon' | 'pending' | 'href'
+  'name' | 'color' | 'icon' | 'href'
 >
 
 /**
  * One folder as the sidebar row takes it.
  *
- * `pending` is 8.11's pending tally, which 7.4 already puts on the Folder
- * object, and `href` is 9.1's routes table read through `routes.ts` rather than
+ * No count: a sidebar row is its mark and its name. `href` is 9.1's routes table read through `routes.ts` rather than
  * spelled again here. AC-175 names the row as a link to this path, and AC-243
  * its mark as the one that folder's own page draws.
  */
@@ -400,7 +399,6 @@ export function folderRowDisplay(folder: Folder): FolderRowDisplay {
     name: folder.name,
     color: mark.color,
     icon: mark.icon,
-    pending: folder.counts.pending,
     href: paths.folder(folder.id),
   }
 }

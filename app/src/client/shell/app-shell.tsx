@@ -7,8 +7,8 @@ application's only chrome"), the offline banner ("global, persistent while
 offline"), the toast region, the floating add button, and 10.6's update
 affordance. A page renders inside the outlet and adds none of them.
 
-**There is no top bar.** The app name and the global search control sit in the
-sidebar header and the avatar menu in its footer. AC-174 states this as the
+**There is no top bar.** Search and notifications sit at the top of the
+sidebar and the account menu at its foot. AC-174 states this as the
 absence of a banner landmark on every page, which is what an application header
 is; every `header` this shell renders sits inside `main` and is a page's own
 rather than the application's, so it is content and not chrome. That placement
@@ -46,29 +46,9 @@ question 11.6's double-submit expects one answer to.
 */
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { Link, Outlet, useLocation, useNavigate } from 'react-router'
-/* The icon module: every icon Dana uses is an export of one file and nothing
-   imports `lucide-react` directly. */
+import { Outlet, useLocation, useNavigate } from 'react-router'
 import { adoptClock } from '../lib/time-format.js'
-import type { LucideIcon } from '../lib/icons.js'
-import {
-  Ban,
-  CalendarDays,
-  CalendarX,
-  CheckCircle2,
-  Folder as FolderIcon,
-  LampDesk,
-  Layers3,
-  PanelLeft,
-  RefreshCw,
-  Search,
-  Settings,
-  Star,
-  SunMedium,
-  Trash2,
-  UserRoundCheck,
-  UsersRound,
-} from '../lib/icons.js'
+import { PanelLeft, RefreshCw, Search } from '../lib/icons.js'
 
 import { ApiError } from '../api/http.js'
 import {
@@ -82,28 +62,26 @@ import {
   useFolders,
   useMe,
   usePendingInvites,
-  useSavedViews,
   useShelves,
 } from '../api/queries.js'
 import { todayInBrowserZone } from '../api/tz.js'
 import { NewFolderDialog } from '../components/index.js'
 import { SearchOverlay } from '../components/search/index.js'
 import { TaskSurfaceHost } from '../components/task-surface-host.js'
-/* The folder table published for the lifted pickers' bare `folderLibrary()`.
-   Mounted once, here, because this component is what every /app path renders
-   and a publisher with several writers is one whose value depends on unmount
-   order. `lib/folder-library.ts` carries the reasoning. */
+/* The folder table published for the lifted pickers' bare `folderLibrary()`,
+   mounted once here because this component is what every /app path renders. */
 import { FolderLibraryMemory } from '../lib/folder-library.js'
-import { useHistory } from '../lib/history.js'
 import { TaskWriter, useApiTaskPatch } from '../tasks/task-writer.js'
 import { Button } from '../components/ui/button.js'
-import { SidebarInset, SidebarProvider, useSidebar } from '../components/ui/sidebar.js'
-import { DanaMark } from '../components/dana-mark.js'
-import { NotificationsBell } from '../components/notifications-bell.js'
+import {
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+  useSidebar,
+} from '../components/ui/sidebar.js'
 import { InviteGate } from '../pages/InviteGate.js'
-import { folderMark, shelfMark } from '../parts/presenters.js'
 import { useUpdateAffordance } from '../pwa/useUpdateAffordance.js'
-import { navPages, paths } from '../routes.js'
+import { paths } from '../routes.js'
 import { placeAt, surfaceDefaults } from '../views/place-pages.js'
 import { effectiveMode, useViewMode } from '../views/view-mode.js'
 import type { ViewMode } from '../views/view-mode.js'
@@ -120,9 +98,7 @@ import { prepareWorkflowImport } from './workflow-import.js'
 import { mirroredTheme } from '../lib/theme.js'
 import { onOpenNewFolder, openSearch } from './overlays.js'
 import { useModalOpen, useRightEdge } from '../components/right-edge.js'
-import { TabStrip } from './TabStrip.js'
-import { WindowActivity, WindowBar, WindowBarActions } from '../components/window-bar.js'
-import { retarget } from './tabs.js'
+import { WindowBar, WindowBarActions } from '../components/window-bar.js'
 import {
   clampSidebarWidth,
   clearSidebarWidth,
@@ -134,12 +110,9 @@ import {
 import type { TaskFormDefaults } from './overlays.js'
 import type { Folder } from '../../shared/folders.js'
 import type { Shelf } from '../../shared/shelves.js'
-import type { SavedView } from '../../shared/bundle.js'
 
 /** The prefix 9.1's routes table gives a folder page. */
 const FOLDER_PREFIX = '/app/folders/'
-const SHELF_PREFIX = '/app/shelves/'
-const TASK_PREFIX = '/app/tasks/'
 
 /**
  * The folder list before it has arrived, held once so its identity is stable.
@@ -150,10 +123,7 @@ const TASK_PREFIX = '/app/tasks/'
  */
 const NO_FOLDERS: readonly Folder[] = []
 
-/** The same stable-identity trick for the saved views the page block ends on. */
-const NO_SAVED_VIEWS: readonly SavedView[] = []
-
-/** And for the shelves the Library and the strip's menu both read. */
+/** And for the shelves the Library reads. */
 const NO_SHELVES: readonly Shelf[] = []
 
 /* What 9.1's Import says when the file is not a workflow at all. Section 9
@@ -165,7 +135,8 @@ const WORKFLOW_UNREADABLE = "That file isn't a workflow Dana can read."
 const ALL_VIEWS: readonly ViewMode[] = ['list', 'board', 'calendar']
 
 /**
- * Where the floating button appears, and what it makes there.
+ * Where the floating button appears (on a phone only; `FloatingAddButton`
+ * returns nothing on a laptop), and what it makes there.
  *
  * 9.1 puts it only on "the pages with no capture affordance of their own,
  * Today, Important, and Assignments", and never on Done or Abandoned. Every
@@ -175,7 +146,7 @@ const ALL_VIEWS: readonly ViewMode[] = ['list', 'board', 'calendar']
  * **And it is absent in board view**: "in board view every column captures and
  * the floating button is absent". The button is the capture point that leaves
  * wherever a capture row already exists, and a column says where the task lands
- * better than any row. The mode is read from the same store the strip writes,
+ * better than any row. The mode is read from the same store the view menu writes,
  * so the shell and the page cannot disagree about which view is showing.
  *
  * **Trash is not in the list and 9.11 is why**: "No capture anywhere on the
@@ -194,137 +165,23 @@ function floatingDefaults(pathname: string, mode: ViewMode): TaskFormDefaults | 
   return { due_date: defaults.due_date, important: defaults.important }
 }
 
-/* `isTyping` left with the search shortcut it guarded (see `overlays.ts`);
-   the undo shortcut below has its own guard in `undo.ts`. */
-
-/** The glyph the page strip shows, which is the design's and not 9.1's. */
-const pageIcons: Record<string, LucideIcon> = {
-  [paths.desk]: LampDesk,
-  [paths.today]: SunMedium,
-  [paths.scheduled]: CalendarDays,
-  [paths.assignments]: UserRoundCheck,
-  [paths.abandoned]: Ban,
-  [paths.anytime]: CalendarX,
-  [paths.trash]: Trash2,
-  [paths.important]: Star,
-  [paths.all]: Layers3,
-  [paths.done]: CheckCircle2,
-  [paths.settings]: Settings,
-  [paths.people]: UsersRound,
-}
-
-/**
- * What the page strip carries for the route that is open.
- *
- * The strip is a static current-page indicator and not a tab system: nothing in
- * it is clickable and nothing navigates. A folder's name and colour come from
- * the same `/folders` read the sidebar uses, so an unopened folder or a failed
- * read simply shows nothing rather than a flickering identifier.
- */
-function currentPage(
-  pathname: string,
-  folders: readonly Folder[] | undefined,
-  shelves: readonly Shelf[] | undefined,
-): { title: string; icon: LucideIcon | undefined; iconColor: string | undefined } {
-  /* Issue #145's study is a real Dana page while Vite is serving it: it uses
-     the same tab, window bar, sidebar and content measure as every other
-     route. The branch and route are both absent from production. */
-  if (import.meta.env.MODE !== 'production' && pathname === '/app/labs/composer') {
-    return { title: 'Writing-first canvas', icon: Layers3, iconColor: undefined }
-  }
-  const page = navPages.find((candidate) => pathname === candidate.path)
-  if (page !== undefined) {
-    return { title: page.name, icon: pageIcons[page.path], iconColor: undefined }
-  }
-  if (pathname === paths.settings) {
-    return { title: 'Settings', icon: pageIcons[paths.settings], iconColor: undefined }
-  }
-  if (pathname === paths.people) {
-    return { title: 'People', icon: pageIcons[paths.people], iconColor: undefined }
-  }
-  /* The Trash tab has a title and mark like any other. */
-  if (pathname === paths.trash) {
-    return { title: 'Trash', icon: pageIcons[paths.trash], iconColor: undefined }
-  }
-  if (pathname.startsWith(FOLDER_PREFIX)) {
-    const id = pathname.slice(FOLDER_PREFIX.length)
-    const folder = folders?.find((candidate) => candidate.id === id)
-    /* The folder's own mark: 9.1's "every tab is the same tab, one anatomy
-       (mark, title, close control)", and a tab is a face for the thing it
-       opens, so it wears the thing's face. One resolver, `parts/presenters.ts`,
-       answers here and in the Library. */
-    const mark = folderMark(folder)
-    return { title: folder?.name ?? '', icon: mark.icon, iconColor: mark.color }
-  }
-  /* A shelf tab wears the shelf's name and its own mark (9.1: every tab is the
-     same tab), from the shelves read the Library shares. */
-  if (pathname.startsWith(SHELF_PREFIX)) {
-    const id = pathname.slice(SHELF_PREFIX.length)
-    const shelf = shelves?.find((candidate) => candidate.id === id)
-    const mark = shelf === undefined ? null : shelfMark(shelf)
-    return {
-      title: shelf?.name ?? '',
-      icon: mark?.icon ?? FolderIcon,
-      iconColor: mark?.color,
-    }
-  }
-  /* A task tab: the title would need the task read, which only the page
-     holds; "Task" keeps the tab honest without a second fetch path. */
-  if (pathname.startsWith(TASK_PREFIX)) {
-    return { title: 'Task', icon: undefined, iconColor: undefined }
-  }
-  return { title: '', icon: undefined, iconColor: undefined }
-}
-
-/*
-What the shell puts in the window bar, as opposed to what a page puts there.
-
-9.1 orders the bar's right end in one sentence: "the view strip, the filter
-control, the Activity line, and the object's overflow menu". The first two are a
-place page's own and portal in at the default order, the last is the folder and
-shelf pages' at order 2, and these two sit between them at order 1. The bar's
-`order` prop exists for exactly this, portals landing in mount order otherwise,
-which is not an arrangement anybody chose.
-
-**The Activity line reads the path rather than taking a subject**, because the
-bar belongs to the window and the window's subject is wherever it is pointed.
-Only a folder and a task have events worth a line; a place page is a view over
-other people's things and has no history of its own, which is why the line is
-absent there rather than empty.
-
-10.6's update affordance stays here rather than moving into the window bar
-component, which knows nothing of the service worker.
-*/
-function shellSubjectOf(pathname: string): { kind: 'folder' | 'task'; id: string } | null {
-  const folder = /^\/app\/folders\/([0-9a-f-]{36})$/.exec(pathname)
-  if (folder?.[1] !== undefined) return { kind: 'folder', id: folder[1] }
-  const task = /^\/app\/tasks\/([0-9a-f-]{36})$/.exec(pathname)
-  if (task?.[1] !== undefined) return { kind: 'task', id: task[1] }
-  return null
-}
-
 /** 10.6's update copy, transcribed. AC-100 addresses it by this name. */
 const UPDATE_AVAILABLE = 'Update available, reload'
 
 /*
-Below 768px the vendored sidebar is a drawer, and the only toggle lives inside
-the drawer. This bar stands above the tab strip on a phone only, carrying the
-one thing that opens the drawer, the mark as the way home, and the two
-everywhere-controls the sidebar header holds on a laptop, Search and the bell.
-It is a `div` inside `main` rather than a `header` outside it, which keeps
-AC-174's "no banner landmark" true; and it returns nothing at all on a laptop
-rather than hiding, so a desktop page carries one "Search" control and one bell.
-The drawer closes on navigation from `app-sidebar.tsx`, on the backdrop and on
-Escape from the sheet itself.
+The phone bar: below 768px the sidebar is a drawer, and this bar holds the one
+thing that opens it and the one search entry (the drawer leaves Search out, so
+a phone shows it once). A `div` inside `main`, never a `header`, so there is
+no banner landmark; it renders nothing on a laptop.
 */
 function PhoneBar({ onOpenSearch }: { readonly onOpenSearch: () => void }): React.JSX.Element | null {
   const { isMobile, setOpenMobile } = useSidebar()
   if (!isMobile) return null
   return (
-    <div className="flex h-11 shrink-0 items-center gap-1 border-b border-[var(--color-graphite-100)] bg-[var(--color-graphite-50)] px-1">
+    <div className="flex h-12 shrink-0 items-center gap-1 border-b border-border bg-background px-1">
       <Button
         variant="ghost"
-        className="size-10 text-[var(--color-graphite-700)]"
+        className="size-10 text-muted-foreground"
         aria-label="Menu"
         onClick={() => {
           setOpenMobile(true)
@@ -332,63 +189,49 @@ function PhoneBar({ onOpenSearch }: { readonly onOpenSearch: () => void }): Reac
       >
         <PanelLeft className="!size-5" strokeWidth={1.75} aria-hidden="true" />
       </Button>
-      <Link
-        to={paths.desk}
-        className="flex min-w-0 items-center gap-2 rounded-md px-1 outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
-      >
-        <DanaMark className="size-6" />
-        <span className="truncate text-base font-semibold text-[var(--color-graphite-900)]">Dana</span>
-      </Link>
       <span className="min-w-0 flex-1" />
       <Button
         variant="ghost"
-        className="size-10 text-[var(--color-graphite-700)]"
+        className="size-10 text-muted-foreground"
         aria-label="Search"
         onClick={onOpenSearch}
       >
         <Search className="!size-5" strokeWidth={1.75} aria-hidden="true" />
       </Button>
-      <NotificationsBell side="bottom" />
     </div>
   )
 }
 
-function WindowBarChrome({
-  pathname,
+/* The one control that brings a hidden sidebar back, on a laptop only. */
+function ShowSidebar(): React.JSX.Element | null {
+  const { isMobile, state } = useSidebar()
+  if (isMobile || state === 'expanded') return null
+  return (
+    <SidebarTrigger className="ml-2 size-7 shrink-0 rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground [&_svg]:!size-4" />
+  )
+}
+
+/* 10.6's non-forcing update: the waiting worker is applied on a click and
+   never without one. */
+function UpdateChrome({
   showUpdate,
   onUpdate,
 }: {
-  readonly pathname: string
   readonly showUpdate: boolean
   readonly onUpdate?: () => void
 }): React.JSX.Element | null {
-  const subject = shellSubjectOf(pathname)
-  /* Hooks before the branch, and the disabled read is `useHistory`'s own
-     contract: a subject that is not a uuid is a thing with no history rather
-     than a wrong question, so nothing is sent. */
-  const events = useHistory(
-    subject?.kind ?? 'task',
-    subject?.id ?? '',
-    subject !== null,
-    subject?.kind === 'folder' ? 'folder' : 'subject',
-  )
-  if (subject === null && !showUpdate) return null
+  if (!showUpdate) return null
   return (
     <WindowBarActions order={1}>
-      {subject === null ? null : <WindowActivity events={events} />}
-      {showUpdate ? (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="shrink-0 text-[var(--color-graphite-700)]"
-          /* 10.6's non-forcing update: the waiting worker is applied on a
-             click and never without one. */
-          onClick={onUpdate ?? (() => globalThis.location.reload())}
-        >
-          <RefreshCw className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
-          {UPDATE_AVAILABLE}
-        </Button>
-      ) : null}
+      <Button
+        variant="ghost"
+        size="sm"
+        className="shrink-0 text-muted-foreground"
+        onClick={onUpdate ?? (() => globalThis.location.reload())}
+      >
+        <RefreshCw className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
+        {UPDATE_AVAILABLE}
+      </Button>
     </WindowBarActions>
   )
 }
@@ -407,34 +250,9 @@ export function AppShell(): React.JSX.Element {
   */
   const bundle = useBundle()
   const folders = useFolders()
-  /*
-  The shelves read (7.16), which the Library draws, the strip's New tab menu
-  offers, and a shelf tab's face resolves through.
-
-  **It was gated and is not, and the gate was the audit addendum's finding.**
-  This waited on a `shelvesWanted` that was true only when a shelf route or
-  tab was already open, on the reasoning that "only a shelf tab needs shelf
-  names, so the read waits until one is open rather than costing every page a
-  request at mount". That was sound while the Library drew
-  `folder_members.shelf_name` strings and nothing else wanted shelves. 9.1 has
-  always wanted them, "the Library holds the viewer's shelves and folders as
-  one ordered list", and the sidebar is on every page: so the condition the
-  gate tested is now true everywhere, and a gate that is always true is a gate
-  that lies. The comment below the `AppSidebar` call used to say the Library
-  "will share" this read, in a future tense it held for three packages, and
-  the measured consequence was that a shelf created through 7.16 renders its
-  own page and vanishes from the Library on reload.
-
-  The cost is one request per session rather than per page: the query layer
-  caches it under its own key and 8.3's refetch policy governs it exactly as
-  it governs `/folders`, which this shell has always read unconditionally two
-  lines above.
-  */
+  /* The shelves read (7.16): the Library draws them on every page. */
   const shelves = useShelves()
   const invites = usePendingInvites()
-  /* 9.1 ends the page block with the viewer's pinned saved views, so the
-     chrome reads them here beside the pin list rather than in a page. */
-  const savedViews = useSavedViews()
   const createFolder = useCreateFolder()
   /* 4.4 makes a folder's shelf placement a membership fact, so filing a new
      folder onto a shelf is a second write after the create. */
@@ -597,59 +415,6 @@ export function AppShell(): React.JSX.Element {
     if (storedOrder !== undefined) setSidebarOrder((held) => held ?? storedOrder)
   }, [storedOrder])
 
-  /* 9.1's search shortcut moved to `overlays.ts` and is installed from
-     `main.tsx` at module scope, so the window listens from the moment the
-     bundle runs rather than from whenever this tree finishes mounting; the
-     reason and the latch that goes with it are written there. */
-
-  /*
-  9.1's undo shortcut, Ctrl+Z or Cmd+Z, and no redo.
-
-  On the document for the same reason the search shortcut is: undo has to
-  reach the act from wherever the person ended up, which is usually not the
-  bar. It is refused while somebody is typing, and that refusal is the most
-  important line in this block: a text input's own undo is older, better
-  understood, and scoped to the words in front of them, so stealing Ctrl+Z
-  from a half-written task title to un-delete something three screens away
-  would be the most alarming thing this feature could do.
-  */
-  /*
-  Ordinary navigation retargets the active tab, as an address bar does (9.1).
-  One effect on the router's own location covers every way this client can move:
-  a sidebar link, a folder row, a redirect, the back button and a programmatic
-  navigate all land here, so no link in the application has to know that tabs
-  exist. `retarget` is a no-op when the path already matches, which is what
-  stops it looping with the navigations the strip itself asks for.
-
-  **The dependency is the location and not its pathname.** React Router runs a
-  navigation inside a transition, so React is free to leave one uncommitted and
-  to coalesce it with the next. Ask for a folder and then for Desk before the
-  first has committed and React renders once, at Desk, which is the pathname it
-  last committed: with `[location.pathname]` the dependency has not changed, the
-  effect never runs, and the strip is left pointing at a tab for a page the
-  router never went to while the sidebar and the page itself are already on
-  Desk. Nothing about it reads as a race, because the address bar and the
-  highlighted sidebar row are both correct; only the active tab is wrong, and it
-  stays wrong until the next navigation. Throttling the CPU and asking for two
-  pages back to back reproduces it.
-
-  The location object is a fresh one per navigation, so the effect still runs
-  once per move and not once per render, which is the property that matters:
-  running it on every render would let an unrelated re-render land between a tab
-  click's `selectTab` and the navigation it returns, and retarget the tab that
-  was just chosen back onto the page being left.
-  */
-  useEffect(() => {
-    retarget(location.pathname)
-  }, [location])
-
-  /*
-  9.1's Ctrl+Z is the undo bar's own: the bar and the keystroke are one feature,
-  the bar being the discoverable half, and a shell that owns one while a
-  component owns the other is how one of them ends up wired and the other
-  forgotten.
-  */
-
   /*
   The one line that fights the distribution, and the reason is in
   `preferences.ts`. shadcn's `SidebarProvider` mirrors the collapsed state
@@ -784,28 +549,15 @@ export function AppShell(): React.JSX.Element {
           }}
           style={
             {
-              // The design's own width lives in `tokens.css` (11.4) and is
-              // only displaced once this viewer has chosen one of their own,
-              // which is data rather than a design value.
+              // The design's width lives in `tokens.css` and is displaced only
+              // once this viewer has dragged one of their own.
               '--sidebar-width':
                 sidebarWidth === null ? 'var(--shell-sidebar-width)' : `${sidebarWidth}px`,
-              // His rail is the sidebar's item height plus the header's
-              // padding on each side. Expressed against the token rather
-              // than as a number; a rail-width token of its own is requested
-              // of the Component and Design System role.
-              '--sidebar-width-icon': 'calc(var(--shell-sidebar-item-height) + 1rem)',
-              '--sidebar': 'var(--color-graphite-50)',
-              '--sidebar-accent': 'var(--color-graphite-100)',
             } as CSSProperties
           }
         >
           <AppSidebar
-            pinnedViews={bundle.data?.pinned_views}
             folders={folders.data}
-            /* 9.1's Library, both halves. This is the line that did not exist,
-               and the audit addendum's own sentence for it: "the cause is one
-               line that does not exist, app-shell.tsx never passes a shelves
-               prop to AppSidebar". */
             shelves={shelves.data}
             sidebarOrder={sidebarOrder ?? []}
             onSidebarOrderChange={(ids) => {
@@ -818,7 +570,6 @@ export function AppShell(): React.JSX.Element {
             activeFolderId={activeFolderId}
             currentPath={location.pathname}
             currentSearch={location.search}
-            savedViews={savedViews.data ?? NO_SAVED_VIEWS}
             sidebarWidth={sidebarWidth}
             onSidebarWidthChange={(width) => setSidebarWidth(clampSidebarWidth(width))}
             onSidebarWidthCommit={(width) => {
@@ -835,83 +586,32 @@ export function AppShell(): React.JSX.Element {
               setNewFolderIn(null)
               setNewFolderOpen(true)
             }}
-            /* 9.1's second act of making. A shelf is made by naming it, 4.18
-               giving it a stable id the name can then move over, so the dialog
-               the group flow already owns is the one surface for it: this
-               hands the same dialog the shelf half rather than opening a
-               second one that would write the same two things. */
             onNewShelf={() => { groups.actions.onNewShelf() }}
             onImportWorkflow={importFile}
             onSignOut={signOut}
           />
           {/*
-          `SidebarInset` is the `main` landmark, which is what keeps the page
-          strip below it a page's header rather than the application's banner
-          (AC-174).
-
-          **The right edge is a margin on this element.** A panel on the right
-          publishes its width to `components/right-edge.tsx` and this reads it
-          back as plain pixels, one store for every panel, so the page narrows
-          rather than being covered and the number that lays it out is one a
-          person can print.
-
-          **A margin and not padding.** Padding moves the content in and leaves
-          the box where it was, so the `main` landmark would still measure the
-          full window with a panel open: the page would look narrower and not
-          be. A margin takes the room off the element itself, which is what "the
-          page gets narrower" means and what AC-260 reads. The transition is on
-          the margin alone, because a panel that appears instantly beside a page
-          that jumps reads as two events rather than one.
+          `SidebarInset` is the `main` landmark. A right-edge panel publishes its
+          width to `components/right-edge.tsx` and this takes it off as a margin,
+          so the page narrows rather than being covered.
            */}
           <SidebarInset
-            className="min-w-0 overflow-hidden bg-card transition-[margin] duration-[var(--duration-slow)] ease-[var(--ease-enter)]"
+            className="relative min-w-0 overflow-hidden bg-background transition-[margin] duration-150 ease-out"
             style={{ marginRight: `${String(rightEdge)}px` }}
           >
-            {/*
-            The tab strip of 9.1, above the window bar and inside `main`.
-
-            Inside rather than above the inset for AC-174's reason: a `header`
-            outside `main` is the banner landmark that criterion asserts the
-            absence of, and the strip is chrome belonging to the window rather
-            than to the application.
-             */}
             <PhoneBar onOpenSearch={openSearch} />
-            <TabStrip
-              face={(path) => currentPage(path, folders.data, shelves.data)}
-              folders={folders.data ?? NO_FOLDERS}
-              shelves={shelves.data ?? NO_SHELVES}
-              /* The same dialog the sidebar's own "New shelf" opens, handed
-                 over rather than opened twice: the hook that owns it is
-                 mounted once here with its dialogs beside it. */
-              onNewShelf={() => { groups.actions.onNewShelf() }}
-              onNavigate={(path) => {
-                void navigate(path)
-              }}
-            />
-            {/*
-            The window bar of 9.1. It does not repeat the page's title, which
-            9.1 forbids because the tab above says it.
-
-            `components/window-bar.tsx` is the one bar: the task surface's
-            `WindowBarLead` and `WindowBarActions` portal into the slots it
-            mounts, so a task opened as a tab draws its folder, its section and
-            its controls here.
-             */}
-            <WindowBar />
-            <WindowBarChrome
-              pathname={location.pathname}
-              showUpdate={update.showUpdate}
-              onUpdate={update.applyUpdate}
-            />
+            {/* `components/window-bar.tsx`: pages and the task surface portal
+                their controls into its two ends. */}
+            <div className="flex shrink-0 items-center">
+              <ShowSidebar />
+              <div className="min-w-0 flex-1">
+                <WindowBar />
+              </div>
+            </div>
+            <UpdateChrome showUpdate={update.showUpdate} onUpdate={update.applyUpdate} />
             <OfflineBanner />
-            {/* The one region that scrolls. Put the overflow anywhere else
-                and either the document scrolls, taking the chrome with it, or
-                the chrome scrolls away inside its own column. */}
+            {/* The one region that scrolls. */}
             <div data-shell-scroll className="min-h-0 flex-1 overflow-y-auto">
-              {/* The measure is the layout's and never a page's: thirteen
-                  pages each choosing their own width is thirteen chances to
-                  disagree. His screens each carry this wrapper because they
-                  have no shell to put it in. */}
               <div className="mx-auto w-full max-w-[var(--shell-content-max)] px-4 py-4 md:px-10 md:py-6">
                 <Outlet />
               </div>
@@ -956,7 +656,7 @@ export function AppShell(): React.JSX.Element {
           {groups.dialogs}
         </SidebarProvider>
       </div>
-      {/* 9.1's undo bar: one for the whole window, bottom-left, outside the
+      {/* The undo bar: one for the whole window, bottom-centre, outside the
           sidebar provider so it is not clipped by the shell's own layout and
           so there is exactly one of it however many pages mount. */}
       <UndoBar />

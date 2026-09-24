@@ -40,7 +40,6 @@ import { paths } from '../routes.js'
 import { ShelfPage as ShelfScreen } from '../screens/shelf-page.js'
 import type { CanvasFolderRow } from '../components/page/canvas/CanvasFolder.js'
 import { openNewFolder } from '../shell/overlays.js'
-import { openInNewTab } from '../shell/tabs.js'
 import { PageBody } from '../components/page/PageStates.js'
 import type { Folder } from '../../shared/folders.js'
 
@@ -190,7 +189,7 @@ export function ShelfPage(): React.JSX.Element {
                 folderHref={paths.folder}
                 settled={!shelf.isFetching && !folders.isFetching}
                 onOpenFolder={(folderId) => {
-                  void navigate(openInNewTab(paths.folder(folderId)))
+                  void navigate(paths.folder(folderId))
                 }}
                 onAddFolder={async (folderId) => {
                   /* The same act the sidebar's "Move to shelf" performs: the

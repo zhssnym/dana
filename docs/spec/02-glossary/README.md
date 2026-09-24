@@ -89,8 +89,6 @@ second one.
 - **Board**: a page's grouped columns rendered as cards; dropping a card into a column
   writes that column's value. Offered wherever the page has a grouping; Done's column
   completes.
-- **Tab strip**: the client's row of open places and tasks. Working state,
-  session-scoped, never stored server-side.
 
 A term here is what a person is shown; an identifier in sections 4, 6 and 7 is what the
 machine is told, and the two may differ. The table `my_day_entries` and the addresses

@@ -30,7 +30,6 @@ import { useMemo } from 'react'
 
 import { useFolders, useSearch, useShelves } from '../api/queries.js'
 import { folderMark, shelfMark } from '../parts/presenters.js'
-import { NAV_PAGES, pageQuestion } from './nav-model.js'
 import { paths } from '../routes.js'
 import type { SearchResultItem } from '../components/search-overlay.js'
 
@@ -43,14 +42,16 @@ export interface SearchAnswer {
   failed: boolean
 }
 
+/** The three cross-project lists, under the names the sidebar gives them. */
+const PLACES = [
+  { name: 'Today', path: paths.today },
+  { name: 'Upcoming', path: paths.scheduled },
+  { name: 'Assigned', path: paths.assignments },
+] as const
+
 /** 9.1's page block as rows to go to. */
 export function placeItems(): SearchResultItem[] {
-  return NAV_PAGES.map((page) => ({
-    kind: 'page',
-    id: page.path,
-    title: page.name,
-    hint: pageQuestion(page.name) ?? '',
-  }))
+  return PLACES.map((place) => ({ kind: 'page', id: place.path, title: place.name, hint: '' }))
 }
 
 export function useSearchAnswer(query: string, open: boolean): SearchAnswer {
