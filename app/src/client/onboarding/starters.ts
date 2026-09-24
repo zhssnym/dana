@@ -155,9 +155,9 @@ export const STARTERS: readonly [Starter, Starter, Starter] = [
             {
               kind: 'paragraph',
               text:
-                'This folder is a shape: a goal, a source, practice, and review. When it ' +
-                'has worked for you once, export it from the folder menu as a workflow ' +
-                'file and import it again for the next thing you learn. The shape comes ' +
+                'This page is a shape: a goal, a source, practice, and review. When it ' +
+                'has worked for you once, choose Export in the page menu, then Import ' +
+                'the file again for the next thing you learn. The shape comes ' +
                 'across; the old dates, people and finished work stay behind.',
             },
             { kind: 'section', text: 'Write a goal you can finish' },
@@ -176,7 +176,7 @@ export const STARTERS: readonly [Starter, Starter, Starter] = [
             { title: 'Do the first hour today, badly, before you feel ready' },
             { title: 'Practise out loud or on paper, not only in your head' },
             { title: 'Review after a week and cut whatever did not help' },
-            { title: 'Export this folder as a workflow, ready for the next thing' },
+            { title: 'Export this page, ready for the next thing' },
           ],
         },
       ],

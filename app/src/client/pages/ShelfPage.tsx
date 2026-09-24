@@ -14,14 +14,14 @@ once the document route has written a Shelf, that PUT answers 409. **The acts**:
 `lib/nav-links.ts`, Duplicate as one call to `POST /shelves/:id/duplicate` and
 no folders (9.10: a folder is on one shelf), which carries the mark, the colour,
 the description and a cover picture of the copy's own and does not carry the
-blocks — see the act's own note — Save as workflow as 7.16's file, Delete
+blocks — see the act's own note — Delete
 unlabelling its folders and keeping them, and Rename as 7.16's PATCH, whose
 transaction rewrites the member labels (4.18's lockstep). **A folder row opens
 the folder**, there being no tab strip to append to. **Delete asks first**, in
 the sidebar's own sentence.
 
-**Folders join a shelf from the sidebar** (drag, or a folder's "Move to
-shelf"), never from this page: the page is the title and its writing, with the
+**Pages join a collection by dragging them onto it in the sidebar**, never
+from this page: the page is the title and its writing, with the
 member rows placed in it, and nothing else.
 */
 import { lazy, Suspense, useMemo, useState } from 'react'
@@ -42,23 +42,8 @@ import type { CanvasFolderRow } from '../components/page/canvas/CanvasFolder.js'
 import { deleteGroupConfirm } from '../shell/folder-groups.js'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog.js'
 import { PageBody } from '../components/page/PageStates.js'
-import type { Folder } from '../../shared/folders.js'
 
 const ShelfCanvas = lazy(() => import('../components/page/canvas/ShelfCanvas.js'))
-
-/** The workflow file this shelf exports: its folders, by name. */
-function shelfWorkflowFile(name: string, folders: readonly Folder[]): string {
-  return JSON.stringify(
-    {
-      dana: 'workflow',
-      version: 1,
-      name,
-      folders: folders.map((folder) => ({ name: folder.name })),
-    },
-    null,
-    2,
-  )
-}
 
 export function ShelfPage(): React.JSX.Element {
   const { id = '' } = useParams<{ id: string }>()
@@ -144,17 +129,6 @@ export function ShelfPage(): React.JSX.Element {
                   void navigate(paths.shelf(made.id))
                 },
               })
-            }}
-            onSaveWorkflow={() => {
-              const blob = new Blob([shelfWorkflowFile(name, onShelf)], {
-                type: 'application/json',
-              })
-              const url = URL.createObjectURL(blob)
-              const anchor = document.createElement('a')
-              anchor.href = url
-              anchor.download = `${name}.dana-workflow.json`
-              anchor.click()
-              URL.revokeObjectURL(url)
             }}
             onDelete={() => {
               /* Unlabels its folders and keeps them (9.10), but the shelf's

@@ -41,6 +41,7 @@ import type { Executor } from '../database.js'
 import { recordEvent } from '../domain/events.js'
 import { createNativeFacets } from '../domain/facets.js'
 import { recordAccessTransition } from '../domain/folder-access.js'
+import { appendHomeBlock, lastChildPosition } from '../domain/page-tree.js'
 import { upsertReminder } from '../domain/tasks.js'
 import { destroyFolders, destroyTasks } from '../domain/trash.js'
 import { today } from '../time/today.js'
@@ -201,29 +202,33 @@ async function writeFolder(
   userId: string,
   anchor: string,
   folder: SampleFolder,
-): Promise<void> {
+  parentId: string | null = null,
+): Promise<string> {
+  /* A sub-page sits last under its parent (in content order) and gets its
+     `page` block at the end of the parent's Main document, which is
+     page-tree.ts's invariant for a live child of a live parent. The sample
+     is one person's, so the owner's membership below is the only one there
+     is to copy, and createSubPage's copy has nothing to add. */
+  const childPosition = parentId === null ? null : await lastChildPosition(tx, parentId)
   const inserted = await rowsOf(
     tx,
-    sql`INSERT INTO folders (owner_id, name, icon, color, description, deleted_at, created_at)
+    sql`INSERT INTO folders (owner_id, name, icon, color, description, deleted_at,
+                             parent_folder_id, child_position, created_at)
         VALUES (${userId}::uuid, ${folder.name}, ${folder.icon ?? null},
                 ${folder.color ?? null}, ${folder.description ?? null},
-                ${folder.trashed === true ? sql`now()` : sql`NULL`}, ${clock()})
+                ${folder.trashed === true ? sql`now()` : sql`NULL`},
+                ${parentId}::uuid, ${childPosition}, ${clock()})
         RETURNING id`,
   )
   const folderId = String(inserted[0]?.id)
   await register(tx, userId, 'folder', folderId)
-  // 4.18: a folder is on a shelf by the viewer's own membership, held in step
-  // with the shelf's name. One column since issue #247 contracted migration
-  // 0022's expand half: this INSERT stopped naming `folder_members.label` one
-  // release, and migration 0026 dropped that column the next, which is 11.5's
-  // order and not an unfinished rename.
   /* The sample workspace is the new account's own, so its folders are theirs
      to own and to administer: owner plus Full control, with the baseline
-     transition beside it (issue #228). */
+     transition beside it (issue #228). No shelf: the sample's structure is
+     the page tree. */
   await tx.execute(
-    sql`INSERT INTO folder_members (folder_id, user_id, shelf_name, access)
-        VALUES (${folderId}::uuid, ${userId}::uuid, ${folder.shelf ?? null},
-                'full_control')`,
+    sql`INSERT INTO folder_members (folder_id, user_id, access)
+        VALUES (${folderId}::uuid, ${userId}::uuid, 'full_control')`,
   )
   await recordAccessTransition(tx, {
     folderId,
@@ -284,6 +289,10 @@ async function writeFolder(
     folderId,
     detail: 'part of the sample workspace',
   })
+  if (parentId !== null && folder.trashed !== true) {
+    await appendHomeBlock(tx, parentId, folderId)
+  }
+  return folderId
 }
 
 /**
@@ -300,19 +309,17 @@ export async function createSampleWorkspace(
   const anchor = today(zone)
   const clock = sampleClock()
 
-  for (const shelf of SAMPLE_WORKSPACE.shelves) {
-    const made = await rowsOf(
-      tx,
-      sql`INSERT INTO shelves (user_id, name, icon, color, description, created_at)
-          VALUES (${userId}::uuid, ${shelf.name}, ${shelf.icon ?? null},
-                  ${shelf.color ?? null}, ${shelf.description ?? null}, ${clock()})
-          RETURNING id`,
-    )
-    await register(tx, userId, 'shelf', String(made[0]?.id))
+  const pages = new Map<string, string>()
+  for (const page of SAMPLE_WORKSPACE.pages) {
+    pages.set(page.name, await writeFolder(tx, clock, userId, anchor, { ...page, tasks: [] }))
   }
 
   for (const folder of SAMPLE_WORKSPACE.folders) {
-    await writeFolder(tx, clock, userId, anchor, folder)
+    const parentId =
+      folder.parent === undefined || folder.trashed === true
+        ? null
+        : (pages.get(folder.parent) ?? null)
+    await writeFolder(tx, clock, userId, anchor, folder, parentId)
   }
 
   const desk = await rowsOf(
@@ -434,7 +441,8 @@ export async function removeSampleWorkspace(
       fileIds.push(...destroyed.fileIds)
     }
 
-    // Shelves, and the memberships that spelled them on any folder the person
+    // Shelves (accounts provisioned before the sample became a page tree
+    // still have registered ones), and the memberships that spelled them on any folder the person
     // put on one themselves (4.18 holds the two in step).
     const shelves = await rowsOf(
       tx,

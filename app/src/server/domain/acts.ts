@@ -53,8 +53,16 @@ import { inTransaction, pairSet, rowsOf } from '../database.js'
 import type { Executor, IdPair } from '../database.js'
 import { recordEvent } from './events.js'
 import { createNativeFacets } from './facets.js'
-import { recordAccessTransition } from './folder-access.js'
+import { folderActorFacts, mayPerform, recordAccessTransition } from './folder-access.js'
+import { copyParentMembers } from './folders.js'
 import { copyCoverFile, copyPageFile, readableFileScope } from './files.js'
+import {
+  appendHomeBlock,
+  lastChildPosition,
+  lockPageTree,
+  mayAddChildUnder,
+  PAGE_TREE_EDIT_ACTION,
+} from './page-tree.js'
 import { applyDocument, documentMetadata, DocumentRefusal } from './page-document.js'
 import {
   applyWorkflowTaskLabels,
@@ -839,6 +847,13 @@ export async function duplicateTask(
 export type ImportResult =
   | { kind: 'imported'; folders: Array<{ id: string; name: string }> }
   | { kind: 'folder_cap' }
+  /* Only with `parentId` (POST /folders/:id/import), on `createSubPage`'s
+     terms: the parent is missing, trashed or not the actor's (404); below
+     edit rights there (403); a default folder (422); too deep (422). */
+  | { kind: 'parent_not_found' }
+  | { kind: 'forbidden'; reason: string }
+  | { kind: 'default_parent' }
+  | { kind: 'too_deep' }
 
 export async function importWorkflow(
   db: Db,
@@ -849,6 +864,9 @@ export async function importWorkflow(
    * an input of the request rather than a fact the server holds. */
   anchor: string | null = null,
   store?: ObjectStore,
+  /** The page the file's folders become sub-pages of, in file order after
+   * its existing children; absent, they are top-level pages. */
+  parentId?: string,
 ): Promise<ImportResult> {
   const copiedObjects:string[]=[]
   /*
@@ -865,6 +883,18 @@ export async function importWorkflow(
     return sql`now() - interval '60 seconds' + ${tick}::int * interval '1 millisecond'`
   }
   return inTransaction(db, async (tx) => {
+    /* Into a page: `createSubPage`'s gate, under the tree lock taken before
+       anything is read, so a concurrent move cannot deepen or trash the
+       parent between the check and the inserts. */
+    if (parentId !== undefined) {
+      await lockPageTree(tx)
+      const parent = await folderActorFacts(tx, viewerId, parentId)
+      if (parent === null) return { kind: 'parent_not_found' } as const
+      const decision = mayPerform(parent, PAGE_TREE_EDIT_ACTION)
+      if (!decision.allowed) return { kind: 'forbidden', reason: decision.reason } as const
+      if (parent.isDefault) return { kind: 'default_parent' } as const
+      if (!(await mayAddChildUnder(tx, parentId))) return { kind: 'too_deep' } as const
+    }
     await tx.execute(sql`SELECT 1 FROM users WHERE id = ${viewerId} FOR UPDATE`)
     const owned = await rowsOf(
       tx,
@@ -885,10 +915,14 @@ export async function importWorkflow(
        the path it answers with — `folders.<n>.labels` — is the one
        `canonicalWorkflowBody`'s own refusals already use. */
     for (const [folderIndex, folder] of file.folders.entries()) {
+      const childPosition =
+        parentId === undefined ? null : await lastChildPosition(tx, parentId)
       const made = await rowsOf(
         tx,
-        sql`INSERT INTO folders (owner_id, name, created_at)
-            VALUES (${viewerId}::uuid, ${folder.name}, ${clock()})
+        sql`INSERT INTO folders (owner_id, name, created_at,
+                                 parent_folder_id, child_position)
+            VALUES (${viewerId}::uuid, ${folder.name}, ${clock()},
+                    ${parentId ?? null}::uuid, ${childPosition})
             RETURNING id`,
       )
       const folderId = String(made[0]?.id)
@@ -908,6 +942,13 @@ export async function importWorkflow(
         actorId: viewerId,
         transition: 'created_owner',
       })
+      /* Into a page, the new page is a sub-page as `createSubPage` makes one:
+         a home block at the end of the parent's Main document, and the
+         parent's members copied with their presets. */
+      if (parentId !== undefined) {
+        await appendHomeBlock(tx, parentId, folderId)
+        await copyParentMembers(tx, viewerId, parentId, folderId)
+      }
       /* The four native facets, in this same transaction (issue #210, 4.30:
          "natives are created with the Folder and never lazily"). **The
          source's facets do not travel and the file carries none**: a

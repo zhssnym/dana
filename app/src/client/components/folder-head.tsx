@@ -13,9 +13,10 @@ drawn; nothing migrates it.
 a click; the mark opens the icon picker. A viewer below Can edit gets the same
 rows with nothing pressable (issue #228, AC-011): a heading and a glyph.
 
-**The cover is not offered here.** Its one home is the "…" menu (the Quiet
-spec's control map), which opens `FolderCoverDialog` below: images only, no
-gradients. A folder already wearing a gradient still draws it.
+**"Add cover" appears above the title on hover** (round 3, Notion's place for
+it), and only while the page has none; once there is a cover the band's own
+picker changes or removes it. `FolderCoverDialog` below is kept for the
+sidebar's `?folder-action=cover` link.
 */
 import { useState } from 'react'
 
@@ -28,6 +29,8 @@ import {
   usePageIdentity,
 } from '../lib/page-identity.js'
 import { FolderCoverPicker } from './folder-cover.js'
+import { AddCoverAction } from './page-cover.js'
+import { T_FAST } from './task-row.js'
 import { IconPicker } from './page/IconPicker.js'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog.js'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover.js'
@@ -49,6 +52,7 @@ export function FolderHeader({
   onPickIdentity,
   progress,
   actions,
+  coverKey,
 }: {
   readonly name: string
   readonly icon: LucideIcon
@@ -64,13 +68,25 @@ export function FolderHeader({
   /** "3 of 7 done", or null when the folder has no finite work. */
   readonly progress: string | null
   readonly actions: React.ReactNode
+  /** The page's cover storage name; with it, an editor gets "Add cover". */
+  readonly coverKey?: string
 }): React.JSX.Element {
   const [markOpen, setMarkOpen] = useState(false)
   const glyph = (
     <Icon className="size-7" style={{ color }} strokeWidth={1.5} aria-hidden="true" />
   )
   return (
-    <header className="space-y-1 pt-2">
+    <header className="group/head space-y-1 pt-2">
+      {editable && coverKey !== undefined ? (
+        <div
+          className={cn(
+            'opacity-0 transition-opacity group-hover/head:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100',
+            T_FAST,
+          )}
+        >
+          <AddCoverAction storageName={coverKey} />
+        </div>
+      ) : null}
       <div className="flex min-w-0 items-center gap-2">
         {editable ? (
           <Popover open={markOpen} onOpenChange={setMarkOpen}>

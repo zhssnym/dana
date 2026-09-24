@@ -49,11 +49,11 @@ import type { ReactNode } from 'react'
 import {
   Ban,
   Copy,
+  Download,
   FolderInput,
   Folders,
   Fullscreen,
   History,
-  Image,
   Layers3,
   Link2,
   LogOut,
@@ -64,7 +64,6 @@ import {
   SunMedium,
   Trash2,
   UserRoundCheck,
-  Workflow,
 } from './icons.js'
 import type { LucideIcon } from './icons.js'
 
@@ -87,9 +86,6 @@ export type ActKey =
   | 'open'
   | 'history'
   | 'rename'
-  /* Wave 2's page tree: put this page under another page, or back at the top
-     level. The folder page's "…" opens `components/move-page-dialog.tsx`. */
-  | 'move-page'
   /* A new page inside this one. The sidebar row draws it as a "+" under a
      pointer; on a touch screen, which has no hover, it lives in the "…". */
   | 'add-page'
@@ -112,6 +108,8 @@ export type ActKey =
   | 'copy-link'
   | 'duplicate'
   | 'workflow'
+  /* Import a Dana file under this page (round 3). */
+  | 'import'
   | 'abandon'
   | 'restore'
   /* The member's exit from a shared folder (9.6's role matrix). Its group is
@@ -172,21 +170,25 @@ const OBJECT_ACTS: Record<ObjectKind, readonly ActSpec[]> = {
   */
   folder: [
     { key: 'history', label: 'History', icon: History, group: 1 },
+    /* Rename and Add a page inside are the sidebar row's: on the page itself
+       the title is edited in place and `/page` adds a sub-page, so the page
+       passes neither. Tabs… stays until the tab strip's own "+" lands. */
     { key: 'rename', label: 'Rename', icon: Pencil, group: 2 },
     { key: 'add-page', label: 'Add a page inside', icon: Plus, group: 2 },
-    { key: 'move-page', label: 'Move to…', icon: FolderInput, group: 2 },
-    { key: 'move', label: 'Move to collection', icon: Folders, group: 2 },
-    { key: 'cover', label: 'Cover…', icon: Image, group: 2 },
     { key: 'tabs', label: 'Tabs…', icon: Layers3, group: 2 },
     { key: 'copy-link', label: 'Copy link', icon: Link2, group: 3 },
     { key: 'duplicate', label: 'Duplicate', icon: Copy, group: 3 },
-    { key: 'workflow', label: 'Save as workflow', icon: Workflow, group: 3 },
+    /* Notion's pair (round 3): Import brings a file in under this page,
+       Export writes this page to a file. The key keeps its old name so the
+       sidebar's `?folder-action=workflow` deep link still reaches it. */
+    { key: 'import', label: 'Import…', icon: FolderInput, group: 3 },
+    { key: 'workflow', label: 'Export', icon: Download, group: 3 },
     /* Leave and Delete are never offered together: a surface supplies the one
        its viewer's role permits (9.6's matrix), which is the contract's own
        safety property doing the permission work. */
     { key: 'transfer', label: 'Transfer ownership…', icon: UserRoundCheck, group: 4 },
-    { key: 'leave', label: 'Leave folder…', icon: LogOut, group: 4 },
-    { key: 'delete', label: 'Delete folder…', icon: Trash2, group: 5, destructive: true },
+    { key: 'leave', label: 'Leave page…', icon: LogOut, group: 4 },
+    { key: 'delete', label: 'Delete page…', icon: Trash2, group: 5, destructive: true },
   ],
   shelf: [
     { key: 'open', label: 'Open collection', icon: OpenInNewTab, group: 1 },
@@ -198,7 +200,7 @@ const OBJECT_ACTS: Record<ObjectKind, readonly ActSpec[]> = {
        people copy links for most. */
     { key: 'copy-link', label: 'Copy link', icon: Link2, group: 3 },
     { key: 'duplicate', label: 'Duplicate', icon: Copy, group: 3 },
-    { key: 'workflow', label: 'Save as workflow', icon: Workflow, group: 3 },
+    { key: 'workflow', label: 'Export', icon: Download, group: 3 },
     { key: 'delete', label: 'Delete collection…', icon: Trash2, group: 5, destructive: true },
   ],
 }

@@ -1091,18 +1091,21 @@ export function useImportWorkflow(): UseMutationResult<
  * fields so the endpoint can return its existing field-specific 422. A valid
  * timezone is harmless for files that need no anchor and necessary for raw
  * files whose reminder/repeat cannot be inspected without re-validating it.
+ *
+ * With `parentId` the file imports into that page: its folders become the
+ * page's sub-pages (POST /folders/:id/import).
  */
 export function useImportWorkflowFile(): UseMutationResult<
   ImportWorkflowResponse,
   Error,
-  unknown
+  { body: unknown; parentId?: string }
 > {
   return useMutation({
     meta: { [VALIDATION_ERROR_TOAST_META]: true },
-    mutationFn: (body: unknown) =>
+    mutationFn: ({ body, parentId }: { body: unknown; parentId?: string }) =>
       mutateApi(importWorkflowResponse, {
         method: 'POST',
-        path: '/workflows/import',
+        path: parentId === undefined ? '/workflows/import' : `/folders/${parentId}/import`,
         body,
         params: { tz: requestTimezone() },
       }),

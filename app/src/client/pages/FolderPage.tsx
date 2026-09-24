@@ -91,7 +91,6 @@ import {
   useRestoreFolder,
   useShareFacet,
   useTransferOwnership,
-  useUpdateMyMembership,
 } from '../api/mutations.js'
 import {
   mergeCompletedDays,
@@ -102,24 +101,20 @@ import {
   useFolderFacets,
   useFolderPage,
   useFacetPage,
-  useFolders,
-  useShelves,
 } from '../api/queries.js'
 import { getPlain } from '../api/http.js'
 import { queryKeys } from '../api/keys.js'
 import { showToast } from '../state/toasts.js'
 const FolderCanvas = lazy(() => import('../components/page/canvas/FolderCanvas.js'))
 import { PageCover } from '../components/page-cover.js'
-import { PageBreadcrumbs, usePageHasCover } from '../components/page-head.js'
-import { MovePageDialog } from '../components/move-page-dialog.js'
+import { usePageHasCover } from '../components/page-head.js'
 import { FolderCoverDialog, FolderHeader } from '../components/folder-head.js'
 import { markIcon } from '../components/page/icon-manifest.js'
 import { FOLDER_PREFIX } from '../lib/page-identity.js'
 import { IDENTITY_COLOR_FALLBACK } from '../parts/identity-colors.js'
 import { ConsultationPanel } from '../components/consultation/ConsultationPanel.js'
 import { HistorySheet } from '../components/history-sheet.js'
-import { moveToShelfChoice, ObjectMenu } from '../components/object-menu.js'
-import { folderGroupLabels } from '../parts/presenters.js'
+import { ObjectMenu } from '../components/object-menu.js'
 import { Button } from '../components/ui/button.js'
 import {
   Dialog,
@@ -162,6 +157,7 @@ import { paths } from '../routes.js'
 import { FOLDER_ACTION_PARAM } from '../shell/app-sidebar.js'
 import { useReserveRightEdge } from '../components/right-edge.js'
 import { pushUndo, undoLabel } from '../shell/undo.js'
+import { usePageImport } from '../shell/workflow-import.js'
 import { FolderTabs, FolderTabsDialog } from '../components/folder-facets.js'
 import type { CreateFacetInput, FacetCapabilities } from '../components/folder-facets.js'
 import { PageSection } from '../components/page/PageSection.js'
@@ -284,6 +280,7 @@ export function FolderPage({
   const { id: routeId = '' } = useParams<{ id: string }>()
   const id = folderId ?? routeId
   const navigate = useNavigate()
+  const importFile = usePageImport()
   const [search, setSearch] = useSearchParams()
   /* Set as this page is trashed: its reads stop, so the delete's
      invalidation refetches none of them against a 404 while the page is
@@ -324,7 +321,6 @@ export function FolderPage({
   const [renaming, setRenaming] = useState(false)
   const [tabsOpen, setTabsOpen] = useState(false)
   const [coverOpen, setCoverOpen] = useState(false)
-  const [movePageOpen, setMovePageOpen] = useState(false)
   /* The View menu's "Show completed", remembered on this device for every
      folder. A new key, so no existing preference moves. */
   const [showCompleted, setShowCompleted] = useState(readShowCompleted)
@@ -573,34 +569,6 @@ export function FolderPage({
      the owner's delete dialog asks: somebody to hand it to is not the same as
      somebody who is in it. */
   const others = otherMembers(members, basis.viewerId)
-  /* "Move to collection" (a shelf, on screen a Collection), the viewer's own placement (4.18), off the Library's
-     reads so the submenu offers what the sidebar's does. */
-  const libraryFolders = useFolders()
-  const shelves = useShelves()
-  const relabel = useUpdateMyMembership()
-  const myFolderRow = libraryFolders.data?.find((row) => row.id === id)
-  const shelfNames = useMemo(
-    () => folderGroupLabels(libraryFolders.data ?? [], shelves.data ?? []),
-    [libraryFolders.data, shelves.data],
-  )
-  const moveToShelf = (label: string | null): void => {
-    const previous = myFolderRow?.my_shelf ?? null
-    if (previous === label) return
-    const name = detail?.name ?? ''
-    relabel.mutate(
-      { id, body: { shelf: label } },
-      {
-        onSuccess: () => {
-          pushUndo(
-            label === null ? `Took "${name}" off ${previous ?? 'its collection'}` : `Moved "${name}" to ${label}`,
-            () => {
-              relabel.mutate({ id, body: { shelf: previous } })
-            },
-          )
-        },
-      },
-    )
-  }
   /* Issue #205: finite progress counts one-off Tasks only, so a recurring
      Task's endless occurrences never grow the denominator. The header says
      only "N of M done"; `counts` is the fallback for an older server. */
@@ -873,7 +841,7 @@ export function FolderPage({
       dependencies = waits.dependencies
       purposePage = purposeDocument
     } catch {
-      showToast('Could not read this folder’s reusable content, so nothing was saved.')
+      showToast('Could not read this page, so nothing was exported.')
       return
     }
     const saved = folderToWorkflowFile(
@@ -892,7 +860,7 @@ export function FolderPage({
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement('a')
     anchor.href = url
-    anchor.download = `${detail?.name ?? 'folder'}.dana-workflow.json`
+    anchor.download = `${detail?.name ?? 'page'}.dana.json`
     anchor.click()
     URL.revokeObjectURL(url)
     /* A download that starts silently reads as nothing happening; the toast
@@ -912,7 +880,7 @@ export function FolderPage({
     const missing =
       saved.omitted === 0
         ? ''
-        : ` ${String(saved.omitted)} ${saved.omitted === 1 ? 'picture, file or folder link is' : 'pictures, files and folder links are'} not included.`
+        : ` ${String(saved.omitted)} ${saved.omitted === 1 ? 'picture, file or page link is' : 'pictures, files and page links are'} not included.`
     /* And the finished work.
 
        The line above this function filters the page's Tasks to the pending
@@ -928,7 +896,7 @@ export function FolderPage({
         ? ''
         : ` ${String(saved.withheldTasks)} completed ${saved.withheldTasks === 1 ? 'task is' : 'tasks are'} not included.`
     showToast(
-      `"${detail?.name ?? 'Folder'}" saved as a workflow file. Import it from the sidebar.${missing}${finished}`,
+      `Exported "${detail?.name ?? 'Page'}".${missing}${finished}`,
     )
   }
 
@@ -1098,15 +1066,6 @@ export function FolderPage({
           history: () => {
             setHistoryOpen(true)
           },
-          /* Edit rights on the page (the location route's own bar), and never
-             Desk, which the schema keeps at the top level. */
-          'move-page':
-            gates?.identity === true && !isDefault ? () => setMovePageOpen(true) : undefined,
-          move:
-            isDefault || myFolderRow === undefined
-              ? undefined
-              : moveToShelfChoice(shelfNames, myFolderRow.my_shelf, moveToShelf),
-          cover: gates?.identity === true ? () => setCoverOpen(true) : undefined,
           tabs: () => setTabsOpen(true),
           'copy-link': () => {
             void navigator.clipboard.writeText(folderLink(id))
@@ -1120,6 +1079,14 @@ export function FolderPage({
               },
             })
           },
+          /* Import lands under this page, so it needs edit rights here and
+             never runs on the Desk, which takes no sub-pages. */
+          import:
+            gates?.identity === true && !isDefault
+              ? () => {
+                  importFile(id)
+                }
+              : undefined,
           workflow: () => {
             void saveAsWorkflow()
           },
@@ -1158,11 +1125,10 @@ export function FolderPage({
             <div className="-mt-4 md:-mt-6">
               {/* A viewer below Can edit reads the band and is offered nothing
                   on it (AC-011, AC-193). */}
-              <PageCover storageName={coverKey} readOnly={gates?.identity !== true} pickerInMenu />
+              <PageCover storageName={coverKey} readOnly={gates?.identity !== true} />
             </div>
           ) : null}
           <PageSection name="Folder header">
-            <PageBreadcrumbs ancestors={detail?.ancestors} />
             <FolderHeader
               name={detail?.name ?? ''}
               icon={markIcon(detail?.icon ?? null)}
@@ -1180,6 +1146,7 @@ export function FolderPage({
               }}
               progress={progressFact}
               actions={headerActions}
+              coverKey={coverKey}
             />
           </PageSection>
 
@@ -1315,11 +1282,6 @@ export function FolderPage({
         />
       ) : null}
       <FolderCoverDialog storageName={coverKey} open={coverOpen} onOpenChange={setCoverOpen} />
-      <MovePageDialog
-        open={movePageOpen}
-        onOpenChange={setMovePageOpen}
-        page={{ id, name: detail?.name ?? '' }}
-      />
 
       {sharing && detail !== undefined ? (
         <FolderSharingPanel
