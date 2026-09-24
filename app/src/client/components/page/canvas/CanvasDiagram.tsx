@@ -43,7 +43,7 @@ export function DiagramPicture({ source }: { readonly source: string }): React.J
         ))}
         {layout.nodes.map((node) => (
           <g key={node.id}>
-            <rect x={node.x} y={node.y} width={node.w} height={node.h} rx={8} className="fill-card stroke-border" strokeWidth={1} />
+            <rect x={node.x} y={node.y} width={node.w} height={node.h} className="fill-card stroke-border" style={{ rx: 'var(--radius-lg)' }} strokeWidth={1} />
             <text x={node.x + node.w / 2} y={node.y + node.h / 2} dominantBaseline="central" textAnchor="middle" className="fill-foreground text-sm">{node.label}</text>
           </g>
         ))}

@@ -82,7 +82,7 @@
 .dana-writing-canvas [data-canvas-task-done] { padding-block: 2px; }
 .dana-writing-canvas [data-canvas-task-done] a { color: var(--muted-foreground); text-decoration: none; }
 .dana-writing-canvas [data-canvas-task-done] a:hover { text-decoration: underline; }
-.dana-writing-canvas [data-canvas-task-refused] { outline: 2px solid var(--destructive); outline-offset: 2px; border-radius: 4px; }
+.dana-writing-canvas [data-canvas-task-refused] { outline: 2px solid var(--destructive); outline-offset: 2px; border-radius: var(--radius-sm); }
 .dana-writing-canvas .bn-drag-handle-menu { font-size: var(--text-body-size); line-height: var(--text-body-line); }
 .dana-writing-canvas img { max-width: 100%; height: auto; }
 @media (max-width: 480px) {

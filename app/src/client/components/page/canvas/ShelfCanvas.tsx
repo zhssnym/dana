@@ -61,6 +61,9 @@ interface Props {
   readonly onAddFolder: (folderId: string) => Promise<void>
   readonly onRemoveFolder: (folderId: string) => Promise<void>
   readonly onCreateFolder: () => void
+  /** False while the shelf or its folders refetch. A rename relabels both, and
+      between the two answers the membership reads empty. */
+  readonly settled: boolean
 }
 
 const NO_REFS: ReadonlyMap<string, string> = new Map()
@@ -108,7 +111,7 @@ function ShelfSession(props: Props & { readonly initialPage: PageView; readonly 
   return <div ref={host} className="min-w-0">{width === null ? <p role="status">Loading writing…</p> : <ShelfEditor {...props} width={width} />}</div>
 }
 
-function ShelfEditor({ shelfId, page, initialPage, folders, addableFolders, folderHref, onOpenFolder, onAddFolder, onRemoveFolder, onCreateFolder, onCheckpoint, width }: Props & {
+function ShelfEditor({ shelfId, page, initialPage, folders, addableFolders, folderHref, onOpenFolder, onAddFolder, onRemoveFolder, onCreateFolder, onCheckpoint, width, settled }: Props & {
   readonly initialPage: PageView
   readonly onCheckpoint: (page: PageView) => void
   readonly width: number
@@ -188,9 +191,28 @@ function ShelfEditor({ shelfId, page, initialPage, folders, addableFolders, fold
     return created
   })
   const draftKey = `dana-canvas-draft:shelf:${shelfId}`
+  /* A draft left by an earlier visit (or by Load latest) moves to its own key on
+     mount, so this visit's first keystroke cannot overwrite it; it is offered
+     until dismissed. Two unsaved drafts are both kept. */
+  const recoveredKey = `dana-canvas-recovered:shelf:${shelfId}`
   useEffect(() => {
-    try { setPreviousDraft(sessionStorage.getItem(draftKey)) } catch { /* storage is optional */ }
-  }, [draftKey])
+    try {
+      const draft = sessionStorage.getItem(draftKey)
+      if (draft !== null) {
+        const held = sessionStorage.getItem(recoveredKey)
+        let next = draft
+        if (held !== null) {
+          try {
+            const list: unknown = JSON.parse(held)
+            next = JSON.stringify([...(Array.isArray(list) ? list : [list]), JSON.parse(draft)])
+          } catch { next = JSON.stringify([held, draft]) }
+        }
+        sessionStorage.setItem(recoveredKey, next)
+        sessionStorage.removeItem(draftKey)
+      }
+      setPreviousDraft(sessionStorage.getItem(recoveredKey))
+    } catch { /* storage is optional */ }
+  }, [draftKey, recoveredKey])
   useEffect(() => {
     if (writer.state === 'saved') return
     const warn = (event: BeforeUnloadEvent): void => { event.preventDefault(); event.returnValue = '' }
@@ -202,10 +224,12 @@ function ShelfEditor({ shelfId, page, initialPage, folders, addableFolders, fold
     const timer = window.setTimeout(() => { void writer.flush() }, 450)
     return () => window.clearTimeout(timer)
   }, [writer, writer.state, writer.latest])
+  // Leaving inside the autosave delay (a folder row, another tab), or mid-save, still saves.
+  useEffect(() => () => { void writer.drain() }, [writer])
   useEffect(() => {
     if (!page.revision || page.revision === writer.revision || writer.state === 'saving') return
     if (writer.state === 'saved') onCheckpoint(page)
-    else setError('This shelf changed elsewhere. Your writing is retained. Download it and load the latest shelf before continuing.')
+    else setError('This shelf changed elsewhere. Your writing is kept here. Load the latest to continue; your writing will be offered back.')
   }, [page, writer, onCheckpoint])
 
   // The Folder-row guard. Runs beside the canvas's own (`installCanvasGuard`).
@@ -276,9 +300,10 @@ function ShelfEditor({ shelfId, page, initialPage, folders, addableFolders, fold
      New folder…, the sidebar drag): an arrival is placed at the root after the
      content, a departure's row goes. */
   useEffect(() => {
+    if (!settled) return
     for (const folderId of memberIds) place(folderId, null)
     for (const folderId of folderIdsOf(editor.document)) if (!memberIds.has(folderId)) unplace(folderId)
-  }, [memberIds])
+  }, [memberIds, settled])
 
   async function add(folderId: string): Promise<void> {
     const at = anchor.current
@@ -307,7 +332,8 @@ function ShelfEditor({ shelfId, page, initialPage, folders, addableFolders, fold
     download(JSON.stringify({ shelfId, revision: writer.revision, blocks: editor.document }, null, 2), `dana-writing-shelf-${shelfId}.json`)
   }
   async function loadLatest(): Promise<void> {
-    copyDraft()
+    // The remount moves this draft to the recovered slot and offers it back.
+    try { sessionStorage.setItem(draftKey, JSON.stringify({ shelfId, revision: writer.revision, blocks: editor.document })) } catch { copyDraft() }
     try {
       const latest = await getPlain(getPageResponse, `/shelves/${shelfId}/page`)
       queryClient.setQueryData(queryKeys.shelfPage(shelfId), latest)
@@ -323,10 +349,10 @@ function ShelfEditor({ shelfId, page, initialPage, folders, addableFolders, fold
   const bridge = useMemo(() => ({ byId: new Map(folders.map((folder) => [folder.id, folder])), href: folderHref, open: onOpenFolder }), [folders, folderHref, onOpenFolder])
   const feedback = error || (writer.state === 'failed' ? writer.error instanceof Error ? writer.error.message : 'Could not save. Your writing is retained.' : '')
   return <>
-    {previousDraft !== null && writer.state === 'saved' ? <div role="status" className="mb-3 text-sm text-muted-foreground">
-      Writing from an earlier visit in this tab did not finish saving.
-      <Button variant="ghost" onClick={() => download(previousDraft, `dana-recovered-shelf-${shelfId}.json`)}>Download previous draft</Button>
-      <Button variant="ghost" onClick={() => { try { sessionStorage.removeItem(draftKey) } catch { /* optional */ } setPreviousDraft(null) }}>Dismiss</Button>
+    {previousDraft !== null ? <div role="status" className="mb-3 text-sm text-muted-foreground">
+      Unsaved writing from before is kept.
+      <Button variant="ghost" onClick={() => download(previousDraft, `dana-recovered-shelf-${shelfId}.json`)}>Download writing</Button>
+      <Button variant="ghost" onClick={() => { try { sessionStorage.removeItem(recoveredKey) } catch { /* optional */ } setPreviousDraft(null) }}>Discard</Button>
     </div> : null}
     <CanvasFolderProvider value={bridge}>
       <CanvasSurface
@@ -376,7 +402,7 @@ function ShelfEditor({ shelfId, page, initialPage, folders, addableFolders, fold
     </DropdownMenu>
     <div role="status" aria-live="polite" className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
       {feedback || notice || (writer.state === 'saving' ? 'Saving…' : writer.state === 'changed' ? 'Unsaved writing' : 'Saved')}
-      {feedback ? <><Button variant="outline" onClick={() => { void writer.retry() }} disabled={!writer.pending}>Retry save</Button><Button variant="ghost" onClick={copyDraft}>Download writing</Button><Button variant="ghost" onClick={() => { void loadLatest() }}>Download writing and load latest</Button></> : null}
+      {feedback ? <><Button variant="outline" onClick={() => { void writer.retry() }} disabled={!writer.pending}>Retry save</Button><Button variant="ghost" onClick={copyDraft}>Download writing</Button><Button variant="ghost" onClick={() => { void loadLatest() }}>Load latest</Button></> : null}
     </div>
   </>
 }

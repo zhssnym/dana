@@ -48,8 +48,8 @@ function CanvasFolder({ folderId }: { readonly folderId: string }): React.JSX.El
       )}
     >
       <Glyph className="size-4 shrink-0" style={{ color: folder.color }} strokeWidth={1.75} aria-hidden="true" />
-      <span className="min-w-0 flex-1 truncate text-[14px] leading-5 text-[var(--color-graphite-800)]">{folder.name}</span>
-      {folder.pending ? <span className="shrink-0 text-[12px] leading-4 text-[var(--color-graphite-500)] tabular-nums">{folder.pending}</span> : null}
+      <span className="min-w-0 flex-1 truncate text-[length:var(--text-body-size)] leading-5 text-[var(--color-graphite-800)]">{folder.name}</span>
+      {folder.pending ? <span className="shrink-0 text-[length:var(--text-meta-size)] leading-4 text-[var(--color-graphite-500)] tabular-nums">{folder.pending}</span> : null}
     </a>
   )
 }
