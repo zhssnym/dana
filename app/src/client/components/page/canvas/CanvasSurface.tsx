@@ -253,7 +253,7 @@ export function CanvasSurface({
         sideMenu={false}
         filePanel={false}
         onChange={() => { onNotice(''); onChange(editor) }}
-        aria-label={label ?? (onCreateTask === undefined ? 'Folder writing' : 'Folder writing and Tasks')}
+        aria-label={label ?? (onCreateTask === undefined ? 'Page writing' : 'Page writing and tasks')}
       >
         <FormattingToolbarController formattingToolbar={CanvasFormattingToolbar} />
         <FilePanelController
@@ -271,8 +271,8 @@ export function CanvasSurface({
     <AlertDialog open={referenceToConvert !== null} onOpenChange={(open) => { if (!open) setReferenceToConvert(null) }}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Turn this folder link into a task?</AlertDialogTitle>
-          <AlertDialogDescription>The link to the folder is removed, and a task is made with the link text as its title.</AlertDialogDescription>
+          <AlertDialogTitle>Turn this page link into a task?</AlertDialogTitle>
+          <AlertDialogDescription>The link to the page is removed, and a task is made with the link text as its title.</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>

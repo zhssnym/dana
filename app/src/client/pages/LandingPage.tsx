@@ -8,7 +8,7 @@ the claim rule failing by illustration. No rotating words, no scroll-in.
 
 **The claim rule is the one to watch, and it is broken by addition.** 9.2 says
 the page may name no capability Dana does not ship, and no copy claims AI
-(AC-159). The sentence names folders and says the work is shared.
+(AC-159). The sentence names pages and says the work is shared.
 
 **There is one "Continue with Google", and it is a link.** It carries the
 viewer's detected timezone to 7.1's authorisation endpoint, which is how a
@@ -72,11 +72,11 @@ export function LandingPage(): React.JSX.Element {
 
       <main className="flex flex-1 items-center px-4 pb-16">
         <div className="mx-auto w-full max-w-[640px]">
-          <h1 className="text-4xl leading-tight font-title text-balance sm:text-5xl">
+          <h1 className="text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-title text-balance">
             Your projects, in one quiet place.
           </h1>
           <p className="mt-4 text-sm text-muted-foreground">
-            Each project is a folder: a page of writing and tasks you work through, shared with the
+            Each project is a page: writing and tasks you work through, shared with the
             people doing it.
           </p>
 

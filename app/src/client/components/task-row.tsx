@@ -153,7 +153,7 @@ export function MergeBadge({ armed }: { armed: boolean }) {
         />
       </span>
       <span className="text-xs font-medium whitespace-nowrap">
-        {armed ? "Release to make a folder" : "Hold to make a folder"}
+        {armed ? "Release to make a page" : "Hold to make a page"}
       </span>
     </span>
   )
@@ -180,7 +180,7 @@ export type PendingAction =
    replaces. Nothing starts disabled. */
 export function suggestFolderName(pending: PendingAction) {
   if (pending.kind === "promote") return pending.title
-  if (pending.kind !== "merge") return "New folder"
+  if (pending.kind !== "merge") return "New page"
 
   /* The longest word both titles share, if there is one. "Book the venue" and
      "Pay the venue deposit" are obviously a venue folder, and a person who is
@@ -194,7 +194,7 @@ export function suggestFolderName(pending: PendingAction) {
   const first = words(pending.titles[0] ?? "")
   const shared = words(pending.titles[1] ?? "").filter((word) => first.includes(word))
   const best = shared.sort((a, b) => b.length - a.length)[0]
-  return best ? best.charAt(0).toUpperCase() + best.slice(1) : "New folder"
+  return best ? best.charAt(0).toUpperCase() + best.slice(1) : "New page"
 }
 
 export function PendingPanel({
@@ -242,7 +242,7 @@ export function PendingPanel({
 
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-foreground">
-            {destroys ? "Turn this task into a folder" : "New folder"}
+            {destroys ? "Turn this task into a page" : "New page"}
           </p>
           <p className="mt-0.5 text-xs text-muted-foreground">
             {destroys
@@ -259,8 +259,8 @@ export function PendingPanel({
               if (event.key === "Enter" && name.trim()) onConfirm(name.trim())
               if (event.key === "Escape") onCancel()
             }}
-            placeholder="Folder name"
-            aria-label="Folder name"
+            placeholder="Page name"
+            aria-label="Page name"
             className={cn(
               "mt-2.5 h-9 w-full rounded-sm border border-border bg-background px-2.5 text-sm text-foreground outline-none",
               "placeholder:text-muted-foreground focus-visible:border-primary",
@@ -308,7 +308,7 @@ export function PendingPanel({
           )}
         >
           <FolderPlus className="size-3.5" strokeWidth={2} aria-hidden="true" />
-          {destroys ? "Convert" : "Create folder"}
+          {destroys ? "Convert" : "Create page"}
         </button>
       </div>
     </div>

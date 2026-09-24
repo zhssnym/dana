@@ -21,7 +21,7 @@ function Reference({ href, kind, id }: { readonly href: string; readonly kind: '
     },
   })
   if (!query.data) return null
-  return <Link to={href} className="mt-1 inline-flex max-w-full items-center gap-2 rounded-md bg-muted px-2 py-1 text-sm text-foreground"><span className="text-xs text-muted-foreground">{kind === 'folders' ? 'Folder' : 'Task'}</span><span className="truncate">{query.data}</span></Link>
+  return <Link to={href} className="mt-1 inline-flex max-w-full items-center gap-2 rounded-md bg-muted px-2 py-1 text-sm text-foreground"><span className="text-xs text-muted-foreground">{kind === 'folders' ? 'Page' : 'Task'}</span><span className="truncate">{query.data}</span></Link>
 }
 
 function LinkPreview({ href }: { readonly href: string }): React.JSX.Element | null {

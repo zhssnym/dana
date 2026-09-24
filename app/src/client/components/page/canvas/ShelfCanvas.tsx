@@ -245,11 +245,11 @@ function ShelfEditor({ shelfId, page, initialPage, folders, folderHref, onOpenFo
     const had = new Set(before)
     const has = new Set(after)
     const failure = before.some((id) => !has.has(id) && !sanctioned.current.has(id))
-      ? 'A folder leaves this collection only through Remove from collection, in its row\'s menu. Select only the writing to delete it.'
+      ? 'A page leaves this collection only through Remove from collection, in its row\'s menu. Select only the writing to delete it.'
       : after.length !== new Set(after).size
-        ? 'A folder can be placed in a collection once.'
+        ? 'A page can be placed in a collection once.'
         : after.some((id) => !had.has(id) && !members.current.has(id) && !sanctioned.current.has(id))
-          ? 'That folder is no longer in this collection. Move it here from the sidebar.'
+          ? 'That page is no longer in this collection. Move it here from the sidebar.'
           : null
     if (failure === null) return
     setNotice(failure)
@@ -312,7 +312,7 @@ function ShelfEditor({ shelfId, page, initialPage, folders, folderHref, onOpenFo
     try {
       await onRemoveFolder(folderId)
       unplace(folderId)
-    } catch (failure) { setError(failure instanceof Error ? failure.message : 'The folder could not be removed. Try again.') }
+    } catch (failure) { setError(failure instanceof Error ? failure.message : 'The page could not be removed. Try again.') }
   }
 
   function download(content: string, name: string): void {
@@ -349,7 +349,7 @@ function ShelfEditor({ shelfId, page, initialPage, folders, folderHref, onOpenFo
         editor={editor}
         onChange={changed}
         folderRefs={NO_REFS}
-        label="Collection writing and folders"
+        label="Collection writing and pages"
         flatGroups
         onUploadFile={uploadCanvasFile}
         onRemoveFolder={(folderId) => { void remove(folderId) }}

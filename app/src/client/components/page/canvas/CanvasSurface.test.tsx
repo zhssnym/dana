@@ -90,8 +90,8 @@ describe('Turn into › Task from the canvas block menu', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Task' }))
 
     const warning = screen.getByRole('alertdialog')
-    expect(within(warning).getByText('Turn this folder link into a task?')).toBeTruthy()
-    expect(within(warning).getByText('The link to the folder is removed, and a task is made with the link text as its title.')).toBeTruthy()
+    expect(within(warning).getByText('Turn this page link into a task?')).toBeTruthy()
+    expect(within(warning).getByText('The link to the page is removed, and a task is made with the link text as its title.')).toBeTruthy()
     expect(onCreateTask).not.toHaveBeenCalled()
 
     fireEvent.click(within(warning).getByRole('button', { name: 'Cancel' }))

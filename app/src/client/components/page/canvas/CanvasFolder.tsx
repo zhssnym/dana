@@ -33,7 +33,7 @@ function CanvasFolder({ folderId }: { readonly folderId: string }): React.JSX.El
   const folder = bridge?.byId.get(folderId)
   const Glyph = markIcon(folder?.icon ?? null)
   if (bridge === null || folder === undefined) {
-    return <p contentEditable={false} className="py-2 text-sm text-muted-foreground">This folder is unavailable.</p>
+    return <p contentEditable={false} className="py-2 text-sm text-muted-foreground">This page is unavailable.</p>
   }
   return (
     <a

@@ -52,7 +52,7 @@ let latest = 0
  */
 export async function pageSuggestionItems(editor: CanvasEditor, query: string, quiet = false): Promise<DefaultReactSuggestionItem[]> {
   const q = query.trim()
-  if (q.length < 2) return quiet ? [] : [hint('Type to link a Task, Folder, Collection, Purpose, Results or Discussion')]
+  if (q.length < 2) return quiet ? [] : [hint('Type to link a Task, Page, Collection, Purpose, Results or Discussion')]
   const mine = ++latest
   await new Promise((resolve) => setTimeout(resolve, 150))
   // Never [] here: BlockNote closes the menu on an empty answer.
@@ -89,7 +89,7 @@ export async function pageSuggestionItems(editor: CanvasEditor, query: string, q
 export function linkSlashItem(editor: CanvasEditor): DefaultReactSuggestionItem {
   return {
     title: 'Link to…',
-    subtext: 'A Task, Folder, Collection or Discussion',
+    subtext: 'A Task, Page, Collection or Discussion',
     icon: <Link2 size={16} />,
     aliases: ['link', 'mention', 'reference', '@'],
     group: 'Basic blocks',
