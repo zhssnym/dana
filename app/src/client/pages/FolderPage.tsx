@@ -935,9 +935,15 @@ export function FolderPage({
   */
   const ranAction = useRef(false)
   useEffect(() => {
-    if (ranAction.current) return
     const action = search.get(FOLDER_ACTION_PARAM)
-    if (action === null) return
+    /* The page is not remounted between folders, so the guard re-arms once
+       the address has dropped the act: the next act (a second page added
+       from the Library, say) still runs. */
+    if (action === null) {
+      ranAction.current = false
+      return
+    }
+    if (ranAction.current) return
     if (detail === undefined) return
     /* And for the viewer's own membership row, for the same reason: three of
        the five acts below are gated on the preset it carries, and a gate

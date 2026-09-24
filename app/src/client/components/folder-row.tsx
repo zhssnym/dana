@@ -17,8 +17,11 @@ picker's contents, which belong to the surface.
 **A page in a tree** (wave 2): `depth` indents it under its parent, and a page
 with children carries a fold. The fold is its mark turned into a chevron under
 the pointer, in the same box, the way a collection heading folds, so nothing
-shifts. The one other control is the "+" beside the "…", shown on hover or
-focus, which adds a page inside this one. `children` is the page's own rows,
+shifts. The one other control is the "+" beside the "…", which adds a page
+inside this one. It is mounted only while the row is under the pointer or holds
+focus, in space the row always reserves, so it is not one more control on every
+row and nothing shifts when it appears; a touch screen has no hover, so there
+the same act is an item in the "…". `children` is the page's own rows,
 drawn inside its item so that carrying a page carries its subtree.
 */
 import { useEffect, useRef, useState } from 'react'
@@ -79,6 +82,11 @@ export interface FolderRowProps {
   children?: ReactNode
 }
 
+/* A device with no hover (touch): read once, as the row mounts. */
+function noHover(): boolean {
+  return typeof window !== 'undefined' && window.matchMedia('(hover: none)').matches
+}
+
 /* A row's indent in spacing steps: the row's own padding, or a collection's
    step, then four steps per level of the tree. */
 function indentOf(nested: boolean, depth: number): string {
@@ -110,7 +118,15 @@ export function FolderRow({
   seeThrough = false,
   children,
 }: FolderRowProps) {
-  const hasActions = Object.values(acts).some((act) => act !== undefined)
+  const [touch] = useState(noHover)
+  /* Under the pointer or holding focus: when the "+" is drawn. */
+  const [hovered, setHovered] = useState(false)
+  const [focused, setFocused] = useState(false)
+  const near = hovered || focused
+  const addInMenu = touch && onAddInside !== undefined
+  const addButton = !touch && onAddInside !== undefined
+  const menuActs: ActHandlers = addInMenu ? { ...acts, 'add-page': onAddInside } : acts
+  const hasActions = Object.values(menuActs).some((act) => act !== undefined)
   const menuTrigger = useRef<HTMLButtonElement>(null)
   /*
   The carried row follows the pointer with no easing (any easing reads as lag);
@@ -158,6 +174,16 @@ export function FolderRow({
     >
       <div
         data-page-row={pageId}
+        onPointerEnter={addButton ? () => setHovered(true) : undefined}
+        onPointerLeave={addButton ? () => setHovered(false) : undefined}
+        onFocus={addButton ? () => setFocused(true) : undefined}
+        onBlur={
+          addButton
+            ? (event) => {
+                if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false)
+              }
+            : undefined
+        }
         className={cn(
           'group/folder-row relative rounded-md',
           dimmed && 'opacity-50',
@@ -176,9 +202,9 @@ export function FolderRow({
           style={{ paddingLeft: indentOf(nested, depth) }}
           className={cn(
             'h-(--shell-sidebar-row-height) gap-2 rounded-md px-2 text-sm font-normal text-muted-foreground hover:bg-sidebar-accent hover:text-foreground group-hover/folder-row:bg-sidebar-accent data-active:bg-sidebar-accent data-active:font-medium data-active:text-foreground',
-            hasActions && onAddInside !== undefined
+            hasActions && addButton
               ? 'pr-14'
-              : (hasActions || onAddInside !== undefined) && 'pr-8',
+              : (hasActions || addButton) && 'pr-8',
           )}
         >
           <Mark
@@ -217,7 +243,7 @@ export function FolderRow({
           </button>
         )}
 
-        {hasActions || onAddInside !== undefined ? (
+        {hasActions || addButton ? (
           /* Opacity and never a collapsed box: a control with an empty box
              cannot be addressed. `data-no-drag`: a press here is not the grip. */
           <div
@@ -239,22 +265,28 @@ export function FolderRow({
                     aria-label={MORE_ACTIONS}
                   />
                 }
-                handlers={acts}
+                handlers={menuActs}
               />
             ) : null}
-            {onAddInside === undefined ? null : (
+            {addButton && near ? (
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
-                onClick={onAddInside}
+                onClick={(event) => {
+                  /* The press is spent: focus must not stay here, where Enter
+                     or Space would add another page. The new page's name
+                     field takes it. */
+                  event.currentTarget.blur()
+                  onAddInside()
+                }}
                 className="size-6 rounded-sm text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
                 aria-label="Add a page inside"
                 title="Add a page inside"
               >
                 <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" />
               </Button>
-            )}
+            ) : null}
           </div>
         ) : null}
 
