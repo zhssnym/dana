@@ -589,6 +589,23 @@ const TABLE = new Map<string, Row>([
     },
   ],
   [
+    'PATCH /api/v1/folders/:id/location',
+    {
+      /* Wave 2's page-tree move. To the top level, so the path id is the only
+         id in play: the body ids (`parent_folder_id`, `after_id`) are
+         invisible to this sweep and are AC-1014's. No member variant:
+         `fx.member` holds Can edit, which is what a move needs. */
+      attempt: (fx) => ({
+        path: `/folders/${fx.folderId}/location`,
+        body: { parent_folder_id: null },
+      }),
+      stranger: {
+        expected: 404,
+        rule: 'wave 2: moving a page edits it, and a non-member sees nothing, so 404 before the body is read',
+      },
+    },
+  ],
+  [
     'PATCH /api/v1/folders/:id/my-membership',
     {
       attempt: (fx) => ({

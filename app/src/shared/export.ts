@@ -115,7 +115,14 @@ open with an export change on it, checked at the time of writing.
 **6 to 7 on 2026-09-24, for issue #221.** Every task gains `document`, the
 Task's own blocks. Read the next number off the open branches, as above.
 */
-export const EXPORT_VERSION = 7
+/*
+**7 to 8 on 2026-09-24, wave 2 (pages in pages).** Every folder gains
+`parent_folder_id`, null when the parent is not in this document. A `page`
+block (a child page's home in its parent's document) arrives with the
+document ops; workflow files will carry it as a link. Read the next number off
+the open branches, as above.
+*/
+export const EXPORT_VERSION = 8
 
 /**
  * 10.3's "List responses capped at 1000 rows with truncated flag", applied
@@ -299,6 +306,9 @@ export const exportFolder = z.object({
   id: z.uuid(),
   name: z.string(),
   is_default: z.boolean(),
+  /** Version 8: the page this one sits under, when that page is in this
+   * document too; null for a root or a parent the export does not carry. */
+  parent_folder_id: z.uuid().nullable(),
   icon: z.string().nullable(),
   color: z.string().nullable(),
   description: z.string().nullable(),
