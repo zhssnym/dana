@@ -3,7 +3,7 @@ The foot of a milestone in the queue: type a step, Enter adds it (not started)
 and keeps the caret here for the next one, Esc clears.
 */
 import { useState } from 'react'
-import { Plus } from 'lucide-react'
+import { Plus } from '../../lib/icons.js'
 import { cn } from '../../components/ui/utils.js'
 
 export function NewStep(props: {

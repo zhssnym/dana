@@ -53,7 +53,7 @@ import {
   Folder as FolderIcon,
   Plus,
   Repeat2,
-} from 'lucide-react'
+} from '../../lib/icons.js'
 
 import { usePlannedCalendarView, useFolders } from '../../api/queries.js'
 import { useUpdateTask } from '../../api/mutations.js'

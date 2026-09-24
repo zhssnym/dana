@@ -129,8 +129,7 @@ import {
 import { DropdownMenuCheckboxItem } from '../components/ui/dropdown-menu.js'
 /* The empty-state icon goes to `PageBody`, whose `StateIcon` is typed on the
    raw lucide component. */
-import { Folder as FolderIcon } from 'lucide-react'
-import { CheckCircle2 } from '../lib/icons.js'
+import { CheckCircle2, Folder as FolderIcon } from '../lib/icons.js'
 
 import type { RowContext } from '../parts/presenters.js'
 import { useRowActions } from '../parts/useRowActions.js'
