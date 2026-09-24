@@ -170,8 +170,11 @@ run, and a record from a dirty tree describes something that isn't the commit.
 - **Connection reset.** You see `read ECONNRESET`, or a route logs
   `Connection terminated unexpectedly`. `app/db/client.ts` has `'error'` listeners on the pool
   and on checked-out clients, so a reset socket now drops one connection instead of killing the
-  worker; the seam logs `database_connection_lost`. If a whole file is still lost to this, it's
-  something new: re-run it alone, then investigate.
+  worker; the seam logs `database_connection_lost`. A whole file lost at its start, every test
+  skipped, is a connection the server refused with a FATAL (a missing database, too many
+  clients): on Windows the backend's exit can reset the socket before the client reads the
+  FATAL. So never connect to a database that may not exist; ask `pg_database` from the base
+  database, as `app/tests/support/postgres-leg-admin.ts` does.
 - **Two clocks in two zones.** A date comparison is red for an hour or two every evening. The
   server read one timezone (the database session's `current_date`, or the viewer's `tz`) and the
   test read UTC. Force the zone to tell them apart: `TZ=UTC` settles PGlite, but on Postgres the
