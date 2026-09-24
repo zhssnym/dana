@@ -17,7 +17,7 @@ import { isoDay } from "../../tasks/task-model.js"
 import { cn } from "./utils.js"
 
 const FOCUS =
-  "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+  "outline-none"
 
 const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]
 function startOfDayLocal(date: Date) {
