@@ -275,7 +275,7 @@ function writeStorage(key: string, value: string | null): void {
 }
 
 // The page's one hint, shown on an empty Work tab unfocused too, as on a page.
-const PLACEHOLDER = "Type '/' for commands"
+const PLACEHOLDER = "Press '/' for commands"
 
 export default function TaskComposer({ taskId, folderId, notes }: {
   readonly taskId: string

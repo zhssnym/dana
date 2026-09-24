@@ -201,7 +201,7 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
   }
 
   // One hint everywhere, the one the focused empty line shows too (canvas.css).
-  const placeholder = "Type '/' for commands"
+  const placeholder = "Press '/' for commands"
   const editor = useCreateBlockNote({
     schema: canvasSchema,
     dictionary: { ...en, placeholders: { ...en.placeholders, emptyDocument: placeholder, default: placeholder } },
