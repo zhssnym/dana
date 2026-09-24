@@ -552,7 +552,7 @@ function reminderRefusal(
 ): ReminderRefusal | null {
   const field = mode.offsetMinutes !== null ? 'offset_minutes' : 'time_of_day'
   if (dueDate === null) {
-    return { field, problem: 'requires a due_date on the task (INV-6)' }
+    return { field, problem: 'requires a due_date on the task' }
   }
   if (mode.offsetMinutes !== null && dueTime === null) {
     return {

@@ -229,7 +229,7 @@ describe('AC-825 export, import, export again, and the bytes are the same', () =
 
     expect(
       JSON.stringify(second.file, null, 2),
-      'the file the importing account writes back is the file it was given, byte for byte, less the one thing that is a record of loss rather than content: format 4 carries no id and no timestamp, so nothing else in it is allowed to differ between two accounts (#185)',
+      'the file the importing account writes back is the file it was given, byte for byte, less the one thing that is a record of loss rather than content: format 4 carries no id and no timestamp, so nothing else in it is allowed to differ between two accounts (7.16)',
     ).toBe(JSON.stringify(withoutPlaceholders(first.file), null, 2))
     expect(
       second.omitted,
@@ -255,7 +255,7 @@ describe('AC-825 export, import, export again, and the bytes are the same', () =
     }
     expect(
       await runsOf(madeId),
-      'rich content travels and arrives whole, its runs and its text projection intact: a file that dropped it would round trip perfectly and lose every bold word in the product (4.17, #219)',
+      'rich content travels and arrives whole, its runs and its text projection intact: a file that dropped it would round trip perfectly and lose every bold word in the product (4.17)',
     ).toEqual(await runsOf(sourceId))
     expect(
       (await runsOf(madeId)) as unknown[],
@@ -270,7 +270,7 @@ describe('AC-825 export, import, export again, and the bytes are the same', () =
     const third = await savedWorkflow(reader, againId, NAME)
     expect(
       JSON.stringify(third.file, null, 2),
-      'a file with no placeholders left in it is a fixpoint: import it and save it and you have the same bytes, however many times round (#185)',
+      'a file with no placeholders left in it is a fixpoint: import it and save it and you have the same bytes, however many times round',
     ).toBe(JSON.stringify(second.file, null, 2))
   })
 })

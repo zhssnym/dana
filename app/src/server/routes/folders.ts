@@ -197,7 +197,7 @@ export function createFoldersRouter(
         res,
         409,
         'conflict',
-        'The default folder cannot be left (INV-2).',
+        'The default folder cannot be left.',
       )
       return
     }
@@ -216,7 +216,7 @@ export function createFoldersRouter(
         res,
         409,
         'conflict',
-        'Transfer ownership before leaving. Choose a member who has Full control (R6).',
+        'Transfer ownership before leaving. Choose a member who has Full control.',
       )
       return
     }
@@ -375,7 +375,7 @@ export function createFoldersRouter(
           res,
           409,
           'conflict',
-          'The default folder cannot be deleted (INV-2).',
+          'The default folder cannot be deleted.',
         )
         return
       }
@@ -463,7 +463,7 @@ export function createFoldersRouter(
             res,
             409,
             'conflict',
-            'The default folder cannot be shared (INV-3).',
+            'The default folder cannot be shared.',
           )
           return
         case 'already_member':
@@ -573,7 +573,7 @@ export function createFoldersRouter(
             res,
             403,
             'forbidden',
-            "The folder's owner cannot be removed. Ownership transfers before it is given up (R5, R6).",
+            "The folder's owner cannot be removed. Ownership has to be transferred first.",
           )
           return
         }
@@ -704,7 +704,7 @@ export function createFoldersRouter(
             res,
             403,
             'forbidden',
-            "Only the folder's owner can change the owner's access (governing R5, issue #228).",
+            "Only the folder's owner can change the owner's access.",
           )
           return
         case 'would_strand':
@@ -1011,7 +1011,7 @@ export function createFoldersRouter(
             res,
             403,
             'forbidden',
-            "The folder's owner needs no grant to write their own Responsibilities, and nobody else administers the owner's standing (R7 section M).",
+            "The folder's owner does not need this permission, and nobody else can set it for them.",
           )
           return
         case 'unchanged':

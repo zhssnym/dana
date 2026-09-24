@@ -130,7 +130,7 @@ describe('AC-024: a Full-control roster add admits the target and mails them onc
     const entry = await folderInList(adder, folderId)
     expect(
       entry?.is_owner,
-      'the actor must not be the owner: Full control confers no ownership and needs none (accepted R8A)',
+      'the actor must not be the owner: Full control confers no ownership and needs none (spec 5.4)',
     ).toBe(false)
 
     app.emails.clear()
@@ -138,7 +138,7 @@ describe('AC-024: a Full-control roster add admits the target and mails them onc
     expectStatus(
       response,
       201,
-      'accepted R8A: Full control administers members, and the roster edge is the actor\'s own (spec 5.3, 7.4)',
+      'Full control administers members, and the roster edge is the actor\'s own (spec 5.3, 7.4)',
     )
     expect(
       await membershipUserIds(app.db, folderId),
@@ -155,11 +155,11 @@ describe('AC-024: a Full-control roster add admits the target and mails them onc
     }
     expect(
       body.user?.id,
-      'the 201 body is the member element it created (7.4 as ruled at the shape review)',
+      'the 201 body is the member element it created (spec 7.4)',
     ).toBe(target.id)
     expect(
       Object.keys(body.user ?? {}).sort(),
-      'the created element carries the person shape and no email (7.4 as ruled at the shape review)',
+      'the created element carries the person shape and no email (spec 7.4)',
     ).toEqual(['avatar_url', 'display_name', 'id'])
     expect(body.role, 'the role column admits only member (spec 4.4, 8.9)').toBe(
       'member',
@@ -214,7 +214,7 @@ describe('AC-024: a Full-control roster add admits the target and mails them onc
     expectStatus(
       response,
       403,
-      'accepted R8A: Can edit "cannot administer people/Access", and a roster edge of their own does not change that (spec 5.4, 7.4)',
+      'Can edit cannot administer people or Access, and a roster edge of their own does not change that (spec 5.4, 7.4)',
     )
     expect(
       await membershipUserIds(app.db, folderId),
@@ -257,7 +257,7 @@ describe('AC-024: a Full-control roster add admits the target and mails them onc
       ).toBe(true)
       expect(
         Object.keys(user as Record<string, unknown>).sort(),
-        'every member user object is the 7.0 person shape and carries no email (7.4 as ruled at the shape review)',
+        'every member user object is the 7.0 person shape and carries no email (spec 7.4)',
       ).toEqual(['avatar_url', 'display_name', 'id'])
     }
   })

@@ -275,7 +275,7 @@ export function createConversationRouter(
           'forbidden',
           access.isAuthor
             ? own.reason
-            : 'Only Full control can remove another member\'s comment.',
+            : 'Only people with Full control can remove other people\'s comments.',
         )
         return
       }

@@ -186,7 +186,7 @@ describe('AC-014: deleting a custom folder marks it, and the pass removes it', (
     const detail = response.json() as { pending_invites?: unknown }
     expect(
       Array.isArray(detail.pending_invites),
-      'the detail carries its invites under pending_invites (7.4 as ruled at the shape review)',
+      'the detail carries its invites under pending_invites (spec 7.4)',
     ).toBe(true)
     const invites = detail.pending_invites as Record<string, unknown>[]
 

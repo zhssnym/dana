@@ -365,7 +365,7 @@ export function createFilesRouter(options: FilesRouterOptions = {}): Router {
           res,
           403,
           'forbidden',
-          'Only Full control can delete a file from this folder.',
+          'Only people with Full control can delete files from this folder.',
         )
         return
       }

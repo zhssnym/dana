@@ -16,7 +16,7 @@ line per request that carried a key its schema does not declare.
 
 ## The class this catches, and the one it does not
 
-11.15 and the backend README name two ways a request field is lost, and they
+11.15 and docs/troubleshooting.md name two ways a request field is lost, and they
 are constantly confused, so it is written here beside the code rather than
 left to a reader to look up:
 

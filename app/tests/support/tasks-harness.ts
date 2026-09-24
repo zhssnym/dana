@@ -111,7 +111,7 @@ export function expectExactKeys(
 ): void {
   expect(
     Object.keys(value).sort(),
-    `${source} must carry exactly the keys frozen 7.0 gives it, nothing extra, nothing missing`,
+    `${source} must carry exactly the keys 7.0 gives it, nothing extra, nothing missing`,
   ).toEqual([...keys].sort())
 }
 
@@ -135,7 +135,7 @@ function expectTimeOrNull(value: unknown, source: string): void {
   if (value === null) return
   expect(
     typeof value === 'string' && /^\d{2}:\d{2}$/.test(value),
-    `${source} must be a floating wall-clock time in 4.11's format, HH:MM (spec 7.0 as ruled at the P3 shape review); got ${JSON.stringify(value)}`,
+    `${source} must be a floating wall-clock time in 4.11's format, HH:MM (spec 7.0); got ${JSON.stringify(value)}`,
   ).toBe(true)
 }
 
@@ -260,7 +260,7 @@ export function expectTaskCardShape(value: unknown, source: string): void {
     const refs = labels[bucket]
     expect(
       Array.isArray(refs),
-      `${source}.labels.${bucket} must be an array (issue #226)`,
+      `${source}.labels.${bucket} must be an array (spec 7.26)`,
     ).toBe(true)
     for (const [index, ref] of (refs as unknown[]).entries()) {
       const where = `${source}.labels.${bucket}[${String(index)}]`
@@ -333,7 +333,7 @@ export function expectTaskDetailShape(
     )
     expect(
       (reminder.offset_minutes === null) !== (reminder.time_of_day === null),
-      `${source}.reminder carries both 4.8 columns with exactly one non-null (spec 7.0 as ruled at the P3 shape review, 4.8's CHECK); got ${JSON.stringify(reminder)}`,
+      `${source}.reminder carries both 4.8 columns with exactly one non-null (spec 7.0, 4.8's CHECK); got ${JSON.stringify(reminder)}`,
     ).toBe(true)
   }
 
@@ -530,7 +530,7 @@ export async function expectAffectedTask(
   ).toBe(taskId)
   expect(
     body,
-    'a mutation answers what a fresh GET would (spec 7.7 and 7.8 as ruled at the P3 shape review)',
+    'a mutation answers what a fresh GET would (spec 7.7, 7.8)',
   ).toEqual(await readTask(actor, taskId))
   return body
 }

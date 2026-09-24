@@ -83,7 +83,7 @@ export async function signInActorWithEmail(
   const row = await userForSub(app.db, sub)
   expect(
     row,
-    `sign-in must provision a user row for ${slug} (spec 7.1; P1 is merged, so this is expected to hold)`,
+    `sign-in must provision a user row for ${slug} (spec 7.1)`,
   ).toBeDefined()
   return { sub, email, id: (row as UserRow).id, browser }
 }
@@ -149,7 +149,7 @@ export async function createInviteOk(
   expectExactKeys(
     envelope,
     ['invite'],
-    'the POST /invites 201 body, which frozen 7.5 writes as { invite }',
+    'the POST /invites 201 body, which 7.5 writes as { invite }',
   )
   const invite = asRecord(envelope.invite, 'the created invite')
   expect(
@@ -199,7 +199,7 @@ export async function acceptInviteOk(
   expectExactKeys(
     body,
     ['assigned_task_id', 'connection_created', 'folder'],
-    'the acceptance body, which frozen 7.5 writes as { connection_created, folder or null, assigned_task_id or null }',
+    'the acceptance body, which 7.5 writes as { connection_created, folder or null, assigned_task_id or null }',
   )
   expect(
     typeof body.connection_created,
@@ -234,7 +234,7 @@ export async function invitesPending(
   const body = response.json()
   expect(
     Array.isArray(body),
-    'GET /invites/pending answers the array frozen 7.5 enumerates',
+    'GET /invites/pending answers the array 7.5 enumerates',
   ).toBe(true)
   const elements: PendingInviteElement[] = []
   for (const [index, entry] of (body as unknown[]).entries()) {
@@ -243,13 +243,13 @@ export async function invitesPending(
     expectExactKeys(
       element,
       ['created_at', 'folder_name', 'id', 'inviter'],
-      `${where}, which frozen 7.5 writes as {id, inviter, folder_name or null, created_at}`,
+      `${where}, which 7.5 writes as {id, inviter, folder_name or null, created_at}`,
     )
     const inviter = asRecord(element.inviter, `${where}.inviter`)
     expectExactKeys(
       inviter,
       ['avatar_url', 'display_name'],
-      `${where}.inviter, which frozen 7.5 gives exactly display_name and avatar_url`,
+      `${where}.inviter, which 7.5 gives exactly display_name and avatar_url`,
     )
     expect(typeof element.id, `${where}.id must be a string`).toBe('string')
     expect(
@@ -287,7 +287,7 @@ export async function invitesSent(
   const body = response.json()
   expect(
     Array.isArray(body),
-    'GET /invites/sent answers a list (spec 7.5); its element shape rides the shape review',
+    'GET /invites/sent answers a list (spec 7.5)',
   ).toBe(true)
   return (body as unknown[]).map((entry, index) =>
     asRecord(entry, `sent[${String(index)}]`),
@@ -327,7 +327,7 @@ export async function listConnections(actor: Actor): Promise<RosterElement[]> {
   const body = response.json()
   expect(
     Array.isArray(body),
-    'GET /connections answers the list frozen 7.3 enumerates',
+    'GET /connections answers the list 7.3 enumerates',
   ).toBe(true)
   const elements: RosterElement[] = []
   for (const [index, entry] of (body as unknown[]).entries()) {
@@ -336,13 +336,13 @@ export async function listConnections(actor: Actor): Promise<RosterElement[]> {
     expectExactKeys(
       element,
       ['connected_at', 'user'],
-      `${where}, which frozen 7.3 writes as { user, connected_at }`,
+      `${where}, which 7.3 writes as { user, connected_at }`,
     )
     const user = asRecord(element.user, `${where}.user`)
     expectExactKeys(
       user,
       ['avatar_url', 'display_name', 'email', 'id'],
-      `${where}.user, which frozen 7.3 gives id, display_name, avatar_url, and email`,
+      `${where}.user, which 7.3 gives id, display_name, avatar_url, and email`,
     )
     expect(typeof user.id, `${where}.user.id must be a string`).toBe('string')
     elements.push({

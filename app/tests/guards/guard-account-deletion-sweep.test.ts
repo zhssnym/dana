@@ -177,7 +177,7 @@ describe('account deletion sweeps every inert cascade on users(id)', () => {
       .sort()
     expect(
       declared,
-      'every ON DELETE CASCADE or SET NULL key on users(id) needs an entry in USER_CASCADE_DISPOSALS saying what account deletion does about it, and every entry needs a key that still exists. A missing one is a table whose rows outlive the account that made them, in silence, because a row that is never deleted fires no ON DELETE clause at all and 8.10 step 7 scrubs rather than deletes (issues #253, #230); a stale one is a sentence about a constraint nobody can check.',
+      'every ON DELETE CASCADE or SET NULL key on users(id) needs an entry in USER_CASCADE_DISPOSALS saying what account deletion does about it, and every entry needs a key that still exists. A missing one is a table whose rows outlive the account that made them, in silence, because a row that is never deleted fires no ON DELETE clause at all and 8.10 step 7 scrubs rather than deletes; a stale one is a sentence about a constraint nobody can check.',
     ).toEqual(catalogCascadeKeys())
   })
 
@@ -190,7 +190,7 @@ describe('account deletion sweeps every inert cascade on users(id)', () => {
     for (const entry of USER_CASCADE_DISPOSALS) {
       expect(
         entry.why.length,
-        `${entry.fk} must carry an argument rather than a label. "The cascade handles it" is the false premise #253 exists to remove, so an entry with nothing in it is the defect wearing the fix's clothes.`,
+        `${entry.fk} must carry an argument rather than a label: "the cascade handles it" is exactly the false premise this list exists to remove.`,
       ).toBeGreaterThan(80)
       if (entry.disposition === 'deleted') {
         expect(
@@ -235,7 +235,7 @@ describe('account deletion sweeps every inert cascade on users(id)', () => {
     const live = found.map((row) => String(row.name)).sort()
     expect(
       live,
-      'the migrated schema and USER_CASCADE_DISPOSALS must name the same keys, over both the clauses that fire on a delete that never comes. This is the half the catalog walk cannot do: sessions_user_id_fkey is one of these and db/constraint-catalog.ts has never carried it, so a table added outside section 4 the same way would be invisible to a guard that read the catalog alone (spec 10.1, AC-001; issues #253, #230).',
+      'the migrated schema and USER_CASCADE_DISPOSALS must name the same keys, over both the clauses that fire on a delete that never comes. This is the half the catalog walk cannot do: sessions_user_id_fkey is one of these and db/constraint-catalog.ts has never carried it, so a table added outside section 4 the same way would be invisible to a guard that read the catalog alone (spec 10.1, AC-001).',
     ).toEqual(USER_CASCADE_DISPOSALS.map((entry) => entry.fk).sort())
   })
 
@@ -247,7 +247,7 @@ describe('account deletion sweeps every inert cascade on users(id)', () => {
     const declared = USER_RESTRICT_DISPOSALS.map((entry) => entry.fk).sort()
     expect(
       declared,
-      'every ON DELETE RESTRICT or NO ACTION key on users(id) needs an entry in USER_RESTRICT_DISPOSALS saying whether a statement sweeps its rows or whether they deliberately outlive the account. "It only refuses a delete that never comes" is true of a row meant to outlive and false of one that is not, and the clause cannot tell you which -- which is how a departed member\'s private facet survived, readable by nobody and removable by nobody (Ruling 6, issue #210).',
+      'every ON DELETE RESTRICT or NO ACTION key on users(id) needs an entry in USER_RESTRICT_DISPOSALS saying whether a statement sweeps its rows or whether they deliberately outlive the account. "It only refuses a delete that never comes" is true of a row meant to outlive and false of one that is not, and the clause cannot tell you which: a departed member\'s private facet is the row that would survive, readable by nobody and removable by nobody (spec 4.30).',
     ).toEqual(catalogRestrictKeys())
 
     const live = await rows(
@@ -274,7 +274,7 @@ describe('account deletion sweeps every inert cascade on users(id)', () => {
     )
     expect(
       swept.map((entry) => entry.fk).sort(),
-      "three keys are swept rather than left to outlive: the account's own folders, its own uploads, and -- since Ruling 6 of issue #210 -- its private facets in folders it is leaving. A fourth appearing is a decision to read",
+      "three keys are swept rather than left to outlive: the account's own folders, its own uploads, and its private facets in folders it is leaving (4.30). A fourth appearing is a decision to read",
     ).toEqual([
       'files_owner_id_fkey',
       'folder_facets_owner_id_fkey',
@@ -317,7 +317,7 @@ describe('account deletion sweeps every inert cascade on users(id)', () => {
     )
     expect(
       folders.includes('deletePrivateFacetsOf(tx, folderId, leaverId)'),
-      "Ruling 6 puts the private-facet sweep inside runRClean, which is the one place member removal, leaving and 8.10 step 4 all pass through. A hook on removeMembership would cover the first two and silently miss every account deletion, which is the mistake endResponsibilityStanding's own comment records having avoided.",
+      "4.30 deletes private facets whenever a membership ends, so the sweep lives inside runRClean, the one place member removal, leaving and 8.10 step 4 all pass through. A hook on removeMembership would cover the first two and silently miss every account deletion.",
     ).toBe(true)
   })
 

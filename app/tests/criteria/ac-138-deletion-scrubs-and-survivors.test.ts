@@ -212,7 +212,7 @@ describe('AC-138: the account dissolves, its history does not', () => {
     const detail = await readTask(keeper, createdTaskId)
     expect(
       detail.created_by,
-      'a scrubbed creator is null on the wire, which is 8.10\'s "renders as Deleted user" as unit 12a puts it on TaskCard (spec 7.0, 4.1)',
+      'a scrubbed creator is null on the wire, which is how 8.10\'s "renders as Deleted user" reaches the TaskCard (spec 7.0, 4.1)',
     ).toBeNull()
     expect(
       String((await requireTaskRow(app.db, createdTaskId)).created_by),
