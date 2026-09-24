@@ -254,6 +254,10 @@ not need to copy private account ids".
 export const WORKFLOW_PAGE_BLOCK_KINDS = [
   'section',
   'paragraph',
+  /* A presentation heading on Work: writing, never a Section (it groups
+     nothing and carries no level of its own but its kind). Its fold
+     (`toggleable`) is not carried, as on Purpose. */
+  ...PRESENTATION_HEADING_KINDS,
   'bullet',
   'numbered',
   'checklist',
@@ -326,7 +330,7 @@ const pageContentBlock = z
     section: pageBlockIndex.nullable().optional(),
   })
   .superRefine((block, ctx) => {
-    if (block.kind === 'section' && (block.text?.length ?? 0) > 120) {
+    if ((block.kind === 'section' || (PRESENTATION_HEADING_KINDS as readonly string[]).includes(block.kind)) && (block.text?.length ?? 0) > 120) {
       ctx.addIssue({
         code: 'custom',
         path: ['text'],

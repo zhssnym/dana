@@ -206,12 +206,13 @@ export const blockSidePosition = {
 }
 
 /** Change these blocks' kind, keeping text, and children where the kind holds them. */
-export function turnBlocksInto(editor: AnyEditor, ids: readonly string[], target: TurnTarget, headingToggles: boolean | undefined): void {
+/** `headingToggles` may answer per block: on Work a heading is a Section only where one stands. */
+export function turnBlocksInto(editor: AnyEditor, ids: readonly string[], target: TurnTarget, headingToggles: boolean | undefined | ((block: TreeBlock) => boolean | undefined)): void {
   editor.transact(() => {
     for (const id of ids) {
       const block = editor.getBlock(id) as TreeBlock | undefined
       if (block === undefined || isCurrent(block, target)) continue
-      const { update, lifted } = conversionOf(block, target, headingToggles)
+      const { update, lifted } = conversionOf(block, target, typeof headingToggles === 'function' ? headingToggles(block) : headingToggles)
       if (lifted.length === 0) {
         editor.updateBlock(id, update as never)
       } else {

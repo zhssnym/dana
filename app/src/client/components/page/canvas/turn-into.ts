@@ -22,7 +22,7 @@ export interface TurnTarget {
   readonly type: string
   readonly level?: 1 | 2 | 3
   /** A toggle heading: a presentation heading that folds its children
-   * (Purpose, Results and a Task body only; see `TOGGLE_HEADING_SURFACES`). */
+   * (every surface with headings but a Shelf; see `TOGGLE_HEADING_SURFACES`). */
   readonly toggle?: true
 }
 

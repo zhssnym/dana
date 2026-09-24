@@ -27,16 +27,17 @@ export function surfaceOf(editor: object): CanvasSurfaceKind {
  * composer's schema has none. */
 export const TOGGLE_SURFACES: ReadonlySet<CanvasSurfaceKind> = new Set(['work', 'document', 'plain'])
 
-/** Where a presentation heading may fold (a toggle heading): Purpose, Results
- * and a Task body. On Work a heading is a Section, which folds already. */
-export const TOGGLE_HEADING_SURFACES: ReadonlySet<CanvasSurfaceKind> = new Set(['document', 'task'])
+/** Where a presentation heading may fold (a toggle heading): Purpose, Results,
+ * a Task body, and Work, where a toggle heading is writing beside the Sections
+ * (it groups no Tasks; the server stores it as on a facet). */
+export const TOGGLE_HEADING_SURFACES: ReadonlySet<CanvasSurfaceKind> = new Set(['document', 'task', 'work'])
 
 const isSection = (block: CanvasBlock): boolean => isSectionHeading(block)
 
 /**
- * The one heading a Work block may become where it stands: a Section's level is
- * its depth, so a block under an H1 becomes an H2 whatever was asked. Null
- * where no heading can stand (nested under a block, or below an H3).
+ * The one Section a Work block may become where it stands: a Section's level
+ * is its depth, so only an H2 stands under an H1. Null where no Section can
+ * stand (nested under a block, or below an H3).
  */
 export function workHeadingLevel(editor: CanvasEditor, block: CanvasBlock): 1 | 2 | 3 | null {
   const ancestors = ancestorsOf(editor.document, block.id) ?? []
@@ -52,8 +53,11 @@ export function headingFor(editor: CanvasEditor, block: CanvasBlock, level: 1 | 
   if (surface === 'document' || surface === 'task') return { level, isToggleable: false, presentation: false }
   if (surface === 'shelf') return { level: 1, isToggleable: true, presentation: false }
   if (surface === 'plain') return null
-  const fitted = workHeadingLevel(editor, block)
-  return fitted === null ? null : { level: fitted, isToggleable: true, presentation: false }
+  // Work: a Section where one of this level stands, otherwise a presentation
+  // heading of the level asked for (writing; it groups nothing).
+  return workHeadingLevel(editor, block) === level
+    ? { level, isToggleable: true, presentation: false }
+    : { level, isToggleable: false, presentation: false }
 }
 
 /**

@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm'
 import type { Executor } from '../database.js'
 import { rowsOf } from '../database.js'
 import type { DocumentTransaction, DocumentOperation, DocumentOutlineItem } from '../../shared/pages.js'
-import { BLOCK_FILE_KINDS, MAX_SECTION_DEPTH, isMediaKind, isPresentationHeadingKind } from '../../shared/page-document.js'
+import { BLOCK_FILE_KINDS, MAX_SECTION_DEPTH, isMediaKind } from '../../shared/page-document.js'
 import { nestingProblem } from './document-outline.js'
 import { hashableBlocks } from './document-hash.js'
 import { initialKeys } from './fractional-index.js'
@@ -77,7 +77,9 @@ export async function applyDocument(tx:Executor,viewerId:string,folderId:string,
   // normalization this function does to a put_block, and it is what
   // page_blocks_checked_kind_check states in the database.
   if(op.op==='put_block'){
-   if(isPresentationHeadingKind(op.block_kind))throw new DocumentRefusal('not_convertible','Presentation headings belong to a facet document; Main uses Work Sections.')
+   // A presentation heading (heading1-3, `toggleable` or not) is writing on
+   // Main as on a facet: it groups nothing, so it never names a Section and
+   // `section_block_id` below still admits only a `section` as a parent.
    blocks.set(op.id,{...op,checked:op.block_kind==='checklist'?(op.checked??false):null,toggleable:op.toggleable===true?true:null})
   }
   else if(op.op==='delete_block') {if(!blocks.delete(op.id))throw new DocumentRefusal('not_found','Block not found.')}
