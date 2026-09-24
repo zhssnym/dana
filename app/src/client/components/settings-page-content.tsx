@@ -1,7 +1,10 @@
 /*
 9.7's Settings page, the presentation. The route page (`pages/SettingsPage.tsx`)
 owns the reads and the account delete; this file draws five sections in one
-column: Account, Appearance, Time, People, Data. Settings is the home of every
+column (Account, Appearance, Time, People, Data), then a quiet support line, then
+Delete account set apart at the very end. Round 4: one row structure (`SettingsRow`),
+one control height (32px), neutral outline buttons, one danger style, and the
+global focus outline only (no second ring stacked on it). Settings is the home of every
 configuration: a preference is not also toggled from a menu elsewhere.
 
 What is worth knowing:
@@ -26,7 +29,7 @@ What is worth knowing:
 - **Delete account** requires typing DELETE, and says shared folders must be
   handed on first, which is what `DELETE /me`'s 409 enforces (issue #228).
 */
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { SUPPORT_EMAIL } from '../../shared/support.js'
 import { signOut } from '../shell/session.js'
@@ -42,7 +45,7 @@ import {
   useViewer,
 } from '../lib/viewer.js'
 import { PeopleSettings } from './settings/people.js'
-import { Screen, ScreenSection } from './settings/screen.js'
+import { Screen, ScreenSection, SettingsRow } from './settings/screen.js'
 import { InlineError } from './state-patterns.js'
 import {
   AlertDialog,
@@ -62,26 +65,6 @@ import { useIsMobile } from './ui/use-mobile.js'
 import { Skeleton } from './ui/skeleton.js'
 import { cn } from './ui/utils.js'
 
-function Row({
-  title,
-  description,
-  control,
-}: {
-  title: string
-  description?: ReactNode
-  control: ReactNode
-}) {
-  return (
-    <div className="flex min-h-12 flex-wrap items-center justify-between gap-x-6 gap-y-2 py-2">
-      <div className="min-w-0 flex-1 basis-56">
-        <p className="text-sm text-foreground">{title}</p>
-        {description ? <p className="text-xs text-muted-foreground">{description}</p> : null}
-      </div>
-      <div className="shrink-0">{control}</div>
-    </div>
-  )
-}
-
 function Segmented<T extends string>({
   label,
   value,
@@ -97,7 +80,7 @@ function Segmented<T extends string>({
     <div
       role="radiogroup"
       aria-label={label}
-      className="flex items-center gap-0.5 rounded-md bg-muted p-0.5"
+      className="flex h-8 items-center gap-0.5 rounded-md bg-muted p-0.5"
     >
       {options.map(([option, text]) => (
         <button
@@ -107,7 +90,7 @@ function Segmented<T extends string>({
           aria-checked={value === option}
           onClick={() => onSelect(option)}
           className={cn(
-            'h-7 rounded-sm px-2.5 text-xs transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/30',
+            'h-7 rounded-sm px-2.5 text-sm transition-colors',
             value === option
               ? 'bg-background text-foreground'
               : 'text-muted-foreground hover:text-foreground',
@@ -132,16 +115,16 @@ function ViewerRow() {
   }
 
   return (
-    <div className="flex min-h-14 items-center gap-3 py-2">
+    <div className="flex min-h-11 items-center gap-3 py-1.5">
       <button
         type="button"
         onClick={() => fileInput.current?.click()}
         aria-label={isOwnPicture(viewer.image) ? 'Change your picture' : 'Add a picture'}
-        className="group/pic relative block shrink-0 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
+        className="group/pic relative block shrink-0 rounded-full"
       >
         {/* e9-avatars: the one face, so the preview shows the default
             face until a picture is uploaded (the Google one is not drawn). */}
-        <PersonFace id={viewer.id} name={viewer.name} image={viewer.image ?? null} className="size-10 data-[size=sm]:size-10" />
+        <PersonFace id={viewer.id} name={viewer.name} image={viewer.image ?? null} className="size-8 data-[size=sm]:size-8" />
         <span className="absolute inset-0 flex items-center justify-center rounded-full bg-foreground/50 opacity-0 transition-opacity group-hover/pic:opacity-100">
           <ImagePlus className="size-4 text-background" strokeWidth={1.75} aria-hidden="true" />
         </span>
@@ -159,7 +142,7 @@ function ViewerRow() {
         <p className="truncate text-xs text-muted-foreground">{viewer.email} · from Google</p>
       </div>
       {isOwnPicture(viewer.image) ? (
-        <Button variant="ghost" onClick={() => clearViewerImage()}>
+        <Button variant="outline" size="lg" onClick={() => clearViewerImage()}>
           Remove picture
         </Button>
       ) : null}
@@ -213,28 +196,19 @@ export function SettingsPageContent({
         <>
           <ScreenSection id="settings-account" title="Account">
             <ViewerRow />
-            <Row
+            <SettingsRow
               title="Sign out"
               description="Sign out of Dana on this device"
               control={
-                <Button variant="outline" onClick={signOut}>
+                <Button variant="outline" size="lg" onClick={signOut}>
                   Sign out
                 </Button>
               }
             />
-            <p className="py-2 text-xs text-muted-foreground">
-              Something wrong? Write to{' '}
-              <a
-                href={`mailto:${SUPPORT_EMAIL}`}
-                className="text-foreground underline-offset-4 hover:underline"
-              >
-                {SUPPORT_EMAIL}
-              </a>
-            </p>
           </ScreenSection>
 
           <ScreenSection id="settings-appearance" title="Appearance">
-            <Row
+            <SettingsRow
               title="Theme"
               control={
                 <Segmented
@@ -250,7 +224,7 @@ export function SettingsPageContent({
               }
             />
             {phone ? null : (
-              <Row
+              <SettingsRow
                 title="Open tasks in"
                 control={
                   <Segmented
@@ -269,12 +243,12 @@ export function SettingsPageContent({
           </ScreenSection>
 
           <ScreenSection id="settings-time" title="Time">
-            <Row
+            <SettingsRow
               title="Timezone"
               description="Due dates and reminders use this zone"
               control={<TimezoneSelect />}
             />
-            <Row
+            <SettingsRow
               title="Clock"
               control={
                 <Segmented
@@ -297,44 +271,59 @@ export function SettingsPageContent({
           </div>
 
           <ScreenSection id="settings-data" title="Data">
-            <Row
+            <SettingsRow
               title="Download my data"
               description="Everything Dana holds about you, as one JSON file"
               control={
-                <Button variant="outline" render={<a href="/api/v1/me/export" download />}>
+                <Button variant="outline" size="lg" render={<a href="/api/v1/me/export" download />}>
                   Download
                 </Button>
               }
             />
             {sample ? (
-              <Row
+              <SettingsRow
                 title="Sample data"
                 description={
                   sample.present
                     ? `${String(sample.folders)} pages and ${String(sample.tasks)} tasks to show you around. Your own work stays.`
-                    : 'Removed. Bring back the example pages and tasks.'
+                    : 'The example pages and tasks are gone'
                 }
                 control={
                   <Button
                     variant="outline"
+                    size="lg"
                     disabled={sample.busy}
                     onClick={sample.present ? onRemoveSample : onRestoreSample}
                   >
-                    {sample.present ? 'Remove sample data' : 'Restore sample data'}
+                    {sample.present ? 'Remove' : 'Restore'}
                   </Button>
                 }
               />
             ) : null}
-            <Row
+          </ScreenSection>
+
+          <p className="pb-6 text-xs text-muted-foreground">
+            Something wrong? Write to{' '}
+            <a
+              href={`mailto:${SUPPORT_EMAIL}`}
+              className="text-foreground underline-offset-4 hover:underline"
+            >
+              {SUPPORT_EMAIL}
+            </a>
+          </p>
+
+          {/* Destructive, so last and set apart by the one divider. */}
+          <section aria-label="Delete account" className="border-t border-border pt-2">
+            <SettingsRow
               title="Delete account"
-              description="Shared pages you own must be handed on or deleted first. Private pages and their tasks go with the account."
+              description="Shared pages you own must be handed on or deleted first"
               control={
-                <Button variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
+                <Button variant="destructive" size="lg" onClick={() => setDeleteDialogOpen(true)}>
                   Delete account
                 </Button>
               }
             />
-          </ScreenSection>
+          </section>
         </>
       )}
 
@@ -397,7 +386,7 @@ function TimezoneSelect() {
       onValueChange={setViewerTimezone}
       placeholder="Choose a timezone"
       searchPlaceholder="Search timezones"
-      className="w-56 justify-between"
+      className="w-56 justify-between border border-input"
       contentClassName="w-72"
       options={listed.map((zone) => ({ value: zone, label: zone.replace(/_/g, ' ') }))}
     />

@@ -21,11 +21,8 @@ surfaces.
 */
 import { useRef, useState } from 'react'
 
-import { Mail } from 'lucide-react'
-
 import { useCancelInvite, useCreateInvite, useRemoveConnection, useResendInvite } from '../../api/mutations.js'
 import { useConnections, useSentInvites } from '../../api/queries.js'
-import { Avatar, AvatarFallback } from '../ui/avatar.js'
 import { Button } from '../ui/button.js'
 import { ConfirmDialog } from '../ui/ConfirmDialog.js'
 import { Input } from '../ui/input.js'
@@ -34,6 +31,7 @@ import { formatCompactDate, formatRelativeDay } from '../../parts/format-dates.j
 import { presenterToday, initialsOf } from '../../parts/presenters.js'
 import { PageBody } from '../page/PageStates.js'
 import { PersonFace } from '../person-face.js'
+import { SettingsRow } from './screen.js'
 
 /** 9.8, verbatim: the confirm before a roster entry is removed. */
 const REMOVE_CONNECTION =
@@ -53,6 +51,7 @@ export function PeopleSettings(): React.JSX.Element {
   const disconnect = useRemoveConnection()
   const [email, setEmail] = useState('')
   const [removing, setRemoving] = useState<string | null>(null)
+  const [inviting, setInviting] = useState(false)
   const field = useRef<HTMLInputElement>(null)
 
   const today = presenterToday()
@@ -79,131 +78,140 @@ export function PeopleSettings(): React.JSX.Element {
     invite.mutate({ email: trimmed })
   }
 
+  /* A person or a pending invite, both drawn as the one settings row. */
   return (
     <>
-      <p className="pb-3 text-xs text-muted-foreground">People you can share pages with.</p>
-      <form
-        className="flex gap-2 pb-6"
-        onSubmit={(event) => {
-          event.preventDefault()
-          sendInvite()
-        }}
-      >
-        <Input
-          ref={field}
-          aria-label="Invite by email"
-          type="email"
-          placeholder="name@example.com"
-          value={email}
-          disabled={invite.isPending}
-          className="h-8 flex-1"
-          onChange={(event) => {
-            setEmail(event.target.value)
-          }}
-        />
-        <Button type="submit" className="h-8 px-3">
-          Invite
-        </Button>
-      </form>
-
-      {pendingBare.length === 0 ? null : (
-        <PeopleGroup id="pending-invitations-heading" title="Invited" count={pendingBare.length}>
-          <ul role="list">
-            {pendingBare.map((row) => {
-              const resendAllowed = Date.now() - Date.parse(row.last_sent_at) >= DAY_MS
-              const resendButton = (
+      {pendingBare.map((row) => {
+        const resendAllowed = Date.now() - Date.parse(row.last_sent_at) >= DAY_MS
+        const resendButton = (
+          <Button
+            variant="outline"
+            size="lg"
+            disabled={!resendAllowed || resend.isPending}
+            onClick={() => {
+              resend.mutate(row.id)
+            }}
+          >
+            Resend
+          </Button>
+        )
+        return (
+          <SettingsRow
+            key={row.id}
+            title={row.email}
+            description={`Invited ${formatRelativeDay(row.last_sent_at, today)}`}
+            control={
+              <>
+                {resendAllowed ? (
+                  resendButton
+                ) : (
+                  <Tooltip>
+                    <TooltipTrigger render={<span className="inline-flex" />}>
+                      {resendButton}
+                    </TooltipTrigger>
+                    <TooltipContent>{RESENT_RECENTLY}</TooltipContent>
+                  </Tooltip>
+                )}
                 <Button
-                  variant="ghost"
-                  disabled={!resendAllowed || resend.isPending}
+                  variant="outline"
+                  size="lg"
+                  disabled={cancel.isPending}
                   onClick={() => {
-                    resend.mutate(row.id)
+                    cancel.mutate(row.id)
                   }}
                 >
-                  Resend
+                  Cancel
                 </Button>
-              )
-              return (
-                <li key={row.id} className="flex min-h-12 items-center gap-3 py-1.5">
-                  <Avatar className="size-8">
-                    <AvatarFallback className="bg-muted text-muted-foreground">
-                      <Mail className="size-4" strokeWidth={1.75} aria-hidden="true" />
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm text-foreground">{row.email}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Sent {formatRelativeDay(row.last_sent_at, today)}
-                    </p>
-                  </div>
-                  {resendAllowed ? (
-                    resendButton
-                  ) : (
-                    <Tooltip>
-                      <TooltipTrigger render={<span className="inline-flex" />}>
-                        {resendButton}
-                      </TooltipTrigger>
-                      <TooltipContent>{RESENT_RECENTLY}</TooltipContent>
-                    </Tooltip>
-                  )}
-                  <Button
-                    variant="ghost"
-                    disabled={cancel.isPending}
-                    onClick={() => {
-                      cancel.mutate(row.id)
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                </li>
-              )
-            })}
-          </ul>
-        </PeopleGroup>
-      )}
+              </>
+            }
+          />
+        )
+      })}
 
       <PageBody query={connections} isEmpty={false} emptyCopy="">
-        {nobody ? (
-          <p className="text-sm text-muted-foreground">
-            No one yet. Invite someone by email to share pages with them.
-          </p>
-        ) : connected.length === 0 ? null : (
-          <PeopleGroup id="connections-heading" title="Connected" count={connected.length}>
-            <ul role="list">
-              {connected.map((entry) => (
-                <li key={entry.user.id} className="flex min-h-12 items-center gap-3 py-1.5">
-                  <PersonFace
-                    id={entry.user.id}
-                    name={entry.user.display_name ?? entry.user.email}
-                    initials={initialsOf(entry.user.display_name ?? entry.user.email)}
-                    image={entry.user.avatar_url}
-                    className="size-8"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm text-foreground">
-                      {entry.user.display_name ?? entry.user.email}
-                    </p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {entry.user.email} · since {formatCompactDate(entry.connected_at.slice(0, 10))}
-                    </p>
-                  </div>
-                  {/* 9.8: "roster list with remove control". Either side may
-                      call it (7.3), so it is offered on every row. */}
-                  <Button
-                    variant="ghost"
-                    className="text-muted-foreground"
-                    aria-label={`Remove connection with ${entry.user.display_name ?? entry.user.email}`}
-                    onClick={() => {
-                      setRemoving(entry.user.id)
-                    }}
-                  >
-                    Remove
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          </PeopleGroup>
-        )}
+        {connected.map((entry) => (
+          <SettingsRow
+            key={entry.user.id}
+            title={
+              <span className="flex min-w-0 items-center gap-2">
+                <PersonFace
+                  id={entry.user.id}
+                  name={entry.user.display_name ?? entry.user.email}
+                  initials={initialsOf(entry.user.display_name ?? entry.user.email)}
+                  image={entry.user.avatar_url}
+                  className="size-5 shrink-0"
+                />
+                <span className="truncate">{entry.user.display_name ?? entry.user.email}</span>
+              </span>
+            }
+            description={`${entry.user.email} · since ${formatCompactDate(entry.connected_at.slice(0, 10))}`}
+            control={
+              /* 9.8: "roster list with remove control". Either side may call it (7.3). */
+              <Button
+                variant="outline"
+                size="lg"
+                aria-label={`Remove connection with ${entry.user.display_name ?? entry.user.email}`}
+                onClick={() => {
+                  setRemoving(entry.user.id)
+                }}
+              >
+                Remove
+              </Button>
+            }
+          />
+        ))}
       </PageBody>
+
+      {/* Rarely needed, so one row until it is used: the button opens the
+          field in place of itself. Esc or an empty blur folds it back. */}
+      <SettingsRow
+        title="Invite by email"
+        description={nobody ? 'People you can share pages with' : undefined}
+        control={
+          inviting ? (
+            <form
+              className="flex items-center gap-2"
+              onSubmit={(event) => {
+                event.preventDefault()
+                sendInvite()
+              }}
+            >
+              <Input
+                ref={field}
+                aria-label="Invite by email"
+                type="email"
+                placeholder="name@example.com"
+                value={email}
+                autoFocus
+                disabled={invite.isPending}
+                className="w-56"
+                onChange={(event) => {
+                  setEmail(event.target.value)
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') {
+                    setEmail('')
+                    setInviting(false)
+                  }
+                }}
+              />
+              <Button type="submit" variant="outline" size="lg">
+                Send
+              </Button>
+            </form>
+          ) : (
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={() => {
+                setInviting(true)
+              }}
+            >
+              Invite
+            </Button>
+          )
+        }
+      />
 
       {removing === null ? null : (
         <ConfirmDialog
@@ -219,27 +227,5 @@ export function PeopleSettings(): React.JSX.Element {
         />
       )}
     </>
-  )
-}
-
-/* A group inside the People section: a small heading under Settings' h2. */
-function PeopleGroup({
-  id,
-  title,
-  count,
-  children,
-}: {
-  readonly id: string
-  readonly title: string
-  readonly count: number
-  readonly children: React.ReactNode
-}): React.JSX.Element {
-  return (
-    <section aria-labelledby={id} className="pb-6">
-      <h3 id={id} className="pb-1 text-xs font-medium text-muted-foreground">
-        {title} <span className="font-normal">{count}</span>
-      </h3>
-      {children}
-    </section>
   )
 }
