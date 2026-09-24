@@ -32,14 +32,15 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --text-3xl: 28px;
   --text-3xl--line-height: 36px;
 
-  /* Two radii: 4 for controls and chips, 8 for panels, menus, dialogs. */
+  /* Radii: 4 for checkboxes, chips and badges; 6 for controls, rows and
+     menu items; 10 for menus and popovers; 12 for dialogs and sheets. */
   --radius-xs: 4px;
   --radius-sm: 4px;
-  --radius-md: 4px;
-  --radius-lg: 8px;
-  --radius-xl: 8px;
-  --radius-2xl: 8px;
-  --radius-3xl: 8px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-2xl: 12px;
+  --radius-3xl: 12px;
 
   /* No shadows except one soft shadow on floating layers. */
   --shadow-2xs: none;
@@ -87,6 +88,7 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-press: var(--press-tint);
 
   /* `white` is the page colour (dark in dark mode); ink over imagery uses
      fixed-white. */
@@ -189,7 +191,7 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --quiet-foreground: var(--color-graphite-400);
   --supporting-foreground: var(--text-muted);
   --section-foreground: var(--color-graphite-700);
-  --accent: var(--hover);
+  --accent: var(--hover-tint);
   --accent-foreground: var(--text);
   --destructive: var(--danger);
   --destructive-foreground: #ffffff;
@@ -200,12 +202,12 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --sidebar-foreground: var(--text);
   --sidebar-primary: var(--accent-color);
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: var(--hover);
+  --sidebar-accent: var(--hover-tint);
   --sidebar-accent-foreground: var(--text);
   --sidebar-border: var(--line);
   --sidebar-ring: var(--accent-color);
 
-  --radius: 4px;
+  --radius: 6px;
   --radius-full: 9999px;
 
   /* The one shadow, for menus, popovers and dialogs. */
@@ -220,9 +222,20 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --duration-fast: 120ms;
   --duration-base: 150ms;
   --duration-slow: 200ms;
-  --ease-enter: cubic-bezier(0.2, 0, 0, 1);
+  --ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-exit: cubic-bezier(0.4, 0, 1, 1);
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* r3-feel: hover and press are ink tints, so they read on any surface.
+     Hover snaps in and fades out; floating layers open from their trigger. */
+  --hover-tint: rgb(55 53 47 / 6%);
+  --press-tint: rgb(55 53 47 / 12%);
+  --duration-hover-in: 50ms;
+  --duration-hover-out: 150ms;
+  --duration-enter: 180ms;
+  --float-scale: 0.97;
+  --float-rise: 4px;
+  --focus-ring: color-mix(in oklch, var(--ring) 45%, transparent);
 
   --control-height: 32px;
   --shell-sidebar-row-height: 28px;
@@ -296,6 +309,9 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --color-info-700: #6fb0d6;
 
   --popover: #252525;
+  /* r3-feel */
+  --hover-tint: rgb(255 255 255 / 6%);
+  --press-tint: rgb(255 255 255 / 10%);
   --shadow-float: 0 0 0 1px rgb(255 255 255 / 6%), 0 4px 12px rgb(0 0 0 / 30%),
     0 12px 32px rgb(0 0 0 / 30%);
 }
@@ -310,18 +326,21 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --dana-mark-glyph: #ffffff;
 }
 
-/* Floating layers (menus, popovers, dialogs, tooltips): fade and rise 2px.
+/* Floating layers (menus, popovers, dialogs, tooltips): open from the
+   trigger (fade, 4px rise, 0.97 scale about Base UI's --transform-origin),
+   settle without bounce; close faster, fade only.
    Base UI sets data-starting-style/data-ending-style around the transition. */
 @utility motion-float {
+  transform-origin: var(--transform-origin, center);
   transition-property: opacity, transform;
-  transition-duration: var(--duration-base);
+  transition-duration: var(--duration-enter);
   transition-timing-function: var(--ease-enter);
-  &[data-starting-style],
-  &[data-ending-style] {
+  &[data-starting-style] {
     opacity: 0;
-    transform: translateY(2px);
+    transform: translateY(var(--float-rise)) scale(var(--float-scale));
   }
   &[data-ending-style] {
+    opacity: 0;
     transition-duration: var(--duration-fast);
     transition-timing-function: var(--ease-exit);
   }
@@ -330,11 +349,15 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
 /* Scrims fade only. */
 @utility motion-fade {
   transition-property: opacity;
-  transition-duration: var(--duration-base);
+  transition-duration: var(--duration-enter);
   transition-timing-function: var(--ease-enter);
   &[data-starting-style],
   &[data-ending-style] {
     opacity: 0;
+  }
+  &[data-ending-style] {
+    transition-duration: var(--duration-fast);
+    transition-timing-function: var(--ease-exit);
   }
 }
 
@@ -343,6 +366,11 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
     --duration-fast: 1ms;
     --duration-base: 1ms;
     --duration-slow: 1ms;
+    --duration-enter: 1ms;
+    --duration-hover-in: 1ms;
+    --duration-hover-out: 1ms;
+    --float-scale: 1;
+    --float-rise: 0px;
   }
   *,
   *::before,
@@ -357,6 +385,34 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
 @layer base {
   * {
     @apply border-border outline-ring/50;
+  }
+
+  /* r3-feel: every interactive thing eases its colours: out over 150ms,
+     in over 50ms, so hover feels immediate and leaving feels soft. Zero
+     specificity and in the base layer, so a component's own transition-*
+     utility always wins. */
+  :where(a, button, summary, input, textarea, select, [role="button"],
+    [role="link"], [role="menuitem"], [role="menuitemcheckbox"],
+    [role="menuitemradio"], [role="option"], [role="tab"], [role="treeitem"],
+    [role="checkbox"], [role="switch"]) {
+    transition-property: color, background-color, border-color, box-shadow,
+      outline-color, opacity, text-decoration-color, fill, stroke;
+    transition-duration: var(--duration-hover-out);
+    transition-timing-function: var(--ease-standard);
+  }
+  :where(a, button, summary, input, textarea, select, [role="button"],
+    [role="link"], [role="menuitem"], [role="menuitemcheckbox"],
+    [role="menuitemradio"], [role="option"], [role="tab"], [role="treeitem"],
+    [role="checkbox"], [role="switch"]):where(:hover, :focus-visible,
+    [data-highlighted]) {
+    transition-duration: var(--duration-hover-in);
+  }
+
+  /* One soft focus ring, keyboard only, following the element's radius.
+     Primitives that draw their own ring set outline-none. */
+  :focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
   }
 
   /* In the base layer so text-size utilities on controls still win. */

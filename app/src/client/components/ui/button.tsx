@@ -5,24 +5,24 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "./utils.js"
 
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center gap-1.5 rounded-sm text-sm font-medium whitespace-nowrap transition-colors duration-[var(--duration-fast)] outline-none select-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:pointer-events-none disabled:opacity-50 aria-invalid:ring-2 aria-invalid:ring-destructive/30 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "group/button inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md text-sm font-medium whitespace-nowrap select-none disabled:pointer-events-none disabled:opacity-50 aria-invalid:ring-2 aria-invalid:ring-destructive/30 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
         /* THE action of a surface: solid accent. One per view. */
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        default: "bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80",
         /* Kept as a name for existing call sites; it is the same action. */
-        commit: "bg-primary text-primary-foreground hover:bg-primary/90",
+        commit: "bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80",
         /* Secondary actions beside THE action: text with a hairline. */
         outline:
-          "border border-input text-foreground hover:bg-accent aria-expanded:bg-accent",
+          "border border-input text-foreground hover:bg-accent active:bg-press aria-expanded:bg-accent",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-input/70 aria-expanded:bg-input/70",
         /* Everything else: text, a background on hover. */
         ghost:
-          "text-foreground hover:bg-accent aria-expanded:bg-accent",
+          "text-foreground hover:bg-accent active:bg-press aria-expanded:bg-accent",
         destructive:
-          "text-destructive hover:bg-destructive/10 focus-visible:ring-destructive/30",
+          "text-destructive hover:bg-destructive/10 active:bg-destructive/15",
         link: "h-auto! px-0! text-primary underline-offset-4 hover:underline",
       },
       size: {

@@ -4,8 +4,10 @@ import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip"
 
 import { cn } from "./utils.js"
 
+/* The first tooltip waits, so sweeping the pointer across icons does not
+   flicker; once one is open, neighbours open at once (Base UI `timeout`). */
 function TooltipProvider({
-  delay = 0,
+  delay = 500,
   ...props
 }: TooltipPrimitive.Provider.Props) {
   return (
@@ -53,7 +55,7 @@ function TooltipContent({
         <TooltipPrimitive.Popup
           data-slot="tooltip-content"
           className={cn(
-            "inline-flex w-fit max-w-xs items-center gap-1.5 rounded-sm bg-foreground px-2 py-1 text-xs text-background has-data-[slot=kbd]:pr-1 **:data-[slot=kbd]:rounded-sm motion-float",
+            "inline-flex w-fit max-w-xs items-center gap-1.5 rounded-md bg-foreground px-2 py-1 text-xs text-background has-data-[slot=kbd]:pr-1 **:data-[slot=kbd]:rounded-sm motion-float",
             className
           )}
           {...props}
