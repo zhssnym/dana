@@ -119,6 +119,7 @@ import { InlineInput } from '../components/ui/inline-field.js'
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover.js'
 /* The one thread component, used wherever a conversation happens. */
 import { CommentsThread } from '../components/comments.js'
+import { ConsultationPanel } from '../components/consultation/ConsultationPanel.js'
 import { HistorySheet } from '../components/history-sheet.js'
 import { ObjectMenu } from '../components/object-menu.js'
 import { PersonFace } from '../components/person-face.js'
@@ -571,15 +572,21 @@ export function FolderPage({
   const facetRows = facets.data?.facets ?? []
   const requestedFacetId = search.get('facet')
   const mainFacet = facetRows.find((facet) => facet.kind === 'main')
+  /* A Discussion address (`?discussion=`, from ConsultationLinkPage) opens the
+     Consultation facet even when it is hidden or not named: a link to a
+     Discussion must land on it. */
+  const linkedDiscussion = search.get('discussion') !== null
   const activeFacet = facetRows.find(
-    (facet) => facet.id === requestedFacetId && !facet.hidden,
-  ) ?? mainFacet
+    (facet) => facet.id === requestedFacetId && (!facet.hidden || (linkedDiscussion && facet.kind === 'consultation')),
+  ) ?? (linkedDiscussion ? facetRows.find((facet) => facet.kind === 'consultation') : undefined) ?? mainFacet
 
   const selectFacet = useCallback((facet: Facet): void => {
     setSearch((current) => {
       const next = new URLSearchParams(current)
       if (facet.kind === 'main') next.delete('facet')
       else next.set('facet', facet.id)
+      next.delete('discussion')
+      next.delete('outcome')
       return next
     }, { replace: true })
   }, [setSearch])
@@ -1643,7 +1650,13 @@ export function FolderPage({
             context={context}
             actions={actions}
             onAsk={confirm.ask}
-            consultation={threadSurface}
+            consultation={
+              <ConsultationPanel
+                folderId={id}
+                viewer={facts === null || basis.viewerId === null ? null : { viewerId: basis.viewerId, facts }}
+                personOf={personOf}
+              />
+            }
             onOpenMain={() => { if (mainFacet) selectFacet(mainFacet) }}
           />
         ) : null}
@@ -1842,7 +1855,7 @@ function FacetContent({
   const document = useFacetPage(folderId, facet.id, blank)
 
   if (facet.kind === 'consultation') {
-    return <div className="mt-7"><PageSection name="Consultation">{consultation}</PageSection></div>
+    return <>{consultation}</>
   }
   if (facet.kind === 'purpose' || facet.kind === 'results') {
     const purpose = facet.kind === 'purpose'
