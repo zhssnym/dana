@@ -1,5 +1,5 @@
 import {
-  BasicTextStyleButton, CreateLinkButton, FileCaptionButton, FileReplaceButton,
+  BasicTextStyleButton, CreateLinkButton, FileCaptionButton, FileDownloadButton, FileReplaceButton,
   FormattingToolbar, useBlockNoteEditor, useComponentsContext, useEditorState,
 } from '@blocknote/react'
 
@@ -28,6 +28,18 @@ function ClearFormattingButton(): React.JSX.Element | null {
   )
 }
 
+function ImageCaptionButton(): React.JSX.Element | null {
+  const editor = useBlockNoteEditor()
+  const imageSelected = useEditorState({
+    editor,
+    selector: ({ editor: current }) =>
+      (current.getSelection()?.blocks ?? [
+        current.getTextCursorPosition().block,
+      ]).some((block) => block.type === 'image'),
+  })
+  return imageSelected ? <FileCaptionButton /> : null
+}
+
 /** Compose supported upstream controls; BlockNote owns selection and popover behavior. */
 export function CanvasFormattingToolbar(): React.JSX.Element {
   return (
@@ -36,8 +48,9 @@ export function CanvasFormattingToolbar(): React.JSX.Element {
       <BasicTextStyleButton basicTextStyle="italic" />
       <CreateLinkButton />
       <ClearFormattingButton />
-      <FileCaptionButton />
+      <ImageCaptionButton />
       <FileReplaceButton />
+      <FileDownloadButton />
     </FormattingToolbar>
   )
 }

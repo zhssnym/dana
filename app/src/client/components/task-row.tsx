@@ -43,6 +43,7 @@ import {
   Trash2,
   UserPlus,
   UserRound,
+  Workflow,
   X,
   type LucideIcon,
 } from "../lib/icons.js"
@@ -89,7 +90,7 @@ import { ActionStrip, type ViewStripOption } from "./view-strip.js"
 import { useRowDensity, type RowDensity } from "../lib/row-density.js"
 import { usePeopleLibrary } from "../lib/people-library.js"
 import { useTaskWriter } from "../tasks/task-writer.js"
-import { useExpandedDetail } from "../tasks/row-detail.js"
+import { useTaskEditing } from "./task-editing.js"
 import { setTaskOpen } from "../lib/task-surface-preference.js"
 import {
   repeatShort,
@@ -1982,6 +1983,9 @@ export interface TaskRowProps {
   */
   unassigned?: boolean
   invitePending?: string
+  /* #225: unfinished blockers, 7.25's `blocked_by_count`. Absent or 0 draws
+     nothing, so an ordinary row carries no dependency chrome at all. */
+  blockedBy?: number
   /* 9.5's from half. The person who made this task, drawn only where the page
      asks. See the chip at the foot of `rowChips`. */
   createdBy?: string
@@ -2035,6 +2039,15 @@ export interface TaskRowProps {
    Steps arrive as a count, because a count is all the shell ever stored; they
    are expanded into items so the card can show a real list, and the count in
    the row stays derived from those items so the two can never disagree. */
+/* The presenter's frequency word back to the card's unit. A word that names
+   none ("Repeats") leaves the unit unknown rather than guessing weekly. */
+const REPEAT_UNIT_OF: Record<string, ConceptTask["repeatUnit"]> = {
+  Daily: "day",
+  Weekly: "week",
+  Monthly: "month",
+  Yearly: "year",
+}
+
 function toConceptTask(props: TaskRowProps): ConceptTask {
   const total = props.steps?.total ?? 0
   const complete = props.steps?.complete ?? 0
@@ -2062,7 +2075,9 @@ function toConceptTask(props: TaskRowProps): ConceptTask {
     steps,
     comments: props.comments,
     recurrence: Boolean(props.recurrence),
-    repeatUnit: props.recurrence === "Daily" ? "day" : "week",
+    ...(REPEAT_UNIT_OF[props.recurrence ?? ""] === undefined
+      ? {}
+      : { repeatUnit: REPEAT_UNIT_OF[props.recurrence ?? ""] }),
     ...props.detail,
   }
 }
@@ -2268,9 +2283,31 @@ export function TaskRow(props: TaskRowProps) {
   the list card's step count. A surface hands `detail` in already and reads
   nothing.
   */
-  const fetched = useExpandedDetail(props.detail === undefined ? props.id : undefined, open)
+  /* Through the same hook the dialog and the task's page use, so the inline
+     card carries the task's conversation too: without it the Comments block
+     showed no count and an empty thread, and a comment written there reached
+     nothing. Comment and attachment writes go to that hook's thread path;
+     every other field keeps the row's own write path. */
+  const expanded = useTaskEditing(
+    open && props.detail === undefined && props.id !== undefined ? props.id : null,
+  )
+  const fetched = expanded.concept ?? undefined
+  const rowWriter = useTaskWriter()
   const { task, patch, counts, cardHandlers } = useCardWiring(
-    fetched === undefined ? props : { ...props, detail: { ...fetched, ...props.detail } },
+    fetched === undefined
+      ? props
+      : {
+          ...props,
+          detail: { ...fetched, ...props.detail },
+          onPatch: (fields) => {
+            const { comments, attachments, ...rest } = fields
+            if (comments !== undefined) expanded.write(fetched.id, { comments })
+            if (attachments !== undefined) expanded.write(fetched.id, { attachments })
+            if (Object.keys(rest).length === 0) return
+            if (props.onPatch) props.onPatch(rest)
+            else if (rowWriter && props.id) rowWriter(props.id, rest)
+          },
+        },
   )
   /*
   The assignee menu's roster is the folder's members: 4.4's membership, because
@@ -2588,6 +2625,27 @@ export function TaskRow(props: TaskRowProps) {
     "and in nothing else", and a badge outside the strip is a detail the
     one-line row has nowhere to put. The words section 9 writes do not move.
     */
+    /* #225's compact indicator: only while something unfinished is in the way,
+       and only on a row that is itself still open. The names live in the card. */
+    {
+      key: "blocked",
+      shown: (props.blockedBy ?? 0) > 0 && !task.done && !task.abandoned,
+      body: () => (
+
+        <DetailChip
+          interactive={false}
+          title={
+            props.blockedBy === 1
+              ? "Waiting on 1 unfinished task"
+              : `Waiting on ${props.blockedBy ?? 0} unfinished tasks`
+          }
+        >
+          <DetailWord icon={Workflow}>
+            {`Blocked · ${props.blockedBy ?? 0}`}
+          </DetailWord>
+        </DetailChip>
+      ),
+    },
     {
       key: "invite-pending",
       shown: Boolean(props.invitePending),

@@ -443,6 +443,9 @@ export function repeatSummary(task: ConceptTask): string {
    the card left the row two lines above it saying something untrue. */
 export function repeatShort(task: ConceptTask): string {
   if (!task.recurrence) return 'Does not repeat'
+  /* No unit means nobody told this card the rule; say that it repeats rather
+     than guess "Weekly" about a daily task. */
+  if (task.repeatUnit === undefined) return 'Repeats'
   const every = Math.max(1, Number(task.repeatEvery ?? '1'))
   const unit = task.repeatUnit ?? 'week'
   const days = task.repeatDays ?? []

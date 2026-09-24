@@ -50,7 +50,7 @@ export const isPresentationHeadingKind = (kind:string):kind is PresentationHeadi
 export const MEDIA_BLOCK_KINDS = ['image','file','audio','video'] as const
 export type MediaBlockKind = (typeof MEDIA_BLOCK_KINDS)[number]
 export const isMediaKind = (kind:string):kind is MediaBlockKind => (MEDIA_BLOCK_KINDS as readonly string[]).includes(kind)
-export const DOCUMENT_BLOCK_KINDS = ['section','paragraph',...PRESENTATION_HEADING_KINDS,'image','folder_ref',...STRUCTURED_BLOCK_KINDS,'file','audio','video'] as const
+export const DOCUMENT_BLOCK_KINDS = ['section','paragraph',...PRESENTATION_HEADING_KINDS,'image','folder_ref',...STRUCTURED_BLOCK_KINDS,'file','audio','video','diagram'] as const
 export type DocumentBlockKind = (typeof DOCUMENT_BLOCK_KINDS)[number]
 /**
  * The kinds that persist a dragged width (4.17's `width_pct`, 25 to 100).
@@ -150,6 +150,8 @@ export const documentOperation = z.discriminatedUnion('op',[
   // folder reference (that is `folder_ref`'s whole job), and it carries no text
   // and no rich content — a caption is a paragraph, and the filename the block
   // shows is read from the `files` row rather than copied onto the block.
+  // #222: a diagram is its source text alone; the picture is derived on read.
+  if(b.block_kind==='diagram'&&(b.file_id!==null||b.ref_folder_id!==null))ctx.addIssue({code:'custom',path:['file_id'],message:'A diagram carries no file and no folder reference.'})
   if(isMediaKind(b.block_kind)&&b.ref_folder_id!==null)ctx.addIssue({code:'custom',path:['ref_folder_id'],message:'A media block carries no folder reference.'})
   if((b.block_kind==='file'||b.block_kind==='audio'||b.block_kind==='video')&&((b.text!==null&&b.text!=='')||b.rich_content!==null))ctx.addIssue({code:'custom',path:['text'],message:'A file, audio or video block carries no text of its own.'})
   /*

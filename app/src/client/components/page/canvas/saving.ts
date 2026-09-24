@@ -58,7 +58,10 @@ export class CanvasWriter {
     this.inFlight = (async () => {
       try {
         const page = await this.send(pending.request)
-        this.revision = page.revision!
+        // No revision means no safe base for the next write; fail visibly.
+        // Retry re-sends the same mutation id, which the server replays.
+        if (!page.revision) throw new Error('The page saved without a version. Retry save to confirm it.')
+        this.revision = page.revision
         // Re-based on what the server now holds, not on the projection that was
         // sent. The projection expresses none of the structured kinds, so a
         // baseline taken from it is flat from the second save onward and the
@@ -85,6 +88,11 @@ export class CanvasWriter {
       }
     })()
     return this.inFlight
+  }
+  /** Leaving the editor: wait out a save in flight, then send what came after it. */
+  async drain(): Promise<void> {
+    await this.flush()
+    if (this.state === 'changed') await this.flush()
   }
   async retry(): Promise<void> {
     if (this.state !== 'failed' || !this.pending) return

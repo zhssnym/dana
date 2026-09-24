@@ -259,6 +259,7 @@ export const WORKFLOW_PAGE_BLOCK_KINDS = [
   'quote',
   'callout',
   'code',
+  'diagram',
 ] as const
 export type WorkflowPageBlockKind = (typeof WORKFLOW_PAGE_BLOCK_KINDS)[number]
 
@@ -431,6 +432,7 @@ export const WORKFLOW_PURPOSE_BLOCK_KINDS = [
   'quote',
   'callout',
   'code',
+  'diagram',
 ] as const
 export type WorkflowPurposeBlockKind =
   (typeof WORKFLOW_PURPOSE_BLOCK_KINDS)[number]

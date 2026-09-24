@@ -7,9 +7,10 @@ names what is worth knowing about it.
 What the page supplies is what the screen cannot know. **The membership**:
 folders whose personal label is this shelf's name (4.18, 4.4), read off the
 folder list already in every page's cache, Desk never shelving (9.10). **The
-arrangement**: 4.17's rows through `lib/shelf-layout.ts`, one PUT of the whole
-list per change with the evidence it was read with, the response handed back so
-the screen adopts the server's ids. **The acts**: Copy link through
+arrangement**: the Shelf's revisioned document (#221), written by
+`components/page/canvas/ShelfCanvas.tsx` through 7.16's `document_transaction`
+on `/shelves/:id/page/actions`. The legacy whole-page PUT is no longer called:
+once the document route has written a Shelf, that PUT answers 409. **The acts**: Copy link through
 `lib/nav-links.ts`, Duplicate as one call to `POST /shelves/:id/duplicate` and
 no folders (9.10: a folder is on one shelf), which carries the mark, the colour,
 the description and a cover picture of the copy's own and does not carry the
@@ -23,30 +24,27 @@ store rather than retargeting.
 carrying this shelf's name as the label the new folder is filed under, which is
 the same two writes the sidebar's "Add folder to {shelf}" performs.
 */
-import { useMemo, useRef } from 'react'
+import { lazy, Suspense, useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
 import {
   useDeleteShelf,
   useDuplicateShelf,
   usePatchShelf,
-  usePutShelfPage,
   useUpdateMyMembership,
 } from '../api/mutations.js'
-import { queryKeys } from '../api/keys.js'
-import { queryClient } from '../api/queryClient.js'
 import { useFolders, useShelf, useShelfPage } from '../api/queries.js'
 import { copyShelfLink } from '../lib/shelf-acts.js'
-import { shelfItemsOf, shelfWritesOf } from '../lib/shelf-layout.js'
 import { DEFAULT_FOLDER_COLOR } from '../parts/presenters.js'
 import { paths } from '../routes.js'
 import { ShelfPage as ShelfScreen } from '../screens/shelf-page.js'
-import type { ShelfFolder, ShelfItem } from '../screens/shelf-page.js'
+import type { CanvasFolderRow } from '../components/page/canvas/CanvasFolder.js'
 import { openNewFolder } from '../shell/overlays.js'
 import { openInNewTab } from '../shell/tabs.js'
 import { PageBody } from '../components/page/PageStates.js'
 import type { Folder } from '../../shared/folders.js'
-import type { PageBlock } from '../../shared/pages.js'
+
+const ShelfCanvas = lazy(() => import('../components/page/canvas/ShelfCanvas.js'))
 
 /** The workflow file this shelf exports: its folders, by name. */
 function shelfWorkflowFile(name: string, folders: readonly Folder[]): string {
@@ -69,7 +67,6 @@ export function ShelfPage(): React.JSX.Element {
   const page = useShelfPage(id)
   const folders = useFolders()
   const patch = usePatchShelf()
-  const putPage = usePutShelfPage()
   const remove = useDeleteShelf()
   const duplicate = useDuplicateShelf()
   const move = useUpdateMyMembership()
@@ -87,7 +84,7 @@ export function ShelfPage(): React.JSX.Element {
     [folders.data, name],
   )
   const shelfFolders = useMemo(
-    (): ShelfFolder[] =>
+    (): CanvasFolderRow[] =>
       onShelf.map((folder) => ({
         id: folder.id,
         name: folder.name,
@@ -113,29 +110,6 @@ export function ShelfPage(): React.JSX.Element {
     [folders.data, name],
   )
 
-  /* The last read, for the evidence every write carries (4.17). A ref so the
-     screen's save, which runs from its own effect, reads what the cache holds
-     now rather than what it held when the callback was made. */
-  const stored = useRef<readonly PageBlock[]>([])
-  stored.current = page.data?.blocks ?? stored.current
-
-  async function onLayoutChange(items: ShelfItem[]): Promise<ShelfItem[] | null> {
-    try {
-      const saved = await putPage.mutateAsync({
-        id,
-        body: { blocks: shelfWritesOf(items, stored.current) },
-      })
-      stored.current = saved.blocks
-      queryClient()?.setQueryData(queryKeys.shelfPage(id), saved)
-      return shelfItemsOf(saved.blocks)
-    } catch {
-      /* The 409 a stale write earns is already the 5.1 toast; the refetch
-         is what replaces the loser on screen (LWW handled visibly). */
-      void page.refetch()
-      return null
-    }
-  }
-
   return (
     <PageBody query={shelf} isEmpty={false} emptyCopy="">
       <PageBody query={page} isEmpty={false} emptyCopy="">
@@ -150,23 +124,6 @@ export function ShelfPage(): React.JSX.Element {
             key={id}
             id={id}
             name={name}
-            folders={shelfFolders}
-            addableFolders={addable}
-            initialItems={shelfItemsOf(page.data.blocks)}
-            onLayoutChange={onLayoutChange}
-            folderHref={(folderId) => paths.folder(folderId)}
-            onOpenFolder={(folderId) => {
-              void navigate(openInNewTab(paths.folder(folderId)))
-            }}
-            onAddFolder={(folderId) => {
-              /* The same act the sidebar's "Move to shelf" performs: the
-                 `shelf` field is the membership (4.18), so the row joins the
-                 page through the reconciliation with no reload (AC-223). */
-              move.mutate({ id: folderId, body: { shelf: name } })
-            }}
-            onCreateFolder={() => {
-              openNewFolder(name)
-            }}
             onRename={(next) => {
               /* 9.10: renaming rewrites the member labels and re-addresses
                  the page in one act, and 4.18's lockstep makes that the
@@ -223,7 +180,34 @@ export function ShelfPage(): React.JSX.Element {
                 },
               })
             }}
-          />
+          >
+            <Suspense fallback={<p role="status">Loading writing…</p>}>
+              <ShelfCanvas
+                shelfId={id}
+                page={page.data}
+                folders={shelfFolders}
+                addableFolders={addable}
+                folderHref={paths.folder}
+                settled={!shelf.isFetching && !folders.isFetching}
+                onOpenFolder={(folderId) => {
+                  void navigate(openInNewTab(paths.folder(folderId)))
+                }}
+                onAddFolder={async (folderId) => {
+                  /* The same act the sidebar's "Move to shelf" performs: the
+                     `shelf` field is the membership (4.18); the composer places
+                     the row once it is written (AC-223). */
+                  await move.mutateAsync({ id: folderId, body: { shelf: name } })
+                }}
+                onRemoveFolder={async (folderId) => {
+                  /* Remove from shelf clears the membership; the folder stays. */
+                  await move.mutateAsync({ id: folderId, body: { shelf: null } })
+                }}
+                onCreateFolder={() => {
+                  openNewFolder(name)
+                }}
+              />
+            </Suspense>
+          </ShelfScreen>
         )}
       </PageBody>
     </PageBody>

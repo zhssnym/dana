@@ -119,6 +119,7 @@ import { InlineInput } from '../components/ui/inline-field.js'
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover.js'
 /* The one thread component, used wherever a conversation happens. */
 import { CommentsThread } from '../components/comments.js'
+import { ConsultationPanel } from '../components/consultation/ConsultationPanel.js'
 import { HistorySheet } from '../components/history-sheet.js'
 import { ObjectMenu } from '../components/object-menu.js'
 import { PersonFace } from '../components/person-face.js'
@@ -155,6 +156,7 @@ import { Folder as FolderIcon } from 'lucide-react'
 import {
   MessageSquare,
   PanelRight,
+  Repeat2,
   Share2,
   UserRoundCheck,
 } from '../lib/icons.js'
@@ -201,8 +203,10 @@ import { folderToWorkflowFile } from '../../shared/workflows.js'
 import type { WorkflowDependencyEdge } from '../../shared/workflows.js'
 import { getFolderDependenciesResponse } from '../../shared/task-dependencies.js'
 import type { Facet } from '../../shared/facets.js'
+import { getPageResponse } from '../../shared/pages.js'
 import type { PageView } from '../../shared/pages.js'
 import { workPageOf } from '../components/page/canvas/adapters.js'
+import { ReferencedFrom } from '../components/links/referenced-from.js'
 
 /**
  * What the list says when the folder holds open tasks and the filter has
@@ -381,8 +385,15 @@ export function FolderPage({
   const [panelOpen, setPanelOpen] = useState(arrivingAtThread)
 
   const connections = useConnections()
+  /* Desk, the account's default folder, has no page-level conversation
+     (issue #195): its Tasks carry their own threads, and a thread on the
+     person's own landing page is nobody's conversation. Every home of the
+     folder thread below is gated on this; comments already there stay in the
+     data and in exports. */
+  const deskHasNoThread = folder.data?.is_default === true
   const threadOpen =
-    conversationHome === 'foot' ? footThreadOpen : panelOpen
+    !deskHasNoThread &&
+    (conversationHome === 'foot' ? footThreadOpen : panelOpen)
 
   /*
   9.6's two right-edge panels take room rather than covering. Each publishes its
@@ -396,7 +407,8 @@ export function FolderPage({
   which a dialog answers better; the conversation and the sharing panel are the
   two you work beside.
   */
-  const conversationPanelOpen = conversationHome === 'panel' && panelOpen
+  const conversationPanelOpen =
+    !deskHasNoThread && conversationHome === 'panel' && panelOpen
   useReserveRightEdge(CONVERSATION_PANEL_WIDTH, conversationPanelOpen)
   useReserveRightEdge(SHARING_PANEL_WIDTH, sharing)
   const thread = useThread(id, null, threadOpen)
@@ -568,21 +580,47 @@ export function FolderPage({
   */
   const facts = viewerFacts(detail, members, basis.viewerId)
   const gates = facts === null ? null : folderGates(facts)
-  const facetRows = facets.data?.facets ?? []
+  /* Desk's Consultation facet is its page-level conversation, which Desk does
+     not have (issue #195). It stays in the data, counted as hidden so the
+     shared reorder below still names every row, and is left off the strip. */
+  const facetRows = (facets.data?.facets ?? []).map((facet) =>
+    isDefault && facet.kind === 'consultation' ? { ...facet, hidden: true } : facet,
+  )
   const requestedFacetId = search.get('facet')
   const mainFacet = facetRows.find((facet) => facet.kind === 'main')
+  const purposeFacet = facetRows.find((facet) => facet.kind === 'purpose')
+  /* A Discussion address (`?discussion=`, from ConsultationLinkPage) opens the
+     Consultation facet even when it is hidden or not named: a link to a
+     Discussion must land on it. Never on Desk, which has no Consultation. */
+  const linkedDiscussion = search.get('discussion') !== null && !isDefault
+  const linkedConsultation = (facet: Facet): boolean => linkedDiscussion && facet.kind === 'consultation'
   const activeFacet = facetRows.find(
-    (facet) => facet.id === requestedFacetId && !facet.hidden,
-  ) ?? mainFacet
+    (facet) => facet.id === requestedFacetId && (!facet.hidden || facet.kind === 'purpose' || facet.kind === 'results' || linkedConsultation(facet)),
+  ) ?? facetRows.find(linkedConsultation) ?? mainFacet
 
   const selectFacet = useCallback((facet: Facet): void => {
     setSearch((current) => {
       const next = new URLSearchParams(current)
       if (facet.kind === 'main') next.delete('facet')
       else next.set('facet', facet.id)
+      next.delete('discussion')
+      next.delete('outcome')
       return next
     }, { replace: true })
   }, [setSearch])
+
+  const sharedPageEditable =
+    facts !== null &&
+    basis.viewerId !== null &&
+    detail !== undefined &&
+    mayPerform({
+      folderId: id,
+      actorId: basis.viewerId,
+      access: facts.access,
+      isOwner: facts.isOwner,
+      isDefault: facts.isDefault,
+      name: detail.name,
+    }, 'folder.page.edit').allowed
 
   const facetCapabilities = useCallback((facet: Facet | null): FacetCapabilities => {
     if (facts === null || basis.viewerId === null || detail === undefined) {
@@ -618,8 +656,33 @@ export function FolderPage({
      the owner's delete dialog asks: somebody to hand it to is not the same as
      somebody who is in it. */
   const others = otherMembers(members, basis.viewerId)
+  /* Issue #205: finite progress counts one-off Tasks only, so a recurring
+     Task's endless occurrences never grow the denominator; they are named
+     apart as "N recurring". `counts` is the fallback for an older server. */
+  const progress = detail?.progress
+  const completionDone = progress?.done ?? detail?.counts.completed ?? 0
   const completionTotal =
+    progress?.total ??
     (detail?.counts.completed ?? 0) + (detail?.counts.pending ?? 0)
+  const recurringActive = progress?.recurring_active ?? 0
+  /* Each Section's own "done/total" rides its heading on the canvas. The
+     canvas is BlockNote's document, whose headings are not ours to render,
+     so the chip is a pseudo-element keyed by the block id: never editable,
+     never saved, and no edit to the canvas itself. Ids are zod-checked uuids
+     and the text is digits, so nothing in the rule is user-authored. */
+  const sectionChips = (detail?.section_progress ?? [])
+    .filter((entry) => entry.total > 0 || entry.recurring_active > 0)
+    .map((entry) => {
+      const parts = [
+        entry.total > 0 ? `${entry.done}/${entry.total}` : '',
+        entry.recurring_active > 0 ? `↻ ${entry.recurring_active}` : '',
+      ].filter((part) => part !== '')
+      return `.dana-writing-canvas .bn-block[data-id="${entry.section_block_id}"] > .bn-block-content[data-content-type='heading']::after{content:"${parts.join(' · ')}"}`
+    })
+  const sectionChipStyle =
+    sectionChips.length === 0
+      ? ''
+      : `.dana-writing-canvas .bn-block-content[data-content-type='heading']::after{margin-inline-start:calc(var(--spacing) * 2);align-self:center;flex-shrink:0;font-size:var(--text-xs);line-height:var(--text-xs--line-height);font-weight:var(--font-weight-normal);color:var(--muted-foreground);font-variant-numeric:tabular-nums;user-select:none;pointer-events:none} ${sectionChips.join(' ')}`
   /* The description is offered at rest on a folder nobody has dressed, where a
      hidden affordance is one nobody discovers. */
   const pristine =
@@ -832,6 +895,7 @@ export function FolderPage({
     let tasks: TaskDetail[]
     let labels: readonly LabelDefinition[]
     let dependencies: WorkflowDependencyEdge[]
+    let purposePage: PageView | undefined
     try {
       /* #207: the Folder's internal dependencies, read once beside the
          details, so the file keeps the ordering between the work it carries.
@@ -839,7 +903,7 @@ export function FolderPage({
          keeps only edges whose two ends it writes. Read fresh rather than
          through the cache, because no dependency write invalidates a
          folder-level key and a stale graph would write a wrong file. */
-      const [details, vocabulary, waits] = await Promise.all([
+      const [details, vocabulary, waits, purposeDocument] = await Promise.all([
         Promise.all(
           pending.map((task) =>
             cache.fetchQuery({
@@ -860,12 +924,19 @@ export function FolderPage({
           getFolderDependenciesResponse,
           `/folders/${encodeURIComponent(id)}/dependencies`,
         ),
+        purposeFacet === undefined
+          ? Promise.resolve(undefined)
+          : cache.fetchQuery({
+              queryKey: queryKeys.facetPage(id, purposeFacet.id),
+              queryFn: () => getPlain(getPageResponse, `/folders/${id}/facets/${purposeFacet.id}/page`),
+            }),
       ])
       tasks = details
       labels = labelRowsOf(vocabulary)
       dependencies = waits.dependencies
+      purposePage = purposeDocument
     } catch {
-      showToast('Could not read this folder’s tasks, so nothing was saved.')
+      showToast('Could not read this folder’s reusable content, so nothing was saved.')
       return
     }
     const saved = folderToWorkflowFile(
@@ -874,7 +945,9 @@ export function FolderPage({
       page.data?.blocks ?? [],
       page.data,
       labels,
-      undefined,
+      purposeFacet === undefined || purposePage === undefined
+        ? undefined
+        : { display_name: purposeFacet.display_name, page: purposePage },
       dependencies,
     )
     const file = JSON.stringify(saved.file, null, 2)
@@ -1147,7 +1220,7 @@ export function FolderPage({
         <WindowBarActions order={2}>
           {/* The conversation's opener when its home is the panel; the foot
               section is its own opener otherwise. */}
-          {conversationHome === 'panel' ? (
+          {conversationHome === 'panel' && !isDefault ? (
             <Button
               variant="ghost"
               size="icon"
@@ -1473,9 +1546,25 @@ export function FolderPage({
                     {detail?.name ?? ''}
                   </h1>
                 )}
-                {completionTotal > 0 ? (
-                  <span className="shrink-0 text-xs leading-4 text-muted-foreground tabular-nums">
-                    {detail?.counts.completed ?? 0} of {completionTotal} done
+                {completionTotal > 0 || recurringActive > 0 ? (
+                  <span className="flex shrink-0 items-center gap-1.5 text-xs leading-4 text-muted-foreground tabular-nums">
+                    {completionTotal > 0 ? (
+                      <span>
+                        {completionDone} of {completionTotal} done
+                      </span>
+                    ) : null}
+                    {completionTotal > 0 && recurringActive > 0 ? (
+                      <span aria-hidden="true">·</span>
+                    ) : null}
+                    {recurringActive > 0 ? (
+                      <span
+                        className="inline-flex items-center gap-0.5"
+                        title="Recurring Tasks are not counted in the total"
+                      >
+                        <Repeat2 className="size-3" strokeWidth={1.75} aria-hidden="true" />
+                        {recurringActive} recurring
+                      </span>
+                    ) : null}
                   </span>
                 ) : null}
               </div>
@@ -1502,7 +1591,9 @@ export function FolderPage({
 
         {facets.data ? (
           <FolderFacetNavigator
-            facets={facetRows}
+            facets={isDefault
+              ? facetRows.filter((facet) => facet.kind !== 'consultation')
+              : facetRows}
             activeId={activeFacet?.id ?? ''}
             capabilities={facetCapabilities}
             page={page.data}
@@ -1572,6 +1663,7 @@ export function FolderPage({
                   </div>
                 ) : (
                   <Suspense fallback={<p role="status">Loading writing…</p>}>
+                  {sectionChipStyle === '' ? null : <style>{sectionChipStyle}</style>}
                   {page.data ? <FolderCanvas
                     key={id}
                     page={page.data}
@@ -1590,6 +1682,8 @@ export function FolderPage({
                 )}
               </PageBody>
             </PageSection>
+            {/* #214: the documents that link to this Folder. Absent while none do. */}
+            <ReferencedFrom kind="folder" id={id} className="mt-2" />
 
           </div>
 
@@ -1625,7 +1719,7 @@ export function FolderPage({
 
           {/* The conversation's foot home: a closed section at the page's
               foot (9.6). Its other home is the side panel below. */}
-          {conversationHome === 'foot' ? (
+          {conversationHome === 'foot' && !isDefault ? (
             <CollapsibleSection
               name="Conversation"
               defaultOpen={false}
@@ -1643,7 +1737,14 @@ export function FolderPage({
             context={context}
             actions={actions}
             onAsk={confirm.ask}
-            consultation={threadSurface}
+            consultation={
+              <ConsultationPanel
+                folderId={id}
+                viewer={facts === null || basis.viewerId === null ? null : { viewerId: basis.viewerId, facts }}
+                personOf={personOf}
+              />
+            }
+            sharedPageEditable={sharedPageEditable}
             onOpenMain={() => { if (mainFacet) selectFacet(mainFacet) }}
           />
         ) : null}
@@ -1826,6 +1927,7 @@ function FacetContent({
   actions,
   onAsk,
   consultation,
+  sharedPageEditable,
   onOpenMain,
 }: {
   readonly facet: Facet
@@ -1836,25 +1938,33 @@ function FacetContent({
   readonly actions: ReturnType<typeof useRowActions>
   readonly onAsk: (message: string, action: () => void) => void
   readonly consultation: React.ReactNode
+  readonly sharedPageEditable: boolean
   readonly onOpenMain: () => void
 }): React.JSX.Element {
   const blank = facet.kind === 'shared_blank' || facet.kind === 'private_blank'
-  const document = useFacetPage(folderId, facet.id, blank)
+  const document = useFacetPage(folderId, facet.id, blank || facet.kind === 'purpose' || facet.kind === 'results')
 
   if (facet.kind === 'consultation') {
-    return <div className="mt-7"><PageSection name="Consultation">{consultation}</PageSection></div>
+    return <>{consultation}</>
   }
   if (facet.kind === 'purpose' || facet.kind === 'results') {
     const purpose = facet.kind === 'purpose'
     return (
-      <div className="mx-auto mt-10 flex min-h-64 max-w-[440px] flex-col items-center justify-center px-6 text-center">
-        <h2 className="text-sm font-semibold text-[var(--color-graphite-800)]">{facet.name}</h2>
-        <p className="mt-1.5 max-w-[40ch] text-xs leading-5 text-muted-foreground">
-          {purpose
-            ? 'Keep the intent behind this folder close to its tasks, notes, and decisions.'
-            : 'Bring outcomes, signals, and evidence of progress into one view.'}
-        </p>
-        <span className="mt-3 text-[11px] text-[var(--color-graphite-400)]">Guided workspace coming soon</span>
+      <div className="mt-7">
+        {document.data ? (
+          <>
+            {document.data.items.length === 0 ? (
+              <p className="mb-3 px-2 text-xs leading-5 text-muted-foreground">
+                {purpose
+                  ? 'Describe why this work exists, what it aims to achieve, or what should guide it.'
+                  : 'Record what actually happened: outcomes, findings, evaluations, and partial or unsuccessful results.'}
+              </p>
+            ) : null}
+            <Suspense fallback={<p role="status">Loading writing…</p>}>
+              <FolderCanvas key={`${folderId}:${facet.id}`} page={document.data} tasks={[]} folderId={folderId} facetId={facet.id} presentationHeadings context={context} actions={actions} onAsk={onAsk} arrangeable={sharedPageEditable} />
+            </Suspense>
+          </>
+        ) : <p role={document.isError ? 'alert' : 'status'}>{document.isError ? `Could not load ${purpose ? 'Purpose' : 'Results'}. Reload to try again.` : 'Loading writing…'}</p>}
       </div>
     )
   }

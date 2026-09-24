@@ -33,7 +33,7 @@ import {
 } from "../components/ui/dialog.js"
 import { markIcon } from "../components/page/icon-manifest.js"
 import { PageMark } from "../components/page-head.js"
-import { CheckCircle2, Layers3, Trash2 } from "../lib/icons.js"
+import { CheckCircle2, Layers3, MessageSquare, Trash2 } from "../lib/icons.js"
 import {
   TRASH_DAYS,
   type TrashItem,
@@ -97,7 +97,7 @@ export function TrashScreen({
             <TrashRow
               key={item.id}
               item={item}
-              onRestore={() => onRestore(item)}
+              onRestore={item.restorable === false ? undefined : () => onRestore(item)}
               onPurge={item.purgeable ? () => setConfirming(item) : undefined}
             />
           ))}
@@ -119,7 +119,7 @@ export function TrashScreen({
             Nothing deleted
           </p>
           <p className="max-w-[42ch] text-[13px] leading-5 text-[var(--color-graphite-500)]">
-            Tasks, folders and facets you delete land here first, so a wrong press costs
+            Tasks, folders, facets and discussions you delete land here first, so a wrong press costs
             a click rather than the thing itself.
           </p>
         </div>
@@ -172,7 +172,8 @@ function TrashRow({
   onPurge,
 }: {
   item: TrashItem
-  onRestore: () => void
+  /* Absent where the server says this viewer may not restore the row. */
+  onRestore: (() => void) | undefined
   /* Absent where the viewer may not destroy this row permanently: the
      control is not drawn rather than drawn to be refused. `lib/trash.ts`
      answers which, per row and per kind. */
@@ -180,7 +181,14 @@ function TrashRow({
 }) {
   /* A folder wears its own glyph, from the one resolver every other surface
      asks; a task wears the check it would wear anywhere. */
-  const Glyph = item.kind === "task" ? CheckCircle2 : item.kind === "facet" ? Layers3 : markIcon(null)
+  const Glyph =
+    item.kind === "task"
+      ? CheckCircle2
+      : item.kind === "facet"
+        ? Layers3
+        : item.kind === "discussion"
+          ? MessageSquare
+          : markIcon(null)
   const left = daysLeft(item)
 
   return (
@@ -211,9 +219,11 @@ function TrashRow({
       {/* Restore and Delete are visible at rest; a row whose only controls
           appear on hover is a row with nothing to press. */}
       <span className="flex shrink-0 items-center gap-1 opacity-80 transition-opacity duration-[var(--duration-fast)] group-hover/row:opacity-100 focus-within:opacity-100">
-        <Button variant="ghost" size="sm" onClick={onRestore}>
-          Restore
-        </Button>
+        {onRestore ? (
+          <Button variant="ghost" size="sm" onClick={onRestore}>
+            Restore
+          </Button>
+        ) : null}
         {/* Seam 2. */}
         {onPurge ? (
           <Button
