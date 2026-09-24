@@ -283,13 +283,16 @@
 }
 /* A clicked image, divider, page or Task row (ProseMirror's node selection)
    wears the same soft tint as a block selection, never BlockNote's inset
-   outline. */
+   outline; and only while the editor has focus. A node selection outlives a
+   blur (Esc, a click elsewhere, a row that opened a page), and a page of
+   nothing but rows has no caret to trade it for, so a tint drawn blurred
+   could never be let go. */
 .dana-writing-canvas .bn-block-content.ProseMirror-selectednode > ::after,
 .dana-writing-canvas .ProseMirror-selectednode > .bn-block-content > ::after { content: none; }
 .dana-writing-canvas .bn-block-content.ProseMirror-selectednode,
 .dana-writing-canvas .ProseMirror-selectednode > .bn-block-content { position: relative; }
-.dana-writing-canvas .bn-block-content.ProseMirror-selectednode::after,
-.dana-writing-canvas .ProseMirror-selectednode > .bn-block-content::after {
+.dana-writing-canvas .ProseMirror-focused .bn-block-content.ProseMirror-selectednode::after,
+.dana-writing-canvas .ProseMirror-focused .ProseMirror-selectednode > .bn-block-content::after {
   content: '';
   position: absolute;
   inset: calc(-1 * var(--dana-block-selection-inset-y)) calc(-1 * var(--dana-block-selection-inset-x));

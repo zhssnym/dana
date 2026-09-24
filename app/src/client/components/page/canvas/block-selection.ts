@@ -113,6 +113,14 @@ function isMod(event: KeyboardEvent): boolean {
   return /Mac|iPhone|iPad/.test(navigator.platform) ? event.metaKey : event.ctrlKey
 }
 
+/** Nothing selected and the caret gone: a node selection keeps its tint even blurred, so it becomes a text one first. */
+function dropNodeSelection(view: EditorView): void {
+  if (view.state.selection instanceof NodeSelection) view.dispatch(view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(view.state.selection.from), -1)))
+  view.dom.blur()
+  const active = document.activeElement
+  if (active instanceof HTMLElement && view.dom.contains(active)) active.blur()
+}
+
 function currentBlockId(view: EditorView): string | null {
   const $from = view.state.selection.$from
   for (let depth = $from.depth; depth > 0; depth--) {
@@ -286,6 +294,15 @@ export function useBlockSelectionKeys(editor: AnyEditor, actions: BlockSelection
         return
       }
       if (ids.length === 0) {
+        /* A Task row, sub-page row, image or divider (a node selection) is
+           already wearing the selection tint, whether it was reached by the
+           keys or by a click that then moved focus onto the row or off the
+           editor: Esc there is the second Esc, and lets go of it. */
+        if (key === 'Escape' && !mod && !event.shiftKey && view.state.selection instanceof NodeSelection && view.state.selection.node.isBlock && ownsKeys(view)) {
+          stop()
+          dropNodeSelection(view)
+          return
+        }
         // Only keys typed into the text itself (a field inside a block keeps its own).
         if (!onHost) return
         if (mod && key.toLowerCase() === 'a' && !event.shiftKey && !event.altKey) {
@@ -299,15 +316,6 @@ export function useBlockSelectionKeys(editor: AnyEditor, actions: BlockSelection
           } else setBlockSelection(editor, editor.document.map((block) => block.id))
           return
         }
-        /* A Task row, image or divider arrived at by the keys is already
-           wearing the selection tint (a node selection): Esc there is the
-           second Esc, not a first one that changes nothing on screen. */
-        if (key === 'Escape' && !mod && !event.shiftKey && view.state.selection instanceof NodeSelection && view.state.selection.node.isBlock) {
-          stop()
-          view.dispatch(view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(view.state.selection.from), -1)))
-          view.dom.blur()
-          return
-        }
         if (key === 'Escape' && !mod && !event.shiftKey && !editor.getExtension(SuggestionMenu)?.shown() && currentBlockId(view) !== null) {
           // Claimed (a handler that yields to a claimed Esc does), and decided on the way back up.
           event.preventDefault()
@@ -317,7 +325,7 @@ export function useBlockSelectionKeys(editor: AnyEditor, actions: BlockSelection
       }
       // A key inside an open menu belongs to the menu.
       if (document.activeElement?.closest('[role="menu"]')) return
-      if (key === 'Escape') { stop(); clearBlockSelection(editor); view.dom.blur(); return }
+      if (key === 'Escape') { stop(); clearBlockSelection(editor); dropNodeSelection(view); return }
       if (key === 'Backspace' || key === 'Delete') {
         stop()
         // Removed while still picked, so Undo gives the picked blocks back (the selection's bookmark, `marquee.ts`).
