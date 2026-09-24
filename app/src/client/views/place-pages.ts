@@ -17,19 +17,13 @@ everywhere; and board is offered wherever a page can be grouped, which is
 everywhere, because the folder is the one categorical value every task always
 has.
 
-**The capture column is 9.1's list read as a list.** "The floating 'Add task'
-button appears only on the pages with no capture affordance of their own, Today,
-Important, and Assignments, and never on Done or Abandoned." AC-096 reads that
-as three presences against seven absences.
+**The capture column is 9.1's list read as a list**: the floating button appears
+only on the pages with no capture affordance of their own.
 */
 import type { LucideIcon } from '../lib/icons.js'
 import {
-  Ban,
   CalendarDays,
-  CalendarX,
-  CheckCircle2,
   Layers3,
-  Star,
   SunMedium,
   UserRoundCheck,
 } from '../lib/icons.js'
@@ -56,11 +50,6 @@ export type PlaceKey =
   | 'today'
   | 'scheduled'
   | 'assignments'
-  | 'important'
-  | 'all'
-  | 'done'
-  | 'abandoned'
-  | 'anytime'
   | 'folder'
 
 /** Where a page's one always-visible capture point is, or that it has none. */
@@ -116,62 +105,6 @@ export const PLACES: Record<PlaceKey, PlaceSpine> = {
     views: LIST_AND_BOARD,
     capture: 'floating',
     boardAxis: 'person',
-  },
-  important: {
-    key: 'important',
-    name: 'Important',
-    path: paths.important,
-    question: 'Keep the tasks that matter most close at hand.',
-    icon: Star,
-    views: LIST_AND_BOARD,
-    capture: 'floating',
-    boardAxis: 'folder',
-  },
-  all: {
-    key: 'all',
-    name: 'All',
-    path: paths.all,
-    question: 'See every task together, including finished work.',
-    icon: Layers3,
-    views: LIST_AND_BOARD,
-    capture: 'inline',
-    boardAxis: 'folder',
-  },
-  done: {
-    key: 'done',
-    name: 'Done',
-    path: paths.done,
-    question: 'Look back on everything you have completed.',
-    icon: CheckCircle2,
-    /*
-    List and board. Done draws the one `TaskRow`, so its board is the shared
-    `views/TaskBoard.tsx` with a column per completion day, every card finished.
-    A day is a relation rather than a value, so no column captures and no drop
-    lands, `grouping.ts`'s own rule for Overdue.
-    */
-    views: LIST_AND_BOARD,
-    capture: 'none',
-    boardAxis: 'folder',
-  },
-  abandoned: {
-    key: 'abandoned',
-    name: 'Abandoned',
-    path: paths.abandoned,
-    question: 'Keep track of what you chose not to continue.',
-    icon: Ban,
-    views: LIST_AND_BOARD,
-    capture: 'none',
-    boardAxis: 'folder',
-  },
-  anytime: {
-    key: 'anytime',
-    name: 'Anytime',
-    path: paths.anytime,
-    question: 'Keep undated tasks ready for whenever the time is right.',
-    icon: CalendarX,
-    views: LIST_AND_BOARD,
-    capture: 'inline',
-    boardAxis: 'folder',
   },
   /*
   The folder page (9.6).
@@ -322,23 +255,11 @@ function placeDefaults(place: PlaceKey, today: string): CaptureDefaults {
        here on the page it was made on (Q3 admits dated rows only). */
     case 'scheduled':
       return { due_date: today, important: false, pullIntoToday: false }
-    /* Important: the flag, and no date, because starring is not scheduling. */
-    case 'important':
-      return { due_date: null, important: true, pullIntoToday: false }
     /* Assignments: assigned to the viewer. 7.6 defaults `assignee_id` to the
        caller when a body carries none, and Desk is single-member so the
        forcing lands on them either way, which is why this row writes no
        assignee of its own rather than restating the server's rule. */
     case 'assignments':
-      return { due_date: null, important: false, pullIntoToday: false }
-    /* All and Anytime: Desk and undated, 9.3's first row. Done and Abandoned
-       capture nowhere and never reach this, and the branch is here rather
-       than thrown from because an unreachable throw is a crash waiting for a
-       future page. */
-    case 'all':
-    case 'anytime':
-    case 'done':
-    case 'abandoned':
       return { due_date: null, important: false, pullIntoToday: false }
     /* A folder page's capture is the page's own, because the one thing it
        writes is a folder id this table cannot know. `usePlace` takes it as an

@@ -28,7 +28,6 @@ import {
   X,
 } from "../lib/icons.js"
 
-import { Badge } from "./ui/badge.js"
 import { Button } from "./ui/button.js"
 import {
   Dialog,
@@ -113,18 +112,7 @@ function StatusBadge({ status }: { status: SearchResultStatus }) {
      while only Completed and Abandoned wear a visible chip. */
   if (status === "pending") return <span className="sr-only">{statusLabels[status]}</span>
   return (
-    <Badge
-      variant="secondary"
-      className={cn(
-        "h-5 rounded-full border px-2 text-[0.625rem] font-medium",
-        status === "abandoned" &&
-          "border-[var(--color-warning-200)] bg-[var(--color-warning-100)] text-[var(--color-warning-700)]",
-        status === "completed" &&
-          "border-[var(--color-success-200)] bg-[var(--color-success-100)] text-[var(--color-success-700)]",
-      )}
-    >
-      {statusLabels[status]}
-    </Badge>
+    <span className="shrink-0 text-xs text-muted-foreground">{statusLabels[status]}</span>
   )
 }
 
@@ -250,7 +238,7 @@ export function SearchOverlay({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="top-[12vh] w-[min(680px,calc(100vw-32px))] translate-y-0 overflow-hidden rounded-[var(--radius-xl)] p-0 shadow-[var(--elevation-2)]">
+      <DialogContent className="top-[12vh] w-[min(680px,calc(100vw-32px))] translate-y-0 overflow-hidden rounded-lg p-0 shadow-lg">
         <DialogHeader className="sr-only">
           <DialogTitle>Search Dana</DialogTitle>
           <DialogDescription>
@@ -260,7 +248,7 @@ export function SearchOverlay({
 
         <div className="flex h-14 items-center gap-3 border-b border-border px-4">
           <Search
-            className="size-5 shrink-0 text-[var(--color-graphite-500)]"
+            className="size-5 shrink-0 text-muted-foreground"
             strokeWidth={1.75}
             aria-hidden="true"
           />
@@ -277,7 +265,7 @@ export function SearchOverlay({
                 ? `dana-search-result-${orderedResults[activeIndex]?.id}`
                 : undefined
             }
-            className="h-10 min-w-0 flex-1 bg-transparent text-[15px] font-medium text-foreground outline-none placeholder:text-[var(--color-graphite-400)]"
+            className="h-10 min-w-0 flex-1 bg-transparent text-base text-foreground outline-none placeholder:text-muted-foreground"
           />
           {/* polish: search F7. The ESC key cap that sat here read as a button
               and was not one; the footer's hints are where the keys live, so
@@ -287,10 +275,10 @@ export function SearchOverlay({
               <Button
                 variant="ghost"
                 size="icon"
-                className="size-10 shrink-0 text-[var(--color-graphite-500)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)]"
+                className="size-10 shrink-0 text-muted-foreground hover:bg-accent hover:text-foreground"
                 aria-label="Close search"
               >
-                <X className="size-[18px]" strokeWidth={1.75} aria-hidden="true" />
+                <X className="size-4" strokeWidth={1.75} aria-hidden="true" />
               </Button>
             }
           />
@@ -311,7 +299,7 @@ export function SearchOverlay({
             <div className="flex min-h-40 items-center justify-center px-6 text-center">
               <div>
                 <Search
-                  className="mx-auto size-6 text-[var(--color-graphite-400)]"
+                  className="mx-auto size-6 text-muted-foreground"
                   strokeWidth={1.75}
                   aria-hidden="true"
                 />
@@ -327,7 +315,7 @@ export function SearchOverlay({
                   <section key={group.kind} aria-labelledby={`search-${group.kind}`}>
                     <h3
                       id={`search-${group.kind}`}
-                      className="flex h-7 items-center px-2 text-[0.625rem] font-semibold tracking-[0.08em] text-[var(--color-graphite-500)] uppercase"
+                      className="flex h-7 items-center px-2 text-xs font-medium text-muted-foreground"
                     >
                       {kindLabels[group.kind]}
                       <span className="ml-1.5 tabular-nums">{group.rows.length}</span>
@@ -345,10 +333,10 @@ export function SearchOverlay({
                             onMouseEnter={() => setActiveIndex(itemIndex)}
                             onClick={() => openResult(item)}
                             className={cn(
-                              "group flex min-h-14 w-full items-center gap-3 rounded-lg px-3 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/30",
+                              "group flex min-h-9 w-full items-center gap-3 rounded-md px-2 py-1.5 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/30",
                               active
-                                ? "bg-[var(--color-graphite-100)]"
-                                : "hover:bg-[var(--color-graphite-50)]",
+                                ? "bg-accent"
+                                : "hover:bg-accent",
                             )}
                           >
                             {/* Each result wears the mark of what it is: a
@@ -363,7 +351,7 @@ export function SearchOverlay({
                                   item.kind === "shelf" ? Folders : pageGlyph(item.title)
                                 return Glyph ? (
                                   <Glyph
-                                    className="size-4 shrink-0 text-[var(--color-graphite-500)]"
+                                    className="size-4 shrink-0 text-muted-foreground"
                                     strokeWidth={1.75}
                                     aria-hidden="true"
                                   />
@@ -372,22 +360,22 @@ export function SearchOverlay({
                             ) : (
                               <FolderMark
                                 name={item.folder?.name ?? item.title}
-                                color={item.folder?.color ?? item.color ?? "var(--color-graphite-900)"}
+                                color={item.folder?.color ?? item.color ?? "currentColor"}
                                 className="size-4 shrink-0"
                               />
                             )}
                             <span className="min-w-0 flex-1">
-                              <span className="block truncate text-sm font-medium text-[var(--color-graphite-800)]">
+                              <span className="block truncate text-sm font-medium text-foreground">
                                 {item.title}
                               </span>
                               {item.hint ? (
-                                <span className="mt-0.5 block truncate text-xs text-[var(--color-graphite-500)]">
+                                <span className="mt-0.5 block truncate text-xs text-muted-foreground">
                                   {item.hint}
                                 </span>
                               ) : null}
                             </span>
                             {item.dueDate ? (
-                              <span className="flex shrink-0 items-center gap-1 text-xs text-[var(--color-graphite-500)]">
+                              <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
                                 <CalendarDays className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
                                 {formatDueDate(item.dueDate)}
                               </span>
@@ -395,7 +383,7 @@ export function SearchOverlay({
                             {item.status ? <StatusBadge status={item.status} /> : null}
                             <ArrowRight
                               className={cn(
-                                "size-4 shrink-0 text-[var(--color-graphite-500)] transition-opacity",
+                                "size-4 shrink-0 text-muted-foreground transition-opacity",
                                 active ? "opacity-100" : "opacity-0",
                               )}
                               strokeWidth={1.75}
@@ -412,14 +400,13 @@ export function SearchOverlay({
           )}
         </div>
 
-        <footer className="flex min-h-10 items-center border-t border-border bg-[var(--color-graphite-25)] px-4 text-xs text-[var(--color-graphite-500)]">
-          <span>Showing matches from every folder you can access.</span>
+        <footer className="flex min-h-10 items-center border-t border-border bg-muted px-4 text-xs text-muted-foreground">
           <span className="ml-auto hidden items-center gap-2 sm:flex" aria-hidden="true">
-            <kbd className="rounded border border-[var(--color-graphite-200)] bg-white px-1.5 py-0.5 text-[0.625rem]">↑↓</kbd>
+            <kbd className="rounded-sm border border-border bg-background px-1.5 py-0.5 text-xs">↑↓</kbd>
             Navigate
-            <kbd className="rounded border border-[var(--color-graphite-200)] bg-white px-1.5 py-0.5 text-[0.625rem]">↵</kbd>
+            <kbd className="rounded-sm border border-border bg-background px-1.5 py-0.5 text-xs">↵</kbd>
             Open
-            <kbd className="rounded border border-[var(--color-graphite-200)] bg-white px-1.5 py-0.5 text-[0.625rem]">Esc</kbd>
+            <kbd className="rounded-sm border border-border bg-background px-1.5 py-0.5 text-xs">Esc</kbd>
             Close
           </span>
         </footer>

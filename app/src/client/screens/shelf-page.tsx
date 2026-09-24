@@ -9,11 +9,9 @@ The shelf page, bound through the adapter seam. What is worth knowing:
 - **The identity is `lib/page-identity.ts`'s shelf half**, and the picker is
   this client's `IconPicker`: 4.3 and 4.18 store a key and `icon-manifest.ts` is
   the one place a key becomes a glyph, so `folderPageMark` is `markIcon` here.
-- **The Add cover control** offers the folder page's own Gallery, Upload and
-  Photos (issue #118); `lib/page-identity.ts` answers the tiers.
-- **The activity line reads the shelf's own events** through `lib/history.ts`;
-  every member folder's would be a read per folder over 7.12, and is left to the
-  History sheet.
+- **The header is two rows**: mark, name and the one "…" menu; then the
+  description. No Add cover control and no activity line: a cover already
+  chosen still draws, and what happened to the shelf is the menu's History.
 - **`InlineInput`'s rename commits on Enter as well as blur**, 9.10's inline
   rename being what AC-203 and the sidebar dialog both expect of a field.
 */
@@ -23,21 +21,20 @@ import type { ReactNode } from "react"
 
 import { IconPicker as FolderIconPicker } from "../components/page/IconPicker.js"
 import { markIcon } from "../components/page/icon-manifest.js"
-import { AddCoverAction, PageCover } from "../components/page-cover.js"
+import { PageCover } from "../components/page-cover.js"
 import { ObjectMenu } from "../components/object-menu.js"
 import { HistorySheet } from "../components/history-sheet.js"
 import { MoreHorizontal } from "../lib/icons.js"
 import { Button } from "../components/ui/button.js"
 import { InlineInput, InlineTextarea } from "../components/ui/inline-field.js"
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover.js"
-import { WindowActivity, WindowBarActions } from "../components/window-bar.js"
-import { useHistory } from "../lib/history.js"
 import {
   savePageIdentity as savePrototypeFolderIdentity,
   usePageIdentity as useFolderIdentity,
 } from "../lib/page-identity.js"
 import { shelfKey } from "../lib/shelf-acts.js"
 import { MORE_ACTIONS } from "../components/ui/copy.js"
+import { cn } from "../components/ui/utils.js"
 
 export function ShelfPage({
   id,
@@ -67,8 +64,6 @@ export function ShelfPage({
   const identity = useFolderIdentity(key)
   /* Seam 4. */
   const Mark = markIcon(identity.glyph ?? null)
-  /* Seam 7. */
-  const activity = useHistory("shelf", id)
 
   const [historyOpen, setHistoryOpen] = useState(false)
   /* Rename is a field on this page, so the menu item puts the cursor in it,
@@ -76,26 +71,71 @@ export function ShelfPage({
   const renameRef = useRef<HTMLInputElement>(null)
 
   return (
-    <div className="flex min-h-full flex-col">
+    <div className="flex min-h-full w-full max-w-[720px] flex-col">
+      {/* A cover already chosen still draws; adding one is not offered here,
+          the header being two rows and nothing more. */}
       <PageCover storageName={key} />
 
-      {/* The shell already insets the page; a second measure here would indent
-          the shelf's title past every other page's. */}
-      <div className="w-full pt-2">
-        {/*
-        The control row lives in the window bar, exactly where the folder page's
-        is, so the same controls are not in two places depending on what kind of
-        page you are reading.
+      <header className="group/head pt-2">
+        {/* Row one: the mark (the picker for glyph and colour), the name as
+            its own field, and the one "…" for everything else. */}
+        <div className="flex items-center gap-2">
+          <Popover>
+            <PopoverTrigger
+              render={
+                <button
+                  type="button"
+                  aria-label={`Icon and colour for ${name}`}
+                  className="-ml-1 flex size-9 shrink-0 items-center justify-center rounded-md text-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/30"
+                />
+              }
+            >
+              <Mark
+                className="size-6"
+                strokeWidth={1.5}
+                aria-hidden="true"
+                style={identity.color ? { color: identity.color } : undefined}
+              />
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-auto p-0">
+              {/* Seam 4. */}
+              <FolderIconPicker
+                subject="Shelf"
+                icon={identity.glyph ?? null}
+                color={identity.color ?? null}
+                onPick={(next) =>
+                  savePrototypeFolderIdentity(key, {
+                    ...(next.icon === undefined ? {} : { glyph: next.icon }),
+                    ...(next.color === undefined ? {} : { color: next.color }),
+                  })
+                }
+              />
+            </PopoverContent>
+          </Popover>
 
-        It carries what a shelf actually has: what happened to it, and the acts
-        the contract declares for its kind. It does **not** carry the folder
-        page's view strip or its filters, and that is the page being honest
-        rather than incomplete: a view switches how a list of *tasks* is drawn
-        and a shelf holds folders; a filter narrows a list somebody built, and a
-        shelf's list is its label, so narrowing it would be editing it.
-         */}
-        <WindowBarActions order={2}>
-          <WindowActivity events={activity} />
+          <InlineInput
+            ref={renameRef}
+            key={name}
+            defaultValue={name}
+            aria-label="Shelf name"
+            onBlur={(event) => {
+              const next = event.target.value.trim()
+              /* The name is the membership label, so the rename is the
+                 shell's act: it rewrites the label on every member. */
+              if (next && next !== name) onRename?.(next)
+            }}
+            /* Enter commits as well as blur; Escape puts the saved name
+               back and leaves. */
+            onKeyDown={(event) => {
+              if (event.key === "Enter") event.currentTarget.blur()
+              if (event.key === "Escape") {
+                event.currentTarget.value = name
+                event.currentTarget.blur()
+              }
+            }}
+            className="min-w-0 flex-1 text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-bold text-foreground"
+          />
+
           <ObjectMenu
             kind="shelf"
             name={name}
@@ -112,100 +152,19 @@ export function ShelfPage({
               <Button
                 variant="ghost"
                 size="icon"
-                /* 9.1 names every overflow menu, a shelf's included, "More
-                   actions". */
+                /* 9.1 names every overflow menu "More actions". */
                 aria-label={MORE_ACTIONS}
-                className="size-7 rounded-md text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-900)]"
+                className="shrink-0 text-muted-foreground hover:text-foreground"
               >
                 <MoreHorizontal className="size-4" strokeWidth={1.75} />
               </Button>
             }
           />
-        </WindowBarActions>
-        <HistorySheet
-          kind="shelf"
-          subject={id}
-          name={name}
-          open={historyOpen}
-          onOpenChange={setHistoryOpen}
-        />
-
-        {/* The mark opens the picker, which is the one control for a glyph and
-            a colour on every page that has one. */}
-        <Popover>
-          <PopoverTrigger
-            render={
-              <button
-                type="button"
-                aria-label={`Icon and colour for ${name}`}
-                className="flex size-11 items-center justify-center rounded-lg text-[var(--color-graphite-700)] transition-colors hover:bg-[var(--color-graphite-100)] focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)] outline-none"
-              />
-            }
-          >
-            <Mark
-              className="size-7"
-              strokeWidth={1.5}
-              aria-hidden="true"
-              style={identity.color ? { color: identity.color } : undefined}
-            />
-          </PopoverTrigger>
-          <PopoverContent align="start" className="w-auto p-0">
-            {/* Seam 4. */}
-            <FolderIconPicker
-              subject="Shelf"
-              icon={identity.glyph ?? null}
-              color={identity.color ?? null}
-              onPick={(next) =>
-                savePrototypeFolderIdentity(key, {
-                  ...(next.icon === undefined ? {} : { glyph: next.icon }),
-                  ...(next.color === undefined ? {} : { color: next.color }),
-                })
-              }
-            />
-          </PopoverContent>
-        </Popover>
-
-        {/* Add cover: a shelf is a place, so it wears a cover, and every tier
-            can reach one. The wrapper is the folder page's `mt-1` verbatim so
-            the control sits at the same distance under the mark on both pages. */}
-        <div className="mt-1">
-          <AddCoverAction storageName={key} />
         </div>
 
-        <InlineInput
-          ref={renameRef}
-          key={name}
-          defaultValue={name}
-          aria-label="Shelf name"
-          onBlur={(event) => {
-            const next = event.target.value.trim()
-            /* The name is the membership label, so the rename is the shell's
-               act: it rewrites the label on every member and moves the page's
-               stores. This page only reports it. */
-            if (next && next !== name) onRename?.(next)
-          }}
-          /* Enter commits as well as blur. Escape puts the saved name back and
-             leaves, rather than leaving the typing behind for the next blur to
-             save. */
-          onKeyDown={(event) => {
-            if (event.key === "Enter") event.currentTarget.blur()
-            if (event.key === "Escape") {
-              event.currentTarget.value = name
-              event.currentTarget.blur()
-            }
-          }}
-          className="mt-1 text-[24px] leading-8 font-semibold text-[var(--color-graphite-900)]"
-        />
-
-        {/*
-        The description is where the explanation lives.
-
-        A name that needs a tooltip every time has failed, so there is no
-        permanent hover hint and the explaining is here, which is the pattern
-        the native pages already use. It is a placeholder rather than fixed
-        copy, because on your own shelf you should be able to say what it is for
-        in your own words.
-         */}
+        {/* Row two: the description, in the person's own words. With none
+            written, the offer appears on hover only, in a row whose height
+            is always held so nothing shifts. */}
         <InlineTextarea
           key={identity.description ?? ""}
           defaultValue={identity.description ?? ""}
@@ -217,12 +176,24 @@ export function ShelfPage({
               description: event.target.value.trim() || undefined,
             })
           }
-          className="mt-1 text-[12px] leading-5 text-[var(--color-graphite-600)]"
+          className={cn(
+            "mt-0.5 text-sm text-muted-foreground placeholder:text-muted-foreground/70",
+            identity.description
+              ? ""
+              : "opacity-0 transition-opacity group-hover/head:opacity-100 focus:opacity-100",
+          )}
         />
+      </header>
+      <HistorySheet
+        kind="shelf"
+        subject={id}
+        name={name}
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+      />
 
-        {/* The page's writing, folder rows among them (#221). */}
-        <section className="pt-6">{children}</section>
-      </div>
+      {/* The page's writing, folder rows among them (#221). */}
+      <section className="pt-4">{children}</section>
     </div>
   )
 }

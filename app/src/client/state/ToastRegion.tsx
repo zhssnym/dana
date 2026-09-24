@@ -75,8 +75,8 @@ export function ToastRegion({
     <div role="status" aria-live="polite">
       <ul
         className={cn(
-          'fixed right-6 z-[60] flex w-[360px] flex-col gap-2',
-          clearsCapture ? 'bottom-[76px]' : 'bottom-6',
+          'fixed inset-x-4 z-[60] flex flex-col gap-2 md:inset-x-auto md:right-6 md:w-[360px]',
+          clearsCapture ? 'bottom-20 md:bottom-6' : 'bottom-6',
         )}
       >
         {toasts.map((toast) => {
@@ -84,10 +84,10 @@ export function ToastRegion({
           return (
             <li
               key={toast.id}
-              className="flex min-h-12 items-center gap-3 rounded-lg bg-[var(--color-graphite-900)] px-3.5 py-2.5 text-sm text-white shadow-[var(--elevation-2)]"
+              className="flex min-h-10 items-center gap-3 rounded-lg bg-foreground px-3 py-2 text-sm text-background shadow-md"
             >
               <Icon
-                className="size-4 shrink-0 text-[var(--color-graphite-300)]"
+                className="size-4 shrink-0 text-background/70"
                 strokeWidth={1.75}
                 aria-hidden="true"
               />
@@ -95,7 +95,7 @@ export function ToastRegion({
               <Button
                 variant="ghost"
                 size="icon-sm"
-                className="shrink-0 text-[var(--color-graphite-300)] hover:bg-white/10 hover:text-white"
+                className="shrink-0 text-background/70 hover:bg-background/10 hover:text-background"
                 aria-label="Dismiss message"
                 onClick={() => {
                   dismissToast(toast.id)

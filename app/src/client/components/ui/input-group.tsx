@@ -28,8 +28,8 @@ function InputGroup({ className, ...props }: React.ComponentProps<"div">) {
       data-slot="input-group"
       role="group"
       className={cn(
-        "group/input-group relative flex w-full flex-col rounded-md border border-input bg-card transition-colors duration-[var(--duration-fast)] ease-[var(--ease-standard)] outline-none",
-        "focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/30",
+        "group/input-group relative flex w-full flex-col rounded-sm border border-input bg-background transition-colors duration-[var(--duration-fast)] ease-[var(--ease-standard)] outline-none",
+        "focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20",
         "has-[[data-align=block-end]]:pb-1 has-[[data-align=block-start]]:pt-1",
         /* An inline addon floats over the field's own line, so the field is
            padded out of its way rather than the two sharing a flex row,

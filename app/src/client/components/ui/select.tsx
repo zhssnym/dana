@@ -23,7 +23,7 @@ function SelectTrigger({
     <SelectPrimitive.Trigger
       data-slot="select-trigger"
       className={cn(
-        "flex h-[var(--control-height)] w-full items-center justify-between gap-2 rounded-md border border-input bg-card px-3 text-sm text-foreground outline-none transition-colors hover:bg-[var(--color-graphite-50)] focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 data-popup-open:bg-[var(--color-graphite-50)] data-disabled:pointer-events-none data-disabled:opacity-50",
+        "flex h-8 w-full items-center justify-between gap-2 rounded-sm border border-input bg-background px-2 text-sm text-foreground outline-none transition-colors hover:bg-accent focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20 data-popup-open:bg-accent data-disabled:pointer-events-none data-disabled:opacity-50",
         className,
       )}
       {...props}
@@ -31,7 +31,7 @@ function SelectTrigger({
       <span className="min-w-0 flex-1 truncate text-left">{children}</span>
       <SelectPrimitive.Icon>
         <ChevronDownIcon
-          className="size-4 shrink-0 text-[var(--color-graphite-500)]"
+          className="size-4 shrink-0 text-muted-foreground"
           strokeWidth={1.75}
           aria-hidden="true"
         />
@@ -61,7 +61,7 @@ function SelectContent({
         <SelectPrimitive.Popup
           data-slot="select-content"
           className={cn(
-            "max-h-(--available-height) min-w-(--anchor-width) origin-(--transform-origin) overflow-hidden rounded-[10px] bg-popover text-popover-foreground shadow-[var(--elevation-1)] ring-1 ring-[var(--color-graphite-200)] duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+            "max-h-(--available-height) min-w-(--anchor-width) overflow-hidden rounded-lg bg-popover text-sm text-popover-foreground shadow-md outline-none motion-float",
             className,
           )}
           {...props}
@@ -90,7 +90,7 @@ function SelectItem({
     <SelectPrimitive.Item
       data-slot="select-item"
       className={cn(
-        "relative flex min-h-9 cursor-default items-center gap-2 rounded-md py-1.5 pr-9 pl-2 text-[13px] leading-5 outline-none select-none data-highlighted:bg-[var(--color-graphite-100)] data-highlighted:text-[var(--color-graphite-900)] data-selected:font-medium data-disabled:pointer-events-none data-disabled:opacity-45",
+        "relative flex min-h-8 cursor-default items-center gap-2 rounded-sm pr-8 pl-2 text-sm outline-none select-none data-highlighted:bg-accent data-highlighted:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50",
         className,
       )}
       {...props}
@@ -98,7 +98,7 @@ function SelectItem({
       <SelectPrimitive.ItemText className="min-w-0 flex-1 truncate">
         {children}
       </SelectPrimitive.ItemText>
-      <SelectPrimitive.ItemIndicator className="absolute right-2 flex size-5 items-center justify-center text-[var(--color-graphite-800)]">
+      <SelectPrimitive.ItemIndicator className="absolute right-2 flex size-5 items-center justify-center text-foreground">
         <CheckIcon className="size-4" strokeWidth={1.75} aria-hidden="true" />
       </SelectPrimitive.ItemIndicator>
     </SelectPrimitive.Item>

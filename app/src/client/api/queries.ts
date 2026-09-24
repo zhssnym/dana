@@ -59,23 +59,19 @@ import {
   getDoneResponse,
   getFolderTasksCompletedResponse,
   getFolderTasksOpenResponse,
-  getImportantResponse,
   getMyDayResponse,
   getPlannedCalendarResponse,
   getPlannedResponse,
   getSearchResponse,
-  getTasksViewResponse,
 } from '../../shared/views.js'
 import type {
   GetAllResponse,
   GetDoneResponse,
   GetFolderTasksOpenResponse,
-  GetImportantResponse,
   GetMyDayResponse,
   GetPlannedCalendarResponse,
   GetPlannedResponse,
   GetSearchResponse,
-  GetTasksViewResponse,
 } from '../../shared/views.js'
 
 import { getPlain, getView } from './http.js'
@@ -163,24 +159,10 @@ export function useMyDayView(): UseQueryResult<GetMyDayResponse> {
   })
 }
 
-export function useTasksView(): UseQueryResult<GetTasksViewResponse> {
-  return useQuery({
-    queryKey: queryKeys.view('tasks'),
-    queryFn: () => getView(getTasksViewResponse, '/views/tasks'),
-  })
-}
-
 export function usePlannedView(): UseQueryResult<GetPlannedResponse> {
   return useQuery({
     queryKey: queryKeys.view('planned'),
     queryFn: () => getView(getPlannedResponse, '/views/planned'),
-  })
-}
-
-export function useImportantView(): UseQueryResult<GetImportantResponse> {
-  return useQuery({
-    queryKey: queryKeys.view('important'),
-    queryFn: () => getView(getImportantResponse, '/views/important'),
   })
 }
 

@@ -63,31 +63,6 @@ export function onOpenNewFolder(listener: NewFolderListener): () => void {
   }
 }
 
-/*
-The workflow import, asked for from the tab strip's "+" (polish round,
-2026-08-30).
-
-9.1's plus sentence has always named Import among the acts, and the strip
-could not build it: the application's one file input belongs to the sidebar,
-and a second input in the menu would be a second answer to one selector —
-the fault the prototype's own comment records against exactly this control.
-So the strip asks and the sidebar answers by pressing the input it already
-owns, the same idiom as everything above.
-*/
-type ImportListener = () => void
-const importListeners = new Set<ImportListener>()
-
-export function requestWorkflowImport(): void {
-  for (const listener of importListeners) listener()
-}
-
-export function onWorkflowImportRequest(listener: ImportListener): () => void {
-  importListeners.add(listener)
-  return () => {
-    importListeners.delete(listener)
-  }
-}
-
 export function openTaskForm(defaults: TaskFormDefaults): void {
   for (const listener of taskFormListeners) listener(defaults)
 }

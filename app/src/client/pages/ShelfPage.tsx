@@ -17,14 +17,14 @@ the description and a cover picture of the copy's own and does not carry the
 blocks — see the act's own note — Save as workflow as 7.16's file, Delete
 unlabelling its folders and keeping them, and Rename as 7.16's PATCH, whose
 transaction rewrites the member labels (4.18's lockstep). **A folder row opens
-as its own tab beside the shelf's** (9.1), the press appending through the tab
-store rather than retargeting.
+the folder**, there being no tab strip to append to. **Delete asks first**, in
+the sidebar's own sentence.
 
 **"New folder..." asks the shell for its dialog** through `shell/overlays.ts`,
 carrying this shelf's name as the label the new folder is filed under, which is
 the same two writes the sidebar's "Add folder to {shelf}" performs.
 */
-import { lazy, Suspense, useMemo } from 'react'
+import { lazy, Suspense, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
 import {
@@ -40,7 +40,8 @@ import { paths } from '../routes.js'
 import { ShelfPage as ShelfScreen } from '../screens/shelf-page.js'
 import type { CanvasFolderRow } from '../components/page/canvas/CanvasFolder.js'
 import { openNewFolder } from '../shell/overlays.js'
-import { openInNewTab } from '../shell/tabs.js'
+import { deleteGroupConfirm } from '../shell/folder-groups.js'
+import { ConfirmDialog } from '../components/ui/ConfirmDialog.js'
 import { PageBody } from '../components/page/PageStates.js'
 import type { Folder } from '../../shared/folders.js'
 
@@ -70,6 +71,7 @@ export function ShelfPage(): React.JSX.Element {
   const remove = useDeleteShelf()
   const duplicate = useDuplicateShelf()
   const move = useUpdateMyMembership()
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
 
   const detail = shelf.data
   const name = detail?.name ?? ''
@@ -172,13 +174,10 @@ export function ShelfPage(): React.JSX.Element {
               URL.revokeObjectURL(url)
             }}
             onDelete={() => {
-              /* Unlabels its folders and keeps them (9.10); section 9 puts
-                 no confirm on it, and the way back is making it again. */
-              remove.mutate(id, {
-                onSuccess: () => {
-                  void navigate(paths.desk)
-                },
-              })
+              /* Unlabels its folders and keeps them (9.10), but the shelf's
+                 own writing goes with it, so it asks first, in the sidebar's
+                 own sentence. */
+              setConfirmingDelete(true)
             }}
           >
             <Suspense fallback={<p role="status">Loading writing…</p>}>
@@ -190,7 +189,7 @@ export function ShelfPage(): React.JSX.Element {
                 folderHref={paths.folder}
                 settled={!shelf.isFetching && !folders.isFetching}
                 onOpenFolder={(folderId) => {
-                  void navigate(openInNewTab(paths.folder(folderId)))
+                  void navigate(paths.folder(folderId))
                 }}
                 onAddFolder={async (folderId) => {
                   /* The same act the sidebar's "Move to shelf" performs: the
@@ -209,6 +208,23 @@ export function ShelfPage(): React.JSX.Element {
             </Suspense>
           </ShelfScreen>
         )}
+        {confirmingDelete ? (
+          <ConfirmDialog
+            message={deleteGroupConfirm(onShelf.length)}
+            confirmLabel="Delete shelf"
+            onContinue={() => {
+              setConfirmingDelete(false)
+              remove.mutate(id, {
+                onSuccess: () => {
+                  void navigate(paths.today)
+                },
+              })
+            }}
+            onCancel={() => {
+              setConfirmingDelete(false)
+            }}
+          />
+        ) : null}
       </PageBody>
     </PageBody>
   )

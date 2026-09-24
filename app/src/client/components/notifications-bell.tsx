@@ -46,7 +46,6 @@ import {
   useMarkNotificationRead,
 } from '../api/mutations.js'
 import { useConnections, useMe, useNotifications } from '../api/queries.js'
-import { Button } from './ui/button.js'
 import {
   Popover,
   PopoverContent,
@@ -102,7 +101,7 @@ function subjectPath(row: NotificationLine): string {
          its conversation by the query the page reads. */
       if (row.task_id !== null) return `${paths.task(row.task_id)}?${CONVERSATION_PARAM}=open`
       return event.folder_id === null
-        ? paths.desk
+        ? paths.today
         : `${paths.folder(event.folder_id)}?${CONVERSATION_PARAM}=open`
   }
 }
@@ -136,9 +135,12 @@ function sentenceOf(row: NotificationLine): { readonly act: string; readonly quo
 
 export function NotificationsBell({
   side = 'right',
+  className,
 }: {
-  /** Where the list opens: right of the sidebar's bell, below the phone bar's. */
+  /** Where the list opens: right of the sidebar on a laptop, below on a phone. */
   readonly side?: 'right' | 'bottom'
+  /** The row treatment the sidebar gives every entry. */
+  readonly className?: string
 } = {}): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
@@ -151,10 +153,6 @@ export function NotificationsBell({
   const rows = notifications.data?.notifications ?? []
   const unread = rows.filter((row) => row.read_at === null).length
 
-  /* The actor's picture rides with their name. A feed about
-     what people did to you is the surface a face helps most, and both reads
-     behind this directory — 7.3's connections and 7.1's own profile — have
-     carried `avatar_url` since 4.1; only this map dropped it. */
   const people = new Map<string, { name: string; image: string | null }>()
   for (const connection of connections.data ?? []) {
     const name = connection.user.display_name
@@ -170,46 +168,46 @@ export function NotificationsBell({
   function openRow(row: NotificationLine): void {
     if (row.read_at === null) markRead.mutate(row.id)
     setOpen(false)
-    navigate(subjectPath(row))
+    void navigate(subjectPath(row))
   }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         render={
-          <Button
-            variant="ghost"
-            className="relative size-[var(--shell-sidebar-item-height)] text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-900)] group-data-[collapsible=icon]:order-2 group-data-[collapsible=icon]:size-[var(--shell-sidebar-row-height)]"
+          <button
+            type="button"
+            data-popup-open={open ? '' : undefined}
+            className={cn(
+              'flex w-full items-center outline-none focus-visible:ring-2 focus-visible:ring-ring/30',
+              className,
+            )}
             aria-label={bellName(unread)}
           />
         }
       >
-        <Bell className="!size-4" strokeWidth={1.75} aria-hidden="true" />
+        <Bell strokeWidth={1.75} aria-hidden="true" />
+        <span className="flex-1 text-left">Notifications</span>
         {unread > 0 ? (
-          <span
-            aria-hidden="true"
-            className="absolute top-1 right-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-foreground px-0.5 text-[9px] leading-none font-semibold text-background"
-          >
-            {unread > 9 ? '9+' : unread}
+          <span aria-hidden="true" className="text-xs font-medium text-foreground tabular-nums">
+            {unread > 99 ? '99+' : unread}
           </span>
         ) : null}
       </PopoverTrigger>
       <PopoverContent
-        align={side === 'right' ? 'start' : 'end'}
+        align="start"
         side={side}
-        className="w-[min(360px,calc(100vw-16px))] p-1.5"
+        className="w-[min(360px,calc(100vw-16px))] p-1"
       >
-        <div className="flex items-center justify-between px-2 pt-1 pb-1.5">
-          <p className="text-[12px] leading-4 font-medium text-[var(--color-graphite-500)]">
-            Notifications
-          </p>
+        <div className="flex h-8 items-center justify-between px-2">
+          <p className="text-xs font-medium text-muted-foreground">Notifications</p>
           {unread > 0 ? (
             <button
               type="button"
               onClick={() => {
                 markAllRead.mutate()
               }}
-              className="rounded-md px-1.5 py-0.5 text-[12px] leading-4 text-[var(--color-graphite-500)] transition-colors outline-none hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)] focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)]"
+              className="rounded-sm px-1.5 py-0.5 text-xs text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30"
             >
               Mark all read
             </button>
@@ -217,7 +215,7 @@ export function NotificationsBell({
         </div>
         {rows.length === 0 ? (
           /* 9.12's empty state, word for word. */
-          <p className="px-2 py-6 text-center text-[13px] leading-5 text-[var(--color-graphite-500)]">
+          <p className="px-2 py-6 text-center text-sm text-muted-foreground">
             Nothing new. When someone assigns you a task or answers you, it
             lands here.
           </p>
@@ -234,10 +232,8 @@ export function NotificationsBell({
                 onClick={() => {
                   openRow(row)
                 }}
-                className="flex w-full items-start gap-2.5 rounded-md px-2 py-2 text-left transition-colors outline-none hover:bg-[var(--color-graphite-50)] focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-600)]"
+                className="flex w-full items-start gap-2.5 rounded-sm px-2 py-2 text-left outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/30"
               >
-                {/* The actor's face at the head of every row: a feed about
-                    what people did to you says who. */}
                 <PersonFace
                   className="mt-0.5 shrink-0"
                   name={actor}
@@ -247,38 +243,23 @@ export function NotificationsBell({
                 <span className="min-w-0 flex-1">
                   <span
                     className={cn(
-                      'block text-[13px] leading-5',
-                      read
-                        ? 'text-[var(--color-graphite-500)]'
-                        : 'text-[var(--color-graphite-800)]',
+                      'block text-sm',
+                      read ? 'text-muted-foreground' : 'text-foreground',
                     )}
                   >
-                    <span
-                      className={cn(
-                        'font-medium',
-                        read
-                          ? 'text-[var(--color-graphite-600)]'
-                          : 'text-[var(--color-graphite-900)]',
-                      )}
-                    >
-                      {actor}
-                    </span>{' '}
-                    {act}
+                    <span className="font-medium">{actor}</span> {act}
                   </span>
                   {quote === null ? null : (
-                    <span className="mt-0.5 block truncate text-[12px] leading-4 text-[var(--color-graphite-500)]">
+                    <span className="mt-0.5 block truncate text-xs text-muted-foreground">
                       “{quote}”
                     </span>
                   )}
-                  <span className="mt-0.5 block text-[11px] leading-4 text-[var(--color-graphite-400)]">
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
                     {formatAgo(row.created_at, Date.now())}
                   </span>
                 </span>
                 {read ? null : (
-                  <span
-                    aria-hidden="true"
-                    className="mt-2 size-1.5 shrink-0 rounded-full bg-foreground"
-                  />
+                  <span aria-hidden="true" className="mt-2 size-1.5 shrink-0 rounded-full bg-foreground" />
                 )}
               </button>
             )
