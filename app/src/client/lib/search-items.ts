@@ -107,7 +107,7 @@ export function useSearchAnswer(query: string, open: boolean): SearchAnswer {
             : null
       return {
         kind: 'page',
-        id: home?.path ?? paths.desk,
+        id: home?.path ?? paths.today,
         title: hit.text,
         hint: home?.name === undefined ? 'Page' : `On ${home.name}`,
       }
