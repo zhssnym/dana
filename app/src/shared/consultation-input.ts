@@ -104,6 +104,10 @@ export const inputRoundSchema = z.object({
 })
 export type InputRound = z.infer<typeof inputRoundSchema>
 
+export const inputRoundListResponse = z.object({
+  input_rounds: z.array(inputRoundSchema),
+})
+
 export interface InputRoundListResponse {
   /** Newest first. At most one has `state: 'open'`. */
   input_rounds: InputRound[]

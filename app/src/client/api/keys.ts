@@ -59,4 +59,10 @@ export const queryKeys = {
    * *reusable* taxonomy into the file and therefore needs the definitions
    * nothing is currently wearing (#227 area 4). */
   folderLabels: (id: string) => ['folders', id, 'labels'] as const,
+
+  /** One Discussion (7.27's GET /discussions/:id). */
+  discussion: (id: string) => ['discussions', id] as const,
+  /** A Discussion's input rounds, newest first (7.29, #321). */
+  inputRounds: (discussionId: string) =>
+    ['discussions', discussionId, 'input-rounds'] as const,
 } as const
