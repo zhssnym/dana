@@ -6,6 +6,7 @@ import {
 import { CanvasFilePanel } from './CanvasFilePanel.js'
 import type { CanvasMediaKind, CanvasUploadedFile } from './CanvasFilePanel.js'
 import { CanvasFormattingToolbar } from './CanvasFormattingToolbar.js'
+import { CanvasMarquee } from './CanvasMarquee.js'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -133,7 +134,7 @@ export function CanvasSurface({
       return { label: 'Delete', run: () => { remove(ids) } }
     },
   }), [editor, headingMode, flatGroups, admits, headingToggles, onCreateTask, requestTask, duplicate, onRemoveFolder, remove])
-  const selectionActions = useMemo(() => ({ remove, duplicate }), [remove, duplicate])
+  const selectionActions = useMemo(() => ({ remove, duplicate, admits }), [remove, duplicate, admits])
   useBlockSelectionKeys(editor, selectionActions)
   useBlockAnchor(editor, true)
   const scope = `dana-canvas-${useId().replace(/[^a-zA-Z0-9]/g, '')}`
@@ -211,6 +212,7 @@ export function CanvasSurface({
         <SideMenuController sideMenu={BlockSideMenu} floatingUIOptions={blockSidePosition} />
         <CanvasSlashMenu editor={editor} context={slashContext} />
         {editable ? <DanaLinkSuggestions editor={editor} /> : null}
+        <CanvasMarquee />
       </BlockNoteView>
       {editable ? <div aria-hidden="true" className="dana-canvas-tail" onMouseDown={writeBelow} /> : null}
       <p role="status" aria-live="polite" className="min-h-6 px-2 text-sm text-muted-foreground">{feedback}</p>

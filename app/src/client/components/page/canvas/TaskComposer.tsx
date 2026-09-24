@@ -42,6 +42,7 @@ import { ApiError, getPlain, mutateApi, uploadFile } from '../../../api/http.js'
 import { Button } from '../../ui/button.js'
 import { CanvasErrorBoundary } from './CanvasErrorBoundary.js'
 import { CanvasFormattingToolbar } from './CanvasFormattingToolbar.js'
+import { CanvasMarquee } from './CanvasMarquee.js'
 import { CanvasFilePanel } from './CanvasFilePanel.js'
 import type { CanvasMediaKind } from './CanvasFilePanel.js'
 import { baselineOf, contentOf, richRuns } from './adapters.js'
@@ -379,6 +380,7 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
         <SideMenuController sideMenu={BlockSideMenu} floatingUIOptions={blockSidePosition} />
         <CanvasSlashMenu editor={editor as unknown as CanvasEditor} context={{ surface: 'task', media: folderId !== null }} />
         <DanaLinkSuggestions editor={editor as unknown as CanvasEditor} />
+        <CanvasMarquee />
       </BlockNoteView>
       <div aria-hidden="true" className="dana-canvas-tail dana-canvas-tail-short" onMouseDown={writeBelow} />
     </div>

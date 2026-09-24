@@ -38,6 +38,7 @@ vi.mock('@blocknote/core/extensions', () => ({
   SuggestionMenu: {},
 }))
 vi.mock('./CanvasFormattingToolbar.js', () => ({ CanvasFormattingToolbar: () => null }))
+vi.mock('./CanvasMarquee.js', () => ({ CanvasMarquee: () => null }))
 vi.mock('./slash-items.js', () => ({ CanvasSlashMenu: () => null }))
 vi.mock('./guard.js', () => ({ installCanvasGuard: () => () => {} }))
 vi.mock('./commands.js', () => ({
@@ -67,6 +68,8 @@ function draw(block: CanvasBlock, folderRefs: ReadonlyMap<string, string>, onCre
     document: [block],
     getBlock: (id: string) => id === block.id ? block : undefined,
     getTextCursorPosition: () => ({ block }),
+    onSelectionChange: () => () => {},
+    onChange: () => () => {},
   } as unknown as CanvasEditor
   render(<CanvasSurface editor={state.editor} onChange={() => {}} onCreateTask={onCreateTask} folderRefs={folderRefs} onUploadFile={() => Promise.reject(new Error("no uploads here"))} />)
 }
