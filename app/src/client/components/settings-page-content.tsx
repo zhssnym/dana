@@ -1,7 +1,8 @@
 /*
 9.7's Settings page, the presentation. The route page (`pages/SettingsPage.tsx`)
-owns the reads and the account delete; this file draws four sections in one
-column: Account, Appearance, Time, Data.
+owns the reads and the account delete; this file draws five sections in one
+column: Account, Appearance, Time, People, Data. Settings is the home of every
+configuration: a preference is not also toggled from a menu elsewhere.
 
 What is worth knowing:
 
@@ -17,10 +18,14 @@ What is worth knowing:
   response rather than a toast.
 - **Sample data lives here and only here** among the pages; Remove confirms once
   (the route page's dialog) and then offers the undo bar.
+- **People** (9.8) is a section here, and /app/people lands on `#people`.
+  Sign out has one home, the sidebar's account menu, and is not repeated here.
+- **Pickers are the one `Combobox`**; the timezone list is long, so it filters
+  as you type.
 - **Delete account** requires typing DELETE, and says shared folders must be
   handed on first, which is what `DELETE /me`'s 409 enforces (issue #228).
 */
-import { useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 
 import { SUPPORT_EMAIL } from '../../shared/support.js'
 import { ImagePlus } from '../lib/icons.js'
@@ -33,6 +38,7 @@ import {
   squareImageFile,
   useViewer,
 } from '../lib/viewer.js'
+import { PeopleSettings } from './settings/people.js'
 import { Screen, ScreenSection } from './settings/screen.js'
 import { InlineError } from './state-patterns.js'
 import {
@@ -45,8 +51,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from './ui/alert-dialog.js'
-import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar.js'
+import { isOwnPicture, PersonFace } from './person-face.js'
 import { Button } from './ui/button.js'
+import { Combobox } from './ui/combobox.js'
 import { Input } from './ui/input.js'
 import { Skeleton } from './ui/skeleton.js'
 import { cn } from './ui/utils.js'
@@ -125,15 +132,12 @@ function ViewerRow() {
       <button
         type="button"
         onClick={() => fileInput.current?.click()}
-        aria-label={viewer.image ? 'Change your picture' : 'Add a picture'}
+        aria-label={isOwnPicture(viewer.image) ? 'Change your picture' : 'Add a picture'}
         className="group/pic relative block shrink-0 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
       >
-        <Avatar className="size-10">
-          {viewer.image ? <AvatarImage src={viewer.image} alt="" /> : null}
-          <AvatarFallback className="bg-muted text-xs text-muted-foreground">
-            {viewer.initials}
-          </AvatarFallback>
-        </Avatar>
+        {/* e9-avatars: the one face, so the preview shows the default
+            face until a picture is uploaded (the Google one is not drawn). */}
+        <PersonFace name={viewer.name} image={viewer.image ?? null} className="size-10 data-[size=sm]:size-10" />
         <span className="absolute inset-0 flex items-center justify-center rounded-full bg-foreground/50 opacity-0 transition-opacity group-hover/pic:opacity-100">
           <ImagePlus className="size-4 text-background" strokeWidth={1.75} aria-hidden="true" />
         </span>
@@ -150,7 +154,7 @@ function ViewerRow() {
         {/* 7.1 has no write for the name: it is Google's, and the line says so. */}
         <p className="truncate text-xs text-muted-foreground">{viewer.email} · from Google</p>
       </div>
-      {viewer.image ? (
+      {isOwnPicture(viewer.image) ? (
         <Button variant="ghost" onClick={() => clearViewerImage()}>
           Remove picture
         </Button>
@@ -177,6 +181,16 @@ export function SettingsPageContent({
   const clock = useTimeFormat()
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleteConfirmation, setDeleteConfirmation] = useState('')
+
+  /* /app/people and other deep links arrive as /app/settings#<section>; the
+     sections draw after the bundle, so scroll once they exist. */
+  const ready = previewState !== 'loading' && previewState !== 'error'
+  useEffect(() => {
+    if (!ready) return
+    const hash = window.location.hash.slice(1)
+    if (hash === '') return
+    document.getElementById(hash)?.scrollIntoView({ block: 'start' })
+  }, [ready])
 
   return (
     <Screen title="Settings">
@@ -219,6 +233,8 @@ export function SettingsPageContent({
                 />
               }
             />
+            {/* Slot: unit e4's "Open tasks in" (Side peek / Center peek / Full
+                page) is a Row here, over lib/task-surface-preference.ts. */}
           </ScreenSection>
 
           <ScreenSection id="settings-time" title="Time">
@@ -242,6 +258,12 @@ export function SettingsPageContent({
               }
             />
           </ScreenSection>
+
+          <div id="people" className="scroll-mt-6">
+            <ScreenSection id="settings-people" title="People">
+              <PeopleSettings />
+            </ScreenSection>
+          </div>
 
           <ScreenSection id="settings-data" title="Data">
             <Row
@@ -338,18 +360,16 @@ function TimezoneSelect() {
   const current = viewer.timezone
   const listed = current === '' || zones.includes(current) ? zones : [current, ...zones]
   return (
-    <select
+    <Combobox
       aria-label="Timezone"
       value={current}
-      onChange={(event) => setViewerTimezone(event.target.value)}
-      className="h-8 max-w-56 rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
-    >
-      {listed.map((zone) => (
-        <option key={zone} value={zone}>
-          {zone.replace(/_/g, ' ')}
-        </option>
-      ))}
-    </select>
+      onValueChange={setViewerTimezone}
+      placeholder="Choose a timezone"
+      searchPlaceholder="Search timezones"
+      className="w-56 justify-between"
+      contentClassName="w-72"
+      options={listed.map((zone) => ({ value: zone, label: zone.replace(/_/g, ' ') }))}
+    />
   )
 }
 

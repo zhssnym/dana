@@ -2,13 +2,16 @@
 The folder's header: at most two rows.
 
 Row one is the mark, the name and, at the far right, the folder's only two
-controls: "Share" and one "…". Row two is one muted line: the description (or
-the offer to write one) and the progress fact, "3 of 7 done".
+controls: "Share" and one "…". Row two, only when there is finite work, is the
+progress fact, "3 of 7 done".
+
+**No description line** (round 2): a page's Purpose tab is where its "why" is
+written. A description already stored stays in the data and is simply not
+drawn; nothing migrates it.
 
 **Everything is edited in place.** The name is a heading that becomes a field on
-a click; the description is a line that becomes a field on a click; the mark
-opens the icon picker. A viewer below Can edit gets the same two rows with
-nothing pressable (issue #228, AC-011): a heading, a line, a glyph.
+a click; the mark opens the icon picker. A viewer below Can edit gets the same
+rows with nothing pressable (issue #228, AC-011): a heading and a glyph.
 
 **The cover is not offered here.** Its one home is the "…" menu (the Quiet
 spec's control map), which opens `FolderCoverDialog` below: images only, no
@@ -24,7 +27,6 @@ import {
   savePageIdentity,
   usePageIdentity,
 } from '../lib/page-identity.js'
-import { PLACE_DESCRIPTION_MAX } from '../../shared/place-descriptions.js'
 import { FolderCoverPicker } from './folder-cover.js'
 import { IconPicker } from './page/IconPicker.js'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog.js'
@@ -45,7 +47,6 @@ export function FolderHeader({
   onRenamingChange,
   onRename,
   onPickIdentity,
-  storageName,
   progress,
   actions,
 }: {
@@ -60,8 +61,6 @@ export function FolderHeader({
   readonly onRenamingChange: (next: boolean) => void
   readonly onRename: (next: string) => void
   readonly onPickIdentity: (next: { icon?: string; color?: string }) => void
-  /** `lib/page-identity.ts`'s key for this folder's description. */
-  readonly storageName: string
   /** "3 of 7 done", or null when the folder has no finite work. */
   readonly progress: string | null
   readonly actions: React.ReactNode
@@ -129,70 +128,10 @@ export function FolderHeader({
         )}
         <div className="flex shrink-0 items-center gap-1">{actions}</div>
       </div>
-      <div className="flex min-w-0 items-baseline gap-2 pl-9 text-sm text-muted-foreground max-md:pl-0">
-        <FolderDescription storageName={storageName} editable={editable} />
-        {progress === null ? null : (
-          <span className="shrink-0 tabular-nums">
-            <span aria-hidden="true" className="mr-2">·</span>
-            {progress}
-          </span>
-        )}
-      </div>
+      {progress === null ? null : (
+        <p className="pl-9 text-sm text-muted-foreground tabular-nums max-md:pl-0">{progress}</p>
+      )}
     </header>
-  )
-}
-
-/**
- * The description as one line: read, or click to write. Saved through
- * `lib/page-identity.ts`'s folder half, the same PATCH the old field used.
- */
-function FolderDescription({
-  storageName,
-  editable,
-}: {
-  readonly storageName: string
-  readonly editable: boolean
-}): React.JSX.Element | null {
-  const identity = usePageIdentity(storageName)
-  const [editing, setEditing] = useState(false)
-  const value = identity.description ?? ''
-
-  if (editable && editing) {
-    return (
-      <input
-        defaultValue={value}
-        aria-label="Folder description"
-        placeholder="Add a description"
-        maxLength={PLACE_DESCRIPTION_MAX}
-        autoFocus
-        onBlur={(event) => {
-          const text = event.target.value.trim()
-          setEditing(false)
-          if (text !== value) savePageIdentity(storageName, { description: text === '' ? undefined : text })
-        }}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') event.currentTarget.blur()
-          if (event.key === 'Escape') {
-            event.currentTarget.value = value
-            event.currentTarget.blur()
-          }
-        }}
-        className={cn(FIELD, 'flex-1 text-sm text-foreground placeholder:text-muted-foreground')}
-      />
-    )
-  }
-  if (!editable) {
-    return value === '' ? null : <span className="min-w-0 truncate" title={value}>{value}</span>
-  }
-  return (
-    <button
-      type="button"
-      onClick={() => setEditing(true)}
-      title={value === '' ? undefined : value}
-      className={cn(FIELD, 'truncate text-left hover:text-foreground', value === '' ? 'opacity-70' : '')}
-    >
-      {value === '' ? 'Add a description' : value}
-    </button>
   )
 }
 

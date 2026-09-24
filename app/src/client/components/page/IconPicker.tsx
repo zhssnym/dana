@@ -33,8 +33,12 @@ about choosing rather than about the set:
 */
 import { useMemo, useState } from 'react'
 
-import { Search } from '../../lib/icons.js'
-import { IDENTITY_COLORS, IDENTITY_COLOR_FALLBACK } from '../../parts/identity-colors.js'
+import { Search, Shuffle } from '../../lib/icons.js'
+import {
+  IDENTITY_COLORS,
+  IDENTITY_COLOR_FALLBACK,
+  shuffleColor,
+} from '../../parts/identity-colors.js'
 import { Input } from '../ui/input.js'
 import { cn } from '../ui/utils.js'
 import { EMOJI_SECTIONS, emojiKeyOf, emojiOf } from './emoji-mark.js'
@@ -86,6 +90,8 @@ export function IconPicker({
         emojiOf(shownKey) ??
         `${subject} icon`)
   const drawn = color ?? IDENTITY_COLOR_FALLBACK
+  const wornOffRow =
+    color !== null && !IDENTITY_COLORS.some(([, hex]) => hex === color.toLowerCase())
 
   /*
   The search, over the labels rather than the keys. A section whose own name
@@ -257,7 +263,7 @@ export function IconPicker({
           <div
             role="listbox"
             aria-label={`${subject} color`}
-            className="flex flex-wrap gap-1 px-1 pb-1"
+            className="flex items-center justify-between px-1 pb-1"
           >
             {IDENTITY_COLORS.map(([name, hex]) => {
               const selected = drawn.toLowerCase() === hex
@@ -286,6 +292,41 @@ export function IconPicker({
                 </button>
               )
             })}
+            {/* The ninth cell: a new distinctive colour per press. A colour
+                worn from outside the row (a shuffle, or the old palette)
+                shows here, selected, so the current colour is always
+                visible in the one line. Its hint is a `title`, not the
+                Tooltip, whose layer (z-50) sits under this popover's (z-70). */}
+            <button
+              type="button"
+              role="option"
+              aria-selected={wornOffRow}
+              aria-label="Random colour"
+              title="Random colour"
+              onClick={() => {
+                onPick({ color: shuffleColor(color) })
+              }}
+              className={cn(
+                'flex size-6 items-center justify-center rounded-full transition-[background-color,box-shadow]',
+                T_FAST,
+                FOCUS,
+                wornOffRow
+                  ? 'ring-2 ring-foreground ring-offset-1'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+              )}
+            >
+              {wornOffRow ? (
+                <span
+                  className="flex size-4 items-center justify-center rounded-full text-background"
+                  style={{ backgroundColor: drawn }}
+                  aria-hidden="true"
+                >
+                  <Shuffle className="size-2.5" strokeWidth={2.25} aria-hidden="true" />
+                </span>
+              ) : (
+                <Shuffle className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
+              )}
+            </button>
           </div>
         </>
       ) : (

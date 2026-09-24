@@ -98,6 +98,30 @@
 @media (hover: none) {
   .dana-writing-canvas .bn-side-menu { display: none; }
 }
+/* An empty Image or File block is one quiet row, "Add an image" / "Add a file"
+   (text set in schema.ts), on the page's own background in both themes; it
+   replaces BlockNote's grey slab. A click opens `CanvasFilePanel`. */
+.dana-writing-canvas [data-file-block] .bn-add-file-button {
+  gap: calc(var(--spacing) * 2);
+  min-height: var(--control-height);
+  padding: calc(var(--spacing) * 1) calc(var(--spacing) * 2);
+  border-radius: var(--radius-sm);
+  background-color: transparent;
+  color: var(--muted-foreground);
+}
+.dana-writing-canvas .bn-editor[contenteditable='true'] [data-file-block] .bn-add-file-button:hover {
+  background-color: var(--muted);
+}
+.dana-writing-canvas [data-file-block] .bn-add-file-button-icon {
+  width: var(--icon-size-compact);
+  height: var(--icon-size-compact);
+}
+.dana-writing-canvas [data-file-block] .bn-add-file-button-icon svg { width: 100%; height: 100%; }
+.dana-writing-canvas [data-file-block] .bn-add-file-button-text {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
+}
 /* Issue #267: a picture whose file was reclaimed, told apart from an empty frame. */
 .dana-writing-canvas .dana-reclaimed-image {
   display: flex;

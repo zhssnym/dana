@@ -1,5 +1,6 @@
 /*
-9.8's People screen: the roster with its removal control, the bare invite by
+9.8's People, drawn as Settings' People section (round 2: Settings is the home
+of every configuration; /app/people redirects to /app/settings#people). The roster with its removal control, the bare invite by
 email, and the sent bare invites still pending.
 
 The refusal an already-connected address earns is 7.5's 409, and its message is 9.8's copy character for character on
@@ -22,18 +23,17 @@ import { useRef, useState } from 'react'
 
 import { Mail } from 'lucide-react'
 
-import { useCancelInvite, useCreateInvite, useRemoveConnection, useResendInvite } from '../api/mutations.js'
-import { useConnections, useSentInvites } from '../api/queries.js'
-import { Avatar, AvatarFallback } from '../components/ui/avatar.js'
-import { Button } from '../components/ui/button.js'
-import { ConfirmDialog } from '../components/ui/ConfirmDialog.js'
-import { Input } from '../components/ui/input.js'
-import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip.js'
-import { formatCompactDate, formatRelativeDay } from '../parts/format-dates.js'
-import { presenterToday, initialsOf } from '../parts/presenters.js'
-import { PageBody } from '../components/page/PageStates.js'
-import { Screen, ScreenSection } from '../components/settings/screen.js'
-import { PersonFace } from '../components/person-face.js'
+import { useCancelInvite, useCreateInvite, useRemoveConnection, useResendInvite } from '../../api/mutations.js'
+import { useConnections, useSentInvites } from '../../api/queries.js'
+import { Avatar, AvatarFallback } from '../ui/avatar.js'
+import { Button } from '../ui/button.js'
+import { ConfirmDialog } from '../ui/ConfirmDialog.js'
+import { Input } from '../ui/input.js'
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip.js'
+import { formatCompactDate, formatRelativeDay } from '../../parts/format-dates.js'
+import { presenterToday, initialsOf } from '../../parts/presenters.js'
+import { PageBody } from '../page/PageStates.js'
+import { PersonFace } from '../person-face.js'
 
 /** 9.8, verbatim: the confirm before a roster entry is removed. */
 const REMOVE_CONNECTION =
@@ -44,7 +44,7 @@ const RESENT_RECENTLY = 'Resent recently'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
-export function PeoplePage(): React.JSX.Element {
+export function PeopleSettings(): React.JSX.Element {
   const connections = useConnections()
   const sent = useSentInvites()
   const invite = useCreateInvite()
@@ -80,9 +80,10 @@ export function PeoplePage(): React.JSX.Element {
   }
 
   return (
-    <Screen title="People" description="People you can share folders with.">
+    <>
+      <p className="pb-3 text-xs text-muted-foreground">People you can share folders with.</p>
       <form
-        className="flex gap-2 pb-8"
+        className="flex gap-2 pb-6"
         onSubmit={(event) => {
           event.preventDefault()
           sendInvite()
@@ -106,14 +107,7 @@ export function PeoplePage(): React.JSX.Element {
       </form>
 
       {pendingBare.length === 0 ? null : (
-        <ScreenSection
-          id="pending-invitations-heading"
-          title={
-            <>
-              Invited <span className="font-normal text-muted-foreground">{pendingBare.length}</span>
-            </>
-          }
-        >
+        <PeopleGroup id="pending-invitations-heading" title="Invited" count={pendingBare.length}>
           <ul role="list">
             {pendingBare.map((row) => {
               const resendAllowed = Date.now() - Date.parse(row.last_sent_at) >= DAY_MS
@@ -164,7 +158,7 @@ export function PeoplePage(): React.JSX.Element {
               )
             })}
           </ul>
-        </ScreenSection>
+        </PeopleGroup>
       )}
 
       <PageBody query={connections} isEmpty={false} emptyCopy="">
@@ -173,14 +167,7 @@ export function PeoplePage(): React.JSX.Element {
             No one yet. Invite someone by email to share folders with them.
           </p>
         ) : connected.length === 0 ? null : (
-          <ScreenSection
-            id="connections-heading"
-            title={
-              <>
-                Connected <span className="font-normal text-muted-foreground">{connected.length}</span>
-              </>
-            }
-          >
+          <PeopleGroup id="connections-heading" title="Connected" count={connected.length}>
             <ul role="list">
               {connected.map((entry) => (
                 <li key={entry.user.id} className="flex min-h-12 items-center gap-3 py-1.5">
@@ -213,7 +200,7 @@ export function PeoplePage(): React.JSX.Element {
                 </li>
               ))}
             </ul>
-          </ScreenSection>
+          </PeopleGroup>
         )}
       </PageBody>
 
@@ -230,6 +217,28 @@ export function PeoplePage(): React.JSX.Element {
           }}
         />
       )}
-    </Screen>
+    </>
+  )
+}
+
+/* A group inside the People section: a small heading under Settings' h2. */
+function PeopleGroup({
+  id,
+  title,
+  count,
+  children,
+}: {
+  readonly id: string
+  readonly title: string
+  readonly count: number
+  readonly children: React.ReactNode
+}): React.JSX.Element {
+  return (
+    <section aria-labelledby={id} className="pb-6">
+      <h3 id={id} className="pb-1 text-xs font-medium text-muted-foreground">
+        {title} <span className="font-normal">{count}</span>
+      </h3>
+      {children}
+    </section>
   )
 }

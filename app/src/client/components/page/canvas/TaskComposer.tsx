@@ -52,6 +52,7 @@ import type { CanvasBlock, CanvasEditor } from './schema.js'
 import { danaLinkInlineSpec } from '../../links/dana-link-chip.js'
 import { DanaLinkSuggestions, linkSlashItem } from '../../links/dana-link-picker.js'
 import { CanvasWriter } from './saving.js'
+import { NOT_SAVED, SaveFailure } from './SaveFailure.js'
 import './canvas.css'
 
 export const taskSchema = BlockNoteSchema.create({
@@ -214,7 +215,7 @@ export default function TaskComposer({ taskId, folderId, notes }: {
     {page === undefined || width === null
       ? <div className="text-[length:var(--text-meta-size)] leading-5 text-section-foreground">
           {notes ? <p className="whitespace-pre-wrap">{notes}</p> : null}
-          <p role="status" className="text-muted-foreground">
+          <p role="status" className={query.isError ? 'text-muted-foreground' : 'sr-only'}>
             {query.isError ? <>Couldn't open this task's writing. <Button variant="ghost" onClick={() => { void query.refetch() }}>Try again</Button></> : 'Loading writing…'}
           </p>
         </div>
@@ -340,7 +341,6 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
   }
 
   const conflict = writer.error instanceof ApiError && writer.error.status === 409
-  const feedback = error || (writer.state === 'failed' ? conflict ? 'This task was edited elsewhere. Your writing is kept: load the latest, then merge it back in.' : writer.error instanceof Error ? writer.error.message : 'Could not save. Your writing is kept.' : '')
   return <>
     {recovered !== null ? <div role="status" className="mb-2 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
       Unsaved writing from before is kept.
@@ -365,13 +365,10 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
         <CanvasMarquee />
       </BlockNoteView>
     </div>
-    <div role="status" aria-live="polite" className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
-      {feedback || (writer.state === 'saving' ? 'Saving…' : writer.state === 'changed' ? 'Unsaved writing' : '')}
-      {feedback ? <>
-        {conflict || !writer.pending ? null : <Button variant="outline" onClick={() => { void writer.retry() }}>Retry save</Button>}
-        <Button variant="ghost" onClick={() => download(`dana-task-writing-${taskId}.json`, JSON.stringify({ taskId, revision: writer.revision, blocks: editor.document }, null, 2))}>Download writing</Button>
-        <Button variant="ghost" onClick={() => { void loadLatest() }}>Load latest</Button>
-      </> : null}
-    </div>
+    <SaveFailure
+      message={error || (writer.state === 'failed' ? NOT_SAVED : null)}
+      onRetry={!error && writer.state === 'failed' && !conflict && writer.pending ? () => { void writer.retry() } : undefined}
+      onLoadLatest={() => { void loadLatest() }}
+    />
   </>
 }

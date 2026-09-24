@@ -56,20 +56,46 @@ export function personTint(name: string): string {
 }
 
 /**
- * The two values a disc is painted with, together, so no surface mixes its own.
+ * The values a person's default face is painted with, together, so no surface
+ * mixes its own.
  *
- * The designer's rule, transcribed: "the swatch at reading strength for the
- * letters and the same hue washed back for the ground, so the disc stays quiet
- * in a list while still telling one person from another."
+ * The figure is the swatch at full strength and the ground is the same hue
+ * washed back into the page's paper, so the disc stays quiet in a list while
+ * still telling one person from another. Hair is the swatch pulled toward the
+ * strongest ramp step, which is ink in light and paper-white in dark, so it
+ * separates from the head in both colourways. Features are drawn in the
+ * paper itself, which reads against the swatch whichever way the page flips.
  *
- * The mix is computed here rather than in the component for the reason this
- * file exists: the ground names the page's own paper, which is a ramp step,
+ * Computed here rather than in the component because they name ramp steps,
  * and ramp steps stay out of `components/`.
  */
-export function personFacePaint(name: string): { ink: string; ground: string } {
+export interface PersonFacePaint {
+  readonly ink: string
+  readonly ground: string
+  readonly hair: string
+  readonly paper: string
+}
+
+export function personFacePaint(name: string): PersonFacePaint {
   const ink = personTint(name)
   return {
     ink,
-    ground: `color-mix(in oklab, ${ink} 16%, var(--color-graphite-0))`,
+    ground: `color-mix(in oklab, ${ink} 22%, var(--color-graphite-0))`,
+    hair: `color-mix(in oklab, ${ink} 55%, var(--color-graphite-950))`,
+    paper: 'var(--color-graphite-0)',
   }
+}
+
+/**
+ * A second, independent spread over the name, for the face's shape (hair,
+ * expression, glasses), so two people sharing a colour still differ in form.
+ * FNV-1a, because the tint's hash is too small to split into more choices.
+ */
+export function personShapeSeed(name: string): number {
+  let hash = 0x811c9dc5
+  for (let index = 0; index < name.length; index += 1) {
+    hash ^= name.charCodeAt(index)
+    hash = Math.imul(hash, 0x01000193) >>> 0
+  }
+  return hash
 }

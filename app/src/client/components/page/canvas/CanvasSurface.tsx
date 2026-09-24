@@ -31,6 +31,7 @@ import './canvas.css'
 import {
   CheckCircle2,
   FileText,
+  Image as ImageIcon,
   ListPlus,
   Network,
   Quote,
@@ -213,7 +214,7 @@ export function CanvasSurface({
           const heading = byKey('heading')
           const block = (
             title: string,
-            type: 'bulletListItem' | 'numberedListItem' | 'quote' | 'diagram' | 'file',
+            type: 'bulletListItem' | 'numberedListItem' | 'quote' | 'diagram' | 'image' | 'file',
             icon: React.JSX.Element,
             aliases: string[],
           ): DefaultReactSuggestionItem => ({
@@ -225,8 +226,8 @@ export function CanvasSurface({
               insertOrUpdateBlockForSlashMenu(editor, { type }),
           })
 
-          /* At most ten, in this order: Text, Heading, Subheading, Task,
-             Bulleted list, Numbered list, Quote, Image or file, Diagram,
+          /* In this order: Text, Heading, Subheading, Task,
+             Bulleted list, Numbered list, Quote, Image, File, Diagram,
              Link to…. Checklist, Callout, Code, Audio and Video stay in the
              schema so existing blocks render; they are not offered here. */
           const core: DefaultReactSuggestionItem[] = []
@@ -263,8 +264,9 @@ export function CanvasSurface({
             block('Bulleted list', 'bulletListItem', <ListPlus size={16} />, ['bullet', 'unordered list', 'ul']),
             block('Numbered list', 'numberedListItem', <ListPlus size={16} />, ['numbered', 'ordered list', 'ol']),
             block('Quote', 'quote', <Quote size={16} />, ['blockquote']),
-            // A raster image becomes an Image block once uploaded (`CanvasFilePanel`).
-            block('Image or file', 'file', <FileText size={16} />, ['image', 'picture', 'photo', 'file', 'attachment', 'document', 'upload']),
+            // The spec's two media items: an empty block is a quiet "Add an image" / "Add a file" row.
+            block('Image', 'image', <ImageIcon size={16} />, ['picture', 'photo', 'img']),
+            block('File', 'file', <FileText size={16} />, ['attachment', 'document', 'upload']),
             block('Diagram', 'diagram', <Network size={16} />, ['flowchart', 'mermaid', 'chart']),
             { ...linkSlashItem(editor), subtext: undefined },
           )

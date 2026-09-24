@@ -1,10 +1,13 @@
 /*
-9.6's folder page, in the Quiet redesign's shape: a header of at most two rows
-(mark and name with "Share" and one "…" at the right; one muted line of
-description and progress), a row of plain text tabs, and the tab's body. On
-Main that body is the canvas, where a finished Task stays in place, checked and
-muted, and a text "View" menu at the list's top-right switches list and board
-and shows or hides completed Tasks.
+9.6's folder page, in round 2's page shape: a header (mark and name with
+"Share" and one "…" at the right; the progress fact under it when there is
+finite work, and no description line -- Purpose holds that), a row of plain
+text tabs in intro-to-conclusion order (Purpose · Work · Results · Discussion,
+then custom tabs), and the tab's body. The page opens on Work (`main`), whose
+body is the canvas, where a finished Task stays in place, checked and muted.
+The "…" menu's "View ›" draws the page's tasks as List (the canvas), Linear
+(the same order as a thread of steps) or Board (Not started · In progress ·
+Done), and shows or hides completed Tasks.
 
 What is deliberate rather than transcription:
 
@@ -67,7 +70,7 @@ gone; a notification arriving with `?conversation=open` lands on Consultation.
 **The "…" is the folder menu, the one list** (`lib/object-acts.ts`): History,
 Rename, Move to shelf, Cover…, Tabs…, Copy link, Duplicate, Save as workflow,
 then Transfer/Leave/Delete by role, exactly what the Library row's "…" and its
-right-click draw. "View" ends the tab row rather than taking a row.
+right-click draw, with this page's own "View ›" above them (through `extra`).
 */
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -126,14 +129,15 @@ import {
   DialogTitle,
 } from '../components/ui/dialog.js'
 import {
-  DropdownMenu,
   DropdownMenuCheckboxItem,
-  DropdownMenuContent,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
-  DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
 } from '../components/ui/dropdown-menu.js'
+import { Eye } from '../lib/icons.js'
 /* The empty-state icon goes to `PageBody`, whose `StateIcon` is typed on the
    raw lucide component. */
 import { Folder as FolderIcon } from 'lucide-react'
@@ -161,7 +165,8 @@ import type { CreateFacetInput, FacetCapabilities } from '../components/folder-f
 import { PageSection } from '../components/page/PageSection.js'
 import { groupRows, LOOSE } from '../views/grouping.js'
 import { PLACES } from '../views/place-pages.js'
-import { TaskBoard } from '../views/TaskBoard.js'
+import { BoardView } from '../views/BoardView.js'
+import { LinearView } from '../views/LinearView.js'
 import { PlaceFilterChips, usePlace } from '../views/usePlace.js'
 import type { ViewMode } from '../views/view-mode.js'
 import { isNarrowed } from '../views/filter.js'
@@ -176,7 +181,7 @@ import type { TaskDetail } from '../../shared/tasks.js'
 import { folderToWorkflowFile } from '../../shared/workflows.js'
 import type { WorkflowDependencyEdge } from '../../shared/workflows.js'
 import { getFolderDependenciesResponse } from '../../shared/task-dependencies.js'
-import type { Facet } from '../../shared/facets.js'
+import type { Facet, GetFacetsResponse } from '../../shared/facets.js'
 import { getPageResponse } from '../../shared/pages.js'
 import type { PageView } from '../../shared/pages.js'
 import { workPageOf } from '../components/page/canvas/adapters.js'
@@ -442,26 +447,6 @@ export function FolderPage({
   const completedDays = mergeCompletedDays(completed.data?.pages)
   /* The finished Tasks the canvas draws in place, checked and muted. */
   const completedRows = useMemo(() => completedDays.flatMap((day) => day.rows), [completedDays])
-  /*
-  The board's Done column. No section and Done are the two columns that are not
-  sections: one is a place, one is a status, and both take drops. Drawn only on
-  the sections axis, and never as a capture: a quick-add under Done would make a
-  finished task, which is not a thing.
-  */
-  const boardWithDone =
-    place.groupBy === 'section'
-      ? [
-          ...boardColumns,
-          {
-            key: '__done',
-            name: 'Done',
-            mark: null,
-            capture: null,
-            rows: [...completedRows],
-            done: true,
-          },
-        ]
-      : boardColumns
 
   const context: RowContext = {
     ...basis,
@@ -719,13 +704,33 @@ export function FolderPage({
   }
 
   function reorderFolderFacets(dragged: Facet, orderedVisible: readonly Facet[]): void {
+    /* The row takes its new order at once: the visible tabs in the dropped
+       order, hidden ones after, each keyed so the row reads it as the stored
+       order (never the untouched default). The answer replaces it. */
+    const key = queryKeys.folderFacets(id)
+    const previous = cache.getQueryData<GetFacetsResponse>(key)
+    if (previous !== undefined) {
+      const shown = new Set(orderedVisible.map((facet) => facet.id))
+      const byId = new Map(previous.facets.map((facet) => [facet.id, facet]))
+      const next = [
+        ...orderedVisible.map((facet) => byId.get(facet.id) ?? facet),
+        ...previous.facets.filter((facet) => !shown.has(facet.id)),
+      ].map((facet, index) => ({ ...facet, position: `b${String(index).padStart(3, '0')}` }))
+      cache.setQueryData<GetFacetsResponse>(key, { facets: next })
+    }
+    const settle = {
+      onSuccess: (answer: GetFacetsResponse) => cache.setQueryData(key, answer),
+      onError: () => {
+        if (previous !== undefined) cache.setQueryData(key, previous)
+      },
+    }
     if (dragged.private) {
       const index = orderedVisible.findIndex((facet) => facet.id === dragged.id)
       const anchor = index > 0 ? orderedVisible[index - 1] : null
       putMyFacetOrder.mutate({
         folderId: id,
         body: { placements: [{ facet_id: dragged.id, after_facet_id: anchor?.id ?? null }] },
-      })
+      }, settle)
       return
     }
     const visibleShared = orderedVisible.filter((facet) => !facet.private).map((facet) => facet.id)
@@ -739,7 +744,7 @@ export function FolderPage({
     putFacetOrder.mutate({
       folderId: id,
       body: { order: sharedOrder },
-    })
+    }, settle)
   }
 
   function askLeave(): void {
@@ -1027,11 +1032,9 @@ export function FolderPage({
 
   const progressFact =
     completionTotal > 0 ? `${String(completionDone)} of ${String(completionTotal)} done` : null
-  /* Main and a section's tab are lists; the View menu belongs to them alone. */
+  /* Work and a section's tab are lists; "View ›" belongs to them alone, and
+     lives in the page's "…" rather than taking a place on screen. */
   const listFacet = activeFacet?.kind === 'main' || activeFacet?.kind === 'work'
-  /* "View" takes no row of its own: it ends the tab row, or, where a folder
-     shows one tab and so draws no row, sits in the header beside Share. */
-  const tabRowDrawn = facets.data !== undefined && facetRows.filter((facet) => !facet.hidden).length >= 2
   const viewMenu = listFacet ? (
     <FolderViewMenu
       mode={place.mode}
@@ -1039,11 +1042,10 @@ export function FolderPage({
       showCompleted={showCompleted}
       onShowCompleted={changeShowCompleted}
     />
-  ) : null
+  ) : undefined
 
   const headerActions = (
     <>
-      {tabRowDrawn ? null : viewMenu}
       {/* 9.6's Share control, a word rather than a glyph. Withheld on a
           default folder, which INV-2 makes single-member and 5.3 refuses an
           add on. AC-162 and AC-183 reach the sharing panel through it. */}
@@ -1068,6 +1070,7 @@ export function FolderPage({
         kind="folder"
         name={detail?.name ?? ''}
         align="end"
+        extra={viewMenu}
         handlers={{
           history: () => {
             setHistoryOpen(true)
@@ -1151,7 +1154,6 @@ export function FolderPage({
               onPickIdentity={(next) => {
                 patch.mutate({ id, body: next })
               }}
-              storageName={coverKey}
               progress={progressFact}
               actions={headerActions}
             />
@@ -1162,7 +1164,11 @@ export function FolderPage({
               facets={facetRows}
               activeId={activeFacet?.id ?? ''}
               onSelect={selectFacet}
-              trailing={viewMenu ?? undefined}
+              canMove={(facet) => {
+                const caps = facetCapabilities(facet)
+                return facet.private ? caps.reorderPrivate : caps.reorderShared
+              }}
+              onReorder={reorderFolderFacets}
             />
           ) : facets.isError ? (
             <p role="alert" className="text-sm text-muted-foreground">
@@ -1179,20 +1185,34 @@ export function FolderPage({
                 /* A board whose Done column holds finished work is not an empty
                    page: the last open task completed by a drop must not take
                    the board with it. */
-                isEmpty={place.mode === 'board' && bothEmpty && completedDays.length === 0}
+                isEmpty={place.mode !== 'list' && bothEmpty && completedDays.length === 0}
                 emptyCopy={FOLDER_EMPTY}
                 emptyIcon={FolderIcon}
                 truncated={open.data?.truncated ?? false}
               >
                 {place.mode === 'board' ? (
-                  /* The shared `views/TaskBoard.tsx`, so a change to it reaches
-                     here and every place page together (AC-259). */
-                  <TaskBoard
-                    place={place}
-                    columns={showCompleted ? boardWithDone : boardColumns}
+                  /* A page's Board is by status, Not started · In progress ·
+                     Done, and a drop changes it (round 2). */
+                  <BoardView
+                    tasks={visible}
+                    completed={completedRows}
+                    showCompleted={showCompleted}
+                    today={place.today}
                     context={context}
                     actions={actions}
                   />
+                ) : place.mode === 'linear' ? (
+                  page.data ? (
+                    <LinearView
+                      page={page.data}
+                      tasks={visible}
+                      completed={completedRows}
+                      showCompleted={showCompleted}
+                      today={place.today}
+                      context={context}
+                      actions={actions}
+                    />
+                  ) : null
                 ) : visible.length === 0 && openRows.length > 0 ? (
                   <p className="px-2 py-1.5 text-sm text-muted-foreground">
                     {FILTER_NARROWED_EMPTY}
@@ -1263,7 +1283,6 @@ export function FolderPage({
           capabilities={facetCapabilities}
           page={page.data}
           onCreate={createFolderFacet}
-          onReorder={reorderFolderFacets}
           onRename={renameFolderFacet}
           onHide={hideFolderFacet}
           onDelete={removeFolderFacet}
@@ -1454,11 +1473,11 @@ function FacetContent({
                   : 'Record what actually happened: outcomes, findings, evaluations, and partial or unsuccessful results.'}
               </p>
             ) : null}
-            <Suspense fallback={<p role="status">Loading writing…</p>}>
+            <Suspense fallback={<p role="status" className="sr-only">Loading writing…</p>}>
               <FolderCanvas key={`${folderId}:${facet.id}`} page={document.data} tasks={[]} folderId={folderId} facetId={facet.id} presentationHeadings context={context} actions={actions} onAsk={onAsk} arrangeable={sharedPageEditable} />
             </Suspense>
           </>
-        ) : <p role={document.isError ? 'alert' : 'status'}>{document.isError ? `Could not load ${purpose ? 'Purpose' : 'Results'}. Reload to try again.` : 'Loading writing…'}</p>}
+        ) : <p role={document.isError ? 'alert' : 'status'} className={document.isError ? undefined : 'sr-only'}>{document.isError ? `Could not load ${purpose ? 'Purpose' : 'Results'}. Reload to try again.` : 'Loading writing…'}</p>}
       </div>
     )
   }
@@ -1469,35 +1488,35 @@ function FacetContent({
     return (
       <div className="mt-2 space-y-3">
         <p className="text-xs text-muted-foreground">
-          The same section as on Main.{' '}
+          The same section as on Work.{' '}
           <button type="button" onClick={onOpenMain} className="underline-offset-2 hover:text-foreground hover:underline">
-            Open Main
+            Open Work
           </button>
         </p>
         {focused && completedReady ? (
-          <Suspense fallback={<p role="status">Loading section…</p>}>
+          <Suspense fallback={<p role="status" className="sr-only">Loading section…</p>}>
             <FolderCanvas key={`${folderId}:${facet.id}`} page={folderPage!} tasks={focusedTasks} completed={completed} showCompleted={showCompleted} folderId={folderId} workRootId={facet.h1_block_id ?? undefined} context={context} actions={actions} onAsk={onAsk} arrangeable />
           </Suspense>
-        ) : <p role="status">Loading section…</p>}
+        ) : <p role="status" className="sr-only">Loading section…</p>}
       </div>
     )
   }
   return (
     <div className="mt-2">
       {document.data ? (
-        <Suspense fallback={<p role="status">Loading writing…</p>}>
+        <Suspense fallback={<p role="status" className="sr-only">Loading writing…</p>}>
           <FolderCanvas key={`${folderId}:${facet.id}`} page={document.data} tasks={[]} folderId={folderId} facetId={facet.id} context={context} actions={actions} onAsk={onAsk} arrangeable />
         </Suspense>
-      ) : <p role={document.isError ? 'alert' : 'status'}>{document.isError ? 'Could not load this facet. Reload to try again.' : 'Loading writing…'}</p>}
+      ) : <p role={document.isError ? 'alert' : 'status'} className={document.isError ? undefined : 'sr-only'}>{document.isError ? 'Could not load this facet. Reload to try again.' : 'Loading writing…'}</p>}
     </div>
   )
 }
 
 /**
- * The list's one "View" menu, a word at its top-right: list or board, and
- * whether finished Tasks show. Filters and grouping are not offered here; a
- * narrowing remembered from before still shows as chips in the window bar,
- * where it can be cleared.
+ * "View ›", the first item of the page's "…": the page's tasks as List (the
+ * canvas), Linear or Board, and whether finished Tasks show. Filters and
+ * grouping are not offered here; a narrowing remembered from before still
+ * shows as chips in the window bar, where it can be cleared.
  */
 function FolderViewMenu({
   mode,
@@ -1511,30 +1530,35 @@ function FolderViewMenu({
   readonly onShowCompleted: (next: boolean) => void
 }): React.JSX.Element {
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="ghost" className="text-muted-foreground" />}>
-        View
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-44">
-        <DropdownMenuRadioGroup
-          value={mode}
-          onValueChange={(value) => {
-            onMode(value as ViewMode)
-          }}
-        >
-          <DropdownMenuRadioItem value="list">List</DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="board">Board</DropdownMenuRadioItem>
-        </DropdownMenuRadioGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuCheckboxItem
-          checked={showCompleted}
-          onCheckedChange={(checked) => {
-            onShowCompleted(checked)
-          }}
-        >
-          Show completed
-        </DropdownMenuCheckboxItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <>
+      <DropdownMenuSub>
+        <DropdownMenuSubTrigger>
+          <Eye className="size-4" strokeWidth={1.75} aria-hidden="true" />
+          View
+        </DropdownMenuSubTrigger>
+        <DropdownMenuSubContent className="w-44">
+          <DropdownMenuRadioGroup
+            value={mode}
+            onValueChange={(value) => {
+              onMode(value as ViewMode)
+            }}
+          >
+            <DropdownMenuRadioItem value="list" closeOnClick>List</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="linear" closeOnClick>Linear</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="board" closeOnClick>Board</DropdownMenuRadioItem>
+          </DropdownMenuRadioGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuCheckboxItem
+            checked={showCompleted}
+            onCheckedChange={(checked) => {
+              onShowCompleted(checked)
+            }}
+          >
+            Show completed
+          </DropdownMenuCheckboxItem>
+        </DropdownMenuSubContent>
+      </DropdownMenuSub>
+      <DropdownMenuSeparator />
+    </>
   )
 }
