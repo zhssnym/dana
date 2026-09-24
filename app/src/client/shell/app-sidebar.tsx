@@ -294,10 +294,10 @@ function usePageTreeValue({
         ? null
         : resolveDrop(tree, folded, carried.id, hit.id, hit.zone, (id) => {
             const parent = tree.byId.get(id)
-            return parent !== undefined && mayEditPage(parent)
+            return parent !== undefined && !parent.is_default && mayEditPage(parent)
           })
-    /* The Desk page is pinned first, so nothing lands beside it; a page can
-       still go inside it. */
+    /* The Desk page is pinned first, so nothing lands beside it, and it is
+       never a parent (the server's 422), so nothing lands inside it either. */
     if (drop?.anchor !== undefined && (!allowRoot || onto?.is_default === true)) drop = null
     if (drop !== null && isNoop(tree, carried.id, drop)) drop = null
     const next = drop?.mark ?? null
@@ -342,12 +342,17 @@ function usePageTreeValue({
     clearMark,
     commit,
     addInside: (parent) => {
+      /* One page per press: a held key or a double click must not stack
+         Untitled pages while the first create is in flight. */
+      if (create.isPending) return
       create.mutate(
         { name: 'Untitled', parent_folder_id: parent.id },
         {
           onSuccess: (made) => {
             setFold(parent.id, false)
-            void navigate(paths.folder(made.id))
+            /* Opened with its name field focused and selected, so typing
+               replaces "Untitled" (the folder page's rename act). */
+            void navigate(folderActionPath(made.id, 'rename'))
           },
         },
       )
@@ -552,7 +557,8 @@ function SidebarFolderRow({
           : undefined
       }
       onAddInside={
-        gates.identity
+        /* The Desk takes no sub-pages (the server answers 422). */
+        gates.identity && !folder.is_default
           ? () => {
               pages.addInside(folder)
             }

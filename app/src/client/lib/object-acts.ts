@@ -59,6 +59,7 @@ import {
   LogOut,
   OpenInNewTab,
   Pencil,
+  Plus,
   RotateCcw,
   SunMedium,
   Trash2,
@@ -89,6 +90,9 @@ export type ActKey =
   /* Wave 2's page tree: put this page under another page, or back at the top
      level. The folder page's "…" opens `components/move-page-dialog.tsx`. */
   | 'move-page'
+  /* A new page inside this one. The sidebar row draws it as a "+" under a
+     pointer; on a touch screen, which has no hover, it lives in the "…". */
+  | 'add-page'
   | 'move'
   /* A folder's cover picture and its tabs: the folder page owns both dialogs,
      so the Library row reaches them through `?folder-action=`. */
@@ -169,6 +173,7 @@ const OBJECT_ACTS: Record<ObjectKind, readonly ActSpec[]> = {
   folder: [
     { key: 'history', label: 'History', icon: History, group: 1 },
     { key: 'rename', label: 'Rename', icon: Pencil, group: 2 },
+    { key: 'add-page', label: 'Add a page inside', icon: Plus, group: 2 },
     { key: 'move-page', label: 'Move to…', icon: FolderInput, group: 2 },
     { key: 'move', label: 'Move to collection', icon: Folders, group: 2 },
     { key: 'cover', label: 'Cover…', icon: Image, group: 2 },

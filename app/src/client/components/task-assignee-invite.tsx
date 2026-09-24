@@ -29,6 +29,7 @@ which is not a rule but the absence of a request.
 
 import { useState } from 'react'
 
+import { folderInviteBody } from '../api/folder-invite.js'
 import { useCreateInvite } from '../api/mutations.js'
 import { Button } from './ui/button.js'
 import { Input } from './ui/input.js'
@@ -51,7 +52,7 @@ export function TaskAssigneeInvite({
     const address = email.trim()
     if (address === '') return
     invite.mutate(
-      { email: address, folder_id: folderId },
+      folderInviteBody(address, folderId),
       {
         onSuccess: () => {
           setSent(address)

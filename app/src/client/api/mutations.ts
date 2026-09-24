@@ -21,7 +21,7 @@ the request carries. They are not view endpoints, so `mutateApi` does not add tz
 for them; each call site that needs one asks for it, and the two that do are the
 ones section 7 names.
 */
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { UseMutationResult } from '@tanstack/react-query'
 
 import { inputRoundSchema } from '../../shared/consultation-input.js'
@@ -305,9 +305,24 @@ export function useDeleteStep(): UseMutationResult<void, Error, string> {
  * rather than discarded, even though nothing renders it yet.
  */
 export function useDeleteFolder(): UseMutationResult<DeleteFolderResponse, Error, string> {
+  const client = useQueryClient()
   return useMutation({
-    mutationFn: (id: string) =>
-      mutateApi(deleteFolderResponse, { method: 'DELETE', path: `/folders/${id}` }),
+    mutationFn: async (id: string) => {
+      const deleted = await mutateApi(deleteFolderResponse, {
+        method: 'DELETE',
+        path: `/folders/${id}`,
+      })
+      /* Dropped before the cache's blanket invalidation runs, so nothing
+         refetches a folder that now answers 404 (the page being left may
+         still be mounted while the navigation commits). A restore reads
+         them afresh. */
+      client.removeQueries({
+        predicate: ({ queryKey }) =>
+          (queryKey[0] === 'folders' && queryKey[1] === id) ||
+          (queryKey[0] === 'backlinks' && queryKey[2] === id),
+      })
+      return deleted
+    },
   })
 }
 

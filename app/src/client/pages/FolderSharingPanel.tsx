@@ -79,6 +79,7 @@ import type { LucideIcon } from 'lucide-react'
 
 import type { GetConnectionsResponse } from '../../shared/connections.js'
 import type { GetFolderResponse } from '../../shared/folders.js'
+import { folderInviteBody } from '../api/folder-invite.js'
 import {
   useAddFolderMember,
   useCancelInvite,
@@ -203,7 +204,8 @@ export function FolderSharingPanel({
     // The folder rides the body, which is what makes this an invite to this
     // folder rather than the bare one the People screen sends, and what turns
     // a connected address into 7.5's instant share instead of its 409.
-    invite.mutate({ email: trimmed, folder_id: folder.id })
+    // A folder invite must also name its Access; folderInviteBody says which.
+    invite.mutate(folderInviteBody(trimmed, folder.id))
   }
 
   return (
