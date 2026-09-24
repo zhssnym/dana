@@ -129,7 +129,7 @@ function TopBar({ onOpenSearch }: { readonly onOpenSearch: () => void }): React.
     return (
       <div className="flex shrink-0 items-center">
         {state === 'expanded' ? null : (
-          <SidebarTrigger size="icon" className="ml-2 shrink-0 text-muted-foreground" />
+          <SidebarTrigger size="icon" className="ml-0.5 shrink-0 text-muted-foreground" />
         )}
         <div className="min-w-0 flex-1">
           <WindowBar />
@@ -471,7 +471,6 @@ export function AppShell(): React.JSX.Element {
             <TopBar onOpenSearch={openSearch} />
             <TopTrail />
             <UpdateChrome showUpdate={update.showUpdate} onUpdate={update.applyUpdate} />
-            <OfflineBanner />
             {/* The one region that scrolls. */}
             <div data-shell-scroll className="min-h-0 flex-1 overflow-y-auto">
               <div className="mx-auto w-full max-w-[var(--shell-content-max)] px-4 py-4 md:px-10 md:py-6">
@@ -487,8 +486,10 @@ export function AppShell(): React.JSX.Element {
           {groups.dialogs}
         </SidebarProvider>
       </div>
-      {/* The one notice column: toasts and the undo bar, bottom-centre. */}
+      {/* The one notice column: toasts, the offline notice and the undo bar,
+          bottom-centre. */}
       <ToastRegion clearsCapture={false}>
+        <OfflineBanner />
         <UndoBar />
       </ToastRegion>
       {/* 9.3's form, mounted once and last, for the reason in this file's

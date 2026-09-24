@@ -244,7 +244,7 @@ function SearchDialog({
         <DialogHeader className="sr-only">
           <DialogTitle>Search Dana</DialogTitle>
           <DialogDescription>
-            Search the tasks, pages and collections you can access.
+            Search the tasks and pages you can access.
           </DialogDescription>
         </DialogHeader>
 
@@ -273,7 +273,7 @@ function SearchDialog({
 
         <div
           id="dana-search-results"
-          className="min-h-40 overflow-y-auto p-2 max-md:flex-1 md:max-h-[60vh]"
+          className="overflow-y-auto p-2 max-md:flex-1 md:max-h-[60vh]"
         >
           {searching || answer.pending ? (
             <SearchSkeleton />

@@ -54,7 +54,7 @@ function Row({
     props: mergeProps<"div">(
       {
         className: cn(
-          "flex min-h-[var(--row-height)] items-center gap-[var(--space-inline)] rounded-md px-2 py-1 text-left text-sm",
+          "flex min-h-[var(--row-height)] items-center gap-[var(--space-inline)] rounded-md px-2 py-0.5 text-left text-sm",
           clickable && "cursor-pointer hover:bg-accent active:bg-press",
           selected && "bg-selected hover:bg-selected",
           className
@@ -127,7 +127,7 @@ function RowGroup({
       )}
       {...props}
     >
-      {divider ? <Separator className="mb-[var(--space-inline)]" /> : null}
+      {divider ? <Separator className="mx-2 mb-[var(--space-inline)] data-horizontal:w-auto" /> : null}
       {title ? (
         <div className="flex flex-col px-2 pb-1">
           <h2 className="text-sm font-section text-foreground">{title}</h2>

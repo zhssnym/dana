@@ -109,6 +109,22 @@ export function TodayPage(): React.JSX.Element {
     </PageBody>
   )
 
+  const quickAdd = (
+    <QuickAdd
+      className={NEW_TASK_ROW_PHONE}
+      onAdd={(title) => {
+        place.capture(title)
+      }}
+    />
+  )
+
+  const list = (
+    <div>
+      {pageBody}
+      {quickAdd}
+    </div>
+  )
+
   return (
     <div className="space-y-6">
       <SampleStrip />
@@ -118,21 +134,23 @@ export function TodayPage(): React.JSX.Element {
         {...(total === 0 ? {} : { fact: `${String(recap.length)} of ${String(total)} done` })}
       />
 
-      <div>
-        {mayBeFresh ? <StarterOffer fallback={pageBody} /> : pageBody}
-        <QuickAdd
-          className={NEW_TASK_ROW_PHONE}
-          onAdd={(title) => {
-            place.capture(title)
-          }}
-        />
-      </div>
+      {/* Rows bleed their padding into the gutter: a checkbox, a heading and
+          the title share one left edge. */}
+      <div className="-mx-1.5 space-y-6">
+        {/* A fresh account's own first act comes before the offer of an
+            example; otherwise "New task" closes the list. */}
+        {mayBeFresh ? (
+          <StarterOffer lead={quickAdd} fallback={list} />
+        ) : (
+          list
+        )}
 
-      {view.status !== 'success' || !showDone ? null : (
-        <PlaceGroup name="Done" heading="Done">
-          {rows(recap)}
-        </PlaceGroup>
-      )}
+        {view.status !== 'success' || !showDone ? null : (
+          <PlaceGroup name="Done" heading="Done">
+            {rows(recap)}
+          </PlaceGroup>
+        )}
+      </div>
 
       <ConfirmDialog pending={confirm.pending} onClose={confirm.close} />
     </div>

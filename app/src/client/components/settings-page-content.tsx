@@ -18,8 +18,8 @@ What is worth knowing:
   carries the session cookie and hands 7.22's attachment to the browser. The
   cost, recorded in 9.7, is that a rate-limit refusal arrives as a downloaded
   response rather than a toast.
-- **Sample data lives here and only here** among the pages; Remove confirms once
-  (the route page's dialog) and then offers the undo bar.
+- **Sample data lives here and only here** among the pages; Remove is one press
+  and then offers the undo bar.
 - **People** (9.8) is a section here, and /app/people lands on `#people`.
   Settings is reached from the sidebar's foot, beside Trash. Sign out has one
   home, the identity row here; the sidebar has no account menu.

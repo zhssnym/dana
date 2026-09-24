@@ -3,14 +3,14 @@ import { Checkbox as CheckboxPrimitive } from "@base-ui/react/checkbox"
 import { cn } from "./utils.js"
 
 /*
-The one checkbox drawing (round 5): a --checkbox-size square, quiet border,
+The one checkbox drawing (round 5): a --checkbox-size square, the one hairline border,
 accent fill with a drawn tick when checked. The form control below, the task
 row's box, a board card's box and a Linear subtask all draw this, so a box
 looks the same wherever it is ticked.
 */
 const BOX =
-  "flex size-[var(--checkbox-size)] shrink-0 items-center justify-center rounded-sm border transition-[background-color,border-color] duration-[var(--duration-fast)] ease-[var(--ease-standard)] motion-reduce:transition-none"
-const UNCHECKED = "border-quiet-foreground bg-background"
+  "flex size-[var(--checkbox-size)] shrink-0 items-center justify-center rounded-xs border transition-[background-color,border-color] duration-[var(--duration-fast)] ease-[var(--ease-standard)] motion-reduce:transition-none"
+const UNCHECKED = "border-border bg-background"
 const CHECKED = "border-primary bg-primary"
 
 /** The tick: a 20-unit stroke retracting to nothing over --duration-base. */

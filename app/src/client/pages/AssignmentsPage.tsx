@@ -44,7 +44,7 @@ export function AssignmentsPage(): React.JSX.Element {
 
   return (
     <div className="space-y-6">
-      <PlaceHead place={place} />
+      <PlaceHead place={place} bare={rows.length === 0 && !place.filter.showCompleted} />
       {place.mode === 'board' ? (
         <PageBody
           query={view}
@@ -56,7 +56,9 @@ export function AssignmentsPage(): React.JSX.Element {
           <TaskBoard place={place} columns={groups} context={context} actions={actions} />
         </PageBody>
       ) : (
-        <div>
+        /* Rows bleed their padding into the gutter: a checkbox, a heading
+           and the title share one left edge. */
+        <div className="-mx-1.5">
           <PageBody
             query={view}
             isEmpty={rows.length === 0}

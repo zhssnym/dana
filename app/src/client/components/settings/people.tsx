@@ -62,9 +62,6 @@ export function PeopleSettings(): React.JSX.Element {
     (row) => row.status === 'pending' && row.folder_id === null,
   )
   const connected = connections.data ?? []
-  /* "No one yet" is true only when nobody is connected *and* nobody is
-     waiting on an answer; a pending invite is someone. */
-  const nobody = connected.length === 0 && pendingBare.length === 0
 
   function sendInvite(): void {
     /* The button stays pressable: an empty press puts you in the field
@@ -158,7 +155,6 @@ export function PeopleSettings(): React.JSX.Element {
           field in place of itself. Esc or an empty blur folds it back. */}
       <StackingRow
         label="Invite by email"
-        description={nobody ? 'People you can share pages with' : undefined}
         control={
           inviting ? (
             <form

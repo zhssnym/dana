@@ -7,6 +7,7 @@ No mark, no cover, no card: the title says where you are.
 */
 import type { ComponentProps, ReactNode } from 'react'
 
+import { ScreenHead } from '../../views/usePlace.js'
 import { Row } from '../ui/row.js'
 import { cn } from '../ui/utils.js'
 
@@ -23,19 +24,19 @@ export function Screen({
   readonly children: ReactNode
 }): React.JSX.Element {
   return (
-    <div className="w-full pt-2 pb-16">
-      <header className="flex items-start justify-between gap-4 pb-6">
-        <div className="min-w-0">
-          <h1 className="text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-title text-foreground">
-            {title}
-          </h1>
-          {description ? (
-            <p className="mt-1 text-sm text-muted-foreground">{description}</p>
-          ) : null}
-        </div>
-        {actions ? <div className="shrink-0 pt-1">{actions}</div> : null}
-      </header>
+    <div className="w-full pb-16">
+      <div className="pb-6">
+        <ScreenHead
+          title={title}
+          {...(actions === undefined ? {} : { controls: actions })}
+          {...(description === undefined ? {} : { fact: description })}
+        />
+      </div>
+      {/* Rows bleed their padding into the gutter, so a row's label, a
+          group's heading and the title share one left edge. */}
+      <div className="-mx-2">
       {children}
+      </div>
     </div>
   )
 }

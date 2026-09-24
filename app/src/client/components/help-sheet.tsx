@@ -15,6 +15,8 @@ today, and every line can be pressed. Each line names the module that binds it:
   primitive, and a held drag row through `lib/use-sortable-list.ts`.
 - The arrows move the cursor through search's results,
   `components/search-overlay.tsx`.
+- The arrows move through the sidebar's pages and fold them, and F2 renames
+  the focused one, `shell/app-sidebar.tsx`.
 
 A shortcut this client does not bind must not be listed here.
 */
@@ -49,6 +51,8 @@ const SHORTCUTS: readonly { readonly keys: readonly string[]; readonly what: str
   { keys: ['Enter'], what: 'Open the selected task, or add what you typed' },
   { keys: ['Esc'], what: 'Close what is open' },
   { keys: ['↑', '↓'], what: 'Move through search results' },
+  { keys: ['↑', '↓', '←', '→'], what: "Move through the sidebar's pages, and fold them" },
+  { keys: ['F2'], what: 'Rename the focused page in the sidebar' },
   { keys: ['?'], what: 'This list' },
 ]
 

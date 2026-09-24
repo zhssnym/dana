@@ -11,6 +11,8 @@ import type { TaskCard } from '../../shared/tasks.js'
 import { useCreateTask, usePullIntoMyDay } from '../api/mutations.js'
 import { useMe } from '../api/queries.js'
 import { presenterToday } from '../parts/presenters.js'
+import { Button } from '../components/ui/button.js'
+import { Image as ImageIcon } from '../lib/icons.js'
 import { ViewMenu } from './FilterControl.js'
 import { ViewSwitch } from './ViewSwitch.js'
 import { sortRows } from './filter.js'
@@ -133,19 +135,72 @@ export function PlaceFilterChips(_props: { readonly place: Place }): null {
 }
 
 /** The layout switcher (where the page has more than one) and the View menu. */
-export function PlaceControls({ place }: { readonly place: Place }): React.JSX.Element {
+export function PlaceControls({
+  place,
+  bare = false,
+}: {
+  readonly place: Place
+  /** Nothing to group or sort: the View menu is left out, the switcher stays. */
+  readonly bare?: boolean
+}): React.JSX.Element | null {
+  const switcher = place.spine.views.length > 1
+  if (bare && !switcher) return null
   return (
     <div className="flex items-center gap-2">
-      {place.spine.views.length > 1 ? (
+      {switcher ? (
         <ViewSwitch choices={place.spine.views} value={place.mode} onChange={place.setMode} />
       ) : null}
-      <ViewMenu
-        groups={place.spine.groups}
-        completed={place.spine.completed}
-        filter={place.filter}
-        onChange={place.setFilter}
-      />
+      {bare ? null : (
+        <ViewMenu
+          groups={place.spine.groups}
+          completed={place.spine.completed}
+          filter={place.filter}
+          onChange={place.setFilter}
+        />
+      )}
     </div>
+  )
+}
+
+/**
+ * Every screen's head: the title, at most one row of controls on its line, and
+ * at most one muted line under it.
+ *
+ * **The title stands at one height on every screen.** A page's head
+ * (`components/folder-head.tsx`) keeps a line above its title for "Add cover",
+ * a 24px control under `pt-2` and `space-y-1`, hidden on a touch screen; this head keeps
+ * the same empty line, so moving between Today, Settings and a page moves the
+ * content and never the title. Change one, change the other.
+ */
+export function ScreenHead({
+  title,
+  controls,
+  fact,
+}: {
+  readonly title: ReactNode
+  readonly controls?: ReactNode
+  readonly fact?: ReactNode
+}): React.JSX.Element {
+  return (
+    <header className="space-y-1 pt-2">
+      {/* Built as that line is (a small button in a block), so its height
+          matches to the pixel. */}
+      <div aria-hidden="true" className="[@media(hover:none)]:hidden">
+        <Button variant="ghost" size="sm" tabIndex={-1} className="invisible">
+          <ImageIcon />
+          Add cover
+        </Button>
+      </div>
+      <div className="flex min-h-(--text-title-line) items-center justify-between gap-4">
+        <h1 className="min-w-0 truncate text-(length:--text-title-size) leading-(--text-title-line) font-title text-foreground">
+          {title}
+        </h1>
+        {controls === undefined || controls === null ? null : (
+          <div className="flex shrink-0 items-center gap-2">{controls}</div>
+        )}
+      </div>
+      {fact === undefined ? null : <p className="text-sm text-muted-foreground">{fact}</p>}
+    </header>
   )
 }
 
@@ -162,15 +217,11 @@ export function PlaceHead({
   readonly bare?: boolean
 }): React.JSX.Element {
   return (
-    <header>
-      <div className="flex items-center justify-between gap-4">
-        <h1 className="min-w-0 truncate text-(length:--text-title-size) leading-(--text-title-line) font-title text-foreground">
-          {place.spine.name}
-        </h1>
-        {bare ? null : <PlaceControls place={place} />}
-      </div>
-      {fact === undefined ? null : <p className="mt-1 text-sm text-muted-foreground">{fact}</p>}
-    </header>
+    <ScreenHead
+      title={place.spine.name}
+      controls={<PlaceControls place={place} bare={bare} />}
+      {...(fact === undefined ? {} : { fact })}
+    />
   )
 }
 
@@ -190,7 +241,7 @@ export function PlaceGroup({
   return (
     <section aria-label={name}>
       {heading === undefined ? null : (
-        <h2 className="mb-1 px-2 text-sm font-section text-foreground">{heading}</h2>
+        <h2 className="mb-1 px-1.5 text-sm font-section text-foreground">{heading}</h2>
       )}
       {children}
     </section>

@@ -207,7 +207,6 @@ export const SAMPLE_WORKSPACE: SampleWorkspace = {
           section: 'After the move',
           notes: 'For the deposit, in case there is a disagreement later.',
         },
-        { title: 'Ask the landlord about the garage', trashed: true },
       ],
     },
 
@@ -396,13 +395,6 @@ export const SAMPLE_WORKSPACE: SampleWorkspace = {
         { title: 'A Pattern Language', notes: 'Sara lent me her copy. Give it back.' },
         { title: 'Ways of Seeing', doneDaysAgo: 6 },
       ],
-    },
-
-    {
-      name: 'Summer trip',
-      icon: 'tent',
-      trashed: true,
-      tasks: [{ title: 'Book the ferry' }, { title: 'Find a place near the beach' }],
     },
   ],
 

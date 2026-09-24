@@ -10,6 +10,8 @@ import { Button } from "../components/ui/button.js"
 import { ConfirmDialog } from "../components/ui/ConfirmDialog.js"
 import { EMPTY_LINE } from "../components/page/PageStates.js"
 import { Row, RowGroup } from "../components/ui/row.js"
+import { Screen } from "../components/settings/screen.js"
+import { cn } from "../components/ui/utils.js"
 import { markIcon } from "../components/page/icon-manifest.js"
 import { CheckCircle2, Layers3, MessageSquare } from "../lib/icons.js"
 import {
@@ -34,21 +36,17 @@ export function TrashScreen({
   const [confirming, setConfirming] = useState<TrashItem | "all" | null>(null)
 
   return (
-    <div className="w-full pt-2 pb-16">
-      <header className="flex items-start justify-between gap-4 pb-6">
-        <h1 className="min-w-0 text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-title text-foreground">
-          Trash
-        </h1>
-        {/* Only the rows the viewer may destroy leave under it. */}
-        {purgeable.length ? (
-          <div className="shrink-0 pt-1">
-            <Button variant="destructive" onClick={() => setConfirming("all")}>
-              Empty trash
-            </Button>
-          </div>
-        ) : null}
-      </header>
-
+    <Screen
+      title="Trash"
+      /* Only the rows the viewer may destroy leave under it. */
+      actions={
+        purgeable.length ? (
+          <Button variant="destructive" onClick={() => setConfirming("all")}>
+            Empty trash
+          </Button>
+        ) : undefined
+      }
+    >
       {state.pending ? <SkeletonList /> : null}
       {state.failed ? <InlineError onRetry={state.retry} /> : null}
 
@@ -90,7 +88,7 @@ export function TrashScreen({
           }}
         />
       ) : null}
-    </div>
+    </Screen>
   )
 }
 
@@ -115,36 +113,52 @@ function TrashRow({
           : markIcon(null)
   const left = daysLeft(item)
 
+  const days = `${left} day${left === 1 ? "" : "s"} left`
+
+  /* One line: the name, where it came from, and the days left. On hover or
+     focus the actions take the days' place, in the same slot, so the right
+     edge never moves; a touch screen shows the actions. */
   return (
     <Row
       role="listitem"
       className="group hover:bg-accent"
       icon={<Glyph className="size-4" strokeWidth={1.75} aria-hidden="true" />}
-      label={item.name}
-      description={
-        <span className="block truncate">
-          {item.from ? `${item.from} · ` : ""}
-          deleted {whenFor(item.at).toLowerCase()}
-          {item.actor ? ` by ${item.actor}` : ""}
-        </span>
+      label={
+        <>
+          {item.name}
+          {item.from ? <span className="ml-2 text-muted-foreground">{item.from}</span> : null}
+        </>
       }
-      meta={`${left} day${left === 1 ? "" : "s"} left`}
+      title={
+        item.actor
+          ? `Deleted ${whenFor(item.at).toLowerCase()} by ${item.actor}`
+          : `Deleted ${whenFor(item.at).toLowerCase()}`
+      }
       control={
-        onRestore || onPurge ? (
-          /* On hover or focus, as the sidebar's "…"; always shown on touch. */
-          <span className="flex items-center gap-1 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100">
-            {onRestore ? (
-              <Button variant="ghost" size="sm" onClick={onRestore}>
-                Restore
-              </Button>
-            ) : null}
-            {onPurge ? (
-              <Button variant="destructive" size="sm" onClick={onPurge}>
-                Delete forever
-              </Button>
-            ) : null}
+        <span className="grid items-center justify-items-end">
+          <span
+            className={cn(
+              "[grid-area:1/1] text-xs text-muted-foreground [@media(hover:none)]:invisible",
+              (onRestore || onPurge) && "group-focus-within:invisible group-hover:invisible",
+            )}
+          >
+            {days}
           </span>
-        ) : undefined
+          {onRestore || onPurge ? (
+            <span className="invisible flex items-center gap-1 [grid-area:1/1] group-focus-within:visible group-hover:visible [@media(hover:none)]:visible">
+              {onRestore ? (
+                <Button variant="ghost" size="sm" onClick={onRestore}>
+                  Restore
+                </Button>
+              ) : null}
+              {onPurge ? (
+                <Button variant="destructive" size="sm" onClick={onPurge}>
+                  Delete forever
+                </Button>
+              ) : null}
+            </span>
+          ) : null}
+        </span>
       }
     />
   )

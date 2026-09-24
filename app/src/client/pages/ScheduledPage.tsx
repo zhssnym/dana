@@ -41,7 +41,7 @@ export function ScheduledPage(): React.JSX.Element {
 
   return (
     <div className="space-y-6">
-      <PlaceHead place={place} />
+      <PlaceHead place={place} bare={rows.length === 0 && !place.filter.showCompleted} />
 
       {place.mode === 'calendar' ? (
         <PlannedCalendar
@@ -50,7 +50,9 @@ export function ScheduledPage(): React.JSX.Element {
           }}
         />
       ) : (
-        <>
+        /* Rows bleed their padding into the gutter: a checkbox, a heading
+           and the title share one left edge. */
+        <div className="-mx-1.5 space-y-6">
           <div>
             <PageBody
               query={view}
@@ -88,7 +90,7 @@ export function ScheduledPage(): React.JSX.Element {
           {place.filter.showCompleted ? (
             <DoneGroup place={place} context={context} actions={actions} onAsk={confirm.ask} keep={isScheduled} />
           ) : null}
-        </>
+        </div>
       )}
 
       <ConfirmDialog pending={confirm.pending} onClose={confirm.close} />

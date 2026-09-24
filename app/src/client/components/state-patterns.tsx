@@ -31,12 +31,12 @@ moving focus.
 /* `CircleAlert` rather than `AlertCircle`: the icon module keeps one name for
    the one drawing, lucide's deprecated alias having drifted onto a second
    meaning before F5 collapsed the two. */
-import { CircleAlert as AlertCircle, RefreshCw, WifiOff } from '../lib/icons.js'
+import { CircleAlert as AlertCircle, RefreshCw } from '../lib/icons.js'
+import { NOTICE } from '../state/ToastRegion.js'
 
 import {
   Alert,
   AlertAction,
-  AlertDescription,
   AlertTitle,
 } from './ui/alert.js'
 import { Button } from './ui/button.js'
@@ -44,20 +44,15 @@ import { READ_FAILED, TRY_AGAIN } from './ui/copy.js'
 import { Skeleton } from './ui/skeleton.js'
 import { cn } from './ui/utils.js'
 
+/* The offline banner is a notice like the toasts (`state/ToastRegion.tsx`),
+   drawn in their column, and it stays for as long as the connection is down. */
 export function OfflineBanner({ className }: { className?: string }) {
   return (
-    <Alert
-      className={cn(
-        'min-h-[var(--control-height)] rounded-md border-[var(--color-warning-200)] bg-[var(--color-warning-100)] px-3 py-2 text-[var(--color-warning-700)]',
-        className,
-      )}
-      role="status"
-    >
-      <WifiOff className="size-4" strokeWidth={1.75} aria-hidden="true" />
-      <AlertDescription className="text-sm text-[var(--color-warning-700)]">
+    <div className={cn(NOTICE, className)} role="status">
+      <span className="min-w-0 flex-1 leading-5">
         You&apos;re offline. Dana needs a connection; changes can&apos;t be saved right now.
-      </AlertDescription>
-    </Alert>
+      </span>
+    </div>
   )
 }
 

@@ -29,13 +29,15 @@ shell/appearance.ts). Never add a viewport minimum width to html/body.
   --font-weight-section: 500;
   --font-weight-title: 600;
 
-  /* Radii: 4 for checkboxes, chips and badges; 6 for controls, rows and
-     menu items; 10 for menus and popovers; 12 for dialogs and sheets. */
+  /* One corner radius, 6px, for everything: controls, rows, menus, notices,
+     dialogs and sheets. The one exception is --radius-xs, 4px, used only by
+     the 16px task checkbox, because a 6px corner on a 16px box reads as a
+     circle. rounded-full stays for avatars and pills. */
   --radius-xs: 4px;
-  --radius-sm: 4px;
+  --radius-sm: 6px;
   --radius-md: 6px;
-  --radius-lg: 10px;
-  --radius-xl: 12px;
+  --radius-lg: 6px;
+  --radius-xl: 6px;
 
   /* No shadows except one soft shadow on floating layers (menus, popovers,
      dialogs, sheets: shadow-md/lg). shadow-sm was a decorative lift; it is

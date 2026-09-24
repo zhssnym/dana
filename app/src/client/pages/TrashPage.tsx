@@ -39,8 +39,8 @@ export function TrashPage(): React.JSX.Element {
           const said = (): void => {
             showToast(
               (item.kind === 'task' || item.kind === 'discussion') && item.from
-                ? `Restored "${item.name}" to ${item.from}`
-                : `Restored "${item.name}"`,
+                ? `Restored “${item.name}” to ${item.from}`
+                : `Restored “${item.name}”`,
             )
           }
           if (item.kind === 'folder') restoreFolder.mutate(item.subject, { onSuccess: said })

@@ -116,7 +116,7 @@ page would be two answers to one question.
 ## The offline banner and the toasts
 
 **Settled.** The banner is `shell/OfflineBanner.tsx`, rendered once by the
-shell, above the outlet. It is global because 10.6's fallback opens every `/app`
+shell, as a persistent notice in the one notice column (`state/ToastRegion.tsx`). It is global because 10.6's fallback opens every `/app`
 path from the cached shell, and a banner a page rendered would be missing on
 exactly the pages reached while the connection is down.
 
