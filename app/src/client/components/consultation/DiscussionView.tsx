@@ -356,6 +356,7 @@ function DiscussionBody(props: {
           <CommentsThread
             comments={conversation}
             canComment={mayConverse.createComment}
+            closedReason={frozen ? 'This conversation is closed.' : undefined}
             onChange={(next) => {
               applyThreadChange(conversation, next, {
                 post: (body) => {
