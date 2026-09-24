@@ -489,7 +489,7 @@ export function TaskPage({
         onClose={() => {}}
       />
       {/* #214: the documents that link to this Task. Absent while none do. */}
-      {props.id ? <ReferencedFrom kind="task" id={props.id} className="mt-3 pl-7" /> : null}
+      {props.id && props.id !== "new" ? <ReferencedFrom kind="task" id={props.id} className="mt-3 pl-7" /> : null}
     </div>
   )
 }

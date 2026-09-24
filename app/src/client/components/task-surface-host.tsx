@@ -44,10 +44,12 @@ day (AC-098).
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 
-import { useCreateTask } from '../api/mutations.js'
+import { useCreateTask, useUpdateTask } from '../api/mutations.js'
 import { useFolders, useMe } from '../api/queries.js'
 import { conceptPatchToBody } from '../tasks/task-concept.js'
 import type { ConceptTask } from '../tasks/task-model.js'
+import { isoDay, parseDueLabel } from '../tasks/task-model.js'
+import { dueDisplay, presenterToday } from '../parts/presenters.js'
 import { TaskWriter } from '../tasks/task-writer.js'
 import {
   surfacePreferenceFor,
@@ -94,6 +96,8 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
   /* The draft a capture holds until its title exists. Cleared on every open,
      which the `seq` key below makes a remount rather than a reset. */
   const [draft, setDraft] = useState<ConceptTask | null>(null)
+  const draftRef = useRef<ConceptTask | null>(null)
+  draftRef.current = draft
   const [created, setCreated] = useState<string | null>(null)
   const making = useRef(false)
   const [pending, setPending] = useState<PendingAct | null>(null)
@@ -106,6 +110,7 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
   const me = useMe()
   const folders = useFolders()
   const create = useCreateTask()
+  const update = useUpdateTask()
   const acts = useRowActions()
 
   const editing = open?.taskId ?? created
@@ -250,7 +255,13 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
           }),
       ...(open?.defaults.due_date == null
         ? {}
-        : { due: { label: `Due ${open.defaults.due_date}` } }),
+        : {
+            /* The row's own wording ("Due 26 Sep"), never the ISO day. */
+            due: dueDisplay(
+              { status: 'pending', due_date: open.defaults.due_date, due_time: null },
+              presenterToday(),
+            ) ?? { label: open.defaults.due_date },
+          }),
     }
   }
 
@@ -274,6 +285,7 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
       return
     }
     const next: ConceptTask = { ...(draft ?? seed()), ...fields }
+    draftRef.current = next
     setDraft(next)
     /* 9.3: the title is required, 1 to 300, and 7.6 refuses a create without
        one. So an unnamed capture holds its answers and makes nothing, which is
@@ -284,21 +296,38 @@ export function TaskSurfaceHost(): React.JSX.Element | null {
     if (making.current) return
     making.current = true
     const body = conceptPatchToBody(next)
+    /* A day picked in the capture lives on the draft as its label; the
+       entry point's default day stands until one is picked. */
+    const pickedDue = next.due === undefined ? null : parseDueLabel(next.due.label)
+    const dueDate =
+      pickedDue !== null
+        ? isoDay(pickedDue)
+        : next.due === undefined && 'due' in next
+          ? null
+          : open?.defaults.due_date
+    const notes = next.notes?.trim() ? next.notes : undefined
     create.mutate(
       {
         title: next.title.trim(),
         ...(body.folder_id === undefined ? {} : { folder_id: body.folder_id }),
         ...(body.assignee_id === undefined ? {} : { assignee_id: body.assignee_id }),
         ...(next.important === undefined ? {} : { important: next.important }),
-        ...(open?.defaults.due_date == null
-          ? {}
-          : { due_date: open.defaults.due_date }),
+        ...(dueDate == null ? {} : { due_date: dueDate }),
+        ...(notes === undefined ? {} : { notes }),
         ...(open?.defaults.section_block_id === undefined
           ? {}
           : { section_block_id: open.defaults.section_block_id }),
       },
       {
-        onSuccess: (detail) => setCreated(detail.id),
+        onSuccess: (detail) => {
+          /* Notes typed while the create was in flight went to the draft
+             after the body left; they follow as an edit, never dropped. */
+          const latest = draftRef.current?.notes
+          if (latest !== undefined && latest !== (notes ?? '') && latest.trim() !== '') {
+            update.mutate({ id: detail.id, body: { notes: latest } })
+          }
+          setCreated(detail.id)
+        },
         onError: () => {
           /* The capture keeps its draft and may be named again. A surface that
              swallowed the refusal would look like a task that had been made. */

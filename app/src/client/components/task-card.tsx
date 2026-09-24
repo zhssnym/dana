@@ -1864,9 +1864,22 @@ export function TaskCard({
             {/* #221: the Task's own document, in the Folder canvas's writer.
                 Loaded on first open so BlockNote stays out of the row's
                 bundle; the plain-text notes stand in until it arrives. */}
-            <Suspense fallback={task.notes ? <p className="whitespace-pre-wrap text-[12px] leading-5 text-[var(--color-graphite-700)]">{task.notes}</p> : null}>
-              <TaskComposer taskId={task.id} folderId={task.folder?.id ?? null} notes={task.notes ?? null} />
-            </Suspense>
+            {task.id === "new" ? (
+              /* A task not made yet has no document for the composer to open,
+                 so its notes are plain text until then: they ride the create as
+                 `notes`, and the server makes the document from them. */
+              <textarea
+                aria-label="Notes"
+                value={task.notes ?? ""}
+                onChange={(event) => patch(task.id, { notes: event.target.value })}
+                rows={4}
+                className="w-full resize-y rounded-md border border-[var(--color-graphite-200)] bg-transparent px-2 py-1.5 text-[12px] leading-5 text-[var(--color-graphite-700)] outline-none focus-visible:border-[var(--color-graphite-400)]"
+              />
+            ) : (
+              <Suspense fallback={task.notes ? <p className="whitespace-pre-wrap text-[12px] leading-5 text-[var(--color-graphite-700)]">{task.notes}</p> : null}>
+                <TaskComposer taskId={task.id} folderId={task.folder?.id ?? null} notes={task.notes ?? null} />
+              </Suspense>
+            )}
           </Disclosure>
     ),
     attachments: (
