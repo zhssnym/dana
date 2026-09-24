@@ -150,7 +150,7 @@ const OBJECT_ACTS: Record<ObjectKind, readonly ActSpec[]> = {
     { key: 'duplicate', label: 'Duplicate', icon: Copy, group: 3 },
     { key: 'abandon', label: 'Abandon', icon: Ban, group: 4 },
     { key: 'restore', label: 'Restore', icon: RotateCcw, group: 4 },
-    { key: 'delete', label: 'Delete task…', icon: Trash2, group: 5, destructive: true },
+    { key: 'delete', label: 'Delete task', icon: Trash2, group: 5, destructive: true },
   ],
   /*
   **One folder menu, drawn identically in its three homes**: the folder page's

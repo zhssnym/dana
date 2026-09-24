@@ -25,7 +25,7 @@ has no panel.
 series' current occurrence, and says so to a screen reader (AC-098).
 */
 
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { useLocation, useNavigate, type Location } from 'react-router'
 
 import { useRowActions } from '../parts/useRowActions.js'
@@ -33,12 +33,6 @@ import { paths } from '../routes.js'
 import { onOpenTask } from './task-open.js'
 import { UPCOMING_OCCURRENCE } from './task-copy.js'
 import { surfaceTask, useTaskEditing } from './task-editing.js'
-import { ConfirmDialog } from './ui/ConfirmDialog.js'
-import {
-  DELETE_CONFIRM_LABEL,
-  DELETE_TASK_CONFIRM,
-  keepLabel,
-} from './ui/copy.js'
 import { TaskWriter } from '../tasks/task-writer.js'
 import { TaskCenterPeek, TaskPanel, usePrefetchTaskOnIntent } from './task-surface.js'
 import { useTaskOpenPreference } from '../lib/task-surface-preference.js'
@@ -68,13 +62,6 @@ export function withTask(location: Pick<Location, 'pathname' | 'search'>, id: st
   return { pathname: location.pathname, search: search === '' ? '' : `?${search}` }
 }
 
-interface PendingAct {
-  readonly message: string
-  readonly run: () => void
-  readonly confirmLabel?: string
-  readonly cancelLabel?: string
-}
-
 export function TaskSurfaceHost(): ReactNode {
   const location = useLocation()
   const navigate = useNavigate()
@@ -84,7 +71,6 @@ export function TaskSurfaceHost(): ReactNode {
   const editing = useTaskEditing(taskId === '' ? null : taskId)
   usePrefetchTaskOnIntent()
   const acts = useRowActions()
-  const [pending, setPending] = useState<PendingAct | null>(null)
   const mode = useTaskOpenPreference()
   /* What was last drawn, held while a stepped-to task loads. */
   const shown = useRef<ReactNode>(null)
@@ -149,14 +135,12 @@ export function TaskSurfaceHost(): ReactNode {
 
   function openFull(): void {
     if (taskId === null) return
-    setPending(null)
     /* The peek's own history entry becomes the page, so Back from the page
        lands on the list rather than on the peek it grew out of. */
     void navigate(paths.task(taskId), { replace: state?.taskPanel === true })
   }
 
   function close(): void {
-    setPending(null)
     if (state?.taskPanel === true) {
       void navigate(-1)
       return
@@ -167,35 +151,16 @@ export function TaskSurfaceHost(): ReactNode {
   const task = {
     /* Abandon is not offered here: Status carries it. */
     ...surfaceTask(taskId, editing.concept),
+    /* To Trash with Undo, as every delete; no question first. */
     onDelete: () => {
-      setPending({
-        message: DELETE_TASK_CONFIRM,
-        confirmLabel: DELETE_CONFIRM_LABEL,
-        cancelLabel: keepLabel(1),
-        run: () => {
-          acts.onDelete(detail)
-          close()
-        },
-      })
+      acts.onDelete(detail)
+      close()
     },
   }
 
   shown.current = (
     <TaskWriter patch={editing.write}>
       {editing.confirm}
-      {pending === null ? null : (
-        <ConfirmDialog
-          message={pending.message}
-          onContinue={() => {
-            const run = pending.run
-            setPending(null)
-            run()
-          }}
-          onCancel={() => setPending(null)}
-          {...(pending.confirmLabel === undefined ? {} : { confirmLabel: pending.confirmLabel })}
-          {...(pending.cancelLabel === undefined ? {} : { cancelLabel: pending.cancelLabel })}
-        />
-      )}
       {state?.upcomingTask === true ? (
         <p role="status" className="sr-only">
           {UPCOMING_OCCURRENCE}

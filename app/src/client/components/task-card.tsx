@@ -54,6 +54,7 @@ import {
   DuePanel,
   PROPERTY_LABEL,
   PROPERTY_ROW,
+  PROPERTY_VALUE_OFFSET,
   PropertyPicker,
   ReminderPanel,
   RepeatPanel,
@@ -71,7 +72,6 @@ import {
   UNASSIGNED,
 } from "./task-card-copy.js"
 import { TaskAssigneeInvite } from "./task-assignee-invite.js"
-import { TaskHistoryBlock } from "./task-history-block.js"
 import { INVITE_BY_EMAIL, STEP_CAP_NOTICE } from "./task-copy.js"
 /* 10.3's cap for the field. Restated rather than imported because
    `shared/tasks.ts` spends it inline in a zod `max`. */
@@ -211,7 +211,7 @@ function StepTitle({
             setEditing(false)
           }
         }}
-        className={cn(metrics, "-mx-1 rounded-sm bg-background px-1 outline-none ring-2 ring-ring")}
+        className={cn(metrics, "-mx-1 rounded-sm bg-background px-1 outline-none")}
       />
     )
   }
@@ -694,7 +694,7 @@ function MenuRow({
           </button>
         }
       />
-      <DropdownMenuContent align="start" className="min-w-[14rem]">
+      <DropdownMenuContent align="start" alignOffset={PROPERTY_VALUE_OFFSET} className="w-auto min-w-56">
         {children}
       </DropdownMenuContent>
     </DropdownMenu>
@@ -1013,7 +1013,7 @@ export function TaskCard({
                 </button>
               }
             />
-            <DropdownMenuContent align="start" className="min-w-[12rem]">
+            <DropdownMenuContent align="start" className="w-auto min-w-56">
               {addable.map((item) => (
                 <DropdownMenuItem key={item.key} onClick={item.onSelect}>
                   <item.icon className="size-4" strokeWidth={1.75} aria-hidden="true" />
@@ -1125,10 +1125,6 @@ export function TaskCard({
           </div>
         )}
       </div>
-
-      {/* Provenance, quiet at the foot: who made it and when, and who
-          finished it. The whole record is "…" › History. */}
-      <TaskHistoryBlock taskId={task.id} />
     </div>
   )
 }

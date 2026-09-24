@@ -20,6 +20,7 @@ import { z } from "zod"
 import { getPlain } from "../api/http.js"
 import { Image as ImageIcon, LoaderCircle, Search, X } from "../lib/icons.js"
 import { Button } from "./ui/button.js"
+import { Tabs } from "./ui/tabs.js"
 import { cn } from "./ui/utils.js"
 
 const T_FAST = "duration-[var(--duration-fast)] ease-[var(--ease-standard)]"
@@ -204,7 +205,7 @@ export function FolderCoverPicker({
   value: string | undefined
   folderName: string
   onPick: (key: string) => void
-  onRemove: () => void
+  onRemove?: () => void
   tiers?: readonly CoverTier[]
   /* Where the caller can store the bytes, it takes them. */
   onUpload?: (file: File) => void
@@ -253,39 +254,29 @@ export function FolderCoverPicker({
   return (
     /* The popover hugs this width rather than imposing its own. */
     <div className="w-[440px] max-w-full" onClick={(e) => e.stopPropagation()}>
-      <div className="flex items-center gap-0.5 border-b border-border px-2 pt-1.5">
-        {(
-          [
-            ["gallery", "Colours"],
-            ["upload", "Upload"],
-            ["link", "Link"],
-            ["photos", "Photos"],
-          ] as const
-        )
-          .filter(([key]) => tiers.includes(key))
-          .map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            aria-pressed={tab === key}
-            onClick={() => setTab(key)}
-            className={cn(
-              "-mb-px h-8 border-b-2 px-2.5 text-xs font-medium transition-colors",
-              T_FAST,
-              tab === key
-                ? "border-foreground text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {label}
-          </button>
-        ))}
-        {value ? (
+      <div className="flex items-end gap-4 border-b border-border px-2.5">
+        <Tabs
+          label="Cover source"
+          className="border-b-0"
+          value={tab}
+          onValueChange={setTab}
+          items={(
+            [
+              { value: "gallery", label: "Colours" },
+              { value: "upload", label: "Upload" },
+              { value: "link", label: "Link" },
+              { value: "photos", label: "Photos" },
+            ] as const
+          ).filter((item) => tiers.includes(item.value))}
+        />
+        {/* The page cover carries its own Remove; only the sidebar's dialog,
+            which has no cover beside it, passes onRemove. */}
+        {value && onRemove ? (
           <Button
             variant="ghost"
             size="sm"
             onClick={onRemove}
-            className="mb-1 ml-auto text-muted-foreground"
+            className="mb-0.5 ml-auto text-muted-foreground"
           >
             <X aria-hidden="true" />
             Remove

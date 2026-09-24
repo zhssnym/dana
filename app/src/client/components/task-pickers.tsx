@@ -196,6 +196,9 @@ export function PropertyPicker({
 export const PROPERTY_ROW =
   "grid h-[var(--control-height)] w-full grid-cols-[6rem_minmax(0,1fr)] items-center gap-2 rounded-sm px-2 text-left text-sm transition-colors duration-100 hover:bg-accent data-popup-open:bg-accent"
 export const PROPERTY_LABEL = "truncate text-muted-foreground"
+/* Where PROPERTY_ROW's value column starts, in px (a menu offset is a number):
+   px-2 + the 6rem label + gap-2 = 7rem. A row's menu opens under its value. */
+export const PROPERTY_VALUE_OFFSET = 112
 
 /* One choice in a picker, shaped like a menu item rather than a pill: full
    width, on its own line, with the value it resolves to on the right where a

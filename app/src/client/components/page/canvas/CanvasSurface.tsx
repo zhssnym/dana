@@ -223,14 +223,25 @@ export function CanvasSurface({
   }
 
   // Clicking below the last block writes on: an empty last line is reused,
-  // otherwise a new one is made after everything.
+  // otherwise a new one is made after everything. When the page ends in a
+  // Section, the line goes inside it, after its last block: what is drawn
+  // under a heading belongs to it, so Freeform and Linear agree.
   const writeBelow = (event: React.MouseEvent): void => {
     if (!editable || event.button !== 0) return
     event.preventDefault()
-    const last = editor.document.at(-1)
+    let last = editor.document.at(-1)
     if (last === undefined) return
-    const empty = last.type === 'paragraph' && Array.isArray(last.content) && last.content.length === 0 && last.children.length === 0
-    const target = empty ? last : editor.insertBlocks([{ type: 'paragraph' }], last, 'after')[0]
+    let section: typeof last | undefined
+    while (headingMode === 'section' && last !== undefined && isSectionHeading(last)) {
+      section = last
+      last = last.children.at(-1)
+    }
+    const empty = last !== undefined && last.type === 'paragraph' && Array.isArray(last.content) && last.content.length === 0 && last.children.length === 0
+    let target = empty ? last : last !== undefined ? editor.insertBlocks([{ type: 'paragraph' }], last, 'after')[0] : undefined
+    if (target === undefined && section !== undefined) {
+      editor.updateBlock(section, { children: [{ type: 'paragraph' }] })
+      target = editor.getBlock(section.id)?.children[0]
+    }
     if (target === undefined) return
     editor.setTextCursorPosition(target, 'end')
     editor.focus()

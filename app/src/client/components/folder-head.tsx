@@ -2,8 +2,8 @@
 The folder's header: at most two rows.
 
 Row one is the mark, the name and, at the far right, the folder's only two
-controls: "Share" and one "…". Row two, only when there is finite work, is the
-progress fact, "3 of 7 done".
+controls: "Share" and one "…". There is no progress count (round 7): nobody
+measures a page by how many tasks are done.
 
 **No description line** (round 2): a page's Purpose tab is where its "why" is
 written. A description already stored stays in the data and is simply not
@@ -50,7 +50,6 @@ export function FolderHeader({
   onRename,
   onPickIdentity,
   onRemoveIcon,
-  progress,
   actions,
   coverKey,
 }: {
@@ -68,7 +67,6 @@ export function FolderHeader({
   /** Clears the icon back to the plain page glyph; without it the picker offers no Remove. */
   readonly onRemoveIcon?: () => void
   /** "3 of 7 done", or null when the folder has no finite work. */
-  readonly progress: string | null
   readonly actions: React.ReactNode
   /** The page's cover storage name; with it, an editor gets "Add cover". */
   readonly coverKey?: string
@@ -179,9 +177,6 @@ export function FolderHeader({
         )}
         <div className="mt-1 flex shrink-0 items-center gap-1">{actions}</div>
       </div>
-      {progress === null ? null : (
-        <p className="pl-9 text-xs text-muted-foreground tabular-nums">{progress}</p>
-      )}
     </header>
   )
 }

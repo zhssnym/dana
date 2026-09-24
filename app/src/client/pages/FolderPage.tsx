@@ -1,6 +1,6 @@
 /*
 9.6's folder page, in round 2's page shape: a header (mark and name with
-"Share" and one "…" at the right; the progress fact under it when there is
+"Share" and one "…" at the right; no progress count under it (round 7). When there is
 finite work, and no description line -- Purpose holds that), a row of plain
 text tabs in intro-to-conclusion order (Purpose · Work · Results · Discussion,
 then custom tabs), and the tab's body. The page opens on Work (`main`), whose
@@ -126,10 +126,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../components/ui/dialog.js'
-import { DropdownMenuCheckboxItem } from '../components/ui/dropdown-menu.js'
+import {
+  DropdownMenuCheckboxItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+} from '../components/ui/dropdown-menu.js'
 /* The empty-state icon goes to `PageBody`, whose `StateIcon` is typed on the
    raw lucide component. */
-import { CheckCircle2, Folder as FolderIcon } from '../lib/icons.js'
+import { Folder as FolderIcon, LayoutGrid } from '../lib/icons.js'
 
 import type { RowContext } from '../parts/presenters.js'
 import { useRowActions } from '../parts/useRowActions.js'
@@ -159,7 +167,7 @@ import { LinearView } from '../views/LinearView.js'
 import { PlaceFilterChips, usePlace } from '../views/usePlace.js'
 import { folderViewOf, modeFromSearch, useFolderView, writeFolderView } from '../views/view-mode.js'
 import type { FolderView } from '../views/view-mode.js'
-import { ViewSwitch } from '../views/ViewSwitch.js'
+import { VIEW_LABELS } from '../views/ViewSwitch.js'
 import { PageBody } from '../components/page/PageStates.js'
 import { FOLDER_EMPTY } from './empty-states.js'
 import { FolderSharingPanel } from './FolderSharingPanel.js'
@@ -185,36 +193,12 @@ for the duplicate finds it named as one.
 */
 const SHARING_PANEL_WIDTH = 440
 
-/* A page's three views, in the switcher's order (`views/ViewSwitch.tsx`). */
+/* A page's three views, in the "…" menu's View order. */
 const FOLDER_VIEWS: readonly FolderView[] = ['linear', 'board', 'freeform']
 
 /**
  * 9.6's leave confirm, verbatim and one sentence (AC-183 turns on both).
  */
-/**
- * The owner's hand-on-or-delete question: pass it on to another member, or
- * delete it for them too. Both consequences are stated because they differ in
- * the half a person cannot see: handing it on passes ownership and writes no
- * Trash row; deleting reaches every member's Trash for thirty days.
- *
- * Ownership passes only by an explicit transfer, so the person is told who it
- * can pass to, because the answer is sometimes nobody and that changes what
- * they should do next.
- */
-function ownerDeleteQuestion(name: string, others: number, successors: number): string {
-  const who = others === 1 ? '1 other person' : `${others} other people`
-  const handOn =
-    successors === 0
-      ? 'Nobody in it has Full control yet, so there is nobody to hand it to until you give somebody that access'
-      : successors === 1
-        ? 'You can hand it to the member who has Full control, and it leaves your sidebar'
-        : `You can hand it to one of the ${String(successors)} members who have Full control, and it leaves your sidebar`
-  return (
-    `${name} is shared with ${who}. ${handOn}, or delete it for everyone, and ` +
-    'it waits in Trash for 30 days.'
-  )
-}
-
 function leaveFolderConfirm(name: string): string {
   return (
     `Leave ${name}? You lose access to it, and anything in it assigned to ` +
@@ -514,17 +498,8 @@ export function FolderPage({
      the owner's delete dialog asks: somebody to hand it to is not the same as
      somebody who is in it. */
   const others = otherMembers(members, basis.viewerId)
-  /* Issue #205: finite progress counts one-off Tasks only, so a recurring
-     Task's endless occurrences never grow the denominator. The header says
-     only "N of M done"; `counts` is the fallback for an older server. */
-  const progress = detail?.progress
-  const completionDone = progress?.done ?? detail?.counts.completed ?? 0
-  const completionTotal =
-    progress?.total ??
-    (detail?.counts.completed ?? 0) + (detail?.counts.pending ?? 0)
-  /* No per-Section "done/total": Sections never fold, and a count beside
-     every heading repeated what the page's own progress and the rows say
-     (round 4, Freeform view). */
+  /* No page or per-Section "N of M done": nobody measures tasks by count
+     (round 7). A task's own subtask count stays on its row. */
 
   /**
    * Who a comment's author is, off the members already read; a face the roster
@@ -954,12 +929,12 @@ export function FolderPage({
     [authorPeople],
   )
 
-  const progressFact =
-    completionTotal > 0 ? `${String(completionDone)} of ${String(completionTotal)} done` : null
   /* Work and a section's tab are lists; "Show completed" belongs to them. */
   const listFacet = activeFacet?.kind === 'main' || activeFacet?.kind === 'work'
   const viewMenu = listFacet ? (
     <FolderViewMenu
+      view={folderView}
+      onView={setFolderView}
       showCompleted={showCompleted}
       onShowCompleted={changeShowCompleted}
     />
@@ -1076,7 +1051,6 @@ export function FolderPage({
               onRemoveIcon={() => {
                 patch.mutate({ id, body: { icon: null } })
               }}
-              progress={progressFact}
               actions={headerActions}
               coverKey={coverKey}
             />
@@ -1107,10 +1081,7 @@ export function FolderPage({
         </div>
 
         {activeFacet?.kind === 'main' ? (
-          <div className="mt-2 space-y-2">
-            <div className="flex justify-end">
-              <ViewSwitch choices={FOLDER_VIEWS} value={folderView} onChange={setFolderView} />
-            </div>
+          <div className="space-y-2">
             <PageSection name="All open tasks">
               <PageBody
                 query={open}
@@ -1296,21 +1267,18 @@ export function FolderPage({
           <DialogHeader>
             <DialogTitle>Delete {detail?.name}?</DialogTitle>
             <DialogDescription>
-              {ownerDeleteQuestion(
-                detail?.name ?? '',
-                others.length,
-                successors.length,
-              )}
+              Delete for everyone? It stays in Trash for 30 days.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <DialogClose render={<Button variant="ghost">Cancel</Button>} />
             {/* Handing it on opens the picker rather than acting, because
-                somebody has to be named: an owner's plain leave is answered
-                409. */}
-            <Button variant="outline" onClick={handOn}>
-              Hand it to a member…
-            </Button>
+                somebody has to be named. Offered only when somebody can take it. */}
+            {successors.length > 0 ? (
+              <Button variant="outline" onClick={handOn}>
+                Hand it to a member…
+              </Button>
+            ) : null}
             <Button
               variant="destructive"
               onClick={() => {
@@ -1410,27 +1378,50 @@ function FacetContent({
 }
 
 /**
- * The page's "…" keeps only "Show completed"; the view itself is chosen on
- * the page, by `ViewSwitch` (round 4).
+ * The page's "…" View submenu: the view (Linear, Board, Freeform, stored as
+ * `dana.folder-view` through `useFolderView`), then "Show completed". There is
+ * no switcher on the page itself.
  */
 function FolderViewMenu({
+  view,
+  onView,
   showCompleted,
   onShowCompleted,
 }: {
+  readonly view: FolderView
+  readonly onView: (next: FolderView) => void
   readonly showCompleted: boolean
   readonly onShowCompleted: (next: boolean) => void
 }): React.JSX.Element {
   return (
-    <>
-      <DropdownMenuCheckboxItem
-        checked={showCompleted}
-        onCheckedChange={(checked) => {
-          onShowCompleted(checked)
-        }}
-      >
-        <CheckCircle2 className="size-4" strokeWidth={1.75} aria-hidden="true" />
-        Show completed
-      </DropdownMenuCheckboxItem>
-    </>
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger>
+        <LayoutGrid className="size-4" strokeWidth={1.75} aria-hidden="true" />
+        View
+      </DropdownMenuSubTrigger>
+      <DropdownMenuSubContent className="w-44">
+        <DropdownMenuRadioGroup
+          value={view}
+          onValueChange={(next: FolderView) => {
+            onView(next)
+          }}
+        >
+          {FOLDER_VIEWS.map((choice) => (
+            <DropdownMenuRadioItem key={choice} value={choice}>
+              {VIEW_LABELS[choice]}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuCheckboxItem
+          checked={showCompleted}
+          onCheckedChange={(checked) => {
+            onShowCompleted(checked)
+          }}
+        >
+          Show completed
+        </DropdownMenuCheckboxItem>
+      </DropdownMenuSubContent>
+    </DropdownMenuSub>
   )
 }

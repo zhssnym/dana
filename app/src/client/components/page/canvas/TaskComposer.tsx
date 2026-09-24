@@ -274,6 +274,9 @@ function writeStorage(key: string, value: string | null): void {
   try { if (value === null) sessionStorage.removeItem(key); else sessionStorage.setItem(key, value) } catch { /* storage is optional */ }
 }
 
+// The page's one hint, shown on an empty Work tab unfocused too, as on a page.
+const PLACEHOLDER = "Type '/' for commands"
+
 export default function TaskComposer({ taskId, folderId, notes }: {
   readonly taskId: string
   readonly folderId: string | null
@@ -336,7 +339,7 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
   const editor = useCreateBlockNote({
     schema: taskSchema,
     /* One quiet line where the work is written (the Work tab), and nothing on later empty lines. */
-    dictionary: { ...en, placeholders: { ...en.placeholders, emptyDocument: 'Write, or type /', default: '' } },
+    dictionary: { ...en, placeholders: { ...en.placeholders, emptyDocument: PLACEHOLDER, default: PLACEHOLDER } },
     initialContent: initial.length ? initial : [{ id: crypto.randomUUID(), type: 'paragraph', content: '' }],
     uploadFile: folderId === null ? undefined : async (file, blockId) => {
       const type = blockId === undefined ? undefined : editorRef.current?.getBlock(blockId)?.type
@@ -467,7 +470,7 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
     /> : null}
     <BlockMenuContext.Provider value={menu}>
     <BlockSelectionStyle editor={editor} scope={scope} />
-    <div onKeyDownCapture={onKeyDownCapture} className={`dana-writing-canvas dana-task-composer ${scope} min-w-0`}>
+    <div onKeyDownCapture={onKeyDownCapture} className={`dana-writing-canvas dana-task-composer ${scope} min-w-0`} style={{ '--dana-canvas-placeholder': JSON.stringify(PLACEHOLDER) } as React.CSSProperties}>
       <BlockNoteView editor={editor} theme={pageTheme()}
         formattingToolbar={false} slashMenu={false} sideMenu={false} filePanel={false} onChange={changed} aria-label="Task writing">
         <FormattingToolbarController formattingToolbar={CanvasFormattingToolbar} />
