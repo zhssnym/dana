@@ -93,6 +93,12 @@ import type { PageView, PageBlock } from './pages.js'
 import { recurrenceRule } from './tasks.js'
 import type { TaskDetail } from './tasks.js'
 
+/** Blockers one Task of a workflow file may name (#207). */
+export const WORKFLOW_DEPENDS_ON_CAP = 100
+/** `depends_on` entries across a whole workflow file (#207): the bound on the
+ * edges one import writes in its transaction. */
+export const WORKFLOW_DEPENDENCY_CAP = 5000
+
 const importStep = z.object({
   title: z.string().min(1).max(300),
 })
@@ -177,9 +183,14 @@ const importTask = z.object({
   because the live endpoint refuses each of them and an import is not a way
   around it. Both keys are optional and absent from every file written before
   this, which therefore imports exactly as it did.
+
+  **Bounded twice**: at most `WORKFLOW_DEPENDS_ON_CAP` blockers per Task and
+  `WORKFLOW_DEPENDENCY_CAP` entries across the whole file, so the one
+  transaction that writes them never holds a connection for a quarter-million
+  edges a 1000-Task file could otherwise name.
   */
   key: z.string().min(1).max(64).optional(),
-  depends_on: z.array(z.string().min(1).max(64)).max(1000).optional(),
+  depends_on: z.array(z.string().min(1).max(64)).max(WORKFLOW_DEPENDS_ON_CAP).optional(),
 })
 
 /** One Task's portable keys, wherever the file writes it: a member of a
@@ -1006,6 +1017,15 @@ function workflowDependencyIssues(
 ): { path: (string | number)[]; message: string }[] {
   const tasks = keyedTasksOf(folders)
   const issues: { path: (string | number)[]; message: string }[] = []
+  const named = tasks.reduce((sum, { task }) => sum + (task.depends_on?.length ?? 0), 0)
+  if (named > WORKFLOW_DEPENDENCY_CAP) {
+    return [
+      {
+        path: ['folders'],
+        message: `depends_on: a file names at most ${String(WORKFLOW_DEPENDENCY_CAP)} dependencies`,
+      },
+    ]
+  }
   const pathOf = new Map<string, (string | number)[]>()
   for (const { path, task } of tasks) {
     if (task.key === undefined) continue

@@ -164,27 +164,24 @@ function folderSelect(viewerId: string, folderId?: string) {
            m.access AS my_access,
            (SELECT count(*)::int FROM folder_members mm
              WHERE mm.folder_id = f.id) AS member_count,
-           (SELECT count(*)::int FROM tasks t
-             WHERE t.folder_id = f.id AND t.status = 'pending'
-               AND t.deleted_at IS NULL) AS pending,
-           (SELECT count(*)::int FROM tasks t
-             WHERE t.folder_id = f.id AND t.status = 'completed'
-               AND t.deleted_at IS NULL) AS completed,
-           (SELECT count(*)::int FROM tasks t
-             WHERE t.folder_id = f.id AND t.status = 'completed'
-               AND t.recurrence_rule IS NULL
-               AND t.deleted_at IS NULL) AS one_off_done,
-           (SELECT count(*)::int FROM tasks t
-             WHERE t.folder_id = f.id
-               AND t.status IN ('pending', 'completed')
-               AND t.recurrence_rule IS NULL
-               AND t.deleted_at IS NULL) AS one_off_total,
-           (SELECT count(*)::int FROM tasks t
-             WHERE t.folder_id = f.id AND t.status = 'pending'
-               AND t.recurrence_rule IS NOT NULL
-               AND t.deleted_at IS NULL) AS recurring_active
+           c.pending, c.completed, c.one_off_done, c.one_off_total,
+           c.recurring_active
     FROM folder_members m
     JOIN folders f ON f.id = m.folder_id
+    -- One pass over the folder's live tasks for all five counts (#205).
+    CROSS JOIN LATERAL (
+      SELECT
+        count(*) FILTER (WHERE t.status = 'pending')::int AS pending,
+        count(*) FILTER (WHERE t.status = 'completed')::int AS completed,
+        count(*) FILTER (WHERE t.status = 'completed'
+                           AND t.recurrence_rule IS NULL)::int AS one_off_done,
+        count(*) FILTER (WHERE t.status IN ('pending', 'completed')
+                           AND t.recurrence_rule IS NULL)::int AS one_off_total,
+        count(*) FILTER (WHERE t.status = 'pending'
+                           AND t.recurrence_rule IS NOT NULL)::int AS recurring_active
+        FROM tasks t
+       WHERE t.folder_id = f.id AND t.deleted_at IS NULL
+    ) c
     WHERE m.user_id = ${viewerId} AND f.deleted_at IS NULL${scope}
     ORDER BY f.is_default DESC, lower(f.name) ASC, f.id ASC`
 }

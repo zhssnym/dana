@@ -14,6 +14,11 @@ the file does not declare is skipped (external dependencies are excluded, not
 refused), an edge between two folders of one file travels, and a file whose
 edges form a cycle is refused 422 naming the field before anything is written.
 
+The edges are bounded (reviewer finding on the M1 swarm): a file naming more
+than 5000 dependencies in all, or one Task naming more than 100, is refused
+422 naming `depends_on` before anything is written, and an admitted file's
+edges land in one statement rather than one round trip each.
+
 Spec: 7.16. Issue #207.
 */
 import { sql } from 'drizzle-orm'
@@ -152,5 +157,72 @@ describe('AC-871 a hand-written file is read by the same rule', () => {
       sql`SELECT count(*)::int AS n FROM folders WHERE name = 'ac871 loop'`,
     )
     expect(after[0]?.n).toBe(before[0]?.n)
+  })
+
+  test('a file over the dependency caps is refused 422 before anything is written', async () => {
+    const [, reader] = (await cast.of(app)) as [Actor, Actor]
+    const count = async (name: string) =>
+      (
+        await rows(app.db, sql`SELECT count(*)::int AS n FROM folders WHERE name = ${name}`)
+      )[0]?.n
+    // 51 Tasks naming 100 blockers each: 5100 in all, over the file cap.
+    const blockers = Array.from({ length: 100 }, (_, i) => `b${String(i)}`)
+    const tasks = [
+      ...blockers.map((key) => ({ title: `ac871 ${key}`, key })),
+      ...Array.from({ length: 51 }, (_, i) => ({
+        title: `ac871 w${String(i)}`,
+        key: `w${String(i)}`,
+        depends_on: blockers,
+      })),
+    ]
+    const overFile = await importWorkflow(reader, {
+      dana: 'workflow',
+      version: 1,
+      folders: [{ name: 'ac871 too many', tasks }],
+    })
+    expectStatus(overFile, 422, 'a file naming over 5000 dependencies is refused')
+    expect(JSON.stringify(overFile.json())).toContain('depends_on')
+    expect(await count('ac871 too many'), 'nothing was written').toBe(0)
+
+    const overTask = await importWorkflow(reader, {
+      dana: 'workflow',
+      version: 1,
+      folders: [
+        {
+          name: 'ac871 one too many',
+          tasks: [
+            ...blockers.map((key) => ({ title: `ac871 ${key}`, key })),
+            { title: 'ac871 extra', key: 'extra' },
+            { title: 'ac871 waits', key: 'waits', depends_on: [...blockers, 'extra'] },
+          ],
+        },
+      ],
+    })
+    expectStatus(overTask, 422, 'one Task naming over 100 blockers is refused')
+    expect(JSON.stringify(overTask.json())).toContain('depends_on')
+    expect(await count('ac871 one too many'), 'nothing was written').toBe(0)
+  })
+
+  test('an admitted file at the per-Task cap writes every edge', async () => {
+    const [, reader] = (await cast.of(app)) as [Actor, Actor]
+    const blockers = Array.from({ length: 100 }, (_, i) => `b${String(i)}`)
+    const response = await importWorkflow(reader, {
+      dana: 'workflow',
+      version: 1,
+      folders: [
+        {
+          name: 'ac871 at cap',
+          tasks: [
+            ...blockers.map((key) => ({ title: `ac871 cap ${key}`, key })),
+            { title: 'ac871 cap waits', key: 'waits', depends_on: blockers },
+          ],
+        },
+      ],
+    })
+    expectStatus(response, 201, 'a file at the cap imports')
+    const [made] = (response.json() as { folders: { id: string }[] }).folders
+    const edges = await edgesIn([made?.id as string])
+    expect(edges).toHaveLength(100)
+    expect(edges.every((edge) => edge.startsWith('ac871 cap waits <- ac871 cap b'))).toBe(true)
   })
 })

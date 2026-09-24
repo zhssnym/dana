@@ -48,8 +48,8 @@ import type {
   ImportWorkflowTask,
 } from '../../shared/workflows.js'
 import type { ObjectStore } from '../files/store.js'
-import { inTransaction, rowsOf } from '../database.js'
-import type { Executor } from '../database.js'
+import { inTransaction, pairSet, rowsOf } from '../database.js'
+import type { Executor, IdPair } from '../database.js'
 import { recordEvent } from './events.js'
 import { createNativeFacets } from './facets.js'
 import { recordAccessTransition } from './folder-access.js'
@@ -1243,14 +1243,21 @@ export async function importWorkflow(
     the live endpoint would admit. No other edge can reach a Task minted three
     statements ago, which is why the file's own graph is the whole graph.
     */
-    for (const [dependentKey, blockerKey] of workflowDependencyEdges(file.folders)) {
-      const dependent = taskIdOfKey.get(dependentKey)
-      const blocker = taskIdOfKey.get(blockerKey)
-      if (dependent === undefined || blocker === undefined) continue
+    const edges = workflowDependencyEdges(file.folders).flatMap(
+      ([dependentKey, blockerKey]): IdPair[] => {
+        const dependent = taskIdOfKey.get(dependentKey)
+        const blocker = taskIdOfKey.get(blockerKey)
+        return dependent === undefined || blocker === undefined ? [] : [[dependent, blocker]]
+      },
+    )
+    // One statement for every edge (at most WORKFLOW_DEPENDENCY_CAP), not one
+    // round trip each; `pairSet`'s columns are named for a copy, and here
+    // `old_id` is the dependent and `new_id` the blocker.
+    if (edges.length > 0) {
       await tx.execute(
         sql`INSERT INTO task_dependencies
               (dependent_task_id, blocking_task_id, created_by)
-            VALUES (${dependent}::uuid, ${blocker}::uuid, ${viewerId}::uuid)
+            SELECT e.old_id, e.new_id, ${viewerId}::uuid FROM ${pairSet(edges)} e
             ON CONFLICT ON CONSTRAINT task_dependencies_pair_key DO NOTHING`,
       )
     }
