@@ -20,14 +20,12 @@ the Work and Discussion tabs).
 import { InlineTextarea } from "./ui/inline-field.js"
 import { useCallback, useEffect, useRef, useState } from "react"
 
-import { ChevronDown, ChevronUp, Maximize2, MessageSquare, Plus, X } from "../lib/icons.js"
+import { ChevronDown, ChevronUp, Maximize2, X } from "../lib/icons.js"
 import { TITLE_REQUIRED, tooLong } from "./task-copy.js"
 /* 10.3's number for the field, from the shared contract rather than restated. */
 import { TASK_TITLE_LIMIT } from "../../shared/tasks.js"
 import { HistorySheet } from "./history-sheet.js"
-import { TaskCard, TaskStatus } from "./task-card.js"
-import { DropdownMenuItem, DropdownMenuSeparator } from "./ui/dropdown-menu.js"
-import { useTaskThreadLive } from "../api/consultation.js"
+import { TaskCard } from "./task-card.js"
 import { useCardWiring, type TaskRowProps } from "./task-row.js"
 import { ReservesRightEdge } from "./right-edge.js"
 import { ObjectMenu } from "./object-menu.js"
@@ -132,20 +130,7 @@ function Title({
 The task's one "…": history, copy link, duplicate, delete. Status carries
 abandon and restore, and the breadcrumb says where the task lives.
 */
-function TaskMenu({
-  id,
-  title,
-  onDelete,
-  onAddProperty,
-  onStartDiscussion,
-}: {
-  id: string
-  title: string
-  onDelete?: () => void
-  onAddProperty: () => void
-  /** Absent once a discussion exists: the tab is there instead. */
-  onStartDiscussion?: () => void
-}) {
+function TaskMenu({ id, title, onDelete }: { id: string; title: string; onDelete?: () => void }) {
   const [historyOpen, setHistoryOpen] = useState(false)
   return (
     <>
@@ -153,22 +138,6 @@ function TaskMenu({
         kind="task"
         name={title}
         width="w-56"
-        extra={
-          <>
-            <DropdownMenuItem onClick={onAddProperty}>
-              <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" />
-              <span className="flex-1">Add property</span>
-              <span className="text-xs text-muted-foreground">;</span>
-            </DropdownMenuItem>
-            {onStartDiscussion ? (
-              <DropdownMenuItem onClick={onStartDiscussion}>
-                <MessageSquare className="size-4" strokeWidth={1.75} aria-hidden="true" />
-                Start discussion
-              </DropdownMenuItem>
-            ) : null}
-            <DropdownMenuSeparator />
-          </>
-        }
         handlers={{
           history: () => setHistoryOpen(true),
           "copy-link": () => copyTaskLink(id),
@@ -245,32 +214,6 @@ export function TaskView({
   steps?: PeekSteps
 }) {
   const { task, patch, cardHandlers } = useCardWiring(props)
-  const [addOpen, setAddOpen] = useState(false)
-  /* The Work and Discussion tabs draw only once the task has a discussion,
-     or the person has asked to start one. */
-  const thread = useTaskThreadLive(task.folder?.id ?? null, task.id)
-  const [discussSignal, setDiscussSignal] = useState(0)
-  const discussion = (thread.data?.comments.length ?? 0) > 0 || discussSignal > 0
-  const startDiscussion = discussion ? undefined : () => setDiscussSignal((n) => n + 1)
-  /* A menu item that opens another menu waits for its own to close first. */
-  const openAdd = () => globalThis.setTimeout(() => setAddOpen(true), 0)
-
-  /* ";" opens "Add property" when the person is not typing. */
-  useEffect(() => {
-    function onKey(event: KeyboardEvent) {
-      if (event.key !== ";" || event.ctrlKey || event.metaKey || event.altKey || event.defaultPrevented) return
-      const target = event.target
-      if (target instanceof HTMLElement) {
-        const tag = target.tagName.toLowerCase()
-        if (tag === "input" || tag === "textarea" || tag === "select" || target.isContentEditable) return
-      }
-      if (document.querySelector('[role="menu"], [role="alertdialog"], [role="listbox"]')) return
-      event.preventDefault()
-      setAddOpen(true)
-    }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [])
 
   const controls = (
     <div className="flex shrink-0 items-center gap-1">
@@ -303,8 +246,6 @@ export function TaskView({
       <TaskMenu
         id={props.id}
         title={task.title}
-        onAddProperty={openAdd}
-        {...(startDiscussion === undefined ? {} : { onStartDiscussion: startDiscussion })}
         {...(props.onDelete === undefined ? {} : { onDelete: props.onDelete })}
       />
       {onClose ? (
@@ -315,50 +256,19 @@ export function TaskView({
     </div>
   )
 
-  /* The status as the list's checkbox, left of the title; a discreet
-     "Discuss" on hover while the task has no discussion. */
   const title = (
-    <div className="group/title flex min-w-0 items-start gap-1">
-      <span className="flex h-[var(--text-title-line)] shrink-0 items-center">
-        <TaskStatus task={task} patch={patch} />
-      </span>
-      <div className="min-w-0 flex-1">
-        <Title
-          /* A different task is a fresh draft. */
-          key={props.id}
-          value={task.title}
-          done={Boolean(task.done)}
-          onRename={(title) => patch(task.id, { title })}
-        />
-      </div>
-      {startDiscussion ? (
-        <span className="flex h-[var(--text-title-line)] shrink-0 items-center">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={startDiscussion}
-            className="text-muted-foreground opacity-0 group-hover/title:opacity-100 focus-visible:opacity-100"
-          >
-            <MessageSquare className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
-            Discuss
-          </Button>
-        </span>
-      ) : null}
-    </div>
+    <Title
+      /* A different task is a fresh draft. */
+      key={props.id}
+      value={task.title}
+      done={Boolean(task.done)}
+      onRename={(title) => patch(task.id, { title })}
+    />
   )
 
   const rest = (
     <>
-      <TaskCard
-        task={task}
-        patch={patch}
-        {...cardHandlers}
-        addOpen={addOpen}
-        onAddOpenChange={setAddOpen}
-        discussion={discussion}
-        discussSignal={discussSignal}
-      />
+      <TaskCard task={task} patch={patch} {...cardHandlers} />
       {/* #214: the documents that link to this Task. Absent while none do. */}
       <ReferencedFrom kind="task" id={props.id} />
     </>

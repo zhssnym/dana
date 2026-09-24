@@ -57,7 +57,6 @@ const SHORTCUTS: readonly { readonly keys: readonly string[]; readonly what: str
   { keys: ['Esc'], what: 'Close what is open' },
   { keys: ['↑', '↓', '←', '→'], what: "Move through the sidebar's pages, and fold them" },
   { keys: ['F2'], what: 'Rename the focused page in the sidebar' },
-  { keys: [';'], what: 'Add a property to the open task' },
   { keys: ['?'], what: 'This list' },
 ]
 
