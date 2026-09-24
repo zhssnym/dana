@@ -88,8 +88,17 @@ export function BlockSelectionStyle({ editor, scope }: { readonly editor: AnyEdi
 ${all.map((selector) => `${selector}::after`).join(', ')} { content: ''; position: absolute; inset: 0 calc(-1 * var(--dana-block-selection-inset-x)); background: var(--dana-block-selection); pointer-events: none; animation: dana-block-selection-in var(--duration-fast) var(--ease-enter); }
 ${block(ids[0]!)}::after { top: calc(-1 * var(--dana-block-selection-inset-y)); border-start-start-radius: var(--dana-block-selection-radius); border-start-end-radius: var(--dana-block-selection-radius); }
 ${block(ids.at(-1)!)}::after { bottom: calc(-1 * var(--dana-block-selection-inset-y)); border-end-start-radius: var(--dana-block-selection-radius); border-end-end-radius: var(--dana-block-selection-radius); }
+${hangs(scope, ids)} { inset-inline-start: calc(-1 * (var(--dana-block-selection-inset-x) + var(--dana-block-selection-hang))); }
 .${scope} .bn-editor { caret-color: transparent; }
 .${scope} .bn-editor ::selection { background: transparent; }`)
+}
+
+/* A toggle's ▸ hangs in the margin left of its text (canvas.css), so a run
+   holding one reaches that far left too, the whole run alike (`:has`, so a
+   block turned into a toggle while picked widens it as well). */
+function hangs(scope: string, ids: readonly string[]): string {
+  const toggle = ids.map((id) => `.bn-block-outer[data-id="${CSS.escape(id)}"] > .bn-block > :not(.bn-block-group) .bn-toggle-button`).join(', ')
+  return ids.map((id) => `.${scope}:has(${toggle}) .bn-block-outer[data-id="${CSS.escape(id)}"] > .bn-block::after`).join(', ')
 }
 
 export interface BlockSelectionActions {
@@ -188,13 +197,14 @@ function arrowSelection(editor: AnyEditor, view: EditorView, ids: readonly strin
   reveal(view, blockSelection(editor), direction === 1 ? 'last' : 'first')
 }
 
-/** Enter: back to writing, the caret at the end of the block's text; a sub-page row opens. */
+/** Enter: back to writing, the caret at the end of the block's text; a sub-page row or a Task opens. */
 function editSelection(editor: AnyEditor, view: EditorView, ids: readonly string[]): void {
   const id = ids[0]!
   const block = editor.getBlock(id)
   if (block === undefined) return
-  const page = outerOf(view, id)?.querySelector<HTMLElement>(':scope > .bn-block a[data-canvas-page-id]')
-  if (page !== null && page !== undefined) { clearBlockSelection(editor); page.click(); return }
+  // The row's own opener, as a click on it (a Task opens where the person chose: peek or page).
+  const opens = outerOf(view, id)?.querySelector<HTMLElement>(':scope > .bn-block a[data-canvas-page-id], :scope > .bn-block [data-canvas-task-id][tabindex]')
+  if (opens !== null && opens !== undefined) { clearBlockSelection(editor); opens.click(); return }
   if (!Array.isArray(block.content)) return
   editor.setTextCursorPosition(id, 'end')
   view.focus()
@@ -237,6 +247,24 @@ runs before the editor's own keys), in Notion's three modes:
 - nothing: the keys are the page's.
 A click anywhere but a menu, the gutter or a Shift-click drops the selection.
 */
+/*
+The keys are this editor's only while the person is in it: focus in its text
+or its gutter, or on nothing at all (Esc leaves the editor with the blocks
+still picked) with no dialog open over it. Anywhere else (search, a peek, a
+dialog, any field) the keys are that place's, and focus arriving there drops
+the selection, so a Backspace typed into a search box never deletes picked
+blocks behind it.
+*/
+function ownsKeys(view: EditorView): boolean {
+  const active = document.activeElement
+  if (active !== null && active !== document.body) return view.dom.contains(active) || isGutter(view, active)
+  return ![...document.querySelectorAll('[role="dialog"], [role="alertdialog"]')].some((dialog) => !dialog.contains(view.dom))
+}
+function isGutter(view: EditorView, element: Element): boolean {
+  const gutter = element.closest('.bn-side-menu')
+  return gutter !== null && (view.dom.closest('.bn-container')?.contains(gutter) ?? false)
+}
+
 export function useBlockSelectionKeys(editor: AnyEditor, actions: BlockSelectionActions): void {
   useEffect(() => {
     let escape: KeyboardEvent | null = null
@@ -251,6 +279,7 @@ export function useBlockSelectionKeys(editor: AnyEditor, actions: BlockSelection
       const stop = (): void => { event.preventDefault(); event.stopPropagation() }
       const inEditor = document.activeElement !== null && view.dom.contains(document.activeElement)
       const onHost = event.target === view.dom
+      if (ids.length > 0 && !ownsKeys(view)) return
       if (key.toLowerCase() === 'd' && mod && !event.shiftKey && !event.altKey) {
         if (ids.length > 0) { stop(); actions.duplicate(ids); return }
         if (inEditor) { stop(); actions.duplicate([editor.getTextCursorPosition().block.id]) }
@@ -282,10 +311,11 @@ export function useBlockSelectionKeys(editor: AnyEditor, actions: BlockSelection
       if (key === 'Escape') { stop(); clearBlockSelection(editor); view.dom.blur(); return }
       if (key === 'Backspace' || key === 'Delete') {
         stop()
-        clearBlockSelection(editor)
+        // Removed while still picked, so Undo gives the picked blocks back (the selection's bookmark, `marquee.ts`).
         actions.remove(ids)
         // Refused (the canvas guard says why): the blocks stay picked.
         if (ids.every((id) => editor.getBlock(id) !== undefined)) setBlockSelection(editor, ids)
+        else clearBlockSelection(editor)
         return
       }
       if ((key === 'ArrowUp' || key === 'ArrowDown') && !mod && !event.altKey) { stop(); arrowSelection(editor, view, ids, key === 'ArrowUp' ? -1 : 1, event.shiftKey); return }
@@ -313,13 +343,22 @@ export function useBlockSelectionKeys(editor: AnyEditor, actions: BlockSelection
       if (target?.closest('[role="menu"], .bn-side-menu')) return
       clearBlockSelection(editor)
     }
+    function onFocus(event: FocusEvent): void {
+      const view = viewOf(editor)
+      const target = event.target as Element | null
+      if (view === undefined || target === null || blockSelection(editor).length === 0) return
+      if (view.dom.contains(target) || isGutter(view, target) || target.closest('[role="menu"]')) return
+      clearBlockSelection(editor)
+    }
     window.addEventListener('keydown', onKey, true)
+    document.addEventListener('focusin', onFocus, true)
     window.addEventListener('keydown', onKeyUnclaimed)
     window.addEventListener('pointerdown', onPointer, true)
     return () => {
       window.removeEventListener('keydown', onKey, true)
       window.removeEventListener('keydown', onKeyUnclaimed)
       window.removeEventListener('pointerdown', onPointer, true)
+      document.removeEventListener('focusin', onFocus, true)
     }
   }, [editor, actions])
 }

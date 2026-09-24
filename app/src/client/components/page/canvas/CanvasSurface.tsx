@@ -36,6 +36,7 @@ import './canvas.css'
 
 type HeadingMode = 'section' | 'document' | 'none'
 
+const TASK: ReadonlySet<string> = new Set(['danaTask'])
 const TASK_OR_FOLDER: ReadonlySet<string> = new Set(['danaTask', 'danaFolder', 'danaPage'])
 const LIST_TYPES: ReadonlySet<string> = new Set(['bulletListItem', 'numberedListItem', 'checkListItem', 'toggleListItem'])
 
@@ -143,13 +144,16 @@ export function CanvasSurface({
   }, [editor])
   const duplicate = useCallback((ids: readonly string[]): void => {
     const blocks = ids.flatMap((id) => { const block = editor.getBlock(id) as TreeBlock | undefined; return block === undefined ? [] : [block] })
-    if (blocks.some((block) => contains(block, TASK_OR_FOLDER))) return
+    // A Task or a page is one record; a copy of its row would be a second row for the same one.
+    if (blocks.some((block) => contains(block, TASK))) { onNotice("This selection contains a Task, which can't be duplicated. Select only the writing."); return }
+    if (blocks.some((block) => contains(block, TASK_OR_FOLDER))) { onNotice("This selection contains a page, which can't be duplicated. Select only the writing."); return }
     duplicateBlocks(editor, ids)
-  }, [editor])
+  }, [editor, onNotice])
   const menu = useMemo<BlockMenuModel>(() => ({
     targets: (block) => blockMenuTargets(editor, block),
     turnInto: (ids, target) => { turnBlocksInto(editor, ids, target, headingMode === 'none' ? undefined : (block) => headingTogglesFor(editor, block, target)) },
-    extraTarget: (block) => block.type === 'paragraph' && onCreateTask !== undefined
+    // A stored to-do (no longer made anywhere) turns into a Task as text does.
+    extraTarget: (block) => (block.type === 'paragraph' || block.type === 'checkListItem') && onCreateTask !== undefined
       ? { title: 'Task', run: () => { requestTask(editor.getBlock(block.id) ?? undefined) } }
       : null,
     canDuplicate: (block) => !contains(block, TASK_OR_FOLDER),

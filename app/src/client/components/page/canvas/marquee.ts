@@ -16,7 +16,8 @@ Being the editor's selection, it is what undo, a click in text (which replaces
 it) and the drag all see; there is no second copy to fall out of step.
 */
 import { Selection } from 'prosemirror-state'
-import type { EditorState } from 'prosemirror-state'
+import type { EditorState, SelectionBookmark } from 'prosemirror-state'
+import type { Mappable } from 'prosemirror-transform'
 import type { Node as PMNode, ResolvedPos } from 'prosemirror-model'
 import type { EditorView } from 'prosemirror-view'
 
@@ -99,7 +100,34 @@ function multipleNodeSelectionClass(doc: PMNode): SelectionClass | null {
   }
   try { base.fromJSON(doc, { type: 'multiple-node', anchor: 0, head: 0 }) } catch { /* `found`, or no such class */ } finally { base.fromJSON = original }
   multipleNodeSelection = captured
+  if (captured !== null) keepOnUndo(captured)
   return captured
+}
+
+/*
+Undo gives the picked blocks back picked. ProseMirror's history keeps the
+selection each change started from as a bookmark, and BlockNote's class has
+only the base one, a caret's; this one resolves to the same run of blocks
+(or near where it was, when that run is gone).
+*/
+class BlockRunBookmark implements SelectionBookmark {
+  constructor(readonly Multiple: SelectionClass, readonly from: number, readonly to: number) {}
+  map(mapping: Mappable): SelectionBookmark {
+    return new BlockRunBookmark(this.Multiple, mapping.map(this.from, 1), mapping.map(this.to, -1))
+  }
+  resolve(doc: PMNode): Selection {
+    if (this.from < this.to && this.to <= doc.content.size) {
+      const $from = doc.resolve(this.from)
+      const $to = doc.resolve(this.to)
+      if ($from.parent === $to.parent && $from.parent.type.name === 'blockGroup') return new this.Multiple($from, $to)
+    }
+    return Selection.near(doc.resolve(Math.min(this.from, doc.content.size)))
+  }
+}
+function keepOnUndo(Multiple: SelectionClass): void {
+  (Multiple.prototype as { getBookmark: () => SelectionBookmark }).getBookmark = function (this: Selection) {
+    return new BlockRunBookmark(Multiple, this.from, this.to)
+  }
 }
 
 export function blockSelectionFor(doc: PMNode, ids: Iterable<string>): Selection | null {

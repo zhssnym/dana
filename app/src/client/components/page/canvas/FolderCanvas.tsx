@@ -321,7 +321,9 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
     const replace = (blocks: readonly CanvasInput[]): CanvasInput[] => blocks.flatMap((block) => {
       if (block.id === blockId) {
         const task: CanvasInput = { id, type: 'danaTask', props: { taskId: id } }
-        return block.type === 'paragraph' ? [task] : [block, task]
+        // Text, or a stored to-do, becomes the Task (blocks nested under it follow it);
+        // anything else keeps its place and the Task follows.
+        return block.type === 'paragraph' || block.type === 'checkListItem' ? [task, ...replace(block.children ?? [])] : [block, task]
       }
       return [{ ...block, children: block.children ? replace(block.children) : [] }]
     })
@@ -351,7 +353,7 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
      typed, and leaving it empty takes the line away. No dialog. */
   function askTask(target?: CanvasBlock): void {
     const block = target ?? editor.getTextCursorPosition().block
-    const text = block.type === 'paragraph' ? richRuns(block).map((run) => run.text).join('') : ''
+    const text = block.type === 'paragraph' || block.type === 'checkListItem' ? richRuns(block).map((run) => run.text).join('') : ''
     if (text.trim()) { void createTask(block.id, text); return }
     if (writer.state === 'failed') { setError(taskBlocked); return }
     let at = block.id

@@ -208,6 +208,8 @@ export const blockSidePosition = {
 /** Change these blocks' kind, keeping text, and children where the kind holds them. */
 /** `headingToggles` may answer per block: on Work a heading is a Section only where one stands. */
 export function turnBlocksInto(editor: AnyEditor, ids: readonly string[], target: TurnTarget, headingToggles: boolean | undefined | ((block: TreeBlock) => boolean | undefined)): void {
+  // Picked blocks stay picked once turned (Notion); a block turned while writing keeps the caret.
+  const picked = blockSelection(editor).length > 0
   editor.transact(() => {
     for (const id of ids) {
       const block = editor.getBlock(id) as TreeBlock | undefined
@@ -224,7 +226,10 @@ export function turnBlocksInto(editor: AnyEditor, ids: readonly string[], target
     }
   })
   const first = ids[0]
-  if (first !== undefined && editor.getBlock(first) !== undefined) {
+  if (picked) {
+    setBlockSelection(editor, ids)
+    editor.focus()
+  } else if (first !== undefined && editor.getBlock(first) !== undefined) {
     const block = editor.getBlock(first)!
     if (Array.isArray(block.content) || typeof block.content === 'string') editor.setTextCursorPosition(first, 'end')
     editor.focus()
@@ -235,6 +240,7 @@ export function turnBlocksInto(editor: AnyEditor, ids: readonly string[], target
 export function duplicateBlocks(editor: AnyEditor, ids: readonly string[]): void {
   const blocks = ids.flatMap((id) => { const block = editor.getBlock(id); return block === undefined ? [] : [block as TreeBlock] })
   if (blocks.length === 0) return
+  const picked = blockSelection(editor).length > 0
   let copies: { id: string }[] = []
   editor.transact(() => {
     const last = blocks.at(-1)!
@@ -242,6 +248,6 @@ export function duplicateBlocks(editor: AnyEditor, ids: readonly string[]): void
     // one block copies right after itself.
     copies = editor.insertBlocks(blocks.map(withoutIds) as never, last.id, 'after') as { id: string }[]
   })
-  if (blockSelection(editor).length > 0) setBlockSelection(editor, copies.map((copy) => copy.id))
+  if (picked) setBlockSelection(editor, copies.map((copy) => copy.id))
   else if (copies[0] !== undefined) { editor.setTextCursorPosition(copies[0].id, 'end'); editor.focus() }
 }

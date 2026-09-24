@@ -178,8 +178,12 @@
   --dana-block-selection-inset-x: calc(var(--spacing) * 1.5);
   --dana-block-selection-inset-y: calc(var(--spacing) * 0.5);
   --dana-block-selection-radius: var(--radius-lg);
+  /* How far a toggle's ▸ hangs left of its text (see .bn-toggle-button), for the tint to cover it. */
+  --dana-block-selection-hang: calc(var(--spacing) * 8);
 }
 @keyframes dana-block-selection-in { from { opacity: 0; } to { opacity: 1; } }
+/* Phone: the ▸ sits inline (above), inside the block. */
+@media (max-width: 480px) { .dana-writing-canvas { --dana-block-selection-hang: 0px; } }
 .dark .dana-writing-canvas,
 [data-theme="dark"] .dana-writing-canvas { --dana-block-selection: color-mix(in srgb, var(--accent-color) 24%, transparent); }
 /* The gutter: "+" and ⋮⋮ fade in on hover, 24px targets, quiet until pointed at. */
