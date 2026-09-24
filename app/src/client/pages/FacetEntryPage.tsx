@@ -1,6 +1,6 @@
 /*
-/app/facets/:id is the stable Dana Link address of a native Purpose facet.
-Purpose itself still lives in the Folder workspace, so this page is only an
+/app/facets/:id is the stable Dana Link address of a native Purpose or Results facet.
+The document itself still lives in the Folder workspace, so this page is only an
 entry point: one access-safe location read, then a replace navigation into the
 existing FolderPage with the stable facet id selected.
 
