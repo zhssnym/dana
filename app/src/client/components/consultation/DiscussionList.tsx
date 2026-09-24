@@ -1,44 +1,48 @@
 /*
-The Discussion tab's threads, as a calm index (W-C; r4, r5 discuss): one row
-per thread, most recent activity first as the server orders them (#212, #320).
+The Discussion tab's threads, laid out as Today lays out tasks (r9-dlist): an
+"Open" group ending in "New thread", then a "Resolved" group; no tabs, no
+column headers. Most recent activity first, as the server orders them.
 
-`Open` / `Closed` above it — which one is the URL's (`?threads=closed`), so
-Back from a closed thread returns to the closed list — then one row per
-thread: the title, and under it a muted line — who else is talking, how many
-posts, when it last moved, and for a closed thread its decision. A thread with
-a post from someone else since this person last read it (the server's
-`read_at`, one per person, every device) carries a heavier title; nothing else
-marks it. The Open view's last row is "New thread": click, type a title,
-Enter — the thread opens with its composer focused; Escape lets it go.
+Each thread is one row at the task row's height. Where a task has its
+checkbox a thread has its status mark, in a shape a task never has: an
+outline speech bubble while open, a filled check circle once resolved.
+Pressing the mark resolves (the thread view's close without a decision) or
+reopens the thread, with Undo. The title carries the row; an unread one (a
+post from someone else since this person last read it, the server's
+`read_at`) is heavier and nothing else marks it. On the right: an open
+thread's other participants and "4 posts · 12 min"; a resolved one's
+"Resolved 15 Sep".
+
+The keyboard path is the task lists' (`row-keys.ts`): arrows move, Enter
+opens, Space resolves or reopens. An old `?threads=closed` link still loads;
+the parameter is ignored since both groups are always shown.
 
 The list re-reads every twenty seconds while the tab is visible
 (`useDiscussions`), so new activity arrives without a reload.
 */
 import { useState } from 'react'
-import { useSearchParams } from 'react-router'
 
-import { useCreateDiscussion, useDiscussions } from '../../api/consultation.js'
+import {
+  useCreateDiscussion,
+  useDiscussions,
+  useReopenDiscussion,
+  useResolveDiscussion,
+} from '../../api/consultation.js'
 import type { Discussion } from '../../../shared/consultation.js'
 import { DISCUSSION_TITLE_MAX } from '../../../shared/consultation.js'
-import { Plus } from '../../lib/icons.js'
+import { MessageCircle, Plus, ResolvedMark } from '../../lib/icons.js'
 import type { PersonResolver } from '../../lib/thread.js'
-import { formatAgo } from '../../parts/format-dates.js'
+import { formatAgo, formatCompactDate } from '../../parts/format-dates.js'
+import { presenterToday } from '../../parts/presenters.js'
+import { pushUndo, undoLabel } from '../../shell/undo.js'
+import { useRowKeys } from '../row-keys.js'
 import { InlineError } from '../state-patterns.js'
-import { Segmented } from '../ui/segmented.js'
 import { Skeleton } from '../ui/skeleton.js'
 import { cn } from '../ui/utils.js'
-import { mayStartDiscussion } from './authority.js'
+import { discussionPowers, mayStartDiscussion } from './authority.js'
 import type { ConsultationViewer } from './authority.js'
 
-type View = 'open' | 'closed'
-
-/** The URL's name for the Closed list; absent is Open. */
-export const THREADS_PARAM = 'threads'
-
-const VIEWS = [
-  { value: 'open', label: 'Open' },
-  { value: 'closed', label: 'Closed' },
-] as const
+type State = 'open' | 'resolved'
 
 /** Someone else posted since this person last read the thread. */
 export function isUnread(d: Discussion, viewerId: string | null): boolean {
@@ -47,6 +51,10 @@ export function isUnread(d: Discussion, viewerId: string | null): boolean {
   if (d.read_at === null || d.read_at === undefined) return true
   return Date.parse(last.created_at) > Date.parse(d.read_at)
 }
+
+/* The task row's grid: the mark sits where a task's checkbox does. */
+const ROW =
+  'grid h-[var(--row-height)] w-full grid-cols-[var(--control-height)_minmax(0,1fr)_auto] items-center rounded-sm pr-1.5 text-sm transition-colors duration-[var(--duration-fast)]'
 
 export function DiscussionList({
   folderId,
@@ -62,95 +70,251 @@ export function DiscussionList({
   readonly onStarted: (discussionId: string) => void
 }): React.JSX.Element {
   const list = useDiscussions(folderId, 'all', '')
-  const [search, setSearch] = useSearchParams()
-  const view: View = search.get(THREADS_PARAM) === 'closed' ? 'closed' : 'open'
-  const setView = (next: View): void => {
-    setSearch(
-      (current) => {
-        const params = new URLSearchParams(current)
-        if (next === 'closed') params.set(THREADS_PARAM, 'closed')
-        else params.delete(THREADS_PARAM)
-        return params
-      },
-      { replace: true },
-    )
+  const resolve = useResolveDiscussion()
+  const reopen = useReopenDiscussion()
+  const keys = useRowKeys<HTMLDivElement>()
+  /* A pressed mark moves its row at once; the refetch then agrees. */
+  const [moved, setMoved] = useState<ReadonlyMap<string, State>>(new Map())
+  const move = (id: string, to: State | null): void => {
+    setMoved((current) => {
+      const next = new Map(current)
+      if (to === null) next.delete(id)
+      else next.set(id, to)
+      return next
+    })
   }
+
   const discussions = list.data?.pages.flatMap((page) => page.discussions) ?? []
-  const open = discussions.filter((d) => d.state === 'open')
-  const closed = discussions.filter((d) => d.state !== 'open')
+  const stateOf = (d: Discussion): State => moved.get(d.id) ?? (d.state === 'open' ? 'open' : 'resolved')
+  const may = (d: Discussion): boolean => {
+    if (viewer === null) return false
+    const powers = discussionPowers(viewer, d, false)
+    return stateOf(d) === 'open' ? powers.resolve : powers.reopen
+  }
+  const open = discussions.filter((d) => stateOf(d) === 'open')
+  const resolved = discussions.filter((d) => stateOf(d) === 'resolved')
   const mayStart = viewer !== null && mayStartDiscussion(viewer)
-  const shown = view === 'open' ? open : closed
   const now = Date.now()
+  const today = presenterToday()
   const viewerId = viewer?.viewerId ?? null
 
-  if (list.isPending) return <ListSkeleton />
-  if (list.isError) return <InlineError onRetry={() => void list.refetch()} />
+  const toggle = (d: Discussion): void => {
+    if (!may(d)) return
+    const settled = (): void => { move(d.id, null) }
+    if (stateOf(d) === 'open') {
+      move(d.id, 'resolved')
+      resolve.mutate(
+        { id: d.id, body: {} },
+        {
+          onSettled: settled,
+          onSuccess: () => {
+            pushUndo(undoLabel('Resolved', d.title), () => { reopen.mutate(d.id) })
+          },
+        },
+      )
+    } else {
+      move(d.id, 'open')
+      reopen.mutate(d.id, {
+        onSettled: settled,
+        onSuccess: () => {
+          pushUndo(undoLabel('Reopened', d.title), () => { resolve.mutate({ id: d.id, body: {} }) })
+        },
+      })
+    }
+  }
+
+  /* The keyboard path's scope mounts once, loading or not: `useRowKeys`
+     attaches to it on the first render only. */
+  if (list.isPending || list.isError) {
+    return (
+      <div ref={keys} className="-mx-1.5 min-w-0">
+        {list.isPending ? <ListSkeleton /> : <InlineError onRetry={() => void list.refetch()} />}
+      </div>
+    )
+  }
+
+  const row = (d: Discussion): React.JSX.Element => (
+    <li key={d.id}>
+      <ThreadRow
+        discussion={d}
+        state={stateOf(d)}
+        may={may(d)}
+        now={now}
+        today={today}
+        personOf={personOf}
+        viewerId={viewerId}
+        onOpen={onOpen}
+        onToggle={() => { toggle(d) }}
+      />
+    </li>
+  )
 
   return (
-    <div className="min-w-0">
-      <Segmented label="Show" value={view} onValueChange={setView} options={VIEWS} className="mb-2" />
+    <div ref={keys} className="-mx-1.5 min-w-0">
+      <div className="space-y-[var(--space-group)]">
+        <section aria-label="Open">
+          <h2 className="mb-1 px-1.5 text-sm font-section text-foreground">Open</h2>
+          <ul className="flex flex-col">
+            {open.map(row)}
+            {mayStart ? (
+              <li>
+                <NewThread folderId={folderId} onStarted={onStarted} />
+              </li>
+            ) : null}
+          </ul>
+          {open.length === 0 && !mayStart ? (
+            <p className="px-1.5 py-1 text-sm text-muted-foreground">No open threads.</p>
+          ) : null}
+        </section>
 
-      <ul className="-mx-2 flex flex-col gap-0.5" aria-label={view === 'open' ? 'Open threads' : 'Closed threads'}>
-        {shown.map((d) => (
-          <li key={d.id}>
-            <ThreadRow discussion={d} now={now} personOf={personOf} viewerId={viewerId} onOpen={onOpen} />
-          </li>
-        ))}
-        {view === 'open' && mayStart ? (
-          <li>
-            <NewThread folderId={folderId} onStarted={onStarted} />
-          </li>
+        {resolved.length === 0 ? null : (
+          <section aria-label="Resolved">
+            <h2 className="mb-1 px-1.5 text-sm font-section text-foreground">Resolved</h2>
+            <ul className="flex flex-col">{resolved.map(row)}</ul>
+          </section>
+        )}
+
+        {list.hasNextPage ? (
+          <button
+            type="button"
+            className="h-[var(--control-height)] rounded-sm px-1.5 text-xs text-muted-foreground outline-none hover:text-foreground"
+            disabled={list.isFetchingNextPage}
+            onClick={() => void list.fetchNextPage()}
+          >
+            Show older threads
+          </button>
         ) : null}
-      </ul>
-
-      {shown.length === 0 && !(view === 'open' && mayStart) ? (
-        <p className="py-3 text-sm text-muted-foreground">{view === 'open' ? 'No open threads.' : 'No closed threads.'}</p>
-      ) : null}
-
-      {list.hasNextPage ? (
-        <button
-          type="button"
-          className="mt-2 h-[var(--control-height)] rounded-sm text-xs text-muted-foreground outline-none hover:text-foreground"
-          disabled={list.isFetchingNextPage}
-          onClick={() => void list.fetchNextPage()}
-        >
-          Show older threads
-        </button>
-      ) : null}
+      </div>
     </div>
   )
 }
 
 function ThreadRow({
   discussion: d,
+  state,
+  may,
   now,
+  today,
   personOf,
   viewerId,
   onOpen,
+  onToggle,
 }: {
   readonly discussion: Discussion
+  readonly state: State
+  readonly may: boolean
   readonly now: number
+  readonly today: string
   readonly personOf: PersonResolver
   readonly viewerId: string | null
   readonly onOpen: (discussionId: string) => void
+  readonly onToggle: () => void
 }): React.JSX.Element {
+  const isOpen = state === 'open'
   const fresh = isUnread(d, viewerId)
-  const decided = d.state !== 'open' ? d.current_outcome?.statement ?? '' : ''
-  /* Who else is talking: the reader is never listed, as in Slack. */
-  const others = (d.participant_ids ?? []).filter((id) => id !== viewerId).slice(0, 3)
-  const people = others.map((id) => personOf(id).name).join(', ')
-  const count = d.post_count ?? 0
-  const when = formatAgo(d.last_post?.created_at ?? d.last_activity_at, now)
-  const meta = [people, `${String(count)} post${count === 1 ? '' : 's'}`, when, decided].filter((part) => part !== '')
+  const mark = isOpen ? (
+    <MessageCircle className="size-4 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
+  ) : (
+    <ResolvedMark className="text-primary" />
+  )
   return (
-    <button
-      type="button"
-      className="block w-full min-w-0 rounded-md px-2 py-1.5 text-left outline-none transition-colors duration-[var(--duration-fast)] hover:bg-accent"
-      onClick={() => { onOpen(d.id) }}
+    <div
+      /* The keyboard path (`row-keys.ts`) keys rows by `data-task-id`. */
+      data-row-key=""
+      data-task-id={d.id}
+      data-thread-state={state}
+      role="link"
+      aria-label={d.title}
+      className={cn(ROW, 'cursor-pointer hover:bg-muted')}
+      onClick={(event) => {
+        if ((event.target as HTMLElement).closest('button')) return
+        onOpen(d.id)
+      }}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return
+        if (event.key === 'Enter') {
+          event.preventDefault()
+          onOpen(d.id)
+        } else if (event.key === ' ') {
+          event.preventDefault()
+          onToggle()
+        }
+      }}
     >
-      <span className={cn('block truncate text-sm text-foreground', fresh ? 'font-title' : 'font-normal')}>{d.title}</span>
-      <span className="mt-0.5 block truncate text-xs text-muted-foreground">{meta.join(' · ')}</span>
-    </button>
+      {may ? (
+        <button
+          type="button"
+          aria-label={isOpen ? 'Resolve thread' : 'Reopen thread'}
+          title={isOpen ? 'Resolve' : 'Reopen'}
+          className="flex size-[var(--control-height)] items-center justify-center rounded-sm active:scale-90"
+          onClick={(event) => {
+            event.stopPropagation()
+            onToggle()
+          }}
+        >
+          {mark}
+        </button>
+      ) : (
+        <span className="flex size-[var(--control-height)] items-center justify-center">{mark}</span>
+      )}
+      <span
+        title={d.title}
+        className={cn(
+          'min-w-0 truncate',
+          isOpen ? 'text-foreground' : 'text-muted-foreground',
+          fresh ? 'font-title' : 'font-normal',
+        )}
+      >
+        {d.title}
+      </span>
+      <span className="flex items-center gap-2 pl-3 text-xs whitespace-nowrap text-muted-foreground">
+        {isOpen ? (
+          <>
+            <Faces ids={(d.participant_ids ?? []).filter((id) => id !== viewerId).slice(0, 3)} personOf={personOf} />
+            <span>{postsAndWhen(d, now)}</span>
+          </>
+        ) : d.resolved_at === null ? null : (
+          <span>Resolved {formatCompactDate(d.resolved_at.slice(0, 10), today)}</span>
+        )}
+      </span>
+    </div>
+  )
+}
+
+function postsAndWhen(d: Discussion, now: number): string {
+  const count = d.post_count ?? 0
+  const posts = `${String(count)} post${count === 1 ? '' : 's'}`
+  return `${posts} · ${formatAgo(d.last_post?.created_at ?? d.last_activity_at, now)}`
+}
+
+/** Who else is talking, as small overlapping faces; the reader never shows. */
+function Faces({
+  ids,
+  personOf,
+}: {
+  readonly ids: readonly string[]
+  readonly personOf: PersonResolver
+}): React.JSX.Element | null {
+  if (ids.length === 0) return null
+  return (
+    <span className="flex -space-x-1" aria-label={ids.map((id) => personOf(id).name).join(', ')}>
+      {ids.map((id) => {
+        const person = personOf(id)
+        return (
+          <span
+            key={id}
+            title={person.name}
+            className="flex size-4 items-center justify-center overflow-hidden rounded-full bg-muted text-[0.625rem] leading-none text-muted-foreground ring-2 ring-background"
+          >
+            {person.image === undefined ? (
+              (person.name.trim()[0] ?? '?').toUpperCase()
+            ) : (
+              <img src={person.image} alt="" className="size-full object-cover" />
+            )}
+          </span>
+        )
+      })}
+    </span>
   )
 }
 
@@ -170,10 +334,12 @@ function NewThread({
     return (
       <button
         type="button"
-        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-muted-foreground outline-none transition-colors duration-[var(--duration-fast)] hover:bg-accent hover:text-foreground"
+        className={cn(ROW, 'text-left text-muted-foreground outline-none hover:bg-muted hover:text-foreground')}
         onClick={() => { setTyping(true) }}
       >
-        <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" />
+        <span className="flex justify-center">
+          <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" />
+        </span>
         New thread
       </button>
     )
@@ -185,7 +351,7 @@ function NewThread({
   }
   return (
     <form
-      className="flex items-center gap-2 px-2 py-1.5"
+      className={ROW}
       onSubmit={(event) => {
         event.preventDefault()
         const trimmed = title.trim()
@@ -201,7 +367,9 @@ function NewThread({
         )
       }}
     >
-      <Plus className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
+      <span className="flex justify-center">
+        <Plus className="size-4 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
+      </span>
       <input
         aria-label="New thread title"
         placeholder="Thread title, then Enter"

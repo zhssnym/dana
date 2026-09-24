@@ -515,6 +515,18 @@ export const Star = icon(Lu.Star, Anim.StarIcon)
 export const SunMedium = icon(Lu.SunMedium, Anim.SunMediumIcon)
 export const Trash2 = icon(Lu.Trash2, Anim.Trash2Icon)
 export const Undo2 = icon(Lu.Undo2, null)
+/* The thread list's status marks (r9-dlist): an outline bubble for an open
+   thread, a filled check circle for a resolved one. Neither is square, so a
+   thread never reads as a task's checkbox. */
+export const MessageCircle = icon(Lu.MessageCircle, null)
+export function ResolvedMark({ className }: { readonly className?: string }): React.JSX.Element {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={cn("size-4", className)}>
+      <circle cx="12" cy="12" r="10" fill="currentColor" />
+      <path d="m8 12.5 2.75 2.75L16 10" fill="none" stroke="var(--primary-foreground)" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
 /* The icon picker's random-colour cell (e8-colors). */
 export const Shuffle = icon(Lu.Shuffle, Anim.ShuffleIcon)
 /*
