@@ -170,8 +170,11 @@ run, and a record from a dirty tree describes something that isn't the commit.
 - **Connection reset.** You see `read ECONNRESET`, or a route logs
   `Connection terminated unexpectedly`. `app/db/client.ts` has `'error'` listeners on the pool
   and on checked-out clients, so a reset socket now drops one connection instead of killing the
-  worker; the seam logs `database_connection_lost`. If a whole file is still lost to this, it's
-  something new: re-run it alone, then investigate.
+  worker; the seam logs `database_connection_lost`. A whole file lost at its start, every test
+  skipped, is a connection the server refused with a FATAL (a missing database, too many
+  clients): on Windows the backend's exit can reset the socket before the client reads the
+  FATAL. So never connect to a database that may not exist; ask `pg_database` from the base
+  database, as `app/tests/support/postgres-leg-admin.ts` does.
 - **Two clocks in two zones.** A date comparison is red for an hour or two every evening. The
   server read one timezone (the database session's `current_date`, or the viewer's `tz`) and the
   test read UTC. Force the zone to tell them apart: `TZ=UTC` settles PGlite, but on Postgres the
@@ -221,9 +224,10 @@ run, and a record from a dirty tree describes something that isn't the commit.
 
 ## 6. Server
 
-- **Six page endpoints started answering as views.** Route mount order in
-  `app/src/server/routes/bundle.ts` is load-bearing: `/views/:id` would shadow them if the
-  mounts were reordered. Don't reorder mounts casually.
+- **Page endpoints like `/views/my-day` suddenly answer 404.** Route mount order in
+  `app/src/server/index.ts` is load-bearing: the views router must be mounted before the
+  bundle router, or the bundle router's `/views/:id` shadows the page endpoints. Don't
+  reorder mounts casually.
 - **`Cannot read properties of undefined (reading 'optional')`, or `X is not a function` in
   exactly one file, while the symbol looks fine.** That's an import cycle, usually in
   `app/src/shared/` or `app/src/server/domain/`, which are webs rather than trees. The error

@@ -239,7 +239,7 @@ export async function makePersonalLabel(
     name,
     color: '#336699',
   })
-  expectStatus(made, 201, 'POST /labels/personal must create the label (issue #226)')
+  expectStatus(made, 201, 'POST /labels/personal must create the label (spec 7.26)')
   return idOf(made, 'the created personal label')
 }
 
@@ -257,7 +257,7 @@ export async function makeFolderLabel(
   expectStatus(
     made,
     201,
-    'POST /folders/:folderId/labels must create the label (issue #226)',
+    'POST /folders/:folderId/labels must create the label (spec 7.26)',
   )
   return idOf(made, 'the created folder label')
 }

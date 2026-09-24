@@ -801,7 +801,7 @@ export function createWorkshopRouter(
           res,
           409,
           'conflict',
-          'The default folder cannot change hands (INV-2).',
+          'Ownership of the default folder cannot be transferred.',
         )
         return
       }

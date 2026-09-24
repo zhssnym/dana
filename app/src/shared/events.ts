@@ -57,7 +57,7 @@ const subjectRef = z
   .string()
   .regex(
     /^(task|folder|shelf|comment):[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
-    'must be kind:id, one of 4.13\'s subject kinds carrying a uuid',
+    'must be kind:id, where kind is task, folder, shelf or comment and id is a uuid',
   )
 
 /** GET /events takes exactly one of the two scopes (7.12): a folder's

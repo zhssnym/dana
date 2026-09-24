@@ -12,15 +12,15 @@ everything Dana holds about the person. Imran ruled the wide reading on issue
 #77, on the ground 10.9 already argued — Google's own answer to the same
 question is Takeout, which is a file rather than a screen.
 
-**Nothing on the client imports this yet**, and that is deliberate. The
-control that downloads the file is Imran's to build (the handoff issue on
-#77); this schema exists so that when he does, the response is parsed through
-the same contract the server writes against, like every other response in
-this folder, rather than through a private copy in `src/client`.
+**Client code that reads the export parses it through these schemas**, the
+contract the server writes against, like every other response in this
+folder, rather than through a private copy in `src/client`. The Settings
+download is a plain link to the endpoint, so the browser saves the file
+without parsing it.
 
 **Every shape here is a response shape**, so the compiler is the guard on
-both sides and the request-field hazard `src/shared/README` warns about
-cannot arise: the endpoint takes no body and no query parameter, and there is
+both sides and the request-field hazard in `docs/troubleshooting.md` cannot
+arise: the endpoint takes no body and no query parameter, and there is
 no field for a caller to send and have silently dropped.
 
 **Nobody else's email address appears anywhere in this document**, which is
@@ -89,10 +89,8 @@ export const EXPORT_FORMAT = 'dana-export'
  * missing somebody's data.
  *
  * So **read the number off the branches that are open rather than off this
- * file**, exactly as the backend README says for migration prefixes. This
- * branch took 4 first, having seen #226 and not #227 — which finished after
- * it started — and was corrected. Seeing one collision is not evidence that
- * you have seen them all.
+ * file**, exactly as docs/troubleshooting.md says for migration prefixes.
+ * Seeing one collision is not evidence that you have seen them all.
  *
  * **Both predecessors have since landed on `main`, which settles it**: #226 is
  * version 3 and #227 is version 4, so 5 is this document's number and the

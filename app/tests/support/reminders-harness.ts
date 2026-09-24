@@ -177,7 +177,7 @@ export function instantAtWallTime(
   const readBack = wallClockIn(zone, answer)
   expect(
     `${readBack.date} ${readBack.time}`,
-    `instantAtWallTime is exact only where a local time exists exactly once. ${date} ${time} in ${zone} is a gap or a fold on this runtime's tzdb, and 8.6 resolves those by policy rather than by arithmetic (section 13 item 25), so its instant is written by hand rather than computed here`,
+    `instantAtWallTime is exact only where a local time exists exactly once. ${date} ${time} in ${zone} is a gap or a fold on this runtime's tzdb, and 8.6 resolves those by policy rather than by arithmetic, so its instant is written by hand rather than computed here`,
   ).toBe(`${date} ${time}`)
   return answer
 }
@@ -294,7 +294,7 @@ export const FOLD = {
 export function expectGapFixture(): void {
   expect(
     wallClockIn(GAP.zone, GAP.beforeGap),
-    `${GAP.zone} must still read 01:59 local at ${GAP.beforeGap.toISOString()}, the minute before the 2010 spring-forward (section 13 item 25: historical transitions, asserted rather than assumed)`,
+    `${GAP.zone} must still read 01:59 local at ${GAP.beforeGap.toISOString()}, the minute before the 2010 spring-forward (historical transitions, asserted rather than assumed)`,
   ).toEqual({ date: GAP.date, time: '01:59' })
   expect(
     wallClockIn(GAP.zone, GAP.resolved),
@@ -311,7 +311,7 @@ export function expectGapFixture(): void {
 export function expectFoldFixture(): void {
   expect(
     wallClockIn(FOLD.zone, FOLD.resolved),
-    `${FOLD.zone} must still read ${FOLD.localTime} local at ${FOLD.resolved.toISOString()}, the earlier of the two (section 13 item 25)`,
+    `${FOLD.zone} must still read ${FOLD.localTime} local at ${FOLD.resolved.toISOString()}, the earlier of the two`,
   ).toEqual({ date: FOLD.date, time: FOLD.localTime })
   expect(
     wallClockIn(FOLD.zone, FOLD.later),
@@ -362,11 +362,11 @@ export class ZoneCast {
     const row = await userForSub(app.db, sub)
     expect(
       row,
-      `sign-in must provision a user row for ${slug} (spec 7.1; P1 is merged, so this is expected to hold)`,
+      `sign-in must provision a user row for ${slug} (spec 7.1)`,
     ).toBeDefined()
     expect(
       (row as UserRow).timezone,
-      `7.1 provisions users.timezone from the reported tz, and 8.6 computes every fire instant in it, so a P7 fixture whose zone did not take has no expected answer`,
+      `7.1 provisions users.timezone from the reported tz, and 8.6 computes every fire instant in it, so a fixture whose zone did not take has no expected answer`,
     ).toBe(zone)
     const actor: Actor = { sub, email, id: (row as UserRow).id, browser }
     this.created.push(actor)
@@ -445,7 +445,7 @@ export async function putReminderOk(
     taskId,
     await putReminder(actor, taskId, body),
     200,
-    `${why}, which must answer 200 with the affected TaskDetail (spec 7.9 as ruled on 2026-08-10)`,
+    `${why}, which must answer 200 with the affected TaskDetail (spec 7.9)`,
   )
 }
 
@@ -466,7 +466,7 @@ export async function deleteReminderOk(
   expectStatus(response, 204, why)
   expect(
     response.body,
-    '7.9 spells this 204, and a 204 carries no body; the ruling that gave PUT a body left this bullet alone',
+    '7.9 spells this 204, and a 204 carries no body',
   ).toBe('')
 }
 
@@ -779,7 +779,7 @@ async function composePass(
   }
   expect(
     failure,
-    `no reminder scheduler module could be loaded from app/src/server/scheduler/index.ts. 11.7 makes the 8.6 delivery loop a plain callable rather than a route, and frozen section 7 offers no endpoint that runs one pass, so that section names this module and these two dependencies as the acceptance suite's only way in, ratified at the P7 change control on the options.notifications precedent`,
+    `no reminder scheduler module could be loaded from app/src/server/scheduler/index.ts. 11.7 makes the 8.6 delivery loop a plain callable rather than a route, and section 7 offers no endpoint that runs one pass, so 11.7 names this module and these two dependencies as the suite's only way in`,
   ).toBe('')
 
   const record = module ?? {}
@@ -798,7 +798,7 @@ async function composePass(
 
   expect(
     typeof factory === 'function' || typeof direct === 'function',
-    'the scheduler module must export createReminderPass(deps), answering the callable, or runReminderPass(deps), the callable itself (spec 11.7; the seam is escalated)',
+    'the scheduler module must export createReminderPass(deps), answering the callable, or runReminderPass(deps), the callable itself (spec 11.7)',
   ).toBe(true)
 
   let pass: Pass
