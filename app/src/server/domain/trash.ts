@@ -40,7 +40,12 @@ import { trashedFacets } from './facets.js'
 import { mayPerform, presetOf } from './folder-access.js'
 import type { FolderActorFacts } from './folder-access.js'
 import type { FolderAccessPreset } from '../../shared/folder-access.js'
-import { destroyableTrashedWith, restorePageSubtree } from './page-tree.js'
+import {
+  destroyableTrashedWith,
+  ensureHomeBlock,
+  lockPageTree,
+  restoreTrashedPage,
+} from './page-tree.js'
 
 function toIso(value: unknown): string {
   return value instanceof Date
@@ -262,6 +267,8 @@ export async function restoreFolder(
   folderId: string,
 ): Promise<'restored' | 'not_found' | { kind: 'forbidden'; reason: string }> {
   return inTransaction(db, async (tx) => {
+    // The tree lock before any row lock (page-tree.ts's lock order).
+    await lockPageTree(tx)
     const found = await rowsOf(
       tx,
       sql`SELECT f.id, f.name, f.is_default, m.access,
@@ -310,21 +317,11 @@ export async function restoreFolder(
     }
     /* Wave 2: restoring a page on its own (a sub-page restored ahead of the
        page it was trashed with) takes it out of that set, and restoring an
-       initiator brings its set back (`restorePageSubtree`). */
-    await tx.execute(
-      sql`UPDATE folders SET deleted_at = NULL, trashed_with_folder_id = NULL
-          WHERE id = ${folderId}`,
-    )
-    await restorePageSubtree(tx, viewerId, folderId)
-    await recordEvent(tx, {
-      actorId: viewerId,
-      verb: 'restored',
-      subjectKind: 'folder',
-      subjectId: folderId,
-      subjectName: String(row.name),
-      folderId,
-      detail: 'restored from Trash',
-    })
+       initiator brings its set back (`restorePageSubtree`). A page whose
+       parent is live comes back with its home `page` block, appended at the
+       end of the parent's document when it has none. */
+    await restoreTrashedPage(tx, viewerId, folderId, String(row.name))
+    await ensureHomeBlock(tx, folderId)
     return 'restored'
   })
 }

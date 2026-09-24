@@ -28,7 +28,8 @@ multiply no rows. Nothing about the write path knows these columns exist: the
 shape belongs to the file and a PUT that carried it would be a second record
 of one fact.
 */
-import { applyDocument, documentMetadata, DocumentRefusal } from './page-document.js'
+import { applyDocument, documentMetadata, DocumentRefusal, touchesPageTree } from './page-document.js'
+import { lockPageTree } from './page-tree.js'
 import { sql } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
@@ -593,6 +594,9 @@ export async function actOnFolderPage(
     if (!decision.allowed) {
       return { kind: 'forbidden', reason: decision.reason }
     }
+    // A transaction that creates, trashes or re-homes a sub-page takes the
+    // tree lock before the folder row (page-tree.ts's lock order).
+    if (body.action === 'document_transaction' && touchesPageTree(body)) await lockPageTree(tx)
     await tx.execute(sql`SELECT 1 FROM folders WHERE id = ${folderId}::uuid FOR UPDATE`)
     if (body.action === 'document_transaction') {
       const mutation = await applyDocument(tx, viewerId, folderId, body)
@@ -799,6 +803,8 @@ export async function actOnFolderPage(
            which made it a gap rather than a hazard, and it existed because the
            rule was written down in three places and this was a fourth spelling
            of it. */
+        // A `page` block is its sub-page's name and nothing else (wave 2).
+        if (String(block.kind) === 'page') return { kind: 'not_convertible' }
         if (
           body.width_pct != null &&
           !(WIDTH_BLOCK_KINDS as readonly string[]).includes(String(block.kind))

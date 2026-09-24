@@ -119,8 +119,10 @@ Task's own blocks. Read the next number off the open branches, as above.
 /*
 **7 to 8 on 2026-09-24, wave 2 (pages in pages).** Every folder gains
 `parent_folder_id`, null when the parent is not in this document. A `page`
-block (a child page's home in its parent's document) arrives with the
-document ops; workflow files will carry it as a link. Read the next number off
+block (a child page's home in its parent's document) names its page in
+`ref_folder_id`, null likewise when that page is not in this document; blocks
+also gain 0038's `toggleable`. Workflow files record a `page` block as
+omitted, as they do a `folder_ref` (see WORKFLOW_OMITTED_BLOCK_KINDS). Read the next number off
 the open branches, as above.
 */
 export const EXPORT_VERSION = 8
@@ -250,6 +252,8 @@ export const exportBlock = z.object({
   file_id: z.uuid().nullable(),
   ref_folder_id: z.uuid().nullable(),
   width_pct: z.number().int().nullable(),
+  /** 0038's toggle heading: true when a heading folds its children. */
+  toggleable: z.boolean().nullable(),
   updated_at: z.string(),
 })
 export type ExportBlock = z.infer<typeof exportBlock>

@@ -282,6 +282,11 @@ export const WORKFLOW_OMITTED_BLOCK_KINDS = [
   'audio',
   'video',
   'folder_ref',
+  /* Wave 2's sub-page block. Not written as a link to the page: a Dana link
+     is `/folders/<id>`, an id of the exporting account, which is the one
+     thing this format promises not to carry (#185), and it would name nothing
+     in the importing account. The placeholder records that it was there. */
+  'page',
 ] as const
 export type WorkflowOmittedBlockKind = (typeof WORKFLOW_OMITTED_BLOCK_KINDS)[number]
 
