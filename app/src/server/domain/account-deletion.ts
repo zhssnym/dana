@@ -325,6 +325,13 @@ export const USER_CASCADE_DISPOSALS: readonly UserCascadeDisposal[] = [
     why: "A like carries no text and names nobody on the wire: commentSelect answers a count and the viewer's own bit, and 4.15 calls it the whole reaction set. It is therefore not one of 8.10's three surviving references, and it is the same shape as my_day_entries and connections, which this transaction already deletes — a per-person marker on a shared object. What a remaining member sees change is one number on a comment.",
   },
   {
+    fk: 'discussion_reads_user_id_fkey',
+    table: 'discussion_reads',
+    disposition: 'deleted',
+    where: 'step 6c, in this file',
+    why: "Migration 0048's read marker: when this account last opened a Discussion. It is this account's own unread state, carries no text, and means nothing once the account is gone; nobody else ever reads it.",
+  },
+  {
     fk: 'labels_owner_user_id_fkey',
     table: 'labels',
     disposition: 'deleted',
@@ -403,7 +410,7 @@ export const USER_CASCADE_DISPOSALS: readonly UserCascadeDisposal[] = [
  * returns. Nothing here reads or writes the sessions table, and nothing here
  * scrubs the user row: after this function the account still exists, owns no
  * folder, holds no membership, appears on no roster, offers no pending
- * invite, and holds no row in any of step 6c's ten personal tables.
+ * invite, and holds no row in any of step 6c's eleven personal tables.
  */
 export async function deleteAccountData(
   tx: Executor,
@@ -543,7 +550,7 @@ export async function deleteAccountData(
   Written as one statement per table rather than a loop over names: the
   guard reads this source for `DELETE FROM <table>`, and a table swept by an
   interpolated identifier would be invisible to it and to grep alike. The
-  order is alphabetical and carries no meaning, none of the ten referencing
+  order is alphabetical and carries no meaning, none of the eleven referencing
   another; `shelves` cascades its page blocks and `labels` its assignment
   rows in task_personal_labels and folder_personal_labels, both of which are
   cascades off a real DELETE and do fire.
@@ -552,6 +559,10 @@ export async function deleteAccountData(
     await rowsOf(
       tx,
       sql`DELETE FROM comment_likes WHERE user_id = ${userId} RETURNING 1 AS one`,
+    ),
+    await rowsOf(
+      tx,
+      sql`DELETE FROM discussion_reads WHERE user_id = ${userId} RETURNING 1 AS one`,
     ),
     await rowsOf(
       tx,
@@ -614,7 +625,7 @@ export interface AccountDeletionCounts {
   myDayEntries: number
   /** Files rows step 3's cascades dropped plus the rows step 6a deleted. */
   files: number
-  /** Step 6c's total across its ten tables: the rows fourteen inert
+  /** Step 6c's total across its eleven tables: the rows fourteen inert
    * cascades promised to take and did not (issue #253). One number rather
    * than ten, because the deletion log's question is whether the sweep ran
    * and reached something, not which table held what. */

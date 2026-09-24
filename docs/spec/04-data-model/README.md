@@ -48,3 +48,4 @@ what a page is called.
 | 4.31 | [`04.31-discussions.md`](04.31-discussions.md) | 4.31 discussions |
 | 4.32 | [`04.32-discussion-outcomes.md`](04.32-discussion-outcomes.md) | 4.32 discussion_outcomes |
 | 4.33 | [`04.33-discussion-input-rounds.md`](04.33-discussion-input-rounds.md) | 4.33 discussion_input_rounds, options and responses |
+| 4.34 | [`04.34-discussion-reads.md`](04.34-discussion-reads.md) | 4.34 discussion_reads |

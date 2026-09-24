@@ -82,7 +82,6 @@ import { INVITE_BY_EMAIL, STEP_CAP_NOTICE } from "./task-copy.js"
    `shared/tasks.ts` spends it inline in a zod `max`. */
 const STEP_CAP = 50
 import {
-  commentCount,
   reminderChipValue,
   repeatSummary,
   stepCount,
@@ -956,11 +955,12 @@ export function TaskCard({
   const attachments = task.attachments ?? []
   const labels = task.labels ?? []
   const steps = task.steps ?? []
-  /* `?tab=discussion` (a backlink from a post) opens on the Discussion tab. */
+  /* `?tab=discussion` (a notification or a Dana Link to a post) opens on the
+     Discussion tab. /app/tasks/:id is always the full page, and the router has
+     already pushed the address when this first renders. */
   const [tab, setTab] = useState<"notes" | "discussion">(() =>
     new URLSearchParams(globalThis.location?.search ?? "").get("tab") === "discussion" ? "discussion" : "notes",
   )
-  const comments = commentCount(task.comments)
 
   const showDate = Boolean(task.due) || adding === "date"
   const showReminder = Boolean(task.reminder) || adding === "reminder"
@@ -1236,16 +1236,13 @@ export function TaskCard({
                 globalThis.requestAnimationFrame(() => document.getElementById(`task-tab-${next}`)?.focus())
               }}
               className={cn(
-                "-mb-px flex shrink-0 items-baseline gap-1.5 border-b-2 py-2 text-sm whitespace-nowrap outline-none transition-colors focus-visible:text-foreground",
+                "-mb-px flex shrink-0 items-baseline border-b-2 py-2 text-sm whitespace-nowrap outline-none transition-colors focus-visible:text-foreground",
                 tab === key
                   ? "border-foreground font-medium text-foreground"
                   : "border-transparent text-muted-foreground hover:text-foreground",
               )}
             >
               {name}
-              {key === "discussion" && comments > 0 ? (
-                <span className="text-xs font-normal text-muted-foreground tabular-nums">{comments}</span>
-              ) : null}
             </button>
           ))}
         </div>

@@ -7,7 +7,9 @@ Slack's stream, calm: posts oldest first (`created_at`, then id), grouped by
 the posts that follow within five minutes are just their text, their time
 showing in the face's gutter when the post is pointed at or tapped. A new day
 draws a divider. A reply carries one small line naming the post it answers
-(7.14 keeps one level), which scrolls there; a reply always starts a group.
+(7.14 keeps one level), which scrolls there, unless it answers the post right
+above it (`grouping.ts`). A thread opens at its first post from someone else
+since the reader last read it (`openAt`), otherwise at its end.
 
 What each post offers is `ThreadAuthority` (lib/thread.ts), which the caller
 has already multiplied by the thread's own state (a closed Discussion offers
@@ -50,7 +52,11 @@ function editedFileIds(next: PostContent, previous: PostContent | null | undefin
 const ON_POST =
   'opacity-0 transition-opacity duration-[var(--duration-fast)] group-hover:opacity-100 group-focus-within:opacity-100 group-focus:opacity-100'
 const BAR_BUTTON =
-  'flex size-7 items-center justify-center rounded-sm text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring'
+  'flex size-7 items-center justify-center rounded-sm text-muted-foreground outline-none hover:bg-accent hover:text-foreground'
+/* A touch screen has no hover: the tapped post's bar is a row under its text
+   rather than a float over the line above it. */
+const BAR_PLACE =
+  'absolute -top-3 right-2 z-10 pointer-coarse:static pointer-coarse:mt-1 pointer-coarse:hidden pointer-coarse:w-fit pointer-coarse:opacity-100 pointer-coarse:group-focus-within:flex pointer-coarse:group-focus:flex'
 
 function EditorFallback(): React.JSX.Element {
   return <div className="h-10 rounded-lg border border-border bg-background" aria-busy="true" />
@@ -74,6 +80,7 @@ export function ThreadPosts({
   may,
   closed,
   autoFocus = false,
+  openAt,
   post,
   onRefused,
 }: {
@@ -89,6 +96,10 @@ export function ThreadPosts({
   /** Drawn instead of the composer (a closed thread). */
   readonly closed?: React.ReactNode
   readonly autoFocus?: boolean
+  /** Where the thread opens: after this instant (the reader's last read),
+   * at the first post by someone else; null opens at the end. Absent, the
+   * thread does not move (a task's tab). */
+  readonly openAt?: string | null
   readonly post: (body: PostCommentBody) => Promise<unknown>
   /** A write the server refused (403/409): the thread changed under us. */
   readonly onRefused?: (error: unknown) => void
@@ -139,6 +150,21 @@ export function ThreadPosts({
     goTo(wanted)
   })
 
+  /* Opening a thread lands where the reading starts, as Slack's does: the
+     first post someone else wrote since the last read, else the end. Once,
+     and never over a `#post-` arrival. */
+  const end = useRef<HTMLDivElement>(null)
+  const landed = useRef(false)
+  useEffect(() => {
+    if (landed.current || openAt === undefined || comments === undefined) return
+    landed.current = true
+    if (/^#post-/.test(window.location.hash)) return
+    const since = openAt === null ? Number.NaN : Date.parse(openAt)
+    const first = posts.find((line) => line.author_id !== viewerId && Date.parse(line.created_at) > since)
+    if (first !== undefined) document.getElementById(`post-${first.id}`)?.scrollIntoView({ block: 'center' })
+    else end.current?.scrollIntoView({ block: 'end' })
+  })
+
   if (failed) return <InlineError onRetry={onRetry} />
   if (loading) return <SkeletonList />
 
@@ -146,7 +172,7 @@ export function ThreadPosts({
     <div className="min-w-0 space-y-3">
       {posts.length > 0 ? (
         <ol className="-mx-2 min-w-0" aria-label="Posts">
-          {placed.map(({ line, head, day }) => {
+          {placed.map(({ line, head, day, quote }) => {
             const author = personOf(line.author_id)
             const mine = line.author_id === viewerId
             const parent = line.parent_id === null ? undefined : byId.get(line.parent_id)
@@ -195,26 +221,24 @@ export function ThreadPosts({
                   <div className="min-w-0 flex-1">
                     {head ? (
                       <div className="flex min-w-0 items-baseline gap-2">
-                        <span className="min-w-0 truncate text-sm font-semibold text-foreground">{author.name}</span>
+                        <span className="min-w-0 truncate text-sm font-medium text-foreground">{author.name}</span>
                         <time dateTime={line.created_at} title={fullDate} className="shrink-0 text-xs text-muted-foreground">
                           {timeOf(line.created_at)}
                         </time>
                       </div>
                     ) : null}
-                    {line.parent_id !== null ? (
-                      parent !== undefined ? (
-                        <button
-                          type="button"
-                          className="flex max-w-full min-w-0 items-center gap-1 rounded-sm text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-                          onClick={() => { goTo(parent.id) }}
-                        >
-                          <Reply className="size-3 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-                          <span className="shrink-0">{personOf(parent.author_id).name}:</span>
-                          <span className="min-w-0 truncate">{gist(parent)}</span>
-                        </button>
-                      ) : (
-                        <p className="text-xs text-muted-foreground">Reply to a deleted post</p>
-                      )
+                    {/* A reply whose post was deleted keeps its words and
+                        loses its parent (0047), so it reads as a post. */}
+                    {quote && parent !== undefined ? (
+                      <button
+                        type="button"
+                        className="flex max-w-full min-w-0 items-center gap-1 rounded-sm text-xs text-muted-foreground outline-none hover:text-foreground"
+                        onClick={() => { goTo(parent.id) }}
+                      >
+                        <Reply className="size-3 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+                        <span className="shrink-0">{personOf(parent.author_id).name}:</span>
+                        <span className="min-w-0 truncate">{gist(parent)}</span>
+                      </button>
                     ) : null}
                     <div className="min-w-0">
                       {editing === line.id && folderId !== null ? (
@@ -246,7 +270,7 @@ export function ThreadPosts({
                         aria-label={line.liked ? `Remove like (${String(line.likes)})` : `Like (${String(line.likes)})`}
                         disabled={!may.likeComment}
                         className={cn(
-                          'mt-1 mb-0.5 inline-flex items-center gap-1 rounded-full border px-2 py-px text-xs tabular-nums outline-none transition-colors duration-[var(--duration-fast)] focus-visible:ring-2 focus-visible:ring-ring',
+                          'mt-1 mb-0.5 inline-flex items-center gap-1 rounded-full border px-2 py-px text-xs tabular-nums outline-none transition-colors duration-[var(--duration-fast)]',
                           line.liked
                             ? 'border-dana-accent-300 bg-dana-accent-50 text-foreground'
                             : 'border-border text-muted-foreground hover:text-foreground',
@@ -257,10 +281,9 @@ export function ThreadPosts({
                         {line.likes}
                       </button>
                     ) : null}
-                  </div>
 
                   {hasBar && editing !== line.id ? (
-                    <div className={cn('absolute -top-3 right-2 z-10 flex items-center rounded-md border border-border bg-background p-0.5', ON_POST)}>
+                    <div className={cn('flex items-center rounded-md border border-border bg-background p-0.5', ON_POST, BAR_PLACE)}>
                       {may.likeComment ? (
                         <button
                           type="button"
@@ -305,6 +328,7 @@ export function ThreadPosts({
                       ) : null}
                     </div>
                   ) : null}
+                  </div>
                 </article>
               </li>
             )
@@ -318,10 +342,12 @@ export function ThreadPosts({
         <div className="space-y-1">
           {replyTarget !== undefined ? (
             <p className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-              <span className="min-w-0 truncate">Replying to {personOf(replyTarget.author_id).name}</span>
+              <span className="min-w-0 truncate">
+                Replying to {personOf(replyTarget.author_id).name}: {gist(replyTarget)}
+              </span>
               <button
                 type="button"
-                className="shrink-0 rounded-sm underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                className="shrink-0 rounded-sm underline-offset-2 outline-none hover:text-foreground hover:underline"
                 onClick={() => { setReplyTo(null) }}
               >
                 Cancel
@@ -334,22 +360,28 @@ export function ThreadPosts({
               placeholder={posts.length === 0 ? 'Write the first post…' : 'Write a reply…'}
               autoFocus={autoFocus}
               focusSignal={focus}
-              onSubmit={(content) =>
-                post({
+              onSubmit={(content) => {
+                /* The reply line goes with the words that leave the composer;
+                   a refusal brings both back. */
+                const target = replyTarget
+                setReplyTo(null)
+                return post({
                   content,
-                  ...(replyTarget === undefined ? {} : { parent_id: replyTarget.id }),
+                  ...(target === undefined ? {} : { parent_id: target.id }),
                   ...(postFileIds(content).length > 0 ? { file_ids: [...new Set(postFileIds(content))] } : {}),
-                }).then(
-                  () => { setReplyTo(null) },
-                  (error: unknown) => { onRefused?.(error); throw error },
-                )
-              }
+                }).catch((error: unknown) => {
+                  if (target !== undefined) setReplyTo(target.id)
+                  onRefused?.(error)
+                  throw error
+                })
+              }}
             />
           </Suspense>
         </div>
       ) : posts.length === 0 ? (
         <p className="text-sm text-muted-foreground">No posts yet.</p>
       ) : null}
+      <div ref={end} aria-hidden="true" />
 
       {deleting !== null ? (
         <ConfirmDialog

@@ -1,43 +1,17 @@
 /*
 The notifications bell of 9.12.
 
-**The name is the badge said aloud.** 9.1's names table fixes the bell at
-"Notifications", suffixed ", N unread" while any are, and AC-218 reads the
-count out of the accessible name rather than off the visual badge, which is
-the point of putting it there: the badge is aria-hidden and the name is the
-record.
+The accessible name is the record: "Notifications", suffixed ", N unread"
+while any are (9.1, AC-218). The trigger shows only a dot; no count is drawn.
 
-**The sentence is the event's own.** The wire carries 4.13's verb and, where the chokepoint
-recorded one, a human phrase in `detail` ("assigned to Imran"). The row
-renders the actor emphasised, the act, the thing's name, and `formatAgo`'s
-elapsed time, which is 9.12's anatomy on the columns 7.12 actually answers.
+A row is a pointer (9.12): pressing it marks it read and opens its subject. A
+post opens its thread at the post: a task on its Discussion tab
+(`?tab=discussion`), a Discussion by id, otherwise the folder. Posts in one
+thread and one read state fold into one row (`notifications-grouping.ts`);
+mentions never fold. "Mark all read" is the only other verb.
 
-**Actors resolve through the roster already in the cache.** An actor who can
-reach the viewer's notifications shares a folder with them, so the
-connections read the People screen and the sharing panel already use carries
-their name; a face this client cannot resolve says "Someone" rather than
-leaking an id. The map is by id, never by name (11.15's v2 hazard).
-
-**A row is a pointer, not a task** (9.12): pressing it marks that row read
-and navigates to the subject's address, a task at /app/tasks/:id, a folder
-or a shelf at its page, a comment at the folder that holds its thread. No
-per-row actions, no hand deletion; "Mark all read" is the surface's only
-other verb and renders only while something is unread.
-
-**The trigger is a small square bell in the sidebar's head row.** Unread is
-told by a dot on it and by tone in the list, never by hue: the dot is
-`bg-foreground` because roles invert with the theme and fixed values go
-white-on-white. The count lives in the accessible name.
-
-Liveness: the list refetches on focus like every read, and polls only
-while the popover is open (`useNotifications(open)`), and nothing more.
-
-**Each row leads with the actor's face**, so a feed about what people did to
-you shows them as well as naming them. The roster this file already reads for
-the name supplies the initials, so it costs a component and no request.
-
-It lives in `components/`, the reusable layer, rather than `shell/`, the app
-frame.
+Actors resolve through the connections roster already cached, by id; one this
+client cannot resolve reads "Someone". The list polls only while open.
 */
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
@@ -59,6 +33,7 @@ import { PersonFace } from './person-face.js'
 import { cn } from './ui/utils.js'
 import type { NotificationLine } from '../../shared/events.js'
 import { paths } from '../routes.js'
+import { actorsPhrase, groupNotifications, isPost, placeOf, type BellGroup } from './notifications-grouping.js'
 
 /** 9.1's names table: the fixed string, and the suffix while any are unread. */
 function bellName(unread: number): string {
@@ -83,10 +58,9 @@ const VERB_SENTENCE: Record<string, string> = {
 }
 
 /**
- * The subject's address (9.12): a task in the viewer's preferred surface via
- * /app/tasks/:id, a folder or shelf at its page, a comment at the folder
- * whose thread holds it. A comment with no folder cannot happen (4.15 scopes
- * every comment), but a fallback to Desk beats a dead control.
+ * The subject's address (9.12): a task via /app/tasks/:id, a folder or shelf
+ * at its page, a post at its thread with `#post-<id>` bringing it into view.
+ * A comment with no folder cannot happen (4.15), but Today beats a dead control.
  */
 function subjectPath(row: NotificationLine): string {
   const event = row.event
@@ -98,47 +72,39 @@ function subjectPath(row: NotificationLine): string {
     case 'shelf':
       return paths.shelf(event.subject_id)
     case 'comment':
-      /* A comment lands on its thread, opened: the task
-         when it sits on one, the folder page otherwise, each told to expand
-         its conversation by the query the page reads. */
-      /* `#post-<id>` asks the thread to bring the post into view. */
+      /* The same parameter a Dana Link to a task's post uses (`dana-link.ts`). */
       if (row.task_id !== null) {
-        return `${paths.task(row.task_id)}?${CONVERSATION_PARAM}=open#post-${event.subject_id}`
+        return `${paths.task(row.task_id)}?tab=discussion#post-${event.subject_id}`
       }
       if (event.folder_id === null) return paths.today
-      /* A post in a Discussion opens that thread, not the page's list of
-         threads; the server names it (`discussion_id`, issue #320). */
       if (row.discussion_id !== undefined && row.discussion_id !== null) {
         return `${paths.folder(event.folder_id)}?discussion=${row.discussion_id}#post-${event.subject_id}`
       }
-      return `${paths.folder(event.folder_id)}?${CONVERSATION_PARAM}=open`
+      return `${paths.folder(event.folder_id)}?conversation=open`
   }
 }
 
-/** The query a page reads to open its conversation on arrival. */
-export const CONVERSATION_PARAM = 'conversation'
+/** "posted in "X"", from either stored form of a post's detail. */
+function postedIn(row: NotificationLine): string {
+  const place = placeOf(row.event.detail)
+  return place === null ? 'posted' : `posted in ${place}`
+}
 
 /**
- * The row's sentence (9.12: actor, act, thing).
- *
- * Two acts are said for the reader rather than for the record: an assignment
- * reaches only its assignee, so "assigned to X" reads "assigned you"; and a
- * comment's detail already names its place, so the snippet goes on its own
- * line, quoted. Everything else keeps the verb and the thing's name.
+ * A single row's sentence (9.12: actor, act, thing). An assignment reaches
+ * only its assignee, so it reads "assigned you"; a post or a mention in a
+ * thread quotes the post on its own line.
  */
 function sentenceOf(row: NotificationLine): { readonly act: string; readonly quote: string | null } {
   const event = row.event
   const detail = event.detail ?? ''
-  // Wave 2 (W-D): only the person named ever holds this row. A post says
-  // its thread ("mentioned you in <thread>") and quotes its words; a page or
-  // a Task is named.
   if (event.verb === 'mentioned') {
     return event.subject_kind === 'comment'
       ? { act: detail.startsWith('mentioned you') ? detail : 'mentioned you', quote: event.subject_name }
       : { act: `mentioned you in "${event.subject_name}"`, quote: null }
   }
   if (event.subject_kind === 'comment') {
-    return { act: detail.startsWith('commented') ? detail : 'commented', quote: event.subject_name }
+    return { act: postedIn(row), quote: event.subject_name }
   }
   if (detail.startsWith('assigned to ')) {
     return { act: `assigned you "${event.subject_name}"`, quote: null }
@@ -182,10 +148,27 @@ export function NotificationsBell({
     people.set(me.data.user.id, { name: myName, image: me.data.user.avatar_url })
   }
 
-  function openRow(row: NotificationLine): void {
-    if (row.read_at === null) markRead.mutate(row.id)
+  function nameOf(actorId: string): string {
+    return people.get(actorId)?.name ?? 'Someone'
+  }
+
+  /* Opens the newest post of the group and reads every unread row in it. */
+  function openGroup(group: BellGroup): void {
+    for (const row of group.rows) if (row.read_at === null) markRead.mutate(row.id)
     setOpen(false)
-    void navigate(subjectPath(row))
+    const newest = group.rows[0]
+    if (newest !== undefined) void navigate(subjectPath(newest))
+  }
+
+  /* One person or several, "posted in" the place, and how many are new. */
+  function lineOf(group: BellGroup): { readonly actor: string; readonly act: string; readonly quote: string | null } {
+    const newest = group.rows[0] as NotificationLine
+    if (group.rows.length === 1 || !isPost(newest)) {
+      return { actor: nameOf(newest.event.actor_id), ...sentenceOf(newest) }
+    }
+    const names = [...new Set(group.rows.map((row) => row.event.actor_id))].map(nameOf)
+    const fresh = group.read ? '' : ` · ${group.rows.length} new`
+    return { actor: actorsPhrase(names), act: `${postedIn(newest)}${fresh}`, quote: newest.event.subject_name }
   }
 
   return (
@@ -196,7 +179,7 @@ export function NotificationsBell({
             type="button"
             data-popup-open={open ? '' : undefined}
             className={cn(
-              'relative flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30 data-popup-open:bg-sidebar-accent data-popup-open:text-foreground [&_svg]:size-4',
+              'relative flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground data-popup-open:bg-sidebar-accent data-popup-open:text-foreground [&_svg]:size-4',
               className,
             )}
             aria-label={bellName(unread)}
@@ -217,20 +200,19 @@ export function NotificationsBell({
         side={side}
         className="w-[min(360px,calc(100vw-16px))] p-1"
       >
-        <div className="flex h-8 items-center justify-between px-2">
-          <p className="text-xs font-medium text-muted-foreground">Notifications</p>
-          {unread > 0 ? (
+        {unread > 0 ? (
+          <div className="flex h-8 items-center justify-end px-2">
             <button
               type="button"
               onClick={() => {
                 markAllRead.mutate()
               }}
-              className="rounded-sm px-1.5 py-0.5 text-xs text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30"
+              className="rounded-sm px-1.5 py-0.5 text-xs text-muted-foreground outline-none hover:bg-accent hover:text-foreground"
             >
               Mark all read
             </button>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
         {rows.length === 0 ? (
           /* 9.12's empty state, word for word. */
           <p className="px-2 py-6 text-center text-sm text-muted-foreground">
@@ -238,46 +220,48 @@ export function NotificationsBell({
             lands here.
           </p>
         ) : (
-          rows.map((row) => {
-            const read = row.read_at !== null
-            const person = people.get(row.event.actor_id) ?? null
-            const actor = person?.name ?? 'Someone'
-            const { act, quote } = sentenceOf(row)
+          groupNotifications(rows).map((group) => {
+            const newest = group.rows[0] as NotificationLine
+            const person = people.get(newest.event.actor_id) ?? null
+            const face = person?.name ?? 'Someone'
+            const { actor, act, quote } = lineOf(group)
             return (
               <button
-                key={row.id}
+                key={group.key}
                 type="button"
                 onClick={() => {
-                  openRow(row)
+                  openGroup(group)
                 }}
-                className="flex w-full items-start gap-2.5 rounded-sm px-2 py-2 text-left outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/30"
+                className="flex w-full items-start gap-2.5 rounded-sm px-2 py-2 text-left outline-none hover:bg-accent"
               >
                 <PersonFace
                   className="mt-0.5 shrink-0"
-                  id={row.event.actor_id}
-                  name={actor}
-                  initials={initialsOf(actor)}
+                  id={newest.event.actor_id}
+                  name={face}
+                  initials={initialsOf(face)}
                   image={person?.image ?? null}
                 />
                 <span className="min-w-0 flex-1">
-                  <span
-                    className={cn(
-                      'block text-sm',
-                      read ? 'text-muted-foreground' : 'text-foreground',
-                    )}
-                  >
-                    <span className="font-medium">{actor}</span> {act}
+                  <span className="flex items-baseline gap-2">
+                    <span
+                      className={cn(
+                        'min-w-0 flex-1 text-sm',
+                        group.read ? 'text-muted-foreground' : 'text-foreground',
+                      )}
+                    >
+                      <span className="font-medium">{actor}</span> {act}
+                    </span>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {formatAgo(newest.created_at, Date.now())}
+                    </span>
                   </span>
                   {quote === null ? null : (
                     <span className="mt-0.5 block truncate text-xs text-muted-foreground">
                       “{quote}”
                     </span>
                   )}
-                  <span className="mt-0.5 block text-xs text-muted-foreground">
-                    {formatAgo(row.created_at, Date.now())}
-                  </span>
                 </span>
-                {read ? null : (
+                {group.read ? null : (
                   <span aria-hidden="true" className="mt-2 size-1.5 shrink-0 rounded-full bg-foreground" />
                 )}
               </button>

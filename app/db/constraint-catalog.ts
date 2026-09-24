@@ -903,10 +903,12 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
         onDelete: 'cascade',
       },
       {
+        // Migration 0047: a reply outlives the post it answered; deleting
+        // the parent nulls parent_id rather than taking others' words.
         name: 'comments_parent_id_fkey',
         columns: ['parent_id'],
         references: { table: 'comments', columns: ['id'] },
-        onDelete: 'cascade',
+        onDelete: 'set null',
       },
       {
         name: 'comments_task_scope_fkey',
@@ -1151,6 +1153,29 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
       },
     ],
     indexes: [],
+  },
+  // Migration 0048: when each person last opened each Discussion.
+  discussion_reads: {
+    primaryKey: { name: 'discussion_reads_pkey', columns: ['discussion_id', 'user_id'] },
+    uniques: [],
+    checks: [],
+    foreignKeys: [
+      {
+        name: 'discussion_reads_discussion_id_fkey',
+        columns: ['discussion_id'],
+        references: { table: 'discussions', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+      {
+        name: 'discussion_reads_user_id_fkey',
+        columns: ['user_id'],
+        references: { table: 'users', columns: ['id'] },
+        onDelete: 'cascade',
+      },
+    ],
+    indexes: [
+      { name: 'discussion_reads_user_id_idx', unique: false, columns: ['user_id'], partial: false },
+    ],
   },
   comment_likes: {
     primaryKey: { name: 'comment_likes_pkey', columns: ['comment_id', 'user_id'] },

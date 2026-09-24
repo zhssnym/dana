@@ -308,3 +308,29 @@
 .bn-formatting-toolbar:not(:has(button)) { display: none; }
 /* The block menu takes focus to read its keys; that is not a place to ring. */
 .dana-block-menu:focus-visible { outline: none !important; }
+
+/* ---- r5-discuss: the post composer's one hint. The composer
+   (`thread/PostEditor.tsx`) says only its own words ("Write a reply…",
+   "Write the first post…", from `--dana-canvas-placeholder`), focused or
+   not, and only while it is empty: the page's "Type '/' for commands" and
+   its heading/list hints are the page's, not a message box's. A 1px start
+   inset keeps the hint's first letter out of the scroller's clip on phones,
+   where the canvas's own left padding is zeroed. */
+.dana-writing-canvas.dana-post-editor { padding-inline-start: 1px; }
+.dana-writing-canvas.dana-post-editor .bn-editor.ProseMirror-focused [data-is-empty-and-focused] > .bn-block-content[data-content-type]:has(.ProseMirror-trailingBreak:only-child)::after,
+.dana-writing-canvas.dana-post-editor .bn-editor.ProseMirror-focused .bn-block-content[data-content-type][data-is-empty-and-focused]:has(.ProseMirror-trailingBreak:only-child)::after {
+  content: none;
+}
+.dana-writing-canvas.dana-post-editor .bn-editor > .bn-block-group > .bn-block-outer:only-child > .bn-block > .react-renderer > .bn-block-content[data-content-type='paragraph']:has(.ProseMirror-trailingBreak:only-child) {
+  position: relative;
+}
+.dana-writing-canvas.dana-post-editor .bn-editor > .bn-block-group > .bn-block-outer:only-child > .bn-block > .react-renderer > .bn-block-content[data-content-type='paragraph']:has(.ProseMirror-trailingBreak:only-child)::after {
+  content: var(--dana-canvas-placeholder, none);
+  position: absolute;
+  inset-inline-start: 0;
+  top: 0;
+  color: var(--muted-foreground);
+  font-style: normal;
+  pointer-events: none;
+  white-space: nowrap;
+}

@@ -453,10 +453,11 @@ export async function createComment(
       subjectId: commentId,
       subjectName: snippetOf(words, fileName),
       folderId,
-      /* The detail names where the comment landed, so the
-         bell reads "commented on 'Book the van'" rather than "created
-         <snippet>, commented". 4.13 caps detail at 200. */
-      detail: `commented on "${placeName}"`.slice(0, 200),
+      /* The detail names where the post landed, so the bell reads
+         "posted in 'Book the van'" rather than "created <snippet>".
+         Rows stored before round 5 say "commented on"; the bell reads
+         both. 4.13 caps detail at 200. */
+      detail: `posted in "${placeName}"`.slice(0, 200),
       recipients: [...participants.map((row) => String(row.author_id)), ...taskPeople].filter((id) => !mentioned.has(id)),
     })
 
@@ -906,8 +907,9 @@ export async function editComment(
  * Full-control member who owns nothing does. 4.15 is the table and says
  * nothing about who may delete; 7.14 is where the rule lives.
  *
- * The replies cascade with the row (4.15's FK), their words going with the
- * thread they answered.
+ * Replies survive: migration 0047 made 4.15's parent key ON DELETE SET NULL,
+ * so each reply stays in the thread as an ordinary post (parent_id NULL),
+ * its author's words intact. Only this row goes.
  */
 export async function deleteComment(
   db: Db,

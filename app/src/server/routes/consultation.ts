@@ -36,6 +36,7 @@ import {
   folderOfDiscussion,
   listDiscussions,
   listOutcomes,
+  markDiscussionRead,
   purgeDiscussion,
   readDiscussion,
   readOutcome,
@@ -266,6 +267,25 @@ export function createConsultationRouter(
       const parsed = parseBody(reopenDiscussionBody, req, res, securityLog)
       if (parsed === null) return
       answer(res, 200, await reopenDiscussion(db, viewer(req), discussionId))
+    },
+  )
+
+  /** The viewer opened the thread (round 5): their read marker, and their
+   * notifications about its posts marked read. Idempotent, so PUT. Under
+   * `mutationLimit` like the notification read routes in routes/events.ts. */
+  router.put(
+    '/discussions/:id/read',
+    requireSession,
+    requireCsrf,
+    mutationLimit,
+    async (req: Request, res: Response) => {
+      const db = database(res)
+      if (db === null) return
+      const discussionId = await visibleDiscussion(req, res)
+      if (discussionId === null) return
+      const outcome = await markDiscussionRead(db, viewer(req), discussionId)
+      if (refused(res, outcome)) return
+      res.status(204).end()
     },
   )
 

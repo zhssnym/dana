@@ -14,7 +14,8 @@ A 409 (`discussion_frozen`, a resolved Discussion refusing an edit, a second
 open General discussion) and a 403 carry the server's own sentence, which the
 mutation cache already toasts verbatim (`writeFailureMessage`).
 */
-import { useInfiniteQuery, useMutation, useQuery } from '@tanstack/react-query'
+import { useCallback } from 'react'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
   UseInfiniteQueryResult,
   UseMutationResult,
@@ -44,8 +45,14 @@ export type DiscussionListPage = z.infer<typeof discussionListResponse>
 const outcomeResponse = z.object({ outcome: outcomeSchema, discussion: discussionSchema })
 export type OutcomeWithDiscussion = z.infer<typeof outcomeResponse>
 
-/** How often an open Discussion surface re-reads, D3's polite poll as `useThread`'s. */
-const POLL_MS = 30_000
+/* r5 discuss: near-live without sockets. An open thread re-reads every few
+   seconds and the list of threads every twenty, only while the tab is visible
+   (TanStack pauses an interval in a hidden tab), and every read refetches on
+   focus as all reads do. */
+const THREAD_POLL_MS = 4_000
+const LIST_POLL_MS = 20_000
+/** The open thread's own row: closed, renamed or trashed by someone else. */
+const DISCUSSION_POLL_MS = 15_000
 
 /* ------------------------------------------------------------------ *
  * Reads
@@ -72,10 +79,56 @@ export function useDiscussions(
       }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.next_cursor ?? undefined,
+    refetchInterval: LIST_POLL_MS,
   })
 }
 
-/* GET /discussions/:id is `useDiscussion` in queries.ts (FE06's, shared). */
+/* GET /discussions/:id is `useDiscussion` in queries.ts (FE06's, shared).
+   This is the same read under the same key, polled while the thread is open:
+   TanStack runs the shortest interval among a key's observers. */
+export function useOpenDiscussion(id: string): UseQueryResult<Discussion> {
+  return useQuery({
+    queryKey: queryKeys.discussion(id),
+    queryFn: () => getPlain(discussionSchema, `/discussions/${id}`),
+    refetchInterval: DISCUSSION_POLL_MS,
+  })
+}
+
+/** A task's conversation while its Discussion tab is open: `useThread`'s key
+ * and read (queries.ts), polled as a Discussion's is. */
+export function useTaskThreadLive(folderId: string | null, taskId: string): UseQueryResult<GetThreadResponse> {
+  return useQuery({
+    queryKey: queryKeys.thread(folderId ?? '', taskId),
+    queryFn: () => getPlain(getThreadResponse, `/folders/${folderId ?? ''}/comments`, { task: taskId }),
+    enabled: folderId !== null,
+    refetchInterval: THREAD_POLL_MS,
+  })
+}
+
+/**
+ * PUT /discussions/:id/read: this person has read the thread up to now; the
+ * server also marks the thread's post notifications read. Sent outside
+ * `useMutation` on purpose: the mutation cache refetches every query after a
+ * write, and a read mark goes out on every open and every new post seen, so
+ * only the bell and the lists of threads are refreshed.
+ */
+export function useMarkDiscussionRead(): (id: string) => void {
+  const client = useQueryClient()
+  return useCallback(
+    (id: string) => {
+      mutateApi(null, { method: 'PUT', path: `/discussions/${id}/read` }).then(
+        () => {
+          void client.invalidateQueries({ queryKey: queryKeys.notifications() })
+          void client.invalidateQueries({
+            predicate: (query) => query.queryKey[0] === 'folders' && query.queryKey[2] === 'discussions',
+          })
+        },
+        () => undefined,
+      )
+    },
+    [client],
+  )
+}
 
 /** GET /discussions/:id/comments: the Discussion's conversation (7.14). */
 export function useDiscussionThread(id: string | null): UseQueryResult<GetThreadResponse> {
@@ -83,7 +136,7 @@ export function useDiscussionThread(id: string | null): UseQueryResult<GetThread
     queryKey: queryKeys.discussionThread(id ?? ''),
     queryFn: () => getPlain(getThreadResponse, `/discussions/${id}/comments`),
     enabled: id !== null,
-    refetchInterval: id !== null ? POLL_MS : false,
+    refetchInterval: id !== null ? THREAD_POLL_MS : false,
   })
 }
 

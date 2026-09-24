@@ -182,6 +182,13 @@ export const postCommentBody = z
         error: `must name at most ${String(COMMENT_FILE_CAP)} files`,
       })
       .optional(),
+    /* r5 discuss: where a post goes is its address, never its body -- a
+       task's thread is `?task=` on the folder route, a Discussion's is
+       `/discussions/:id/comments`. Sent here they were parsed and dropped,
+       so the post landed somewhere the caller did not ask for with a 201;
+       they are refused by name instead (11.14's `z.never`). */
+    task_id: z.never({ error: 'is not read here: a task comment names its task as ?task= on the address' }).optional(),
+    discussion_id: z.never({ error: 'is not read here: a Discussion post goes to /discussions/:id/comments' }).optional(),
   })
   .refine(
     (comment) => comment.file_id === undefined || comment.file_ids === undefined,

@@ -2086,6 +2086,16 @@ const TABLE = new Map<string, Row>([
     },
   ],
   [
+    'PUT /api/v1/discussions/:id/read',
+    {
+      attempt: (fx) => ({ path: `/discussions/${fx.discussionId}/read` }),
+      stranger: {
+        expected: 404,
+        rule: "7.28: a read marker is a member's own state on a Discussion they can see, so a non-member is 404 and no row is written",
+      },
+    },
+  ],
+  [
     'GET /api/v1/discussions/:id/outcomes',
     {
       attempt: (fx) => ({ path: `/discussions/${fx.discussionId}/outcomes` }),
