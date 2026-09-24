@@ -8,6 +8,8 @@ the sample workspace's confirm and 7.1's `DELETE /me`, whose body carries the
 literal the person typed and after which there is nothing left to navigate a
 signed-in client to.
 */
+import { useState } from 'react'
+
 import { mutateApi } from '../api/http.js'
 import { useBundle } from '../api/queries.js'
 import { SettingsPageContent } from '../components/settings-page-content.js'
@@ -19,6 +21,7 @@ export function SettingsPage(): React.JSX.Element {
   const bundle = useBundle()
   /* Item 60: the sample workspace's row, over the same hook as the strip. */
   const sample = useSampleActs()
+  const [deleting, setDeleting] = useState(false)
 
   return (
     <>
@@ -36,18 +39,30 @@ export function SettingsPage(): React.JSX.Element {
         onRemoveSample={sample.askRemove}
         onRestoreSample={sample.restore}
         previewState={bundle.isPending ? 'loading' : bundle.isError ? 'error' : null}
-        onDeleteAccount={() => {
-          /* 7.1 requires the literal string in the body, and the server runs
-             8.10 and destroys every session. */
-          void mutateApi(null, {
-            method: 'DELETE',
-            path: '/me',
-            body: { confirm: 'DELETE' },
-          }).then(() => {
-            window.location.assign(paths.landing)
-          })
-        }}
+        onDeleteAccount={() => setDeleting(true)}
       />
+      {deleting ? (
+        <ConfirmDialog
+          message="Delete your Dana account?"
+          description="Shared pages you own must be handed on or deleted first, and Dana names them; private pages and their tasks are deleted for good."
+          requireText="DELETE"
+          confirmLabel="Delete account"
+          cancelLabel="Cancel"
+          onCancel={() => setDeleting(false)}
+          onContinue={() => {
+            setDeleting(false)
+            /* 7.1 requires the literal string in the body, and the server runs
+               8.10 and destroys every session. */
+            void mutateApi(null, {
+              method: 'DELETE',
+              path: '/me',
+              body: { confirm: 'DELETE' },
+            }).then(() => {
+              window.location.assign(paths.landing)
+            })
+          }}
+        />
+      ) : null}
       {sample.confirming ? (
         <ConfirmDialog
           message={SAMPLE_COPY.confirm}

@@ -1,19 +1,15 @@
 /*
 The strip that says the workspace is a sample, drawn above Today (and only
 there) while the sample is present and nobody on this device has said "Keep
-it". One muted line: the sentence, where to remove it, and "Keep it".
+it". One muted line: "Sample workspace · Remove · Keep it".
 
-Removing has one home, Settings > Data (the redesign's one-home rule), so the
-strip points there rather than carrying a second Remove with its own confirm.
-Keep it is a local dismissal, and the Settings row is the way back.
+Remove is the same act as Settings > Data (one confirm, then the undo bar),
+offered here too because this is the moment a person wants it. Keep it is a
+local dismissal; the Settings row is the way back.
 */
-import { Link } from 'react-router'
-
-import { paths } from '../routes.js'
+import { ConfirmDialog } from '../components/ui/ConfirmDialog.js'
+import { Button } from '../components/ui/button.js'
 import { SAMPLE_COPY, useSampleActs } from './sample.js'
-
-const LINK =
-  'underline underline-offset-2 outline-none hover:text-foreground focus-visible:text-foreground'
 
 export function SampleStrip(): React.JSX.Element | null {
   const acts = useSampleActs()
@@ -23,22 +19,25 @@ export function SampleStrip(): React.JSX.Element | null {
     <aside
       aria-label="Sample workspace"
       data-testid="sample-strip"
-      className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm text-muted-foreground"
+      className="flex min-h-[var(--row-height)] items-center gap-[var(--space-inline)] text-sm text-muted-foreground"
     >
-      <p className="min-w-0">
-        {SAMPLE_COPY.strip} You can remove it in{' '}
-        <Link to={paths.settings} className={LINK}>
-          Settings
-        </Link>
-        .
-      </p>
-      <button
-        type="button"
-        className="underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:underline"
-        onClick={acts.keep}
-      >
-        {SAMPLE_COPY.keep}
-      </button>
+      <span className="min-w-0 truncate">{SAMPLE_COPY.strip}</span>
+      <span className="flex shrink-0 items-center gap-1">
+        <Button variant="ghost" size="sm" className="text-muted-foreground" disabled={acts.busy} onClick={acts.askRemove}>
+          {SAMPLE_COPY.stripRemove}
+        </Button>
+        <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={acts.keep}>
+          {SAMPLE_COPY.keep}
+        </Button>
+      </span>
+      {acts.confirming ? (
+        <ConfirmDialog
+          message={SAMPLE_COPY.confirm}
+          confirmLabel={SAMPLE_COPY.stripRemove}
+          onContinue={acts.remove}
+          onCancel={acts.cancelRemove}
+        />
+      ) : null}
     </aside>
   )
 }

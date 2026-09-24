@@ -192,7 +192,7 @@ export const SAMPLE_WORKSPACE: SampleWorkspace = {
         },
         {
           title: 'Change the address at the bank',
-          due: -2,
+          due: 9,
           section: 'After the move',
         },
         {
@@ -373,7 +373,7 @@ export const SAMPLE_WORKSPACE: SampleWorkspace = {
           section: 'This week',
           notes: 'Bad ones count. The point is the range.',
         },
-        { title: 'Watch the lecture on affordances', due: -1, section: 'This week' },
+        { title: 'Watch the lecture on affordances', due: 1, section: 'This week' },
         { title: 'Chapter 4 of Norman', section: 'This week', doneDaysAgo: 3 },
         { title: 'Write up the exercise from week three', due: 10, section: 'Later' },
         { title: 'Book a seat for the final crit', important: true, due: 30, section: 'Later' },

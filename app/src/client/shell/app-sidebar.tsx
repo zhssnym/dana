@@ -66,7 +66,20 @@ import {
 import { MORE_ACTIONS } from '../components/ui/copy.js'
 import { ObjectMenu } from '../components/object-menu.js'
 import { cn } from '../components/ui/utils.js'
-import { useCreateFolder, useDuplicateFolder, useMoveFolder } from '../api/mutations.js'
+import {
+  useCreateFolder,
+  useDeleteFolder,
+  useDuplicateFolder,
+  useLeaveFolder,
+  useMoveFolder,
+  useRenameFolder,
+  useRestoreFolder,
+} from '../api/mutations.js'
+import { ConfirmDialog } from '../components/ui/ConfirmDialog.js'
+import { Separator } from '../components/ui/separator.js'
+import { leaveFolderConfirm } from '../lib/object-acts.js'
+import { showToast } from '../state/toasts.js'
+import { pushUndo, undoLabel } from './undo.js'
 import { folderGates } from '../lib/folder-authority.js'
 import { folderRowDisplay, shelfMark } from '../parts/presenters.js'
 import { folderLink, shelfLink } from '../lib/nav-links.js'
@@ -111,7 +124,7 @@ import type { Shelf } from '../../shared/shelves.js'
 
 /** The one row treatment every sidebar entry shares. */
 export const SIDEBAR_ROW =
-  'h-(--shell-sidebar-row-height) gap-2 rounded-md px-2 text-sm font-normal text-muted-foreground hover:bg-sidebar-accent hover:text-foreground data-active:bg-sidebar-accent data-active:font-medium data-active:text-foreground [&_svg]:!size-4 [&_svg]:shrink-0'
+  'h-(--shell-sidebar-row-height) max-md:h-(--row-height) gap-2 rounded-md px-2 text-sm font-normal text-muted-foreground hover:bg-sidebar-accent hover:text-foreground data-active:bg-sidebar-accent data-active:font-medium data-active:text-foreground [&_svg]:!size-4 [&_svg]:shrink-0'
 
 /** The three cross-project lists: `routes.ts` owns their names, paths and marks. */
 const LISTS: readonly { name: string; path: string; icon: LucideIcon }[] = navPages
@@ -226,6 +239,26 @@ interface PageTreeValue {
   readonly commit: (carried: Folder, drop: TreeDrop) => void
   readonly addInside: (parent: Folder) => void
   readonly mayEdit: (folder: Folder) => boolean
+  /** The row being renamed in place, and the acts a row's menu runs here. */
+  readonly renaming: string | null
+  readonly startRename: (id: string) => void
+  readonly rename: (folder: Folder, name: string | null) => void
+  readonly trash: (folder: Folder) => void
+  readonly leave: (folder: Folder) => void
+  /** The page whose leave is being confirmed. */
+  readonly leaving: Folder | null
+  readonly confirmLeave: () => void
+  readonly cancelLeave: () => void
+}
+
+/** Copy an address, then say so once. */
+function copyLink(url: string): void {
+  void navigator.clipboard?.writeText(url).then(
+    () => {
+      showToast('Link copied')
+    },
+    () => {},
+  )
 }
 
 const PageTreeContext = createContext<PageTreeValue | null>(null)
@@ -253,15 +286,23 @@ function usePageTreeValue({
   entries,
   onOrderChange,
   groups,
+  activeId,
 }: {
   readonly folders: readonly Folder[]
   readonly entries: readonly DirectoryEntry[]
   readonly onOrderChange: (ids: readonly string[]) => void
   readonly groups: FolderGroupActions
+  readonly activeId: string | null
 }): PageTreeValue {
   const navigate = useNavigate()
   const move = useMoveFolder()
   const create = useCreateFolder()
+  const remove = useDeleteFolder()
+  const restore = useRestoreFolder()
+  const leaveFolder = useLeaveFolder()
+  const renameFolder = useRenameFolder()
+  const [renaming, setRenaming] = useState<string | null>(null)
+  const [leaving, setLeaving] = useState<Folder | null>(null)
   /* Set on the press, before the mutation's own pending state has rendered:
      a double click lands both clicks in the same frame. */
   const creating = useRef(false)
@@ -283,6 +324,14 @@ function usePageTreeValue({
   const clearMark = useCallback((): void => {
     setMark(null)
   }, [])
+
+  /* Only when the page on screen, or one under it, goes: to Today, replacing
+     the entry so Back does not land on a page that is gone. */
+  const leaveIfShowing = (id: string): void => {
+    if (activeId !== null && (activeId === id || isDescendant(tree, id, activeId))) {
+      void navigate(paths.today, { replace: true })
+    }
+  }
 
   const probe = (carried: Folder, point: Point, allowRoot: boolean): TreeDrop | null => {
     const hit = mayEditPage(carried) ? pageRowAt(point) : null
@@ -319,7 +368,10 @@ function usePageTreeValue({
     }
     const anchor = drop.anchor
     if (anchor === undefined) return
-    move.mutate({ id: carried.id, body: { parent_folder_id: null } })
+    /* Already a root here: only its place in the order changes. */
+    if ((tree.parent.get(carried.id) ?? null) !== null) {
+      move.mutate({ id: carried.id, body: { parent_folder_id: null } })
+    }
     /* A root's place is the viewer's own Library order, and its collection
        is the one the root it lands beside is in. */
     onOrderChange(placeInOrder(encodeColumn(entries), carried.id, anchor.id, anchor.side))
@@ -360,6 +412,43 @@ function usePageTreeValue({
       )
     },
     mayEdit: mayEditPage,
+    renaming,
+    startRename: setRenaming,
+    rename: (folder, name) => {
+      setRenaming(null)
+      if (name !== null) renameFolder.mutate({ id: folder.id, body: { name } })
+    },
+    trash: (folder) => {
+      /* An owner with other members is asked whether to hand it on first;
+         that question lives on the page. */
+      if (folder.is_owner && folder.member_count > 1) {
+        void navigate(folderActionPath(folder.id, 'delete'))
+        return
+      }
+      leaveIfShowing(folder.id)
+      remove.mutateAsync(folder.id).then(
+        () => {
+          pushUndo(undoLabel('Deleted', folder.name), () => {
+            restore.mutate(folder.id)
+          })
+        },
+        () => {},
+      )
+    },
+    leave: setLeaving,
+    leaving,
+    confirmLeave: () => {
+      if (leaving === null) return
+      setLeaving(null)
+      leaveFolder.mutate(leaving.id, {
+        onSuccess: () => {
+          leaveIfShowing(leaving.id)
+        },
+      })
+    },
+    cancelLeave: () => {
+      setLeaving(null)
+    },
   }
 }
 
@@ -415,7 +504,7 @@ function PageDescendants({
   if (rows.length === 0 || pages.folded.has(root.id)) return null
   const carried = list.activeIndex === null ? null : (rows[list.activeIndex]?.folder.id ?? null)
   return (
-    <SidebarMenu className="mt-px">
+    <SidebarMenu>
       {rows.map((row, index) => (
         <SidebarFolderRow
           key={row.folder.id}
@@ -468,13 +557,9 @@ function inboxOf(folders: readonly Folder[]): Folder | null {
 }
 
 /*
-The acts a Library row can perform on its page: the ones that make sense on a
-row (Notion's sidebar "…"). History, Tabs…, Import… and Export are the page's
-own "…", on the page.
-
-Rename, Leave and Delete each need a surface the page already has, so the row
-opens the page and asks it to run the act (`?folder-action=…`), one
-implementation of each. Copy link and Duplicate need no surface and run here.
+The acts a Library row can perform on its page, all run in place (the page
+keeps History, Tabs…, Import… and Export). `?folder-action=` remains for a new
+page's name field and an owner's delete question, which live on the page.
 `folderGates` decides which a viewer gets, the same call the page makes.
 */
 export type FolderAction = 'rename' | 'leave' | 'delete'
@@ -560,17 +645,21 @@ function SidebarFolderRow({
           : undefined
       }
       dropMark={pages.mark?.rowId === folder.id ? pages.mark.kind : null}
-      seeThrough={pages.mark !== null}
+      renaming={pages.renaming === folder.id}
+      onRename={(name) => {
+        pages.rename(folder, name)
+      }}
       /* The row's menu: Rename, Copy link, Duplicate, then Leave or Delete
-         by role. The page's own "…" keeps History, Tabs…, Import… and Export. */
+         by role, each run here. The page's own "…" keeps History, Tabs…,
+         Import… and Export. */
       acts={{
         rename: gates.identity
           ? () => {
-              void navigate(folderActionPath(folder.id, 'rename'))
+              pages.startRename(folder.id)
             }
           : undefined,
         'copy-link': () => {
-          void navigator.clipboard.writeText(folderLink(folder.id))
+          copyLink(folderLink(folder.id))
         },
         duplicate: () => {
           duplicate.mutate(folder.id, {
@@ -581,12 +670,12 @@ function SidebarFolderRow({
         },
         leave: gates.leave
           ? () => {
-              void navigate(folderActionPath(folder.id, 'leave'))
+              pages.leave(folder)
             }
           : undefined,
         delete: gates.trash
           ? () => {
-              void navigate(folderActionPath(folder.id, 'delete'))
+              pages.trash(folder)
             }
           : undefined,
       }}
@@ -686,14 +775,17 @@ function FolderGroupBlock({
       ref={sectionRef}
       className={cn(
         'relative rounded-md',
-        drag.state.isActive && 'cursor-grabbing bg-popover shadow-md ring-1 ring-border',
+        drag.state.isActive && 'cursor-grabbing bg-sidebar',
         drag.isDropTarget && 'bg-sidebar-accent ring-1 ring-ring/40',
       )}
       style={
         offset === 0 && !drag.state.isActive
           ? undefined
           : {
-              transform: `translateY(${String(offset)}px)`,
+              transform:
+                drag.state.isActive && !drag.state.isSettling
+                  ? `translate(var(--space-inline), calc(${String(offset)}px + var(--space-inline)))`
+                  : `translateY(${String(offset)}px)`,
               transition:
                 drag.state.isActive && !drag.state.isSettling
                   ? 'none'
@@ -711,7 +803,7 @@ function FolderGroupBlock({
             event.preventDefault()
             menuTrigger.current?.click()
           }}
-          className="group/folder-group relative flex h-(--shell-sidebar-row-height) items-center gap-1 rounded-md pr-8 pl-1 text-sm text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+          className="group/folder-group relative flex h-(--shell-sidebar-row-height) max-md:h-(--row-height) items-center gap-1 rounded-md pr-8 pl-1 text-sm text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
         >
           {drag.proposal === null ? null : (
             <span className="pointer-events-none absolute top-1/2 right-2 z-40 -translate-y-1/2 rounded-sm bg-foreground px-2 py-0.5 text-xs whitespace-nowrap text-background">
@@ -721,7 +813,7 @@ function FolderGroupBlock({
           <CollapsibleTrigger
             aria-label={`Show the pages in ${group.label}`}
             data-no-drag
-            className="relative flex size-6 shrink-0 items-center justify-center rounded-sm outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/30"
+            className="relative flex size-6 shrink-0 items-center justify-center rounded-sm outline-none hover:bg-sidebar-accent"
           >
             <Glyph
               className="size-4 transition-opacity duration-150 group-hover/folder-group:opacity-0"
@@ -744,7 +836,7 @@ function FolderGroupBlock({
             <Link
               to={paths.shelf(group.shelf.id)}
               data-no-drag
-              className="flex h-full min-w-0 flex-1 items-center rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
+              className="flex h-full min-w-0 flex-1 items-center rounded-sm outline-none"
             >
               <span className="truncate">{group.label}</span>
             </Link>
@@ -767,7 +859,7 @@ function FolderGroupBlock({
                   shelfId === null
                     ? undefined
                     : () => {
-                        void navigator.clipboard?.writeText(shelfLink(shelfId))
+                        copyLink(shelfLink(shelfId))
                       },
                 delete: () => {
                   groups.onDeleteGroup(group.label)
@@ -880,7 +972,7 @@ function LibraryColumn({
       }
       /* Onto a page, or between sub-pages: the tree answers first. Beside a
          root is the column's own reorder, below. */
-      if (pages.probe(entry.folder, point, false) !== null) {
+      if (pages.probe(entry.folder, point, true) !== null) {
         setDrop(null)
         return TREE_KEY
       }
@@ -904,7 +996,7 @@ function LibraryColumn({
       setDrop(null)
       const entry = entries[from]
       if (entry === undefined || entry.kind === 'group') return false
-      const tree = pages.probe(entry.folder, point, false)
+      const tree = pages.probe(entry.folder, point, true)
       if (tree !== null) {
         pages.commit(entry.folder, tree)
         return true
@@ -1015,7 +1107,7 @@ function SearchField({ onOpen }: { readonly onOpen: () => void }): React.JSX.Ele
       type="button"
       onClick={onOpen}
       aria-label="Search"
-      className="group/search flex h-(--shell-sidebar-row-height) min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-sm text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30"
+      className="group/search flex h-(--shell-sidebar-row-height) min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-sm text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground"
     >
       <Search className="size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
       <span className="min-w-0 flex-1 truncate text-left">Search</span>
@@ -1158,6 +1250,7 @@ export function AppSidebar({
     entries,
     onOrderChange: onSidebarOrderChange,
     groups: groupActions,
+    activeId: activeFolderId,
   })
 
   return (
@@ -1172,16 +1265,20 @@ export function AppSidebar({
     >
       {/* Solid and above the list, so nothing scrolling in the list shows
           through the head; the list below is the one scroll container. */}
-      <SidebarHeader className="relative z-40 shrink-0 bg-sidebar p-2">
+      <SidebarHeader className="relative z-40 h-(--shell-windowbar-height) shrink-0 justify-center bg-sidebar px-2 py-0">
         {/* One line: Search, the bell, collapse. On a phone the phone bar holds
             the one search entry, so the line keeps only the two buttons. */}
         <div className="flex items-center gap-0.5">
           {isMobile ? <span className="min-w-0 flex-1" /> : <SearchField onOpen={onOpenSearch} />}
           <NotificationsBell />
-          <SidebarTrigger className="size-7 shrink-0 rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-foreground [&_svg]:!size-4" />
+          <SidebarTrigger
+            /* On a phone it closes the drawer, and says so. */
+            {...(isMobile ? { 'aria-label': 'Close', title: 'Close' } : {})}
+            className="size-(--control-height) shrink-0 rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-foreground [&_svg]:!size-4"
+          />
         </div>
       </SidebarHeader>
-      <div aria-hidden="true" className="mx-3 shrink-0 border-t border-border" />
+      <Separator className="mx-3 data-horizontal:w-auto" />
 
       <SidebarContent className="pt-2 pb-2" onContextMenu={openGroundMenu}>
         <SidebarGroup className="px-2 py-0">
@@ -1200,7 +1297,7 @@ export function AppSidebar({
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup className="px-2 pt-5 pb-0">
+        <SidebarGroup className="px-2 pt-(--space-group) pb-0">
           <div className="flex h-(--shell-sidebar-row-height) items-center pr-1 pl-2">
             <h2 className="min-w-0 flex-1 truncate text-xs font-medium text-muted-foreground">
               Library
@@ -1245,6 +1342,14 @@ export function AppSidebar({
           />
         </SidebarMenu>
       </SidebarFooter>
+
+      {pageTree.leaving === null ? null : (
+        <ConfirmDialog
+          message={leaveFolderConfirm(pageTree.leaving.name)}
+          onContinue={pageTree.confirmLeave}
+          onCancel={pageTree.cancelLeave}
+        />
+      )}
 
       <SidebarGroundMenu
         at={groundMenu}

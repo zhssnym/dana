@@ -7,12 +7,9 @@ application's only chrome"), the offline banner ("global, persistent while
 offline"), the toast region, and 10.6's update
 affordance. A page renders inside the outlet and adds none of them.
 
-**There is no top bar.** Search and notifications sit at the top of the
-sidebar and the account menu at its foot. AC-174 states this as the
-absence of a banner landmark on every page, which is what an application header
-is; every `header` this shell renders sits inside `main` and is a page's own
-rather than the application's, so it is content and not chrome. That placement
-is a requirement of this file.
+**The top bar is a `div` inside `main`, never a `header`** (AC-174: no banner
+landmark). It holds the history arrows, the trail and the page's controls; on a
+phone the same bar also holds Menu and Search.
 
 **There is no viewport floor on the root element.** A minimum viewport width is
 forbidden anywhere in the client, and it is checked by grepping the built
@@ -66,7 +63,7 @@ import {
   useDiscussion,
 } from '../api/queries.js'
 import { NewFolderDialog } from '../components/index.js'
-import { SearchOverlay } from '../components/search/index.js'
+import { SearchOverlay } from '../components/search-overlay.js'
 import { ShortcutsSheet } from '../components/help-sheet.js'
 import { TaskSurfaceHost } from '../components/task-surface-host.js'
 /* The folder table published for the lifted pickers' bare `folderLibrary()`,
@@ -125,19 +122,29 @@ const NO_SHELVES: readonly Shelf[] = []
 const UPDATE_AVAILABLE = 'Update available, reload'
 
 /*
-The phone bar: below 768px the sidebar is a drawer, and this bar holds the one
-thing that opens it and the one search entry (the drawer leaves Search out, so
-a phone shows it once). A `div` inside `main`, never a `header`, so there is
-no banner landmark; it renders nothing on a laptop.
+The one top bar. On a laptop: the show-sidebar control when the sidebar is
+hidden, then the window bar (arrows, trail, page controls). Below 768px the
+same window bar sits between Menu and Search, so a phone has one bar.
 */
-function PhoneBar({ onOpenSearch }: { readonly onOpenSearch: () => void }): React.JSX.Element | null {
-  const { isMobile, setOpenMobile } = useSidebar()
-  if (!isMobile) return null
+function TopBar({ onOpenSearch }: { readonly onOpenSearch: () => void }): React.JSX.Element {
+  const { isMobile, state, setOpenMobile } = useSidebar()
+  if (!isMobile) {
+    return (
+      <div className="flex shrink-0 items-center">
+        {state === 'expanded' ? null : (
+          <SidebarTrigger size="icon" className="ml-2 shrink-0 text-muted-foreground" />
+        )}
+        <div className="min-w-0 flex-1">
+          <WindowBar />
+        </div>
+      </div>
+    )
+  }
   return (
     <div className="flex h-12 shrink-0 items-center gap-1 border-b border-border bg-background px-1">
       <Button
         variant="ghost"
-        className="size-10 text-muted-foreground"
+        className="size-10 shrink-0 text-muted-foreground"
         aria-label="Menu"
         onClick={() => {
           setOpenMobile(true)
@@ -145,25 +152,18 @@ function PhoneBar({ onOpenSearch }: { readonly onOpenSearch: () => void }): Reac
       >
         <PanelLeft className="!size-5" strokeWidth={1.75} aria-hidden="true" />
       </Button>
-      <span className="min-w-0 flex-1" />
+      <div className="min-w-0 flex-1">
+        <WindowBar />
+      </div>
       <Button
         variant="ghost"
-        className="size-10 text-muted-foreground"
+        className="size-10 shrink-0 text-muted-foreground"
         aria-label="Search"
         onClick={onOpenSearch}
       >
         <Search className="!size-5" strokeWidth={1.75} aria-hidden="true" />
       </Button>
     </div>
-  )
-}
-
-/* The one control that brings a hidden sidebar back, on a laptop only. */
-function ShowSidebar(): React.JSX.Element | null {
-  const { isMobile, state } = useSidebar()
-  if (isMobile || state === 'expanded') return null
-  return (
-    <SidebarTrigger className="ml-2 size-7 shrink-0 rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground [&_svg]:!size-4" />
   )
 }
 
@@ -186,6 +186,7 @@ function TopTrail(): React.JSX.Element {
   const task = useTask(taskId)
   const shelfId = pathname.startsWith(SHELF_PREFIX) ? pathname.slice(SHELF_PREFIX.length) : null
   const shelves = useShelves(shelfId !== null)
+  const { isMobile } = useSidebar()
 
   let trail: React.JSX.Element | null = null
   if (pathname.startsWith(FOLDER_PREFIX)) {
@@ -214,7 +215,8 @@ function TopTrail(): React.JSX.Element {
           : pathname === paths.trash
             ? 'Trash'
             : navPages.find((page) => page.path === pathname)?.name
-    trail = place === undefined ? null : <BreadcrumbTrail folderId={null} current={place} />
+    /* A phone drops the crumb on a top-level place: its title already says it. */
+    trail = place === undefined || isMobile ? null : <BreadcrumbTrail folderId={null} current={place} />
   }
   return (
     <WindowBarLead>
@@ -531,15 +533,9 @@ export function AppShell(): React.JSX.Element {
             className="relative min-w-0 overflow-hidden bg-background transition-[margin] duration-150 ease-out"
             style={{ marginRight: `${String(rightEdge)}px` }}
           >
-            <PhoneBar onOpenSearch={openSearch} />
             {/* `components/window-bar.tsx`: pages and the task surface portal
                 their controls into its two ends. */}
-            <div className="flex shrink-0 items-center">
-              <ShowSidebar />
-              <div className="min-w-0 flex-1">
-                <WindowBar />
-              </div>
-            </div>
+            <TopBar onOpenSearch={openSearch} />
             <TopTrail />
             <UpdateChrome showUpdate={update.showUpdate} onUpdate={update.applyUpdate} />
             <OfflineBanner />
@@ -588,11 +584,10 @@ export function AppShell(): React.JSX.Element {
           {groups.dialogs}
         </SidebarProvider>
       </div>
-      {/* The undo bar: one for the whole window, bottom-centre, outside the
-          sidebar provider so it is not clipped by the shell's own layout and
-          so there is exactly one of it however many pages mount. */}
-      <UndoBar />
-      <ToastRegion clearsCapture={false} />
+      {/* The one notice column: toasts and the undo bar, bottom-centre. */}
+      <ToastRegion clearsCapture={false}>
+        <UndoBar />
+      </ToastRegion>
       {/* 9.3's form, mounted once and last, for the reason in this file's
           header, and inside the same interim stacking wrapper the search
           overlay carries above. The Complex Interaction engineer owns both. */}

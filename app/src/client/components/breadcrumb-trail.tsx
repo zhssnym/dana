@@ -120,7 +120,7 @@ export function HistoryArrows(): React.JSX.Element {
 }
 
 const CRUMB =
-  'flex h-7 min-w-0 max-w-48 items-center truncate rounded-md px-1.5 transition-colors duration-[var(--duration-fast)] ease-[var(--ease-standard)] outline-none focus-visible:ring-2 focus-visible:ring-ring/30'
+  'flex h-[var(--control-height)] min-w-0 max-w-48 items-center truncate rounded-md px-1.5 transition-colors duration-[var(--duration-fast)] ease-[var(--ease-standard)] outline-none'
 
 function Separator({ phoneHidden }: { readonly phoneHidden: boolean }): React.JSX.Element {
   return (

@@ -72,7 +72,7 @@ export function LandingPage(): React.JSX.Element {
 
       <main className="flex flex-1 items-center px-4 pb-16">
         <div className="mx-auto w-full max-w-[640px]">
-          <h1 className="text-4xl leading-tight font-bold tracking-tight text-balance sm:text-5xl">
+          <h1 className="text-4xl leading-tight font-title text-balance sm:text-5xl">
             Your projects, in one quiet place.
           </h1>
           <p className="mt-4 text-base text-muted-foreground">

@@ -153,18 +153,21 @@ export function PlaceControls({ place }: { readonly place: Place }): React.JSX.E
 export function PlaceHead({
   place,
   fact,
+  bare = false,
 }: {
   readonly place: Place
   /** Today's "N of M done". */
   readonly fact?: string
+  /** An empty list has nothing to group or sort: no View menu. */
+  readonly bare?: boolean
 }): React.JSX.Element {
   return (
     <header>
       <div className="flex items-center justify-between gap-4">
-        <h1 className="min-w-0 truncate text-(length:--text-title-size) leading-(--text-title-line) font-bold text-foreground">
+        <h1 className="min-w-0 truncate text-(length:--text-title-size) leading-(--text-title-line) font-title text-foreground">
           {place.spine.name}
         </h1>
-        <PlaceControls place={place} />
+        {bare ? null : <PlaceControls place={place} />}
       </div>
       {fact === undefined ? null : <p className="mt-1 text-sm text-muted-foreground">{fact}</p>}
     </header>
@@ -187,7 +190,7 @@ export function PlaceGroup({
   return (
     <section aria-label={name}>
       {heading === undefined ? null : (
-        <h2 className="mb-1 text-base font-semibold text-foreground">{heading}</h2>
+        <h2 className="mb-1 px-2 text-sm font-section text-foreground">{heading}</h2>
       )}
       {children}
     </section>

@@ -31,7 +31,7 @@ import { formatCompactDate, formatRelativeDay } from '../../parts/format-dates.j
 import { presenterToday, initialsOf } from '../../parts/presenters.js'
 import { PageBody } from '../page/PageStates.js'
 import { PersonFace } from '../person-face.js'
-import { SettingsRow } from './screen.js'
+import { StackingRow } from './screen.js'
 
 /** 9.8, verbatim: the confirm before a roster entry is removed. */
 const REMOVE_CONNECTION =
@@ -85,8 +85,6 @@ export function PeopleSettings(): React.JSX.Element {
         const resendAllowed = Date.now() - Date.parse(row.last_sent_at) >= DAY_MS
         const resendButton = (
           <Button
-            variant="outline"
-            size="lg"
             disabled={!resendAllowed || resend.isPending}
             onClick={() => {
               resend.mutate(row.id)
@@ -96,9 +94,9 @@ export function PeopleSettings(): React.JSX.Element {
           </Button>
         )
         return (
-          <SettingsRow
+          <StackingRow
             key={row.id}
-            title={row.email}
+            label={row.email}
             description={`Invited ${formatRelativeDay(row.last_sent_at, today)}`}
             control={
               <>
@@ -113,8 +111,6 @@ export function PeopleSettings(): React.JSX.Element {
                   </Tooltip>
                 )}
                 <Button
-                  variant="outline"
-                  size="lg"
                   disabled={cancel.isPending}
                   onClick={() => {
                     cancel.mutate(row.id)
@@ -130,26 +126,22 @@ export function PeopleSettings(): React.JSX.Element {
 
       <PageBody query={connections} isEmpty={false} emptyCopy="">
         {connected.map((entry) => (
-          <SettingsRow
+          <StackingRow
             key={entry.user.id}
-            title={
-              <span className="flex min-w-0 items-center gap-2">
-                <PersonFace
-                  id={entry.user.id}
-                  name={entry.user.display_name ?? entry.user.email}
-                  initials={initialsOf(entry.user.display_name ?? entry.user.email)}
-                  image={entry.user.avatar_url}
-                  className="size-5 shrink-0"
-                />
-                <span className="truncate">{entry.user.display_name ?? entry.user.email}</span>
-              </span>
+            icon={
+              <PersonFace
+                id={entry.user.id}
+                name={entry.user.display_name ?? entry.user.email}
+                initials={initialsOf(entry.user.display_name ?? entry.user.email)}
+                image={entry.user.avatar_url}
+                className="size-5 shrink-0"
+              />
             }
+            label={entry.user.display_name ?? entry.user.email}
             description={`${entry.user.email} · since ${formatCompactDate(entry.connected_at.slice(0, 10))}`}
             control={
               /* 9.8: "roster list with remove control". Either side may call it (7.3). */
               <Button
-                variant="outline"
-                size="lg"
                 aria-label={`Remove connection with ${entry.user.display_name ?? entry.user.email}`}
                 onClick={() => {
                   setRemoving(entry.user.id)
@@ -164,8 +156,8 @@ export function PeopleSettings(): React.JSX.Element {
 
       {/* Rarely needed, so one row until it is used: the button opens the
           field in place of itself. Esc or an empty blur folds it back. */}
-      <SettingsRow
-        title="Invite by email"
+      <StackingRow
+        label="Invite by email"
         description={nobody ? 'People you can share pages with' : undefined}
         control={
           inviting ? (
@@ -195,14 +187,12 @@ export function PeopleSettings(): React.JSX.Element {
                   }
                 }}
               />
-              <Button type="submit" variant="outline" size="lg">
+              <Button type="submit">
                 Send
               </Button>
             </form>
           ) : (
             <Button
-              variant="outline"
-              size="lg"
               onClick={() => {
                 setInviting(true)
               }}

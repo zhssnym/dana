@@ -74,7 +74,7 @@ import {
 import { upsertReminder } from './tasks.js'
 import { copyTaskDocument } from './task-document.js'
 import { positionAtSectionEnd, seededItems } from './page-order.js'
-import { initialKeys } from './fractional-index.js'
+import { initialKeys, keyBetween } from './fractional-index.js'
 import { copyDependenciesWithin } from './task-dependencies.js'
 /* 4.11 calendar arithmetic rather than a second copy of it here: both ends are
    UTC midnights, so no DST shift can round the division (issue #215). */
@@ -165,6 +165,76 @@ function remapRichContentLinks(
   }
 }
 
+/**
+ * Where a sub-page's copy goes: under the same parent, directly after the
+ * original. Null (a top-level copy) when the source is a root, or when the
+ * duplicator may not add a page under its parent.
+ */
+async function placeOfCopy(
+  tx: Executor,
+  viewerId: string,
+  sourceId: string,
+): Promise<{ parentId: string; childPosition: string } | null> {
+  const found = await rowsOf(
+    tx,
+    sql`SELECT f.parent_folder_id, f.child_position FROM folders f
+          JOIN folders p ON p.id = f.parent_folder_id AND p.deleted_at IS NULL
+         WHERE f.id = ${sourceId}::uuid`,
+  )
+  const row = found[0]
+  if (row === undefined) return null
+  const parentId = String(row.parent_folder_id)
+  const parent = await folderActorFacts(tx, viewerId, parentId)
+  if (parent === null || parent.isDefault) return null
+  if (!mayPerform(parent, PAGE_TREE_EDIT_ACTION).allowed) return null
+  if (!(await mayAddChildUnder(tx, parentId))) return null
+  if (row.child_position === null || row.child_position === undefined) {
+    return { parentId, childPosition: await lastChildPosition(tx, parentId) }
+  }
+  const lower = String(row.child_position)
+  const next = await rowsOf(
+    tx,
+    sql`SELECT min(child_position) AS upper FROM folders
+         WHERE parent_folder_id = ${parentId}::uuid AND child_position > ${lower}`,
+  )
+  const upper = next[0]?.upper
+  return {
+    parentId,
+    childPosition: keyBetween(lower, upper === null || upper === undefined ? null : String(upper)),
+  }
+}
+
+/** A top-level copy: the original's collection, and the slot after it in the
+ * duplicator's stored Library order (4.19's `sidebar_order`) when that names it. */
+async function placeBesideInLibrary(
+  tx: Executor,
+  viewerId: string,
+  sourceId: string,
+  copyId: string,
+): Promise<void> {
+  await tx.execute(
+    sql`UPDATE folder_members SET shelf_name = (
+          SELECT shelf_name FROM folder_members
+           WHERE folder_id = ${sourceId}::uuid AND user_id = ${viewerId}::uuid)
+         WHERE folder_id = ${copyId}::uuid AND user_id = ${viewerId}::uuid`,
+  )
+  const settings = await rowsOf(
+    tx,
+    sql`SELECT sidebar_order FROM user_settings WHERE user_id = ${viewerId}::uuid FOR UPDATE`,
+  )
+  const raw: unknown = settings[0]?.sidebar_order
+  const order: unknown = typeof raw === 'string' ? JSON.parse(raw) : raw
+  if (!Array.isArray(order)) return
+  const at = order.indexOf(sourceId)
+  // 300 is `patchSettingsBody.sidebar_order`'s limit.
+  if (at < 0 || order.length >= 300) return
+  const next = [...order.slice(0, at + 1), copyId, ...order.slice(at + 1)]
+  await tx.execute(
+    sql`UPDATE user_settings SET sidebar_order = ${JSON.stringify(next)}::jsonb
+         WHERE user_id = ${viewerId}::uuid`,
+  )
+}
+
 export async function duplicateFolder(
   db: Db,
   store: ObjectStore,
@@ -177,6 +247,10 @@ export async function duplicateFolder(
   const copiedObjects: string[] = []
   try {
     return await inTransaction(db, async (tx) => {
+      /* The tree lock before anything is read (lock order), so the copy's
+         place beside the original cannot move under it. */
+      await lockPageTree(tx)
+      const place = await placeOfCopy(tx, viewerId, sourceFolderId)
       await tx.execute(sql`SELECT 1 FROM users WHERE id = ${viewerId} FOR UPDATE`)
       const owned = await rowsOf(
         tx,
@@ -265,12 +339,14 @@ export async function duplicateFolder(
       const made = await rowsOf(
         tx,
         sql`INSERT INTO folders (owner_id, name, icon, color, description,
-                                 cover_file_id, cover_preset, cover_focal_y)
+                                 cover_file_id, cover_preset, cover_focal_y,
+                                 parent_folder_id, child_position)
             VALUES (${viewerId}::uuid, ${name}, ${source?.icon ?? null},
                     ${source?.color ?? null}, ${source?.description ?? null},
                     ${coverFileId}::uuid,
                     ${coverFileId === null ? (source?.cover_preset ?? null) : null},
-                    ${Number(source?.cover_focal_y ?? 50)})
+                    ${Number(source?.cover_focal_y ?? 50)},
+                    ${place?.parentId ?? null}::uuid, ${place?.childPosition ?? null})
             RETURNING id`,
       )
       const copyId = String(made[0]?.id)
@@ -301,6 +377,13 @@ export async function duplicateFolder(
          facet's content to a later slice. Every `folders` insert needs a call
          like this beside it. */
       await createNativeFacets(tx, copyId, viewerId)
+      /* Beside the original: a sub-page as `createSubPage` makes one, or a
+         top-level page next to it in the duplicator's own Library. */
+      if (place === null) await placeBesideInLibrary(tx, viewerId, sourceFolderId, copyId)
+      else {
+        await appendHomeBlock(tx, place.parentId, copyId)
+        await copyParentMembers(tx, viewerId, place.parentId, copyId)
+      }
       if (coverFileId !== null) {
         // The scope, now that there is a folder to name (4.16, 7.15).
         await tx.execute(

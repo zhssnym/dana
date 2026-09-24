@@ -50,12 +50,9 @@ import type { LucideIcon } from '../../lib/icons.js'
 import { ApiError } from '../../api/http.js'
 import { InlineError, SkeletonList } from '../state-patterns.js'
 import { Button } from '../ui/button.js'
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-} from '../ui/empty.js'
+
+/** The one empty-state line (also used by the 404 answer). */
+export const EMPTY_LINE = 'flex min-h-[var(--row-height)] items-center px-2 text-sm text-muted-foreground'
 
 /**
  * An icon, taken by type rather than as an element so a caller passes
@@ -81,9 +78,7 @@ interface PageBodyProps {
   /** The empty copy section 6 gives this page. Normative; never paraphrased. */
   readonly emptyCopy: string
   /**
-   * One contextual icon above that copy. Optional: a surface with no icon of
-   * its own shows the sentence alone rather than borrowing one from a page it
-   * is not.
+   * Ignored: the empty state is one line with no icon. Kept so callers compile.
    */
   readonly emptyIcon?: StateIcon
   /**
@@ -105,50 +100,24 @@ split it across a title and a description would have changed it.
 */
 function NotFound(): React.JSX.Element {
   return (
-    <Empty className="min-h-72">
-      <EmptyHeader>
-        <EmptyDescription className="max-w-[54ch] text-sm leading-5 text-muted-foreground">
-          Not found. This may have been deleted, or it may never have been yours to see.
-        </EmptyDescription>
-      </EmptyHeader>
-    </Empty>
+    <p className={EMPTY_LINE}>
+      Not found. This may have been deleted, or it may never have been yours to see.
+    </p>
   )
 }
 
 /**
- * The empty state: the copy section 6 writes, under one contextual icon.
- *
- * The icon is `aria-hidden`, so nothing about what a screen reader hears on an
- * empty page moved, and AC-158 still reads the sentence.
+ * The one empty state: a single muted line where the first row would be, no
+ * icon. AC-158 reads the sentence.
  */
-function EmptyState({
-  copy,
-  icon: Icon,
-}: {
-  readonly copy: string
-  readonly icon?: StateIcon
-}): React.JSX.Element {
-  return (
-    <Empty className="min-h-72">
-      {Icon === undefined ? null : (
-        <EmptyMedia className="text-quiet-foreground">
-          <Icon className="size-9" strokeWidth={1.6} aria-hidden="true" />
-        </EmptyMedia>
-      )}
-      <EmptyHeader>
-        <EmptyDescription className="max-w-[54ch] text-sm leading-5 text-muted-foreground">
-          {copy}
-        </EmptyDescription>
-      </EmptyHeader>
-    </Empty>
-  )
+function EmptyState({ copy }: { readonly copy: string }): React.JSX.Element {
+  return <p className={EMPTY_LINE}>{copy}</p>
 }
 
 export function PageBody({
   query,
   isEmpty,
   emptyCopy,
-  emptyIcon,
   truncated = false,
   children,
 }: PageBodyProps): React.JSX.Element {
@@ -163,7 +132,7 @@ export function PageBody({
       />
     )
   }
-  if (isEmpty) return <EmptyState copy={emptyCopy} icon={emptyIcon} />
+  if (isEmpty) return <EmptyState copy={emptyCopy} />
   return (
     <>
       {truncated ? <TruncationNotice /> : null}

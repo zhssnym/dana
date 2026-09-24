@@ -71,7 +71,7 @@ export function createSampleRouter(options: SampleRouterOptions = {}): Router {
           res,
           409,
           'conflict',
-          'You already have a shelf named like one of the sample shelves. Rename it, then try again.',
+          'You already have a collection named like one of the sample collections. Rename it, then try again.',
         )
         return
       }

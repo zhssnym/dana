@@ -16,9 +16,7 @@ them to section 6 has one file to compare.
    the one thing they might not have to do. */
 
 /** Q1, both My Day groups empty. */
-export const MY_DAY_EMPTY =
-  'Nothing on your day. Tasks assigned to you appear here when they start ' +
-  'or come due, or pull anything in yourself.'
+export const MY_DAY_EMPTY = 'Nothing on your day.'
 
 /** Q3. */
 export const PLANNED_EMPTY =

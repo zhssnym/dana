@@ -1,41 +1,18 @@
 /*
-The Trash screen, bound through `lib/trash.ts`. What is worth knowing:
-
-- **`lib/trash.ts` is the adapter** over 7.13's read, and `usePurge` performs
-  the permanent deletes over the two addresses. The act is Full control's and is
-  **not one rule for the two kinds** (issue #268; `lib/trash.ts`'s header
-  carries it), so each row carries `purgeable` and the Delete control, and the
-  header's "Empty trash", are drawn only where the server would answer 204; a
-  refusal is the toast's sentence. The decision lives in the adapter, so this
-  file only reads `purgeable`. AC-262, AC-284 and AC-285 read it.
-- **The row's glyph is `markIcon`**: 4.3's icon is a stored key and
-  `icon-manifest.ts` is the one place this client maps one to a glyph. 7.13
-  carries no icon for a trashed folder, so the folder glyph is the default.
-- **"by {actor}" is not drawn**, 7.13 carrying no actor; the line ends at when.
-- **The read's two other states are drawn**, loading and failed, in
-  `components/state-patterns.tsx`'s own shapes.
-
-The two subtitle sentences and the empty state are 9.11's, and AC-224 and AC-262
-read them.
+The Trash screen (9.11), bound through `lib/trash.ts`. Each row carries
+`purgeable` from the adapter, so "Delete forever" and "Empty trash" are drawn
+only where the server would answer 204 (AC-262, AC-284, AC-285).
 */
 
 import { useState } from "react"
 
 import { Button } from "../components/ui/button.js"
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "../components/ui/dialog.js"
+import { ConfirmDialog } from "../components/ui/ConfirmDialog.js"
+import { EMPTY_LINE } from "../components/page/PageStates.js"
+import { Row, RowGroup } from "../components/ui/row.js"
 import { markIcon } from "../components/page/icon-manifest.js"
-import { Screen } from "../components/settings/screen.js"
 import { CheckCircle2, Layers3, MessageSquare } from "../lib/icons.js"
 import {
-  TRASH_DAYS,
   type TrashItem,
   daysLeft,
   usePurge,
@@ -51,34 +28,32 @@ export function TrashScreen({
   onRestore: (item: TrashItem) => void
 }) {
   const items = useTrash()
-  /* Seam 5. */
   const state = useTrashState()
-  /* Seam 2. */
   const { purge, emptyTrash, pending: purging } = usePurge()
   const purgeable = items.filter((item) => item.purgeable)
   const [confirming, setConfirming] = useState<TrashItem | "all" | null>(null)
 
   return (
-    <Screen
-      title="Trash"
-      /* One sentence for the rule, whether or not the page holds anything
-         (9.11). */
-      description={`Deleted items are kept for ${TRASH_DAYS} days, then removed.`}
-      actions={
-        /* Seam 2: only the rows the viewer owns leave under it. */
-        purgeable.length ? (
-          <Button variant="ghost" className="text-muted-foreground" onClick={() => setConfirming("all")}>
-            Empty trash
-          </Button>
-        ) : null
-      }
-    >
-      {/* Seam 5. */}
+    <div className="w-full pt-2 pb-16">
+      <header className="flex items-start justify-between gap-4 pb-6">
+        <h1 className="min-w-0 text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-title text-foreground">
+          Trash
+        </h1>
+        {/* Only the rows the viewer may destroy leave under it. */}
+        {purgeable.length ? (
+          <div className="shrink-0 pt-1">
+            <Button variant="destructive" onClick={() => setConfirming("all")}>
+              Empty trash
+            </Button>
+          </div>
+        ) : null}
+      </header>
+
       {state.pending ? <SkeletonList /> : null}
       {state.failed ? <InlineError onRetry={state.retry} /> : null}
 
       {items.length ? (
-        <ul className="flex flex-col">
+        <RowGroup role="list">
           {items.map((item) => (
             <TrashRow
               key={item.id}
@@ -87,58 +62,35 @@ export function TrashScreen({
               onPurge={item.purgeable ? () => setConfirming(item) : undefined}
             />
           ))}
-        </ul>
+        </RowGroup>
       ) : state.pending || state.failed ? null : (
-        /*
-        The empty state says what the page is *for* rather than that it is
-        empty, which is the difference between "Nothing here" and knowing you
-        can delete something without losing it. Somebody who has never deleted
-        anything is exactly the person who does not yet know this page exists.
-        */
-        <p className="text-sm text-muted-foreground">
-          Nothing deleted. Tasks, folders and discussions you delete wait here first, so a wrong
-          press costs a click rather than the thing itself.
+        <p className={EMPTY_LINE}>
+          Nothing in Trash.
         </p>
       )}
 
-      <Dialog
-        open={confirming !== null}
-        onOpenChange={(open) => !open && setConfirming(null)}
-      >
-        <DialogContent className="max-w-[420px]">
-          <DialogHeader>
-            <DialogTitle>
-              {confirming === "all"
-                ? "Empty the trash?"
-                : `Delete “${confirming?.name}” forever?`}
-            </DialogTitle>
-            <DialogDescription>
-              {confirming === "all"
-                ? `${purgeable.length} item${purgeable.length === 1 ? "" : "s"} will be removed. This cannot be undone.`
-                : "This cannot be undone, and it is the only act in Dana that cannot."}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <DialogClose
-              render={<Button variant="ghost">Keep it</Button>}
-            />
-            {/* Seam 2: `purge` and `emptyTrash` over 7.13's addresses. */}
-            <Button
-              variant="destructive"
-              disabled={purging}
-              onClick={() => {
-                const target = confirming
-                setConfirming(null)
-                if (target === "all") void emptyTrash(purgeable)
-                else if (target !== null) void purge(target)
-              }}
-            >
-              Delete forever
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </Screen>
+      {confirming !== null ? (
+        <ConfirmDialog
+          message={
+            confirming === "all" ? "Empty the trash?" : `Delete “${confirming.name}” forever?`
+          }
+          description={
+            confirming === "all"
+              ? `${purgeable.length} item${purgeable.length === 1 ? "" : "s"} will be removed. This cannot be undone.`
+              : "This cannot be undone."
+          }
+          confirmLabel={confirming === "all" ? "Empty trash" : "Delete forever"}
+          onCancel={() => setConfirming(null)}
+          onContinue={() => {
+            const target = confirming
+            setConfirming(null)
+            if (purging) return
+            if (target === "all") void emptyTrash(purgeable)
+            else void purge(target)
+          }}
+        />
+      ) : null}
+    </div>
   )
 }
 
@@ -150,13 +102,9 @@ function TrashRow({
   item: TrashItem
   /* Absent where the server says this viewer may not restore the row. */
   onRestore: (() => void) | undefined
-  /* Absent where the viewer may not destroy this row permanently: the
-     control is not drawn rather than drawn to be refused. `lib/trash.ts`
-     answers which, per row and per kind. */
+  /* Absent where the viewer may not destroy this row: not drawn, not refused. */
   onPurge: (() => void) | undefined
 }) {
-  /* A folder wears its own glyph, from the one resolver every other surface
-     asks; a task wears the check it would wear anywhere. */
   const Glyph =
     item.kind === "task"
       ? CheckCircle2
@@ -168,34 +116,36 @@ function TrashRow({
   const left = daysLeft(item)
 
   return (
-    <li className="flex min-h-12 items-center gap-3 border-b border-border py-2 last:border-b-0">
-      <Glyph className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-sm text-foreground">{item.name}</span>
-        <span className="truncate text-xs text-muted-foreground">
-          {/* Where it goes back to, which is the question under "Restore".
-              Seam 4: the actor, when 7.13 carries one. */}
+    <Row
+      role="listitem"
+      className="group hover:bg-accent"
+      icon={<Glyph className="size-4" strokeWidth={1.75} aria-hidden="true" />}
+      label={item.name}
+      description={
+        <span className="block truncate">
           {item.from ? `${item.from} · ` : ""}
           deleted {whenFor(item.at).toLowerCase()}
           {item.actor ? ` by ${item.actor}` : ""}
-          {` · ${left} day${left === 1 ? "" : "s"} left`}
         </span>
-      </div>
-      {/* Restore and Delete forever are visible at rest; a row whose only
-          controls appear on hover is a row with nothing to press. */}
-      <span className="flex shrink-0 items-center gap-1">
-        {onRestore ? (
-          <Button variant="ghost" onClick={onRestore}>
-            Restore
-          </Button>
-        ) : null}
-        {/* Seam 2. */}
-        {onPurge ? (
-          <Button variant="ghost" className="text-muted-foreground hover:text-destructive" onClick={onPurge}>
-            Delete forever
-          </Button>
-        ) : null}
-      </span>
-    </li>
+      }
+      meta={`${left} day${left === 1 ? "" : "s"} left`}
+      control={
+        onRestore || onPurge ? (
+          /* On hover or focus, as the sidebar's "…"; always shown on touch. */
+          <span className="flex items-center gap-1 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100">
+            {onRestore ? (
+              <Button variant="ghost" size="sm" onClick={onRestore}>
+                Restore
+              </Button>
+            ) : null}
+            {onPurge ? (
+              <Button variant="destructive" size="sm" onClick={onPurge}>
+                Delete forever
+              </Button>
+            ) : null}
+          </span>
+        ) : undefined
+      }
+    />
   )
 }

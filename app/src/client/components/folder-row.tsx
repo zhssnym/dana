@@ -32,6 +32,7 @@ import type { LucideIcon } from '../lib/icons.js'
 import type { ActHandlers } from '../lib/object-acts.js'
 import { ObjectMenu } from './object-menu.js'
 import { Button } from './ui/button.js'
+import { Input } from './ui/input.js'
 import { MORE_ACTIONS } from './ui/copy.js'
 import { SidebarMenuButton, SidebarMenuItem } from './ui/sidebar.js'
 import { cn } from './ui/utils.js'
@@ -75,11 +76,55 @@ export interface FolderRowProps {
   dropMark?: 'inside' | 'before' | 'after' | 'first-child' | null
   /** Carried along under a page that is being dragged. */
   dimmed?: boolean
-  /** The carried row, while a drop onto the tree is proposed: see-through,
-      so the highlight or line under it shows. */
-  seeThrough?: boolean
   /** The page's own rows, drawn inside its item. */
   children?: ReactNode
+  /** Renaming in place: the row is a field. `onRename(null)` cancels. */
+  renaming?: boolean
+  onRename?: (name: string | null) => void
+}
+
+/* The row as a name field: Enter or leaving commits, Escape cancels. */
+function RenameField({
+  name,
+  onRename,
+}: {
+  readonly name: string
+  readonly onRename: (name: string | null) => void
+}): React.JSX.Element {
+  const done = useRef(false)
+  const finish = (next: string | null): void => {
+    if (done.current) return
+    done.current = true
+    const clean = next?.replace(/\s+/g, ' ').trim() ?? ''
+    onRename(clean === '' || clean === name ? null : clean)
+  }
+  return (
+    <Input
+      bare
+      data-no-drag
+      aria-label="Page name"
+      defaultValue={name}
+      maxLength={100}
+      autoFocus
+      onFocus={(event) => {
+        event.currentTarget.select()
+      }}
+      onBlur={(event) => {
+        finish(event.currentTarget.value)
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+          event.preventDefault()
+          finish(event.currentTarget.value)
+        } else if (event.key === 'Escape') {
+          event.preventDefault()
+          event.stopPropagation()
+          finish(null)
+        }
+      }}
+      className="min-w-0 flex-1"
+    />
+  )
 }
 
 /* A device with no hover (touch): read once, as the row mounts. */
@@ -115,8 +160,9 @@ export function FolderRow({
   onAddInside,
   dropMark = null,
   dimmed = false,
-  seeThrough = false,
   children,
+  renaming = false,
+  onRename,
 }: FolderRowProps) {
   const [touch] = useState(noHover)
   /* Under the pointer or holding focus: when the "+" is drawn. */
@@ -137,7 +183,11 @@ export function FolderRow({
     dragState === undefined || (offset === 0 && !dragState.isActive)
       ? undefined
       : {
-          transform: `translateY(${String(offset)}px)`,
+          /* The carried row sits one inline step right and down of the
+             pointer, so the row it is over stays readable. */
+          transform: dragState.isActive && !dragState.isSettling
+            ? `translate(var(--space-inline), calc(${String(offset)}px + var(--space-inline)))`
+            : `translateY(${String(offset)}px)`,
           transition:
             dragState.isActive && !dragState.isSettling
               ? 'none'
@@ -167,8 +217,7 @@ export function FolderRow({
       }
       className={cn(
         'rounded-md',
-        dragState?.isActive && 'cursor-grabbing bg-popover shadow-md ring-1 ring-border',
-        dragState?.isActive && seeThrough && 'opacity-60',
+        dragState?.isActive && 'cursor-grabbing bg-sidebar',
         rowProps?.className,
       )}
     >
@@ -187,21 +236,27 @@ export function FolderRow({
         className={cn(
           'group/folder-row relative rounded-md',
           dimmed && 'opacity-50',
-          dragState?.isDwelling && 'bg-sidebar-accent ring-1 ring-ring/30',
-          dragState?.isArmed && 'bg-sidebar-accent ring-2 ring-ring',
           dropMark === 'inside' && 'bg-sidebar-accent ring-1 ring-ring/40',
         )}
       >
+        {renaming && onRename !== undefined ? (
+          <div
+            style={{ paddingLeft: indentOf(nested, depth) }}
+            className="flex h-(--shell-sidebar-row-height) items-center gap-2 rounded-md bg-sidebar-accent pr-2 max-md:h-(--row-height)"
+          >
+            <Mark className="size-4 shrink-0" style={{ color }} strokeWidth={1.75} aria-hidden="true" />
+            <RenameField name={name} onRename={onRename} />
+          </div>
+        ) : (
         <SidebarMenuButton
           render={render ?? <a href={href} />}
-          data-sidebar-tier="folder"
           isActive={active}
           aria-current={active ? 'page' : undefined}
           title={name}
           onClick={onSelect}
           style={{ paddingLeft: indentOf(nested, depth) }}
           className={cn(
-            'h-(--shell-sidebar-row-height) gap-2 rounded-md px-2 text-sm font-normal text-muted-foreground hover:bg-sidebar-accent hover:text-foreground group-hover/folder-row:bg-sidebar-accent data-active:bg-sidebar-accent data-active:font-medium data-active:text-foreground',
+            'h-(--shell-sidebar-row-height) gap-2 rounded-md px-2 text-sm font-normal max-md:h-(--row-height) text-muted-foreground hover:bg-sidebar-accent hover:text-foreground group-hover/folder-row:bg-sidebar-accent data-active:bg-sidebar-accent data-active:font-medium data-active:text-foreground',
             hasActions && addButton
               ? 'pr-14'
               : (hasActions || addButton) && 'pr-8',
@@ -222,8 +277,9 @@ export function FolderRow({
             {qualifier === undefined ? null : <span className="sr-only">{` ${qualifier}`}</span>}
           </span>
         </SidebarMenuButton>
+        )}
 
-        {fold === undefined ? null : (
+        {fold === undefined || renaming ? null : (
           /* Over the mark, in the same box, so nothing shifts when it shows. */
           <button
             type="button"
@@ -233,7 +289,7 @@ export function FolderRow({
             aria-label={fold.open ? `Hide the pages in ${name}` : `Show the pages in ${name}`}
             onClick={fold.onToggle}
             style={{ left: `calc(${indentOf(nested, depth)} - var(--spacing))` }}
-            className="absolute top-1/2 z-20 flex size-6 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground opacity-0 outline-none group-hover/folder-row:opacity-100 hover:text-foreground focus-visible:bg-sidebar-accent focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/30 [@media(hover:none)]:opacity-100"
+            className="absolute top-1/2 z-20 flex size-6 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground opacity-0 outline-none group-hover/folder-row:opacity-100 hover:text-foreground focus-visible:bg-sidebar-accent focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
           >
             <ChevronRight
               className={cn('size-4 transition-transform duration-150', fold.open && 'rotate-90')}
@@ -243,31 +299,14 @@ export function FolderRow({
           </button>
         )}
 
-        {hasActions || addButton ? (
+        {(hasActions || addButton) && !renaming ? (
           /* Opacity and never a collapsed box: a control with an empty box
              cannot be addressed. `data-no-drag`: a press here is not the grip. */
           <div
             data-no-drag
             className="absolute top-1/2 right-1 z-20 flex -translate-y-1/2 items-center opacity-0 transition-opacity duration-150 group-focus-within/folder-row:opacity-100 group-hover/folder-row:opacity-100 has-data-popup-open:opacity-100 [@media(hover:none)]:opacity-100"
           >
-            {hasActions ? (
-              <ObjectMenu
-                kind="folder"
-                name={name}
-                align="start"
-                trigger={
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    ref={menuTrigger}
-                    className="size-6 rounded-sm text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
-                    aria-label={MORE_ACTIONS}
-                  />
-                }
-                handlers={menuActs}
-              />
-            ) : null}
+            {/* "+" left of "…", so "…" keeps the rightmost slot on every row. */}
             {addButton && near ? (
               <Button
                 type="button"
@@ -286,6 +325,24 @@ export function FolderRow({
               >
                 <Plus className="size-4" strokeWidth={1.75} aria-hidden="true" />
               </Button>
+            ) : null}
+            {hasActions ? (
+              <ObjectMenu
+                kind="folder"
+                name={name}
+                align="start"
+                trigger={
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    ref={menuTrigger}
+                    className="size-6 rounded-sm text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+                    aria-label={MORE_ACTIONS}
+                  />
+                }
+                handlers={menuActs}
+              />
             ) : null}
           </div>
         ) : null}

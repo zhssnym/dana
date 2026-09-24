@@ -19,7 +19,7 @@ the same split `new-folder-dialog.tsx` records.
 Nothing here reads. The folder list arrives as a prop and `onSubmit` writes.
 */
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Folder, Folders } from '../lib/icons.js'
+import { Folder } from '../lib/icons.js'
 
 import { Button } from './ui/button.js'
 import { Checkbox } from './ui/checkbox.js'
@@ -108,7 +108,7 @@ export function FolderGroupDialog({
         label.toLocaleLowerCase() !== (currentLabel ?? '').toLocaleLowerCase(),
     )
     if (duplicate) {
-      setError('That collection already exists. Move folders into it instead.')
+      setError('That collection already exists. Move pages into it instead.')
       return
     }
 
@@ -124,9 +124,6 @@ export function FolderGroupDialog({
       <DialogContent className="w-[min(460px,calc(100vw-32px))]">
         <form onSubmit={submit}>
           <DialogHeader>
-            <div className="mb-2 flex size-9 items-center justify-center rounded-lg bg-accent text-section-foreground">
-              <Folders className="size-5" strokeWidth={1.75} aria-hidden="true" />
-            </div>
             {/* One word, collection, from the foot button
                 through this dialog to the row's menu. */}
             <DialogTitle>
@@ -167,7 +164,7 @@ export function FolderGroupDialog({
             {mode === 'create' ? (
               <fieldset>
                 <legend className="mb-1.5 text-xs font-medium text-section-foreground">
-                  Folders
+                  Pages
                 </legend>
                 <div className="max-h-60 overflow-y-auto rounded-lg border border-border bg-muted p-1">
                   {folders.map((folder) => {

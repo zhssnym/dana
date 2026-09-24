@@ -1,7 +1,7 @@
 /*
 The designer's `src/components/state-patterns.tsx`, ported:
-the offline banner, the inline failed-read state, the system toasts, the
-loading skeleton and the empty state, which are the page states 9.1 and
+the offline banner, the inline failed-read state and the loading skeleton,
+which are the page states 9.1 and
 section 6 give every page.
 
 **The inline error is the one thing in this file that is rewritten rather
@@ -28,11 +28,10 @@ the page layer, which owns them.
 offline banner that appears while a person is typing announces itself without
 moving focus.
 */
-import type { LucideIcon } from '../lib/icons.js'
 /* `CircleAlert` rather than `AlertCircle`: the icon module keeps one name for
    the one drawing, lucide's deprecated alias having drifted onto a second
    meaning before F5 collapsed the two. */
-import { CircleAlert as AlertCircle, Clock3, RefreshCw, WifiOff, X } from '../lib/icons.js'
+import { CircleAlert as AlertCircle, RefreshCw, WifiOff } from '../lib/icons.js'
 
 import {
   Alert,
@@ -42,12 +41,6 @@ import {
 } from './ui/alert.js'
 import { Button } from './ui/button.js'
 import { READ_FAILED, TRY_AGAIN } from './ui/copy.js'
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-} from './ui/empty.js'
 import { Skeleton } from './ui/skeleton.js'
 import { cn } from './ui/utils.js'
 
@@ -100,63 +93,6 @@ export function InlineError({ onRetry }: { onRetry?: () => void }) {
   )
 }
 
-export type SystemToastKind = 'offline-write' | 'error' | 'rate-limit'
-
-export function SystemToast({
-  kind,
-  className,
-  onDismiss,
-}: {
-  kind: SystemToastKind
-  className?: string
-  onDismiss?: () => void
-}) {
-  const content = {
-    'offline-write': {
-      icon: WifiOff,
-      message: "Couldn't save. You're offline.",
-    },
-    error: {
-      icon: AlertCircle,
-      message: 'Something went wrong. Nothing was saved. Try again.',
-    },
-    'rate-limit': {
-      icon: Clock3,
-      message: 'Too many requests. Try again in 24 seconds.',
-    },
-  }[kind]
-  const Icon = content.icon
-
-  return (
-    <div
-      role="status"
-      aria-live="polite"
-      className={cn(
-        'fixed z-50 flex min-h-12 w-[360px] items-center gap-3 rounded-lg bg-foreground px-3.5 py-2.5 text-sm text-background shadow-[var(--elevation-2)]',
-        className,
-      )}
-    >
-      <Icon
-        className="size-4 shrink-0 text-background/70"
-        strokeWidth={1.75}
-        aria-hidden="true"
-      />
-      <span className="min-w-0 flex-1 leading-5">{content.message}</span>
-      {onDismiss ? (
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="shrink-0 text-background/70 hover:bg-background/10 hover:text-background"
-          aria-label="Dismiss message"
-          onClick={onDismiss}
-        >
-          <X className="size-3.5" strokeWidth={1.75} aria-hidden="true" />
-        </Button>
-      ) : null}
-    </div>
-  )
-}
-
 function SkeletonRow({ short = false }: { short?: boolean }) {
   return (
     <div className="grid min-h-[var(--task-row-height)] grid-cols-[var(--control-height)_minmax(0,1fr)_7.5rem] items-center gap-2 rounded-md px-1">
@@ -164,7 +100,7 @@ function SkeletonRow({ short = false }: { short?: boolean }) {
         <Skeleton className="size-[var(--checkbox-size)] rounded-sm" />
       </div>
       <Skeleton className={short ? 'h-3.5 w-2/5' : 'h-3.5 w-3/5'} />
-      <Skeleton className="ml-auto h-5 w-24 rounded-full" />
+      <Skeleton className="ml-auto h-3.5 w-20" />
     </div>
   )
 }
@@ -172,39 +108,13 @@ function SkeletonRow({ short = false }: { short?: boolean }) {
 export function SkeletonList() {
   return (
     <div
-      className="space-y-1 rounded-lg border border-border bg-card p-1"
+      className="flex flex-col gap-[var(--space-row)]"
       aria-label="Loading tasks"
       aria-busy="true"
     >
       <SkeletonRow />
       <SkeletonRow short />
       <SkeletonRow />
-    </div>
-  )
-}
-
-export function EmptyState({
-  label,
-  copy,
-  icon: Icon,
-}: {
-  label: string
-  copy: string
-  icon: LucideIcon
-}) {
-  return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <Empty className="min-h-36 p-6">
-        <EmptyMedia className="text-quiet-foreground">
-          <Icon className="size-8" strokeWidth={1.75} aria-hidden="true" />
-        </EmptyMedia>
-        <EmptyHeader>
-          <EmptyDescription className="max-w-[52ch] text-sm leading-5 text-muted-foreground">
-            {copy}
-          </EmptyDescription>
-        </EmptyHeader>
-      </Empty>
     </div>
   )
 }

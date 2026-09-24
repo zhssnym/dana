@@ -98,12 +98,8 @@ export type ActKey =
   | 'transfer'
   | 'pull'
   | 'unpull'
-  /*
-  "Make this a folder…": the task held alone becomes a folder, a composition of
-  `POST /folders` and `PATCH /tasks/:id` performed by `tasks/task-acts.ts`.
-  `components/task-row.tsx` names the key in its act map. Like `duplicate`
-  beside it, it appears only where a surface supplies a handler.
-  */
+  /* 'move' and 'make-folder' have no spec in any list now: nothing on screen
+     reached them. The keys remain for task-row.tsx's unused `Actions`. */
   | 'make-folder'
   | 'copy-link'
   | 'duplicate'
@@ -153,8 +149,6 @@ const OBJECT_ACTS: Record<ObjectKind, readonly ActSpec[]> = {
        DELETE, offered one at a time the way abandon and restore are. */
     { key: 'pull', label: 'Add to Today', icon: SunMedium, group: 2 },
     { key: 'unpull', label: 'Remove from Today', icon: SunMedium, group: 2 },
-    { key: 'move', label: 'Move to folder…', icon: FolderInput, group: 2 },
-    { key: 'make-folder', label: 'Make this a folder…', icon: Folders, group: 2 },
     { key: 'copy-link', label: 'Copy link', icon: Link2, group: 3 },
     { key: 'duplicate', label: 'Duplicate', icon: Copy, group: 3 },
     { key: 'abandon', label: 'Abandon', icon: Ban, group: 4 },
@@ -187,8 +181,10 @@ const OBJECT_ACTS: Record<ObjectKind, readonly ActSpec[]> = {
        its viewer's role permits (9.6's matrix), which is the contract's own
        safety property doing the permission work. */
     { key: 'transfer', label: 'Transfer ownership…', icon: UserRoundCheck, group: 4 },
+    /* Leave asks first (access goes, no undo), so it keeps its ellipsis;
+       Delete goes to Trash with undo and asks nothing. */
     { key: 'leave', label: 'Leave page…', icon: LogOut, group: 4 },
-    { key: 'delete', label: 'Delete page…', icon: Trash2, group: 5, destructive: true },
+    { key: 'delete', label: 'Delete', icon: Trash2, group: 5, destructive: true },
   ],
   shelf: [
     { key: 'open', label: 'Open collection', icon: OpenInNewTab, group: 1 },
@@ -203,6 +199,15 @@ const OBJECT_ACTS: Record<ObjectKind, readonly ActSpec[]> = {
     { key: 'workflow', label: 'Export', icon: Download, group: 3 },
     { key: 'delete', label: 'Delete collection…', icon: Trash2, group: 5, destructive: true },
   ],
+}
+
+/** 9.6's leave confirm, one sentence (AC-183). FolderPage keeps its own copy
+ * of this string; it could import this one. */
+export function leaveFolderConfirm(name: string): string {
+  return (
+    `Leave ${name}? You lose access to it, and anything in it assigned to ` +
+    'you becomes unassigned.'
+  )
 }
 
 /** The glyph a surface's own extra item draws, so those match the contract's. */

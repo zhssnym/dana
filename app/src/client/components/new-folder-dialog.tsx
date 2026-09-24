@@ -20,7 +20,6 @@ one that works until the list is reloaded, which is why that criterion checks
 the server rather than the page.
 */
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { FolderPlus } from '../lib/icons.js'
 
 import { Button } from './ui/button.js'
 import {
@@ -60,7 +59,7 @@ export function NewFolderDialog({
     event.preventDefault()
     const nextName = name.trim()
     if (!nextName) {
-      setError('Give the folder a name')
+      setError('Give the page a name')
       return
     }
     if (nextName.length > 100) {
@@ -77,20 +76,17 @@ export function NewFolderDialog({
       <DialogContent>
         <form onSubmit={submit}>
           <DialogHeader>
-            <div className="mb-2 flex size-9 items-center justify-center rounded-lg bg-accent text-section-foreground">
-              <FolderPlus className="size-5" strokeWidth={1.75} aria-hidden="true" />
-            </div>
-            <DialogTitle>New folder</DialogTitle>
+            <DialogTitle>New page</DialogTitle>
             <DialogDescription>
               {groupLabel
-                ? `Create a private folder in “${groupLabel}”. You can color or share it afterward.`
-                : 'Create a private folder. You can label, color or share it afterward.'}
+                ? `In “${groupLabel}”.`
+                : 'Only you can see it until you share it.'}
             </DialogDescription>
           </DialogHeader>
 
           <div className="mt-4">
             <label htmlFor="new-folder-name" className="mb-1.5 block text-xs font-medium text-section-foreground">
-              Folder name
+              Name
             </label>
             <Input
               ref={inputRef}
@@ -114,12 +110,12 @@ export function NewFolderDialog({
 
           <DialogFooter>
             <DialogClose
-              render={<Button type="button" variant="outline" className="h-[var(--control-height)] px-3" />}
+              render={<Button type="button" variant="outline" />}
             >
               Cancel
             </DialogClose>
-            <Button type="submit" className="h-[var(--control-height)] px-3">
-              Create folder
+            <Button type="submit" variant="commit">
+              Create page
             </Button>
           </DialogFooter>
         </form>

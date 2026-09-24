@@ -9,7 +9,6 @@ Schedule has begun (#217), "Added to Today" when the person pulled it in. A
 row under "Today" reading "Tomorrow" was the confusion this split removes.
 */
 import type { TaskCard } from '../../shared/tasks.js'
-import { CalendarCheck2 } from '../lib/icons.js'
 
 import { useMyDayView } from '../api/queries.js'
 import { NEW_TASK_ROW_PHONE, QuickAdd } from '../components/quick-add.js'
@@ -31,7 +30,7 @@ export function TodayPage(): React.JSX.Element {
   const actions = useRowActions()
   const confirm = useConfirm()
   const basis = useRowBasis()
-  /* 9.13's first-run offer sits under Today's list, where /app lands a new person. */
+  /* 9.13's first-run offer takes the place of Today's empty state. */
   const mayBeFresh = useMayBeFresh()
 
   const carried = view.data?.carried ?? []
@@ -60,62 +59,66 @@ export function TodayPage(): React.JSX.Element {
   }
   const reasons = (started.length === 0 ? 0 : 1) + (added.length === 0 ? 0 : 1)
 
+  const pageBody = (
+    <PageBody
+      query={view}
+      isEmpty={open.length === 0 && !showDone}
+      emptyCopy={MY_DAY_EMPTY}
+      truncated={view.data?.truncated ?? false}
+    >
+      <div className="space-y-6">
+        {place.groupBy !== 'none' ? (
+          groupRows(place.narrow(open), place.groupBy, place.today, place.viewerId).map(
+            (column) => (
+              <PlaceGroup key={column.key} name={column.name} heading={column.name}>
+                {rows(column.rows)}
+              </PlaceGroup>
+            ),
+          )
+        ) : (
+          <>
+            {/* AC-097 reads "Carried over". With nothing carried, the day is
+                one list and needs no heading. */}
+            {carried.length === 0 ? null : (
+              <PlaceGroup name="Carried over" heading="Carried over">
+                {rows(carried)}
+              </PlaceGroup>
+            )}
+            {dueToday.length === 0 ? null : (
+              <PlaceGroup
+                name="Today"
+                {...(carried.length === 0 && reasons === 0 ? {} : { heading: 'Today' })}
+              >
+                {rows(dueToday)}
+              </PlaceGroup>
+            )}
+            {started.length === 0 ? null : (
+              <PlaceGroup name="Started" heading="Started">
+                {rows(started)}
+              </PlaceGroup>
+            )}
+            {added.length === 0 ? null : (
+              <PlaceGroup name="Added to Today" heading="Added to Today">
+                {rows(added)}
+              </PlaceGroup>
+            )}
+          </>
+        )}
+      </div>
+    </PageBody>
+  )
+
   return (
     <div className="space-y-6">
       <SampleStrip />
       <PlaceHead
         place={place}
+        bare={total === 0}
         {...(total === 0 ? {} : { fact: `${String(recap.length)} of ${String(total)} done` })}
       />
 
       <div>
-        <PageBody
-          query={view}
-          isEmpty={open.length === 0 && !showDone}
-          emptyCopy={MY_DAY_EMPTY}
-          emptyIcon={CalendarCheck2}
-          truncated={view.data?.truncated ?? false}
-        >
-          <div className="space-y-6">
-            {place.groupBy !== 'none' ? (
-              groupRows(place.narrow(open), place.groupBy, place.today, place.viewerId).map(
-                (column) => (
-                  <PlaceGroup key={column.key} name={column.name} heading={column.name}>
-                    {rows(column.rows)}
-                  </PlaceGroup>
-                ),
-              )
-            ) : (
-              <>
-                {/* AC-097 reads "Carried over". With nothing carried, the day is
-                    one list and needs no heading. */}
-                {carried.length === 0 ? null : (
-                  <PlaceGroup name="Carried over" heading="Carried over">
-                    {rows(carried)}
-                  </PlaceGroup>
-                )}
-                {dueToday.length === 0 ? null : (
-                  <PlaceGroup
-                    name="Today"
-                    {...(carried.length === 0 && reasons === 0 ? {} : { heading: 'Today' })}
-                  >
-                    {rows(dueToday)}
-                  </PlaceGroup>
-                )}
-                {started.length === 0 ? null : (
-                  <PlaceGroup name="Started" heading="Started">
-                    {rows(started)}
-                  </PlaceGroup>
-                )}
-                {added.length === 0 ? null : (
-                  <PlaceGroup name="Added to Today" heading="Added to Today">
-                    {rows(added)}
-                  </PlaceGroup>
-                )}
-              </>
-            )}
-          </div>
-        </PageBody>
+        {mayBeFresh ? <StarterOffer fallback={pageBody} /> : pageBody}
         <QuickAdd
           className={NEW_TASK_ROW_PHONE}
           onAdd={(title) => {
@@ -129,7 +132,6 @@ export function TodayPage(): React.JSX.Element {
           {rows(recap)}
         </PlaceGroup>
       )}
-      {mayBeFresh ? <StarterOffer /> : null}
 
       <ConfirmDialog pending={confirm.pending} onClose={confirm.close} />
     </div>

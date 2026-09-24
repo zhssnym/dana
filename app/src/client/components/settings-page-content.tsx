@@ -2,17 +2,16 @@
 9.7's Settings page, the presentation. The route page (`pages/SettingsPage.tsx`)
 owns the reads and the account delete; this file draws five sections in one
 column (Account, Appearance, Time, People, Data), then a quiet support line, then
-Delete account set apart at the very end. Round 4: one row structure (`SettingsRow`),
-one control height (32px), neutral outline buttons, one danger style, and the
-global focus outline only (no second ring stacked on it). Settings is the home of every
+Delete account set apart at the very end, then the quiet support line. Built from
+the system `RowGroup` and `Row`, neutral buttons, one danger style. Settings is the home of every
 configuration: a preference is not also toggled from a menu elsewhere.
 
 What is worth knowing:
 
 - **No view pins.** The sidebar no longer has pinnable views, so the switches
   that mirrored it are gone rather than kept as a second copy of the sidebar.
-- **Every row is a label and its control**, the control wrapping under the label
-  on a phone rather than squeezing the words into a column one word wide.
+- **Every row is a label and its control**, the control stacked under the label
+  below `sm`, one layout for every row.
 - **The picture is the control** for the viewer's own picture (7.15); Remove is
   offered only while there is one.
 - **"Download my data" is an anchor with `download`**, not a fetch: a navigation
@@ -23,13 +22,13 @@ What is worth knowing:
   (the route page's dialog) and then offers the undo bar.
 - **People** (9.8) is a section here, and /app/people lands on `#people`.
   Settings is reached from the sidebar's foot, beside Trash. Sign out has one
-  home, the Account section here; the sidebar has no account menu.
+  home, the identity row here; the sidebar has no account menu.
 - **Pickers are the one `Combobox`**; the timezone list is long, so it filters
   as you type.
 - **Delete account** requires typing DELETE, and says shared folders must be
   handed on first, which is what `DELETE /me`'s 409 enforces (issue #228).
 */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 
 import { SUPPORT_EMAIL } from '../../shared/support.js'
 import { signOut } from '../shell/session.js'
@@ -45,63 +44,15 @@ import {
   useViewer,
 } from '../lib/viewer.js'
 import { PeopleSettings } from './settings/people.js'
-import { Screen, ScreenSection, SettingsRow } from './settings/screen.js'
+import { Screen, StackingRow } from './settings/screen.js'
 import { InlineError } from './state-patterns.js'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from './ui/alert-dialog.js'
 import { isOwnPicture, PersonFace } from './person-face.js'
 import { Button } from './ui/button.js'
 import { Combobox } from './ui/combobox.js'
-import { Input } from './ui/input.js'
+import { RowGroup } from './ui/row.js'
+import { Segmented } from './ui/segmented.js'
 import { useIsMobile } from './ui/use-mobile.js'
 import { Skeleton } from './ui/skeleton.js'
-import { cn } from './ui/utils.js'
-
-function Segmented<T extends string>({
-  label,
-  value,
-  options,
-  onSelect,
-}: {
-  label: string
-  value: T
-  options: readonly (readonly [T, string])[]
-  onSelect: (next: T) => void
-}) {
-  return (
-    <div
-      role="radiogroup"
-      aria-label={label}
-      className="flex h-8 items-center gap-0.5 rounded-md bg-muted p-0.5"
-    >
-      {options.map(([option, text]) => (
-        <button
-          key={option}
-          type="button"
-          role="radio"
-          aria-checked={value === option}
-          onClick={() => onSelect(option)}
-          className={cn(
-            'h-7 rounded-sm px-2.5 text-sm transition-colors',
-            value === option
-              ? 'bg-background text-foreground'
-              : 'text-muted-foreground hover:text-foreground',
-          )}
-        >
-          {text}
-        </button>
-      ))}
-    </div>
-  )
-}
 
 /* The viewer's picture, name and address. The circle is the button. */
 function ViewerRow() {
@@ -115,38 +66,41 @@ function ViewerRow() {
   }
 
   return (
-    <div className="flex min-h-11 items-center gap-3 py-1.5">
-      <button
-        type="button"
-        onClick={() => fileInput.current?.click()}
-        aria-label={isOwnPicture(viewer.image) ? 'Change your picture' : 'Add a picture'}
-        className="group/pic relative block shrink-0 rounded-full"
-      >
-        {/* e9-avatars: the one face, so the preview shows the default
-            face until a picture is uploaded (the Google one is not drawn). */}
-        <PersonFace id={viewer.id} name={viewer.name} image={viewer.image ?? null} className="size-8 data-[size=sm]:size-8" />
-        <span className="absolute inset-0 flex items-center justify-center rounded-full bg-foreground/50 opacity-0 transition-opacity group-hover/pic:opacity-100">
-          <ImagePlus className="size-4 text-background" strokeWidth={1.75} aria-hidden="true" />
-        </span>
-      </button>
-      <input
-        ref={fileInput}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={(event) => void take(event.target.files?.[0])}
-      />
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm text-foreground">{viewer.name}</p>
-        {/* 7.1 has no write for the name: it is Google's, and the line says so. */}
-        <p className="truncate text-xs text-muted-foreground">{viewer.email} · from Google</p>
-      </div>
-      {isOwnPicture(viewer.image) ? (
-        <Button variant="outline" size="lg" onClick={() => clearViewerImage()}>
-          Remove picture
-        </Button>
-      ) : null}
-    </div>
+    <StackingRow
+      icon={
+        <>
+          <button
+            type="button"
+            onClick={() => fileInput.current?.click()}
+            aria-label={isOwnPicture(viewer.image) ? 'Change your picture' : 'Add a picture'}
+            className="group/pic relative block shrink-0 rounded-full"
+          >
+            <PersonFace id={viewer.id} name={viewer.name} image={viewer.image ?? null} />
+            <span className="absolute inset-0 flex items-center justify-center rounded-full bg-foreground/50 opacity-0 transition-opacity group-hover/pic:opacity-100">
+              <ImagePlus className="size-4 text-background" strokeWidth={1.75} aria-hidden="true" />
+            </span>
+          </button>
+          <input
+            ref={fileInput}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(event) => void take(event.target.files?.[0])}
+          />
+        </>
+      }
+      label={viewer.name}
+      /* 7.1 has no write for the name: it is Google's, and the line says so. */
+      description={`${viewer.email} · from Google`}
+      control={
+        <>
+          {isOwnPicture(viewer.image) ? (
+            <Button onClick={() => clearViewerImage()}>Remove picture</Button>
+          ) : null}
+          <Button onClick={signOut}>Sign out</Button>
+        </>
+      }
+    />
   )
 }
 
@@ -169,8 +123,6 @@ export function SettingsPageContent({
   const taskOpen = useTaskOpenPreference()
   /* A phone always opens a task full page, so the choice would do nothing. */
   const phone = useIsMobile()
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [deleteConfirmation, setDeleteConfirmation] = useState('')
 
   /* /app/people and other deep links arrive as /app/settings#<section>; the
      sections draw after the bundle, so scroll once they exist. */
@@ -187,122 +139,115 @@ export function SettingsPageContent({
       {previewState === 'loading' ? (
         <div className="space-y-3" aria-label="Loading settings" aria-busy="true">
           <Skeleton className="h-5 w-24" />
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-8 w-full" />
+          <Skeleton className="h-8 w-full" />
         </div>
       ) : previewState === 'error' ? (
         <InlineError />
       ) : (
         <>
-          <ScreenSection id="settings-account" title="Account">
+          <RowGroup title="Account" aria-label="Account">
             <ViewerRow />
-            <SettingsRow
-              title="Sign out"
-              description="Sign out of Dana on this device"
-              control={
-                <Button variant="outline" size="lg" onClick={signOut}>
-                  Sign out
-                </Button>
-              }
-            />
-          </ScreenSection>
+          </RowGroup>
 
-          <ScreenSection id="settings-appearance" title="Appearance">
-            <SettingsRow
-              title="Theme"
+          <RowGroup title="Appearance" aria-label="Appearance">
+            <StackingRow
+              label="Theme"
               control={
                 <Segmented
                   label="Theme"
                   value={theme}
                   options={[
-                    ['system', 'System'],
-                    ['light', 'Light'],
-                    ['dark', 'Dark'],
+                    { value: 'system', label: 'System' },
+                    { value: 'light', label: 'Light' },
+                    { value: 'dark', label: 'Dark' },
                   ]}
-                  onSelect={setTheme}
+                  onValueChange={setTheme}
                 />
               }
             />
             {phone ? null : (
-              <SettingsRow
-                title="Open tasks in"
+              <StackingRow
+                label="Open tasks in"
                 control={
                   <Segmented
                     label="Open tasks in"
                     value={taskOpen}
                     options={[
-                      ['dialog', 'Center peek'],
-                      ['panel', 'Side peek'],
-                      ['tab', 'Full page'],
+                      { value: 'dialog', label: 'Center peek' },
+                      { value: 'panel', label: 'Side peek' },
+                      { value: 'tab', label: 'Full page' },
                     ]}
-                    onSelect={setTaskOpen}
+                    onValueChange={setTaskOpen}
                   />
                 }
               />
             )}
-          </ScreenSection>
+          </RowGroup>
 
-          <ScreenSection id="settings-time" title="Time">
-            <SettingsRow
-              title="Timezone"
-              description="Due dates and reminders use this zone"
-              control={<TimezoneSelect />}
-            />
-            <SettingsRow
-              title="Clock"
+          <RowGroup title="Time" aria-label="Time">
+            <StackingRow label="Timezone" control={<TimezoneSelect />} />
+            <StackingRow
+              label="Clock"
               control={
                 <Segmented
                   label="Clock"
                   value={clock === '24' ? '24h' : '12h'}
                   options={[
-                    ['12h', '12-hour'],
-                    ['24h', '24-hour'],
+                    { value: '12h', label: '12-hour' },
+                    { value: '24h', label: '24-hour' },
                   ]}
-                  onSelect={setClock}
+                  onValueChange={setClock}
                 />
               }
             />
-          </ScreenSection>
+          </RowGroup>
 
-          <div id="people" className="scroll-mt-6">
-            <ScreenSection id="settings-people" title="People">
-              <PeopleSettings />
-            </ScreenSection>
-          </div>
+          <RowGroup id="people" title="People" aria-label="People" className="scroll-mt-6">
+            <PeopleSettings />
+          </RowGroup>
 
-          <ScreenSection id="settings-data" title="Data">
-            <SettingsRow
-              title="Download my data"
+          <RowGroup title="Data" aria-label="Data">
+            <StackingRow
+              label="Download my data"
               description="Everything Dana holds about you, as one JSON file"
-              control={
-                <Button variant="outline" size="lg" render={<a href="/api/v1/me/export" download />}>
-                  Download
-                </Button>
-              }
+              control={<Button render={<a href="/api/v1/me/export" download />}>Download</Button>}
             />
             {sample ? (
-              <SettingsRow
-                title="Sample data"
+              <StackingRow
+                label="Sample data"
                 description={
                   sample.present
-                    ? `${String(sample.folders)} pages and ${String(sample.tasks)} tasks to show you around. Your own work stays.`
-                    : 'The example pages and tasks are gone'
+                    ? `${String(sample.folders)} pages and ${String(sample.tasks)} tasks to show you around`
+                    : undefined
                 }
                 control={
+                  /* The client cannot tell removed from never had, so one neutral label. */
                   <Button
-                    variant="outline"
-                    size="lg"
                     disabled={sample.busy}
                     onClick={sample.present ? onRemoveSample : onRestoreSample}
                   >
-                    {sample.present ? 'Remove' : 'Restore'}
+                    {sample.present ? 'Remove' : 'Add sample pages'}
                   </Button>
                 }
               />
             ) : null}
-          </ScreenSection>
+          </RowGroup>
 
-          <p className="pb-6 text-xs text-muted-foreground">
+          {/* Destructive, so last and set apart by the one divider. */}
+          <RowGroup aria-label="Delete account" divider>
+            <StackingRow
+              label="Delete account"
+              description="Shared pages you own must be handed on or deleted first"
+              control={
+                <Button variant="destructive" onClick={onDeleteAccount}>
+                  Delete account
+                </Button>
+              }
+            />
+          </RowGroup>
+
+          <p className="mt-[var(--space-group)] px-2 text-xs text-muted-foreground">
             Something wrong? Write to{' '}
             <a
               href={`mailto:${SUPPORT_EMAIL}`}
@@ -311,62 +256,9 @@ export function SettingsPageContent({
               {SUPPORT_EMAIL}
             </a>
           </p>
-
-          {/* Destructive, so last and set apart by the one divider. */}
-          <section aria-label="Delete account" className="border-t border-border pt-2">
-            <SettingsRow
-              title="Delete account"
-              description="Shared pages you own must be handed on or deleted first"
-              control={
-                <Button variant="destructive" size="lg" onClick={() => setDeleteDialogOpen(true)}>
-                  Delete account
-                </Button>
-              }
-            />
-          </section>
         </>
       )}
 
-      <AlertDialog
-        open={deleteDialogOpen}
-        onOpenChange={(open) => {
-          setDeleteDialogOpen(open)
-          if (!open) setDeleteConfirmation('')
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete your Dana account?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Shared pages you own must be handed to another member, or deleted, first — Dana will
-              tell you which ones. Private pages and their tasks are permanently deleted.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div>
-            <label htmlFor="delete-account-confirmation" className="text-xs text-foreground">
-              Type DELETE to confirm
-            </label>
-            <Input
-              id="delete-account-confirmation"
-              value={deleteConfirmation}
-              onChange={(event) => setDeleteConfirmation(event.target.value)}
-              autoComplete="off"
-              className="mt-2 font-mono text-sm"
-              aria-label="Type DELETE to confirm account deletion"
-            />
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              destructive
-              disabled={deleteConfirmation !== 'DELETE'}
-              onClick={onDeleteAccount}
-            >
-              Continue
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </Screen>
   )
 }

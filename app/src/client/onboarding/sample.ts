@@ -21,7 +21,8 @@ import { pushUndo } from '../shell/undo.js'
 import { showToast } from '../state/toasts.js'
 
 export const SAMPLE_COPY = {
-  strip: 'This is a sample workspace to show you around.',
+  strip: 'Sample workspace',
+  stripRemove: 'Remove',
   remove: 'Remove sample data',
   keep: 'Keep it',
   confirm: 'Remove the sample workspace? Everything it added goes; anything you made yourself stays.',
