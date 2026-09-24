@@ -142,7 +142,7 @@ export function CanvasSurface({
       return { label: 'Delete', run: () => { remove(ids) } }
     },
   }), [editor, headingMode, flatGroups, admits, headingToggles, onCreateTask, requestTask, duplicate, onRemoveFolder, remove])
-  const selectionActions = useMemo(() => ({ remove, duplicate }), [remove, duplicate])
+  const selectionActions = useMemo(() => ({ remove, duplicate, admits }), [remove, duplicate, admits])
   useBlockSelectionKeys(editor, selectionActions)
   useBlockAnchor(editor, true)
   const scope = `dana-canvas-${useId().replace(/[^a-zA-Z0-9]/g, '')}`
