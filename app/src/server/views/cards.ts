@@ -135,8 +135,8 @@ export const SCHEDULED = sql`(t.start_date IS NOT NULL OR t.due_date IS NOT NULL
  * as exact complements of one another by a person; here it rests on one
  * sentence and a NOT, so the two cannot drift apart. `IS NOT NULL` yields a
  * real boolean for every row, never UNKNOWN, so the negation is total and
- * this is not the three-valued trap the backend README records about CHECKs
- * over nullable columns.
+ * this is not the three-valued trap docs/troubleshooting.md records about
+ * CHECKs over nullable columns.
  */
 export const ANYTIME = sql`NOT ${SCHEDULED}`
 

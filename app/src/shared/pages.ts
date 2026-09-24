@@ -75,7 +75,7 @@ const blockWrite = z
       ctx.addIssue({
         code: 'custom',
         path: ['width_pct'],
-        message: 'a width belongs to an image block (4.17)',
+        message: 'a width belongs to an image block',
       })
     }
     if (block.id !== undefined && block.updated_at === undefined) {
@@ -194,7 +194,7 @@ const insertBlockAction = z
       ctx.addIssue({
         code: 'custom',
         path: ['width_pct'],
-        message: 'a width belongs to an image block (4.17)',
+        message: 'a width belongs to an image block',
       })
     }
   })

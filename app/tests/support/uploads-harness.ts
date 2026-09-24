@@ -126,7 +126,7 @@ export async function uploadCoverOk(
   )
   expect(
     stored.status,
-    `the cover upload of ${name} must land before anything can wear it (spec 7.15 as widened by issues #20 and #100); answered ${String(stored.status)} ${stored.body.slice(0, 160)}`,
+    `the cover upload of ${name} must land before anything can wear it (spec 7.15); answered ${String(stored.status)} ${stored.body.slice(0, 160)}`,
   ).toBe(201)
   const id = (stored.json() as { id?: unknown }).id
   expect(typeof id, 'the stored row answers with its id (spec 7.0)').toBe('string')
@@ -240,7 +240,7 @@ export async function uploadKindOk(
   )
   expect(
     stored.status,
-    `the ${kind} upload of ${file.name} must land before anything can reference it (spec 7.15, issue #220); answered ${String(stored.status)} ${stored.body.slice(0, 200)}`,
+    `the ${kind} upload of ${file.name} must land before anything can reference it (spec 7.15); answered ${String(stored.status)} ${stored.body.slice(0, 200)}`,
   ).toBe(201)
   const id = (stored.json() as { id?: unknown }).id
   expect(typeof id, 'the stored row answers with its id (spec 7.0)').toBe('string')

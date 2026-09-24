@@ -6,15 +6,13 @@ affordance appears; no forced reload."
 **A recorded deviation in mechanism, not in behavior.** 11.4 names
 vite-plugin-pwa "with the prompt-for-update registration flow
 (virtual:pwa-register with onNeedRefresh)". The plugin is still what builds the
-service worker and the manifest, and this session has asked for it by the
-protocol section 3 route (the request is in src/server/routes/README.md,
-because vite.config.ts is Platform's). What this file does not do is import
-`virtual:pwa-register`, and the reason is the ownership boundary rather than a
-preference: that module exists only while the plugin is configured, a static
-import of it fails the build outright, and this package's gate has to be green
-on a tree where the plugin is not wired yet. A computed specifier would dodge
-the build and then fail at runtime for the same reason it dodged it, because
-Vite would no longer rewrite it.
+service worker and the manifest, configured in vite.config.ts. What this file
+does not do is import `virtual:pwa-register`, and the reason is the ownership
+boundary rather than a preference: that module exists only while the plugin is
+configured, a static import of it fails the build outright, and this package's
+gate has to be green on a tree where the plugin is not wired yet. A computed
+specifier would dodge the build and then fail at runtime for the same reason it
+dodged it, because Vite would no longer rewrite it.
 
 So the flow below is the flow the virtual module implements, against the same
 generated worker: register, watch for a worker that installs while one is

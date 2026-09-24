@@ -35,23 +35,20 @@ permits anything.**
 locking the row, writing the history -- and re-exports these names, so a
 server caller sees no change.
 
-## Which record every line below cites
+## The `why` strings are product copy
 
-The R-numbered records are in #209. Every `why` below names one of four, and
-only these four: R7 is superseded by R8A and is authority for nothing.
+**Every `why` below is on the wire.** A refused request answers
+`{"error":{"code":"forbidden","message":<why>}}`, the client's write-failure
+toast shows a 403's message as written, and the folder page shows the same
+string when a link asks for an act the person may not perform. So each one is
+a single plain sentence for the person refused: it says what the act needs --
+an Access level, the folder's owner, or the task being assigned to them -- and
+nothing about where the rule came from.
 
-- **accepted R8A** -- for the six presets and what each of them is *for*;
-- **#228's capability boundaries**, the product issue's own per-preset lists,
-  whose stated canonical authority is accepted R8A and R10B, for the rules
-  finer-grained than R8A's six lines;
-- **governing R5/R6**, which R8A's supersession clause keeps governing for
-  structural ownership and explicit owner succession;
-- **Hassan's ruling on #228** for `folder.trash`, which R8A does not settle
-  either way.
-
-**These `why` strings are on the wire.** A refused mutation answers
-`{"error":{"code":"forbidden","message":<why>}}`, so this is product copy read
-by a person and not only a comment read by the next developer.
+The reasoning behind a rule is a comment beside it, in plain words, and the
+product rules themselves are the spec's, 5.4's permission matrix above all. A
+`why` has to change whenever its rule's bar or arms do; nothing checks that
+the two agree.
 
 ## What this table is, and what it is not
 
@@ -306,260 +303,324 @@ interface ActionRule {
   requiresAuthor?: boolean
   /** Personal state that Folder Access does not govern beyond membership. */
   personal?: boolean
-  /** The sentence a refusal carries and the reason the rule is what it is. */
+  /** The sentence a refusal carries, read by the person refused: what the act
+   * needs, in the product's words. The reason the rule is what it is belongs
+   * in a comment beside it, never here. */
   why: string
 }
 
 /*
-The table. Every entry cites the accepted rule it transcribes, because the
+The table. Each `why` is the sentence a refused person reads, so it says what
+the act needs and nothing more. Where the reason for a rule is not obvious
+from its bar, a comment beside the entry says why in plain words, because the
 next person to read a line will otherwise have to reconstruct the argument
 from the shape of the code, which is how a capability boundary drifts.
 
 Two systematic notes rather than repeating them forty times.
 
-**`can_edit` is the bar for all ordinary shared Work**, including Folder
-identity and the Folder page: accepted R8A gives Can edit "plan/change all
-shared Folder work", and #228's Can-edit list names "Folder
-name/description/icon/color/cover" and the "Folder page/composer" inside it. A
-Folder's profile is ordinary shared Work and not people administration.
+**`can_edit` is the bar for all ordinary shared Work**, including the Folder's
+identity -- its name, description, icon, color and cover -- and the Folder
+page. Can edit plans and changes all of a Folder's shared work, and a Folder's
+profile is part of that work rather than people administration.
 
 **`full_control` is the bar for everything irreversible or about people**:
 member and invite administration, moderating somebody else's comment, the
-permanent deletes, and moving the Folder itself to Trash. Accepted R8A gives
-Full control "administer members, Access, Responsibilities and all shared
-Folder work" and denies Can edit the power to "administer people/Access";
-#228's Full-control list carries the permanent deletes and the moderation; and
-the Folder's own trip to Trash is Hassan's ruling on #228, which R8A does
-not settle.
+permanent deletes, and moving the Folder itself to Trash. Full control
+administers members, Access, Responsibilities and all shared work; Can edit
+changes the work but never administers people or Access. The Folder's own trip
+to Trash is the one line that could be read either way, and the entry says
+which reading was taken and why.
 */
 const RULES: Record<FolderAction, ActionRule> = {
   'folder.read': {
     atLeast: 'can_view',
-    why: 'accepted R8A: Can view is read only, so every preset reads ordinary Folder-visible content',
+    why: 'You need Can view access to see this folder.',
   },
   'folder.profile.edit': {
     atLeast: 'can_edit',
-    why: "accepted R8A: Can edit plans and changes all shared Folder work, and #228 names a Folder's name, description, icon, colour and cover inside it",
+    why: 'You need Can edit access to rename this folder or change its description, icon, color or cover.',
   },
   'folder.page.edit': {
     atLeast: 'can_edit',
-    why: "#228's Can-edit list: the Folder page and composer are ordinary shared Work",
+    why: 'You need Can edit access to edit pages in this folder.',
   },
   'folder.section.manage': {
     atLeast: 'can_edit',
-    why: "#228's Can-contribute list: they may place their own Task among existing Sections but may not create, delete or reorder the Sections themselves",
+    /* Sections are the folder's structure. Can contribute may place their own
+       task among the existing sections, but may not create, delete or reorder
+       the sections themselves. The page-actions route asks this for every
+       action its body can carry, ordinary page edits included, so the
+       sentence names both. */
+    why: "You need Can edit access to edit this folder's page or its sections.",
   },
   'folder.duplicate': {
     atLeast: 'can_edit',
-    why: "#228's Can-edit list puts duplication of Folders and workflow content there: copying a whole shared work structure is more than ordinary read participation",
+    /* Copying a whole shared work structure is more than ordinary
+       participation. */
+    why: 'You need Can edit access to duplicate this folder.',
   },
   'folder.trash': {
     atLeast: 'full_control',
-    /* The one line here that no accepted record settles. R8A's "Can edit may
-       change all shared Folder work" reads either way for trashing the whole
-       Folder; the narrower reading was taken because the recoverable
-       direction of a wrong call is the restrictive one. AC-015 carries the
-       argument in full. */
-    why: "Hassan's ruling of 2026-09-20 on #228: moving a Folder to Trash is recoverable administrative deletion, which is Full control's",
+    /* The one line that could be read either way: moving a Folder to Trash is
+       recoverable, like the shared work Can edit may change, and it is also
+       administrative deletion. The narrower reading was taken because widening
+       later is a decision while narrowing later takes away something people
+       already had. AC-015 carries the argument. */
+    why: 'Only people with Full control can move this folder to Trash.',
   },
   'folder.restore': {
     atLeast: 'full_control',
     owner: 'sufficient',
-    why: "#228's Full-control list -- trash/restore Folder administratively -- with governing R5 keeping recovery with custody, so the owner may restore a trashed Folder even when their ordinary Access is lower",
+    /* Full control restores, and so does the owner whatever their own
+       Access: recovery stays with custody, so an owner who lowered
+       themselves can always get their folder back. */
+    why: "Only the folder's owner or people with Full control can restore this folder from Trash.",
   },
   'folder.destroy': {
     atLeast: 'full_control',
     owner: 'required',
-    why: '#228 and governing R5: permanent Folder destruction requires the owner and current Full control together, custody and active administrative authority at once',
+    /* Custody and current administrative authority at once: the owner, and
+       only while they hold Full control. Either alone is refused. */
+    why: "Only the folder's owner, while they have Full control, can permanently delete this folder.",
   },
   'folder.ownership.transfer': {
     atLeast: null,
     owner: 'required',
-    why: "governing R5 and R6: transferring ownership is the owner's alone, and Full control does not confer it",
+    /* Ownership is custody rather than Access, so Full control does not
+       confer it. */
+    why: "Only the folder's owner can transfer ownership of this folder.",
   },
   'owner.custody_recovery': {
     atLeast: null,
     owner: 'required',
-    why: 'R5 and R9 section 8: only the structural owner may restore their own Access to Full control, and the transition is recorded as recovery rather than as an ordinary grant',
+    why: "Only the folder's owner can restore their own access to Full control.",
   },
   'member.add': {
     atLeast: 'full_control',
-    why: 'accepted R8A: administering members is Full control\'s, and Can edit cannot administer people or Access',
+    why: 'Only people with Full control can add members to this folder.',
   },
   'member.remove': {
     atLeast: 'full_control',
-    why: "accepted R8A and #228's Full-control list: only Full control removes a non-owner member",
+    why: 'Only people with Full control can remove members from this folder.',
   },
   'member.leave': {
     atLeast: 'can_view',
-    why: "governing R6: leaving is any member's, subject to the continuity invariant and to the owner's transfer-first rule, which are state rather than preset",
+    /* Leaving is any member's. The refusals a leaver actually meets are
+       state rather than Access -- the owner transfers ownership first, and
+       the last Full-control member cannot walk out -- and the route answers
+       each with a 409 and its own sentence. */
+    why: 'You need Can view access to leave this folder.',
   },
   'member.access.change': {
     atLeast: 'full_control',
-    why: "accepted R8A: administering Access is Full control's, and a non-owner member's preset is changed by nobody below it",
+    why: "Only people with Full control can change a member's access.",
   },
   'member.access.history.read': {
     atLeast: 'can_view',
-    why: 'R9 section 13: effective Access-change history is visible to current Folder members',
+    why: "You need Can view access to see this folder's access history.",
   },
   'responsibility.read': {
     atLeast: 'can_view',
-    why: 'R5 and R10: the Responsibility document is Folder-visible in M1, because a statement of scope that coordinates shared work has to be readable by the people it coordinates',
+    /* Folder-visible: a statement of scope that coordinates shared work has
+       to be readable by the people it coordinates. */
+    why: "You need Can view access to see a member's Responsibilities.",
   },
   'responsibility.history.read': {
     atLeast: 'can_view',
-    why: 'R10 "Prior versions": authorized current Folder members inspect prior revisions according to ordinary Folder visibility',
+    why: "You need Can view access to see earlier versions of a member's Responsibilities.",
   },
   'responsibility.manage': {
     atLeast: 'full_control',
-    why: "R7 section O and R10: without the explicit self-edit grant, only Full control may write a member's Responsibility document",
+    why: "Only people with Full control can edit a member's Responsibilities.",
   },
   'responsibility.edit.own': {
     atLeast: null,
     whenSelfEditGranted: true,
-    why: 'R7 section O: editing your own Responsibility needs the explicit self-edit grant, which only Full control may give you',
+    /* A write `responsibility.manage` refuses is asked again here, and this
+       is the sentence the refused person reads -- whether the document was
+       their own or somebody else's -- so it has to be true of both. */
+    why: 'Only people with Full control can edit Responsibilities, unless you have been given permission to edit your own.',
   },
   'responsibility.self_edit_grant.manage': {
     atLeast: 'full_control',
-    why: "R7 section L and #230: turning a member's self-edit grant on or off is member administration, and a member who could turn their own on would be granting themselves the thing the grant exists to withhold",
+    /* Member administration: a member who could turn their own grant on
+       would be granting themselves the thing it exists to withhold. */
+    why: 'Only people with Full control can let a member edit their own Responsibilities.',
   },
   'invite.create': {
     atLeast: 'full_control',
-    why: 'accepted R8A: inviting into the Folder is administering members, which Can edit explicitly cannot do',
+    why: 'Only people with Full control can invite people to this folder.',
   },
   'invite.administer': {
     atLeast: 'full_control',
-    why: '#228: managing pending Folder invitations is Full control\'s, and #228\'s authorship rule makes "I created the invite" provenance rather than standing authority',
+    /* Having sent an invite is provenance rather than standing authority, so
+       an inviter who is later downgraded loses this. */
+    why: 'Only people with Full control can cancel or resend invitations to this folder.',
   },
   'invite.view': {
     atLeast: 'full_control',
-    why: '#228: pending-invitation projections carrying email and intended Access are member-administration data and are Full-control-only, not ordinary Work',
+    /* A pending invitation carries an email address and the Access it would
+       grant, which is member-administration data rather than ordinary work. */
+    why: "Only people with Full control can see this folder's pending invitations.",
   },
   'task.create': {
     atLeast: 'can_contribute',
-    why: 'accepted R8A: Can contribute originates new Task work, including choosing the initial assignee',
+    /* Originating work, including choosing its first assignee. */
+    why: 'You need Can contribute access to add tasks to this folder.',
   },
   'task.edit': {
     atLeast: 'can_edit',
     whenAssignedToActor: ['can_contribute'],
-    why: "accepted R8A: Can contribute fully plans work currently assigned to themselves and may not edit another member's existing Task; Assigned work may not materially replan",
+    /* Can contribute fully plans work currently assigned to them and nobody
+       else's; Assigned work executes a plan and may not change it. */
+    why: 'You need Can edit access to edit this task, or Can contribute access if it is assigned to you.',
   },
   'task.assign': {
     atLeast: 'can_edit',
-    why: "#228's Can-contribute list refuses reassign and unassign outright: changing who holds an existing Task is planning authority, which Can contribute does not have even over their own",
+    /* Changing who holds an existing task is planning authority, which Can
+       contribute does not have even over their own. */
+    why: 'You need Can edit access to change who this task is assigned to.',
   },
   'task.move': {
     atLeast: 'can_edit',
     whenAssignedToActor: ['can_contribute'],
-    why: "#228's Can-contribute list: they may move their own current Task among existing Sections; moving another member's work, or between Folders, is Can edit's",
+    /* Can contribute moves their own current task among the existing
+       sections. A move into another folder also needs Can edit there, which
+       the caller asks with no assignee so that this arm cannot cross from one
+       folder into the next. */
+    why: 'You need Can edit access to move this task, or Can contribute access to move a task assigned to you within its folder.',
   },
   'task.status.complete': {
     atLeast: 'can_edit',
     whenAssignedToActor: ['can_contribute', 'assigned_work'],
-    why: 'accepted R8A: Assigned work executes the existing plan for Tasks currently assigned to the member, which is exactly what completing one is',
+    /* Completing and reopening are execution, which is what Assigned work
+       is for. */
+    why: 'You need Can edit access to complete or reopen this task, or Assigned work access if it is assigned to you.',
   },
   'task.status.abandon': {
     atLeast: 'can_edit',
     whenAssignedToActor: ['can_contribute'],
-    why: "#228's Assigned-work list refuses abandon and restore by name; accepted R8A gives them to Can contribute over their own current work",
+    /* Abandoning and restoring change the plan rather than execute it, so
+       Assigned work is refused them even on their own task. */
+    why: 'You need Can edit access to abandon or restore this task, or Can contribute access if it is assigned to you.',
   },
   'task.trash': {
     atLeast: 'can_edit',
-    why: "#228's Can-contribute list: they may not trash shared Tasks, their own included",
+    /* Can contribute may not trash shared tasks, their own included. */
+    why: 'You need Can edit access to move this task to Trash.',
   },
   'task.restore': {
     atLeast: 'can_edit',
-    why: "#228's Can-edit list, which carries restore beside abandon and trash: restoring a Task from Trash sits with Can edit",
+    why: 'You need Can edit access to restore this task from Trash.',
   },
   'task.destroy': {
     atLeast: 'full_control',
-    why: '#228 gives permanently deleting a Task from Trash to Full control: it is an irreversible administrative act',
+    /* Irreversible, so Full control's, and ownership plays no part. It is
+       also the rule for permanently deleting a facet from Trash, which is why
+       the sentence says items rather than tasks. */
+    why: 'Only people with Full control can permanently delete items from Trash.',
   },
   'task.duplicate': {
     atLeast: 'can_edit',
-    why: '#228: duplication is Can edit\'s. Accepted R8A would extend it to Can contribute "where implementation can preserve the accepted boundary", and this implementation cannot -- see the refusals list in the pull request',
+    /* Not Can contribute: the copy keeps the source's assignee, so a
+       contributor could mint copies of somebody else's task still assigned to
+       that person. */
+    why: 'You need Can edit access to duplicate this task.',
   },
   'task.dependency.manage': {
     atLeast: 'can_edit',
-    why: "#228's Can-contribute list: a dependency imposes planning consequences on another member's existing work, which Can contribute may not create",
+    /* A dependency imposes planning consequences on whoever holds the other
+       task, so it has no assignee arm. */
+    why: 'You need Can edit access to add or remove task dependencies.',
   },
   'task.reminder.manage': {
     atLeast: 'can_edit',
     whenAssignedToActor: ['can_contribute', 'assigned_work'],
-    why: "#228's Assigned-work list carries the assignee-delivered reminder: Dana delivers it to the assignee, so setting and clearing it belongs to them",
+    /* Dana delivers the reminder to the assignee, so setting and clearing it
+       belongs to them. */
+    why: "You need Can edit access to set or clear this task's reminder, or Assigned work access if it is assigned to you.",
   },
   'step.toggle': {
     atLeast: 'can_edit',
     whenAssignedToActor: ['can_contribute', 'assigned_work'],
-    why: "#228's Assigned-work list: toggling an existing Step's completion is execution",
+    /* Ticking an existing step is execution. */
+    why: "You need Can edit access to check or uncheck this task's steps, or Assigned work access if it is assigned to you.",
   },
   'step.manage': {
     atLeast: 'can_edit',
     whenAssignedToActor: ['can_contribute'],
-    why: "#228's Assigned-work list refuses Step create, rename, reorder, delete and promote: rewriting the checklist that defines completion is not execution. Accepted R8A gives it to Can contribute over their own current work",
+    /* Adding, renaming, reordering, deleting or promoting a step rewrites the
+       checklist that defines completion, which is not execution, so Assigned
+       work is refused it. */
+    why: "You need Can edit access to add, change or remove this task's steps, or Can contribute access if it is assigned to you.",
   },
   'label.vocabulary.manage': {
     atLeast: 'can_edit',
-    why: "R8A and #228: members who may broadly edit Folder Work manage the shared Label vocabulary, superseding #208/#226's interim all-members rule",
+    why: "You need Can edit access to create, edit or archive this folder's labels.",
   },
   'label.apply': {
     atLeast: 'can_edit',
     whenAssignedToActor: ['can_contribute'],
-    why: 'R8: Can contribute applies and removes existing Folder Labels on work they may self-manage; Assigned work and below may not modify shared Labels',
+    why: 'You need Can edit access to add or remove labels on this task, or Can contribute access if it is assigned to you.',
   },
   'comment.create': {
     atLeast: 'can_comment',
-    why: 'accepted R8A: Can comment participates in Consultation and discussion without changing shared Work state',
+    why: 'You need Can comment access to comment in this folder.',
   },
   'comment.mutate.own': {
     atLeast: 'can_comment',
     requiresAuthor: true,
-    why: "#228's authorship rule: authorship is provenance rather than standing authority, so a member downgraded to Can view keeps their old words and loses the power to change them",
+    /* Authorship is provenance rather than standing authority, so a member
+       downgraded to Can view keeps their old words and loses the power to
+       change them. */
+    why: 'You need Can comment access to edit or delete your comments.',
   },
   'comment.moderate': {
     atLeast: 'full_control',
-    why: "#228's Full-control list: removing or moderating another member's comment is member administration",
+    why: "Only people with Full control can remove other people's comments.",
   },
   'comment.like': {
     atLeast: 'can_comment',
-    why: "#228's Can-comment list, which carries like and unlike",
+    why: 'You need Can comment access to like or unlike comments.',
   },
   'file.upload.comment': {
     atLeast: 'can_comment',
-    why: "#228's Can-comment list: attaching and removing a file through an allowed own-comment edit path is part of commenting",
+    why: 'You need Can comment access to attach files or voice notes to comments.',
   },
   'file.upload.page': {
     atLeast: 'can_edit',
-    why: "#228's Can-edit list: a file used for Folder page content is ordinary shared Work",
+    why: 'You need Can edit access to upload images, covers, audio or video to this folder.',
   },
   'file.delete': {
     atLeast: 'full_control',
-    why: "#228's authorship rule: direct permanent deletion of a Folder-scoped file is Full control's, superseding the uploader-or-owner rule, because uploader authorship must not survive a downgrade as hidden mutation authority",
+    /* Not the uploader: authorship must not survive a downgrade as hidden
+       power to delete. */
+    why: 'Only people with Full control can delete files from this folder.',
   },
   'personal.my_day': {
     atLeast: 'can_view',
     personal: true,
-    why: "#228's personal-actions rule: My Day is a private projection over Work the actor may already read",
+    why: 'You need Can view access to add this task to My Day.',
   },
   'personal.membership_label': {
     atLeast: 'can_view',
     personal: true,
-    why: "#228's personal-actions rule: a member's own label and colour for a Folder are their own arrangement",
+    why: 'You need Can view access to set your own label and color for this folder.',
   },
   'personal.reminder_snooze': {
     atLeast: 'can_view',
     personal: true,
-    why: "#228's personal-actions rule: notification state is personal",
+    why: 'You need Can view access to snooze this reminder.',
   },
   'personal.label': {
     atLeast: 'can_view',
     personal: true,
-    why: "#228's personal-actions rule: Personal Labels are own-only at every preset",
+    why: 'You need Can view access to use your personal labels in this folder.',
   },
   'personal.view_preferences': {
     atLeast: 'can_view',
     personal: true,
-    why: "#228's personal-actions rule: saved Views and view preferences are account state",
+    why: 'You need Can view access to arrange your own view of this folder.',
   },
   /* ---------------------------------------------------------------- *
    * The facet framework (issue #210)
@@ -567,31 +628,41 @@ const RULES: Record<FolderAction, ActionRule> = {
   'facet.read': {
     atLeast: null,
     whenOwnPrivateFacet: true,
-    why: "#210 and #209: a private facet is visible only to its owner, and no preset qualifies -- Full control and the structural owner read no member's private facet, which is custody-is-not-authority applied to the one place it bites",
+    /* No Access level qualifies: Full control and the folder's owner read no
+       member's private facet, which is where custody-is-not-authority
+       actually bites. */
+    why: 'Only the person a private facet belongs to can see it.',
   },
   'facet.create': {
     atLeast: 'can_edit',
     whenOwnPrivateFacet: true,
-    why: "#228 denies Can contribute the creation of Folder Sections, and a Work or shared blank facet is the same order of structure; a private facet of your own is yours to make",
+    /* A shared facet is structure, like a section; a private facet of your
+       own is yours to make. */
+    why: 'You need Can edit access to add a shared facet, but you can add a private one.',
   },
   'facet.rename': {
     atLeast: 'can_edit',
     whenOwnPrivateFacet: true,
-    why: "#210 and #228's Can-edit list: naming Purpose and Results is shared Work, and a private facet's name is not",
+    why: 'You need Can edit access to rename a shared facet.',
   },
   'facet.hide': {
     atLeast: 'can_edit',
-    why: "#210: hiding a native facet changes what every member sees, which makes it ordinary shared Work at #228's Can-edit bar",
+    /* Hiding a native facet changes what every member sees. */
+    why: 'You need Can edit access to hide or show this facet.',
   },
   'facet.reorder': {
     atLeast: 'can_edit',
     whenOwnPrivateFacet: true,
-    why: "#210: the shared facet sequence is Folder data and is Can edit's to change for everyone; a private facet's place is its owner's",
+    /* The shared order is folder data; a private facet's place is its
+       owner's, written through `personal.view_preferences`. */
+    why: "You need Can edit access to reorder this folder's shared facets.",
   },
   'facet.delete': {
     atLeast: 'can_edit',
     whenOwnPrivateFacet: true,
-    why: "#228's Can-contribute list: they may not trash shared work, their own included; a private facet of your own is yours to delete",
+    /* Also the rule for restoring a facet from Trash, so the sentence names
+       both. */
+    why: 'You need Can edit access to move a shared facet to Trash or restore it.',
   },
   'facet.convert_to_shared': {
     atLeast: 'can_edit',
@@ -603,7 +674,7 @@ const RULES: Record<FolderAction, ActionRule> = {
        and the second half cannot be expressed here because this table
        answers "may this preset do this" rather than "is this the right
        person". `routes/facets.ts` asks both, in that order. */
-    why: '#210: converting a private facet to shared creates shared Work and exposes writing that was somebody\'s own, so it takes Can edit and the facet\'s owner together',
+    why: 'You need Can edit access to share this facet, unless it is your own private facet.',
   },
   /* ---------------------------------------------------------------- *
    * Consultation (issue #320). "While open" and "no shared activity"

@@ -311,7 +311,7 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
             res,
             409,
             'conflict',
-            'This folder has one member, so its tasks stay assigned to them (INV-5).',
+            'This folder has one member, so its tasks stay assigned to them.',
           )
           return
         case 'time_without_date':
@@ -718,7 +718,7 @@ export function createTasksRouter(options: TasksRouterOptions = {}): Router {
           fieldError(
             res,
             'steps',
-            'a task holds at most 50 steps, the most 10.3 allows',
+            'a task holds at most 50 steps',
           )
           return
         case 'forbidden':

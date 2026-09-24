@@ -53,7 +53,7 @@ export const postCommentBody = z
     file_ids: z
       .array(z.uuid())
       .max(COMMENT_FILE_CAP, {
-        error: `must name at most ${String(COMMENT_FILE_CAP)} files (spec 10.3)`,
+        error: `must name at most ${String(COMMENT_FILE_CAP)} files`,
       })
       .optional(),
   })
@@ -144,7 +144,7 @@ export const patchCommentBody = z
     file_ids: z
       .array(z.uuid())
       .max(COMMENT_FILE_CAP, {
-        error: `must name at most ${String(COMMENT_FILE_CAP)} files (spec 10.3)`,
+        error: `must name at most ${String(COMMENT_FILE_CAP)} files`,
       })
       .optional(),
     /** Refused rather than dropped: the create half's one-file spelling has

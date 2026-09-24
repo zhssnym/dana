@@ -1009,8 +1009,8 @@ export function FolderPage({
     /* Leave is the exception and asks anyway. The two rules that refuse it
        are state rather than preset — the owner's transfer-first rule and the
        continuity invariant — so `ruleFor('member.leave').why` would answer
-       "leaving is any member's", which is true and is not why this one was
-       refused. The route's 409 carries the sentence that is ("Transfer
+       that leaving needs only Can view, which is true and is not why this one
+       was refused. The route's 409 carries the sentence that is ("Transfer
        ownership before leaving", "This folder would be left with nobody in
        Full control"), and the mutation cache already raises it; copying those
        two strings here would be the second copy this whole change removes. */

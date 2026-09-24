@@ -184,11 +184,11 @@ describe('months that are too short skip, and never move', () => {
   })
 })
 
-describe('29 February is a leap-year rule (section 13 item 15)', () => {
+describe('29 February is a leap-year rule', () => {
   test('a yearly rule anchored there occurs only in leap years', () => {
     expect(
       instancesInRange('FREQ=YEARLY', '2028-02-29', '2028-01-01', '2041-01-01'),
-      'RFC 5545 behavior, recorded as an assumption in section 13 item 15: the common years are skipped, not moved to the 28th',
+      'RFC 5545 behavior: the common years are skipped, not moved to the 28th',
     ).toEqual(['2028-02-29', '2032-02-29', '2036-02-29', '2040-02-29'])
   })
 

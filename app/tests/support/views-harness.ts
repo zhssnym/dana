@@ -400,7 +400,7 @@ function expectGroups(value: unknown, source: string): Group[] {
     expectExactKeys(
       folder,
       ['id', 'is_default', 'name'],
-      `${where}.folder, which 7.10 as ruled on 2026-08-07 makes the TaskCard stub rather than the 7.0 Folder object`,
+      `${where}.folder, which 7.10 makes the TaskCard stub rather than the 7.0 Folder object`,
     )
     expect(
       typeof folder.id,
@@ -605,7 +605,7 @@ export async function calendar(
   )
   expect(
     Array.isArray(body.virtual),
-    'the calendar answers a virtual array even while 8.5\'s projection is P6\'s: 7.10 enumerates the key (spec 7.10)',
+    'the calendar answers a virtual array, a key 7.10 enumerates (spec 7.10)',
   ).toBe(true)
   return {
     real: expectCards(body.real, 'calendar real'),
@@ -683,7 +683,7 @@ export async function folderOpen(
     `/folders/${folderId}/tasks`,
     { tz, section: 'open' },
     ['scheduled', 'truncated', 'unscheduled'],
-    `GET /folders/:id/tasks?section=open must answer Q7's first two sections (spec 7.10 as ruled on 2026-08-07, 6 Q7)`,
+    `GET /folders/:id/tasks?section=open must answer Q7's first two sections (spec 7.10, 6 Q7)`,
   )
   return {
     scheduled: expectCards(body.scheduled, 'folder scheduled'),
@@ -703,7 +703,7 @@ export async function folderCompleted(
     `/folders/${folderId}/tasks`,
     { tz, section: 'completed', cursor },
     ['days', 'next_cursor'],
-    `GET /folders/:id/tasks?section=completed must paginate like Done (spec 7.10 as ruled on 2026-08-07, 6 Q7)`,
+    `GET /folders/:id/tasks?section=completed must paginate like Done (spec 7.10, 6 Q7)`,
   )
   return {
     days: expectDays(body.days, 'folder completed days'),

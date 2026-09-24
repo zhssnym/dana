@@ -161,24 +161,27 @@ export async function truncateAll(client: pg.Client): Promise<void> {
  * quietly sharing the base database again.
  */
 export async function prepareLegDatabase(baseUrl: string, targetUrl: string): Promise<void> {
-  let client: pg.Client
+  const name = decodeURIComponent(new URL(targetUrl).pathname.replace(/^\//, ''))
+  /*
+  Whether the database exists is asked of the base database, never learned by
+  connecting to the target and catching 3D000. The server refuses such a
+  connection with a FATAL and exits, and on Windows that exit can reset the
+  socket before the client reads the FATAL: the file then fails whole on
+  `read ECONNRESET` with every test skipped, which is how the CI runner lost
+  one file per run.
+  */
+  const admin = await connect(baseUrl)
   let created = false
   try {
-    client = await connect(targetUrl)
-  } catch (error) {
-    // 3D000 is invalid_catalog_name: this slot has not run a file yet.
-    if (errorCode(error) !== '3D000') throw error
-    const admin = await connect(baseUrl)
-    try {
-      const name = decodeURIComponent(new URL(targetUrl).pathname.replace(/^\//, ''))
-      created = await ensureDatabase(admin, baseUrl, name)
-    } finally {
-      await admin.end()
-    }
-    client = await connect(targetUrl)
+    const found = await admin.query('SELECT 1 FROM pg_database WHERE datname = $1', [name])
+    if (found.rows.length === 0) created = await ensureDatabase(admin, baseUrl, name)
+  } finally {
+    await admin.end()
   }
+  if (created) return
+  const client = await connect(targetUrl)
   try {
-    if (!created) await truncateAll(client)
+    await truncateAll(client)
   } finally {
     await client.end()
   }

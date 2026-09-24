@@ -67,7 +67,7 @@ export async function signInActor(
   const row = await userForSub(app.db, sub)
   expect(
     row,
-    `sign-in must provision a user row for ${slug} (spec 7.1; P1 is merged, so this is expected to hold)`,
+    `sign-in must provision a user row for ${slug} (spec 7.1)`,
   ).toBeDefined()
   return { sub, email, id: (row as UserRow).id, browser }
 }
@@ -419,7 +419,7 @@ export async function listFolders(actor: Actor): Promise<FolderListEntry[]> {
   const body = response.json()
   expect(
     Array.isArray(body),
-    'GET /folders answers the bare array of Folder objects (7.4 as ruled at the shape review)',
+    'GET /folders answers the bare array of Folder objects (spec 7.4)',
   ).toBe(true)
   return body as FolderListEntry[]
 }
@@ -439,7 +439,7 @@ export async function defaultFolderOf(db: Db, userId: string): Promise<string> {
   )
   expect(
     found.length,
-    'provisioning must have created exactly one default folder (INV-2; P1 is merged)',
+    'provisioning must have created exactly one default folder (INV-2)',
   ).toBe(1)
   return String(found[0]?.id)
 }

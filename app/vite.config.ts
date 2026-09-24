@@ -16,11 +16,8 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
-    // The 10.6 PWA layer, 11.4's named plugin, requested verbatim by the
-    // Frontend Architect in src/server/routes/README.md and executed here
-    // because this file is Platform's. Six values below are load-bearing and
-    // each was measured rather than chosen; the rest are the plugin's
-    // defaults spelled out, so a later reader need not know which is which.
+    // The 10.6 PWA layer, 11.4's named plugin. Each load-bearing value below
+    // carries its reason beside it.
     VitePWA({
       // 10.6's update rule is "no forced reload", so the person is prompted
       // and the client owns the prompt (src/client/pwa/).

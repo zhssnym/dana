@@ -60,7 +60,7 @@ export async function createPersonalLabel(
   expectStatus(
     made,
     201,
-    `POST /labels/personal must create ${JSON.stringify(fields.name)} (issue #226)`,
+    `POST /labels/personal must create ${JSON.stringify(fields.name)} (spec 7.26)`,
   )
   return made.json() as LabelDefinition
 }
@@ -88,7 +88,7 @@ export async function createFolderLabel(
   expectStatus(
     made,
     201,
-    `POST /folders/:folderId/labels must create ${JSON.stringify(fields.name)} (issue #226)`,
+    `POST /folders/:folderId/labels must create ${JSON.stringify(fields.name)} (spec 7.26)`,
   )
   return made.json() as LabelDefinition
 }

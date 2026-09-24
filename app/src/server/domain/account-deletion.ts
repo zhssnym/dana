@@ -116,14 +116,14 @@ export const USER_RESTRICT_DISPOSALS: readonly UserRestrictDisposal[] = [
     table: 'folder_facets',
     disposition: 'swept',
     where: "runRClean, in domain/folders.ts, via deletePrivateFacetsOf",
-    why: "Ruling 6 of #210: a private facet is the owner's own writing that no other member may ever read, so it goes permanently with the membership -- by every path, because R-CLEAN is where all three of them meet. Left standing it is unreadable by its owner, who has left, unreadable by everybody else, `facet.read` admitting no preset, and unrestorable by either.",
+    why: "4.30 and 8.10: a private facet is the owner's own writing that no other member may ever read, so it goes permanently with the membership, by every path, because R-CLEAN is where all three of them meet. Left standing it is unreadable by its owner, who has left, unreadable by everybody else, `facet.read` admitting no preset, and unrestorable by either.",
   },
   {
     fk: 'folder_facets_created_by_fkey',
     table: 'folder_facets',
     disposition: 'outlives',
     where: '',
-    why: "Provenance and never authority (#228's authorship rule): nothing reads it to decide anything, and a facet the folder still has must keep saying who made it.",
+    why: 'Provenance and never authority: nothing reads it to decide anything, and a facet the folder still has must keep saying who made it.',
   },
   {
     fk: 'folders_owner_id_fkey',
@@ -137,7 +137,7 @@ export const USER_RESTRICT_DISPOSALS: readonly UserRestrictDisposal[] = [
     table: 'folder_access_history',
     disposition: 'outlives',
     where: '',
-    why: 'R9 section 13: the record of who changed whose Access survives the people in it, which is what makes it a record.',
+    why: '7.4: a former member keeps their entries, and the record of who changed whose Access survives the people in it, which is what makes it a record.',
   },
   {
     fk: 'folder_access_history_member_id_fkey',
@@ -151,21 +151,21 @@ export const USER_RESTRICT_DISPOSALS: readonly UserRestrictDisposal[] = [
     table: 'folder_responsibilities',
     disposition: 'outlives',
     where: '',
-    why: "R10: history survives the membership it describes. The standing is *closed* by runRClean rather than deleted, which is 4.28's own sentence and AC-570's last case.",
+    why: "4.28: history survives the membership it describes. The standing is *closed* by runRClean rather than deleted, which is AC-570's last case.",
   },
   {
     fk: 'folder_responsibilities_updated_by_fkey',
     table: 'folder_responsibilities',
     disposition: 'outlives',
     where: '',
-    why: 'Provenance on a document the folder keeps; #230 forbids scrubbing from fabricating a different historical actor.',
+    why: 'Provenance on a document the folder keeps, and a scrub must never fabricate a different historical actor.',
   },
   {
     fk: 'folder_responsibility_history_actor_id_fkey',
     table: 'folder_responsibility_history',
     disposition: 'outlives',
     where: '',
-    why: 'R10, as above: the append-only record is the authority on who did what and may not lose its actors.',
+    why: '4.29: the append-only record is the authority on who did what and may not lose its actors.',
   },
   {
     fk: 'folder_responsibility_history_member_id_fkey',
@@ -221,7 +221,7 @@ export const USER_RESTRICT_DISPOSALS: readonly UserRestrictDisposal[] = [
     table: 'comments',
     disposition: 'outlives',
     where: '',
-    why: "#228's authorship rule: a departed member keeps their old words, which is the same sentence that says authorship confers no standing authority.",
+    why: '7.14: authorship is provenance rather than standing authority, so a departed member keeps their old words.',
   },
   {
     fk: 'discussions_created_by_fkey',
@@ -301,7 +301,7 @@ export const USER_CASCADE_DISPOSALS: readonly UserCascadeDisposal[] = [
     table: 'folder_members',
     disposition: 'deleted',
     where: "step 3's folder deletes and step 4's R-CLEAN, in this file",
-    why: "Traced end to end for #253: folder_members_folder_id_fkey is itself ON DELETE CASCADE, so step 3 takes the rows in folders the account still owned, and step 4 then reads folder_members by user_id and runs 5.3's R-CLEAN over what is left, which deletes the membership row. Between them no row survives, whichever step reached it.",
+    why: "folder_members_folder_id_fkey is itself ON DELETE CASCADE, so step 3 takes the rows in folders the account still owned, and step 4 then reads folder_members by user_id and runs 5.3's R-CLEAN over what is left, which deletes the membership row. Between them no row survives, whichever step reached it.",
   },
   {
     fk: 'my_day_entries_user_id_fkey',
@@ -315,7 +315,7 @@ export const USER_CASCADE_DISPOSALS: readonly UserCascadeDisposal[] = [
     table: 'sessions',
     disposition: 'deleted',
     where: 'step 8, in src/server/auth/account.ts',
-    why: "Traced end to end for #253: handleDeleteMe runs DELETE FROM sessions WHERE user_id inside this same transaction, which is 11.6's rule that revocation never waits for the pruning pass. The table is 10.1's and sits outside section 4, so db/constraint-catalog.ts does not carry it and the guard names it as the one admitted exception, exactly as AC-001 does.",
+    why: "handleDeleteMe runs DELETE FROM sessions WHERE user_id inside this same transaction, which is 11.6's rule that revocation never waits for the pruning pass. The table is 10.1's and sits outside section 4, so db/constraint-catalog.ts does not carry it and the guard names it as the one admitted exception, exactly as AC-001 does.",
   },
   {
     fk: 'comment_likes_user_id_fkey',
@@ -329,7 +329,7 @@ export const USER_CASCADE_DISPOSALS: readonly UserCascadeDisposal[] = [
     table: 'labels',
     disposition: 'deleted',
     where: 'step 6c, in this file',
-    why: "Added for #226's Label model when this branch rebased onto it, and it is the case this guard was written to catch rather than a table anybody forgot. 4.24's Personal Label is one person's own catalog, private to them, carrying a name, a colour and a description they wrote; db/migrations/0022_labels.sql says beside the constraint that \"A person's Personal Labels go with their account (8.10)\", which is the inert-cascade assumption itself and was false until this statement existed. Scoped by owner_user_id, which is NOT NULL on a Personal Label and NULL on every Folder Label, so it reaches exactly the personal catalog and no shared one. A Folder Label in a folder the account owned goes at step 3 through labels_folder_id_fkey, a cascade off a real DELETE that does fire, and the assignment rows follow this one: task_personal_labels and folder_personal_labels key onto labels(id, owner_user_id) ON DELETE CASCADE.",
+    why: "4.24's Personal Label is one person's own catalog, private to them, carrying a name, a colour and a description they wrote. Scoped by owner_user_id, which is NOT NULL on a Personal Label and NULL on every Folder Label, so it reaches exactly the personal catalog and no shared one. A Folder Label in a folder the account owned goes at step 3 through labels_folder_id_fkey, a cascade off a real DELETE that does fire, and the assignment rows follow this one: task_personal_labels and folder_personal_labels key onto labels(id, owner_user_id) ON DELETE CASCADE.",
   },
   {
     fk: 'notifications_user_id_fkey',
@@ -385,7 +385,7 @@ export const USER_CASCADE_DISPOSALS: readonly UserCascadeDisposal[] = [
     table: 'page_document_receipts',
     disposition: 'retained',
     where: '',
-    why: "Retained deliberately, and this is the one of the fifteen that is. The row holds no text: an idempotency key, a SHA-256 of a payload, a revision string and the ids of tasks that survive in the folder. It is read a second way that is not about its actor at all — pages.ts treats any receipt on a folder as the mark that the folder's document is on #184's transaction path, and refuses the legacy whole-page writer against it. Deleting a departed member's receipts could therefore take the last such mark off a folder that other people are still editing and re-open a writer that must stay shut for them. The rows are not orphaned: page_document_receipts_folder_id_fkey is a cascade off a real DELETE, so step 3 takes the receipts of every folder that dies with the account, and what is left belongs to a folder that outlives it.",
+    why: "Retained deliberately, and this is the one of the fifteen that is. The row holds no text: an idempotency key, a SHA-256 of a payload, a revision string and the ids of tasks that survive in the folder. It is read a second way that is not about its actor at all — pages.ts treats any receipt on a folder as the mark that the folder's document is on the document-transaction path, and refuses the legacy whole-page writer against it. Deleting a departed member's receipts could therefore take the last such mark off a folder that other people are still editing and re-open a writer that must stay shut for them. The rows are not orphaned: page_document_receipts_folder_id_fkey is a cascade off a real DELETE, so step 3 takes the receipts of every folder that dies with the account, and what is left belongs to a folder that outlives it.",
   },
 ]
 

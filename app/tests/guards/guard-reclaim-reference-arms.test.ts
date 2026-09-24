@@ -194,7 +194,7 @@ async function referencingColumns(): Promise<string[]> {
   return found.map((row) => `${String(row.relation)}.${String(row.column_name)}`)
 }
 
-describe('the reclaim sweep has an arm for every reference into files (issue #263)', () => {
+describe('the reclaim sweep has an arm for every reference into files', () => {
   test('the schema holds exactly the foreign keys this repository knows about', async () => {
     const live = await referencingColumns()
     const known = KNOWN_ARMS.map((arm) => `${arm.relation}.${arm.column}`).sort()

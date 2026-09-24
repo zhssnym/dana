@@ -205,7 +205,7 @@ export const constraintCatalog: Record<string, ExpectedTable> = {
      first activation, new NULL is the end of active membership -- and the
      some_access CHECK refuses the row where both are null. It is written with
      IS NOT NULL rather than with a comparison, because a CHECK passes on
-     UNKNOWN (backend README, issue #27).
+     UNKNOWN (docs/troubleshooting.md).
 
      actor_id is nullable only for the migration's own baseline rows, which
      the system_actor CHECK ties to that one transition kind. folder_id

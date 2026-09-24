@@ -179,7 +179,7 @@ export function createInvitesRouter(
             res,
             409,
             'conflict',
-            'The default folder cannot be shared (INV-3).',
+            'The default folder cannot be shared.',
           )
           return
         case 'already_member':
@@ -330,7 +330,7 @@ export function createInvitesRouter(
       res,
       409,
       'conflict',
-      'This invite is no longer pending (spec 5.2).',
+      'This invite is no longer pending.',
     )
   }
 
@@ -461,7 +461,7 @@ export function createInvitesRouter(
             res,
             403,
             'forbidden',
-            'Only Full control can cancel an invite into this folder.',
+            'Only people with Full control can cancel invitations to this folder.',
           )
           return
         }
@@ -500,7 +500,7 @@ export function createInvitesRouter(
             res,
             403,
             'forbidden',
-            'Only Full control can resend an invite into this folder.',
+            'Only people with Full control can resend invitations to this folder.',
           )
           return
         }
@@ -520,7 +520,7 @@ export function createInvitesRouter(
           res,
           429,
           'rate_limited',
-          'This invite was sent within the last 24 hours (spec 5.2).',
+          'This invite was sent within the last 24 hours.',
         )
         return
       }

@@ -572,7 +572,7 @@ const TABLE = new Map<string, Row>([
       stranger: { expected: 404, rule: '5.4: a non-member sees nothing' },
       member: {
         expected: 403,
-        rule: "Hassan's ruling of 2026-09-20 on #228: moving the folder to Trash is Full control's, and `fx.member` holds Can edit (AC-015). The status is unchanged from 5.4's \"Delete folder: no (403)\"; what moved is which members it refuses",
+        rule: "5.4: moving the folder to Trash is Full control's, and `fx.member` holds Can edit (AC-015)",
       },
     },
   ],
@@ -585,7 +585,7 @@ const TABLE = new Map<string, Row>([
       }),
       stranger: {
         expected: 404,
-        rule: '5.4 "Set or clear own label and color: no" for a non-member; the UPDATE is viewer-scoped besides. The body field is `shelf` since issue #226 renamed 4.4\'s column, and it is the same act',
+        rule: '5.4 "Set or clear own label and color: no" for a non-member, the label being 4.4\'s shelf_name, sent as `shelf`; the UPDATE is viewer-scoped besides',
       },
     },
   ],
@@ -652,11 +652,11 @@ const TABLE = new Map<string, Row>([
       }),
       stranger: {
         expected: 404,
-        rule: "#228: changing a member's Access is member administration, and 10.2 refuses to confirm the folder exists to somebody outside it",
+        rule: "7.4: changing a member's Access is member administration, and 10.2 refuses to confirm the folder exists to somebody outside it",
       },
       member: {
         expected: 403,
-        rule: 'accepted #209 R8A: administering Access is Full control\'s and Can edit cannot, and the member demonstrably sees the folder, so the refusal may say why',
+        rule: '7.4: administering Access is Full control\'s and Can edit cannot, and the member demonstrably sees the folder, so the refusal may say why',
         attempt: (fx) => ({
           path: `/folders/${fx.folderId}/members/${fx.owner.id}`,
           body: { access: 'can_view' },
@@ -671,7 +671,7 @@ const TABLE = new Map<string, Row>([
       stranger: { expected: 404, rule: '5.4: a non-member sees nothing' },
       member: {
         expected: 403,
-        rule: "#209 R5: custody recovery is the structural owner's alone and Full control does not confer it, so a member who sees the folder is told why",
+        rule: "7.4: custody recovery is the structural owner's alone and Full control does not confer it, so a member who sees the folder is told why",
         attempt: (fx) => ({ path: `/folders/${fx.folderId}/owner-recovery` }),
       },
     },
@@ -682,7 +682,7 @@ const TABLE = new Map<string, Row>([
       attempt: (fx) => ({ path: `/folders/${fx.folderId}/access-history` }),
       stranger: {
         expected: 404,
-        rule: '#209 R9 section 13: Access history is visible to current Folder members; somebody outside the folder learns nothing, not even that it exists',
+        rule: '7.4: Access history is visible to current Folder members; somebody outside the folder learns nothing, not even that it exists',
       },
     },
   ],
@@ -694,7 +694,7 @@ const TABLE = new Map<string, Row>([
       }),
       stranger: {
         expected: 404,
-        rule: "#209 R9 section 13: the member-specific slice is the folder's history filtered, and carries the folder's own visibility",
+        rule: "7.4: the member-specific slice is the folder's history filtered, and carries the folder's own visibility",
       },
     },
   ],
@@ -726,7 +726,7 @@ const TABLE = new Map<string, Row>([
       }),
       stranger: {
         expected: 404,
-        rule: '#230: the member-details projection composes facts the roster already shows to members, and 10.2 refuses to confirm the folder exists to somebody outside it',
+        rule: '7.4: the member-details projection composes facts the roster already shows to members, and 10.2 refuses to confirm the folder exists to somebody outside it',
       },
     },
   ],
@@ -738,7 +738,7 @@ const TABLE = new Map<string, Row>([
       }),
       stranger: {
         expected: 404,
-        rule: '#209 R5: the Responsibility document is Folder-visible in M1, which means visible to the Folder and to nobody else',
+        rule: '7.4: the Responsibility document is Folder-visible in M1, which means visible to the Folder and to nobody else',
       },
     },
   ],
@@ -750,7 +750,7 @@ const TABLE = new Map<string, Row>([
       }),
       stranger: {
         expected: 404,
-        rule: '#209 R10 "Prior versions": prior revisions carry ordinary Folder visibility, so being the subject of one is not a way into a folder (#230 proof 15)',
+        rule: '7.4: prior revisions carry ordinary Folder visibility, so being the subject of one is not a way into a folder',
       },
     },
   ],
@@ -766,7 +766,7 @@ const TABLE = new Map<string, Row>([
       }),
       stranger: {
         expected: 404,
-        rule: "#209 R7 section O: writing a member's Responsibility needs Full control or that member's explicit self-edit grant, and 10.2 tells somebody outside the folder nothing at all",
+        rule: "7.4: writing a member's Responsibility needs Full control or that member's explicit self-edit grant, and 10.2 tells somebody outside the folder nothing at all",
       },
     },
   ],
@@ -779,11 +779,11 @@ const TABLE = new Map<string, Row>([
       }),
       stranger: {
         expected: 404,
-        rule: '#230: toggling the self-edit grant is member administration, and 10.2 refuses to confirm the folder exists to somebody outside it',
+        rule: '7.4: toggling the self-edit grant is member administration, and 10.2 refuses to confirm the folder exists to somebody outside it',
       },
       member: {
         expected: 403,
-        rule: "#209 R7 section L: only Full control administers the grant, and a member who could turn their own on would be granting themselves the thing the grant exists to withhold; the member demonstrably sees the folder, so the refusal may say why",
+        rule: "7.4: only Full control administers the grant, and a member who could turn their own on would be granting themselves the thing the grant exists to withhold; the member demonstrably sees the folder, so the refusal may say why",
         attempt: (fx) => ({
           path: `/folders/${fx.folderId}/members/${fx.member.id}/self-edit-grant`,
           body: { enabled: true },
@@ -801,7 +801,7 @@ const TABLE = new Map<string, Row>([
       stranger: { expected: 404, rule: '5.4: a non-member sees nothing' },
       member: {
         expected: 403,
-        rule: 'DES-225 and 8.9: ownership is the owner\'s to give, and the member demonstrably sees the folder, so the refusal may say why',
+        rule: '8.9: ownership is the owner\'s to give, and the member demonstrably sees the folder, so the refusal may say why',
         attempt: (fx) => ({
           path: `/folders/${fx.folderId}/transfer-ownership`,
           body: { to: fx.member.id },
@@ -1135,7 +1135,7 @@ const TABLE = new Map<string, Row>([
       }),
       stranger: {
         expected: 404,
-        rule: '7.7 and B9: the promotion creates a task in the same folder, so it needs that folder\'s membership',
+        rule: '7.7: the promotion creates a task in the same folder, so it needs that folder\'s membership',
       },
     },
   ],
@@ -1239,7 +1239,7 @@ const TABLE = new Map<string, Row>([
       attempt: (fx) => ({ path: `/shelves/${fx.shelfId}/duplicate`, body: {} }),
       stranger: {
         expected: 404,
-        rule: '7.16 as amended 2026-09-04 (issues #117, #128): `duplicateShelf` selects `WHERE id = ? AND user_id = viewer`, so a shelf that is not the caller\'s is not-found rather than forbidden — 4.18 makes a shelf private by construction, and 10.2 keeps ownership invisible to those without it. **The 404 is doing two jobs here and the second is why this row reads differently from the others**: a copy is a create, so a status other than 404 would not only leak the shelf, it would leave a copy of it in the stranger\'s Library that this sweep never cleans up',
+        rule: '7.16: `duplicateShelf` selects `WHERE id = ? AND user_id = viewer`, so a shelf that is not the caller\'s is not-found rather than forbidden — 4.18 makes a shelf private by construction, and 10.2 keeps ownership invisible to those without it. The 404 does a second job here: a copy is a create, so any other status would not only leak the shelf but leave a copy of it in the stranger\'s Library that this sweep never cleans up',
       },
     },
   ],
@@ -1287,7 +1287,7 @@ const TABLE = new Map<string, Row>([
       attempt: (fx) => ({ path: `/views/${fx.viewId}` }),
       stranger: {
         expected: 404,
-        rule: 'RFC 0005: a saved view is one account\'s, and every statement behind this route is viewer-scoped',
+        rule: '4.19: a saved view is one account\'s, and every statement behind this route is viewer-scoped',
       },
     },
   ],
@@ -1298,14 +1298,14 @@ const TABLE = new Map<string, Row>([
         path: `/views/${fx.viewId}`,
         body: { name: 'ac397 renamed by a stranger' },
       }),
-      stranger: { expected: 404, rule: 'RFC 0005, as the read above' },
+      stranger: { expected: 404, rule: '4.19, as the read above' },
     },
   ],
   [
     'DELETE /api/v1/views/:id',
     {
       attempt: (fx) => ({ path: `/views/${fx.viewId}` }),
-      stranger: { expected: 404, rule: 'RFC 0005, as the read above' },
+      stranger: { expected: 404, rule: '4.19, as the read above' },
     },
   ],
 
@@ -1325,7 +1325,7 @@ const TABLE = new Map<string, Row>([
       },
       member: {
         expected: 403,
-        rule: '7.14 and DES-225: a member sees the thread, so touching another author\'s words is a forbidden act rather than a missing row',
+        rule: '7.14: a member sees the thread, so touching another author\'s words is a forbidden act rather than a missing row',
       },
     },
   ],
@@ -1378,7 +1378,7 @@ const TABLE = new Map<string, Row>([
       stranger: { expected: 404, rule: '7.15, as the read above' },
       member: {
         expected: 403,
-        rule: '7.15 gives the delete to "uploader or folder owner", and this member is neither. 10.2 fixes the status rather than 7.15: the member reads the same file at 200 through GET /files/:id, so visibility is permitted and the forbidden act is 403. DELETE /comments/:id one router over is this exact shape and answers 403. **This row is the one finding the sweep turned up**: it answered 404 when this file was written and was held here as a `known` variant, and the owner ruled the correction in on 2026-09-04 as a move toward 10.2 rather than a change to frozen 7.15. AC-398 is the direct case and 7.15 carries the annotation',
+        rule: '7.15 gives the delete to "uploader or folder owner", and this member is neither. 10.2 fixes the status: the member reads the same file at 200 through GET /files/:id, so visibility is permitted and the forbidden act is 403, the same shape DELETE /comments/:id answers. AC-398 is the direct case',
       },
     },
   ],
@@ -1465,7 +1465,7 @@ const TABLE = new Map<string, Row>([
       },
       member: {
         expected: 403,
-        rule: "#228's Full-control list: the permanent delete is Full control's, and this member holds Can edit, so they can see the row and 10.2's grammar admits a forbidden here. The expected status is unchanged; the sentence said \"RFC 0005 change control item 38: the folder owner's alone\" until 2026-09-20, which R8A had superseded (issue #268). Ownership is *ignored* by `task.destroy` and required beside Full control by `folder.destroy`, so the two rows below are one status and two rules",
+        rule: "7.13: a task's permanent delete is Full control's, and this member holds Can edit, so they can see the row and 10.2 admits a forbidden here. Ownership is *ignored* by `task.destroy` and required beside Full control by `folder.destroy`, so this row and the next are one status and two rules",
       },
     },
   ],
@@ -1476,7 +1476,7 @@ const TABLE = new Map<string, Row>([
       stranger: { expected: 404, rule: '7.13, as the task above' },
       member: {
         expected: 403,
-        rule: "#228 with governing R5, as the task above and one step narrower: a folder's permanent destruction needs the owner *and* Full control together, so this member is refused twice over",
+        rule: "7.13, as the task above and one step narrower: a folder's permanent destruction needs the owner *and* Full control together, so this member is refused twice over",
       },
     },
   ],
@@ -1535,7 +1535,7 @@ const TABLE = new Map<string, Row>([
       attempt: (fx) => ({ path: `/references/folder/${fx.folderId}` }),
       stranger: {
         expected: 404,
-        rule: '10.2 and issue #223: a Dana Link never grants access, and an inaccessible target must be indistinguishable from a nonexistent one, so a non-member is told exactly what an id naming nothing is told — 404, never 403, and never a label',
+        rule: '10.2 and 7.24: a Dana Link never grants access, and an inaccessible target must be indistinguishable from a nonexistent one, so a non-member is told exactly what an id naming nothing is told — 404, never 403, and never a label',
       },
     },
   ],
@@ -1638,7 +1638,7 @@ const TABLE = new Map<string, Row>([
       }),
       stranger: {
         expected: 404,
-        rule: "#208 R4: a Personal Label is private to its owner. The statement's predicate carries owner_user_id = viewer, so a foreign id resolves to nothing rather than to a row this handler then refuses — which is what 10.2 requires, a 403 here confirming that somebody has a label by that id",
+        rule: "4.24: a Personal Label is private to its owner. The statement's predicate carries owner_user_id = viewer, so a foreign id resolves to nothing rather than to a row this handler then refuses — which is what 10.2 requires, a 403 here confirming that somebody has a label by that id",
       },
     },
   ],
@@ -1648,7 +1648,7 @@ const TABLE = new Map<string, Row>([
       attempt: (fx) => ({ path: `/labels/personal/${fx.personalLabelId}/archive` }),
       stranger: {
         expected: 404,
-        rule: '#208 R4, as the PATCH above: archiving somebody else\'s private vocabulary is not a thing the query can express',
+        rule: '4.24, as the PATCH above: archiving somebody else\'s private vocabulary is not a thing the query can express',
       },
     },
   ],
@@ -1658,7 +1658,7 @@ const TABLE = new Map<string, Row>([
       attempt: (fx) => ({ path: `/labels/personal/${fx.personalLabelId}/restore` }),
       stranger: {
         expected: 404,
-        rule: '#208 R4, as its twin above',
+        rule: '4.24, as its twin above',
       },
     },
   ],
@@ -1941,7 +1941,7 @@ const TABLE = new Map<string, Row>([
       },
       member: {
         expected: 403,
-        rule: "7.13's 2026-09-20 correction, applied to the third kind by #210's ruling: permanently deleting a facet is **Full control with ownership ignored**, which is the Task rule rather than the Folder's custody-and-Full-control pair, and `fx.member` holds Can edit",
+        rule: "7.27 and 7.13: permanently deleting a facet is **Full control with ownership ignored**, the Task rule rather than the Folder's custody-and-Full-control pair, and `fx.member` holds Can edit",
       },
     },
   ],

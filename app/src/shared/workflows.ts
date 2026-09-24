@@ -683,31 +683,12 @@ const importFolder = z.object({
 
 /*
 **Every version of the file format this contract reads, and the only place
-any of them is written down.** #260, extended to 4 by #185.
-
-There were two places. The endpoint's schema widened from `z.literal(1)` to
-both at #204 on 2026-09-17, and the client's file picker
-(`client/shell/workflow-import.ts`) kept a hand-written `value.version !== 1`
-of its own, so from that day until this one "Save as workflow" wrote version
-2 for every folder with a page and Dana's own Import answered those files
-with "that file isn't a workflow Dana can read". The bump walked past the
-second copy because nothing tied it to the first and nothing tested the
-picker's envelope above version 1, and a second bump to 3 was in flight on
-`backend/227-label-lifecycle` when this was written. That bump has since
-landed as #227's Folder Labels, and 3 joining this array is the whole of what
-it cost the picker — which is the claim this file was changed to make.
-
-So the number is a list here, `workflowFileVersion` is derived from it, and
-the picker is derived from the list rather than repeating it. **Adding a
-version is this array and nothing else**; anything that needs to know which
-versions are readable imports one of these two rather than writing a
-literal.
-
-**4 joined it the same way, and it is the claim's first repayment.** #185's
-ordered page is what `folderToWorkflowFile` now writes, and the whole of what
-that cost the picker was this array — one line, in one file, exactly as the
-paragraph above promised. 1, 2 and 3 are read as they always were, so a file
-written before that change imports with the same rows it always made.
+any of them is written down.** `workflowFileVersion` below and the client's
+file picker (`client/shell/workflow-import.ts`) both derive from this array,
+so **adding a version is this array and nothing else**. Anything that needs
+to know which versions are readable imports one of the two rather than
+writing a literal: a hand-written second copy of the check is how Dana's own
+Import once refused files that "Save as workflow" had just written.
 */
 export const WORKFLOW_FILE_VERSIONS = [1, 2, 3, 4, 5] as const
 
