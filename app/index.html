@@ -6,7 +6,9 @@
     <link rel="icon" href="/dana-mark.svg" type="image/svg+xml" />
     <title>Dana</title>
     <!-- Theme before first paint, from lib/theme.ts's mirror ('dana:theme').
-    The theme-color follows data-theme, however it later changes. -->
+    The script's bytes are hashed into the CSP in src/server/index.ts
+    (THEME_SCRIPT_HASH): change both or neither. shell/appearance.ts keeps
+    theme-color in step with data-theme. -->
     <meta name="theme-color" content="#ffffff" />
     <script>
       ;(function () {
@@ -19,15 +21,8 @@
               window.matchMedia('(prefers-color-scheme: dark)').matches)
           document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light')
         } catch (error) {
-          /* No mirror: the bundle paints the second frame. */
+          /* No storage is no mirror, and the bundle paints the second frame. */
         }
-        var root = document.documentElement
-        var meta = document.querySelector('meta[name="theme-color"]')
-        function paintMeta() {
-          if (meta) meta.setAttribute('content', root.getAttribute('data-theme') === 'dark' ? '#191919' : '#ffffff')
-        }
-        paintMeta()
-        new MutationObserver(paintMeta).observe(root, { attributes: true, attributeFilter: ['data-theme'] })
       })()
     </script>
   </head>

@@ -91,6 +91,15 @@ The attribute is always one of `light` or `dark`, which is
 */
 export function applyTheme(choice: ThemeChoice): void {
   document.documentElement.setAttribute('data-theme', resolvedTheme(choice))
+  paintThemeColor(resolvedTheme(choice))
+}
+
+/** Keeps the browser chrome (`<meta name="theme-color">`) on the page colour. */
+export function paintThemeColor(theme: 'light' | 'dark'): void {
+  if (typeof document === 'undefined') return
+  document
+    .querySelector('meta[name="theme-color"]')
+    ?.setAttribute('content', theme === 'dark' ? '#191919' : '#ffffff')
 }
 
 export function setTheme(choice: ThemeChoice): void {
