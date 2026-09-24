@@ -199,7 +199,7 @@ const CARD_COLUMNS = sql`
     f.is_default AS folder_is_default,
     a.id AS assignee_id, a.display_name AS assignee_display_name,
     a.avatar_url AS assignee_avatar_url,
-    (t.recurrence_rule IS NOT NULL) AS is_recurring,
+    (t.recurrence_rule IS NOT NULL) AS is_recurring, t.recurrence_rule,
     c.steps_total, c.steps_done,
     (e.task_id IS NOT NULL) AS pulled,
     (SELECT i.email FROM invites i
@@ -296,6 +296,7 @@ function cardFromRow(
             avatar_url: nullableString(row.assignee_avatar_url),
           },
     is_recurring: row.is_recurring === true,
+    recurrence_rule: nullableString(row.recurrence_rule),
     steps_done: Number(row.steps_done),
     steps_total: Number(row.steps_total),
     pulled: row.pulled === true,

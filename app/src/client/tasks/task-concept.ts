@@ -108,9 +108,7 @@ export function toConceptTask(
     task.assignee === null ? undefined : toConceptPerson(task.assignee)
 
   const parsed =
-    detail === null || detail.recurrence_rule === null
-      ? null
-      : parseRecurrenceRule(detail.recurrence_rule)
+    task.recurrence_rule === null ? null : parseRecurrenceRule(task.recurrence_rule)
 
   return {
     id: task.id,

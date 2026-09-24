@@ -3,7 +3,7 @@ import { offset } from '@floating-ui/react'
 import { BlockNoteView } from '@blocknote/shadcn'
 import {
   FilePanelController, FormattingToolbarController, SuggestionMenuController, SideMenuController, SideMenu,
-  DragHandleMenu, RemoveBlockItem,
+  DragHandleMenu,
   useBlockNoteEditor, useComponentsContext, useExtensionState,
   getDefaultReactSlashMenuItems,
 } from '@blocknote/react'
@@ -23,7 +23,7 @@ import {
   AlertDialogTitle,
 } from '../../ui/alert-dialog.js'
 import { installCanvasGuard } from './guard.js'
-import { ancestorsOf, bindTaskCommand, continueAfterGroup, headingOneContext, insertCanvasHeading, insertDocumentHeading, moveCanvasBlock, removeHeadingKeepingContent } from './commands.js'
+import { ancestorsOf, bindTaskCommand, continueAfterGroup, headingOneContext, insertCanvasHeading, insertDocumentHeading, moveCanvasBlock, removeCanvasBlocks, removeHeadingKeepingContent } from './commands.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
 import './canvas.css'
 import {
@@ -85,7 +85,10 @@ function CanvasBlockMenu(): React.JSX.Element | null {
         be reachable is the same defect waiting for the next change.
         */
         <p className="px-3 py-2 text-sm text-muted-foreground">Delete a Task from its own row, under More actions. A finished Task keeps its row in Done.</p>
-      ) : <RemoveBlockItem>Delete</RemoveBlockItem>}
+      ) : <components.Generic.Menu.Item onClick={() => {
+        const selected = editor.getSelection()?.blocks
+        removeCanvasBlocks(editor, selected?.some((item) => item.id === block.id) ? selected : [block])
+      }}>Delete</components.Generic.Menu.Item>}
     </DragHandleMenu>
   )
 }

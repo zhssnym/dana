@@ -6,7 +6,7 @@ import { MAX_SECTION_DEPTH } from '../../../../shared/page-document.js'
 import { createCanvasCallout } from './CanvasCallout.js'
 import { createCanvasTaskSpec } from './CanvasTask.js'
 import { createCanvasParagraph } from './CanvasParagraph.js'
-import { createTaskAtCursor, removeEmptyBeforeHeading } from './commands.js'
+import { createTaskAtCursor, removeCanvasBlocks, removeEmptyBeforeHeading } from './commands.js'
 
 // The vocabulary only, derived from the one ceiling rather than restated beside it.
 // A Section's level is its depth in the persisted outline, so the editor must be able
@@ -143,7 +143,7 @@ const image = {
         actions.appendChild(element)
       }
       button('Choose a new picture', () => { (editor as unknown as CanvasEditor).updateBlock(block.id, { props: { reclaimedAt: '' } }) })
-      button('Remove', () => { (editor as unknown as CanvasEditor).removeBlocks([block.id]) })
+      button('Remove', () => { const canvas = editor as unknown as CanvasEditor; const own = canvas.getBlock(block.id); if (own) removeCanvasBlocks(canvas, [own]) })
       dom.appendChild(actions)
       return { dom }
     }) as typeof stockImage.implementation.render,

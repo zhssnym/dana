@@ -408,6 +408,7 @@ export async function taskView(
             avatar_url: nullableString(row.assignee_avatar_url),
           },
     is_recurring: row.recurrence_rule !== null,
+    recurrence_rule: nullableString(row.recurrence_rule),
     steps_done: Number(row.steps_done),
     steps_total: Number(row.steps_total),
     pulled: row.pulled === true,
@@ -433,7 +434,6 @@ export async function taskView(
     created_at: toIso(row.created_at),
     updated_at: toIso(row.updated_at),
     notes: nullableString(row.notes),
-    recurrence_rule: nullableString(row.recurrence_rule),
     series_id: nullableString(row.series_id),
     reminder:
       row.reminder_task_id === null || row.reminder_task_id === undefined
@@ -452,7 +452,7 @@ export async function taskView(
 }
 
 /*
-7.0's TaskCard, which is 7.0's TaskDetail less its seven, and the shape 7.6
+7.0's TaskCard, which is 7.0's TaskDetail less its six, and the shape 7.6
 gives generated_task. It is derived from the detail rather than read by a
 second query for the reason the detail's own comment gives: one read serves
 every endpoint here, and a card built from its own SELECT is the per-endpoint
@@ -463,7 +463,6 @@ one this file can borrow an answer from for a single row it has already read.
 function cardOf(detail: TaskDetail): TaskCard {
   const {
     notes: _notes,
-    recurrence_rule: _rule,
     series_id: _seriesId,
     reminder: _reminder,
     steps: _steps,

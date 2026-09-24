@@ -144,3 +144,17 @@ export function removeHeadingKeepingContent(editor: CanvasEditor, group: CanvasB
   editor.replaceBlocks([group], children.length > 0 ? children : [{ type: 'paragraph' }])
   editor.focus()
 }
+
+/** Remove blocks without letting BlockNote refill an emptied page: it fills
+ * with the schema's first block type, a toggle heading, which saved as an
+ * empty Section. Removing everything leaves the empty paragraph instead. */
+export function removeCanvasBlocks(editor: CanvasEditor, blocks: readonly CanvasBlock[]): void {
+  const ids = new Set(blocks.map((block) => block.id))
+  const first = editor.document[0]
+  editor.transact(() => {
+    if (first !== undefined && editor.document.every((block) => ids.has(block.id))) {
+      editor.insertBlocks([{ type: 'paragraph' }], first, 'before')
+    }
+    editor.removeBlocks([...ids])
+  })
+}

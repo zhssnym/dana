@@ -17,8 +17,10 @@
 }
 .dana-writing-canvas .bn-editor { padding: 0; background: transparent; }
 .dana-writing-canvas .bn-editor { font-family: var(--font-family-sans); font-size: var(--text-body-size); line-height: var(--text-body-line); }
+/* A Section's content is indented under its heading, so what sits after the
+   last Section reads as outside it rather than as more of it. */
 .dana-writing-canvas .bn-block:has(> .bn-block-content[data-content-type='heading']) > .bn-block-group {
-  margin-inline-start: 0;
+  margin-inline-start: calc(var(--spacing) * 6);
 }
 .dana-writing-canvas [data-content-type='heading'] .bn-inline-content {
   font-family: var(--font-family-sans);
