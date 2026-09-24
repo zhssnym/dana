@@ -158,12 +158,8 @@ export function TaskBoard({
         if (place.spine.capture === 'none') return null
         return (
           <QuickAdd
-            folderName={column.label}
             onAdd={(title) => {
               place.capture(title, group.capture ?? undefined)
-            }}
-            onOpenFullForm={(title) => {
-              place.openFull(group.capture ?? undefined, title)
             }}
           />
         )

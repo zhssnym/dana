@@ -168,13 +168,13 @@ function CalendarEvent({
           : undefined
       }
       className={cn(
-        'flex w-full items-center gap-1.5 overflow-hidden rounded-[4px] border border-transparent bg-[var(--color-graphite-25)] px-1.5 text-left text-[var(--color-graphite-700)] transition-[background-color,border-color] hover:border-[var(--color-graphite-200)] hover:bg-white focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:outline-none',
+        'flex w-full items-center gap-1.5 overflow-hidden rounded-sm border border-transparent bg-muted px-1.5 text-left text-foreground transition-[background-color,border-color] hover:border-border hover:bg-background focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:outline-none',
         movable && 'cursor-grab active:cursor-grabbing',
-        compact ? 'min-h-5 text-[10px] leading-3' : 'min-h-7 text-xs leading-4',
-        completed && 'bg-white text-[var(--color-graphite-400)]',
-        abandoned && 'bg-white text-[var(--color-graphite-500)] line-through',
+        compact ? 'min-h-5 text-xs' : 'min-h-7 text-xs leading-4',
+        completed && 'bg-background text-muted-foreground',
+        abandoned && 'bg-background text-muted-foreground line-through',
         ghost &&
-          'border-dashed border-[var(--color-graphite-300)] bg-transparent text-[var(--color-graphite-500)]',
+          'border-dashed border-border bg-transparent text-muted-foreground',
       )}
       onClick={(mouse) => {
         mouse.stopPropagation()
@@ -199,7 +199,7 @@ function CalendarEvent({
         />
       )}
       {event.dueTime === null ? null : (
-        <span className="shrink-0 text-[var(--color-graphite-500)]">
+        <span className="shrink-0 text-muted-foreground">
           {event.dueTime.slice(0, 5)}
         </span>
       )}
@@ -253,13 +253,13 @@ function DayCell({
       data-today={date === today ? 'true' : undefined}
       data-date={date}
       className={cn(
-        'group/calendar-cell relative border-r border-b border-[var(--color-graphite-100)] p-1.5',
+        'group/calendar-cell relative border-r border-b border-border p-1.5',
         CELL_MIN_HEIGHT[zoom],
-        outsideMonth && 'bg-[var(--color-graphite-25)]',
-        weekend && !outsideMonth && 'bg-[var(--color-graphite-25)]/35',
+        outsideMonth && 'bg-muted',
+        weekend && !outsideMonth && 'bg-muted/40',
         lastColumn && 'border-r-0',
         lastRow && 'border-b-0',
-        over && 'bg-[var(--color-graphite-100)]',
+        over && 'bg-muted',
       )}
       onDragOver={(drag) => {
         if (!drag.dataTransfer.types.includes('text/plain')) return
@@ -288,7 +288,7 @@ function DayCell({
       */}
       <button
         type="button"
-        className="absolute inset-0 z-0 rounded-none text-left outline-none transition-colors hover:bg-[var(--color-graphite-50)]/70 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/30"
+        className="absolute inset-0 z-0 rounded-none text-left outline-none transition-colors hover:bg-muted/70 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/30"
         aria-label={`Create task on ${formatDueDate(date, today)}`}
         onClick={() => {
           openTaskForm({ due_date: date, important: false })
@@ -298,9 +298,9 @@ function DayCell({
       <div className="pointer-events-none relative z-10 mb-1.5 flex h-6 items-center justify-between">
         <span
           className={cn(
-            'flex size-6 items-center justify-center rounded-md text-xs font-medium text-[var(--color-graphite-600)]',
-            date === today && 'bg-[var(--color-graphite-900)] text-white',
-            outsideMonth && date !== today && 'text-[var(--color-graphite-400)]',
+            'flex size-6 items-center justify-center rounded-md text-xs font-medium text-muted-foreground',
+            date === today && 'bg-primary text-primary-foreground',
+            outsideMonth && date !== today && 'text-muted-foreground',
           )}
         >
           {/*
@@ -321,7 +321,7 @@ function DayCell({
           {dayOfMonth(date)}{' '}
         </span>
         <Plus
-          className="size-3.5 text-[var(--color-graphite-400)] opacity-0 transition-opacity group-hover/calendar-cell:opacity-100 group-focus-within/calendar-cell:opacity-100"
+          className="size-3.5 text-muted-foreground opacity-0 transition-opacity group-hover/calendar-cell:opacity-100 group-focus-within/calendar-cell:opacity-100"
           strokeWidth={1.75}
           aria-hidden="true"
         />
@@ -343,7 +343,7 @@ function DayCell({
         {hidden > 0 ? (
           <button
             type="button"
-            className="flex h-5 items-center rounded-[4px] px-1.5 text-[10px] font-semibold text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-100)] hover:text-[var(--color-graphite-800)] focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:outline-none"
+            className="flex h-5 items-center rounded-sm px-1.5 text-xs font-semibold text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:outline-none"
             onClick={onReveal}
           >
             +{hidden} more
@@ -471,15 +471,15 @@ export function PlannedCalendar(): React.JSX.Element {
         />
       ) : null}
 
-      <div className="overflow-hidden rounded-[10px] border border-[var(--color-graphite-200)] bg-white">
-        <div className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-b border-[var(--color-graphite-200)] bg-[var(--color-graphite-25)] px-2 py-1.5">
+      <div className="overflow-hidden rounded-md border border-border bg-background">
+        <div className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-b border-border bg-muted px-2 py-1.5">
           <div className="flex min-w-0 items-center gap-2">
-            <h2 className="min-w-36 truncate px-2 text-base leading-6 font-semibold text-[var(--color-graphite-800)]">
-              {periodTitle(zoom, anchor)}
+            <h2 className="min-w-36 truncate px-2 text-base leading-6 font-semibold text-foreground">
+              {periodTitle(zoom, anchor, today)}
             </h2>
             <Button
               variant="outline"
-              className="h-[var(--control-height)] border-[var(--color-graphite-200)] bg-white px-3 text-[13px] font-medium text-[var(--color-graphite-700)] shadow-none hover:bg-[var(--color-graphite-50)]"
+              className="h-[var(--control-height)] border-border bg-background px-3 text-sm font-medium text-foreground shadow-none hover:bg-muted"
               onClick={() => {
                 setAnchor(today)
               }}
@@ -489,11 +489,11 @@ export function PlannedCalendar(): React.JSX.Element {
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="flex overflow-hidden rounded-lg border border-[var(--color-graphite-200)] bg-white">
+            <div className="flex overflow-hidden rounded-md border border-border bg-background">
               <Button
                 variant="ghost"
                 size="icon"
-                className="size-[var(--control-height)] rounded-none border-r border-[var(--color-graphite-200)] text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-900)]"
+                className="size-[var(--control-height)] rounded-none border-r border-border text-muted-foreground hover:bg-muted hover:text-foreground"
                 aria-label="Previous"
                 onClick={() => {
                   setAnchor((was) => shiftAnchor(zoom, was, -1))
@@ -504,7 +504,7 @@ export function PlannedCalendar(): React.JSX.Element {
               <Button
                 variant="ghost"
                 size="icon"
-                className="size-[var(--control-height)] rounded-none text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-900)]"
+                className="size-[var(--control-height)] rounded-none text-muted-foreground hover:bg-muted hover:text-foreground"
                 aria-label="Next"
                 onClick={() => {
                   setAnchor((was) => shiftAnchor(zoom, was, 1))
@@ -517,7 +517,7 @@ export function PlannedCalendar(): React.JSX.Element {
             {/* `aria-pressed` is what carries the current zoom; the raised
                 tone is a second cue and never the only one. */}
             <div
-              className="flex h-11 items-center rounded-lg border border-[var(--color-graphite-200)] bg-white p-0.5"
+              className="flex h-11 items-center rounded-md border border-border bg-background p-0.5"
               role="group"
               aria-label="Calendar zoom"
             >
@@ -526,9 +526,9 @@ export function PlannedCalendar(): React.JSX.Element {
                   key={level}
                   variant="ghost"
                   className={cn(
-                    'h-[var(--control-height)] rounded-md px-3 text-[13px] font-medium text-[var(--color-graphite-600)] hover:bg-[var(--color-graphite-50)]',
+                    'h-[var(--control-height)] rounded-md px-3 text-sm font-medium text-muted-foreground hover:bg-muted',
                     zoom === level &&
-                      'bg-[var(--color-graphite-100)] text-[var(--color-graphite-900)] hover:bg-[var(--color-graphite-100)]',
+                      'bg-muted text-foreground hover:bg-muted',
                   )}
                   aria-pressed={zoom === level}
                   onClick={() => {
@@ -542,10 +542,10 @@ export function PlannedCalendar(): React.JSX.Element {
           </div>
         </div>
 
-        <div role="grid" aria-label="Scheduled calendar" className="bg-white" ref={grid}>
+        <div role="grid" aria-label="Scheduled calendar" className="bg-background" ref={grid}>
           <div
             role="row"
-            className="grid border-b border-[var(--color-graphite-200)] bg-white"
+            className="grid border-b border-border bg-background"
             style={{ gridTemplateColumns: template }}
           >
             {headers.map((label) => (
@@ -558,7 +558,7 @@ export function PlannedCalendar(): React.JSX.Element {
                 rather than a second style for the same words, in the same
                 product, two clicks apart.
                 */
-                className="flex h-7 items-center px-2 text-[11px] leading-4 font-medium text-[var(--color-graphite-400)]"
+                className="flex h-7 items-center px-2 text-xs font-medium text-muted-foreground"
               >
                 {label}
               </div>

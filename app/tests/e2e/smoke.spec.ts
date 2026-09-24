@@ -44,9 +44,11 @@ test('smoke: sign in, create a task, open a folder', async ({ page }) => {
 
   const title = `smoke task ${Date.now()}`
   await test.step('the quick-add creates a task', async () => {
-    await page.goto('/app/anytime')
-    await page.getByRole('button', { name: 'Add a task', exact: true }).first().click()
-    const box = page.getByRole('textbox', { name: 'Add a task', exact: true }).first()
+    await page.goto('/app/today')
+    // The inline "New task" row ends the list; N focuses it from anywhere.
+    await expect(page.getByRole('textbox', { name: 'New task', exact: true }).first()).toBeVisible()
+    await page.keyboard.press('n')
+    const box = page.getByRole('textbox', { name: 'New task', exact: true }).first()
     await expect(box).toBeFocused()
     await box.fill(title)
     await box.press('Enter')

@@ -36,7 +36,7 @@ import {
   TaskRow,
   useRowSelection,
 } from '../components/task-row.js'
-import type { PendingAction } from '../components/task-row.js'
+import type { BulkDate, PendingAction } from '../components/task-row.js'
 import { ConfirmDialog as UiConfirmDialog } from '../components/ui/ConfirmDialog.js'
 import {
   ABANDON_CONFIRM,
@@ -51,7 +51,7 @@ import { isScheduled } from '../parts/schedule.js'
 import { useTimeFormat } from '../lib/time-format.js'
 import type { TimeFormat } from '../lib/time-format.js'
 import { pushUndo, undoLabel } from '../shell/undo.js'
-import { duplicateTask } from '../tasks/task-acts.js'
+import { addDays, weekStart } from '../lib/dates.js'
 import type { RowActions } from '../parts/useRowActions.js'
 import type { Folder } from '../../shared/folders.js'
 import type { TaskCard } from '../../shared/tasks.js'
@@ -239,7 +239,7 @@ export function TaskRows({
       onMerge={acts.onMerge}
       onBulk={acts.onBulk}
       onMove={acts.onMove}
-      onDuplicate={acts.onDuplicate}
+      onDate={acts.onDate}
       onDelete={acts.onDelete}
       renderRow={(row, wiring) => (
         <TaskRow
@@ -323,7 +323,7 @@ function useListActs(
   onMerge: (ids: string[], name: string) => void
   onBulk: (ids: string[], fields: { done?: boolean; important?: boolean; pulled?: boolean }) => void
   onMove: (ids: string[], folder: { id: string; name: string }) => void
-  onDuplicate: (ids: string[]) => void
+  onDate: (ids: string[], when: BulkDate) => void
   onDelete: (ids: string[]) => void
 } {
   const order = useOrderTask()
@@ -426,10 +426,37 @@ function useListActs(
         })
       }
     },
-    /* The bar's Duplicate, the row's own act repeated: one 7.16 copy per
-       selected task, each with its toast and its inverse. */
-    onDuplicate: (ids) => {
-      for (const task of pick(ids)) duplicateTask(task.id, task.title)
+    /* The bar's Date: one PATCH per task, one undo for the batch. A repeating
+       task keeps its date, because a rule needs one (INV-6). */
+    onDate: (ids, when) => {
+      const today = presenterToday()
+      const date =
+        when === null
+          ? null
+          : when === 'today'
+            ? today
+            : when === 'tomorrow'
+              ? addDays(today, 1)
+              : weekStart(addDays(today, 7))
+      const moving = pick(ids).filter(
+        (task) => task.due_date !== date && !(date === null && task.is_recurring),
+      )
+      for (const task of moving) {
+        update.mutate({
+          id: task.id,
+          body: date === null ? { due_date: null, due_time: null } : { due_date: date },
+        })
+      }
+      if (moving.length > 0) {
+        pushUndo(`Changed the date of ${plural(moving.length)}`, () => {
+          for (const task of moving) {
+            update.mutate({
+              id: task.id,
+              body: { due_date: task.due_date, due_time: task.due_time },
+            })
+          }
+        })
+      }
     },
     /* Behind the same confirmation a row's delete carries, in its plural. */
     onDelete: (ids) => {
@@ -465,7 +492,7 @@ export function useTaskRowsSelection(
     onMove: acts.onMove,
     onNewFolder: (ids) => setPending({ kind: 'folder-for', ids }),
     onBulk: acts.onBulk,
-    onDuplicate: acts.onDuplicate,
+    onDate: acts.onDate,
     onDelete: acts.onDelete,
   })
   return {

@@ -82,13 +82,13 @@ export function BoardQuickAdd({ onAdd }: { onAdd: (title: string) => void }) {
         type="button"
         onClick={() => setEditing(true)}
         className={cn(
-          "flex h-8 items-center gap-1.5 rounded-md px-2 text-[12px] leading-4 text-[var(--color-graphite-400)] transition-colors hover:bg-[var(--color-graphite-50)] hover:text-[var(--color-graphite-700)]",
+          "flex h-8 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
           T_FAST,
           FOCUS,
         )}
       >
         <Plus className="size-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />
-        Add task
+        New task
       </button>
     )
   }
@@ -116,8 +116,8 @@ export function BoardQuickAdd({ onAdd }: { onAdd: (title: string) => void }) {
         }
       }}
       className={cn(
-        "h-9 w-full rounded-md border border-[var(--color-graphite-300)] bg-card px-2.5 text-[13px] leading-5 outline-none",
-        "placeholder:text-[var(--color-graphite-400)] focus-visible:border-[var(--color-dana-accent-600)] focus-visible:ring-2 focus-visible:ring-[var(--color-dana-accent-100)]",
+        "h-9 w-full rounded-md border border-border bg-background px-2.5 text-sm outline-none",
+        "placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/30",
       )}
     />
   )
@@ -145,7 +145,7 @@ export function BoardAddColumn({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex h-10 items-center justify-center gap-1.5 rounded-lg border border-dashed border-[var(--color-graphite-300)] text-[12px] leading-4 text-[var(--color-graphite-400)] transition-colors hover:border-[var(--color-graphite-400)] hover:text-[var(--color-graphite-600)]",
+        "flex h-10 items-center justify-center gap-1.5 rounded-md border border-dashed border-border text-xs text-muted-foreground transition-colors hover:border-muted-foreground hover:text-foreground",
         T_FAST,
         FOCUS,
       )}
@@ -237,7 +237,7 @@ function BoardCard({
         zIndex: carried ? 30 : undefined,
       }}
       className={cn(
-        "group/card relative cursor-pointer rounded-md border border-[var(--color-graphite-200)] bg-card px-2.5 py-2 transition-shadow hover:shadow-[var(--elevation-1)]",
+        "group/card relative cursor-pointer rounded-md border border-border bg-background px-2.5 py-2 transition-shadow hover:shadow-[var(--elevation-1)]",
         T_FAST,
         FOCUS,
         carried && "cursor-grabbing shadow-[var(--elevation-2)]",
@@ -260,10 +260,10 @@ function BoardCard({
         >
           <span
             className={cn(
-              "flex size-4 items-center justify-center rounded-[3px] border transition-[background-color,border-color]",
+              "flex size-4 items-center justify-center rounded-sm border transition-[background-color,border-color]",
               T_FAST,
               done
-                ? "border-[var(--color-success-600)] bg-[var(--color-success-600)]"
+                ? "border-primary bg-primary"
                 : "border-input bg-background",
             )}
           >
@@ -271,7 +271,7 @@ function BoardCard({
               <path
                 d="M4 10.5 L8.2 14.5 L16 5.8"
                 fill="none"
-                className="stroke-[var(--color-graphite-0)]"
+                className="stroke-primary-foreground"
                 strokeWidth="3"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -286,9 +286,9 @@ function BoardCard({
         </button>
         <span
           className={cn(
-            "min-w-0 flex-1 text-[14px] leading-5 text-[var(--color-graphite-800)]",
+            "min-w-0 flex-1 text-sm text-foreground",
             (done || task.status === "abandoned") &&
-              "text-[var(--color-graphite-500)] line-through decoration-[var(--color-graphite-400)]",
+              "text-muted-foreground line-through decoration-muted-foreground",
           )}
         >
           {task.title}
@@ -308,10 +308,10 @@ function BoardCard({
             T_FAST,
             FOCUS,
             task.important && !given?.important
-              ? "text-[var(--color-graphite-900)] opacity-100"
+              ? "text-foreground opacity-100"
               : task.important
-                ? "text-[var(--color-graphite-600)] opacity-100"
-                : "text-[var(--color-graphite-400)] opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100 hover:text-[var(--color-graphite-600)]",
+                ? "text-muted-foreground opacity-100"
+                : "text-muted-foreground opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100 hover:text-foreground",
           )}
         >
           <Star
@@ -329,17 +329,17 @@ function BoardCard({
           {showDue && task.due ? (
             <span
               className={cn(
-                "text-[12px] leading-4",
+                "text-xs",
                 task.due.overdue && !given?.overdue
                   ? "font-medium text-[var(--color-danger-700)]"
-                  : "text-[var(--color-graphite-500)]",
+                  : "text-muted-foreground",
               )}
             >
               {task.due.label}
             </span>
           ) : null}
           {task.steps ? (
-            <span className="inline-flex items-center gap-1 text-[12px] leading-4 text-[var(--color-graphite-500)] tabular-nums">
+            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground tabular-nums">
               <ListChecks
                 className="size-3.5 data-[size=sm]:size-3.5"
                 strokeWidth={1.75}
@@ -349,7 +349,7 @@ function BoardCard({
             </span>
           ) : null}
           {threadCount > 0 ? (
-            <span className="inline-flex items-center gap-1 text-[12px] leading-4 text-[var(--color-graphite-500)] tabular-nums">
+            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground tabular-nums">
               <MessageSquare
                 className="size-3.5 data-[size=sm]:size-3.5"
                 strokeWidth={1.75}
@@ -374,7 +374,7 @@ function BoardCard({
       way.
        */}
       {wiring.proposal === undefined ? null : (
-        <span className="pointer-events-none absolute top-1/2 right-2 z-40 -translate-y-1/2 rounded-full bg-[var(--color-graphite-900)] px-2 py-0.5 text-[0.625rem] font-medium whitespace-nowrap text-[var(--color-graphite-50)]">
+        <span className="pointer-events-none absolute top-1/2 right-2 z-40 -translate-y-1/2 rounded-sm bg-foreground px-2 py-0.5 text-xs font-medium whitespace-nowrap text-background">
           {wiring.proposal}
         </span>
       )}
@@ -456,22 +456,22 @@ export function TaskBoard({
             else zones.current.delete(column.key)
             columnRef?.(column)(node)
           }}
-          className="flex min-h-[280px] flex-col rounded-lg bg-[var(--color-graphite-50)] p-2 transition-shadow"
+          className="flex min-h-[280px] flex-col rounded-md bg-muted p-2 transition-shadow"
         >
           <div className="group/col flex h-7 items-center gap-1.5 px-1">
             {columnLead?.(column)}
             {column.mark}
             <span
               className={cn(
-                "min-w-0 truncate text-[12px] leading-4 font-medium",
+                "min-w-0 truncate text-xs font-medium",
                 column.quiet
-                  ? "text-[var(--color-graphite-400)]"
-                  : "text-[var(--color-graphite-600)]",
+                  ? "text-muted-foreground"
+                  : "text-muted-foreground",
               )}
             >
               {column.label}
             </span>
-            <span className="text-[12px] leading-4 text-[var(--color-graphite-400)] tabular-nums">
+            <span className="text-xs text-muted-foreground tabular-nums">
               {column.tasks.length}
             </span>
           </div>
