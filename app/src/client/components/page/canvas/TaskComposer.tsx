@@ -18,7 +18,7 @@ its kind across a save, by id, tick included.
 `sessionStorage['dana-task-draft:<task>']` until the server acknowledges it. A
 refused save (409 when the Task was edited elsewhere) keeps the editor and the
 draft; "Load latest" re-opens on the server's copy and moves the draft to
-`dana-task-recovered:<task>`, offered back with Merge / Download / Discard;
+`dana-task-recovered:<task>`, offered back with Download writing / Restore / Discard (Restore merges);
 merging adds the draft's blocks to the latest copy and removes nothing, so
 neither tab's writing is lost to a last write.
 
@@ -50,13 +50,12 @@ import type { CanvasDocument, CanvasRecord } from './adapters.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
 import { danaLinkInlineSpec } from '../../links/dana-link-chip.js'
 import { DanaLinkSuggestions } from '../../links/dana-link-picker.js'
-import { CanvasSlashMenu } from './slash-items.js'
+import { CanvasSlashMenu, blockMenuTargets } from './slash-items.js'
 import { CanvasWriter } from './saving.js'
-import { NOT_SAVED, SaveFailure } from './SaveFailure.js'
+import { NOT_SAVED, RecoveryNotice, SaveFailure } from './SaveFailure.js'
 import { BlockMenuContext, BlockSideMenu, blockSidePosition, duplicateBlocks, pageTheme, turnBlocksInto } from './BlockSideMenu.js'
 import type { BlockMenuModel } from './BlockSideMenu.js'
 import { BlockSelectionStyle, useBlockAnchor, useBlockSelectionKeys } from './block-selection.js'
-import { TEXT_TYPES, TURN_TARGETS } from './turn-into.js'
 import './canvas.css'
 
 export const taskSchema = BlockNoteSchema.create({
@@ -86,6 +85,9 @@ const fileUrl = (id: string | null): string => id === null ? '' : `/api/v1/files
 const fileIdOf = (url: string): string | null => /(?:^|\/)api\/v1\/files\/([0-9a-f-]{36})$/i.exec(url)?.[1] ?? null
 const draftKey = (taskId: string): string => `dana-task-draft:${taskId}`
 const recoveredKey = (taskId: string): string => `dana-task-recovered:${taskId}`
+
+/** The one error "Load latest" answers besides a failed save. */
+const CHANGED_ELSEWHERE = 'This task was edited elsewhere. Your writing is kept here. Load the latest to continue; your writing will be offered back.'
 
 export function hydrateTask(page: PageView, width: number): TaskInput[] {
   const records = new Map(page.blocks.map((block) => [block.id, block]))
@@ -171,9 +173,6 @@ export function mergeDraft(current: readonly TaskBlock[], draft: readonly TaskBl
   return out as TaskInput[]
 }
 
-/** The kinds a Task's body holds (its schema, less media), for Turn into. */
-const TASK_TURN_TARGETS = TURN_TARGETS.filter((target) => ['paragraph', 'heading', 'bulletListItem', 'numberedListItem', 'quote', 'codeBlock'].includes(target.type))
-
 function download(name: string, content: string): void {
   const url = URL.createObjectURL(new Blob([content], { type: 'application/json' }))
   const link = document.createElement('a')
@@ -251,8 +250,8 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
   }
   const editor = useCreateBlockNote({
     schema: taskSchema,
-    /* One quiet word where the notes go, and nothing on later empty lines. */
-    dictionary: { ...en, placeholders: { ...en.placeholders, emptyDocument: 'Notes', default: '' } },
+    /* One quiet line where the work is written (the Work tab), and nothing on later empty lines. */
+    dictionary: { ...en, placeholders: { ...en.placeholders, emptyDocument: 'Write, or type /', default: '' } },
     initialContent: initial.length ? initial : [{ id: crypto.randomUUID(), type: 'paragraph', content: '' }],
     uploadFile: folderId === null ? undefined : async (file, blockId) => {
       const type = blockId === undefined ? undefined : editorRef.current?.getBlock(blockId)?.type
@@ -263,7 +262,7 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
   editorRef.current = editor
   // The same gutter and block menu as the Folder canvas (`BlockSideMenu`).
   const menu = useMemo<BlockMenuModel>(() => ({
-    targets: (block) => TEXT_TYPES.has(block.type) ? TASK_TURN_TARGETS : [],
+    targets: (block) => blockMenuTargets(editor as unknown as CanvasEditor, block),
     turnInto: (ids, target) => { turnBlocksInto(editor, ids, target, undefined) },
     canDuplicate: () => true,
     duplicate: (ids) => { duplicateBlocks(editor, ids) },
@@ -330,7 +329,7 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
   useEffect(() => {
     if (!latest.revision || latest.revision === writer.revision || writer.state === 'saving') return
     if (writer.state === 'saved') onCheckpoint(latest)
-    else setError('This task was edited elsewhere. Your writing is kept here. Load the latest to continue; your writing will be offered back.')
+    else setError(CHANGED_ELSEWHERE)
   }, [latest, writer, writer.state, onCheckpoint])
 
   function changed(): void {
@@ -364,12 +363,11 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
 
   const conflict = writer.error instanceof ApiError && writer.error.status === 409
   return <>
-    {recovered !== null ? <div role="status" className="mb-2 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
-      Unsaved writing from before is kept.
-      <Button variant="outline" onClick={restore}>Merge it back in</Button>
-      <Button variant="ghost" onClick={() => download(`dana-task-writing-${taskId}.json`, recovered)}>Download writing</Button>
-      <Button variant="ghost" onClick={() => { writeStorage(recoveredKey(taskId), null); setRecovered(null) }}>Discard</Button>
-    </div> : null}
+    {recovered !== null ? <RecoveryNotice
+      onDownload={() => { download(`dana-task-writing-${taskId}.json`, recovered) }}
+      onRestore={restore}
+      onDiscard={() => { writeStorage(recoveredKey(taskId), null); setRecovered(null) }}
+    /> : null}
     <BlockMenuContext.Provider value={menu}>
     <BlockSelectionStyle editor={editor} scope={scope} />
     <div className={`dana-writing-canvas dana-task-composer ${scope} min-w-0`}>
@@ -388,7 +386,7 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
     <SaveFailure
       message={error || (writer.state === 'failed' ? NOT_SAVED : null)}
       onRetry={!error && writer.state === 'failed' && !conflict && writer.pending ? () => { void writer.retry() } : undefined}
-      onLoadLatest={() => { void loadLatest() }}
+      onLoadLatest={writer.state === 'failed' || error === CHANGED_ELSEWHERE ? () => { void loadLatest() } : undefined}
     />
   </>
 }

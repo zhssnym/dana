@@ -19,7 +19,8 @@ What is worth knowing:
 - **Sample data lives here and only here** among the pages; Remove confirms once
   (the route page's dialog) and then offers the undo bar.
 - **People** (9.8) is a section here, and /app/people lands on `#people`.
-  Sign out has one home, the sidebar's account menu, and is not repeated here.
+  Settings is reached from the sidebar's foot, beside Trash; Sign out has one
+  home, the sidebar's account menu, and is not repeated here.
 - **Pickers are the one `Combobox`**; the timezone list is long, so it filters
   as you type.
 - **Delete account** requires typing DELETE, and says shared folders must be

@@ -112,14 +112,14 @@ export function FolderHeader({
                 event.currentTarget.blur()
               }
             }}
-            className={cn(FIELD, 'flex-1 text-2xl font-bold text-foreground')}
+            className={cn(FIELD, 'flex-1 text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-bold text-foreground')}
           />
         ) : (
           /* A heading, always, and the click is the rename (AC-226, AC-217). */
           <h1
             onClick={editable ? () => onRenamingChange(true) : undefined}
             className={cn(
-              'min-w-0 flex-1 truncate text-2xl font-bold text-foreground',
+              'min-w-0 flex-1 truncate text-[length:var(--text-title-size)] leading-[var(--text-title-line)] font-bold text-foreground',
               editable ? 'cursor-text' : '',
             )}
           >

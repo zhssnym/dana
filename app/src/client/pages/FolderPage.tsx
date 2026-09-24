@@ -15,7 +15,7 @@ What is deliberate rather than transcription:
 opens the icon-and-colour picker and PATCHes icon and color; the cover uploads
 through 7.15 (kind 'cover') and PATCHes cover_file_id; the description PATCHes
 description; the name renders as a heading for everybody and becomes an inline
-field on a click or on the menu's Rename.
+field on a click, the title being rename's one home on this page.
 
 **All of these are Can edit's.** Can view is read only, and a folder's identity
 is shared Folder work, which Can edit may change. AC-011, AC-012 and AC-193
@@ -70,7 +70,8 @@ gone; a notification arriving with `?conversation=open` lands on Consultation.
 **The "…" is the folder menu, the one list** (`lib/object-acts.ts`): History,
 Rename, Move to shelf, Cover…, Tabs…, Copy link, Duplicate, Save as workflow,
 then Transfer/Leave/Delete by role, exactly what the Library row's "…" and its
-right-click draw, with this page's own "View ›" above them (through `extra`).
+right-click draw, with this page's own "View ›" above them (through `extra`),
+less Rename, whose home here is the title.
 */
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -1075,7 +1076,6 @@ export function FolderPage({
           history: () => {
             setHistoryOpen(true)
           },
-          rename: gates?.identity === true ? () => setRenaming(true) : undefined,
           move:
             isDefault || myFolderRow === undefined
               ? undefined
@@ -1084,19 +1084,12 @@ export function FolderPage({
           tabs: () => setTabsOpen(true),
           'copy-link': () => {
             void navigator.clipboard.writeText(folderLink(id))
-            showToast('Link copied')
           },
           duplicate: () => {
             /* Duplicated server-side; the copy is the duplicator's own private
-               folder, and the page goes to it. 9.6: the bar says which
-               happened, read off 7.16's `shifted_days`. */
+               folder, and the page goes to it: arriving there is the feedback. */
             duplicate.mutate(id, {
               onSuccess: (made) => {
-                showToast(
-                  made.shifted_days > 0
-                    ? `"${made.name}" made from "${detail?.name ?? ''}" with every task open, dates moved to start today`
-                    : `"${made.name}" made from "${detail?.name ?? ''}" with every task open`,
-                )
                 navigate(paths.folder(made.id))
               },
             })

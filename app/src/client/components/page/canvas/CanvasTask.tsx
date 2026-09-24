@@ -4,6 +4,7 @@ import { createReactBlockSpec } from '@blocknote/react'
 
 import { TaskRows } from '../../../pages/task-rows.js'
 import { useTask } from '../../../api/queries.js'
+import { DELETE_CONFIRM_LABEL, DELETE_TASK_CONFIRM, keepLabel } from '../../ui/copy.js'
 
 type TaskRowsProps = Parameters<typeof TaskRows>[0]
 type TaskCard = TaskRowsProps['tasks'][number]
@@ -29,6 +30,22 @@ export function CanvasTaskProvider({
   for (const task of completed) knownTitles.set(task.id, task.title)
   const value = useMemo(() => ({ byId, completedById, context, actions, onAsk }), [byId, completedById, context, actions, onAsk])
   return <TaskContext.Provider value={value}>{children}</TaskContext.Provider>
+}
+
+/**
+ * The gutter menu's Delete for a Task block: the row's own act, with its
+ * confirmation and undo (`task-rows.tsx`). Null where the canvas holds no
+ * Task layer or the Task is not one the page has loaded.
+ */
+export function useCanvasTaskDelete(): ((taskId: string) => (() => void) | null) | null {
+  const bridge = useContext(TaskContext)
+  return useMemo(() => bridge === null ? null : (taskId: string) => {
+    const card = bridge.byId.get(taskId) ?? bridge.completedById.get(taskId)
+    if (card === undefined) return null
+    return () => {
+      bridge.onAsk(DELETE_TASK_CONFIRM, () => { bridge.actions.onDelete(card) }, { confirmLabel: DELETE_CONFIRM_LABEL, cancelLabel: keepLabel(1) })
+    }
+  }, [bridge])
 }
 
 /**
@@ -107,7 +124,7 @@ function ResolvedTask({ taskId, bridge }: { readonly taskId: string; readonly br
 /** Exported for `CanvasTask.test.tsx`; the editor reaches it through the spec below. */
 export function CanvasTask({ taskId }: { readonly taskId: string }): React.JSX.Element {
   const bridge = useContext(TaskContext)
-  if (bridge === null) return <p role="status">This Task is unavailable. Its place is preserved.</p>
+  if (bridge === null) return <p role="status">Task unavailable</p>
   return <ResolvedTask taskId={taskId} bridge={bridge} />
 }
 

@@ -98,6 +98,13 @@ export function turnTargetsFor(editor: AnyEditor, block: TreeBlock): TurnTarget[
   })
 }
 
+/** The ⋮⋮ menu's Turn into: `turnTargetsFor`, plus the block's own kind (checked). */
+export function blockMenuTargets(editor: AnyEditor, block: TreeBlock): TurnTarget[] {
+  const own = turnTargetsFor(editor, block)
+  if (!TEXT_TYPES.has(block.type) && block.type !== 'toggleListItem') return own
+  return TURN_TARGETS.filter((target) => isCurrent(block, target) || own.some((allowed) => allowed.key === target.key))
+}
+
 /* Cmd/Ctrl+/ over picked blocks (`block-selection.ts`): the list is for all of
    them, opened at the end of the first one's text, and they stay picked. */
 const turnScope = new WeakMap<object, readonly string[]>()
@@ -255,7 +262,7 @@ function CanvasSuggestionList(props: SuggestionMenuProps<DefaultReactSuggestionI
       onClick={() => onItemClick?.(item)}
     />)
   })
-  return <Components.SuggestionMenu.Root id="bn-suggestion-menu" className="bn-suggestion-menu">
+  return <Components.SuggestionMenu.Root id="bn-suggestion-menu" className="bn-suggestion-menu dana-slash-menu">
     {rows}
     {rows.length === 0 && loadingState !== 'loading-initial'
       ? <Components.SuggestionMenu.EmptyItem className="bn-suggestion-menu-item">No results</Components.SuggestionMenu.EmptyItem>
