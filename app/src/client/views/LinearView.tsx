@@ -312,7 +312,7 @@ export function LinearView(props: {
                       <span className="flex w-6 shrink-0 justify-center" aria-hidden>
                         <span className="size-2.5 rotate-45 rounded-xs border-2 border-quiet-foreground bg-background" />
                       </span>
-                      <span className="min-w-0 truncate px-1.5 text-sm font-medium text-foreground">{group.name}</span>
+                      <span className="min-w-0 truncate px-1.5 text-sm font-section text-foreground">{group.name}</span>
                       {!open && group.tasks.length > 0 && (
                         <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{group.tasks.length}</span>
                       )}

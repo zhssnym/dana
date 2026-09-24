@@ -3,10 +3,11 @@ Today, at /app/today: 6 Q1's open list, carried-over work first, then the
 "New task" row. Finished-today rows (Q1R) show as a plain "Done" group when
 Show completed is on. A grouping from the View menu replaces the groups.
 
-The "Today" group only holds what is due today (or undated). A row that is
-here although its date is later says why by its group: "Started" when its
-Schedule has begun (#217), "Added to Today" when the person pulled it in. A
-row under "Today" reading "Tomorrow" was the confusion this split removes.
+The "Today" group only holds what is due today (or undated) and not yet
+started. Every started task (a start date today or earlier) is under "In
+progress", the one name the Board and Linear give it, whether or not it has a
+due date. A row here although its date is later and not started says why:
+"Added to Today" when the person pulled it in.
 */
 import type { TaskCard } from '../../shared/tasks.js'
 import { CalendarCheck2 } from '../lib/icons.js'
@@ -15,7 +16,7 @@ import { useMyDayView } from '../api/queries.js'
 import { NEW_TASK_ROW_PHONE, QuickAdd } from '../components/quick-add.js'
 import { SampleStrip } from '../onboarding/SampleStrip.js'
 import { StarterOffer, useMayBeFresh } from '../onboarding/StarterOffer.js'
-import { activationDateOf } from '../parts/schedule.js'
+import { stageOf } from '../views/linear/stage.js'
 import { groupRows } from '../views/grouping.js'
 import { PLACES } from '../views/place-pages.js'
 import { PlaceGroup, PlaceHead, usePlace } from '../views/usePlace.js'
@@ -54,8 +55,8 @@ export function TodayPage(): React.JSX.Element {
   const started: TaskCard[] = []
   const added: TaskCard[] = []
   for (const task of today) {
-    if (task.due_date === null || task.due_date <= place.today) dueToday.push(task)
-    else if (startedFor(task, place.viewerId, place.today)) started.push(task)
+    if (stageOf(task, place.today) === 'present') started.push(task)
+    else if (task.due_date === null || task.due_date <= place.today) dueToday.push(task)
     else added.push(task)
   }
   const reasons = (started.length === 0 ? 0 : 1) + (added.length === 0 ? 0 : 1)
@@ -103,7 +104,7 @@ export function TodayPage(): React.JSX.Element {
                   </PlaceGroup>
                 )}
                 {started.length === 0 ? null : (
-                  <PlaceGroup name="Started" heading="Started">
+                  <PlaceGroup name="In progress" heading="In progress">
                     {rows(started)}
                   </PlaceGroup>
                 )}
@@ -136,8 +137,3 @@ export function TodayPage(): React.JSX.Element {
   )
 }
 
-/** On Today by its own Schedule: assigned to the viewer and begun (#217). */
-function startedFor(task: TaskCard, viewerId: string | null, today: string): boolean {
-  const activation = activationDateOf(task)
-  return viewerId !== null && task.assignee?.id === viewerId && activation !== null && activation <= today
-}

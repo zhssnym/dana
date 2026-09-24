@@ -51,7 +51,7 @@ import { isScheduled } from '../parts/schedule.js'
 import { useTimeFormat } from '../lib/time-format.js'
 import type { TimeFormat } from '../lib/time-format.js'
 import { pushUndo, undoLabel } from '../shell/undo.js'
-import { addDays, weekStart } from '../lib/dates.js'
+import { addDays, formatClockTime, weekStart } from '../lib/dates.js'
 import type { RowActions } from '../parts/useRowActions.js'
 import type { Folder } from '../../shared/folders.js'
 import type { TaskCard } from '../../shared/tasks.js'
@@ -177,6 +177,7 @@ export function TaskRows({
   onDropAt,
   onOver,
   onDragStateChange,
+  given,
 }: {
   readonly tasks: readonly TaskCard[]
   readonly context: RowContext
@@ -189,6 +190,12 @@ export function TaskRows({
   readonly onDropAt?: (taskId: string, point: { x: number; y: number }) => boolean
   readonly onOver?: (taskId: string, point: { x: number; y: number }) => string | null
   readonly onDragStateChange?: (dragging: boolean) => void
+  /**
+   * What the heading above these rows already says: `day` when it names the
+   * one day every row is due (Today, Tomorrow, Saturday), so a row keeps only
+   * its time; `overdue` when it says every row is late.
+   */
+  readonly given?: { readonly day?: boolean; readonly overdue?: boolean }
 }): React.JSX.Element {
   const acts = useListActs(tasks, actions, onAsk, arrangement?.arrangeable ?? false)
   /*
@@ -198,8 +205,20 @@ export function TaskRows({
   without a second lookup.
   */
   const rows = useMemo(
-    () => tasks.map((task) => ({ ...taskRowDisplay(task, context), id: task.id, card: task })),
-    [tasks, context],
+    () =>
+      tasks.map((task) => {
+        const { due, ...display } = taskRowDisplay(task, context)
+        /* Under a day's own heading the row says only its time, if it has one. */
+        const time = given?.day === true ? formatClockTime(task.due_time, context.clock ?? '12') : null
+        const shown =
+          due === undefined || time === null
+            ? due
+            : time === ''
+              ? undefined
+              : { label: time, ...(due.overdue === true ? { overdue: true } : {}) }
+        return { ...display, ...(shown === undefined ? {} : { due: shown }), id: task.id, card: task }
+      }),
+    [tasks, context, given?.day],
   )
   return (
     /* `TaskList` owns the drag, the hold that makes a folder of two tasks,
@@ -246,7 +265,10 @@ export function TaskRows({
           and the board's axis pass, so the context's silence is handed to the
           row in that word rather than by a second display flag.
           */
-          given={context.showFolder === false ? { folder: true } : undefined}
+          given={{
+            ...(context.showFolder === false ? { folder: true } : {}),
+            ...(given?.overdue === true ? { overdue: true } : {}),
+          }}
           /*
           The row is told its folder even where the page has already said it:
           `given` silences the chip, but the card the chevron opens still names

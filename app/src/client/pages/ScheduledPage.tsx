@@ -64,6 +64,12 @@ export function ScheduledPage(): React.JSX.Element {
                   <PlaceGroup key={group.key} name={group.name} heading={group.name}>
                     <TaskRows
                       tasks={group.rows}
+                      /* What the date heading says, a row does not repeat: under
+                         "Tomorrow" a row keeps only its time, under "Overdue" its
+                         date loses the late colour the heading already carries. */
+                      {...(place.groupBy === 'none'
+                        ? { given: { day: 'date' in group && group.date !== null, overdue: group.key === 'overdue' } }
+                        : {})}
                       context={context}
                       actions={actions}
                       onAsk={confirm.ask}

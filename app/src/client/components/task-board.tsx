@@ -220,6 +220,18 @@ function BoardCard({
     return () => wiring.onRegisterOpen(null)
   })
 
+  /* Whether the meta line has anything to say. A card with nothing (no date,
+     folder, face, count, repeat or set star) is its title alone, so a board
+     of plain tasks stays compact; such a card is starred from the task. */
+  const finished = done || task.status === "abandoned"
+  const hasMeta =
+    (task.due !== undefined && !given?.due && !done) ||
+    (task.folder !== undefined && !given?.folder) ||
+    ((task.blockedBy ?? 0) > 0 && !finished) ||
+    (task.assignee !== undefined && task.assignee !== null && !given?.assignee) ||
+    (task.steps !== undefined && task.steps.total > 0) ||
+    task.recurrence !== undefined ||
+    Boolean(task.important)
   const drag = wiring.dragState
   const carried = Boolean(drag?.isActive) && !drag?.isSettling
 
@@ -263,7 +275,7 @@ function BoardCard({
         zIndex: carried ? 30 : undefined,
       }}
       className={cn(
-        "group/row relative cursor-pointer rounded-md border border-border bg-background px-2.5 pt-2 pb-1 transition-colors hover:bg-hover",
+        "group/row relative cursor-pointer rounded-md border border-border bg-background px-2.5 py-2 transition-colors hover:bg-hover",
         T_FAST,
         carried && "cursor-grabbing shadow-[var(--elevation-2)]",
       )}
@@ -300,22 +312,24 @@ function BoardCard({
       {/* The one meta line every view draws (`task-meta.tsx`): date, folder,
           face, subtasks, repeat, then the star at its end. A finished card's
           deadline is spent, so it drops its date, as a finished row does. */}
-      <RowMeta
-        className={cn("mt-0.5 w-full justify-between", checkbox && "pl-7")}
-        source={{
-          ...(task.due === undefined ? {} : { due: task.due }),
-          ...(task.folder === undefined ? {} : { folder: task.folder }),
-          ...(task.assignee === undefined ? {} : { assignee: task.assignee }),
-          ...(task.steps === undefined ? {} : { steps: { done: task.steps.complete, total: task.steps.total } }),
-          ...(task.recurrence === undefined ? {} : { recurrence: task.recurrence }),
-          blockedBy: task.blockedBy ?? 0,
-          finished: done || task.status === "abandoned",
-          important: Boolean(task.important),
-          ...(task.importantTooltip === undefined ? {} : { importantTooltip: task.importantTooltip }),
-        }}
-        given={{ ...given, ...(done ? { due: true } : {}) }}
-        onToggleImportant={onStar}
-      />
+      {hasMeta ? (
+        <RowMeta
+          className={cn("-mb-1 mt-0.5 w-full justify-between", checkbox && "pl-7")}
+          source={{
+            ...(task.due === undefined ? {} : { due: task.due }),
+            ...(task.folder === undefined ? {} : { folder: task.folder }),
+            ...(task.assignee === undefined ? {} : { assignee: task.assignee }),
+            ...(task.steps === undefined ? {} : { steps: { done: task.steps.complete, total: task.steps.total } }),
+            ...(task.recurrence === undefined ? {} : { recurrence: task.recurrence }),
+            blockedBy: task.blockedBy ?? 0,
+            finished,
+            important: Boolean(task.important),
+            ...(task.importantTooltip === undefined ? {} : { importantTooltip: task.importantTooltip }),
+          }}
+          given={{ ...given, ...(done ? { due: true } : {}) }}
+          onToggleImportant={onStar}
+        />
+      ) : null}
       {/*
       **What a release would do, said in words.**
 

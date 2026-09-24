@@ -166,7 +166,7 @@ export function PlaceHead({
   return (
     <header>
       <div className="flex items-center justify-between gap-4">
-        <h1 className="min-w-0 truncate text-(length:--text-title-size) leading-(--text-title-line) font-bold text-foreground">
+        <h1 className="min-w-0 truncate text-(length:--text-title-size) leading-(--text-title-line) font-title text-foreground">
           {place.spine.name}
         </h1>
         <PlaceControls place={place} />
@@ -192,7 +192,7 @@ export function PlaceGroup({
   return (
     <section aria-label={name}>
       {heading === undefined ? null : (
-        <h2 className="mb-1 text-base font-semibold text-foreground">{heading}</h2>
+        <h2 className="mb-1 text-sm font-section text-foreground">{heading}</h2>
       )}
       {children}
     </section>
