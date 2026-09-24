@@ -30,23 +30,40 @@ file the person attached to a sample conversation is collected and its bytes
 removed after the commit exactly as 7.15 orders it. Nothing here writes a
 DELETE against a task or folder table of its own.
 */
+import { randomUUID } from 'node:crypto'
+
 import { sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 
 import type { Db } from '../../../db/client.js'
-import { GENERAL_DISCUSSION_TITLE } from '../../shared/consultation.js'
+import { documentTransaction } from '../../shared/page-document.js'
+import type { DocumentOperation } from '../../shared/page-document.js'
 import type { SampleCounts, SampleStatus } from '../../shared/sample.js'
 import { inTransaction, rowsOf } from '../database.js'
 import type { Executor } from '../database.js'
 import { recordEvent } from '../domain/events.js'
 import { createNativeFacets } from '../domain/facets.js'
 import { recordAccessTransition } from '../domain/folder-access.js'
+import { initialKeys, keyBetween } from '../domain/fractional-index.js'
+import { applyDocument, documentMetadata } from '../domain/page-document.js'
+import { positionedItems } from '../domain/page-order.js'
 import { appendHomeBlock, lastChildPosition } from '../domain/page-tree.js'
 import { upsertReminder } from '../domain/tasks.js'
 import { destroyFolders, destroyTasks } from '../domain/trash.js'
 import { today } from '../time/today.js'
-import { SAMPLE_WORKSPACE } from './content.js'
-import type { SampleDue, SampleFolder, SampleTask } from './content.js'
+import { SAMPLE_PEOPLE, SAMPLE_WORKSPACE } from './content.js'
+import type {
+  SampleAuthor,
+  SampleBlock,
+  SampleDue,
+  SampleFolder,
+  SamplePersonKey,
+  SamplePost,
+  SampleRun,
+  SampleTask,
+  SampleText,
+  SampleThread,
+} from './content.js'
 
 /* ------------------------------------------------------------------ *
  * Dates, relative to today in the person's zone
@@ -95,11 +112,10 @@ type SampleKind = 'shelf' | 'folder' | 'task' | 'view'
 
 /*
 The sample's own clock. The whole sample is one transaction, where `now()` is
-one instant, so every shelf, folder, task and comment shared a `created_at` and
-every list that orders by `created_at, id` fell through to a random uuid: each
-new account saw its sample tasks in a different order. Each row takes its own
-millisecond instead, in the order `content.ts` lists it, all within the minute
-before now so nothing is created in the future.
+one instant, so every row would share a `created_at` and every list that
+orders by `created_at, id` would fall through to a random uuid. Each row takes
+its own millisecond instead, in the order `content.ts` lists it, all within
+the minute before now so nothing is created in the future.
 */
 type SampleClock = () => SQL
 function sampleClock(): SampleClock {
@@ -108,6 +124,12 @@ function sampleClock(): SampleClock {
     tick += 1
     return sql`now() - interval '60 seconds' + ${tick}::int * interval '1 millisecond'`
   }
+}
+
+/** A moment `days` (and `hours`) before now, for posts and completions. */
+function ago(days: number, hours = 0): SQL {
+  const minutes = Math.round(days * 24 * 60 + hours * 60)
+  return sql`now() - make_interval(mins => ${minutes}::int)`
 }
 
 async function register(
@@ -122,39 +144,127 @@ async function register(
   )
 }
 
-async function writeTask(
-  tx: Executor,
-  clock: SampleClock,
-  userId: string,
-  anchor: string,
-  folderId: string,
-  task: SampleTask,
-  sections: ReadonlyMap<string, string>,
-): Promise<string> {
+/** The sample people's ids, which removal does not count as someone else
+ * holding a page. */
+export const SAMPLE_PERSON_IDS: readonly string[] = SAMPLE_PEOPLE.map((person) => person.id)
+
+/* The three sample people: users rows with no google_sub and no email, which
+   is to say no way to sign in. Shared by every sample; written once. */
+async function ensureSamplePeople(tx: Executor): Promise<void> {
+  for (const person of SAMPLE_PEOPLE) {
+    await tx.execute(
+      sql`INSERT INTO users (id, display_name, timezone)
+          VALUES (${person.id}::uuid, ${person.name}, 'UTC')
+          ON CONFLICT (id) DO NOTHING`,
+    )
+  }
+}
+
+/** Everything the writer resolves by name while it writes. */
+interface SampleContext {
+  readonly tx: Executor
+  readonly clock: SampleClock
+  readonly userId: string
+  readonly userName: string
+  readonly anchor: string
+  readonly folders: Map<string, string>
+  readonly tasks: Map<string, string>
+}
+
+function personId(ctx: SampleContext, who: SampleAuthor): string {
+  if (who === 'me') return ctx.userId
+  return SAMPLE_PEOPLE.find((person) => person.key === who)?.id ?? ctx.userId
+}
+
+function personName(ctx: SampleContext, who: SampleAuthor): string {
+  if (who === 'me') return ctx.userName
+  return SAMPLE_PEOPLE.find((person) => person.key === who)?.name ?? ''
+}
+
+interface Run {
+  text: string
+  bold?: boolean
+  italic?: boolean
+  href?: string
+  mention?: { user_id: string }
+}
+
+/** A content text as its plain projection and its rich runs (null when it
+ * is plain text with nothing on it). */
+function richText(
+  ctx: SampleContext,
+  value: SampleText | undefined,
+): { text: string; rich: { version: 1; runs: Run[] } | null } {
+  if (value === undefined) return { text: '', rich: null }
+  if (typeof value === 'string') return { text: value, rich: null }
+  const runs: Run[] = value.map((run: SampleRun): Run => {
+    if (typeof run === 'string') return { text: run }
+    if ('mention' in run) {
+      return {
+        text: `@${personName(ctx, run.mention)}`,
+        mention: { user_id: personId(ctx, run.mention) },
+      }
+    }
+    const target =
+      run.page !== undefined
+        ? `/app/folders/${ctx.folders.get(run.page) ?? ''}`
+        : run.task !== undefined
+          ? `/app/tasks/${ctx.tasks.get(run.task) ?? ''}`
+          : run.href
+    return {
+      text: run.text,
+      ...(run.bold === true ? { bold: true } : {}),
+      ...(run.italic === true ? { italic: true } : {}),
+      ...(target === undefined ? {} : { href: target }),
+    }
+  })
+  return { text: runs.map((run) => run.text).join(''), rich: { version: 1, runs } }
+}
+
+async function writeTask(ctx: SampleContext, folderId: string, task: SampleTask): Promise<string> {
+  const { tx, clock, userId, anchor } = ctx
   const dueDate = task.due === undefined ? null : resolveDue(anchor, task.due)
+  const startDate = task.start === undefined ? null : resolveDue(anchor, task.start)
   const completed = task.doneDaysAgo !== undefined
-  const sectionId = task.section === undefined ? null : (sections.get(task.section) ?? null)
+  const status = completed ? 'completed' : task.abandoned === true ? 'abandoned' : 'pending'
+  const assignee = task.assignee === undefined ? userId : personId(ctx, task.assignee)
+  const seriesId = task.repeat === undefined ? null : randomUUID()
+
+  /* A repeating task's earlier occurrences, each completed on its day: the
+     completion history a month of use leaves behind. */
+  for (const daysAgo of task.history ?? []) {
+    const made = await rowsOf(
+      tx,
+      sql`INSERT INTO tasks
+            (folder_id, title, status, due_date, due_time, series_id, assignee_id,
+             created_by, completed_at, completed_by, created_at)
+          VALUES (${folderId}::uuid, ${task.title}, 'completed',
+                  ${shiftDays(anchor, -daysAgo)}::date, ${task.time ?? null}::time,
+                  ${seriesId}::uuid, ${userId}::uuid, ${userId}::uuid,
+                  ${ago(daysAgo, -1)}, ${userId}::uuid, ${clock()})
+          RETURNING id`,
+    )
+    await register(tx, userId, 'task', String(made[0]?.id))
+  }
+
   const inserted = await rowsOf(
     tx,
     sql`INSERT INTO tasks
-          (folder_id, title, notes, important, status, due_date, due_time,
+          (folder_id, title, notes, important, status, due_date, due_time, start_date,
            recurrence_rule, series_id, assignee_id, created_by,
-           completed_at, completed_by, section_block_id, deleted_at, created_at)
+           completed_at, completed_by, created_at)
         VALUES (${folderId}::uuid, ${task.title}, ${task.notes ?? null},
-                ${task.important ?? false},
-                ${completed ? 'completed' : 'pending'},
-                ${dueDate}::date, ${task.time ?? null}::time,
-                ${task.repeat ?? null},
-                ${task.repeat === undefined ? sql`NULL` : sql`gen_random_uuid()`},
-                ${userId}::uuid, ${userId}::uuid,
-                ${completed ? sql`now() - make_interval(days => ${task.doneDaysAgo ?? 0})` : sql`NULL`},
-                ${completed ? sql`${userId}::uuid` : sql`NULL`},
-                ${sectionId}::uuid,
-                ${task.trashed === true ? sql`now()` : sql`NULL`}, ${clock()})
+                ${task.important ?? false}, ${status},
+                ${dueDate}::date, ${task.time ?? null}::time, ${startDate}::date,
+                ${task.repeat ?? null}, ${seriesId}::uuid,
+                ${assignee}::uuid, ${userId}::uuid,
+                ${completed ? ago(task.doneDaysAgo ?? 0, -2) : sql`NULL`},
+                ${completed ? sql`${userId}::uuid` : sql`NULL`}, ${clock()})
         RETURNING id`,
   )
   const taskId = String(inserted[0]?.id)
   await register(tx, userId, 'task', taskId)
+  ctx.tasks.set(task.title, taskId)
 
   for (const [index, step] of (task.steps ?? []).entries()) {
     await tx.execute(
@@ -162,7 +272,7 @@ async function writeTask(
           VALUES (${taskId}::uuid, ${step.title}, ${step.done ?? false}, ${index})`,
     )
   }
-  if (task.today === true && !completed && task.trashed !== true) {
+  if (task.today === true && status === 'pending') {
     await tx.execute(
       sql`INSERT INTO my_day_entries (task_id, user_id, added_on)
           VALUES (${taskId}::uuid, ${userId}::uuid, ${anchor}::date)`,
@@ -178,54 +288,223 @@ async function writeTask(
       userId,
     )
   }
-  for (const comment of task.thread ?? []) {
-    const parent = await rowsOf(
-      tx,
-      sql`INSERT INTO comments (folder_id, task_id, author_id, body, created_at)
-          VALUES (${folderId}::uuid, ${taskId}::uuid, ${userId}::uuid, ${comment.body}, ${clock()})
-          RETURNING id`,
-    )
-    for (const reply of comment.replies ?? []) {
-      await tx.execute(
-        sql`INSERT INTO comments (folder_id, task_id, parent_id, author_id, body, created_at)
-            VALUES (${folderId}::uuid, ${taskId}::uuid,
-                    ${String(parent[0]?.id)}::uuid, ${userId}::uuid, ${reply}, ${clock()})`,
-      )
-    }
-  }
   return taskId
 }
 
-async function writeFolder(
-  tx: Executor,
-  clock: SampleClock,
-  userId: string,
-  anchor: string,
-  folder: SampleFolder,
+/** A post's stored shape: its plain body and, when it carries runs, the
+ * one-paragraph post content. */
+function postColumns(ctx: SampleContext, value: SampleText): { body: string; content: string | null } {
+  const { text, rich } = richText(ctx, value)
+  const content =
+    rich === null
+      ? null
+      : JSON.stringify({ version: 1, blocks: [{ kind: 'paragraph', rich_content: rich }] })
+  return { body: text, content }
+}
+
+/** Writes one post, its likes and its replies into a Discussion or a task's
+ * thread. */
+async function writePost(
+  ctx: SampleContext,
+  folderId: string,
+  scope: { discussionId: string } | { taskId: string },
+  post: SamplePost,
   parentId: string | null = null,
+): Promise<void> {
+  const { tx } = ctx
+  const { body, content } = postColumns(ctx, post.text)
+  const made = await rowsOf(
+    tx,
+    sql`INSERT INTO comments
+          (folder_id, discussion_id, task_id, parent_id, author_id, body, content, created_at)
+        VALUES (${folderId}::uuid,
+                ${'discussionId' in scope ? scope.discussionId : null}::uuid,
+                ${'taskId' in scope ? scope.taskId : null}::uuid,
+                ${parentId}::uuid, ${personId(ctx, post.by)}::uuid, ${body},
+                ${content}::jsonb, ${ago(post.daysAgo, post.hoursAgo ?? 0)})
+        RETURNING id`,
+  )
+  const commentId = String(made[0]?.id)
+  for (const who of post.likes ?? []) {
+    await tx.execute(
+      sql`INSERT INTO comment_likes (comment_id, user_id, created_at)
+          VALUES (${commentId}::uuid, ${personId(ctx, who)}::uuid,
+                  ${ago(post.daysAgo, (post.hoursAgo ?? 0) - 1)})`,
+    )
+  }
+  for (const reply of post.replies ?? []) {
+    await writePost(ctx, folderId, scope, reply, commentId)
+  }
+}
+
+/** Hours before now, the one clock posts are compared on. */
+function hoursAgo(post: { daysAgo: number; hoursAgo?: number }): number {
+  return post.daysAgo * 24 + (post.hoursAgo ?? 0)
+}
+
+async function writeThread(ctx: SampleContext, folderId: string, thread: SampleThread): Promise<void> {
+  const { tx } = ctx
+  const all = thread.posts.flatMap((post) => [post, ...(post.replies ?? [])])
+  const first = Math.max(...all.map(hoursAgo))
+  const last = Math.min(...all.map(hoursAgo))
+  const made = await rowsOf(
+    tx,
+    sql`INSERT INTO discussions (folder_id, title, created_by, last_activity_at, created_at, updated_at)
+        VALUES (${folderId}::uuid, ${thread.title}, ${personId(ctx, thread.by)}::uuid,
+                ${ago(0, last)}, ${ago(0, first)}, ${ago(0, last)})
+        RETURNING id`,
+  )
+  const discussionId = String(made[0]?.id)
+  for (const post of thread.posts) await writePost(ctx, folderId, { discussionId }, post)
+  if (thread.resolved !== undefined) {
+    const { by, daysAgo, decision } = thread.resolved
+    const outcome = await rowsOf(
+      tx,
+      sql`INSERT INTO discussion_outcomes (discussion_id, statement, actor_id, created_at)
+          VALUES (${discussionId}::uuid, ${decision}, ${personId(ctx, by)}::uuid, ${ago(daysAgo)})
+          RETURNING id`,
+    )
+    await tx.execute(
+      sql`UPDATE discussions
+             SET state = 'resolved', resolved_at = ${ago(daysAgo)},
+                 resolved_by = ${personId(ctx, by)}::uuid,
+                 current_outcome_id = ${String(outcome[0]?.id)}::uuid,
+                 last_activity_at = ${ago(daysAgo)}, updated_at = ${ago(daysAgo)}
+           WHERE id = ${discussionId}::uuid`,
+    )
+  }
+}
+
+/** A facet's document (Purpose, Results or a custom tab): flat blocks, in
+ * order, stored the way the facet applier stores them. */
+async function writeFacetDocument(
+  ctx: SampleContext,
+  facetId: string,
+  blocks: readonly SampleBlock[],
+): Promise<void> {
+  const keys = initialKeys(blocks.length)
+  for (const [index, block] of blocks.entries()) {
+    const { text, rich } = richText(ctx, block.text)
+    await ctx.tx.execute(
+      sql`INSERT INTO page_blocks (facet_id, kind, position, page_position, text, rich_content, checked)
+          VALUES (${facetId}::uuid, ${block.kind}, ${index}, ${keys[index] ?? null},
+                  ${block.kind === 'divider' ? null : text},
+                  ${rich === null ? null : JSON.stringify(rich)}::jsonb,
+                  ${block.kind === 'checklist' ? (block.checked ?? false) : null})`,
+    )
+  }
+}
+
+type OutlineItem = {
+  kind: 'block' | 'task'
+  id: string
+  section_block_id: string | null
+  list_parent_block_id: string | null
+}
+
+/** The Work document, through the page's own applier, so the sample is held
+ * to every rule a person's edit is: nesting, sections, rich text. */
+async function writeMainDocument(
+  ctx: SampleContext,
+  folder: SampleFolder,
+  folderId: string,
+): Promise<void> {
+  const { tx } = ctx
+  const operations: DocumentOperation[] = []
+  const outline: OutlineItem[] = []
+  const placed = new Set<string>()
+  let section: string | null = null
+
+  const pageBlocks = await rowsOf(
+    tx,
+    sql`SELECT id, ref_folder_id FROM page_blocks
+         WHERE folder_id = ${folderId}::uuid AND kind = 'page'`,
+  )
+  const pageBlockOf = new Map(pageBlocks.map((row) => [String(row.ref_folder_id), String(row.id)]))
+  const ownTasks = new Map(
+    (folder.tasks ?? []).map((task) => [task.title, ctx.tasks.get(task.title) ?? '']),
+  )
+
+  const putBlock = (block: SampleBlock, parent: string | null): void => {
+    const id = randomUUID()
+    const { text, rich } = richText(ctx, block.text)
+    operations.push({
+      op: 'put_block',
+      id,
+      block_kind: block.kind,
+      text: block.kind === 'divider' ? null : text,
+      rich_content: rich,
+      file_id: null,
+      ref_folder_id: null,
+      width_pct: null,
+      checked: block.kind === 'checklist' ? (block.checked ?? false) : null,
+      ...(block.toggleable === true ? { toggleable: true } : {}),
+    })
+    if (block.kind === 'section') section = id
+    outline.push({
+      kind: 'block',
+      id,
+      section_block_id: block.kind === 'section' ? null : section,
+      list_parent_block_id: parent,
+    })
+    for (const child of block.children ?? []) putBlock(child, id)
+  }
+
+  for (const item of folder.doc ?? []) {
+    if ('task' in item) {
+      const id = ownTasks.get(item.task)
+      if (id === undefined || id === '') continue
+      placed.add(id)
+      outline.push({ kind: 'task', id, section_block_id: section, list_parent_block_id: null })
+    } else if ('page' in item) {
+      const id = pageBlockOf.get(ctx.folders.get(item.page) ?? '')
+      if (id === undefined) continue
+      placed.add(id)
+      outline.push({ kind: 'block', id, section_block_id: section, list_parent_block_id: null })
+    } else {
+      putBlock(item, null)
+    }
+  }
+  // Whatever the document did not name (a repeating task's history) goes last.
+  for (const item of await positionedItems(tx, folderId)) {
+    if (placed.has(item.id)) continue
+    outline.push({ kind: item.kind, id: item.id, section_block_id: section, list_parent_block_id: null })
+  }
+  if (operations.length === 0) return
+
+  const metadata = await documentMetadata(tx, folderId)
+  const body = documentTransaction.parse({
+    action: 'document_transaction',
+    mutation_id: randomUUID(),
+    base_revision: metadata.revision,
+    operations: [...operations, { op: 'set_outline', items: outline }],
+  })
+  await applyDocument(tx, ctx.userId, folderId, body)
+}
+
+async function writeFolderRow(
+  ctx: SampleContext,
+  folder: SampleFolder,
+  parentId: string | null,
+  people: readonly SamplePersonKey[],
 ): Promise<string> {
-  /* A sub-page sits last under its parent (in content order) and gets its
-     `page` block at the end of the parent's Main document, which is
-     page-tree.ts's invariant for a live child of a live parent. The sample
-     is one person's, so the owner's membership below is the only one there
-     is to copy, and createSubPage's copy has nothing to add. */
+  const { tx, clock, userId } = ctx
   const childPosition = parentId === null ? null : await lastChildPosition(tx, parentId)
   const inserted = await rowsOf(
     tx,
-    sql`INSERT INTO folders (owner_id, name, icon, color, description, deleted_at,
+    sql`INSERT INTO folders (owner_id, name, icon, color, description, cover_preset,
                              parent_folder_id, child_position, created_at)
         VALUES (${userId}::uuid, ${folder.name}, ${folder.icon ?? null},
                 ${folder.color ?? null}, ${folder.description ?? null},
-                ${folder.trashed === true ? sql`now()` : sql`NULL`},
+                ${folder.cover ?? null},
                 ${parentId}::uuid, ${childPosition}, ${clock()})
         RETURNING id`,
   )
   const folderId = String(inserted[0]?.id)
   await register(tx, userId, 'folder', folderId)
-  /* The sample workspace is the new account's own, so its folders are theirs
-     to own and to administer: owner plus Full control, with the baseline
-     transition beside it (issue #228). No shelf: the sample's structure is
-     the page tree. */
+  /* The sample workspace is the new account's own: owner plus Full control,
+     with the baseline transition beside it (issue #228). The sample people
+     are ordinary members who can edit. */
   await tx.execute(
     sql`INSERT INTO folder_members (folder_id, user_id, access)
         VALUES (${folderId}::uuid, ${userId}::uuid, 'full_control')`,
@@ -238,48 +517,15 @@ async function writeFolder(
     actorId: userId,
     transition: 'created_owner',
   })
-
+  for (const key of people) {
+    await tx.execute(
+      sql`INSERT INTO folder_members (folder_id, user_id, access)
+          VALUES (${folderId}::uuid, ${personId(ctx, key)}::uuid, 'can_edit')`,
+    )
+  }
   /* The four native facets, in this same transaction (issue #210, 4.30:
-   "natives are created with the Folder and never lazily"). Every path
-   that inserts a `folders` row owes this call, and nothing checks that
-   automatically. */
+     "natives are created with the Folder and never lazily"). */
   await createNativeFacets(tx, folderId, userId)
-
-  const sections = new Map<string, string>()
-  for (const [index, block] of (folder.blocks ?? []).entries()) {
-    const made = await rowsOf(
-      tx,
-      sql`INSERT INTO page_blocks (folder_id, kind, position, text)
-          VALUES (${folderId}::uuid, ${block.kind}, ${index}, ${block.text})
-          RETURNING id`,
-    )
-    if (block.kind === 'section') sections.set(block.text, String(made[0]?.id))
-  }
-
-  for (const task of folder.tasks) {
-    await writeTask(tx, clock, userId, anchor, folderId, task, sections)
-  }
-  /* Issue #320: a Folder-level comment belongs to a Discussion, so the
-     sample's conversation is the Folder's "General discussion", in 0029's
-     backfill shape. */
-  const conversation = folder.conversation ?? []
-  if (conversation.length > 0) {
-    const general = await rowsOf(
-      tx,
-      sql`INSERT INTO discussions (folder_id, title, created_by, is_general)
-          VALUES (${folderId}::uuid, ${GENERAL_DISCUSSION_TITLE},
-                  ${userId}::uuid, true)
-          RETURNING id`,
-    )
-    const discussionId = String(general[0]?.id)
-    for (const comment of conversation) {
-      await tx.execute(
-        sql`INSERT INTO comments (folder_id, discussion_id, author_id, body, created_at)
-            VALUES (${folderId}::uuid, ${discussionId}::uuid,
-                    ${userId}::uuid, ${comment.body}, ${clock()})`,
-      )
-    }
-  }
   await recordEvent(tx, {
     actorId: userId,
     verb: 'created',
@@ -289,10 +535,40 @@ async function writeFolder(
     folderId,
     detail: 'part of the sample workspace',
   })
-  if (parentId !== null && folder.trashed !== true) {
-    await appendHomeBlock(tx, parentId, folderId)
-  }
+  if (parentId !== null) await appendHomeBlock(tx, parentId, folderId)
   return folderId
+}
+
+async function nativeFacet(tx: Executor, folderId: string, kind: string): Promise<string> {
+  const rows = await rowsOf(
+    tx,
+    sql`SELECT id FROM folder_facets WHERE folder_id = ${folderId}::uuid AND kind = ${kind}`,
+  )
+  return String(rows[0]?.id)
+}
+
+async function writeFacets(ctx: SampleContext, folder: SampleFolder, folderId: string): Promise<void> {
+  const { tx, userId } = ctx
+  if (folder.purpose !== undefined) {
+    await writeFacetDocument(ctx, await nativeFacet(tx, folderId, 'purpose'), folder.purpose)
+  }
+  if (folder.results !== undefined) {
+    await writeFacetDocument(ctx, await nativeFacet(tx, folderId, 'results'), folder.results)
+  }
+  if (folder.tab !== undefined) {
+    const last = await rowsOf(
+      tx,
+      sql`SELECT max(position) AS last FROM folder_facets WHERE folder_id = ${folderId}::uuid`,
+    )
+    const made = await rowsOf(
+      tx,
+      sql`INSERT INTO folder_facets (folder_id, kind, display_name, position, created_by)
+          VALUES (${folderId}::uuid, 'shared_blank', ${folder.tab.name},
+                  ${keyBetween(String(last[0]?.last), null)}, ${userId}::uuid)
+          RETURNING id`,
+    )
+    await writeFacetDocument(ctx, String(made[0]?.id), folder.tab.blocks)
+  }
 }
 
 /**
@@ -306,30 +582,58 @@ export async function createSampleWorkspace(
   userId: string,
   zone: string,
 ): Promise<SampleCounts> {
-  const anchor = today(zone)
-  const clock = sampleClock()
-
-  const pages = new Map<string, string>()
-  for (const page of SAMPLE_WORKSPACE.pages) {
-    pages.set(page.name, await writeFolder(tx, clock, userId, anchor, { ...page, tasks: [] }))
+  const me = await rowsOf(tx, sql`SELECT display_name FROM users WHERE id = ${userId}::uuid`)
+  const ctx: SampleContext = {
+    tx,
+    clock: sampleClock(),
+    userId,
+    userName: String(me[0]?.display_name ?? 'me'),
+    anchor: today(zone),
+    folders: new Map(),
+    tasks: new Map(),
   }
+  await ensureSamplePeople(tx)
 
+  // The page tree first, parents before children, so every name resolves.
+  const people = new Map<string, readonly SamplePersonKey[]>()
   for (const folder of SAMPLE_WORKSPACE.folders) {
-    const parentId =
-      folder.parent === undefined || folder.trashed === true
-        ? null
-        : (pages.get(folder.parent) ?? null)
-    await writeFolder(tx, clock, userId, anchor, folder, parentId)
+    const parentId = folder.parent === undefined ? null : (ctx.folders.get(folder.parent) ?? null)
+    const inherited = folder.parent === undefined ? [] : (people.get(folder.parent) ?? [])
+    const members = [...new Set([...inherited, ...(folder.members ?? [])])]
+    people.set(folder.name, members)
+    ctx.folders.set(folder.name, await writeFolderRow(ctx, folder, parentId, members))
   }
-
+  // Then every task, so a Dana link to one resolves wherever it is written.
+  for (const folder of SAMPLE_WORKSPACE.folders) {
+    for (const task of folder.tasks ?? []) {
+      await writeTask(ctx, ctx.folders.get(folder.name) ?? '', task)
+    }
+  }
   const desk = await rowsOf(
     tx,
     sql`SELECT id FROM folders WHERE owner_id = ${userId}::uuid AND is_default`,
   )
   const deskId = String(desk[0]?.id)
-  for (const task of SAMPLE_WORKSPACE.desk) {
-    await writeTask(tx, clock, userId, anchor, deskId, task, new Map())
+  for (const task of SAMPLE_WORKSPACE.desk) await writeTask(ctx, deskId, task)
+
+  // Then the writing and the conversations.
+  for (const folder of SAMPLE_WORKSPACE.folders) {
+    const folderId = ctx.folders.get(folder.name) ?? ''
+    await writeMainDocument(ctx, folder, folderId)
+    await writeFacets(ctx, folder, folderId)
+    for (const task of folder.tasks ?? []) {
+      for (const post of task.thread ?? []) {
+        await writePost(ctx, folderId, { taskId: ctx.tasks.get(task.title) ?? '' }, post)
+      }
+    }
+    for (const thread of folder.threads ?? []) await writeThread(ctx, folderId, thread)
   }
+
+  await tx.execute(
+    sql`UPDATE user_settings
+           SET focus_lists = ${JSON.stringify(SAMPLE_WORKSPACE.focusLists)}::jsonb
+         WHERE user_id = ${userId}::uuid`,
+  )
 
   for (const view of SAMPLE_WORKSPACE.views) {
     const made = await rowsOf(
@@ -409,7 +713,8 @@ export async function removeSampleWorkspace(
       tx,
       sql`SELECT f.id, f.name,
                  (SELECT count(*)::int FROM folder_members m
-                   WHERE m.folder_id = f.id AND m.user_id <> ${userId}::uuid) AS others
+                   WHERE m.folder_id = f.id AND m.user_id <> ${userId}::uuid
+                     AND m.user_id NOT IN (${idList(SAMPLE_PERSON_IDS)})) AS others
           FROM sample_objects s
           JOIN folders f ON f.id = s.id AND f.owner_id = ${userId}::uuid
           WHERE s.user_id = ${userId}::uuid AND s.kind = 'folder'`,
