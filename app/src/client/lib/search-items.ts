@@ -30,8 +30,7 @@ import { useMemo } from 'react'
 
 import { useFolders, useSearch, useShelves } from '../api/queries.js'
 import { folderMark, shelfMark } from '../parts/presenters.js'
-import { NAV_PAGES, pageQuestion } from './nav-model.js'
-import { paths } from '../routes.js'
+import { navPages, paths } from '../routes.js'
 import type { SearchResultItem } from '../components/search-overlay.js'
 
 /** Q8's floor, which the endpoint refuses below. */
@@ -45,12 +44,7 @@ export interface SearchAnswer {
 
 /** 9.1's page block as rows to go to. */
 export function placeItems(): SearchResultItem[] {
-  return NAV_PAGES.map((page) => ({
-    kind: 'page',
-    id: page.path,
-    title: page.name,
-    hint: pageQuestion(page.name) ?? '',
-  }))
+  return navPages.map((place) => ({ kind: 'page', id: place.path, title: place.name, hint: '' }))
 }
 
 export function useSearchAnswer(query: string, open: boolean): SearchAnswer {
