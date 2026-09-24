@@ -11,6 +11,7 @@ vi.mock('@blocknote/shadcn', () => ({
 }))
 vi.mock('@blocknote/react', () => ({
   FormattingToolbarController: () => null,
+  FilePanelController: () => null,
   SuggestionMenuController: () => null,
   SideMenuController: ({ sideMenu: Menu }: { sideMenu: () => React.JSX.Element }) => <Menu />,
   SideMenu: ({ dragHandleMenu: Menu }: { dragHandleMenu: () => React.JSX.Element }) => <Menu />,
@@ -60,7 +61,7 @@ function draw(block: CanvasBlock, folderRefs: ReadonlyMap<string, string>, onCre
     getBlock: (id: string) => id === block.id ? block : undefined,
     getTextCursorPosition: () => ({ block }),
   } as unknown as CanvasEditor
-  render(<CanvasSurface editor={state.editor} onChange={() => {}} onCreateTask={onCreateTask} folderRefs={folderRefs} />)
+  render(<CanvasSurface editor={state.editor} onChange={() => {}} onCreateTask={onCreateTask} folderRefs={folderRefs} onUploadFile={() => Promise.reject(new Error("no uploads here"))} />)
 }
 
 describe('Convert to Task from the canvas block menu', () => {

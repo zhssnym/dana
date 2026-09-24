@@ -20,6 +20,11 @@ export const queryKeys = {
   view: (name: string) => ['views', name] as const,
   /** One task in full (7.6's GET), which the 9.3 form reads in edit mode. */
   task: (id: string) => ['tasks', id] as const,
+  /** 7.25's two projections of one task's dependency edges (#225). */
+  taskDependencies: (id: string) => ['tasks', id, 'dependencies'] as const,
+  /** 7.24's picker read, which the dependency picker reuses (#225). */
+  referenceSearch: (q: string, folder: string | null) =>
+    ['references', 'search', q, folder ?? ''] as const,
 
   /* The v2 surfaces. `bundle` is the 4.19 person's bundle at /settings, and
      it is the only settings read this client makes (issue #150): a key here
@@ -37,6 +42,7 @@ export const queryKeys = {
   shelf: (id: string) => ['shelves', id] as const,
   folderPage: (id: string) => ['folders', id, 'page'] as const,
   folderFacets: (id: string) => ['folders', id, 'facets'] as const,
+  facetLocation: (facetId: string) => ['facets', facetId, 'location'] as const,
   facetPage: (folderId: string, facetId: string) =>
     ['folders', folderId, 'facets', facetId, 'page'] as const,
   shelfPage: (id: string) => ['shelves', id, 'page'] as const,
@@ -59,4 +65,10 @@ export const queryKeys = {
    * *reusable* taxonomy into the file and therefore needs the definitions
    * nothing is currently wearing (#227 area 4). */
   folderLabels: (id: string) => ['folders', id, 'labels'] as const,
+
+  /** One Discussion (7.27's GET /discussions/:id). */
+  discussion: (id: string) => ['discussions', id] as const,
+  /** A Discussion's input rounds, newest first (7.29, #321). */
+  inputRounds: (discussionId: string) =>
+    ['discussions', discussionId, 'input-rounds'] as const,
 } as const

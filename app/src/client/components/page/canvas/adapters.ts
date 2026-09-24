@@ -1,6 +1,7 @@
+import { plainContentToString } from '@blocknote/core'
 import type { PartialBlock } from '@blocknote/core'
 import type { PageBlockKind, PageView } from '../../../../shared/pages.js'
-import { MAX_SECTION_DEPTH, RICH_TEXT_BLOCK_KINDS, STRUCTURED_BLOCK_KINDS, isListKind } from '../../../../shared/page-document.js'
+import { MAX_SECTION_DEPTH, isPresentationHeadingKind } from '../../../../shared/page-document.js'
 import type { CanvasBlock, canvasSchema } from './schema.js'
 
 export type CanvasInput = PartialBlock<typeof canvasSchema.blockSchema, typeof canvasSchema.inlineContentSchema, typeof canvasSchema.styleSchema>
@@ -42,35 +43,197 @@ export function contentOf(text: string | null, rich?: { version: 1; runs: RichRu
  */
 export function hydrateCanvas(page: PageView, columnWidth: number): CanvasInput[] {
   const records = new Map(page.blocks.map((block) => [block.id, block]))
-  const parents = new Map(page.task_placements?.map((task) => [task.id, task.section_block_id]) ?? [])
+  const sectionParents = new Map(
+    page.task_placements?.map((task) => [task.id, task.section_block_id]) ?? [],
+  )
+  const listParents = new Map(
+    page.blocks.map((block) => [block.id, block.list_parent_block_id]),
+  )
   const levels = new Map<string, number>()
   const nodes = new Map<string, CanvasInput>()
+
+  const mediaProps = (
+    block: PageView['blocks'][number],
+  ): Record<string, string | number | boolean | undefined> => ({
+    url: block.file_id ? `/api/v1/files/${block.file_id}` : '',
+    name: block.kind === 'file' ? 'File' : '',
+    caption: '',
+    showPreview: true,
+    ...(block.kind === 'video'
+      ? {
+          previewWidth:
+            columnWidth * (block.width_pct ?? 100) / 100,
+        }
+      : {}),
+  })
+
   for (const item of page.items) {
     if (item.kind === 'task') {
-      nodes.set(item.id, { id: item.id, type: 'danaTask', props: { taskId: item.id }, children: [] })
+      nodes.set(item.id, {
+        id: item.id,
+        type: 'danaTask',
+        props: { taskId: item.id },
+        children: [],
+      })
       continue
     }
     const block = records.get(item.id)
-    if (!block) throw new CanvasHydrationError('The page contains an unavailable block. Reload before editing.')
-    parents.set(block.id, block.section_block_id)
+    if (!block) {
+      throw new CanvasHydrationError(
+        'The page contains an unavailable block. Reload before editing.',
+      )
+    }
+    sectionParents.set(block.id, block.section_block_id)
+    let node: CanvasInput
     if (block.kind === 'section') {
-      const level = Math.min(block.section_block_id === null ? 1 : (levels.get(block.section_block_id) ?? 0) + 1, MAX_SECTION_DEPTH)
+      const level = Math.min(
+        block.section_block_id === null
+          ? 1
+          : (levels.get(block.section_block_id) ?? 0) + 1,
+        MAX_SECTION_DEPTH,
+      )
       levels.set(block.id, level)
-      nodes.set(block.id, { id: block.id, type: 'heading', props: { level, isToggleable: true }, content: contentOf(block.text, block.rich_content), children: [] })
-    } else if (block.kind === 'image') nodes.set(block.id, { id: block.id, type: 'image', props: { url: block.file_id ? `/api/v1/files/${block.file_id}` : '', caption: block.text ?? '', previewWidth: columnWidth * (block.width_pct ?? 100) / 100 }, children: [] })
-    else if (block.kind === 'folder_ref') nodes.set(block.id, { id: block.id, type: 'paragraph', content: [{ type: 'link', href: `/app/folders/${block.ref_folder_id ?? ''}`, content: block.text ?? 'Open folder' }], children: [] })
-    else nodes.set(block.id, { id: block.id, type: 'paragraph', content: contentOf(block.text, block.rich_content), children: [] })
+      node = {
+        id: block.id,
+        type: 'heading',
+        props: { level, isToggleable: true },
+        content: contentOf(block.text, block.rich_content),
+        children: [],
+      }
+    } else if (isPresentationHeadingKind(block.kind)) {
+      const level = Number(block.kind.slice(-1)) as 1 | 2 | 3
+      node = {
+        id: block.id,
+        type: 'heading',
+        props: { level, isToggleable: false },
+        content: contentOf(block.text, block.rich_content),
+        children: [],
+      }
+    } else if (block.kind === 'bullet') {
+      node = {
+        id: block.id,
+        type: 'bulletListItem',
+        content: contentOf(block.text, block.rich_content),
+        children: [],
+      }
+    } else if (block.kind === 'numbered') {
+      node = {
+        id: block.id,
+        type: 'numberedListItem',
+        content: contentOf(block.text, block.rich_content),
+        children: [],
+      }
+    } else if (block.kind === 'checklist') {
+      node = {
+        id: block.id,
+        type: 'checkListItem',
+        props: { checked: block.checked ?? false },
+        content: contentOf(block.text, block.rich_content),
+        children: [],
+      }
+    } else if (block.kind === 'quote') {
+      node = {
+        id: block.id,
+        type: 'quote',
+        content: contentOf(block.text, block.rich_content),
+        children: [],
+      }
+    } else if (block.kind === 'callout') {
+      node = {
+        id: block.id,
+        type: 'callout',
+        content: contentOf(block.text, block.rich_content),
+        children: [],
+      }
+    } else if (block.kind === 'code') {
+      node = {
+        id: block.id,
+        type: 'codeBlock',
+        content: block.text ?? '',
+        children: [],
+      }
+    } else if (block.kind === 'image') {
+      node = {
+        id: block.id,
+        type: 'image',
+        props: {
+          url: block.file_id ? `/api/v1/files/${block.file_id}` : '',
+          reclaimedAt: block.file_id ? '' : block.file_reclaimed_at ?? '',
+          caption: block.text ?? '',
+          previewWidth:
+            columnWidth * (block.width_pct ?? 100) / 100,
+        },
+        children: [],
+      }
+    } else if (
+      block.kind === 'file' ||
+      block.kind === 'audio' ||
+      block.kind === 'video'
+    ) {
+      node = {
+        id: block.id,
+        type: block.kind,
+        props: mediaProps(block),
+        children: [],
+      } as CanvasInput
+    } else if (block.kind === 'folder_ref') {
+      node = {
+        id: block.id,
+        type: 'paragraph',
+        content: [
+          {
+            type: 'link',
+            href: `/app/folders/${block.ref_folder_id ?? ''}`,
+            content: block.text ?? 'Open folder',
+          },
+        ],
+        children: [],
+      }
+    } else {
+      node = {
+        id: block.id,
+        type: 'paragraph',
+        content: contentOf(block.text, block.rich_content),
+        children: [],
+      }
+    }
+    nodes.set(block.id, node)
   }
+
   const root: CanvasInput[] = []
   for (const item of page.items) {
     const node = nodes.get(item.id)!
-    const parentId = parents.get(item.id) ?? null
-    if (parentId === null) root.push(node)
-    else {
-      const parent = nodes.get(parentId)
-      if (parent?.type !== 'heading') throw new CanvasHydrationError('The page has an invalid group. Its content has been preserved; reload before editing.')
-      parent.children!.push(node)
+    const listParentId = listParents.get(item.id) ?? null
+    if (listParentId !== null) {
+      const listParent = nodes.get(listParentId)
+      if (
+        listParent?.type !== 'bulletListItem' &&
+        listParent?.type !== 'numberedListItem' &&
+        listParent?.type !== 'checkListItem'
+      ) {
+        throw new CanvasHydrationError(
+          'The page has an invalid list. Its content has been preserved; reload before editing.',
+        )
+      }
+      listParent.children!.push(node)
+      continue
     }
+
+    const sectionParentId = sectionParents.get(item.id) ?? null
+    if (sectionParentId === null) {
+      root.push(node)
+      continue
+    }
+    const sectionParent = nodes.get(sectionParentId)
+    if (
+      sectionParent?.type !== 'heading' ||
+      sectionParent.props?.isToggleable === false
+    ) {
+      throw new CanvasHydrationError(
+        'The page has an invalid group. Its content has been preserved; reload before editing.',
+      )
+    }
+    sectionParent.children!.push(node)
   }
   return root
 }
@@ -144,48 +307,149 @@ export function folderRefsOf(page: PageView): ReadonlyMap<string, string> {
  * exists to stop is a relation dropped in silence, and an optional argument is
  * a call site that drops it in silence again with nothing to read.
  */
-export function dehydrateCanvas(blocks: readonly CanvasBlock[], columnWidth: number, folderRefs: ReadonlyMap<string, string>): CanvasDocument {
+export function dehydrateCanvas(
+  blocks: readonly CanvasBlock[],
+  columnWidth: number,
+  folderRefs: ReadonlyMap<string, string>,
+): CanvasDocument {
   const result: CanvasDocument = { blocks: [], items: [] }
-  function visit(children: readonly CanvasBlock[], parent: string | null): void {
+  const fileIdOf = (url: string): string | null =>
+    /(?:^|\/)api\/v1\/files\/([0-9a-f-]{36})$/i.exec(url)?.[1] ?? null
+
+  function visit(
+    children: readonly CanvasBlock[],
+    sectionParent: string | null,
+    listParent: string | null,
+  ): void {
     for (const block of children) {
       const task = block.type === 'danaTask'
-      result.items.push({ kind: task ? 'task' : 'block', id: task ? block.props.taskId : block.id, section_block_id: parent, list_parent_block_id: null })
+      const groupHeading =
+        block.type === 'heading' && block.props.isToggleable !== false
+      const listKind =
+        block.type === 'bulletListItem' ||
+        block.type === 'numberedListItem' ||
+        block.type === 'checkListItem'
+      const unuploadedRequiredMedia =
+        (block.type === 'file' ||
+          block.type === 'audio' ||
+          block.type === 'video') &&
+        block.props.url === ''
+
+      /*
+       * File/audio/video are invalid on the wire without a file id. Their
+       * empty editor block is only the local file-picker placeholder, so do
+       * not put it in the durable outline until a file has actually uploaded.
+       * Image is different by contract: an empty image placeholder is allowed.
+       */
+      if (unuploadedRequiredMedia) continue
+
+      result.items.push({
+        kind: task ? 'task' : 'block',
+        id: task ? block.props.taskId : block.id,
+        section_block_id: sectionParent,
+        list_parent_block_id: listKind ? listParent : null,
+      })
+
       if (!task) {
         const runs = richRuns(block)
-        const image = block.type === 'image'
-        const fileId = image ? /(?:^|\/)api\/v1\/files\/([0-9a-f-]{36})$/i.exec(block.props.url)?.[1] ?? null : null
-        if (image && block.props.url && !fileId) throw new Error('Upload this image to Dana before saving. External image URLs are not supported.')
-        /* Only over the paragraph this editor drew the reference as, which is
-           the same test the structured carry below makes: a block the person
-           has deliberately retyped as a heading or an image is a conversion
-           they asked for, and restoring the relation onto it would undo a
-           gesture rather than preserve one. The map answering that question
-           has to follow the server rather than the page the editor was
-           hydrated from, or the conversion is reverted one save later;
-           `FolderCanvas` carries why, and AC-663 pins it.
+        const presentationHeading =
+          block.type === 'heading' && !groupHeading
+        const reference =
+          block.type === 'paragraph'
+            ? folderRefs.get(block.id) ?? null
+            : null
 
-           **`rich_content` goes with the kind, and on this kind it costs
-           something.** `page_blocks_rich_content_check` and `put_block` both
-           refuse rich content on a `folder_ref`, so a reference keeps its
-           words and loses its runs: bold and italic are dropped, and a second
-           link typed inside it is dropped with them. `hydrateCanvas` then
-           draws the whole remaining string as one link to the folder, so a
-           reference typed as "Design notes **urgent**[elsewhere](…)" comes
-           back as "Design notes urgentelsewhere" under a single folder link.
-           That is a real loss and it is still the rule, because the
-           alternative is not a better projection but a 422: the database
-           refuses the column on this kind, and a save that will not save is
-           worse than a style that will not survive — the same direction the
-           structured carry below argues at length. On `main` those runs
-           survived and the relation did not, which is this loss pointed the
-           other way. AC-665 pins it, with two runs and a style. */
-        const reference = block.type === 'paragraph' ? folderRefs.get(block.id) ?? null : null
-        result.blocks.push({ id: block.id, block_kind: block.type === 'heading' ? 'section' : image ? 'image' : reference !== null ? 'folder_ref' : 'paragraph', text: image ? block.props.caption : runs.map((run) => run.text).join(''), rich_content: image || reference !== null ? null : { version: 1, runs }, file_id: fileId, ref_folder_id: reference, width_pct: image ? Math.max(25, Math.min(100, Math.round((block.props.previewWidth || columnWidth) / columnWidth * 100))) : null, checked: null })
+        let blockKind: PageBlockKind = 'paragraph'
+        if (block.type === 'heading') {
+          blockKind = presentationHeading
+            ? (`heading${String(block.props.level)}` as PageBlockKind)
+            : 'section'
+        } else if (block.type === 'bulletListItem') blockKind = 'bullet'
+        else if (block.type === 'numberedListItem') blockKind = 'numbered'
+        else if (block.type === 'checkListItem') blockKind = 'checklist'
+        else if (block.type === 'quote') blockKind = 'quote'
+        else if (block.type === 'callout') blockKind = 'callout'
+        else if (block.type === 'codeBlock') blockKind = 'code'
+        else if (block.type === 'image') blockKind = 'image'
+        else if (block.type === 'file') blockKind = 'file'
+        else if (block.type === 'audio') blockKind = 'audio'
+        else if (block.type === 'video') blockKind = 'video'
+        else if (reference !== null) blockKind = 'folder_ref'
+
+        const media =
+          block.type === 'image' ||
+          block.type === 'file' ||
+          block.type === 'audio' ||
+          block.type === 'video'
+        const url = media ? block.props.url : ''
+        const fileId = media ? fileIdOf(url) : null
+        if (media && url && fileId === null) {
+          throw new Error(
+            'Upload this file to Dana before saving. External media URLs are not supported.',
+          )
+        }
+
+        const codeText =
+          block.type === 'codeBlock'
+            ? plainContentToString(block.content)
+            : null
+        const text =
+          block.type === 'image'
+            ? block.props.caption
+            : block.type === 'file' ||
+                block.type === 'audio' ||
+                block.type === 'video'
+              ? null
+              : block.type === 'codeBlock'
+                ? codeText
+                : runs.map((run) => run.text).join('')
+        const rich =
+          block.type === 'image' ||
+          block.type === 'file' ||
+          block.type === 'audio' ||
+          block.type === 'video' ||
+          block.type === 'codeBlock' ||
+          reference !== null
+            ? null
+            : { version: 1 as const, runs }
+        const widthPct =
+          block.type === 'image' || block.type === 'video'
+            ? Math.max(
+                25,
+                Math.min(
+                  100,
+                  Math.round(
+                    ((block.props.previewWidth || columnWidth) / columnWidth) *
+                      100,
+                  ),
+                ),
+              )
+            : null
+
+        result.blocks.push({
+          id: block.id,
+          block_kind: blockKind,
+          text,
+          rich_content: rich,
+          file_id: fileId,
+          ref_folder_id: reference,
+          width_pct: widthPct,
+          checked:
+            block.type === 'checkListItem' ? block.props.checked : null,
+        })
       }
-      visit(block.children, block.type === 'heading' ? block.id : parent)
+
+      if (groupHeading) {
+        visit(block.children, block.id, null)
+      } else if (listKind) {
+        visit(block.children, sectionParent, block.id)
+      } else {
+        visit(block.children, sectionParent, null)
+      }
     }
   }
-  visit(blocks, null)
+
+  visit(blocks, null, null)
   return result
 }
 
@@ -248,101 +512,17 @@ export function mergeWorkDocument(page: PageView, rootId: string, work: CanvasDo
   }
 }
 
-/*
-This build's editor draws every #219 structured kind as an ordinary paragraph
-and expresses no list nesting, because the BlockNote half of #219 is the
-frontend phase. Saving must therefore not read that rendering as a conversion:
-a page holding a nested checklist would otherwise come back as flat paragraphs
-with their ticks gone, which is silent loss rather than a refusal.
-
-So a block whose stored kind this editor cannot express keeps that kind, its
-tick and its list parent across a save. Every case the server would refuse is
-handled rather than restored: if the list parent is gone from the document, or
-no longer precedes this item, or is no longer a list item at all, the child is
-promoted to the top level, exactly as ON DELETE SET NULL would leave it. That
-direction is not a preference. A save this editor makes that `applyDocument`
-refuses is worse than the nesting the restore was protecting, because
-`CanvasWriter.flush` latches `failed` on a refusal and nothing the person types
-after it is ever sent again; losing one list's indentation is recoverable by
-re-indenting, and a page that will not save is not recoverable at all.
-
-Every line of this disappears when the frontend phase teaches the editor the
-real vocabulary; until then it is what keeps the intermediate state lossless.
-*/
-const UNEXPRESSED = new Set<string>(STRUCTURED_BLOCK_KINDS)
 /**
- * Rich content belongs to the kind, so restoring a kind restores the rule that
- * travels with it: `put_block` refuses rich content on a kind outside
- * `RICH_TEXT_BLOCK_KINDS`, and `page_blocks_rich_content_check` says the same
- * in the database. Derived from the shared constant rather than written as
- * "except code" — `code` is the only kind outside it today, and a seventh kind
- * added to 4.17 must not need this file edited before a page holding one can
- * be saved.
+ * The editor now expresses the accepted authored vocabulary directly. Keep this
+ * named seam because CanvasWriter asks the same normalization question when it
+ * decides whether the latest document is settled; today the normalized form is
+ * simply the projection itself.
  */
-const RICH_TEXT = new Set<string>(RICH_TEXT_BLOCK_KINDS)
-
-/**
- * `after` as it should be written, given that `before` is what is stored.
- *
- * Restoring a kind restores everything the kind decides: its tick, its list
- * parent, and whether it may carry rich content at all. Dropping that last one
- * is how the first draft of this guard would have turned silent loss into a
- * page that answers 422 on every save forever, `dehydrateCanvas` putting a
- * text projection on every non-image block including the ones the contract
- * refuses it on.
- */
-export function restoreCanvas(before: CanvasDocument, after: CanvasDocument, unexpressed: ReadonlySet<string> = UNEXPRESSED): CanvasDocument {
-  const old = new Map(before.blocks.map((block) => [block.id, block]))
-  const blocks = after.blocks.map((block) => {
-    const previous = old.get(block.id)
-    return previous && block.block_kind === 'paragraph' && unexpressed.has(previous.block_kind)
-      ? { ...block, block_kind: previous.block_kind, rich_content: RICH_TEXT.has(previous.block_kind) ? block.rich_content : null, checked: previous.checked }
-      : block
-  })
-  const kept = new Map(blocks.map((block) => [block.id, block]))
-  const placed = new Map(after.items.map((item) => [item.id, item]))
-  const nested = new Map(before.items.map((item) => [item.id, item.list_parent_block_id]))
-  /*
-  A restored list parent is written into the outline the save sends, so it has
-  to satisfy every rule `applyDocument` states about one. The four conditions
-  below are that function's own, read off this outline the way it reads that
-  one, each against the document *after* restoration because that is what the
-  server will be given:
-
-  - the item is still a list item, which `isListKind` answers and nothing else
-    may (`page-document.ts`'s "Only a bullet, numbered or checklist item is a
-    nested list item"). **This one is unreachable while
-    `page_blocks_list_parent_kind_check` holds** — the database cannot store a
-    list parent on any other kind, so `before` cannot carry one to restore — and
-    it is written anyway so that all three of the server's list rules are read
-    off one function here rather than two of them being;
-  - the parent is still a list item too, after this same pass has restored the
-    kinds — retyping a bullet as a heading is one editor gesture and leaves the
-    child naming a `section`;
-  - the parent appears **earlier in this outline**, which is the server's whole
-    cycle rule and is what Move up on a nested item breaks by putting the child
-    above its parent;
-  - and the parent shares this item's Section, because a list inside two
-    Sections is one no reader can draw.
-
-  `isListKind` is imported rather than restated: it is the written-once test the
-  server uses, and a fifth list kind added to 4.17 must move both ends at once.
-  */
-  const earlier = new Set<string>()
-  const items = after.items.map((item) => {
-    const restored = ((): CanvasPlacement => {
-      if (item.list_parent_block_id !== null || !isListKind(kept.get(item.id)?.block_kind ?? '')) return item
-      const parent = nested.get(item.id) ?? null
-      if (parent === null) return item
-      const keeps = earlier.has(parent)
-        && isListKind(kept.get(parent)?.block_kind ?? '')
-        && placed.get(parent)?.section_block_id === item.section_block_id
-      return keeps ? { ...item, list_parent_block_id: parent } : item
-    })()
-    earlier.add(item.id)
-    return restored
-  })
-  return { blocks, items }
+export function restoreCanvas(
+  _before: CanvasDocument,
+  after: CanvasDocument,
+): CanvasDocument {
+  return after
 }
 
 /**
@@ -356,15 +536,12 @@ export function restoreCanvas(before: CanvasDocument, after: CanvasDocument, une
  * writer must hold at mount **and** after every commit: a baseline correct
  * once and stale afterwards loses the same page one save later.
  */
-export function baselineOf(page: PageView, projected: CanvasDocument, unexpressed?: ReadonlySet<string>): CanvasDocument {
-  return restoreCanvas(documentOf(page), projected, unexpressed)
+export function baselineOf(page: PageView, projected: CanvasDocument): CanvasDocument {
+  return restoreCanvas(documentOf(page), projected)
 }
 
-/** `unexpressed` is the stored kinds this editor draws as a paragraph; an
- * editor that draws a kind (the Task composer draws lists, quote and code)
- * passes a smaller set, or converting one to a paragraph would be reverted. */
-export function canvasOperations(before: CanvasDocument, after: CanvasDocument, unexpressed?: ReadonlySet<string>) {
-  const restored = restoreCanvas(before, after, unexpressed)
+export function canvasOperations(before: CanvasDocument, after: CanvasDocument) {
+  const restored = restoreCanvas(before, after)
   const old = new Map(before.blocks.map((block) => [block.id, block]))
   const ids = new Set(restored.blocks.map((block) => block.id))
   return [

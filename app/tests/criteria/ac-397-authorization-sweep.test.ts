@@ -308,6 +308,7 @@ type ResourceId =
      for the preset -- a green row measuring the wrong refusal, which is the
      failure this file's two controls exist to catch. */
   | 'facetId'
+  | 'purposeFacetId'
   | 'trashedFacetId'
   /* #320/#321: one Discussion seeded as a row, serving as a Dana Link target
      and as the home of an open input round; plus one (superseded) Outcome. */
@@ -397,6 +398,16 @@ async function fixturesOf(): Promise<Fixtures> {
   await makePlaceCover(owner, PLACE, fileId)
 
   const facetId = await makeFacet(owner, folderId, 'ac397 the facet')
+  const nativeFacets = await owner.browser.api(`/folders/${folderId}/facets`)
+  if (nativeFacets.status !== 200) {
+    throw new Error(`AC-397 could not read native facets: ${String(nativeFacets.status)}`)
+  }
+  const purposeFacetId = (
+    nativeFacets.json() as { facets: Array<{ id: string; kind: string }> }
+  ).facets.find((facet) => facet.kind === 'purpose')?.id
+  if (purposeFacetId === undefined) {
+    throw new Error('AC-397 folder fixture has no native Purpose facet')
+  }
   const trashedFacetId = await makeFacet(owner, folderId, 'ac397 doomed facet')
   await trashFacet(owner, folderId, trashedFacetId)
 
@@ -463,6 +474,7 @@ async function fixturesOf(): Promise<Fixtures> {
     strangerPersonalLabelId,
     folderLabelId,
     facetId,
+    purposeFacetId,
     trashedFacetId,
     discussionId,
     outcomeId,
@@ -1922,6 +1934,16 @@ const TABLE = new Map<string, Row>([
     },
   ],
   [
+    'GET /api/v1/facets/:id/location',
+    {
+      attempt: (fx) => ({ path: `/facets/${fx.purposeFacetId}/location` }),
+      stranger: {
+        expected: 404,
+        rule: '7.27 and 10.2: the location read exists only to enter a readable native Purpose or Results through its owning Folder; a non-member must not learn that Folder id or whether the facet exists',
+      },
+    },
+  ],
+  [
     'POST /api/v1/facets/:id/restore',
     {
       attempt: (fx) => ({ path: `/facets/${fx.trashedFacetId}/restore` }),
@@ -2434,6 +2456,11 @@ describe('AC-397 every id-bearing route refuses a stranger', () => {
       what: 'the facet, on its folder\'s facet listing',
       path: `/folders/${fx.folderId}/facets`,
       holds: fx.facetId,
+    }),
+    purposeFacetId: (fx) => ({
+      what: 'the native Purpose facet location',
+      path: `/facets/${fx.purposeFacetId}/location`,
+      holds: fx.folderId,
     }),
     trashedFacetId: (fx) => ({
       what: 'the trashed facet',

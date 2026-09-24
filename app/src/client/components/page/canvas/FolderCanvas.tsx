@@ -4,9 +4,10 @@ import { BlockNoteEditor } from '@blocknote/core'
 import { useQueryClient } from '@tanstack/react-query'
 import '@blocknote/shadcn/style.css'
 import type { PageView } from '../../../../shared/pages.js'
+import { AUDIO_MIMES, RASTER_MIMES, VIDEO_MIMES } from '../../../../shared/files.js'
 import { getPageResponse } from '../../../../shared/pages.js'
 import { documentTransaction } from '../../../../shared/page-document.js'
-import { getPlain, mutateApi, uploadFile } from '../../../api/http.js'
+import { getPlain, mutateApi, uploadFile as uploadDanaFile } from '../../../api/http.js'
 import { queryKeys } from '../../../api/keys.js'
 import { Button } from '../../ui/button.js'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog.js'
@@ -14,6 +15,7 @@ import { Input } from '../../ui/input.js'
 import { CanvasErrorBoundary } from './CanvasErrorBoundary.js'
 import { CanvasTaskProvider } from './CanvasTask.js'
 import { CanvasSurface } from './CanvasSurface.js'
+import type { CanvasMediaKind, CanvasUploadedFile } from './CanvasFilePanel.js'
 import { canvasSchema } from './schema.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
 import { baselineOf, dehydrateCanvas, folderRefsOf, hydrateCanvas, mergeWorkDocument, richRuns, workPageOf } from './adapters.js'
@@ -27,9 +29,11 @@ interface Props extends Pick<Rows, 'tasks' | 'context' | 'actions' | 'onAsk'> {
   readonly page: PageView
   readonly folderId: string
   readonly arrangeable: boolean
-  /** A blank facet owns a document but no Tasks or Sections. Work facets
-   * continue to use the Folder page and never pass this id. */
+  /** A facet with its own document passes this id. Work facets continue to
+   * use the Folder page and never pass it. */
   readonly facetId?: string
+  /** Purpose headings change document typography only; they never create Work Sections. */
+  readonly presentationHeadings?: boolean
   readonly workRootId?: string
 }
 
@@ -41,20 +45,33 @@ export default function FolderCanvas(props: Props): React.JSX.Element {
   </CanvasErrorBoundary>
 }
 
-function PersistedCanvas({ page, initialPage, folderId, facetId, workRootId, tasks, context, actions, onAsk, arrangeable, onCheckpoint }: Props & {
+function PersistedCanvas({ page, initialPage, folderId, facetId, presentationHeadings, workRootId, tasks, context, actions, onAsk, arrangeable, onCheckpoint }: Props & {
   readonly initialPage: PageView
   readonly onCheckpoint: (page: PageView) => void
 }): React.JSX.Element {
   const queryClient = useQueryClient()
   const host = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState<number | null>(null)
+  const [reloadNote, setReloadNote] = useState('')
   useEffect(() => { setWidth(host.current?.clientWidth || 600) }, [])
-  return <div ref={host} className="min-w-0">{width === null ? <p role="status">Loading writing…</p> : <CanvasSession {...{ page, initialPage, folderId, facetId, workRootId, tasks, context, actions, onAsk, arrangeable, onCheckpoint }} width={width} onSaved={(next) => {
+  // A page without a revision cannot be written safely: every save would carry
+  // no base and the server could not refuse a stale write. Say so and offer a
+  // reload instead of crashing the canvas or guessing a base.
+  const pageKey = facetId === undefined ? queryKeys.folderPage(folderId) : queryKeys.facetPage(folderId, facetId)
+  if (!initialPage.revision) return <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+    This page opened without its version, so writing is paused to keep your page safe. Nothing was changed.
+    <Button variant="outline" onClick={() => { setReloadNote('Loading…'); void queryClient.invalidateQueries({ queryKey: pageKey }).then(() => {
+      const latest = queryClient.getQueryData<PageView>(pageKey)
+      if (latest?.revision) onCheckpoint(latest)
+      else setReloadNote('The page still has no version. Try again in a moment.')
+    }) }}>Load the page again</Button>{reloadNote}
+  </div>
+  return <div ref={host} className="min-w-0">{width === null ? <p role="status">Loading writing…</p> : <CanvasSession {...{ page, initialPage, folderId, facetId, presentationHeadings, workRootId, tasks, context, actions, onAsk, arrangeable, onCheckpoint }} width={width} onSaved={(next) => {
     queryClient.setQueryData(facetId === undefined ? queryKeys.folderPage(folderId) : queryKeys.facetPage(folderId, facetId), next)
   }} />}</div>
 }
 
-function CanvasSession({ page, initialPage, folderId, facetId, workRootId, tasks, context, actions, onAsk, arrangeable, onCheckpoint, width, onSaved }: Props & {
+function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadings, workRootId, tasks, context, actions, onAsk, arrangeable, onCheckpoint, width, onSaved }: Props & {
   readonly initialPage: PageView
   readonly onCheckpoint: (page: PageView) => void
   readonly width: number
@@ -65,6 +82,7 @@ function CanvasSession({ page, initialPage, folderId, facetId, workRootId, tasks
   const [taskAt, setTaskAt] = useState<string | null>(null)
   const [title, setTitle] = useState('')
   const [creating, setCreating] = useState(false)
+  const [taskError, setTaskError] = useState('')
   const [recovery, setRecovery] = useState(false)
   const [previousDraft, setPreviousDraft] = useState<string | null>(null)
   const editorPage = useMemo(() => workRootId === undefined ? initialPage : workPageOf(initialPage, workRootId), [initialPage, workRootId])
@@ -127,18 +145,56 @@ function CanvasSession({ page, initialPage, folderId, facetId, workRootId, tasks
      rather than `page`, and it wants a criterion: nothing in the suite makes
      `route.send` throw, so this whole path is unmeasured. */
   const folderRefs = useMemo(() => folderRefsOf(page), [page])
+  async function uploadCanvasFile(
+    kind: CanvasMediaKind,
+    file: File,
+  ): Promise<CanvasUploadedFile> {
+    try {
+      const uploaded = await uploadDanaFile(kind, folderId, file)
+      return {
+        url: `/api/v1/files/${uploaded.id}`,
+        name: file.name,
+      }
+    } catch (failure) {
+      setError(
+        failure instanceof Error
+          ? failure.message
+          : 'The file could not be uploaded. Try again.',
+      )
+      throw failure
+    }
+  }
+
   const editor = useCreateBlockNote({
     schema: canvasSchema,
     initialContent: initial.length ? initial : [{ id: crypto.randomUUID(), type: 'paragraph', content: '' }],
-    pasteHandler: ({ editor: current, event, defaultPasteHandler }) => pasteIntoCanvas(current, event, setError) ?? defaultPasteHandler({ plainTextAsMarkdown: false }),
+    pasteHandler: ({ editor: current, event, defaultPasteHandler }) =>
+      pasteIntoCanvas(
+        current,
+        event,
+        setError,
+        presentationHeadings === true,
+      ) ?? defaultPasteHandler({ plainTextAsMarkdown: false }),
+    /*
+     * BlockNote uses this path for direct drops. The schema's fileBlockAccept
+     * tables use the same shared allowlists, so an unsupported audio/video
+     * MIME falls through to File and this classification stays in lockstep.
+     * Explicit slash insertion/replacement uses CanvasFilePanel instead, where
+     * the selected block kind is known and therefore cannot be reclassified.
+     */
     uploadFile: async (file) => {
-      try {
-        const uploaded = await uploadFile('image', folderId, file)
-        return { props: { url: `/api/v1/files/${uploaded.id}`, name: file.name } }
-      } catch (failure) {
-        setError(failure instanceof Error ? failure.message : 'The image could not be uploaded. Try again.')
-        throw failure
-      }
+      const mime = file.type
+      const kind: CanvasMediaKind =
+        (RASTER_MIMES as readonly string[]).includes(mime)
+          ? 'image'
+          : (AUDIO_MIMES as readonly string[]).includes(mime)
+            ? 'audio'
+            : (VIDEO_MIMES as readonly string[]).includes(mime)
+              ? 'video'
+              : 'file'
+      // BlockNote applies an object result as an updateBlock partial, so the
+      // file's url and name go under `props` or the dropped block stays empty.
+      return { props: await uploadCanvasFile(kind, file) }
     },
   })
   // The baseline is the server's page reconciled with what this editor can draw
@@ -153,12 +209,15 @@ function CanvasSession({ page, initialPage, folderId, facetId, workRootId, tasks
     return workRootId === undefined ? lossless : mergeWorkDocument(page, workRootId, lossless)
   }
   const empty = { blocks: [], items: [] }
-  const firstProjection = initial.length
+  // Projected once, at mount: on later renders the live document may hold an
+  // unsaveable block (an external image) and projecting it here would throw
+  // during render and take the whole canvas down.
+  const firstProjection = (): CanvasDocument => initial.length
     ? projection(editor.document)
     : workRootId === undefined
       ? empty
       : mergeWorkDocument(initialPage, workRootId, empty)
-  const [writer] = useState(() => new CanvasWriter(firstProjection, initialPage.revision!,
+  const [writer] = useState(() => new CanvasWriter(firstProjection(), initialPage.revision ?? '',
     (body) => mutateApi(getPageResponse, { method: 'POST', path: `${documentPath}/actions`, body }),
     () => {
       render((value) => value + 1)
@@ -215,10 +274,12 @@ function CanvasSession({ page, initialPage, folderId, facetId, workRootId, tasks
     } catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not reload the page.') }
   }
   async function createTask(): Promise<void> {
-    if (!taskAt || !title.trim() || writer.state === 'failed') return
+    if (!taskAt || !title.trim()) return
+    if (writer.state === 'failed') { setTaskError(taskBlocked); return }
     setCreating(true)
+    setTaskError('')
     await writer.flush()
-    if (writer.state !== 'saved') { setCreating(false); return }
+    if (writer.state !== 'saved') { setCreating(false); setTaskError(taskBlocked); return }
     const id = crypto.randomUUID()
     const replace = (blocks: readonly CanvasInput[]): CanvasInput[] => blocks.flatMap((block) => {
       if (block.id === taskAt) {
@@ -230,15 +291,27 @@ function CanvasSession({ page, initialPage, folderId, facetId, workRootId, tasks
     const proposal = replace(editor.document)
     // Serialize with the schema's complete block shape; no temporary Task row or
     // simulated mutable Task record is put into the live editor before commit.
-    const temporary = BlockNoteEditor.create({ schema: canvasSchema, initialContent: proposal })
+    let temporary: ReturnType<typeof BlockNoteEditor.create> | null = null
+    let drafted: CanvasDocument
     try {
-      writer.change(dehydrateCanvas(temporary.document, width, folderRefs))
-      await writer.flush({ id, title: title.trim() })
-    } finally { temporary.unmount(); setCreating(false); setTaskAt(null) }
+      temporary = BlockNoteEditor.create({ schema: canvasSchema, initialContent: proposal })
+      drafted = dehydrateCanvas(temporary.document, width, folderRefs)
+    } catch (failure) {
+      // Nothing was sent; keep the dialog open so the title is not lost.
+      setTaskError(failure instanceof Error ? failure.message : 'Could not prepare this Task for saving.')
+      setCreating(false)
+      return
+    } finally { temporary?.unmount() }
+    writer.change(drafted)
+    // A failed send is reported by the save status below, whose Retry save
+    // re-sends this exact request, Task included.
+    try { await writer.flush({ id, title: title.trim() }) } finally { setCreating(false); setTaskAt(null) }
   }
+  const taskBlocked = 'Your writing has not saved, so a Task cannot be created yet. Close this, then use Retry save or Download writing below.'
   function askTask(target?: CanvasBlock): void {
     const block = target ?? editor.getTextCursorPosition().block
     setTaskAt(block.id)
+    setTaskError(writer.state === 'failed' ? taskBlocked : '')
     setTitle(block.type === 'paragraph' ? richRuns(block).map((run) => run.text).join('') : '')
   }
   const feedback = error || (writer.state === 'failed' ? writer.error instanceof Error ? writer.error.message : 'Could not save. Your writing is retained.' : '')
@@ -269,7 +342,21 @@ function CanvasSession({ page, initialPage, folderId, facetId, workRootId, tasks
       })()
     }}>Retry interrupted save</Button><Button variant="ghost" onClick={() => { sessionStorage.removeItem(draftKey); setRecovery(false) }}>Dismiss</Button></div> : null}
     <CanvasTaskProvider tasks={tasks} context={context} actions={actions} onAsk={onAsk}>
-      <CanvasSurface editor={editor} onChange={changed} onCreateTask={facetId === undefined ? askTask : undefined} folderRefs={folderRefs} allowHeadings={facetId === undefined} editable={arrangeable && !creating && !pendingTask} />
+      <CanvasSurface
+        editor={editor}
+        onChange={changed}
+        onCreateTask={facetId === undefined ? askTask : undefined}
+        folderRefs={folderRefs}
+        onUploadFile={uploadCanvasFile}
+        headingMode={
+          facetId === undefined
+            ? 'section'
+            : presentationHeadings === true
+              ? 'document'
+              : 'none'
+        }
+        editable={arrangeable && !creating && !pendingTask}
+      />
     </CanvasTaskProvider>
     <div role="status" aria-live="polite" className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
       {feedback || (writer.state === 'saving' ? 'Saving…' : writer.state === 'changed' ? 'Unsaved writing' : 'Saved')}
@@ -278,7 +365,8 @@ function CanvasSession({ page, initialPage, folderId, facetId, workRootId, tasks
     <Dialog open={taskAt !== null} onOpenChange={(open) => { if (!open && !creating) setTaskAt(null) }}>
       <DialogContent><DialogHeader><DialogTitle>Create Task</DialogTitle><DialogDescription>The Task keeps this position. Document undo starts a new history after creation; Task actions remain in its own menu.</DialogDescription></DialogHeader>
         <Input aria-label="Task title" value={title} maxLength={500} onChange={(event) => setTitle(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void createTask() }} />
-        <DialogFooter><Button variant="ghost" onClick={() => setTaskAt(null)} disabled={creating}>Cancel</Button><Button variant="commit" onClick={() => { void createTask() }} disabled={creating || !title.trim()}>Create Task</Button></DialogFooter>
+        {taskError ? <p role="alert" className="text-sm text-destructive">{taskError}</p> : null}
+        <DialogFooter><Button variant="ghost" onClick={() => setTaskAt(null)} disabled={creating}>Cancel</Button><Button variant="commit" onClick={() => { void createTask() }} disabled={creating || !title.trim() || writer.state === 'failed'}>Create Task</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   </>

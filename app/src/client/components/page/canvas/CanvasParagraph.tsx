@@ -42,7 +42,9 @@ export const createCanvasParagraph = createReactBlockSpec(base.config, {
   meta: base.implementation.meta,
   parse: base.implementation.parse,
   render: ({ block, contentRef }) => {
-    const content = block.content as Inline[]
+    // BlockNote also calls render while inserting a non-text block (an image),
+    // when content is not an inline array; a throw here unmounts the whole canvas.
+    const content = Array.isArray(block.content) ? block.content as Inline[] : []
     const text = content.map((inline) => inline.type === 'text' ? inline.text : inline.content.map((run) => run.text).join('')).join('')
     const links = [...new Set([...linksIn(text), ...content.flatMap((inline) => inline.type === 'link' ? [inline.href] : [])])]
     return <div className="min-w-0 w-full"><p ref={contentRef} />{links.length ? <div contentEditable={false}>{links.slice(0, 3).map((href) => <LinkPreview key={href} href={href} />)}</div> : null}</div>

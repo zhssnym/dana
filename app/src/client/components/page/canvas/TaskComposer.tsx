@@ -12,7 +12,7 @@ items, so none is offered: there is no Task command, headings do not fold
 content under them, and a block the person indents is written flat — its words
 kept, its indent not. A stored `callout` or `checklist` (neither is offered
 here; a Task's checkable work is its Steps) is drawn as a paragraph and keeps
-its kind across a save, the Folder canvas's `restoreCanvas` rule.
+its kind across a save, by id, tick included.
 
 **Nothing typed is dropped.** Every change is mirrored to
 `sessionStorage['dana-task-draft:<task>']` until the server acknowledges it. A
@@ -32,18 +32,19 @@ import type { PartialBlock } from '@blocknote/core'
 import { filterSuggestionItems } from '@blocknote/core/extensions'
 import { BlockNoteView } from '@blocknote/shadcn'
 import {
-  DragHandleMenu, FormattingToolbarController, RemoveBlockItem, SideMenu, SideMenuController,
+  DragHandleMenu, FilePanelController, FormattingToolbarController, RemoveBlockItem, SideMenu, SideMenuController,
   SuggestionMenuController, getDefaultReactSlashMenuItems, useCreateBlockNote,
 } from '@blocknote/react'
 import '@blocknote/shadcn/style.css'
 import type { PageBlockKind, PageView } from '../../../../shared/pages.js'
 import { getPageResponse } from '../../../../shared/pages.js'
-import type { UploadFileKind } from '../../../../shared/files.js'
 import { ApiError, getPlain, mutateApi, uploadFile } from '../../../api/http.js'
 import { Button } from '../../ui/button.js'
 import { CanvasErrorBoundary } from './CanvasErrorBoundary.js'
 import { CanvasFormattingToolbar } from './CanvasFormattingToolbar.js'
-import { contentOf, restoreCanvas, baselineOf, richRuns } from './adapters.js'
+import { CanvasFilePanel } from './CanvasFilePanel.js'
+import type { CanvasMediaKind } from './CanvasFilePanel.js'
+import { baselineOf, contentOf, richRuns } from './adapters.js'
 import type { CanvasDocument, CanvasRecord } from './adapters.js'
 import type { CanvasBlock } from './schema.js'
 import { CanvasWriter } from './saving.js'
@@ -67,8 +68,8 @@ export const taskSchema = BlockNoteSchema.create({
 type TaskBlock = typeof taskSchema.Block
 type TaskInput = PartialBlock<typeof taskSchema.blockSchema, typeof taskSchema.inlineContentSchema, typeof taskSchema.styleSchema>
 
-/** Stored kinds this editor draws as a paragraph and must not convert. */
-const UNEXPRESSED: ReadonlySet<string> = new Set(['callout', 'checklist'])
+/** Stored kinds this editor draws as a paragraph and keeps, with their tick. */
+const KEPT_KINDS: ReadonlySet<string> = new Set(['callout', 'checklist'])
 const SLASH_KEYS = ['paragraph', 'heading', 'heading_2', 'heading_3', 'bullet_list', 'numbered_list', 'quote', 'code_block', 'image', 'file', 'audio', 'video']
 const fileUrl = (id: string | null): string => id === null ? '' : `/api/v1/files/${id}`
 const fileIdOf = (url: string): string | null => /(?:^|\/)api\/v1\/files\/([0-9a-f-]{36})$/i.exec(url)?.[1] ?? null
@@ -105,7 +106,8 @@ const KIND: Record<TaskBlock['type'], PageBlockKind> = {
 
 /** Flat by construction: a Task document refuses nesting, so an indented
  * block is written as the next sibling with every word it holds. */
-export function dehydrateTask(blocks: readonly TaskBlock[], width: number): CanvasDocument {
+export function dehydrateTask(blocks: readonly TaskBlock[], width: number, stored?: PageView): CanvasDocument {
+  const kept = new Map((stored?.blocks ?? []).filter((b) => KEPT_KINDS.has(b.kind)).map((b) => [b.id, b]))
   const result: CanvasDocument = { blocks: [], items: [] }
   const visit = (list: readonly TaskBlock[]): void => {
     for (const block of list) {
@@ -124,7 +126,8 @@ export function dehydrateTask(blocks: readonly TaskBlock[], width: number): Canv
         }
       } else {
         const kind: PageBlockKind = block.type === 'heading' ? `heading${block.props.level}` as PageBlockKind : KIND[block.type]
-        record = { id: block.id, block_kind: kind, text, rich_content: kind === 'code' ? null : { version: 1, runs }, file_id: null, ref_folder_id: null, width_pct: null, checked: null }
+        const keep = block.type === 'paragraph' ? kept.get(block.id) : undefined
+        record = { id: block.id, block_kind: keep?.kind ?? kind, text, rich_content: kind === 'code' ? null : { version: 1, runs }, file_id: null, ref_folder_id: null, width_pct: null, checked: keep?.checked ?? null }
       }
       result.blocks.push(record)
       result.items.push({ kind: 'block', id: block.id, section_block_id: null, list_parent_block_id: null })
@@ -230,24 +233,27 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
   const [recovered, setRecovered] = useState<string | null>(null)
   const initial = useMemo(() => hydrateTask(initialPage, width), [initialPage, width])
   const editorRef = useRef<typeof taskSchema.BlockNoteEditor | null>(null)
+  async function upload(kind: CanvasMediaKind, folder: string, file: File): Promise<{ url: string; name: string }> {
+    try {
+      const uploaded = await uploadFile(kind, folder, file)
+      return { url: `/api/v1/files/${uploaded.id}`, name: file.name }
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : 'The file could not be uploaded. Try again.')
+      throw failure
+    }
+  }
   const editor = useCreateBlockNote({
     schema: taskSchema,
     initialContent: initial.length ? initial : [{ id: crypto.randomUUID(), type: 'paragraph', content: '' }],
     uploadFile: folderId === null ? undefined : async (file, blockId) => {
       const type = blockId === undefined ? undefined : editorRef.current?.getBlock(blockId)?.type
-      const kind: UploadFileKind = type === 'audio' || type === 'video' || type === 'file' ? type : 'image'
-      try {
-        const uploaded = await uploadFile(kind, folderId, file)
-        return { props: { url: `/api/v1/files/${uploaded.id}`, name: file.name } }
-      } catch (failure) {
-        setError(failure instanceof Error ? failure.message : 'The file could not be uploaded. Try again.')
-        throw failure
-      }
+      const kind: CanvasMediaKind = type === 'audio' || type === 'video' || type === 'file' ? type : 'image'
+      return { props: await upload(kind, folderId, file) }
     },
   })
   editorRef.current = editor
   const [writer] = useState(() => {
-    const first = initial.length ? baselineOf(initialPage, dehydrateTask(editor.document, width), UNEXPRESSED) : { blocks: [], items: [] }
+    const first = initial.length ? baselineOf(initialPage, dehydrateTask(editor.document, width, initialPage)) : { blocks: [], items: [] }
     const created: CanvasWriter = new CanvasWriter(first, initialPage.revision!,
       (body) => mutateApi(getPageResponse, { method: 'PUT', path: `/tasks/${taskId}/document`, body }),
       () => {
@@ -255,7 +261,6 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
         writeStorage(draftKey(taskId), created.state === 'saved' ? null : JSON.stringify({ taskId, revision: created.revision, blocks: editor.document }))
       },
       (next) => { queryClient.setQueryData(['tasks', taskId, 'document'], next) },
-      UNEXPRESSED,
     )
     return created
   })
@@ -270,7 +275,7 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
     if (draft !== null) {
       try {
         const blocks = (JSON.parse(draft) as { blocks: TaskBlock[] }).blocks
-        const settled = JSON.stringify(restoreCanvas(writer.acknowledged, dehydrateTask(blocks, width), UNEXPRESSED)) === JSON.stringify(writer.acknowledged)
+        const settled = JSON.stringify(dehydrateTask(blocks, width, initialPage)) === JSON.stringify(writer.acknowledged)
         if (!settled) held = draft
       } catch { held = draft }
     }
@@ -298,7 +303,7 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
 
   function changed(): void {
     try {
-      writer.change(dehydrateTask(editor.document, width))
+      writer.change(dehydrateTask(editor.document, width, latest))
       setError('')
     } catch (failure) {
       // Not sendable (an embedded outside link): the writing still goes to the draft.
@@ -336,8 +341,9 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
     </div> : null}
     <div className="dana-writing-canvas dana-task-composer min-w-0">
       <BlockNoteView editor={editor} theme={document.documentElement.classList.contains('dark') ? 'dark' : 'light'}
-        formattingToolbar={false} slashMenu={false} sideMenu={false} onChange={changed} aria-label="Task writing">
+        formattingToolbar={false} slashMenu={false} sideMenu={false} filePanel={false} onChange={changed} aria-label="Task writing">
         <FormattingToolbarController formattingToolbar={CanvasFormattingToolbar} />
+        {folderId === null ? null : <FilePanelController filePanel={(props) => <CanvasFilePanel {...props} onUpload={(kind: CanvasMediaKind, file: File) => upload(kind, folderId, file)} />} />}
         <SideMenuController sideMenu={TaskSideMenu} />
         <SuggestionMenuController triggerCharacter="/" getItems={async (query) => filterSuggestionItems(
           getDefaultReactSlashMenuItems(editor)

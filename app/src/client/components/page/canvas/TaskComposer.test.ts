@@ -40,9 +40,8 @@ const editorOf = (page: PageView): typeof taskSchema.BlockNoteEditor =>
 describe('Task composer', () => {
   test('AC-996 every stored kind and every character survives an untouched open, and an open writes nothing', () => {
     const editor = editorOf(stored)
-    const drawn = dehydrateTask(editor.document, 600)
-    const unexpressed = new Set(['callout', 'checklist'])
-    const baseline = baselineOf(stored, drawn, unexpressed)
+    const drawn = dehydrateTask(editor.document, 600, stored)
+    const baseline = baselineOf(stored, drawn)
     expect(baseline.blocks.map((b) => [b.block_kind, b.text, b.file_id])).toEqual([
       ['paragraph', 'Legacy line one\nLegacy line two', null], ['heading2', 'Plan', null], ['bullet', 'first', null],
       ['numbered', 'second', null], ['quote', 'said', null], ['code', 'x = 1', null], ['image', 'caption', file],
@@ -50,17 +49,16 @@ describe('Task composer', () => {
     ])
     expect(baseline.blocks[1]?.rich_content?.runs).toEqual([{ text: 'Plan', bold: true }])
     expect(baseline.blocks[6]?.width_pct).toBe(50)
-    expect(canvasOperations(baseline, dehydrateTask(editor.document, 600), unexpressed).filter((op) => op.op !== 'set_outline')).toEqual([])
+    expect(canvasOperations(baseline, dehydrateTask(editor.document, 600, stored)).filter((op) => op.op !== 'set_outline')).toEqual([])
   })
 
   test('AC-997 converting a drawn kind to text is written, and an indented block is written flat with its words', () => {
     const editor = editorOf(stored)
-    const unexpressed = new Set(['callout', 'checklist'])
-    const baseline = baselineOf(stored, dehydrateTask(editor.document, 600), unexpressed)
+    const baseline = baselineOf(stored, dehydrateTask(editor.document, 600, stored))
     editor.updateBlock(id(3), { type: 'paragraph' })
     editor.updateBlock(id(5), { children: [{ id: id(20), type: 'paragraph', content: 'nested words' }] })
-    const after = dehydrateTask(editor.document, 600)
-    const ops = canvasOperations(baseline, after, unexpressed)
+    const after = dehydrateTask(editor.document, 600, stored)
+    const ops = canvasOperations(baseline, after)
     expect(ops.find((op) => op.op === 'put_block' && op.id === id(3))).toMatchObject({ block_kind: 'paragraph', text: 'first' })
     expect(after.items.every((item) => item.list_parent_block_id === null && item.section_block_id === null)).toBe(true)
     expect(after.blocks.find((b) => b.id === id(20))?.text).toBe('nested words')

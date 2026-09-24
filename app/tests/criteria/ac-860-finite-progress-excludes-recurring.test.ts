@@ -78,23 +78,28 @@ describe('AC-860 finite progress excludes recurring Tasks', () => {
       sql`, deleted_at = now()`,
     )
     // A recurring series: one completed occurrence and its pending successor.
+    // The completed one is stored as 8.5 leaves it, its rule handed to the
+    // successor and its series_id kept, which is the shape that grew the
+    // denominator when a null rule alone meant one-off.
     const series = randomUUID()
-    const recurring = sql`, recurrence_rule = 'FREQ=DAILY', series_id = ${series}::uuid`
-    for (const status of ['completed', 'pending'] as const) {
-      await place(
-        await seedTask(app.db, { ...base, status, dueDate: '2026-09-24' }),
-        section,
-        recurring,
-      )
-    }
+    await place(
+      await seedTask(app.db, { ...base, status: 'completed', dueDate: '2026-09-23' }),
+      section,
+      sql`, series_id = ${series}::uuid`,
+    )
+    await place(
+      await seedTask(app.db, { ...base, status: 'pending', dueDate: '2026-09-24' }),
+      section,
+      sql`, recurrence_rule = 'FREQ=DAILY', series_id = ${series}::uuid`,
+    )
 
     expect(
       await countRows(
         app.db,
         sql`SELECT count(*)::int AS n FROM tasks WHERE folder_id = ${folderId}::uuid
-              AND recurrence_rule IS NOT NULL AND section_block_id = ${section}::uuid`,
+              AND series_id IS NOT NULL AND section_block_id = ${section}::uuid`,
       ),
-      'the seed must store two recurring occurrences in the section',
+      'the seed must store two occurrences of one series in the section',
     ).toBe(2)
 
     const response = await owner.browser.api(`/folders/${folderId}`)

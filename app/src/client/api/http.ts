@@ -35,7 +35,11 @@ import type { z } from 'zod'
 
 import { errorEnvelope } from '../../shared/error-envelope.js'
 import { postAvatarResponse, postFilesResponse } from '../../shared/files.js'
-import type { PostAvatarResponse, PostFilesResponse, UploadFileKind } from '../../shared/files.js'
+import type {
+  PostAvatarResponse,
+  PostFilesResponse,
+  UploadFileKind,
+} from '../../shared/files.js'
 
 import { isOnline, reportReachable, reportUnreachable } from '../state/connectivity.js'
 

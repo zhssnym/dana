@@ -18,7 +18,6 @@ export class CanvasWriter {
     private readonly send: (request: DocumentRequest) => Promise<PageView>,
     private readonly notify: () => void,
     private readonly committed: (page: PageView, checkpoint: boolean) => void,
-    private readonly unexpressed?: ReadonlySet<string>,
   ) {
     this.acknowledged = document
     this.latest = document
@@ -37,7 +36,7 @@ export class CanvasWriter {
    * this the same question `canvasOperations` answers.
    */
   private settled(document: CanvasDocument): boolean {
-    return JSON.stringify(restoreCanvas(this.acknowledged, document, this.unexpressed)) === JSON.stringify(this.acknowledged)
+    return JSON.stringify(restoreCanvas(this.acknowledged, document)) === JSON.stringify(this.acknowledged)
   }
   change(document: CanvasDocument): void {
     this.latest = document
@@ -49,7 +48,7 @@ export class CanvasWriter {
     if (this.state === 'failed') return
     if (this.state === 'saved' && !createTask) return
     if (!this.pending) {
-      const operations: DocumentRequest['operations'] = canvasOperations(this.acknowledged, this.latest, this.unexpressed)
+      const operations: DocumentRequest['operations'] = canvasOperations(this.acknowledged, this.latest)
       if (createTask) operations.unshift({ op: 'create_task', ...createTask })
       this.pending = { request: { action: 'document_transaction', mutation_id: crypto.randomUUID(), base_revision: this.revision, operations }, document: this.latest }
     }
@@ -59,12 +58,15 @@ export class CanvasWriter {
     this.inFlight = (async () => {
       try {
         const page = await this.send(pending.request)
-        this.revision = page.revision!
+        // No revision means no safe base for the next write; fail visibly.
+        // Retry re-sends the same mutation id, which the server replays.
+        if (!page.revision) throw new Error('The page saved without a version. Retry save to confirm it.')
+        this.revision = page.revision
         // Re-based on what the server now holds, not on the projection that was
         // sent. The projection expresses none of the structured kinds, so a
         // baseline taken from it is flat from the second save onward and the
         // next one destroys exactly what the first one preserved.
-        this.acknowledged = baselineOf(page, pending.document, this.unexpressed)
+        this.acknowledged = baselineOf(page, pending.document)
         this.pending = null
         const checkpoint = pending.request.operations.some((op) => op.op === 'create_task')
         // A matching receipt can return newer state. Preserve the local draft and
