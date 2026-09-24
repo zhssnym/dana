@@ -13,7 +13,6 @@ import {
   FolderPlus,
   MoreHorizontal,
   PanelRight,
-  Repeat2,
   RotateCcw,
   SquareSquare,
   Star,
@@ -54,6 +53,7 @@ import {
 import { useSortableList } from "../lib/use-sortable-list.js"
 import type { SortableItemState } from "../lib/use-sortable-list.js"
 import { cn } from "./ui/utils.js"
+import { TaskMeta } from "./task-meta.js"
 
 /* --------------------------------------------------------------- motion, */
 
@@ -1395,54 +1395,27 @@ export function TaskRow(props: TaskRowProps) {
   /* The folder the row was told, never a guess: see `given` on the props. */
   const folderName = given.folder ? undefined : task.folder?.name?.trim()
   const due = !given.due ? task.due : undefined
-  const late = Boolean(due?.overdue) && !given.overdue
   const struck = Boolean(task.abandoned)
   const finished = Boolean(task.done) || struck
 
-  const meta: ReactNode[] = []
-  if (due) {
-    meta.push(
-      <span key="due" className={cn("shrink-0 whitespace-nowrap", late && "text-destructive")}>
-        {/* Late is shown by colour alone, so it is also said. */}
-        {late ? <span className="sr-only">Overdue, </span> : null}
-        {due.label}
-      </span>,
-    )
-  }
+  /* Between the date and the counts: what this list has not already said. */
+  const extras: ReactNode[] = []
   if (folderName) {
-    meta.push(
+    extras.push(
       <span key="folder" className="min-w-0 max-w-[10rem] truncate max-md:hidden">
         {folderName}
       </span>,
     )
   }
   if ((props.blockedBy ?? 0) > 0 && !finished) {
-    meta.push(
+    extras.push(
       <span key="blocked" className="shrink-0 whitespace-nowrap">
         Blocked
       </span>,
     )
   }
-  if (counts) {
-    meta.push(
-      <span
-        key="steps"
-        className="shrink-0 whitespace-nowrap tabular-nums"
-        title={`${counts.done} of ${counts.total} steps done`}
-      >
-        {counts.done}/{counts.total}
-      </span>,
-    )
-  }
-  if (task.recurrence) {
-    meta.push(
-      <span key="repeat" className="flex shrink-0 items-center" title={`Repeats ${repeatShort(task)}`}>
-        <Repeat2 className="size-3.5" strokeWidth={1.75} aria-label="Repeats" />
-      </span>,
-    )
-  }
   if (task.assignee && !given.assignee) {
-    meta.push(
+    extras.push(
       <span key="assignee" className="flex shrink-0 items-center" title={task.assignee.name}>
         <Face person={task.assignee} className="size-5 data-[size=sm]:size-5" />
       </span>,
@@ -1482,20 +1455,22 @@ export function TaskRow(props: TaskRowProps) {
       >
         {task.title || <span className="text-muted-foreground">Untitled task</span>}
       </span>
-      <span className="flex min-w-0 max-w-[60vw] items-center gap-3 pl-3 text-xs text-muted-foreground md:max-w-none">
-        {meta.length > 0 ? (
-          <span className="flex min-w-0 items-center gap-3 overflow-hidden">{meta}</span>
-        ) : null}
-        <Star_
-          important={Boolean(task.important)}
-          quiet={given.important}
-          tooltip={props.importantTooltip}
-          onToggle={() => {
+      <TaskMeta
+        className="max-w-[60vw] pl-3 md:max-w-none"
+        due={due}
+        overdueGiven={given.overdue}
+        steps={counts ?? undefined}
+        recurrence={task.recurrence ? repeatShort(task) : undefined}
+        extras={extras}
+        star={{
+          important: Boolean(task.important),
+          tooltip: props.importantTooltip,
+          onToggle: () => {
             patch(task.id, { important: !task.important })
             props.onToggleImportant?.()
-          }}
-        />
-      </span>
+          },
+        }}
+      />
     </div>
   )
 
@@ -1514,56 +1489,6 @@ export function TaskRow(props: TaskRowProps) {
       offset={props.dragState?.offset}
       proposal={props.proposal}
     />
-  )
-}
-
-/*
-The star. Reserved space and opacity only, so hovering never shifts the meta.
-On a touch screen there is no hover, so an unset star is not drawn at all and a
-set one is an indicator you cannot hit by accident: starring on a phone happens
-in the task itself.
-*/
-function Star_({
-  important,
-  quiet = false,
-  tooltip,
-  onToggle,
-}: {
-  important: boolean
-  quiet?: boolean
-  tooltip?: string
-  onToggle: () => void
-}) {
-  return (
-    <button
-      type="button"
-      onClick={(event) => {
-        event.stopPropagation()
-        onToggle()
-      }}
-      aria-pressed={important}
-      title={tooltip ?? (important ? "Important" : "Mark as important")}
-      className={cn(
-        "flex size-7 shrink-0 items-center justify-center rounded-sm transition-opacity",
-        T_FAST,
-        FOCUS,
-        important
-          ? "opacity-100"
-          : "opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100",
-        "[@media(hover:none)]:pointer-events-none",
-        !important && "[@media(hover:none)]:invisible",
-      )}
-    >
-      <span className="sr-only">{important ? "Important" : "Mark as important"}</span>
-      <Star
-        className={cn(
-          "size-4",
-          important && !quiet ? "text-foreground [&_svg]:fill-current" : "text-muted-foreground",
-        )}
-        strokeWidth={1.75}
-        aria-hidden="true"
-      />
-    </button>
   )
 }
 
