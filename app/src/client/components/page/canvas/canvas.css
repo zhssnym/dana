@@ -86,8 +86,17 @@
 .dana-writing-canvas [data-canvas-task-refused] { outline: 2px solid var(--destructive); outline-offset: 2px; border-radius: var(--radius-sm); }
 .dana-writing-canvas .bn-drag-handle-menu { font-size: var(--text-body-size); line-height: var(--text-body-line); }
 .dana-writing-canvas img { max-width: 100%; height: auto; }
+/* Phone: the writing starts at the page's gutter, like every other page. The
+   section toggle sits inline before its heading instead of in a left margin,
+   and a touch screen gets no hover side menu to make room for (the block menu
+   is desktop's, where drag stays as it is). */
 @media (max-width: 480px) {
-  .dana-writing-canvas { padding-left: calc(var(--spacing) * 14); }
+  .dana-writing-canvas { padding-left: 0; }
+  .dana-writing-canvas .bn-toggle-wrapper { display: flex; align-items: center; }
+  .dana-writing-canvas .bn-toggle-button { position: static; flex-shrink: 0; margin-inline-end: calc(var(--spacing) * 1); }
+}
+@media (hover: none) {
+  .dana-writing-canvas .bn-side-menu { display: none; }
 }
 /* Issue #267: a picture whose file was reclaimed, told apart from an empty frame. */
 .dana-writing-canvas .dana-reclaimed-image {
