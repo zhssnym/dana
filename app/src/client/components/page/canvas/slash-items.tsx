@@ -65,7 +65,7 @@ export interface SlashContext {
 }
 
 type Item = DefaultReactSuggestionItem & {
-  readonly group: 'Basic blocks' | 'Media' | 'Dana' | 'Turn into'
+  readonly group: 'Basic blocks' | 'Media' | 'Advanced' | 'Turn into'
   /** The markdown shortcut that makes the same block here, shown muted. */
   readonly hint?: string
   /** Listed only once something is typed (Notion's toggle headings). */
@@ -106,8 +106,12 @@ const KIND_ICONS: Record<string, LucideIcon> = {
   quote: Quote, callout: Lightbulb, codeBlock: Code, divider: Minus,
 }
 const glyph = (Icon: LucideIcon): JSX.Element => <Icon aria-hidden="true" />
+/** The icon a block kind wears in every menu that names it (`/`, Turn into). */
+export function kindIconOf(type: string, level?: 1 | 2 | 3): LucideIcon | undefined {
+  return type === 'heading' ? HEADING_ICONS[level ?? 1] : KIND_ICONS[type]
+}
 function kindIcon(type: string, level?: 1 | 2 | 3): JSX.Element | undefined {
-  const Icon = type === 'heading' ? HEADING_ICONS[level ?? 1] : KIND_ICONS[type]
+  const Icon = kindIconOf(type, level)
   return Icon === undefined ? undefined : glyph(Icon)
 }
 
@@ -282,9 +286,9 @@ export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item
     if (file !== undefined) add('Media', 'File', ['file', 'attachment', 'upload', 'document'], () => { file.onItemClick() }, glyph(FileText))
   }
 
-  if (has(editor, 'diagram')) add('Dana', 'Diagram', ['diagram', 'flowchart', 'mermaid', 'chart'], insert('diagram'), glyph(Network))
+  if (has(editor, 'diagram')) add('Advanced', 'Diagram', ['diagram', 'flowchart', 'mermaid', 'chart'], insert('diagram'), glyph(Network))
   const link = linkSlashItem(editor)
-  add('Dana', 'Link to page', ['link', 'mention', 'reference', '@', 'page'], link.onItemClick, glyph(Link2))
+  add('Advanced', 'Link to page', ['link', 'mention', 'reference', '@', 'page'], link.onItemClick, glyph(Link2))
   return items
 }
 

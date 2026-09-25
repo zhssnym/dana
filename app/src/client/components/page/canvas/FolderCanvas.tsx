@@ -61,7 +61,27 @@ export default function FolderCanvas(props: Props): React.JSX.Element {
 /* A Task made with Enter keeps the person writing Tasks: the save remounts
    the editor (a checkpoint), so the next line is opened by the new editor,
    right under the Task, with the page scrolled where it was. Keyed by draft key. */
-const resumeAfter = new Map<string, { taskId: string; scroller: Element | null; top: number; line?: string }>()
+const resumeAfter = new Map<string, { taskId: string; scroller: Element | null; top: number; line?: string; typed: string }>()
+/* What is typed while the Task is being made (the editor is read-only for
+   that round trip, then remounts) is kept and lands on the next line, so
+   "Buy milk ⏎ Call mom" typed at speed loses no letters. Only plain letters
+   and Backspace, and only while nothing else has focus; it lets go when the
+   line opens or the resume is dropped. */
+function keepTyping(key: string, resume: { typed: string }): void {
+  const onKey = (event: KeyboardEvent): void => {
+    if (resumeAfter.get(key) !== resume) { window.removeEventListener('keydown', onKey, true); return }
+    const active = document.activeElement
+    if (active !== null && active !== document.body && active.closest('.dana-writing-canvas') === null) return
+    if (event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return
+    if (event.key.length === 1) resume.typed += event.key
+    else if (event.key === 'Backspace') resume.typed = resume.typed.slice(0, -1)
+    else return
+    event.preventDefault()
+    event.stopPropagation()
+  }
+  window.addEventListener('keydown', onKey, true)
+  window.setTimeout(() => { window.removeEventListener('keydown', onKey, true) }, 15_000)
+}
 function scrollerOf(element: Element | null): Element | null {
   for (let at = element?.parentElement ?? null; at !== null; at = at.parentElement) {
     const overflow = getComputedStyle(at).overflowY
@@ -412,6 +432,8 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
       if (inserted === undefined) return
       at = inserted.id
     }
+    // Known at once, not after the next render: an Enter typed right after `[] ` is the draft's.
+    draftRef.current = at
     setDraftTask(at)
     setDraftEmpty(true)
     editor.setTextCursorPosition(at, 'end')
@@ -428,7 +450,9 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
     if (text.trim()) {
       if (resume) {
         const scroller = scrollerOf(document.querySelector(`.dana-writing-canvas .bn-block[data-id="${blockId}"]`))
-        resumeAfter.set(draftKey, { taskId: '', scroller, top: scroller?.scrollTop ?? 0 })
+        const resume = { taskId: '', scroller, top: scroller?.scrollTop ?? 0, typed: '' }
+        resumeAfter.set(draftKey, resume)
+        keepTyping(draftKey, resume)
       }
       void createTask(blockId, text)
       return
@@ -463,13 +487,34 @@ function CanvasSession({ page, initialPage, folderId, facetId, presentationHeadi
       if (resume.scroller !== null) resume.scroller.scrollTop = resume.top
       document.querySelector(`.dana-writing-canvas .bn-block[data-id="${line}"]`)?.scrollIntoView({ block: 'nearest' })
     }
+    // What was typed during the round trip (`keepTyping`) is the new line's text.
+    const typedAhead = (): void => {
+      if (resume.typed === '' || editor.getBlock(line) === undefined) return
+      editor.setTextCursorPosition(line, 'end')
+      editor.insertInlineContent(resume.typed)
+      resume.typed = ''
+    }
     settle()
+    typedAhead()
     const frame = requestAnimationFrame(settle)
-    const done = window.setTimeout(() => { if (resumeAfter.get(draftKey) === resume) resumeAfter.delete(draftKey) }, 0)
+    const done = window.setTimeout(() => {
+      if (resumeAfter.get(draftKey) !== resume) return
+      typedAhead()
+      resumeAfter.delete(draftKey)
+    }, 0)
     return () => { cancelAnimationFrame(frame); window.clearTimeout(done) }
   }, [editor, draftKey])
   const draftKeys = (event: React.KeyboardEvent<HTMLDivElement>): void => {
     if (draftRef.current === null) return
+    const drafting = editor.getBlock(draftRef.current)
+    const blank = drafting === undefined || richRuns(drafting).every((run) => run.text === '')
+    /* Enter or Backspace on the line while it is empty ends the list, as on an
+       empty to-do in Notion: the line stays, plain text, the caret on it. */
+    if (blank && ((event.key === 'Enter' && !event.shiftKey) || event.key === 'Backspace')) {
+      event.preventDefault(); event.stopPropagation()
+      draftRef.current = null; setDraftTask(null)
+      return
+    }
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault(); event.stopPropagation(); settleDraftTask(true)
     } else if (event.key === 'Escape') {
