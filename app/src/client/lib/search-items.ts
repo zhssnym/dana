@@ -10,10 +10,12 @@ two characters, and shapes the four kinds 7.18 returns into the one item shape.
 
 **A title match ranks above a body match**: somebody typing *venue* means the
 thing called venue before the thing that mentions it. Each result carries a
-`rank`: 0 when its name is what was typed, 1 when its name or a word in it
-starts with it, 2 when its name only contains it, 3 when it matched on
-something else. A passage is always 3: its "title" is the text that matched, so
-reading a rank off it would call every passage a name match. The overlay orders
+`rank`: 0 when its name is what was typed, 1 when its name starts with it, 2
+when a later word in its name does, 3 when its name only contains it, 4 when it
+matched on something else. A passage is always 4: its "title" is the text that
+matched, so reading a rank off it would call every passage a name match. One
+typed character ranks the same way, so the list does not reorder when the
+second character hands the query to Q8. The overlay orders
 by it (`components/search-overlay.tsx`); Q8's status order survives only among
 tasks of one rank.
 
@@ -51,9 +53,44 @@ function trailHint(crumbs: readonly { readonly name: string }[] | undefined): st
 export function nameRank(name: string, normalized: string): number {
   const title = name.toLocaleLowerCase()
   if (title === normalized) return 0
-  if (title.startsWith(normalized) || title.split(/[^\p{L}\p{N}]+/u).some((word) => word.startsWith(normalized))) return 1
-  if (title.includes(normalized)) return 2
-  return 3
+  if (title.startsWith(normalized)) return 1
+  if (title.split(/[^\p{L}\p{N}]+/u).some((word) => word.startsWith(normalized))) return 2
+  if (title.includes(normalized)) return 3
+  return 4
+}
+
+/* A passage matched on its text, never its name. */
+const PASSAGE_RANK = 4
+
+/* Passages come after every name match and are capped, so a word used all
+   over the pages cannot bury the task named it. */
+const PASSAGE_LIMIT = 5
+
+/* A passage's text from a little before the match, so the row shows why it
+   matched rather than the paragraph's opening words. */
+function around(text: string, normalized: string): string {
+  const at = text.toLocaleLowerCase().indexOf(normalized)
+  if (at <= 24) return text
+  /* Back to the start of a word about three words before the match. */
+  const space = text.lastIndexOf(' ', at - 16)
+  const start = space > at - 32 ? space + 1 : at - 16
+  return `…${text.slice(start)}`
+}
+
+/* A page's ancestors in the viewer's own tree, root first, as the server's
+   breadcrumbs name them; used below Q8's floor, where there is no server trail. */
+function ancestorsOf(byId: ReadonlyMap<string, Folder>, folder: Folder): Folder[] {
+  const trail: Folder[] = []
+  const seen = new Set([folder.id])
+  let up = folder.parent_folder_id ?? null
+  while (up !== null && !seen.has(up)) {
+    const parent = byId.get(up)
+    if (parent === undefined) break
+    trail.unshift(parent)
+    seen.add(up)
+    up = parent.parent_folder_id ?? null
+  }
+  return trail
 }
 
 /** Q8's floor, which the endpoint refuses below. */
@@ -115,10 +152,13 @@ export function useSearchAnswer(query: string, open: boolean): SearchAnswer {
   const results = useMemo((): SearchResultItem[] => {
     if (normalized.length === 0) return placeItems()
     if (normalized.length < MIN_QUERY) {
+      const inHand = new Map((folderList ?? []).map((folder) => [folder.id, folder]))
       return [
         ...(folderList ?? [])
           .filter((folder) => startsAWord(folder.name, normalized))
-          .map((folder) => pageResult(folder, folder.id, folder.name, '')),
+          .map((folder) =>
+            pageResult(folder, folder.id, folder.name, trailHint(ancestorsOf(inHand, folder)) ?? ''),
+          ),
         ...(shelfList ?? [])
           .filter((shelf) => startsAWord(shelf.name, normalized))
           .map((shelf): SearchResultItem => ({
@@ -129,6 +169,8 @@ export function useSearchAnswer(query: string, open: boolean): SearchAnswer {
           })),
         ...placeItems().filter((place) => startsAWord(place.title, normalized)),
       ]
+        .map((item): SearchResultItem => ({ ...item, rank: nameRank(item.title, normalized) }))
+        .sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0))
     }
     if (data === undefined) return []
     const byId = new Map((folderList ?? []).map((folder) => [folder.id, folder]))
@@ -158,7 +200,7 @@ export function useSearchAnswer(query: string, open: boolean): SearchAnswer {
         ...(shelf === undefined ? {} : { color: shelfMark(shelf).color }),
       }
     })
-    const pages: SearchResultItem[] = (data.pages ?? []).map((hit) => {
+    const pages: SearchResultItem[] = (data.pages ?? []).slice(0, PASSAGE_LIMIT).map((hit) => {
       const home =
         hit.folder_id !== null
           ? { path: paths.folder(hit.folder_id), name: byId.get(hit.folder_id)?.name }
@@ -169,11 +211,12 @@ export function useSearchAnswer(query: string, open: boolean): SearchAnswer {
       return {
         kind: 'page',
         id: home === null ? paths.today : `${home.path}#block-${hit.block_id}`,
-        title: hit.text,
+        title: around(hit.text, normalized),
         hint: where === undefined ? '' : `in ${where}`,
         /* A passage, not a page called that: it wears the text glyph. */
         icon: AlignLeft,
-        rank: 3,
+        passage: true,
+        rank: PASSAGE_RANK,
       }
     })
     /* The places are findable by typing too, not only offered before anything

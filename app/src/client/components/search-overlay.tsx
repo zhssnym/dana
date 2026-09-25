@@ -64,29 +64,34 @@ export type SearchResultItem = {
   /* How well it matched, best first (`lib/search-items.ts`'s `nameRank`);
      absent means unranked, which sorts as a name match. */
   rank?: number
+  /* A page's own prose that matched, not a page called that. */
+  passage?: boolean
 }
 
 const statusOrder: SearchResultStatus[] = ["pending", "abandoned", "completed"]
 
 /* Kind decides the headings; status decides the order inside Tasks. A folder
-   is a page on screen, so both sit under Pages. */
-type SearchGroup = "task" | "page" | "shelf" | "help"
+   is a page on screen, so both sit under Pages. A passage is not a page, so it
+   stands under its own heading. */
+type SearchGroup = "task" | "page" | "shelf" | "passage" | "help"
 
-const groupOrder: SearchGroup[] = ["task", "page", "shelf", "help"]
+const groupOrder: SearchGroup[] = ["task", "page", "shelf", "passage", "help"]
 
 /* Who wins when two kinds' best rows rank alike: a page or collection named
-   the query before a task that is. */
-const groupTieOrder: Record<SearchGroup, number> = { page: 0, shelf: 1, task: 2, help: 3 }
+   the query before a task that is, passages after both, Help last. */
+const groupTieOrder: Record<SearchGroup, number> = { page: 0, shelf: 1, task: 2, passage: 3, help: 4 }
 
 const groupLabels: Record<SearchGroup, string> = {
   task: "Tasks",
   page: "Pages",
   shelf: "Collections",
+  passage: "In pages",
   help: "Help",
 }
 
 function groupOf(item: SearchResultItem): SearchGroup {
   if (item.id === SHORTCUTS_RESULT) return "help"
+  if (item.passage === true) return "passage"
   if (item.kind === "task") return "task"
   if (item.kind === "shelf") return "shelf"
   return "page"
@@ -238,10 +243,11 @@ function SearchDialog({
   /* The kind whose first row matches best comes first, so the cursor, and
      Enter, sit on the thing called what you typed rather than a task that
      mentions it. The first row is the one each group shows first, so the
-     order and the cursor agree. Help stays last. Before anything is typed
-     nothing is ranked, and the kinds keep their fixed order. */
+     order and the cursor agree. Help ranks like any kind and is last only on
+     a tie. Before anything is typed nothing is ranked, so every kind ties and
+     they keep their fixed order: Pages, then Help. */
   const bestOf = (group: (typeof groupedResults)[number]): number =>
-    group.kind === "help" ? Number.POSITIVE_INFINITY : (group.rows[0]?.rank ?? Number.MAX_SAFE_INTEGER)
+    group.rows[0]?.rank ?? Number.MAX_SAFE_INTEGER
   groupedResults.sort(
     (a, b) => bestOf(a) - bestOf(b) || groupTieOrder[a.kind] - groupTieOrder[b.kind],
   )
@@ -250,13 +256,23 @@ function SearchDialog({
   /* The cursor stays in sight: arrowing past the panel's edge scrolls it.
      Only the keys scroll; a hover already has its row under the pointer. */
   const listRef = useRef<HTMLDivElement>(null)
-  function moveTo(index: number, focus = false) {
+  function moveTo(index: number) {
     setActiveIndex(index)
     const row = listRef.current?.querySelector<HTMLElement>(`#dana-search-result-${String(index)}`)
     /* The first row's heading comes back into sight with it. */
     if (index === 0 && listRef.current) listRef.current.scrollTop = 0
     else row?.scrollIntoView({ block: "nearest" })
-    if (focus) row?.focus()
+  }
+
+  /* Only a pointer that actually moved takes the cursor. A new answer drawn
+     under a resting pointer can fire mouse events at the same spot, and those
+     must not pull the cursor off the first row. */
+  const pointer = useRef<{ x: number; y: number } | null>(null)
+  function pointerMoved(event: React.MouseEvent, index: number) {
+    const last = pointer.current
+    if (last !== null && last.x === event.clientX && last.y === event.clientY) return
+    pointer.current = { x: event.clientX, y: event.clientY }
+    if (index !== activeIndex) setActiveIndex(index)
   }
 
   /* A new answer puts the cursor on its first row, and the list back at its
@@ -282,23 +298,23 @@ function SearchDialog({
     if (first) openResult(first)
   })
 
-  function arrows(event: KeyboardEvent<HTMLElement>, focus: boolean): boolean {
+  function arrows(event: KeyboardEvent<HTMLElement>): boolean {
     if (orderedResults.length === 0) return false
     if (event.key === "ArrowDown") {
       event.preventDefault()
-      moveTo((activeIndex + 1) % orderedResults.length, focus)
+      moveTo((activeIndex + 1) % orderedResults.length)
       return true
     }
     if (event.key === "ArrowUp") {
       event.preventDefault()
-      moveTo((activeIndex - 1 + orderedResults.length) % orderedResults.length, focus)
+      moveTo((activeIndex - 1 + orderedResults.length) % orderedResults.length)
       return true
     }
     return false
   }
 
   function handleInputKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (arrows(event, false)) return
+    if (arrows(event)) return
     if (event.key !== "Enter") return
     event.preventDefault()
     if (waiting) {
@@ -364,11 +380,6 @@ function SearchDialog({
         <div
           id="dana-search-results"
           ref={listRef}
-          /* A row Tab reached still answers the arrows, moving focus with
-             the tint so the two never split. */
-          onKeyDown={(event) => {
-            if (event.target !== event.currentTarget) arrows(event, true)
-          }}
           className="overflow-y-auto p-2 max-md:flex-1 md:max-h-[60vh]"
         >
           {waiting && results.length === 0 ? (
@@ -404,10 +415,13 @@ function SearchDialog({
                             id={`dana-search-result-${String(itemIndex)}`}
                             type="button"
                             data-focus="self"
-                            onMouseEnter={() => setActiveIndex(itemIndex)}
-                            /* Tab reaches the rows too; the tint follows it,
-                               since the tint is the only focus they show. */
-                            onFocus={() => setActiveIndex(itemIndex)}
+                            /* Focus stays in the field, so typing keeps
+                               refining: the rows are no Tab stops, and a
+                               press does not take focus from the field. The
+                               arrows move the cursor instead. */
+                            tabIndex={-1}
+                            onMouseDown={(event) => event.preventDefault()}
+                            onMouseMove={(event) => pointerMoved(event, itemIndex)}
                             onClick={() => openResult(item)}
                             className={cn(
                               "flex h-[var(--row-height)] w-full items-center gap-[var(--space-inline)] rounded-md px-2 text-left text-sm font-normal text-foreground outline-none",
@@ -424,7 +438,13 @@ function SearchDialog({
                             {item.hint ? (
                               /* The hint keeps a share of a long row: a block
                                  hit is useless without the page it is on. */
-                              <span className="max-w-[40%] shrink-0 truncate text-xs font-normal text-muted-foreground">
+                              <span
+                                className={cn(
+                                  "max-w-[40%] shrink-0 truncate text-xs font-normal text-muted-foreground",
+                                  /* On a phone a passage's own text needs the room. */
+                                  item.passage && "max-md:max-w-[30%]",
+                                )}
+                              >
                                 {item.hint}
                               </span>
                             ) : null}
