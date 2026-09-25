@@ -37,26 +37,27 @@ under two headings. `rungFor` takes one date and knows nothing about this;
 axis calls that same function, so a board column and a list heading can
 never say two things about one row.
 
-**A spent Start Date is not overdue, and that is the one place the schedule
-date is not enough by itself.** `rungFor` gives the Overdue rung to any date
-before today, which was right while the only date a task had was its
-deadline. Since #216 a Start-only task can lead this list by date - Q3 orders
-by the schedule date and a start three days spent sorts first - and 9.5 says
-in terms that "a Start Date passing is not overdue and is not styled as one",
-8.1 keeping overdue a relation to the deadline alone. So a row whose only
-date is a spent Start Date takes a rung of its own, **Started**, rather than
-a heading that calls it late ("In progress", the one name the Board, Today and
-Linear give a started task). It is a relation to today rather than a day, so
-like Overdue it carries no date and captures nothing (DES-182).
+**Started work that is not late is In progress, the rule Today uses.**
+`rungFor` gives the Overdue rung to any date before today, which was right
+while the only date a task had was its deadline. Since #216 a Start-only task
+can lead this list by date, and 9.5 says in terms that "a Start Date passing
+is not overdue and is not styled as one", 8.1 keeping overdue a relation to
+the deadline alone. So an open task whose start has arrived and whose
+deadline has not passed takes the **In progress** rung - the membership
+Today's "In progress" group uses (`stageOf` present and not late), so one
+task has one heading on both screens. A range under way sits there rather
+than under its due date's rung, and a task that starts today with no deadline
+sits there rather than under "Today". It is a relation to today rather than a
+day, so like Overdue it carries no date and captures nothing (DES-182).
 
-Where Started sits relative to Overdue is first appearance in Q3's order,
-which is the rule every other rung follows: the two both hold past dates and
-interleave in the stream, so whichever past date is earliest opens its rung
-first. Nothing is re-sorted to tidy that, because the page is Q3's order and
-tidying it would move rows.
+**Overdue opens the ladder and In progress follows it**, whatever order their
+rows arrived in: both are relations to today, not days, and late work above
+started work is the order Today reads in. Every other rung keeps first
+appearance in Q3's order; rows within a rung are never re-sorted.
 */
 import { addDays, formatDayHeading, formatMonthHeading, weekStart } from '../lib/dates.js'
 import { scheduleDateOf } from '../parts/schedule.js'
+import { stageOf } from './linear/stage.js'
 import type { Schedule } from '../parts/schedule.js'
 import type { TaskCard } from '../../shared/tasks.js'
 
@@ -111,8 +112,8 @@ export function rungFor(due: string | null, today: string): Bucket {
 }
 
 /**
- * Which rung one task belongs on: `rungFor` over the schedule date, with
- * 8.1's rule about what overdue means applied on top of it.
+ * Which rung one task belongs on: In progress when it has started and is not
+ * late (Today's rule), else `rungFor` over the schedule date.
  *
  * The one function both the list ladder and the board's date axis call, so
  * the two cannot disagree about a row. They did until 2026-09-20: this walk
@@ -120,13 +121,13 @@ export function rungFor(due: string | null, today: string): Bucket {
  * page filed a Start-only task under "Thursday" in list mode and under "No
  * date" in board mode - on a page whose whole membership is "carries a date".
  */
-export function rungForTask(task: Schedule, today: string): Bucket {
-  const bucket = rungFor(scheduleDateOf(task), today)
-  /* The schedule date is the start date exactly when there is no due date,
-     so this is "a spent start and no deadline" and not a second reading of
-     the coalesce. A Start+Due pair is placed by its deadline and is overdue
-     when that deadline has passed, like any other dated row. */
-  return bucket.key === 'overdue' && task.due_date === null ? STARTED : bucket
+export function rungForTask(
+  task: Schedule & Pick<TaskCard, 'status'>,
+  today: string,
+): Bucket {
+  const late = task.due_date !== null && task.due_date < today
+  if (!late && stageOf(task, today) === 'present') return STARTED
+  return rungFor(scheduleDateOf(task), today)
 }
 
 /**
@@ -152,6 +153,15 @@ export function ladderRungs(
     }
     existing.rows.push(task)
   }
+  /* Overdue first, In progress second; the rest keep first appearance. */
+  const pinned = ['overdue', STARTED.key]
+  order.sort((a, b) => {
+    const rank = (key: string): number => {
+      const at = pinned.indexOf(key)
+      return at === -1 ? pinned.length : at
+    }
+    return rank(a) - rank(b)
+  })
   return order.map((key) => {
     const held = buckets.get(key)
     return {

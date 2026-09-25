@@ -454,13 +454,16 @@ export function PlannedCalendar({
   const folders = useFolders()
   const update = useUpdateTask()
   /*
-  The grid brings today's row up once, on arrival, and the person takes it from
+  The grid opens on today's week, once, on arrival, and the person takes it from
   there; otherwise a month opened on its last day would show today three weeks
-  below the fold. It moves only as far as today's row needs, and never so far
-  that the page's title, its View menu or the month bar leave the screen: on a
-  short screen today's row shows its top edge rather than hiding the controls.
+  below the fold. When today's row is not wholly on screen the grid scrolls it
+  up to sit just under the month bar, which is sticky inside the scroller, so
+  the controls stay while the title may go: today's tasks and the weeks after
+  them are what the calendar is opened for. A today already in view moves
+  nothing.
   */
   const grid = useRef<HTMLDivElement>(null)
+  const bar = useRef<HTMLDivElement>(null)
   const scrolled = useRef(false)
   useEffect(() => {
     if (scrolled.current || view.data === undefined) return
@@ -470,11 +473,10 @@ export function PlannedCalendar({
     const scroller = cell.closest('[data-shell-scroll]')
     if (scroller === null) return
     const frame = scroller.getBoundingClientRect()
-    const below = cell.getBoundingClientRect().bottom - frame.bottom
-    if (below <= 0) return
-    const title = scroller.querySelector('h1')
-    const room = title === null ? 0 : title.getBoundingClientRect().top - frame.top
-    const by = Math.min(below, Math.max(0, room))
+    const box = cell.getBoundingClientRect()
+    if (box.bottom <= frame.bottom) return
+    const head = bar.current?.getBoundingClientRect().height ?? 0
+    const by = box.top - frame.top - head
     if (by > 0) scroller.scrollBy({ top: by })
   }, [view.data])
 
@@ -536,8 +538,13 @@ export function PlannedCalendar({
         />
       ) : null}
 
-      <div className="overflow-hidden rounded-md border border-border bg-background">
-        <div className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-b border-border bg-muted px-2 py-1.5">
+      {/* `overflow-clip` rounds the corners without making a scroll
+          container, which would stop the month bar sticking. */}
+      <div className="overflow-clip rounded-md border border-border bg-background">
+        <div
+          ref={bar}
+          className="sticky top-0 z-20 flex min-h-14 flex-wrap items-center justify-between gap-3 border-b border-border bg-muted px-2 py-1.5"
+        >
           <div className="flex min-w-0 items-center gap-2">
             <h2 className="min-w-36 truncate px-2 text-sm leading-6 font-semibold text-foreground">
               {periodTitle(zoom, anchor, today)}
