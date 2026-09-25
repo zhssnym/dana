@@ -264,6 +264,11 @@ function StepList({
   renameStep: (id: string, index: number, title: string) => void
 }) {
   const [adding, setAddingState] = useState(startAdding)
+  /* A list already drawn opens its field when asked again (the writing's
+     "/subtask" on an empty line). */
+  useEffect(() => {
+    if (startAdding) setAddingState(true)
+  }, [startAdding])
   const setAdding = (next: boolean) => {
     setAddingState(next)
     if (!next) onIdle?.()
@@ -1116,7 +1121,20 @@ export function TaskCard({
                 task.notes ? <p className="whitespace-pre-wrap px-1 text-sm text-foreground">{task.notes}</p> : null
               }
             >
-              <TaskComposer taskId={task.id} folderId={task.folder?.id ?? null} notes={task.notes ?? null} />
+              <TaskComposer
+                taskId={task.id}
+                folderId={task.folder?.id ?? null}
+                notes={task.notes ?? null}
+                addSubtasks={(added) => {
+                  if (added.length === 0) {
+                    setAdding("steps")
+                    return true
+                  }
+                  if (steps.length + added.length > STEP_CAP) return false
+                  patch(task.id, { steps: [...steps, ...added] })
+                  return true
+                }}
+              />
             </Suspense>
           </div>
         ) : (

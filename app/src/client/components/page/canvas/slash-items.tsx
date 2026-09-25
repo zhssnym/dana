@@ -13,7 +13,8 @@ it is; what a surface offers is what its server stores:
 - `plain` (a facet with no headings).
 - `shelf`: one heading level, stored flat; no toggle list.
 - `task`: the Task composer's own schema (callout and divider; no toggle
-  list), with toggle headings as on a document.
+  list), with toggle headings as on a document. Subtask is offered: the line
+  joins the Task's subtasks, as Task turns a Work line into a Task.
 - `post`: a discussion post; a document without toggle headings (the post
   contract has none).
 
@@ -57,6 +58,8 @@ export interface SlashContext {
   readonly surface: CanvasSurfaceKind
   /** Folder Work only: the canvas's own Task creation. */
   readonly onCreateTask?: () => void
+  /** Task only: the line becomes a subtask (#221: a Task's to-do is a Step). */
+  readonly onCreateSubtask?: () => void
   /** False where no file can be stored (a Task outside a Folder). */
   readonly media?: boolean
 }
@@ -187,7 +190,7 @@ function turnItems(editor: AnyEditor): Item[] {
 /* ------------------------------------------------------------ insert */
 
 export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item[] {
-  const { surface, onCreateTask, media = true } = context
+  const { surface, onCreateTask, onCreateSubtask, media = true } = context
   const defaults = getDefaultReactSlashMenuItems(editor)
   const byKey = (key: string): DefaultReactSuggestionItem | undefined => defaults.find((item) => 'key' in item && item.key === key)
   const items: Item[] = []
@@ -234,6 +237,8 @@ export function canvasSlashItems(editor: AnyEditor, context: SlashContext): Item
   sits right under Text and the headings, as a to-do does in Notion.
   */
   if (surface === 'work' && onCreateTask !== undefined) add('Basic blocks', 'Task', ['task', 'todo', 'to-do', 'checkbox', 'action', '[]'], () => { onCreateTask() }, glyph(CheckCircle2), { hint: '[]' })
+  // Inside a Task the to-do is a subtask, one list above the writing (#221).
+  if (surface === 'task' && onCreateSubtask !== undefined) add('Basic blocks', 'Subtask', ['subtask', 'step', 'todo', 'to-do', 'checkbox', '[]'], () => { onCreateSubtask() }, glyph(CheckCircle2), { hint: '[]' })
   /* A sub-page: its folder is created by the next save (`create_page`), with
      the title the sidebar gives a new page, and then opens with that title
      selected to be typed over (`FolderCanvas`), as Notion opens a new page. */
