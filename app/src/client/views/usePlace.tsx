@@ -213,7 +213,7 @@ export function ScreenHead({
         </Button>
       </div>
       <div className="flex min-h-(--text-title-line) items-center justify-between gap-4">
-        <h1 className="min-w-0 truncate text-(length:--text-title-size) leading-(--text-title-line) font-title text-foreground">
+        <h1 data-page-title="" className="min-w-0 truncate text-(length:--text-title-size) leading-(--text-title-line) font-title text-foreground">
           {title}
         </h1>
         {controls === undefined || controls === null ? null : (

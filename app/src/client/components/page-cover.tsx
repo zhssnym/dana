@@ -239,7 +239,7 @@ export function AddCoverAction({
         savePrototypeFolderIdentity(storageName, { cover: randomCoverColour(), coverPos: 50 })
       }
       className={cn(
-        "-ml-1.5 text-quiet-foreground hover:text-muted-foreground",
+        "-ml-1.5 text-muted-foreground hover:text-foreground",
         /* A touch screen has no hover to reveal it by, so it appears while the
            title is being edited. Not on any focus in the heading: appearing on
            a tap's pointerdown pushes the row down, and the tap's click (Share)

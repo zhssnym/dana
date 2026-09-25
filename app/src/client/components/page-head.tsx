@@ -170,7 +170,7 @@ function PageHeadingStructure({
       {/* On a phone the fact wraps under the name. */}
       <div className="mt-1.5 flex items-baseline justify-between gap-6">
         <div className="flex min-w-0 items-baseline gap-3 max-md:flex-col max-md:items-start max-md:gap-1">
-          <h1 className="min-w-0 max-w-full truncate text-[length:var(--text-title-size)] leading-8 font-title text-foreground max-md:whitespace-normal">
+          <h1 data-page-title="" className="min-w-0 max-w-full truncate text-[length:var(--text-title-size)] leading-8 font-title text-foreground max-md:whitespace-normal">
             {title}
           </h1>
           {fact === undefined ? null : (
@@ -376,9 +376,9 @@ export function PageDescription({
         type="button"
         onClick={() => setEditing(true)}
         className={cn(
-          "-mx-1 mt-1 flex h-6 items-center gap-1.5 rounded-md px-1 text-xs leading-5 text-quiet-foreground transition-[opacity,background-color,color]",
+          "-mx-1 mt-1 flex h-6 items-center gap-1.5 rounded-md px-1 text-xs leading-5 text-muted-foreground transition-[opacity,background-color,color]",
           T_FAST,
-          "hover:bg-accent hover:text-muted-foreground",
+          "hover:bg-accent hover:text-foreground",
           offer ? "opacity-100" : "opacity-0 group-hover/head:opacity-100 focus-visible:opacity-100",
         )}
       >

@@ -243,11 +243,17 @@ export function FolderTabs({
 
   useEffect(() => clearTimer, [])
 
-  /* The current tab is never left scrolled out of a narrow row. */
+  /* The current tab is never left scrolled out of a narrow row. The row is
+     scrolled by hand: Chrome's scrollIntoView moves the Tab starting point to
+     the tab, so a page's first Tab skipped the skip link and the sidebar. */
   useEffect(() => {
-    globalThis.document
-      .getElementById(`facet-tab-${activeId}`)
-      ?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    const row = rowRef.current
+    const tab = globalThis.document.getElementById(`facet-tab-${activeId}`)
+    if (row === null || tab === null) return
+    const box = row.getBoundingClientRect()
+    const at = tab.getBoundingClientRect()
+    if (at.left < box.left) row.scrollLeft -= box.left - at.left
+    else if (at.right > box.right) row.scrollLeft += at.right - box.right
   }, [activeId])
 
   const canAdd = onAdd !== undefined && capabilities?.(null).createShared === true

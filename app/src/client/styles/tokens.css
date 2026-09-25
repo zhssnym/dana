@@ -527,3 +527,19 @@ button:not(:disabled),
     font-size: 16px;
   }
 }
+
+/* ---- wf-a11y: contrast that reaches WCAG's 3:1 for things you act on.
+   Appended (the swarm keeps tokens.css append-only), so these override the
+   definitions above: --focus-ring (line ~228, was 45% of the ring) and the
+   light graphite-400 (line ~143, #a5a4a0), which only --quiet-foreground
+   reads. The keyboard ring is the accent itself: at 45% it measured 1.8:1 on
+   the page in light and 2.2:1 in dark. Quiet grey stays the quietest step,
+   dark enough (3.3:1 on the page) to read as an icon you can press. Dark's
+   graphite-400 (#6f6f6e) is unchanged; the :not() keeps this rule from
+   outranking the later-declared dark value. */
+:root {
+  --focus-ring: var(--ring);
+}
+:root:not([data-theme="dark"]) {
+  --color-graphite-400: #8f8e8a;
+}
