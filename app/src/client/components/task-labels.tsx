@@ -31,7 +31,7 @@ import { Check, Plus } from "../lib/icons.js"
 import { IDENTITY_COLORS } from "../parts/identity-colors.js"
 import type { ConceptTask } from "../tasks/task-model.js"
 
-import { LabelChip, LabelDot } from "./label-chip.js"
+import { byName, LabelChip, LabelDot } from "./label-chip.js"
 import { PROPERTY_LABEL, PROPERTY_ROW } from "./task-pickers.js"
 import { Button } from "./ui/button.js"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog.js"
@@ -39,12 +39,21 @@ import { Input } from "./ui/input.js"
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover.js"
 import { cn } from "./ui/utils.js"
 
-/* The swatches a new label draws from, grey left for last. */
-const SWATCHES = IDENTITY_COLORS.map(([, hex]) => hex)
+/*
+The colour a new label starts with: the least used here, taken in an order that
+puts far-apart hues next to each other, so the first few labels on a page are
+told apart at a glance rather than drawn as three neighbouring warm dots. Grey
+is never picked for you.
+*/
+const SPREAD = ["Blue", "Green", "Orange", "Purple", "Pink", "Yellow", "Red"]
+  .map((name) => IDENTITY_COLORS.find(([colour]) => colour === name)?.[1])
+  .filter((hex): hex is string => hex !== undefined)
 
-function nextColor(taken: number): string {
-  const lively = SWATCHES.slice(1)
-  return lively[taken % lively.length] ?? SWATCHES[0] ?? "#8a8a8a"
+function nextColor(taken: readonly { readonly color: string }[]): string {
+  const uses = (hex: string) => taken.filter((label) => same(label.color, hex)).length
+  let pick = SPREAD[0] ?? "#8a8a8a"
+  for (const hex of SPREAD) if (uses(hex) < uses(pick)) pick = hex
+  return pick
 }
 
 /** What this viewer may do with labels on one task's page. */
@@ -75,7 +84,7 @@ export function TaskLabelsRow({
 }) {
   const [open, setOpen] = useState(defaultOpen)
   const [editing, setEditing] = useState(false)
-  const worn = task.labels ?? []
+  const worn = byName(task.labels ?? [])
   function change(next: boolean) {
     setOpen(next)
     onOpenChange?.(next)
@@ -107,14 +116,24 @@ export function TaskLabelsRow({
               folderId={folderId}
               worn={worn.map((label) => label.id)}
               onEdit={() => {
-                change(false)
+                /* The row stays claimed until the dialog closes, or a task
+                   wearing no label would take the dialog away with its row. */
+                setOpen(false)
                 setEditing(true)
               }}
             />
           ) : null}
         </PopoverContent>
       </Popover>
-      {editing ? <LabelEditor folderId={folderId} onClose={() => setEditing(false)} /> : null}
+      {editing ? (
+        <LabelEditor
+          folderId={folderId}
+          onClose={() => {
+            setEditing(false)
+            onOpenChange?.(false)
+          }}
+        />
+      ) : null}
     </>
   )
 }
@@ -182,7 +201,7 @@ function LabelPicker({
 
   function make(scopeFolder: string | null) {
     create.mutate(
-      { folderId: scopeFolder, name: typed, color: nextColor(rows.length) },
+      { folderId: scopeFolder, name: typed, color: nextColor(rows) },
       {
         onSuccess: (made) => {
           setQuery("")
@@ -377,7 +396,11 @@ function LabelEditRow({ label, editable }: { readonly label: LabelDefinition; re
           if (event.key === "Enter") event.currentTarget.blur()
           if (event.key === "Escape") setName(label.name)
         }}
-        className={cn("h-[var(--control-height)] flex-1 rounded-md px-1", label.archived && "text-muted-foreground")}
+        className={cn(
+          "h-[var(--control-height)] flex-1 rounded-md px-2",
+          editable && "transition-colors hover:bg-accent focus-visible:bg-accent",
+          label.archived && "text-muted-foreground",
+        )}
       />
       {editable ? (
         <Button

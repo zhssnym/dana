@@ -33,23 +33,37 @@ export function LabelChip({ label, className }: { readonly label: LabelLook; rea
   )
 }
 
+/** Labels in the one order every surface draws them: by name. */
+export function byName<T extends { readonly name: string }>(labels: readonly T[]): T[] {
+  return [...labels].sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()))
+}
+
 /**
- * A row's labels: the first two by name, then "+N". On a phone only the dots,
- * so the title keeps the width.
+ * A row's labels: the first two by name, then "+N". On a phone, and on a board
+ * card too narrow for two names (the card is the `card` container), only the
+ * dots, so the title keeps the width and no name is cut to three letters.
  */
 export function RowLabels({ labels }: { readonly labels: readonly LabelLook[] }) {
   if (labels.length === 0) return null
-  const shown = labels.slice(0, 2)
-  const more = labels.length - shown.length
+  const sorted = byName(labels)
+  const shown = sorted.slice(0, 2)
+  const more = sorted.length - shown.length
   return (
     <span
-      className="flex min-w-0 max-w-[14rem] shrink items-center gap-2"
-      title={labels.map((label) => label.name).join(", ")}
+      className="flex min-w-0 max-w-[16rem] shrink items-center gap-2"
+      title={sorted.map((label) => label.name).join(", ")}
     >
       {shown.map((label) => (
         <span key={label.id} className="flex min-w-0 items-center gap-1.5">
           <LabelDot color={label.color} />
-          <span className="truncate max-md:sr-only">{label.name}</span>
+          <span
+            className={cn(
+              "max-w-[7rem] truncate max-md:sr-only",
+              sorted.length > 1 && "@max-[20rem]/card:sr-only",
+            )}
+          >
+            {label.name}
+          </span>
         </span>
       ))}
       {more > 0 ? <span className="shrink-0 tabular-nums">+{more}</span> : null}

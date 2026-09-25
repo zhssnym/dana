@@ -173,15 +173,18 @@ export function LinearView(props: {
   const keys = useRowKeys<HTMLDivElement>()
 
   /* Past, oldest first, so the story runs down into the present. The same
-     order the Board's Done column uses. */
+     order the Board's Done column uses. The days come from the query; which
+     finished tasks belong is `completed`, which the page has already narrowed
+     to the chosen Label. */
   const past = useMemo(() => {
+    const kept = new Set(completed.map((task) => task.id))
     const finished: { task: TaskCard; date: string | null }[] = []
     for (const day of mergeCompletedDays(done.data?.pages)) {
-      for (const task of day.rows) finished.push({ task, date: day.date })
+      for (const task of day.rows) if (kept.has(task.id)) finished.push({ task, date: day.date })
     }
     const abandoned = tasks.filter((task) => task.status === 'abandoned').map((task) => ({ task, date: null }))
     return pastOrder(finished, abandoned)
-  }, [done.data, tasks])
+  }, [done.data, tasks, completed])
 
   const present = useMemo(() => presentOrder(tasks, today, rank), [tasks, today, rank])
   const future = useMemo(

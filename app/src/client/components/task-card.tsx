@@ -1010,7 +1010,13 @@ export function TaskCard({
 
         {/* #208: the task's Labels, and the picker that changes them. */}
         {task.folder?.id !== undefined && (labels.length > 0 || adding === "labels") ? (
-          <TaskLabelsRow task={task} defaultOpen={adding === "labels"} onOpenChange={settle("labels")} />
+          <TaskLabelsRow
+            task={task}
+            defaultOpen={adding === "labels"}
+            /* Held open while the picker is: taking off the last label must not
+               pull the row, and the picker with it, out from under the pointer. */
+            onOpenChange={(open) => (open ? setAdding("labels") : settle("labels")(false))}
+          />
         ) : null}
 
         {addable.length > 0 ? (

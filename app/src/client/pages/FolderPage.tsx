@@ -155,6 +155,7 @@ import { usePageImport } from '../shell/workflow-import.js'
 import { FolderTabs } from '../components/folder-facets.js'
 import type { CreateFacetInput, FacetCapabilities } from '../components/folder-facets.js'
 import { PageSection } from '../components/page/PageSection.js'
+import { labelsWorn, wearsLabel } from '../views/filter.js'
 import { PLACES } from '../views/place-pages.js'
 import { BoardView } from '../views/BoardView.js'
 import { LinearView } from '../views/LinearView.js'
@@ -377,6 +378,18 @@ export function FolderPage({
   const completedDays = mergeCompletedDays(completed.data?.pages)
   /* The finished Tasks the canvas draws in place, checked and muted. */
   const completedRows = useMemo(() => completedDays.flatMap((day) => day.rows), [completedDays])
+  /* Board and Linear draw finished work beside the open rows, so a Label
+     narrows it too; the canvas keeps every block, as the Label item says. */
+  const labelFilterId = place.filter.label
+  const narrowedCompleted = useMemo(
+    () => completedRows.filter((task) => wearsLabel(task, labelFilterId)),
+    [completedRows, labelFilterId],
+  )
+  /* With finished work shown, a Label only it wears is offered as well. */
+  const wornLabels = useMemo(
+    () => (showCompleted ? labelsWorn([...openRows, ...completedRows]) : place.labels),
+    [showCompleted, openRows, completedRows, place.labels],
+  )
 
   const context: RowContext = {
     ...basis,
@@ -910,7 +923,7 @@ export function FolderPage({
         onShowCompleted={changeShowCompleted}
       />
       {labelFilter ? (
-        <LabelChoice filter={place.filter} labels={place.labels} onChange={place.setFilter} />
+        <LabelChoice filter={place.filter} labels={wornLabels} onChange={place.setFilter} />
       ) : null}
     </>
   ) : undefined
@@ -918,7 +931,7 @@ export function FolderPage({
   const headerActions = (
     <>
       {labelFilter ? (
-        <LabelFilterClear filter={place.filter} labels={place.labels} onChange={place.setFilter} />
+        <LabelFilterClear filter={place.filter} labels={wornLabels} onChange={place.setFilter} />
       ) : null}
       {/* 9.6's Share control, a word rather than a glyph. Withheld on a
           default folder, which INV-2 makes single-member and 5.3 refuses an
@@ -1081,7 +1094,7 @@ export function FolderPage({
                     folderId={id}
                     page={page.data}
                     tasks={visible}
-                    completed={completedRows}
+                    completed={narrowedCompleted}
                     showCompleted={showCompleted}
                     today={place.today}
                     context={context}
@@ -1093,7 +1106,7 @@ export function FolderPage({
                       folderId={id}
                       page={page.data}
                       tasks={visible}
-                      completed={completedRows}
+                      completed={narrowedCompleted}
                       showCompleted={showCompleted}
                       today={place.today}
                       context={context}
