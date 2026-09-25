@@ -239,7 +239,7 @@ export function AddCoverAction({
         savePrototypeFolderIdentity(storageName, { cover: randomCoverColour(), coverPos: 50 })
       }
       className={cn(
-        "-ml-1.5 text-quiet-foreground hover:text-muted-foreground",
+        "-ml-1.5 text-muted-foreground hover:text-foreground",
         /* A touch screen has no hover to reveal it by, so it appears once the
            page's heading is in use (its icon, title or menu tapped). */
         "[@media(hover:none)]:hidden [@media(hover:none)]:group-focus-within/head:flex",

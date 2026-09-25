@@ -267,8 +267,33 @@ function useDefaultTimezone(stored: string | undefined): void {
   }, [stored])
 }
 
+/*
+WCAG 2.4.2: a tab (and a screen reader arriving on a page) is named after the
+page's own heading, which every page already draws as its one `h1`. Watched
+rather than set per page, so a rename or a slow read renames the tab too.
+ */
+function usePageTitle(region: HTMLElement | null): void {
+  useEffect(() => {
+    if (region === null) return undefined
+    const name = (): void => {
+      const heading = region.querySelector('h1')?.textContent?.trim()
+      const next = heading ? `${heading} – Dana` : 'Dana'
+      if (document.title !== next) document.title = next
+    }
+    name()
+    const watch = new MutationObserver(name)
+    watch.observe(region, { subtree: true, childList: true, characterData: true })
+    return () => {
+      watch.disconnect()
+      document.title = 'Dana'
+    }
+  }, [region])
+}
+
 export function AppShell(): React.JSX.Element {
   const location = useLocation()
+  const [content, setContent] = useState<HTMLDivElement | null>(null)
+  usePageTitle(content)
   const me = useMe()
   useDefaultTimezone(me.data?.user.timezone)
   /*
@@ -443,6 +468,17 @@ export function AppShell(): React.JSX.Element {
         {...(modalOpen ? { "aria-hidden": true, inert: true } : {})}
         className="flex h-svh flex-col overflow-hidden bg-background"
       >
+        {/* The first Tab on every page: past the sidebar to the page itself. */}
+        <a
+          href="#dana-content"
+          onClick={(event) => {
+            event.preventDefault()
+            content?.focus()
+          }}
+          className="fixed top-2 left-2 z-50 rounded-md bg-background px-2 py-1 text-sm text-foreground shadow-md not-focus:sr-only"
+        >
+          Skip to content
+        </a>
         <SidebarProvider
           className="h-svh min-h-0"
           open={railOpen}
@@ -504,7 +540,14 @@ export function AppShell(): React.JSX.Element {
             <TopTrail />
             <UpdateChrome showUpdate={update.showUpdate} onUpdate={update.applyUpdate} />
             {/* The one region that scrolls. */}
-            <div data-shell-scroll className="min-h-0 flex-1 overflow-y-auto">
+            <div
+              ref={setContent}
+              id="dana-content"
+              tabIndex={-1}
+              data-focus="self"
+              data-shell-scroll
+              className="min-h-0 flex-1 overflow-y-auto"
+            >
               <div className="mx-auto w-full max-w-[var(--shell-content-max)] px-4 py-4 md:px-10 md:py-6">
                 {/* 9.8: pending invites sit above every /app page; a read in
                     flight, a failed read and an empty answer all draw nothing. */}

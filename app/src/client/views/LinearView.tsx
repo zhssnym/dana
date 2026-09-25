@@ -388,7 +388,7 @@ export function LinearView(props: {
                     {/* The day it was finished, quiet, so it never reads as a due date. */}
                     {date !== null && (
                       <span
-                        className="shrink-0 pl-1 text-xs tabular-nums text-quiet-foreground"
+                        className="shrink-0 pl-1 text-xs tabular-nums text-muted-foreground"
                         title={`Finished ${formatDayInline(date, today)}`}
                       >
                         Done {formatDay(date, today)}

@@ -517,3 +517,16 @@ button:not(:disabled),
 [data-theme="dark"] {
   --sidebar-row-hover: rgb(255 255 255 / 4%);
 }
+
+/* ---- wf-a11y: contrast that reaches WCAG's 3:1 for things you act on.
+   The keyboard ring is the accent itself: at 45% it measured 1.8:1 on the
+   page in light and 2.2:1 in dark, too faint to find. Quiet grey is still
+   the quietest step, but dark enough (3.3:1 on the page, 3.1:1 on the
+   sidebar) to read as an icon you can press; its text uses are muted. */
+:root {
+  --focus-ring: var(--ring);
+  --quiet-foreground: #8f8e8a;
+}
+[data-theme="dark"] {
+  --quiet-foreground: var(--color-graphite-400);
+}

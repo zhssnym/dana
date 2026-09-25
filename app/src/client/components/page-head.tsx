@@ -376,9 +376,9 @@ export function PageDescription({
         type="button"
         onClick={() => setEditing(true)}
         className={cn(
-          "-mx-1 mt-1 flex h-6 items-center gap-1.5 rounded-md px-1 text-xs leading-5 text-quiet-foreground transition-[opacity,background-color,color]",
+          "-mx-1 mt-1 flex h-6 items-center gap-1.5 rounded-md px-1 text-xs leading-5 text-muted-foreground transition-[opacity,background-color,color]",
           T_FAST,
-          "hover:bg-accent hover:text-muted-foreground",
+          "hover:bg-accent hover:text-foreground",
           offer ? "opacity-100" : "opacity-0 group-hover/head:opacity-100 focus-visible:opacity-100",
         )}
       >
