@@ -166,6 +166,8 @@ import { LabelChoice, LabelFilterClear } from '../views/FilterControl.js'
 import { PageBody } from '../components/page/PageStates.js'
 import { FOLDER_EMPTY } from './empty-states.js'
 import { FolderSharingPanel } from './FolderSharingPanel.js'
+import { PersonFace } from '../components/person-face.js'
+import { cn } from '../components/ui/utils.js'
 import { ConfirmDialog, TaskRows, useConfirm, useRowBasis } from './task-rows.js'
 import { getLabelsResponse } from '../../shared/labels.js'
 import type { LabelDefinition } from '../../shared/labels.js'
@@ -289,6 +291,8 @@ export function FolderPage({
   const [sharing, setSharing] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [transferOpen, setTransferOpen] = useState(false)
+  /* The member picked in the transfer dialog; nothing moves until its button. */
+  const [transferTo, setTransferTo] = useState<string | null>(null)
   /* An owner deleting a shared folder is asked one question first. */
   // 9.6's inline rename: the title is a heading until this is true.
   const [renaming, setRenaming] = useState(false)
@@ -1194,7 +1198,13 @@ export function FolderPage({
       picker communicates. The wording follows the server's own refusal copy,
       "This folder would be left with nobody in Full control".
        */}
-      <Dialog open={transferOpen} onOpenChange={setTransferOpen}>
+      <Dialog
+        open={transferOpen}
+        onOpenChange={(next) => {
+          setTransferOpen(next)
+          if (!next) setTransferTo(null)
+        }}
+      >
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Transfer ownership</DialogTitle>
@@ -1218,27 +1228,56 @@ export function FolderPage({
               </Button>
             </DialogFooter>
           ) : (
-            <div className="space-y-1 px-1 pb-2">
-              {successors.map((member) => (
+            <>
+              {/* Picking a name only selects it: handing the page over is
+                  the footer's one button, which says so. */}
+              <div role="radiogroup" aria-label="New owner" className="flex flex-col gap-[var(--space-row)]">
+                {successors.map((member) => {
+                  const name = member.user.display_name ?? 'Someone'
+                  const picked = transferTo === member.user.id
+                  return (
+                    <button
+                      key={member.user.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={picked}
+                      data-focus={picked ? 'self' : undefined}
+                      className={cn(
+                        'flex min-h-[var(--row-height)] w-full items-center gap-[var(--space-inline)] rounded-md px-2 text-left text-sm text-foreground',
+                        picked ? 'bg-selected' : 'hover:bg-accent',
+                      )}
+                      onClick={() => {
+                        setTransferTo(member.user.id)
+                      }}
+                    >
+                      <PersonFace id={member.user.id} name={name} image={member.user.avatar_url} />
+                      <span className="min-w-0 flex-1 truncate">{name}</span>
+                    </button>
+                  )
+                })}
+              </div>
+              <DialogFooter>
+                <DialogClose render={<Button variant="ghost">Cancel</Button>} />
                 <Button
-                  key={member.user.id}
-                  variant="ghost"
-                  className="h-[var(--control-height)] w-full justify-start px-3 text-sm"
+                  variant="commit"
+                  disabled={transferTo === null || transfer.isPending}
                   onClick={() => {
+                    if (transferTo === null) return
                     transfer.mutate(
-                      { id, to: member.user.id },
+                      { id, to: transferTo },
                       {
                         onSuccess: () => {
                           setTransferOpen(false)
+                          setTransferTo(null)
                         },
                       },
                     )
                   }}
                 >
-                  {member.user.display_name ?? 'Someone'}
+                  Transfer ownership
                 </Button>
-              ))}
-            </div>
+              </DialogFooter>
+            </>
           )}
         </DialogContent>
       </Dialog>

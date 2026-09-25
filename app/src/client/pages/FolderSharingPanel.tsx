@@ -9,8 +9,9 @@ invite names its Access, which `POST /folders/:id/members` requires and
 `useAddFolderMember` does not send.
 
 Every gate here (`mayAdd`, `mayInvite`, `mayRemove`, from `lib/folder-authority`)
-only hides a control the server would refuse anyway (5.3, 5.4, 7.11). Remove is
-never offered on the owner's row. A member's line says what they may do (their
+only hides a control the server would refuse anyway (5.3, 5.4, 7.11). A member's
+Access is a picker on their row, and Remove sits under its presets rather than
+as a button on every row; the owner's row has neither. A member's line says what they may do (their
 Access), which is what an owner needs, not when they joined. Resend is shown
 only once it is allowed (24 hours after the last send); the server's 429 is the
 rule (r7: a disabled Resend was a dead control most of the time it was seen). The folder detail and
@@ -43,7 +44,7 @@ import { formatRelativeDay } from '../parts/format-dates.js'
 import { initialsOf, presenterToday } from '../parts/presenters.js'
 import { ConfirmDialog, useConfirm } from './task-rows.js'
 import { PersonFace } from '../components/person-face.js'
-import { MemberDetails } from './MemberDetails.js'
+import { AccessMenu, MemberDetails } from './MemberDetails.js'
 
 /** 9.1's sections table for this page. */
 const SHARING_PANEL = 'Sharing panel'
@@ -87,6 +88,9 @@ export function FolderSharingPanel({
   readonly onClose: () => void
 }): React.JSX.Element {
   const mayRemove = viewer !== null && mayDraw(viewer, 'member.remove')
+  /* The server's own rule for its viewer_may_change_access, minus the owner
+     row, which never draws the picker. */
+  const mayChange = viewer !== null && mayDraw(viewer, 'member.access.change')
   const mayAdd = viewer !== null && mayDraw(viewer, 'member.add')
   const mayInvite = viewer !== null && mayDraw(viewer, 'invite.create')
   const removeMember = useRemoveFolderMember()
@@ -297,35 +301,44 @@ export function FolderSharingPanel({
                       initials={initialsOf(name)}
                       image={member.user.avatar_url}
                     />
-                    {/* The row opens the member's details: Access,
+                    {/* The name opens the member's details: Access,
                         Responsibilities and their history (#209). */}
                     <button
                       type="button"
-                      className="min-w-0 flex-1 truncate rounded-sm text-left text-sm text-foreground hover:underline"
+                      className="min-w-0 flex-1 truncate rounded-sm text-left text-sm text-foreground hover:underline underline-offset-2"
                       onClick={() => {
                         setOpenMember(member.user.id)
                       }}
                     >
-                      {name}{' '}
-                      <span className="text-xs text-muted-foreground">
-                        {member.is_owner ? 'Owner' : FOLDER_ACCESS_LABELS[member.access]}
-                      </span>
+                      {name}
                     </button>
-                    {mayRemove && !member.is_owner ? (
-                      <Button
-                        variant="ghost"
-                        onClick={() => {
-                          confirm.ask(removeMemberConfirm(name, folder.name), () => {
-                            removeMember.mutate({
-                              folderId: folder.id,
-                              userId: member.user.id,
-                            })
-                          })
-                        }}
-                      >
-                        Remove
-                      </Button>
-                    ) : null}
+                    {member.is_owner ? (
+                      <span className="shrink-0 px-1.5 text-xs text-muted-foreground">Owner</span>
+                    ) : (
+                      <AccessMenu
+                        size="sm"
+                        folderId={folder.id}
+                        userId={member.user.id}
+                        access={member.access}
+                        mayChange={mayChange}
+                        onRemove={
+                          mayRemove
+                            ? () => {
+                                confirm.ask(
+                                  removeMemberConfirm(name, folder.name),
+                                  () => {
+                                    removeMember.mutate({
+                                      folderId: folder.id,
+                                      userId: member.user.id,
+                                    })
+                                  },
+                                  { confirmLabel: 'Remove', cancelLabel: 'Cancel' },
+                                )
+                              }
+                            : undefined
+                        }
+                      />
+                    )}
                   </li>
                 )
               })}
@@ -343,14 +356,17 @@ export function FolderSharingPanel({
                         <AvatarFallback className="text-xs">@</AvatarFallback>
                       </Avatar>
                       {/* The exact address, so a typo can be seen and repaired. */}
-                      <p className="min-w-0 flex-1 truncate text-sm text-foreground">
-                        {row.email}{' '}
-                        <span className="text-xs text-muted-foreground">
-                          Sent {formatRelativeDay(row.last_sent_at, presenterToday())}
+                      <p className="flex min-w-0 flex-1 flex-col">
+                        <span className="truncate text-sm text-foreground">{row.email}</span>
+                        <span className="truncate text-xs text-muted-foreground">
+                          {row.access === null ? 'Sent' : `${FOLDER_ACCESS_LABELS[row.access]}, sent`}{' '}
+                          {formatRelativeDay(row.last_sent_at, presenterToday())}
                         </span>
                       </p>
                       <Button
                         variant="ghost"
+                        size="sm"
+                        className="font-normal text-muted-foreground"
                         onClick={() => {
                           cancel.mutate(row.id)
                         }}
@@ -360,6 +376,8 @@ export function FolderSharingPanel({
                       {resendable(row.last_sent_at) ? (
                         <Button
                           variant="ghost"
+                          size="sm"
+                          className="font-normal text-muted-foreground"
                           onClick={() => {
                             resend.mutate(row.id)
                           }}
