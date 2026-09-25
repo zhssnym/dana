@@ -15,8 +15,14 @@ home: Tab puts a block under the writing block above it (text, a heading, a
 list item, a quote, a callout), written as its `list_parent_block_id`, and
 Shift-Tab takes it out again. Here a heading's `isToggleable` simply is the
 toggle, there being no Sections; `presentation` rides along only so the shared
-canvas helpers read it as a presentation heading. A to-do here is a note's
-checkbox, not a Step: it has no assignee, no due date and no place in any list.
+canvas helpers read it as a presentation heading.
+
+**A to-do in a Task is a subtask** (#221 R2). `/subtask` and `[] ` turn the
+line into one of the Task's subtasks (an empty line opens "Type a subtask"
+there), and a pasted checklist joins them in order, ticks kept, nested items flattened,
+its other children kept in the writing (`liftChecklists`). Over the 50-subtask
+cap, or with a line longer than a title, the paste stays as written. A to-do
+block stored before this still renders, ticks and saves.
 
 **Nothing typed is dropped.** Every change is mirrored to
 `sessionStorage['dana-task-draft:<task>']` until the server acknowledges it. A
@@ -42,6 +48,7 @@ import {
 import '@blocknote/shadcn/style.css'
 import type { PageBlockKind, PageView } from '../../../../shared/pages.js'
 import { getPageResponse } from '../../../../shared/pages.js'
+import { TASK_TITLE_LIMIT } from '../../../../shared/tasks.js'
 import { ApiError, getPlain, mutateApi, uploadFile } from '../../../api/http.js'
 import { Button } from '../../ui/button.js'
 import { CanvasErrorBoundary } from './CanvasErrorBoundary.js'
@@ -52,7 +59,7 @@ import type { CanvasMediaKind } from './CanvasFilePanel.js'
 import { baselineOf, contentOf, richRuns } from './adapters.js'
 import type { CanvasDocument, CanvasRecord } from './adapters.js'
 import type { CanvasBlock, CanvasEditor } from './schema.js'
-import { openByDefault, toggleClosed } from './schema.js'
+import { canvasSchema, openByDefault, toggleClosed } from './schema.js'
 import { legacyCheckList } from './markdown.js'
 import { danaLinkInlineSpec } from '../../links/dana-link-chip.js'
 import { MentionSuggestions, mentionInlineSpec } from './mentions.js'
@@ -67,6 +74,23 @@ import { simulateNest } from './turn-into.js'
 import type { TreeBlock } from './turn-into.js'
 import { validateCanvasOutline } from './outline.js'
 import './canvas.css'
+
+/* `[] ` or `[ ] ` at the start of a line makes a subtask, as it makes a Task on
+   Work (`markdown.ts`), through the command the session binds. */
+const subtaskCommands = new WeakMap<object, (blockId: string) => void>()
+const subtaskShortcut = createExtension({
+  key: 'task-subtask-shortcut',
+  inputRules: [{
+    find: /^\[ ?\]\s$/,
+    replace({ editor }: { editor: unknown }) {
+      const command = subtaskCommands.get(editor as object)
+      if (command === undefined) return undefined
+      const id = (editor as typeof taskSchema.BlockNoteEditor).getTextCursorPosition().block.id
+      window.setTimeout(() => { command(id) }, 0)
+      return { type: 'paragraph', props: {} }
+    },
+  }],
+})
 
 /* A toggle heading opens by default and keeps its fold as the Folder canvas's
    toggles do (`openByDefault`, `toggle-<id>`), and Enter at the end of an open
@@ -104,7 +128,7 @@ const taskHeading = {
 
 export const taskSchema = BlockNoteSchema.create({
   blockSpecs: {
-    paragraph: defaultBlockSpecs.paragraph,
+    paragraph: { ...defaultBlockSpecs.paragraph, extensions: [...(defaultBlockSpecs.paragraph.extensions ?? []), subtaskShortcut] },
     heading: taskHeading,
     bulletListItem: defaultBlockSpecs.bulletListItem,
     numberedListItem: defaultBlockSpecs.numberedListItem,
@@ -113,10 +137,12 @@ export const taskSchema = BlockNoteSchema.create({
     callout: createCanvasCallout(),
     divider: defaultBlockSpecs.divider,
     codeBlock: defaultBlockSpecs.codeBlock,
-    image: defaultBlockSpecs.image,
-    file: defaultBlockSpecs.file,
-    audio: defaultBlockSpecs.audio,
-    video: defaultBlockSpecs.video,
+    // The page canvas's media blocks: the same empty row ("Add a file") and
+    // accepted types as a page, filled through the same `CanvasFilePanel`.
+    image: canvasSchema.blockSpecs.image,
+    file: canvasSchema.blockSpecs.file,
+    audio: canvasSchema.blockSpecs.audio,
+    video: canvasSchema.blockSpecs.video,
   },
   // Dana Link chips (#223): a Task document is a backlink source, and chips
   // are written back as href runs by `richRuns`, as on the Folder canvas.
@@ -258,6 +284,28 @@ function asPresentation(blocks: readonly TreeBlock[]): TreeBlock[] {
   return blocks.map((block) => ({ ...block, props: block.type === 'heading' ? { ...block.props, isToggleable: false } : block.props, children: asPresentation(block.children) }))
 }
 
+/** A subtask's title from a line: one line, its breaks as spaces. */
+const titleOf = (block: TaskBlock): string => richRuns(block as unknown as CanvasBlock).map((run) => run.text).join('').replace(/\s*\n\s*/g, ' ').trim()
+
+/**
+ * The checklist items `known` does not hold, lifted out as subtasks in
+ * document order (nested ones too, each keeping its tick), each replaced in place by its other
+ * children so no writing under it is lost. Empty items give no title.
+ */
+export interface NewSubtask { readonly title: string; readonly done: boolean }
+export function liftChecklists(blocks: readonly TaskBlock[], known: ReadonlySet<string>): { subtasks: NewSubtask[]; blocks: TaskBlock[] } {
+  const subtasks: NewSubtask[] = []
+  const visit = (list: readonly TaskBlock[]): TaskBlock[] => list.flatMap((block) => {
+    if (block.type === 'checkListItem' && !known.has(block.id)) {
+      const title = titleOf(block)
+      if (title) subtasks.push({ title, done: block.props.checked })
+      return visit(block.children)
+    }
+    return [{ ...block, children: visit(block.children) }]
+  })
+  return { subtasks, blocks: visit(blocks) }
+}
+
 function download(name: string, content: string): void {
   const url = URL.createObjectURL(new Blob([content], { type: 'application/json' }))
   const link = document.createElement('a')
@@ -277,9 +325,12 @@ function writeStorage(key: string, value: string | null): void {
 // The page's one hint, shown on an empty Work tab unfocused too, as on a page.
 const PLACEHOLDER = "Press '/' for commands"
 
-export default function TaskComposer({ taskId, folderId, notes }: {
+export default function TaskComposer({ taskId, folderId, notes, addSubtasks }: {
   readonly taskId: string
   readonly folderId: string | null
+  /** Appends these subtasks, or with none opens the subtask field; false when
+      they cannot all be taken (the cap), and then nothing is added. */
+  readonly addSubtasks?: (subtasks: readonly NewSubtask[]) => boolean
   /** The plain-text projection, shown while the document loads or if it cannot. */
   readonly notes: string | null
 }): React.JSX.Element {
@@ -306,15 +357,16 @@ export default function TaskComposer({ taskId, folderId, notes }: {
           </p>
         </div>
       : <CanvasErrorBoundary>
-          <TaskSession key={`${taskId}:${checkpoint?.epoch ?? 0}`} taskId={taskId} folderId={folderId} initialPage={page} latest={query.data ?? page} width={width}
+          <TaskSession key={`${taskId}:${checkpoint?.epoch ?? 0}`} taskId={taskId} folderId={folderId} addSubtasks={addSubtasks} initialPage={page} latest={query.data ?? page} width={width}
             onCheckpoint={(next) => setCheckpoint((old) => ({ page: next, epoch: (old?.epoch ?? 0) + 1 }))} />
         </CanvasErrorBoundary>}
   </div>
 }
 
-function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoint }: {
+function TaskSession({ taskId, folderId, addSubtasks, initialPage, latest, width, onCheckpoint }: {
   readonly taskId: string
   readonly folderId: string | null
+  readonly addSubtasks: ((subtasks: readonly NewSubtask[]) => boolean) | undefined
   readonly initialPage: PageView
   /** The query row, which follows the server; the editor's content comes from `initialPage`. */
   readonly latest: PageView
@@ -346,8 +398,35 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
       const kind: CanvasMediaKind = type === 'audio' || type === 'video' || type === 'file' ? type : 'image'
       return { props: await upload(kind, folderId, file) }
     },
+    pasteHandler: ({ editor: current, defaultPasteHandler }) => {
+      const known = new Set<string>()
+      current.forEachBlock((block) => { if (block.type === 'checkListItem') known.add(block.id); return true })
+      const handled = defaultPasteHandler()
+      const lifted = liftChecklists(current.document as unknown as TaskBlock[], known)
+      if (lifted.subtasks.length > 0 && lifted.subtasks.every(({ title }) => title.length <= TASK_TITLE_LIMIT) && addSubtasksRef.current?.(lifted.subtasks) === true) {
+        current.replaceBlocks(current.document, (lifted.blocks.length ? lifted.blocks : [{ type: 'paragraph' }]) as never)
+      }
+      return handled
+    },
   })
   editorRef.current = editor
+  const addSubtasksRef = useRef(addSubtasks)
+  addSubtasksRef.current = addSubtasks
+  /* The line becomes a subtask and leaves the writing (its nested blocks
+     stay); an empty line opens the subtask field instead. */
+  function subtaskFrom(blockId: string): void {
+    const block = editor.getBlock(blockId)
+    if (block === undefined || addSubtasks === undefined) return
+    const title = block.type === 'paragraph' ? titleOf(block) : ''
+    if (title.length > TASK_TITLE_LIMIT || !addSubtasks(title ? [{ title, done: false }] : [])) return
+    if (block.children.length === 0 && editor.document.length > 1) editor.removeBlocks([block])
+    else editor.updateBlock(block, { type: 'paragraph', content: '' })
+  }
+  useEffect(() => {
+    if (addSubtasks === undefined) return
+    subtaskCommands.set(editor, subtaskFrom)
+    return () => { subtaskCommands.delete(editor) }
+  })
   // The same gutter and block menu as the Folder canvas (`BlockSideMenu`).
   const menu = useMemo<BlockMenuModel>(() => ({
     targets: (block) => blockMenuTargets(editor as unknown as CanvasEditor, block),
@@ -476,7 +555,7 @@ function TaskSession({ taskId, folderId, initialPage, latest, width, onCheckpoin
         <FormattingToolbarController formattingToolbar={CanvasFormattingToolbar} />
         {folderId === null ? null : <FilePanelController filePanel={(props) => <CanvasFilePanel {...props} onUpload={(kind: CanvasMediaKind, file: File) => upload(kind, folderId, file)} />} />}
         <SideMenuController sideMenu={BlockSideMenu} floatingUIOptions={blockSidePosition} />
-        <CanvasSlashMenu editor={editor as unknown as CanvasEditor} context={{ surface: 'task', media: folderId !== null }} />
+        <CanvasSlashMenu editor={editor as unknown as CanvasEditor} context={{ surface: 'task', media: folderId !== null, ...(addSubtasks === undefined ? {} : { onCreateSubtask: () => { subtaskFrom(editor.getTextCursorPosition().block.id) } }) }} />
         <MentionSuggestions editor={editor as unknown as CanvasEditor} folderId={folderId} />
         <CanvasMarquee />
       </BlockNoteView>
