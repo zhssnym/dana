@@ -14,7 +14,8 @@ never offered on the owner's row. A member's line says what they may do (their
 Access), which is what an owner needs, not when they joined. Resend is shown
 only once it is allowed (24 hours after the last send); the server's 429 is the
 rule (r7: a disabled Resend was a dead control most of the time it was seen). The folder detail and
-the roster arrive as props from `FolderPage`; nothing here reads.
+the roster arrive as props from `FolderPage`. A member's name opens their details
+in the same sheet (`MemberDetails`, #209), which reads that one member itself.
 
 The region "Sharing panel" (9.1) sits inside the sheet, because a dialog cannot
 also be the region its controls are addressed within.
@@ -42,6 +43,7 @@ import { formatRelativeDay } from '../parts/format-dates.js'
 import { initialsOf, presenterToday } from '../parts/presenters.js'
 import { ConfirmDialog, useConfirm } from './task-rows.js'
 import { PersonFace } from '../components/person-face.js'
+import { MemberDetails } from './MemberDetails.js'
 
 /** 9.1's sections table for this page. */
 const SHARING_PANEL = 'Sharing panel'
@@ -97,6 +99,8 @@ export function FolderSharingPanel({
   const [pickedEmail, setPickedEmail] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(-1)
+  /* The member whose details replace the lists (#209), or null for the lists. */
+  const [openMember, setOpenMember] = useState<string | null>(null)
 
   const memberIds = new Set(folder.members.map((member) => member.user.id))
   const invitable = (connections ?? []).filter((entry) => !memberIds.has(entry.user.id))
@@ -170,6 +174,16 @@ export function FolderSharingPanel({
           </SheetHeader>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+            {openMember !== null ? (
+              <MemberDetails
+                folderId={folder.id}
+                userId={openMember}
+                onBack={() => {
+                  setOpenMember(null)
+                }}
+              />
+            ) : (
+            <>
             {mayAdd || mayInvite ? (
               <div className="mb-[var(--space-group)] flex gap-[var(--space-inline)] px-2">
                 <div className="relative min-w-0 flex-1">
@@ -279,12 +293,20 @@ export function FolderSharingPanel({
                       initials={initialsOf(name)}
                       image={member.user.avatar_url}
                     />
-                    <p className="min-w-0 flex-1 truncate text-sm text-foreground">
+                    {/* The row opens the member's details: Access,
+                        Responsibilities and their history (#209). */}
+                    <button
+                      type="button"
+                      className="min-w-0 flex-1 truncate rounded-sm text-left text-sm text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-ring"
+                      onClick={() => {
+                        setOpenMember(member.user.id)
+                      }}
+                    >
                       {name}{' '}
                       <span className="text-xs text-muted-foreground">
                         {member.is_owner ? 'Owner' : FOLDER_ACCESS_LABELS[member.access]}
                       </span>
-                    </p>
+                    </button>
                     {mayRemove && !member.is_owner ? (
                       <Button
                         variant="ghost"
@@ -345,6 +367,8 @@ export function FolderSharingPanel({
                   ))}
                 </ul>
               </div>
+            )}
+            </>
             )}
           </div>
         </section>
