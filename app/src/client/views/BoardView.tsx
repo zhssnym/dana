@@ -27,7 +27,7 @@ import { useMemo } from 'react'
 import { BoardQuickAdd, TaskBoard as PrototypeBoard } from '../components/task-board.js'
 import type { BoardColumn, BoardTask, BoardTone } from '../components/task-board.js'
 import { useCreateTask } from '../api/mutations.js'
-import { useSetTaskLabel } from '../api/labels.js'
+import { useWearFilterLabel } from '../api/labels.js'
 import { taskRowDisplay } from '../parts/presenters.js'
 import type { RowContext } from '../parts/presenters.js'
 import type { RowActions } from '../parts/useRowActions.js'
@@ -87,7 +87,7 @@ export function BoardView({
   readonly actions: RowActions
 }): React.JSX.Element {
   const create = useCreateTask()
-  const setLabel = useSetTaskLabel()
+  const wearFilterLabel = useWearFilterLabel(folderId)
 
   const ordered = useMemo((): Record<BoardStatus, readonly TaskCard[]> => {
     const rank = page === undefined ? new Map<string, number>() : pageRank(page)
@@ -115,7 +115,7 @@ export function BoardView({
       /* Under a Label filter a new card wears that label, or it would vanish
          the moment it was made. */
       onSuccess: (made) => {
-        if (label !== null) setLabel.mutate({ taskId: made.id, labelId: label, on: true })
+        wearFilterLabel(made.id, label)
       },
     })
   }

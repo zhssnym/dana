@@ -108,3 +108,20 @@ export function useSetTaskLabel(): UseMutationResult<TaskDetail, Error, TaskLabe
       }),
   })
 }
+
+/**
+ * Gives a task just made under a Label filter that label, so it does not
+ * vanish the moment it is made. Only a label still active in `folderId`'s
+ * scope (the viewer's own, and that page's) is put on: the filter can still
+ * name one archived since, which the server would refuse with a toast about a
+ * label nobody chose in this act.
+ */
+export function useWearFilterLabel(folderId: string | null): (taskId: string, labelId: string | null) => void {
+  const labels = useLabels(folderId)
+  const set = useSetTaskLabel()
+  return (taskId, labelId) => {
+    if (labelId === null) return
+    if (!(labels.data?.rows ?? []).some((label) => label.id === labelId && !label.archived)) return
+    set.mutate({ taskId, labelId, on: true })
+  }
+}

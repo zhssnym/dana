@@ -25,7 +25,7 @@ shared with the Board (`linear/stage.ts`).
 */
 import { useMemo, useState } from 'react'
 import { useAddStep, useUpdateTask } from '../api/mutations.js'
-import { useSetTaskLabel } from '../api/labels.js'
+import { useWearFilterLabel } from '../api/labels.js'
 import { useFolderCompletedTasks, mergeCompletedDays } from '../api/queries.js'
 import { uploadFile } from '../api/http.js'
 import { cn } from '../components/ui/utils.js'
@@ -161,7 +161,7 @@ export function LinearView(props: {
   readonly actions: RowActions
 }): React.JSX.Element {
   const { folderId, page, tasks, completed, label, showCompleted, today, context, actions } = props
-  const setLabel = useSetTaskLabel()
+  const wearFilterLabel = useWearFilterLabel(folderId)
   const update = useUpdateTask()
   const addSubtask = useAddStep()
   const writer = useLineWriter(folderId)
@@ -518,7 +518,7 @@ export function LinearView(props: {
                vanish the moment it was made. */
             const id = crypto.randomUUID()
             void writer.write({ op: 'add_step', title: text, id }).then(() => {
-              if (label !== null) setLabel.mutate({ taskId: id, labelId: label, on: true })
+              wearFilterLabel(id, label)
             })
           }
         }}

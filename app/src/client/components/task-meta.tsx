@@ -116,8 +116,19 @@ export function RowMeta({
 }) {
   const folderName = given.folder ? undefined : source.folder?.name.trim()
   const extras: ReactNode[] = []
+  /* Two or more other things on the line leave a narrow card no room for a
+     long label name beside them. */
+  const crowded =
+    [
+      (source.due !== undefined || source.starts !== undefined) && !given.due,
+      source.steps !== undefined,
+      source.recurrence !== undefined,
+      Boolean(folderName),
+      (source.blockedBy ?? 0) > 0 && !source.finished,
+      Boolean(source.assignee) && !given.assignee,
+    ].filter(Boolean).length >= 2
   if (source.labels !== undefined && source.labels.length > 0) {
-    extras.push(<RowLabels key="labels" labels={source.labels} />)
+    extras.push(<RowLabels key="labels" labels={source.labels} crowded={crowded} />)
   }
   if (folderName) {
     extras.push(

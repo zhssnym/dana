@@ -156,7 +156,7 @@ import { FolderTabs } from '../components/folder-facets.js'
 import type { CreateFacetInput, FacetCapabilities } from '../components/folder-facets.js'
 import { PageSection } from '../components/page/PageSection.js'
 import { labelsWorn } from '../views/filter.js'
-import { useSetTaskLabel } from '../api/labels.js'
+import { useWearFilterLabel } from '../api/labels.js'
 import { PLACES } from '../views/place-pages.js'
 import { BoardView } from '../views/BoardView.js'
 import { LinearView } from '../views/LinearView.js'
@@ -275,7 +275,7 @@ export function FolderPage({
   const actions = useRowActions()
   const confirm = useConfirm()
   const create = useCreateTask()
-  const setTaskLabel = useSetTaskLabel()
+  const wearFilterLabel = useWearFilterLabel(id)
   const remove = useDeleteFolder()
   const restore = useRestoreFolder()
   const patch = useRenameFolder()
@@ -369,8 +369,7 @@ export function FolderPage({
         /* Under a Label filter a new task wears that label, or it would
            vanish the moment it was made. */
         onSuccess: (made) => {
-          const label = place.filter.label
-          if (label !== null) setTaskLabel.mutate({ taskId: made.id, labelId: label, on: true })
+          wearFilterLabel(made.id, place.filter.label)
         },
       })
     },
