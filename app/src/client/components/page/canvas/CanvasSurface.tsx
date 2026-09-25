@@ -226,6 +226,17 @@ export function CanvasSurface({
     }
   }
 
+  /* Mod+K on selected text is the link field (BlockNote's own handler, on the
+     editor, has already opened it); it goes no further, so the app's search
+     shortcut on the document does not open over it. With no text selected,
+     Mod+K is search, as everywhere. */
+  const linkKey = (event: React.KeyboardEvent): void => {
+    if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'k' || event.shiftKey || event.altKey) return
+    if (editor.domElement === undefined || !editor.domElement.contains(event.target as Node)) return
+    if (editor.prosemirrorState.selection.empty || editor.getSelectedText() === '') return
+    event.stopPropagation()
+  }
+
   // Clicking below the last block writes on: an empty last line is reused,
   // otherwise a new one is made after everything. When the page ends in a
   // Section, the line goes inside it, after its last block: what is drawn
@@ -256,6 +267,7 @@ export function CanvasSurface({
     <BlockSelectionStyle editor={editor} scope={scope} />
     <div
       onKeyDownCapture={onKeyDownCapture}
+      onKeyDown={linkKey}
       className={`dana-writing-canvas ${scope} min-w-0`}
       style={placeholder === undefined ? undefined : ({ '--dana-canvas-placeholder': JSON.stringify(placeholder) } as React.CSSProperties)}
     >

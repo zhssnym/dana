@@ -138,6 +138,48 @@ function currentBlockId(view: EditorView): string | null {
   return null
 }
 
+/** The caret at the `edge` of block `id`'s text; false when the block has no text (a row). */
+function caretInto(view: EditorView, id: string, edge: 'start' | 'end'): boolean {
+  const { doc } = view.state
+  let at = -1
+  doc.descendants((node, pos) => {
+    if (at >= 0) return false
+    if (node.type.name === 'blockContainer' && node.attrs.id === id) { at = pos; return false }
+    return true
+  })
+  const content = at < 0 ? null : doc.nodeAt(at + 1)
+  if (content === null || !content.inlineContent) return false
+  view.dispatch(view.state.tr.setSelection(TextSelection.create(doc, edge === 'start' ? at + 2 : at + 2 + content.content.size)).scrollIntoView())
+  view.focus()
+  return true
+}
+
+/* The row the arrow keys are passing through (below), while it is the one
+   block picked: ↑/↓ from it go on into text as from any row. A pick made by
+   Esc, the handle or the marquee is not one, and keeps Notion's block keys. */
+const rowSteps = new WeakMap<object, string>()
+
+/**
+ * ↑/↓ from a row (a Task, sub-page, divider or image) to the visible block
+ * beside it, as from text: into its text at the near edge, or onto it when it
+ * is a row too. A row reached this way is picked as Esc picks a block (its
+ * tint, Enter opens it, Backspace removes it), not ProseMirror-selected:
+ * Chrome moves the DOM selection off a row's node view, ProseMirror reads it
+ * back at the next key, and the caret landed at the page's first line.
+ * Read in the window's capture phase, before ProseMirror sees the key.
+ */
+function stepFromRow(editor: AnyEditor, view: EditorView, id: string, direction: -1 | 1): void {
+  const next = neighbour(view, id, direction, false)?.getAttribute('data-id')
+  if (next === null || next === undefined) return
+  if (caretInto(view, next, direction === 1 ? 'start' : 'end')) { rowSteps.delete(editor); return }
+  setBlockSelection(editor, [next])
+  rowSteps.set(editor, next)
+  // Out of the text: Chrome would move the DOM selection off the row, and ProseMirror read it back. The picked row keeps the keys (`ownsKeys`).
+  view.dom.blur()
+  anchors.set(editor, next)
+  reveal(view, [next], 'first')
+}
+
 /** Tab / Shift-Tab for the whole selection, which stays selected. */
 function nestSelection(editor: AnyEditor, view: EditorView, ids: readonly string[], direction: 'in' | 'out', admits?: (document: readonly TreeBlock[]) => boolean): void {
   if (direction === 'in') {
@@ -311,6 +353,18 @@ export function useBlockSelectionKeys(editor: AnyEditor, actions: BlockSelection
           dropNodeSelection(view)
           return
         }
+        /* A row ProseMirror selected (↓ from text onto a Task): its keys are
+           read here, before ProseMirror, which would act at the page's first
+           line (`stepFromRow`). ↑/↓ step on; the rest are a picked block's:
+           Enter opens a Task or sub-page, Backspace/Delete remove it by the
+           surface's rule, a letter does nothing. */
+        const row = onHost && !mod && !event.altKey && view.state.selection instanceof NodeSelection && view.state.selection.node.isBlock ? currentBlockId(view) : null
+        if (row !== null) {
+          if ((key === 'ArrowUp' || key === 'ArrowDown') && !event.shiftKey) { stop(); stepFromRow(editor, view, row, key === 'ArrowUp' ? -1 : 1); return }
+          if (key === 'Enter' && !event.shiftKey) { stop(); editSelection(editor, view, [row]); return }
+          if (key === 'Backspace' || key === 'Delete') { stop(); actions.remove([row]); return }
+          if (key.length === 1) { stop(); return }
+        }
         // Only keys typed into the text itself (a field inside a block keeps its own).
         if (!onHost) return
         if (mod && key.toLowerCase() === 'a' && !event.shiftKey && !event.altKey) {
@@ -342,6 +396,9 @@ export function useBlockSelectionKeys(editor: AnyEditor, actions: BlockSelection
         if (ids.every((id) => editor.getBlock(id) !== undefined)) setBlockSelection(editor, ids)
         else clearBlockSelection(editor)
         return
+      }
+      if ((key === 'ArrowUp' || key === 'ArrowDown') && !mod && !event.altKey && !event.shiftKey && ids.length === 1 && rowSteps.get(editor) === ids[0]) {
+        stop(); stepFromRow(editor, view, ids[0]!, key === 'ArrowUp' ? -1 : 1); return
       }
       if ((key === 'ArrowUp' || key === 'ArrowDown') && !mod && !event.altKey) { stop(); arrowSelection(editor, view, ids, key === 'ArrowUp' ? -1 : 1, event.shiftKey); return }
       if (key === 'Enter' && !mod && !event.shiftKey && !event.altKey) { stop(); editSelection(editor, view, ids); return }

@@ -1,32 +1,7 @@
 import {
   BasicTextStyleButton, CreateLinkButton, FileCaptionButton, FileDownloadButton, FileReplaceButton,
-  FormattingToolbar, useBlockNoteEditor, useComponentsContext, useEditorState,
+  FormattingToolbar, useBlockNoteEditor, useEditorState,
 } from '@blocknote/react'
-
-import { X } from '../../../lib/icons.js'
-
-function ClearFormattingButton(): React.JSX.Element | null {
-  const editor = useBlockNoteEditor()
-  const components = useComponentsContext()!
-  const hasText = useEditorState({
-    editor,
-    selector: ({ editor: current }) => current.isEditable &&
-      (current.getSelection()?.blocks ?? [current.getTextCursorPosition().block])
-        .some((block) => current.schema.blockSchema[block.type]?.content === 'inline'),
-  })
-  if (!hasText) return null
-  return (
-    <components.FormattingToolbar.Button
-      label="Clear formatting"
-      mainTooltip="Clear formatting"
-      icon={<X size={16} />}
-      onClick={() => {
-        editor.focus()
-        editor.removeStyles({ bold: true, italic: true })
-      }}
-    />
-  )
-}
 
 function ImageCaptionButton(): React.JSX.Element | null {
   const editor = useBlockNoteEditor()
@@ -40,14 +15,15 @@ function ImageCaptionButton(): React.JSX.Element | null {
   return imageSelected ? <FileCaptionButton /> : null
 }
 
-/** Compose supported upstream controls; BlockNote owns selection and popover behavior. */
+/** Compose supported upstream controls; BlockNote owns selection and popover behavior.
+ * Text has bold, italic and a link. There is no "Clear formatting": its ✕ read
+ * as "close", and pressing B or I again undoes either. */
 export function CanvasFormattingToolbar(): React.JSX.Element {
   return (
     <FormattingToolbar>
       <BasicTextStyleButton basicTextStyle="bold" />
       <BasicTextStyleButton basicTextStyle="italic" />
       <CreateLinkButton />
-      <ClearFormattingButton />
       <ImageCaptionButton />
       <FileReplaceButton />
       <FileDownloadButton />
