@@ -122,6 +122,7 @@ export function FolderHeader({
           <textarea
             key={name}
             defaultValue={name}
+            data-page-title={name}
             aria-label="Page name"
             maxLength={100}
             rows={1}
@@ -159,6 +160,7 @@ export function FolderHeader({
         ) : (
           /* A heading, always, and the click is the rename (AC-226, AC-217). */
           <h1
+            data-page-title=""
             onClick={
               editable
                 ? (event) => {

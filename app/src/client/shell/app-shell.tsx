@@ -269,25 +269,43 @@ function useDefaultTimezone(stored: string | undefined): void {
 
 /*
 WCAG 2.4.2: a tab (and a screen reader arriving on a page) is named after the
-page's own heading, which every page already draws as its one `h1`. Watched
-rather than set per page, so a rename or a slow read renames the tab too.
+page's own name, the element marked `data-page-title` (the head's `h1`, or the
+rename field while it is open, which carries the name as the attribute's
+value). Canvas headings are `h1`s too, so "the first h1" is not the page's
+name. Watched rather than set per page, so a rename or a slow read renames the
+tab too.
  */
 function usePageTitle(region: HTMLElement | null): void {
   useEffect(() => {
     if (region === null) return undefined
     const name = (): void => {
-      const heading = region.querySelector('h1')?.textContent?.trim()
+      const marked = region.querySelector('[data-page-title]')
+      const heading = (marked?.getAttribute('data-page-title') || marked?.textContent || '').trim()
       const next = heading ? `${heading} – Dana` : 'Dana'
       if (document.title !== next) document.title = next
     }
     name()
     const watch = new MutationObserver(name)
-    watch.observe(region, { subtree: true, childList: true, characterData: true })
+    watch.observe(region, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['data-page-title'] })
     return () => {
       watch.disconnect()
       document.title = 'Dana'
     }
   }, [region])
+}
+
+/*
+The skip link moves focus to the page's name (or the scroll region on a page
+without one), made focusable only for that trip: a region left focusable took
+every click on blank space, and the Esc handlers that read "focus on nothing"
+as `document.body` (a Discussion thread's, the canvas's) stopped firing.
+ */
+function skipTo(region: HTMLElement | null): void {
+  const target = region?.querySelector<HTMLElement>('h1[data-page-title]') ?? region
+  if (target === null || target === undefined) return
+  target.setAttribute('tabindex', '-1')
+  target.addEventListener('blur', () => { target.removeAttribute('tabindex') }, { once: true })
+  target.focus()
 }
 
 export function AppShell(): React.JSX.Element {
@@ -473,9 +491,9 @@ export function AppShell(): React.JSX.Element {
           href="#dana-content"
           onClick={(event) => {
             event.preventDefault()
-            content?.focus()
+            skipTo(content)
           }}
-          className="fixed top-2 left-2 z-50 rounded-md bg-background px-2 py-1 text-sm text-foreground shadow-md not-focus:sr-only"
+          className="fixed top-2 left-2 z-50 rounded-md bg-background px-2 py-1 text-sm text-foreground not-focus:sr-only"
         >
           Skip to content
         </a>
@@ -543,8 +561,6 @@ export function AppShell(): React.JSX.Element {
             <div
               ref={setContent}
               id="dana-content"
-              tabIndex={-1}
-              data-focus="self"
               data-shell-scroll
               className="min-h-0 flex-1 overflow-y-auto"
             >

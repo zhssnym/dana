@@ -210,7 +210,10 @@ export function CanvasSurface({
     const parent = editor.getParentBlock(block.id)
     const inList = LIST_TYPES.has(block.type) && parent !== undefined && !isSectionHeading(parent)
     if (event.key === 'Tab' && !event.shiftKey) {
-      if (block.type === 'codeBlock') return
+      // Tab nests only when typed into the text itself. On a link or chip
+      // inside the page (its own focus stop) it is the browser's Tab, so the
+      // keys can always walk on past the canvas.
+      if (event.target !== editor.domElement || block.type === 'codeBlock') return
       const next = simulateNest(editor.document as unknown as TreeBlock[], block.id)
       if (next === null || !admits(next)) stop()
     } else if (event.key === 'Enter' && !event.shiftKey) {
